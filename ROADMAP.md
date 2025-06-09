@@ -10,6 +10,10 @@ where we're going...
 - [ ] Index building stats
 - [ ] Clean up workflow and scripts
 
+Chunk Data
+- [ ] Need start and end line numbers
+- [ ] Json enhance
+
 Indexing
 - [ ] Better YAML parsing
 - [ ] Go deeper into JS AST to expose more
