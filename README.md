@@ -173,11 +173,10 @@ Provides a CLI utility for **agent-friendly semantic search** of your repo.
 
 --- 
 
-### 😻 How can I help
-- Detailed issues are good
-- Pull requests are better
-- Money is best
-  
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/E1E71G7Y0T)
+<h3 align=center>😻 How can I help</h3>
+<p align=center>Detailed issues are good.<br />
+Pull requests are better.<br />
+Money is best<br /></p>
+<p align=center><a href="https://ko-fi.com/E1E71G7Y0T"><img src="https://ko-fi.com/img/githubbutton_sm.svg"></a></p>
 
-*Give your agents better shoes. 🏃‍♂️👟*
+<p align=center><i>Give your agents better shoes. 🏃‍♂️👟</i></p>
