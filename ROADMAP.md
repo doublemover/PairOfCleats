@@ -24,7 +24,8 @@ Indexing
   - [ ] C/C++/ObjC
   - [ ] Swift
   - [ ] Rust
-- [ ] Look into consuming missed queries for synonym maps / 'must' chunks if hits 
+- [ ] Look into consuming missed queries for synonym maps / 'must' chunks if hits
+- [ ] Specify additional branches
 
 Benchmarking
 - [ ] Need to look into trying out minimum - maximum estimated viable chunk size and dimension configurations using terms from search history and compare results against metrics
