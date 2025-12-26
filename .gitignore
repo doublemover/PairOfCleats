@@ -1,0 +1,7 @@
+node_modules/
+index-sqlite/
+index-code/
+index-prose/
+*.db
+*.db-shm
+*.db-wal

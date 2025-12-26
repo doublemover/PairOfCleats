@@ -34,6 +34,8 @@ import Snowball from 'snowball-stemmers';
 import seedrandom from 'seedrandom';
 import strip from 'strip-comments';
 import { pipeline } from '@xenova/transformers';
+import ignore from 'ignore';
+import { getDictionaryPaths, getDictConfig, getIndexDir, loadUserConfig } from './tools/dict-utils.js';
 
 import * as acorn from 'acorn';
 import * as esprima from 'esprima';
@@ -43,21 +45,6 @@ import * as varint from 'varint';
 import simpleGit from 'simple-git';
 import escomplex from 'escomplex';
 import { ESLint } from 'eslint';
-
-
-// --- DICTIONARY LOADER ---
-import readline from 'node:readline';
-import { createReadStream } from 'node:fs';
-
-const yourDict = new Set();
-const rl = readline.createInterface({
-  input: createReadStream('tools/words_alpha.txt'),
-  crlfDelay: Infinity
-});
-
-for await (const line of rl) {
-  yourDict.add(line.trim());
-}
 
 const argv = minimist(process.argv.slice(2), {
   default: { mode: 'all', chunk: 600, dims: 512, threads: os.cpus().length }
@@ -96,6 +83,8 @@ const SKIP_FILES = new Set([
   '.gitignore',
   '.jshintconfig',
   '.jshintignore',
+  '.pairofcleats.json',
+  '.pairofcleatsignore',
   '.repometrics',
   '.scannedfiles',
   '.searchhistory',
@@ -124,12 +113,63 @@ const SKIP_FILES = new Set([
   'AGENTS.md'
 ]);
 
+const userConfig = loadUserConfig(ROOT);
+const dictConfig = getDictConfig(ROOT, userConfig);
+const dictionaryPaths = await getDictionaryPaths(ROOT, dictConfig);
+const yourDict = new Set();
+for (const dictFile of dictionaryPaths) {
+  try {
+    const contents = await fs.readFile(dictFile, 'utf8');
+    for (const line of contents.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed) yourDict.add(trimmed);
+    }
+  } catch {}
+}
+const dictSummary = { files: dictionaryPaths.length, words: yourDict.size };
+
+const config = {
+  useDefaultSkips: userConfig.useDefaultSkips !== false,
+  useGitignore: userConfig.useGitignore !== false,
+  usePairofcleatsIgnore: userConfig.usePairofcleatsIgnore !== false,
+  ignoreFiles: Array.isArray(userConfig.ignoreFiles) ? userConfig.ignoreFiles : [],
+  extraIgnore: Array.isArray(userConfig.extraIgnore) ? userConfig.extraIgnore : []
+};
+
+const ignoreMatcher = ignore();
+if (config.useDefaultSkips) {
+  const defaultIgnorePatterns = [
+    ...Array.from(SKIP_DIRS, (dir) => `${dir}/`),
+    ...Array.from(SKIP_FILES)
+  ];
+  ignoreMatcher.add(defaultIgnorePatterns);
+}
+
+const ignoreFiles = [];
+if (config.useGitignore) ignoreFiles.push('.gitignore');
+if (config.usePairofcleatsIgnore) ignoreFiles.push('.pairofcleatsignore');
+ignoreFiles.push(...config.ignoreFiles);
+
+for (const ignoreFile of ignoreFiles) {
+  try {
+    const ignorePath = path.join(ROOT, ignoreFile);
+    const contents = await fs.readFile(ignorePath, 'utf8');
+    ignoreMatcher.add(contents);
+  } catch {}
+}
+if (config.extraIgnore.length) {
+  ignoreMatcher.add(config.extraIgnore);
+}
+
 const EXTS_PROSE = new Set([
   '.md', '.txt'
 ]);
 
+const JS_EXTS = new Set(['.js', '.mjs', '.cjs']);
+const isJsLike = (ext) => JS_EXTS.has(ext);
+
 const EXTS_CODE = new Set([
-  '.js', '.yml', '.sh', '.html',
+  '.js', '.mjs', '.cjs', '.yml', '.sh', '.html',
   // Optionally:
   // '.css', '.json'
 ]);
@@ -240,7 +280,11 @@ function showProgress(step, i, total) {
 function log(msg) {
   process.stderr.write('\n' + msg + '\n');
 }
-
+if (dictSummary.files) {
+  log(`Wordlists enabled: ${dictSummary.files} file(s), ${dictSummary.words.toLocaleString()} words for identifier splitting.`);
+} else {
+  log('Wordlists disabled: no dictionary files found; identifier splitting will be limited.');
+}
 
 // --- HEADLINE GENERATOR ---
 function getHeadline(chunk, tokens, n = 7, tokenMaxLen = 30, headlineMaxLen = 120) {
@@ -310,90 +354,118 @@ function smartChunk({ text, ext, mode }) {
     if (!chunks.length) return [{ start: 0, end: text.length, name: 'root', kind: 'Section', meta: {} }];
     return chunks;
   }
-  if (mode === 'code' && (ext === '.js' || ext === '.ts')) {
+  if (mode === 'code' && isJsLike(ext)) {
     try {
       const ast = acorn.parse(text, { ecmaVersion: 'latest', locations: true, sourceType: 'module' });
       const chunks = [];
+      const locMeta = (node) => node && node.loc ? {
+        startLine: node.loc.start.line,
+        endLine: node.loc.end.line
+      } : {};
+      const keyName = (key) => {
+        if (!key) return 'anonymous';
+        if (key.type === 'Identifier') return key.name;
+        if (key.type === 'Literal') return String(key.value);
+        if (key.type === 'PrivateIdentifier') return `#${key.name}`;
+        return 'computed';
+      };
+      const addChunk = (node, name, kind) => {
+        if (!node) return;
+        chunks.push({
+          start: node.start,
+          end: node.end,
+          name: name || 'anonymous',
+          kind,
+          meta: { ...locMeta(node) }
+        });
+      };
+
+      const addFunctionFromDeclarator = (decl, kind) => {
+        if (!decl || !decl.init) return;
+        const init = decl.init;
+        if (init.type !== 'FunctionExpression' && init.type !== 'ArrowFunctionExpression') return;
+        const name = decl.id && decl.id.name ? decl.id.name : 'anonymous';
+        const derivedKind = init.type === 'FunctionExpression' ? 'FunctionExpression' : 'ArrowFunction';
+        addChunk(decl, name, kind || derivedKind);
+      };
+
+      const addFunctionFromAssignment = (expr, kind) => {
+        if (!expr || expr.type !== 'AssignmentExpression') return;
+        const right = expr.right;
+        if (!right || (right.type !== 'FunctionExpression' && right.type !== 'ArrowFunctionExpression')) return;
+        let name = 'anonymous';
+        if (expr.left && expr.left.type === 'MemberExpression') {
+          const obj = expr.left.object?.name || '';
+          const prop = keyName(expr.left.property);
+          name = obj ? `${obj}.${prop}` : prop;
+        }
+        addChunk(expr, name, kind);
+      };
+
       for (const node of ast.body) {
         // FunctionDeclaration
         if (node.type === 'FunctionDeclaration') {
-          const start = node.start;
-          const end = node.end;
-          const name = node.id ? node.id.name : 'anonymous';
-          chunks.push({
-            start, end, name,
-            kind: 'FunctionDeclaration',
-            meta: {}
-          });
+          addChunk(node, node.id ? node.id.name : 'anonymous', 'FunctionDeclaration');
         }
 
         // ClassDeclaration + MethodDefinitions inside
         if (node.type === 'ClassDeclaration') {
-          const start = node.start;
-          const end = node.end;
-          const name = node.id ? node.id.name : 'anonymous';
-          chunks.push({
-            start, end, name,
-            kind: 'ClassDeclaration',
-            meta: {}
-          });
+          const className = node.id ? node.id.name : 'anonymous';
+          addChunk(node, className, 'ClassDeclaration');
           if (node.body && node.body.body) {
             for (const method of node.body.body) {
               if (method.type === 'MethodDefinition' && method.key && method.value) {
-                chunks.push({
-                  start: method.start,
-                  end: method.end,
-                  name: `${name}.${method.key.name || 'anonymous'}`,
-                  kind: 'MethodDefinition',
-                  meta: {}
-                });
+                addChunk(method, `${className}.${keyName(method.key)}`, 'MethodDefinition');
+              }
+              if (method.type === 'PropertyDefinition' && method.key && method.value &&
+                (method.value.type === 'FunctionExpression' || method.value.type === 'ArrowFunctionExpression')) {
+                addChunk(method, `${className}.${keyName(method.key)}`, 'ClassPropertyFunction');
               }
             }
           }
         }
 
-        // ExportNamedDeclaration → FunctionDeclaration or VariableDeclaration
-        if (node.type === 'ExportNamedDeclaration' && node.declaration) {
+        // ExportNamedDeclaration → FunctionDeclaration or VariableDeclaration  
+        if (node.type === 'ExportNamedDeclaration' && node.declaration) {       
           if (node.declaration.type === 'FunctionDeclaration') {
-            const start = node.declaration.start;
-            const end = node.declaration.end;
-            const name = node.declaration.id ? node.declaration.id.name : 'anonymous';
-            chunks.push({
-              start, end, name,
-              kind: 'ExportedFunction',
-              meta: {}
-            });
+            addChunk(node.declaration, node.declaration.id ? node.declaration.id.name : 'anonymous', 'ExportedFunction');
           }
           if (node.declaration.type === 'VariableDeclaration') {
             for (const decl of node.declaration.declarations) {
-              if (decl.init && decl.init.type === 'ArrowFunctionExpression') {
-                const start = decl.start;
-                const end = decl.end;
-                const name = decl.id.name;
-                chunks.push({
-                  start, end, name,
-                  kind: 'ExportedArrowFunction',
-                  meta: {}
-                });
-              }
+              const init = decl.init;
+              if (!init) continue;
+              const exportKind = init.type === 'FunctionExpression'
+                ? 'ExportedFunctionExpression'
+                : 'ExportedArrowFunction';
+              addFunctionFromDeclarator(decl, exportKind);
             }
+          }
+          if (node.declaration.type === 'ClassDeclaration') {
+            addChunk(node.declaration, node.declaration.id ? node.declaration.id.name : 'anonymous', 'ExportedClass');
           }
         }
 
         // VariableDeclaration → ArrowFunctionExpression
         if (node.type === 'VariableDeclaration') {
           for (const decl of node.declarations) {
-            if (decl.init && decl.init.type === 'ArrowFunctionExpression') {
-              const start = decl.start;
-              const end = decl.end;
-              const name = decl.id.name;
-              chunks.push({
-                start, end, name,
-                kind: 'ArrowFunction',
-                meta: {}
-              });
-            }
+            addFunctionFromDeclarator(decl);
           }
+        }
+
+        // ExportDefaultDeclaration → function/class/expression
+        if (node.type === 'ExportDefaultDeclaration' && node.declaration) {
+          const decl = node.declaration;
+          if (decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') {
+            const name = decl.id ? decl.id.name : 'default';
+            addChunk(decl, name, `ExportDefault${decl.type}`);
+          } else if (decl.type === 'FunctionExpression' || decl.type === 'ArrowFunctionExpression') {
+            addChunk(decl, 'default', 'ExportDefaultFunction');
+          }
+        }
+
+        // module.exports / exports.* = function
+        if (node.type === 'ExpressionStatement' && node.expression) {
+          addFunctionFromAssignment(node.expression, 'ExportedAssignmentFunction');
         }
       }
 
@@ -501,48 +573,185 @@ async function getGitMeta(file, start = 0, end = 0) {
 
 // --- CROSS-FILE CODE RELATIONSHIPS ---
 function buildCodeRelations(text, relPath, allImports) {
-  let imports = [], exports = [], calls = [], usages = [];
-  try {
-    const ast = acorn.parse(text, { ecmaVersion: 'latest', sourceType: 'module' });
-    for (const node of ast.body) {
-      if (node.type === 'ImportDeclaration') {
-        imports.push(node.source.value);
-        node.specifiers.forEach(s => {
-          if (s.local && s.local.name) usages.push(s.local.name);
-        });
-      }
-      if (node.type === 'ExportNamedDeclaration' && node.declaration) {
-        if (node.declaration.id) exports.push(node.declaration.id.name);
-        else if (node.declaration.declarations) {
-          node.declaration.declarations.forEach(d => d.id && exports.push(d.id.name));
+  const imports = new Set();
+  const exports = new Set();
+  const calls = [];
+  const usages = new Set();
+  const functionStack = [];
+  const classStack = [];
+
+  const keyName = (key) => {
+    if (!key) return 'anonymous';
+    if (key.type === 'Identifier') return key.name;
+    if (key.type === 'Literal') return String(key.value);
+    if (key.type === 'PrivateIdentifier') return `#${key.name}`;
+    return 'computed';
+  };
+
+  const getMemberName = (node) => {
+    if (!node) return null;
+    if (node.type === 'Identifier') return node.name;
+    if (node.type === 'ThisExpression') return 'this';
+    if (node.type === 'Super') return 'super';
+    if (node.type === 'MemberExpression') {
+      const obj = getMemberName(node.object);
+      const prop = node.computed
+        ? (node.property?.type === 'Literal' ? String(node.property.value) : null)
+        : (node.property?.name || null);
+      if (obj && prop) return `${obj}.${prop}`;
+      return obj || prop;
+    }
+    return null;
+  };
+
+  const getCalleeName = (callee) => {
+    if (!callee) return null;
+    if (callee.type === 'ChainExpression') return getCalleeName(callee.expression);
+    if (callee.type === 'Identifier') return callee.name;
+    if (callee.type === 'MemberExpression') return getMemberName(callee);
+    if (callee.type === 'Super') return 'super';
+    return null;
+  };
+
+  const inferFunctionName = (node, parent) => {
+    if (node.id && node.id.name) return node.id.name;
+    if (parent && parent.type === 'VariableDeclarator' && parent.id?.name) return parent.id.name;
+    if (parent && parent.type === 'AssignmentExpression') {
+      const left = getMemberName(parent.left);
+      if (left) return left;
+    }
+    if (parent && (parent.type === 'Property' || parent.type === 'PropertyDefinition') && parent.key) {
+      const propName = keyName(parent.key);
+      const className = classStack[classStack.length - 1];
+      return className ? `${className}.${propName}` : propName;
+    }
+    if (parent && parent.type === 'MethodDefinition' && parent.key) {
+      const propName = keyName(parent.key);
+      const className = classStack[classStack.length - 1];
+      return className ? `${className}.${propName}` : propName;
+    }
+    return '(anonymous)';
+  };
+
+  const isFunctionNode = (node) =>
+    node.type === 'FunctionDeclaration' ||
+    node.type === 'FunctionExpression' ||
+    node.type === 'ArrowFunctionExpression';
+
+  const walk = (node, parent) => {
+    if (!node) return;
+    if (Array.isArray(node)) {
+      node.forEach((child) => walk(child, parent));
+      return;
+    }
+    if (typeof node !== 'object') return;
+
+    if (node.type === 'ImportDeclaration') {
+      if (node.source?.value) imports.add(node.source.value);
+      node.specifiers?.forEach((s) => {
+        if (s.local?.name) usages.add(s.local.name);
+      });
+    }
+
+    if (node.type === 'ImportExpression' && node.source?.type === 'Literal') {
+      if (typeof node.source.value === 'string') imports.add(node.source.value);
+    }
+
+    if (node.type === 'ExportAllDeclaration') {
+      exports.add('*');
+    }
+
+    if (node.type === 'ExportNamedDeclaration') {
+      if (node.declaration) {
+        if (node.declaration.id?.name) exports.add(node.declaration.id.name);
+        if (node.declaration.declarations) {
+          node.declaration.declarations.forEach((d) => d.id?.name && exports.add(d.id.name));
         }
       }
-      // Function/Call graph
-      if (node.type === 'FunctionDeclaration' && node.id) {
-        function walk(node, parentFn) {
-          if (!node) return;
-          if (node.type === 'CallExpression' && node.callee && node.callee.name) {
-            calls.push([parentFn, node.callee.name]);
-          }
-          for (let k in node) {
-            if (node[k] && typeof node[k] === 'object') walk(node[k], parentFn);
-          }
+      node.specifiers?.forEach((s) => {
+        if (s.exported?.name) exports.add(s.exported.name);
+      });
+    }
+
+    if (node.type === 'ExportDefaultDeclaration') {
+      if (node.declaration?.id?.name) exports.add(node.declaration.id.name);
+      else exports.add('default');
+    }
+
+    if (node.type === 'AssignmentExpression') {
+      const left = getMemberName(node.left);
+      if (left === 'module.exports') exports.add('default');
+      if (left && left.startsWith('exports.')) exports.add(left.slice('exports.'.length));
+    }
+
+    if (node.type === 'CallExpression') {
+      const calleeName = getCalleeName(node.callee);
+      const currentFn = functionStack.length ? functionStack[functionStack.length - 1] : '(module)';
+      if (calleeName) calls.push([currentFn, calleeName]);
+
+      if (node.callee?.type === 'Identifier' && node.callee.name === 'require') {
+        const arg = node.arguments?.[0];
+        if (arg && arg.type === 'Literal' && typeof arg.value === 'string') {
+          imports.add(arg.value);
         }
-        walk(node.body, node.id.name);
       }
     }
+
+    if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+      const className = node.id?.name || 'anonymous';
+      classStack.push(className);
+      walk(node.body, node);
+      classStack.pop();
+      return;
+    }
+
+    if (node.type === 'MethodDefinition') {
+      const className = classStack[classStack.length - 1];
+      const methodName = className ? `${className}.${keyName(node.key)}` : keyName(node.key);
+      functionStack.push(methodName);
+      walk(node.value, node);
+      functionStack.pop();
+      return;
+    }
+
+    if (isFunctionNode(node)) {
+      const fnName = inferFunctionName(node, parent);
+      functionStack.push(fnName);
+      walk(node.body, node);
+      functionStack.pop();
+      return;
+    }
+
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'start' || key === 'end') continue;
+      const child = node[key];
+      if (child && typeof child === 'object') {
+        walk(child, node);
+      }
+    }
+  };
+
+  try {
+    const ast = acorn.parse(text, { ecmaVersion: 'latest', sourceType: 'module' });
+    walk(ast, null);
     // Usages: look for identifiers
     const tokens = esprima.tokenize(text, { tolerant: true });
     tokens.forEach(t => {
-      if (t.type === 'Identifier') usages.push(t.value);
+      if (t.type === 'Identifier') usages.add(t.value);
     });
   } catch {}
   // Cross-file import links
-  const importLinks = imports
+  const importLinks = Array.from(imports)
     .map(i => allImports[i])
     .filter(x => !!x)
     .flat();
-  return { imports, exports, calls, usages, importLinks };
+  return {
+    imports: Array.from(imports),
+    exports: Array.from(exports),
+    calls,
+    usages: Array.from(usages),
+    importLinks
+  };
 }
 
 // --- DOCSTRING/TYPE EXTRACTION ---
@@ -596,6 +805,45 @@ function extractNgrams(tokens, nStart = 2, nEnd = 4) {
   return grams;
 }
 
+function collectImports(text) {
+  const imports = new Set();
+  const walk = (node) => {
+    if (!node) return;
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+    if (typeof node !== 'object') return;
+
+    if (node.type === 'ImportDeclaration' && node.source?.value) {
+      imports.add(node.source.value);
+    }
+    if (node.type === 'ImportExpression' && node.source?.type === 'Literal') {
+      if (typeof node.source.value === 'string') imports.add(node.source.value);
+    }
+    if (node.type === 'CallExpression' && node.callee?.type === 'Identifier' &&
+      node.callee.name === 'require') {
+      const arg = node.arguments?.[0];
+      if (arg && arg.type === 'Literal' && typeof arg.value === 'string') {
+        imports.add(arg.value);
+      }
+    }
+
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'start' || key === 'end') continue;
+      const child = node[key];
+      if (child && typeof child === 'object') walk(child);
+    }
+  };
+
+  try {
+    const ast = acorn.parse(text, { ecmaVersion: 'latest', sourceType: 'module' });
+    walk(ast);
+  } catch {}
+
+  return Array.from(imports);
+}
+
 // --- EMBEDDING ---
 async function getChunkEmbedding(text) {
   const embedder = await embedderPromise;
@@ -604,6 +852,7 @@ async function getChunkEmbedding(text) {
 }
 
 function splitWordsWithDict(token, dict) {
+  if (!dict || dict.size === 0) return [token];
   const result = [];
   let i = 0;
   while (i < token.length) {
@@ -626,15 +875,42 @@ function splitWordsWithDict(token, dict) {
   return result;
 }
 
+function buildLineIndex(text) {
+  const index = [0];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '\n') index.push(i + 1);
+  }
+  return index;
+}
+
+function offsetToLine(lineIndex, offset) {
+  let lo = 0;
+  let hi = lineIndex.length - 1;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (lineIndex[mid] <= offset) {
+      if (mid === lineIndex.length - 1 || lineIndex[mid + 1] > offset) {
+        return mid + 1;
+      }
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return 1;
+}
+
 // --- MAIN INDEXER ---
 async function build(mode) {
-  const OUT = `index-${mode}`;
+  const OUT = getIndexDir(ROOT, mode, userConfig);
   await fs.mkdir(OUT, { recursive: true });
   log(`\n📄  Scanning ${mode} …`);
 
   const df = new Map();
   const wordFreq = new Map();
   const chunks = [];
+  const tokenPostings = new Map();
+  const docLengths = [];
   const triPost = new Map();
   const phrasePost = new Map();
   const scannedFiles = [];
@@ -643,20 +919,22 @@ async function build(mode) {
   const allImports = {}; // map: import path → rel files
   const complexityCache = new Map();
   const lintCache = new Map();
+  const toPosix = (p) => p.split(path.sep).join('/');
 
   // Discover files
   log('Discovering files...');
   async function discoverFiles(dir, arr = []) {
     for (const e of await fs.readdir(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name);
+      const relPosix = toPosix(path.relative(ROOT, p));
+      const ignoreKey = e.isDirectory() ? `${relPosix}/` : relPosix;
+      if (ignoreMatcher.ignores(ignoreKey)) {
+        skippedFiles.push(p);
+        continue;
+      }
       if (e.isDirectory()) {
-        if (SKIP_DIRS.has(e.name)) {
-          skippedFiles.push(p);
-        } else {
-          await discoverFiles(p, arr);
-        }
-      } else if (!SKIP_FILES.has(e.name) &&
-        ((mode === 'prose' && EXTS_PROSE.has(fileExt(p))) ||
+        await discoverFiles(p, arr);
+      } else if (((mode === 'prose' && EXTS_PROSE.has(fileExt(p))) ||
           (mode === 'code' && EXTS_CODE.has(fileExt(p))))) {
         arr.push(p);
       } else {
@@ -684,17 +962,12 @@ async function build(mode) {
       } catch {
         return; // skip broken file
       }
-      if (fileExt(rel) === '.js' || fileExt(rel) === '.ts') {
-        try {
-          const ast = acorn.parse(text, { ecmaVersion: 'latest', sourceType: 'module' });
-          for (const node of ast.body) {
-            if (node.type === 'ImportDeclaration') {
-              const mod = node.source.value;
-              if (!allImports[mod]) allImports[mod] = [];
-              allImports[mod].push(rel);
-            }
-          }
-        } catch {}
+      if (isJsLike(fileExt(rel))) {
+        const imports = collectImports(text);
+        for (const mod of imports) {
+          if (!allImports[mod]) allImports[mod] = [];
+          allImports[mod].push(rel);
+        }
       }
       processed++;
       showProgress('Imports', processed, allFiles.length);
@@ -727,6 +1000,10 @@ async function build(mode) {
     let text = (await fs.readFile(abs, 'utf8')).normalize('NFKD');
     const ext = fileExt(abs);
     const rel = path.relative(ROOT, abs);
+    const lineIndex = buildLineIndex(text);
+    const fileRelations = (isJsLike(ext) && mode === 'code')
+      ? buildCodeRelations(text, rel, allImports)
+      : null;
     const sc = smartChunk({ text, ext, mode });
     // For each chunk:
     for (let ci = 0; ci < sc.length; ++ci) {
@@ -783,13 +1060,19 @@ async function build(mode) {
       };
       // Code relationships & analysis (JS/TS only)
       let codeRelations = {}, docmeta = {};
-      if ((ext === '.js' || ext === '.ts') && mode === 'code') {
-        codeRelations = buildCodeRelations(ctext, rel, allImports);
-        docmeta = extractDocMeta(ctext, c);
+      if (isJsLike(ext) && mode === 'code') {
+        if (fileRelations) {
+          const callsForChunk = fileRelations.calls.filter(([caller]) => caller && caller === c.name);
+          codeRelations = {
+            ...fileRelations,
+            calls: callsForChunk.length ? callsForChunk : fileRelations.calls
+          };
+        }
+        docmeta = extractDocMeta(text, c);
       }
       // Complexity/lint
       let complexity = {}, lint = [];
-      if ((ext === '.js' || ext === '.ts') && mode === 'code') {
+      if (isJsLike(ext) && mode === 'code') {
         if (!complexityCache.has(rel)) {
           const fullCode = text; // entire file text
           const compResult = await analyzeComplexity(fullCode, rel);
@@ -845,13 +1128,29 @@ async function build(mode) {
         }
       }
 
+      const startLine = c.meta?.startLine || offsetToLine(lineIndex, c.start);
+      const endLine = c.meta?.endLine || offsetToLine(lineIndex, c.end);
+
+      const chunkId = chunks.length;
+      docLengths[chunkId] = tokens.length;
+      for (const [tok, count] of Object.entries(freq)) {
+        let postings = tokenPostings.get(tok);
+        if (!postings) {
+          postings = [];
+          tokenPostings.set(tok, postings);
+        }
+        postings.push([chunkId, count]);
+      }
+
       // Compose chunk meta
       chunks.push({
-        id: chunks.length,
+        id: chunkId,
         file: rel,
         ext,
         start: c.start,
         end: c.end,
+        startLine,
+        endLine,
         kind: c.kind,
         name: c.name,
         tokens,
@@ -939,9 +1238,15 @@ async function build(mode) {
 
   // Phrase and char n-gram indexes
   const phraseVocab = Array.from(phrasePost.keys());
-  const phrasePostings = phraseVocab.map(k => Array.from(phrasePost.get(k)));
+  const phrasePostings = phraseVocab.map(k => Array.from(phrasePost.get(k)));   
   const chargramVocab = Array.from(triPost.keys());
-  const chargramPostings = chargramVocab.map(k => Array.from(triPost.get(k)));
+  const chargramPostings = chargramVocab.map(k => Array.from(triPost.get(k)));  
+
+  const tokenVocab = Array.from(tokenPostings.keys());
+  const tokenPostingsList = tokenVocab.map((t) => tokenPostings.get(t));
+  const avgDocLen = docLengths.length
+    ? docLengths.reduce((sum, len) => sum + len, 0) / docLengths.length
+    : 0;
 
   // MinHash index (signatures)
   const minhashSigs = chunks.map(c => c.minhashSig);
@@ -953,12 +1258,27 @@ async function build(mode) {
     file: c.file,
     start: c.start,
     end: c.end,
+    startLine: c.startLine,
+    endLine: c.endLine,
+    ext: c.ext,
     kind: c.kind,
     name: c.name,
     weight: c.weight,
     headline: c.headline,
     preContext: c.preContext,
     postContext: c.postContext,
+    tokens: c.tokens,
+    ngrams: c.ngrams,
+    codeRelations: c.codeRelations,
+    docmeta: c.docmeta,
+    stats: c.stats,
+    complexity: c.complexity,
+    lint: c.lint,
+    externalDocs: c.externalDocs,
+    last_modified: c.last_modified,
+    last_author: c.last_author,
+    churn: c.churn,
+    chunk_authors: c.chunk_authors
   }));
 
   // Write scanned + skipped files logs
@@ -994,6 +1314,16 @@ async function build(mode) {
     fs.writeFile(
       path.join(OUT, 'minhash_signatures.json'),
       JSON.stringify({ signatures: minhashSigs }) + '\n'
+    ),
+    fs.writeFile(
+      path.join(OUT, 'token_postings.json'),
+      JSON.stringify({
+        vocab: tokenVocab,
+        postings: tokenPostingsList,
+        docLengths,
+        avgDocLen,
+        totalDocs: docLengths.length
+      }) + '\n'
     )
   ]);
   log(

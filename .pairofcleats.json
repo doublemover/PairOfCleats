@@ -1,0 +1,23 @@
+{
+  "dictionary": {
+    "languages": [
+      "en"
+    ],
+    "includeSlang": true,
+    "enableRepoDictionary": false,
+    "dir": "",
+    "files": [],
+    "slangDirs": [],
+    "slangFiles": []
+  },
+  "cache": {
+    "root": ""
+  },
+  "sqlite": {
+    "use": true,
+    "dbPath": ""
+  },
+  "search": {
+    "annDefault": true
+  }
+}

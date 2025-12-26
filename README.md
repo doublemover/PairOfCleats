@@ -32,12 +32,14 @@ I figured it would be helpful if they were able to query the codebase and docume
 - Probably not, I need to finish everything on the [roadmap](https://github.com/doublemover/PairOfCleats/blob/main/ROADMAP.md)
 
 ## 🔧 Requirements
+- Node.js (v18+ recommended)
 - A decently fast computer to build the search index with, or patience
   - Takes a 5800X3D ~3m10s to build the index for this [JS Lemmings Port](https://github.com/doublemover/LemmingsJS-MIDI) (~430 files) when using `MiniLM-L12-v2` for chunk embeddings
-	  - Index Size is ~15MB, can be tuned
+          - Index Size is ~15MB, can be tuned
   - Memory usage is currently low
   - Vague minspec target is a stock M2 Mini
-  
+  - Optional: SQLite backend (FTS5) to store full indexes for shared access; search uses the same renderer/scoring
+
 
 <details>
 <summary><h2>⚙️ Index Features</h2></summary>
@@ -81,11 +83,12 @@ Provides a CLI utility for **agent-friendly semantic search** of your repo.
 - Optional splitting of long identifiers with dictionary.
 
 **Main Search Techniques**
-- **BM25 token / phrase match**
+- **BM25 token / phrase match** (inverted index with term frequencies)
   - Headline boosting
   - N-gram matches
-- **MinHash-based ANN search**
+- **MinHash-based ANN search** (fallback)
   - Cross-file approximate similarity
+- **Dense vectors** (optional, when ANN is enabled and embeddings are available)
 - Combined + deduplicated result set.
 
 **Advanced Filtering**
@@ -107,12 +110,91 @@ Provides a CLI utility for **agent-friendly semantic search** of your repo.
   - Machine-friendly output for agent toolchains.
 
 **Metrics Tracking**
-- Per-file hit frequency + terms → `.repoMetrics/metrics.json`
-- Search history → `.repoMetrics/searchHistory`
-- Failed queries → `.repoMetrics/noResultQueries`
+- Per-file hit frequency + terms → cache `repometrics/metrics.json`
+- Search history → cache `repometrics/searchHistory`
+- Failed queries → cache `repometrics/noResultQueries`
 - These metrics can be consumed by the index builder to enhance results
 - Github workflows included to automatically handle merging these files
 
+</details>
+
+<details>
+<summary><h2>📚 Dictionaries</h2></summary>
+
+PairOfCleats uses word lists to split identifiers into real words for better tokenization.
+
+Download the default English dictionary (bootstrap does this automatically):
+
+`npm run download-dicts -- --lang en`
+
+Add custom dictionary sources:
+
+`npm run download-dicts -- --url mylist=https://example.com/words.txt`
+
+Update dictionaries (uses ETag/Last-Modified when available):
+
+`npm run download-dicts -- --update`
+
+Slang support:
+- Drop `.txt` files into the dictionary cache `slang/` folder and they will be loaded automatically.
+
+Repo-specific dictionary (opt-in):
+- Generate: `npm run generate-repo-dict -- --min-count 3`
+- Enable in `.pairofcleats.json`:
+  ```json
+  { "dictionary": { "enableRepoDictionary": true } }
+  ```
+
+Wordlists are used during index build to split identifiers into real words (improves tokenization for BM25 and n-grams).
+
+Dictionary config example:
+```json
+{
+  "dictionary": {
+    "languages": ["en"],
+    "includeSlang": true,
+    "enableRepoDictionary": false
+  }
+}
+```
+</details>
+
+<details>
+<summary><h2>🗃️ SQLite Backend (FTS5)</h2></summary>
+
+Build a shared SQLite index:
+
+`npm run build-sqlite-index`
+
+Search (auto-uses SQLite when enabled):
+
+`node .\\search.js "searchterm" --ann`
+
+Force a backend:
+
+`node .\\search.js --backend sqlite "searchterm" --ann`
+
+`node .\\search.js --backend memory "searchterm" --ann`
+
+Notes:
+- SQLite stores the full index artifacts (chunks + postings + n-grams + minhash + dense vectors).
+- `search.js` reads those artifacts and uses the same renderer/scoring as the file-backed path.
+- FTS5 is built into SQLite and still powers the low-level `search-sqlite` command.
+
+You can also set defaults in `.pairofcleats.json` (enable `use` to make SQLite the default backend when available):
+```json
+{
+  "sqlite": {
+    "use": true,
+    "dbPath": "C:/cache/pairofcleats/index.db"
+  },
+  "search": {
+    "annDefault": true
+  }
+}
+```
+
+Use `--no-ann` to disable ANN for a single search.
 </details>
 
 <details>
@@ -162,11 +244,50 @@ Provides a CLI utility for **agent-friendly semantic search** of your repo.
 ## 💻 Installation
 
 - Clone the repo
-- Configure which file types and folders to skip
-- Build the index
+- Quick start (bootstrap):
+  - `npm run bootstrap`
+  - Add `--with-sqlite` to also build the SQLite index
+  - With `sqlite.use: true`, `search.js` will use SQLite automatically when the DB exists (use `--backend memory` to force file-backed)
+- Manual setup:
+  - Install dependencies: `npm install`
+  - (Optional) Download dictionaries: `npm run download-dicts -- --lang en`
+  - Configure which file types and folders to skip
+  - (Optional) Configure `.pairofcleats.json` and `.pairofcleatsignore`
+  - Build the index: `node build_index.js`
+  - (Optional) Build a shared SQLite index: `npm run build-sqlite-index`
 - Include the index & search.js
-	- If the service you are using supports preconfigured agent images or loading from cache during environment setup, use that
-	- Otherwise just chuck it in your git repo 
+        - Indexes are stored outside the repo by default; use cache mounting for agent images
+        - If you need repo-local indexes, set `cache.root` in `.pairofcleats.json` to a path inside the repo
+
+## ✅ Tests
+
+Lightweight smoke checks:
+
+`npm run verify`
+
+Optional flags:
+- `--require-index` (fail if index artifacts are missing)
+- `--require-sqlite` (fail if the SQLite index is missing)
+- `--require-dicts` (fail if dictionaries are missing)
+
+## 🧹 Maintenance
+
+- Report cache/artifact sizes: `npm run report-artifacts`
+- Clean repo artifacts (indexes + metrics + default sqlite db): `npm run clean-artifacts`
+- Clean everything in the cache root: `npm run clean-artifacts -- --all`
+
+## 📦 Cache Layout
+
+Indexes and metrics live outside the repo by default (configurable via `.pairofcleats.json`):
+
+- `<cache>/repos/<repoId>/index-code`
+- `<cache>/repos/<repoId>/index-prose`
+- `<cache>/repos/<repoId>/repometrics`
+- `<cache>/repos/<repoId>/index-sqlite/index.db` (if `sqlite.dbPath` points inside the cache)
+
+Default cache root:
+- Windows: `%LOCALAPPDATA%\\PairOfCleats`
+- Linux/macOS: `~/.cache/pairofcleats`
 - Update AGENTS.md to instruct agents to utilize search.js & leave repo metrics alone
 - Set up workflows and merge drivers for search metrics
 - Enjoy!

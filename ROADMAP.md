@@ -1,32 +1,33 @@
-where we're going...
+# Roadmap
 
-- [ ] Needs packages, package lock
-- [ ] Needs a branch for the rust version of the search utility
-  - [ ] Need to figure out workflows for this
-- [ ] Copy .gitignore style for folder/file exclusion
-- [ ] Refine build index defaults, introduce additional options
-  - [ ] Lower default embedding model
-- [ ] Refine search defaults, introduce additional options
-- [ ] Index building stats
-- [ ] Clean up workflow and scripts
+## Recently completed
+- [x] Add .gitignore/.pairofcleatsignore support
+- [x] Rich chunk metadata + JS AST extraction depth
+- [x] Dictionary bootstrap/update tooling + slang support (repo dict opt-in)
+- [x] SQLite backend without VSS (FTS5 + JS ANN re-rank)
+- [x] Bootstrap workflow + lightweight tests
+- [x] SQLite as full index storage (phase 1 parity path)
 
-Chunk Data
-- [ ] Need start and end line numbers
-- [ ] Json enhance
+## Now
+- [ ] Phase 2: SQLite-driven candidate generation (postings/ngrams in SQL)
+- [ ] Incremental indexing + cache updates per commit
+- [ ] Improved scoring calibration + deterministic ranking between backends
+- [ ] CI helper scripts for prebuilt index artifacts
+- [ ] Expand metrics/telemetry for index tuning
 
-Indexing
-- [ ] Better YAML parsing
-- [ ] Go deeper into JS AST to expose more
-- [ ] Better HTML/CSS parsing
-- [ ] Check out bash parsing
-- [ ] See about other language support
-  - [ ] Python
-  - [ ] C/C++/ObjC
-  - [ ] Swift
-  - [ ] Rust
-- [ ] Look into consuming missed queries for synonym maps / 'must' chunks if hits
-- [ ] Specify additional branches
+## Language support (priority order)
+- [ ] Python
+- [ ] Swift
+- [ ] ObjC/C/C++
+- [ ] Rust
 
-Benchmarking
-- [ ] Need to look into trying out minimum - maximum estimated viable chunk size and dimension configurations using terms from search history and compare results against metrics
-- [ ] Need to look into how best to evaluate coding agent performance with and without the tool 
+## Quality and performance
+- [ ] Broader test harness + fixtures for indexing/search parity
+- [ ] Benchmark suite + agent eval harness
+- [ ] Optional persistent query cache
+- [ ] Parallel indexing improvements + backpressure
+
+## Long-term
+- [ ] SQLite-only scoring path (optional)
+- [ ] Pluggable embedding models + per-repo overrides
+- [ ] MCP server packaging + per-repo index management

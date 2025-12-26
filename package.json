@@ -1,0 +1,38 @@
+{
+  "name": "pairofcleats",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hybrid semantic indexer and search utility for codebases",
+  "scripts": {
+    "build-index": "node build_index.js",
+    "search": "node search.js",
+    "merge-history": "node tools/mergeSearchHistory.js",
+    "merge-no-results": "node tools/mergeNoResultQueries.js",
+    "download-dicts": "node tools/download-dicts.js",
+    "generate-repo-dict": "node tools/generate-repo-dict.js",
+    "build-sqlite-index": "node tools/build-sqlite-index.js",
+    "search-sqlite": "node tools/search-sqlite.js",
+    "report-artifacts": "node tools/report-artifacts.js",
+    "clean-artifacts": "node tools/clean-artifacts.js",
+    "verify": "node tests/smoke.js",
+    "bootstrap": "node tools/bootstrap.js"
+  },
+  "dependencies": {
+    "@xenova/transformers": "*",
+    "acorn": "*",
+    "better-sqlite3": "*",
+    "escomplex": "*",
+    "eslint": "*",
+    "esprima": "*",
+    "ignore": "*",
+    "minhash": "*",
+    "minimist": "*",
+    "seedrandom": "*",
+    "simple-git": "*",
+    "snowball-stemmers": "*",
+    "strip-comments": "*",
+    "varint": "*",
+    "yaml": "*"
+  }
+}

@@ -42,7 +42,7 @@ fi
 # complex logic.  But for “append‐only” history, this union is usually enough.)
 
 # Invoke the Node script:
-node "$(dirname "$0")/mergeNoResultQueries.js" "$THEIRS_FILE" "$OURS_FILE"
+node "$(dirname "$0")/tools/mergeNoResultQueries.js" "$THEIRS_FILE" "$OURS_FILE"
 
 # At this point, “ours” has been updated in place to include every unique line
 # from both “ours” and “theirs.”  Exit successfully
