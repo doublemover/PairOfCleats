@@ -1,4 +1,4 @@
-import Minhash from 'minhash';
+import { SimpleMinHash } from '../indexer/minhash.js';
 
 /**
  * Legacy BM25-like scoring using chunk metadata fields directly.
@@ -100,9 +100,9 @@ export function rankBM25({ idx, tokens, topN, tokenIndexOverride = null, k1 = 1.
 }
 
 function minhashSigForTokens(tokens) {
-  const mh = new Minhash();
+  const mh = new SimpleMinHash();
   tokens.forEach((t) => mh.update(t));
-  return mh.hashvalues;
+  return mh.hashValues;
 }
 
 function jaccard(sigA, sigB) {

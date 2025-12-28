@@ -7,7 +7,6 @@ import { extractNgrams, tri } from '../../shared/tokenize.js';
 export function createIndexState() {
   return {
     df: new Map(),
-    wordFreq: new Map(),
     chunks: [],
     tokenPostings: new Map(),
     docLengths: [],
@@ -71,8 +70,6 @@ export function appendChunk(state, chunk) {
   }
 
   tokens.forEach((t) => state.df.set(t, (state.df.get(t) || 0) + 1));
-  seq.forEach((w) => state.wordFreq.set(w, (state.wordFreq.get(w) || 0) + 1));
-
   chunk.id = chunkId;
   state.chunks.push(chunk);
 }

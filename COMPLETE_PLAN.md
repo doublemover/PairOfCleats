@@ -270,11 +270,11 @@ Work items:
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 24: Indexing Core Reliability (status: todo)
-- [ ] Fix chunk weight wiring (`weightt` typo) and add a regression test for weight effects.
-- [ ] Use precomputed token frequencies in BM25 row building; remove unused `wordFreq`/`sparse` artifacts if they remain unused.
-- [ ] Add a config option to disable per-chunk `git blame` (or downgrade to file-level) for large repos.
-- [ ] Add empty-repo/zero-chunk coverage to ensure postings/metrics stay stable.
+## Phase 24: Indexing Core Reliability (status: done)
+- [x] Fix chunk weight wiring (`weightt` typo) and add a regression test for weight effects.
+- [x] Use precomputed token frequencies in BM25 row building; remove unused `wordFreq`/`sparse` artifacts if they remain unused.
+- [x] Add a config option to disable per-chunk `git blame` (or downgrade to file-level) for large repos.
+- [x] Add empty-repo/zero-chunk coverage to ensure postings/metrics stay stable.
 
 ## Phase 25: Language Parsing Hardening (status: todo)
 - [ ] Improve TypeScript import parsing for multi-line imports/exports and dynamic `import()` calls.
@@ -282,8 +282,8 @@ Work items:
 - [ ] Extend cross-file inference beyond TS (Go/Rust/Java via tooling hooks).
 - [ ] Add fixtures/tests for `.tsx/.mts/.cts` and Python AST fallback.
 
-## Phase 26: Search + Scoring Consistency (status: todo)
-- [ ] Unify MinHash implementation between indexing and search; add a compatibility test.
+## Phase 26: Search + Scoring Consistency (status: in-progress)
+- [x] Unify MinHash implementation between indexing and search; add a compatibility test.
 - [ ] Decide on `sparse_postings_varint.bin`: consume it or remove it from outputs.
 - [ ] Add caching for search summaries and unify shared CLI/output code with sqlite search.
 - [ ] Expand filter coverage tests (return types, inferred types, returns/async flags).

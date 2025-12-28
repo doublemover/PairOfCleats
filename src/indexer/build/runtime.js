@@ -26,6 +26,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const controlFlowEnabled = indexingConfig.controlFlow !== false;
   const typeInferenceEnabled = indexingConfig.typeInference === true;
   const typeInferenceCrossFileEnabled = indexingConfig.typeInferenceCrossFile === true;
+  const gitBlameEnabled = indexingConfig.gitBlame !== false;
   const sqlConfig = userConfig.sql || {};
   const defaultSqlDialects = {
     '.psql': 'postgres',
@@ -123,6 +124,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   if (typeInferenceCrossFileEnabled && !typeInferenceEnabled) {
     log('Cross-file type inference requested but indexing.typeInference is disabled.');
   }
+  if (!gitBlameEnabled) {
+    log('Git blame metadata disabled via indexing.gitBlame.');
+  }
 
   const languageOptions = {
     astDataflowEnabled,
@@ -142,6 +146,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     controlFlowEnabled,
     typeInferenceEnabled,
     typeInferenceCrossFileEnabled,
+    gitBlameEnabled,
     resolveSqlDialect,
     fileConcurrency,
     importConcurrency,

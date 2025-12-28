@@ -22,6 +22,7 @@ export function buildPostings(input) {
     phrasePost,
     triPost,
     modelId,
+    useStubEmbeddings,
     log
   } = input;
 
@@ -31,28 +32,13 @@ export function buildPostings(input) {
 
   const vocabAll = Array.from(df.keys());
   const trimmedVocab = vocabAll.slice();
-  const vmap = new Map(trimmedVocab.map((t, i) => [t, i]));
-  const posts = Array.from({ length: trimmedVocab.length }, () => []);
-  const sparse = [];
-
-  chunks.forEach((c, r) => {
-    const row = [];
-    c.tokens.forEach((t) => {
-      const col = vmap.get(t);
-      if (col === undefined) return;
-      posts[col].push(r);
-      const idf = Math.log((N - df.get(t) + 0.5) / (df.get(t) + 0.5) + 1);
-      const freq = c.tokens.filter((x) => x === t).length;
-      const bm =
-        idf *
-        ((freq * (k1 + 1)) /
-          (freq + k1 * (1 - b + b * (c.tokens.length / avgChunkLen))));
-      if (bm) row.push([col, bm * c.weight]);
-    });
-    sparse.push(row);
+  const posts = trimmedVocab.map((token) => {
+    const posting = tokenPostings.get(token) || [];
+    return posting.map(([docId]) => docId);
   });
 
-  log(`Using real model embeddings for dense vectors (${modelId})...`);
+  const embedLabel = useStubEmbeddings ? 'stub' : 'model';
+  log(`Using ${embedLabel} embeddings for dense vectors (${modelId})...`);
   const dims = chunks[0]?.embedding.length || 384;
   const embeddingVectors = chunks.map((c) => c.embedding);
   const quantizedVectors = embeddingVectors.map((vec) => quantizeVec(vec));
@@ -98,7 +84,6 @@ export function buildPostings(input) {
     avgDocLen,
     minhashSigs,
     dims,
-    quantizedVectors,
-    sparse
+    quantizedVectors
   };
 }

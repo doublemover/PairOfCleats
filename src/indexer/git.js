@@ -8,11 +8,14 @@ const gitMetaCache = new Map();
  * @param {string} file
  * @param {number} [start]
  * @param {number} [end]
+ * @param {{blame?:boolean}} [options]
  * @returns {Promise<{last_modified?:string,last_author?:string,churn?:number,chunk_authors?:string[]}|{}>}
  */
-export async function getGitMeta(file, start = 0, end = 0) {
+export async function getGitMeta(file, start = 0, end = 0, options = {}) {
+  const blameEnabled = options.blame !== false;
   if (gitMetaCache.has(file)) {
     const cached = gitMetaCache.get(file);
+    if (!blameEnabled) return cached;
     let blameData = {};
     try {
       const git = simpleGit();
@@ -44,15 +47,17 @@ export async function getGitMeta(file, start = 0, end = 0) {
     };
     gitMetaCache.set(file, meta);
     let blameData = {};
-    try {
-      const blame = await git.raw(['blame', '-L', `${start + 1},${end + 1}`, file]);
-      const authors = new Set();
-      for (const line of blame.split('\n')) {
-        const m = line.match(/^\w+\s+\(([^)]+)\s+\d{4}/);
-        if (m) authors.add(m[1].trim());
-      }
-      blameData = { chunk_authors: Array.from(authors) };
-    } catch {}
+    if (blameEnabled) {
+      try {
+        const blame = await git.raw(['blame', '-L', `${start + 1},${end + 1}`, file]);
+        const authors = new Set();
+        for (const line of blame.split('\n')) {
+          const m = line.match(/^\w+\s+\(([^)]+)\s+\d{4}/);
+          if (m) authors.add(m[1].trim());
+        }
+        blameData = { chunk_authors: Array.from(authors) };
+      } catch {}
+    }
 
     return {
       ...meta,

@@ -53,6 +53,7 @@ Planned config keys:
 - indexing.astDataflow (default true)
 - indexing.typeInference (default false)
 - indexing.typeInferenceCrossFile (default false)
+- indexing.gitBlame (default true)
 
 ## SQL dialects
 - PostgreSQL, MySQL, and SQLite grammars with dialect selection rules.

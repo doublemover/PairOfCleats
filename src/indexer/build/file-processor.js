@@ -31,7 +31,8 @@ export function createFileProcessor(options) {
     incrementalState,
     getChunkEmbedding,
     typeInferenceEnabled,
-    seenFiles
+    seenFiles,
+    gitBlameEnabled
   } = options;
   const { astDataflowEnabled, controlFlowEnabled } = languageOptions;
   const complexityCache = new Map();
@@ -216,7 +217,7 @@ export function createFileProcessor(options) {
         kind: c.kind,
         name: c.name,
         file: relKey,
-        weightt: getFieldWeight(c, rel)
+        weight: getFieldWeight(c, rel)
       };
 
       let codeRelations = {}, docmeta = {};
@@ -297,7 +298,7 @@ export function createFileProcessor(options) {
       if (ci > 0) preContext = text.slice(sc[ci - 1].start, sc[ci - 1].end).split('\n').slice(-contextWin);
       if (ci + 1 < sc.length) postContext = text.slice(sc[ci + 1].start, sc[ci + 1].end).split('\n').slice(0, contextWin);
 
-      const gitMeta = await getGitMeta(abs, c.start, c.end);
+      const gitMeta = await getGitMeta(abs, c.start, c.end, { blame: gitBlameEnabled });
 
       const externalDocs = buildExternalDocs(ext, codeRelations);
 

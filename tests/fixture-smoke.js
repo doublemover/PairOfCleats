@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import { getIndexDir, getMetricsDir, loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
+import { rankMinhash } from '../src/search/rankers.js';
 
 const root = process.cwd();
 const fixturesRoot = path.join(root, 'tests', 'fixtures');
@@ -49,6 +50,45 @@ function loadQueries(fixtureRoot) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith('#'));
+}
+
+function assertChunkWeights(label, chunkMetaPath) {
+  const raw = fs.readFileSync(chunkMetaPath, 'utf8');
+  const chunks = JSON.parse(raw);
+  if (!Array.isArray(chunks)) {
+    console.error(`Invalid chunk metadata for ${label}: ${chunkMetaPath}`);
+    process.exit(1);
+  }
+  for (const chunk of chunks) {
+    const weight = chunk?.weight;
+    if (!Number.isFinite(weight)) {
+      console.error(`Invalid chunk weight for ${label}: ${chunkMetaPath}`);
+      process.exit(1);
+    }
+  }
+}
+
+function assertMinhashConsistency(label, chunkMetaPath, minhashPath) {
+  const rawChunks = fs.readFileSync(chunkMetaPath, 'utf8');
+  const rawSigs = fs.readFileSync(minhashPath, 'utf8');
+  const chunks = JSON.parse(rawChunks);
+  const sigPayload = JSON.parse(rawSigs);
+  const signatures = sigPayload?.signatures;
+  if (!Array.isArray(chunks) || !Array.isArray(signatures)) {
+    console.error(`Invalid minhash data for ${label}: ${minhashPath}`);
+    process.exit(1);
+  }
+  const idx = chunks.findIndex((chunk, i) => Array.isArray(chunk?.tokens) && chunk.tokens.length && Array.isArray(signatures[i]));
+  if (idx < 0) {
+    console.error(`No usable minhash chunk found for ${label}: ${minhashPath}`);
+    process.exit(1);
+  }
+  const tokens = chunks[idx].tokens;
+  const scored = rankMinhash({ minhash: { signatures } }, tokens, 1);
+  if (!scored.length || scored[0].idx !== idx || scored[0].sim !== 1) {
+    console.error(`Minhash mismatch for ${label}: ${minhashPath}`);
+    process.exit(1);
+  }
 }
 
 let currentFixtureRoot = '';
@@ -105,6 +145,11 @@ for (const fixtureName of fixtures) {
       process.exit(1);
     }
   }
+
+  assertChunkWeights('code', path.join(codeDir, 'chunk_meta.json'));
+  assertChunkWeights('prose', path.join(proseDir, 'chunk_meta.json'));
+  assertMinhashConsistency('code', path.join(codeDir, 'chunk_meta.json'), path.join(codeDir, 'minhash_signatures.json'));
+  assertMinhashConsistency('prose', path.join(proseDir, 'chunk_meta.json'), path.join(proseDir, 'minhash_signatures.json'));
 
   const queries = loadQueries(currentFixtureRoot);
   const backends = ['memory', 'sqlite-fts'];

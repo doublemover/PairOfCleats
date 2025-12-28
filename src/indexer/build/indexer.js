@@ -74,7 +74,8 @@ export async function buildIndexForMode({ mode, runtime }) {
     incrementalState,
     getChunkEmbedding: runtime.getChunkEmbedding,
     typeInferenceEnabled: runtime.typeInferenceEnabled,
-    seenFiles
+    seenFiles,
+    gitBlameEnabled: runtime.gitBlameEnabled
   });
 
   let processedFiles = 0;
@@ -118,6 +119,7 @@ export async function buildIndexForMode({ mode, runtime }) {
     phrasePost: state.phrasePost,
     triPost: state.triPost,
     modelId: runtime.modelId,
+    useStubEmbeddings: runtime.useStubEmbeddings,
     log
   });
 

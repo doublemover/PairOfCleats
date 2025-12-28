@@ -138,6 +138,11 @@ const actions = [
     covers: ['mcp-server-test', 'mcp-server']
   },
   {
+    label: 'git-meta-test',
+    run: () => runNode('git-meta-test', path.join(root, 'tests', 'git-meta.js')),
+    covers: []
+  },
+  {
     label: 'verify',
     run: () => runNode('verify', path.join(root, 'tests', 'smoke.js')),
     covers: ['verify']
@@ -146,6 +151,11 @@ const actions = [
     label: 'fixture-smoke',
     run: () => runNode('fixture-smoke', path.join(root, 'tests', 'fixture-smoke.js')),
     covers: ['fixture-smoke', 'build-index', 'build-sqlite-index', 'search']
+  },
+  {
+    label: 'fixture-empty',
+    run: () => runNode('fixture-empty', path.join(root, 'tests', 'fixture-empty.js')),
+    covers: []
   },
   {
     label: 'fixture-parity',
