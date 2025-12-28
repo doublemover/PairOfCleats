@@ -3,7 +3,9 @@
 *Give your coding agents a pair of cleats, so they can sprint through your codebase.*
 
 ## What is PairOfCleats?
-PairOfCleats builds a hybrid semantic index for a repo (code + docs) and exposes a CLI/MCP server for fast, filterable search. Index artifacts live in a cache outside the repo by default, so they can be mounted into agent images or shared across workflows.
+PairOfCleats builds a hybrid semantic index for a repo (code + docs) and exposes a CLI/MCP server for fast, filterable search. It is designed for agent workflows, with artifacts stored outside the repo by default so they can be shared across runs, containers, and CI while keeping working trees clean.
+
+The index captures rich structure and metadata: language-aware chunking across code, configs, and docs; docstrings/signatures/annotations; call/import/usage relations; control-flow and dataflow summaries; type inference (intra-file with optional cross-file); git-aware churn metadata; and embeddings for semantic search. Search combines BM25 token/phrase scoring, MinHash similarity, dense vectors, and optional SQLite backends (including FTS5 and ANN via sqlite-vec) with filters and human/JSON output. The tooling also includes incremental indexing, cache management, dictionary bootstrapping, CI artifact restore/build, and optional language tooling detection/installation.
 
 ## Status
 Active development. See `ROADMAP.md` for milestones and longer-term work.
