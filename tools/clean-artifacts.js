@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import minimist from 'minimist';
 import { getCacheRoot, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
+import { isInside, isRootPath } from './path-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['all', 'dry-run'],
@@ -21,32 +22,13 @@ const defaultProsePath = path.join(defaultSqliteDir, 'index-prose.db');
 const defaultLegacyPath = path.join(defaultSqliteDir, 'index.db');
 const sqlitePaths = resolveSqlitePaths(root, userConfig);
 
-/**
- * Check if a path is contained within another path.
- * @param {string} parent
- * @param {string} child
- * @returns {boolean}
- */
-function isInside(parent, child) {
-  const rel = path.relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-}
-
-/**
- * Guard against deleting filesystem root paths.
- * @param {string} targetPath
- * @returns {boolean}
- */
-function isRootPath(targetPath) {
-  const resolved = path.resolve(targetPath);
-  return path.parse(resolved).root === resolved;
-}
 
 const targets = [];
-const primary = argv.all ? cacheRoot : repoCacheRoot;
+const repoCachesRoot = path.join(cacheRoot, 'repos');
+const primary = argv.all ? repoCachesRoot : repoCacheRoot;
 targets.push(primary);
 
-const base = argv.all ? path.resolve(cacheRoot) : path.resolve(repoCacheRoot);
+const base = argv.all ? path.resolve(repoCachesRoot) : path.resolve(repoCacheRoot);
 const sqliteFiles = [sqlitePaths.codePath, sqlitePaths.prosePath];
 const usesDefaultDir = sqlitePaths.codePath === defaultCodePath
   && sqlitePaths.prosePath === defaultProsePath;

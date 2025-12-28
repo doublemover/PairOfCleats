@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
+import { runCommand, runCommandOrExit } from './cli-utils.js';
 import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getToolingConfig, loadUserConfig } from './dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
@@ -39,11 +39,7 @@ let restoredArtifacts = false;
  * @param {string} label
  */
 function run(cmd, args, label) {
-  const result = spawnSync(cmd, args, { stdio: 'inherit' });
-  if (result.status !== 0) {
-    console.error(`Failed: ${label || cmd}`);
-    process.exit(result.status ?? 1);
-  }
+  runCommandOrExit(label || cmd, cmd, args, { cwd: root, stdio: 'inherit' });
 }
 
 if (!argv['skip-install']) {
@@ -78,10 +74,10 @@ if (vectorExtension.enabled) {
 
 if (!argv['skip-tooling']) {
   const toolingConfig = getToolingConfig(root, userConfig);
-  const detectResult = spawnSync(
+  const detectResult = runCommand(
     process.execPath,
     [path.join('tools', 'tooling-detect.js'), '--root', root, '--json'],
-    { encoding: 'utf8' }
+    { cwd: root, encoding: 'utf8', stdio: 'pipe' }
   );
   if (detectResult.status === 0 && detectResult.stdout) {
     try {
@@ -105,12 +101,12 @@ if (!argv['skip-tooling']) {
 }
 
 if (!argv['skip-artifacts'] && fs.existsSync(path.join(artifactsDir, 'manifest.json'))) {
-  const result = spawnSync(
+  const result = runCommand(
     process.execPath,
     [path.join('tools', 'ci-restore-artifacts.js'), '--from', artifactsDir],
-    { stdio: 'inherit' }
+    { cwd: root, stdio: 'inherit' }
   );
-  restoredArtifacts = result.status === 0;
+  restoredArtifacts = result.ok;
 }
 
 if (!argv['skip-index'] && !restoredArtifacts) {

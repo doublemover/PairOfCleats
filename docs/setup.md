@@ -8,6 +8,8 @@ The unified setup script (`npm run setup`) guides you through installing optiona
   - `npm run setup`
 - Non-interactive (CI):
   - `npm run setup -- --non-interactive`
+- Non-interactive with JSON summary:
+  - `npm run setup -- --non-interactive --json`
 
 ## What it can do
 
@@ -23,6 +25,7 @@ The unified setup script (`npm run setup`) guides you through installing optiona
 ## Flags
 
 - `--non-interactive` / `--ci`: Skip prompts and use defaults.
+- `--json`: Emit a summary report to stdout (logs go to stderr).
 - `--with-sqlite`: Default SQLite build to yes.
 - `--incremental`: Use incremental indexing if available.
 - `--tooling-scope cache|global`: Override tooling install scope.

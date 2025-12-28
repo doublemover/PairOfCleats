@@ -4,7 +4,9 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
+import { pipeline } from 'node:stream/promises';
 import { URL } from 'node:url';
+import { createGunzip } from 'node:zlib';
 import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import { loadUserConfig } from './dict-utils.js';
@@ -72,6 +74,42 @@ function runCommand(cmd, args) {
   return result.status === 0;
 }
 
+async function extractZipNode(archivePath, destDir) {
+  try {
+    const mod = await import('adm-zip');
+    const AdmZip = mod.default || mod;
+    const zip = new AdmZip(archivePath);
+    zip.extractAllTo(destDir, true);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function extractTarNode(archivePath, destDir, gzip) {
+  try {
+    const mod = await import('tar-fs');
+    const tarFs = mod.default || mod;
+    await fs.mkdir(destDir, { recursive: true });
+    const extract = tarFs.extract(destDir);
+    const source = fsSync.createReadStream(archivePath);
+    if (gzip) {
+      await pipeline(source, createGunzip(), extract);
+    } else {
+      await pipeline(source, extract);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function extractArchiveNode(archivePath, destDir, type) {
+  if (type === 'zip') return extractZipNode(archivePath, destDir);
+  const gzip = type === 'tar.gz';
+  return extractTarNode(archivePath, destDir, gzip);
+}
+
 /**
  * Extract an archive into a destination directory.
  * @param {string} archivePath
@@ -79,7 +117,7 @@ function runCommand(cmd, args) {
  * @param {string} type
  * @returns {boolean}
  */
-function extractArchive(archivePath, destDir, type) {
+async function extractArchive(archivePath, destDir, type) {
   if (type === 'zip') {
     if (runCommand('unzip', ['-o', archivePath, '-d', destDir])) return true;
     if (runCommand('tar', ['-xf', archivePath, '-C', destDir])) return true;
@@ -88,12 +126,13 @@ function extractArchive(archivePath, destDir, type) {
       if (runCommand('powershell', ['-NoProfile', '-Command', script])) return true;
       if (runCommand('pwsh', ['-NoProfile', '-Command', script])) return true;
     }
-    return false;
+    return extractArchiveNode(archivePath, destDir, type);
   }
   const tarArgs = type === 'tar.gz'
     ? ['-xzf', archivePath, '-C', destDir]
     : ['-xf', archivePath, '-C', destDir];
-  return runCommand('tar', tarArgs);
+  if (runCommand('tar', tarArgs)) return true;
+  return extractArchiveNode(archivePath, destDir, type);
 }
 
 /**
@@ -289,7 +328,7 @@ async function downloadSource(source, index) {
   if (archiveType) {
     const extractDir = path.join(tempRoot, `extract-${Date.now()}`);
     await fs.mkdir(extractDir, { recursive: true });
-    const ok = extractArchive(downloadPath, extractDir, archiveType);
+    const ok = await extractArchive(downloadPath, extractDir, archiveType);
     if (!ok) {
       throw new Error(`Failed to extract ${downloadPath} (${archiveType})`);
     }

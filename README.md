@@ -111,7 +111,7 @@ Active development. See `ROADMAP.md` for milestones and longer-term work.
 <summary><h2>Installation</h2></summary>
 
 - Guided setup: `npm run setup` (prompts)
-- CI/automation: `npm run setup -- --non-interactive`
+- CI/automation: `npm run setup -- --non-interactive --json` (summary JSON on stdout)
 - Manual steps:
   - Install dependencies: `npm install`
   - Optional extras:
@@ -137,6 +137,7 @@ Tools:
 - `search`
 - `download_models`
 - `report_artifacts`
+- Errors: `tools/call` responses set `isError=true` and return a JSON payload with `message` plus optional `code`, `stdout`, `stderr`.
 </details>
 
 <details>
@@ -186,7 +187,7 @@ Meta:
 <summary><h2>Maintenance</h2></summary>
 
 - Report cache sizes: `npm run report-artifacts`
-- Clean repo artifacts: `npm run clean-artifacts` (add `-- --all` to wipe cache)
+- Clean repo artifacts: `npm run clean-artifacts` (add `-- --all` to clear repo caches; keeps models/dictionaries/extensions)
 - Uninstall caches + models + extensions: `npm run uninstall`
 - Compact SQLite indexes: `npm run compact-sqlite-index`
 - Repometrics dashboard: `npm run repometrics-dashboard`

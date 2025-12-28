@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import simpleGit from 'simple-git';
 import { getToolDefs } from '../src/mcp/defs.js';
 import { sendError, sendResult } from '../src/mcp/protocol.js';
@@ -208,13 +208,71 @@ async function indexStatus(args = {}) {
  * @param {string[]} args
  * @returns {string}
  */
-function runNode(cwd, args) {
+function runNodeSync(cwd, args) {
   const result = spawnSync(process.execPath, args, { cwd, encoding: 'utf8' });
   if (result.status !== 0) {
     const err = result.stderr || `Command failed: ${args.join(' ')}`;
     throw new Error(err.trim());
   }
   return result.stdout || '';
+}
+
+/**
+ * Run a node command asynchronously with optional stderr streaming.
+ * @param {string} cwd
+ * @param {string[]} args
+ * @param {{streamOutput?:boolean}} [options]
+ * @returns {Promise<{stdout:string,stderr:string}>}
+ */
+function runNodeAsync(cwd, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, { cwd });
+    let stdout = '';
+    let stderr = '';
+    const streamOutput = options.streamOutput === true;
+    child.stdout?.on('data', (chunk) => {
+      const text = chunk.toString();
+      stdout += text;
+      if (streamOutput) process.stderr.write(text);
+    });
+    child.stderr?.on('data', (chunk) => {
+      const text = chunk.toString();
+      stderr += text;
+      if (streamOutput) process.stderr.write(text);
+    });
+    child.on('error', (err) => {
+      const error = new Error(err.message || 'Command failed');
+      error.stdout = stdout;
+      error.stderr = stderr;
+      reject(error);
+    });
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+        return;
+      }
+      const error = new Error(stderr.trim() || `Command failed: ${args.join(' ')}`);
+      error.code = code;
+      error.stdout = stdout;
+      error.stderr = stderr;
+      reject(error);
+    });
+  });
+}
+
+/**
+ * Format error payloads for tool responses.
+ * @param {any} error
+ * @returns {{message:string,code?:number,stderr?:string,stdout?:string}}
+ */
+function formatToolError(error) {
+  const payload = {
+    message: error?.message || String(error)
+  };
+  if (error?.code !== undefined) payload.code = error.code;
+  if (error?.stderr) payload.stderr = String(error.stderr).trim();
+  if (error?.stdout) payload.stdout = String(error.stdout).trim();
+  return payload;
 }
 
 /**
@@ -226,7 +284,7 @@ function runNode(cwd, args) {
 function maybeRestoreArtifacts(repoPath, artifactsDir) {
   const fromDir = artifactsDir ? path.resolve(artifactsDir) : path.join(repoPath, 'ci-artifacts');
   if (!fs.existsSync(path.join(fromDir, 'manifest.json'))) return false;
-  runNode(repoPath, [path.join(ROOT, 'tools', 'ci-restore-artifacts.js'), '--from', fromDir]);
+  runNodeSync(repoPath, [path.join(ROOT, 'tools', 'ci-restore-artifacts.js'), '--from', fromDir]);
   return true;
 }
 
@@ -235,7 +293,7 @@ function maybeRestoreArtifacts(repoPath, artifactsDir) {
  * @param {object} [args]
  * @returns {object}
  */
-function buildIndex(args = {}) {
+async function buildIndex(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const userConfig = loadUserConfig(repoPath);
   const sqliteConfigured = userConfig.sqlite?.use !== false;
@@ -255,13 +313,13 @@ function buildIndex(args = {}) {
     if (mode && mode !== 'all') indexArgs.push('--mode', mode);
     if (incremental) indexArgs.push('--incremental');
     if (stubEmbeddings) indexArgs.push('--stub-embeddings');
-    runNode(repoPath, indexArgs);
+    await runNodeAsync(repoPath, indexArgs, { streamOutput: true });
   }
 
   if (shouldUseSqlite) {
     const sqliteArgs = [path.join(ROOT, 'tools', 'build-sqlite-index.js')];
     if (incremental) sqliteArgs.push('--incremental');
-    runNode(repoPath, sqliteArgs);
+    await runNodeAsync(repoPath, sqliteArgs, { streamOutput: true });
   }
 
   return {
@@ -296,7 +354,7 @@ function runSearch(args = {}) {
   if (top) searchArgs.push('-n', String(top));
   if (context !== null) searchArgs.push('--context', String(context));
 
-  const stdout = runNode(repoPath, searchArgs);
+  const stdout = runNodeSync(repoPath, searchArgs);
   return JSON.parse(stdout || '{}');
 }
 
@@ -312,7 +370,7 @@ function downloadModels(args = {}) {
   const model = args.model || modelConfig.id || DEFAULT_MODEL_ID;
   const scriptArgs = [path.join(ROOT, 'tools', 'download-models.js'), '--model', model];
   if (args.cacheDir) scriptArgs.push('--cache-dir', args.cacheDir);
-  const stdout = runNode(repoPath, scriptArgs);
+  const stdout = runNodeSync(repoPath, scriptArgs);
   return { model, output: stdout.trim() };
 }
 
@@ -323,7 +381,7 @@ function downloadModels(args = {}) {
  */
 function reportArtifacts(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const stdout = runNode(repoPath, [path.join(ROOT, 'tools', 'report-artifacts.js'), '--json']);
+  const stdout = runNodeSync(repoPath, [path.join(ROOT, 'tools', 'report-artifacts.js'), '--json']);
   return JSON.parse(stdout || '{}');
 }
 
@@ -338,7 +396,7 @@ async function handleToolCall(name, args) {
     case 'index_status':
       return await indexStatus(args);
     case 'build_index':
-      return buildIndex(args);
+      return await buildIndex(args);
     case 'search':
       return runSearch(args);
     case 'download_models':
@@ -400,8 +458,9 @@ async function handleMessage(message) {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
       });
     } catch (error) {
+      const payload = formatToolError(error);
       sendResult(id, {
-        content: [{ type: 'text', text: error.message }],
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
         isError: true
       });
     }

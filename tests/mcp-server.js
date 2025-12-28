@@ -1,9 +1,16 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
 const serverPath = path.join(process.cwd(), 'tools', 'mcp-server.js');
 const sampleRepo = path.join(process.cwd(), 'tests', 'fixtures', 'sample');
+const tempRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-server');
+const emptyRepo = path.join(tempRoot, 'empty');
+const missingRepo = path.join(tempRoot, 'missing');
+
+await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await fsPromises.mkdir(emptyRepo, { recursive: true });
 
 function encodeMessage(payload) {
   const json = JSON.stringify(payload);
@@ -94,7 +101,43 @@ async function run() {
     throw new Error('index_status response missing repo info');
   }
 
-  send({ jsonrpc: '2.0', id: 4, method: 'shutdown' });
+  send({
+    jsonrpc: '2.0',
+    id: 4,
+    method: 'tools/call',
+    params: {
+      name: 'index_status',
+      arguments: { repoPath: missingRepo }
+    }
+  });
+  const invalidRepo = await readMessage();
+  if (!invalidRepo.result?.isError) {
+    throw new Error('index_status missing repo should return isError');
+  }
+  const invalidPayload = JSON.parse(invalidRepo.result?.content?.[0]?.text || '{}');
+  if (!invalidPayload.message?.includes('Repo path not found')) {
+    throw new Error('index_status missing repo error payload missing message');
+  }
+
+  send({
+    jsonrpc: '2.0',
+    id: 5,
+    method: 'tools/call',
+    params: {
+      name: 'search',
+      arguments: { repoPath: emptyRepo, query: 'test' }
+    }
+  });
+  const missingIndex = await readMessage();
+  if (!missingIndex.result?.isError) {
+    throw new Error('search without indexes should return isError');
+  }
+  const missingPayload = JSON.parse(missingIndex.result?.content?.[0]?.text || '{}');
+  if (!missingPayload.message?.toLowerCase().includes('index')) {
+    throw new Error('search missing index error payload missing message');
+  }
+
+  send({ jsonrpc: '2.0', id: 6, method: 'shutdown' });
   await readMessage();
   send({ jsonrpc: '2.0', method: 'exit' });
 }

@@ -52,6 +52,7 @@
     "repometrics-dashboard-test": "node tests/repometrics-dashboard.js",        
     "mcp-server-test": "node tests/mcp-server.js",
     "compare-models-test": "node tests/compare-models.js",
+    "docs-consistency-test": "node tests/docs-consistency.js",
     "summary-report-test": "node tests/summary-report.js",
     "type-inference-crossfile-test": "node tests/type-inference-crossfile.js",
     "download-extensions-test": "node tests/download-extensions.js",
@@ -63,6 +64,7 @@
   "dependencies": {
     "@xenova/transformers": "*",
     "acorn": "*",
+    "adm-zip": "*",
     "better-sqlite3": "*",
     "escomplex": "*",
     "eslint": "*",
@@ -74,6 +76,7 @@
     "simple-git": "*",
     "snowball-stemmers": "*",
     "strip-comments": "*",
+    "tar-fs": "*",
     "varint": "*",
     "yaml": "*"
   }

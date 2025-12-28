@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import minimist from 'minimist';
 import { loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
@@ -14,28 +15,6 @@ try {
   ({ default: Database } = await import('better-sqlite3'));
 } catch (err) {
   console.error('better-sqlite3 is required. Run npm install first.');
-  process.exit(1);
-}
-
-const argv = minimist(process.argv.slice(2), {
-  string: ['mode'],
-  boolean: ['dry-run', 'keep-backup'],
-  default: {
-    mode: 'all',
-    'dry-run': false,
-    'keep-backup': false
-  }
-});
-
-const root = process.cwd();
-const userConfig = loadUserConfig(root);
-const vectorExtension = getVectorExtensionConfig(root, userConfig);
-const vectorAnnEnabled = vectorExtension.enabled;
-const sqlitePaths = resolveSqlitePaths(root, userConfig);
-
-const modeArg = (argv.mode || 'all').toLowerCase();
-if (!['all', 'code', 'prose'].includes(modeArg)) {
-  console.error('Invalid mode. Use --mode all|code|prose');
   process.exit(1);
 }
 
@@ -80,11 +59,12 @@ function buildBackupPath(dbPath, keepBackup) {
 
 /**
  * Compact a sqlite index by reassigning doc_ids and pruning tables.
- * @param {string} dbPath
- * @param {'code'|'prose'} mode
- * @returns {Promise<object>}
+ * @param {{dbPath:string,mode:'code'|'prose',vectorExtension:object,dryRun?:boolean,keepBackup?:boolean}} input
+ * @returns {Promise<{skipped:boolean}>}
  */
-async function compactDatabase(dbPath, mode) {
+export async function compactDatabase(input) {
+  const { dbPath, mode, vectorExtension, dryRun = false, keepBackup = false } = input || {};
+  const vectorAnnEnabled = vectorExtension?.enabled === true;
   if (!fs.existsSync(dbPath)) {
     console.warn(`[compact] ${mode} db missing: ${dbPath}`);
     return { skipped: true };
@@ -400,37 +380,67 @@ async function compactDatabase(dbPath, mode) {
   outDb.close();
   sourceDb.close();
 
-  if (argv['dry-run']) {
+  if (dryRun) {
     await fsPromises.rm(tempPath, { force: true });
     console.log(`[compact] dry-run: ${mode} would replace ${dbPath}`);
     return { skipped: true };
   }
 
-  const backupPath = buildBackupPath(dbPath, argv['keep-backup']);
-  if (!argv['keep-backup'] && fs.existsSync(backupPath)) {
+  const backupPath = buildBackupPath(dbPath, keepBackup);
+  if (!keepBackup && fs.existsSync(backupPath)) {
     await fsPromises.rm(backupPath, { force: true });
   }
 
   await fsPromises.rename(dbPath, backupPath);
   await fsPromises.rename(tempPath, dbPath);
 
-  if (!argv['keep-backup']) {
+  if (!keepBackup) {
     await fsPromises.rm(backupPath, { force: true });
   }
 
   return { skipped: false };
 }
 
-const targets = [];
-if (modeArg === 'all' || modeArg === 'code') {
-  targets.push({ mode: 'code', path: sqlitePaths.codePath });
-}
-if (modeArg === 'all' || modeArg === 'prose') {
-  targets.push({ mode: 'prose', path: sqlitePaths.prosePath });
-}
+const isDirectRun = import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isDirectRun) {
+  const argv = minimist(process.argv.slice(2), {
+    string: ['mode'],
+    boolean: ['dry-run', 'keep-backup'],
+    default: {
+      mode: 'all',
+      'dry-run': false,
+      'keep-backup': false
+    }
+  });
 
-for (const target of targets) {
-  await compactDatabase(target.path, target.mode);
-}
+  const root = process.cwd();
+  const userConfig = loadUserConfig(root);
+  const vectorExtension = getVectorExtensionConfig(root, userConfig);
+  const sqlitePaths = resolveSqlitePaths(root, userConfig);
 
-console.log('SQLite compaction complete.');
+  const modeArg = (argv.mode || 'all').toLowerCase();
+  if (!['all', 'code', 'prose'].includes(modeArg)) {
+    console.error('Invalid mode. Use --mode all|code|prose');
+    process.exit(1);
+  }
+
+  const targets = [];
+  if (modeArg === 'all' || modeArg === 'code') {
+    targets.push({ mode: 'code', path: sqlitePaths.codePath });
+  }
+  if (modeArg === 'all' || modeArg === 'prose') {
+    targets.push({ mode: 'prose', path: sqlitePaths.prosePath });
+  }
+
+  for (const target of targets) {
+    await compactDatabase({
+      dbPath: target.path,
+      mode: target.mode,
+      vectorExtension,
+      dryRun: argv['dry-run'],
+      keepBackup: argv['keep-backup']
+    });
+  }
+
+  console.log('SQLite compaction complete.');
+}

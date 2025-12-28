@@ -126,7 +126,7 @@ Work items:
 - [x] Configurable AST dataflow extraction (default on).
 - [x] Add fixtures + language-fidelity assertions for AST metadata.
 
-## Phase 8: SQLite Scoring (FTS5) + ANN Extension (status: partial)
+## Phase 8: SQLite Scoring (FTS5) + ANN Extension (status: done)
 Goal: Optional SQLite-only sparse ranking plus optional vector extension for ANN.
 Work items:
 - [x] FTS5 ranking path (sqlite-fts backend) with shared renderer.
@@ -288,20 +288,20 @@ Work items:
 - [x] Add caching for search summaries and unify shared CLI/output code with sqlite search.
 - [x] Expand filter coverage tests (return types, inferred types, returns/async flags).
 
-## Phase 27: SQLite Incremental Safety (status: todo)
-- [ ] Validate schema version before incremental updates and force rebuild when mismatched.
-- [ ] Detect embedding model changes (id/dims) and rebuild or re-ingest dense vectors.
-- [ ] Add optional vocab pruning/compaction for long-lived incremental DBs.
-- [ ] Add tests for schema mismatch and vector-ann table sync after deletions.
+## Phase 27: SQLite Incremental Safety (status: done)
+- [x] Validate schema version before incremental updates and force rebuild when mismatched.
+- [x] Detect embedding model changes (id/dims) and rebuild or re-ingest dense vectors.
+- [x] Add optional vocab pruning/compaction for long-lived incremental DBs.
+- [x] Add tests for schema mismatch and vector-ann table sync after deletions.
 
-## Phase 28: Tooling + Cache UX (status: todo)
-- [ ] Make `clean-artifacts --all` preserve models/dicts or add keep flags aligned with uninstall behavior.
-- [ ] Add `setup --json` summary output for CI automation.
-- [ ] Add Node-based archive extraction fallback for extension downloads.
-- [ ] Deduplicate shared helper logic across setup/bootstrap/clean/uninstall scripts.
+## Phase 28: Tooling + Cache UX (status: done)
+- [x] Make `clean-artifacts --all` preserve models/dicts or add keep flags aligned with uninstall behavior.
+- [x] Add `setup --json` summary output for CI automation.
+- [x] Add Node-based archive extraction fallback for extension downloads.
+- [x] Deduplicate shared helper logic across setup/bootstrap/clean/uninstall scripts.
 
-## Phase 29: MCP + Docs Quality (status: todo)
-- [ ] Refresh `ROADMAP.md` or mark it as historical to avoid contradicting `COMPLETE_PLAN.md`.
-- [ ] Add async MCP build support (stream output vs `spawnSync`) and document error payloads.
-- [ ] Add MCP error-path tests (invalid repo path, missing indexes).
-- [ ] Add a docs consistency test to catch stale plan/roadmap references.
+## Phase 29: MCP + Docs Quality (status: done)
+- [x] Refresh `ROADMAP.md` or mark it as historical to avoid contradicting `COMPLETE_PLAN.md`.
+- [x] Add async MCP build support (stream output vs `spawnSync`) and document error payloads.
+- [x] Add MCP error-path tests (invalid repo path, missing indexes).
+- [x] Add a docs consistency test to catch stale plan/roadmap references.

@@ -17,6 +17,7 @@
     "use": true,
     "dbDir": "",
     "annMode": "extension",
+    "compactOnIncremental": false,
     "vectorExtension": {
       "provider": "sqlite-vec",
       "dir": "",

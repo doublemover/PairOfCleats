@@ -43,4 +43,44 @@ if (!output.includes('Setup complete.')) {
   process.exit(1);
 }
 
+const jsonResult = spawnSync(
+  process.execPath,
+  [
+    path.join(root, 'tools', 'setup.js'),
+    '--non-interactive',
+    '--skip-install',
+    '--skip-dicts',
+    '--skip-models',
+    '--skip-extensions',
+    '--skip-tooling',
+    '--skip-index',
+    '--skip-sqlite',
+    '--skip-artifacts',
+    '--json'
+  ],
+  {
+    cwd: fixtureRoot,
+    encoding: 'utf8',
+    env: { ...process.env, PAIROFCLEATS_CACHE_ROOT: cacheRoot }
+  }
+);
+
+if (jsonResult.status !== 0) {
+  console.error('setup --json test failed');
+  if (jsonResult.stderr) console.error(jsonResult.stderr.trim());
+  process.exit(jsonResult.status ?? 1);
+}
+
+let payload;
+try {
+  payload = JSON.parse(jsonResult.stdout || '{}');
+} catch (err) {
+  console.error('setup --json test failed: invalid JSON output');
+  process.exit(1);
+}
+if (!payload?.steps) {
+  console.error('setup --json test failed: missing steps summary');
+  process.exit(1);
+}
+
 console.log('setup test passed');

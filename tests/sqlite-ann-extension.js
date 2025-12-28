@@ -16,6 +16,12 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
+const deletableFile = path.join(repoRoot, 'src', 'ann_deletable.js');
+await fsPromises.writeFile(
+  deletableFile,
+  'export const annDeletable = "ann_deletable_token";\n'
+);
+
 const extensionsDir = getExtensionsDir(repoRoot, null);
 const extensionPath = process.env.PAIROFCLEATS_VECTOR_EXTENSION
   || path.join(
@@ -54,6 +60,8 @@ const env = {
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 function run(args, label) {
   const result = spawnSync(process.execPath, args, {
@@ -67,7 +75,7 @@ function run(args, label) {
   }
 }
 
-run([path.join(root, 'build_index.js'), '--stub-embeddings'], 'build index');
+run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings'], 'build index');
 run([path.join(root, 'tools', 'build-sqlite-index.js')], 'build sqlite index');
 
 const userConfig = loadUserConfig(repoRoot);
@@ -100,6 +108,10 @@ if (!countRow?.count) {
   console.error('sqlite ann extension table empty: dense_vectors_ann');
   process.exit(1);
 }
+const denseCountBefore = db.prepare(
+  'SELECT COUNT(*) AS count FROM dense_vectors WHERE mode = ?'
+).get('code');
+const annCountBefore = countRow.count;
 db.close();
 
 const searchResult = spawnSync(
@@ -127,5 +139,39 @@ if (!stats.annExtension?.available?.code) {
   console.error('Expected sqlite ann extension available for code.');
   process.exit(1);
 }
+
+await fsPromises.rm(deletableFile, { force: true });
+run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings'], 'build index (incremental)');
+run([path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--mode', 'code'], 'build sqlite index (incremental)');
+
+const dbAfter = new Database(sqlitePaths.codePath, { readonly: true });
+try {
+  dbAfter.loadExtension(extensionPath);
+} catch (err) {
+  console.error(`Failed to load sqlite ann extension for incremental verification: ${err?.message || err}`);
+  process.exit(1);
+}
+const denseCountAfter = dbAfter.prepare(
+  'SELECT COUNT(*) AS count FROM dense_vectors WHERE mode = ?'
+).get('code');
+const annCountAfter = dbAfter.prepare(
+  'SELECT COUNT(*) AS count FROM dense_vectors_ann'
+).get()?.count;
+if (Number(annCountAfter) !== Number(denseCountAfter?.count)) {
+  console.error(`Dense vector count mismatch after incremental update: dense=${denseCountAfter?.count} ann=${annCountAfter}`);
+  process.exit(1);
+}
+if (denseCountBefore?.count && denseCountAfter?.count >= denseCountBefore.count) {
+  console.error('Expected dense vector count to drop after deletion.');
+  process.exit(1);
+}
+const orphanRow = dbAfter.prepare(
+  'SELECT COUNT(*) AS count FROM dense_vectors_ann WHERE rowid NOT IN (SELECT doc_id FROM dense_vectors WHERE mode = ?)'
+).get('code');
+if (orphanRow?.count) {
+  console.error(`Found ${orphanRow.count} orphaned ann rows after deletion.`);
+  process.exit(1);
+}
+dbAfter.close();
 
 console.log('sqlite ann extension test passed');

@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
+import { SCHEMA_VERSION } from '../src/sqlite/schema.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -20,6 +21,8 @@ const env = {
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 function run(args, label) {
   const result = spawnSync(process.execPath, args, {
@@ -31,6 +34,20 @@ function run(args, label) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);
   }
+}
+
+function runCapture(args, label) {
+  const result = spawnSync(process.execPath, args, {
+    cwd: repoRoot,
+    env,
+    encoding: 'utf8'
+  });
+  if (result.status !== 0) {
+    console.error(`Failed: ${label}`);
+    if (result.stderr) console.error(result.stderr.trim());
+    process.exit(result.status ?? 1);
+  }
+  return result;
 }
 
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings'], 'build index');
@@ -96,6 +113,29 @@ if (searchResult.status !== 0) {
 const payload = JSON.parse(searchResult.stdout || '{}');
 if (!payload.code?.length && !payload.prose?.length) {
   console.error('Incremental sqlite update produced no search results.');
+  process.exit(1);
+}
+
+const downgradeVersion = Math.max(0, SCHEMA_VERSION - 1);
+const dbDowngrade = new Database(sqlitePaths.codePath);
+dbDowngrade.pragma(`user_version = ${downgradeVersion}`);
+dbDowngrade.close();
+
+const rebuildResult = runCapture(
+  [path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental'],
+  'build sqlite index (schema mismatch)'
+);
+const rebuildOutput = `${rebuildResult.stdout || ''}\n${rebuildResult.stderr || ''}`;
+if (!rebuildOutput.includes('schema mismatch')) {
+  console.error('Expected schema mismatch rebuild warning for incremental sqlite update.');
+  process.exit(1);
+}
+
+const dbRebuilt = new Database(sqlitePaths.codePath, { readonly: true });
+const rebuiltVersion = dbRebuilt.pragma('user_version', { simple: true });
+dbRebuilt.close();
+if (rebuiltVersion !== SCHEMA_VERSION) {
+  console.error(`Expected schema version ${SCHEMA_VERSION}, got ${rebuiltVersion}.`);
   process.exit(1);
 }
 

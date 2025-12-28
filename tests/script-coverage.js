@@ -133,6 +133,11 @@ const actions = [
     covers: ['summary-report-test', 'summary-report']
   },
   {
+    label: 'docs-consistency-test',
+    run: () => runNode('docs-consistency-test', path.join(root, 'tests', 'docs-consistency.js')),
+    covers: ['docs-consistency-test']
+  },
+  {
     label: 'repometrics-dashboard-test',
     run: () => runNode('repometrics-dashboard-test', path.join(root, 'tests', 'repometrics-dashboard.js')),
     covers: ['repometrics-dashboard-test', 'repometrics-dashboard']

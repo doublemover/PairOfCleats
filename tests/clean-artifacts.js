@@ -41,6 +41,16 @@ await fsPromises.writeFile(path.join(legacySqliteDir, 'index-code.db'), 'legacy-
 await fsPromises.writeFile(path.join(legacySqliteDir, 'index-prose.db'), 'legacy-prose');
 await fsPromises.writeFile(path.join(legacySqliteDir, 'index.db'), 'legacy-index');
 
+const modelsDir = path.join(cacheRoot, 'models');
+const dictDir = path.join(cacheRoot, 'dictionaries');
+const extensionsDir = path.join(cacheRoot, 'extensions');
+await fsPromises.mkdir(modelsDir, { recursive: true });
+await fsPromises.mkdir(dictDir, { recursive: true });
+await fsPromises.mkdir(extensionsDir, { recursive: true });
+await fsPromises.writeFile(path.join(modelsDir, 'model.bin'), 'model');
+await fsPromises.writeFile(path.join(dictDir, 'en.txt'), 'word');
+await fsPromises.writeFile(path.join(extensionsDir, 'ext.bin'), 'ext');
+
 const result = spawnSync(
   process.execPath,
   [path.join(root, 'tools', 'clean-artifacts.js')],
@@ -55,6 +65,30 @@ if (result.status !== 0) {
 const failures = [];
 if (fs.existsSync(repoCacheRoot)) failures.push(`repo cache root still exists: ${repoCacheRoot}`);
 if (fs.existsSync(legacySqliteDir)) failures.push(`legacy sqlite dir still exists: ${legacySqliteDir}`);
+if (!fs.existsSync(modelsDir)) failures.push('models dir missing after clean-artifacts.');
+if (!fs.existsSync(dictDir)) failures.push('dictionaries dir missing after clean-artifacts.');
+if (!fs.existsSync(extensionsDir)) failures.push('extensions dir missing after clean-artifacts.');
+
+await fsPromises.mkdir(repoCacheRoot, { recursive: true });
+await fsPromises.writeFile(path.join(repoCacheRoot, 'marker.txt'), 'marker');
+
+const resultAll = spawnSync(
+  process.execPath,
+  [path.join(root, 'tools', 'clean-artifacts.js'), '--all'],
+  { cwd: repoRoot, env, stdio: 'inherit' }
+);
+
+if (resultAll.status !== 0) {
+  console.error('clean-artifacts --all test failed: script exited with non-zero status.');
+  process.exit(resultAll.status ?? 1);
+}
+
+if (fs.existsSync(path.join(cacheRoot, 'repos'))) {
+  failures.push(`cache repos dir still exists after --all: ${path.join(cacheRoot, 'repos')}`);
+}
+if (!fs.existsSync(modelsDir)) failures.push('models dir missing after clean-artifacts --all.');
+if (!fs.existsSync(dictDir)) failures.push('dictionaries dir missing after clean-artifacts --all.');
+if (!fs.existsSync(extensionsDir)) failures.push('extensions dir missing after clean-artifacts --all.');
 
 if (failures.length) {
   failures.forEach((msg) => console.error(msg));

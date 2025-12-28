@@ -5,6 +5,7 @@ import path from 'node:path';
 import readline from 'node:readline/promises';
 import minimist from 'minimist';
 import { getCacheRoot, getDictConfig, getExtensionsDir, getModelsDir, loadUserConfig } from './dict-utils.js';
+import { isInside, isRootPath } from './path-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['yes', 'dry-run'],
@@ -20,26 +21,6 @@ const envCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT || null;
 const modelsDir = getModelsDir(root, userConfig);
 const extensionsDir = getExtensionsDir(root, userConfig);
 
-/**
- * Check if a path is contained within another path.
- * @param {string} parent
- * @param {string} child
- * @returns {boolean}
- */
-function isInside(parent, child) {
-  const rel = path.relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-}
-
-/**
- * Guard against deleting filesystem root paths.
- * @param {string} targetPath
- * @returns {boolean}
- */
-function isRootPath(targetPath) {
-  const resolved = path.resolve(targetPath);
-  return path.parse(resolved).root === resolved;
-}
 
 const cacheRoots = new Set([defaultCacheRoot, configuredCacheRoot, envCacheRoot].filter(Boolean));
 const targets = [];

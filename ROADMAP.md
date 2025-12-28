@@ -1,5 +1,7 @@
 # Roadmap
 
+This roadmap is historical; current execution status lives in `COMPLETE_PLAN.md`.
+
 ## Recently completed
 - [x] Add .gitignore/.pairofcleatsignore support
 - [x] Rich chunk metadata + JS AST extraction depth

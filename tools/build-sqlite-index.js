@@ -5,6 +5,7 @@ import path from 'node:path';
 import minimist from 'minimist';
 import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
+import { compactDatabase } from './compact-sqlite-index.js';
 import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/sqlite/schema.js';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnTable } from '../src/sqlite/build-helpers.js';
 import { loadIncrementalManifest } from '../src/sqlite/incremental.js';
@@ -21,8 +22,8 @@ try {
 
 const argv = minimist(process.argv.slice(2), {
   string: ['code-dir', 'prose-dir', 'out', 'mode'],
-  boolean: ['incremental'],
-  default: { mode: 'all', incremental: false }
+  boolean: ['incremental', 'compact'],
+  default: { mode: 'all', incremental: false, compact: false }
 });
 
 const root = process.cwd();
@@ -37,6 +38,9 @@ const vectorConfig = {
   ensureVectorTable
 };
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+const compactFlag = argv.compact;
+const compactOnIncremental = compactFlag === true
+  || (compactFlag !== false && userConfig?.sqlite?.compactOnIncremental === true);
 const codeDir = argv['code-dir'] ? path.resolve(argv['code-dir']) : getIndexDir(root, 'code', userConfig);
 const proseDir = argv['prose-dir'] ? path.resolve(argv['prose-dir']) : getIndexDir(root, 'prose', userConfig);
 const sqlitePaths = resolveSqlitePaths(root, userConfig);
@@ -399,6 +403,20 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
 }
 
 /**
+ * Read the SQLite schema version.
+ * @param {import('better-sqlite3').Database} db
+ * @returns {number|null}
+ */
+function getSchemaVersion(db) {
+  try {
+    const value = db.pragma('user_version', { simple: true });
+    return Number.isFinite(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Load file manifest entries from SQLite.
  * @param {import('better-sqlite3').Database} db
  * @param {'code'|'prose'} mode
@@ -580,9 +598,10 @@ function updateTokenStats(db, mode, insertTokenStats) {
  * @param {string} outPath
  * @param {'code'|'prose'} mode
  * @param {object|null} incrementalData
+ * @param {{expectedDense?:{model?:string|null,dims?:number|null}}} [options]
  * @returns {{used:boolean,reason?:string,changedFiles?:number,deletedFiles?:number,insertedChunks?:number}}
  */
-function incrementalUpdateDatabase(outPath, mode, incrementalData) {
+function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {}) {
   if (!incrementalData?.manifest) {
     return { used: false, reason: 'missing incremental manifest' };
   }
@@ -590,15 +609,58 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData) {
     return { used: false, reason: 'sqlite db missing' };
   }
 
+  const expectedDense = options.expectedDense || null;
+  const expectedModel = expectedDense?.model || modelConfig.id || null;
+  const expectedDims = Number.isFinite(expectedDense?.dims) ? expectedDense.dims : null;
+
   const db = new Database(outPath);
   try {
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
   } catch {}
 
+  const schemaVersion = getSchemaVersion(db);
+  if (schemaVersion !== SCHEMA_VERSION) {
+    db.close();
+    return {
+      used: false,
+      reason: `schema mismatch (db=${schemaVersion ?? 'unknown'}, expected=${SCHEMA_VERSION})`
+    };
+  }
+
   if (!hasRequiredTables(db, REQUIRED_TABLES)) {
     db.close();
     return { used: false, reason: 'schema missing' };
+  }
+
+  const dbDenseMeta = db.prepare(
+    'SELECT dims, scale, model FROM dense_meta WHERE mode = ?'
+  ).get(mode);
+  const dbDims = Number.isFinite(dbDenseMeta?.dims) ? dbDenseMeta.dims : null;
+  const dbModel = dbDenseMeta?.model || null;
+  if ((expectedModel || expectedDims !== null) && !dbDenseMeta) {
+    db.close();
+    return { used: false, reason: 'dense metadata missing' };
+  }
+  if (expectedModel) {
+    if (!dbModel) {
+      db.close();
+      return { used: false, reason: 'dense metadata model missing' };
+    }
+    if (dbModel !== expectedModel) {
+      db.close();
+      return { used: false, reason: `model mismatch (db=${dbModel}, expected=${expectedModel})` };
+    }
+  }
+  if (expectedDims !== null) {
+    if (dbDims === null) {
+      db.close();
+      return { used: false, reason: 'dense metadata dims missing' };
+    }
+    if (dbDims !== expectedDims) {
+      db.close();
+      return { used: false, reason: `dense dims mismatch (db=${dbDims}, expected=${expectedDims})` };
+    }
   }
 
   const manifestFiles = incrementalData.manifest.files || {};
@@ -633,13 +695,30 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData) {
   const tokenValues = [];
   const phraseValues = [];
   const chargramValues = [];
+  const incomingDimsSet = new Set();
   for (const bundle of bundles.values()) {
     for (const chunk of bundle.chunks || []) {
       const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
       if (tokensArray.length) tokenValues.push(...tokensArray);
       if (Array.isArray(chunk.ngrams)) phraseValues.push(...chunk.ngrams);
       if (Array.isArray(chunk.chargrams)) chargramValues.push(...chunk.chargrams);
+      if (Array.isArray(chunk.embedding) && chunk.embedding.length) {
+        incomingDimsSet.add(chunk.embedding.length);
+      }
     }
+  }
+  if (incomingDimsSet.size > 1) {
+    db.close();
+    return { used: false, reason: 'embedding dims mismatch across bundles' };
+  }
+  const incomingDims = incomingDimsSet.size ? [...incomingDimsSet][0] : null;
+  if (incomingDims !== null && dbDims !== null && incomingDims !== dbDims) {
+    db.close();
+    return { used: false, reason: `embedding dims mismatch (db=${dbDims}, incoming=${incomingDims})` };
+  }
+  if (incomingDims !== null && expectedDims !== null && incomingDims !== expectedDims) {
+    db.close();
+    return { used: false, reason: `embedding dims mismatch (expected=${expectedDims}, incoming=${incomingDims})` };
   }
 
   const insertChunk = db.prepare(`
@@ -704,7 +783,7 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData) {
 
   const maxRow = db.prepare('SELECT MAX(id) AS maxId FROM chunks WHERE mode = ?').get(mode);
   let nextDocId = Number.isFinite(maxRow?.maxId) ? maxRow.maxId + 1 : 0;
-  const denseMetaRow = db.prepare('SELECT dims, scale, model FROM dense_meta WHERE mode = ?').get(mode);
+  const denseMetaRow = dbDenseMeta;
   let denseMetaSet = !!denseMetaRow;
   let denseDims = typeof denseMetaRow?.dims === 'number' ? denseMetaRow.dims : null;
   let denseWarned = false;
@@ -864,10 +943,27 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData) {
  * @param {object|null} incrementalData
  * @returns {{count?:number,incremental:boolean,changedFiles?:number,deletedFiles?:number,insertedChunks?:number}}
  */
-function runMode(mode, index, targetPath, incrementalData) {
+async function runMode(mode, index, targetPath, incrementalData) {
   if (incrementalRequested) {
-    const result = incrementalUpdateDatabase(targetPath, mode, incrementalData);
-    if (result.used) return { ...result, incremental: true };
+    const expectedDense = index?.denseVec
+      ? { model: index.denseVec.model, dims: index.denseVec.dims }
+      : null;
+    const result = incrementalUpdateDatabase(targetPath, mode, incrementalData, {
+      expectedDense
+    });
+    if (result.used) {
+      if (compactOnIncremental && (result.changedFiles || result.deletedFiles)) {
+        console.log(`[sqlite] Compaction requested for ${mode} index...`);
+        await compactDatabase({
+          dbPath: targetPath,
+          mode,
+          vectorExtension,
+          dryRun: false,
+          keepBackup: false
+        });
+      }
+      return { ...result, incremental: true };
+    }
     if (result.reason) {
       console.warn(`[sqlite] Incremental ${mode} update skipped (${result.reason}); rebuilding full index.`);
     }
@@ -879,11 +975,11 @@ function runMode(mode, index, targetPath, incrementalData) {
 const results = {};
 if (modeArg === 'all' || modeArg === 'code') {
   const targetPath = modeArg === 'all' ? codeOutPath : outPath;
-  results.code = runMode('code', codeIndex, targetPath, incrementalCode);
+  results.code = await runMode('code', codeIndex, targetPath, incrementalCode);
 }
 if (modeArg === 'all' || modeArg === 'prose') {
   const targetPath = modeArg === 'all' ? proseOutPath : outPath;
-  results.prose = runMode('prose', proseIndex, targetPath, incrementalProse);
+  results.prose = await runMode('prose', proseIndex, targetPath, incrementalProse);
 }
 
 if (modeArg === 'all') {
