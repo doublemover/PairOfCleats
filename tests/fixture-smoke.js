@@ -173,6 +173,47 @@ for (const fixtureName of fixtures) {
     }
   }
 
+  const compactQuery = queries[0];
+  const compactResult = spawnSync(
+    process.execPath,
+    [path.join(root, 'search.js'), compactQuery, '--json-compact', '--backend', 'memory', '--no-ann'],
+    { cwd: currentFixtureRoot, env: currentEnv, encoding: 'utf8' }
+  );
+  if (compactResult.status !== 0) {
+    console.error(`Fixture compact JSON failed for query: ${compactQuery}`);
+    process.exit(compactResult.status ?? 1);
+  }
+  const compactPayload = JSON.parse(compactResult.stdout || '{}');
+  const compactHits = [...(compactPayload.code || []), ...(compactPayload.prose || [])];
+  if (!compactHits.length) {
+    console.error(`Fixture compact JSON returned no results for query: ${compactQuery}`);
+    process.exit(1);
+  }
+  const compactSample = compactHits[0] || {};
+  if (!compactSample.file && compactSample.id === undefined) {
+    console.error('Fixture compact JSON missing hit identity fields.');
+    process.exit(1);
+  }
+  const forbiddenFields = [
+    'tokens',
+    'ngrams',
+    'preContext',
+    'postContext',
+    'codeRelations',
+    'docmeta',
+    'stats',
+    'complexity',
+    'lint',
+    'externalDocs',
+    'chunk_authors'
+  ];
+  for (const field of forbiddenFields) {
+    if (compactSample[field] !== undefined) {
+      console.error(`Fixture compact JSON includes unexpected field: ${field}`);
+      process.exit(1);
+    }
+  }
+
   if (pythonAvailable && fixtureName === 'sample') {
     const pythonCheck = spawnSync(
       process.execPath,

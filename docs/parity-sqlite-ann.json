@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2025-12-28T05:16:06.329Z",
+  "generatedAt": "2025-12-28T23:41:08.555Z",
   "queryFile": "C:\\Users\\sneak\\Development\\PairOfCleats_CODEX\\tests\\parity-queries.txt",
   "topN": 5,
   "annEnabled": false,
@@ -8,20 +8,20 @@
     "topN": 5,
     "annEnabled": false,
     "sqliteBackend": "sqlite",
-    "overlapAvg": 0.9,
+    "overlapAvg": 0.9666666666666667,
     "scoreDeltaAvg": 0,
     "rankCorrAvg": 1,
     "latencyMsAvg": {
-      "memory": 179.2,
-      "sqlite": 174.8
+      "memory": 264.1333333333333,
+      "sqlite": 242.46666666666667
     },
     "wallMsAvg": {
-      "memory": 282.34688666666653,
-      "sqlite": 275.93727333333334
+      "memory": 387.5399066666667,
+      "sqlite": 348.44599333333366
     },
     "rssMbAvg": {
-      "memory": 144.04583333333332,
-      "sqlite": 123.96875
+      "memory": 195.65026041666667,
+      "sqlite": 171.82760416666667
     }
   },
   "results": [
@@ -29,7 +29,7 @@
       "query": "index",
       "memory": {
         "stats": {
-          "elapsedMs": 207,
+          "elapsedMs": 264,
           "annEnabled": false,
           "annMode": "extension",
           "annBackend": "js",
@@ -44,25 +44,25 @@
             "key": null
           },
           "memory": {
-            "rss": 150372352,
-            "heapTotal": 139661312,
-            "heapUsed": 95876024,
-            "external": 1954548,
+            "rss": 204935168,
+            "heapTotal": 199368704,
+            "heapUsed": 120064144,
+            "external": 1954512,
             "arrayBuffers": 16823
           }
         },
-        "wallMs": 321.5985
+        "wallMs": 397.2718
       },
       "sqlite": {
         "stats": {
-          "elapsedMs": 187,
+          "elapsedMs": 233,
           "annEnabled": false,
           "annMode": "extension",
           "annBackend": "js",
           "annExtension": null,
           "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
           },
           "cache": {
             "enabled": false,
@@ -70,14 +70,14 @@
             "key": null
           },
           "memory": {
-            "rss": 129900544,
-            "heapTotal": 123498496,
-            "heapUsed": 67193400,
-            "external": 2355920,
-            "arrayBuffers": 418231
+            "rss": 180375552,
+            "heapTotal": 180862976,
+            "heapUsed": 85131864,
+            "external": 2717904,
+            "arrayBuffers": 780215
           }
         },
-        "wallMs": 280.8537
+        "wallMs": 344.5019
       },
       "code": {
         "overlap": 1,
@@ -86,18 +86,18 @@
         "missingFromMemory": [],
         "rankCorr": 1,
         "topMemory": [
-          "119",
-          "130",
-          "131",
-          "132",
-          "120"
+          "88",
+          "56",
+          "45",
+          "95",
+          "327"
         ],
         "topSqlite": [
-          "119",
-          "130",
-          "131",
-          "132",
-          "120"
+          "88",
+          "56",
+          "45",
+          "95",
+          "327"
         ]
       },
       "prose": {
@@ -107,18 +107,18 @@
         "missingFromMemory": [],
         "rankCorr": 1,
         "topMemory": [
-          "73",
-          "69",
+          "135",
+          "131",
+          "142",
           "3",
-          "80",
-          "28"
+          "16"
         ],
         "topSqlite": [
-          "73",
-          "69",
+          "135",
+          "131",
+          "142",
           "3",
-          "80",
-          "28"
+          "16"
         ]
       }
     },
@@ -126,7 +126,7 @@
       "query": "search",
       "memory": {
         "stats": {
-          "elapsedMs": 192,
+          "elapsedMs": 339,
           "annEnabled": false,
           "annMode": "extension",
           "annBackend": "js",
@@ -141,25 +141,25 @@
             "key": null
           },
           "memory": {
-            "rss": 150413312,
-            "heapTotal": 139923456,
-            "heapUsed": 95836200,
-            "external": 1954548,
+            "rss": 204615680,
+            "heapTotal": 199368704,
+            "heapUsed": 119767376,
+            "external": 1954512,
             "arrayBuffers": 16823
           }
         },
-        "wallMs": 289.409
+        "wallMs": 478.8103000000001
       },
       "sqlite": {
         "stats": {
-          "elapsedMs": 184,
+          "elapsedMs": 291,
           "annEnabled": false,
           "annMode": "extension",
           "annBackend": "js",
           "annExtension": null,
           "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
           },
           "cache": {
             "enabled": false,
@@ -167,14 +167,14 @@
             "key": null
           },
           "memory": {
-            "rss": 129564672,
-            "heapTotal": 122974208,
-            "heapUsed": 67025720,
-            "external": 2355920,
-            "arrayBuffers": 418231
+            "rss": 179933184,
+            "heapTotal": 180862976,
+            "heapUsed": 84694680,
+            "external": 2717904,
+            "arrayBuffers": 780215
           }
         },
-        "wallMs": 281.51790000000005
+        "wallMs": 412.00739999999996
       },
       "code": {
         "overlap": 1,
@@ -183,18 +183,18 @@
         "missingFromMemory": [],
         "rankCorr": 1,
         "topMemory": [
-          "18",
-          "156",
-          "258",
-          "5",
-          "31"
+          "48",
+          "61",
+          "93",
+          "35",
+          "66"
         ],
         "topSqlite": [
-          "18",
-          "156",
-          "258",
-          "5",
-          "31"
+          "48",
+          "61",
+          "93",
+          "35",
+          "66"
         ]
       },
       "prose": {
@@ -204,18 +204,18 @@
         "missingFromMemory": [],
         "rankCorr": 1,
         "topMemory": [
-          "64",
-          "58",
-          "46",
-          "51",
-          "56"
+          "126",
+          "34",
+          "62",
+          "115",
+          "92"
         ],
         "topSqlite": [
-          "64",
-          "58",
-          "46",
-          "51",
-          "56"
+          "126",
+          "34",
+          "62",
+          "115",
+          "92"
         ]
       }
     },
@@ -223,7 +223,7 @@
       "query": "sqlite",
       "memory": {
         "stats": {
-          "elapsedMs": 202,
+          "elapsedMs": 299,
           "annEnabled": false,
           "annMode": "extension",
           "annBackend": "js",
@@ -238,25 +238,25 @@
             "key": null
           },
           "memory": {
-            "rss": 150118400,
-            "heapTotal": 139923456,
-            "heapUsed": 95861400,
-            "external": 1954548,
+            "rss": 205578240,
+            "heapTotal": 199368704,
+            "heapUsed": 119826864,
+            "external": 1954512,
             "arrayBuffers": 16823
           }
         },
-        "wallMs": 298.2908
+        "wallMs": 433.5360999999998
       },
       "sqlite": {
         "stats": {
-          "elapsedMs": 187,
+          "elapsedMs": 273,
           "annEnabled": false,
           "annMode": "extension",
           "annBackend": "js",
           "annExtension": null,
           "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
           },
           "cache": {
             "enabled": false,
@@ -264,14 +264,14 @@
             "key": null
           },
           "memory": {
-            "rss": 129884160,
-            "heapTotal": 123236352,
-            "heapUsed": 67120736,
-            "external": 2355920,
-            "arrayBuffers": 418231
+            "rss": 179974144,
+            "heapTotal": 181125120,
+            "heapUsed": 85253048,
+            "external": 2717904,
+            "arrayBuffers": 780215
           }
         },
-        "wallMs": 300.14339999999993
+        "wallMs": 402.3577
       },
       "code": {
         "overlap": 1,
@@ -280,18 +280,18 @@
         "missingFromMemory": [],
         "rankCorr": 1,
         "topMemory": [
-          "13",
-          "260",
-          "29",
-          "24",
-          "25"
+          "43",
+          "59",
+          "54",
+          "55",
+          "47"
         ],
         "topSqlite": [
-          "13",
-          "260",
-          "29",
-          "24",
-          "25"
+          "43",
+          "59",
+          "54",
+          "55",
+          "47"
         ]
       },
       "prose": {
@@ -301,18 +301,18 @@
         "missingFromMemory": [],
         "rankCorr": 1,
         "topMemory": [
-          "113",
+          "174",
+          "183",
           "7",
-          "60",
-          "66",
-          "71"
+          "122",
+          "128"
         ],
         "topSqlite": [
-          "113",
+          "174",
+          "183",
           "7",
-          "60",
-          "66",
-          "71"
+          "122",
+          "128"
         ]
       }
     },
@@ -320,7 +320,7 @@
       "query": "dictionary",
       "memory": {
         "stats": {
-          "elapsedMs": 181,
+          "elapsedMs": 266,
           "annEnabled": false,
           "annMode": "extension",
           "annBackend": "js",
@@ -335,25 +335,25 @@
             "key": null
           },
           "memory": {
-            "rss": 150257664,
-            "heapTotal": 139923456,
-            "heapUsed": 95850864,
-            "external": 1954548,
+            "rss": 204656640,
+            "heapTotal": 199368704,
+            "heapUsed": 119741360,
+            "external": 1954512,
             "arrayBuffers": 16823
           }
         },
-        "wallMs": 283.0714999999998
+        "wallMs": 410.37519999999995
       },
       "sqlite": {
         "stats": {
-          "elapsedMs": 171,
+          "elapsedMs": 265,
           "annEnabled": false,
           "annMode": "extension",
           "annBackend": "js",
           "annExtension": null,
           "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
           },
           "cache": {
             "enabled": false,
@@ -361,23 +361,35 @@
             "key": null
           },
           "memory": {
-            "rss": 129748992,
-            "heapTotal": 122712064,
-            "heapUsed": 67327832,
-            "external": 2355920,
-            "arrayBuffers": 418231
+            "rss": 180842496,
+            "heapTotal": 181125120,
+            "heapUsed": 85757088,
+            "external": 2717904,
+            "arrayBuffers": 780215
           }
         },
-        "wallMs": 283.9363000000003
+        "wallMs": 379.4580000000001
       },
       "code": {
-        "overlap": 0,
+        "overlap": 1,
         "avgDelta": 0,
         "missingFromSqlite": [],
         "missingFromMemory": [],
-        "rankCorr": null,
-        "topMemory": [],
-        "topSqlite": []
+        "rankCorr": 1,
+        "topMemory": [
+          "84",
+          "15",
+          "21",
+          "8",
+          "27"
+        ],
+        "topSqlite": [
+          "84",
+          "15",
+          "21",
+          "8",
+          "27"
+        ]
       },
       "prose": {
         "overlap": 1,
@@ -386,16 +398,18 @@
         "missingFromMemory": [],
         "rankCorr": 1,
         "topMemory": [
-          "86",
-          "113",
-          "26",
-          "34"
+          "148",
+          "120",
+          "183",
+          "39",
+          "44"
         ],
         "topSqlite": [
-          "86",
-          "113",
-          "26",
-          "34"
+          "148",
+          "120",
+          "183",
+          "39",
+          "44"
         ]
       }
     },
@@ -403,7 +417,7 @@
       "query": "bootstrap",
       "memory": {
         "stats": {
-          "elapsedMs": 157,
+          "elapsedMs": 255,
           "annEnabled": false,
           "annMode": "extension",
           "annBackend": "js",
@@ -418,25 +432,25 @@
             "key": null
           },
           "memory": {
-            "rss": 150712320,
-            "heapTotal": 139399168,
-            "heapUsed": 95804856,
-            "external": 1954548,
+            "rss": 204824576,
+            "heapTotal": 199106560,
+            "heapUsed": 119641384,
+            "external": 1954512,
             "arrayBuffers": 16823
           }
         },
-        "wallMs": 252.7826
+        "wallMs": 388.4477999999999
       },
       "sqlite": {
         "stats": {
-          "elapsedMs": 155,
+          "elapsedMs": 244,
           "annEnabled": false,
           "annMode": "extension",
           "annBackend": "js",
           "annExtension": null,
           "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
           },
           "cache": {
             "enabled": false,
@@ -444,23 +458,35 @@
             "key": null
           },
           "memory": {
-            "rss": 129667072,
-            "heapTotal": 122974208,
-            "heapUsed": 66936800,
-            "external": 2355920,
-            "arrayBuffers": 418231
+            "rss": 179957760,
+            "heapTotal": 180862976,
+            "heapUsed": 84959544,
+            "external": 2717904,
+            "arrayBuffers": 780215
           }
         },
-        "wallMs": 246.4393
+        "wallMs": 357.49890000000005
       },
       "code": {
-        "overlap": 0,
+        "overlap": 1,
         "avgDelta": 0,
         "missingFromSqlite": [],
         "missingFromMemory": [],
-        "rankCorr": null,
-        "topMemory": [],
-        "topSqlite": []
+        "rankCorr": 1,
+        "topMemory": [
+          "15",
+          "21",
+          "8",
+          "27",
+          "33"
+        ],
+        "topSqlite": [
+          "15",
+          "21",
+          "8",
+          "27",
+          "33"
+        ]
       },
       "prose": {
         "overlap": 1,
@@ -470,23 +496,817 @@
         "rankCorr": 1,
         "topMemory": [
           "4",
-          "77",
-          "113",
-          "10",
-          "27"
+          "121",
+          "139",
+          "22",
+          "36"
         ],
         "topSqlite": [
           "4",
-          "77",
-          "113",
-          "10",
-          "27"
+          "121",
+          "139",
+          "22",
+          "36"
         ]
       }
     },
     {
       "query": "chunk",
       "memory": {
+        "stats": {
+          "elapsedMs": 290,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 204636160,
+            "heapTotal": 199368704,
+            "heapUsed": 119898912,
+            "external": 1954512,
+            "arrayBuffers": 16823
+          }
+        },
+        "wallMs": 423.4870999999998
+      },
+      "sqlite": {
+        "stats": {
+          "elapsedMs": 250,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 180510720,
+            "heapTotal": 181125120,
+            "heapUsed": 85074056,
+            "external": 2717904,
+            "arrayBuffers": 780215
+          }
+        },
+        "wallMs": 371.47369999999955
+      },
+      "code": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "372",
+          "52",
+          "53",
+          "50",
+          "45"
+        ],
+        "topSqlite": [
+          "372",
+          "52",
+          "53",
+          "50",
+          "45"
+        ]
+      },
+      "prose": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "60",
+          "84",
+          "32",
+          "163",
+          "23"
+        ],
+        "topSqlite": [
+          "60",
+          "84",
+          "32",
+          "163",
+          "23"
+        ]
+      }
+    },
+    {
+      "query": "minhash",
+      "memory": {
+        "stats": {
+          "elapsedMs": 269,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 204783616,
+            "heapTotal": 199368704,
+            "heapUsed": 119796712,
+            "external": 1954512,
+            "arrayBuffers": 16823
+          }
+        },
+        "wallMs": 398.45910000000003
+      },
+      "sqlite": {
+        "stats": {
+          "elapsedMs": 282,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 180019200,
+            "heapTotal": 181125120,
+            "heapUsed": 84881960,
+            "external": 2717904,
+            "arrayBuffers": 780215
+          }
+        },
+        "wallMs": 406.90480000000025
+      },
+      "code": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "385",
+          "44",
+          "387",
+          "61",
+          "50"
+        ],
+        "topSqlite": [
+          "385",
+          "44",
+          "387",
+          "61",
+          "50"
+        ]
+      },
+      "prose": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "62",
+          "34",
+          "183",
+          "39",
+          "146"
+        ],
+        "topSqlite": [
+          "62",
+          "34",
+          "183",
+          "39",
+          "146"
+        ]
+      }
+    },
+    {
+      "query": "ann",
+      "memory": {
+        "stats": {
+          "elapsedMs": 263,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 204800000,
+            "heapTotal": 199106560,
+            "heapUsed": 119715480,
+            "external": 1954512,
+            "arrayBuffers": 16823
+          }
+        },
+        "wallMs": 407.5609999999997
+      },
+      "sqlite": {
+        "stats": {
+          "elapsedMs": 275,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 179372032,
+            "heapTotal": 181125120,
+            "heapUsed": 84810264,
+            "external": 2717904,
+            "arrayBuffers": 780215
+          }
+        },
+        "wallMs": 396.58840000000055
+      },
+      "code": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "59",
+          "61",
+          "48",
+          "62",
+          "66"
+        ],
+        "topSqlite": [
+          "59",
+          "61",
+          "48",
+          "62",
+          "66"
+        ]
+      },
+      "prose": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "125",
+          "162",
+          "124",
+          "127",
+          "132"
+        ],
+        "topSqlite": [
+          "125",
+          "162",
+          "124",
+          "127",
+          "132"
+        ]
+      }
+    },
+    {
+      "query": "bm25",
+      "memory": {
+        "stats": {
+          "elapsedMs": 286,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 205762560,
+            "heapTotal": 199368704,
+            "heapUsed": 119754592,
+            "external": 1954512,
+            "arrayBuffers": 16823
+          }
+        },
+        "wallMs": 408.3244000000004
+      },
+      "sqlite": {
+        "stats": {
+          "elapsedMs": 232,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 179970048,
+            "heapTotal": 181125120,
+            "heapUsed": 84933592,
+            "external": 2717904,
+            "arrayBuffers": 780215
+          }
+        },
+        "wallMs": 323.4480999999996
+      },
+      "code": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "61",
+          "58",
+          "369",
+          "302",
+          "21"
+        ],
+        "topSqlite": [
+          "61",
+          "58",
+          "369",
+          "302",
+          "21"
+        ]
+      },
+      "prose": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "183",
+          "137",
+          "60",
+          "10",
+          "18"
+        ],
+        "topSqlite": [
+          "183",
+          "137",
+          "60",
+          "10",
+          "18"
+        ]
+      }
+    },
+    {
+      "query": "cache",
+      "memory": {
+        "stats": {
+          "elapsedMs": 230,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 205914112,
+            "heapTotal": 199368704,
+            "heapUsed": 119564064,
+            "external": 1954512,
+            "arrayBuffers": 16823
+          }
+        },
+        "wallMs": 337.8852999999999
+      },
+      "sqlite": {
+        "stats": {
+          "elapsedMs": 222,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 179933184,
+            "heapTotal": 181125120,
+            "heapUsed": 84817488,
+            "external": 2717904,
+            "arrayBuffers": 780215
+          }
+        },
+        "wallMs": 310.9497000000001
+      },
+      "code": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "372",
+          "366",
+          "54",
+          "55",
+          "379"
+        ],
+        "topSqlite": [
+          "372",
+          "366",
+          "54",
+          "55",
+          "379"
+        ]
+      },
+      "prose": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "111",
+          "3",
+          "135",
+          "107",
+          "110"
+        ],
+        "topSqlite": [
+          "111",
+          "3",
+          "135",
+          "107",
+          "110"
+        ]
+      }
+    },
+    {
+      "query": "python",
+      "memory": {
+        "stats": {
+          "elapsedMs": 252,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 205574144,
+            "heapTotal": 199368704,
+            "heapUsed": 119784056,
+            "external": 1954512,
+            "arrayBuffers": 16823
+          }
+        },
+        "wallMs": 361.89660000000003
+      },
+      "sqlite": {
+        "stats": {
+          "elapsedMs": 211,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 179810304,
+            "heapTotal": 181125120,
+            "heapUsed": 85022880,
+            "external": 2717904,
+            "arrayBuffers": 780215
+          }
+        },
+        "wallMs": 298.9926999999998
+      },
+      "code": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "280",
+          "285",
+          "281",
+          "149",
+          "100"
+        ],
+        "topSqlite": [
+          "280",
+          "285",
+          "281",
+          "149",
+          "100"
+        ]
+      },
+      "prose": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "68",
+          "99",
+          "12",
+          "41",
+          "51"
+        ],
+        "topSqlite": [
+          "68",
+          "99",
+          "12",
+          "41",
+          "51"
+        ]
+      }
+    },
+    {
+      "query": "docstring",
+      "memory": {
+        "stats": {
+          "elapsedMs": 237,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 204972032,
+            "heapTotal": 199106560,
+            "heapUsed": 120046816,
+            "external": 1954512,
+            "arrayBuffers": 16823
+          }
+        },
+        "wallMs": 347.8130000000001
+      },
+      "sqlite": {
+        "stats": {
+          "elapsedMs": 214,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 181198848,
+            "heapTotal": 181125120,
+            "heapUsed": 85820512,
+            "external": 2717904,
+            "arrayBuffers": 780215
+          }
+        },
+        "wallMs": 308.7876000000015
+      },
+      "code": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "331",
+          "323",
+          "265",
+          "207",
+          "296"
+        ],
+        "topSqlite": [
+          "331",
+          "323",
+          "265",
+          "207",
+          "296"
+        ]
+      },
+      "prose": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "182",
+          "183",
+          "26",
+          "144",
+          "45"
+        ],
+        "topSqlite": [
+          "182",
+          "183",
+          "26",
+          "144",
+          "45"
+        ]
+      }
+    },
+    {
+      "query": "repometrics",
+      "memory": {
+        "stats": {
+          "elapsedMs": 242,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 206024704,
+            "heapTotal": 199106560,
+            "heapUsed": 120042208,
+            "external": 1954512,
+            "arrayBuffers": 16823
+          }
+        },
+        "wallMs": 343.58640000000014
+      },
+      "sqlite": {
+        "stats": {
+          "elapsedMs": 219,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 181321728,
+            "heapTotal": 181125120,
+            "heapUsed": 85736184,
+            "external": 2717904,
+            "arrayBuffers": 780215
+          }
+        },
+        "wallMs": 305.3188000000009
+      },
+      "code": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": 1,
+        "topMemory": [
+          "663",
+          "144",
+          "362",
+          "67",
+          "409"
+        ],
+        "topSqlite": [
+          "663",
+          "144",
+          "362",
+          "67",
+          "409"
+        ]
+      },
+      "prose": {
+        "overlap": 1,
+        "avgDelta": 0,
+        "missingFromSqlite": [],
+        "missingFromMemory": [],
+        "rankCorr": null,
+        "topMemory": [
+          "183"
+        ],
+        "topSqlite": [
+          "183"
+        ]
+      }
+    },
+    {
+      "query": "fts",
+      "memory": {
+        "stats": {
+          "elapsedMs": 234,
+          "annEnabled": false,
+          "annMode": "extension",
+          "annBackend": "js",
+          "annExtension": null,
+          "models": {
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
+          },
+          "cache": {
+            "enabled": false,
+            "hit": false,
+            "key": null
+          },
+          "memory": {
+            "rss": 205234176,
+            "heapTotal": 199368704,
+            "heapUsed": 119750544,
+            "external": 1954512,
+            "arrayBuffers": 16823
+          }
+        },
+        "wallMs": 337.4954000000016
+      },
+      "sqlite": {
         "stats": {
           "elapsedMs": 209,
           "annEnabled": false,
@@ -503,808 +1323,14 @@
             "key": null
           },
           "memory": {
-            "rss": 150409216,
-            "heapTotal": 139923456,
-            "heapUsed": 95866696,
-            "external": 1954548,
-            "arrayBuffers": 16823
+            "rss": 179458048,
+            "heapTotal": 180862976,
+            "heapUsed": 84538040,
+            "external": 2717904,
+            "arrayBuffers": 780215
           }
         },
-        "wallMs": 316.41979999999967
-      },
-      "sqlite": {
-        "stats": {
-          "elapsedMs": 192,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 129777664,
-            "heapTotal": 123236352,
-            "heapUsed": 67072952,
-            "external": 2355920,
-            "arrayBuffers": 418231
-          }
-        },
-        "wallMs": 301.9983000000002
-      },
-      "code": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "113",
-          "250",
-          "118",
-          "112",
-          "61"
-        ],
-        "topSqlite": [
-          "113",
-          "250",
-          "118",
-          "112",
-          "61"
-        ]
-      },
-      "prose": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "101",
-          "84",
-          "42",
-          "113",
-          "82"
-        ],
-        "topSqlite": [
-          "101",
-          "84",
-          "42",
-          "113",
-          "82"
-        ]
-      }
-    },
-    {
-      "query": "minhash",
-      "memory": {
-        "stats": {
-          "elapsedMs": 176,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L12-v2",
-            "prose": "Xenova/all-MiniLM-L12-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 150577152,
-            "heapTotal": 139923456,
-            "heapUsed": 95858928,
-            "external": 1954548,
-            "arrayBuffers": 16823
-          }
-        },
-        "wallMs": 284.7496000000001
-      },
-      "sqlite": {
-        "stats": {
-          "elapsedMs": 157,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 129691648,
-            "heapTotal": 123236352,
-            "heapUsed": 67001648,
-            "external": 2355920,
-            "arrayBuffers": 418231
-          }
-        },
-        "wallMs": 250.9964
-      },
-      "code": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "121",
-          "123",
-          "44",
-          "149",
-          "14"
-        ],
-        "topSqlite": [
-          "121",
-          "123",
-          "44",
-          "149",
-          "14"
-        ]
-      },
-      "prose": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "113",
-          "25",
-          "84",
-          "5",
-          "3"
-        ],
-        "topSqlite": [
-          "113",
-          "25",
-          "84",
-          "5",
-          "3"
-        ]
-      }
-    },
-    {
-      "query": "ann",
-      "memory": {
-        "stats": {
-          "elapsedMs": 160,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L12-v2",
-            "prose": "Xenova/all-MiniLM-L12-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 150315008,
-            "heapTotal": 139923456,
-            "heapUsed": 95832736,
-            "external": 1954548,
-            "arrayBuffers": 16823
-          }
-        },
-        "wallMs": 258.2978999999996
-      },
-      "sqlite": {
-        "stats": {
-          "elapsedMs": 155,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 132374528,
-            "heapTotal": 125411328,
-            "heapUsed": 69855504,
-            "external": 2355920,
-            "arrayBuffers": 418231
-          }
-        },
-        "wallMs": 258.34640000000036
-      },
-      "code": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "18",
-          "29",
-          "31",
-          "113",
-          "156"
-        ],
-        "topSqlite": [
-          "18",
-          "29",
-          "31",
-          "113",
-          "156"
-        ]
-      },
-      "prose": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "63",
-          "100",
-          "62",
-          "113",
-          "65"
-        ],
-        "topSqlite": [
-          "63",
-          "100",
-          "62",
-          "113",
-          "65"
-        ]
-      }
-    },
-    {
-      "query": "bm25",
-      "memory": {
-        "stats": {
-          "elapsedMs": 164,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L12-v2",
-            "prose": "Xenova/all-MiniLM-L12-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 150253568,
-            "heapTotal": 139661312,
-            "heapUsed": 95898600,
-            "external": 1954548,
-            "arrayBuffers": 16823
-          }
-        },
-        "wallMs": 253.32839999999942
-      },
-      "sqlite": {
-        "stats": {
-          "elapsedMs": 159,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 129564672,
-            "heapTotal": 123236352,
-            "heapUsed": 66912912,
-            "external": 2355920,
-            "arrayBuffers": 418231
-          }
-        },
-        "wallMs": 253.1943000000001
-      },
-      "code": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "108",
-          "31",
-          "28",
-          "126",
-          "41"
-        ],
-        "topSqlite": [
-          "108",
-          "31",
-          "28",
-          "126",
-          "41"
-        ]
-      },
-      "prose": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "113",
-          "75",
-          "10",
-          "17",
-          "7"
-        ],
-        "topSqlite": [
-          "113",
-          "75",
-          "10",
-          "17",
-          "7"
-        ]
-      }
-    },
-    {
-      "query": "cache",
-      "memory": {
-        "stats": {
-          "elapsedMs": 187,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L12-v2",
-            "prose": "Xenova/all-MiniLM-L12-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 150536192,
-            "heapTotal": 139661312,
-            "heapUsed": 95846088,
-            "external": 1954548,
-            "arrayBuffers": 16823
-          }
-        },
-        "wallMs": 296.54149999999936
-      },
-      "sqlite": {
-        "stats": {
-          "elapsedMs": 166,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 129802240,
-            "heapTotal": 122712064,
-            "heapUsed": 66999608,
-            "external": 2355920,
-            "arrayBuffers": 418231
-          }
-        },
-        "wallMs": 263.28420000000006
-      },
-      "code": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "115",
-          "114",
-          "105",
-          "161",
-          "141"
-        ],
-        "topSqlite": [
-          "115",
-          "114",
-          "105",
-          "161",
-          "141"
-        ]
-      },
-      "prose": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "54",
-          "3",
-          "32",
-          "50",
-          "53"
-        ],
-        "topSqlite": [
-          "54",
-          "3",
-          "32",
-          "50",
-          "53"
-        ]
-      }
-    },
-    {
-      "query": "python",
-      "memory": {
-        "stats": {
-          "elapsedMs": 159,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L12-v2",
-            "prose": "Xenova/all-MiniLM-L12-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 156360704,
-            "heapTotal": 145059840,
-            "heapUsed": 103419336,
-            "external": 1954548,
-            "arrayBuffers": 16823
-          }
-        },
-        "wallMs": 265.84000000000015
-      },
-      "sqlite": {
-        "stats": {
-          "elapsedMs": 183,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 129765376,
-            "heapTotal": 123236352,
-            "heapUsed": 66928400,
-            "external": 2355920,
-            "arrayBuffers": 418231
-          }
-        },
-        "wallMs": 277.0646999999999
-      },
-      "code": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "74",
-          "69",
-          "70",
-          "173",
-          "249"
-        ],
-        "topSqlite": [
-          "74",
-          "69",
-          "70",
-          "173",
-          "249"
-        ]
-      },
-      "prose": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "41",
-          "103",
-          "4",
-          "36",
-          "12"
-        ],
-        "topSqlite": [
-          "41",
-          "103",
-          "4",
-          "36",
-          "12"
-        ]
-      }
-    },
-    {
-      "query": "docstring",
-      "memory": {
-        "stats": {
-          "elapsedMs": 161,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L12-v2",
-            "prose": "Xenova/all-MiniLM-L12-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 150441984,
-            "heapTotal": 139661312,
-            "heapUsed": 95901920,
-            "external": 1954548,
-            "arrayBuffers": 16823
-          }
-        },
-        "wallMs": 266.1351999999997
-      },
-      "sqlite": {
-        "stats": {
-          "elapsedMs": 169,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 130211840,
-            "heapTotal": 122974208,
-            "heapUsed": 67240400,
-            "external": 2355920,
-            "arrayBuffers": 418231
-          }
-        },
-        "wallMs": 262.27919999999995
-      },
-      "code": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "75",
-          "87",
-          "62",
-          "234",
-          "104"
-        ],
-        "topSqlite": [
-          "75",
-          "87",
-          "62",
-          "234",
-          "104"
-        ]
-      },
-      "prose": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "112",
-          "113",
-          "82",
-          "31",
-          "89"
-        ],
-        "topSqlite": [
-          "112",
-          "113",
-          "82",
-          "31",
-          "89"
-        ]
-      }
-    },
-    {
-      "query": "repometrics",
-      "memory": {
-        "stats": {
-          "elapsedMs": 159,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L12-v2",
-            "prose": "Xenova/all-MiniLM-L12-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 150773760,
-            "heapTotal": 139661312,
-            "heapUsed": 96003864,
-            "external": 1954548,
-            "arrayBuffers": 16823
-          }
-        },
-        "wallMs": 265.46759999999995
-      },
-      "sqlite": {
-        "stats": {
-          "elapsedMs": 162,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 130183168,
-            "heapTotal": 122712064,
-            "heapUsed": 67333328,
-            "external": 2355920,
-            "arrayBuffers": 418231
-          }
-        },
-        "wallMs": 264.97519999999986
-      },
-      "code": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": 1,
-        "topMemory": [
-          "265",
-          "161",
-          "222",
-          "32",
-          "254"
-        ],
-        "topSqlite": [
-          "265",
-          "161",
-          "222",
-          "32",
-          "254"
-        ]
-      },
-      "prose": {
-        "overlap": 1,
-        "avgDelta": 0,
-        "missingFromSqlite": [],
-        "missingFromMemory": [],
-        "rankCorr": null,
-        "topMemory": [
-          "113"
-        ],
-        "topSqlite": [
-          "113"
-        ]
-      }
-    },
-    {
-      "query": "fts",
-      "memory": {
-        "stats": {
-          "elapsedMs": 173,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L12-v2",
-            "prose": "Xenova/all-MiniLM-L12-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 153587712,
-            "heapTotal": 142098432,
-            "heapUsed": 98693880,
-            "external": 1954548,
-            "arrayBuffers": 16823
-          }
-        },
-        "wallMs": 280.40710000000036
-      },
-      "sqlite": {
-        "stats": {
-          "elapsedMs": 198,
-          "annEnabled": false,
-          "annMode": "extension",
-          "annBackend": "js",
-          "annExtension": null,
-          "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
-          },
-          "cache": {
-            "enabled": false,
-            "hit": false,
-            "key": null
-          },
-          "memory": {
-            "rss": 129945600,
-            "heapTotal": 123498496,
-            "heapUsed": 66801688,
-            "external": 2355920,
-            "arrayBuffers": 418231
-          }
-        },
-        "wallMs": 301.0114000000003
+        "wallMs": 301.1313000000009
       },
       "code": {
         "overlap": 0,
@@ -1322,18 +1348,18 @@
         "missingFromMemory": [],
         "rankCorr": 1,
         "topMemory": [
-          "83",
-          "75",
-          "13",
-          "49",
-          "26"
+          "145",
+          "14",
+          "137",
+          "95",
+          "42"
         ],
         "topSqlite": [
-          "83",
-          "75",
-          "13",
-          "49",
-          "26"
+          "145",
+          "14",
+          "137",
+          "95",
+          "42"
         ]
       }
     },
@@ -1341,7 +1367,7 @@
       "query": "incremental",
       "memory": {
         "stats": {
-          "elapsedMs": 201,
+          "elapsedMs": 236,
           "annEnabled": false,
           "annMode": "extension",
           "annBackend": "js",
@@ -1356,25 +1382,25 @@
             "key": null
           },
           "memory": {
-            "rss": 150515712,
-            "heapTotal": 139923456,
-            "heapUsed": 95829816,
-            "external": 1954548,
+            "rss": 205000704,
+            "heapTotal": 199106560,
+            "heapUsed": 119826824,
+            "external": 1954512,
             "arrayBuffers": 16823
           }
         },
-        "wallMs": 302.8638000000001
+        "wallMs": 338.1490999999987
       },
       "sqlite": {
         "stats": {
-          "elapsedMs": 197,
+          "elapsedMs": 217,
           "annEnabled": false,
           "annMode": "extension",
           "annBackend": "js",
           "annExtension": null,
           "models": {
-            "code": "Xenova/all-MiniLM-L6-v2",
-            "prose": "Xenova/all-MiniLM-L6-v2"
+            "code": "Xenova/all-MiniLM-L12-v2",
+            "prose": "Xenova/all-MiniLM-L12-v2"
           },
           "cache": {
             "enabled": false,
@@ -1382,14 +1408,14 @@
             "key": null
           },
           "memory": {
-            "rss": 129777664,
-            "heapTotal": 123236352,
-            "heapUsed": 67136744,
-            "external": 2355920,
-            "arrayBuffers": 418231
+            "rss": 179937280,
+            "heapTotal": 181125120,
+            "heapUsed": 85322888,
+            "external": 2717904,
+            "arrayBuffers": 780215
           }
         },
-        "wallMs": 313.01839999999993
+        "wallMs": 307.27090000000135
       },
       "code": {
         "overlap": 1,
@@ -1398,14 +1424,18 @@
         "missingFromMemory": [],
         "rankCorr": 1,
         "topMemory": [
-          "141",
-          "142",
-          "3"
+          "408",
+          "76",
+          "69",
+          "81",
+          "409"
         ],
         "topSqlite": [
-          "141",
-          "142",
-          "3"
+          "408",
+          "76",
+          "69",
+          "81",
+          "409"
         ]
       },
       "prose": {
@@ -1415,18 +1445,18 @@
         "missingFromMemory": [],
         "rankCorr": 1,
         "topMemory": [
-          "77",
+          "139",
           "9",
-          "71",
-          "73",
-          "78"
+          "133",
+          "35",
+          "135"
         ],
         "topSqlite": [
-          "77",
+          "139",
           "9",
-          "71",
-          "73",
-          "78"
+          "133",
+          "35",
+          "135"
         ]
       }
     }

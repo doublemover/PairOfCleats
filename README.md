@@ -68,7 +68,7 @@ Active development. See `ROADMAP.md` for milestones and longer-term work.
   - `--async`, `--generator`, `--returns`
   - `--author`, `--churn`, `--lint`, `--calls`, `--import`, `--uses`, `--extends`
 - Output:
-  - human-readable (color) or `--json` for tools
+  - human-readable (color), `--json` (full), or `--json-compact` (lean tooling payload)
 </details>
 
 <details>

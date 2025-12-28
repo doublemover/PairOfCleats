@@ -21,7 +21,7 @@ import { rankBM25, rankDenseVectors, rankMinhash } from './src/search/rankers.js
 import { extractNgrams, splitId, splitWordsWithDict, tri } from './src/shared/tokenize.js';
 
 const argv = minimist(process.argv.slice(2), {
-  boolean: ['json', 'human', 'stats', 'ann', 'headline', 'lint', 'churn', 'matched', 'async', 'generator', 'returns'],
+  boolean: ['json', 'json-compact', 'human', 'stats', 'ann', 'headline', 'lint', 'churn', 'matched', 'async', 'generator', 'returns'],
   alias: { n: 'top', c: 'context', t: 'type' },
   default: { n: 5, context: 3 },
   string: [
@@ -87,7 +87,7 @@ const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
 const rawArgs = process.argv.slice(2);
 const query = argv._.join(' ').trim();
 if (!query) {
-  console.error('usage: search "query" [--json|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode|--signature|--param|--decorator|--inferred-type|--return-type|--throws|--reads|--writes|--mutates|--awaits|--branches|--loops|--breaks|--continues|--extends|--visibility|--async|--generator|--returns');
+  console.error('usage: search "query" [--json|--json-compact|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode|--signature|--param|--decorator|--inferred-type|--return-type|--throws|--reads|--writes|--mutates|--awaits|--branches|--loops|--breaks|--continues|--extends|--visibility|--async|--generator|--returns');
   process.exit(1);
 }
 const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
@@ -127,6 +127,8 @@ const queryCacheTtlMs = Number.isFinite(Number(queryCacheConfig.ttlMs))
   ? Math.max(0, Number(queryCacheConfig.ttlMs))
   : 0;
 const queryCachePath = path.join(metricsDir, 'queryCache.json');
+const jsonCompact = argv['json-compact'] === true;
+const jsonOutput = argv.json || jsonCompact;
 
 const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
 
@@ -929,6 +931,34 @@ function runSearch(idx, mode, queryEmbedding) {
   return ranked;
 }
 
+/**
+ * Build a compact search hit payload for tooling.
+ * @param {object} hit
+ * @returns {object}
+ */
+function compactHit(hit) {
+  if (!hit || typeof hit !== 'object') return hit;
+  const compact = {};
+  const fields = [
+    'id',
+    'file',
+    'start',
+    'end',
+    'startLine',
+    'endLine',
+    'ext',
+    'kind',
+    'name',
+    'headline',
+    'annScore',
+    'annType'
+  ];
+  for (const field of fields) {
+    if (hit[field] !== undefined) compact[field] = hit[field];
+  }
+  return compact;
+}
+
 
 // --- MAIN ---
 (async () => {
@@ -993,13 +1023,13 @@ function runSearch(idx, mode, queryEmbedding) {
     : 'js';
 
   // Output
-  if (argv.json) {
+  if (jsonOutput) {
     // Full JSON
     const memory = process.memoryUsage();
     console.log(JSON.stringify({
       backend: backendLabel,
-      prose: proseHits,
-      code: codeHits,
+      prose: jsonCompact ? proseHits.map(compactHit) : proseHits,
+      code: jsonCompact ? codeHits.map(compactHit) : codeHits,
       stats: {
         elapsedMs: Date.now() - t0,
         annEnabled,
@@ -1033,7 +1063,7 @@ function runSearch(idx, mode, queryEmbedding) {
     }, null, 2));
   }
 
-  if (!argv.json) {
+  if (!jsonOutput) {
     let showProse = runProse ? argv.n : 0;
     let showCode = runCode ? argv.n : 0;
 

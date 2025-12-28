@@ -182,7 +182,7 @@ function runSearch(query, env) {
   const args = [
     path.join(scriptRoot, 'search.js'),
     query,
-    '--json',
+    '--json-compact',
     '--stats',
     '--backend',
     backend,
