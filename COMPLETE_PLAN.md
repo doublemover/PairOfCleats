@@ -264,5 +264,5 @@ Work items:
 - [ ] Provide non-interactive flags for CI usage.
 - [ ] Document and add tests for the unified setup flow.
 
-## Maintenance / Refactor Guardrails (status: todo)
-- [ ] Break `build_index.js` into focused modules (discovery/import scan/file processing/posting builders/artifact writers/metrics) to keep growth in check.
+## Maintenance / Refactor Guardrails (status: done)
+- [x] Break `build_index.js` into focused modules (discovery/import scan/file processing/posting builders/artifact writers/metrics) to keep growth in check.
