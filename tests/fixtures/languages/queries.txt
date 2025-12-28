@@ -7,3 +7,10 @@ go widget
 java box
 perl greet
 shell index
+typescript widget
+csharp widget
+kotlin widget
+ruby widget
+php widget
+lua widget
+sql widgets

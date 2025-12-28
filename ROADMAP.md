@@ -33,9 +33,10 @@
 - [x] Index quality tuning + benchmark expansion
 - [x] Language support expansion (Go, Java, Perl-lite)
 - [x] Shell (lite) support (chunking + metadata)
+- [x] Language support expansion (TypeScript, C#, Kotlin, Ruby, PHP, Lua, SQL)
 
 ## Now
-- [ ] Backlog triage + next language targets
+- [ ] SQL dialect parsing + type inference passes
 
 ## Language support (priority order)
 - [x] Python (basic chunking)
@@ -44,6 +45,13 @@
 - [x] Rust
 - [x] Go
 - [x] Java
+- [x] TypeScript
+- [x] C#
+- [x] Kotlin
+- [x] Ruby
+- [x] PHP
+- [x] Lua
+- [x] SQL
 - [x] Perl (lite)
 - [x] Shell (lite)
 

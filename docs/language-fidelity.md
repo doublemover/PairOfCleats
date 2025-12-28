@@ -60,6 +60,52 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Imports are captured from import statements.
 - Calls/usages are captured for method bodies when possible.
 
+## TypeScript
+- class/interface/enum/type declarations are chunked.
+- Methods/constructors are qualified as Type.method.
+- Doc comments and decorators are captured in metadata.
+- Imports/exports are captured from ES module syntax.
+- Calls/usages are captured for function bodies when possible.
+
+## C#
+- namespace/type declarations are chunked.
+- Methods/constructors are qualified as Type.method.
+- XML doc comments and attributes are captured in metadata.
+- using imports are captured from using statements.
+- Calls/usages are captured for method bodies when possible.
+
+## Kotlin
+- class/interface/object declarations are chunked.
+- Methods are qualified as Type.method.
+- KDoc and annotations are captured in metadata.
+- Imports are captured from import statements.
+- Calls/usages are captured for function bodies when possible.
+
+## Ruby
+- module/class declarations are chunked.
+- Methods are qualified as Type.method when nested.
+- Doc comments are captured from preceding # lines.
+- require/require_relative statements are captured as imports.
+- Calls/usages are captured for method bodies when possible.
+
+## PHP
+- class/interface/trait declarations are chunked.
+- Methods are qualified as Type.method.
+- Doc comments and attributes are captured in metadata.
+- use statements are captured as imports.
+- Calls/usages are captured for method bodies when possible.
+
+## Lua
+- function/method declarations are chunked.
+- Doc comments are captured from preceding -- lines.
+- require statements are captured as imports.
+- Calls/usages are captured for function bodies when possible.
+
+## SQL
+- CREATE statements are chunked (table/view/function/index/etc).
+- Statement doc comments are captured from preceding -- or /* */ blocks.
+- Exports include declared objects when possible.
+
 ## Perl (lite)
 - package declarations and subs are chunked.
 - Doc comments from preceding # lines are captured.

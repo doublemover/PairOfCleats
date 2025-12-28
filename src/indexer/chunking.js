@@ -1,6 +1,29 @@
 import * as yaml from 'yaml';
-import { EXTS_PROSE, isCLike, isGo, isJava, isJsLike, isPerl, isRust, isShell } from './constants.js';
+import {
+  EXTS_PROSE,
+  isCLike,
+  isGo,
+  isJava,
+  isJsLike,
+  isPerl,
+  isRust,
+  isShell,
+  isTypeScript,
+  isCSharp,
+  isKotlin,
+  isRuby,
+  isPhp,
+  isLua,
+  isSql
+} from './constants.js';
 import { buildJsChunks } from '../lang/javascript.js';
+import { buildTypeScriptChunks } from '../lang/typescript.js';
+import { buildCSharpChunks } from '../lang/csharp.js';
+import { buildKotlinChunks } from '../lang/kotlin.js';
+import { buildRubyChunks } from '../lang/ruby.js';
+import { buildPhpChunks } from '../lang/php.js';
+import { buildLuaChunks } from '../lang/lua.js';
+import { buildSqlChunks } from '../lang/sql.js';
 import { buildCLikeChunks } from '../lang/clike.js';
 import { buildPythonChunksFromAst, buildPythonHeuristicChunks } from '../lang/python.js';
 import { buildRustChunks } from '../lang/rust.js';
@@ -309,7 +332,14 @@ export function smartChunk({
   goChunks = null,
   javaChunks = null,
   perlChunks = null,
-  shellChunks = null
+  shellChunks = null,
+  tsChunks = null,
+  csharpChunks = null,
+  kotlinChunks = null,
+  rubyChunks = null,
+  phpChunks = null,
+  luaChunks = null,
+  sqlChunks = null
 }) {
   if (mode === 'prose') {
     if (ext === '.md') {
@@ -328,6 +358,10 @@ export function smartChunk({
   if (mode === 'code' && isJsLike(ext)) {
     const chunks = buildJsChunks(text);
     if (chunks && chunks.length) return chunks;
+  }
+  if (mode === 'code' && isTypeScript(ext)) {
+    const chunkList = tsChunks || buildTypeScriptChunks(text);
+    if (chunkList && chunkList.length) return chunkList;
   }
   if (mode === 'code' && ext === '.py') {
     const astChunks = buildPythonChunksFromAst(text, pythonAst);
@@ -361,6 +395,30 @@ export function smartChunk({
   }
   if (mode === 'code' && isShell(ext)) {
     const chunkList = shellChunks || buildShellChunks(text);
+    if (chunkList && chunkList.length) return chunkList;
+  }
+  if (mode === 'code' && isCSharp(ext)) {
+    const chunkList = csharpChunks || buildCSharpChunks(text);
+    if (chunkList && chunkList.length) return chunkList;
+  }
+  if (mode === 'code' && isKotlin(ext)) {
+    const chunkList = kotlinChunks || buildKotlinChunks(text);
+    if (chunkList && chunkList.length) return chunkList;
+  }
+  if (mode === 'code' && isRuby(ext)) {
+    const chunkList = rubyChunks || buildRubyChunks(text);
+    if (chunkList && chunkList.length) return chunkList;
+  }
+  if (mode === 'code' && isPhp(ext)) {
+    const chunkList = phpChunks || buildPhpChunks(text);
+    if (chunkList && chunkList.length) return chunkList;
+  }
+  if (mode === 'code' && isLua(ext)) {
+    const chunkList = luaChunks || buildLuaChunks(text);
+    if (chunkList && chunkList.length) return chunkList;
+  }
+  if (mode === 'code' && isSql(ext)) {
+    const chunkList = sqlChunks || buildSqlChunks(text);
     if (chunkList && chunkList.length) return chunkList;
   }
   if (mode === 'code') {

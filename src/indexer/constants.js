@@ -59,19 +59,27 @@ export const SKIP_FILES = new Set([
 export const EXTS_PROSE = new Set(['.md', '.txt', '.rst', '.adoc', '.asciidoc']);
 
 export const JS_EXTS = new Set(['.js', '.mjs', '.cjs']);
+export const TS_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts']);
 export const CLIKE_EXTS = new Set(['.c', '.h', '.cc', '.cpp', '.hpp', '.hh', '.m', '.mm']);
 export const OBJC_EXTS = new Set(['.m', '.mm']);
 export const RUST_EXTS = new Set(['.rs']);
 export const GO_EXTS = new Set(['.go']);
 export const JAVA_EXTS = new Set(['.java']);
+export const CSHARP_EXTS = new Set(['.cs']);
+export const KOTLIN_EXTS = new Set(['.kt', '.kts']);
+export const RUBY_EXTS = new Set(['.rb']);
+export const PHP_EXTS = new Set(['.php', '.phtml']);
+export const LUA_EXTS = new Set(['.lua']);
+export const SQL_EXTS = new Set(['.sql', '.psql', '.pgsql', '.mysql', '.sqlite']);
 export const PERL_EXTS = new Set(['.pl', '.pm']);
 export const SHELL_EXTS = new Set(['.sh', '.bash', '.zsh', '.ksh']);
 
 export const EXTS_CODE = new Set([
-  '.js', '.mjs', '.cjs', '.yml', '.yaml', '.sh', '.html', '.py', '.swift', '.rs',
-  '.c', '.cc', '.cpp', '.h', '.hpp', '.hh', '.m', '.mm', '.go', '.java',
-  '.pl', '.pm', '.bash', '.zsh', '.ksh', '.json', '.toml', '.ini', '.xml'
-  , '.cfg', '.conf'
+  '.js', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts', '.yml', '.yaml', '.sh',
+  '.html', '.py', '.swift', '.rs', '.c', '.cc', '.cpp', '.h', '.hpp', '.hh',
+  '.m', '.mm', '.go', '.java', '.cs', '.kt', '.kts', '.rb', '.php', '.phtml',
+  '.lua', '.sql', '.psql', '.pgsql', '.mysql', '.sqlite', '.pl', '.pm', '.bash',
+  '.zsh', '.ksh', '.json', '.toml', '.ini', '.xml', '.cfg', '.conf'
 ]);
 
 export const CODE_FILENAMES = new Set(['dockerfile', 'makefile']);
@@ -155,6 +163,12 @@ export const CLIKE_EXPORT_KINDS = new Set([
  */
 export const isJsLike = (ext) => JS_EXTS.has(ext);
 /**
+ * Check if an extension is TypeScript.
+ * @param {string} ext
+ * @returns {boolean}
+ */
+export const isTypeScript = (ext) => TS_EXTS.has(ext);
+/**
  * Check if an extension is C-like.
  * @param {string} ext
  * @returns {boolean}
@@ -184,6 +198,42 @@ export const isGo = (ext) => GO_EXTS.has(ext);
  * @returns {boolean}
  */
 export const isJava = (ext) => JAVA_EXTS.has(ext);
+/**
+ * Check if an extension is C#.
+ * @param {string} ext
+ * @returns {boolean}
+ */
+export const isCSharp = (ext) => CSHARP_EXTS.has(ext);
+/**
+ * Check if an extension is Kotlin.
+ * @param {string} ext
+ * @returns {boolean}
+ */
+export const isKotlin = (ext) => KOTLIN_EXTS.has(ext);
+/**
+ * Check if an extension is Ruby.
+ * @param {string} ext
+ * @returns {boolean}
+ */
+export const isRuby = (ext) => RUBY_EXTS.has(ext);
+/**
+ * Check if an extension is PHP.
+ * @param {string} ext
+ * @returns {boolean}
+ */
+export const isPhp = (ext) => PHP_EXTS.has(ext);
+/**
+ * Check if an extension is Lua.
+ * @param {string} ext
+ * @returns {boolean}
+ */
+export const isLua = (ext) => LUA_EXTS.has(ext);
+/**
+ * Check if an extension is SQL.
+ * @param {string} ext
+ * @returns {boolean}
+ */
+export const isSql = (ext) => SQL_EXTS.has(ext);
 /**
  * Check if an extension is Perl.
  * @param {string} ext

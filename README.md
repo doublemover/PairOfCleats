@@ -46,14 +46,14 @@ I figured it would be helpful if they were able to query the codebase and docume
 <summary><h2>⚙️ Index Features</h2></summary>
 
 - Recursively scans your codebase
-- **Code**: `.js`, `.mjs`, `.cjs`, `.py`, `.swift`, `.rs`, `.c`, `.cc`, `.cpp`, `.h`, `.hpp`, `.m`, `.mm`, `.go`, `.java`, `.pl`, `.pm`, `.sh`, `.bash`, `.zsh`, `.ksh`, `.yml`, `.yaml`, `.json`, `.toml`, `.ini`, `.cfg`, `.conf`, `.xml`, `.html`, `Dockerfile`, `Makefile`
+- **Code**: `.js`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, `.cts`, `.py`, `.swift`, `.rs`, `.c`, `.cc`, `.cpp`, `.h`, `.hpp`, `.m`, `.mm`, `.go`, `.java`, `.cs`, `.kt`, `.kts`, `.rb`, `.php`, `.phtml`, `.lua`, `.sql`, `.pl`, `.pm`, `.sh`, `.bash`, `.zsh`, `.ksh`, `.yml`, `.yaml`, `.json`, `.toml`, `.ini`, `.cfg`, `.conf`, `.xml`, `.html`, `Dockerfile`, `Makefile`
   - **Prose**: `.md`, `.txt`, `.rst`, `.adoc`, `.asciidoc`
   - Skips irrelevant directories (`.git`, `node_modules`, `dist`, `coverage`, etc)
 - Automatically determines ideal chunk size & dimension count separately for prose & code
 - Configurable to prioritize offline generation time, index size, search speed, and accuracy
 - Combines BM25 Search, embeddings, MinHash signatures, and rich code/documentation relations
 - Smart Chunking
-  - **Code**: Functions, Classes & Methods, Arrow Functions, Exports, Swift/Python/C/ObjC/Rust/Go/Java/Perl/Shell declarations
+  - **Code**: Functions, Classes & Methods, Arrow Functions, Exports, Swift/Python/C/ObjC/Rust/Go/Java/TypeScript/C#/Kotlin/Ruby/PHP/Lua/SQL/Perl/Shell declarations
   - **Prose**: Headings (Markdown/RST), Sections (YAML)
 - Feature Extraction (per chunk)
 	- **Tokenization & Stemming**  

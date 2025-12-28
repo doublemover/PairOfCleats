@@ -286,6 +286,50 @@ if (!shellFunc) {
   }
 }
 
+const tsClass = chunkMeta.find((chunk) =>
+  chunk.file === 'src/typescript_advanced.ts' &&
+  chunk.kind === 'ClassDeclaration' &&
+  chunk.name === 'Widget'
+);
+if (!tsClass) {
+  failures.push('Missing TypeScript class chunk (Widget).');
+} else {
+  const extendsList = tsClass.docmeta?.extends || [];
+  if (!extendsList.some((name) => name.includes('BaseWidget'))) {
+    failures.push('TypeScript extends metadata missing BaseWidget.');
+  }
+}
+
+const csharpMethod = findChunk({ file: 'src/csharp_advanced.cs', kind: 'MethodDeclaration', nameIncludes: 'Widget.Render' });
+if (!csharpMethod) {
+  failures.push('Missing C# method chunk (Widget.Render).');
+}
+
+const kotlinMethod = findChunk({ file: 'src/kotlin_advanced.kt', kind: 'MethodDeclaration', nameIncludes: 'Widget.render' });
+if (!kotlinMethod) {
+  failures.push('Missing Kotlin method chunk (Widget.render).');
+}
+
+const rubyMethod = findChunk({ file: 'src/ruby_advanced.rb', kind: 'MethodDeclaration', nameIncludes: 'Widget.render' });
+if (!rubyMethod) {
+  failures.push('Missing Ruby method chunk (Widget.render).');
+}
+
+const phpMethod = findChunk({ file: 'src/php_advanced.php', kind: 'MethodDeclaration', nameIncludes: 'Widget.render' });
+if (!phpMethod) {
+  failures.push('Missing PHP method chunk (Widget.render).');
+}
+
+const luaMethod = findChunk({ file: 'src/lua_advanced.lua', kind: 'MethodDeclaration', nameIncludes: 'Widget.render' });
+if (!luaMethod) {
+  failures.push('Missing Lua method chunk (Widget.render).');
+}
+
+const sqlTable = findChunk({ file: 'src/sql_advanced.sql', kind: 'TableDeclaration', nameIncludes: 'widgets' });
+if (!sqlTable) {
+  failures.push('Missing SQL table chunk (widgets).');
+}
+
 if (failures.length) {
   failures.forEach((msg) => console.error(msg));
   process.exit(1);

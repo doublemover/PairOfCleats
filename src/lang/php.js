@@ -1,0 +1,335 @@
+import { buildLineIndex, offsetToLine } from '../shared/lines.js';
+import { findCLikeBodyBounds } from './clike.js';
+import { collectAttributes, extractDocComment, sliceSignature } from './shared.js';
+
+/**
+ * PHP language chunking and relations.
+ * Heuristic parser for classes, interfaces, traits, and functions.
+ */
+const PHP_MODIFIERS = new Set([
+  'public', 'private', 'protected', 'static', 'abstract', 'final'
+]);
+
+const PHP_CALL_KEYWORDS = new Set([
+  'if', 'for', 'foreach', 'while', 'switch', 'case', 'return', 'new', 'throw',
+  'catch', 'try', 'else', 'do', 'yield', 'await', 'isset', 'empty'
+]);
+
+const PHP_USAGE_SKIP = new Set([
+  ...PHP_CALL_KEYWORDS,
+  'class', 'interface', 'trait', 'function', 'null', 'true', 'false'
+]);
+
+function extractPhpModifiers(signature) {
+  const mods = [];
+  const tokens = signature.split(/\s+/).filter(Boolean);
+  for (const tok of tokens) {
+    if (PHP_MODIFIERS.has(tok)) mods.push(tok);
+  }
+  return mods;
+}
+
+function extractPhpParams(signature) {
+  const match = signature.match(/\(([^)]*)\)/);
+  if (!match) return [];
+  const params = [];
+  for (const part of match[1].split(',')) {
+    let seg = part.trim();
+    if (!seg) continue;
+    seg = seg.replace(/=.+$/g, '').trim();
+    seg = seg.replace(/\?\s*[A-Za-z0-9_\\|]+\s+/g, '').trim();
+    const matchName = seg.match(/\$[A-Za-z_][A-Za-z0-9_]*/);
+    if (!matchName) continue;
+    params.push(matchName[0].replace('$', ''));
+  }
+  return params;
+}
+
+function extractPhpReturns(signature) {
+  const idx = signature.indexOf(')');
+  if (idx === -1) return null;
+  const after = signature.slice(idx + 1);
+  const match = after.match(/:\s*([^\{;]+)/);
+  if (!match) return null;
+  const ret = match[1].trim();
+  return ret || null;
+}
+
+function parsePhpSignature(signature) {
+  const idx = signature.indexOf('(');
+  if (idx === -1) return { name: '', returns: null };
+  const before = signature.slice(0, idx).replace(/\s+/g, ' ').trim();
+  const match = before.match(/([A-Za-z_][A-Za-z0-9_]*)$/);
+  if (!match) return { name: '', returns: null };
+  const name = match[1];
+  const returns = extractPhpReturns(signature);
+  return { name, returns };
+}
+
+function readSignatureLines(lines, startLine) {
+  const parts = [];
+  let hasBrace = false;
+  let hasSemi = false;
+  let endLine = startLine;
+  for (let i = startLine; i < lines.length; i++) {
+    const line = lines[i];
+    parts.push(line.trim());
+    if (line.includes('{')) {
+      hasBrace = true;
+      endLine = i;
+      break;
+    }
+    if (line.includes(';')) {
+      hasSemi = true;
+      endLine = i;
+      break;
+    }
+    endLine = i;
+  }
+  const signature = parts.join(' ');
+  const braceIdx = signature.indexOf('{');
+  const semiIdx = signature.indexOf(';');
+  const hasBody = hasBrace && (semiIdx === -1 || (braceIdx !== -1 && braceIdx < semiIdx));
+  return { signature, endLine, hasBody };
+}
+
+function stripPhpComments(text) {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/.*$/gm, ' ')
+    .replace(/#.*$/gm, ' ');
+}
+
+function collectPhpCallsAndUsages(text) {
+  const calls = new Set();
+  const usages = new Set();
+  const normalized = stripPhpComments(text);
+  for (const match of normalized.matchAll(/\b([A-Za-z_][A-Za-z0-9_\\]*)\s*\(/g)) {
+    const raw = match[1];
+    if (!raw) continue;
+    const base = raw.split('\\').filter(Boolean).pop();
+    if (!base || PHP_CALL_KEYWORDS.has(base)) continue;
+    calls.add(raw);
+    if (base !== raw) calls.add(base);
+  }
+  for (const match of normalized.matchAll(/\$([A-Za-z_][A-Za-z0-9_]*)\b/g)) {
+    const name = match[1];
+    if (!name || PHP_USAGE_SKIP.has(name)) continue;
+    usages.add(name);
+  }
+  return { calls: Array.from(calls), usages: Array.from(usages) };
+}
+
+function extractVisibility(modifiers) {
+  if (modifiers.includes('private')) return 'private';
+  if (modifiers.includes('protected')) return 'protected';
+  return 'public';
+}
+
+/**
+ * Collect use/import statements from PHP source.
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function collectPhpImports(text) {
+  const imports = new Set();
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('use ')) continue;
+    const match = trimmed.match(/^use\s+([^;]+);/);
+    if (!match) continue;
+    const raw = match[1].trim();
+    raw.split(',').forEach((part) => {
+      const seg = part.trim();
+      if (!seg) return;
+      const name = seg.split(/\s+as\s+/i)[0].trim();
+      if (name) imports.add(name);
+    });
+  }
+  return Array.from(imports);
+}
+
+/**
+ * Build chunk metadata for PHP declarations.
+ * Returns null when no declarations are found.
+ * @param {string} text
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
+ */
+export function buildPhpChunks(text) {
+  const lineIndex = buildLineIndex(text);
+  const lines = text.split('\n');
+  const decls = [];
+  const typeDecls = [];
+
+  const typeRe = /^\s*(?:#[^\n]*\s*)?(?:(?:abstract|final|public|protected|private)\s+)*(class|interface|trait)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  const funcRe = /^\s*(?:#[^\n]*\s*)?(?:(?:public|protected|private|static)\s+)*function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('#')) continue;
+    let match = trimmed.match(typeRe);
+    if (match) {
+      const start = lineIndex[i] + line.indexOf(match[0]);
+      const bounds = findCLikeBodyBounds(text, start);
+      const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[i] + line.length;
+      const signature = sliceSignature(text, start, bounds.bodyStart);
+      const modifiers = extractPhpModifiers(signature);
+      const meta = {
+        startLine: i + 1,
+        endLine: offsetToLine(lineIndex, end),
+        signature,
+        modifiers,
+        visibility: extractVisibility(modifiers),
+        docstring: extractDocComment(lines, i),
+        attributes: collectAttributes(lines, i, signature)
+      };
+      const kindMap = {
+        class: 'ClassDeclaration',
+        interface: 'InterfaceDeclaration',
+        trait: 'TraitDeclaration'
+      };
+      const entry = { start, end, name: match[2], kind: kindMap[match[1]] || 'ClassDeclaration', meta };
+      decls.push(entry);
+      if (match[1] === 'class' || match[1] === 'interface' || match[1] === 'trait') {
+        typeDecls.push(entry);
+      }
+      continue;
+    }
+    match = trimmed.match(funcRe);
+    if (match) {
+      const start = lineIndex[i] + line.indexOf(match[0]);
+      const { signature, endLine, hasBody } = readSignatureLines(lines, i);
+      const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
+      const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;
+      const modifiers = extractPhpModifiers(signature);
+      const parsed = parsePhpSignature(signature);
+      const meta = {
+        startLine: i + 1,
+        endLine: offsetToLine(lineIndex, end),
+        signature,
+        params: extractPhpParams(signature),
+        returns: parsed.returns,
+        modifiers,
+        visibility: extractVisibility(modifiers),
+        docstring: extractDocComment(lines, i),
+        attributes: collectAttributes(lines, i, signature)
+      };
+      decls.push({ start, end, name: parsed.name || match[1], kind: 'FunctionDeclaration', meta });
+    }
+  }
+
+  for (const typeDecl of typeDecls) {
+    if (!typeDecl || typeDecl.start == null || typeDecl.end == null) continue;
+    const bounds = findCLikeBodyBounds(text, typeDecl.start);
+    if (bounds.bodyStart === -1 || bounds.bodyEnd === -1) continue;
+    const startLine = offsetToLine(lineIndex, bounds.bodyStart + 1);
+    const endLine = offsetToLine(lineIndex, bounds.bodyEnd);
+    for (let i = startLine - 1; i < Math.min(lines.length, endLine); i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('#')) continue;
+      if (!trimmed.includes('function')) continue;
+      const { signature, endLine: sigEndLine, hasBody } = readSignatureLines(lines, i);
+      if (!signature.includes('(')) continue;
+      const parsed = parsePhpSignature(signature);
+      if (!parsed.name) continue;
+      const start = lineIndex[i] + line.indexOf(trimmed);
+      const boundsInner = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
+      const end = boundsInner.bodyEnd > start ? boundsInner.bodyEnd : lineIndex[sigEndLine] + lines[sigEndLine].length;
+      const modifiers = extractPhpModifiers(signature);
+      const meta = {
+        startLine: i + 1,
+        endLine: offsetToLine(lineIndex, end),
+        signature,
+        params: extractPhpParams(signature),
+        returns: parsed.returns,
+        modifiers,
+        visibility: extractVisibility(modifiers),
+        docstring: extractDocComment(lines, i),
+        attributes: collectAttributes(lines, i, signature)
+      };
+      decls.push({
+        start,
+        end,
+        name: `${typeDecl.name}.${parsed.name}`,
+        kind: 'MethodDeclaration',
+        meta
+      });
+    }
+  }
+
+  if (!decls.length) return null;
+  decls.sort((a, b) => a.start - b.start);
+  return decls.map((decl) => ({
+    start: decl.start,
+    end: decl.end,
+    name: decl.name,
+    kind: decl.kind,
+    meta: decl.meta || {}
+  }));
+}
+
+/**
+ * Build import/export/call/usage relations for PHP chunks.
+ * @param {string} text
+ * @param {Record<string,string[]>} allImports
+ * @param {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null} phpChunks
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
+ */
+export function buildPhpRelations(text, allImports, phpChunks) {
+  const imports = collectPhpImports(text);
+  const exports = new Set();
+  const calls = [];
+  const usages = new Set();
+  if (Array.isArray(phpChunks)) {
+    for (const chunk of phpChunks) {
+      if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
+      const mods = Array.isArray(chunk.meta?.modifiers) ? chunk.meta.modifiers : [];
+      if (mods.includes('public')) exports.add(chunk.name);
+      if (!['MethodDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
+      const bounds = findCLikeBodyBounds(text, chunk.start);
+      const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
+      const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
+      const slice = text.slice(scanStart, scanEnd);
+      const { calls: chunkCalls, usages: chunkUsages } = collectPhpCallsAndUsages(slice);
+      for (const callee of chunkCalls) calls.push([chunk.name, callee]);
+      for (const usage of chunkUsages) usages.add(usage);
+    }
+  }
+  const importLinks = imports
+    .map((i) => allImports[i])
+    .filter((x) => !!x)
+    .flat();
+  return {
+    imports,
+    exports: Array.from(exports),
+    calls,
+    usages: Array.from(usages),
+    importLinks
+  };
+}
+
+/**
+ * Normalize PHP-specific doc metadata for search output.
+ * @param {{meta?:Object}} chunk
+ * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null),decorators:string[],modifiers:string[],visibility:(string|null),returnType:(string|null)}}
+ */
+export function extractPhpDocMeta(chunk) {
+  const meta = chunk.meta || {};
+  const params = Array.isArray(meta.params) ? meta.params : [];
+  const decorators = Array.isArray(meta.attributes) ? meta.attributes : [];
+  const modifiers = Array.isArray(meta.modifiers) ? meta.modifiers : [];
+  const returns = meta.returns || null;
+  return {
+    doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
+    params,
+    returns,
+    returnType: returns,
+    signature: meta.signature || null,
+    decorators,
+    modifiers,
+    visibility: meta.visibility || null
+  };
+}

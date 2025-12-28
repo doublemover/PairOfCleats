@@ -209,17 +209,19 @@ Work items:
 - [x] Add RST and AsciiDoc heading/section chunking.
 - [x] Update fixtures, language-fidelity checklist, and docs for formats.
 
-## Phase 18: Language Expansion (status: todo)
+## Phase 18: Language Expansion (status: done)
 Goal: Add baseline parsing/chunking/relations for new languages with the unified backbone.
 Work items:
-- [ ] TypeScript (prefer native TS parser; fallback to tree-sitter).
-- [ ] C# (tree-sitter + OmniSharp enrichment when present).
-- [ ] Kotlin (tree-sitter + kotlin-language-server enrichment when present).
-- [ ] Ruby (tree-sitter + solargraph enrichment when present).
-- [ ] PHP (tree-sitter + phpactor enrichment when present).
-- [ ] Lua (tree-sitter + lua-language-server enrichment when present).
-- [ ] SQL (tree-sitter, dialect-specific; see Phase 19).
-- [ ] Add fixtures and language-fidelity assertions for each.
+- [x] TypeScript baseline heuristic chunking + metadata (native TS parser integration deferred).
+- [x] C# baseline heuristic chunking + metadata (tree-sitter/LSP enrichment deferred).
+- [x] Kotlin baseline heuristic chunking + metadata (tree-sitter/LSP enrichment deferred).
+- [x] Ruby baseline heuristic chunking + metadata (tree-sitter/LSP enrichment deferred).
+- [x] PHP baseline heuristic chunking + metadata (tree-sitter/LSP enrichment deferred).
+- [x] Lua baseline heuristic chunking + metadata (tree-sitter/LSP enrichment deferred).
+- [x] SQL baseline statement chunking + metadata (dialect parsing in Phase 19).
+- [x] Add fixtures and language-fidelity assertions for each.
+Notes:
+- Tree-sitter/native parser enrichment remains planned alongside Phase 19-22 work.
 
 ## Phase 19: SQL Dialect Parsing (status: todo)
 Goal: Provide dialect-aware SQL parsing and metadata.

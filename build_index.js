@@ -35,7 +35,28 @@ import { DEFAULT_MODEL_ID, getDictionaryPaths, getDictConfig, getIndexDir, getMe
 
 import { analyzeComplexity, lintChunk } from './src/indexer/analysis.js';
 import { smartChunk } from './src/indexer/chunking.js';
-import { EXTS_CODE, EXTS_PROSE, SKIP_DIRS, SKIP_FILES, STOP, SYN, isCLike, isGo, isJava, isJsLike, isPerl, isShell, isSpecialCodeFile } from './src/indexer/constants.js';
+import {
+  EXTS_CODE,
+  EXTS_PROSE,
+  SKIP_DIRS,
+  SKIP_FILES,
+  STOP,
+  SYN,
+  isCLike,
+  isGo,
+  isJava,
+  isJsLike,
+  isPerl,
+  isShell,
+  isSpecialCodeFile,
+  isTypeScript,
+  isCSharp,
+  isKotlin,
+  isRuby,
+  isPhp,
+  isLua,
+  isSql
+} from './src/indexer/constants.js';
 import { createEmbedder, quantizeVec } from './src/indexer/embedding.js';
 import { getFieldWeight } from './src/indexer/field-weighting.js';
 import { getGitMeta } from './src/indexer/git.js';
@@ -45,6 +66,13 @@ import { buildCLikeChunks, buildCLikeRelations, collectCLikeImports, extractCLik
 import { buildGoChunks, buildGoRelations, collectGoImports, extractGoDocMeta } from './src/lang/go.js';
 import { buildJavaChunks, buildJavaRelations, collectJavaImports, extractJavaDocMeta } from './src/lang/java.js';
 import { buildCodeRelations, collectImports, extractDocMeta } from './src/lang/javascript.js';
+import { buildTypeScriptChunks, buildTypeScriptRelations, collectTypeScriptImports, extractTypeScriptDocMeta } from './src/lang/typescript.js';
+import { buildCSharpChunks, buildCSharpRelations, collectCSharpImports, extractCSharpDocMeta } from './src/lang/csharp.js';
+import { buildKotlinChunks, buildKotlinRelations, collectKotlinImports, extractKotlinDocMeta } from './src/lang/kotlin.js';
+import { buildRubyChunks, buildRubyRelations, collectRubyImports, extractRubyDocMeta } from './src/lang/ruby.js';
+import { buildPhpChunks, buildPhpRelations, collectPhpImports, extractPhpDocMeta } from './src/lang/php.js';
+import { buildLuaChunks, buildLuaRelations, collectLuaImports, extractLuaDocMeta } from './src/lang/lua.js';
+import { buildSqlChunks, buildSqlRelations, collectSqlImports, extractSqlDocMeta } from './src/lang/sql.js';
 import { buildPerlChunks, buildPerlRelations, collectPerlImports, extractPerlDocMeta } from './src/lang/perl.js';
 import { getPythonAst, collectPythonImports, buildPythonRelations, extractPythonDocMeta } from './src/lang/python.js';
 import { buildRustChunks, buildRustRelations, collectRustImports, extractRustDocMeta } from './src/lang/rust.js';
@@ -283,6 +311,12 @@ async function build(mode) {
         if (!allImports[mod]) allImports[mod] = [];
         allImports[mod].push(relKey);
       }
+    } else if (isTypeScript(ext)) {
+      const imports = collectTypeScriptImports(text);
+      for (const mod of imports) {
+        if (!allImports[mod]) allImports[mod] = [];
+        allImports[mod].push(relKey);
+      }
     } else if (ext === '.py') {
       const pythonImports = collectPythonImports(text).imports;
       for (const mod of pythonImports) {
@@ -316,6 +350,42 @@ async function build(mode) {
     } else if (isJava(ext)) {
       const javaImports = collectJavaImports(text);
       for (const mod of javaImports) {
+        if (!allImports[mod]) allImports[mod] = [];
+        allImports[mod].push(relKey);
+      }
+    } else if (isCSharp(ext)) {
+      const csharpImports = collectCSharpImports(text);
+      for (const mod of csharpImports) {
+        if (!allImports[mod]) allImports[mod] = [];
+        allImports[mod].push(relKey);
+      }
+    } else if (isKotlin(ext)) {
+      const kotlinImports = collectKotlinImports(text);
+      for (const mod of kotlinImports) {
+        if (!allImports[mod]) allImports[mod] = [];
+        allImports[mod].push(relKey);
+      }
+    } else if (isRuby(ext)) {
+      const rubyImports = collectRubyImports(text);
+      for (const mod of rubyImports) {
+        if (!allImports[mod]) allImports[mod] = [];
+        allImports[mod].push(relKey);
+      }
+    } else if (isPhp(ext)) {
+      const phpImports = collectPhpImports(text);
+      for (const mod of phpImports) {
+        if (!allImports[mod]) allImports[mod] = [];
+        allImports[mod].push(relKey);
+      }
+    } else if (isLua(ext)) {
+      const luaImports = collectLuaImports(text);
+      for (const mod of luaImports) {
+        if (!allImports[mod]) allImports[mod] = [];
+        allImports[mod].push(relKey);
+      }
+    } else if (isSql(ext)) {
+      const sqlImports = collectSqlImports(text);
+      for (const mod of sqlImports) {
         if (!allImports[mod]) allImports[mod] = [];
         allImports[mod].push(relKey);
       }
@@ -358,6 +428,13 @@ async function build(mode) {
     const javaChunks = isJava(ext) && mode === 'code' ? buildJavaChunks(text) : null;
     const perlChunks = isPerl(ext) && mode === 'code' ? buildPerlChunks(text) : null;
     const shellChunks = isShell(ext) && mode === 'code' ? buildShellChunks(text) : null;
+    const tsChunks = isTypeScript(ext) && mode === 'code' ? buildTypeScriptChunks(text) : null;
+    const csharpChunks = isCSharp(ext) && mode === 'code' ? buildCSharpChunks(text) : null;
+    const kotlinChunks = isKotlin(ext) && mode === 'code' ? buildKotlinChunks(text) : null;
+    const rubyChunks = isRuby(ext) && mode === 'code' ? buildRubyChunks(text) : null;
+    const phpChunks = isPhp(ext) && mode === 'code' ? buildPhpChunks(text) : null;
+    const luaChunks = isLua(ext) && mode === 'code' ? buildLuaChunks(text) : null;
+    const sqlChunks = isSql(ext) && mode === 'code' ? buildSqlChunks(text) : null;
     const chunks0 = smartChunk({
       text,
       ext,
@@ -370,7 +447,14 @@ async function build(mode) {
       goChunks,
       javaChunks,
       perlChunks,
-      shellChunks
+      shellChunks,
+      tsChunks,
+      csharpChunks,
+      kotlinChunks,
+      rubyChunks,
+      phpChunks,
+      luaChunks,
+      sqlChunks
     });
     sampleChunkLens.push(...chunks0.map(c =>
       text.slice(c.start, c.end).split('\n').length
@@ -538,26 +622,47 @@ async function build(mode) {
     const javaChunks = isJava(ext) && mode === 'code' ? buildJavaChunks(text) : null;
     const perlChunks = isPerl(ext) && mode === 'code' ? buildPerlChunks(text) : null;
     const shellChunks = isShell(ext) && mode === 'code' ? buildShellChunks(text) : null;
+    const tsChunks = isTypeScript(ext) && mode === 'code' ? buildTypeScriptChunks(text) : null;
+    const csharpChunks = isCSharp(ext) && mode === 'code' ? buildCSharpChunks(text) : null;
+    const kotlinChunks = isKotlin(ext) && mode === 'code' ? buildKotlinChunks(text) : null;
+    const rubyChunks = isRuby(ext) && mode === 'code' ? buildRubyChunks(text) : null;
+    const phpChunks = isPhp(ext) && mode === 'code' ? buildPhpChunks(text) : null;
+    const luaChunks = isLua(ext) && mode === 'code' ? buildLuaChunks(text) : null;
+    const sqlChunks = isSql(ext) && mode === 'code' ? buildSqlChunks(text) : null;
     const lineIndex = buildLineIndex(text);
     const fileRelations = (isJsLike(ext) && mode === 'code')
       ? buildCodeRelations(text, relKey, allImports, { dataflow: astDataflowEnabled })
-      : (ext === '.py' && mode === 'code')
-        ? buildPythonRelations(text, allImports, pythonAst)
-        : (ext === '.swift' && mode === 'code')
-          ? buildSwiftRelations(text, allImports)
-          : (isCLike(ext) && mode === 'code')
-            ? buildCLikeRelations(text, allImports, clikeChunks)
-            : (ext === '.rs' && mode === 'code')
-              ? buildRustRelations(text, allImports)
-              : (isGo(ext) && mode === 'code')
-                ? buildGoRelations(text, allImports, goChunks)
-                : (isJava(ext) && mode === 'code')
-                  ? buildJavaRelations(text, allImports, javaChunks)
-                  : (isPerl(ext) && mode === 'code')
-                    ? buildPerlRelations(text, allImports, perlChunks)
-                    : (isShell(ext) && mode === 'code')
-                      ? buildShellRelations(text, allImports, shellChunks)
-                      : null;
+      : (isTypeScript(ext) && mode === 'code')
+        ? buildTypeScriptRelations(text, allImports, tsChunks)
+        : (ext === '.py' && mode === 'code')
+          ? buildPythonRelations(text, allImports, pythonAst)
+          : (ext === '.swift' && mode === 'code')
+            ? buildSwiftRelations(text, allImports)
+            : (isCLike(ext) && mode === 'code')
+              ? buildCLikeRelations(text, allImports, clikeChunks)
+              : (ext === '.rs' && mode === 'code')
+                ? buildRustRelations(text, allImports)
+                : (isGo(ext) && mode === 'code')
+                  ? buildGoRelations(text, allImports, goChunks)
+                  : (isJava(ext) && mode === 'code')
+                    ? buildJavaRelations(text, allImports, javaChunks)
+                    : (isCSharp(ext) && mode === 'code')
+                      ? buildCSharpRelations(text, allImports, csharpChunks)
+                      : (isKotlin(ext) && mode === 'code')
+                        ? buildKotlinRelations(text, allImports, kotlinChunks)
+                        : (isRuby(ext) && mode === 'code')
+                          ? buildRubyRelations(text, allImports, rubyChunks)
+                          : (isPhp(ext) && mode === 'code')
+                            ? buildPhpRelations(text, allImports, phpChunks)
+                            : (isLua(ext) && mode === 'code')
+                              ? buildLuaRelations(text, allImports, luaChunks)
+                              : (isSql(ext) && mode === 'code')
+                                ? buildSqlRelations(text, allImports, sqlChunks)
+                                : (isPerl(ext) && mode === 'code')
+                                  ? buildPerlRelations(text, allImports, perlChunks)
+                                  : (isShell(ext) && mode === 'code')
+                                    ? buildShellRelations(text, allImports, shellChunks)
+                                    : null;
     const sc = smartChunk({
       text,
       ext,
@@ -570,7 +675,14 @@ async function build(mode) {
       goChunks,
       javaChunks,
       perlChunks,
-      shellChunks
+      shellChunks,
+      tsChunks,
+      csharpChunks,
+      kotlinChunks,
+      rubyChunks,
+      phpChunks,
+      luaChunks,
+      sqlChunks
     });
     const fileChunks = [];
 
@@ -623,6 +735,16 @@ async function build(mode) {
             };
           }
           docmeta = extractDocMeta(text, c, fileRelations);
+        } else if (isTypeScript(ext)) {
+          if (fileRelations) {
+            const callsForChunk = fileRelations.calls.filter(([caller]) => caller && caller === c.name);
+            codeRelations = {
+              ...fileRelations,
+              calls: callsForChunk.length ? callsForChunk : fileRelations.calls,
+              name: c.name
+            };
+          }
+          docmeta = extractTypeScriptDocMeta(c);
         } else if (ext === '.py') {
           if (fileRelations) {
             const callsForChunk = fileRelations.calls.filter(([caller]) => caller && caller === c.name);
@@ -679,6 +801,64 @@ async function build(mode) {
             };
           }
           docmeta = extractJavaDocMeta(c);
+        } else if (isCSharp(ext)) {
+          if (fileRelations) {
+            const callsForChunk = fileRelations.calls.filter(([caller]) => caller && caller === c.name);
+            codeRelations = {
+              ...fileRelations,
+              calls: callsForChunk.length ? callsForChunk : fileRelations.calls,
+              name: c.name
+            };
+          }
+          docmeta = extractCSharpDocMeta(c);
+        } else if (isKotlin(ext)) {
+          if (fileRelations) {
+            const callsForChunk = fileRelations.calls.filter(([caller]) => caller && caller === c.name);
+            codeRelations = {
+              ...fileRelations,
+              calls: callsForChunk.length ? callsForChunk : fileRelations.calls,
+              name: c.name
+            };
+          }
+          docmeta = extractKotlinDocMeta(c);
+        } else if (isRuby(ext)) {
+          if (fileRelations) {
+            const callsForChunk = fileRelations.calls.filter(([caller]) => caller && caller === c.name);
+            codeRelations = {
+              ...fileRelations,
+              calls: callsForChunk.length ? callsForChunk : fileRelations.calls,
+              name: c.name
+            };
+          }
+          docmeta = extractRubyDocMeta(c);
+        } else if (isPhp(ext)) {
+          if (fileRelations) {
+            const callsForChunk = fileRelations.calls.filter(([caller]) => caller && caller === c.name);
+            codeRelations = {
+              ...fileRelations,
+              calls: callsForChunk.length ? callsForChunk : fileRelations.calls,
+              name: c.name
+            };
+          }
+          docmeta = extractPhpDocMeta(c);
+        } else if (isLua(ext)) {
+          if (fileRelations) {
+            const callsForChunk = fileRelations.calls.filter(([caller]) => caller && caller === c.name);
+            codeRelations = {
+              ...fileRelations,
+              calls: callsForChunk.length ? callsForChunk : fileRelations.calls,
+              name: c.name
+            };
+          }
+          docmeta = extractLuaDocMeta(c);
+        } else if (isSql(ext)) {
+          if (fileRelations) {
+            codeRelations = {
+              ...fileRelations,
+              name: c.name
+            };
+          }
+          docmeta = extractSqlDocMeta(c);
         } else if (isPerl(ext)) {
           if (fileRelations) {
             const callsForChunk = fileRelations.calls.filter(([caller]) => caller && caller === c.name);
