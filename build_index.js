@@ -53,6 +53,7 @@ import { getHeadline } from './src/indexer/headline.js';
 import { SimpleMinHash } from './src/indexer/minhash.js';
 import { buildChunkRelations, buildLanguageContext, collectLanguageImports } from './src/indexer/language-registry.js';
 import { inferTypeMetadata } from './src/indexer/type-inference.js';
+import { applyCrossFileInference } from './src/indexer/type-inference-crossfile.js';
 import { runWithConcurrency } from './src/shared/concurrency.js';
 import { fileExt, toPosix } from './src/shared/files.js';
 import { sha1 } from './src/shared/hash.js';
@@ -82,6 +83,7 @@ const indexingConfig = userConfig.indexing || {};
 const astDataflowEnabled = indexingConfig.astDataflow !== false;
 const controlFlowEnabled = indexingConfig.controlFlow !== false;
 const typeInferenceEnabled = indexingConfig.typeInference === true;
+const typeInferenceCrossFileEnabled = indexingConfig.typeInferenceCrossFile === true;
 const sqlConfig = userConfig.sql || {};
 const defaultSqlDialects = {
   '.psql': 'postgres',
@@ -203,6 +205,9 @@ if (!controlFlowEnabled) {
 }
 if (typeInferenceEnabled) {
   log('Type inference metadata enabled via indexing.typeInference.');
+}
+if (typeInferenceCrossFileEnabled && !typeInferenceEnabled) {
+  log('Cross-file type inference requested but indexing.typeInference is disabled.');
 }
 
 const languageOptions = {
@@ -872,6 +877,49 @@ async function build(mode) {
   // MinHash index (signatures)
   const minhashSigs = chunks.map(c => c.minhashSig);
   // (MinHash search logic will be in search.js)
+
+  if (mode === 'code' && typeInferenceEnabled && typeInferenceCrossFileEnabled) {
+    const crossFileStats = await applyCrossFileInference({
+      rootDir: ROOT,
+      chunks,
+      enabled: true,
+      log,
+      useTooling: true
+    });
+    if (crossFileStats) {
+      log(`Cross-file inference: callLinks=${crossFileStats.linkedCalls}, usageLinks=${crossFileStats.linkedUsages}, returns=${crossFileStats.inferredReturns}`);
+    }
+    if (incrementalEnabled) {
+      const chunkMap = new Map();
+      for (const chunk of chunks) {
+        if (!chunk?.file) continue;
+        const list = chunkMap.get(chunk.file) || [];
+        list.push(chunk);
+        chunkMap.set(chunk.file, list);
+      }
+      let bundleUpdates = 0;
+      for (const [file, entry] of Object.entries(manifest.files || {})) {
+        const bundleName = entry?.bundle;
+        const fileChunks = chunkMap.get(file);
+        if (!bundleName || !fileChunks) continue;
+        const bundlePath = path.join(bundleDir, bundleName);
+        const bundle = {
+          file,
+          hash: entry.hash,
+          mtimeMs: entry.mtimeMs,
+          size: entry.size,
+          chunks: fileChunks
+        };
+        try {
+          await fs.writeFile(bundlePath, JSON.stringify(bundle) + '\n');
+          bundleUpdates += 1;
+        } catch {}
+      }
+      if (bundleUpdates) {
+        log(`Cross-file inference updated ${bundleUpdates} incremental bundle(s).`);
+      }
+    }
+  }
 
   // Chunk meta
   const chunkMeta = chunks.map((c, i) => ({

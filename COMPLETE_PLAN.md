@@ -230,7 +230,7 @@ Work items:
 - [x] Add per-dialect fixtures and tests.
 - [x] Add config for sql.dialect and dialect-by-extension mapping.
 
-## Phase 20: CFG + Dataflow Everywhere (status: partial)
+## Phase 20: CFG + Dataflow Everywhere (status: done)
 Goal: Add control-flow graphs and dataflow metadata across supported languages.
 Work items:
 - [x] Define shared CFG/dataflow schema in docs/ast-feature-list.md.
@@ -238,7 +238,7 @@ Work items:
 - [x] Reuse shared engine for JS/Python where applicable.
 - [x] Add filters and output rendering for CFG/dataflow metadata.
 - [x] Expand fixtures/tests to validate control-flow and dataflow fields.
-- [ ] Evaluate dynamic language handler imports (pros/cons, perf, DX).
+- [x] Evaluate dynamic language handler imports (pros/cons, perf, DX).
 
 ## Phase 21: Type Inference (Intra-file) (status: done)
 Goal: Add local type inference for each supported language.
@@ -247,9 +247,11 @@ Work items:
 - [x] Merge inferred types into docmeta and render/filter paths.
 - [x] Validate with fixtures and language-fidelity tests.
 
-## Phase 22: Type Inference (Cross-file) (status: todo)
+## Phase 22: Type Inference (Cross-file) (status: done)
 Goal: Resolve types across files after intra-file stability is confirmed.
 Work items:
-- [ ] Add cross-file symbol resolution and import/usage linking.
-- [ ] Use detected tooling when present for richer type info.
-- [ ] Validate with tests; provide parity/perf summary after completion.
+- [x] Add cross-file symbol resolution and import/usage linking.
+- [x] Use detected tooling when present for richer type info.
+- [x] Validate with tests; provide parity/perf summary after completion.
+Notes:
+- Cross-file inference is covered by `tests/type-inference-crossfile.js`; large-repo perf runs are still pending.

@@ -11,6 +11,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - imports/exports/usages/calls are populated when supported.
 - control-flow metadata is present when enabled (branches/loops/returns/breaks/continues/throws/awaits/yields).
 - type inference metadata is present when enabled (params/returns/fields/locals with sources).
+- cross-file call/usage links are present when cross-file inference is enabled.
 
 ## Python
 - Functions, classes, and methods are chunked via AST when python is available.

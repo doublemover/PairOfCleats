@@ -29,11 +29,13 @@ This document defines the "complete" AST metadata feature set and how each AST-b
 - Inferred types are stored in `docmeta.inferredTypes`.
 - Shape: `{ params, returns, fields, locals }`, where values are arrays of `{ type, source, confidence }`.
 - Sources include annotation, default, literal, flow, and tooling.
+- Cross-file inference can add `flow` entries based on return-call propagation.
 
 ## Configurability
 - `indexing.astDataflow` (default: true) controls whether dataflow metadata is collected.
 - `indexing.controlFlow` (default: true) controls whether control-flow metadata is collected.
 - `indexing.typeInference` (default: false) controls whether inferred types are collected.
+- `indexing.typeInferenceCrossFile` (default: false) controls cross-file inference and linking.
 
 ## Per-language coverage
 

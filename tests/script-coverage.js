@@ -105,6 +105,11 @@ const actions = [
     covers: ['language-fidelity-test']
   },
   {
+    label: 'type-inference-crossfile-test',
+    run: () => runNode('type-inference-crossfile-test', path.join(root, 'tests', 'type-inference-crossfile.js')),
+    covers: ['type-inference-crossfile-test']
+  },
+  {
     label: 'format-fidelity-test',
     run: () => runNode('format-fidelity-test', path.join(root, 'tests', 'format-fidelity.js')),
     covers: ['format-fidelity-test']

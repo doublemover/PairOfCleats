@@ -1,13 +1,17 @@
 const TYPE_SOURCES = {
   annotation: 'annotation',
   default: 'default',
-  literal: 'literal'
+  literal: 'literal',
+  flow: 'flow',
+  tooling: 'tooling'
 };
 
 const CONFIDENCE = {
   annotation: 0.95,
   default: 0.7,
-  literal: 0.6
+  literal: 0.6,
+  flow: 0.55,
+  tooling: 0.85
 };
 
 const PYTHON_TYPES = {

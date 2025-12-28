@@ -6,7 +6,7 @@
 
 **PairOfCleats** _(pronounced 'Paraclete')_ is a utility that builds a hybrid semantic index of your Git repo. 
 
-You run the build script "offline" on your local computer, which only takes a few minutes, then include the index in your agent image or repo.
+You run the build script "offline" on your local computer, then mount or copy the cache artifacts into an agent image or local workflow.
 
 Coding Agents then use the search utility, which allows them to query the index to get informative json blobs about code & docs. 
 
@@ -34,10 +34,10 @@ I figured it would be helpful if they were able to query the codebase and docume
 ## 🔧 Requirements
 - Node.js (v18+ recommended)
 - A decently fast computer to build the search index with, or patience
-  - Takes a 5800X3D ~3m10s to build the index for this [JS Lemmings Port](https://github.com/doublemover/LemmingsJS-MIDI) (~430 files) when using `MiniLM-L12-v2` for chunk embeddings
-          - Index Size is ~15MB, can be tuned
-  - Memory usage is currently low
-  - Vague minspec target is a stock M2 Mini
+  - Build time and index size vary by repo; expect a few minutes for mid-sized repos when embeddings are enabled.
+          - Index size is tunable via chunking + vector settings.
+  - Memory usage is intentionally kept low.
+  - Rough baseline target is a stock M2 Mini or similar.
   - Optional: SQLite backend (FTS5) to store full indexes for shared access; search uses the same renderer/scoring
   - Optional: Python 3 for AST-based metadata on `.py` files (falls back to heuristic chunking)
 
@@ -60,15 +60,15 @@ I figured it would be helpful if they were able to query the codebase and docume
 	- **N-grams & Char n-grams** → for phrase search  
 	- **BM25 stats** → sparse postings (compressed varint)  
 	- **Dense vector embedding** (MiniLM) → for ANN search  
-	- **MinHash signatures** → fast approximate similarity  
-	- **Code relations**: Calls graph, Imports & Exports, Identifier usages
+        - **MinHash signatures** → fast approximate similarity + dedupe  
+        - **Code relations**: Calls graph, Imports & Exports, Identifier usages (with optional cross-file linking)
 	- **Git metadata**: Last author & modified date, Churn score, Per-chunk blame authors
         - **Complexity analysis** (cyclomatic complexity of JS functions)       
         - **Lint results** (via ESLint)
         - **Docstrings / Signatures / Param annotations** (via doc comment extraction)
         - **AST dataflow metadata** (reads/writes/mutations/throws/awaits/yields)
         - **Control-flow metadata** (branches/loops/returns/breaks/continues/awaits/yields)
-        - **Type inference metadata** (params/returns/fields/locals when enabled)
+        - **Type inference metadata** (intra-file by default; cross-file opt-in)
         - **Headline generation** → auto-summarized chunk label
         - **Neighbor context** → pre/post lines for agent context windowing     
 </details>
@@ -90,7 +90,7 @@ Provides a CLI utility for **agent-friendly semantic search** of your repo.
 - **BM25 token / phrase match** (inverted index with term frequencies)
   - Headline boosting
   - N-gram matches
-- **MinHash-based ANN search** (fallback)
+- **MinHash-based similarity search** (fallback)
   - Cross-file approximate similarity
 - **Dense vectors** (optional, when ANN is enabled and embeddings are available)
 - Combined + deduplicated result set.
@@ -258,6 +258,11 @@ You can also set defaults in `.pairofcleats.json` (enable `use` to make SQLite t
 }
 ```
 
+Type inference:
+- Set `indexing.typeInference` to enable intra-file inference.
+- Set `indexing.typeInferenceCrossFile` to enable cross-file linking (requires `typeInference`).
+- When TypeScript tooling is installed, cross-file inference can add richer TS param/return types.
+
 Override paths with `codeDbPath`/`proseDbPath`.
 Override extension paths with `PAIROFCLEATS_EXTENSIONS_DIR` or `PAIROFCLEATS_VECTOR_EXTENSION`.
 
@@ -306,8 +311,6 @@ To enable FTS5 scoring, set `sqlite.scoreMode` to `fts` (experimental; lower par
 	
 - Javascript seems pretty good now you should try it
 - The searches typically take 80-120ms to complete, I have seen some queries run as long as 1-1500ms but have since changed the way that metadata is stored within chunks when the index is built and improved the way it is consumed in the search tool
-- There is another branch where I am rewriting the search tool in rust
-- I will eventually also rewrite the index generation to use rust
 </details>
 
 ---
@@ -415,6 +418,10 @@ Format fidelity harness:
 
 `npm run format-fidelity-test`
 
+Cross-file inference harness:
+
+`npm run type-inference-crossfile-test`
+
 Download extensions archive harness:
 
 `npm run download-extensions-test`
@@ -484,8 +491,14 @@ Optional flags:
 
 ## 📚 Design docs
 
+Key references:
+- `docs/ast-feature-list.md` (metadata schema + per-language coverage)
+- `docs/language-fidelity.md` (parsing validation checklist)
+- `docs/parser-backbone.md` (parser + inference strategy)
+
 - `COMPLETE_PLAN.md`
 - `docs/model-comparison.md`
+- `docs/language-handler-imports.md`
 - `docs/sqlite-compaction.md`
 - `docs/sqlite-ann-extension.md`
 - `docs/sqlite-incremental-updates.md`
