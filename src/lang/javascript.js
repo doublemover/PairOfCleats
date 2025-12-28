@@ -13,6 +13,20 @@ function locMeta(node) {
   } : {};
 }
 
+function nodeStart(node) {
+  if (!node) return 0;
+  if (Number.isFinite(node.start)) return node.start;
+  if (Array.isArray(node.range)) return node.range[0];
+  return 0;
+}
+
+function nodeEnd(node) {
+  if (!node) return 0;
+  if (Number.isFinite(node.end)) return node.end;
+  if (Array.isArray(node.range)) return node.range[1];
+  return 0;
+}
+
 function keyName(key) {
   if (!key) return 'anonymous';
   if (key.type === 'Identifier') return key.name;
@@ -89,8 +103,8 @@ export function buildJsChunks(text) {
   const addChunk = (node, name, kind) => {
     if (!node) return;
     chunks.push({
-      start: node.start,
-      end: node.end,
+      start: nodeStart(node),
+      end: nodeEnd(node),
       name: name || 'anonymous',
       kind,
       meta: { ...locMeta(node) }
@@ -135,7 +149,12 @@ export function buildJsChunks(text) {
   };
 
   try {
-    const ast = acorn.parse(text, { ecmaVersion: 'latest', locations: true, sourceType: 'module' });
+    let ast = null;
+    try {
+      ast = acorn.parse(text, { ecmaVersion: 'latest', locations: true, sourceType: 'module' });
+    } catch {
+      ast = esprima.parseModule(text, { jsx: true, tolerant: true, loc: true, range: true });
+    }
     for (const node of ast.body) {
       if (node.type === 'FunctionDeclaration') {
         addChunk(node, node.id ? node.id.name : 'anonymous', 'FunctionDeclaration');

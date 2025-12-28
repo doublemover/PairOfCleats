@@ -276,11 +276,11 @@ Work items:
 - [x] Add a config option to disable per-chunk `git blame` (or downgrade to file-level) for large repos.
 - [x] Add empty-repo/zero-chunk coverage to ensure postings/metrics stay stable.
 
-## Phase 25: Language Parsing Hardening (status: todo)
-- [ ] Improve TypeScript import parsing for multi-line imports/exports and dynamic `import()` calls.
-- [ ] Add JSX/Stage-3 parsing support (espree or tree-sitter) to avoid fallback chunking in `.jsx/.tsx`.
+## Phase 25: Language Parsing Hardening (status: in-progress)
+- [x] Improve TypeScript import parsing for multi-line imports/exports and dynamic `import()` calls.
+- [x] Add JSX/Stage-3 parsing support (espree or tree-sitter) to avoid fallback chunking in `.jsx/.tsx`.
 - [ ] Extend cross-file inference beyond TS (Go/Rust/Java via tooling hooks).
-- [ ] Add fixtures/tests for `.tsx/.mts/.cts` and Python AST fallback.
+- [x] Add fixtures/tests for `.tsx/.mts/.cts` and Python AST fallback.
 
 ## Phase 26: Search + Scoring Consistency (status: in-progress)
 - [x] Unify MinHash implementation between indexing and search; add a compatibility test.

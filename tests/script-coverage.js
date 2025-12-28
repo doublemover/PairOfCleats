@@ -143,6 +143,16 @@ const actions = [
     covers: []
   },
   {
+    label: 'ts-jsx-fixtures',
+    run: () => runNode('ts-jsx-fixtures', path.join(root, 'tests', 'ts-jsx-fixtures.js')),
+    covers: []
+  },
+  {
+    label: 'python-fallback-test',
+    run: () => runNode('python-fallback-test', path.join(root, 'tests', 'python-fallback.js')),
+    covers: []
+  },
+  {
     label: 'verify',
     run: () => runNode('verify', path.join(root, 'tests', 'smoke.js')),
     covers: ['verify']

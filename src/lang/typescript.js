@@ -157,20 +157,15 @@ function extractVisibility(modifiers) {
  */
 export function collectTypeScriptImports(text) {
   const imports = new Set();
-  const lines = text.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    let match = trimmed.match(/^(?:import|export)\s+(?:type\s+)?(?:[^'"]+\s+from\s+)?['"]([^'"]+)['"]/);
-    if (match) {
-      imports.add(match[1]);
-      continue;
+  const normalized = stripTypeScriptComments(text);
+  const capture = (regex) => {
+    for (const match of normalized.matchAll(regex)) {
+      if (match[1]) imports.add(match[1]);
     }
-    match = trimmed.match(/^import\s+['"]([^'"]+)['"]/);
-    if (match) imports.add(match[1]);
-    match = trimmed.match(/\brequire\(['"]([^'"]+)['"]\)/);
-    if (match) imports.add(match[1]);
-  }
+  };
+  capture(/\b(?:import|export)\s+(?:type\s+)?(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/g);
+  capture(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g);
+  capture(/\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g);
   return Array.from(imports);
 }
 
@@ -210,6 +205,8 @@ export function buildTypeScriptChunks(text) {
 
   const typeRe = /^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(class|interface|enum|type|namespace|module)\s+([A-Za-z_$][A-Za-z0-9_$]*)/;
   const funcRe = /^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/;
+  const assignFuncRe = /^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:async\s+)?function\b/;
+  const arrowRe = /^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*(?:async\s+)?(?:<[^>]+>\s*)?(?:\([^)]*\)|[A-Za-z_$][A-Za-z0-9_$]*)\s*(?::\s*[^=]+)?=>/;
   const kindMap = {
     class: 'ClassDeclaration',
     interface: 'InterfaceDeclaration',
@@ -276,6 +273,52 @@ export function buildTypeScriptChunks(text) {
         attributes: collectAttributes(lines, i, signature)
       };
       decls.push({ start, end, name: parsed.name || match[1], kind: 'FunctionDeclaration', meta });
+    }
+
+    match = trimmed.match(assignFuncRe);
+    if (match) {
+      const start = lineIndex[i] + line.indexOf(match[0]);
+      const { signature, endLine, hasBody } = readSignatureLines(lines, i);
+      const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
+      const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;
+      const modifiers = extractTypeScriptModifiers(signature);
+      const parsed = parseTypeScriptSignature(signature);
+      const meta = {
+        startLine: i + 1,
+        endLine: offsetToLine(lineIndex, end),
+        signature,
+        params: extractTypeScriptParams(signature),
+        returns: parsed.returns,
+        modifiers,
+        visibility: extractVisibility(modifiers),
+        docstring: extractDocComment(lines, i),
+        attributes: collectAttributes(lines, i, signature)
+      };
+      decls.push({ start, end, name: parsed.name || match[1], kind: 'FunctionDeclaration', meta });
+      continue;
+    }
+
+    match = trimmed.match(arrowRe);
+    if (match) {
+      const start = lineIndex[i] + line.indexOf(match[0]);
+      const { signature, endLine, hasBody } = readSignatureLines(lines, i);
+      const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
+      const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;
+      const modifiers = extractTypeScriptModifiers(signature);
+      const parsed = parseTypeScriptSignature(signature);
+      const meta = {
+        startLine: i + 1,
+        endLine: offsetToLine(lineIndex, end),
+        signature,
+        params: extractTypeScriptParams(signature),
+        returns: parsed.returns,
+        modifiers,
+        visibility: extractVisibility(modifiers),
+        docstring: extractDocComment(lines, i),
+        attributes: collectAttributes(lines, i, signature)
+      };
+      decls.push({ start, end, name: parsed.name || match[1], kind: 'FunctionDeclaration', meta });
+      continue;
     }
   }
 

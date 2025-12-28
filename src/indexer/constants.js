@@ -58,7 +58,7 @@ export const SKIP_FILES = new Set([
 
 export const EXTS_PROSE = new Set(['.md', '.txt', '.rst', '.adoc', '.asciidoc']);
 
-export const JS_EXTS = new Set(['.js', '.mjs', '.cjs']);
+export const JS_EXTS = new Set(['.js', '.mjs', '.cjs', '.jsx']);
 export const TS_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts']);
 export const CLIKE_EXTS = new Set(['.c', '.h', '.cc', '.cpp', '.hpp', '.hh', '.m', '.mm']);
 export const OBJC_EXTS = new Set(['.m', '.mm']);
@@ -75,7 +75,7 @@ export const PERL_EXTS = new Set(['.pl', '.pm']);
 export const SHELL_EXTS = new Set(['.sh', '.bash', '.zsh', '.ksh']);
 
 export const EXTS_CODE = new Set([
-  '.js', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts', '.yml', '.yaml', '.sh',
+  '.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx', '.mts', '.cts', '.yml', '.yaml', '.sh',
   '.html', '.py', '.swift', '.rs', '.c', '.cc', '.cpp', '.h', '.hpp', '.hh',
   '.m', '.mm', '.go', '.java', '.cs', '.kt', '.kts', '.rb', '.php', '.phtml',
   '.lua', '.sql', '.psql', '.pgsql', '.mysql', '.sqlite', '.pl', '.pm', '.bash',
