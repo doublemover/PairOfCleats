@@ -1,0 +1,12 @@
+greet
+sum
+clamp
+greeter
+message
+helper
+docstring
+sayHello
+objcGreet
+add_numbers
+cppMultiply
+rust_greet

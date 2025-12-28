@@ -39,20 +39,21 @@ I figured it would be helpful if they were able to query the codebase and docume
   - Memory usage is currently low
   - Vague minspec target is a stock M2 Mini
   - Optional: SQLite backend (FTS5) to store full indexes for shared access; search uses the same renderer/scoring
+  - Optional: Python 3 for AST-based metadata on `.py` files (falls back to heuristic chunking)
 
 
 <details>
 <summary><h2>⚙️ Index Features</h2></summary>
 
 - Recursively scans your codebase
-  - **Code**: `.js`, `.yml`, `.sh`, `.html`, `.css`
+  - **Code**: `.js`, `.mjs`, `.cjs`, `.py`, `.swift`, `.rs`, `.c`, `.cc`, `.cpp`, `.h`, `.hpp`, `.m`, `.mm`, `.yml`, `.sh`, `.html`
   - **Prose**: `.md`, `.txt`
   - Skips irrelevant directories (`.git`, `node_modules`, `dist`, `coverage`, etc)
 - Automatically determines ideal chunk size & dimension count separately for prose & code
 - Configurable to prioritize offline generation time, index size, search speed, and accuracy
 - Combines BM25 Search, embeddings, MinHash signatures, and rich code/documentation relations
 - Smart Chunking
-  - **Code**: Functions, Classes & Methods, Arrow Functions, Exports
+  - **Code**: Functions, Classes & Methods, Arrow Functions, Exports, Swift/Python/C/ObjC/Rust declarations
   - **Prose**: Headings (Markdown/RST), Sections (YAML)
 - Feature Extraction (per chunk)
 	- **Tokenization & Stemming**  
@@ -115,6 +116,7 @@ Provides a CLI utility for **agent-friendly semantic search** of your repo.
 - Failed queries → cache `repometrics/noResultQueries`
 - These metrics can be consumed by the index builder to enhance results
 - Github workflows included to automatically handle merging these files
+- Optional persistent query cache via `search.queryCache`
 
 </details>
 
@@ -160,41 +162,99 @@ Dictionary config example:
 </details>
 
 <details>
+<summary><h2>🧠 Model Cache</h2></summary>
+
+PairOfCleats stores embedding models under `<cache>/models` by default.
+
+Override via `.pairofcleats.json`:
+```json
+{ "models": { "id": "Xenova/all-MiniLM-L12-v2", "dir": "C:/cache/pairofcleats/models" } }
+```
+
+Or set `PAIROFCLEATS_MODELS_DIR` / `PAIROFCLEATS_MODEL`.
+
+Optional compare list:
+```json
+{ "models": { "compare": ["Xenova/all-MiniLM-L12-v2", "Xenova/all-MiniLM-L6-v2"] } }
+```
+
+One-off model overrides:
+- Build: `node build_index.js --model Xenova/all-MiniLM-L12-v2`
+- Search: `node search.js --model Xenova/all-MiniLM-L12-v2` (used only if the index is missing model metadata)
+</details>
+
+<details>
 <summary><h2>🗃️ SQLite Backend (FTS5)</h2></summary>
 
-Build a shared SQLite index:
+Build a shared SQLite index (split code/prose DBs):
 
 `npm run build-sqlite-index`
 
+Layout:
+- `index-sqlite/index-code.db`
+- `index-sqlite/index-prose.db`
+
 Search (auto-uses SQLite when enabled):
 
-`node .\\search.js "searchterm" --ann`
+`node .\\search.js "searchterm"`
 
 Force a backend:
 
-`node .\\search.js --backend sqlite "searchterm" --ann`
+`node .\\search.js --backend sqlite "searchterm"`
 
-`node .\\search.js --backend memory "searchterm" --ann`
+`node .\\search.js --backend sqlite-fts "searchterm"`
+
+`node .\\search.js --backend memory "searchterm"`
 
 Notes:
 - SQLite stores the full index artifacts (chunks + postings + n-grams + minhash + dense vectors).
 - `search.js` reads those artifacts and uses the same renderer/scoring as the file-backed path.
-- FTS5 is built into SQLite and still powers the low-level `search-sqlite` command.
+- FTS5 is built into SQLite and can be used as a SQLite-only scoring path with `--backend sqlite-fts` (experimental; lower parity with BM25+ngrams).
+- Optional: use a loadable SQLite vector extension for ANN (`sqlite.annMode = "extension"`). See `docs/sqlite-ann-extension.md`.
+- Use `npm run download-extensions` or set `sqlite.vectorExtension.path` to point at the extension binary.
+- Split DBs reduce lock contention and allow quicker prose-only rebuilds.
+- Legacy `index.db` files are deleted during rebuild/cleanup.
 
 You can also set defaults in `.pairofcleats.json` (enable `use` to make SQLite the default backend when available):
 ```json
 {
   "sqlite": {
     "use": true,
-    "dbPath": "C:/cache/pairofcleats/index.db"
+    "dbDir": "C:/cache/pairofcleats/index-sqlite",
+    "annMode": "js",
+    "vectorExtension": {
+      "provider": "sqlite-vec",
+      "dir": "C:/cache/pairofcleats/extensions",
+      "path": ""
+    }
   },
   "search": {
-    "annDefault": true
+    "annDefault": true,
+    "sqliteFtsNormalize": false,
+    "sqliteFtsProfile": "balanced",
+    "sqliteFtsWeights": [0.2, 1.5, 0.6, 2.0, 1.0],
+    "queryCache": {
+      "enabled": false,
+      "maxEntries": 200,
+      "ttlMs": 0
+    },
+    "bm25": { "k1": 1.2, "b": 0.75 }
+  },
+  "indexing": {
+    "concurrency": 4,
+    "importConcurrency": 4
   }
 }
 ```
 
-Use `--no-ann` to disable ANN for a single search.
+Override paths with `codeDbPath`/`proseDbPath`.
+Override extension paths with `PAIROFCLEATS_EXTENSIONS_DIR` or `PAIROFCLEATS_VECTOR_EXTENSION`.
+
+ANN is enabled by default (configurable via `search.annDefault`). Use `--no-ann` to disable for a single search.
+Set `sqlite.annMode` to `extension` to use a SQLite vector extension when available.
+Set `search.sqliteFtsNormalize` to true to normalize FTS5 scores into a 0..1 range.
+Tune FTS5 weighting with `search.sqliteFtsProfile` (`balanced`, `headline`, `name`) or custom `search.sqliteFtsWeights` (array of 5 weights for file/name/kind/headline/tokens).
+To enable FTS5 scoring, set `sqlite.scoreMode` to `fts` (experimental; lower parity with BM25+ngrams).
 </details>
 
 <details>
@@ -246,24 +306,120 @@ Use `--no-ann` to disable ANN for a single search.
 - Clone the repo
 - Quick start (bootstrap):
   - `npm run bootstrap`
+  - Add `--incremental` to reuse the per-file cache (auto-enabled when present)
   - Add `--with-sqlite` to also build the SQLite index
   - With `sqlite.use: true`, `search.js` will use SQLite automatically when the DB exists (use `--backend memory` to force file-backed)
 - Manual setup:
   - Install dependencies: `npm install`
   - (Optional) Download dictionaries: `npm run download-dicts -- --lang en`
+  - (Optional) Download embedding model: `npm run download-models`
+  - (Optional) Download SQLite ANN extensions (supports `.zip`, `.tar`, `.tar.gz`, `.tgz`): `npm run download-extensions -- --url vec0.dll=...`
+  - (Optional) Verify extension install: `npm run verify-extensions` (use `--no-load` to skip load checks)
   - Configure which file types and folders to skip
   - (Optional) Configure `.pairofcleats.json` and `.pairofcleatsignore`
-  - Build the index: `node build_index.js`
-  - (Optional) Build a shared SQLite index: `npm run build-sqlite-index`
+- Build the index: `node build_index.js` (add `--incremental` to reuse per-file cache)
+  - (Optional) Build a shared SQLite index: `npm run build-sqlite-index` (use `-- --incremental` to update in place when the per-file cache exists)
 - Include the index & search.js
         - Indexes are stored outside the repo by default; use cache mounting for agent images
         - If you need repo-local indexes, set `cache.root` in `.pairofcleats.json` to a path inside the repo
+
+## 🔌 MCP Server
+
+Run the MCP server (stdio):
+
+`npm run mcp-server`
+
+Tools exposed:
+- `index_status` (cache + index presence, repo identity, git info)
+- `build_index` (index build + optional sqlite)
+- `search` (JSON search results)
+- `download_models` (prefetch embeddings)
+- `report_artifacts` (sizes for cache + indexes)
 
 ## ✅ Tests
 
 Lightweight smoke checks:
 
 `npm run verify`
+
+Fixture smoke (stub embeddings, no model download):
+
+`npm run fixture-smoke`
+
+Fixture parity (runs parity harness against all fixtures):
+
+`npm run fixture-parity`
+
+Fixture eval (expected-hit checks against fixture queries):
+
+`npm run fixture-eval`
+
+Query cache harness:
+
+`npm run query-cache-test`
+
+Benchmarks (query latency + artifact sizes):
+
+`npm run bench`
+`npm run bench-ann`
+
+Optional: measure build times with `npm run bench -- --build --stub-embeddings`.
+
+Cleanup harness:
+
+`npm run clean-artifacts-test`
+
+Uninstall harness:
+
+`npm run uninstall-test`
+
+SQLite incremental harness:
+
+`npm run sqlite-incremental-test`
+
+SQLite compaction harness:
+
+`npm run sqlite-compact-test`
+
+SQLite ANN extension harness:
+
+`npm run sqlite-ann-extension-test`
+
+Download extensions archive harness:
+
+`npm run download-extensions-test`
+
+Verify extensions (loads the binary unless `--no-load` is provided):
+
+`npm run verify-extensions`
+
+Repometrics dashboard harness:
+
+`npm run repometrics-dashboard-test`
+
+MCP server harness:
+
+`npm run mcp-server-test`
+
+Model comparison harness:
+
+`npm run compare-models -- --models Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2 --build`
+
+Model comparison test harness:
+
+`npm run compare-models-test`
+
+Summary report test harness:
+
+`npm run summary-report-test`
+
+Combined summary report (runs compare + parity and writes `docs/combined-summary.json`):
+
+`npm run summary-report -- --models Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2`
+
+Reuse existing indexes (skip rebuilds):
+
+`npm run summary-report -- --models Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2 --no-build`
 
 Optional flags:
 - `--require-index` (fail if index artifacts are missing)
@@ -273,8 +429,38 @@ Optional flags:
 ## 🧹 Maintenance
 
 - Report cache/artifact sizes: `npm run report-artifacts`
-- Clean repo artifacts (indexes + metrics + default sqlite db): `npm run clean-artifacts`
+- Clean repo artifacts (indexes + metrics + default sqlite dbs): `npm run clean-artifacts`
 - Clean everything in the cache root: `npm run clean-artifacts -- --all`
+- Uninstall caches + dictionaries + models + extensions (prompts): `npm run uninstall` (use `--yes` to skip prompt)
+- Uninstall test harness: `npm run uninstall-test`
+- Compact SQLite indexes (prune vocab + reassign doc_ids): `npm run compact-sqlite-index`
+- Repometrics dashboard (console summary + optional JSON): `npm run repometrics-dashboard`
+- Build CI artifacts: `node tools/ci-build-artifacts.js --out ci-artifacts`
+- Restore CI artifacts: `node tools/ci-restore-artifacts.js --from ci-artifacts` (bootstrap auto-detects when present)
+
+## 📚 Design docs
+
+- `docs/phase2-sqlite-candidate-generation.md`
+- `docs/phase3-parity-validation.md`
+- `docs/phase4-incremental-indexing.md`
+- `docs/sqlite-incremental-updates.md`
+- `docs/phase5-ci-artifacts.md`
+- `docs/phase6-tests-benchmarks.md`
+- `docs/phase7-python-support.md`
+- `docs/phase7-swift-support.md`
+- `docs/phase7-objc-cpp-support.md`
+- `docs/phase7-rust-support.md`
+- `docs/phase8-sqlite-scoring.md`
+- `docs/phase9-scoring-calibration.md`
+- `docs/phase10-sqlite-split.md`
+- `docs/phase11-parallel-indexing.md`
+- `docs/phase12-mcp-server.md`
+- `docs/model-comparison.md`
+- `docs/sqlite-compaction.md`
+- `docs/sqlite-ann-extension.md`
+- `docs/repometrics-dashboard.md`
+- `docs/sqlite-index-schema.md`
+- `docs/query-cache.md`
 
 ## 📦 Cache Layout
 
@@ -282,8 +468,14 @@ Indexes and metrics live outside the repo by default (configurable via `.pairofc
 
 - `<cache>/repos/<repoId>/index-code`
 - `<cache>/repos/<repoId>/index-prose`
+- `<cache>/repos/<repoId>/incremental/<mode>/` (per-file cache)
 - `<cache>/repos/<repoId>/repometrics`
-- `<cache>/repos/<repoId>/index-sqlite/index.db` (if `sqlite.dbPath` points inside the cache)
+- `<cache>/repos/<repoId>/repometrics/index-<mode>.json`
+- `<cache>/repos/<repoId>/repometrics/queryCache.json`
+- `<cache>/repos/<repoId>/index-sqlite/index-code.db`
+- `<cache>/repos/<repoId>/index-sqlite/index-prose.db`
+- `<cache>/models`
+- `<cache>/extensions`
 
 Default cache root:
 - Windows: `%LOCALAPPDATA%\\PairOfCleats`

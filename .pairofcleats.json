@@ -15,9 +15,33 @@
   },
   "sqlite": {
     "use": true,
-    "dbPath": ""
+    "dbDir": "",
+    "annMode": "extension",
+    "vectorExtension": {
+      "provider": "sqlite-vec",
+      "dir": "",
+      "path": "",
+      "table": "dense_vectors_ann",
+      "column": "embedding",
+      "encoding": "float32",
+      "options": ""
+    }
   },
   "search": {
-    "annDefault": true
+    "annDefault": true,
+    "sqliteFtsNormalize": false,
+    "queryCache": {
+      "enabled": false,
+      "maxEntries": 200,
+      "ttlMs": 0
+    }
+  },
+  "indexing": {
+    "concurrency": 4,
+    "importConcurrency": 4
+  },
+  "models": {
+    "id": "Xenova/all-MiniLM-L12-v2",
+    "dir": ""
   }
 }

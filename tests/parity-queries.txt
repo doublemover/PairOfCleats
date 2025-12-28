@@ -1,0 +1,16 @@
+# Default parity queries for local validation
+index
+search
+sqlite
+dictionary
+bootstrap
+chunk
+minhash
+ann
+bm25
+cache
+python
+docstring
+repometrics
+fts
+incremental

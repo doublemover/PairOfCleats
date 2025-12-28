@@ -4,6 +4,8 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 
+export const DEFAULT_MODEL_ID = 'Xenova/all-MiniLM-L12-v2';
+
 export function loadUserConfig(repoRoot) {
   try {
     const configPath = path.join(repoRoot, '.pairofcleats.json');
@@ -47,6 +49,16 @@ export function getRepoCacheRoot(repoRoot, userConfig = null) {
   return path.join(cacheRoot, 'repos', repoId);
 }
 
+export function getModelConfig(repoRoot, userConfig = null) {
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  const models = cfg.models || {};
+  const id = process.env.PAIROFCLEATS_MODEL || models.id || DEFAULT_MODEL_ID;
+  return {
+    id,
+    dir: getModelsDir(repoRoot, cfg)
+  };
+}
+
 export function getIndexDir(repoRoot, mode, userConfig = null) {
   return path.join(getRepoCacheRoot(repoRoot, userConfig), `index-${mode}`);
 }
@@ -59,6 +71,45 @@ export function getRepoDictPath(repoRoot, dictConfig = null) {
   const config = dictConfig || getDictConfig(repoRoot);
   const repoId = getRepoId(repoRoot);
   return path.join(config.dir, 'repos', `${repoId}.txt`);
+}
+
+export function resolveSqlitePaths(repoRoot, userConfig = null) {
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  const sqlite = cfg.sqlite || {};
+  const defaultDir = path.join(repoRoot, 'index-sqlite');
+  const legacyPath = sqlite.dbPath ? resolvePath(repoRoot, sqlite.dbPath) : path.join(defaultDir, 'index.db');
+  const dbDir = sqlite.dbDir ? resolvePath(repoRoot, sqlite.dbDir) : defaultDir;
+  const codePath = sqlite.codeDbPath
+    ? resolvePath(repoRoot, sqlite.codeDbPath)
+    : path.join(dbDir, 'index-code.db');
+  const prosePath = sqlite.proseDbPath
+    ? resolvePath(repoRoot, sqlite.proseDbPath)
+    : path.join(dbDir, 'index-prose.db');
+  return {
+    codePath,
+    prosePath,
+    dbDir,
+    legacyPath,
+    legacyExists: fs.existsSync(legacyPath)
+  };
+}
+
+export function getModelsDir(repoRoot, userConfig = null) {
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  const cacheRoot = (cfg.cache && cfg.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+  const models = cfg.models || {};
+  return models.dir || process.env.PAIROFCLEATS_MODELS_DIR || path.join(cacheRoot, 'models');
+}
+
+export function getExtensionsDir(repoRoot, userConfig = null) {
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  const cacheRoot = (cfg.cache && cfg.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+  const extensions = cfg.extensions || {};
+  const sqliteVector = cfg.sqlite?.vectorExtension || {};
+  return extensions.dir
+    || sqliteVector.dir
+    || process.env.PAIROFCLEATS_EXTENSIONS_DIR
+    || path.join(cacheRoot, 'extensions');
 }
 
 function resolvePath(repoRoot, filePath) {

@@ -1,0 +1,37 @@
+[
+  {
+    "query": "TaskRunner",
+    "mode": "code",
+    "expect": [{ "file": "src/app.js", "name": "TaskRunner" }]
+  },
+  {
+    "query": "legacyAdd",
+    "mode": "code",
+    "expect": [{ "file": "src/app.js", "name": "legacyAdd" }]
+  },
+  {
+    "query": "createWidget",
+    "mode": "code",
+    "expect": [{ "file": "src/widget.js", "name": "createWidget" }]
+  },
+  {
+    "query": "server",
+    "mode": "code",
+    "expect": [{ "file": "src/config.yml", "name": "server" }]
+  },
+  {
+    "query": "deploying",
+    "mode": "code",
+    "expect": [{ "file": "scripts/deploy.sh" }]
+  },
+  {
+    "query": "dashboard",
+    "mode": "prose",
+    "expect": [{ "file": "docs/notes.md", "name": "Dashboard" }]
+  },
+  {
+    "query": "layout",
+    "mode": "code",
+    "expect": [{ "file": "templates/layout.html" }]
+  }
+]

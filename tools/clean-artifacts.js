@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import minimist from 'minimist';
-import { getCacheRoot, getRepoCacheRoot, loadUserConfig } from './dict-utils.js';
+import { getCacheRoot, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['all', 'dry-run'],
@@ -15,10 +15,10 @@ const userConfig = loadUserConfig(root);
 const cacheRoot = (userConfig.cache && userConfig.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const defaultSqliteDir = path.join(root, 'index-sqlite');
-const defaultSqlitePath = path.join(defaultSqliteDir, 'index.db');
-const sqlitePath = userConfig.sqlite?.dbPath
-  ? path.resolve(userConfig.sqlite.dbPath)
-  : defaultSqlitePath;
+const defaultCodePath = path.join(defaultSqliteDir, 'index-code.db');
+const defaultProsePath = path.join(defaultSqliteDir, 'index-prose.db');
+const defaultLegacyPath = path.join(defaultSqliteDir, 'index.db');
+const sqlitePaths = resolveSqlitePaths(root, userConfig);
 
 function isInside(parent, child) {
   const rel = path.relative(parent, child);
@@ -34,16 +34,34 @@ const targets = [];
 const primary = argv.all ? cacheRoot : repoCacheRoot;
 targets.push(primary);
 
-const sqliteExists = fs.existsSync(sqlitePath);
-if (sqliteExists) {
-  const sqliteTarget = sqlitePath === defaultSqlitePath ? defaultSqliteDir : sqlitePath;
-  const base = argv.all ? path.resolve(cacheRoot) : path.resolve(repoCacheRoot);
-  if (!isInside(base, path.resolve(sqliteTarget))) {
-    targets.push(sqliteTarget);
+const base = argv.all ? path.resolve(cacheRoot) : path.resolve(repoCacheRoot);
+const sqliteFiles = [sqlitePaths.codePath, sqlitePaths.prosePath];
+const usesDefaultDir = sqlitePaths.codePath === defaultCodePath
+  && sqlitePaths.prosePath === defaultProsePath;
+
+if (usesDefaultDir) {
+  const anyExists = sqliteFiles.some((filePath) => fs.existsSync(filePath));
+  if (anyExists && !isInside(base, path.resolve(defaultSqliteDir))) {
+    targets.push(defaultSqliteDir);
+  }
+} else {
+  for (const filePath of sqliteFiles) {
+    if (!fs.existsSync(filePath)) continue;
+    if (!isInside(base, path.resolve(filePath))) {
+      targets.push(filePath);
+    }
   }
 }
 
-for (const target of targets) {
+if (fs.existsSync(sqlitePaths.legacyPath)) {
+  const legacyTarget = sqlitePaths.legacyPath === defaultLegacyPath ? defaultSqliteDir : sqlitePaths.legacyPath;
+  if (!isInside(base, path.resolve(legacyTarget))) {
+    targets.push(legacyTarget);
+  }
+}
+
+const uniqueTargets = Array.from(new Set(targets.map((target) => path.resolve(target))));
+for (const target of uniqueTargets) {
   if (!fs.existsSync(target)) {
     console.log(`skip: ${target} (missing)`);
     continue;

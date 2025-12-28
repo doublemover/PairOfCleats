@@ -1,0 +1,57 @@
+[
+  {
+    "query": "greet",
+    "mode": "code",
+    "expect": [{ "file": "src/index.js", "name": "greet" }]
+  },
+  {
+    "query": "sum",
+    "mode": "code",
+    "expect": [{ "file": "src/index.js", "name": "sum" }]
+  },
+  {
+    "query": "clamp",
+    "mode": "code",
+    "expect": [{ "file": "src/util.js", "name": "clamp" }]
+  },
+  {
+    "query": "Greeter",
+    "mode": "code",
+    "expect": [{ "file": "src/sample.py", "name": "Greeter" }]
+  },
+  {
+    "query": "docstring",
+    "mode": "code",
+    "expect": [{ "file": "src/sample.py" }]
+  },
+  {
+    "query": "sayHello",
+    "mode": "code",
+    "expect": [{ "file": "src/sample.swift", "name": "Greeter.sayHello" }]
+  },
+  {
+    "query": "objcGreet",
+    "mode": "code",
+    "expect": [{ "file": "src/sample.m", "name": "OCGreeterImpl.objcGreet:" }]
+  },
+  {
+    "query": "add_numbers",
+    "mode": "code",
+    "expect": [{ "file": "src/sample.c", "name": "add_numbers" }]
+  },
+  {
+    "query": "cppMultiply",
+    "mode": "code",
+    "expect": [{ "file": "src/sample.cpp", "name": "cppMultiply" }]
+  },
+  {
+    "query": "rust_greet",
+    "mode": "code",
+    "expect": [{ "file": "src/sample.rs", "name": "rust_greet" }]
+  },
+  {
+    "query": "guide",
+    "mode": "prose",
+    "expect": [{ "file": "docs/guide.md", "name": "Guide" }]
+  }
+]

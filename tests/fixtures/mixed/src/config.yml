@@ -1,0 +1,9 @@
+server:
+  host: localhost
+  port: 8080
+features:
+  enableCache: true
+  retryCount: 3
+paths:
+  - /api/v1
+  - /health

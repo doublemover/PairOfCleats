@@ -1,0 +1,40 @@
+# SQLite Incremental Updates
+
+## Goal
+Update SQLite indexes in-place by touching only the files that changed since the last run.
+
+## Inputs
+- Per-file incremental cache from `build_index.js --incremental`.
+- Existing SQLite DBs at `index-sqlite/index-code.db` and `index-sqlite/index-prose.db`.
+
+## Schema Additions
+- `file_manifest` table tracks per-file hashes and sizes used for change detection.
+- `idx_chunks_file` speeds `file -> doc_id` lookups during deletes.
+- File paths are normalized to forward slashes in SQLite to match the manifest keys.
+
+## Update Flow
+1. Load incremental manifest for the mode (`<cache>/repos/<repoId>/incremental/<mode>/manifest.json`).
+2. Compare manifest entries to `file_manifest` rows.
+3. For deleted files: remove doc_ids across all tables (`chunks`, `chunks_fts`, postings, vectors, signatures, plus vector tables when enabled).
+4. For changed files:
+   - Delete existing doc_ids.
+   - Insert new chunk rows using bundle data.
+   - Insert postings and vectors for the new doc_ids (and vector extension rows when enabled).
+5. Update `file_manifest` rows for changed files and remove deleted entries.
+6. Recompute `token_stats` from `doc_lengths`.
+
+## Doc ID Strategy
+- Incremental updates assign new `doc_id` values by appending after the current max.
+- This leaves gaps when files are deleted; a full rebuild compacts IDs.
+
+## Usage
+- Build incremental cache: `node build_index.js --incremental`.
+- Update SQLite in place: `node tools/build-sqlite-index.js --incremental`.
+- `npm run bootstrap -- --incremental --with-sqlite` runs both.
+
+## Fallback Behavior
+If the incremental manifest or required SQLite tables are missing, the tool falls back to a full rebuild.
+
+## Limitations
+- Vocabulary tables keep old tokens/grams; they are not pruned on deletes.
+- Doc ID gaps grow with frequent updates; rebuild to compact if needed.

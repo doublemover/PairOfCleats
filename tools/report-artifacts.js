@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import minimist from 'minimist';
-import { getCacheRoot, getDictConfig, getRepoCacheRoot, loadUserConfig } from './dict-utils.js';
+import { getCacheRoot, getDictConfig, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['json'],
@@ -16,9 +16,11 @@ const cacheRoot = (userConfig.cache && userConfig.cache.root) || process.env.PAI
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const dictConfig = getDictConfig(root, userConfig);
 const dictDir = dictConfig.dir;
-const sqlitePath = userConfig.sqlite?.dbPath
-  ? path.resolve(userConfig.sqlite.dbPath)
-  : path.join(root, 'index-sqlite', 'index.db');
+const sqlitePaths = resolveSqlitePaths(root, userConfig);
+const sqliteTargets = [
+  { label: 'code', path: sqlitePaths.codePath },
+  { label: 'prose', path: sqlitePaths.prosePath }
+];
 
 async function sizeOfPath(targetPath) {
   try {
@@ -59,7 +61,8 @@ function isInside(parent, child) {
 const repoArtifacts = {
   indexCode: path.join(repoCacheRoot, 'index-code'),
   indexProse: path.join(repoCacheRoot, 'index-prose'),
-  repometrics: path.join(repoCacheRoot, 'repometrics')
+  repometrics: path.join(repoCacheRoot, 'repometrics'),
+  incremental: path.join(repoCacheRoot, 'incremental')
 };
 
 const repoCacheSize = await sizeOfPath(repoCacheRoot);
@@ -68,26 +71,38 @@ for (const [name, artifactPath] of Object.entries(repoArtifacts)) {
   repoArtifactSizes[name] = await sizeOfPath(artifactPath);
 }
 
-const sqliteExists = fs.existsSync(sqlitePath);
-const sqliteSize = sqliteExists ? await sizeOfPath(sqlitePath) : 0;
+const sqliteStats = {};
+let sqliteOutsideCacheSize = 0;
+for (const target of sqliteTargets) {
+  const exists = fs.existsSync(target.path);
+  const size = exists ? await sizeOfPath(target.path) : 0;
+  sqliteStats[target.label] = exists ? { path: target.path, bytes: size } : null;
+  if (exists && !isInside(path.resolve(cacheRoot), target.path)) {
+    sqliteOutsideCacheSize += size;
+  }
+}
 const cacheRootSize = await sizeOfPath(cacheRoot);
 const dictSize = await sizeOfPath(dictDir);
-const sqliteInsideCache = sqliteExists && isInside(path.resolve(cacheRoot), sqlitePath);
-const overallSize = cacheRootSize + (sqliteExists && !sqliteInsideCache ? sqliteSize : 0);
+const overallSize = cacheRootSize + sqliteOutsideCacheSize;
 
 if (argv.json) {
+  const sqlitePayload = {
+    code: sqliteStats.code,
+    prose: sqliteStats.prose,
+    legacy: sqlitePaths.legacyExists ? { path: sqlitePaths.legacyPath } : null
+  };
   const payload = {
     repo: {
       root: path.resolve(repoCacheRoot),
       totalBytes: repoCacheSize,
       artifacts: repoArtifactSizes,
-      sqlite: sqliteExists ? { path: sqlitePath, bytes: sqliteSize } : null
+      sqlite: sqlitePayload
     },
     overall: {
       cacheRoot: path.resolve(cacheRoot),
       cacheBytes: cacheRootSize,
       dictionaryBytes: dictSize,
-      sqliteOutsideCacheBytes: sqliteInsideCache ? 0 : sqliteSize,
+      sqliteOutsideCacheBytes: sqliteOutsideCacheSize,
       totalBytes: overallSize
     }
   };
@@ -100,16 +115,19 @@ console.log(`- cache root: ${formatBytes(repoCacheSize)} (${path.resolve(repoCac
 console.log(`- index-code: ${formatBytes(repoArtifactSizes.indexCode)} (${path.resolve(repoArtifacts.indexCode)})`);
 console.log(`- index-prose: ${formatBytes(repoArtifactSizes.indexProse)} (${path.resolve(repoArtifacts.indexProse)})`);
 console.log(`- repometrics: ${formatBytes(repoArtifactSizes.repometrics)} (${path.resolve(repoArtifacts.repometrics)})`);
-if (sqliteExists) {
-  console.log(`- sqlite db: ${formatBytes(sqliteSize)} (${sqlitePath})`);
-} else {
-  console.log(`- sqlite db: missing (${sqlitePath})`);
+console.log(`- incremental: ${formatBytes(repoArtifactSizes.incremental)} (${path.resolve(repoArtifacts.incremental)})`);
+const code = sqliteStats.code;
+const prose = sqliteStats.prose;
+console.log(`- sqlite code db: ${code ? formatBytes(code.bytes) : 'missing'} (${code?.path || sqlitePaths.codePath})`);
+console.log(`- sqlite prose db: ${prose ? formatBytes(prose.bytes) : 'missing'} (${prose?.path || sqlitePaths.prosePath})`);
+if (sqlitePaths.legacyExists) {
+  console.log(`- legacy sqlite db: ${sqlitePaths.legacyPath}`);
 }
 
 console.log('\nOverall');
 console.log(`- cache root: ${formatBytes(cacheRootSize)} (${path.resolve(cacheRoot)})`);
 console.log(`- dictionaries: ${formatBytes(dictSize)} (${path.resolve(dictDir)})`);
-if (sqliteExists && !sqliteInsideCache) {
-  console.log(`- sqlite outside cache: ${formatBytes(sqliteSize)} (${sqlitePath})`);
+if (sqliteOutsideCacheSize) {
+  console.log(`- sqlite outside cache: ${formatBytes(sqliteOutsideCacheSize)}`);
 }
 console.log(`- total: ${formatBytes(overallSize)}`);

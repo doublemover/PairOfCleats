@@ -9,26 +9,38 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import minimist from 'minimist';
 import Snowball from 'snowball-stemmers';
 import Minhash from 'minhash';
-import { getDictionaryPaths, getDictConfig, getIndexDir, getMetricsDir, loadUserConfig } from './tools/dict-utils.js';
+import { DEFAULT_MODEL_ID, getDictionaryPaths, getDictConfig, getIndexDir, getMetricsDir, getModelConfig, loadUserConfig, resolveSqlitePaths } from './tools/dict-utils.js';
+import { getVectorExtensionConfig, hasVectorTable, loadVectorExtension, queryVectorAnn, resolveVectorExtensionPath } from './tools/vector-extension.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['json', 'human', 'stats', 'ann', 'headline', 'lint', 'churn', 'matched'],
   alias: { n: 'top', c: 'context', t: 'type' },
   default: { n: 5, context: 3 },
-  string: ['calls', 'uses', 'signature', 'param', 'mode', 'backend', 'db'],
+  string: ['calls', 'uses', 'signature', 'param', 'mode', 'backend', 'model', 'fts-profile'],
 });
 const t0 = Date.now();
 const ROOT = process.cwd();
 const userConfig = loadUserConfig(ROOT);
+const modelConfig = getModelConfig(ROOT, userConfig);
+const modelIdDefault = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
 const sqliteConfig = userConfig.sqlite || {};
+const vectorExtension = getVectorExtensionConfig(ROOT, userConfig);
+const bm25Config = userConfig.search?.bm25 || {};
+const bm25K1 = Number.isFinite(Number(bm25Config.k1)) ? Number(bm25Config.k1) : 1.2;
+const bm25B = Number.isFinite(Number(bm25Config.b)) ? Number(bm25Config.b) : 0.75;
+const sqliteFtsNormalize = userConfig.search?.sqliteFtsNormalize === true;
+const sqliteFtsProfile = (argv['fts-profile'] || process.env.PAIROFCLEATS_FTS_PROFILE || userConfig.search?.sqliteFtsProfile || 'balanced').toLowerCase();
+const sqliteFtsWeightsConfig = userConfig.search?.sqliteFtsWeights || null;
 const metricsDir = getMetricsDir(ROOT, userConfig);
+const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
 const rawArgs = process.argv.slice(2);
 const query = argv._.join(' ').trim();
 if (!query) {
-  console.error('usage: search "query" [--json|--human|--stats|--ann|--no-ann|--context N|--type T|...]|--mode');
+  console.error('usage: search "query" [--json|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode');
   process.exit(1);
 }
 const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
@@ -36,29 +48,83 @@ const searchType = argv.type || null;
 const searchAuthor = argv.author || null;
 const searchCall = argv.calls || null;
 const searchImport = argv.import || null;
-const searchMode = argv.mode || "both";
-const sqliteDbPath = argv.db
-  ? path.resolve(argv.db)
-  : (sqliteConfig.dbPath ? path.resolve(sqliteConfig.dbPath) : path.join(ROOT, 'index-sqlite', 'index.db'));
+const searchMode = argv.mode || 'both';
+const sqlitePaths = resolveSqlitePaths(ROOT, userConfig);
+const sqliteCodePath = sqlitePaths.codePath;
+const sqliteProsePath = sqlitePaths.prosePath;
+const needsCode = searchMode !== 'prose';
+const needsProse = searchMode !== 'code';
 const backendArg = typeof argv.backend === 'string' ? argv.backend.toLowerCase() : '';
-const backendForcedSqlite = backendArg === 'sqlite';
-const backendDisabled = backendArg && backendArg !== 'sqlite';
+const sqliteScoreModeConfig = sqliteConfig.scoreMode === 'fts';
+const sqliteFtsRequested = backendArg === 'sqlite-fts' || backendArg === 'fts' || (!backendArg && sqliteScoreModeConfig);
+const backendForcedSqlite = backendArg === 'sqlite' || sqliteFtsRequested;
+const backendDisabled = backendArg && !(backendArg === 'sqlite' || sqliteFtsRequested);
 const sqliteConfigured = sqliteConfig.use === true;
-const sqliteAvailable = fsSync.existsSync(sqliteDbPath);
+const sqliteCodeAvailable = fsSync.existsSync(sqliteCodePath);
+const sqliteProseAvailable = fsSync.existsSync(sqliteProsePath);
+const sqliteAvailable = (!needsCode || sqliteCodeAvailable) && (!needsProse || sqliteProseAvailable);
 const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
-const annDefault = userConfig.search?.annDefault === true;
+const annDefault = userConfig.search?.annDefault !== false;
 const annEnabled = annFlagPresent ? argv.ann : annDefault;
+const vectorAnnEnabled = annEnabled && vectorExtension.enabled;
+const queryCacheConfig = userConfig.search?.queryCache || {};
+const queryCacheEnabled = queryCacheConfig.enabled === true;
+const queryCacheMaxEntries = Number.isFinite(Number(queryCacheConfig.maxEntries))
+  ? Math.max(1, Number(queryCacheConfig.maxEntries))
+  : 200;
+const queryCacheTtlMs = Number.isFinite(Number(queryCacheConfig.ttlMs))
+  ? Math.max(0, Number(queryCacheConfig.ttlMs))
+  : 0;
+const queryCachePath = path.join(metricsDir, 'queryCache.json');
+
+function resolveFtsWeights(profile, config) {
+  const profiles = {
+    balanced: { file: 0.2, name: 1.5, kind: 0.6, headline: 2.0, tokens: 1.0 },
+    headline: { file: 0.1, name: 1.2, kind: 0.4, headline: 3.0, tokens: 1.0 },
+    name: { file: 0.2, name: 2.5, kind: 0.8, headline: 1.2, tokens: 1.0 }
+  };
+  const base = profiles[profile] || profiles.balanced;
+
+  if (Array.isArray(config)) {
+    const values = config.map((v) => Number(v)).filter((v) => Number.isFinite(v));
+    if (values.length >= 6) return values.slice(0, 6);
+    if (values.length === 5) return [0, ...values];
+  } else if (config && typeof config === 'object') {
+    const merged = { ...base };
+    for (const key of ['file', 'name', 'kind', 'headline', 'tokens']) {
+      if (Number.isFinite(Number(config[key]))) merged[key] = Number(config[key]);
+    }
+    return [0, merged.file, merged.name, merged.kind, merged.headline, merged.tokens];
+  }
+
+  return [0, base.file, base.name, base.kind, base.headline, base.tokens];
+}
+
+const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
+
+function buildFtsBm25Expr(weights) {
+  const safe = weights.map((val) => (Number.isFinite(val) ? val : 1));
+  return `bm25(chunks_fts, ${safe.join(', ')})`;
+}
 
 if (backendForcedSqlite && !sqliteAvailable) {
-  console.error(`SQLite backend requested but index not found (${sqliteDbPath}).`);
+  const missing = [];
+  if (needsCode && !sqliteCodeAvailable) missing.push(`code=${sqliteCodePath}`);
+  if (needsProse && !sqliteProseAvailable) missing.push(`prose=${sqliteProsePath}`);
+  const suffix = missing.length ? missing.join(', ') : 'missing sqlite index';
+  console.error(`SQLite backend requested but index not found (${suffix}).`);
   process.exit(1);
 }
 
 let useSqlite = (backendForcedSqlite || (!backendDisabled && sqliteConfigured)) && sqliteAvailable;
-const CODE_OFFSET = 0;
-const PROSE_OFFSET = 1000000000;
-
-let db = null;
+let dbCode = null;
+let dbProse = null;
+const vectorAnnState = {
+  code: { available: false },
+  prose: { available: false }
+};
+const vectorAnnUsed = { code: false, prose: false };
+let vectorAnnWarned = false;
 if (useSqlite) {
   let Database;
   try {
@@ -67,36 +133,95 @@ if (useSqlite) {
     console.error('better-sqlite3 is required for the SQLite backend. Run npm install first.');
     process.exit(1);
   }
-  db = new Database(sqliteDbPath, { readonly: true });
-  const tableRows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-  const tableNames = new Set(tableRows.map((row) => row.name));
-  const requiredTables = [
-    'chunks',
-    'token_vocab',
-    'token_postings',
-    'doc_lengths',
-    'phrase_vocab',
-    'phrase_postings',
-    'chargram_vocab',
-    'chargram_postings',
-    'minhash_signatures',
-    'dense_vectors',
-    'dense_meta'
-  ];
-  const missing = requiredTables.filter((name) => !tableNames.has(name));
-  if (missing.length) {
-    if (backendForcedSqlite) {
-      console.error(`SQLite index is missing required tables (${missing.join(', ')}). Rebuild with npm run build-sqlite-index.`);
-      process.exit(1);
+
+  const requiredTables = sqliteFtsRequested
+    ? [
+      'chunks',
+      'chunks_fts',
+      'minhash_signatures',
+      'dense_vectors',
+      'dense_meta'
+    ]
+    : [
+      'chunks',
+      'token_vocab',
+      'token_postings',
+      'doc_lengths',
+      'token_stats',
+      'phrase_vocab',
+      'phrase_postings',
+      'chargram_vocab',
+      'chargram_postings',
+      'minhash_signatures',
+      'dense_vectors',
+      'dense_meta'
+    ];
+
+  const openSqlite = (dbPath, label) => {
+    const db = new Database(dbPath, { readonly: true });
+    const tableRows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+    const tableNames = new Set(tableRows.map((row) => row.name));
+    const missing = requiredTables.filter((name) => !tableNames.has(name));
+    if (missing.length) {
+      const message = `SQLite index ${label} is missing required tables (${missing.join(', ')}). Rebuild with npm run build-sqlite-index.`;
+      if (backendForcedSqlite) {
+        console.error(message);
+        process.exit(1);
+      }
+      console.warn(`${message} Falling back to file-backed indexes.`);
+      db.close();
+      return null;
     }
-    console.warn(`SQLite index is missing required tables (${missing.join(', ')}); falling back to file-backed indexes.`);
-    db.close();
-    db = null;
+    return db;
+  };
+
+  const initVectorAnn = (db, mode) => {
+    if (!vectorAnnEnabled || !db) return;
+    const loadResult = loadVectorExtension(db, vectorExtension, `sqlite ${mode}`);
+    if (!loadResult.ok) {
+      if (!vectorAnnWarned) {
+        const extPath = resolveVectorExtensionPath(vectorExtension);
+        console.warn(`[ann] SQLite vector extension unavailable (${loadResult.reason}).`);
+        console.warn(`[ann] Expected extension at ${extPath || 'unset'}; falling back to JS ANN.`);
+        vectorAnnWarned = true;
+      }
+      return;
+    }
+    if (!hasVectorTable(db, vectorExtension.table)) {
+      if (!vectorAnnWarned) {
+        console.warn(`[ann] SQLite vector table missing (${vectorExtension.table}). Rebuild with npm run build-sqlite-index.`);
+        vectorAnnWarned = true;
+      }
+      return;
+    }
+    vectorAnnState[mode].available = true;
+  };
+
+  if (needsCode) dbCode = openSqlite(sqliteCodePath, 'code');
+  if (needsProse) dbProse = openSqlite(sqliteProsePath, 'prose');
+  if (needsCode) initVectorAnn(dbCode, 'code');
+  if (needsProse) initVectorAnn(dbProse, 'prose');
+  if ((needsCode && !dbCode) || (needsProse && !dbProse)) {
+    if (dbCode) dbCode.close();
+    if (dbProse) dbProse.close();
+    dbCode = null;
+    dbProse = null;
     useSqlite = false;
   }
 }
 
-const backendLabel = useSqlite ? 'sqlite' : 'memory';
+const backendLabel = useSqlite
+  ? (sqliteFtsRequested ? 'sqlite-fts' : 'sqlite')
+  : 'memory';
+const runCode = needsCode;
+const runProse = needsProse;
+let modelIdForCode = null;
+let modelIdForProse = null;
+
+function getSqliteDb(mode) {
+  if (!useSqlite) return null;
+  return mode === 'code' ? dbCode : dbProse;
+}
 
 const stemmer = Snowball.newStemmer('english');
 const stem = (w) => stemmer.stem(w);
@@ -138,9 +263,11 @@ const color = {
 // --- LOAD INDEX ---
 function loadIndex(dir) {
   const chunkMeta = JSON.parse(fsSync.readFileSync(path.join(dir, 'chunk_meta.json'), 'utf8'));
+  const denseVec = JSON.parse(fsSync.readFileSync(path.join(dir, 'dense_vectors_uint8.json'), 'utf8'));
+  if (!denseVec.model) denseVec.model = modelIdDefault;
   const idx = {
     chunkMeta,
-    denseVec: JSON.parse(fsSync.readFileSync(path.join(dir, 'dense_vectors_uint8.json'), 'utf8')),
+    denseVec,
     minhash: JSON.parse(fsSync.readFileSync(path.join(dir, 'minhash_signatures.json'), 'utf8')),
     phraseNgrams: JSON.parse(fsSync.readFileSync(path.join(dir, 'phrase_ngrams.json'), 'utf8')),
     chargrams: JSON.parse(fsSync.readFileSync(path.join(dir, 'chargram_postings.json'), 'utf8'))
@@ -158,6 +285,92 @@ function resolveIndexDir(mode) {
   const localMeta = path.join(local, 'chunk_meta.json');
   if (fsSync.existsSync(localMeta)) return local;
   return cached;
+}
+
+function fileSignature(filePath) {
+  try {
+    const stat = fsSync.statSync(filePath);
+    return `${stat.size}:${stat.mtimeMs}`;
+  } catch {
+    return null;
+  }
+}
+
+function getIndexSignature() {
+  if (useSqlite) {
+    return {
+      backend: backendLabel,
+      code: fileSignature(sqliteCodePath),
+      prose: fileSignature(sqliteProsePath)
+    };
+  }
+  const codeDir = resolveIndexDir('code');
+  const proseDir = resolveIndexDir('prose');
+  const codeMeta = path.join(codeDir, 'chunk_meta.json');
+  const proseMeta = path.join(proseDir, 'chunk_meta.json');
+  const codeDense = path.join(codeDir, 'dense_vectors_uint8.json');
+  const proseDense = path.join(proseDir, 'dense_vectors_uint8.json');
+  return {
+    backend: backendLabel,
+    code: fileSignature(codeMeta),
+    prose: fileSignature(proseMeta),
+    codeDense: fileSignature(codeDense),
+    proseDense: fileSignature(proseDense)
+  };
+}
+
+function buildQueryCacheKey() {
+  const payload = {
+    query,
+    backend: backendLabel,
+    mode: searchMode,
+    topN: argv.n,
+    ann: annEnabled,
+    annMode: vectorExtension.annMode,
+    annProvider: vectorExtension.provider,
+    annExtension: vectorAnnEnabled,
+    sqliteFtsNormalize,
+    sqliteFtsProfile,
+    sqliteFtsWeights,
+    models: {
+      code: modelIdForCode,
+      prose: modelIdForProse
+    },
+    filters: {
+      type: searchType,
+      author: searchAuthor,
+      calls: searchCall,
+      uses: argv.uses || null,
+      signature: argv.signature || null,
+      param: argv.param || null,
+      import: searchImport,
+      lint: argv.lint || false,
+      churn: argv.churn || null
+    }
+  };
+  const raw = JSON.stringify(payload);
+  const key = crypto.createHash('sha1').update(raw).digest('hex');
+  return { key, payload };
+}
+
+function loadQueryCache(cachePath) {
+  if (!fsSync.existsSync(cachePath)) return { version: 1, entries: [] };
+  try {
+    const data = JSON.parse(fsSync.readFileSync(cachePath, 'utf8'));
+    if (data && Array.isArray(data.entries)) return data;
+  } catch {}
+  return { version: 1, entries: [] };
+}
+
+function pruneQueryCache(cache, maxEntries) {
+  if (!cache || !Array.isArray(cache.entries)) return cache;
+  cache.entries = cache.entries
+    .filter((entry) => entry && entry.key && entry.ts)
+    .sort((a, b) => b.ts - a.ts);
+  if (cache.entries.length > maxEntries) {
+    cache.entries = cache.entries.slice(0, maxEntries);
+  }
+  return cache;
 }
 
 function parseJson(value, fallback) {
@@ -196,20 +409,18 @@ function unpackUint32(buffer) {
 }
 
 function loadIndexFromSqlite(mode) {
+  const db = getSqliteDb(mode);
   if (!db) throw new Error('SQLite backend requested but database is not available.');
-  const offset = mode === 'prose' ? PROSE_OFFSET : CODE_OFFSET;
   const chunkRows = db.prepare('SELECT * FROM chunks WHERE mode = ? ORDER BY id').all(mode);
   let maxLocalId = -1;
   for (const row of chunkRows) {
-    const localId = row.id - offset;
-    if (localId > maxLocalId) maxLocalId = localId;
+    if (row.id > maxLocalId) maxLocalId = row.id;
   }
 
   const chunkMeta = maxLocalId >= 0 ? Array.from({ length: maxLocalId + 1 }) : [];
   for (const row of chunkRows) {
-    const localId = row.id - offset;
-    chunkMeta[localId] = {
-      id: localId,
+    chunkMeta[row.id] = {
+      id: row.id,
       file: row.file,
       start: row.start,
       end: row.end,
@@ -237,57 +448,6 @@ function loadIndexFromSqlite(mode) {
     };
   }
 
-  const vocabRows = db.prepare('SELECT token_id, token FROM token_vocab WHERE mode = ? ORDER BY token_id').all(mode);
-  const vocab = [];
-  for (const row of vocabRows) {
-    vocab[row.token_id] = row.token;
-  }
-
-  const postings = Array.from({ length: vocab.length }, () => []);
-  const postingStmt = db.prepare('SELECT token_id, doc_id, tf FROM token_postings WHERE mode = ? ORDER BY token_id, doc_id');
-  for (const row of postingStmt.iterate(mode)) {
-    postings[row.token_id].push([row.doc_id, row.tf]);
-  }
-
-  const docLengths = Array.from({ length: chunkMeta.length }, () => 0);
-  const lengthRows = db.prepare('SELECT doc_id, len FROM doc_lengths WHERE mode = ?').all(mode);
-  for (const row of lengthRows) {
-    docLengths[row.doc_id] = row.len;
-  }
-
-  const statsRow = db.prepare('SELECT avg_doc_len, total_docs FROM token_stats WHERE mode = ?').get(mode) || {};
-  const tokenIndex = vocab.length ? {
-    vocab,
-    postings,
-    docLengths,
-    avgDocLen: typeof statsRow.avg_doc_len === 'number' ? statsRow.avg_doc_len : null,
-    totalDocs: typeof statsRow.total_docs === 'number' ? statsRow.total_docs : docLengths.length
-  } : null;
-
-  const phraseVocabRows = db.prepare('SELECT phrase_id, ngram FROM phrase_vocab WHERE mode = ? ORDER BY phrase_id').all(mode);
-  const phraseVocab = [];
-  for (const row of phraseVocabRows) {
-    phraseVocab[row.phrase_id] = row.ngram;
-  }
-  const phrasePostings = Array.from({ length: phraseVocab.length }, () => []);
-  const phraseStmt = db.prepare('SELECT phrase_id, doc_id FROM phrase_postings WHERE mode = ? ORDER BY phrase_id, doc_id');
-  for (const row of phraseStmt.iterate(mode)) {
-    phrasePostings[row.phrase_id].push(row.doc_id);
-  }
-  const phraseNgrams = phraseVocab.length ? { vocab: phraseVocab, postings: phrasePostings } : null;
-
-  const gramVocabRows = db.prepare('SELECT gram_id, gram FROM chargram_vocab WHERE mode = ? ORDER BY gram_id').all(mode);
-  const chargramVocab = [];
-  for (const row of gramVocabRows) {
-    chargramVocab[row.gram_id] = row.gram;
-  }
-  const chargramPostings = Array.from({ length: chargramVocab.length }, () => []);
-  const gramStmt = db.prepare('SELECT gram_id, doc_id FROM chargram_postings WHERE mode = ? ORDER BY gram_id, doc_id');
-  for (const row of gramStmt.iterate(mode)) {
-    chargramPostings[row.gram_id].push(row.doc_id);
-  }
-  const chargrams = chargramVocab.length ? { vocab: chargramVocab, postings: chargramPostings } : null;
-
   const signatures = Array.from({ length: chunkMeta.length });
   const sigStmt = db.prepare('SELECT doc_id, sig FROM minhash_signatures WHERE mode = ? ORDER BY doc_id');
   for (const row of sigStmt.iterate(mode)) {
@@ -295,7 +455,7 @@ function loadIndexFromSqlite(mode) {
   }
   const minhash = signatures.length ? { signatures } : null;
 
-  const denseMeta = db.prepare('SELECT dims, scale FROM dense_meta WHERE mode = ?').get(mode) || {};
+  const denseMeta = db.prepare('SELECT dims, scale, model FROM dense_meta WHERE mode = ?').get(mode) || {};
   const vectors = Array.from({ length: chunkMeta.length });
   const denseStmt = db.prepare('SELECT doc_id, vector FROM dense_vectors WHERE mode = ? ORDER BY doc_id');
   for (const row of denseStmt.iterate(mode)) {
@@ -303,6 +463,7 @@ function loadIndexFromSqlite(mode) {
   }
   const fallbackVec = vectors.find((vec) => vec && vec.length);
   const denseVec = vectors.length ? {
+    model: denseMeta.model || modelIdDefault,
     dims: denseMeta.dims || (fallbackVec ? fallbackVec.length : 0),
     scale: typeof denseMeta.scale === 'number' ? denseMeta.scale : 1.0,
     vectors
@@ -311,15 +472,219 @@ function loadIndexFromSqlite(mode) {
   return {
     chunkMeta,
     denseVec,
-    minhash,
-    phraseNgrams,
-    chargrams,
-    tokenIndex
+    minhash
   };
 }
 
-const idxProse = useSqlite ? loadIndexFromSqlite('prose') : loadIndex(resolveIndexDir('prose'));
-const idxCode = useSqlite ? loadIndexFromSqlite('code') : loadIndex(resolveIndexDir('code'));
+const SQLITE_IN_LIMIT = 900;
+const sqliteCache = {
+  tokenStats: new Map(),
+  docLengths: new Map()
+};
+
+function chunkArray(items, size = SQLITE_IN_LIMIT) {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function fetchVocabRows(mode, table, idColumn, valueColumn, values) {
+  const db = getSqliteDb(mode);
+  if (!db || !values.length) return [];
+  const unique = Array.from(new Set(values));
+  const rows = [];
+  for (const chunk of chunkArray(unique)) {
+    const placeholders = chunk.map(() => '?').join(',');
+    const stmt = db.prepare(
+      `SELECT ${idColumn} AS id, ${valueColumn} AS value FROM ${table} WHERE mode = ? AND ${valueColumn} IN (${placeholders})`
+    );
+    rows.push(...stmt.all(mode, ...chunk));
+  }
+  return rows;
+}
+
+function fetchPostingRows(mode, table, idColumn, ids, includeTf = false) {
+  const db = getSqliteDb(mode);
+  if (!db || !ids.length) return [];
+  const unique = Array.from(new Set(ids));
+  const rows = [];
+  for (const chunk of chunkArray(unique)) {
+    const placeholders = chunk.map(() => '?').join(',');
+    const selectCols = includeTf
+      ? `${idColumn} AS id, doc_id, tf`
+      : `${idColumn} AS id, doc_id`;
+    const stmt = db.prepare(
+      `SELECT ${selectCols} FROM ${table} WHERE mode = ? AND ${idColumn} IN (${placeholders}) ORDER BY ${idColumn}, doc_id`
+    );
+    rows.push(...stmt.all(mode, ...chunk));
+  }
+  return rows;
+}
+
+function loadDocLengths(mode, totalDocs) {
+  const db = getSqliteDb(mode);
+  if (!db) return [];
+  if (sqliteCache.docLengths.has(mode)) return sqliteCache.docLengths.get(mode);
+
+  const lengths = Array.from({ length: totalDocs || 0 }, () => 0);
+  let maxDocId = -1;
+  const rows = db.prepare('SELECT doc_id, len FROM doc_lengths WHERE mode = ?').all(mode);
+  for (const row of rows) {
+    if (row.doc_id >= lengths.length) {
+      lengths.length = row.doc_id + 1;
+    }
+    lengths[row.doc_id] = row.len;
+    if (row.doc_id > maxDocId) maxDocId = row.doc_id;
+  }
+  if (!totalDocs) totalDocs = maxDocId + 1;
+  if (lengths.length < totalDocs) lengths.length = totalDocs;
+
+  sqliteCache.docLengths.set(mode, lengths);
+  return lengths;
+}
+
+function loadTokenStats(mode) {
+  const db = getSqliteDb(mode);
+  if (!db) return { avgDocLen: 0, totalDocs: 0 };
+  if (sqliteCache.tokenStats.has(mode)) return sqliteCache.tokenStats.get(mode);
+
+  const row = db.prepare('SELECT avg_doc_len, total_docs FROM token_stats WHERE mode = ?').get(mode) || {};
+  let totalDocs = typeof row.total_docs === 'number' ? row.total_docs : 0;
+  let avgDocLen = typeof row.avg_doc_len === 'number' ? row.avg_doc_len : null;
+
+  const lengths = loadDocLengths(mode, totalDocs);
+  if (!totalDocs) totalDocs = lengths.length;
+  if (avgDocLen === null) {
+    const total = lengths.reduce((sum, len) => sum + len, 0);
+    avgDocLen = lengths.length ? total / lengths.length : 0;
+  }
+
+  const stats = { avgDocLen, totalDocs };
+  sqliteCache.tokenStats.set(mode, stats);
+  return stats;
+}
+
+function getTokenIndexForQuery(tokens, mode) {
+  const db = getSqliteDb(mode);
+  if (!db) return null;
+  const uniqueTokens = Array.from(new Set(tokens)).filter(Boolean);
+  if (!uniqueTokens.length) return null;
+
+  const vocabRows = fetchVocabRows(mode, 'token_vocab', 'token_id', 'token', uniqueTokens);
+  if (!vocabRows.length) return null;
+
+  const vocab = [];
+  const vocabIndex = new Map();
+  const tokenIdToIndex = new Map();
+  const tokenIds = [];
+  for (const row of vocabRows) {
+    if (tokenIdToIndex.has(row.id)) continue;
+    const idx = vocab.length;
+    tokenIdToIndex.set(row.id, idx);
+    vocabIndex.set(row.value, idx);
+    vocab.push(row.value);
+    tokenIds.push(row.id);
+  }
+
+  const postingRows = fetchPostingRows(mode, 'token_postings', 'token_id', tokenIds, true);
+  const postings = Array.from({ length: vocab.length }, () => []);
+  for (const row of postingRows) {
+    const idx = tokenIdToIndex.get(row.id);
+    if (idx === undefined) continue;
+    postings[idx].push([row.doc_id, row.tf]);
+  }
+
+  const stats = loadTokenStats(mode);
+  const docLengths = loadDocLengths(mode, stats.totalDocs);
+
+  return {
+    vocab,
+    postings,
+    docLengths,
+    avgDocLen: stats.avgDocLen,
+    totalDocs: stats.totalDocs,
+    vocabIndex
+  };
+}
+
+function buildCandidateSetSqlite(mode, tokens) {
+  const db = getSqliteDb(mode);
+  if (!db) return null;
+  const candidates = new Set();
+  let matched = false;
+
+  const ngrams = extractNgrams(tokens, 2, 4);
+  if (ngrams.length) {
+    const phraseRows = fetchVocabRows(mode, 'phrase_vocab', 'phrase_id', 'ngram', ngrams);
+    const phraseIds = phraseRows.map((row) => row.id);
+    const postingRows = fetchPostingRows(mode, 'phrase_postings', 'phrase_id', phraseIds, false);
+    for (const row of postingRows) {
+      candidates.add(row.doc_id);
+      matched = true;
+    }
+  }
+
+  const gramSet = new Set();
+  for (const token of tokens) {
+    for (let n = 3; n <= 5; n++) {
+      for (const gram of tri(token, n)) {
+        gramSet.add(gram);
+      }
+    }
+  }
+  const grams = Array.from(gramSet);
+  if (grams.length) {
+    const gramRows = fetchVocabRows(mode, 'chargram_vocab', 'gram_id', 'gram', grams);
+    const gramIds = gramRows.map((row) => row.id);
+    const postingRows = fetchPostingRows(mode, 'chargram_postings', 'gram_id', gramIds, false);
+    for (const row of postingRows) {
+      candidates.add(row.doc_id);
+      matched = true;
+    }
+  }
+
+  return matched ? candidates : null;
+}
+
+function rankSqliteFts(idx, queryTokens, mode, topN, normalizeScores = false) {
+  const db = getSqliteDb(mode);
+  if (!db || !queryTokens.length) return [];
+  const ftsQuery = queryTokens.join(' ');
+  const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights);
+  const rows = db.prepare(
+    `SELECT rowid AS id, ${bm25Expr} AS score FROM chunks_fts WHERE chunks_fts MATCH ? AND mode = ? ORDER BY score ASC, rowid ASC LIMIT ?`
+  ).all(ftsQuery, mode, topN);
+  const rawScores = rows.map((row) => -row.score);
+  let min = 0;
+  let max = 0;
+  if (normalizeScores && rawScores.length) {
+    min = Math.min(...rawScores);
+    max = Math.max(...rawScores);
+  }
+  const hits = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.id < 0 || row.id >= idx.chunkMeta.length) continue;
+    const weight = idx.chunkMeta[row.id]?.weight || 1;
+    const raw = rawScores[i];
+    const normalized = normalizeScores
+      ? (max > min ? (raw - min) / (max - min) : 1)
+      : raw;
+    hits.push({ idx: row.id, score: normalized * weight });
+  }
+  return hits;
+}
+
+const idxProse = runProse
+  ? (useSqlite ? loadIndexFromSqlite('prose') : loadIndex(resolveIndexDir('prose')))
+  : { chunkMeta: [], denseVec: null, minhash: null };
+const idxCode = runCode
+  ? (useSqlite ? loadIndexFromSqlite('code') : loadIndex(resolveIndexDir('code')))
+  : { chunkMeta: [], denseVec: null, minhash: null };
+modelIdForCode = runCode ? (idxCode?.denseVec?.model || modelIdDefault) : null;
+modelIdForProse = runProse ? (idxProse?.denseVec?.model || modelIdDefault) : null;
 
 // --- QUERY TOKENIZATION ---
 function splitWordsWithDict(token, dict) {
@@ -374,7 +739,7 @@ function rankBM25Legacy(idx, tokens, topN) {
   return [...scores.entries()]
     .filter(([i, s]) => s > 0)
     .map(([i, s]) => ({ idx: i, score: s }))
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
     .slice(0, topN);
 }
 
@@ -393,12 +758,10 @@ function getTokenIndex(idx) {
   return tokenIndex;
 }
 
-function rankBM25(idx, tokens, topN) {
-  const tokenIndex = getTokenIndex(idx);
-  if (!tokenIndex) return rankBM25Legacy(idx, tokens, topN);
+function rankBM25(idx, tokens, topN, tokenIndexOverride = null, k1 = 1.2, b = 0.75) {
+  const tokenIndex = tokenIndexOverride || getTokenIndex(idx);
+  if (!tokenIndex || !tokenIndex.vocab || !tokenIndex.postings) return rankBM25Legacy(idx, tokens, topN);
 
-  const k1 = 1.2;
-  const b = 0.75;
   const scores = new Map();
   const docLengths = tokenIndex.docLengths;
   const avgDocLen = tokenIndex.avgDocLen || 1;
@@ -430,7 +793,7 @@ function rankBM25(idx, tokens, topN) {
 
   return weighted
     .filter(({ score }) => score > 0)
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
     .slice(0, topN);
 }
 
@@ -450,7 +813,7 @@ function rankMinhash(idx, tokens, topN) {
   const qSig = minhashSigForTokens(tokens);
   const scored = idx.minhash.signatures
     .map((sig, i) => ({ idx: i, sim: jaccard(qSig, sig) }))
-    .sort((a, b) => b.sim - a.sim)
+    .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
     .slice(0, topN);
   return scored;
 }
@@ -468,7 +831,8 @@ function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
 
   for (const id of ids) {
     const vec = vectors[id];
-    if (!Array.isArray(vec) || vec.length !== dims) continue;
+    const isArrayLike = Array.isArray(vec) || ArrayBuffer.isView(vec);
+    if (!isArrayLike || vec.length !== dims) continue;
     let dot = 0;
     for (let i = 0; i < dims; i++) {
       const v = vec[i] * scale + minVal;
@@ -477,7 +841,15 @@ function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
     scored.push({ idx: id, sim: dot });
   }
 
-  return scored.sort((a, b) => b.sim - a.sim).slice(0, topN);
+  return scored
+    .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
+    .slice(0, topN);
+}
+
+function rankVectorAnnSqlite(mode, queryEmbedding, topN, candidateSet) {
+  const db = getSqliteDb(mode);
+  if (!db || !queryEmbedding || !vectorAnnState[mode]?.available) return [];
+  return queryVectorAnn(db, vectorExtension, queryEmbedding, topN, candidateSet);
 }
 
 function extractNgrams(tokens, nStart = 2, nEnd = 4) {
@@ -499,7 +871,9 @@ function tri(w, n = 3) {
   return g;
 }
 
-function buildCandidateSet(idx, tokens) {
+function buildCandidateSet(idx, tokens, mode) {
+  if (useSqlite) return buildCandidateSetSqlite(mode, tokens);
+
   const candidates = new Set();
   let matched = false;
 
@@ -533,10 +907,42 @@ function buildCandidateSet(idx, tokens) {
   return matched ? candidates : null;
 }
 
-async function getQueryEmbedding(text) {
+const embedderCache = new Map();
+function stubEmbedding(text, dims) {
+  const safeDims = Number.isFinite(dims) && dims > 0 ? Math.floor(dims) : 512;
+  const hash = crypto.createHash('sha256').update(text).digest();
+  let seed = 0;
+  for (const byte of hash) seed = (seed * 31 + byte) >>> 0;
+  const vec = new Array(safeDims);
+  let x = seed;
+  for (let i = 0; i < safeDims; i++) {
+    x = (x * 1664525 + 1013904223) >>> 0;
+    vec[i] = (x / 0xffffffff) * 2 - 1;
+  }
+  const norm = Math.sqrt(vec.reduce((sum, v) => sum + v * v, 0)) || 1;
+  return vec.map((v) => v / norm);
+}
+async function getEmbedder(modelId) {
+  if (embedderCache.has(modelId)) return embedderCache.get(modelId);
+  const { pipeline, env } = await import('@xenova/transformers');
+  const modelDir = modelConfig.dir;
+  if (modelDir) {
+    try {
+      fsSync.mkdirSync(modelDir, { recursive: true });
+    } catch {}
+    env.cacheDir = modelDir;
+  }
+  const embedder = await pipeline('feature-extraction', modelId);
+  embedderCache.set(modelId, embedder);
+  return embedder;
+}
+
+async function getQueryEmbedding(text, modelId, dims) {
+  if (useStubEmbeddings) {
+    return stubEmbedding(text, dims);
+  }
   try {
-    const { pipeline } = await import('@xenova/transformers');
-    const embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L12-v2');
+    const embedder = await getEmbedder(modelId || modelIdDefault);
     const output = await embedder(text, { pooling: 'mean', normalize: true });
     return Array.from(output.data);
   } catch {
@@ -547,6 +953,7 @@ async function getQueryEmbedding(text) {
 // --- ADVANCED FILTERING ---
 function filterChunks(meta, opts = {}) {
   return meta.filter(c => {
+    if (!c) return false;
     if (opts.type && c.kind && c.kind.toLowerCase() !== opts.type.toLowerCase()) return false;
     if (opts.author && c.last_author && !c.last_author.toLowerCase().includes(opts.author.toLowerCase())) return false;
     if (opts.call && c.codeRelations && c.codeRelations.calls) {
@@ -767,14 +1174,30 @@ function runSearch(idx, mode, queryEmbedding) {
   const allowedIdx = new Set(filteredMeta.map(c => c.id));
 
   // Main search: BM25 token match
-  const candidates = buildCandidateSet(idx, queryTokens);
-  const bmHits = rankBM25(idx, queryTokens, argv.n * 3);
+  let candidates = null;
+  let bmHits = [];
+  if (useSqlite && sqliteFtsRequested) {
+    bmHits = rankSqliteFts(idx, queryTokens, mode, argv.n * 3, sqliteFtsNormalize);
+    candidates = bmHits.length ? new Set(bmHits.map(h => h.idx)) : null;
+  } else {
+    const tokenIndexOverride = useSqlite ? getTokenIndexForQuery(queryTokens, mode) : null;
+    candidates = buildCandidateSet(idx, queryTokens, mode);
+    bmHits = rankBM25(idx, queryTokens, argv.n * 3, tokenIndexOverride, bm25K1, bm25B);
+  }
   // MinHash (embedding) ANN, if requested
   let annHits = [];
   if (annEnabled) {
-    if (queryEmbedding && idx.denseVec?.vectors?.length) {
+    if (queryEmbedding && vectorAnnState[mode]?.available) {
+      annHits = rankVectorAnnSqlite(mode, queryEmbedding, argv.n * 3, candidates);
+      if (!annHits.length && candidates && candidates.size) {
+        annHits = rankVectorAnnSqlite(mode, queryEmbedding, argv.n * 3, null);
+      }
+      if (annHits.length) vectorAnnUsed[mode] = true;
+    }
+    if (!annHits.length && queryEmbedding && idx.denseVec?.vectors?.length) {
       annHits = rankDenseVectors(idx, queryEmbedding, argv.n * 3, candidates);
-    } else {
+    }
+    if (!annHits.length) {
       annHits = rankMinhash(idx, queryTokens, argv.n * 3);
     }
   }
@@ -790,7 +1213,7 @@ function runSearch(idx, mode, queryEmbedding) {
   // Sort and map to final results
   const ranked = [...allHits.entries()]
     .filter(([idx, _]) => allowedIdx.has(idx))
-    .sort((a, b) => b[1].score - a[1].score)
+    .sort((a, b) => (b[1].score - a[1].score) || (a[0] - b[0]))
     .slice(0, argv.n)
     .map(([idxVal, obj]) => {
       const chunk = meta[idxVal];
@@ -804,55 +1227,143 @@ function runSearch(idx, mode, queryEmbedding) {
 
 // --- MAIN ---
 (async () => {
-  const queryEmbedding = annEnabled ? await getQueryEmbedding(query) : null;
-  const proseHits = runSearch(idxProse, 'prose', queryEmbedding);
-  const codeHits = runSearch(idxCode, 'code', queryEmbedding);
+  let cacheHit = false;
+  let cacheKey = null;
+  let cacheSignature = null;
+  let cacheData = null;
+  let cachedPayload = null;
+
+  if (queryCacheEnabled) {
+    const signature = getIndexSignature();
+    cacheSignature = JSON.stringify(signature);
+    const cacheKeyInfo = buildQueryCacheKey();
+    cacheKey = cacheKeyInfo.key;
+    cacheData = loadQueryCache(queryCachePath);
+    const entry = cacheData.entries.find((e) => e.key === cacheKey && e.signature === cacheSignature);
+    if (entry) {
+      const ttl = Number.isFinite(Number(entry.ttlMs)) ? Number(entry.ttlMs) : queryCacheTtlMs;
+      if (!ttl || (Date.now() - entry.ts) <= ttl) {
+        cachedPayload = entry.payload || null;
+        if (cachedPayload && (cachedPayload.code || cachedPayload.prose)) {
+          cacheHit = true;
+          entry.ts = Date.now();
+        }
+      }
+    }
+  }
+
+  const needsEmbedding = !cacheHit && annEnabled && (
+    (runProse && (idxProse.denseVec?.vectors?.length || vectorAnnState.prose.available)) ||
+    (runCode && (idxCode.denseVec?.vectors?.length || vectorAnnState.code.available))
+  );
+  const embeddingCache = new Map();
+  const getEmbeddingForModel = async (modelId, dims) => {
+    if (!modelId) return null;
+    const cacheKey = useStubEmbeddings ? `${modelId}:${dims || 'default'}` : modelId;
+    if (embeddingCache.has(cacheKey)) return embeddingCache.get(cacheKey);
+    const embedding = await getQueryEmbedding(query, modelId, dims);
+    embeddingCache.set(cacheKey, embedding);
+    return embedding;
+  };
+  const queryEmbeddingCode = needsEmbedding && runCode && (idxCode.denseVec?.vectors?.length || vectorAnnState.code.available)
+    ? await getEmbeddingForModel(modelIdForCode, idxCode.denseVec?.dims || null)
+    : null;
+  const queryEmbeddingProse = needsEmbedding && runProse && (idxProse.denseVec?.vectors?.length || vectorAnnState.prose.available)
+    ? await getEmbeddingForModel(modelIdForProse, idxProse.denseVec?.dims || null)
+    : null;
+  const proseHits = cacheHit && cachedPayload
+    ? (cachedPayload.prose || [])
+    : (runProse ? runSearch(idxProse, 'prose', queryEmbeddingProse) : []);
+  const codeHits = cacheHit && cachedPayload
+    ? (cachedPayload.code || [])
+    : (runCode ? runSearch(idxCode, 'code', queryEmbeddingCode) : []);
+  const annBackend = vectorAnnEnabled && (vectorAnnUsed.code || vectorAnnUsed.prose)
+    ? 'sqlite-extension'
+    : 'js';
 
   // Output
   if (argv.json) {
     // Full JSON
+    const memory = process.memoryUsage();
     console.log(JSON.stringify({
       backend: backendLabel,
       prose: proseHits,
-      code: codeHits
+      code: codeHits,
+      stats: {
+        elapsedMs: Date.now() - t0,
+        annEnabled,
+        annMode: vectorExtension.annMode,
+        annBackend,
+        annExtension: vectorAnnEnabled ? {
+          provider: vectorExtension.provider,
+          table: vectorExtension.table,
+          available: {
+            code: vectorAnnState.code.available,
+            prose: vectorAnnState.prose.available
+          }
+        } : null,
+        models: {
+          code: modelIdForCode,
+          prose: modelIdForProse
+        },
+        cache: {
+          enabled: queryCacheEnabled,
+          hit: cacheHit,
+          key: cacheKey
+        },
+        memory: {
+          rss: memory.rss,
+          heapTotal: memory.heapTotal,
+          heapUsed: memory.heapUsed,
+          external: memory.external,
+          arrayBuffers: memory.arrayBuffers
+        }
+      }
     }, null, 2));
     process.exit(0);
   }
 
-  let showProse = argv.n;
-  let showCode = argv.n;
+  let showProse = runProse ? argv.n : 0;
+  let showCode = runCode ? argv.n : 0;
 
-  if (proseHits.length < argv.n) {
-    showCode += showProse;
-  }
-  if (codeHits.length < argv.n) {
-    showProse += showCode;
+  if (runProse && runCode) {
+    if (proseHits.length < argv.n) {
+      showCode += showProse;
+    }
+    if (codeHits.length < argv.n) {
+      showProse += showCode;
+    }
   }
 
   // Human output, enhanced formatting and summaries
-  console.log(color.bold(`\n===== 📖 Markdown Results (${backendLabel}) =====`));
-  proseHits.slice(0, showProse).forEach((h, i) => {
-    if (i < 2) {
-      process.stdout.write(printFullChunk(h, i, 'prose', h.annScore, h.annType));
-    } else {
-      process.stdout.write(printShortChunk(h, i, 'prose', h.annScore, h.annType));
-    }
-  });
-  console.log('\n');
+  if (runProse) {
+    console.log(color.bold(`\n===== 📖 Markdown Results (${backendLabel}) =====`));
+    proseHits.slice(0, showProse).forEach((h, i) => {
+      if (i < 2) {
+        process.stdout.write(printFullChunk(h, i, 'prose', h.annScore, h.annType));
+      } else {
+        process.stdout.write(printShortChunk(h, i, 'prose', h.annScore, h.annType));
+      }
+    });
+    console.log('\n');
+  }
 
-  console.log(color.bold(`===== 🔨 Code Results (${backendLabel}) =====`));
-  codeHits.slice(0, showCode).forEach((h, i) => {
-    if (i < 1) {
-      process.stdout.write(printFullChunk(h, i, 'code', h.annScore, h.annType));
-    } else {
-      process.stdout.write(printShortChunk(h, i, 'code', h.annScore, h.annType));
-    }
-  });
-  console.log('\n');
+  if (runCode) {
+    console.log(color.bold(`===== 🔨 Code Results (${backendLabel}) =====`));
+    codeHits.slice(0, showCode).forEach((h, i) => {
+      if (i < 1) {
+        process.stdout.write(printFullChunk(h, i, 'code', h.annScore, h.annType));
+      } else {
+        process.stdout.write(printShortChunk(h, i, 'code', h.annScore, h.annType));
+      }
+    });
+    console.log('\n');
+  }
 
   // Optionally stats
   if (argv.stats) {
-    console.log(color.gray(`Stats: prose chunks=${idxProse.chunkMeta.length}, code chunks=${idxCode.chunkMeta.length}`));
+    const cacheTag = queryCacheEnabled ? (cacheHit ? 'cache=hit' : 'cache=miss') : 'cache=off';
+    console.log(color.gray(`Stats: prose chunks=${idxProse.chunkMeta.length}, code chunks=${idxCode.chunkMeta.length} (${cacheTag})`));
   }
 
   /* ---------- Update .repoMetrics and .searchHistory ---------- */
@@ -886,6 +1397,7 @@ function runSearch(idx, mode, queryEmbedding) {
       mdFiles: proseHits.length,
       codeFiles: codeHits.length,
       ms: Date.now() - t0,
+      cached: cacheHit,
     }) + '\n'
   );
 
@@ -894,5 +1406,31 @@ function runSearch(idx, mode, queryEmbedding) {
       noResultPath,
       JSON.stringify({ time: new Date().toISOString(), query }) + '\n'
     );
+  }
+
+  if (queryCacheEnabled && cacheKey) {
+    if (!cacheData) cacheData = { version: 1, entries: [] };
+    if (!cacheHit) {
+      cacheData.entries = cacheData.entries.filter((entry) => entry.key !== cacheKey);
+      cacheData.entries.push({
+        key: cacheKey,
+        ts: Date.now(),
+        ttlMs: queryCacheTtlMs,
+        signature: cacheSignature,
+        meta: {
+          query,
+          backend: backendLabel
+        },
+        payload: {
+          prose: proseHits,
+          code: codeHits
+        }
+      });
+    }
+    pruneQueryCache(cacheData, queryCacheMaxEntries);
+    try {
+      await fs.mkdir(path.dirname(queryCachePath), { recursive: true });
+      await fs.writeFile(queryCachePath, JSON.stringify(cacheData, null, 2));
+    } catch {}
   }
 })();

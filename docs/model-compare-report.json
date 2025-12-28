@@ -1,0 +1,550 @@
+{
+  "generatedAt": "2025-12-28T00:49:51.261Z",
+  "repo": {
+    "root": "C:\\Users\\sneak\\Development\\PairOfCleats_CODEX",
+    "repoId": "8c76cec86f7d90e372915a640348d0c6b3263422"
+  },
+  "settings": {
+    "backend": "memory",
+    "topN": 5,
+    "annEnabled": false,
+    "mode": "both",
+    "models": [
+      "Xenova/all-MiniLM-L12-v2",
+      "Xenova/all-MiniLM-L6-v2"
+    ],
+    "baseline": "Xenova/all-MiniLM-L12-v2",
+    "cacheRootBase": "C:\\Users\\sneak\\Development\\PairOfCleats_CODEX\\tests\\.cache\\summary-report\\cache",
+    "cacheIsolation": true
+  },
+  "summary": {
+    "models": {
+      "Xenova/all-MiniLM-L12-v2": {
+        "elapsedMsAvg": 155.13333333333333,
+        "wallMsAvg": 229.2,
+        "codeCountAvg": 3.7333333333333334,
+        "proseCountAvg": 4.733333333333333
+      },
+      "Xenova/all-MiniLM-L6-v2": {
+        "elapsedMsAvg": 168.8,
+        "wallMsAvg": 270.2,
+        "codeCountAvg": 3.7333333333333334,
+        "proseCountAvg": 4.733333333333333
+      }
+    },
+    "comparisons": {
+      "Xenova/all-MiniLM-L6-v2": {
+        "code": {
+          "overlapAvg": 0.8,
+          "scoreDeltaAvg": 0,
+          "rankCorrAvg": 1,
+          "top1MatchRate": 0.8
+        },
+        "prose": {
+          "overlapAvg": 1,
+          "scoreDeltaAvg": 0,
+          "rankCorrAvg": 1,
+          "top1MatchRate": 1
+        }
+      }
+    }
+  },
+  "warnings": [],
+  "results": [
+    {
+      "query": "index",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 162,
+          "wallMs": 237,
+          "codeCount": 5,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 158,
+          "wallMs": 259,
+          "codeCount": 5,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "search",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 165,
+          "wallMs": 250,
+          "codeCount": 5,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 156,
+          "wallMs": 256,
+          "codeCount": 5,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "sqlite",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 154,
+          "wallMs": 227,
+          "codeCount": 5,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 173,
+          "wallMs": 269,
+          "codeCount": 5,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "dictionary",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 152,
+          "wallMs": 239,
+          "codeCount": 0,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 169,
+          "wallMs": 270,
+          "codeCount": 0,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 0,
+            "avgDelta": 0,
+            "rankCorr": null,
+            "top1Same": false
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "bootstrap",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 156,
+          "wallMs": 225,
+          "codeCount": 0,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 166,
+          "wallMs": 261,
+          "codeCount": 0,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 0,
+            "avgDelta": 0,
+            "rankCorr": null,
+            "top1Same": false
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "chunk",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 148,
+          "wallMs": 229,
+          "codeCount": 5,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 164,
+          "wallMs": 264,
+          "codeCount": 5,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "minhash",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 163,
+          "wallMs": 235,
+          "codeCount": 5,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 171,
+          "wallMs": 267,
+          "codeCount": 5,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "ann",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 161,
+          "wallMs": 235,
+          "codeCount": 5,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 166,
+          "wallMs": 273,
+          "codeCount": 5,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "bm25",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 154,
+          "wallMs": 223,
+          "codeCount": 5,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 177,
+          "wallMs": 279,
+          "codeCount": 5,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "cache",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 153,
+          "wallMs": 224,
+          "codeCount": 5,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 158,
+          "wallMs": 262,
+          "codeCount": 5,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "python",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 152,
+          "wallMs": 221,
+          "codeCount": 5,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 180,
+          "wallMs": 283,
+          "codeCount": 5,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "docstring",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 153,
+          "wallMs": 224,
+          "codeCount": 5,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 178,
+          "wallMs": 283,
+          "codeCount": 5,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "repometrics",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 151,
+          "wallMs": 222,
+          "codeCount": 5,
+          "proseCount": 1
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 175,
+          "wallMs": 279,
+          "codeCount": 5,
+          "proseCount": 1
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": null,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "fts",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 153,
+          "wallMs": 226,
+          "codeCount": 0,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 160,
+          "wallMs": 264,
+          "codeCount": 0,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 0,
+            "avgDelta": 0,
+            "rankCorr": null,
+            "top1Same": false
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    },
+    {
+      "query": "incremental",
+      "runs": {
+        "Xenova/all-MiniLM-L12-v2": {
+          "elapsedMs": 150,
+          "wallMs": 221,
+          "codeCount": 1,
+          "proseCount": 5
+        },
+        "Xenova/all-MiniLM-L6-v2": {
+          "elapsedMs": 181,
+          "wallMs": 284,
+          "codeCount": 1,
+          "proseCount": 5
+        }
+      },
+      "comparisons": {
+        "Xenova/all-MiniLM-L6-v2": {
+          "code": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": null,
+            "top1Same": true
+          },
+          "prose": {
+            "overlap": 1,
+            "avgDelta": 0,
+            "rankCorr": 1,
+            "top1Same": true
+          }
+        }
+      }
+    }
+  ]
+}

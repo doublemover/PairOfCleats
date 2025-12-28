@@ -2,6 +2,10 @@ node_modules/
 index-sqlite/
 index-code/
 index-prose/
+ci-artifacts/
+tests/.cache/
+docs/benchmarks.json
+docs/phase3-parity-report.json
 *.db
 *.db-shm
 *.db-wal
