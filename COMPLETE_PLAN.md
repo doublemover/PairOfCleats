@@ -134,7 +134,6 @@ Work items:
 - [x] ANN extension support (sqlite-vec) with loadable binary.
 - [x] Archive download support for extension binaries (zip/tar/tgz).
 - [x] ANN extension test harness (tests/sqlite-ann-extension.js).
-- [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights (deferred).
 
 ## Phase 9: Scoring Calibration (status: done)
 Goal: Deterministic ranking and tunable BM25 parameters.
@@ -266,3 +265,7 @@ Work items:
 
 ## Maintenance / Refactor Guardrails (status: done)
 - [x] Break `build_index.js` into focused modules (discovery/import scan/file processing/posting builders/artifact writers/metrics) to keep growth in check.
+
+## Deferred / Do Not Surface (status: deferred)
+- [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
+  - Do not prioritize or bring this up unless explicitly requested.
