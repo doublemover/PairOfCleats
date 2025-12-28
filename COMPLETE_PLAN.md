@@ -1,231 +1,173 @@
 # Complete Plan
 
-This is the end-to-end plan for bringing the project from the current SQLite parity state to a fully centralized, maintainable, and performant indexing/search system.
+This document consolidates all phase docs and tracks implementation status. Phase markdown files are removed after merge; this is the single source of truth.
 
-## Project goals
-- Per-repo indexing with a central cache (indexes, models, repometrics) outside the repo.
-- On-demand indexing with incremental caching and optional prebuilt CI artifacts.
-- MCP server interface for index status/build/search/model download.
-- Non-git repos supported with a strong recommendation to use git.
+## Status key
+- done: implemented and validated
+- partial: implemented with known gaps or follow-ups
+- todo: not implemented
+- in-progress: actively being implemented
 
-## Cache layout
+## Baseline goals (status: done)
+- [x] Per-repo indexing with a central cache outside the repo.
+- [x] On-demand indexing with incremental caching and optional CI artifacts.
+- [x] MCP server interface for status/build/search/model download.
+- [x] Non-git repos supported with a strong recommendation to use git.
+
+## Cache layout (status: done)
 - <cache>/repos/<repoId>/index-code/
 - <cache>/repos/<repoId>/index-prose/
 - <cache>/repos/<repoId>/repometrics/
 - <cache>/repos/<repoId>/index-sqlite/index-code.db
 - <cache>/repos/<repoId>/index-sqlite/index-prose.db
 - <cache>/models/
+- <cache>/extensions/
 
 Repo identity:
-- Prefer git toplevel + remote URL (hash to repoId)
-- If no git, hash absolute path
+- Prefer git toplevel + remote URL (hash to repoId).
+- If no git, hash absolute path.
 
-## Model download and bootstrap
-- On startup, detect model files in cache; if missing, prompt to download.
-- Provide preflight download command examples:
-  - Node: node --input-type=module -e "import { pipeline } from '@xenova/transformers'; await pipeline('feature-extraction','Xenova/all-MiniLM-L12-v2');"
-  - Python: python -c "from huggingface_hub import snapshot_download; snapshot_download('Xenova/all-MiniLM-L12-v2')"
+## Model download and bootstrap (status: done)
+- [x] Detect models in cache; prompt to download when missing.
+- [x] Provide download helpers (node/python) and bootstrap path.
 
-## Git handling
-- If git is missing or repo is not a git repo, warn once and continue without git metadata.
-- If git is present, store commit hash and dirty flag in repo state.
+## Git handling (status: done)
+- [x] Warn when git is missing and continue without git metadata.
+- [x] Store commit hash and dirty flag when git is present.
 
-## MCP surface (future)
-- index_status(repoPath)
-- build_index(repoPath, mode=all, incremental=true)
-- search(repoPath, query, filters...)
-- download_models()
+## MCP surface (status: done)
+- [x] index_status(repoPath)
+- [x] build_index(repoPath, mode=all, incremental=true)
+- [x] search(repoPath, query, filters...)
+- [x] download_models()
+- [x] report_artifacts()
 
-## Phase 2: SQLite-Driven Candidate Generation
+## Phase 2: SQLite Candidate Generation (status: done)
+Goal: Use SQLite to generate candidate sets while keeping scoring/rendering in JS.
+Work items:
+- [x] Candidate set creation via token, phrase, and chargram tables.
+- [x] BM25 stats sourced from SQLite (doc_lengths + token_stats).
+- [x] Fallback to file-backed artifacts when SQLite is missing or incomplete.
+- [x] Docs updated to describe SQLite candidate generation.
+Notes:
+- Query tokenization remains in search.js; SQLite provides candidates only.
+- Dense vectors and minhash are still JS-side.
 
-### Goal
-Move candidate generation (token postings, phrase n‑grams, char‑grams) into SQLite while keeping scoring and rendering in `search.js`. This reduces reliance on file‑backed JSON artifacts and centralizes candidate selection in the DB without changing ranking behavior.
+## Phase 3: Parity + Performance Validation (status: done)
+Goal: Validate SQLite vs file-backed parity and capture baseline metrics.
+Work items:
+- [x] Parity harness (tests/parity.js) with overlap and score deltas.
+- [x] Query set in tests/parity-queries.txt.
+- [x] Report output (docs/phase3-parity-report.json).
+- [x] Benchmark harness (tests/bench.js) for latency and artifact sizes.
 
-### Scope
-- In scope:
-  - Candidate set creation via `token_vocab`/`token_postings`, `phrase_vocab`/`phrase_postings`, and `chargram_vocab`/`chargram_postings`.
-  - BM25 stats sourced from SQLite (`doc_lengths` + `token_stats`).
-  - Fallback to file‑backed artifacts when required tables are missing.
-- Out of scope:
-  - Full SQL scoring (pure SQLite ranking).
-  - ANN scoring inside SQLite (still JS‑side).
+## Phase 4: Incremental Indexing (status: done)
+Goal: Reuse per-file bundles to avoid re-embedding unchanged files.
+Work items:
+- [x] Per-file cache manifest and bundles outside the repo.
+- [x] Incremental build path in build_index.js.
+- [x] SQLite incremental updates in tools/build-sqlite-index.js.
+- [x] Incremental tests (tests/sqlite-incremental.js).
+Notes:
+- Global postings are rebuilt from cached bundles (not in-place deltas for file-backed JSON).
 
-### Work Items
-1) Add prepared SQL statements for candidate lookups.
-2) Implement `getCandidateSet(tokens, mode)` to use SQLite when enabled.
-3) Replace in‑memory candidate generation in SQLite mode, keep file‑backed path unchanged.
-4) Ensure missing tables fall back to file‑backed mode unless `--backend sqlite` is forced.
-5) Update docs to reflect SQLite candidate generation as the default.
+## Phase 5: CI Artifact Generation + Detection (status: done)
+Goal: Build and restore index artifacts in CI.
+Work items:
+- [x] Build script (tools/ci-build-artifacts.js) with manifest output.
+- [x] Restore script (tools/ci-restore-artifacts.js) with commit checks.
+- [x] Bootstrap restore when ci-artifacts/manifest.json exists.
+- [x] Docs for GitHub and GitLab usage.
 
-### Acceptance Criteria
-- Query results match the file‑backed path (top‑N parity across a test set).
-- No significant regressions in latency or memory.
-- Clean fallback when SQLite tables are missing.
+## Phase 6: Tests + Benchmarks (status: partial)
+Goal: Expand deterministic tests and perf harnesses.
+Work items:
+- [x] Fixture repos under tests/fixtures (sample, mixed).
+- [x] Fixture smoke, parity, eval harnesses.
+- [x] Bench harness (tests/bench.js) + bench-ann script.
+- [x] Query cache, cleanup, uninstall, sqlite incremental/compact, mcp server tests.
+- [ ] Add CI workflow to run smoke + parity in GitHub Actions.
 
-## Phase 3: Parity + Performance Validation
+## Phase 7: Language Expansion (status: partial)
+Goal: Provide stable chunking + metadata for prioritized languages.
 
-### Goal
-Prove that SQLite‑backed candidate generation and file‑backed candidate generation yield equivalent results and acceptable performance.
+Python (status: partial)
+- [x] Python AST enrichment when python is available; heuristic fallback.
+- [x] Class/function/method chunking with docstrings and signatures.
+- [ ] Improve call graph accuracy for nested functions.
+- [ ] Add type-aware docs for dataclasses/attrs.
 
-### Work Items
-1) Add a query harness to run a set of representative queries.
-2) Compare top‑N results and score deltas between backends.
-3) Measure latency and memory usage; capture baseline numbers.
-4) Document known differences (if any) and acceptable tolerances.
+Swift (status: partial)
+- [x] Brace-aware chunking for declarations.
+- [x] Doc comment extraction and signature metadata.
+- [ ] Improve parsing of generics and extensions.
 
-### Acceptance Criteria
-- Documented parity metrics with minimal or explained divergence.
-- Benchmarks show no major regression.
+ObjC/C/C++ (status: partial)
+- [x] Regex-driven chunking for C-family and ObjC blocks.
+- [x] Selector extraction for ObjC methods.
+- [ ] Improve call graph and include resolution heuristics.
 
-## Phase 4: Incremental Indexing
+Rust (status: partial)
+- [x] Heuristic chunking for structs/enums/traits/mods/impls/fns.
+- [x] Basic metadata extraction and imports/exports.
+- [ ] Improve macro-heavy parsing and impl block method grouping.
 
-### Goal
-Update indexes per commit (or per file change) rather than full rebuilds.
+## Phase 8: SQLite Scoring (FTS5) + ANN Extension (status: partial)
+Goal: Optional SQLite-only sparse ranking plus optional vector extension for ANN.
+Work items:
+- [x] FTS5 ranking path (sqlite-fts backend) with shared renderer.
+- [x] Configurable FTS5 weighting and optional normalization.
+- [x] ANN extension support (sqlite-vec) with loadable binary.
+- [x] Archive download support for extension binaries (zip/tar/tgz).
+- [x] ANN extension test harness (tests/sqlite-ann-extension.js).
+- [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
 
-### Work Items
-1) Add file hashing and change detection for code/prose inputs.
-2) Track chunk IDs deterministically to enable updates/deletes.
-3) Update SQLite tables for changed chunks only (postings, n‑grams, minhash, dense vectors).
-4) Preserve repometrics and history in cache outside the repo.
-5) Update bootstrap/CI flows to use incremental mode when possible.
+## Phase 9: Scoring Calibration (status: done)
+Goal: Deterministic ranking and tunable BM25 parameters.
+Work items:
+- [x] Deterministic tie-breakers in ranking and merging.
+- [x] Configurable BM25 parameters (search.bm25.k1/b).
+- [x] Documentation for tuning and parity expectations.
 
-### Acceptance Criteria
-- Incremental update produces equivalent results to full rebuild.
-- Noticeable reduction in update time for small diffs.
+## Phase 10: SQLite Split (status: done)
+Goal: Split code/prose DBs to reduce lock contention.
+Work items:
+- [x] index-code.db and index-prose.db layout.
+- [x] Build/search use split DBs.
+- [x] CI artifacts handle split DBs.
+- [x] Legacy index.db cleanup.
 
-## Phase 5: CI Artifact Generation + Detection
+## Phase 11: Parallel Indexing (status: done)
+Goal: Parallel file processing with deterministic ordering.
+Work items:
+- [x] File worker pool with deterministic output ordering.
+- [x] Separate concurrency for import scanning.
+- [x] Configurable concurrency via .pairofcleats.json and CLI.
 
-### Goal
-Allow CI pipelines (GitHub/GitLab) to build and publish SQLite index artifacts for reuse.
+## Phase 12: MCP Server Packaging (status: done)
+Goal: MCP stdio server for index lifecycle and search.
+Work items:
+- [x] JSON-RPC 2.0 server with content-length framing.
+- [x] Tools: index_status/build_index/search/download_models/report_artifacts.
+- [x] Git-optional behavior with warnings.
 
-### Work Items
-1) Add a CI script that builds indexes and writes artifacts to a predictable path.
-2) Add logic to detect CI‑generated artifacts locally and reuse them.
-3) Document required CI variables and cache paths.
-4) Provide a generic script that GitHub/GitLab can both call with minimal changes.
+## Phase 13: Language Fidelity Review + Enhancements (status: todo)
+Goal: Evaluate current fidelity of each supported language and enhance parsing.
+Work items:
+- [ ] Build a per-language evaluation checklist (chunking, metadata, relations).
+- [ ] Expand fixtures per language and add targeted regression tests.
+- [ ] Implement improvements per language and update docs.
 
-### Acceptance Criteria
-- Artifacts can be built in CI and reused locally or by agents.
-- Clear docs for setup across providers.
+## Phase 14: CI Coverage and Full Script Coverage (status: todo)
+Goal: Ensure every npm script is exercised and documented.
+Work items:
+- [ ] Add CI workflow for smoke + parity + core harnesses.
+- [ ] Add a meta-test runner that exercises all scripts (with stub embeddings).
+- [ ] Record expected runtime and platform constraints.
 
-## Phase 6: Expanded Tests + Benchmarks
-
-### Goal
-Improve confidence in indexing/search behavior and performance over time.
-
-### Work Items
-1) Add fixture repos for deterministic tests.
-2) Add parity tests between backends.
-3) Add benchmark harness for index size, build time, query latency.
-4) Add CI test run for smoke + parity checks.
-
----
-
-## Execution Plan: SQLite ANN Extension Follow-ups
-
-# Plan
-
-Implement the remaining ANN extension polish (archive download support, extension-focused tests, bench ergonomics, and compaction fix), then validate with the updated harnesses.
-
-## Scope
-- In: Extension archive extraction, ANN extension test, compaction dims fix, roadmap update, bench ergonomics + docs, validation runs.
-- Out: New ANN providers, large search/index refactors, and performance tuning beyond the listed fixes.
-
-## Action items
-[ ] Add `.zip`/`.tar.gz` extraction to `tools/download-extensions.js` and document archive behavior.
-[ ] Add a focused ANN extension test (`tests/sqlite-ann-extension.js`) that validates `dense_vectors_ann` and `search.js` stats.
-[ ] Fix compaction to only build ANN tables when `dense_meta.dims` is present.
-[ ] Update `ROADMAP.md`, `README.md`, and `docs/phase6-tests-benchmarks.md` to reflect ANN extension status and bench ergonomics.
-[ ] Add `bench-ann` npm script and document it.
-[ ] Run validation: `npm run bench`, `node tests/bench.js --ann`, and `npm run sqlite-ann-extension-test`.
-
-## Open questions
-- Should archive extraction support `.zip` only, or include `.tar.gz` and `.tgz`? (default: all three)
-- Should the ANN test assert `annBackend=sqlite-extension`? (default: yes)
-- Add `bench-ann` as a script or just document `node tests/bench.js --ann`? (default: new script)
-
-### Acceptance Criteria
-- Automated tests cover core functionality.
-- Benchmarks provide historical baselines.
-
-## Phase 7: Language Expansion
-
-### Goal
-Expand indexing support beyond JS/YAML/Markdown to match stated priorities.
-
-### Priority Order
-1) Python
-2) Swift
-3) ObjC/C/C++
-4) Rust
-
-### Work Items
-- Implement language‑specific chunking/parsing.
-- Add test fixtures and examples per language.
-- Ensure chunk metadata parity with JS pipeline.
-
-### Acceptance Criteria
-- Each language has stable chunking, metadata, and searchability.
-
-## Phase 8: SQLite-Only Scoring (Optional)
-
-### Goal
-Optionally move scoring and ranking into SQLite for a pure SQL backend.
-
-### Work Items
-1) Prototype SQL scoring for BM25 + n‑grams.
-2) Evaluate feasibility of ANN scoring without external extensions.
-3) Decide whether to keep JS scoring for ANN or accept FTS5‑only ranking.
-
-### Acceptance Criteria
-- Clear decision on whether SQLite-only scoring is worth pursuing.
-
----
-
-## Phase 9: Scoring Calibration + Deterministic Ranking
-
-### Goal
-Align backend ranking behavior and make score tuning explicit.
-
-### Work Items
-1) Add deterministic tie-breakers to ranking and result merging.
-2) Expose BM25 tuning via config (`search.bm25`).
-3) Add a short design note documenting tradeoffs and usage.
-
-### Acceptance Criteria
-- Search results are stable across runs for identical inputs.
-- BM25 parameters can be tuned without code changes.
-
-If you want this plan to replace an existing plan file, confirm which file to remove (e.g., `PHASE2_PLAN.md`) and I will delete it.
-
-## Python Support Plan (Next)
-
-### Goal
-Move from basic regex chunking to robust Python-aware parsing with rich metadata.
-
-### Scope
-- In scope:
-  - AST-based chunking for functions, classes, methods, and module blocks.
-  - Docstring extraction (module, class, function) with params/returns parsing.
-  - Import graph (import/from import) and symbol usage hints.
-  - Test fixtures that validate chunk names, locations, and metadata.
-- Out of scope:
-  - Type-checking or semantic analysis across modules.
-  - Full execution or runtime tracing.
-
-### Work Items
-1) Select parser strategy (tree-sitter-python via npm or a lightweight Python AST bridge) and document tradeoffs.
-2) Implement a Python chunker that returns stable `start/end` offsets and `startLine/endLine`.
-3) Add metadata extraction for:
-   - docstrings (triple-quoted strings following defs/classes),
-   - decorators and base classes,
-   - function signatures and parameter names.
-4) Extend tokenization to better handle snake_case, dunder names, and dotted references.
-5) Add import parsing for `import X` and `from X import Y`.
-6) Add fixture repos and golden tests for chunk boundaries and metadata.
-7) Update docs and README with Python support details and limitations.
-
-### Acceptance Criteria
-- Deterministic chunking for representative Python files.
-- Metadata for docstrings and signatures populated in chunk meta.
-- Fixture tests pass and parity with JS pipeline formatting is maintained.
+## Phase 15: New Languages and Features (status: todo)
+Goal: Add new languages and new indexing/search features after baseline completion.
+Work items:
+- [ ] Select additional languages (post-baseline) and add support.
+- [ ] Add new search/index features based on usage gaps.
+- [ ] Update docs and tests for each addition.

@@ -440,24 +440,11 @@ Optional flags:
 
 ## 📚 Design docs
 
-- `docs/phase2-sqlite-candidate-generation.md`
-- `docs/phase3-parity-validation.md`
-- `docs/phase4-incremental-indexing.md`
-- `docs/sqlite-incremental-updates.md`
-- `docs/phase5-ci-artifacts.md`
-- `docs/phase6-tests-benchmarks.md`
-- `docs/phase7-python-support.md`
-- `docs/phase7-swift-support.md`
-- `docs/phase7-objc-cpp-support.md`
-- `docs/phase7-rust-support.md`
-- `docs/phase8-sqlite-scoring.md`
-- `docs/phase9-scoring-calibration.md`
-- `docs/phase10-sqlite-split.md`
-- `docs/phase11-parallel-indexing.md`
-- `docs/phase12-mcp-server.md`
+- `COMPLETE_PLAN.md`
 - `docs/model-comparison.md`
 - `docs/sqlite-compaction.md`
 - `docs/sqlite-ann-extension.md`
+- `docs/sqlite-incremental-updates.md`
 - `docs/repometrics-dashboard.md`
 - `docs/sqlite-index-schema.md`
 - `docs/query-cache.md`
