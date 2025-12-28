@@ -1,6 +1,7 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
 import { collectAttributes, extractDocComment, sliceSignature } from './shared.js';
+import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 
 /**
  * Java language chunking and relations.
@@ -327,6 +328,62 @@ export function extractJavaDocMeta(chunk) {
     returns: meta.returns || null,
     signature: meta.signature || null,
     decorators: attributes,
-    modifiers
+    modifiers,
+    dataflow: meta.dataflow || null,
+    throws: meta.throws || [],
+    awaits: meta.awaits || [],
+    yields: meta.yields || false,
+    returnsValue: meta.returnsValue || false,
+    controlFlow: meta.controlFlow || null
   };
+}
+
+/**
+ * Heuristic control-flow/dataflow extraction for Java chunks.
+ * @param {string} text
+ * @param {{start:number,end:number}} chunk
+ * @param {{dataflow?:boolean,controlFlow?:boolean}} [options]
+ * @returns {{dataflow:(object|null),controlFlow:(object|null),throws:string[],awaits:string[],yields:boolean,returnsValue:boolean}|null}
+ */
+export function computeJavaFlow(text, chunk, options = {}) {
+  if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) return null;
+  const bounds = findCLikeBodyBounds(text, chunk.start);
+  const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
+  const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
+  if (scanEnd <= scanStart) return null;
+  const slice = text.slice(scanStart, scanEnd);
+  const cleaned = stripJavaComments(slice);
+  const dataflowEnabled = options.dataflow !== false;
+  const controlFlowEnabled = options.controlFlow !== false;
+  const out = {
+    dataflow: null,
+    controlFlow: null,
+    throws: [],
+    awaits: [],
+    yields: false,
+    returnsValue: false
+  };
+
+  if (dataflowEnabled) {
+    out.dataflow = buildHeuristicDataflow(cleaned, {
+      skip: JAVA_USAGE_SKIP,
+      memberOperators: ['.']
+    });
+    out.returnsValue = hasReturnValue(cleaned);
+    const throws = new Set();
+    for (const match of cleaned.matchAll(/\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_.]*)/g)) {
+      const name = match[1].replace(/[({].*$/, '').trim();
+      if (name) throws.add(name);
+    }
+    out.throws = Array.from(throws);
+  }
+
+  if (controlFlowEnabled) {
+    out.controlFlow = summarizeControlFlow(cleaned, {
+      branchKeywords: ['if', 'else', 'switch', 'case', 'catch', 'try'],
+      loopKeywords: ['for', 'while', 'do']
+    });
+  }
+
+  return out;
 }

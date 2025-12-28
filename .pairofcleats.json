@@ -39,7 +39,10 @@
   "indexing": {
     "concurrency": 4,
     "importConcurrency": 4,
-    "astDataflow": true
+    "astDataflow": true,
+    "controlFlow": true,
+    "typeInference": false,
+    "typeInferenceCrossFile": false
   },
   "sql": {
     "dialect": "",

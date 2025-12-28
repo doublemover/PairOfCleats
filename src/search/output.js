@@ -26,6 +26,11 @@ export function filterChunks(meta, filters = {}) {
     writes,
     mutates,
     awaits,
+    branches,
+    loops,
+    breaks,
+    continues,
+    inferredType,
     visibility,
     extends: extendsFilter,
     async: asyncOnly,
@@ -38,6 +43,28 @@ export function filterChunks(meta, filters = {}) {
     if (!Array.isArray(list)) return false;
     const needle = normalize(value);
     return list.some((entry) => normalize(entry).includes(needle));
+  };
+  const matchInferredType = (inferred, value) => {
+    if (!value) return true;
+    if (!inferred) return false;
+    const needle = normalize(value);
+    const types = [];
+    const collect = (entries) => {
+      if (!Array.isArray(entries)) return;
+      for (const entry of entries) {
+        if (entry?.type) types.push(entry.type);
+      }
+    };
+    const collectMap = (map) => {
+      if (!map || typeof map !== 'object') return;
+      Object.values(map).forEach((entries) => collect(entries));
+    };
+    collectMap(inferred.params);
+    collectMap(inferred.fields);
+    collectMap(inferred.locals);
+    collect(inferred.returns);
+    if (!types.length) return false;
+    return types.some((entry) => normalize(entry).includes(needle));
   };
   const truthy = (value) => value === true;
 
@@ -74,11 +101,30 @@ export function filterChunks(meta, filters = {}) {
         return false;
       }
     }
+    if (inferredType && !matchInferredType(c.docmeta?.inferredTypes, inferredType)) {
+      return false;
+    }
     if (throws && !matchList(c.docmeta?.throws, throws)) return false;
     if (awaits && !matchList(c.docmeta?.awaits, awaits)) return false;
     if (reads && !matchList(c.docmeta?.dataflow?.reads, reads)) return false;
     if (writes && !matchList(c.docmeta?.dataflow?.writes, writes)) return false;
     if (mutates && !matchList(c.docmeta?.dataflow?.mutations, mutates)) return false;
+    if (branches != null) {
+      const count = c.docmeta?.controlFlow?.branches;
+      if (!Number.isFinite(count) || count < branches) return false;
+    }
+    if (loops != null) {
+      const count = c.docmeta?.controlFlow?.loops;
+      if (!Number.isFinite(count) || count < loops) return false;
+    }
+    if (breaks != null) {
+      const count = c.docmeta?.controlFlow?.breaks;
+      if (!Number.isFinite(count) || count < breaks) return false;
+    }
+    if (continues != null) {
+      const count = c.docmeta?.controlFlow?.continues;
+      if (!Number.isFinite(count) || count < continues) return false;
+    }
     if (visibility) {
       const docVisibility = c.docmeta?.visibility || c.docmeta?.modifiers?.visibility || null;
       if (!docVisibility || !normalize(docVisibility).includes(normalize(visibility))) {
@@ -131,6 +177,29 @@ function getBodySummary(rootDir, chunk, maxWords = 80) {
     return '(Could not load summary)';
   }
 }
+
+const formatInferredEntry = (entry) => {
+  if (!entry?.type) return '';
+  const parts = [];
+  if (entry.source) parts.push(entry.source);
+  if (Number.isFinite(entry.confidence)) parts.push(entry.confidence.toFixed(2));
+  const suffix = parts.length ? ` (${parts.join(', ')})` : '';
+  return `${entry.type}${suffix}`;
+};
+
+const formatInferredEntries = (entries, limit = 3) => {
+  if (!Array.isArray(entries) || !entries.length) return '';
+  return entries.slice(0, limit).map(formatInferredEntry).filter(Boolean).join(', ');
+};
+
+const formatInferredMap = (map, limit = 3) => {
+  if (!map || typeof map !== 'object') return '';
+  const entries = Object.entries(map).slice(0, limit).map(([name, items]) => {
+    const formatted = formatInferredEntries(items, 2);
+    return formatted ? `${name}=${formatted}` : '';
+  }).filter(Boolean);
+  return entries.join(', ');
+};
 
 /**
  * Render a full, human-readable result entry.
@@ -260,6 +329,25 @@ export function formatFullChunk({
   } else if (chunk.docmeta?.returnsValue) {
     out += c.cyan('   Returns: ') + 'value' + '\n';
   }
+  const inferredTypes = chunk.docmeta?.inferredTypes || null;
+  if (inferredTypes) {
+    const inferredParams = formatInferredMap(inferredTypes.params);
+    if (inferredParams) {
+      out += c.gray('   Inferred Params: ') + inferredParams + '\n';
+    }
+    const inferredReturns = formatInferredEntries(inferredTypes.returns, 2);
+    if (inferredReturns) {
+      out += c.gray('   Inferred Returns: ') + inferredReturns + '\n';
+    }
+    const inferredFields = formatInferredMap(inferredTypes.fields);
+    if (inferredFields) {
+      out += c.gray('   Inferred Fields: ') + inferredFields + '\n';
+    }
+    const inferredLocals = formatInferredMap(inferredTypes.locals);
+    if (inferredLocals) {
+      out += c.gray('   Inferred Locals: ') + inferredLocals + '\n';
+    }
+  }
   if (chunk.docmeta?.throws?.length) {
     out += c.red('   Throws: ') + chunk.docmeta.throws.slice(0, 6).join(', ') + '\n';
   }
@@ -285,6 +373,22 @@ export function formatFullChunk({
     }
     if (dataflow.nonlocals?.length) {
       out += c.gray('   Nonlocals: ') + dataflow.nonlocals.slice(0, 6).join(', ') + '\n';
+    }
+  }
+  const controlFlow = chunk.docmeta?.controlFlow || null;
+  if (controlFlow) {
+    const entries = [
+      ['branches', controlFlow.branches],
+      ['loops', controlFlow.loops],
+      ['returns', controlFlow.returns],
+      ['breaks', controlFlow.breaks],
+      ['continues', controlFlow.continues],
+      ['throws', controlFlow.throws],
+      ['awaits', controlFlow.awaits],
+      ['yields', controlFlow.yields]
+    ].filter(([, value]) => Number.isFinite(value) && value > 0);
+    if (entries.length) {
+      out += c.gray('   Control: ') + entries.map(([key, value]) => `${key}=${value}`).join(', ') + '\n';
     }
   }
 

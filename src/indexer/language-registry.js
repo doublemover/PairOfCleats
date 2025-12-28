@@ -1,0 +1,257 @@
+import {
+  isCLike,
+  isGo,
+  isJava,
+  isJsLike,
+  isPerl,
+  isShell,
+  isTypeScript,
+  isCSharp,
+  isKotlin,
+  isRuby,
+  isPhp,
+  isLua,
+  isSql
+} from './constants.js';
+import { buildCLikeChunks, buildCLikeRelations, collectCLikeImports, computeCLikeFlow, extractCLikeDocMeta } from '../lang/clike.js';
+import { buildGoChunks, buildGoRelations, collectGoImports, computeGoFlow, extractGoDocMeta } from '../lang/go.js';
+import { buildJavaChunks, buildJavaRelations, collectJavaImports, computeJavaFlow, extractJavaDocMeta } from '../lang/java.js';
+import { buildCodeRelations, collectImports, extractDocMeta } from '../lang/javascript.js';
+import { buildTypeScriptChunks, buildTypeScriptRelations, collectTypeScriptImports, computeTypeScriptFlow, extractTypeScriptDocMeta } from '../lang/typescript.js';
+import { buildCSharpChunks, buildCSharpRelations, collectCSharpImports, computeCSharpFlow, extractCSharpDocMeta } from '../lang/csharp.js';
+import { buildKotlinChunks, buildKotlinRelations, collectKotlinImports, computeKotlinFlow, extractKotlinDocMeta } from '../lang/kotlin.js';
+import { buildRubyChunks, buildRubyRelations, collectRubyImports, computeRubyFlow, extractRubyDocMeta } from '../lang/ruby.js';
+import { buildPhpChunks, buildPhpRelations, collectPhpImports, computePhpFlow, extractPhpDocMeta } from '../lang/php.js';
+import { buildLuaChunks, buildLuaRelations, collectLuaImports, computeLuaFlow, extractLuaDocMeta } from '../lang/lua.js';
+import { buildSqlChunks, buildSqlRelations, collectSqlImports, extractSqlDocMeta } from '../lang/sql.js';
+import { buildPerlChunks, buildPerlRelations, collectPerlImports, computePerlFlow, extractPerlDocMeta } from '../lang/perl.js';
+import { getPythonAst, collectPythonImports, buildPythonRelations, extractPythonDocMeta } from '../lang/python.js';
+import { buildRustChunks, buildRustRelations, collectRustImports, computeRustFlow, extractRustDocMeta } from '../lang/rust.js';
+import { buildSwiftChunks, buildSwiftRelations, collectSwiftImports, computeSwiftFlow, extractSwiftDocMeta } from '../lang/swift.js';
+import { buildShellChunks, buildShellRelations, collectShellImports, computeShellFlow, extractShellDocMeta } from '../lang/shell.js';
+import { summarizeControlFlow } from '../lang/flow.js';
+
+const flowOptions = (options) => ({
+  dataflow: options.astDataflowEnabled,
+  controlFlow: options.controlFlowEnabled
+});
+
+const buildControlFlowOnly = (text, chunk, options, keywords) => {
+  if (!options.controlFlowEnabled || !chunk) return null;
+  const slice = text.slice(chunk.start, chunk.end);
+  return {
+    dataflow: null,
+    controlFlow: summarizeControlFlow(slice, keywords),
+    throws: [],
+    awaits: [],
+    yields: false,
+    returnsValue: false
+  };
+};
+
+const JS_CONTROL_FLOW = {
+  branchKeywords: ['if', 'else', 'switch', 'case', 'catch', 'try'],
+  loopKeywords: ['for', 'while', 'do']
+};
+
+const PY_CONTROL_FLOW = {
+  branchKeywords: ['if', 'elif', 'else', 'try', 'except', 'finally', 'match', 'case'],
+  loopKeywords: ['for', 'while']
+};
+
+const LANGUAGE_REGISTRY = [
+  {
+    id: 'javascript',
+    match: (ext) => isJsLike(ext),
+    collectImports: (text) => collectImports(text),
+    buildRelations: ({ text, relPath, allImports, options }) =>
+      buildCodeRelations(text, relPath, allImports, { dataflow: options.astDataflowEnabled }),
+    extractDocMeta: ({ text, chunk, fileRelations }) => extractDocMeta(text, chunk, fileRelations),
+    flow: ({ text, chunk, options }) => buildControlFlowOnly(text, chunk, options, JS_CONTROL_FLOW),
+    attachName: false
+  },
+  {
+    id: 'typescript',
+    match: (ext) => isTypeScript(ext),
+    collectImports: (text) => collectTypeScriptImports(text),
+    prepare: ({ text, mode }) => (mode === 'code' ? { tsChunks: buildTypeScriptChunks(text) } : {}),
+    buildRelations: ({ text, allImports, context }) => buildTypeScriptRelations(text, allImports, context.tsChunks),
+    extractDocMeta: ({ chunk }) => extractTypeScriptDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computeTypeScriptFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'python',
+    match: (ext) => ext === '.py',
+    collectImports: (text) => collectPythonImports(text).imports,
+    prepare: ({ text, mode, options }) => (mode === 'code'
+      ? { pythonAst: getPythonAst(text, options.log, { dataflow: options.astDataflowEnabled }) }
+      : {}),
+    buildRelations: ({ text, allImports, context }) => buildPythonRelations(text, allImports, context.pythonAst),
+    extractDocMeta: ({ chunk }) => extractPythonDocMeta(chunk),
+    flow: ({ text, chunk, options }) => buildControlFlowOnly(text, chunk, options, PY_CONTROL_FLOW),
+    attachName: true
+  },
+  {
+    id: 'swift',
+    match: (ext) => ext === '.swift',
+    collectImports: (text) => collectSwiftImports(text).imports,
+    prepare: ({ text, mode }) => (mode === 'code' ? { swiftChunks: buildSwiftChunks(text) } : {}),
+    buildRelations: ({ text, allImports }) => buildSwiftRelations(text, allImports),
+    extractDocMeta: ({ chunk }) => extractSwiftDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computeSwiftFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'clike',
+    match: (ext) => isCLike(ext),
+    collectImports: (text) => collectCLikeImports(text),
+    prepare: ({ text, mode, ext }) => (mode === 'code' ? { clikeChunks: buildCLikeChunks(text, ext) } : {}),
+    buildRelations: ({ text, allImports, context }) => buildCLikeRelations(text, allImports, context.clikeChunks),
+    extractDocMeta: ({ chunk }) => extractCLikeDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computeCLikeFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'rust',
+    match: (ext) => ext === '.rs',
+    collectImports: (text) => collectRustImports(text),
+    prepare: ({ text, mode }) => (mode === 'code' ? { rustChunks: buildRustChunks(text) } : {}),
+    buildRelations: ({ text, allImports }) => buildRustRelations(text, allImports),
+    extractDocMeta: ({ chunk }) => extractRustDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computeRustFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'go',
+    match: (ext) => isGo(ext),
+    collectImports: (text) => collectGoImports(text),
+    prepare: ({ text, mode }) => (mode === 'code' ? { goChunks: buildGoChunks(text) } : {}),
+    buildRelations: ({ text, allImports, context }) => buildGoRelations(text, allImports, context.goChunks),
+    extractDocMeta: ({ chunk }) => extractGoDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computeGoFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'java',
+    match: (ext) => isJava(ext),
+    collectImports: (text) => collectJavaImports(text),
+    prepare: ({ text, mode }) => (mode === 'code' ? { javaChunks: buildJavaChunks(text) } : {}),
+    buildRelations: ({ text, allImports, context }) => buildJavaRelations(text, allImports, context.javaChunks),
+    extractDocMeta: ({ chunk }) => extractJavaDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computeJavaFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'csharp',
+    match: (ext) => isCSharp(ext),
+    collectImports: (text) => collectCSharpImports(text),
+    prepare: ({ text, mode }) => (mode === 'code' ? { csharpChunks: buildCSharpChunks(text) } : {}),
+    buildRelations: ({ text, allImports, context }) => buildCSharpRelations(text, allImports, context.csharpChunks),
+    extractDocMeta: ({ chunk }) => extractCSharpDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computeCSharpFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'kotlin',
+    match: (ext) => isKotlin(ext),
+    collectImports: (text) => collectKotlinImports(text),
+    prepare: ({ text, mode }) => (mode === 'code' ? { kotlinChunks: buildKotlinChunks(text) } : {}),
+    buildRelations: ({ text, allImports, context }) => buildKotlinRelations(text, allImports, context.kotlinChunks),
+    extractDocMeta: ({ chunk }) => extractKotlinDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computeKotlinFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'ruby',
+    match: (ext) => isRuby(ext),
+    collectImports: (text) => collectRubyImports(text),
+    prepare: ({ text, mode }) => (mode === 'code' ? { rubyChunks: buildRubyChunks(text) } : {}),
+    buildRelations: ({ text, allImports, context }) => buildRubyRelations(text, allImports, context.rubyChunks),
+    extractDocMeta: ({ chunk }) => extractRubyDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computeRubyFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'php',
+    match: (ext) => isPhp(ext),
+    collectImports: (text) => collectPhpImports(text),
+    prepare: ({ text, mode }) => (mode === 'code' ? { phpChunks: buildPhpChunks(text) } : {}),
+    buildRelations: ({ text, allImports, context }) => buildPhpRelations(text, allImports, context.phpChunks),
+    extractDocMeta: ({ chunk }) => extractPhpDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computePhpFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'lua',
+    match: (ext) => isLua(ext),
+    collectImports: (text) => collectLuaImports(text),
+    prepare: ({ text, mode }) => (mode === 'code' ? { luaChunks: buildLuaChunks(text) } : {}),
+    buildRelations: ({ text, allImports, context }) => buildLuaRelations(text, allImports, context.luaChunks),
+    extractDocMeta: ({ chunk }) => extractLuaDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computeLuaFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'sql',
+    match: (ext) => isSql(ext),
+    collectImports: (text) => collectSqlImports(text),
+    prepare: ({ text, mode, ext, options }) => (mode === 'code'
+      ? { sqlChunks: buildSqlChunks(text, { dialect: options.resolveSqlDialect(ext) }) }
+      : {}),
+    buildRelations: ({ text, allImports, context }) => buildSqlRelations(text, allImports, context.sqlChunks),
+    extractDocMeta: ({ chunk }) => extractSqlDocMeta(chunk),
+    attachName: true
+  },
+  {
+    id: 'perl',
+    match: (ext) => isPerl(ext),
+    collectImports: (text) => collectPerlImports(text),
+    prepare: ({ text, mode }) => (mode === 'code' ? { perlChunks: buildPerlChunks(text) } : {}),
+    buildRelations: ({ text, allImports, context }) => buildPerlRelations(text, allImports, context.perlChunks),
+    extractDocMeta: ({ chunk }) => extractPerlDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computePerlFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'shell',
+    match: (ext) => isShell(ext),
+    collectImports: (text) => collectShellImports(text),
+    prepare: ({ text, mode }) => (mode === 'code' ? { shellChunks: buildShellChunks(text) } : {}),
+    buildRelations: ({ text, allImports, context }) => buildShellRelations(text, allImports, context.shellChunks),
+    extractDocMeta: ({ chunk }) => extractShellDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computeShellFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  }
+];
+
+export function getLanguageForFile(ext, relPath) {
+  const normalized = relPath || '';
+  return LANGUAGE_REGISTRY.find((lang) => lang.match(ext, normalized)) || null;
+}
+
+export function collectLanguageImports({ ext, relPath, text, mode, options }) {
+  const lang = getLanguageForFile(ext, relPath);
+  if (!lang || typeof lang.collectImports !== 'function') return [];
+  const imports = lang.collectImports(text, { ext, relPath, mode, options });
+  return Array.isArray(imports) ? imports : [];
+}
+
+export function buildLanguageContext({ ext, relPath, mode, text, options }) {
+  const lang = getLanguageForFile(ext, relPath);
+  const context = lang && typeof lang.prepare === 'function'
+    ? lang.prepare({ ext, relPath, mode, text, options })
+    : {};
+  return { lang, context };
+}
+
+export function buildChunkRelations({ lang, chunk, fileRelations }) {
+  if (!fileRelations) return {};
+  const output = { ...fileRelations };
+  if (chunk?.name && Array.isArray(fileRelations.calls)) {
+    const callsForChunk = fileRelations.calls.filter(([caller]) => caller && caller === chunk.name);
+    if (callsForChunk.length) output.calls = callsForChunk;
+  }
+  if (lang?.attachName && chunk?.name) output.name = chunk.name;
+  return output;
+}

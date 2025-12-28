@@ -1,11 +1,23 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { sliceSignature } from './shared.js';
 import { findCLikeBodyBounds } from './clike.js';
+import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 
 /**
  * Rust language chunking and relations.
  * Heuristic parser for structs/enums/traits/mods/impls/fns/macros.
  */
+
+const RUST_USAGE_SKIP = new Set([
+  'fn', 'let', 'mut', 'struct', 'enum', 'trait', 'impl', 'use', 'mod', 'pub',
+  'crate', 'super', 'self', 'Self', 'match', 'if', 'else', 'for', 'while',
+  'loop', 'in', 'return', 'break', 'continue', 'where', 'async', 'await', 'move',
+  'ref', 'const', 'static', 'unsafe', 'extern', 'dyn', 'type', 'macro_rules',
+  'macro', 'as', 'box', 'yield', 'true', 'false', 'None', 'Some',
+  'i8', 'i16', 'i32', 'i64', 'i128', 'isize',
+  'u8', 'u16', 'u32', 'u64', 'u128', 'usize',
+  'f32', 'f64', 'bool', 'str', 'String'
+]);
 
 function extractRustDocComment(lines, startLineIdx) {
   let i = startLineIdx - 1;
@@ -83,6 +95,12 @@ function extractRustModifiers(signature) {
   if (/\bunsafe\b/.test(signature)) mods.push('unsafe');
   if (/\bconst\b/.test(signature)) mods.push('const');
   return mods;
+}
+
+function stripRustComments(text) {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/.*$/gm, ' ');
 }
 
 function extractRustParams(signature) {
@@ -404,6 +422,68 @@ export function extractRustDocMeta(chunk) {
     signature: meta.signature || null,
     decorators: attributes,
     modifiers,
-    implFor: meta.implFor || null
+    implFor: meta.implFor || null,
+    dataflow: meta.dataflow || null,
+    throws: meta.throws || [],
+    awaits: meta.awaits || [],
+    yields: meta.yields || false,
+    returnsValue: meta.returnsValue || false,
+    controlFlow: meta.controlFlow || null
   };
+}
+
+/**
+ * Heuristic control-flow/dataflow extraction for Rust chunks.
+ * @param {string} text
+ * @param {{start:number,end:number}} chunk
+ * @param {{dataflow?:boolean,controlFlow?:boolean}} [options]
+ * @returns {{dataflow:(object|null),controlFlow:(object|null),throws:string[],awaits:string[],yields:boolean,returnsValue:boolean}|null}
+ */
+export function computeRustFlow(text, chunk, options = {}) {
+  if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) return null;
+  const bounds = findCLikeBodyBounds(text, chunk.start);
+  const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
+  const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
+  if (scanEnd <= scanStart) return null;
+  const slice = text.slice(scanStart, scanEnd);
+  const cleaned = stripRustComments(slice);
+  const dataflowEnabled = options.dataflow !== false;
+  const controlFlowEnabled = options.controlFlow !== false;
+  const out = {
+    dataflow: null,
+    controlFlow: null,
+    throws: [],
+    awaits: [],
+    yields: false,
+    returnsValue: false
+  };
+
+  if (dataflowEnabled) {
+    out.dataflow = buildHeuristicDataflow(cleaned, {
+      skip: RUST_USAGE_SKIP,
+      memberOperators: ['.', '::']
+    });
+    out.returnsValue = hasReturnValue(cleaned);
+    const throws = new Set();
+    for (const match of cleaned.matchAll(/\bpanic!\s*\(|\bpanic\s*\(/g)) {
+      if (match) throws.add('panic');
+    }
+    out.throws = Array.from(throws);
+    const awaits = new Set();
+    for (const match of cleaned.matchAll(/([A-Za-z_][A-Za-z0-9_.]*)\s*\.await\b/g)) {
+      const name = match[1].trim();
+      if (name) awaits.add(name);
+    }
+    out.awaits = Array.from(awaits);
+  }
+
+  if (controlFlowEnabled) {
+    out.controlFlow = summarizeControlFlow(cleaned, {
+      branchKeywords: ['if', 'else', 'match'],
+      loopKeywords: ['for', 'while', 'loop'],
+      returnKeywords: ['return']
+    });
+  }
+
+  return out;
 }

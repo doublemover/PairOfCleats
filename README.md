@@ -67,6 +67,8 @@ I figured it would be helpful if they were able to query the codebase and docume
         - **Lint results** (via ESLint)
         - **Docstrings / Signatures / Param annotations** (via doc comment extraction)
         - **AST dataflow metadata** (reads/writes/mutations/throws/awaits/yields)
+        - **Control-flow metadata** (branches/loops/returns/breaks/continues/awaits/yields)
+        - **Type inference metadata** (params/returns/fields/locals when enabled)
         - **Headline generation** → auto-summarized chunk label
         - **Neighbor context** → pre/post lines for agent context windowing     
 </details>
@@ -101,8 +103,9 @@ Provides a CLI utility for **agent-friendly semantic search** of your repo.
 - `--lint` → chunks with lint issues
 - `--churn N` → high-churn code
 - `--signature STR`, `--param PARAM`
-- `--decorator NAME`, `--return-type TYPE`, `--throws TYPE`, `--extends BASE`
+- `--decorator NAME`, `--inferred-type TYPE`, `--return-type TYPE`, `--throws TYPE`, `--extends BASE`
 - `--reads NAME`, `--writes NAME`, `--mutates NAME`
+- `--branches N`, `--loops N`, `--breaks N`, `--continues N`
 - `--async`, `--generator`, `--returns`
 
 **Rich Output**
@@ -247,7 +250,10 @@ You can also set defaults in `.pairofcleats.json` (enable `use` to make SQLite t
   "indexing": {
     "concurrency": 4,
     "importConcurrency": 4,
-    "astDataflow": true
+    "astDataflow": true,
+    "controlFlow": true,
+    "typeInference": false,
+    "typeInferenceCrossFile": false
   }
 }
 ```

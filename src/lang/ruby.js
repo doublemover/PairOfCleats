@@ -1,4 +1,5 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
+import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 
 /**
  * Ruby language chunking and relations.
@@ -289,6 +290,59 @@ export function extractRubyDocMeta(chunk) {
     doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
     params,
     returns: meta.returns || null,
-    signature: meta.signature || null
+    signature: meta.signature || null,
+    dataflow: meta.dataflow || null,
+    throws: meta.throws || [],
+    awaits: meta.awaits || [],
+    yields: meta.yields || false,
+    returnsValue: meta.returnsValue || false,
+    controlFlow: meta.controlFlow || null
   };
+}
+
+/**
+ * Heuristic control-flow/dataflow extraction for Ruby chunks.
+ * @param {string} text
+ * @param {{start:number,end:number}} chunk
+ * @param {{dataflow?:boolean,controlFlow?:boolean}} [options]
+ * @returns {{dataflow:(object|null),controlFlow:(object|null),throws:string[],awaits:string[],yields:boolean,returnsValue:boolean}|null}
+ */
+export function computeRubyFlow(text, chunk, options = {}) {
+  if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) return null;
+  const slice = text.slice(chunk.start, chunk.end);
+  const cleaned = stripRubyComments(slice);
+  const dataflowEnabled = options.dataflow !== false;
+  const controlFlowEnabled = options.controlFlow !== false;
+  const out = {
+    dataflow: null,
+    controlFlow: null,
+    throws: [],
+    awaits: [],
+    yields: false,
+    returnsValue: false
+  };
+
+  if (dataflowEnabled) {
+    out.dataflow = buildHeuristicDataflow(cleaned, {
+      skip: RUBY_USAGE_SKIP,
+      memberOperators: ['.']
+    });
+    out.returnsValue = hasReturnValue(cleaned);
+    const throws = new Set();
+    for (const match of cleaned.matchAll(/\braise\b\s+([A-Za-z_][A-Za-z0-9_:]*)/g)) {
+      const name = match[1].replace(/[({].*$/, '').trim();
+      if (name) throws.add(name);
+    }
+    out.throws = Array.from(throws);
+    out.yields = /\byield\b/.test(cleaned);
+  }
+
+  if (controlFlowEnabled) {
+    out.controlFlow = summarizeControlFlow(cleaned, {
+      branchKeywords: ['if', 'elsif', 'else', 'unless', 'case', 'when'],
+      loopKeywords: ['for', 'while', 'until']
+    });
+  }
+
+  return out;
 }

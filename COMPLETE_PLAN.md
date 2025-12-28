@@ -230,21 +230,22 @@ Work items:
 - [x] Add per-dialect fixtures and tests.
 - [x] Add config for sql.dialect and dialect-by-extension mapping.
 
-## Phase 20: CFG + Dataflow Everywhere (status: todo)
+## Phase 20: CFG + Dataflow Everywhere (status: partial)
 Goal: Add control-flow graphs and dataflow metadata across supported languages.
 Work items:
-- [ ] Define shared CFG/dataflow schema in docs/ast-feature-list.md.
-- [ ] Implement CFG/dataflow for C/C++/ObjC, Rust, Go, Java, Shell.
-- [ ] Reuse shared engine for JS/Python where applicable.
-- [ ] Add filters and output rendering for CFG/dataflow metadata.
-- [ ] Expand fixtures/tests to validate control-flow and dataflow fields.
+- [x] Define shared CFG/dataflow schema in docs/ast-feature-list.md.
+- [x] Implement CFG/dataflow for C/C++/ObjC, Rust, Go, Java, Shell.
+- [x] Reuse shared engine for JS/Python where applicable.
+- [x] Add filters and output rendering for CFG/dataflow metadata.
+- [x] Expand fixtures/tests to validate control-flow and dataflow fields.
+- [ ] Evaluate dynamic language handler imports (pros/cons, perf, DX).
 
-## Phase 21: Type Inference (Intra-file) (status: todo)
+## Phase 21: Type Inference (Intra-file) (status: done)
 Goal: Add local type inference for each supported language.
 Work items:
-- [ ] Implement intra-file inference for literals, annotations, and symbol tables.
-- [ ] Merge inferred types into docmeta and render/filter paths.
-- [ ] Validate with fixtures and language-fidelity tests.
+- [x] Implement intra-file inference for literals, annotations, and symbol tables.
+- [x] Merge inferred types into docmeta and render/filter paths.
+- [x] Validate with fixtures and language-fidelity tests.
 
 ## Phase 22: Type Inference (Cross-file) (status: todo)
 Goal: Resolve types across files after intra-file stability is confirmed.

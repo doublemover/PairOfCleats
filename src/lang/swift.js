@@ -1,5 +1,6 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { collectAttributes, extractDocComment, isCommentLine, sliceSignature } from './shared.js';
+import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 
 /**
  * Swift language chunking and relations.
@@ -170,6 +171,12 @@ function findSwiftBodyBounds(text, start) {
     }
   }
   return { bodyStart, bodyEnd: -1 };
+}
+
+function stripSwiftComments(text) {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/.*$/gm, ' ');
 }
 
 /**
@@ -361,6 +368,69 @@ export function extractSwiftDocMeta(chunk) {
     conforms,
     generics,
     whereClause: meta.whereClause || null,
-    extendedType: meta.extendedType || null
+    extendedType: meta.extendedType || null,
+    dataflow: meta.dataflow || null,
+    throws: meta.throws || [],
+    awaits: meta.awaits || [],
+    yields: meta.yields || false,
+    returnsValue: meta.returnsValue || false,
+    controlFlow: meta.controlFlow || null
   };
+}
+
+/**
+ * Heuristic control-flow/dataflow extraction for Swift chunks.
+ * @param {string} text
+ * @param {{start:number,end:number}} chunk
+ * @param {{dataflow?:boolean,controlFlow?:boolean}} [options]
+ * @returns {{dataflow:(object|null),controlFlow:(object|null),throws:string[],awaits:string[],yields:boolean,returnsValue:boolean}|null}
+ */
+export function computeSwiftFlow(text, chunk, options = {}) {
+  if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) return null;
+  const bounds = findSwiftBodyBounds(text, chunk.start);
+  const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
+  const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
+  if (scanEnd <= scanStart) return null;
+  const slice = text.slice(scanStart, scanEnd);
+  const cleaned = stripSwiftComments(slice);
+  const dataflowEnabled = options.dataflow !== false;
+  const controlFlowEnabled = options.controlFlow !== false;
+  const out = {
+    dataflow: null,
+    controlFlow: null,
+    throws: [],
+    awaits: [],
+    yields: false,
+    returnsValue: false
+  };
+
+  if (dataflowEnabled) {
+    const swiftSkip = new Set(['self', 'Self', 'nil', 'true', 'false']);
+    out.dataflow = buildHeuristicDataflow(cleaned, {
+      skip: swiftSkip,
+      memberOperators: ['.']
+    });
+    out.returnsValue = hasReturnValue(cleaned);
+    const throws = new Set();
+    for (const match of cleaned.matchAll(/\bthrow\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g)) {
+      const name = match[1].replace(/[({].*$/, '').trim();
+      if (name) throws.add(name);
+    }
+    out.throws = Array.from(throws);
+    const awaits = new Set();
+    for (const match of cleaned.matchAll(/\bawait\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g)) {
+      const name = match[1].replace(/[({].*$/, '').trim();
+      if (name) awaits.add(name);
+    }
+    out.awaits = Array.from(awaits);
+  }
+
+  if (controlFlowEnabled) {
+    out.controlFlow = summarizeControlFlow(cleaned, {
+      branchKeywords: ['if', 'else', 'switch', 'case', 'guard', 'catch'],
+      loopKeywords: ['for', 'while', 'repeat']
+    });
+  }
+
+  return out;
 }

@@ -36,6 +36,8 @@ This document describes the planned unified parsing backbone, native parser usag
 - Inferred types for locals, params, returns, and fields.
 - Source tags for each inferred type (annotation, literal, flow, tooling).
 - Confidence score for inferred types.
+- Intra-file inference is available when `indexing.typeInference` is enabled (annotations/defaults/literals).
+- Cross-file inference remains planned behind `indexing.typeInferenceCrossFile`.
 
 ## Tooling detection and install policy
 - Auto-enable tooling when detected.

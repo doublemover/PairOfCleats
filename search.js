@@ -30,12 +30,17 @@ const argv = minimist(process.argv.slice(2), {
     'signature',
     'param',
     'decorator',
+    'inferred-type',
     'return-type',
     'throws',
     'reads',
     'writes',
     'mutates',
     'awaits',
+    'branches',
+    'loops',
+    'breaks',
+    'continues',
     'visibility',
     'extends',
     'mode',
@@ -82,7 +87,7 @@ const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
 const rawArgs = process.argv.slice(2);
 const query = argv._.join(' ').trim();
 if (!query) {
-  console.error('usage: search "query" [--json|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode|--signature|--param|--decorator|--return-type|--throws|--reads|--writes|--mutates|--awaits|--extends|--visibility|--async|--generator|--returns');
+  console.error('usage: search "query" [--json|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode|--signature|--param|--decorator|--inferred-type|--return-type|--throws|--reads|--writes|--mutates|--awaits|--branches|--loops|--breaks|--continues|--extends|--visibility|--async|--generator|--returns');
   process.exit(1);
 }
 const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
@@ -91,6 +96,10 @@ const searchAuthor = argv.author || null;
 const searchCall = argv.calls || null;
 const searchImport = argv.import || null;
 const searchMode = argv.mode || 'both';
+const branchesMin = Number.isFinite(Number(argv.branches)) ? Number(argv.branches) : null;
+const loopsMin = Number.isFinite(Number(argv.loops)) ? Number(argv.loops) : null;
+const breaksMin = Number.isFinite(Number(argv.breaks)) ? Number(argv.breaks) : null;
+const continuesMin = Number.isFinite(Number(argv.continues)) ? Number(argv.continues) : null;
 const sqlitePaths = resolveSqlitePaths(ROOT, userConfig);
 const sqliteCodePath = sqlitePaths.codePath;
 const sqliteProsePath = sqlitePaths.prosePath;
@@ -380,6 +389,7 @@ function buildQueryCacheKey() {
       lint: argv.lint || false,
       churn: argv.churn || null,
       decorator: argv.decorator || null,
+      inferredType: argv['inferred-type'] || null,
       returnType: argv['return-type'] || null,
       throws: argv.throws || null,
       reads: argv.reads || null,
@@ -842,12 +852,17 @@ function runSearch(idx, mode, queryEmbedding) {
     signature: argv.signature,
     param: argv.param,
     decorator: argv.decorator,
+    inferredType: argv['inferred-type'],
     returnType: argv['return-type'],
     throws: argv.throws,
     reads: argv.reads,
     writes: argv.writes,
     mutates: argv.mutates,
     awaits: argv.awaits,
+    branches: branchesMin,
+    loops: loopsMin,
+    breaks: breaksMin,
+    continues: continuesMin,
     visibility: argv.visibility,
     extends: argv.extends,
     async: argv.async,

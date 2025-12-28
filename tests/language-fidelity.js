@@ -7,6 +7,7 @@ import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'languages');
+const searchPath = path.join(root, 'search.js');
 const cacheRoot = path.join(root, 'tests', '.cache', 'language-fidelity');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
@@ -30,6 +31,20 @@ function run(args, label) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);
   }
+}
+
+function runSearch(args, label) {
+  const result = spawnSync(process.execPath, args, {
+    cwd: fixtureRoot,
+    env,
+    encoding: 'utf8'
+  });
+  if (result.status !== 0) {
+    console.error(`Failed: ${label}`);
+    if (result.stderr) console.error(result.stderr.trim());
+    process.exit(result.status ?? 1);
+  }
+  return result.stdout || '';
 }
 
 run([path.join(root, 'build_index.js'), '--stub-embeddings'], 'build index');
@@ -66,6 +81,45 @@ function findChunk(match) {
 
 const failures = [];
 
+const branchSearch = runSearch(
+  [searchPath, 'load', '--json', '--mode', 'code', '--branches', '1', '--no-ann'],
+  'search (branches filter)'
+);
+let branchPayload = null;
+try {
+  branchPayload = JSON.parse(branchSearch);
+} catch {
+  failures.push('Search filter test failed: invalid JSON output.');
+}
+if (branchPayload) {
+  const branchHits = branchPayload.code || [];
+  if (!branchHits.length) {
+    failures.push('Search filter test failed: no results for branches >= 1.');
+  } else {
+    const hasBranch = branchHits.some((hit) => (hit.docmeta?.controlFlow?.branches || 0) >= 1);
+    if (!hasBranch) {
+      failures.push('Search filter test failed: hits missing controlFlow.branches.');
+    }
+  }
+}
+
+const inferredSearch = runSearch(
+  [searchPath, 'makeWidget', '--json', '--mode', 'code', '--inferred-type', 'object', '--no-ann'],
+  'search (inferred type filter)'
+);
+let inferredPayload = null;
+try {
+  inferredPayload = JSON.parse(inferredSearch);
+} catch {
+  failures.push('Search inferred-type test failed: invalid JSON output.');
+}
+if (inferredPayload) {
+  const inferredHits = inferredPayload.code || [];
+  if (!inferredHits.length) {
+    failures.push('Search inferred-type test failed: no results for object.');
+  }
+}
+
 if (pythonAvailable) {
   const pointChunk = findChunk({ file: 'src/python_advanced.py', kind: 'ClassDeclaration', nameIncludes: 'Point' });
   if (!pointChunk) {
@@ -100,6 +154,14 @@ if (pythonAvailable) {
     }
     if (!updateState.docmeta?.returnsValue) {
       failures.push('Python returnsValue missing for update_state.');
+    }
+    const controlFlow = updateState.docmeta?.controlFlow;
+    if (!controlFlow || !(controlFlow.branches >= 1)) {
+      failures.push('Python controlFlow missing branches for update_state.');
+    }
+    const inferredState = updateState.docmeta?.inferredTypes?.params?.state || [];
+    if (!inferredState.some((entry) => entry.type === 'dict')) {
+      failures.push('Python inferredTypes missing state: dict.');
     }
   }
 
@@ -147,6 +209,10 @@ if (!jsMakeWidget) {
   if (!Object.prototype.hasOwnProperty.call(paramDefaults, 'opts')) {
     failures.push('JS docmeta missing default param for makeWidget (opts).');
   }
+  const inferredOpts = jsMakeWidget.docmeta?.inferredTypes?.params?.opts || [];
+  if (!inferredOpts.some((entry) => entry.type === 'object')) {
+    failures.push('JS inferredTypes missing opts: object.');
+  }
 }
 
 const jsLoad = findChunk({ file: 'src/javascript_advanced.js', nameIncludes: 'Widget.load' });
@@ -163,6 +229,13 @@ if (!jsLoad) {
   const throws = jsLoad.docmeta?.throws || [];
   if (!throws.some((name) => name === 'Error')) {
     failures.push('JS throws metadata missing Error for Widget.load.');
+  }
+  const controlFlow = jsLoad.docmeta?.controlFlow;
+  if (!controlFlow || !(controlFlow.branches >= 1)) {
+    failures.push('JS controlFlow missing branches for Widget.load.');
+  }
+  if (!controlFlow || !(controlFlow.awaits >= 1)) {
+    failures.push('JS controlFlow missing awaits for Widget.load.');
   }
 }
 
@@ -239,6 +312,10 @@ if (!cppCaller) {
   if (!calls.some(([, callee]) => callee === 'addValues')) {
     failures.push('C++ call graph missing addValues call.');
   }
+  const controlFlow = cppCaller.docmeta?.controlFlow;
+  if (!controlFlow || !(controlFlow.returns >= 1)) {
+    failures.push('C++ controlFlow missing returns for useAdd.');
+  }
 }
 
 const goMethod = findChunk({ file: 'src/go_advanced.go', kind: 'MethodDeclaration', nameIncludes: 'Widget.Render' });
@@ -254,6 +331,10 @@ if (!goFunc) {
   if (!calls.some(([, callee]) => callee === 'strings.TrimSpace' || callee === 'TrimSpace')) {
     failures.push('Go call graph missing strings.TrimSpace call.');
   }
+  const controlFlow = goFunc.docmeta?.controlFlow;
+  if (!controlFlow || !(controlFlow.returns >= 1)) {
+    failures.push('Go controlFlow missing returns for MakeWidget.');
+  }
 }
 
 const javaMethod = findChunk({ file: 'src/java_advanced.java', kind: 'MethodDeclaration', nameIncludes: 'Box.add' });
@@ -263,6 +344,16 @@ if (!javaMethod) {
   const imports = javaMethod.codeRelations?.imports || [];
   if (!imports.some((imp) => imp === 'java.util.List')) {
     failures.push('Java import capture missing java.util.List.');
+  }
+}
+
+const javaSize = findChunk({ file: 'src/java_advanced.java', kind: 'MethodDeclaration', nameIncludes: 'Box.size' });
+if (!javaSize) {
+  failures.push('Missing Java method chunk (Box.size).');
+} else {
+  const controlFlow = javaSize.docmeta?.controlFlow;
+  if (!controlFlow || !(controlFlow.returns >= 1)) {
+    failures.push('Java controlFlow missing returns for Box.size.');
   }
 }
 
@@ -284,6 +375,9 @@ if (!shellFunc) {
   if (!calls.some(([, callee]) => callee === 'grep')) {
     failures.push('Shell call graph missing grep call.');
   }
+  if (!shellFunc.docmeta?.controlFlow) {
+    failures.push('Shell controlFlow metadata missing for build_index.');
+  }
 }
 
 const tsClass = chunkMeta.find((chunk) =>
@@ -297,6 +391,16 @@ if (!tsClass) {
   const extendsList = tsClass.docmeta?.extends || [];
   if (!extendsList.some((name) => name.includes('BaseWidget'))) {
     failures.push('TypeScript extends metadata missing BaseWidget.');
+  }
+}
+
+const tsFunc = findChunk({ file: 'src/typescript_advanced.ts', kind: 'FunctionDeclaration', nameIncludes: 'makeWidget' });
+if (!tsFunc) {
+  failures.push('Missing TypeScript function chunk (makeWidget).');
+} else {
+  const controlFlow = tsFunc.docmeta?.controlFlow;
+  if (!controlFlow || !(controlFlow.returns >= 1)) {
+    failures.push('TypeScript controlFlow missing returns for makeWidget.');
   }
 }
 

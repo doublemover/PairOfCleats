@@ -9,6 +9,8 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - doc comments are captured when present.
 - signatures and params are extracted where supported.
 - imports/exports/usages/calls are populated when supported.
+- control-flow metadata is present when enabled (branches/loops/returns/breaks/continues/throws/awaits/yields).
+- type inference metadata is present when enabled (params/returns/fields/locals with sources).
 
 ## Python
 - Functions, classes, and methods are chunked via AST when python is available.
@@ -17,6 +19,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Dataclass/attrs field definitions are surfaced in metadata.
 - Imports and calls are captured from AST.
 - Dataflow metadata includes reads/writes/mutations/throws/awaits/yields when enabled.
+- Control-flow metadata includes branch/loop/return counts when enabled.
 - Base classes, visibility, and param type/default metadata are present when available.
 
 ## JavaScript
@@ -25,6 +28,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Modifiers include async/generator/static and visibility where detectable.
 - Class inheritance (`extends`) is captured for class declarations.
 - Dataflow metadata includes reads/writes/mutations/throws/awaits/yields when enabled.
+- Control-flow metadata includes branch/loop/return counts when enabled.
 
 ## Swift
 - class/struct/enum/protocol/extension/actor declarations are chunked.
