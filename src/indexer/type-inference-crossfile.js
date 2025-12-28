@@ -58,6 +58,13 @@ const extractReturnTypes = (chunk) => {
   const docmeta = chunk?.docmeta || {};
   const types = [];
   if (docmeta.returnType) types.push(docmeta.returnType);
+  if (Array.isArray(docmeta.returns)) {
+    for (const value of docmeta.returns) {
+      if (value) types.push(value);
+    }
+  } else if (docmeta.returns) {
+    types.push(docmeta.returns);
+  }
   if (Array.isArray(docmeta.inferredTypes?.returns)) {
     for (const entry of docmeta.inferredTypes.returns) {
       if (entry?.type) types.push(entry.type);

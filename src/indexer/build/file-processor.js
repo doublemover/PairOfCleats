@@ -57,8 +57,11 @@ export function createFileProcessor(options) {
       if (flowMeta.throws && output.throws === undefined) output.throws = flowMeta.throws;
       if (flowMeta.awaits && output.awaits === undefined) output.awaits = flowMeta.awaits;
       if (typeof flowMeta.yields === 'boolean' && output.yields === undefined) output.yields = flowMeta.yields;
-      if (typeof flowMeta.returnsValue === 'boolean' && output.returnsValue === undefined) {
-        output.returnsValue = flowMeta.returnsValue;
+      if (typeof flowMeta.returnsValue === 'boolean') {
+        const shouldOverride = output.returnsValue === undefined || (output.returnsValue === false && flowMeta.returnsValue);
+        if (shouldOverride) {
+          output.returnsValue = flowMeta.returnsValue;
+        }
       }
     }
     return output;

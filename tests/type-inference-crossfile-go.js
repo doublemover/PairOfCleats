@@ -1,0 +1,174 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
+
+const root = process.cwd();
+const tempRoot = path.join(root, 'tests', '.cache', 'type-inference-crossfile-go');
+const repoRoot = path.join(tempRoot, 'repo');
+
+await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+
+const config = {
+  indexing: {
+    typeInference: true,
+    typeInferenceCrossFile: true
+  },
+  sqlite: { use: false }
+};
+await fsPromises.writeFile(
+  path.join(repoRoot, '.pairofcleats.json'),
+  JSON.stringify(config, null, 2)
+);
+
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'widget.go'),
+  `package sample
+
+type GoWidget struct {
+  ID int
+}
+
+func MakeGoWidget() GoWidget {
+  return GoWidget{ID: 1}
+}
+`
+);
+
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'builder.go'),
+  `package sample
+
+func BuildGoWidget() GoWidget {
+  return MakeGoWidget()
+}
+`
+);
+
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'lib.rs'),
+  `pub struct RustWidget {
+    pub id: i32,
+}
+
+pub fn make_rust_widget() -> RustWidget {
+    return RustWidget { id: 1 };
+}
+
+pub fn build_rust_widget() -> RustWidget {
+    return make_rust_widget();
+}
+`
+);
+
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'JavaWidget.java'),
+  `package sample;
+
+public class JavaWidget {
+  public final int id = 1;
+}
+`
+);
+
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'JavaWidgetFactory.java'),
+  `package sample;
+
+public class JavaWidgetFactory {
+  public static JavaWidget makeWidget() {
+    return new JavaWidget();
+  }
+}
+`
+);
+
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'JavaWidgetBuilder.java'),
+  `package sample;
+
+public class JavaWidgetBuilder {
+  public static JavaWidget buildWidget() {
+    return JavaWidgetFactory.makeWidget();
+  }
+}
+`
+);
+
+const env = {
+  ...process.env,
+  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
+  PAIROFCLEATS_EMBEDDINGS: 'stub'
+};
+process.env.PAIROFCLEATS_CACHE_ROOT = env.PAIROFCLEATS_CACHE_ROOT;
+process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
+
+const result = spawnSync(process.execPath, [path.join(root, 'build_index.js'), '--stub-embeddings'], {
+  cwd: repoRoot,
+  env,
+  stdio: 'inherit'
+});
+if (result.status !== 0) {
+  console.error('Cross-file inference test failed: build_index failed.');
+  process.exit(result.status ?? 1);
+}
+
+const userConfig = loadUserConfig(repoRoot);
+const codeDir = getIndexDir(repoRoot, 'code', userConfig);
+const chunkMetaPath = path.join(codeDir, 'chunk_meta.json');
+if (!fs.existsSync(chunkMetaPath)) {
+  console.error(`Missing chunk meta at ${chunkMetaPath}`);
+  process.exit(1);
+}
+
+const chunkMeta = JSON.parse(fs.readFileSync(chunkMetaPath, 'utf8'));
+
+const buildGo = chunkMeta.find((chunk) =>
+  chunk.file === 'src/builder.go' &&
+  chunk.name === 'BuildGoWidget'
+);
+if (!buildGo) {
+  console.error('Missing BuildGoWidget chunk in builder.go.');
+  process.exit(1);
+}
+
+const inferredGo = buildGo.docmeta?.inferredTypes?.returns || [];
+if (!inferredGo.some((entry) => entry.type === 'GoWidget' && entry.source === 'flow')) {
+  console.error('Go cross-file inference missing return type GoWidget for BuildGoWidget.');
+  process.exit(1);
+}
+
+const buildRust = chunkMeta.find((chunk) =>
+  chunk.file === 'src/lib.rs' &&
+  chunk.name === 'build_rust_widget'
+);
+if (!buildRust) {
+  console.error('Missing build_rust_widget chunk in lib.rs.');
+  process.exit(1);
+}
+
+const inferredRust = buildRust.docmeta?.inferredTypes?.returns || [];
+if (!inferredRust.some((entry) => entry.type === 'RustWidget' && entry.source === 'flow')) {
+  console.error('Rust cross-file inference missing return type RustWidget for build_rust_widget.');
+  process.exit(1);
+}
+
+const buildJava = chunkMeta.find((chunk) =>
+  chunk.file === 'src/JavaWidgetBuilder.java' &&
+  chunk.name === 'JavaWidgetBuilder.buildWidget'
+);
+if (!buildJava) {
+  console.error('Missing JavaWidgetBuilder.buildWidget chunk in JavaWidgetBuilder.java.');
+  process.exit(1);
+}
+
+const inferredJava = buildJava.docmeta?.inferredTypes?.returns || [];
+if (!inferredJava.some((entry) => entry.type === 'JavaWidget' && entry.source === 'flow')) {
+  console.error('Java cross-file inference missing return type JavaWidget for buildWidget.');
+  process.exit(1);
+}
+
+console.log('Cross-file inference tests passed (Go/Rust/Java).');
