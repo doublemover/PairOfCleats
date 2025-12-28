@@ -29,3 +29,16 @@ def outer(flag: bool) -> int:
         return value + 1
 
     return inner(4) if flag else 0
+
+
+def update_state(state: dict, value: int) -> int:
+    """Exercise dataflow metadata."""
+    state["count"] = state.get("count", 0) + value
+    if value < 0:
+        raise ValueError("negative")
+    return state["count"]
+
+
+async def fetch_data(client) -> object:
+    result = await client.fetch()
+    return result

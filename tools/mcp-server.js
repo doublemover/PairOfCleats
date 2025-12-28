@@ -4,6 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import simpleGit from 'simple-git';
+import { getToolDefs } from '../src/mcp/defs.js';
+import { sendError, sendResult } from '../src/mcp/protocol.js';
 import {
   DEFAULT_MODEL_ID,
   getCacheRoot,
@@ -22,88 +24,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
-const TOOL_DEFS = [
-  {
-    name: 'index_status',
-    description: 'Return cache and index status for a repo path.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' }
-      }
-    }
-  },
-  {
-    name: 'build_index',
-    description: 'Build or update indexes for a repo (optionally SQLite + incremental).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-        mode: { type: 'string', enum: ['all', 'code', 'prose'] },
-        sqlite: { type: 'boolean', description: 'Build SQLite indexes after JSON indexes.' },
-        incremental: { type: 'boolean', description: 'Reuse per-file incremental cache.' },
-        stubEmbeddings: { type: 'boolean', description: 'Skip model downloads and use stub embeddings.' },
-        useArtifacts: { type: 'boolean', description: 'Restore CI artifacts before building.' },
-        artifactsDir: { type: 'string', description: 'Path to CI artifacts directory.' }
-      }
-    }
-  },
-  {
-    name: 'search',
-    description: 'Run a search query against the repo index.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-        query: { type: 'string' },
-        mode: { type: 'string', enum: ['both', 'code', 'prose'] },
-        backend: { type: 'string', enum: ['memory', 'sqlite', 'sqlite-fts'] },
-        ann: { type: 'boolean', description: 'Enable ANN re-ranking (default uses config).' },
-        top: { type: 'number', description: 'Top N results.' },
-        context: { type: 'number', description: 'Context lines.' }
-      },
-      required: ['query']
-    }
-  },
-  {
-    name: 'download_models',
-    description: 'Download embedding models into the shared cache.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-        model: { type: 'string', description: `Model id (default ${DEFAULT_MODEL_ID}).` },
-        cacheDir: { type: 'string', description: 'Override cache directory.' }
-      }
-    }
-  },
-  {
-    name: 'report_artifacts',
-    description: 'Report current artifact sizes for the repo and cache root.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' }
-      }
-    }
-  }
-];
+const TOOL_DEFS = getToolDefs(DEFAULT_MODEL_ID);
 
-function sendMessage(payload) {
-  const json = JSON.stringify(payload);
-  const header = `Content-Length: ${Buffer.byteLength(json, 'utf8')}\r\n\r\n`;
-  process.stdout.write(header + json);
-}
 
-function sendResult(id, result) {
-  sendMessage({ jsonrpc: '2.0', id, result });
-}
-
-function sendError(id, code, message) {
-  sendMessage({ jsonrpc: '2.0', id, error: { code, message } });
-}
-
+/**
+ * Resolve and validate a repo path.
+ * @param {string} inputPath
+ * @returns {string}
+ */
 function resolveRepoPath(inputPath) {
   const base = inputPath ? path.resolve(inputPath) : process.cwd();
   if (!fs.existsSync(base) || !fs.statSync(base).isDirectory()) {
@@ -112,6 +40,12 @@ function resolveRepoPath(inputPath) {
   return base;
 }
 
+/**
+ * Build the artifact path map for a repo.
+ * @param {string} repoPath
+ * @param {object} userConfig
+ * @returns {object}
+ */
 function listArtifacts(repoPath, userConfig) {
   const indexCode = getIndexDir(repoPath, 'code', userConfig);
   const indexProse = getIndexDir(repoPath, 'prose', userConfig);
@@ -145,6 +79,11 @@ function listArtifacts(repoPath, userConfig) {
   };
 }
 
+/**
+ * Stat a path if it exists.
+ * @param {string} target
+ * @returns {{exists:boolean,mtime:(string|null),bytes:number}}
+ */
 function statIfExists(target) {
   try {
     const stat = fs.statSync(target);
@@ -158,6 +97,11 @@ function statIfExists(target) {
   }
 }
 
+/**
+ * Fetch lightweight git status info for a repo.
+ * @param {string} repoPath
+ * @returns {Promise<object>}
+ */
 async function getGitInfo(repoPath) {
   const gitDir = path.join(repoPath, '.git');
   const hasGitDir = fs.existsSync(gitDir);
@@ -185,6 +129,11 @@ async function getGitInfo(repoPath) {
   }
 }
 
+/**
+ * Build an index status report for the MCP tool.
+ * @param {object} [args]
+ * @returns {Promise<object>}
+ */
 async function indexStatus(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const userConfig = loadUserConfig(repoPath);
@@ -253,6 +202,12 @@ async function indexStatus(args = {}) {
   return report;
 }
 
+/**
+ * Run a node command and return stdout.
+ * @param {string} cwd
+ * @param {string[]} args
+ * @returns {string}
+ */
 function runNode(cwd, args) {
   const result = spawnSync(process.execPath, args, { cwd, encoding: 'utf8' });
   if (result.status !== 0) {
@@ -262,6 +217,12 @@ function runNode(cwd, args) {
   return result.stdout || '';
 }
 
+/**
+ * Restore CI artifacts if present.
+ * @param {string} repoPath
+ * @param {string} artifactsDir
+ * @returns {boolean}
+ */
 function maybeRestoreArtifacts(repoPath, artifactsDir) {
   const fromDir = artifactsDir ? path.resolve(artifactsDir) : path.join(repoPath, 'ci-artifacts');
   if (!fs.existsSync(path.join(fromDir, 'manifest.json'))) return false;
@@ -269,6 +230,11 @@ function maybeRestoreArtifacts(repoPath, artifactsDir) {
   return true;
 }
 
+/**
+ * Handle the MCP build_index tool call.
+ * @param {object} [args]
+ * @returns {object}
+ */
 function buildIndex(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const userConfig = loadUserConfig(repoPath);
@@ -307,6 +273,11 @@ function buildIndex(args = {}) {
   };
 }
 
+/**
+ * Handle the MCP search tool call.
+ * @param {object} [args]
+ * @returns {object}
+ */
 function runSearch(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const query = String(args.query || '').trim();
@@ -329,6 +300,11 @@ function runSearch(args = {}) {
   return JSON.parse(stdout || '{}');
 }
 
+/**
+ * Handle the MCP download_models tool call.
+ * @param {object} [args]
+ * @returns {{model:string,output:string}}
+ */
 function downloadModels(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const userConfig = loadUserConfig(repoPath);
@@ -340,12 +316,23 @@ function downloadModels(args = {}) {
   return { model, output: stdout.trim() };
 }
 
+/**
+ * Handle the MCP report_artifacts tool call.
+ * @param {object} [args]
+ * @returns {object}
+ */
 function reportArtifacts(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const stdout = runNode(repoPath, [path.join(ROOT, 'tools', 'report-artifacts.js'), '--json']);
   return JSON.parse(stdout || '{}');
 }
 
+/**
+ * Dispatch an MCP tool call by name.
+ * @param {string} name
+ * @param {object} args
+ * @returns {Promise<any>}
+ */
 async function handleToolCall(name, args) {
   switch (name) {
     case 'index_status':
@@ -363,6 +350,11 @@ async function handleToolCall(name, args) {
   }
 }
 
+/**
+ * Handle a JSON-RPC message from stdin.
+ * @param {object} message
+ * @returns {Promise<void>}
+ */
 async function handleMessage(message) {
   if (!message || message.jsonrpc !== '2.0') return;
   const { id, method, params } = message;
@@ -425,6 +417,9 @@ let buffer = Buffer.alloc(0);
 let processing = false;
 const queue = [];
 
+/**
+ * Process queued messages serially.
+ */
 function processQueue() {
   if (processing) return;
   processing = true;
@@ -441,11 +436,18 @@ function processQueue() {
   });
 }
 
+/**
+ * Enqueue a message for processing.
+ * @param {object} message
+ */
 function enqueueMessage(message) {
   queue.push(message);
   processQueue();
 }
 
+/**
+ * Parse framed JSON-RPC messages from the input buffer.
+ */
 function parseBuffer() {
   while (true) {
     const headerEnd = buffer.indexOf('\r\n\r\n');

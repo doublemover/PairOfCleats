@@ -1,0 +1,409 @@
+import { buildLineIndex, offsetToLine } from '../shared/lines.js';
+import { sliceSignature } from './shared.js';
+import { findCLikeBodyBounds } from './clike.js';
+
+/**
+ * Rust language chunking and relations.
+ * Heuristic parser for structs/enums/traits/mods/impls/fns/macros.
+ */
+
+function extractRustDocComment(lines, startLineIdx) {
+  let i = startLineIdx - 1;
+  while (i >= 0 && lines[i].trim() === '') i--;
+  if (i < 0) return '';
+  const trimmed = lines[i].trim();
+  if (trimmed.startsWith('///') || trimmed.startsWith('//!')) {
+    const out = [];
+    while (i >= 0) {
+      const line = lines[i].trim();
+      if (!line.startsWith('///') && !line.startsWith('//!')) break;
+      out.unshift(line.replace(/^\/\/[!/]\s?/, ''));
+      i--;
+    }
+    return out.join('\n').trim();
+  }
+  if (trimmed.includes('*/')) {
+    const raw = [];
+    while (i >= 0) {
+      raw.unshift(lines[i]);
+      if (lines[i].includes('/**') || lines[i].includes('/*!')) break;
+      i--;
+    }
+    return raw
+      .map((line) =>
+        line
+          .replace(/^\s*\/\*+!?/, '')
+          .replace(/\*\/\s*$/, '')
+          .replace(/^\s*\*\s?/, '')
+          .trim()
+      )
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+  return '';
+}
+
+function collectRustAttributes(lines, startLineIdx, signature) {
+  const attrs = new Set();
+  const addLine = (line) => {
+    for (const match of line.matchAll(/#\s*\[\s*([A-Za-z_][A-Za-z0-9_:]*)/g)) {
+      attrs.add(match[1]);
+    }
+  };
+  if (signature) addLine(signature);
+  let i = startLineIdx - 1;
+  while (i >= 0) {
+    const trimmed = lines[i].trim();
+    if (!trimmed) {
+      if (attrs.size) break;
+      i--;
+      continue;
+    }
+    if (trimmed.startsWith('#[')) {
+      addLine(trimmed);
+      i--;
+      continue;
+    }
+    if (trimmed.startsWith('///') || trimmed.startsWith('//!') || trimmed.startsWith('/*')
+      || trimmed.startsWith('*') || trimmed.startsWith('//')) {
+      i--;
+      continue;
+    }
+    break;
+  }
+  return Array.from(attrs);
+}
+
+function extractRustModifiers(signature) {
+  const mods = [];
+  const pubMatch = signature.match(/\bpub(?:\([^)]+\))?/);
+  if (pubMatch) mods.push(pubMatch[0]);
+  if (/\basync\b/.test(signature)) mods.push('async');
+  if (/\bunsafe\b/.test(signature)) mods.push('unsafe');
+  if (/\bconst\b/.test(signature)) mods.push('const');
+  return mods;
+}
+
+function extractRustParams(signature) {
+  const match = signature.match(/\(([^)]*)\)/);
+  if (!match) return [];
+  const params = [];
+  for (const part of match[1].split(',')) {
+    let seg = part.trim();
+    if (!seg) continue;
+    if (/\bself\b/.test(seg)) {
+      params.push('self');
+      continue;
+    }
+    seg = seg.replace(/^&\s*/, '').replace(/\bmut\s+/, '');
+    const namePart = seg.split(':')[0].trim();
+    if (!namePart) continue;
+    const tokens = namePart.split(/\s+/).filter(Boolean);
+    let name = tokens[tokens.length - 1];
+    if (!name || name === '_') continue;
+    name = name.replace(/[()]/g, '');
+    params.push(name);
+  }
+  return params;
+}
+
+function extractRustReturns(signature) {
+  const arrow = signature.indexOf('->');
+  if (arrow === -1) return null;
+  let ret = signature.slice(arrow + 2);
+  ret = ret.replace(/\{.*$/, '').replace(/\bwhere\b.*/, '').replace(/;.*$/, '').trim();
+  return ret || null;
+}
+
+function normalizeRustTypeName(raw) {
+  if (!raw) return '';
+  let name = raw.trim();
+  name = name.replace(/^[<\s]+/, '');
+  name = name.replace(/<.*$/, '');
+  name = name.replace(/\bwhere\b.*/, '');
+  name = name.replace(/[^A-Za-z0-9_:]/g, '');
+  return name;
+}
+
+function parseRustImplTarget(signature) {
+  let rest = signature.replace(/^\s*pub(?:\([^)]+\))?\s+/, '').trim();
+  rest = rest.replace(/^\s*impl\s+/, '');
+  rest = rest.replace(/\{.*$/, '').trim();
+  const forMatch = rest.match(/\bfor\s+([A-Za-z_][A-Za-z0-9_:<>]*)/);
+  if (forMatch) return normalizeRustTypeName(forMatch[1]);
+  const match = rest.match(/([A-Za-z_][A-Za-z0-9_:<>]*)\s*(?:where\b|$)/);
+  return match ? normalizeRustTypeName(match[1]) : '';
+}
+
+/**
+ * Collect use/extern crate imports from Rust source.
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function collectRustImports(text) {
+  const imports = new Set();
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+    let match = trimmed.match(/^(?:pub\s+)?use\s+([^;]+);/);
+    if (match) {
+      let path = match[1].split(/\s+as\s+/)[0].trim();
+      path = path.replace(/\{.*\}/, '').replace(/::\*$/, '').replace(/::\s*$/, '').trim();
+      if (path) imports.add(path);
+      continue;
+    }
+    match = trimmed.match(/^extern\s+crate\s+([A-Za-z_][A-Za-z0-9_]*)/);
+    if (match) imports.add(match[1]);
+  }
+  return Array.from(imports);
+}
+
+/**
+ * Build chunk metadata for Rust declarations.
+ * Returns null when no declarations are found.
+ * @param {string} text
+ * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
+ */
+export function buildRustChunks(text) {
+  const lineIndex = buildLineIndex(text);
+  const lines = text.split('\n');
+  const decls = [];
+  const typeDecls = [];
+  const implBlocks = [];
+  const macroBlocks = [];
+  const typeRe = /^\s*(?:pub(?:\([^)]+\))?\s+)?(struct|enum|trait|mod)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  const implRe = /^\s*(?:pub(?:\([^)]+\))?\s+)?impl\b/;
+  const fnRe = /^\s*(?:pub(?:\([^)]+\))?\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  const macroRulesRe = /^\s*(?:pub(?:\([^)]+\))?\s+)?macro_rules!\s*([A-Za-z_][A-Za-z0-9_]*)/;
+  const macroRe = /^\s*(?:pub(?:\([^)]+\))?\s+)?macro\s+([A-Za-z_][A-Za-z0-9_]*)/;
+
+  const isInsideBlock = (pos, blocks) =>
+    blocks.some((block) => Number.isFinite(block.start) && Number.isFinite(block.end)
+      && pos >= block.start && pos <= block.end);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
+    const match = trimmed.match(macroRulesRe) || trimmed.match(macroRe);
+    if (!match) continue;
+    const start = lineIndex[i] + line.indexOf(match[0]);
+    const bounds = findCLikeBodyBounds(text, start);
+    let end = bounds.bodyEnd > start ? bounds.bodyEnd : bounds.bodyStart;
+    if (bounds.bodyStart === -1) {
+      end = lineIndex[i] + line.length;
+    }
+    const signature = sliceSignature(text, start, bounds.bodyStart);
+    const meta = {
+      startLine: i + 1,
+      endLine: offsetToLine(lineIndex, end),
+      signature,
+      modifiers: extractRustModifiers(signature),
+      docstring: extractRustDocComment(lines, i),
+      attributes: collectRustAttributes(lines, i, signature)
+    };
+    const entry = { start, end, name: match[1], kind: 'MacroDeclaration', meta };
+    macroBlocks.push(entry);
+    decls.push(entry);
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
+    const match = trimmed.match(typeRe);
+    if (!match) continue;
+    const start = lineIndex[i] + line.indexOf(match[0]);
+    if (isInsideBlock(start, macroBlocks)) continue;
+    const bounds = findCLikeBodyBounds(text, start);
+    let end = bounds.bodyEnd > start ? bounds.bodyEnd : bounds.bodyStart;
+    if (bounds.bodyStart === -1) {
+      end = lineIndex[i] + line.length;
+    }
+    const kindMap = {
+      struct: 'StructDeclaration',
+      enum: 'EnumDeclaration',
+      trait: 'TraitDeclaration',
+      mod: 'ModuleDeclaration'
+    };
+    const kind = kindMap[match[1]] || 'StructDeclaration';
+    const signature = sliceSignature(text, start, bounds.bodyStart);
+    const meta = {
+      startLine: i + 1,
+      endLine: offsetToLine(lineIndex, end),
+      signature,
+      modifiers: extractRustModifiers(signature),
+      docstring: extractRustDocComment(lines, i),
+      attributes: collectRustAttributes(lines, i, signature)
+    };
+    const entry = { start, end, name: match[2], kind, meta };
+    decls.push(entry);
+    if (kind !== 'ModuleDeclaration') typeDecls.push(entry);
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
+    if (!implRe.test(trimmed)) continue;
+    const start = lineIndex[i] + line.indexOf(trimmed);
+    if (isInsideBlock(start, macroBlocks)) continue;
+    const bounds = findCLikeBodyBounds(text, start);
+    if (bounds.bodyStart === -1) continue;
+    const end = bounds.bodyEnd > start ? bounds.bodyEnd : bounds.bodyStart;
+    const signature = sliceSignature(text, start, bounds.bodyStart);
+    const typeName = parseRustImplTarget(signature);
+    if (!typeName) continue;
+    const entry = {
+      start,
+      end,
+      name: typeName,
+      kind: 'ImplDeclaration',
+      meta: {
+        startLine: i + 1,
+        endLine: offsetToLine(lineIndex, end),
+        signature,
+        modifiers: extractRustModifiers(signature),
+        docstring: extractRustDocComment(lines, i),
+        attributes: collectRustAttributes(lines, i, signature),
+        implFor: typeName
+      }
+    };
+    implBlocks.push(entry);
+    decls.push(entry);
+  }
+
+  const allParents = [...typeDecls, ...implBlocks];
+  const findParent = (start) => {
+    let parent = null;
+    for (const type of allParents) {
+      if (type.start < start && type.end > start) {
+        if (!parent || type.start > parent.start) parent = type;
+      }
+    }
+    return parent;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) continue;
+    const fnMatch = trimmed.match(fnRe);
+    if (!fnMatch) continue;
+    const { signature, endLine, hasBody } = readSignatureLines(lines, i);
+    const start = lineIndex[i] + line.indexOf(trimmed);
+    if (isInsideBlock(start, macroBlocks)) {
+      i = endLine;
+      continue;
+    }
+    const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
+    const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;
+    const parent = findParent(start);
+    let name = fnMatch[1];
+    let kind = 'FunctionDeclaration';
+    if (parent && parent.name) {
+      if (parent.kind === 'ImplDeclaration' || parent.kind === 'TraitDeclaration' || parent.kind === 'StructDeclaration') {
+        name = `${parent.name}.${name}`;
+        kind = 'MethodDeclaration';
+      }
+    }
+    const meta = {
+      startLine: i + 1,
+      endLine: offsetToLine(lineIndex, end),
+      signature,
+      params: extractRustParams(signature),
+      returns: extractRustReturns(signature),
+      modifiers: extractRustModifiers(signature),
+      docstring: extractRustDocComment(lines, i),
+      attributes: collectRustAttributes(lines, i, signature)
+    };
+    decls.push({ start, end, name, kind, meta });
+    i = endLine;
+  }
+
+  if (!decls.length) return null;
+  decls.sort((a, b) => a.start - b.start);
+  return decls.map((decl) => ({
+    start: decl.start,
+    end: decl.end,
+    name: decl.name,
+    kind: decl.kind,
+    meta: decl.meta || {}
+  }));
+}
+
+function readSignatureLines(lines, startLine) {
+  const parts = [];
+  let hasBrace = false;
+  let hasSemi = false;
+  let endLine = startLine;
+  for (let i = startLine; i < lines.length; i++) {
+    const line = lines[i];
+    parts.push(line.trim());
+    if (line.includes('{')) {
+      hasBrace = true;
+      endLine = i;
+      break;
+    }
+    if (line.includes(';')) {
+      hasSemi = true;
+      endLine = i;
+      break;
+    }
+    endLine = i;
+  }
+  const signature = parts.join(' ');
+  const braceIdx = signature.indexOf('{');
+  const semiIdx = signature.indexOf(';');
+  const hasBody = hasBrace && (semiIdx === -1 || (braceIdx !== -1 && braceIdx < semiIdx));
+  return { signature, endLine, hasBody };
+}
+
+/**
+ * Build import/export/call/usage relations for Rust chunks.
+ * @param {string} text
+ * @param {Record<string,string[]>} allImports
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
+ */
+export function buildRustRelations(text, allImports) {
+  const imports = collectRustImports(text);
+  const exportRe = /^\s*pub(?:\([^)]+\))?\s+(struct|enum|trait|fn|mod|const|type)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
+  const exports = new Set();
+  for (const match of text.matchAll(exportRe)) {
+    exports.add(match[2]);
+  }
+  const importLinks = imports
+    .map((i) => allImports[i])
+    .filter((x) => !!x)
+    .flat();
+  return {
+    imports,
+    exports: Array.from(exports),
+    calls: [],
+    usages: [],
+    importLinks
+  };
+}
+
+/**
+ * Normalize Rust-specific doc metadata for search output.
+ * @param {{meta?:Object}} chunk
+ * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null),decorators:string[],modifiers:string[],implFor:(string|null)}}
+ */
+export function extractRustDocMeta(chunk) {
+  const meta = chunk.meta || {};
+  const params = Array.isArray(meta.params) ? meta.params : [];
+  const attributes = Array.isArray(meta.attributes) ? meta.attributes : [];
+  const modifiers = Array.isArray(meta.modifiers) ? meta.modifiers : [];
+  return {
+    doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
+    params,
+    returns: meta.returns || null,
+    signature: meta.signature || null,
+    decorators: attributes,
+    modifiers,
+    implFor: meta.implFor || null
+  };
+}

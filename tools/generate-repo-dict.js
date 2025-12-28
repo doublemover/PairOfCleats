@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import ignore from 'ignore';
 import { getDictConfig, getRepoDictPath, loadUserConfig } from './dict-utils.js';
+import { splitId } from '../src/shared/tokenize.js';
 
 const argv = minimist(process.argv.slice(2), {
   string: ['out', 'extensions'],
@@ -37,16 +38,10 @@ const extList = argv.extensions
   : defaultExts;
 const exts = new Set(extList.map((ext) => ext.startsWith('.') ? ext : `.${ext}`));
 
-function splitId(input) {
-  return input
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/[_\-]+/g, ' ')
-    .split(/[^a-zA-Z0-9]+/u)
-    .flatMap((tok) => tok.split(/(?<=.)(?=[A-Z])/))
-    .map((t) => t.toLowerCase())
-    .filter(Boolean);
-}
-
+/**
+ * List repository files, honoring ignore files and common skip dirs.
+ * @returns {Promise<string[]>}
+ */
 async function listFiles() {
   const rg = spawnSync('rg', ['--files'], { cwd: repoRoot, encoding: 'utf8' });
   if (rg.status === 0 && rg.stdout) {
@@ -66,6 +61,11 @@ async function listFiles() {
   const skipDirs = new Set(['.git', 'node_modules', 'dist', 'coverage', 'index-code', 'index-prose', '.repoMetrics']);
   const files = [];
 
+  /**
+   * Recursively walk the repository tree.
+   * @param {string} dir
+   * @returns {Promise<void>}
+   */
   async function walk(dir) {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {

@@ -49,6 +49,12 @@ const codeDir = getIndexDir(root, 'code', userConfig);
 const proseDir = getIndexDir(root, 'prose', userConfig);
 const sqlitePaths = resolveSqlitePaths(root, userConfig);
 
+/**
+ * Copy a directory from the artifact bundle into the repo cache.
+ * @param {string} src
+ * @param {string} dest
+ * @returns {Promise<boolean>}
+ */
 async function copyDir(src, dest) {
   if (!fs.existsSync(src)) return false;
   await fsPromises.rm(dest, { recursive: true, force: true });

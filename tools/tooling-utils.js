@@ -1,0 +1,355 @@
+import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { SKIP_DIRS, SKIP_FILES } from '../src/indexer/constants.js';
+import { getToolingConfig } from './dict-utils.js';
+
+const LANGUAGE_EXTENSIONS = {
+  javascript: ['.js', '.mjs', '.cjs'],
+  typescript: ['.ts', '.tsx', '.mts', '.cts'],
+  python: ['.py'],
+  c: ['.c', '.h'],
+  cpp: ['.cc', '.cpp', '.hpp', '.hh'],
+  objc: ['.m', '.mm'],
+  rust: ['.rs'],
+  go: ['.go'],
+  java: ['.java'],
+  shell: ['.sh', '.bash', '.zsh', '.ksh'],
+  csharp: ['.cs'],
+  kotlin: ['.kt', '.kts'],
+  ruby: ['.rb'],
+  php: ['.php', '.phtml'],
+  lua: ['.lua'],
+  sql: ['.sql', '.psql', '.pgsql', '.mysql', '.sqlite']
+};
+
+const FORMAT_EXTENSIONS = {
+  json: ['.json'],
+  toml: ['.toml'],
+  ini: ['.ini', '.cfg', '.conf'],
+  xml: ['.xml'],
+  yaml: ['.yml', '.yaml'],
+  rst: ['.rst'],
+  asciidoc: ['.adoc', '.asciidoc']
+};
+
+const FORMAT_FILENAMES = {
+  dockerfile: ['dockerfile'],
+  makefile: ['makefile']
+};
+
+const TOOL_DOCS = {
+  tsserver: 'https://www.typescriptlang.org/',
+  clangd: 'https://clangd.llvm.org/installation',
+  'rust-analyzer': 'https://rust-analyzer.github.io/',
+  gopls: 'https://pkg.go.dev/golang.org/x/tools/gopls',
+  jdtls: 'https://github.com/eclipse-jdtls/eclipse.jdt.ls',
+  'kotlin-language-server': 'https://github.com/fwcd/kotlin-language-server',
+  omnisharp: 'https://github.com/OmniSharp/omnisharp-roslyn',
+  solargraph: 'https://solargraph.org/',
+  phpactor: 'https://phpactor.readthedocs.io/',
+  'lua-language-server': 'https://github.com/LuaLS/lua-language-server',
+  sqls: 'https://github.com/lighttiger2505/sqls'
+};
+
+const candidateNames = (name) => {
+  if (process.platform === 'win32') {
+    return [`${name}.cmd`, `${name}.exe`, name];
+  }
+  return [name];
+};
+
+function findBinaryInDirs(name, dirs) {
+  const candidates = candidateNames(name);
+  for (const dir of dirs) {
+    for (const candidate of candidates) {
+      const full = path.join(dir, candidate);
+      if (fs.existsSync(full)) return full;
+    }
+  }
+  return null;
+}
+
+function canRun(cmd, args = ['--version']) {
+  const result = spawnSync(cmd, args, { encoding: 'utf8' });
+  return result.status === 0;
+}
+
+async function scanRepo(root) {
+  const extCounts = new Map();
+  const filePaths = [];
+  const lowerNames = new Set();
+  const visit = async (dir) => {
+    let entries;
+    try {
+      entries = await fsPromises.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (SKIP_DIRS.has(entry.name)) continue;
+        await visit(abs);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (SKIP_FILES.has(entry.name)) continue;
+      const ext = path.extname(entry.name).toLowerCase();
+      if (ext) extCounts.set(ext, (extCounts.get(ext) || 0) + 1);
+      filePaths.push(abs);
+      lowerNames.add(entry.name.toLowerCase());
+    }
+  };
+  await visit(root);
+  return { extCounts, filePaths, lowerNames };
+}
+
+function buildLangHits(extCounts) {
+  const hits = {};
+  for (const [lang, exts] of Object.entries(LANGUAGE_EXTENSIONS)) {
+    const matched = exts.filter((ext) => extCounts.has(ext));
+    if (!matched.length) continue;
+    const count = matched.reduce((sum, ext) => sum + (extCounts.get(ext) || 0), 0);
+    hits[lang] = { extensions: matched, files: count };
+  }
+  return hits;
+}
+
+function buildFormatHits(extCounts, lowerNames, filePaths) {
+  const hits = {};
+  for (const [format, exts] of Object.entries(FORMAT_EXTENSIONS)) {
+    const matched = exts.filter((ext) => extCounts.has(ext));
+    if (!matched.length) continue;
+    const count = matched.reduce((sum, ext) => sum + (extCounts.get(ext) || 0), 0);
+    hits[format] = { extensions: matched, files: count };
+  }
+  for (const [format, names] of Object.entries(FORMAT_FILENAMES)) {
+    if (names.some((name) => lowerNames.has(name))) {
+      hits[format] = { filenames: names, files: names.length };
+    }
+  }
+  const ghWorkflows = filePaths.filter((filePath) => {
+    const normalized = filePath.replace(/\\/g, '/').toLowerCase();
+    if (!normalized.includes('/.github/workflows/')) return false;
+    return normalized.endsWith('.yml') || normalized.endsWith('.yaml');
+  });
+  if (ghWorkflows.length) {
+    hits['github-actions'] = { extensions: ['.yml', '.yaml'], files: ghWorkflows.length };
+  }
+  return hits;
+}
+
+export async function detectRepoLanguages(root) {
+  const { extCounts, filePaths, lowerNames } = await scanRepo(root);
+  const languages = buildLangHits(extCounts);
+  const formats = buildFormatHits(extCounts, lowerNames, filePaths);
+  return { languages, formats, extCounts };
+}
+
+export function getToolingRegistry(toolingRoot, repoRoot) {
+  const nodeDir = path.join(toolingRoot, 'node');
+  const nodeBin = path.join(nodeDir, 'node_modules', '.bin');
+  const repoNodeBin = path.join(repoRoot, 'node_modules', '.bin');
+  const binDir = path.join(toolingRoot, 'bin');
+  const dotnetDir = path.join(toolingRoot, 'dotnet');
+  const gemsDir = path.join(toolingRoot, 'gems');
+  const composerDir = path.join(toolingRoot, 'composer');
+  const composerBin = path.join(composerDir, 'vendor', 'bin');
+
+  return [
+    {
+      id: 'tsserver',
+      label: 'TypeScript server',
+      languages: ['typescript'],
+      detect: { cmd: 'tsserver', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      install: {
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'typescript'] },
+        user: { cmd: 'npm', args: ['install', '-g', 'typescript'] }
+      },
+      docs: TOOL_DOCS.tsserver
+    },
+    {
+      id: 'clangd',
+      label: 'clangd',
+      languages: ['c', 'cpp', 'objc'],
+      detect: { cmd: 'clangd', args: ['--version'], binDirs: [] },
+      install: {
+        manual: true
+      },
+      docs: TOOL_DOCS.clangd
+    },
+    {
+      id: 'rust-analyzer',
+      label: 'rust-analyzer',
+      languages: ['rust'],
+      detect: { cmd: 'rust-analyzer', args: ['--version'], binDirs: [] },
+      install: {
+        user: { cmd: 'rustup', args: ['component', 'add', 'rust-analyzer'], requires: 'rustup' }
+      },
+      docs: TOOL_DOCS['rust-analyzer']
+    },
+    {
+      id: 'gopls',
+      label: 'gopls',
+      languages: ['go'],
+      detect: { cmd: 'gopls', args: ['version'], binDirs: [binDir] },
+      install: {
+        cache: { cmd: 'go', args: ['install', 'golang.org/x/tools/gopls@latest'], env: { GOBIN: binDir }, requires: 'go' },
+        user: { cmd: 'go', args: ['install', 'golang.org/x/tools/gopls@latest'], requires: 'go' }
+      },
+      docs: TOOL_DOCS.gopls
+    },
+    {
+      id: 'jdtls',
+      label: 'jdtls',
+      languages: ['java'],
+      detect: { cmd: 'jdtls', args: ['-version'], binDirs: [] },
+      install: {
+        manual: true
+      },
+      docs: TOOL_DOCS.jdtls
+    },
+    {
+      id: 'kotlin-language-server',
+      label: 'kotlin-language-server',
+      languages: ['kotlin'],
+      detect: { cmd: 'kotlin-language-server', args: ['--version'], binDirs: [] },
+      install: {
+        manual: true
+      },
+      docs: TOOL_DOCS['kotlin-language-server']
+    },
+    {
+      id: 'omnisharp',
+      label: 'OmniSharp',
+      languages: ['csharp'],
+      detect: { cmd: 'omnisharp', args: ['--version'], binDirs: [dotnetDir] },
+      install: {
+        cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'omnisharp'], requires: 'dotnet' },
+        user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'omnisharp'], requires: 'dotnet' }
+      },
+      docs: TOOL_DOCS.omnisharp
+    },
+    {
+      id: 'solargraph',
+      label: 'Solargraph',
+      languages: ['ruby'],
+      detect: { cmd: 'solargraph', args: ['--version'], binDirs: [binDir] },
+      install: {
+        cache: { cmd: 'gem', args: ['install', '-i', gemsDir, '-n', binDir, 'solargraph'], requires: 'gem' },
+        user: { cmd: 'gem', args: ['install', 'solargraph'], requires: 'gem' }
+      },
+      docs: TOOL_DOCS.solargraph
+    },
+    {
+      id: 'phpactor',
+      label: 'phpactor',
+      languages: ['php'],
+      detect: { cmd: 'phpactor', args: ['--version'], binDirs: [composerBin] },
+      install: {
+        cache: { cmd: 'composer', args: ['global', 'require', 'phpactor/phpactor'], env: { COMPOSER_HOME: composerDir }, requires: 'composer' },
+        user: { cmd: 'composer', args: ['global', 'require', 'phpactor/phpactor'], requires: 'composer' }
+      },
+      docs: TOOL_DOCS.phpactor
+    },
+    {
+      id: 'lua-language-server',
+      label: 'lua-language-server',
+      languages: ['lua'],
+      detect: { cmd: 'lua-language-server', args: ['-v'], binDirs: [] },
+      install: {
+        manual: true
+      },
+      docs: TOOL_DOCS['lua-language-server']
+    },
+    {
+      id: 'sqls',
+      label: 'sqls',
+      languages: ['sql'],
+      detect: { cmd: 'sqls', args: ['version'], binDirs: [binDir] },
+      install: {
+        cache: { cmd: 'go', args: ['install', 'github.com/lighttiger2505/sqls@latest'], env: { GOBIN: binDir }, requires: 'go' },
+        user: { cmd: 'go', args: ['install', 'github.com/lighttiger2505/sqls@latest'], requires: 'go' }
+      },
+      docs: TOOL_DOCS.sqls
+    }
+  ];
+}
+
+export function resolveToolsForLanguages(languages, toolingRoot, repoRoot) {
+  const languageSet = new Set(languages);
+  const registry = getToolingRegistry(toolingRoot, repoRoot);
+  return registry.filter((tool) => tool.languages.some((lang) => languageSet.has(lang)));
+}
+
+export function resolveToolsById(ids, toolingRoot, repoRoot) {
+  const idSet = new Set(ids);
+  const registry = getToolingRegistry(toolingRoot, repoRoot);
+  return registry.filter((tool) => idSet.has(tool.id));
+}
+
+export function detectTool(tool) {
+  const binDirs = tool.detect?.binDirs || [];
+  const binPath = binDirs.length ? findBinaryInDirs(tool.detect.cmd, binDirs) : null;
+  if (binPath) {
+    return { found: true, path: binPath, source: 'cache' };
+  }
+  const ok = canRun(tool.detect.cmd, tool.detect.args || ['--version']);
+  if (ok) return { found: true, path: tool.detect.cmd, source: 'path' };
+  return { found: false, path: null, source: null };
+}
+
+export function selectInstallPlan(tool, scope, allowFallback) {
+  const install = tool.install || {};
+  const normalizedScope = scope || 'cache';
+  if (install[normalizedScope]) {
+    return { scope: normalizedScope, plan: install[normalizedScope] };
+  }
+  if (!allowFallback) return { scope: normalizedScope, plan: null };
+  const fallbackScope = install.cache ? 'cache' : (install.user ? 'user' : (install.system ? 'system' : null));
+  if (!fallbackScope) return { scope: normalizedScope, plan: null };
+  return { scope: fallbackScope, plan: install[fallbackScope], fallback: true };
+}
+
+export function hasCommand(cmd) {
+  return canRun(cmd, ['--version']);
+}
+
+export async function buildToolingReport(root, languageOverride = null) {
+  const toolingConfig = getToolingConfig(root);
+  const { languages, formats } = await detectRepoLanguages(root);
+  const languageList = languageOverride && languageOverride.length
+    ? languageOverride
+    : Object.keys(languages);
+  const tools = resolveToolsForLanguages(languageList, toolingConfig.dir, root).map((tool) => {
+    const status = detectTool(tool);
+    return {
+      id: tool.id,
+      label: tool.label,
+      docs: tool.docs,
+      languages: tool.languages,
+      found: status.found,
+      source: status.source,
+      path: status.path,
+      install: tool.install || {}
+    };
+  });
+  return {
+    root,
+    toolingRoot: toolingConfig.dir,
+    languages,
+    formats,
+    tools
+  };
+}
+
+export function normalizeLanguageList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((item) => item.trim()).filter(Boolean);
+  return String(value)
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}

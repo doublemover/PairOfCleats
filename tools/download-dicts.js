@@ -39,6 +39,11 @@ const SOURCES = {
   }
 };
 
+/**
+ * Parse URL sources from name=url inputs.
+ * @param {string|string[]|null} input
+ * @returns {Array<{name:string,url:string,file:string}>}
+ */
 function parseUrls(input) {
   if (!input) return [];
   const items = Array.isArray(input) ? input : [input];
@@ -51,6 +56,13 @@ function parseUrls(input) {
   return sources;
 }
 
+/**
+ * Fetch a URL with basic redirect handling.
+ * @param {string} url
+ * @param {object} headers
+ * @param {number} redirects
+ * @returns {Promise<{statusCode:number,headers:object,body:Buffer}>}
+ */
 function requestUrl(url, headers = {}, redirects = 0) {
   return new Promise((resolve, reject) => {
     if (redirects > 5) return reject(new Error('Too many redirects'));
@@ -82,6 +94,11 @@ function requestUrl(url, headers = {}, redirects = 0) {
   });
 }
 
+/**
+ * Download a dictionary source into the cache.
+ * @param {{name:string,url:string,file:string}} source
+ * @returns {Promise<{name:string,skipped:boolean}>}
+ */
 async function downloadSource(source) {
   const outputPath = path.join(dictDir, source.file);
   const entry = manifest[source.name] || {};

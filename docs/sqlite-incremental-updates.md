@@ -5,7 +5,7 @@ Update SQLite indexes in-place by touching only the files that changed since the
 
 ## Inputs
 - Per-file incremental cache from `build_index.js --incremental`.
-- Existing SQLite DBs at `index-sqlite/index-code.db` and `index-sqlite/index-prose.db`.
+- Existing SQLite DBs at `<cache>/repos/<repoId>/index-sqlite/index-code.db` and `<cache>/repos/<repoId>/index-sqlite/index-prose.db` (unless overridden).
 
 ## Schema Additions
 - `file_manifest` table tracks per-file hashes and sizes used for change detection.

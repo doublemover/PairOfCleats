@@ -11,16 +11,41 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import minimist from 'minimist';
-import Snowball from 'snowball-stemmers';
-import Minhash from 'minhash';
 import { DEFAULT_MODEL_ID, getDictionaryPaths, getDictConfig, getIndexDir, getMetricsDir, getModelConfig, loadUserConfig, resolveSqlitePaths } from './tools/dict-utils.js';
 import { getVectorExtensionConfig, hasVectorTable, loadVectorExtension, queryVectorAnn, resolveVectorExtensionPath } from './tools/vector-extension.js';
+import { buildFtsBm25Expr, resolveFtsWeights } from './src/search/fts.js';
+import { getQueryEmbedding } from './src/search/embedding.js';
+import { loadQueryCache, parseArrayField, parseJson, pruneQueryCache } from './src/search/query-cache.js';
+import { filterChunks, formatFullChunk, formatShortChunk } from './src/search/output.js';
+import { rankBM25, rankDenseVectors, rankMinhash } from './src/search/rankers.js';
+import { extractNgrams, splitId, splitWordsWithDict, tri } from './src/shared/tokenize.js';
 
 const argv = minimist(process.argv.slice(2), {
-  boolean: ['json', 'human', 'stats', 'ann', 'headline', 'lint', 'churn', 'matched'],
+  boolean: ['json', 'human', 'stats', 'ann', 'headline', 'lint', 'churn', 'matched', 'async', 'generator', 'returns'],
   alias: { n: 'top', c: 'context', t: 'type' },
   default: { n: 5, context: 3 },
-  string: ['calls', 'uses', 'signature', 'param', 'mode', 'backend', 'model', 'fts-profile'],
+  string: [
+    'calls',
+    'uses',
+    'signature',
+    'param',
+    'decorator',
+    'return-type',
+    'throws',
+    'reads',
+    'writes',
+    'mutates',
+    'awaits',
+    'visibility',
+    'extends',
+    'mode',
+    'backend',
+    'model',
+    'fts-profile',
+    'fts-weights',
+    'bm25-k1',
+    'bm25-b'
+  ],
 });
 const t0 = Date.now();
 const ROOT = process.cwd();
@@ -30,17 +55,34 @@ const modelIdDefault = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
 const sqliteConfig = userConfig.sqlite || {};
 const vectorExtension = getVectorExtensionConfig(ROOT, userConfig);
 const bm25Config = userConfig.search?.bm25 || {};
-const bm25K1 = Number.isFinite(Number(bm25Config.k1)) ? Number(bm25Config.k1) : 1.2;
-const bm25B = Number.isFinite(Number(bm25Config.b)) ? Number(bm25Config.b) : 0.75;
+const bm25K1 = Number.isFinite(Number(argv['bm25-k1']))
+  ? Number(argv['bm25-k1'])
+  : (Number.isFinite(Number(bm25Config.k1)) ? Number(bm25Config.k1) : 1.2);
+const bm25B = Number.isFinite(Number(argv['bm25-b']))
+  ? Number(argv['bm25-b'])
+  : (Number.isFinite(Number(bm25Config.b)) ? Number(bm25Config.b) : 0.75);
 const sqliteFtsNormalize = userConfig.search?.sqliteFtsNormalize === true;
 const sqliteFtsProfile = (argv['fts-profile'] || process.env.PAIROFCLEATS_FTS_PROFILE || userConfig.search?.sqliteFtsProfile || 'balanced').toLowerCase();
-const sqliteFtsWeightsConfig = userConfig.search?.sqliteFtsWeights || null;
+let sqliteFtsWeightsConfig = userConfig.search?.sqliteFtsWeights || null;
+if (argv['fts-weights']) {
+  const parsed = parseJson(argv['fts-weights'], null);
+  if (parsed) {
+    sqliteFtsWeightsConfig = parsed;
+  } else {
+    const values = String(argv['fts-weights'])
+      .split(/[,\s]+/)
+      .filter(Boolean)
+      .map((val) => Number(val))
+      .filter((val) => Number.isFinite(val));
+    sqliteFtsWeightsConfig = values.length ? values : sqliteFtsWeightsConfig;
+  }
+}
 const metricsDir = getMetricsDir(ROOT, userConfig);
 const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
 const rawArgs = process.argv.slice(2);
 const query = argv._.join(' ').trim();
 if (!query) {
-  console.error('usage: search "query" [--json|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode');
+  console.error('usage: search "query" [--json|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode|--signature|--param|--decorator|--return-type|--throws|--reads|--writes|--mutates|--awaits|--extends|--visibility|--async|--generator|--returns');
   process.exit(1);
 }
 const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
@@ -77,35 +119,8 @@ const queryCacheTtlMs = Number.isFinite(Number(queryCacheConfig.ttlMs))
   : 0;
 const queryCachePath = path.join(metricsDir, 'queryCache.json');
 
-function resolveFtsWeights(profile, config) {
-  const profiles = {
-    balanced: { file: 0.2, name: 1.5, kind: 0.6, headline: 2.0, tokens: 1.0 },
-    headline: { file: 0.1, name: 1.2, kind: 0.4, headline: 3.0, tokens: 1.0 },
-    name: { file: 0.2, name: 2.5, kind: 0.8, headline: 1.2, tokens: 1.0 }
-  };
-  const base = profiles[profile] || profiles.balanced;
-
-  if (Array.isArray(config)) {
-    const values = config.map((v) => Number(v)).filter((v) => Number.isFinite(v));
-    if (values.length >= 6) return values.slice(0, 6);
-    if (values.length === 5) return [0, ...values];
-  } else if (config && typeof config === 'object') {
-    const merged = { ...base };
-    for (const key of ['file', 'name', 'kind', 'headline', 'tokens']) {
-      if (Number.isFinite(Number(config[key]))) merged[key] = Number(config[key]);
-    }
-    return [0, merged.file, merged.name, merged.kind, merged.headline, merged.tokens];
-  }
-
-  return [0, base.file, base.name, base.kind, base.headline, base.tokens];
-}
-
 const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
 
-function buildFtsBm25Expr(weights) {
-  const safe = weights.map((val) => (Number.isFinite(val) ? val : 1));
-  return `bm25(chunks_fts, ${safe.join(', ')})`;
-}
 
 if (backendForcedSqlite && !sqliteAvailable) {
   const missing = [];
@@ -218,21 +233,16 @@ const runProse = needsProse;
 let modelIdForCode = null;
 let modelIdForProse = null;
 
+/**
+ * Return the active SQLite connection for a mode.
+ * @param {'code'|'prose'} mode
+ * @returns {import('better-sqlite3').Database|null}
+ */
 function getSqliteDb(mode) {
   if (!useSqlite) return null;
   return mode === 'code' ? dbCode : dbProse;
 }
 
-const stemmer = Snowball.newStemmer('english');
-const stem = (w) => stemmer.stem(w);
-const camel = (s) => s.replace(/([a-z])([A-Z])/g, '$1 $2');
-const splitId = (s) =>
-  s.replace(/([a-z])([A-Z])/g, '$1 $2')        // split camelCase
-    .replace(/[_\-]+/g, ' ')                   // split on _ and -
-    .split(/[^a-zA-Z0-9]+/u)                   // split non-alphanum
-    .flatMap(tok => tok.split(/(?<=.)(?=[A-Z])/)) // split merged camel even if lowercase input
-    .map(t => t.toLowerCase())
-    .filter(Boolean);
 
 const dictConfig = getDictConfig(ROOT, userConfig);
 const dictionaryPaths = await getDictionaryPaths(ROOT, dictConfig);
@@ -261,6 +271,11 @@ const color = {
 };
 
 // --- LOAD INDEX ---
+/**
+ * Load file-backed index artifacts from a directory.
+ * @param {string} dir
+ * @returns {object}
+ */
 function loadIndex(dir) {
   const chunkMeta = JSON.parse(fsSync.readFileSync(path.join(dir, 'chunk_meta.json'), 'utf8'));
   const denseVec = JSON.parse(fsSync.readFileSync(path.join(dir, 'dense_vectors_uint8.json'), 'utf8'));
@@ -277,6 +292,11 @@ function loadIndex(dir) {
   } catch {}
   return idx;
 }
+/**
+ * Resolve the index directory (cache-first, local fallback).
+ * @param {'code'|'prose'} mode
+ * @returns {string}
+ */
 function resolveIndexDir(mode) {
   const cached = getIndexDir(ROOT, mode, userConfig);
   const cachedMeta = path.join(cached, 'chunk_meta.json');
@@ -287,6 +307,11 @@ function resolveIndexDir(mode) {
   return cached;
 }
 
+/**
+ * Build a size/mtime signature for a file.
+ * @param {string} filePath
+ * @returns {string|null}
+ */
 function fileSignature(filePath) {
   try {
     const stat = fsSync.statSync(filePath);
@@ -296,6 +321,10 @@ function fileSignature(filePath) {
   }
 }
 
+/**
+ * Build a signature payload for cache invalidation.
+ * @returns {object}
+ */
 function getIndexSignature() {
   if (useSqlite) {
     return {
@@ -319,6 +348,10 @@ function getIndexSignature() {
   };
 }
 
+/**
+ * Build a deterministic cache key for the current query + settings.
+ * @returns {{key:string,payload:object}}
+ */
 function buildQueryCacheKey() {
   const payload = {
     query,
@@ -345,7 +378,19 @@ function buildQueryCacheKey() {
       param: argv.param || null,
       import: searchImport,
       lint: argv.lint || false,
-      churn: argv.churn || null
+      churn: argv.churn || null,
+      decorator: argv.decorator || null,
+      returnType: argv['return-type'] || null,
+      throws: argv.throws || null,
+      reads: argv.reads || null,
+      writes: argv.writes || null,
+      mutates: argv.mutates || null,
+      awaits: argv.awaits || null,
+      visibility: argv.visibility || null,
+      extends: argv.extends || null,
+      async: argv.async || false,
+      generator: argv.generator || false,
+      returns: argv.returns || false
     }
   };
   const raw = JSON.stringify(payload);
@@ -353,61 +398,23 @@ function buildQueryCacheKey() {
   return { key, payload };
 }
 
-function loadQueryCache(cachePath) {
-  if (!fsSync.existsSync(cachePath)) return { version: 1, entries: [] };
-  try {
-    const data = JSON.parse(fsSync.readFileSync(cachePath, 'utf8'));
-    if (data && Array.isArray(data.entries)) return data;
-  } catch {}
-  return { version: 1, entries: [] };
-}
 
-function pruneQueryCache(cache, maxEntries) {
-  if (!cache || !Array.isArray(cache.entries)) return cache;
-  cache.entries = cache.entries
-    .filter((entry) => entry && entry.key && entry.ts)
-    .sort((a, b) => b.ts - a.ts);
-  if (cache.entries.length > maxEntries) {
-    cache.entries = cache.entries.slice(0, maxEntries);
-  }
-  return cache;
-}
-
-function parseJson(value, fallback) {
-  if (value === null || value === undefined) return fallback;
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return fallback;
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return fallback;
-    }
-  }
-  return value;
-}
-
-function parseArrayField(value) {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return [];
-    if (trimmed.startsWith('[')) {
-      const parsed = parseJson(trimmed, []);
-      return Array.isArray(parsed) ? parsed : [];
-    }
-    return trimmed.split(/\s+/).filter(Boolean);
-  }
-  return [];
-}
-
+/**
+ * Decode a packed uint32 buffer into an array.
+ * @param {Buffer} buffer
+ * @returns {number[]}
+ */
 function unpackUint32(buffer) {
   if (!buffer) return [];
   const view = new Uint32Array(buffer.buffer, buffer.byteOffset, Math.floor(buffer.byteLength / 4));
   return Array.from(view);
 }
 
+/**
+ * Load index artifacts from SQLite into in-memory structures.
+ * @param {'code'|'prose'} mode
+ * @returns {object}
+ */
 function loadIndexFromSqlite(mode) {
   const db = getSqliteDb(mode);
   if (!db) throw new Error('SQLite backend requested but database is not available.');
@@ -482,6 +489,12 @@ const sqliteCache = {
   docLengths: new Map()
 };
 
+/**
+ * Split a list into smaller chunks for SQLite IN limits.
+ * @param {Array<any>} items
+ * @param {number} [size]
+ * @returns {Array<Array<any>>}
+ */
 function chunkArray(items, size = SQLITE_IN_LIMIT) {
   const chunks = [];
   for (let i = 0; i < items.length; i += size) {
@@ -490,6 +503,15 @@ function chunkArray(items, size = SQLITE_IN_LIMIT) {
   return chunks;
 }
 
+/**
+ * Fetch vocabulary rows for a list of values.
+ * @param {'code'|'prose'} mode
+ * @param {string} table
+ * @param {string} idColumn
+ * @param {string} valueColumn
+ * @param {string[]} values
+ * @returns {Array<{id:number,value:string}>}
+ */
 function fetchVocabRows(mode, table, idColumn, valueColumn, values) {
   const db = getSqliteDb(mode);
   if (!db || !values.length) return [];
@@ -505,6 +527,15 @@ function fetchVocabRows(mode, table, idColumn, valueColumn, values) {
   return rows;
 }
 
+/**
+ * Fetch posting rows for a list of ids.
+ * @param {'code'|'prose'} mode
+ * @param {string} table
+ * @param {string} idColumn
+ * @param {number[]} ids
+ * @param {boolean} [includeTf]
+ * @returns {Array<{id:number,doc_id:number,tf?:number}>}
+ */
 function fetchPostingRows(mode, table, idColumn, ids, includeTf = false) {
   const db = getSqliteDb(mode);
   if (!db || !ids.length) return [];
@@ -523,6 +554,12 @@ function fetchPostingRows(mode, table, idColumn, ids, includeTf = false) {
   return rows;
 }
 
+/**
+ * Load document length array from SQLite (cached).
+ * @param {'code'|'prose'} mode
+ * @param {number} totalDocs
+ * @returns {number[]}
+ */
 function loadDocLengths(mode, totalDocs) {
   const db = getSqliteDb(mode);
   if (!db) return [];
@@ -545,6 +582,11 @@ function loadDocLengths(mode, totalDocs) {
   return lengths;
 }
 
+/**
+ * Load token stats (avgDocLen, totalDocs) from SQLite (cached).
+ * @param {'code'|'prose'} mode
+ * @returns {{avgDocLen:number,totalDocs:number}}
+ */
 function loadTokenStats(mode) {
   const db = getSqliteDb(mode);
   if (!db) return { avgDocLen: 0, totalDocs: 0 };
@@ -566,6 +608,12 @@ function loadTokenStats(mode) {
   return stats;
 }
 
+/**
+ * Build a minimal token index subset for a query from SQLite.
+ * @param {string[]} tokens
+ * @param {'code'|'prose'} mode
+ * @returns {object|null}
+ */
 function getTokenIndexForQuery(tokens, mode) {
   const db = getSqliteDb(mode);
   if (!db) return null;
@@ -609,6 +657,12 @@ function getTokenIndexForQuery(tokens, mode) {
   };
 }
 
+/**
+ * Build a candidate set from SQLite phrase/chargram postings.
+ * @param {'code'|'prose'} mode
+ * @param {string[]} tokens
+ * @returns {Set<number>|null}
+ */
 function buildCandidateSetSqlite(mode, tokens) {
   const db = getSqliteDb(mode);
   if (!db) return null;
@@ -648,6 +702,15 @@ function buildCandidateSetSqlite(mode, tokens) {
   return matched ? candidates : null;
 }
 
+/**
+ * Rank results using SQLite FTS5 bm25.
+ * @param {object} idx
+ * @param {string[]} queryTokens
+ * @param {'code'|'prose'} mode
+ * @param {number} topN
+ * @param {boolean} [normalizeScores]
+ * @returns {Array<{idx:number,score:number}>}
+ */
 function rankSqliteFts(idx, queryTokens, mode, topN, normalizeScores = false) {
   const db = getSqliteDb(mode);
   if (!db || !queryTokens.length) return [];
@@ -687,30 +750,6 @@ modelIdForCode = runCode ? (idxCode?.denseVec?.model || modelIdDefault) : null;
 modelIdForProse = runProse ? (idxProse?.denseVec?.model || modelIdDefault) : null;
 
 // --- QUERY TOKENIZATION ---
-function splitWordsWithDict(token, dict) {
-  if (!dict || dict.size === 0) return [token];
-  const result = [];
-  let i = 0;
-  while (i < token.length) {
-    let found = false;
-    for (let j = token.length; j > i; j--) {
-      const sub = token.slice(i, j);
-      if (dict.has(sub)) {
-        result.push(sub);
-        i = j;
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      // fallback: add single char to avoid infinite loop
-      result.push(token[i]);
-      i++;
-    }
-  }
-  return result;
-}
-
 
 let queryTokens = splitId(query);
 
@@ -722,155 +761,27 @@ queryTokens = queryTokens.flatMap(tok => {
 const rx = queryTokens.length ? new RegExp(`(${queryTokens.join('|')})`, 'ig') : null;
 
 // --- SEARCH BM25 TOKENS/PHRASES ---
-function rankBM25Legacy(idx, tokens, topN) {
-  const scores = new Map();
-  const ids = idx.chunkMeta.map((_, i) => i);
-  ids.forEach((i) => {
-    const chunk = idx.chunkMeta[i];
-    if (!chunk) return;
-    let score = 0;
-    tokens.forEach(tok => {
-      if (chunk.tokens && chunk.tokens.includes(tok)) score += 1 * (chunk.weight || 1);
-      if (chunk.ngrams && chunk.ngrams.includes(tok)) score += 2 * (chunk.weight || 1);
-      if (chunk.headline && chunk.headline.includes(tok)) score += 3 * (chunk.weight || 1);
-    });
-    scores.set(i, score);
-  });
-  return [...scores.entries()]
-    .filter(([i, s]) => s > 0)
-    .map(([i, s]) => ({ idx: i, score: s }))
-    .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
-    .slice(0, topN);
-}
-
-function getTokenIndex(idx) {
-  const tokenIndex = idx.tokenIndex;
-  if (!tokenIndex || !tokenIndex.vocab || !tokenIndex.postings) return null;
-  if (!tokenIndex.vocabIndex) {
-    tokenIndex.vocabIndex = new Map(tokenIndex.vocab.map((t, i) => [t, i]));
-  }
-  if (!Array.isArray(tokenIndex.docLengths)) tokenIndex.docLengths = [];
-  if (!tokenIndex.totalDocs) tokenIndex.totalDocs = tokenIndex.docLengths.length;
-  if (!tokenIndex.avgDocLen) {
-    const total = tokenIndex.docLengths.reduce((sum, len) => sum + len, 0);
-    tokenIndex.avgDocLen = tokenIndex.docLengths.length ? total / tokenIndex.docLengths.length : 0;
-  }
-  return tokenIndex;
-}
-
-function rankBM25(idx, tokens, topN, tokenIndexOverride = null, k1 = 1.2, b = 0.75) {
-  const tokenIndex = tokenIndexOverride || getTokenIndex(idx);
-  if (!tokenIndex || !tokenIndex.vocab || !tokenIndex.postings) return rankBM25Legacy(idx, tokens, topN);
-
-  const scores = new Map();
-  const docLengths = tokenIndex.docLengths;
-  const avgDocLen = tokenIndex.avgDocLen || 1;
-  const totalDocs = tokenIndex.totalDocs || idx.chunkMeta.length || 1;
-
-  const qtf = new Map();
-  tokens.forEach((tok) => qtf.set(tok, (qtf.get(tok) || 0) + 1));
-
-  for (const [tok, qCount] of qtf.entries()) {
-    const tokIdx = tokenIndex.vocabIndex.get(tok);
-    if (tokIdx === undefined) continue;
-    const posting = tokenIndex.postings[tokIdx] || [];
-    const df = posting.length;
-    if (!df) continue;
-    const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
-
-    for (const [docId, tf] of posting) {
-      const dl = docLengths[docId] || 0;
-      const denom = tf + k1 * (1 - b + b * (dl / avgDocLen));
-      const score = idf * ((tf * (k1 + 1)) / denom) * qCount;
-      scores.set(docId, (scores.get(docId) || 0) + score);
-    }
-  }
-
-  const weighted = [...scores.entries()].map(([docId, score]) => {
-    const weight = idx.chunkMeta[docId]?.weight || 1;
-    return { idx: docId, score: score * weight };
-  });
-
-  return weighted
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
-    .slice(0, topN);
-}
-
-// --- SEARCH MINHASH ANN (for semantic embedding search) ---
-function minhashSigForTokens(tokens) {
-  const mh = new Minhash();
-  tokens.forEach(t => mh.update(t));
-  return mh.hashvalues;
-}
-function jaccard(sigA, sigB) {
-  let match = 0;
-  for (let i = 0; i < sigA.length; i++) if (sigA[i] === sigB[i]) match++;
-  return match / sigA.length;
-}
-function rankMinhash(idx, tokens, topN) {
-  if (!idx.minhash?.signatures?.length) return [];
-  const qSig = minhashSigForTokens(tokens);
-  const scored = idx.minhash.signatures
-    .map((sig, i) => ({ idx: i, sim: jaccard(qSig, sig) }))
-    .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
-    .slice(0, topN);
-  return scored;
-}
-
-function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
-  const vectors = idx.denseVec?.vectors;
-  if (!queryEmbedding || !Array.isArray(vectors) || !vectors.length) return [];
-  const dims = idx.denseVec?.dims || queryEmbedding.length;
-  const levels = 256;
-  const minVal = -1;
-  const maxVal = 1;
-  const scale = (maxVal - minVal) / (levels - 1);
-  const ids = candidateSet ? Array.from(candidateSet) : vectors.map((_, i) => i);
-  const scored = [];
-
-  for (const id of ids) {
-    const vec = vectors[id];
-    const isArrayLike = Array.isArray(vec) || ArrayBuffer.isView(vec);
-    if (!isArrayLike || vec.length !== dims) continue;
-    let dot = 0;
-    for (let i = 0; i < dims; i++) {
-      const v = vec[i] * scale + minVal;
-      dot += v * queryEmbedding[i];
-    }
-    scored.push({ idx: id, sim: dot });
-  }
-
-  return scored
-    .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
-    .slice(0, topN);
-}
-
+/**
+ * Rank results using SQLite vector ANN extension.
+ * @param {'code'|'prose'} mode
+ * @param {ArrayLike<number>} queryEmbedding
+ * @param {number} topN
+ * @param {Set<number>|null} candidateSet
+ * @returns {Array<{idx:number,sim:number}>}
+ */
 function rankVectorAnnSqlite(mode, queryEmbedding, topN, candidateSet) {
   const db = getSqliteDb(mode);
   if (!db || !queryEmbedding || !vectorAnnState[mode]?.available) return [];
   return queryVectorAnn(db, vectorExtension, queryEmbedding, topN, candidateSet);
 }
 
-function extractNgrams(tokens, nStart = 2, nEnd = 4) {
-  const grams = [];
-  for (let n = nStart; n <= nEnd; ++n) {
-    for (let i = 0; i <= tokens.length - n; i++) {
-      grams.push(tokens.slice(i, i + n).join('_'));
-    }
-  }
-  return grams;
-}
-
-function tri(w, n = 3) {
-  const s = `⟬${w}⟭`;
-  const g = [];
-  for (let i = 0; i <= s.length - n; i++) {
-    g.push(s.slice(i, i + n));
-  }
-  return g;
-}
-
+/**
+ * Build a candidate set from file-backed indexes (or SQLite).
+ * @param {object} idx
+ * @param {string[]} tokens
+ * @param {'code'|'prose'} mode
+ * @returns {Set<number>|null}
+ */
 function buildCandidateSet(idx, tokens, mode) {
   if (useSqlite) return buildCandidateSetSqlite(mode, tokens);
 
@@ -907,258 +818,14 @@ function buildCandidateSet(idx, tokens, mode) {
   return matched ? candidates : null;
 }
 
-const embedderCache = new Map();
-function stubEmbedding(text, dims) {
-  const safeDims = Number.isFinite(dims) && dims > 0 ? Math.floor(dims) : 512;
-  const hash = crypto.createHash('sha256').update(text).digest();
-  let seed = 0;
-  for (const byte of hash) seed = (seed * 31 + byte) >>> 0;
-  const vec = new Array(safeDims);
-  let x = seed;
-  for (let i = 0; i < safeDims; i++) {
-    x = (x * 1664525 + 1013904223) >>> 0;
-    vec[i] = (x / 0xffffffff) * 2 - 1;
-  }
-  const norm = Math.sqrt(vec.reduce((sum, v) => sum + v * v, 0)) || 1;
-  return vec.map((v) => v / norm);
-}
-async function getEmbedder(modelId) {
-  if (embedderCache.has(modelId)) return embedderCache.get(modelId);
-  const { pipeline, env } = await import('@xenova/transformers');
-  const modelDir = modelConfig.dir;
-  if (modelDir) {
-    try {
-      fsSync.mkdirSync(modelDir, { recursive: true });
-    } catch {}
-    env.cacheDir = modelDir;
-  }
-  const embedder = await pipeline('feature-extraction', modelId);
-  embedderCache.set(modelId, embedder);
-  return embedder;
-}
-
-async function getQueryEmbedding(text, modelId, dims) {
-  if (useStubEmbeddings) {
-    return stubEmbedding(text, dims);
-  }
-  try {
-    const embedder = await getEmbedder(modelId || modelIdDefault);
-    const output = await embedder(text, { pooling: 'mean', normalize: true });
-    return Array.from(output.data);
-  } catch {
-    return null;
-  }
-}
-
-// --- ADVANCED FILTERING ---
-function filterChunks(meta, opts = {}) {
-  return meta.filter(c => {
-    if (!c) return false;
-    if (opts.type && c.kind && c.kind.toLowerCase() !== opts.type.toLowerCase()) return false;
-    if (opts.author && c.last_author && !c.last_author.toLowerCase().includes(opts.author.toLowerCase())) return false;
-    if (opts.call && c.codeRelations && c.codeRelations.calls) {
-      const found = c.codeRelations.calls.find(([fn, call]) => call === opts.call || fn === opts.call);
-      if (!found) return false;
-    }
-    if (opts.import && c.codeRelations && c.codeRelations.imports) {
-      if (!c.codeRelations.imports.includes(opts.import)) return false;
-    }
-    if (opts.lint && (!c.lint || !c.lint.length)) return false;
-    if (opts.churn && (!c.churn || c.churn < opts.churn)) return false;
-    if (argv.calls && c.codeRelations && c.codeRelations.calls) {
-      const found = c.codeRelations.calls.find(([fn, call]) => fn === argv.calls || call === argv.calls);
-      if (!found) return false;
-    }
-    if (argv.uses && c.codeRelations && c.codeRelations.usages) {
-      if (!c.codeRelations.usages.includes(argv.uses)) return false;
-    }
-    if (argv.signature && c.docmeta?.signature) {
-      if (!c.docmeta.signature.includes(argv.signature)) return false;
-    }
-    if (argv.param && c.docmeta?.params) {
-      if (!c.docmeta.params.includes(argv.param)) return false;
-    }
-    return true;
-  });
-}
-
-function cleanContext(lines) {
-  return lines
-    .filter(l => {
-      const t = l.trim();
-      if (!t || t === '```') return false;
-      // Skip lines where there is no alphanumeric content
-      if (!/[a-zA-Z0-9]/.test(t)) return false;
-      return true;
-    })
-    .map(l => l.replace(/\s+/g, ' ').trim()); // <— normalize whitespace here
-}
-
-
-// --- FORMAT OUTPUT ---
-function getBodySummary(h, maxWords = 80) {
-  try {
-    const absPath = path.join(ROOT, h.file);
-    const text = fsSync.readFileSync(absPath, 'utf8');
-    const chunkText = text.slice(h.start, h.end)
-      .replace(/\s+/g, ' ') // normalize spaces
-      .trim();
-    const words = chunkText.split(/\s+/).slice(0, maxWords).join(' ');
-    return words;
-  } catch {
-    return '(Could not load summary)';
-  }
-}
-
-let lastCount = 0;
-function printFullChunk(chunk, idx, mode, annScore, annType = 'bm25') {
-  if (!chunk || !chunk.file) {
-    return color.red(`   ${idx + 1}. [Invalid result — missing chunk or file]`) + '\n';
-  }
-  const c = color;
-  let out = '';
-
-  const line1 = [
-    c.bold(c[mode === 'code' ? 'blue' : 'magenta'](`${idx + 1}. ${chunk.file}`)),
-    c.cyan(chunk.name || ''),
-    c.yellow(chunk.kind || ''),
-    c.green(`${annScore.toFixed(2)}`),
-    c.gray(`Start/End: ${chunk.start}/${chunk.end}`),
-    (chunk.startLine && chunk.endLine)
-      ? c.gray(`Lines: ${chunk.startLine}-${chunk.endLine}`)
-      : '',
-    typeof chunk.churn === 'number' ? c.yellow(`Churn: ${chunk.churn}`) : ''
-  ].filter(Boolean).join('  ');
-
-  out += line1 + '\n';
-
-  const headlinePart = chunk.headline ? c.bold('Headline: ') + c.underline(chunk.headline) : '';
-  const lastModPart = chunk.last_modified ? c.gray('Last Modified: ') + c.bold(chunk.last_modified) : '';
-  const secondLine = [headlinePart, lastModPart].filter(Boolean).join('   ');
-  if (secondLine) out += '   ' + secondLine + '\n';
-
-  if (chunk.last_author && chunk.last_author !== '2xmvr')
-    out += c.gray('   Last Author: ') + c.green(chunk.last_author) + '\n';
-
-  if (chunk.imports?.length)
-    out += c.magenta('   Imports: ') + chunk.imports.join(', ') + '\n';
-  else if (chunk.codeRelations?.imports?.length)
-    out += c.magenta('   Imports: ') + chunk.codeRelations.imports.join(', ') + '\n';
-
-  if (chunk.exports?.length)
-    out += c.blue('   Exports: ') + chunk.exports.join(', ') + '\n';
-  else if (chunk.codeRelations?.exports?.length)
-    out += c.blue('   Exports: ') + chunk.codeRelations.exports.join(', ') + '\n';
-
-  if (chunk.codeRelations?.calls?.length)
-    out += c.yellow('   Calls: ') + chunk.codeRelations.calls.map(([a, b]) => `${a}→${b}`).join(', ') + '\n';
-
-  if (chunk.codeRelations?.importLinks?.length)
-    out += c.green('   ImportLinks: ') + chunk.codeRelations.importLinks.join(', ') + '\n';
-
-  // Usages
-  if (chunk.codeRelations?.usages?.length) {
-    const usageFreq = Object.create(null);
-    chunk.codeRelations.usages.forEach(uRaw => {
-      const u = typeof uRaw === 'string' ? uRaw.trim() : '';
-      if (!u) return;
-      usageFreq[u] = (usageFreq[u] || 0) + 1;
-    });
-
-    const usageEntries = Object.entries(usageFreq).sort((a, b) => b[1] - a[1]);
-    const maxCount = usageEntries[0]?.[1] || 0;
-
-    const usageStr = usageEntries.slice(0, 10).map(([u, count]) => {
-      if (count === 1) return u;
-      if (count === maxCount) return c.bold(c.yellow(`${u} (${count})`));
-      return c.cyan(`${u} (${count})`);
-    }).join(', ');
-
-    if (usageStr.length) out += c.cyan('   Usages: ') + usageStr + '\n';
-  }
-
-  const uniqueTokens = [...new Set((chunk.tokens || []).map(t => t.trim()).filter(t => t))];
-  if (uniqueTokens.length)
-    out += c.magenta('   Tokens: ') + uniqueTokens.slice(0, 10).join(', ') + '\n';
-
-  if (argv.matched) {
-    const matchedTokens = queryTokens.filter(tok =>
-      (chunk.tokens && chunk.tokens.includes(tok)) ||
-      (chunk.ngrams && chunk.ngrams.includes(tok)) ||
-      (chunk.headline && chunk.headline.includes(tok))
-    );
-    if (matchedTokens.length)
-      out += c.gray('   Matched: ') + matchedTokens.join(', ') + '\n';
-  }
-
-  if (chunk.docmeta?.signature)
-    out += c.cyan('   Signature: ') + chunk.docmeta.signature + '\n';
-
-  if (chunk.lint?.length)
-    out += c.red(`   Lint: ${chunk.lint.length} issues`) +
-      (chunk.lint.length ? c.gray(' | ') + chunk.lint.slice(0,2).map(l => JSON.stringify(l.message)).join(', ') : '') + '\n';
-
-  if (chunk.externalDocs?.length)
-    out += c.blue('   Docs: ') + chunk.externalDocs.join(', ') + '\n';
-
-  const cleanedPreContext = chunk.preContext ? cleanContext(chunk.preContext) : [];
-  if (cleanedPreContext.length)
-    out += c.gray('   preContext: ') + cleanedPreContext.map(l => c.green(l.trim())).join(' | ') + '\n';
-
-  const cleanedPostContext = chunk.postContext ? cleanContext(chunk.postContext) : [];
-  if (cleanedPostContext.length)
-    out += c.gray('   postContext: ') + cleanedPostContext.map(l => c.green(l.trim())).join(' | ') + '\n';
-
-  if (idx === 0) {
-    lastCount = 0;
-  }
-  if (idx < 5) {
-    let maxWords = 10;
-    let lessPer = 3;
-    maxWords -= (lessPer*idx);
-    const bodySummary = getBodySummary(chunk, maxWords);
-    if (lastCount < maxWords) {
-      maxWords = bodySummary.length; 
-    }
-    lastCount = bodySummary.length;
-    out += c.gray('   Summary: ') + `${getBodySummary(chunk, maxWords)}` + '\n';
-  }
-
-  out += c.gray(''.padEnd(60, '—')) + '\n';
-  return out;
-}
-
-
-function printShortChunk(chunk, idx, mode, annScore, annType = 'bm25') {        
-  if (!chunk || !chunk.file) {
-    return color.red(`   ${idx + 1}. [Invalid result — missing chunk or file]`) + '\n';
-  }
-  let out = '';
-  out += `${color.bold(color[mode === 'code' ? 'blue' : 'magenta'](`${idx + 1}. ${chunk.file}`))}`;
-  out += color.yellow(` [${annScore.toFixed(2)}]`);
-  if (chunk.name) out += ' ' + color.cyan(chunk.name);
-  out += color.gray(` (${chunk.kind || 'unknown'})`);
-  if (chunk.last_author && chunk.last_author !== '2xmvr') out += color.green(` by ${chunk.last_author}`);
-  if (chunk.headline) out += ` - ${color.underline(chunk.headline)}`;
-  else if (chunk.tokens && chunk.tokens.length && rx)
-    out += ' - ' + chunk.tokens.slice(0, 10).join(' ').replace(rx, (m) => color.bold(color.yellow(m)));
-
-  if (argv.matched) {
-    const matchedTokens = queryTokens.filter(tok =>
-      (chunk.tokens && chunk.tokens.includes(tok)) ||
-      (chunk.ngrams && chunk.ngrams.includes(tok)) ||
-      (chunk.headline && chunk.headline.includes(tok))
-    );
-    if (matchedTokens.length)
-      out += color.gray(` Matched: ${matchedTokens.join(', ')}`);
-  }
-
-  out += '\n';
-  return out;
-}
-
-
 // --- MAIN SEARCH PIPELINE ---
+/**
+ * Execute the full search pipeline for a mode.
+ * @param {object} idx
+ * @param {'code'|'prose'} mode
+ * @param {number[]|null} queryEmbedding
+ * @returns {Array<object>}
+ */
 function runSearch(idx, mode, queryEmbedding) {
   const meta = idx.chunkMeta;
 
@@ -1167,9 +834,25 @@ function runSearch(idx, mode, queryEmbedding) {
     type: searchType,
     author: searchAuthor,
     call: searchCall,
-    import: searchImport,
+    importName: searchImport,
     lint: argv.lint,
-    churn: argv.churn
+    churn: argv.churn,
+    calls: argv.calls,
+    uses: argv.uses,
+    signature: argv.signature,
+    param: argv.param,
+    decorator: argv.decorator,
+    returnType: argv['return-type'],
+    throws: argv.throws,
+    reads: argv.reads,
+    writes: argv.writes,
+    mutates: argv.mutates,
+    awaits: argv.awaits,
+    visibility: argv.visibility,
+    extends: argv.extends,
+    async: argv.async,
+    generator: argv.generator,
+    returns: argv.returns
   });
   const allowedIdx = new Set(filteredMeta.map(c => c.id));
 
@@ -1182,7 +865,14 @@ function runSearch(idx, mode, queryEmbedding) {
   } else {
     const tokenIndexOverride = useSqlite ? getTokenIndexForQuery(queryTokens, mode) : null;
     candidates = buildCandidateSet(idx, queryTokens, mode);
-    bmHits = rankBM25(idx, queryTokens, argv.n * 3, tokenIndexOverride, bm25K1, bm25B);
+    bmHits = rankBM25({
+      idx,
+      tokens: queryTokens,
+      topN: argv.n * 3,
+      tokenIndexOverride,
+      k1: bm25K1,
+      b: bm25B
+    });
   }
   // MinHash (embedding) ANN, if requested
   let annHits = [];
@@ -1261,7 +951,13 @@ function runSearch(idx, mode, queryEmbedding) {
     if (!modelId) return null;
     const cacheKey = useStubEmbeddings ? `${modelId}:${dims || 'default'}` : modelId;
     if (embeddingCache.has(cacheKey)) return embeddingCache.get(cacheKey);
-    const embedding = await getQueryEmbedding(query, modelId, dims);
+    const embedding = await getQueryEmbedding({
+      text: query,
+      modelId,
+      dims,
+      modelDir: modelConfig.dir,
+      useStub: useStubEmbeddings
+    });
     embeddingCache.set(cacheKey, embedding);
     return embedding;
   };
@@ -1320,11 +1016,11 @@ function runSearch(idx, mode, queryEmbedding) {
         }
       }
     }, null, 2));
-    process.exit(0);
   }
 
-  let showProse = runProse ? argv.n : 0;
-  let showCode = runCode ? argv.n : 0;
+  if (!argv.json) {
+    let showProse = runProse ? argv.n : 0;
+    let showCode = runCode ? argv.n : 0;
 
   if (runProse && runCode) {
     if (proseHits.length < argv.n) {
@@ -1338,11 +1034,32 @@ function runSearch(idx, mode, queryEmbedding) {
   // Human output, enhanced formatting and summaries
   if (runProse) {
     console.log(color.bold(`\n===== 📖 Markdown Results (${backendLabel}) =====`));
+    const summaryState = { lastCount: 0 };
     proseHits.slice(0, showProse).forEach((h, i) => {
       if (i < 2) {
-        process.stdout.write(printFullChunk(h, i, 'prose', h.annScore, h.annType));
+        process.stdout.write(formatFullChunk({
+          chunk: h,
+          index: i,
+          mode: 'prose',
+          annScore: h.annScore,
+          color,
+          queryTokens,
+          rx,
+          matched: argv.matched,
+          rootDir: ROOT,
+          summaryState
+        }));
       } else {
-        process.stdout.write(printShortChunk(h, i, 'prose', h.annScore, h.annType));
+        process.stdout.write(formatShortChunk({
+          chunk: h,
+          index: i,
+          mode: 'prose',
+          annScore: h.annScore,
+          color,
+          queryTokens,
+          rx,
+          matched: argv.matched
+        }));
       }
     });
     console.log('\n');
@@ -1350,20 +1067,42 @@ function runSearch(idx, mode, queryEmbedding) {
 
   if (runCode) {
     console.log(color.bold(`===== 🔨 Code Results (${backendLabel}) =====`));
+    const summaryState = { lastCount: 0 };
     codeHits.slice(0, showCode).forEach((h, i) => {
       if (i < 1) {
-        process.stdout.write(printFullChunk(h, i, 'code', h.annScore, h.annType));
+        process.stdout.write(formatFullChunk({
+          chunk: h,
+          index: i,
+          mode: 'code',
+          annScore: h.annScore,
+          color,
+          queryTokens,
+          rx,
+          matched: argv.matched,
+          rootDir: ROOT,
+          summaryState
+        }));
       } else {
-        process.stdout.write(printShortChunk(h, i, 'code', h.annScore, h.annType));
+        process.stdout.write(formatShortChunk({
+          chunk: h,
+          index: i,
+          mode: 'code',
+          annScore: h.annScore,
+          color,
+          queryTokens,
+          rx,
+          matched: argv.matched
+        }));
       }
     });
     console.log('\n');
   }
 
-  // Optionally stats
-  if (argv.stats) {
-    const cacheTag = queryCacheEnabled ? (cacheHit ? 'cache=hit' : 'cache=miss') : 'cache=off';
-    console.log(color.gray(`Stats: prose chunks=${idxProse.chunkMeta.length}, code chunks=${idxCode.chunkMeta.length} (${cacheTag})`));
+    // Optionally stats
+    if (argv.stats) {
+      const cacheTag = queryCacheEnabled ? (cacheHit ? 'cache=hit' : 'cache=miss') : 'cache=off';
+      console.log(color.gray(`Stats: prose chunks=${idxProse.chunkMeta.length}, code chunks=${idxCode.chunkMeta.length} (${cacheTag})`));
+    }
   }
 
   /* ---------- Update .repoMetrics and .searchHistory ---------- */

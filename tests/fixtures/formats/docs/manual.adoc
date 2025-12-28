@@ -1,0 +1,9 @@
+= Manual
+
+== Usage
+
+Follow the steps in this manual.
+
+== Troubleshooting
+
+Check the logs.

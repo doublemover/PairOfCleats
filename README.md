@@ -46,14 +46,14 @@ I figured it would be helpful if they were able to query the codebase and docume
 <summary><h2>⚙️ Index Features</h2></summary>
 
 - Recursively scans your codebase
-  - **Code**: `.js`, `.mjs`, `.cjs`, `.py`, `.swift`, `.rs`, `.c`, `.cc`, `.cpp`, `.h`, `.hpp`, `.m`, `.mm`, `.yml`, `.sh`, `.html`
-  - **Prose**: `.md`, `.txt`
+- **Code**: `.js`, `.mjs`, `.cjs`, `.py`, `.swift`, `.rs`, `.c`, `.cc`, `.cpp`, `.h`, `.hpp`, `.m`, `.mm`, `.go`, `.java`, `.pl`, `.pm`, `.sh`, `.bash`, `.zsh`, `.ksh`, `.yml`, `.yaml`, `.json`, `.toml`, `.ini`, `.cfg`, `.conf`, `.xml`, `.html`, `Dockerfile`, `Makefile`
+  - **Prose**: `.md`, `.txt`, `.rst`, `.adoc`, `.asciidoc`
   - Skips irrelevant directories (`.git`, `node_modules`, `dist`, `coverage`, etc)
 - Automatically determines ideal chunk size & dimension count separately for prose & code
 - Configurable to prioritize offline generation time, index size, search speed, and accuracy
 - Combines BM25 Search, embeddings, MinHash signatures, and rich code/documentation relations
 - Smart Chunking
-  - **Code**: Functions, Classes & Methods, Arrow Functions, Exports, Swift/Python/C/ObjC/Rust declarations
+  - **Code**: Functions, Classes & Methods, Arrow Functions, Exports, Swift/Python/C/ObjC/Rust/Go/Java/Perl/Shell declarations
   - **Prose**: Headings (Markdown/RST), Sections (YAML)
 - Feature Extraction (per chunk)
 	- **Tokenization & Stemming**  
@@ -63,11 +63,12 @@ I figured it would be helpful if they were able to query the codebase and docume
 	- **MinHash signatures** → fast approximate similarity  
 	- **Code relations**: Calls graph, Imports & Exports, Identifier usages
 	- **Git metadata**: Last author & modified date, Churn score, Per-chunk blame authors
-	- **Complexity analysis** (cyclomatic complexity of JS functions)
-	- **Lint results** (via ESLint)
-	- **Docstrings / Signatures / Param annotations** (via doc comment extraction)
-	- **Headline generation** → auto-summarized chunk label
-	- **Neighbor context** → pre/post lines for agent context windowing
+        - **Complexity analysis** (cyclomatic complexity of JS functions)       
+        - **Lint results** (via ESLint)
+        - **Docstrings / Signatures / Param annotations** (via doc comment extraction)
+        - **AST dataflow metadata** (reads/writes/mutations/throws/awaits/yields)
+        - **Headline generation** → auto-summarized chunk label
+        - **Neighbor context** → pre/post lines for agent context windowing     
 </details>
 
 <details>
@@ -100,6 +101,9 @@ Provides a CLI utility for **agent-friendly semantic search** of your repo.
 - `--lint` → chunks with lint issues
 - `--churn N` → high-churn code
 - `--signature STR`, `--param PARAM`
+- `--decorator NAME`, `--return-type TYPE`, `--throws TYPE`, `--extends BASE`
+- `--reads NAME`, `--writes NAME`, `--mutates NAME`
+- `--async`, `--generator`, `--returns`
 
 **Rich Output**
 - **Human-friendly mode** (with color-coded terminal output):
@@ -191,8 +195,8 @@ Build a shared SQLite index (split code/prose DBs):
 `npm run build-sqlite-index`
 
 Layout:
-- `index-sqlite/index-code.db`
-- `index-sqlite/index-prose.db`
+- `<cache>/repos/<repoId>/index-sqlite/index-code.db`
+- `<cache>/repos/<repoId>/index-sqlite/index-prose.db`
 
 Search (auto-uses SQLite when enabled):
 
@@ -242,7 +246,8 @@ You can also set defaults in `.pairofcleats.json` (enable `use` to make SQLite t
   },
   "indexing": {
     "concurrency": 4,
-    "importConcurrency": 4
+    "importConcurrency": 4,
+    "astDataflow": true
   }
 }
 ```
@@ -315,8 +320,14 @@ To enable FTS5 scoring, set `sqlite.scoreMode` to `fts` (experimental; lower par
   - (Optional) Download embedding model: `npm run download-models`
   - (Optional) Download SQLite ANN extensions (supports `.zip`, `.tar`, `.tar.gz`, `.tgz`): `npm run download-extensions -- --url vec0.dll=...`
   - (Optional) Verify extension install: `npm run verify-extensions` (use `--no-load` to skip load checks)
+  - (Optional) Detect language tooling: `npm run tooling-detect`
+  - (Optional) Install language tooling (cache-local default): `npm run tooling-install -- --scope cache`
   - Configure which file types and folders to skip
   - (Optional) Configure `.pairofcleats.json` and `.pairofcleatsignore`
+    - Tooling config example:
+      ```json
+      { "tooling": { "autoInstallOnDetect": false, "installScope": "cache", "allowGlobalFallback": true } }
+      ```
 - Build the index: `node build_index.js` (add `--incremental` to reuse per-file cache)
   - (Optional) Build a shared SQLite index: `npm run build-sqlite-index` (use `-- --incremental` to update in place when the per-file cache exists)
 - Include the index & search.js
@@ -364,6 +375,7 @@ Benchmarks (query latency + artifact sizes):
 `npm run bench-ann`
 
 Optional: measure build times with `npm run bench -- --build --stub-embeddings`.
+Use `--backend all` to include `sqlite-fts`, and pass `--bm25-k1`, `--bm25-b`, `--fts-profile`, or `--fts-weights` to tune scoring.
 
 Cleanup harness:
 
@@ -389,9 +401,17 @@ Language fidelity harness:
 
 `npm run language-fidelity-test`
 
+Format fidelity harness:
+
+`npm run format-fidelity-test`
+
 Download extensions archive harness:
 
 `npm run download-extensions-test`
+
+Download dictionaries harness:
+
+`npm run download-dicts-test`
 
 Verify extensions (loads the binary unless `--no-load` is provided):
 
@@ -417,6 +437,14 @@ Summary report test harness:
 
 `npm run summary-report-test`
 
+Script coverage harness (runs every script where practical; skips long-running or destructive steps):
+
+`npm run script-coverage-test`
+
+Notes:
+- Requires `bash` for shell merge scripts; `merge-metrics.sh` additionally needs `jq`.
+- Skips `download-models` (network), `bench`/`bench-ann` (long-running), and `format`/`lint` (workspace changes or npm install).
+
 Combined summary report (runs compare + parity and writes `docs/combined-summary.json`):
 
 `npm run summary-report -- --models Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2`
@@ -439,6 +467,8 @@ Optional flags:
 - Uninstall test harness: `npm run uninstall-test`
 - Compact SQLite indexes (prune vocab + reassign doc_ids): `npm run compact-sqlite-index`
 - Repometrics dashboard (console summary + optional JSON): `npm run repometrics-dashboard`
+- Detect optional language tooling: `npm run tooling-detect`
+- Install optional language tooling (cache-local by default): `npm run tooling-install -- --scope cache`
 - Build CI artifacts: `node tools/ci-build-artifacts.js --out ci-artifacts`
 - Restore CI artifacts: `node tools/ci-restore-artifacts.js --from ci-artifacts` (bootstrap auto-detects when present)
 
@@ -450,13 +480,15 @@ Optional flags:
 - `docs/sqlite-ann-extension.md`
 - `docs/sqlite-incremental-updates.md`
 - `docs/language-fidelity.md`
+- `docs/ast-feature-list.md`
+- `docs/parser-backbone.md`
 - `docs/repometrics-dashboard.md`
 - `docs/sqlite-index-schema.md`
 - `docs/query-cache.md`
 
 ## 📦 Cache Layout
 
-Indexes and metrics live outside the repo by default (configurable via `.pairofcleats.json`):
+Indexes and metrics live outside the repo by default (configurable via `.pairofcleats.json`); SQLite DBs follow the same cache root unless overridden.
 
 - `<cache>/repos/<repoId>/index-code`
 - `<cache>/repos/<repoId>/index-prose`
@@ -464,14 +496,16 @@ Indexes and metrics live outside the repo by default (configurable via `.pairofc
 - `<cache>/repos/<repoId>/repometrics`
 - `<cache>/repos/<repoId>/repometrics/index-<mode>.json`
 - `<cache>/repos/<repoId>/repometrics/queryCache.json`
-- `<cache>/repos/<repoId>/index-sqlite/index-code.db`
-- `<cache>/repos/<repoId>/index-sqlite/index-prose.db`
 - `<cache>/models`
 - `<cache>/extensions`
+- `<cache>/repos/<repoId>/index-sqlite/index-code.db`
+- `<cache>/repos/<repoId>/index-sqlite/index-prose.db`
 
 Default cache root:
 - Windows: `%LOCALAPPDATA%\\PairOfCleats`
 - Linux/macOS: `~/.cache/pairofcleats`
+- Repo IDs are derived from the absolute repo path; run from repo root for stable IDs.
+- Override SQLite DB locations with `sqlite.dbDir` or `codeDbPath`/`proseDbPath` (for example, `index-sqlite` to keep DBs in the repo).
 - Update AGENTS.md to instruct agents to utilize search.js & leave repo metrics alone
 - Set up workflows and merge drivers for search metrics
 - Enjoy!

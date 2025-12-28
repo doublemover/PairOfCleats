@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import { fileURLToPath } from 'node:url';
+import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/compare/config.js';
 import { DEFAULT_MODEL_ID, getIndexDir, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
@@ -23,34 +24,26 @@ const root = process.cwd();
 const userConfig = loadUserConfig(root);
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-function parseModelList(value) {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.map(String);
-  return String(value)
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
 const configCompare = Array.isArray(userConfig.models?.compare) ? userConfig.models.compare : [];
 const defaultModel = userConfig.models?.id || DEFAULT_MODEL_ID;
-const models = Array.from(new Set(
-  parseModelList(argv.models).length ? parseModelList(argv.models) : (configCompare.length ? configCompare : [defaultModel])
-));
-const baseline = argv.baseline || models[0];
-const annDefault = userConfig.search?.annDefault !== false;
-const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
-const annEnabled = annFlagPresent ? argv.ann : annDefault;
-const buildEnabled = argv.build !== false;
-
+const models = resolveCompareModels({
+  argvModels: argv.models,
+  configCompareModels: configCompare,
+  defaultModel
+});
 if (!models.length) {
   console.error('No models specified. Use --models or configure models.compare.');
   process.exit(1);
 }
-if (!models.includes(baseline)) {
-  console.error(`Baseline model not in list: ${baseline}`);
+let baseline;
+try {
+  baseline = resolveBaseline(models, argv.baseline);
+} catch (err) {
+  console.error(err.message);
   process.exit(1);
 }
+const { annEnabled } = resolveAnnSetting({ rawArgs, argv, userConfig });
+const buildEnabled = argv.build !== false;
 
 const reportPaths = {
   compareMemory: path.join(root, 'docs', 'model-compare-report.json'),
@@ -60,6 +53,12 @@ const reportPaths = {
   combined: path.join(root, 'docs', 'combined-summary.json')
 };
 
+/**
+ * Run a node script and exit on failure.
+ * @param {string[]} args
+ * @param {string} label
+ * @returns {void}
+ */
 function runNode(args, label) {
   const result = spawnSync(process.execPath, args, { stdio: 'inherit' });
   if (result.status !== 0) {
@@ -68,6 +67,11 @@ function runNode(args, label) {
   }
 }
 
+/**
+ * Resolve the best index directory for a mode.
+ * @param {'code'|'prose'} mode
+ * @returns {string}
+ */
 function resolveIndexDir(mode) {
   const cached = getIndexDir(root, mode, userConfig);
   const cachedMeta = path.join(cached, 'chunk_meta.json');
@@ -78,6 +82,10 @@ function resolveIndexDir(mode) {
   return cached;
 }
 
+/**
+ * Ensure index and SQLite artifacts exist for parity runs.
+ * @returns {void}
+ */
 function ensureParityIndexes() {
   const codeMeta = path.join(resolveIndexDir('code'), 'chunk_meta.json');
   const proseMeta = path.join(resolveIndexDir('prose'), 'chunk_meta.json');
@@ -104,6 +112,11 @@ function ensureParityIndexes() {
   }
 }
 
+/**
+ * Build args for model comparison runs.
+ * @param {{backend?:string,outPath:string}} params
+ * @returns {string[]}
+ */
 function buildCompareArgs({ backend, outPath }) {
   const args = [
     path.join(scriptRoot, 'tools', 'compare-models.js'),
@@ -126,6 +139,11 @@ function buildCompareArgs({ backend, outPath }) {
   return args;
 }
 
+/**
+ * Build args for parity runs.
+ * @param {{backend:string,outPath:string}} params
+ * @returns {string[]}
+ */
 function buildParityArgs({ backend, outPath }) {
   const args = [
     path.join(scriptRoot, 'tests', 'parity.js'),
@@ -150,6 +168,11 @@ ensureParityIndexes();
 runNode(buildParityArgs({ backend: 'sqlite', outPath: reportPaths.paritySqlite }), 'parity sqlite');
 runNode(buildParityArgs({ backend: 'sqlite-fts', outPath: reportPaths.paritySqliteFts }), 'parity sqlite-fts');
 
+/**
+ * Read JSON from disk or return null.
+ * @param {string} filePath
+ * @returns {object|null}
+ */
 function readJson(filePath) {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));

@@ -17,22 +17,46 @@ const PROVIDERS = {
   }
 };
 
+/**
+ * Resolve a path relative to the repo root.
+ * @param {string} repoRoot
+ * @param {string|null} value
+ * @returns {string|null}
+ */
 function resolvePath(repoRoot, value) {
   if (!value) return null;
   if (path.isAbsolute(value)) return value;
   return path.join(repoRoot, value);
 }
 
+/**
+ * Resolve the platform-specific dynamic library suffix.
+ * @param {string} [platform]
+ * @returns {string}
+ */
 export function getBinarySuffix(platform = process.platform) {
   if (platform === 'win32') return '.dll';
   if (platform === 'darwin') return '.dylib';
   return '.so';
 }
 
+/**
+ * Build a platform key (platform-arch).
+ * @param {string} [platform]
+ * @param {string} [arch]
+ * @returns {string}
+ */
 export function getPlatformKey(platform = process.platform, arch = process.arch) {
   return `${platform}-${arch}`;
 }
 
+/**
+ * Resolve vector extension configuration from repo config + overrides.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @param {object} [overrides]
+ * @returns {object}
+ */
 export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides = {}) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const sqlite = cfg.sqlite || {};
@@ -94,6 +118,11 @@ export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides 
   };
 }
 
+/**
+ * Resolve the extension binary path from config.
+ * @param {object} config
+ * @returns {string|null}
+ */
 export function resolveVectorExtensionPath(config) {
   if (!config) return null;
   if (config.path) return config.path;
@@ -103,6 +132,13 @@ export function resolveVectorExtensionPath(config) {
 
 const loadCache = new WeakMap();
 
+/**
+ * Load the vector extension into a SQLite connection (cached per db).
+ * @param {import('better-sqlite3').Database} db
+ * @param {object} config
+ * @param {string} [label]
+ * @returns {{ok:boolean,reason?:string,path?:string,label?:string}}
+ */
 export function loadVectorExtension(db, config, label = 'sqlite') {
   if (!db || !config?.enabled) {
     return { ok: false, reason: 'disabled' };
@@ -126,6 +162,12 @@ export function loadVectorExtension(db, config, label = 'sqlite') {
   }
 }
 
+/**
+ * Check whether a vector table exists.
+ * @param {import('better-sqlite3').Database} db
+ * @param {string} tableName
+ * @returns {boolean}
+ */
 export function hasVectorTable(db, tableName) {
   if (!db || !tableName) return false;
   try {
@@ -138,6 +180,13 @@ export function hasVectorTable(db, tableName) {
   }
 }
 
+/**
+ * Ensure the vector table exists for the given embedding dimension.
+ * @param {import('better-sqlite3').Database} db
+ * @param {object} config
+ * @param {number} dims
+ * @returns {{ok:boolean,reason?:string,tableName?:string,column?:string}}
+ */
 export function ensureVectorTable(db, config, dims) {
   if (!db || !config?.module || !config?.table) {
     return { ok: false, reason: 'missing config' };
@@ -160,6 +209,12 @@ export function ensureVectorTable(db, config, dims) {
   }
 }
 
+/**
+ * Encode a vector into a format accepted by the extension.
+ * @param {ArrayLike<number>} vector
+ * @param {object} config
+ * @returns {Buffer|string|null}
+ */
 export function encodeVector(vector, config) {
   if (!vector || typeof vector.length !== 'number') return null;
   const encoding = String(config?.encoding || DEFAULT_ENCODING).toLowerCase();
@@ -173,6 +228,15 @@ export function encodeVector(vector, config) {
   return Buffer.from(floats.buffer, floats.byteOffset, floats.byteLength);
 }
 
+/**
+ * Query the vector ANN index and return scored hits.
+ * @param {import('better-sqlite3').Database} db
+ * @param {object} config
+ * @param {ArrayLike<number>} embedding
+ * @param {number} topN
+ * @param {Set<number>|null} candidateSet
+ * @returns {Array<{idx:number,sim:number}>}
+ */
 export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
   if (!db || !embedding) return [];
   const table = config?.table || DEFAULT_TABLE;

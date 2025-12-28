@@ -16,6 +16,11 @@ const userConfig = loadUserConfig(root);
 const metricsDir = getMetricsDir(root, userConfig);
 const topN = Math.max(1, parseInt(argv.top, 10) || 5);
 
+/**
+ * Read JSON from disk if present.
+ * @param {string} filePath
+ * @returns {any|null}
+ */
 function readJson(filePath) {
   if (!fs.existsSync(filePath)) return null;
   try {
@@ -25,6 +30,11 @@ function readJson(filePath) {
   }
 }
 
+/**
+ * Read newline-delimited JSON entries from a file.
+ * @param {string} filePath
+ * @returns {any[]}
+ */
 function readJsonLines(filePath) {
   if (!fs.existsSync(filePath)) return [];
   const raw = fs.readFileSync(filePath, 'utf8');

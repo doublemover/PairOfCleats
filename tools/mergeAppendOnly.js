@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 
+/**
+ * Read non-empty trimmed lines from a file.
+ * @param {string} filePath
+ * @returns {Promise<string[]>}
+ */
 async function readLines(filePath) {
   try {
     const text = await fs.readFile(filePath, 'utf8');
@@ -13,6 +18,12 @@ async function readLines(filePath) {
   }
 }
 
+/**
+ * Merge append-only line files, preserving existing target order.
+ * @param {string} baseFile
+ * @param {string} targetFile
+ * @returns {Promise<void>}
+ */
 export async function mergeAppendOnly(baseFile, targetFile) {
   const baseLines = await readLines(baseFile);
   const targetLines = await readLines(targetFile);

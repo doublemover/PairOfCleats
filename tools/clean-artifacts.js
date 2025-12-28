@@ -14,17 +14,29 @@ const root = process.cwd();
 const userConfig = loadUserConfig(root);
 const cacheRoot = (userConfig.cache && userConfig.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
-const defaultSqliteDir = path.join(root, 'index-sqlite');
+const defaultSqliteDir = path.join(repoCacheRoot, 'index-sqlite');
+const legacyRepoSqliteDir = path.join(root, 'index-sqlite');
 const defaultCodePath = path.join(defaultSqliteDir, 'index-code.db');
 const defaultProsePath = path.join(defaultSqliteDir, 'index-prose.db');
 const defaultLegacyPath = path.join(defaultSqliteDir, 'index.db');
 const sqlitePaths = resolveSqlitePaths(root, userConfig);
 
+/**
+ * Check if a path is contained within another path.
+ * @param {string} parent
+ * @param {string} child
+ * @returns {boolean}
+ */
 function isInside(parent, child) {
   const rel = path.relative(parent, child);
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
+/**
+ * Guard against deleting filesystem root paths.
+ * @param {string} targetPath
+ * @returns {boolean}
+ */
 function isRootPath(targetPath) {
   const resolved = path.resolve(targetPath);
   return path.parse(resolved).root === resolved;
@@ -58,6 +70,10 @@ if (fs.existsSync(sqlitePaths.legacyPath)) {
   if (!isInside(base, path.resolve(legacyTarget))) {
     targets.push(legacyTarget);
   }
+}
+
+if (fs.existsSync(legacyRepoSqliteDir) && !isInside(base, path.resolve(legacyRepoSqliteDir))) {
+  targets.push(legacyRepoSqliteDir);
 }
 
 const uniqueTargets = Array.from(new Set(targets.map((target) => path.resolve(target))));

@@ -29,11 +29,17 @@ await fsPromises.writeFile(path.join(repoCacheRoot, 'index-code', 'chunk_meta.js
 await fsPromises.writeFile(path.join(repoCacheRoot, 'index-prose', 'chunk_meta.json'), '[]');
 await fsPromises.writeFile(path.join(repoCacheRoot, 'repometrics', 'metrics.json'), '{}');
 
-const localSqliteDir = path.join(repoRoot, 'index-sqlite');
-await fsPromises.mkdir(localSqliteDir, { recursive: true });
-await fsPromises.writeFile(path.join(localSqliteDir, 'index-code.db'), 'code');
-await fsPromises.writeFile(path.join(localSqliteDir, 'index-prose.db'), 'prose');
-await fsPromises.writeFile(path.join(localSqliteDir, 'index.db'), 'legacy');
+const cacheSqliteDir = path.join(repoCacheRoot, 'index-sqlite');
+await fsPromises.mkdir(cacheSqliteDir, { recursive: true });
+await fsPromises.writeFile(path.join(cacheSqliteDir, 'index-code.db'), 'code');
+await fsPromises.writeFile(path.join(cacheSqliteDir, 'index-prose.db'), 'prose');
+await fsPromises.writeFile(path.join(cacheSqliteDir, 'index.db'), 'legacy');
+
+const legacySqliteDir = path.join(repoRoot, 'index-sqlite');
+await fsPromises.mkdir(legacySqliteDir, { recursive: true });
+await fsPromises.writeFile(path.join(legacySqliteDir, 'index-code.db'), 'legacy-code');
+await fsPromises.writeFile(path.join(legacySqliteDir, 'index-prose.db'), 'legacy-prose');
+await fsPromises.writeFile(path.join(legacySqliteDir, 'index.db'), 'legacy-index');
 
 const result = spawnSync(
   process.execPath,
@@ -48,7 +54,7 @@ if (result.status !== 0) {
 
 const failures = [];
 if (fs.existsSync(repoCacheRoot)) failures.push(`repo cache root still exists: ${repoCacheRoot}`);
-if (fs.existsSync(localSqliteDir)) failures.push(`local sqlite dir still exists: ${localSqliteDir}`);
+if (fs.existsSync(legacySqliteDir)) failures.push(`legacy sqlite dir still exists: ${legacySqliteDir}`);
 
 if (failures.length) {
   failures.forEach((msg) => console.error(msg));

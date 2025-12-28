@@ -13,3 +13,7 @@
 int add_numbers(int a, int b) {
     return a + b;
 }
+
+int use_add_numbers(int a, int b) {
+    return add_numbers(a, b);
+}

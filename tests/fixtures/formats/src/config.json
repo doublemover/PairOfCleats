@@ -1,0 +1,14 @@
+{
+  "database": {
+    "host": "localhost",
+    "port": 5432
+  },
+  "cache": {
+    "enabled": true,
+    "ttl": 60
+  },
+  "features": [
+    "alpha",
+    "beta"
+  ]
+}

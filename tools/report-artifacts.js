@@ -22,6 +22,11 @@ const sqliteTargets = [
   { label: 'prose', path: sqlitePaths.prosePath }
 ];
 
+/**
+ * Recursively compute the size of a file or directory.
+ * @param {string} targetPath
+ * @returns {Promise<number>}
+ */
 async function sizeOfPath(targetPath) {
   try {
     const stat = await fsPromises.lstat(targetPath);
@@ -40,6 +45,11 @@ async function sizeOfPath(targetPath) {
   }
 }
 
+/**
+ * Format a byte count as a human-readable string.
+ * @param {number} bytes
+ * @returns {string}
+ */
 function formatBytes(bytes) {
   if (!bytes) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -53,6 +63,12 @@ function formatBytes(bytes) {
   return `${rounded} ${units[unit]}`;
 }
 
+/**
+ * Check if a path is contained within another path.
+ * @param {string} parent
+ * @param {string} child
+ * @returns {boolean}
+ */
 function isInside(parent, child) {
   const rel = path.relative(parent, child);
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));

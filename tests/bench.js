@@ -6,7 +6,7 @@ import minimist from 'minimist';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['ann', 'no-ann', 'json', 'write-report', 'build', 'build-index', 'build-sqlite', 'incremental', 'stub-embeddings'],
-  string: ['queries', 'backend', 'out'],
+  string: ['queries', 'backend', 'out', 'bm25-k1', 'bm25-b', 'fts-profile', 'fts-weights'],
   alias: { n: 'top', q: 'queries' },
   default: { top: 5, limit: 0, json: false, 'write-report': false }
 });
@@ -43,7 +43,19 @@ const limit = Math.max(0, parseInt(argv.limit, 10) || 0);
 const selectedQueries = limit > 0 ? queries.slice(0, limit) : queries;
 const annEnabled = argv.ann !== false;
 const annArg = annEnabled ? '--ann' : '--no-ann';
-const backends = argv.backend ? [argv.backend] : ['memory', 'sqlite'];
+const bm25K1Arg = argv['bm25-k1'];
+const bm25BArg = argv['bm25-b'];
+const ftsProfileArg = argv['fts-profile'];
+const ftsWeightsArg = argv['fts-weights'];
+function resolveBackends(value) {
+  if (!value) return ['memory', 'sqlite'];
+  const trimmed = String(value).trim();
+  if (!trimmed) return ['memory', 'sqlite'];
+  const lower = trimmed.toLowerCase();
+  const list = lower === 'all' ? ['memory', 'sqlite', 'sqlite-fts'] : lower.split(',');
+  return Array.from(new Set(list.map((entry) => entry.trim()).filter(Boolean)));
+}
+const backends = resolveBackends(argv.backend);
 const buildIndex = argv['build-index'] || argv.build;
 const buildSqlite = argv['build-sqlite'] || argv.build;
 const buildIncremental = argv.incremental === true;
@@ -61,6 +73,10 @@ function runSearch(query, backend) {
     String(topN),
     annArg
   ];
+  if (bm25K1Arg) args.push('--bm25-k1', String(bm25K1Arg));
+  if (bm25BArg) args.push('--bm25-b', String(bm25BArg));
+  if (ftsProfileArg) args.push('--fts-profile', String(ftsProfileArg));
+  if (ftsWeightsArg) args.push('--fts-weights', String(ftsWeightsArg));
   const result = spawnSync(process.execPath, args, { encoding: 'utf8' });
   if (result.status !== 0) {
     console.error(`Search failed for backend=${backend} query="${query}"`);
@@ -121,12 +137,27 @@ if (buildIndex || buildSqlite) {
 }
 
 const latency = {};
-for (const backend of backends) latency[backend] = [];
+const memoryRss = {};
+const hitCounts = {};
+const resultCounts = {};
+for (const backend of backends) {
+  latency[backend] = [];
+  memoryRss[backend] = [];
+  hitCounts[backend] = 0;
+  resultCounts[backend] = [];
+}
 
 for (const query of selectedQueries) {
   for (const backend of backends) {
     const payload = runSearch(query, backend);
     latency[backend].push(payload.stats?.elapsedMs || 0);
+    const codeHits = Array.isArray(payload.code) ? payload.code.length : 0;
+    const proseHits = Array.isArray(payload.prose) ? payload.prose.length : 0;
+    const totalHits = codeHits + proseHits;
+    resultCounts[backend].push(totalHits);
+    if (totalHits > 0) hitCounts[backend] += 1;
+    const rss = payload.stats?.memory?.rss;
+    if (Number.isFinite(rss)) memoryRss[backend].push(rss);
   }
 }
 
@@ -134,6 +165,12 @@ const reportResult = spawnSync(process.execPath, [reportPath, '--json'], { encod
 const artifactReport = reportResult.status === 0 ? JSON.parse(reportResult.stdout || '{}') : {};
 
 const latencyStats = Object.fromEntries(backends.map((b) => [b, buildStats(latency[b])]));
+const memoryStats = Object.fromEntries(backends.map((b) => [b, buildStats(memoryRss[b])]));
+const hitRate = Object.fromEntries(backends.map((b) => [
+  b,
+  selectedQueries.length ? hitCounts[b] / selectedQueries.length : 0
+]));
+const resultCountAvg = Object.fromEntries(backends.map((b) => [b, mean(resultCounts[b])]));
 const summary = {
   queries: selectedQueries.length,
   topN,
@@ -141,6 +178,9 @@ const summary = {
   backends,
   latencyMsAvg: Object.fromEntries(backends.map((b) => [b, latencyStats[b].mean])),
   latencyMs: latencyStats,
+  hitRate,
+  resultCountAvg,
+  memoryRss: memoryStats,
   buildMs: Object.keys(buildMs).length ? buildMs : null
 };
 
@@ -160,6 +200,11 @@ if (argv.json) {
   for (const backend of backends) {
     const stats = latencyStats[backend];
     console.log(`- ${backend} avg ms: ${stats.mean.toFixed(1)} (p95 ${stats.p95.toFixed(1)})`);
+    console.log(`- ${backend} hit rate: ${(hitRate[backend] * 100).toFixed(1)}% (avg hits ${resultCountAvg[backend].toFixed(1)})`);
+    const mem = memoryStats[backend];
+    if (mem && mem.mean) {
+      console.log(`- ${backend} rss avg mb: ${(mem.mean / (1024 * 1024)).toFixed(1)} (p95 ${(mem.p95 / (1024 * 1024)).toFixed(1)})`);
+    }
   }
   if (buildMs.index) {
     console.log(`- build index ms: ${buildMs.index.toFixed(0)}`);

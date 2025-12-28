@@ -5,6 +5,9 @@ import path from 'node:path';
 import minimist from 'minimist';
 import { loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
+import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/sqlite/schema.js';
+import { hasRequiredTables, normalizeFilePath } from '../src/sqlite/utils.js';
+import { dequantizeUint8ToFloat32, toVectorId } from '../src/sqlite/vector.js';
 
 let Database;
 try {
@@ -36,167 +39,12 @@ if (!['all', 'code', 'prose'].includes(modeArg)) {
   process.exit(1);
 }
 
-const SCHEMA_VERSION = 4;
-const REQUIRED_TABLES = [
-  'chunks',
-  'chunks_fts',
-  'token_vocab',
-  'token_postings',
-  'doc_lengths',
-  'token_stats',
-  'phrase_vocab',
-  'phrase_postings',
-  'chargram_vocab',
-  'chargram_postings',
-  'minhash_signatures',
-  'dense_vectors',
-  'dense_meta',
-  'file_manifest'
-];
 
-const createTables = `
-  DROP TABLE IF EXISTS chunks_fts;
-  DROP TABLE IF EXISTS chunks;
-  DROP TABLE IF EXISTS token_postings;
-  DROP TABLE IF EXISTS token_vocab;
-  DROP TABLE IF EXISTS doc_lengths;
-  DROP TABLE IF EXISTS token_stats;
-  DROP TABLE IF EXISTS phrase_postings;
-  DROP TABLE IF EXISTS phrase_vocab;
-  DROP TABLE IF EXISTS chargram_postings;
-  DROP TABLE IF EXISTS chargram_vocab;
-  DROP TABLE IF EXISTS minhash_signatures;
-  DROP TABLE IF EXISTS dense_vectors;
-  DROP TABLE IF EXISTS dense_meta;
-  DROP TABLE IF EXISTS file_manifest;
-
-  CREATE TABLE chunks (
-    id INTEGER PRIMARY KEY,
-    mode TEXT,
-    file TEXT,
-    start INTEGER,
-    end INTEGER,
-    startLine INTEGER,
-    endLine INTEGER,
-    ext TEXT,
-    kind TEXT,
-    name TEXT,
-    headline TEXT,
-    preContext TEXT,
-    postContext TEXT,
-    weight REAL,
-    tokens TEXT,
-    ngrams TEXT,
-    codeRelations TEXT,
-    docmeta TEXT,
-    stats TEXT,
-    complexity TEXT,
-    lint TEXT,
-    externalDocs TEXT,
-    last_modified TEXT,
-    last_author TEXT,
-    churn REAL,
-    chunk_authors TEXT
-  );
-  CREATE INDEX idx_chunks_file ON chunks (mode, file);
-  CREATE VIRTUAL TABLE chunks_fts USING fts5(
-    mode UNINDEXED,
-    file,
-    name,
-    kind,
-    headline,
-    tokens,
-    tokenize = 'unicode61'
-  );
-  CREATE TABLE token_vocab (
-    mode TEXT NOT NULL,
-    token_id INTEGER NOT NULL,
-    token TEXT NOT NULL,
-    PRIMARY KEY (mode, token_id),
-    UNIQUE (mode, token)
-  );
-  CREATE TABLE token_postings (
-    mode TEXT NOT NULL,
-    token_id INTEGER NOT NULL,
-    doc_id INTEGER NOT NULL,
-    tf INTEGER NOT NULL,
-    PRIMARY KEY (mode, token_id, doc_id)
-  );
-  CREATE INDEX idx_token_postings_token ON token_postings (mode, token_id);
-  CREATE TABLE doc_lengths (
-    mode TEXT NOT NULL,
-    doc_id INTEGER NOT NULL,
-    len INTEGER NOT NULL,
-    PRIMARY KEY (mode, doc_id)
-  );
-  CREATE TABLE token_stats (
-    mode TEXT PRIMARY KEY,
-    avg_doc_len REAL,
-    total_docs INTEGER
-  );
-  CREATE TABLE phrase_vocab (
-    mode TEXT NOT NULL,
-    phrase_id INTEGER NOT NULL,
-    ngram TEXT NOT NULL,
-    PRIMARY KEY (mode, phrase_id),
-    UNIQUE (mode, ngram)
-  );
-  CREATE TABLE phrase_postings (
-    mode TEXT NOT NULL,
-    phrase_id INTEGER NOT NULL,
-    doc_id INTEGER NOT NULL,
-    PRIMARY KEY (mode, phrase_id, doc_id)
-  );
-  CREATE INDEX idx_phrase_postings_phrase ON phrase_postings (mode, phrase_id);
-  CREATE TABLE chargram_vocab (
-    mode TEXT NOT NULL,
-    gram_id INTEGER NOT NULL,
-    gram TEXT NOT NULL,
-    PRIMARY KEY (mode, gram_id),
-    UNIQUE (mode, gram)
-  );
-  CREATE TABLE chargram_postings (
-    mode TEXT NOT NULL,
-    gram_id INTEGER NOT NULL,
-    doc_id INTEGER NOT NULL,
-    PRIMARY KEY (mode, gram_id, doc_id)
-  );
-  CREATE INDEX idx_chargram_postings_gram ON chargram_postings (mode, gram_id);
-  CREATE TABLE minhash_signatures (
-    mode TEXT NOT NULL,
-    doc_id INTEGER NOT NULL,
-    sig BLOB NOT NULL,
-    PRIMARY KEY (mode, doc_id)
-  );
-  CREATE TABLE dense_vectors (
-    mode TEXT NOT NULL,
-    doc_id INTEGER NOT NULL,
-    vector BLOB NOT NULL,
-    PRIMARY KEY (mode, doc_id)
-  );
-  CREATE TABLE dense_meta (
-    mode TEXT PRIMARY KEY,
-    dims INTEGER,
-    scale REAL,
-    model TEXT
-  );
-  CREATE TABLE file_manifest (
-    mode TEXT NOT NULL,
-    file TEXT NOT NULL,
-    hash TEXT,
-    mtimeMs INTEGER,
-    size INTEGER,
-    chunk_count INTEGER,
-    PRIMARY KEY (mode, file)
-  );
-  CREATE INDEX idx_file_manifest_mode_file ON file_manifest (mode, file);
-`;
-
-function normalizeFilePath(value) {
-  if (typeof value !== 'string') return value;
-  return value.replace(/\\/g, '/');
-}
-
+/**
+ * Parse a token list from string or JSON.
+ * @param {string|Array<string>|null} value
+ * @returns {string[]}
+ */
 function parseTokens(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value;
@@ -216,30 +64,12 @@ function parseTokens(value) {
   return [];
 }
 
-function dequantizeUint8ToFloat32(vec, minVal = -1, maxVal = 1, levels = 256) {
-  if (!vec || typeof vec.length !== 'number') return null;
-  const scale = (maxVal - minVal) / (levels - 1);
-  const out = new Float32Array(vec.length);
-  for (let i = 0; i < vec.length; i++) {
-    out[i] = vec[i] * scale + minVal;
-  }
-  return out;
-}
-
-function toVectorId(value) {
-  try {
-    return BigInt(value);
-  } catch {
-    return value;
-  }
-}
-
-function hasRequiredTables(db) {
-  const rows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-  const tables = new Set(rows.map((row) => row.name));
-  return REQUIRED_TABLES.every((name) => tables.has(name));
-}
-
+/**
+ * Build a backup path for a sqlite db.
+ * @param {string} dbPath
+ * @param {boolean} keepBackup
+ * @returns {string}
+ */
 function buildBackupPath(dbPath, keepBackup) {
   const base = `${dbPath}.bak`;
   if (!keepBackup) return base;
@@ -248,6 +78,12 @@ function buildBackupPath(dbPath, keepBackup) {
   return `${dbPath}.bak-${stamp}`;
 }
 
+/**
+ * Compact a sqlite index by reassigning doc_ids and pruning tables.
+ * @param {string} dbPath
+ * @param {'code'|'prose'} mode
+ * @returns {Promise<object>}
+ */
 async function compactDatabase(dbPath, mode) {
   if (!fs.existsSync(dbPath)) {
     console.warn(`[compact] ${mode} db missing: ${dbPath}`);
@@ -255,7 +91,7 @@ async function compactDatabase(dbPath, mode) {
   }
 
   const sourceDb = new Database(dbPath, { readonly: true });
-  if (!hasRequiredTables(sourceDb)) {
+  if (!hasRequiredTables(sourceDb, REQUIRED_TABLES)) {
     sourceDb.close();
     console.error(`[compact] ${mode} db missing required tables. Rebuild first.`);
     process.exit(1);
@@ -269,7 +105,7 @@ async function compactDatabase(dbPath, mode) {
     outDb.pragma('journal_mode = WAL');
     outDb.pragma('synchronous = NORMAL');
   } catch {}
-  outDb.exec(createTables);
+  outDb.exec(CREATE_TABLES_SQL);
   outDb.pragma(`user_version = ${SCHEMA_VERSION}`);
 
   let vectorAnnLoaded = false;

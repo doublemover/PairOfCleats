@@ -38,10 +38,17 @@
   },
   "indexing": {
     "concurrency": 4,
-    "importConcurrency": 4
+    "importConcurrency": 4,
+    "astDataflow": true
   },
   "models": {
     "id": "Xenova/all-MiniLM-L12-v2",
+    "dir": ""
+  },
+  "tooling": {
+    "autoInstallOnDetect": false,
+    "installScope": "cache",
+    "allowGlobalFallback": true,
     "dir": ""
   }
 }

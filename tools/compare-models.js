@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import minimist from 'minimist';
+import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/compare/config.js';
 import {
   DEFAULT_MODEL_ID,
   getCacheRoot,
@@ -45,29 +46,22 @@ const configCompareModels = Array.isArray(userConfig.models?.compare)
   ? userConfig.models.compare
   : [];
 
-function parseModelList(value) {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.map(String);
-  return String(value)
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-const models = Array.from(new Set(
-  parseModelList(argv.models).length
-    ? parseModelList(argv.models)
-    : (configCompareModels.length ? configCompareModels : [modelConfig.id || DEFAULT_MODEL_ID])
-));
+const models = resolveCompareModels({
+  argvModels: argv.models,
+  configCompareModels,
+  defaultModel: modelConfig.id || DEFAULT_MODEL_ID
+});
 
 if (!models.length) {
   console.error('No models specified. Use --models or configure models.compare.');
   process.exit(1);
 }
 
-const baseline = argv.baseline || models[0];
-if (!models.includes(baseline)) {
-  console.error(`Baseline model not in list: ${baseline}`);
+let baseline;
+try {
+  baseline = resolveBaseline(models, argv.baseline);
+} catch (err) {
+  console.error(err.message);
   process.exit(1);
 }
 
@@ -87,9 +81,7 @@ if (modeArg && !['code', 'prose', 'both'].includes(modeArg)) {
 const compareCode = modeArg !== 'prose';
 const compareProse = modeArg !== 'code';
 
-const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
-const annDefault = userConfig.search?.annDefault !== false;
-const annEnabled = annFlagPresent ? argv.ann : annDefault;
+const { annEnabled } = resolveAnnSetting({ rawArgs, argv, userConfig });
 const annArg = annEnabled ? '--ann' : '--no-ann';
 
 if (sqliteBackend && models.length > 1 && !buildSqlite) {
@@ -102,17 +94,33 @@ if (!buildIndex && models.length > 1 && configCacheRoot) {
   process.exit(1);
 }
 
+/**
+ * Create a stable slug for a model id.
+ * @param {string} modelId
+ * @returns {string}
+ */
 function modelSlug(modelId) {
   const safe = modelId.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
   const hash = crypto.createHash('sha1').update(modelId).digest('hex').slice(0, 8);
   return `${safe || 'model'}-${hash}`;
 }
 
+/**
+ * Resolve the cache root for a specific model comparison run.
+ * @param {string} modelId
+ * @returns {string}
+ */
 function getModelCacheRoot(modelId) {
   if (configCacheRoot) return configCacheRoot;
   return path.join(cacheRootBase, 'model-compare', modelSlug(modelId));
 }
 
+/**
+ * Build environment overrides for a model run.
+ * @param {string} modelId
+ * @param {string} modelCacheRoot
+ * @returns {object}
+ */
 function buildEnv(modelId, modelCacheRoot) {
   const env = {
     ...process.env,
@@ -125,11 +133,22 @@ function buildEnv(modelId, modelCacheRoot) {
   return env;
 }
 
+/**
+ * Check if an index exists for a mode.
+ * @param {string} modelCacheRoot
+ * @param {'code'|'prose'} mode
+ * @returns {boolean}
+ */
 function indexExists(modelCacheRoot, mode) {
   const metaPath = path.join(modelCacheRoot, 'repos', repoId, `index-${mode}`, 'chunk_meta.json');
   return fs.existsSync(metaPath);
 }
 
+/**
+ * Ensure indexes exist for required modes.
+ * @param {string} modelCacheRoot
+ * @returns {boolean}
+ */
 function ensureIndex(modelCacheRoot) {
   const needsCode = modeArg !== 'prose';
   const needsProse = modeArg !== 'code';
@@ -138,6 +157,12 @@ function ensureIndex(modelCacheRoot) {
   return true;
 }
 
+/**
+ * Run a Node command and exit on failure.
+ * @param {string[]} args
+ * @param {object} env
+ * @param {string} label
+ */
 function runCommand(args, env, label) {
   const stdio = argv.json ? ['ignore', process.stderr, process.stderr] : 'inherit';
   const result = spawnSync(process.execPath, args, { env, stdio });
@@ -147,6 +172,12 @@ function runCommand(args, env, label) {
   }
 }
 
+/**
+ * Run a search query for a model env.
+ * @param {string} query
+ * @param {object} env
+ * @returns {{payload:object,wallMs:number}}
+ */
 function runSearch(query, env) {
   const args = [
     path.join(scriptRoot, 'search.js'),
@@ -174,6 +205,11 @@ function runSearch(query, env) {
   return { payload, wallMs };
 }
 
+/**
+ * Load queries from a text or JSON file.
+ * @param {string} filePath
+ * @returns {Promise<string[]>}
+ */
 async function loadQueries(filePath) {
   try {
     const raw = await fsPromises.readFile(filePath, 'utf8');
@@ -265,6 +301,12 @@ for (const modelId of models) {
   }
 }
 
+/**
+ * Build a stable key for a search hit.
+ * @param {object} hit
+ * @param {number} index
+ * @returns {string}
+ */
 function hitKey(hit, index) {
   if (hit && (hit.id || hit.id === 0)) return String(hit.id);
   if (hit && hit.file) {
@@ -275,6 +317,12 @@ function hitKey(hit, index) {
   return String(index);
 }
 
+/**
+ * Compare top-N hit lists and compute overlap metrics.
+ * @param {Array<object>} baseHits
+ * @param {Array<object>} otherHits
+ * @returns {{overlap:number,avgDelta:number,rankCorr:(number|null),top1Same:boolean}}
+ */
 function compareHits(baseHits, otherHits) {
   const base = baseHits.slice(0, topN);
   const other = otherHits.slice(0, topN);
@@ -307,12 +355,22 @@ function compareHits(baseHits, otherHits) {
   return { overlap, avgDelta, rankCorr, top1Same };
 }
 
+/**
+ * Compute mean of numeric values.
+ * @param {number[]} values
+ * @returns {number}
+ */
 function mean(values) {
   const nums = values.filter((v) => Number.isFinite(v));
   if (!nums.length) return 0;
   return nums.reduce((a, b) => a + b, 0) / nums.length;
 }
 
+/**
+ * Compute mean of numeric values; return null if none.
+ * @param {number[]} values
+ * @returns {number|null}
+ */
 function meanNullable(values) {
   const nums = values.filter((v) => Number.isFinite(v));
   if (!nums.length) return null;

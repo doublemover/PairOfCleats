@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import path from 'node:path';
 import minimist from 'minimist';
 import { DEFAULT_MODEL_ID, getDictionaryPaths, getDictConfig, getModelConfig, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
 import { getVectorExtensionConfig, hasVectorTable, loadVectorExtension, queryVectorAnn } from './vector-extension.js';
+import { buildFtsBm25Expr, resolveFtsWeights } from '../src/search/fts.js';
+import { getQueryEmbedding } from '../src/search/embedding.js';
+import { splitId, splitWordsWithDict } from '../src/shared/tokenize.js';
 
 let Database;
 try {
@@ -54,6 +56,12 @@ const vectorAnnState = {
 };
 let vectorAnnWarned = false;
 
+/**
+ * Open a readonly SQLite database for a mode.
+ * @param {string} dbPath
+ * @param {string} label
+ * @returns {import('better-sqlite3').Database}
+ */
 function openDb(dbPath, label) {
   if (!fs.existsSync(dbPath)) {
     console.error(`SQLite ${label} index not found (${dbPath}).`);
@@ -62,6 +70,12 @@ function openDb(dbPath, label) {
   return new Database(dbPath, { readonly: true });
 }
 
+/**
+ * Check if dense vectors exist for a mode.
+ * @param {import('better-sqlite3').Database|null} db
+ * @param {'code'|'prose'} mode
+ * @returns {boolean}
+ */
 function hasDenseVectors(db, mode) {
   if (!db) return false;
   try {
@@ -72,6 +86,12 @@ function hasDenseVectors(db, mode) {
   }
 }
 
+/**
+ * Initialize vector ANN support for a database.
+ * @param {import('better-sqlite3').Database|null} db
+ * @param {'code'|'prose'} mode
+ * @returns {void}
+ */
 function initVectorAnn(db, mode) {
   if (!vectorAnnEnabled || !db) return;
   const loadResult = loadVectorExtension(db, vectorExtension, `sqlite ${mode}`);
@@ -98,72 +118,16 @@ if (needsProse) dbHandles.prose = openDb(sqlitePaths.prosePath, 'prose');
 if (needsCode) initVectorAnn(dbHandles.code, 'code');
 if (needsProse) initVectorAnn(dbHandles.prose, 'prose');
 
+/**
+ * Get the database handle for a mode.
+ * @param {'code'|'prose'} mode
+ * @returns {import('better-sqlite3').Database|null}
+ */
 function getDbForMode(mode) {
   return mode === 'code' ? dbHandles.code : dbHandles.prose;
 }
 
-function splitId(input) {
-  return input
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/[_\-]+/g, ' ')
-    .split(/[^a-zA-Z0-9]+/u)
-    .flatMap((tok) => tok.split(/(?<=.)(?=[A-Z])/))
-    .map((t) => t.toLowerCase())
-    .filter(Boolean);
-}
-
-function resolveFtsWeights(profile, config) {
-  const profiles = {
-    balanced: { file: 0.2, name: 1.5, kind: 0.6, headline: 2.0, tokens: 1.0 },
-    headline: { file: 0.1, name: 1.2, kind: 0.4, headline: 3.0, tokens: 1.0 },
-    name: { file: 0.2, name: 2.5, kind: 0.8, headline: 1.2, tokens: 1.0 }
-  };
-  const base = profiles[profile] || profiles.balanced;
-
-  if (Array.isArray(config)) {
-    const values = config.map((v) => Number(v)).filter((v) => Number.isFinite(v));
-    if (values.length >= 6) return values.slice(0, 6);
-    if (values.length === 5) return [0, ...values];
-  } else if (config && typeof config === 'object') {
-    const merged = { ...base };
-    for (const key of ['file', 'name', 'kind', 'headline', 'tokens']) {
-      if (Number.isFinite(Number(config[key]))) merged[key] = Number(config[key]);
-    }
-    return [0, merged.file, merged.name, merged.kind, merged.headline, merged.tokens];
-  }
-
-  return [0, base.file, base.name, base.kind, base.headline, base.tokens];
-}
-
 const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
-
-function buildFtsBm25Expr(weights) {
-  const safe = weights.map((val) => (Number.isFinite(val) ? val : 1));
-  return `bm25(chunks_fts, ${safe.join(', ')})`;
-}
-
-function splitWordsWithDict(token, dict) {
-  if (!dict || dict.size === 0) return [token];
-  const result = [];
-  let i = 0;
-  while (i < token.length) {
-    let found = false;
-    for (let j = token.length; j > i; j--) {
-      const sub = token.slice(i, j);
-      if (dict.has(sub)) {
-        result.push(sub);
-        i = j;
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      result.push(token[i]);
-      i++;
-    }
-  }
-  return result;
-}
 
 const dictConfig = getDictConfig(root, userConfig);
 const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
@@ -188,6 +152,12 @@ const ftsQuery = queryTokens.length ? queryTokens.join(' ') : query;
 const topN = Math.max(1, parseInt(argv.n, 10) || 5);
 
 const chunksStmtCache = new WeakMap();
+/**
+ * Fetch a chunk row for a rowid.
+ * @param {import('better-sqlite3').Database} db
+ * @param {number} rowid
+ * @returns {object|undefined}
+ */
 function getChunk(db, rowid) {
   let stmt = chunksStmtCache.get(db);
   if (!stmt) {
@@ -197,6 +167,12 @@ function getChunk(db, rowid) {
   return stmt.get(rowid);
 }
 
+/**
+ * Run an FTS query and return rowid/score pairs.
+ * @param {import('better-sqlite3').Database} db
+ * @param {'code'|'prose'} mode
+ * @returns {Array<{rowid:number,score:number}>}
+ */
 function runFtsQuery(db, mode) {
   const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights);
   const ftsStmt = db.prepare(
@@ -225,6 +201,15 @@ function runFtsQuery(db, mode) {
 }
 
 const hits = new Map();
+/**
+ * Add or update a hit entry.
+ * @param {import('better-sqlite3').Database} db
+ * @param {number} rowid
+ * @param {number} score
+ * @param {string} kind
+ * @param {'code'|'prose'} mode
+ * @returns {void}
+ */
 function addHit(db, rowid, score, kind, mode) {
   const chunk = getChunk(db, rowid);
   if (!chunk) return;
@@ -246,32 +231,12 @@ if (needsProse && dbHandles.prose) {
   }
 }
 
-const embedderCache = new Map();
-async function getEmbedder(modelId) {
-  if (embedderCache.has(modelId)) return embedderCache.get(modelId);
-  const { pipeline, env } = await import('@xenova/transformers');
-  const modelDir = modelConfig.dir;
-  if (modelDir) {
-    try {
-      fs.mkdirSync(modelDir, { recursive: true });
-    } catch {}
-    env.cacheDir = modelDir;
-  }
-  const embedder = await pipeline('feature-extraction', modelId);
-  embedderCache.set(modelId, embedder);
-  return embedder;
-}
-
-async function getQueryEmbedding(text, modelId) {
-  try {
-    const embedder = await getEmbedder(modelId || modelIdDefault);
-    const output = await embedder(text, { pooling: 'mean', normalize: true });
-    return Array.from(output.data);
-  } catch {
-    return null;
-  }
-}
-
+/**
+ * Load dense vectors for a mode.
+ * @param {import('better-sqlite3').Database} db
+ * @param {'code'|'prose'} mode
+ * @returns {{model:string,dims:number,scale:number,vectors:Array<Buffer|undefined>}}
+ */
 function loadDenseVectorsFromDb(db, mode) {
   const meta = db.prepare('SELECT dims, scale, model FROM dense_meta WHERE mode = ?').get(mode) || {};
   const vectors = [];
@@ -288,10 +253,22 @@ function loadDenseVectorsFromDb(db, mode) {
   };
 }
 
+/**
+ * Load dense metadata for a mode.
+ * @param {import('better-sqlite3').Database} db
+ * @param {'code'|'prose'} mode
+ * @returns {{dims?:number,scale?:number,model?:string}}
+ */
 function loadDenseMetaFromDb(db, mode) {
   return db.prepare('SELECT dims, scale, model FROM dense_meta WHERE mode = ?').get(mode) || {};
 }
 
+/**
+ * Score a quantized vector against a query embedding.
+ * @param {Buffer} vec
+ * @param {number[]} queryEmbedding
+ * @returns {number}
+ */
 function scoreVector(vec, queryEmbedding) {
   const levels = 256;
   const minVal = -1;
@@ -316,10 +293,21 @@ const denseAvailable = annEnabled && (
 
 if (annEnabled && (vectorAnnAvailable || denseAvailable)) {
   const embeddingCache = new Map();
+  /**
+   * Resolve a query embedding for a model.
+   * @param {string} modelId
+   * @returns {Promise<number[]|null>}
+   */
   const getEmbeddingForModel = async (modelId) => {
     if (!modelId) return null;
     if (embeddingCache.has(modelId)) return embeddingCache.get(modelId);
-    const embedding = await getQueryEmbedding(query, modelId);
+    const embedding = await getQueryEmbedding({
+      text: query,
+      modelId,
+      dims: null,
+      modelDir: modelConfig.dir,
+      useStub: process.env.PAIROFCLEATS_EMBEDDINGS === 'stub'
+    });
     embeddingCache.set(modelId, embedding);
     return embedding;
   };
@@ -394,6 +382,11 @@ if (annEnabled && (vectorAnnAvailable || denseAvailable)) {
   }
 }
 
+/**
+ * Normalize score kind labels.
+ * @param {string} kind
+ * @returns {string}
+ */
 function normalizeKind(kind) {
   if (!kind) return 'bm25';
   const value = String(kind).toLowerCase();

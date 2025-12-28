@@ -3,11 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
-import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, loadUserConfig } from './dict-utils.js';
+import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getToolingConfig, loadUserConfig } from './dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
 const argv = minimist(process.argv.slice(2), {
-  boolean: ['skip-install', 'skip-dicts', 'skip-index', 'with-sqlite', 'incremental', 'skip-artifacts'],
+  boolean: ['skip-install', 'skip-dicts', 'skip-index', 'with-sqlite', 'incremental', 'skip-artifacts', 'skip-tooling'],
   alias: { s: 'with-sqlite', i: 'incremental' },
   default: {
     'skip-install': false,
@@ -15,7 +15,8 @@ const argv = minimist(process.argv.slice(2), {
     'skip-index': false,
     'with-sqlite': false,
     'incremental': false,
-    'skip-artifacts': false
+    'skip-artifacts': false,
+    'skip-tooling': false
   }
 });
 
@@ -31,6 +32,12 @@ if (useIncremental) {
 const artifactsDir = path.join(root, 'ci-artifacts');
 let restoredArtifacts = false;
 
+/**
+ * Run a command and exit on failure.
+ * @param {string} cmd
+ * @param {string[]} args
+ * @param {string} label
+ */
 function run(cmd, args, label) {
   const result = spawnSync(cmd, args, { stdio: 'inherit' });
   if (result.status !== 0) {
@@ -66,6 +73,34 @@ if (vectorExtension.enabled) {
     console.warn('[bootstrap] SQLite ANN extension missing; run npm run download-extensions to install.');
   } else {
     console.log(`[bootstrap] SQLite ANN extension found (${extPath}).`);
+  }
+}
+
+if (!argv['skip-tooling']) {
+  const toolingConfig = getToolingConfig(root, userConfig);
+  const detectResult = spawnSync(
+    process.execPath,
+    [path.join('tools', 'tooling-detect.js'), '--root', root, '--json'],
+    { encoding: 'utf8' }
+  );
+  if (detectResult.status === 0 && detectResult.stdout) {
+    try {
+      const report = JSON.parse(detectResult.stdout);
+      const missingTools = Array.isArray(report.tools)
+        ? report.tools.filter((tool) => tool && tool.found === false)
+        : [];
+      if (toolingConfig.autoInstallOnDetect && missingTools.length) {
+        const installArgs = [path.join('tools', 'tooling-install.js'), '--root', root, '--scope', toolingConfig.installScope];
+        if (!toolingConfig.allowGlobalFallback) installArgs.push('--no-fallback');
+        run(process.execPath, installArgs, 'install tooling');
+      } else if (missingTools.length) {
+        console.log('[bootstrap] Optional tooling missing. Run npm run tooling-install to install.');
+      }
+    } catch {
+      console.warn('[bootstrap] Failed to parse tooling detection output.');
+    }
+  } else if (detectResult.status !== 0) {
+    console.warn('[bootstrap] Tooling detection failed.');
   }
 }
 

@@ -16,12 +16,22 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Decorators, docstrings, params, and returns are captured.
 - Dataclass/attrs field definitions are surfaced in metadata.
 - Imports and calls are captured from AST.
+- Dataflow metadata includes reads/writes/mutations/throws/awaits/yields when enabled.
+- Base classes, visibility, and param type/default metadata are present when available.
+
+## JavaScript
+- Functions, classes, and methods are chunked via AST.
+- Signatures and params are captured from AST (including defaults).
+- Modifiers include async/generator/static and visibility where detectable.
+- Class inheritance (`extends`) is captured for class declarations.
+- Dataflow metadata includes reads/writes/mutations/throws/awaits/yields when enabled.
 
 ## Swift
 - class/struct/enum/protocol/extension/actor declarations are chunked.
 - Methods are qualified as Type.method when nested in a type.
 - Signatures and modifiers are captured.
-- Generics and extensions do not break chunking.
+- Generics and where clauses are captured in metadata.
+- Extensions do not break chunking.
 
 ## ObjC/C/C++
 - C-family functions and types are chunked with brace matching.
@@ -34,3 +44,37 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Methods inside impl/trait blocks are qualified as Type.method.
 - Attributes and doc comments are captured.
 - use/extern crate statements are captured as imports.
+- macro_rules!/macro declarations are chunked when possible.
+
+## Go
+- struct/interface/type/func declarations are chunked.
+- Methods are qualified as Type.method when receivers are present.
+- Doc comments are captured for declarations.
+- Imports are captured from import blocks and single imports.
+- Calls/usages are captured for function bodies when possible.
+
+## Java
+- class/interface/enum/record declarations are chunked.
+- Methods/constructors are qualified as Type.method.
+- Javadoc and annotations are captured in metadata.
+- Imports are captured from import statements.
+- Calls/usages are captured for method bodies when possible.
+
+## Perl (lite)
+- package declarations and subs are chunked.
+- Doc comments from preceding # lines are captured.
+- use/require statements are captured as imports.
+- Calls/usages are captured for sub bodies when possible.
+
+## Shell (lite)
+- function declarations are chunked.
+- Doc comments from preceding # lines are captured.
+- source/. statements are captured as imports.
+- Calls/usages are captured for function bodies when possible.
+
+## Config + docs formats
+- JSON/TOML/INI/XML chunking uses top-level keys or section headers.
+- Dockerfile chunking uses instruction boundaries.
+- Makefile chunking uses target boundaries.
+- GitHub Actions YAML chunking uses job entries under jobs.
+- RST/AsciiDoc chunking uses heading boundaries.

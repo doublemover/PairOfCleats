@@ -38,6 +38,11 @@ try {
   manifest = {};
 }
 
+/**
+ * Identify the archive type from a filename or URL.
+ * @param {string|undefined|null} value
+ * @returns {string|null}
+ */
 function getArchiveType(value) {
   if (!value) return null;
   const lower = String(value).toLowerCase();
@@ -47,15 +52,33 @@ function getArchiveType(value) {
   return null;
 }
 
+/**
+ * Resolve archive type for a source configuration.
+ * @param {{url?:string,file?:string}} source
+ * @returns {string|null}
+ */
 function getArchiveTypeForSource(source) {
   return getArchiveType(source.file) || getArchiveType(source.url);
 }
 
+/**
+ * Run a command and return true if it succeeded.
+ * @param {string} cmd
+ * @param {string[]} args
+ * @returns {boolean}
+ */
 function runCommand(cmd, args) {
   const result = spawnSync(cmd, args, { stdio: 'inherit' });
   return result.status === 0;
 }
 
+/**
+ * Extract an archive into a destination directory.
+ * @param {string} archivePath
+ * @param {string} destDir
+ * @param {string} type
+ * @returns {boolean}
+ */
 function extractArchive(archivePath, destDir, type) {
   if (type === 'zip') {
     if (runCommand('unzip', ['-o', archivePath, '-d', destDir])) return true;
@@ -73,6 +96,13 @@ function extractArchive(archivePath, destDir, type) {
   return runCommand('tar', tarArgs);
 }
 
+/**
+ * Find a file inside a directory tree matching a name or suffix.
+ * @param {string} rootDir
+ * @param {string|null} targetName
+ * @param {string|null} suffix
+ * @returns {Promise<string|null>}
+ */
 async function findFile(rootDir, targetName, suffix) {
   const entries = await fs.readdir(rootDir, { withFileTypes: true });
   const dirs = [];
@@ -97,6 +127,12 @@ async function findFile(rootDir, targetName, suffix) {
   return matches.length ? matches[0] : null;
 }
 
+/**
+ * Parse name=url inputs for extension downloads.
+ * @param {string|string[]|null} input
+ * @param {string} suffix
+ * @returns {Array<{name:string,url:string,file:string}>}
+ */
 function parseUrls(input, suffix) {
   if (!input) return [];
   const items = Array.isArray(input) ? input : [input];
@@ -110,6 +146,11 @@ function parseUrls(input, suffix) {
   return sources;
 }
 
+/**
+ * Resolve a download source from configuration overrides.
+ * @param {object} cfg
+ * @returns {{name:string,url:string,file:string}|null}
+ */
 function resolveSourceFromConfig(cfg) {
   const downloads = cfg.downloads || {};
   const byPlatform = downloads[cfg.platformKey]
@@ -131,6 +172,13 @@ function resolveSourceFromConfig(cfg) {
   return null;
 }
 
+/**
+ * Fetch a URL with redirect handling.
+ * @param {string} url
+ * @param {object} headers
+ * @param {number} redirects
+ * @returns {Promise<{statusCode:number,headers:object,body:Buffer}>}
+ */
 function requestUrl(url, headers = {}, redirects = 0) {
   return new Promise((resolve, reject) => {
     if (redirects > 5) return reject(new Error('Too many redirects'));
@@ -176,6 +224,12 @@ if (argv.out && sources.length > 1) {
   process.exit(1);
 }
 
+/**
+ * Resolve the output path for a download target.
+ * @param {{file?:string}} source
+ * @param {number} index
+ * @returns {Promise<string>}
+ */
 async function resolveOutputPath(source, index) {
   if (argv.out) return path.resolve(argv.out);
   if (config.path && index === 0) return config.path;
@@ -186,6 +240,12 @@ async function resolveOutputPath(source, index) {
   return path.join(targetDir, fileName);
 }
 
+/**
+ * Download and extract a vector extension source.
+ * @param {{name:string,url:string,file?:string}} source
+ * @param {number} index
+ * @returns {Promise<{name:string,skipped:boolean,outputPath:string}>}
+ */
 async function downloadSource(source, index) {
   const outputPath = await resolveOutputPath(source, index);
   await fs.mkdir(path.dirname(outputPath), { recursive: true });

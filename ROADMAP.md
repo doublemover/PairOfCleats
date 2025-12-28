@@ -30,15 +30,22 @@
 - [x] Pluggable embedding models + per-repo overrides
 - [x] Model comparison harness + scoring path checks
 - [x] SQLite ANN extension support (sqlite-vec)
+- [x] Index quality tuning + benchmark expansion
+- [x] Language support expansion (Go, Java, Perl-lite)
+- [x] Shell (lite) support (chunking + metadata)
 
 ## Now
-- [ ] Index quality tuning + benchmark expansion
+- [ ] Backlog triage + next language targets
 
 ## Language support (priority order)
 - [x] Python (basic chunking)
 - [x] Swift
 - [x] ObjC/C/C++
 - [x] Rust
+- [x] Go
+- [x] Java
+- [x] Perl (lite)
+- [x] Shell (lite)
 
 ## Quality and performance
 

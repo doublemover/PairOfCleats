@@ -17,6 +17,7 @@ This document consolidates all phase docs and tracks implementation status. Phas
 ## Cache layout (status: done)
 - <cache>/repos/<repoId>/index-code/
 - <cache>/repos/<repoId>/index-prose/
+- <cache>/repos/<repoId>/incremental/
 - <cache>/repos/<repoId>/repometrics/
 - <cache>/repos/<repoId>/index-sqlite/index-code.db
 - <cache>/repos/<repoId>/index-sqlite/index-prose.db
@@ -24,12 +25,16 @@ This document consolidates all phase docs and tracks implementation status. Phas
 - <cache>/extensions/
 
 Repo identity:
-- Prefer git toplevel + remote URL (hash to repoId).
-- If no git, hash absolute path.
+- Hash the absolute repo path (run from repo root for stable IDs).
+- Git metadata is captured separately for status/reporting.
+
+SQLite location:
+- Override with `sqlite.dbDir` or `codeDbPath`/`proseDbPath`.
+- Point `sqlite.dbDir` at `index-sqlite` to keep DBs in the repo.
 
 ## Model download and bootstrap (status: done)
-- [x] Detect models in cache; prompt to download when missing.
-- [x] Provide download helpers (node/python) and bootstrap path.
+- [x] Detect model availability in MCP status and provide a download_models hint.
+- [x] Provide download helper (node) and bootstrap path.
 
 ## Git handling (status: done)
 - [x] Warn when git is missing and continue without git metadata.
@@ -88,29 +93,38 @@ Work items:
 - [x] Query cache, cleanup, uninstall, sqlite incremental/compact, mcp server tests.
 - [x] Add CI workflow to run smoke + parity in GitHub Actions.
 
-## Phase 7: Language Expansion (status: partial)
+## Phase 7: Language Expansion (status: done)
 Goal: Provide stable chunking + metadata for prioritized languages.
 
-Python (status: partial)
+Python (status: done)
 - [x] Python AST enrichment when python is available; heuristic fallback.
 - [x] Class/function/method chunking with docstrings and signatures.
 - [x] Improve call graph accuracy for nested functions.
 - [x] Add type-aware docs for dataclasses/attrs.
 
-Swift (status: partial)
+Swift (status: done)
 - [x] Brace-aware chunking for declarations.
 - [x] Doc comment extraction and signature metadata.
-- [ ] Improve parsing of generics and extensions.
+- [x] Improve parsing of generics and extensions.
 
-ObjC/C/C++ (status: partial)
+ObjC/C/C++ (status: done)
 - [x] Regex-driven chunking for C-family and ObjC blocks.
 - [x] Selector extraction for ObjC methods.
-- [ ] Improve call graph and include resolution heuristics.
+- [x] Improve call graph and include resolution heuristics.
 
-Rust (status: partial)
+Rust (status: done)
 - [x] Heuristic chunking for structs/enums/traits/mods/impls/fns.
 - [x] Basic metadata extraction and imports/exports.
-- [ ] Improve macro-heavy parsing and impl block method grouping.
+- [x] Improve macro-heavy parsing and impl block method grouping.
+
+## Phase 7b: AST Completion Passes (status: done)
+Goal: Extend AST-backed languages to a "complete" metadata and dataflow feature set.
+Work items:
+- [x] Define and document the AST feature list and per-language coverage.
+- [x] JS AST: signatures/params/modifiers/inheritance + dataflow (reads/writes/mutations/throws/awaits/yields).
+- [x] Python AST: signatures/params/types/bases/modifiers + dataflow (reads/writes/mutations/throws/awaits/yields/globals).
+- [x] Configurable AST dataflow extraction (default on).
+- [x] Add fixtures + language-fidelity assertions for AST metadata.
 
 ## Phase 8: SQLite Scoring (FTS5) + ANN Extension (status: partial)
 Goal: Optional SQLite-only sparse ranking plus optional vector extension for ANN.
@@ -120,7 +134,7 @@ Work items:
 - [x] ANN extension support (sqlite-vec) with loadable binary.
 - [x] Archive download support for extension binaries (zip/tar/tgz).
 - [x] ANN extension test harness (tests/sqlite-ann-extension.js).
-- [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
+- [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights (deferred).
 
 ## Phase 9: Scoring Calibration (status: done)
 Goal: Deterministic ranking and tunable BM25 parameters.
@@ -151,23 +165,88 @@ Work items:
 - [x] Tools: index_status/build_index/search/download_models/report_artifacts.
 - [x] Git-optional behavior with warnings.
 
-## Phase 13: Language Fidelity Review + Enhancements (status: partial)
+## Phase 13: Language Fidelity Review + Enhancements (status: done)
 Goal: Evaluate current fidelity of each supported language and enhance parsing.
 Work items:
 - [x] Build a per-language evaluation checklist (chunking, metadata, relations).
 - [x] Expand fixtures per language and add targeted regression tests.
-- [ ] Implement improvements per language and update docs.
+- [x] Implement improvements per language and update docs.
 
-## Phase 14: CI Coverage and Full Script Coverage (status: todo)
+## Phase 14: CI Coverage and Full Script Coverage (status: done)
 Goal: Ensure every npm script is exercised and documented.
 Work items:
-- [ ] Add CI workflow for smoke + parity + core harnesses.
-- [ ] Add a meta-test runner that exercises all scripts (with stub embeddings).
-- [ ] Record expected runtime and platform constraints.
+- [x] Add CI workflow for smoke + parity + core harnesses.
+- [x] Add a meta-test runner that exercises all scripts (with stub embeddings).
+- [x] Record expected runtime and platform constraints.
 
-## Phase 15: New Languages and Features (status: todo)
+## Phase 15: New Languages and Features (status: done)
 Goal: Add new languages and new indexing/search features after baseline completion.
 Work items:
-- [ ] Select additional languages (post-baseline) and add support.
-- [ ] Add new search/index features based on usage gaps.
-- [ ] Update docs and tests for each addition.
+-- [x] Add Go support (chunking + metadata + relations + fixtures + tests).
+-- [x] Add Java support (chunking + metadata + relations + fixtures + tests).
+-- [x] Add Perl (lite) support for comedy coverage (chunking + minimal metadata).
+-- [x] Add Shell (lite) support (chunking + minimal metadata + fixtures + tests).
+-- [x] Add AST-based dataflow metadata (reads/writes/mutations/throws/awaits/yields).
+-- [x] Add search filters for AST metadata (decorators/modifiers/returns/throws/reads/writes/mutations/extends/visibility).
+-- [x] Render AST metadata in human output.
+-- [x] Update docs and tests for each addition.
+
+## Phase 16: Unified Parsing + Tooling Bootstrap (status: done)
+Goal: Centralize parsing where possible while keeping native parsers for stable languages, and add tooling detection/install support.
+Work items:
+- [x] Choose and document a unified parser backbone (tree-sitter) plus native parser mapping for JS/Python.
+- [x] Add tooling detection + install scripts with cache-local default installs and optional normal installs.
+- [x] Add config: tooling.autoInstallOnDetect, tooling.installScope, tooling.allowGlobalFallback.
+- [x] Update bootstrap to detect languages and auto-install tooling when configured.
+- [x] Add tests for tooling detection/install logic (stubbed where needed).
+
+## Phase 17: Format Coverage Expansion (status: done)
+Goal: Add rich chunking/metadata for common config and docs formats.
+Work items:
+- [x] Add JSON/TOML/INI/XML parsers and chunking rules.
+- [x] Add Dockerfile/Makefile parsing and chunking rules.
+- [x] Add GitHub Actions YAML parsing (workflow/job/step chunks).
+- [x] Add RST and AsciiDoc heading/section chunking.
+- [x] Update fixtures, language-fidelity checklist, and docs for formats.
+
+## Phase 18: Language Expansion (status: todo)
+Goal: Add baseline parsing/chunking/relations for new languages with the unified backbone.
+Work items:
+- [ ] TypeScript (prefer native TS parser; fallback to tree-sitter).
+- [ ] C# (tree-sitter + OmniSharp enrichment when present).
+- [ ] Kotlin (tree-sitter + kotlin-language-server enrichment when present).
+- [ ] Ruby (tree-sitter + solargraph enrichment when present).
+- [ ] PHP (tree-sitter + phpactor enrichment when present).
+- [ ] Lua (tree-sitter + lua-language-server enrichment when present).
+- [ ] SQL (tree-sitter, dialect-specific; see Phase 19).
+- [ ] Add fixtures and language-fidelity assertions for each.
+
+## Phase 19: SQL Dialect Parsing (status: todo)
+Goal: Provide dialect-aware SQL parsing and metadata.
+Work items:
+- [ ] Add PostgreSQL/MySQL/SQLite grammars and dialect selection rules.
+- [ ] Add per-dialect fixtures and tests.
+- [ ] Add config for sql.dialect and dialect-by-extension mapping.
+
+## Phase 20: CFG + Dataflow Everywhere (status: todo)
+Goal: Add control-flow graphs and dataflow metadata across supported languages.
+Work items:
+- [ ] Define shared CFG/dataflow schema in docs/ast-feature-list.md.
+- [ ] Implement CFG/dataflow for C/C++/ObjC, Rust, Go, Java, Shell.
+- [ ] Reuse shared engine for JS/Python where applicable.
+- [ ] Add filters and output rendering for CFG/dataflow metadata.
+- [ ] Expand fixtures/tests to validate control-flow and dataflow fields.
+
+## Phase 21: Type Inference (Intra-file) (status: todo)
+Goal: Add local type inference for each supported language.
+Work items:
+- [ ] Implement intra-file inference for literals, annotations, and symbol tables.
+- [ ] Merge inferred types into docmeta and render/filter paths.
+- [ ] Validate with fixtures and language-fidelity tests.
+
+## Phase 22: Type Inference (Cross-file) (status: todo)
+Goal: Resolve types across files after intra-file stability is confirmed.
+Work items:
+- [ ] Add cross-file symbol resolution and import/usage linking.
+- [ ] Use detected tooling when present for richer type info.
+- [ ] Validate with tests; provide parity/perf summary after completion.

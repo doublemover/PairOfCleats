@@ -1,0 +1,10 @@
+<config>
+  <database>
+    <host>localhost</host>
+    <port>5432</port>
+  </database>
+  <cache>
+    <enabled>true</enabled>
+    <ttl>60</ttl>
+  </cache>
+</config>

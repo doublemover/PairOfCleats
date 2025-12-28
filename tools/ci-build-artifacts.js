@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import simpleGit from 'simple-git';
+import { fileURLToPath } from 'node:url';
 import { getIndexDir, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
@@ -18,12 +19,19 @@ const argv = minimist(process.argv.slice(2), {
 });
 
 const root = process.cwd();
+const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const userConfig = loadUserConfig(root);
 const outDir = argv.out ? path.resolve(argv.out) : path.join(root, 'ci-artifacts');
 const codeDir = getIndexDir(root, 'code', userConfig);
 const proseDir = getIndexDir(root, 'prose', userConfig);
 const sqlitePaths = resolveSqlitePaths(root, userConfig);
 
+/**
+ * Run a command and exit on failure.
+ * @param {string} cmd
+ * @param {string[]} args
+ * @param {string} label
+ */
 function run(cmd, args, label) {
   const result = spawnSync(cmd, args, { stdio: 'inherit' });
   if (result.status !== 0) {
@@ -33,13 +41,13 @@ function run(cmd, args, label) {
 }
 
 if (!argv['skip-build']) {
-  const args = ['build_index.js'];
+  const args = [path.join(scriptRoot, 'build_index.js')];
   if (argv.incremental) args.push('--incremental');
   run(process.execPath, args, 'build index');
 }
 
 if (!argv['skip-sqlite']) {
-  const args = [path.join('tools', 'build-sqlite-index.js')];
+  const args = [path.join(scriptRoot, 'tools', 'build-sqlite-index.js')];
   if (argv.incremental) args.push('--incremental');
   run(process.execPath, args, 'build sqlite index');
 }
@@ -47,6 +55,12 @@ if (!argv['skip-sqlite']) {
 await fsPromises.rm(outDir, { recursive: true, force: true });
 await fsPromises.mkdir(outDir, { recursive: true });
 
+/**
+ * Copy a directory if it exists.
+ * @param {string} src
+ * @param {string} dest
+ * @returns {Promise<boolean>}
+ */
 async function copyDir(src, dest) {
   if (!fs.existsSync(src)) return false;
   await fsPromises.mkdir(dest, { recursive: true });

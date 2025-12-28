@@ -5,6 +5,11 @@ import path from 'node:path';
 import minimist from 'minimist';
 import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
+import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/sqlite/schema.js';
+import { buildChunkRow, buildTokenFrequency, prepareVectorAnnTable } from '../src/sqlite/build-helpers.js';
+import { loadIncrementalManifest } from '../src/sqlite/incremental.js';
+import { chunkArray, hasRequiredTables, loadIndex, normalizeFilePath, readJson } from '../src/sqlite/utils.js';
+import { dequantizeUint8ToFloat32, packUint32, packUint8, quantizeVec, toVectorId } from '../src/sqlite/vector.js';
 
 let Database;
 try {
@@ -25,6 +30,12 @@ const userConfig = loadUserConfig(root);
 const modelConfig = getModelConfig(root, userConfig);
 const vectorExtension = getVectorExtensionConfig(root, userConfig);
 const vectorAnnEnabled = vectorExtension.enabled;
+const vectorConfig = {
+  enabled: vectorAnnEnabled,
+  extension: vectorExtension,
+  loadVectorExtension,
+  ensureVectorTable
+};
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const codeDir = argv['code-dir'] ? path.resolve(argv['code-dir']) : getIndexDir(root, 'code', userConfig);
 const proseDir = argv['prose-dir'] ? path.resolve(argv['prose-dir']) : getIndexDir(root, 'prose', userConfig);
@@ -62,204 +73,12 @@ if (modeArg === 'all') {
   await fs.mkdir(path.dirname(outPath), { recursive: true });
 }
 
-const SCHEMA_VERSION = 4;
-const SQLITE_IN_LIMIT = 900;
-const REQUIRED_TABLES = [
-  'chunks',
-  'chunks_fts',
-  'token_vocab',
-  'token_postings',
-  'doc_lengths',
-  'token_stats',
-  'phrase_vocab',
-  'phrase_postings',
-  'chargram_vocab',
-  'chargram_postings',
-  'minhash_signatures',
-  'dense_vectors',
-  'dense_meta',
-  'file_manifest'
-];
 
-function quantizeVec(vec, minVal = -1, maxVal = 1, levels = 256) {
-  if (!Array.isArray(vec)) return [];
-  return vec.map((val) =>
-    Math.max(0, Math.min(levels - 1, Math.round(((val - minVal) / (maxVal - minVal)) * (levels - 1))))
-  );
-}
 
-function dequantizeUint8ToFloat32(vec, minVal = -1, maxVal = 1, levels = 256) {
-  if (!vec || typeof vec.length !== 'number') return null;
-  const scale = (maxVal - minVal) / (levels - 1);
-  const out = new Float32Array(vec.length);
-  for (let i = 0; i < vec.length; i++) {
-    out[i] = vec[i] * scale + minVal;
-  }
-  return out;
-}
-
-function toVectorId(value) {
-  try {
-    return BigInt(value);
-  } catch {
-    return value;
-  }
-}
-
-function packUint32(values) {
-  const arr = Uint32Array.from(values || []);
-  return Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength);
-}
-
-function packUint8(values) {
-  const arr = Uint8Array.from(values || []);
-  return Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength);
-}
-
-function chunkArray(items, size = SQLITE_IN_LIMIT) {
-  const chunks = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
-  }
-  return chunks;
-}
-
-function getTableNames(db) {
-  const rows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-  return new Set(rows.map((row) => row.name));
-}
-
-function hasRequiredTables(db) {
-  const tableNames = getTableNames(db);
-  return REQUIRED_TABLES.every((name) => tableNames.has(name));
-}
-
-function getIncrementalPaths(mode) {
-  const incrementalDir = path.join(repoCacheRoot, 'incremental', mode);
-  return {
-    incrementalDir,
-    bundleDir: path.join(incrementalDir, 'files'),
-    manifestPath: path.join(incrementalDir, 'manifest.json')
-  };
-}
-
-function loadIncrementalManifest(mode) {
-  const paths = getIncrementalPaths(mode);
-  if (!fsSync.existsSync(paths.manifestPath)) return null;
-  try {
-    const manifest = JSON.parse(fsSync.readFileSync(paths.manifestPath, 'utf8'));
-    if (!manifest || typeof manifest !== 'object') return null;
-    return { manifest, ...paths };
-  } catch {
-    return null;
-  }
-}
-
-function buildChunkRow(chunk, mode, id) {
-  const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
-  return {
-    id,
-    mode,
-    file: normalizeFilePath(chunk.file),
-    start: chunk.start,
-    end: chunk.end,
-    startLine: chunk.startLine || null,
-    endLine: chunk.endLine || null,
-    ext: chunk.ext || null,
-    kind: chunk.kind || null,
-    name: chunk.name || null,
-    headline: chunk.headline || null,
-    preContext: chunk.preContext ? JSON.stringify(chunk.preContext) : null,
-    postContext: chunk.postContext ? JSON.stringify(chunk.postContext) : null,
-    weight: typeof chunk.weight === 'number' ? chunk.weight : 1,
-    tokens: tokensArray.length ? JSON.stringify(tokensArray) : null,
-    tokensText: tokensArray.join(' '),
-    ngrams: chunk.ngrams ? JSON.stringify(chunk.ngrams) : null,
-    codeRelations: chunk.codeRelations ? JSON.stringify(chunk.codeRelations) : null,
-    docmeta: chunk.docmeta ? JSON.stringify(chunk.docmeta) : null,
-    stats: chunk.stats ? JSON.stringify(chunk.stats) : null,
-    complexity: chunk.complexity ? JSON.stringify(chunk.complexity) : null,
-    lint: chunk.lint ? JSON.stringify(chunk.lint) : null,
-    externalDocs: chunk.externalDocs ? JSON.stringify(chunk.externalDocs) : null,
-    last_modified: chunk.last_modified || null,
-    last_author: chunk.last_author || null,
-    churn: typeof chunk.churn === 'number' ? chunk.churn : null,
-    chunk_authors: chunk.chunk_authors ? JSON.stringify(chunk.chunk_authors) : null
-  };
-}
-
-function buildTokenFrequency(tokensArray) {
-  const freq = new Map();
-  for (const token of tokensArray) {
-    if (!token) continue;
-    freq.set(token, (freq.get(token) || 0) + 1);
-  }
-  return freq;
-}
-
-function normalizeFilePath(value) {
-  if (typeof value !== 'string') return value;
-  return value.replace(/\\/g, '/');
-}
-
-function readJson(filePath) {
-  return JSON.parse(fsSync.readFileSync(filePath, 'utf8'));
-}
-
-function loadOptional(dir, name) {
-  const target = path.join(dir, name);
-  if (!fsSync.existsSync(target)) return null;
-  return readJson(target);
-}
-
-function loadIndex(dir) {
-  const chunkMetaPath = path.join(dir, 'chunk_meta.json');
-  if (!fsSync.existsSync(chunkMetaPath)) return null;
-  const chunkMeta = readJson(chunkMetaPath);
-  const denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
-  if (denseVec && !denseVec.model) denseVec.model = modelConfig.id || null;
-  return {
-    chunkMeta,
-    denseVec,
-    phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
-    chargrams: loadOptional(dir, 'chargram_postings.json'),
-    minhash: loadOptional(dir, 'minhash_signatures.json'),
-    tokenPostings: loadOptional(dir, 'token_postings.json')
-  };
-}
-
-function prepareVectorAnnTable(db, indexData, mode) {
-  if (!vectorAnnEnabled) return null;
-  const dense = indexData?.denseVec;
-  const dims = dense?.dims || dense?.vectors?.find((vec) => vec && vec.length)?.length || 0;
-  if (!Number.isFinite(dims) || dims <= 0) return null;
-  const loadResult = loadVectorExtension(db, vectorExtension, `sqlite ${mode}`);
-  if (!loadResult.ok) {
-    console.warn(`[sqlite] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
-    return null;
-  }
-  if (vectorExtension.table) {
-    try {
-      db.exec(`DROP TABLE IF EXISTS ${vectorExtension.table}`);
-    } catch {}
-  }
-  const created = ensureVectorTable(db, vectorExtension, dims);
-  if (!created.ok) {
-    console.warn(`[sqlite] Failed to create vector table for ${mode}: ${created.reason}`);
-    return null;
-  }
-  const insertSql = `INSERT OR REPLACE INTO ${created.tableName} (rowid, ${created.column}) VALUES (?, ?)`;
-  return {
-    tableName: created.tableName,
-    column: created.column,
-    insert: db.prepare(insertSql)
-  };
-}
-
-const codeIndex = loadIndex(codeDir);
-const proseIndex = loadIndex(proseDir);
-const incrementalCode = loadIncrementalManifest('code');
-const incrementalProse = loadIncrementalManifest('prose');
+const codeIndex = loadIndex(codeDir, modelConfig.id);
+const proseIndex = loadIndex(proseDir, modelConfig.id);
+const incrementalCode = loadIncrementalManifest(repoCacheRoot, 'code');
+const incrementalProse = loadIncrementalManifest(repoCacheRoot, 'prose');
 if (!codeIndex && !proseIndex) {
   console.error('No index found. Build index-code/index-prose first.');
   process.exit(1);
@@ -285,144 +104,15 @@ if (modeArg === 'prose' && !proseIndex && !canIncrementalProse) {
   process.exit(1);
 }
 
-const createTables = `
-  DROP TABLE IF EXISTS chunks_fts;
-  DROP TABLE IF EXISTS chunks;
-  DROP TABLE IF EXISTS token_postings;
-  DROP TABLE IF EXISTS token_vocab;
-  DROP TABLE IF EXISTS doc_lengths;
-  DROP TABLE IF EXISTS token_stats;
-  DROP TABLE IF EXISTS phrase_postings;
-  DROP TABLE IF EXISTS phrase_vocab;
-  DROP TABLE IF EXISTS chargram_postings;
-  DROP TABLE IF EXISTS chargram_vocab;
-  DROP TABLE IF EXISTS minhash_signatures;
-  DROP TABLE IF EXISTS dense_vectors;
-  DROP TABLE IF EXISTS dense_meta;
-  DROP TABLE IF EXISTS file_manifest;
 
-  CREATE TABLE chunks (
-    id INTEGER PRIMARY KEY,
-    mode TEXT,
-    file TEXT,
-    start INTEGER,
-    end INTEGER,
-    startLine INTEGER,
-    endLine INTEGER,
-    ext TEXT,
-    kind TEXT,
-    name TEXT,
-    headline TEXT,
-    preContext TEXT,
-    postContext TEXT,
-    weight REAL,
-    tokens TEXT,
-    ngrams TEXT,
-    codeRelations TEXT,
-    docmeta TEXT,
-    stats TEXT,
-    complexity TEXT,
-    lint TEXT,
-    externalDocs TEXT,
-    last_modified TEXT,
-    last_author TEXT,
-    churn REAL,
-    chunk_authors TEXT
-  );
-  CREATE INDEX idx_chunks_file ON chunks (mode, file);
-  CREATE VIRTUAL TABLE chunks_fts USING fts5(
-    mode UNINDEXED,
-    file,
-    name,
-    kind,
-    headline,
-    tokens,
-    tokenize = 'unicode61'
-  );
-  CREATE TABLE token_vocab (
-    mode TEXT NOT NULL,
-    token_id INTEGER NOT NULL,
-    token TEXT NOT NULL,
-    PRIMARY KEY (mode, token_id),
-    UNIQUE (mode, token)
-  );
-  CREATE TABLE token_postings (
-    mode TEXT NOT NULL,
-    token_id INTEGER NOT NULL,
-    doc_id INTEGER NOT NULL,
-    tf INTEGER NOT NULL,
-    PRIMARY KEY (mode, token_id, doc_id)
-  );
-  CREATE INDEX idx_token_postings_token ON token_postings (mode, token_id);
-  CREATE TABLE doc_lengths (
-    mode TEXT NOT NULL,
-    doc_id INTEGER NOT NULL,
-    len INTEGER NOT NULL,
-    PRIMARY KEY (mode, doc_id)
-  );
-  CREATE TABLE token_stats (
-    mode TEXT PRIMARY KEY,
-    avg_doc_len REAL,
-    total_docs INTEGER
-  );
-  CREATE TABLE phrase_vocab (
-    mode TEXT NOT NULL,
-    phrase_id INTEGER NOT NULL,
-    ngram TEXT NOT NULL,
-    PRIMARY KEY (mode, phrase_id),
-    UNIQUE (mode, ngram)
-  );
-  CREATE TABLE phrase_postings (
-    mode TEXT NOT NULL,
-    phrase_id INTEGER NOT NULL,
-    doc_id INTEGER NOT NULL,
-    PRIMARY KEY (mode, phrase_id, doc_id)
-  );
-  CREATE INDEX idx_phrase_postings_phrase ON phrase_postings (mode, phrase_id);
-  CREATE TABLE chargram_vocab (
-    mode TEXT NOT NULL,
-    gram_id INTEGER NOT NULL,
-    gram TEXT NOT NULL,
-    PRIMARY KEY (mode, gram_id),
-    UNIQUE (mode, gram)
-  );
-  CREATE TABLE chargram_postings (
-    mode TEXT NOT NULL,
-    gram_id INTEGER NOT NULL,
-    doc_id INTEGER NOT NULL,
-    PRIMARY KEY (mode, gram_id, doc_id)
-  );
-  CREATE INDEX idx_chargram_postings_gram ON chargram_postings (mode, gram_id);
-  CREATE TABLE minhash_signatures (
-    mode TEXT NOT NULL,
-    doc_id INTEGER NOT NULL,
-    sig BLOB NOT NULL,
-    PRIMARY KEY (mode, doc_id)
-  );
-  CREATE TABLE dense_vectors (
-    mode TEXT NOT NULL,
-    doc_id INTEGER NOT NULL,
-    vector BLOB NOT NULL,
-    PRIMARY KEY (mode, doc_id)
-  );
-  CREATE TABLE dense_meta (
-    mode TEXT PRIMARY KEY,
-    dims INTEGER,
-    scale REAL,
-    model TEXT
-  );
-  CREATE TABLE file_manifest (
-    mode TEXT NOT NULL,
-    file TEXT NOT NULL,
-    hash TEXT,
-    mtimeMs INTEGER,
-    size INTEGER,
-    chunk_count INTEGER,
-    PRIMARY KEY (mode, file)
-  );
-  CREATE INDEX idx_file_manifest_mode_file ON file_manifest (mode, file);
-`;
-
+/**
+ * Build a full SQLite index from file-backed artifacts.
+ * @param {string} outPath
+ * @param {object} index
+ * @param {'code'|'prose'} mode
+ * @param {object|null} manifestFiles
+ * @returns {number}
+ */
 function buildDatabase(outPath, index, mode, manifestFiles) {
   if (!index) return 0;
   const db = new Database(outPath);
@@ -431,9 +121,9 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
     db.pragma('synchronous = NORMAL');
   } catch {}
 
-  db.exec(createTables);
+  db.exec(CREATE_TABLES_SQL);
   db.pragma(`user_version = ${SCHEMA_VERSION}`);
-  const vectorAnn = prepareVectorAnnTable(db, index, mode);
+  const vectorAnn = prepareVectorAnnTable({ db, indexData: index, mode, vectorConfig });
 
   const insertChunk = db.prepare(`
     INSERT OR REPLACE INTO chunks (
@@ -491,6 +181,11 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
     'INSERT OR REPLACE INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
   );
 
+  /**
+   * Ingest token postings into SQLite.
+   * @param {object} tokenIndex
+   * @param {'code'|'prose'} targetMode
+   */
   function ingestTokenIndex(tokenIndex, targetMode) {
     if (!tokenIndex?.vocab || !tokenIndex?.postings) return;
     const vocab = tokenIndex.vocab;
@@ -529,6 +224,13 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
     insertTokenStats.run(targetMode, avgDocLen, totalDocs);
   }
 
+  /**
+   * Ingest a generic postings index (phrase/chargram).
+   * @param {object} indexData
+   * @param {'code'|'prose'} targetMode
+   * @param {import('better-sqlite3').Statement} insertVocabStmt
+   * @param {import('better-sqlite3').Statement} insertPostingStmt
+   */
   function ingestPostingIndex(indexData, targetMode, insertVocabStmt, insertPostingStmt) {
     if (!indexData?.vocab || !indexData?.postings) return;
     const vocab = indexData.vocab;
@@ -552,6 +254,11 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
     insertPostingsTx();
   }
 
+  /**
+   * Ingest minhash signatures into SQLite.
+   * @param {object} minhash
+   * @param {'code'|'prose'} targetMode
+   */
   function ingestMinhash(minhash, targetMode) {
     if (!minhash?.signatures || !minhash.signatures.length) return;
     const insertTx = db.transaction(() => {
@@ -564,6 +271,11 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
     insertTx();
   }
 
+  /**
+   * Ingest dense vectors into SQLite.
+   * @param {object} dense
+   * @param {'code'|'prose'} targetMode
+   */
   function ingestDense(dense, targetMode) {
     if (!dense?.vectors || !dense.vectors.length) return;
     insertDenseMeta.run(
@@ -587,6 +299,11 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
     insertTx();
   }
 
+  /**
+   * Ingest all index components for a mode.
+   * @param {object} indexData
+   * @param {'code'|'prose'} targetMode
+   */
   function ingestIndex(indexData, targetMode) {
     if (!indexData) return 0;
     const { chunkMeta } = indexData;
@@ -646,6 +363,11 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
     return count;
   }
 
+  /**
+   * Ingest file manifest metadata if available.
+   * @param {object} indexData
+   * @param {'code'|'prose'} targetMode
+   */
   function ingestFileManifest(indexData, targetMode) {
     if (!indexData?.chunkMeta) return;
     const fileCounts = new Map();
@@ -676,6 +398,12 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
   return count;
 }
 
+/**
+ * Load file manifest entries from SQLite.
+ * @param {import('better-sqlite3').Database} db
+ * @param {'code'|'prose'} mode
+ * @returns {object}
+ */
 function getFileManifest(db, mode) {
   const rows = db.prepare('SELECT file, hash, mtimeMs, size FROM file_manifest WHERE mode = ?').all(mode);
   const map = new Map();
@@ -685,6 +413,12 @@ function getFileManifest(db, mode) {
   return map;
 }
 
+/**
+ * Check if a manifest entry matches the DB entry.
+ * @param {object} entry
+ * @param {object} dbEntry
+ * @returns {boolean}
+ */
 function isManifestMatch(entry, dbEntry) {
   if (!dbEntry) return false;
   if (entry?.hash && dbEntry.hash) return entry.hash === dbEntry.hash;
@@ -697,6 +431,12 @@ function isManifestMatch(entry, dbEntry) {
   return mtimeMatch && sizeMatch;
 }
 
+/**
+ * Diff file manifests into added/changed/deleted sets.
+ * @param {object} manifestFiles
+ * @param {object} dbFiles
+ * @returns {{added:string[],changed:string[],deleted:string[]}}
+ */
 function diffFileManifests(manifestFiles, dbFiles) {
   const changed = [];
   const deleted = [];
@@ -718,6 +458,16 @@ function diffFileManifests(manifestFiles, dbFiles) {
   return { changed, deleted };
 }
 
+/**
+ * Fetch vocab rows by value for a given mode/table.
+ * @param {import('better-sqlite3').Database} db
+ * @param {'code'|'prose'} mode
+ * @param {string} table
+ * @param {string} idColumn
+ * @param {string} valueColumn
+ * @param {string[]} values
+ * @returns {Array<{id:number,value:string}>}
+ */
 function fetchVocabRows(db, mode, table, idColumn, valueColumn, values) {
   const unique = Array.from(new Set(values.filter(Boolean)));
   if (!unique.length) return [];
@@ -732,6 +482,17 @@ function fetchVocabRows(db, mode, table, idColumn, valueColumn, values) {
   return rows;
 }
 
+/**
+ * Ensure vocab ids exist for a list of values.
+ * @param {import('better-sqlite3').Database} db
+ * @param {'code'|'prose'} mode
+ * @param {string} table
+ * @param {string} idColumn
+ * @param {string} valueColumn
+ * @param {string[]} values
+ * @param {import('better-sqlite3').Statement} insertStmt
+ * @returns {Map<string,number>}
+ */
 function ensureVocabIds(db, mode, table, idColumn, valueColumn, values, insertStmt) {
   const unique = Array.from(new Set(values.filter(Boolean)));
   if (!unique.length) return new Map();
@@ -755,6 +516,13 @@ function ensureVocabIds(db, mode, table, idColumn, valueColumn, values, insertSt
   return map;
 }
 
+/**
+ * Delete doc ids from all tables for a mode.
+ * @param {import('better-sqlite3').Database} db
+ * @param {'code'|'prose'} mode
+ * @param {number[]} docIds
+ * @param {Array<{table:string,column:string,withMode:boolean,transform?:(value:any)=>any}>} [extraTables]
+ */
 function deleteDocIds(db, mode, docIds, extraTables = []) {
   if (!docIds.length) return;
   const deleteTargets = [
@@ -790,6 +558,12 @@ function deleteDocIds(db, mode, docIds, extraTables = []) {
   }
 }
 
+/**
+ * Recompute and update token stats for a mode.
+ * @param {import('better-sqlite3').Database} db
+ * @param {'code'|'prose'} mode
+ * @param {import('better-sqlite3').Statement} insertTokenStats
+ */
 function updateTokenStats(db, mode, insertTokenStats) {
   const row = db.prepare(
     'SELECT COUNT(*) AS total_docs, AVG(len) AS avg_doc_len FROM doc_lengths WHERE mode = ?'
@@ -801,6 +575,13 @@ function updateTokenStats(db, mode, insertTokenStats) {
   );
 }
 
+/**
+ * Apply incremental updates to a SQLite index using cached bundles.
+ * @param {string} outPath
+ * @param {'code'|'prose'} mode
+ * @param {object|null} incrementalData
+ * @returns {{used:boolean,reason?:string,changedFiles?:number,deletedFiles?:number,insertedChunks?:number}}
+ */
 function incrementalUpdateDatabase(outPath, mode, incrementalData) {
   if (!incrementalData?.manifest) {
     return { used: false, reason: 'missing incremental manifest' };
@@ -815,7 +596,7 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData) {
     db.pragma('synchronous = NORMAL');
   } catch {}
 
-  if (!hasRequiredTables(db)) {
+  if (!hasRequiredTables(db, REQUIRED_TABLES)) {
     db.close();
     return { used: false, reason: 'schema missing' };
   }
@@ -1075,6 +856,14 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData) {
   };
 }
 
+/**
+ * Build or incrementally update an index for a mode.
+ * @param {'code'|'prose'} mode
+ * @param {object|null} index
+ * @param {string} targetPath
+ * @param {object|null} incrementalData
+ * @returns {{count?:number,incremental:boolean,changedFiles?:number,deletedFiles?:number,insertedChunks?:number}}
+ */
 function runMode(mode, index, targetPath, incrementalData) {
   if (incrementalRequested) {
     const result = incrementalUpdateDatabase(targetPath, mode, incrementalData);
