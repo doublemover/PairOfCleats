@@ -269,3 +269,39 @@ Work items:
 ## Deferred / Do Not Surface (status: deferred)
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
+
+## Phase 24: Indexing Core Reliability (status: todo)
+- [ ] Fix chunk weight wiring (`weightt` typo) and add a regression test for weight effects.
+- [ ] Use precomputed token frequencies in BM25 row building; remove unused `wordFreq`/`sparse` artifacts if they remain unused.
+- [ ] Add a config option to disable per-chunk `git blame` (or downgrade to file-level) for large repos.
+- [ ] Add empty-repo/zero-chunk coverage to ensure postings/metrics stay stable.
+
+## Phase 25: Language Parsing Hardening (status: todo)
+- [ ] Improve TypeScript import parsing for multi-line imports/exports and dynamic `import()` calls.
+- [ ] Add JSX/Stage-3 parsing support (espree or tree-sitter) to avoid fallback chunking in `.jsx/.tsx`.
+- [ ] Extend cross-file inference beyond TS (Go/Rust/Java via tooling hooks).
+- [ ] Add fixtures/tests for `.tsx/.mts/.cts` and Python AST fallback.
+
+## Phase 26: Search + Scoring Consistency (status: todo)
+- [ ] Unify MinHash implementation between indexing and search; add a compatibility test.
+- [ ] Decide on `sparse_postings_varint.bin`: consume it or remove it from outputs.
+- [ ] Add caching for search summaries and unify shared CLI/output code with sqlite search.
+- [ ] Expand filter coverage tests (return types, inferred types, returns/async flags).
+
+## Phase 27: SQLite Incremental Safety (status: todo)
+- [ ] Validate schema version before incremental updates and force rebuild when mismatched.
+- [ ] Detect embedding model changes (id/dims) and rebuild or re-ingest dense vectors.
+- [ ] Add optional vocab pruning/compaction for long-lived incremental DBs.
+- [ ] Add tests for schema mismatch and vector-ann table sync after deletions.
+
+## Phase 28: Tooling + Cache UX (status: todo)
+- [ ] Make `clean-artifacts --all` preserve models/dicts or add keep flags aligned with uninstall behavior.
+- [ ] Add `setup --json` summary output for CI automation.
+- [ ] Add Node-based archive extraction fallback for extension downloads.
+- [ ] Deduplicate shared helper logic across setup/bootstrap/clean/uninstall scripts.
+
+## Phase 29: MCP + Docs Quality (status: todo)
+- [ ] Refresh `ROADMAP.md` or mark it as historical to avoid contradicting `COMPLETE_PLAN.md`.
+- [ ] Add async MCP build support (stream output vs `spawnSync`) and document error payloads.
+- [ ] Add MCP error-path tests (invalid repo path, missing indexes).
+- [ ] Add a docs consistency test to catch stale plan/roadmap references.
