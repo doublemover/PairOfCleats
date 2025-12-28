@@ -195,19 +195,19 @@ Meta:
 <details>
 <summary><h2>Design docs</h2></summary>
 
-- `COMPLETE_PLAN.md` - single source of truth for all phases
-- `docs/ast-feature-list.md` - metadata schema + per-language coverage
-- `docs/language-fidelity.md` - parsing validation checklist
-- `docs/parser-backbone.md` - parser and inference strategy
-- `docs/language-handler-imports.md` - registry import tradeoffs
-- `docs/sqlite-index-schema.md` - SQLite schema for artifacts
-- `docs/sqlite-incremental-updates.md` - incremental update flow
-- `docs/sqlite-compaction.md` - compaction details
-- `docs/sqlite-ann-extension.md` - SQLite ANN extension setup
-- `docs/model-comparison.md` - model evaluation harness
-- `docs/query-cache.md` - query cache behavior
-- `docs/repometrics-dashboard.md` - repometrics output and usage
-- `docs/setup.md` - unified setup flow and flags
+- [`COMPLETE_PLAN.md`](COMPLETE_PLAN.md) - single source of truth for all phases
+- [`docs/ast-feature-list.md`](docs/ast-feature-list.md) - metadata schema + per-language coverage
+- [`docs/language-fidelity.md`](docs/language-fidelity.md) - parsing validation checklist
+- [`docs/parser-backbone.md`](docs/parser-backbone.md) - parser and inference strategy
+- [`docs/language-handler-imports.md`](docs/language-handler-imports.md) - registry import tradeoffs
+- [`docs/sqlite-index-schema.md`](docs/sqlite-index-schema.md) - SQLite schema for artifacts
+- [`docs/sqlite-incremental-updates.md`](docs/sqlite-incremental-updates.md) - incremental update flow
+- [`docs/sqlite-compaction.md`](docs/sqlite-compaction.md) - compaction details
+- [`docs/sqlite-ann-extension.md`](docs/sqlite-ann-extension.md) - SQLite ANN extension setup
+- [`docs/model-comparison.md`](docs/model-comparison.md) - model evaluation harness
+- [`docs/query-cache.md`](docs/query-cache.md) - query cache behavior
+- [`docs/repometrics-dashboard.md`](docs/repometrics-dashboard.md) - repometrics output and usage
+- [`docs/setup.md`](docs/setup.md) - unified setup flow and flags
 </details>
 
 <details>
