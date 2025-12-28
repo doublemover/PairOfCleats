@@ -330,6 +330,27 @@ if (!sqlTable) {
   failures.push('Missing SQL table chunk (widgets).');
 }
 
+const pgTable = findChunk({ file: 'src/sql_postgres.psql', kind: 'TableDeclaration', nameIncludes: 'pg_widgets' });
+if (!pgTable) {
+  failures.push('Missing Postgres SQL table chunk (pg_widgets).');
+} else if (pgTable.docmeta?.dialect !== 'postgres') {
+  failures.push('Postgres dialect metadata missing for pg_widgets.');
+}
+
+const mysqlTable = findChunk({ file: 'src/sql_mysql.mysql', kind: 'TableDeclaration', nameIncludes: 'mysql_widgets' });
+if (!mysqlTable) {
+  failures.push('Missing MySQL SQL table chunk (mysql_widgets).');
+} else if (mysqlTable.docmeta?.dialect !== 'mysql') {
+  failures.push('MySQL dialect metadata missing for mysql_widgets.');
+}
+
+const sqliteTable = findChunk({ file: 'src/sql_sqlite.sqlite', kind: 'TableDeclaration', nameIncludes: 'sqlite_widgets' });
+if (!sqliteTable) {
+  failures.push('Missing SQLite SQL table chunk (sqlite_widgets).');
+} else if (sqliteTable.docmeta?.dialect !== 'sqlite') {
+  failures.push('SQLite dialect metadata missing for sqlite_widgets.');
+}
+
 if (failures.length) {
   failures.forEach((msg) => console.error(msg));
   process.exit(1);

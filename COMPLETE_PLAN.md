@@ -223,12 +223,12 @@ Work items:
 Notes:
 - Tree-sitter/native parser enrichment remains planned alongside Phase 19-22 work.
 
-## Phase 19: SQL Dialect Parsing (status: todo)
+## Phase 19: SQL Dialect Parsing (status: done)
 Goal: Provide dialect-aware SQL parsing and metadata.
 Work items:
-- [ ] Add PostgreSQL/MySQL/SQLite grammars and dialect selection rules.
-- [ ] Add per-dialect fixtures and tests.
-- [ ] Add config for sql.dialect and dialect-by-extension mapping.
+- [x] Add PostgreSQL/MySQL/SQLite dialect selection rules (extension + override).
+- [x] Add per-dialect fixtures and tests.
+- [x] Add config for sql.dialect and dialect-by-extension mapping.
 
 ## Phase 20: CFG + Dataflow Everywhere (status: todo)
 Goal: Add control-flow graphs and dataflow metadata across supported languages.

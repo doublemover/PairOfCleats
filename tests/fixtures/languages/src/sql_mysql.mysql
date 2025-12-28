@@ -1,0 +1,10 @@
+-- MySQL sample
+CREATE TABLE mysql_widgets (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255)
+);
+
+CREATE PROCEDURE mysql_widget_count()
+BEGIN
+  SELECT COUNT(*) FROM mysql_widgets;
+END;

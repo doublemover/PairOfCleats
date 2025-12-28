@@ -328,6 +328,10 @@ To enable FTS5 scoring, set `sqlite.scoreMode` to `fts` (experimental; lower par
       ```json
       { "tooling": { "autoInstallOnDetect": false, "installScope": "cache", "allowGlobalFallback": true } }
       ```
+    - SQL dialect config example:
+      ```json
+      { "sql": { "dialect": "postgres", "dialectByExt": { ".psql": "postgres", ".mysql": "mysql", ".sqlite": "sqlite" } } }
+      ```
 - Build the index: `node build_index.js` (add `--incremental` to reuse per-file cache)
   - (Optional) Build a shared SQLite index: `npm run build-sqlite-index` (use `-- --incremental` to update in place when the per-file cache exists)
 - Include the index & search.js

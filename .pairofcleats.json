@@ -41,6 +41,15 @@
     "importConcurrency": 4,
     "astDataflow": true
   },
+  "sql": {
+    "dialect": "",
+    "dialectByExt": {
+      ".psql": "postgres",
+      ".pgsql": "postgres",
+      ".mysql": "mysql",
+      ".sqlite": "sqlite"
+    }
+  },
   "models": {
     "id": "Xenova/all-MiniLM-L12-v2",
     "dir": ""

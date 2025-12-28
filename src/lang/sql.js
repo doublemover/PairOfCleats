@@ -134,12 +134,13 @@ export function collectSqlImports() {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildSqlChunks(text) {
+export function buildSqlChunks(text, options = {}) {
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const statements = splitSqlStatements(text);
   if (!statements.length) return null;
 
+  const dialect = options.dialect || 'generic';
   const decls = [];
   for (const stmt of statements) {
     const { kind, name } = classifySqlStatement(stmt.text);
@@ -155,7 +156,8 @@ export function buildSqlChunks(text) {
         startLine,
         endLine,
         signature: stmt.text.trim().split('\n')[0].trim(),
-        docstring
+        docstring,
+        dialect
       }
     });
   }
@@ -197,6 +199,7 @@ export function extractSqlDocMeta(chunk) {
     doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
     params: [],
     returns: null,
-    signature: meta.signature || null
+    signature: meta.signature || null,
+    dialect: meta.dialect || null
   };
 }

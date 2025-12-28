@@ -14,3 +14,6 @@ ruby widget
 php widget
 lua widget
 sql widgets
+postgres widgets
+mysql widgets
+sqlite widgets

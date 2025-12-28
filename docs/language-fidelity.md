@@ -104,6 +104,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 ## SQL
 - CREATE statements are chunked (table/view/function/index/etc).
 - Statement doc comments are captured from preceding -- or /* */ blocks.
+- Dialect metadata is captured via extension mapping or config overrides.
 - Exports include declared objects when possible.
 
 ## Perl (lite)

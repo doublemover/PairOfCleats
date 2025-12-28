@@ -36,7 +36,7 @@
 - [x] Language support expansion (TypeScript, C#, Kotlin, Ruby, PHP, Lua, SQL)
 
 ## Now
-- [ ] SQL dialect parsing + type inference passes
+- [ ] CFG/dataflow + type inference passes
 
 ## Language support (priority order)
 - [x] Python (basic chunking)

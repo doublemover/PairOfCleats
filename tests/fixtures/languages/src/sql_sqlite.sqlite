@@ -1,0 +1,8 @@
+-- SQLite sample
+CREATE TABLE sqlite_widgets (
+  id INTEGER PRIMARY KEY,
+  name TEXT
+) WITHOUT ROWID;
+
+CREATE VIEW sqlite_widget_names AS
+  SELECT name FROM sqlite_widgets;

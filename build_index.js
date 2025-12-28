@@ -105,6 +105,18 @@ const userConfig = loadUserConfig(ROOT);
 const repoCacheRoot = getRepoCacheRoot(ROOT, userConfig);
 const indexingConfig = userConfig.indexing || {};
 const astDataflowEnabled = indexingConfig.astDataflow !== false;
+const sqlConfig = userConfig.sql || {};
+const defaultSqlDialects = {
+  '.psql': 'postgres',
+  '.pgsql': 'postgres',
+  '.mysql': 'mysql',
+  '.sqlite': 'sqlite'
+};
+const sqlDialectByExt = { ...defaultSqlDialects, ...(sqlConfig.dialectByExt || {}) };
+const sqlDialectOverride = typeof sqlConfig.dialect === 'string' && sqlConfig.dialect.trim()
+  ? sqlConfig.dialect.trim()
+  : '';
+const resolveSqlDialect = (ext) => (sqlDialectOverride || sqlDialectByExt[ext] || 'generic');
 const threadsArgPresent = process.argv.includes('--threads');
 const configConcurrency = Number(indexingConfig.concurrency);
 const cliConcurrency = threadsArgPresent ? Number(argv.threads) : null;
@@ -434,7 +446,9 @@ async function build(mode) {
     const rubyChunks = isRuby(ext) && mode === 'code' ? buildRubyChunks(text) : null;
     const phpChunks = isPhp(ext) && mode === 'code' ? buildPhpChunks(text) : null;
     const luaChunks = isLua(ext) && mode === 'code' ? buildLuaChunks(text) : null;
-    const sqlChunks = isSql(ext) && mode === 'code' ? buildSqlChunks(text) : null;
+    const sqlChunks = isSql(ext) && mode === 'code'
+      ? buildSqlChunks(text, { dialect: resolveSqlDialect(ext) })
+      : null;
     const chunks0 = smartChunk({
       text,
       ext,
@@ -628,7 +642,9 @@ async function build(mode) {
     const rubyChunks = isRuby(ext) && mode === 'code' ? buildRubyChunks(text) : null;
     const phpChunks = isPhp(ext) && mode === 'code' ? buildPhpChunks(text) : null;
     const luaChunks = isLua(ext) && mode === 'code' ? buildLuaChunks(text) : null;
-    const sqlChunks = isSql(ext) && mode === 'code' ? buildSqlChunks(text) : null;
+    const sqlChunks = isSql(ext) && mode === 'code'
+      ? buildSqlChunks(text, { dialect: resolveSqlDialect(ext) })
+      : null;
     const lineIndex = buildLineIndex(text);
     const fileRelations = (isJsLike(ext) && mode === 'code')
       ? buildCodeRelations(text, relKey, allImports, { dataflow: astDataflowEnabled })
