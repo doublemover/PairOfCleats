@@ -221,6 +221,11 @@ const actions = [
       { cwd: fixtureRoot, env: repoEnv }
     ),
     covers: ['bootstrap']
+  },
+  {
+    label: 'setup-test',
+    run: () => runNode('setup-test', path.join(root, 'tests', 'setup.js')),
+    covers: ['setup', 'setup-test']
   }
 ];
 

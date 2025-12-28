@@ -29,6 +29,7 @@
     "mcp-server": "node tools/mcp-server.js",
     "test-all": "node tests/all.js",
     "verify": "node tests/smoke.js",
+    "setup": "node tools/setup.js",
     "bootstrap": "node tools/bootstrap.js",
     "parity": "node tests/parity.js",
     "lint": "eslint .",
@@ -56,7 +57,8 @@
     "download-extensions-test": "node tests/download-extensions.js",
     "tooling-detect-test": "node tests/tooling-detect.js",
     "tooling-install-test": "node tests/tooling-install.js",
-    "script-coverage-test": "node tests/script-coverage.js"
+    "script-coverage-test": "node tests/script-coverage.js",
+    "setup-test": "node tests/setup.js"
   },
   "dependencies": {
     "@xenova/transformers": "*",

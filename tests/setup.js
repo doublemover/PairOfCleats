@@ -1,0 +1,46 @@
+#!/usr/bin/env node
+import fsPromises from 'node:fs/promises';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+const root = process.cwd();
+const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
+const cacheRoot = path.join(root, 'tests', '.cache', 'setup');
+
+await fsPromises.rm(cacheRoot, { recursive: true, force: true });
+await fsPromises.mkdir(cacheRoot, { recursive: true });
+
+const result = spawnSync(
+  process.execPath,
+  [
+    path.join(root, 'tools', 'setup.js'),
+    '--non-interactive',
+    '--skip-install',
+    '--skip-dicts',
+    '--skip-models',
+    '--skip-extensions',
+    '--skip-tooling',
+    '--skip-index',
+    '--skip-sqlite',
+    '--skip-artifacts'
+  ],
+  {
+    cwd: fixtureRoot,
+    encoding: 'utf8',
+    env: { ...process.env, PAIROFCLEATS_CACHE_ROOT: cacheRoot }
+  }
+);
+
+if (result.status !== 0) {
+  console.error('setup test failed');
+  if (result.stderr) console.error(result.stderr.trim());
+  process.exit(result.status ?? 1);
+}
+
+const output = `${result.stdout || ''}${result.stderr || ''}`;
+if (!output.includes('Setup complete.')) {
+  console.error('setup test failed: missing completion message');
+  process.exit(1);
+}
+
+console.log('setup test passed');

@@ -15,7 +15,12 @@ Active development. See `ROADMAP.md` for milestones and longer-term work.
 - Optional: SQLite vector extension (`sqlite-vec`) for ANN acceleration
 
 ## Quick start
-- `npm run bootstrap`
+- `npm run setup`
+  - Guided prompts for install, dictionaries, models, extensions, tooling, and indexes.
+  - Add `--non-interactive` for CI or automated runs.
+  - Add `--with-sqlite` to build SQLite indexes.
+  - Add `--incremental` to reuse per-file cache bundles.
+- `npm run bootstrap` (fast, no prompts)
   - Add `--with-sqlite` to build SQLite indexes.
   - Add `--incremental` to reuse per-file cache bundles.
 - Cache is outside the repo by default; set `cache.root` in `.pairofcleats.json` to override.
@@ -67,7 +72,7 @@ Active development. See `ROADMAP.md` for milestones and longer-term work.
 <details>
 <summary><h2>Dictionaries</h2></summary>
 
-- Default English wordlist: `npm run download-dicts -- --lang en` (bootstrap runs this)
+- Default English wordlist: `npm run download-dicts -- --lang en` (setup/ bootstrap runs this)
 - Update dictionaries with ETag/Last-Modified: `npm run download-dicts -- --update`
 - Add custom lists: `npm run download-dicts -- --url mylist=https://example.com/words.txt`
 - Slang support: drop `.txt` files into the `slang/` folder in the dictionary cache
@@ -103,17 +108,20 @@ Active development. See `ROADMAP.md` for milestones and longer-term work.
 <details>
 <summary><h2>Installation</h2></summary>
 
-- Install dependencies: `npm install`
-- Optional extras:
-  - Dictionaries: `npm run download-dicts -- --lang en`
-  - Models: `npm run download-models`
-  - SQLite ANN extension: `npm run download-extensions`
-  - Verify extension: `npm run verify-extensions`
-  - Detect tooling: `npm run tooling-detect`
-  - Install tooling: `npm run tooling-install -- --scope cache`
-- Build indexes:
-  - File-backed: `node build_index.js` (add `--incremental` if desired)
-  - SQLite: `npm run build-sqlite-index`
+- Guided setup: `npm run setup` (prompts)
+- CI/automation: `npm run setup -- --non-interactive`
+- Manual steps:
+  - Install dependencies: `npm install`
+  - Optional extras:
+    - Dictionaries: `npm run download-dicts -- --lang en`
+    - Models: `npm run download-models`
+    - SQLite ANN extension: `npm run download-extensions`
+    - Verify extension: `npm run verify-extensions`
+    - Detect tooling: `npm run tooling-detect`
+    - Install tooling: `npm run tooling-install -- --scope cache`
+  - Build indexes:
+    - File-backed: `node build_index.js` (add `--incremental` if desired)
+    - SQLite: `npm run build-sqlite-index`
 </details>
 
 <details>
@@ -154,6 +162,7 @@ SQLite + extensions:
 
 Tooling + caches:
 - `npm run download-dicts-test`
+- `npm run setup-test`
 - `npm run tooling-detect-test`
 - `npm run tooling-install-test`
 - `npm run query-cache-test`
@@ -198,6 +207,7 @@ Meta:
 - `docs/model-comparison.md` - model evaluation harness
 - `docs/query-cache.md` - query cache behavior
 - `docs/repometrics-dashboard.md` - repometrics output and usage
+- `docs/setup.md` - unified setup flow and flags
 </details>
 
 <details>
