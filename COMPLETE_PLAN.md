@@ -282,11 +282,11 @@ Work items:
 - [x] Extend cross-file inference beyond TS (Go/Rust/Java via tooling hooks).
 - [x] Add fixtures/tests for `.tsx/.mts/.cts` and Python AST fallback.
 
-## Phase 26: Search + Scoring Consistency (status: in-progress)
+## Phase 26: Search + Scoring Consistency (status: done)
 - [x] Unify MinHash implementation between indexing and search; add a compatibility test.
-- [ ] Decide on `sparse_postings_varint.bin`: consume it or remove it from outputs.
-- [ ] Add caching for search summaries and unify shared CLI/output code with sqlite search.
-- [ ] Expand filter coverage tests (return types, inferred types, returns/async flags).
+- [x] Decide on `sparse_postings_varint.bin`: consume it or remove it from outputs.
+- [x] Add caching for search summaries and unify shared CLI/output code with sqlite search.
+- [x] Expand filter coverage tests (return types, inferred types, returns/async flags).
 
 ## Phase 27: SQLite Incremental Safety (status: todo)
 - [ ] Validate schema version before incremental updates and force rebuild when mismatched.

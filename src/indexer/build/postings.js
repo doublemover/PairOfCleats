@@ -1,4 +1,3 @@
-import * as varint from 'varint';
 import { quantizeVec } from '../embedding.js';
 
 const tuneBM25Params = (chunks) => {
@@ -43,18 +42,6 @@ export function buildPostings(input) {
   const embeddingVectors = chunks.map((c) => c.embedding);
   const quantizedVectors = embeddingVectors.map((vec) => quantizeVec(vec));
 
-  const gap = posts.map((list) => {
-    list.sort((a, b) => a - b);
-    let prev = 0;
-    return list.map((id) => {
-      const g = id - prev;
-      prev = id;
-      return g;
-    });
-  });
-  const postingBuffers = gap.map((list) => Buffer.from(list.flatMap((id) => varint.encode(id))));
-  const postingsBin = Buffer.concat(postingBuffers);
-
   const phraseVocab = Array.from(phrasePost.keys());
   const phrasePostings = phraseVocab.map((k) => Array.from(phrasePost.get(k)));
   const chargramVocab = Array.from(triPost.keys());
@@ -74,7 +61,6 @@ export function buildPostings(input) {
     avgChunkLen,
     totalDocs: N,
     trimmedVocab,
-    postingsBin,
     phraseVocab,
     phrasePostings,
     chargramVocab,

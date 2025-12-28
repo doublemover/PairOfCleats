@@ -120,6 +120,57 @@ if (inferredPayload) {
   }
 }
 
+const returnTypeSearch = runSearch(
+  [searchPath, 'makeWidget', '--json', '--mode', 'code', '--return-type', 'Widget', '--no-ann'],
+  'search (return-type filter)'
+);
+let returnTypePayload = null;
+try {
+  returnTypePayload = JSON.parse(returnTypeSearch);
+} catch {
+  failures.push('Search return-type test failed: invalid JSON output.');
+}
+if (returnTypePayload) {
+  const returnHits = returnTypePayload.code || [];
+  if (!returnHits.length) {
+    failures.push('Search return-type test failed: no results for Widget.');
+  }
+}
+
+const returnsSearch = runSearch(
+  [searchPath, 'update', '--json', '--mode', 'code', '--returns', '--no-ann'],
+  'search (returns filter)'
+);
+let returnsPayload = null;
+try {
+  returnsPayload = JSON.parse(returnsSearch);
+} catch {
+  failures.push('Search returns filter failed: invalid JSON output.');
+}
+if (returnsPayload) {
+  const returnHits = returnsPayload.code || [];
+  if (!returnHits.length) {
+    failures.push('Search returns filter failed: no results for update.');
+  }
+}
+
+const asyncSearch = runSearch(
+  [searchPath, 'load', '--json', '--mode', 'code', '--async', '--no-ann'],
+  'search (async filter)'
+);
+let asyncPayload = null;
+try {
+  asyncPayload = JSON.parse(asyncSearch);
+} catch {
+  failures.push('Search async filter failed: invalid JSON output.');
+}
+if (asyncPayload) {
+  const asyncHits = asyncPayload.code || [];
+  if (!asyncHits.length) {
+    failures.push('Search async filter failed: no results for load.');
+  }
+}
+
 if (pythonAvailable) {
   const pointChunk = findChunk({ file: 'src/python_advanced.py', kind: 'ClassDeclaration', nameIncludes: 'Point' });
   if (!pointChunk) {

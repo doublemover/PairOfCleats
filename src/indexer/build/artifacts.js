@@ -64,7 +64,6 @@ export async function writeIndexArtifacts(input) {
   log('Writing index files...');
   const writeStart = Date.now();
   await Promise.all([
-    fs.writeFile(path.join(outDir, 'sparse_postings_varint.bin'), postings.postingsBin),
     fs.writeFile(
       path.join(outDir, 'dense_vectors_uint8.json'),
       JSON.stringify({ model: modelId, dims: postings.dims, scale: 1.0, vectors: postings.quantizedVectors }) + '\n'
