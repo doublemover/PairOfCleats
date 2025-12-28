@@ -94,8 +94,8 @@ Goal: Provide stable chunking + metadata for prioritized languages.
 Python (status: partial)
 - [x] Python AST enrichment when python is available; heuristic fallback.
 - [x] Class/function/method chunking with docstrings and signatures.
-- [ ] Improve call graph accuracy for nested functions.
-- [ ] Add type-aware docs for dataclasses/attrs.
+- [x] Improve call graph accuracy for nested functions.
+- [x] Add type-aware docs for dataclasses/attrs.
 
 Swift (status: partial)
 - [x] Brace-aware chunking for declarations.
@@ -151,11 +151,11 @@ Work items:
 - [x] Tools: index_status/build_index/search/download_models/report_artifacts.
 - [x] Git-optional behavior with warnings.
 
-## Phase 13: Language Fidelity Review + Enhancements (status: todo)
+## Phase 13: Language Fidelity Review + Enhancements (status: partial)
 Goal: Evaluate current fidelity of each supported language and enhance parsing.
 Work items:
-- [ ] Build a per-language evaluation checklist (chunking, metadata, relations).
-- [ ] Expand fixtures per language and add targeted regression tests.
+- [x] Build a per-language evaluation checklist (chunking, metadata, relations).
+- [x] Expand fixtures per language and add targeted regression tests.
 - [ ] Implement improvements per language and update docs.
 
 ## Phase 14: CI Coverage and Full Script Coverage (status: todo)

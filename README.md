@@ -385,6 +385,10 @@ SQLite ANN extension harness:
 
 `npm run sqlite-ann-extension-test`
 
+Language fidelity harness:
+
+`npm run language-fidelity-test`
+
 Download extensions archive harness:
 
 `npm run download-extensions-test`
@@ -445,6 +449,7 @@ Optional flags:
 - `docs/sqlite-compaction.md`
 - `docs/sqlite-ann-extension.md`
 - `docs/sqlite-incremental-updates.md`
+- `docs/language-fidelity.md`
 - `docs/repometrics-dashboard.md`
 - `docs/sqlite-index-schema.md`
 - `docs/query-cache.md`

@@ -42,6 +42,7 @@
     "sqlite-incremental-test": "node tests/sqlite-incremental.js",
     "sqlite-compact-test": "node tests/sqlite-compact.js",
     "sqlite-ann-extension-test": "node tests/sqlite-ann-extension.js",
+    "language-fidelity-test": "node tests/language-fidelity.js",
     "repometrics-dashboard-test": "node tests/repometrics-dashboard.js",
     "mcp-server-test": "node tests/mcp-server.js",
     "compare-models-test": "node tests/compare-models.js",

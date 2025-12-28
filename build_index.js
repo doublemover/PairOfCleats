@@ -469,6 +469,26 @@ def format_class_signature(node):
         sig += "(" + ", ".join(bases) + ")"
     return sig
 
+def is_dataclass_decorator(decorators):
+    for name in decorators:
+        if name in ("dataclass", "attrs.define", "attr.s", "attr.define"):
+            return True
+    return False
+
+def extract_fields(node):
+    fields = []
+    for stmt in getattr(node, "body", []):
+        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            name = stmt.target.id
+            ann = safe_unparse(stmt.annotation) if stmt.annotation is not None else None
+            default = safe_unparse(stmt.value) if stmt.value is not None else None
+            fields.append({"name": name, "type": ann, "default": default})
+        elif isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.targets[0], ast.Name):
+            name = stmt.targets[0].id
+            default = safe_unparse(stmt.value) if stmt.value is not None else None
+            fields.append({"name": name, "type": None, "default": default})
+    return fields
+
 class Collector(ast.NodeVisitor):
     def __init__(self):
         self.defs = []
@@ -507,6 +527,8 @@ class Collector(ast.NodeVisitor):
             entry["returns"] = safe_unparse(node.returns) if getattr(node, "returns", None) is not None else None
         elif kind == "ClassDeclaration":
             entry["signature"] = format_class_signature(node)
+            if is_dataclass_decorator(decorators):
+                entry["fields"] = extract_fields(node)
         self.defs.append(entry)
     def visit_ClassDef(self, node):
         name = node.name
@@ -519,13 +541,13 @@ class Collector(ast.NodeVisitor):
         self.class_stack.pop()
     def visit_FunctionDef(self, node):
         name = node.name
-        qualified = ".".join(self.class_stack + [name]) if self.class_stack else name
-        is_method = bool(self.class_stack)
-        if not self.func_stack or is_method:
-            kind = "MethodDeclaration" if is_method else "FunctionDeclaration"
-            if not self.func_stack:
-                self.exports.add(qualified)
-            self.record_def(node, kind, qualified)
+        base = self.func_stack[-1] if self.func_stack else (".".join(self.class_stack) if self.class_stack else "")
+        qualified = base + "." + name if base else name
+        is_method = bool(self.class_stack) and not self.func_stack
+        kind = "MethodDeclaration" if is_method else "FunctionDeclaration"
+        if not self.func_stack:
+            self.exports.add(qualified)
+        self.record_def(node, kind, qualified)
         self.func_stack.append(qualified)
         self.generic_visit(node)
         self.func_stack.pop()
@@ -648,7 +670,8 @@ function buildPythonChunksFromAst(text, astData) {
         params: current.params || [],
         returns: current.returns || null,
         docstring: current.docstring || '',
-        calls: current.calls || null
+        calls: current.calls || null,
+        fields: current.fields || []
       }
     });
   }
@@ -2285,12 +2308,14 @@ function extractPythonDocMeta(chunk) {
   const meta = chunk.meta || {};
   const params = Array.isArray(meta.params) ? meta.params : [];
   const decorators = Array.isArray(meta.decorators) ? meta.decorators : [];
+  const fields = Array.isArray(meta.fields) ? meta.fields : [];
   return {
     doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
     params,
     returns: meta.returns || null,
     signature: meta.signature || null,
-    decorators
+    decorators,
+    fields
   };
 }
 
