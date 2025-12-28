@@ -27,6 +27,7 @@
     "summary-report": "node tools/combined-summary.js",
     "uninstall": "node tools/uninstall.js",
     "mcp-server": "node tools/mcp-server.js",
+    "test-all": "node tests/all.js",
     "verify": "node tests/smoke.js",
     "bootstrap": "node tools/bootstrap.js",
     "parity": "node tests/parity.js",

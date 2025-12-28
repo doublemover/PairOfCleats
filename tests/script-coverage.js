@@ -13,6 +13,9 @@ const coverage = new Map(scriptNames.map((name) => [name, { status: 'pending', v
 if (coverage.has('script-coverage-test')) {
   coverage.set('script-coverage-test', { status: 'covered', via: 'self', reason: null });
 }
+if (coverage.has('test-all')) {
+  markSkipped('test-all', 'aggregates script-coverage-test and bench');
+}
 
 const baseCacheRoot = path.join(root, 'tests', '.cache', 'script-coverage');
 const repoCacheRoot = path.join(baseCacheRoot, 'repo');

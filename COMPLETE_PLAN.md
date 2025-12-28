@@ -248,10 +248,21 @@ Work items:
 - [x] Validate with fixtures and language-fidelity tests.
 
 ## Phase 22: Type Inference (Cross-file) (status: done)
-Goal: Resolve types across files after intra-file stability is confirmed.
+Goal: Resolve types across files after intra-file stability is confirmed.       
 Work items:
 - [x] Add cross-file symbol resolution and import/usage linking.
 - [x] Use detected tooling when present for richer type info.
-- [x] Validate with tests; provide parity/perf summary after completion.
+- [x] Validate with tests; provide parity/perf summary after completion.        
 Notes:
 - Cross-file inference is covered by `tests/type-inference-crossfile.js`; large-repo perf runs are still pending.
+
+## Phase 23: Unified Setup Command (status: todo)
+Goal: Provide a single guided command that bundles optional setup steps.
+Work items:
+- [ ] Add a guided setup script that can install deps, dictionaries, models, extensions, tooling, and build indexes.
+- [ ] Support prompts when defaults fail or when optional tooling is detected.
+- [ ] Provide non-interactive flags for CI usage.
+- [ ] Document and add tests for the unified setup flow.
+
+## Maintenance / Refactor Guardrails (status: todo)
+- [ ] Break `build_index.js` into focused modules (discovery/import scan/file processing/posting builders/artifact writers/metrics) to keep growth in check.
