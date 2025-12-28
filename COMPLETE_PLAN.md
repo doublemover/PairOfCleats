@@ -79,14 +79,14 @@ Work items:
 - [x] Bootstrap restore when ci-artifacts/manifest.json exists.
 - [x] Docs for GitHub and GitLab usage.
 
-## Phase 6: Tests + Benchmarks (status: partial)
+## Phase 6: Tests + Benchmarks (status: done)
 Goal: Expand deterministic tests and perf harnesses.
 Work items:
 - [x] Fixture repos under tests/fixtures (sample, mixed).
 - [x] Fixture smoke, parity, eval harnesses.
 - [x] Bench harness (tests/bench.js) + bench-ann script.
 - [x] Query cache, cleanup, uninstall, sqlite incremental/compact, mcp server tests.
-- [ ] Add CI workflow to run smoke + parity in GitHub Actions.
+- [x] Add CI workflow to run smoke + parity in GitHub Actions.
 
 ## Phase 7: Language Expansion (status: partial)
 Goal: Provide stable chunking + metadata for prioritized languages.

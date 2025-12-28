@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      PAIROFCLEATS_EMBEDDINGS: stub
+      PAIROFCLEATS_CACHE_ROOT: ${{ runner.temp }}/pairofcleats
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+      - name: Install
+        run: npm ci
+      - name: Fixture smoke
+        run: npm run fixture-smoke
+      - name: Fixture parity
+        run: npm run fixture-parity
