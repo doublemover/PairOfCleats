@@ -168,6 +168,11 @@ const actions = [
     covers: []
   },
   {
+    label: 'search-filters-test',
+    run: () => runNode('search-filters-test', path.join(root, 'tests', 'search-filters.js')),
+    covers: ['search-filters-test']
+  },
+  {
     label: 'unicode-offset-test',
     run: () => runNode('unicode-offset-test', path.join(root, 'tests', 'unicode-offset.js')),
     covers: []

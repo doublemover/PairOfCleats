@@ -22,7 +22,7 @@ export async function getGitMeta(file, start = 0, end = 0, options = {}) {
       const blame = await git.raw(['blame', '-L', `${start + 1},${end + 1}`, file]);
       const authors = new Set();
       for (const line of blame.split('\n')) {
-        const m = line.match(/^\w+\s+\(([^)]+)\s+\d{4}/);
+        const m = line.match(/^\^?\w+\s+\(([^)]+)\s+\d{4}/);
         if (m) authors.add(m[1].trim());
       }
       blameData = { chunk_authors: Array.from(authors) };
@@ -53,7 +53,7 @@ export async function getGitMeta(file, start = 0, end = 0, options = {}) {
         const blame = await git.raw(['blame', '-L', `${start + 1},${end + 1}`, file]);
         const authors = new Set();
         for (const line of blame.split('\n')) {
-          const m = line.match(/^\w+\s+\(([^)]+)\s+\d{4}/);
+          const m = line.match(/^\^?\w+\s+\(([^)]+)\s+\d{4}/);
           if (m) authors.add(m[1].trim());
         }
         blameData = { chunk_authors: Array.from(authors) };

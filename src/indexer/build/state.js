@@ -1,4 +1,7 @@
 import { extractNgrams, tri } from '../../shared/tokenize.js';
+import { normalizePostingsConfig } from '../../shared/postings-config.js';
+
+const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
 
 /**
  * Create the mutable state for index building.
@@ -24,24 +27,35 @@ export function createIndexState() {
  * @param {object} state
  * @param {object} chunk
  */
-export function appendChunk(state, chunk) {
+export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONFIG) {
   const tokens = Array.isArray(chunk.tokens) ? chunk.tokens : [];
   const seq = Array.isArray(chunk.seq) && chunk.seq.length ? chunk.seq : tokens;
   if (!seq.length) return;
 
-  state.totalTokens += seq.length;
-  const ngrams = Array.isArray(chunk.ngrams) && chunk.ngrams.length
-    ? chunk.ngrams
-    : extractNgrams(seq, 2, 4);
+  const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
+  const chargramEnabled = postingsConfig?.enableChargrams !== false;
 
-  const chargrams = Array.isArray(chunk.chargrams) && chunk.chargrams.length
-    ? chunk.chargrams
-    : null;
-  const charSet = new Set(chargrams || []);
-  if (!chargrams) {
-    seq.forEach((w) => {
-      for (let n = 3; n <= 5; ++n) tri(w, n).forEach((g) => charSet.add(g));
-    });
+  state.totalTokens += seq.length;
+  const ngrams = phraseEnabled
+    ? (Array.isArray(chunk.ngrams) && chunk.ngrams.length
+      ? chunk.ngrams
+      : extractNgrams(seq, postingsConfig.phraseMinN, postingsConfig.phraseMaxN))
+    : [];
+
+  const charSet = new Set();
+  if (chargramEnabled) {
+    const chargrams = Array.isArray(chunk.chargrams) && chunk.chargrams.length
+      ? chunk.chargrams
+      : null;
+    if (chargrams) {
+      chargrams.forEach((g) => charSet.add(g));
+    } else {
+      seq.forEach((w) => {
+        for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) {
+          tri(w, n).forEach((g) => charSet.add(g));
+        }
+      });
+    }
   }
 
   const freq = {};
@@ -60,13 +74,17 @@ export function appendChunk(state, chunk) {
     postings.push([chunkId, count]);
   }
 
-  for (const ng of ngrams) {
-    if (!state.phrasePost.has(ng)) state.phrasePost.set(ng, new Set());
-    state.phrasePost.get(ng).add(chunkId);
+  if (phraseEnabled) {
+    for (const ng of ngrams) {
+      if (!state.phrasePost.has(ng)) state.phrasePost.set(ng, new Set());
+      state.phrasePost.get(ng).add(chunkId);
+    }
   }
-  for (const tg of charSet) {
-    if (!state.triPost.has(tg)) state.triPost.set(tg, new Set());
-    state.triPost.get(tg).add(chunkId);
+  if (chargramEnabled) {
+    for (const tg of charSet) {
+      if (!state.triPost.has(tg)) state.triPost.set(tg, new Set());
+      state.triPost.get(tg).add(chunkId);
+    }
   }
 
   tokens.forEach((t) => state.df.set(t, (state.df.get(t) || 0) + 1));

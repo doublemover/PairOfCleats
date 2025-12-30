@@ -146,9 +146,11 @@ function hitKey(hit, index) {
 function hitScore(hit) {
   if (!hit || typeof hit !== 'object') return 0;
   if (Number.isFinite(hit.score)) return hit.score;
-  if (Number.isFinite(hit.annScore)) return hit.annScore;
   const selected = hit.scoreBreakdown?.selected?.score;
-  return Number.isFinite(selected) ? selected : 0;
+  if (Number.isFinite(selected)) return selected;
+  if (Number.isFinite(hit.sparseScore)) return hit.sparseScore;
+  if (Number.isFinite(hit.annScore)) return hit.annScore;
+  return 0;
 }
 
 function summarizeMatch(memoryHits, sqliteHits) {

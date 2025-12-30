@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import minimist from 'minimist';
 import { getDictionaryPaths, getDictConfig, getIndexDir, loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
+import { normalizePostingsConfig } from '../src/shared/postings-config.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../tools/vector-extension.js';
 
 const argv = minimist(process.argv.slice(2), {
@@ -31,6 +32,7 @@ const configPath = path.join(root, '.pairofcleats.json');
 report(fs.existsSync(configPath), '.pairofcleats.json present');
 
 const userConfig = loadUserConfig(root);
+const postingsConfig = normalizePostingsConfig(userConfig.indexing?.postings || {});
 const vectorExtension = getVectorExtensionConfig(root, userConfig);
 const dictConfig = getDictConfig(root, userConfig);
 const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
@@ -49,8 +51,8 @@ const indexDirs = [
 const indexFiles = [
   'chunk_meta.json',
   'token_postings.json',
-  'phrase_ngrams.json',
-  'chargram_postings.json',
+  ...(postingsConfig.enablePhraseNgrams !== false ? ['phrase_ngrams.json'] : []),
+  ...(postingsConfig.enableChargrams !== false ? ['chargram_postings.json'] : []),
   'minhash_signatures.json'
 ];
 

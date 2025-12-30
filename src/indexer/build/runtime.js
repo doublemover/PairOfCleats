@@ -12,6 +12,7 @@ import {
 import { createEmbedder } from '../embedding.js';
 import { log } from '../../shared/progress.js';
 import { buildIgnoreMatcher } from './ignore.js';
+import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
 /**
  * Create runtime configuration for build_index.
@@ -22,6 +23,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const userConfig = loadUserConfig(root);
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const indexingConfig = userConfig.indexing || {};
+  const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});
   const maxFileBytesRaw = indexingConfig.maxFileBytes;
   const maxFileBytesParsed = Number(maxFileBytesRaw);
   let maxFileBytes = null;
@@ -146,6 +148,12 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   if (!riskAnalysisCrossFileEnabled && riskAnalysisEnabled) {
     log('Cross-file risk correlation disabled via indexing.riskAnalysisCrossFile.');
   }
+  if (postingsConfig.enablePhraseNgrams === false) {
+    log('Phrase n-gram postings disabled via indexing.postings.enablePhraseNgrams.');
+  }
+  if (postingsConfig.enableChargrams === false) {
+    log('Chargram postings disabled via indexing.postings.enableChargrams.');
+  }
 
   const languageOptions = {
     astDataflowEnabled,
@@ -161,6 +169,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     userConfig,
     repoCacheRoot,
     indexingConfig,
+    postingsConfig,
     astDataflowEnabled,
     controlFlowEnabled,
     typeInferenceEnabled,

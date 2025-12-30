@@ -52,7 +52,8 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - git metadata (last author/date, churn = added+deleted lines), JS complexity/lint, headline + neighbor context
 - Triage records (findings + decisions) indexed outside the repo
 - Index artifacts:
-  - token/phrase/chargram postings
+  - token postings (always)
+  - phrase/chargram postings (configurable via `indexing.postings.*`)
   - MinHash signatures
   - dense vectors (MiniLM)
   - incremental per-file cache bundles
@@ -64,6 +65,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 - BM25 token/phrase search + n-grams/chargrams
 - MinHash similarity fallback
 - Dense vectors (optional, ANN-aware when enabled)
+- Query syntax: `-term` excludes tokens, `"exact phrase"` boosts phrase matches, `-"phrase"` excludes phrases
 - Modes: `code`, `prose`, `both`, `records`, `all`
 - Backends:
   - `memory` (file-backed JSON)
@@ -76,12 +78,12 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - `--risk`, `--risk-tag`, `--risk-source`, `--risk-sink`, `--risk-category`, `--risk-flow`
   - `--branches`, `--loops`, `--breaks`, `--continues`
   - `--async`, `--generator`, `--returns`
-  - `--author`, `--churn [min]` (git numstat added+deleted), `--lint`, `--calls`, `--import`, `--uses`, `--extends`
+  - `--author`, `--chunk-author`, `--modified-after`, `--modified-since`, `--churn [min]` (git numstat added+deleted), `--lint`, `--calls`, `--import`, `--uses`, `--extends`
   - `--path`/`--file` (substring or `/regex/`), `--ext` (generic file filters)
   - `--meta`, `--meta-json` (records metadata filters)
 - Output:
   - human-readable (color), `--json` (full), or `--json-compact` (lean tooling payload)
-  - full JSON includes `score`, `scoreType`, and `scoreBreakdown` per hit
+  - full JSON includes `score` (selected), `scoreType`, `sparseScore`, `annScore`, and `scoreBreakdown` (sparse/ann/phrase/selected)
 - Optional query cache (`search.queryCache.*` in `.pairofcleats.json`)
 </details>
 

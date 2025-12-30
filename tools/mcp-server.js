@@ -673,6 +673,9 @@ function runSearch(args = {}) {
   const breaksMin = Number.isFinite(Number(args.breaksMin)) ? Number(args.breaksMin) : null;
   const continuesMin = Number.isFinite(Number(args.continuesMin)) ? Number(args.continuesMin) : null;
   const churnMin = Number.isFinite(Number(args.churnMin)) ? Number(args.churnMin) : null;
+  const chunkAuthorFilter = args.chunkAuthor ? String(args.chunkAuthor) : null;
+  const modifiedAfter = args.modifiedAfter ? String(args.modifiedAfter) : null;
+  const modifiedSince = Number.isFinite(Number(args.modifiedSince)) ? Number(args.modifiedSince) : null;
   const visibilityFilter = args.visibility ? String(args.visibility) : null;
   const extendsFilter = args.extends ? String(args.extends) : null;
   const lintFilter = args.lint === true;
@@ -722,6 +725,9 @@ function runSearch(args = {}) {
   if (breaksMin !== null) searchArgs.push('--breaks', String(breaksMin));
   if (continuesMin !== null) searchArgs.push('--continues', String(continuesMin));
   if (churnMin !== null) searchArgs.push('--churn', String(churnMin));
+  if (chunkAuthorFilter) searchArgs.push('--chunk-author', chunkAuthorFilter);
+  if (modifiedAfter) searchArgs.push('--modified-after', modifiedAfter);
+  if (modifiedSince !== null) searchArgs.push('--modified-since', String(modifiedSince));
   if (visibilityFilter) searchArgs.push('--visibility', visibilityFilter);
   if (extendsFilter) searchArgs.push('--extends', extendsFilter);
   if (lintFilter) searchArgs.push('--lint');

@@ -20,6 +20,7 @@ export async function buildRecordsIndexForRepo({ runtime }) {
   const triageConfig = getTriageConfig(runtime.root, runtime.userConfig);
   const recordsDir = triageConfig.recordsDir;
   const outDir = getIndexDir(runtime.root, 'records', runtime.userConfig);
+  const postingsConfig = runtime.postingsConfig;
   await fs.mkdir(outDir, { recursive: true });
 
   log('\n📄  Scanning records …');
@@ -46,7 +47,7 @@ export async function buildRecordsIndexForRepo({ runtime }) {
     const record = await loadRecordJson(recordsDir, absPath);
     const docmeta = buildDocMeta(record, triageConfig);
 
-    const tokenPayload = tokenizeRecord(text, runtime.dictWords, '.md');
+    const tokenPayload = tokenizeRecord(text, runtime.dictWords, '.md', postingsConfig);
     if (!tokenPayload.tokens.length) continue;
 
     const stats = computeTokenStats(tokenPayload.tokens);
@@ -87,7 +88,7 @@ export async function buildRecordsIndexForRepo({ runtime }) {
       externalDocs: []
     };
 
-    appendChunk(state, chunkPayload);
+    appendChunk(state, chunkPayload, postingsConfig);
     state.scannedFiles.push(relPath);
     state.scannedFilesTimes.push({
       file: relPath,
@@ -108,6 +109,7 @@ export async function buildRecordsIndexForRepo({ runtime }) {
     docLengths: state.docLengths,
     phrasePost: state.phrasePost,
     triPost: state.triPost,
+    postingsConfig,
     modelId: runtime.modelId,
     useStubEmbeddings: runtime.useStubEmbeddings,
     log
@@ -118,6 +120,7 @@ export async function buildRecordsIndexForRepo({ runtime }) {
     mode: 'records',
     state,
     postings,
+    postingsConfig,
     modelId: runtime.modelId,
     useStubEmbeddings: runtime.useStubEmbeddings,
     dictSummary: runtime.dictSummary,
@@ -169,7 +172,7 @@ function buildDocMeta(record, triageConfig) {
   return docmeta;
 }
 
-function tokenizeRecord(text, dictWords, ext) {
+function tokenizeRecord(text, dictWords, ext, postingsConfig) {
   let tokens = splitId(text);
   tokens = tokens.map((t) => t.normalize('NFKD'));
 
@@ -186,17 +189,23 @@ function tokenizeRecord(text, dictWords, ext) {
     if (SYN[w]) seq.push(SYN[w]);
   }
 
-  const ngrams = extractNgrams(seq, 2, 4);
-  const charSet = new Set();
-  seq.forEach((w) => {
-    for (let n = 3; n <= 5; ++n) tri(w, n).forEach((g) => charSet.add(g));
-  });
+  const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
+  const chargramEnabled = postingsConfig?.enableChargrams !== false;
+  const ngrams = phraseEnabled ? extractNgrams(seq, postingsConfig.phraseMinN, postingsConfig.phraseMaxN) : null;
+  let chargrams = null;
+  if (chargramEnabled) {
+    const charSet = new Set();
+    seq.forEach((w) => {
+      for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) tri(w, n).forEach((g) => charSet.add(g));
+    });
+    chargrams = Array.from(charSet);
+  }
 
   return {
     tokens,
     seq,
     ngrams,
-    chargrams: Array.from(charSet)
+    chargrams
   };
 }
 

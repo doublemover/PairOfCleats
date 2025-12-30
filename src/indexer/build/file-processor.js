@@ -27,6 +27,7 @@ export function createFileProcessor(options) {
     mode,
     dictWords,
     languageOptions,
+    postingsConfig,
     allImports,
     contextWin,
     incrementalState,
@@ -37,6 +38,14 @@ export function createFileProcessor(options) {
     gitBlameEnabled
   } = options;
   const { astDataflowEnabled, controlFlowEnabled } = languageOptions;
+  const phraseNgramsEnabled = postingsConfig?.enablePhraseNgrams !== false;
+  const chargramsEnabled = postingsConfig?.enableChargrams !== false;
+  let phraseMinN = Number.isFinite(Number(postingsConfig?.phraseMinN)) ? Number(postingsConfig.phraseMinN) : 2;
+  let phraseMaxN = Number.isFinite(Number(postingsConfig?.phraseMaxN)) ? Number(postingsConfig.phraseMaxN) : Math.max(phraseMinN, 4);
+  if (phraseMaxN < phraseMinN) phraseMaxN = phraseMinN;
+  let chargramMinN = Number.isFinite(Number(postingsConfig?.chargramMinN)) ? Number(postingsConfig.chargramMinN) : 3;
+  let chargramMaxN = Number.isFinite(Number(postingsConfig?.chargramMaxN)) ? Number(postingsConfig.chargramMaxN) : Math.max(chargramMinN, 5);
+  if (chargramMaxN < chargramMinN) chargramMaxN = chargramMinN;
   const complexityCache = new Map();
   const lintCache = new Map();
 
@@ -207,12 +216,15 @@ export function createFileProcessor(options) {
       }
       if (!seq.length) continue;
 
-      const ngrams = extractNgrams(seq, 2, 4);
-      const charSet = new Set();
-      seq.forEach((w) => {
-        for (let n = 3; n <= 5; ++n) tri(w, n).forEach((g) => charSet.add(g));
-      });
-      const chargrams = Array.from(charSet);
+      const ngrams = phraseNgramsEnabled ? extractNgrams(seq, phraseMinN, phraseMaxN) : null;
+      let chargrams = null;
+      if (chargramsEnabled) {
+        const charSet = new Set();
+        seq.forEach((w) => {
+          for (let n = chargramMinN; n <= chargramMaxN; ++n) tri(w, n).forEach((g) => charSet.add(g));
+        });
+        chargrams = Array.from(charSet);
+      }
 
       const meta = {
         ...c.meta,

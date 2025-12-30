@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getMetricsDir } from '../../../tools/dict-utils.js';
 import { log } from '../../shared/progress.js';
+import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
 /**
  * Write index artifacts and metrics.
@@ -13,6 +14,7 @@ export async function writeIndexArtifacts(input) {
     mode,
     state,
     postings,
+    postingsConfig,
     modelId,
     useStubEmbeddings,
     dictSummary,
@@ -61,9 +63,10 @@ export async function writeIndexArtifacts(input) {
   );
   log('→ Wrote .scannedfiles.json and .skippedfiles.json');
 
+  const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
   log('Writing index files...');
   const writeStart = Date.now();
-  await Promise.all([
+  const writes = [
     fs.writeFile(
       path.join(outDir, 'dense_vectors_uint8.json'),
       JSON.stringify({ model: modelId, dims: postings.dims, scale: 1.0, vectors: postings.quantizedVectors }) + '\n'
@@ -71,14 +74,6 @@ export async function writeIndexArtifacts(input) {
     fs.writeFile(
       path.join(outDir, 'chunk_meta.json'),
       JSON.stringify(chunkMeta) + '\n'
-    ),
-    fs.writeFile(
-      path.join(outDir, 'phrase_ngrams.json'),
-      JSON.stringify({ vocab: postings.phraseVocab, postings: postings.phrasePostings }) + '\n'
-    ),
-    fs.writeFile(
-      path.join(outDir, 'chargram_postings.json'),
-      JSON.stringify({ vocab: postings.chargramVocab, postings: postings.chargramPostings }) + '\n'
     ),
     fs.writeFile(
       path.join(outDir, 'minhash_signatures.json'),
@@ -94,7 +89,20 @@ export async function writeIndexArtifacts(input) {
         totalDocs: state.docLengths.length
       }) + '\n'
     )
-  ]);
+  ];
+  if (resolvedConfig.enablePhraseNgrams !== false) {
+    writes.push(fs.writeFile(
+      path.join(outDir, 'phrase_ngrams.json'),
+      JSON.stringify({ vocab: postings.phraseVocab, postings: postings.phrasePostings }) + '\n'
+    ));
+  }
+  if (resolvedConfig.enableChargrams !== false) {
+    writes.push(fs.writeFile(
+      path.join(outDir, 'chargram_postings.json'),
+      JSON.stringify({ vocab: postings.chargramVocab, postings: postings.chargramPostings }) + '\n'
+    ));
+  }
+  await Promise.all(writes);
   timing.writeMs = Date.now() - writeStart;
   timing.totalMs = Date.now() - timing.start;
   log(

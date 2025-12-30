@@ -69,7 +69,15 @@
     "riskAnalysis": true,
     "riskAnalysisCrossFile": true,
     "typeInference": false,
-    "typeInferenceCrossFile": false
+    "typeInferenceCrossFile": false,
+    "postings": {
+      "enablePhraseNgrams": true,
+      "phraseMinN": 2,
+      "phraseMaxN": 4,
+      "enableChargrams": true,
+      "chargramMinN": 3,
+      "chargramMaxN": 5
+    }
   },
   "sql": {
     "dialect": "",

@@ -447,15 +447,15 @@ Work items:
 - [x] Add file-size guardrails with skip/partial index reporting.
 - [x] Graceful shutdown for watch mode with lock cleanup.
 
-## Phase 45: Prioritized Issues - P2 Enhancements (status: todo)
+## Phase 45: Prioritized Issues - P2 Enhancements (status: done)
 Goal: Improve search UX and reduce index footprint.
 Work items:
-- [ ] Add negative terms and quoted phrases to query parsing.
-- [ ] Add modified-since/after filters (git-aware recency).
-- [ ] Add chunk-author filter and output rendering.
-- [ ] Make chargram/phrase-ngrams configurable and handle missing artifacts.
-- [ ] Clarify score fields (`score`, `annScore`, `scoreBreakdown`) in JSON + docs.
-- [ ] Remove redundant `call` vs `calls` filtering path.
+- [x] Add negative terms and quoted phrases to query parsing.
+- [x] Add modified-since/after filters (git-aware recency).
+- [x] Add chunk-author filter and output rendering.
+- [x] Make chargram/phrase-ngrams configurable and handle missing artifacts.
+- [x] Clarify score fields (`score`, `annScore`, `scoreBreakdown`) in JSON + docs.
+- [x] Remove redundant `call` vs `calls` filtering path.
 
 ## Phase 46: Prioritized Issues - P3 Maintainability (status: todo)
 Goal: Improve packaging, configuration safety, and testability.

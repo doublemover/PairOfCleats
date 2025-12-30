@@ -75,6 +75,7 @@ export async function buildIndexForMode({ mode, runtime }) {
     mode,
     dictWords: runtime.dictWords,
     languageOptions: runtime.languageOptions,
+    postingsConfig: runtime.postingsConfig,
     allImports: importResult.allImports,
     contextWin,
     incrementalState,
@@ -97,7 +98,7 @@ export async function buildIndexForMode({ mode, runtime }) {
   for (const result of fileResults) {
     if (!result) continue;
     for (const chunk of result.chunks) {
-      appendChunk(state, { ...chunk });
+      appendChunk(state, { ...chunk }, runtime.postingsConfig);
     }
     state.scannedFilesTimes.push({ file: result.abs, duration_ms: result.durationMs, cached: result.cached });
     state.scannedFiles.push(result.abs);
@@ -125,6 +126,7 @@ export async function buildIndexForMode({ mode, runtime }) {
     docLengths: state.docLengths,
     phrasePost: state.phrasePost,
     triPost: state.triPost,
+    postingsConfig: runtime.postingsConfig,
     modelId: runtime.modelId,
     useStubEmbeddings: runtime.useStubEmbeddings,
     log
@@ -159,6 +161,7 @@ export async function buildIndexForMode({ mode, runtime }) {
     mode,
     state,
     postings,
+    postingsConfig: runtime.postingsConfig,
     modelId: runtime.modelId,
     useStubEmbeddings: runtime.useStubEmbeddings,
     dictSummary: runtime.dictSummary,

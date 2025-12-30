@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { extractNgrams } from '../shared/tokenize.js';
 
 const fileTextCache = new Map();
 const summaryCache = new Map();
@@ -14,7 +15,6 @@ export function filterChunks(meta, filters = {}) {
   const {
     type,
     author,
-    call,
     importName,
     lint,
     churn,
@@ -48,7 +48,12 @@ export function filterChunks(meta, filters = {}) {
     returns: returnsOnly,
     file,
     ext,
-    meta: metaFilter
+    meta: metaFilter,
+    chunkAuthor,
+    modifiedAfter,
+    excludeTokens,
+    excludePhrases,
+    excludePhraseRange
   } = filters;
   const normalize = (value) => String(value || '').toLowerCase();
   const normalizeList = (value) => {
@@ -85,6 +90,8 @@ export function filterChunks(meta, filters = {}) {
     })
     .filter(Boolean);
   const metaFilters = Array.isArray(metaFilter) ? metaFilter : (metaFilter ? [metaFilter] : []);
+  const excludeNeedles = normalizeList(excludeTokens).map(normalize);
+  const excludePhraseNeedles = normalizeList(excludePhrases).map(normalize);
   const matchList = (list, value) => {
     if (!value) return true;
     if (!Array.isArray(list)) return false;
@@ -165,12 +172,25 @@ export function filterChunks(meta, filters = {}) {
       if (!extNeedles.includes(extValue)) return false;
     }
     if (!matchMetaFilters(c)) return false;
+    if (excludeNeedles.length || excludePhraseNeedles.length) {
+      const tokens = Array.isArray(c.tokens) ? c.tokens : [];
+      let ngrams = Array.isArray(c.ngrams) ? c.ngrams : null;
+      if (!ngrams && excludePhraseNeedles.length && tokens.length && excludePhraseRange?.min && excludePhraseRange?.max) {
+        ngrams = extractNgrams(tokens, excludePhraseRange.min, excludePhraseRange.max);
+      }
+      const tokenSet = new Set(tokens.map(normalize));
+      const ngramSet = new Set((ngrams || []).map(normalize));
+      const tokenMatch = excludeNeedles.some((needle) => tokenSet.has(needle) || ngramSet.has(needle));
+      if (tokenMatch) return false;
+      if (excludePhraseNeedles.some((needle) => ngramSet.has(needle))) return false;
+    }
+    if (modifiedAfter != null) {
+      const lastModified = c.last_modified ? Date.parse(c.last_modified) : NaN;
+      if (!Number.isFinite(lastModified) || lastModified < modifiedAfter) return false;
+    }
     if (type && c.kind && c.kind.toLowerCase() !== type.toLowerCase()) return false;
     if (author && c.last_author && !c.last_author.toLowerCase().includes(author.toLowerCase())) return false;
-    if (call && c.codeRelations && c.codeRelations.calls) {
-      const found = c.codeRelations.calls.find(([fn, callName]) => callName === call || fn === call);
-      if (!found) return false;
-    }
+    if (chunkAuthor && !matchList(c.chunk_authors, chunkAuthor)) return false;
     if (importName && c.codeRelations && c.codeRelations.imports) {
       if (!c.codeRelations.imports.includes(importName)) return false;
     }
@@ -349,7 +369,7 @@ export function formatFullChunk({
   chunk,
   index,
   mode,
-  annScore,
+  score,
   scoreType,
   color,
   queryTokens = [],
@@ -368,7 +388,7 @@ export function formatFullChunk({
     c.bold(c[mode === 'code' ? 'blue' : 'magenta'](`${index + 1}. ${chunk.file}`)),
     c.cyan(chunk.name || ''),
     c.yellow(chunk.kind || ''),
-    formatScore(annScore, scoreType, c),
+    formatScore(score, scoreType, c),
     c.gray(`Start/End: ${chunk.start}/${chunk.end}`),
     (chunk.startLine && chunk.endLine)
       ? c.gray(`Lines: ${chunk.startLine}-${chunk.endLine}`)
@@ -385,6 +405,11 @@ export function formatFullChunk({
 
   if (chunk.last_author) {
     out += c.gray('   Last Author: ') + c.green(chunk.last_author) + '\n';
+  }
+  if (Array.isArray(chunk.chunk_authors) && chunk.chunk_authors.length) {
+    const authors = chunk.chunk_authors.slice(0, 6);
+    const suffix = chunk.chunk_authors.length > authors.length ? ' …' : '';
+    out += c.gray('   Chunk Authors: ') + c.green(authors.join(', ') + suffix) + '\n';
   }
 
   if (chunk.imports?.length) {
@@ -634,7 +659,7 @@ export function formatShortChunk({
   chunk,
   index,
   mode,
-  annScore,
+  score,
   scoreType,
   color,
   queryTokens = [],
@@ -646,8 +671,8 @@ export function formatShortChunk({
   }
   let out = '';
   out += `${color.bold(color[mode === 'code' ? 'blue' : 'magenta'](`${index + 1}. ${chunk.file}`))}`;
-  const scoreLabel = Number.isFinite(annScore)
-    ? `[${scoreType ? `${annScore.toFixed(2)} ${scoreType}` : annScore.toFixed(2)}]`
+  const scoreLabel = Number.isFinite(score)
+    ? `[${scoreType ? `${score.toFixed(2)} ${scoreType}` : score.toFixed(2)}]`
     : '';
   if (scoreLabel) {
     out += color.yellow(` ${scoreLabel}`);

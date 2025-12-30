@@ -1,4 +1,5 @@
 import { quantizeVec } from '../embedding.js';
+import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
 const tuneBM25Params = (chunks) => {
   const avgLen = chunks.reduce((s, c) => s + c.tokens.length, 0) / chunks.length;
@@ -20,10 +21,15 @@ export function buildPostings(input) {
     docLengths,
     phrasePost,
     triPost,
+    postingsConfig,
     modelId,
     useStubEmbeddings,
     log
   } = input;
+
+  const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
+  const phraseEnabled = resolvedConfig.enablePhraseNgrams !== false;
+  const chargramEnabled = resolvedConfig.enableChargrams !== false;
 
   const { k1, b } = tuneBM25Params(chunks);
   const N = chunks.length;
@@ -42,10 +48,10 @@ export function buildPostings(input) {
   const embeddingVectors = chunks.map((c) => c.embedding);
   const quantizedVectors = embeddingVectors.map((vec) => quantizeVec(vec));
 
-  const phraseVocab = Array.from(phrasePost.keys());
-  const phrasePostings = phraseVocab.map((k) => Array.from(phrasePost.get(k)));
-  const chargramVocab = Array.from(triPost.keys());
-  const chargramPostings = chargramVocab.map((k) => Array.from(triPost.get(k)));
+  const phraseVocab = phraseEnabled ? Array.from(phrasePost.keys()) : [];
+  const phrasePostings = phraseEnabled ? phraseVocab.map((k) => Array.from(phrasePost.get(k))) : [];
+  const chargramVocab = chargramEnabled ? Array.from(triPost.keys()) : [];
+  const chargramPostings = chargramEnabled ? chargramVocab.map((k) => Array.from(triPost.get(k))) : [];
 
   const tokenVocab = Array.from(tokenPostings.keys());
   const tokenPostingsList = tokenVocab.map((t) => tokenPostings.get(t));

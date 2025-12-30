@@ -19,6 +19,7 @@ import { loadQueryCache, parseArrayField, parseJson, pruneQueryCache } from './s
 import { filterChunks, formatFullChunk, formatShortChunk } from './src/search/output.js';
 import { rankBM25, rankDenseVectors, rankMinhash } from './src/search/rankers.js';
 import { extractNgrams, splitId, splitWordsWithDict, tri } from './src/shared/tokenize.js';
+import { normalizePostingsConfig } from './src/shared/postings-config.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['json', 'json-compact', 'human', 'stats', 'ann', 'headline', 'lint', 'matched', 'async', 'generator', 'returns'],
@@ -53,6 +54,9 @@ const argv = minimist(process.argv.slice(2), {
     'meta-json',
     'file',
     'ext',
+    'chunk-author',
+    'modified-after',
+    'modified-since',
     'visibility',
     'extends',
     'mode',
@@ -73,6 +77,7 @@ const userConfig = loadUserConfig(ROOT);
 const modelConfig = getModelConfig(ROOT, userConfig);
 const modelIdDefault = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
 const sqliteConfig = userConfig.sqlite || {};
+const postingsConfig = normalizePostingsConfig(userConfig.indexing?.postings || {});
 const vectorExtension = getVectorExtensionConfig(ROOT, userConfig);
 const bm25Config = userConfig.search?.bm25 || {};
 const bm25K1 = Number.isFinite(Number(argv['bm25-k1']))
@@ -102,14 +107,14 @@ const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
 const rawArgs = process.argv.slice(2);
 const query = argv._.join(' ').trim();
 if (!query) {
-  console.error('usage: search "query" [--repo path|--json|--json-compact|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode code|prose|both|records|all|--meta key=value|--meta-json {...}|--path path|--file path|--ext .ext|--churn [min]|--signature|--param|--decorator|--inferred-type|--return-type|--throws|--reads|--writes|--mutates|--alias|--awaits|--branches|--loops|--breaks|--continues|--risk|--risk-tag|--risk-source|--risk-sink|--risk-category|--risk-flow|--extends|--visibility|--async|--generator|--returns');
+  console.error('usage: search "query" [--repo path|--json|--json-compact|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode code|prose|both|records|all|--meta key=value|--meta-json {...}|--path path|--file path|--ext .ext|--churn [min]|--modified-after date|--modified-since days|--chunk-author name|--signature|--param|--decorator|--inferred-type|--return-type|--throws|--reads|--writes|--mutates|--alias|--awaits|--branches|--loops|--breaks|--continues|--risk|--risk-tag|--risk-source|--risk-sink|--risk-category|--risk-flow|--extends|--visibility|--async|--generator|--returns');
   process.exit(1);
 }
 const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
 const searchType = argv.type || null;
 const searchAuthor = argv.author || null;
-const searchCall = argv.calls || null;
 const searchImport = argv.import || null;
+const chunkAuthorFilter = argv['chunk-author'] || null;
 const searchMode = String(argv.mode || 'both').toLowerCase();
 const allowedModes = new Set(['code', 'prose', 'both', 'records', 'all']);
 if (!allowedModes.has(searchMode)) {
@@ -124,6 +129,9 @@ const loopsMin = Number.isFinite(Number(argv.loops)) ? Number(argv.loops) : null
 const breaksMin = Number.isFinite(Number(argv.breaks)) ? Number(argv.breaks) : null;
 const continuesMin = Number.isFinite(Number(argv.continues)) ? Number(argv.continues) : null;
 const churnMin = parseChurnArg(argv.churn);
+const modifiedArgs = parseModifiedArgs(argv['modified-after'], argv['modified-since']);
+const modifiedAfter = modifiedArgs.modifiedAfter;
+const modifiedSinceDays = modifiedArgs.modifiedSinceDays;
 const fileFilters = [];
 if (argv.path) fileFilters.push(argv.path);
 if (argv.file) fileFilters.push(argv.file);
@@ -243,6 +251,121 @@ function parseChurnArg(value) {
     process.exit(1);
   }
   return parsed;
+}
+
+/**
+ * Parse modified time filters into a cutoff timestamp.
+ * @param {unknown} afterArg
+ * @param {unknown} sinceArg
+ * @returns {{modifiedAfter:number|null,modifiedSinceDays:number|null}}
+ */
+function parseModifiedArgs(afterArg, sinceArg) {
+  let modifiedAfter = null;
+  let modifiedSinceDays = null;
+  if (afterArg !== undefined) {
+    const parsed = Date.parse(String(afterArg));
+    if (!Number.isFinite(parsed)) {
+      console.error(`Invalid --modified-after value: ${afterArg}`);
+      process.exit(1);
+    }
+    modifiedAfter = parsed;
+  }
+  if (sinceArg !== undefined) {
+    const parsed = Number(sinceArg);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      console.error(`Invalid --modified-since value: ${sinceArg}`);
+      process.exit(1);
+    }
+    modifiedSinceDays = parsed;
+    const sinceMs = Date.now() - (parsed * 24 * 60 * 60 * 1000);
+    modifiedAfter = modifiedAfter == null ? sinceMs : Math.max(modifiedAfter, sinceMs);
+  }
+  return { modifiedAfter, modifiedSinceDays };
+}
+
+/**
+ * Parse a query string into include/exclude tokens and phrases.
+ * @param {string} raw
+ * @returns {{includeTerms:string[],excludeTerms:string[],phrases:string[],excludePhrases:string[]}}
+ */
+function parseQueryInput(raw) {
+  const includeTerms = [];
+  const excludeTerms = [];
+  const phrases = [];
+  const excludePhrases = [];
+  const matcher = /(-?)"([^"]+)"|(-?\S+)/g;
+  let match = null;
+  while ((match = matcher.exec(raw)) !== null) {
+    if (match[2] !== undefined) {
+      const phrase = match[2].trim();
+      if (!phrase) continue;
+      if (match[1] === '-') excludePhrases.push(phrase);
+      else phrases.push(phrase);
+      continue;
+    }
+    let token = match[3] || '';
+    if (!token) continue;
+    let negate = false;
+    if (token.startsWith('-') && token.length > 1) {
+      negate = true;
+      token = token.slice(1);
+    }
+    if (!token) continue;
+    (negate ? excludeTerms : includeTerms).push(token);
+  }
+  return { includeTerms, excludeTerms, phrases, excludePhrases };
+}
+
+function normalizeToken(value) {
+  return String(value || '').normalize('NFKD');
+}
+
+function expandQueryToken(raw, dict) {
+  const normalized = normalizeToken(raw);
+  if (!normalized) return [];
+  if (normalized.length <= 3 || dict.has(normalized)) return [normalized];
+  const expanded = splitWordsWithDict(normalized, dict);
+  return expanded.length ? expanded : [normalized];
+}
+
+function tokenizeQueryTerms(rawTerms, dict) {
+  const tokens = [];
+  const entries = Array.isArray(rawTerms) ? rawTerms : (rawTerms ? [rawTerms] : []);
+  for (const entry of entries) {
+    const parts = splitId(String(entry || '')).map(normalizeToken).filter(Boolean);
+    for (const part of parts) {
+      tokens.push(...expandQueryToken(part, dict));
+    }
+  }
+  return tokens.filter(Boolean);
+}
+
+function tokenizePhrase(phrase, dict) {
+  const parts = splitId(String(phrase || '')).map(normalizeToken).filter(Boolean);
+  const tokens = [];
+  for (const part of parts) {
+    tokens.push(...expandQueryToken(part, dict));
+  }
+  return tokens.filter(Boolean);
+}
+
+function buildPhraseNgrams(phraseTokens, config = {}) {
+  const enabled = config.enablePhraseNgrams !== false;
+  if (!enabled) return { ngrams: [], minLen: null, maxLen: null };
+  const minAllowed = Number.isFinite(Number(config.phraseMinN)) ? Number(config.phraseMinN) : 2;
+  const maxAllowed = Number.isFinite(Number(config.phraseMaxN)) ? Number(config.phraseMaxN) : Math.max(minAllowed, 4);
+  const ngrams = [];
+  let minLen = null;
+  let maxLen = null;
+  for (const tokens of phraseTokens) {
+    if (!Array.isArray(tokens) || tokens.length < 2) continue;
+    const len = tokens.length;
+    if (len < minAllowed || len > maxAllowed) continue;
+    minLen = minLen == null ? len : Math.min(minLen, len);
+    maxLen = maxLen == null ? len : Math.max(maxLen, len);
+    ngrams.push(...extractNgrams(tokens, len, len));
+  }
+  return { ngrams, minLen, maxLen };
 }
 
 
@@ -407,18 +530,26 @@ const color = {
  * @returns {object}
  */
 function loadIndex(dir) {
-  const chunkMeta = JSON.parse(fsSync.readFileSync(path.join(dir, 'chunk_meta.json'), 'utf8'));
-  const denseVec = JSON.parse(fsSync.readFileSync(path.join(dir, 'dense_vectors_uint8.json'), 'utf8'));
-  if (!denseVec.model) denseVec.model = modelIdDefault;
+  const readJson = (name) => JSON.parse(fsSync.readFileSync(path.join(dir, name), 'utf8'));
+  const loadOptional = (name) => {
+    try {
+      return readJson(name);
+    } catch {
+      return null;
+    }
+  };
+  const chunkMeta = readJson('chunk_meta.json');
+  const denseVec = loadOptional('dense_vectors_uint8.json');
+  if (denseVec && !denseVec.model) denseVec.model = modelIdDefault;
   const idx = {
     chunkMeta,
     denseVec,
-    minhash: JSON.parse(fsSync.readFileSync(path.join(dir, 'minhash_signatures.json'), 'utf8')),
-    phraseNgrams: JSON.parse(fsSync.readFileSync(path.join(dir, 'phrase_ngrams.json'), 'utf8')),
-    chargrams: JSON.parse(fsSync.readFileSync(path.join(dir, 'chargram_postings.json'), 'utf8'))
+    minhash: loadOptional('minhash_signatures.json'),
+    phraseNgrams: loadOptional('phrase_ngrams.json'),
+    chargrams: loadOptional('chargram_postings.json')
   };
   try {
-    idx.tokenIndex = JSON.parse(fsSync.readFileSync(path.join(dir, 'token_postings.json'), 'utf8'));
+    idx.tokenIndex = readJson('token_postings.json');
   } catch {}
   return idx;
 }
@@ -513,7 +644,7 @@ function buildQueryCacheKey() {
     filters: {
       type: searchType,
       author: searchAuthor,
-      calls: searchCall,
+      calls: argv.calls || null,
       uses: argv.uses || null,
       signature: argv.signature || null,
       param: argv.param || null,
@@ -541,7 +672,10 @@ function buildQueryCacheKey() {
       returns: argv.returns || false,
       file: fileFilter || null,
       ext: extFilter || null,
-      meta: metaFilters
+      meta: metaFilters,
+      chunkAuthor: chunkAuthorFilter || null,
+      modifiedAfter,
+      modifiedSinceDays
     }
   };
   const raw = JSON.stringify(payload);
@@ -820,33 +954,37 @@ function buildCandidateSetSqlite(mode, tokens) {
   const candidates = new Set();
   let matched = false;
 
-  const ngrams = extractNgrams(tokens, 2, 4);
-  if (ngrams.length) {
-    const phraseRows = fetchVocabRows(mode, 'phrase_vocab', 'phrase_id', 'ngram', ngrams);
-    const phraseIds = phraseRows.map((row) => row.id);
-    const postingRows = fetchPostingRows(mode, 'phrase_postings', 'phrase_id', phraseIds, false);
-    for (const row of postingRows) {
-      candidates.add(row.doc_id);
-      matched = true;
-    }
-  }
-
-  const gramSet = new Set();
-  for (const token of tokens) {
-    for (let n = 3; n <= 5; n++) {
-      for (const gram of tri(token, n)) {
-        gramSet.add(gram);
+  if (postingsConfig.enablePhraseNgrams !== false) {
+    const ngrams = extractNgrams(tokens, postingsConfig.phraseMinN, postingsConfig.phraseMaxN);
+    if (ngrams.length) {
+      const phraseRows = fetchVocabRows(mode, 'phrase_vocab', 'phrase_id', 'ngram', ngrams);
+      const phraseIds = phraseRows.map((row) => row.id);
+      const postingRows = fetchPostingRows(mode, 'phrase_postings', 'phrase_id', phraseIds, false);
+      for (const row of postingRows) {
+        candidates.add(row.doc_id);
+        matched = true;
       }
     }
   }
-  const grams = Array.from(gramSet);
-  if (grams.length) {
-    const gramRows = fetchVocabRows(mode, 'chargram_vocab', 'gram_id', 'gram', grams);
-    const gramIds = gramRows.map((row) => row.id);
-    const postingRows = fetchPostingRows(mode, 'chargram_postings', 'gram_id', gramIds, false);
-    for (const row of postingRows) {
-      candidates.add(row.doc_id);
-      matched = true;
+
+  if (postingsConfig.enableChargrams !== false) {
+    const gramSet = new Set();
+    for (const token of tokens) {
+      for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; n++) {
+        for (const gram of tri(token, n)) {
+          gramSet.add(gram);
+        }
+      }
+    }
+    const grams = Array.from(gramSet);
+    if (grams.length) {
+      const gramRows = fetchVocabRows(mode, 'chargram_vocab', 'gram_id', 'gram', grams);
+      const gramIds = gramRows.map((row) => row.id);
+      const postingRows = fetchPostingRows(mode, 'chargram_postings', 'gram_id', gramIds, false);
+      for (const row of postingRows) {
+        candidates.add(row.doc_id);
+        matched = true;
+      }
     }
   }
 
@@ -905,16 +1043,29 @@ modelIdForProse = runProse ? (idxProse?.denseVec?.model || modelIdDefault) : nul
 modelIdForRecords = runRecords ? (idxRecords?.denseVec?.model || modelIdDefault) : null;
 
 // --- QUERY TOKENIZATION ---
-
-let queryTokens = splitId(query).map((tok) => tok.normalize('NFKD'));
-
-queryTokens = queryTokens.flatMap((tok) => {
-  if (tok.length <= 3 || dict.has(tok)) return [tok];
-  return splitWordsWithDict(tok, dict);
-}).map((tok) => tok.normalize('NFKD'));
-
+const parsedQuery = parseQueryInput(query);
+const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict);
+const phraseTokens = parsedQuery.phrases
+  .map((phrase) => tokenizePhrase(phrase, dict))
+  .filter((tokens) => tokens.length);
+const phraseInfo = buildPhraseNgrams(phraseTokens, postingsConfig);
+const phraseNgrams = phraseInfo.ngrams;
+const phraseNgramSet = phraseNgrams.length ? new Set(phraseNgrams) : null;
+const phraseRange = { min: phraseInfo.minLen, max: phraseInfo.maxLen };
+const excludeTokens = tokenizeQueryTerms(parsedQuery.excludeTerms, dict);
+const excludePhraseTokens = parsedQuery.excludePhrases
+  .map((phrase) => tokenizePhrase(phrase, dict))
+  .filter((tokens) => tokens.length);
+const excludePhraseInfo = buildPhraseNgrams(excludePhraseTokens, postingsConfig);
+const excludePhraseNgrams = excludePhraseInfo.ngrams;
+const excludePhraseRange = excludePhraseInfo.minLen && excludePhraseInfo.maxLen
+  ? { min: excludePhraseInfo.minLen, max: excludePhraseInfo.maxLen }
+  : null;
+const queryTokens = [...includeTokens, ...phraseTokens.flat()];
 const rx = queryTokens.length ? new RegExp(`(${queryTokens.join('|')})`, 'ig') : null;
-
+const embeddingQueryText = [...parsedQuery.includeTerms, ...parsedQuery.phrases]
+  .join(' ')
+  .trim() || query;
 // --- SEARCH BM25 TOKENS/PHRASES ---
 /**
  * Rank results using SQLite vector ANN extension.
@@ -943,9 +1094,9 @@ function buildCandidateSet(idx, tokens, mode) {
   const candidates = new Set();
   let matched = false;
 
-  if (idx.phraseNgrams?.vocab && idx.phraseNgrams?.postings) {
+  if (postingsConfig.enablePhraseNgrams !== false && idx.phraseNgrams?.vocab && idx.phraseNgrams?.postings) {
     const vocabIndex = new Map(idx.phraseNgrams.vocab.map((t, i) => [t, i]));
-    const ngrams = extractNgrams(tokens, 2, 4);
+    const ngrams = extractNgrams(tokens, postingsConfig.phraseMinN, postingsConfig.phraseMaxN);
     for (const ng of ngrams) {
       const hit = vocabIndex.get(ng);
       if (hit === undefined) continue;
@@ -955,10 +1106,10 @@ function buildCandidateSet(idx, tokens, mode) {
     }
   }
 
-  if (idx.chargrams?.vocab && idx.chargrams?.postings) {
+  if (postingsConfig.enableChargrams !== false && idx.chargrams?.vocab && idx.chargrams?.postings) {
     const vocabIndex = new Map(idx.chargrams.vocab.map((t, i) => [t, i]));
     for (const token of tokens) {
-      for (let n = 3; n <= 5; n++) {
+      for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; n++) {
         for (const gram of tri(token, n)) {
           const hit = vocabIndex.get(gram);
           if (hit === undefined) continue;
@@ -971,6 +1122,20 @@ function buildCandidateSet(idx, tokens, mode) {
   }
 
   return matched ? candidates : null;
+}
+
+function getPhraseMatchInfo(chunk, phraseSet, range) {
+  if (!phraseSet || !phraseSet.size || !chunk) return { matches: 0 };
+  let ngrams = Array.isArray(chunk.ngrams) && chunk.ngrams.length ? chunk.ngrams : null;
+  if (!ngrams && Array.isArray(chunk.tokens) && range?.min && range?.max) {
+    ngrams = extractNgrams(chunk.tokens, range.min, range.max);
+  }
+  if (!ngrams || !ngrams.length) return { matches: 0 };
+  let matches = 0;
+  for (const ng of ngrams) {
+    if (phraseSet.has(ng)) matches += 1;
+  }
+  return { matches };
 }
 
 // --- MAIN SEARCH PIPELINE ---
@@ -989,7 +1154,6 @@ function runSearch(idx, mode, queryEmbedding) {
   const filteredMeta = filterChunks(meta, {
     type: searchType,
     author: searchAuthor,
-    call: searchCall,
     importName: searchImport,
     lint: argv.lint,
     churn: churnMin,
@@ -1023,7 +1187,12 @@ function runSearch(idx, mode, queryEmbedding) {
     returns: argv.returns,
     file: fileFilter,
     ext: extFilter,
-    meta: metaFilters
+    meta: metaFilters,
+    chunkAuthor: chunkAuthorFilter,
+    modifiedAfter,
+    excludeTokens,
+    excludePhrases: excludePhraseNgrams,
+    excludePhraseRange
   });
   const allowedIdx = new Set(filteredMeta.map(c => c.id));
 
@@ -1088,13 +1257,14 @@ function runSearch(idx, mode, queryEmbedding) {
     .map(([idxVal, scores]) => {
       const sparseScore = scores.fts ?? scores.bm25 ?? null;
       const annScore = scores.ann ?? null;
+      const sparseTypeValue = scores.fts != null ? 'fts' : (scores.bm25 != null ? 'bm25' : null);
       let scoreType = null;
       let score = null;
       if (annScore != null && (sparseScore == null || annScore > sparseScore)) {
         scoreType = 'ann';
         score = annScore;
       } else if (sparseScore != null) {
-        scoreType = scores.fts != null ? 'fts' : 'bm25';
+        scoreType = sparseTypeValue;
         score = sparseScore;
       } else {
         scoreType = 'none';
@@ -1102,9 +1272,21 @@ function runSearch(idx, mode, queryEmbedding) {
       }
       const chunk = meta[idxVal];
       if (!chunk) return null;
+      let phraseMatches = 0;
+      let phraseBoost = 0;
+      let phraseFactor = 0;
+      if (phraseNgramSet && phraseRange?.min && phraseRange?.max) {
+        const matchInfo = getPhraseMatchInfo(chunk, phraseNgramSet, phraseRange);
+        phraseMatches = matchInfo.matches;
+        if (phraseMatches) {
+          phraseFactor = Math.min(0.5, phraseMatches * 0.1);
+          phraseBoost = score * phraseFactor;
+          score += phraseBoost;
+        }
+      }
       const scoreBreakdown = {
         sparse: sparseScore != null ? {
-          type: scores.fts != null ? 'fts' : 'bm25',
+          type: sparseTypeValue,
           score: sparseScore,
           normalized: scores.fts != null ? sqliteFtsNormalize : null,
           weights: scores.fts != null ? sqliteFtsWeights : null,
@@ -1116,6 +1298,11 @@ function runSearch(idx, mode, queryEmbedding) {
           score: annScore,
           source: scores.annSource || null
         } : null,
+        phrase: phraseNgramSet ? {
+          matches: phraseMatches,
+          boost: phraseBoost,
+          factor: phraseFactor
+        } : null,
         selected: {
           type: scoreType,
           score
@@ -1126,7 +1313,11 @@ function runSearch(idx, mode, queryEmbedding) {
         score,
         scoreType,
         scoreBreakdown,
-        chunk
+        chunk,
+        sparseScore,
+        sparseType: sparseTypeValue,
+        annScore,
+        annSource: scores.annSource || null
       };
     })
     .filter(Boolean)
@@ -1138,8 +1329,11 @@ function runSearch(idx, mode, queryEmbedding) {
       ...entry.chunk,
       score: entry.score,
       scoreType: entry.scoreType,
-      annScore: entry.score,
-      annType: entry.scoreType,
+      sparseScore: entry.sparseScore,
+      sparseType: entry.sparseType,
+      annScore: entry.annScore,
+      annSource: entry.annSource,
+      annType: entry.annSource,
       scoreBreakdown: entry.scoreBreakdown
     }))
     .filter(Boolean);
@@ -1168,7 +1362,10 @@ function compactHit(hit) {
     'headline',
     'score',
     'scoreType',
+    'sparseScore',
+    'sparseType',
     'annScore',
+    'annSource',
     'annType'
   ];
   for (const field of fields) {
@@ -1221,7 +1418,7 @@ function compactHit(hit) {
     const cacheKey = useStubEmbeddings ? `${modelId}:${dims || 'default'}` : modelId;
     if (embeddingCache.has(cacheKey)) return embeddingCache.get(cacheKey);
     const embedding = await getQueryEmbedding({
-      text: query,
+      text: embeddingQueryText,
       modelId,
       dims,
       modelDir: modelConfig.dir,
@@ -1320,8 +1517,8 @@ function compactHit(hit) {
           chunk: h,
           index: i,
           mode: 'prose',
-          annScore: h.annScore,
-          scoreType: h.scoreType ?? h.annType,
+          score: h.score,
+          scoreType: h.scoreType,
           color,
           queryTokens,
           rx,
@@ -1334,8 +1531,8 @@ function compactHit(hit) {
           chunk: h,
           index: i,
           mode: 'prose',
-          annScore: h.annScore,
-          scoreType: h.scoreType ?? h.annType,
+          score: h.score,
+          scoreType: h.scoreType,
           color,
           queryTokens,
           rx,
@@ -1355,8 +1552,8 @@ function compactHit(hit) {
           chunk: h,
           index: i,
           mode: 'code',
-          annScore: h.annScore,
-          scoreType: h.scoreType ?? h.annType,
+          score: h.score,
+          scoreType: h.scoreType,
           color,
           queryTokens,
           rx,
@@ -1369,8 +1566,8 @@ function compactHit(hit) {
           chunk: h,
           index: i,
           mode: 'code',
-          annScore: h.annScore,
-          scoreType: h.scoreType ?? h.annType,
+          score: h.score,
+          scoreType: h.scoreType,
           color,
           queryTokens,
           rx,
@@ -1389,8 +1586,8 @@ function compactHit(hit) {
           chunk: h,
           index: i,
           mode: 'records',
-          annScore: h.annScore,
-          scoreType: h.scoreType ?? h.annType,
+          score: h.score,
+          scoreType: h.scoreType,
           color,
           queryTokens,
           rx,
@@ -1403,8 +1600,8 @@ function compactHit(hit) {
           chunk: h,
           index: i,
           mode: 'records',
-          annScore: h.annScore,
-          scoreType: h.scoreType ?? h.annType,
+          score: h.score,
+          scoreType: h.scoreType,
           color,
           queryTokens,
           rx,

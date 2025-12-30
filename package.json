@@ -65,7 +65,8 @@
     "tooling-install-test": "node tests/tooling-install.js",
     "script-coverage-test": "node tests/script-coverage.js",
     "setup-test": "node tests/setup.js",
-    "cache-gc-test": "node tests/cache-gc.js"
+    "cache-gc-test": "node tests/cache-gc.js",
+    "search-filters-test": "node tests/search-filters.js"
   },
   "dependencies": {
     "@xenova/transformers": "*",
