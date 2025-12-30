@@ -249,6 +249,7 @@ Meta:
 - Clean repo artifacts: `npm run clean-artifacts` (add `-- --all` to clear repo caches; keeps models/dictionaries/extensions)
 - Uninstall caches + models + extensions: `npm run uninstall`
 - Compact SQLite indexes: `npm run compact-sqlite-index`
+- Dependency policy: versions are pinned in `package.json`; update via `npm install` and commit `package-lock.json`.
 - Repometrics dashboard: `npm run repometrics-dashboard`
 - Model comparison: `npm run compare-models`
 - Combined summary report: `npm run summary-report` (add `-- --json` for JSON output)

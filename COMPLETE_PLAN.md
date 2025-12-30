@@ -457,10 +457,10 @@ Work items:
 - [x] Clarify score fields (`score`, `annScore`, `scoreBreakdown`) in JSON + docs.
 - [x] Remove redundant `call` vs `calls` filtering path.
 
-## Phase 46: Prioritized Issues - P3 Maintainability (status: todo)
+## Phase 46: Prioritized Issues - P3 Maintainability (status: done)
 Goal: Improve packaging, configuration safety, and testability.
 Work items:
-- [ ] Add `pairofcleats` CLI entrypoint with subcommands.
-- [ ] Add config schema + validation command.
-- [ ] Pin dependency versions (remove `*`) and document policy.
-- [ ] Refactor `search.js` into modules for testability.
+- [x] Add `pairofcleats` CLI entrypoint with subcommands.
+- [x] Add config schema + validation command.
+- [x] Pin dependency versions (remove `*`) and document policy.
+- [x] Refactor `search.js` into modules for testability.
