@@ -1,0 +1,79 @@
+{
+  "name": "pairofcleats-search",
+  "displayName": "PairOfCleats Search",
+  "description": "Search repositories using the PairOfCleats CLI.",
+  "version": "0.0.1",
+  "publisher": "pairofcleats",
+  "engines": {
+    "vscode": "^1.86.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:pairofcleats.search"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "pairofcleats.search",
+        "title": "PairOfCleats: Search"
+      }
+    ],
+    "configuration": {
+      "title": "PairOfCleats",
+      "properties": {
+        "pairofcleats.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "CLI command or JS entrypoint path. Leave empty to auto-detect the repo CLI or use 'pairofcleats' from PATH."
+        },
+        "pairofcleats.cliArgs": {
+          "type": "array",
+          "default": [],
+          "description": "Extra arguments inserted before the search command (e.g., [\"/path/to/bin/pairofcleats.js\"] when using node).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "pairofcleats.searchMode": {
+          "type": "string",
+          "default": "both",
+          "enum": [
+            "code",
+            "prose",
+            "both",
+            "records",
+            "all"
+          ],
+          "description": "Default search mode."
+        },
+        "pairofcleats.searchBackend": {
+          "type": "string",
+          "default": "",
+          "description": "Optional backend override (e.g., sqlite, sqlite-fts). Leave empty for default."
+        },
+        "pairofcleats.searchAnn": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable ANN if available."
+        },
+        "pairofcleats.maxResults": {
+          "type": "number",
+          "default": 25,
+          "minimum": 1,
+          "description": "Maximum results to fetch."
+        },
+        "pairofcleats.extraSearchArgs": {
+          "type": "array",
+          "default": [],
+          "description": "Extra CLI args appended to search (advanced usage).",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

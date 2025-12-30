@@ -76,6 +76,7 @@
     "cache-gc-test": "node tests/cache-gc.js",
     "search-filters-test": "node tests/search-filters.js",
     "search-explain-test": "node tests/search-explain.js",
+    "vscode-extension-test": "node tests/vscode-extension.js",
     "ext-filter-test": "node tests/ext-filter.js",
     "filter-strictness-test": "node tests/filter-strictness.js",
     "search-missing-index-test": "node tests/search-missing-index.js",

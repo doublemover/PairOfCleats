@@ -488,12 +488,12 @@ Work items:
 - [x] Document explainability output in README/docs.
 - [x] Add tests covering explainability output.
 
-## Phase 50: Editor Integration (status: todo)
+## Phase 50: Editor Integration (status: done)
 Goal: CLI-first integration followed by a minimal VS Code extension.
 Work items:
-- [ ] Define CLI contract for editor use (JSON compact + file/line hints).
-- [ ] Prototype VS Code extension that shells out to `pairofcleats search`.
-- [ ] Add integration docs and basic extension tests.
+- [x] Define CLI contract for editor use (JSON compact + file/line hints).
+- [x] Prototype VS Code extension that shells out to `pairofcleats search`.
+- [x] Add integration docs and basic extension tests.
 
 ## Phase 51: Streaming Enhancements (status: todo)
 Goal: Add WebSocket/streaming responses on top of the minimal API.

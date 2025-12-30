@@ -183,6 +183,11 @@ const actions = [
     covers: ['search-explain-test']
   },
   {
+    label: 'vscode-extension-test',
+    run: () => runNode('vscode-extension-test', path.join(root, 'tests', 'vscode-extension.js')),
+    covers: ['vscode-extension-test']
+  },
+  {
     label: 'ext-filter-test',
     run: () => runNode('ext-filter-test', path.join(root, 'tests', 'ext-filter.js')),
     covers: ['ext-filter-test']

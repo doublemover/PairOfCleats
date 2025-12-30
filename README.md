@@ -179,6 +179,15 @@ Endpoints:
 </details>
 
 <details>
+<summary><h2>Editor integration</h2></summary>
+
+- VS Code extension (CLI shell-out) under `extensions/vscode`
+- Command: `PairOfCleats: Search`
+- Uses `pairofcleats search --json-compact` with file/line hints
+- Docs: [`docs/editor-integration.md`](docs/editor-integration.md)
+</details>
+
+<details>
 <summary><h2>MCP server</h2></summary>
 
 Run: `npm run mcp-server`
@@ -250,6 +259,7 @@ Reports + MCP:
 - `npm run summary-report-test`
 - `npm run mcp-server-test`
 - `npm run api-server-test`
+- `npm run vscode-extension-test`
 
 Meta:
 - `npm run script-coverage-test`
@@ -282,6 +292,7 @@ Meta:
 - [`docs/language-fidelity.md`](docs/language-fidelity.md) - parsing validation checklist
 - [`docs/parser-backbone.md`](docs/parser-backbone.md) - parser and inference strategy
 - [`docs/language-handler-imports.md`](docs/language-handler-imports.md) - registry import tradeoffs
+- [`docs/editor-integration.md`](docs/editor-integration.md) - editor contract + VS Code extension
 - [`docs/api-server.md`](docs/api-server.md) - local HTTP JSON API surface
 - [`docs/sqlite-index-schema.md`](docs/sqlite-index-schema.md) - SQLite schema for artifacts
 - [`docs/sqlite-incremental-updates.md`](docs/sqlite-incremental-updates.md) - incremental update flow
