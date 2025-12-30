@@ -7,7 +7,7 @@ import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getToolingConfig, 
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
 const argv = minimist(process.argv.slice(2), {
-  boolean: ['skip-install', 'skip-dicts', 'skip-index', 'with-sqlite', 'incremental', 'skip-artifacts', 'skip-tooling'],
+  boolean: ['skip-install', 'skip-dicts', 'skip-index', 'with-sqlite', 'incremental', 'skip-artifacts', 'skip-tooling', 'validate-config'],
   string: ['repo'],
   alias: { s: 'with-sqlite', i: 'incremental' },
   default: {
@@ -17,12 +17,25 @@ const argv = minimist(process.argv.slice(2), {
     'with-sqlite': false,
     'incremental': false,
     'skip-artifacts': false,
-    'skip-tooling': false
+    'skip-tooling': false,
+    'validate-config': false
   }
 });
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
+const configPath = path.join(root, '.pairofcleats.json');
+if (argv['validate-config'] && fs.existsSync(configPath)) {
+  const result = runCommand(
+    process.execPath,
+    [path.join('tools', 'validate-config.js'), '--config', configPath],
+    { cwd: root, stdio: 'inherit' }
+  );
+  if (!result.ok) {
+    process.exit(result.status ?? 1);
+  }
+}
+
 const userConfig = loadUserConfig(root);
 const vectorExtension = getVectorExtensionConfig(root, userConfig);
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);

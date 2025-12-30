@@ -8,6 +8,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const COMMANDS = new Map([
   ['build-index', { script: 'build_index.js', extraArgs: [] }],
+  ['index', { script: 'build_index.js', extraArgs: [] }],
   ['watch-index', { script: 'build_index.js', extraArgs: ['--watch'] }],
   ['search', { script: 'search.js', extraArgs: [] }],
   ['bootstrap', { script: 'tools/bootstrap.js', extraArgs: [] }],
@@ -18,6 +19,7 @@ const COMMANDS = new Map([
   ['cache-gc', { script: 'tools/cache-gc.js', extraArgs: [] }],
   ['clean-artifacts', { script: 'tools/clean-artifacts.js', extraArgs: [] }],
   ['report-artifacts', { script: 'tools/report-artifacts.js', extraArgs: [] }],
+  ['status', { script: 'tools/report-artifacts.js', extraArgs: [] }],
   ['download-dicts', { script: 'tools/download-dicts.js', extraArgs: [] }],
   ['download-models', { script: 'tools/download-models.js', extraArgs: [] }],
   ['download-extensions', { script: 'tools/download-extensions.js', extraArgs: [] }],
@@ -31,6 +33,7 @@ const COMMANDS = new Map([
   ['summary-report', { script: 'tools/combined-summary.js', extraArgs: [] }],
   ['uninstall', { script: 'tools/uninstall.js', extraArgs: [] }],
   ['mcp-server', { script: 'tools/mcp-server.js', extraArgs: [] }],
+  ['mcp', { script: 'tools/mcp-server.js', extraArgs: [] }],
   ['config-validate', { script: 'tools/validate-config.js', extraArgs: [] }],
   ['triage-ingest', { script: 'tools/triage/ingest.js', extraArgs: [] }],
   ['triage-decision', { script: 'tools/triage/decision.js', extraArgs: [] }],
@@ -134,8 +137,10 @@ function printHelp() {
 
 Core:
   build-index             Build file-backed indexes
+  index                   Alias for build-index
   watch-index             Watch and rebuild indexes incrementally
   search                  Query indexed data
+  status                  Report current artifacts/status
   bootstrap               Fast bootstrap flow
   setup                   Guided setup flow
   build-sqlite-index       Build SQLite indexes
@@ -160,6 +165,7 @@ Reports + services:
   compare-models           Compare search models
   summary-report           Generate summary report
   mcp-server               Run MCP server
+  mcp                      Alias for mcp-server
 
 Config + triage:
   config validate          Validate .pairofcleats.json

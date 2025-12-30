@@ -27,11 +27,16 @@ function normalizeTypes(type) {
   return Array.isArray(type) ? type : [type];
 }
 
+function escapePointerSegment(segment) {
+  return String(segment).replace(/~/g, '~0').replace(/\//g, '~1');
+}
+
 function formatPath(base, key) {
   if (key === null || key === undefined) return base;
-  if (typeof key === 'number') return `${base}[${key}]`;
-  if (!base || base === '$') return `$.${key}`;
-  return `${base}.${key}`;
+  if (typeof key === 'number') return `${base}/${key}`;
+  const escaped = escapePointerSegment(key);
+  if (!base || base === '#') return `#/${escaped}`;
+  return `${base}/${escaped}`;
 }
 
 function validateValue(value, schema, path) {
@@ -89,6 +94,6 @@ function validateValue(value, schema, path) {
 }
 
 export function validateConfig(schema, config) {
-  const errors = validateValue(config, schema, '$');
+  const errors = validateValue(config, schema, '#');
   return { ok: errors.length === 0, errors };
 }

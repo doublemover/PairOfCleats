@@ -21,6 +21,8 @@ const argv = minimist(process.argv.slice(2), {
   boolean: [
     'json',
     'non-interactive',
+    'validate-config',
+    'skip-validate',
     'skip-install',
     'skip-dicts',
     'skip-models',
@@ -36,6 +38,8 @@ const argv = minimist(process.argv.slice(2), {
   alias: { ci: 'non-interactive', s: 'with-sqlite', i: 'incremental' },
   default: {
     'non-interactive': false,
+    'validate-config': false,
+    'skip-validate': false,
     'skip-install': false,
     'skip-dicts': false,
     'skip-models': false,
@@ -137,6 +141,33 @@ async function hasEntries(dirPath) {
 }
 
 log(`Starting setup in ${root}`);
+
+const configPath = path.join(root, '.pairofcleats.json');
+const configExists = fs.existsSync(configPath);
+let shouldValidateConfig = argv['validate-config'] === true;
+if (!argv['skip-validate'] && configExists && !shouldValidateConfig && !nonInteractive) {
+  shouldValidateConfig = await promptYesNo('Validate .pairofcleats.json now?', true);
+}
+if (argv['skip-validate']) shouldValidateConfig = false;
+
+if (shouldValidateConfig && configExists) {
+  const args = [path.join(root, 'tools', 'validate-config.js'), '--config', configPath];
+  if (jsonOutput) args.push('--json');
+  const result = runCommand(process.execPath, args);
+  recordStep('config', { skipped: false, ok: result.ok, configPath });
+  if (!result.ok) {
+    recordError('config', result, 'validation failed');
+    const continueSetup = nonInteractive
+      ? false
+      : await promptYesNo('Config validation failed. Continue setup anyway?', false);
+    if (!continueSetup) {
+      if (rl) await rl.close();
+      process.exit(result.status ?? 1);
+    }
+  }
+} else {
+  recordStep('config', { skipped: true, present: configExists, configPath });
+}
 
 const userConfig = loadUserConfig(root);
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);

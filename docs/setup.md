@@ -28,6 +28,8 @@ The unified setup script (`npm run setup`) guides you through installing optiona
 - `--json`: Emit a summary report to stdout (logs go to stderr).
 - `--with-sqlite`: Default SQLite build to yes.
 - `--incremental`: Use incremental indexing if available.
+- `--validate-config`: Validate `.pairofcleats.json` before running setup.
+- `--skip-validate`: Skip config validation prompts.
 - `--tooling-scope cache|global`: Override tooling install scope.
 - `--skip-install`: Skip `npm install`.
 - `--skip-dicts`: Skip dictionary download.
