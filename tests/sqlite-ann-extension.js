@@ -75,8 +75,8 @@ function run(args, label) {
   }
 }
 
-run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings'], 'build index');
-run([path.join(root, 'tools', 'build-sqlite-index.js')], 'build sqlite index');
+run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index');
+run([path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
 
 const userConfig = loadUserConfig(repoRoot);
 const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
@@ -116,7 +116,7 @@ db.close();
 
 const searchResult = spawnSync(
   process.execPath,
-  [path.join(root, 'search.js'), 'index', '--backend', 'sqlite', '--json', '--ann'],
+  [path.join(root, 'search.js'), 'index', '--backend', 'sqlite', '--json', '--ann', '--repo', repoRoot],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (searchResult.status !== 0) {
@@ -141,8 +141,8 @@ if (!stats.annExtension?.available?.code) {
 }
 
 await fsPromises.rm(deletableFile, { force: true });
-run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings'], 'build index (incremental)');
-run([path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--mode', 'code'], 'build sqlite index (incremental)');
+run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index (incremental)');
+run([path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--mode', 'code', '--repo', repoRoot], 'build sqlite index (incremental)');
 
 const dbAfter = new Database(sqlitePaths.codePath, { readonly: true });
 try {

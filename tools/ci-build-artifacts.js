@@ -6,11 +6,11 @@ import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import simpleGit from 'simple-git';
 import { fileURLToPath } from 'node:url';
-import { getIndexDir, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
+import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['skip-build', 'skip-sqlite', 'incremental'],
-  string: ['out'],
+  string: ['out', 'repo'],
   default: {
     'skip-build': false,
     'skip-sqlite': false,
@@ -18,7 +18,8 @@ const argv = minimist(process.argv.slice(2), {
   }
 });
 
-const root = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const root = rootArg || resolveRepoRoot(process.cwd());
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const userConfig = loadUserConfig(root);
 const outDir = argv.out ? path.resolve(argv.out) : path.join(root, 'ci-artifacts');

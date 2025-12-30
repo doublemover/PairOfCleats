@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import minimist from 'minimist';
-import { getRepoCacheRoot, getTriageConfig, loadUserConfig } from '../dict-utils.js';
+import { getRepoCacheRoot, getTriageConfig, loadUserConfig, resolveRepoRoot } from '../dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['stub-embeddings', 'ann'],
@@ -13,7 +13,7 @@ const argv = minimist(process.argv.slice(2), {
 const rawArgs = process.argv.slice(2);
 const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
 
-const repoRoot = argv.repo ? path.resolve(argv.repo) : process.cwd();
+const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
 const recordId = String(argv.record || '').trim();
 if (!recordId) {
   console.error('usage: node tools/triage/context-pack.js --record <recordId> [--repo <path>] [--out <file>] [--no-ann] [--stub-embeddings]');
@@ -227,7 +227,7 @@ async function loadRecord(recordsDir, recordId) {
 function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
   const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
   const searchPath = path.join(scriptRoot, 'search.js');
-  const args = [searchPath, query, '--mode', mode, '--json', '--top', String(top)];
+  const args = [searchPath, query, '--mode', mode, '--json', '--top', String(top), '--repo', repoRoot];
   if (Array.isArray(metaFilters)) {
     metaFilters.forEach((filter) => {
       args.push('--meta', filter);

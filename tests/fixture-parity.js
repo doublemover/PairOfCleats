@@ -43,8 +43,8 @@ for (const fixtureName of fixtures) {
     PAIROFCLEATS_EMBEDDINGS: 'stub'
   };
 
-  run([path.join(root, 'build_index.js'), '--stub-embeddings'], `build index (${fixtureName})`, fixtureRoot, env);
-  run([path.join(root, 'tools', 'build-sqlite-index.js')], `build sqlite index (${fixtureName})`, fixtureRoot, env);
+  run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], `build index (${fixtureName})`, fixtureRoot, env);
+  run([path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', fixtureRoot], `build sqlite index (${fixtureName})`, fixtureRoot, env);
 
   const queriesPath = path.join(fixtureRoot, 'queries.txt');
   const queryFile = fs.existsSync(queriesPath)

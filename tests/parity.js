@@ -15,6 +15,7 @@ const argv = minimist(process.argv.slice(2), {
 });
 
 const root = process.cwd();
+const repoArgs = ['--repo', root];
 const userConfig = loadUserConfig(root);
 const sqlitePaths = resolveSqlitePaths(root, userConfig);
 
@@ -117,7 +118,8 @@ function runSearch(query, backend) {
     backend,
     '-n',
     String(topN),
-    annArg
+    annArg,
+    ...repoArgs
   ];
   const start = performance.now();
   const result = spawnSync(process.execPath, args, { encoding: 'utf8' });

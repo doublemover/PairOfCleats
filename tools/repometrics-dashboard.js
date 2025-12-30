@@ -3,15 +3,16 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import minimist from 'minimist';
-import { getMetricsDir, loadUserConfig } from './dict-utils.js';
+import { getMetricsDir, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['json'],
-  string: ['out'],
+  string: ['out', 'repo'],
   default: { top: 5 }
 });
 
-const root = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
 const metricsDir = getMetricsDir(root, userConfig);
 const topN = Math.max(1, parseInt(argv.top, 10) || 5);

@@ -20,6 +20,7 @@ const env = {
 };
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+const repoArgs = ['--repo', fixtureRoot];
 
 function run(args, label) {
   const result = spawnSync(process.execPath, args, {
@@ -34,7 +35,7 @@ function run(args, label) {
 }
 
 function runSearch(args, label) {
-  const result = spawnSync(process.execPath, args, {
+  const result = spawnSync(process.execPath, [...args, ...repoArgs], {
     cwd: fixtureRoot,
     env,
     encoding: 'utf8'
@@ -47,7 +48,7 @@ function runSearch(args, label) {
   return result.stdout || '';
 }
 
-run([path.join(root, 'build_index.js'), '--stub-embeddings'], 'build index');
+run([path.join(root, 'build_index.js'), '--stub-embeddings', ...repoArgs], 'build index');
 
 function hasPython() {
   const candidates = ['python', 'python3'];

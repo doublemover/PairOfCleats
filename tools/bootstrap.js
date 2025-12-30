@@ -3,11 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import minimist from 'minimist';
 import { runCommand, runCommandOrExit } from './cli-utils.js';
-import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getToolingConfig, loadUserConfig } from './dict-utils.js';
+import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getToolingConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['skip-install', 'skip-dicts', 'skip-index', 'with-sqlite', 'incremental', 'skip-artifacts', 'skip-tooling'],
+  string: ['repo'],
   alias: { s: 'with-sqlite', i: 'incremental' },
   default: {
     'skip-install': false,
@@ -20,7 +21,8 @@ const argv = minimist(process.argv.slice(2), {
   }
 });
 
-const root = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
 const vectorExtension = getVectorExtensionConfig(root, userConfig);
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);

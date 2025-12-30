@@ -3,15 +3,17 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import minimist from 'minimist';
-import { getCacheRoot, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
+import { getCacheRoot, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { isInside, isRootPath } from './path-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['all', 'dry-run'],
+  string: ['repo'],
   default: { all: false, 'dry-run': false }
 });
 
-const root = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
 const cacheRoot = (userConfig.cache && userConfig.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import minimist from 'minimist';
-import { getTriageConfig, loadUserConfig } from '../dict-utils.js';
+import { getTriageConfig, loadUserConfig, resolveRepoRoot } from '../dict-utils.js';
 import { normalizeDependabot } from '../../src/triage/normalize/dependabot.js';
 import { normalizeAwsInspector } from '../../src/triage/normalize/aws-inspector.js';
 import { normalizeGeneric } from '../../src/triage/normalize/generic.js';
@@ -16,7 +16,7 @@ const argv = minimist(process.argv.slice(2), {
   alias: { i: 'in' }
 });
 
-const repoRoot = argv.repo ? path.resolve(argv.repo) : process.cwd();
+const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
 const source = normalizeSource(argv.source);
 const inputPath = argv.in ? path.resolve(argv.in) : null;
 
@@ -78,7 +78,7 @@ for (let index = 0; index < rawEntries.length; index += 1) {
 
 if (argv['build-index']) {
   const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-  const args = [path.join(scriptRoot, 'build_index.js'), '--mode', 'records'];
+  const args = [path.join(scriptRoot, 'build_index.js'), '--mode', 'records', '--repo', repoRoot];
   if (argv.incremental) args.push('--incremental');
   if (argv['stub-embeddings']) args.push('--stub-embeddings');
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, stdio: 'inherit' });

@@ -6,15 +6,16 @@ import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
 import minimist from 'minimist';
-import { getDictConfig, loadUserConfig } from './dict-utils.js';
+import { getDictConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['update', 'force'],
-  string: ['lang', 'dir', 'url'],
+  string: ['lang', 'dir', 'url', 'repo'],
   default: { update: false, force: false }
 });
 
-const repoRoot = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const repoRoot = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(repoRoot);
 const defaultDictConfig = getDictConfig(repoRoot, userConfig);
 

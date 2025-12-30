@@ -11,7 +11,8 @@ import {
   getModelConfig,
   getRepoCacheRoot,
   getToolingConfig,
-  loadUserConfig
+  loadUserConfig,
+  resolveRepoRoot
 } from './dict-utils.js';
 import { runCommand as runCommandBase } from './cli-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
@@ -31,7 +32,7 @@ const argv = minimist(process.argv.slice(2), {
     'with-sqlite',
     'incremental'
   ],
-  string: ['root', 'tooling-scope'],
+  string: ['root', 'repo', 'tooling-scope'],
   alias: { ci: 'non-interactive', s: 'with-sqlite', i: 'incremental' },
   default: {
     'non-interactive': false,
@@ -49,7 +50,8 @@ const argv = minimist(process.argv.slice(2), {
   }
 });
 
-const root = path.resolve(argv.root || process.cwd());
+const explicitRoot = argv.root || argv.repo;
+const root = explicitRoot ? path.resolve(explicitRoot) : resolveRepoRoot(process.cwd());
 const jsonOutput = argv.json === true;
 const nonInteractive = argv['non-interactive'] === true;
 const rl = nonInteractive ? null : readline.createInterface({ input: process.stdin, output: process.stdout });

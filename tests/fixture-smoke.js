@@ -118,9 +118,10 @@ for (const fixtureName of fixtures) {
     PAIROFCLEATS_EMBEDDINGS: 'stub'
   };
   process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+  const repoArgs = ['--repo', currentFixtureRoot];
 
-  run([path.join(root, 'build_index.js'), '--stub-embeddings'], `build index (${fixtureName})`);
-  run([path.join(root, 'tools', 'build-sqlite-index.js')], `build sqlite index (${fixtureName})`);
+  run([path.join(root, 'build_index.js'), '--stub-embeddings', ...repoArgs], `build index (${fixtureName})`);
+  run([path.join(root, 'tools', 'build-sqlite-index.js'), ...repoArgs], `build sqlite index (${fixtureName})`);
 
   const userConfig = loadUserConfig(currentFixtureRoot);
   const codeDir = getIndexDir(currentFixtureRoot, 'code', userConfig);
@@ -157,7 +158,7 @@ for (const fixtureName of fixtures) {
     for (const backend of backends) {
       const searchResult = spawnSync(
         process.execPath,
-        [path.join(root, 'search.js'), query, '--json', '--backend', backend, '--no-ann'],
+        [path.join(root, 'search.js'), query, '--json', '--backend', backend, '--no-ann', ...repoArgs],
         { cwd: currentFixtureRoot, env: currentEnv, encoding: 'utf8' }
       );
       if (searchResult.status !== 0) {
@@ -194,7 +195,7 @@ for (const fixtureName of fixtures) {
   const compactQuery = queries[0];
   const compactResult = spawnSync(
     process.execPath,
-    [path.join(root, 'search.js'), compactQuery, '--json-compact', '--backend', 'memory', '--no-ann'],
+    [path.join(root, 'search.js'), compactQuery, '--json-compact', '--backend', 'memory', '--no-ann', ...repoArgs],
     { cwd: currentFixtureRoot, env: currentEnv, encoding: 'utf8' }
   );
   if (compactResult.status !== 0) {
@@ -241,10 +242,52 @@ for (const fixtureName of fixtures) {
     }
   }
 
+  if (fixtureName === 'sample') {
+    const extScoped = spawnSync(
+      process.execPath,
+      [path.join(root, 'search.js'), 'message', '--mode', 'code', '--json', '--backend', 'memory', '--no-ann', '--ext', '.py', ...repoArgs],
+      { cwd: currentFixtureRoot, env: currentEnv, encoding: 'utf8' }
+    );
+    if (extScoped.status !== 0) {
+      console.error('Fixture ext filter failed: search error.');
+      process.exit(extScoped.status ?? 1);
+    }
+    const extPayload = JSON.parse(extScoped.stdout || '{}');
+    const extHits = extPayload.code || [];
+    if (!extHits.length) {
+      console.error('Fixture ext filter returned no results.');
+      process.exit(1);
+    }
+    if (extHits.some((hit) => hit.ext !== '.py')) {
+      console.error('Fixture ext filter returned non-.py results.');
+      process.exit(1);
+    }
+
+    const pathScoped = spawnSync(
+      process.execPath,
+      [path.join(root, 'search.js'), 'message', '--mode', 'code', '--json', '--backend', 'memory', '--no-ann', '--path', 'src/sample.py', ...repoArgs],
+      { cwd: currentFixtureRoot, env: currentEnv, encoding: 'utf8' }
+    );
+    if (pathScoped.status !== 0) {
+      console.error('Fixture path filter failed: search error.');
+      process.exit(pathScoped.status ?? 1);
+    }
+    const pathPayload = JSON.parse(pathScoped.stdout || '{}');
+    const pathHits = pathPayload.code || [];
+    if (!pathHits.length) {
+      console.error('Fixture path filter returned no results.');
+      process.exit(1);
+    }
+    if (pathHits.some((hit) => hit.file !== 'src/sample.py')) {
+      console.error('Fixture path filter returned unexpected files.');
+      process.exit(1);
+    }
+  }
+
   if (pythonAvailable && fixtureName === 'sample') {
     const pythonCheck = spawnSync(
       process.execPath,
-      [path.join(root, 'search.js'), 'message', '--json', '--backend', 'memory', '--no-ann'],
+      [path.join(root, 'search.js'), 'message', '--json', '--backend', 'memory', '--no-ann', ...repoArgs],
       { cwd: currentFixtureRoot, env: currentEnv, encoding: 'utf8' }
     );
     if (pythonCheck.status !== 0) {
@@ -274,7 +317,7 @@ for (const fixtureName of fixtures) {
   if (fixtureName === 'sample') {
     const swiftCheck = spawnSync(
       process.execPath,
-      [path.join(root, 'search.js'), 'sayHello', '--json', '--backend', 'memory', '--no-ann'],
+      [path.join(root, 'search.js'), 'sayHello', '--json', '--backend', 'memory', '--no-ann', ...repoArgs],
       { cwd: currentFixtureRoot, env: currentEnv, encoding: 'utf8' }
     );
     if (swiftCheck.status !== 0) {
@@ -304,7 +347,7 @@ for (const fixtureName of fixtures) {
   if (fixtureName === 'sample') {
     const rustCheck = spawnSync(
       process.execPath,
-      [path.join(root, 'search.js'), 'rust_greet', '--json', '--backend', 'memory', '--no-ann'],
+      [path.join(root, 'search.js'), 'rust_greet', '--json', '--backend', 'memory', '--no-ann', ...repoArgs],
       { cwd: currentFixtureRoot, env: currentEnv, encoding: 'utf8' }
     );
     if (rustCheck.status !== 0) {

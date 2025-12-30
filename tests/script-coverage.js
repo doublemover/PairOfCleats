@@ -173,6 +173,16 @@ const actions = [
     covers: []
   },
   {
+    label: 'repo-root-test',
+    run: () => runNode('repo-root-test', path.join(root, 'tests', 'repo-root.js')),
+    covers: []
+  },
+  {
+    label: 'file-size-guard-test',
+    run: () => runNode('file-size-guard-test', path.join(root, 'tests', 'file-size-guard.js')),
+    covers: []
+  },
+  {
     label: 'ts-jsx-fixtures',
     run: () => runNode('ts-jsx-fixtures', path.join(root, 'tests', 'ts-jsx-fixtures.js')),
     covers: []
@@ -214,12 +224,12 @@ const actions = [
   },
   {
     label: 'repo-build-index',
-    run: () => runNode('build-index', path.join(root, 'build_index.js'), ['--stub-embeddings'], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('build-index', path.join(root, 'build_index.js'), ['--stub-embeddings', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['build-index']
   },
   {
     label: 'repo-build-sqlite-index',
-    run: () => runNode('build-sqlite-index', path.join(root, 'tools', 'build-sqlite-index.js'), [], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('build-sqlite-index', path.join(root, 'tools', 'build-sqlite-index.js'), ['--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['build-sqlite-index']
   },
   {
@@ -234,17 +244,17 @@ const actions = [
   },
   {
     label: 'repo-search',
-    run: () => runNode('search', path.join(root, 'search.js'), ['message', '--json', '--no-ann'], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('search', path.join(root, 'search.js'), ['message', '--json', '--no-ann', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['search']
   },
   {
     label: 'search-sqlite',
-    run: () => runNode('search-sqlite', path.join(root, 'tools', 'search-sqlite.js'), ['message', '--json', '--no-ann'], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('search-sqlite', path.join(root, 'tools', 'search-sqlite.js'), ['message', '--json', '--no-ann', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['search-sqlite']
   },
   {
     label: 'report-artifacts',
-    run: () => runNode('report-artifacts', path.join(root, 'tools', 'report-artifacts.js'), ['--json'], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('report-artifacts', path.join(root, 'tools', 'report-artifacts.js'), ['--json', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['report-artifacts']
   },
   {
@@ -254,17 +264,17 @@ const actions = [
   },
   {
     label: 'generate-repo-dict',
-    run: () => runNode('generate-repo-dict', path.join(root, 'tools', 'generate-repo-dict.js'), ['--min-count', '1'], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('generate-repo-dict', path.join(root, 'tools', 'generate-repo-dict.js'), ['--min-count', '1', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['generate-repo-dict']
   },
   {
     label: 'ci-build',
-    run: () => runNode('ci-build', path.join(root, 'tools', 'ci-build-artifacts.js'), ['--out', ciOutDir, '--skip-build'], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('ci-build', path.join(root, 'tools', 'ci-build-artifacts.js'), ['--out', ciOutDir, '--skip-build', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['ci-build']
   },
   {
     label: 'ci-restore',
-    run: () => runNode('ci-restore', path.join(root, 'tools', 'ci-restore-artifacts.js'), ['--from', ciOutDir, '--force'], { cwd: fixtureRoot, env: repoEnv }),
+    run: () => runNode('ci-restore', path.join(root, 'tools', 'ci-restore-artifacts.js'), ['--from', ciOutDir, '--force', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['ci-restore']
   },
   {
@@ -272,7 +282,7 @@ const actions = [
     run: () => runNode(
       'bootstrap',
       path.join(root, 'tools', 'bootstrap.js'),
-      ['--skip-install', '--skip-dicts', '--skip-index', '--skip-artifacts', '--skip-tooling'],
+      ['--skip-install', '--skip-dicts', '--skip-index', '--skip-artifacts', '--skip-tooling', '--repo', fixtureRoot],
       { cwd: fixtureRoot, env: repoEnv }
     ),
     covers: ['bootstrap']

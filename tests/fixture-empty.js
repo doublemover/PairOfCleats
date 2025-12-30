@@ -38,8 +38,8 @@ function run(args, label) {
   }
 }
 
-run([buildIndexPath, '--stub-embeddings'], 'build index (empty)');
-run([buildSqlitePath], 'build sqlite (empty)');
+run([buildIndexPath, '--stub-embeddings', '--repo', fixtureRoot], 'build index (empty)');
+run([buildSqlitePath, '--repo', fixtureRoot], 'build sqlite (empty)');
 
 const userConfig = loadUserConfig(fixtureRoot);
 const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);

@@ -20,7 +20,7 @@ const env = {
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
-const result = spawnSync(process.execPath, [path.join(root, 'build_index.js'), '--stub-embeddings'], {
+const result = spawnSync(process.execPath, [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot], {
   cwd: fixtureRoot,
   env,
   stdio: 'inherit'

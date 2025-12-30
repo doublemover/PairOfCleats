@@ -62,6 +62,7 @@ const env = {
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+const repoArgs = ['--repo', repoRoot];
 
 const originalCwd = process.cwd();
 process.chdir(repoRoot);
@@ -75,7 +76,7 @@ if (gitMeta.churn !== expectedChurn) {
 
 const buildResult = spawnSync(
   process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings'],
+  [path.join(root, 'build_index.js'), '--stub-embeddings', ...repoArgs],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 if (buildResult.status !== 0) {
@@ -88,7 +89,7 @@ const searchPath = path.join(root, 'search.js');
 function runSearch(args, label) {
   const result = spawnSync(
     process.execPath,
-    [searchPath, 'alpha', '--mode', 'prose', '--json-compact', '--no-ann', ...args],
+    [searchPath, 'alpha', '--mode', 'prose', '--json-compact', '--no-ann', ...args, ...repoArgs],
     { cwd: repoRoot, env, encoding: 'utf8' }
   );
   if (result.status !== 0) {
@@ -119,7 +120,7 @@ if (Array.isArray(highPayload.prose) && highPayload.prose.length > 0) {
 
 const badResult = spawnSync(
   process.execPath,
-  [searchPath, 'alpha', '--mode', 'prose', '--json-compact', '--churn', 'not-a-number'],
+  [searchPath, 'alpha', '--mode', 'prose', '--json-compact', '--churn', 'not-a-number', ...repoArgs],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (badResult.status === 0) {

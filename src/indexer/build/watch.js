@@ -6,11 +6,11 @@ import { log } from '../../shared/progress.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const scanFiles = async ({ root, modes, ignoreMatcher }) => {
+const scanFiles = async ({ root, modes, ignoreMatcher, maxFileBytes }) => {
   const files = new Set();
   const skippedFiles = [];
   for (const mode of modes) {
-    const modeFiles = await discoverFiles({ root, mode, ignoreMatcher, skippedFiles });
+    const modeFiles = await discoverFiles({ root, mode, ignoreMatcher, skippedFiles, maxFileBytes });
     modeFiles.forEach((file) => files.add(file));
   }
   return Array.from(files);
@@ -45,6 +45,7 @@ const hasChanges = (prev, next) => {
 export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
   const root = runtime.root;
   const ignoreMatcher = runtime.ignoreMatcher;
+  const maxFileBytes = runtime.maxFileBytes;
   runtime.incrementalEnabled = true;
   runtime.argv.incremental = true;
 
@@ -53,12 +54,30 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
   let pending = false;
   let scanRunning = false;
   let debounceTimer = null;
+  let shouldExit = false;
+  let shutdownSignal = null;
+
+  const requestShutdown = (signal) => {
+    if (shouldExit) return;
+    shouldExit = true;
+    shutdownSignal = signal;
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    log(`[watch] ${signal} received; shutting down...`);
+  };
+  const handleSigint = () => requestShutdown('SIGINT');
+  const handleSigterm = () => requestShutdown('SIGTERM');
+  process.on('SIGINT', handleSigint);
+  process.on('SIGTERM', handleSigterm);
 
   const runBuild = async () => {
     if (running) {
       pending = true;
       return;
     }
+    if (shouldExit) return;
     running = true;
     const lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
     if (!lock) {
@@ -76,27 +95,28 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
     }
     if (pending) {
       pending = false;
-      scheduleBuild();
+      if (!shouldExit) scheduleBuild();
     }
   };
 
   const scheduleBuild = () => {
+    if (shouldExit) return;
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(runBuild, debounceMs);
   };
 
-  const initialFiles = await scanFiles({ root, modes, ignoreMatcher });
+  const initialFiles = await scanFiles({ root, modes, ignoreMatcher, maxFileBytes });
   prevStats = await statFiles(initialFiles);
   log(`[watch] Monitoring ${prevStats.size} file(s) every ${pollMs}ms.`);
 
-  while (true) {
+  while (!shouldExit) {
     if (scanRunning) {
       await sleep(pollMs);
       continue;
     }
     scanRunning = true;
     try {
-      const files = await scanFiles({ root, modes, ignoreMatcher });
+      const files = await scanFiles({ root, modes, ignoreMatcher, maxFileBytes });
       const nextStats = await statFiles(files);
       if (hasChanges(prevStats, nextStats)) {
         log('[watch] Change detected; scheduling incremental rebuild.');
@@ -110,4 +130,14 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
     }
     await sleep(pollMs);
   }
+
+  if (running) {
+    log('[watch] Waiting for active build to finish...');
+    while (running) {
+      await sleep(200);
+    }
+  }
+  process.off('SIGINT', handleSigint);
+  process.off('SIGTERM', handleSigterm);
+  log(`[watch] Shutdown complete${shutdownSignal ? ` (${shutdownSignal})` : ''}.`);
 }

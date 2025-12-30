@@ -41,7 +41,8 @@ export async function buildIndexForMode({ mode, runtime }) {
     root: runtime.root,
     mode,
     ignoreMatcher: runtime.ignoreMatcher,
-    skippedFiles: state.skippedFiles
+    skippedFiles: state.skippedFiles,
+    maxFileBytes: runtime.maxFileBytes
   });
   allFiles.sort();
   log(`→ Found ${allFiles.length} files.`);

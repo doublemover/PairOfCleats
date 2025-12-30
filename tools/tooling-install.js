@@ -2,15 +2,16 @@
 import minimist from 'minimist';
 import { spawnSync } from 'node:child_process';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './tooling-utils.js';
-import { getToolingConfig } from './dict-utils.js';
+import { getToolingConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['json', 'dry-run', 'no-fallback'],
-  string: ['root', 'scope', 'languages', 'tools'],
+  string: ['root', 'repo', 'scope', 'languages', 'tools'],
   default: { 'dry-run': false, json: false, 'no-fallback': false }
 });
 
-const root = argv.root || process.cwd();
+const explicitRoot = argv.root || argv.repo;
+const root = explicitRoot ? path.resolve(explicitRoot) : resolveRepoRoot(process.cwd());
 const toolingConfig = getToolingConfig(root);
 const scope = argv.scope || toolingConfig.installScope || 'cache';
 const allowFallback = argv['no-fallback'] ? false : toolingConfig.allowGlobalFallback !== false;

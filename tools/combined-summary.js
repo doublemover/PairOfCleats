@@ -6,12 +6,12 @@ import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import { fileURLToPath } from 'node:url';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/compare/config.js';
-import { DEFAULT_MODEL_ID, getIndexDir, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
+import { DEFAULT_MODEL_ID, getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
 const argv = minimist(rawArgs, {
   boolean: ['json', 'build', 'ann', 'no-ann', 'incremental'],
-  string: ['models', 'baseline', 'queries', 'out', 'top', 'limit', 'mode'],
+  string: ['models', 'baseline', 'queries', 'out', 'top', 'limit', 'mode', 'repo'],
   default: {
     json: false,
     build: true,
@@ -20,7 +20,8 @@ const argv = minimist(rawArgs, {
   }
 });
 
-const root = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 

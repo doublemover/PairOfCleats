@@ -3,14 +3,16 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import minimist from 'minimist';
+import { resolveRepoRoot } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['install', 'uninstall', 'status'],
-  string: ['hooks'],
+  string: ['hooks', 'repo'],
   default: { install: false, uninstall: false, status: false }
 });
 
-const root = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const root = rootArg || resolveRepoRoot(process.cwd());
 const gitDir = path.join(root, '.git');
 if (!fsSync.existsSync(gitDir)) {
   console.error('Git repository not found. Run this from a repo with a .git directory.');

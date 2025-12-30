@@ -5,16 +5,17 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import ignore from 'ignore';
-import { getDictConfig, getRepoDictPath, loadUserConfig } from './dict-utils.js';
+import { getDictConfig, getRepoDictPath, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { splitId } from '../src/shared/tokenize.js';
 
 const argv = minimist(process.argv.slice(2), {
-  string: ['out', 'extensions'],
+  string: ['out', 'extensions', 'repo'],
   boolean: ['include-prose'],
   default: { 'min-count': 3, 'include-prose': false }
 });
 
-const repoRoot = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const repoRoot = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(repoRoot);
 const dictConfig = getDictConfig(repoRoot, userConfig);
 const outputPath = argv.out ? path.resolve(argv.out) : getRepoDictPath(repoRoot, dictConfig);

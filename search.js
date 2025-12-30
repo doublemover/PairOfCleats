@@ -11,7 +11,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import minimist from 'minimist';
-import { DEFAULT_MODEL_ID, getDictionaryPaths, getDictConfig, getIndexDir, getMetricsDir, getModelConfig, loadUserConfig, resolveSqlitePaths } from './tools/dict-utils.js';
+import { DEFAULT_MODEL_ID, getDictionaryPaths, getDictConfig, getIndexDir, getMetricsDir, getModelConfig, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './tools/dict-utils.js';
 import { getVectorExtensionConfig, hasVectorTable, loadVectorExtension, queryVectorAnn, resolveVectorExtensionPath } from './tools/vector-extension.js';
 import { buildFtsBm25Expr, resolveFtsWeights } from './src/search/fts.js';
 import { getQueryEmbedding } from './src/search/embedding.js';
@@ -57,7 +57,9 @@ const argv = minimist(process.argv.slice(2), {
     'extends',
     'mode',
     'backend',
+    'path',
     'model',
+    'repo',
     'fts-profile',
     'fts-weights',
     'bm25-k1',
@@ -65,7 +67,8 @@ const argv = minimist(process.argv.slice(2), {
   ],
 });
 const t0 = Date.now();
-const ROOT = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const ROOT = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(ROOT);
 const modelConfig = getModelConfig(ROOT, userConfig);
 const modelIdDefault = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
@@ -99,7 +102,7 @@ const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
 const rawArgs = process.argv.slice(2);
 const query = argv._.join(' ').trim();
 if (!query) {
-  console.error('usage: search "query" [--json|--json-compact|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode code|prose|both|records|all|--meta key=value|--meta-json {...}|--file path|--ext .ext|--churn [min]|--signature|--param|--decorator|--inferred-type|--return-type|--throws|--reads|--writes|--mutates|--alias|--awaits|--branches|--loops|--breaks|--continues|--risk|--risk-tag|--risk-source|--risk-sink|--risk-category|--risk-flow|--extends|--visibility|--async|--generator|--returns');
+  console.error('usage: search "query" [--repo path|--json|--json-compact|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode code|prose|both|records|all|--meta key=value|--meta-json {...}|--path path|--file path|--ext .ext|--churn [min]|--signature|--param|--decorator|--inferred-type|--return-type|--throws|--reads|--writes|--mutates|--alias|--awaits|--branches|--loops|--breaks|--continues|--risk|--risk-tag|--risk-source|--risk-sink|--risk-category|--risk-flow|--extends|--visibility|--async|--generator|--returns');
   process.exit(1);
 }
 const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
@@ -121,7 +124,10 @@ const loopsMin = Number.isFinite(Number(argv.loops)) ? Number(argv.loops) : null
 const breaksMin = Number.isFinite(Number(argv.breaks)) ? Number(argv.breaks) : null;
 const continuesMin = Number.isFinite(Number(argv.continues)) ? Number(argv.continues) : null;
 const churnMin = parseChurnArg(argv.churn);
-const fileFilter = argv.file || null;
+const fileFilters = [];
+if (argv.path) fileFilters.push(argv.path);
+if (argv.file) fileFilters.push(argv.file);
+const fileFilter = fileFilters.length ? fileFilters.flat() : null;
 const extFilter = normalizeExtFilter(argv.ext);
 const metaFilters = parseMetaFilters(argv.meta, argv['meta-json']);
 const sqlitePaths = resolveSqlitePaths(ROOT, userConfig);

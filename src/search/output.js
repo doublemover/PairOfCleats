@@ -59,7 +59,23 @@ export function filterChunks(meta, filters = {}) {
       .map((entry) => entry.trim())
       .filter(Boolean);
   };
-  const fileNeedles = normalizeList(file).map(normalize);
+  const parseFileMatcher = (entry) => {
+    const raw = String(entry || '').trim();
+    if (!raw) return null;
+    const regexMatch = raw.match(/^\/(.+)\/([a-z]*)$/i);
+    if (regexMatch) {
+      const pattern = regexMatch[1];
+      let flags = regexMatch[2] || '';
+      if (!flags.includes('i')) flags += 'i';
+      try {
+        return { type: 'regex', value: new RegExp(pattern, flags) };
+      } catch {
+        return { type: 'substring', value: normalize(raw) };
+      }
+    }
+    return { type: 'substring', value: normalize(raw) };
+  };
+  const fileMatchers = normalizeList(file).map(parseFileMatcher).filter(Boolean);
   const extNeedles = normalizeList(ext)
     .map((entry) => {
       let value = entry.toLowerCase();
@@ -132,9 +148,17 @@ export function filterChunks(meta, filters = {}) {
 
   return meta.filter((c) => {
     if (!c) return false;
-    if (fileNeedles.length) {
-      const fileValue = normalize(c.file);
-      if (!fileNeedles.some((needle) => fileValue.includes(needle))) return false;
+    if (fileMatchers.length) {
+      const fileValue = String(c.file || '');
+      const fileValueLower = normalize(fileValue);
+      const matches = fileMatchers.some((matcher) => {
+        if (matcher.type === 'regex') {
+          matcher.value.lastIndex = 0;
+          return matcher.value.test(fileValue);
+        }
+        return fileValueLower.includes(matcher.value);
+      });
+      if (!matches) return false;
     }
     if (extNeedles.length) {
       const extValue = normalize(c.ext || path.extname(c.file || ''));

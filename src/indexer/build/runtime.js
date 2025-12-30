@@ -22,6 +22,16 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const userConfig = loadUserConfig(root);
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const indexingConfig = userConfig.indexing || {};
+  const maxFileBytesRaw = indexingConfig.maxFileBytes;
+  const maxFileBytesParsed = Number(maxFileBytesRaw);
+  let maxFileBytes = null;
+  if (maxFileBytesRaw === false || maxFileBytesRaw === 0) {
+    maxFileBytes = null;
+  } else if (Number.isFinite(maxFileBytesParsed) && maxFileBytesParsed > 0) {
+    maxFileBytes = maxFileBytesParsed;
+  } else {
+    maxFileBytes = 5 * 1024 * 1024;
+  }
   const astDataflowEnabled = indexingConfig.astDataflow !== false;
   const controlFlowEnabled = indexingConfig.controlFlow !== false;
   const typeInferenceEnabled = indexingConfig.typeInference === true;
@@ -174,6 +184,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     languageOptions,
     ignoreMatcher,
     ignoreConfig,
-    ignoreFiles
+    ignoreFiles,
+    maxFileBytes
   };
 }

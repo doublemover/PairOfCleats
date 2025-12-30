@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 import minimist from 'minimist';
 import { buildToolingReport, normalizeLanguageList } from './tooling-utils.js';
+import { resolveRepoRoot } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['json'],
-  string: ['root', 'languages'],
+  string: ['root', 'repo', 'languages'],
   default: { json: false }
 });
 
-const root = argv.root || process.cwd();
+const explicitRoot = argv.root || argv.repo;
+const root = explicitRoot ? path.resolve(explicitRoot) : resolveRepoRoot(process.cwd());
 const languageOverride = normalizeLanguageList(argv.languages);
 
 const report = await buildToolingReport(root, languageOverride);

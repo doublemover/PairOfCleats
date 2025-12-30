@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import minimist from 'minimist';
-import { getTriageConfig, loadUserConfig } from '../dict-utils.js';
+import { getTriageConfig, loadUserConfig, resolveRepoRoot } from '../dict-utils.js';
 import { buildRecordId } from '../../src/triage/record-utils.js';
 import { applyRoutingMeta } from '../../src/triage/normalize/helpers.js';
 import { renderRecordMarkdown } from '../../src/triage/render.js';
@@ -12,7 +12,7 @@ const argv = minimist(process.argv.slice(2), {
   alias: { r: 'repo' }
 });
 
-const repoRoot = argv.repo ? path.resolve(argv.repo) : process.cwd();
+const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
 const findingId = argv.finding || argv.record;
 const status = argv.status ? String(argv.status).toLowerCase() : '';
 

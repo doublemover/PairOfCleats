@@ -105,6 +105,12 @@ async function run() {
   if (!toolNames.includes('config_status')) {
     throw new Error('tools/list missing config_status');
   }
+  if (!toolNames.includes('clean_artifacts')) {
+    throw new Error('tools/list missing clean_artifacts');
+  }
+  if (!toolNames.includes('download_dictionaries')) {
+    throw new Error('tools/list missing download_dictionaries');
+  }
 
   send({
     jsonrpc: '2.0',
@@ -166,6 +172,89 @@ async function run() {
   );
   if (!progressEvents.length) {
     throw new Error('build_index did not emit progress notifications');
+  }
+
+  send({
+    jsonrpc: '2.0',
+    id: 32,
+    method: 'tools/call',
+    params: {
+      name: 'search',
+      arguments: {
+        repoPath: sampleRepo,
+        query: 'return',
+        mode: 'code',
+        top: 5
+      }
+    }
+  });
+  const baselineSearch = await readMessage();
+  const baselinePayload = JSON.parse(baselineSearch.result?.content?.[0]?.text || '{}');
+  const baselineHits = baselinePayload.code || [];
+  if (!baselineHits.length) {
+    throw new Error('baseline MCP search returned no results');
+  }
+  if (baselineHits[0]?.tokens !== undefined) {
+    throw new Error('MCP search should default to compact JSON payloads');
+  }
+
+  send({
+    jsonrpc: '2.0',
+    id: 33,
+    method: 'tools/call',
+    params: {
+      name: 'search',
+      arguments: {
+        repoPath: sampleRepo,
+        query: 'return',
+        mode: 'code',
+        top: 5,
+        riskTag: 'sql'
+      }
+    }
+  });
+  const riskSearch = await readMessage();
+  const riskPayload = JSON.parse(riskSearch.result?.content?.[0]?.text || '{}');
+  const riskHits = riskPayload.code || [];
+  if (riskHits.length === baselineHits.length) {
+    throw new Error('riskTag filter did not change MCP search results');
+  }
+
+  send({
+    jsonrpc: '2.0',
+    id: 34,
+    method: 'tools/call',
+    params: {
+      name: 'search',
+      arguments: {
+        repoPath: sampleRepo,
+        query: 'return',
+        mode: 'code',
+        top: 5,
+        type: 'class'
+      }
+    }
+  });
+  const typeSearch = await readMessage();
+  const typePayload = JSON.parse(typeSearch.result?.content?.[0]?.text || '{}');
+  const typeHits = typePayload.code || [];
+  if (typeHits.length === baselineHits.length) {
+    throw new Error('type filter did not change MCP search results');
+  }
+
+  send({
+    jsonrpc: '2.0',
+    id: 35,
+    method: 'tools/call',
+    params: {
+      name: 'clean_artifacts',
+      arguments: { repoPath: sampleRepo, dryRun: true }
+    }
+  });
+  const cleanArtifacts = await readMessage();
+  const cleanPayload = JSON.parse(cleanArtifacts.result?.content?.[0]?.text || '{}');
+  if (!cleanPayload.output) {
+    throw new Error('clean_artifacts response missing output');
   }
 
   send({

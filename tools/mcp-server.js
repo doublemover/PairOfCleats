@@ -17,6 +17,7 @@ import {
   getRepoCacheRoot,
   getRepoId,
   loadUserConfig,
+  resolveRepoRoot,
   resolveSqlitePaths
 } from './dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
@@ -38,7 +39,7 @@ function resolveRepoPath(inputPath) {
   if (!fs.existsSync(base) || !fs.statSync(base).isDirectory()) {
     throw new Error(`Repo path not found: ${base}`);
   }
-  return base;
+  return inputPath ? base : resolveRepoRoot(base);
 }
 
 /**
@@ -431,6 +432,43 @@ function runNodeAsync(cwd, args, options = {}) {
 }
 
 /**
+ * Run a tool script with progress notifications.
+ * @param {{repoPath:string,scriptArgs:string[],context?:object,startMessage?:string,doneMessage?:string}} input
+ * @returns {Promise<string>}
+ */
+async function runToolWithProgress({ repoPath, scriptArgs, context = {}, startMessage, doneMessage }) {
+  const progress = typeof context.progress === 'function' ? context.progress : null;
+  const progressLine = progress
+    ? ({ stream, line }) => progress({ message: line, stream })
+    : null;
+  if (progress && startMessage) {
+    progress({ message: startMessage, phase: 'start' });
+  }
+  const { stdout } = await runNodeAsync(repoPath, scriptArgs, {
+    streamOutput: true,
+    onLine: progressLine
+  });
+  if (progress && doneMessage) {
+    progress({ message: doneMessage, phase: 'done' });
+  }
+  return stdout || '';
+}
+
+function parseCountSummary(stdout) {
+  const match = String(stdout || '').match(/downloaded=(\d+)\s+skipped=(\d+)/i);
+  if (!match) return null;
+  return {
+    downloaded: Number(match[1]),
+    skipped: Number(match[2])
+  };
+}
+
+function parseExtensionPath(stdout) {
+  const match = String(stdout || '').match(/Extension present at (.+)$/im);
+  return match ? match[1].trim() : null;
+}
+
+/**
  * Format error payloads for tool responses.
  * @param {any} error
  * @returns {{message:string,code?:number,stderr?:string,stdout?:string}}
@@ -604,23 +642,100 @@ function runSearch(args = {}) {
   if (!query) throw new Error('Query is required.');
   const mode = args.mode || 'both';
   const backend = args.backend || null;
+  const output = typeof args.output === 'string' ? args.output.toLowerCase() : '';
   const ann = typeof args.ann === 'boolean' ? args.ann : null;
   const top = Number.isFinite(Number(args.top)) ? Math.max(1, Number(args.top)) : null;
   const context = Number.isFinite(Number(args.context)) ? Math.max(0, Number(args.context)) : null;
-  const fileFilter = args.file ? String(args.file) : null;
-  const extFilter = args.ext ? String(args.ext) : null;
+  const typeFilter = args.type ? String(args.type) : null;
+  const authorFilter = args.author ? String(args.author) : null;
+  const importFilter = args.import ? String(args.import) : null;
+  const callsFilter = args.calls ? String(args.calls) : null;
+  const usesFilter = args.uses ? String(args.uses) : null;
+  const signatureFilter = args.signature ? String(args.signature) : null;
+  const paramFilter = args.param ? String(args.param) : null;
+  const decoratorFilter = args.decorator ? String(args.decorator) : null;
+  const inferredTypeFilter = args.inferredType ? String(args.inferredType) : null;
+  const returnTypeFilter = args.returnType ? String(args.returnType) : null;
+  const throwsFilter = args.throws ? String(args.throws) : null;
+  const readsFilter = args.reads ? String(args.reads) : null;
+  const writesFilter = args.writes ? String(args.writes) : null;
+  const mutatesFilter = args.mutates ? String(args.mutates) : null;
+  const aliasFilter = args.alias ? String(args.alias) : null;
+  const awaitsFilter = args.awaits ? String(args.awaits) : null;
+  const riskFilter = args.risk ? String(args.risk) : null;
+  const riskTagFilter = args.riskTag ? String(args.riskTag) : null;
+  const riskSourceFilter = args.riskSource ? String(args.riskSource) : null;
+  const riskSinkFilter = args.riskSink ? String(args.riskSink) : null;
+  const riskCategoryFilter = args.riskCategory ? String(args.riskCategory) : null;
+  const riskFlowFilter = args.riskFlow ? String(args.riskFlow) : null;
+  const branchesMin = Number.isFinite(Number(args.branchesMin)) ? Number(args.branchesMin) : null;
+  const loopsMin = Number.isFinite(Number(args.loopsMin)) ? Number(args.loopsMin) : null;
+  const breaksMin = Number.isFinite(Number(args.breaksMin)) ? Number(args.breaksMin) : null;
+  const continuesMin = Number.isFinite(Number(args.continuesMin)) ? Number(args.continuesMin) : null;
+  const churnMin = Number.isFinite(Number(args.churnMin)) ? Number(args.churnMin) : null;
+  const visibilityFilter = args.visibility ? String(args.visibility) : null;
+  const extendsFilter = args.extends ? String(args.extends) : null;
+  const lintFilter = args.lint === true;
+  const asyncFilter = args.async === true;
+  const generatorFilter = args.generator === true;
+  const returnsFilter = args.returns === true;
+  const fileFilters = [];
+  const toList = (value) => (Array.isArray(value) ? value : (value == null ? [] : [value]));
+  fileFilters.push(...toList(args.path));
+  fileFilters.push(...toList(args.file));
+  const extFilters = toList(args.ext);
   const metaFilters = normalizeMetaFilters(args.meta);
   const metaJson = args.metaJson || null;
 
-  const searchArgs = [path.join(ROOT, 'search.js'), query, '--json'];
+  const useCompact = output !== 'full' && output !== 'json';
+  const searchArgs = [path.join(ROOT, 'search.js'), query, useCompact ? '--json-compact' : '--json'];
   if (mode && mode !== 'both') searchArgs.push('--mode', mode);
   if (backend) searchArgs.push('--backend', backend);
   if (ann === true) searchArgs.push('--ann');
   if (ann === false) searchArgs.push('--no-ann');
   if (top) searchArgs.push('-n', String(top));
   if (context !== null) searchArgs.push('--context', String(context));
-  if (fileFilter) searchArgs.push('--file', fileFilter);
-  if (extFilter) searchArgs.push('--ext', extFilter);
+  if (typeFilter) searchArgs.push('--type', typeFilter);
+  if (authorFilter) searchArgs.push('--author', authorFilter);
+  if (importFilter) searchArgs.push('--import', importFilter);
+  if (callsFilter) searchArgs.push('--calls', callsFilter);
+  if (usesFilter) searchArgs.push('--uses', usesFilter);
+  if (signatureFilter) searchArgs.push('--signature', signatureFilter);
+  if (paramFilter) searchArgs.push('--param', paramFilter);
+  if (decoratorFilter) searchArgs.push('--decorator', decoratorFilter);
+  if (inferredTypeFilter) searchArgs.push('--inferred-type', inferredTypeFilter);
+  if (returnTypeFilter) searchArgs.push('--return-type', returnTypeFilter);
+  if (throwsFilter) searchArgs.push('--throws', throwsFilter);
+  if (readsFilter) searchArgs.push('--reads', readsFilter);
+  if (writesFilter) searchArgs.push('--writes', writesFilter);
+  if (mutatesFilter) searchArgs.push('--mutates', mutatesFilter);
+  if (aliasFilter) searchArgs.push('--alias', aliasFilter);
+  if (awaitsFilter) searchArgs.push('--awaits', awaitsFilter);
+  if (riskFilter) searchArgs.push('--risk', riskFilter);
+  if (riskTagFilter) searchArgs.push('--risk-tag', riskTagFilter);
+  if (riskSourceFilter) searchArgs.push('--risk-source', riskSourceFilter);
+  if (riskSinkFilter) searchArgs.push('--risk-sink', riskSinkFilter);
+  if (riskCategoryFilter) searchArgs.push('--risk-category', riskCategoryFilter);
+  if (riskFlowFilter) searchArgs.push('--risk-flow', riskFlowFilter);
+  if (branchesMin !== null) searchArgs.push('--branches', String(branchesMin));
+  if (loopsMin !== null) searchArgs.push('--loops', String(loopsMin));
+  if (breaksMin !== null) searchArgs.push('--breaks', String(breaksMin));
+  if (continuesMin !== null) searchArgs.push('--continues', String(continuesMin));
+  if (churnMin !== null) searchArgs.push('--churn', String(churnMin));
+  if (visibilityFilter) searchArgs.push('--visibility', visibilityFilter);
+  if (extendsFilter) searchArgs.push('--extends', extendsFilter);
+  if (lintFilter) searchArgs.push('--lint');
+  if (asyncFilter) searchArgs.push('--async');
+  if (generatorFilter) searchArgs.push('--generator');
+  if (returnsFilter) searchArgs.push('--returns');
+  for (const entry of fileFilters) {
+    if (entry == null || entry === '') continue;
+    searchArgs.push('--path', String(entry));
+  }
+  for (const entry of extFilters) {
+    if (entry == null || entry === '') continue;
+    searchArgs.push('--ext', String(entry));
+  }
   if (Array.isArray(metaFilters)) {
     metaFilters.forEach((entry) => searchArgs.push('--meta', entry));
   }
@@ -660,6 +775,207 @@ async function downloadModels(args = {}, context = {}) {
     progress({ message: `Model download complete (${model}).`, phase: 'done' });
   }
   return { model, output: stdout.trim() };
+}
+
+/**
+ * Handle the MCP download_dictionaries tool call.
+ * @param {object} [args]
+ * @returns {Promise<object>}
+ */
+async function downloadDictionaries(args = {}, context = {}) {
+  const repoPath = resolveRepoPath(args.repoPath);
+  const scriptArgs = [path.join(ROOT, 'tools', 'download-dicts.js')];
+  if (args.lang) scriptArgs.push('--lang', String(args.lang));
+  const urls = Array.isArray(args.url) ? args.url : (args.url ? [args.url] : []);
+  urls.forEach((value) => scriptArgs.push('--url', String(value)));
+  if (args.dir) scriptArgs.push('--dir', String(args.dir));
+  if (args.update === true) scriptArgs.push('--update');
+  if (args.force === true) scriptArgs.push('--force');
+  const stdout = await runToolWithProgress({
+    repoPath,
+    scriptArgs,
+    context,
+    startMessage: 'Downloading dictionaries.',
+    doneMessage: 'Dictionary download complete.'
+  });
+  const summary = parseCountSummary(stdout);
+  return {
+    repoPath,
+    output: stdout.trim(),
+    ...(summary || {})
+  };
+}
+
+/**
+ * Handle the MCP download_extensions tool call.
+ * @param {object} [args]
+ * @returns {Promise<object>}
+ */
+async function downloadExtensions(args = {}, context = {}) {
+  const repoPath = resolveRepoPath(args.repoPath);
+  const scriptArgs = [path.join(ROOT, 'tools', 'download-extensions.js')];
+  if (args.provider) scriptArgs.push('--provider', String(args.provider));
+  if (args.dir) scriptArgs.push('--dir', String(args.dir));
+  if (args.out) scriptArgs.push('--out', String(args.out));
+  if (args.platform) scriptArgs.push('--platform', String(args.platform));
+  if (args.arch) scriptArgs.push('--arch', String(args.arch));
+  const urls = Array.isArray(args.url) ? args.url : (args.url ? [args.url] : []);
+  urls.forEach((value) => scriptArgs.push('--url', String(value)));
+  if (args.update === true) scriptArgs.push('--update');
+  if (args.force === true) scriptArgs.push('--force');
+  const stdout = await runToolWithProgress({
+    repoPath,
+    scriptArgs,
+    context,
+    startMessage: 'Downloading extensions.',
+    doneMessage: 'Extension download complete.'
+  });
+  const summary = parseCountSummary(stdout);
+  const resolvedPath = parseExtensionPath(stdout);
+  return {
+    repoPath,
+    output: stdout.trim(),
+    extensionPath: resolvedPath,
+    ...(summary || {})
+  };
+}
+
+/**
+ * Handle the MCP verify_extensions tool call.
+ * @param {object} [args]
+ * @returns {object}
+ */
+function verifyExtensions(args = {}) {
+  const repoPath = resolveRepoPath(args.repoPath);
+  const scriptArgs = [path.join(ROOT, 'tools', 'verify-extensions.js'), '--json'];
+  if (args.provider) scriptArgs.push('--provider', String(args.provider));
+  if (args.dir) scriptArgs.push('--dir', String(args.dir));
+  if (args.path) scriptArgs.push('--path', String(args.path));
+  if (args.platform) scriptArgs.push('--platform', String(args.platform));
+  if (args.arch) scriptArgs.push('--arch', String(args.arch));
+  if (args.module) scriptArgs.push('--module', String(args.module));
+  if (args.table) scriptArgs.push('--table', String(args.table));
+  if (args.column) scriptArgs.push('--column', String(args.column));
+  if (args.encoding) scriptArgs.push('--encoding', String(args.encoding));
+  if (args.options) scriptArgs.push('--options', String(args.options));
+  if (args.annMode) scriptArgs.push('--ann-mode', String(args.annMode));
+  if (args.load === false) scriptArgs.push('--no-load');
+  const stdout = runNodeSync(repoPath, scriptArgs);
+  try {
+    return JSON.parse(stdout || '{}');
+  } catch {
+    return { repoPath, output: stdout.trim() };
+  }
+}
+
+/**
+ * Handle the MCP build_sqlite_index tool call.
+ * @param {object} [args]
+ * @returns {Promise<object>}
+ */
+async function buildSqliteIndex(args = {}, context = {}) {
+  const repoPath = resolveRepoPath(args.repoPath);
+  const scriptArgs = [path.join(ROOT, 'tools', 'build-sqlite-index.js')];
+  if (args.mode) scriptArgs.push('--mode', String(args.mode));
+  if (args.incremental === true) scriptArgs.push('--incremental');
+  if (args.compact === true) scriptArgs.push('--compact');
+  if (args.codeDir) scriptArgs.push('--code-dir', String(args.codeDir));
+  if (args.proseDir) scriptArgs.push('--prose-dir', String(args.proseDir));
+  if (args.out) scriptArgs.push('--out', String(args.out));
+  const stdout = await runToolWithProgress({
+    repoPath,
+    scriptArgs,
+    context,
+    startMessage: 'Building SQLite index.',
+    doneMessage: 'SQLite index build complete.'
+  });
+  return { repoPath, output: stdout.trim() };
+}
+
+/**
+ * Handle the MCP compact_sqlite_index tool call.
+ * @param {object} [args]
+ * @returns {Promise<object>}
+ */
+async function compactSqliteIndex(args = {}, context = {}) {
+  const repoPath = resolveRepoPath(args.repoPath);
+  const scriptArgs = [path.join(ROOT, 'tools', 'compact-sqlite-index.js')];
+  if (args.mode) scriptArgs.push('--mode', String(args.mode));
+  if (args.dryRun === true) scriptArgs.push('--dry-run');
+  if (args.keepBackup === true) scriptArgs.push('--keep-backup');
+  const stdout = await runToolWithProgress({
+    repoPath,
+    scriptArgs,
+    context,
+    startMessage: 'Compacting SQLite index.',
+    doneMessage: 'SQLite compaction complete.'
+  });
+  return { repoPath, output: stdout.trim() };
+}
+
+/**
+ * Handle the MCP cache_gc tool call.
+ * @param {object} [args]
+ * @returns {object}
+ */
+function cacheGc(args = {}) {
+  const repoPath = resolveRepoPath(args.repoPath);
+  const scriptArgs = [path.join(ROOT, 'tools', 'cache-gc.js'), '--json'];
+  if (args.dryRun === true) scriptArgs.push('--dry-run');
+  if (Number.isFinite(Number(args.maxBytes))) scriptArgs.push('--max-bytes', String(args.maxBytes));
+  if (Number.isFinite(Number(args.maxGb))) scriptArgs.push('--max-gb', String(args.maxGb));
+  if (Number.isFinite(Number(args.maxAgeDays))) scriptArgs.push('--max-age-days', String(args.maxAgeDays));
+  const stdout = runNodeSync(repoPath, scriptArgs);
+  try {
+    return JSON.parse(stdout || '{}');
+  } catch {
+    return { repoPath, output: stdout.trim() };
+  }
+}
+
+/**
+ * Handle the MCP clean_artifacts tool call.
+ * @param {object} [args]
+ * @returns {Promise<object>}
+ */
+async function cleanArtifacts(args = {}, context = {}) {
+  const repoPath = resolveRepoPath(args.repoPath);
+  const scriptArgs = [path.join(ROOT, 'tools', 'clean-artifacts.js')];
+  if (args.all === true) scriptArgs.push('--all');
+  if (args.dryRun === true) scriptArgs.push('--dry-run');
+  const stdout = await runToolWithProgress({
+    repoPath,
+    scriptArgs,
+    context,
+    startMessage: 'Cleaning artifacts.',
+    doneMessage: 'Artifact cleanup complete.'
+  });
+  return { repoPath, output: stdout.trim() };
+}
+
+/**
+ * Handle the MCP bootstrap tool call.
+ * @param {object} [args]
+ * @returns {Promise<object>}
+ */
+async function runBootstrap(args = {}, context = {}) {
+  const repoPath = resolveRepoPath(args.repoPath);
+  const scriptArgs = [path.join(ROOT, 'tools', 'bootstrap.js')];
+  if (args.skipInstall === true) scriptArgs.push('--skip-install');
+  if (args.skipDicts === true) scriptArgs.push('--skip-dicts');
+  if (args.skipIndex === true) scriptArgs.push('--skip-index');
+  if (args.skipArtifacts === true) scriptArgs.push('--skip-artifacts');
+  if (args.skipTooling === true) scriptArgs.push('--skip-tooling');
+  if (args.withSqlite === true) scriptArgs.push('--with-sqlite');
+  if (args.incremental === true) scriptArgs.push('--incremental');
+  const stdout = await runToolWithProgress({
+    repoPath,
+    scriptArgs,
+    context,
+    startMessage: 'Bootstrapping repo.',
+    doneMessage: 'Bootstrap complete.'
+  });
+  return { repoPath, output: stdout.trim() };
 }
 
 /**
@@ -801,6 +1117,22 @@ async function handleToolCall(name, args, context = {}) {
       return runSearch(args);
     case 'download_models':
       return await downloadModels(args, context);
+    case 'download_dictionaries':
+      return await downloadDictionaries(args, context);
+    case 'download_extensions':
+      return await downloadExtensions(args, context);
+    case 'verify_extensions':
+      return verifyExtensions(args);
+    case 'build_sqlite_index':
+      return await buildSqliteIndex(args, context);
+    case 'compact_sqlite_index':
+      return await compactSqliteIndex(args, context);
+    case 'cache_gc':
+      return cacheGc(args);
+    case 'clean_artifacts':
+      return await cleanArtifacts(args, context);
+    case 'bootstrap':
+      return await runBootstrap(args, context);
     case 'report_artifacts':
       return reportArtifacts(args);
     case 'triage_ingest':

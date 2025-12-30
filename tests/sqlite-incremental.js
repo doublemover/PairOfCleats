@@ -50,8 +50,8 @@ function runCapture(args, label) {
   return result;
 }
 
-run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings'], 'build index');
-run([path.join(root, 'tools', 'build-sqlite-index.js')], 'build sqlite index');
+run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index');
+run([path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
 
 const userConfig = loadUserConfig(repoRoot);
 const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
@@ -79,8 +79,8 @@ const original = await fsPromises.readFile(targetFile, 'utf8');
 const updated = `${original}\nexport function farewell(name) {\n  return \`bye \${name}\`;\n}\n`;
 await fsPromises.writeFile(targetFile, updated);
 
-run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings'], 'build index (incremental)');
-run([path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental'], 'build sqlite index (incremental)');
+run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index (incremental)');
+run([path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--repo', repoRoot], 'build sqlite index (incremental)');
 
 const dbAfter = new Database(sqlitePaths.codePath, { readonly: true });
 const afterRow = dbAfter
@@ -103,7 +103,7 @@ if (!afterRow.chunk_count) {
 
 const searchResult = spawnSync(
   process.execPath,
-  [path.join(root, 'search.js'), 'farewell', '--json', '--backend', 'sqlite-fts'],
+  [path.join(root, 'search.js'), 'farewell', '--json', '--backend', 'sqlite-fts', '--repo', repoRoot],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (searchResult.status !== 0) {
@@ -122,7 +122,7 @@ dbDowngrade.pragma(`user_version = ${downgradeVersion}`);
 dbDowngrade.close();
 
 const rebuildResult = runCapture(
-  [path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental'],
+  [path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--repo', repoRoot],
   'build sqlite index (schema mismatch)'
 );
 const rebuildOutput = `${rebuildResult.stdout || ''}\n${rebuildResult.stderr || ''}`;

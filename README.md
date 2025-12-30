@@ -25,8 +25,9 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 - `npm run bootstrap` (fast, no prompts)
   - Add `--with-sqlite` to build SQLite indexes.
   - Add `--incremental` to reuse per-file cache bundles.
-- `npm run watch-index` (polls for file changes and rebuilds incrementally)
+- `npm run watch-index` (polls for file changes and rebuilds incrementally)     
 - Cache is outside the repo by default; set `cache.root` in `.pairofcleats.json` to override.
+- CLI commands auto-detect repo roots; use `--repo <path>` to override.
 
 <details>
 <summary><h2>Index features</h2></summary>
@@ -38,7 +39,8 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - Code declarations (functions, classes, methods, types)
   - Config sections (keys/blocks)
   - Doc headings/sections
-- Ignore files: `.pairofcleatsignore` (gitignore-style) and `.gitignore`
+- Ignore files: `.pairofcleatsignore` (gitignore-style) and `.gitignore`        
+- Large file guardrails: `indexing.maxFileBytes` (default 5 MB; set to `0` to disable)
 - Metadata per chunk:
   - docstrings, signatures, params, decorators/annotations
   - modifiers + visibility + inheritance
@@ -75,7 +77,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - `--branches`, `--loops`, `--breaks`, `--continues`
   - `--async`, `--generator`, `--returns`
   - `--author`, `--churn [min]` (git numstat added+deleted), `--lint`, `--calls`, `--import`, `--uses`, `--extends`
-  - `--file`, `--ext` (generic file filters)
+  - `--path`/`--file` (substring or `/regex/`), `--ext` (generic file filters)
   - `--meta`, `--meta-json` (records metadata filters)
 - Output:
   - human-readable (color), `--json` (full), or `--json-compact` (lean tooling payload)
@@ -172,7 +174,16 @@ Tools:
 - `triage_decision`
 - `triage_context_pack`
 - `download_models`
+- `download_dictionaries`
+- `download_extensions`
+- `verify_extensions`
+- `build_sqlite_index`
+- `compact_sqlite_index`
+- `cache_gc`
+- `clean_artifacts`
+- `bootstrap`
 - `report_artifacts`
+- `search` defaults to compact JSON payloads (set `output: "full"` for full JSON).
 - Progress: long-running tools emit `notifications/progress` with `{ id, tool, message, stream, phase }`.
 - Errors: `tools/call` responses set `isError=true` and return a JSON payload with `message` plus optional `code`, `stdout`, `stderr`, `hint`.
 </details>

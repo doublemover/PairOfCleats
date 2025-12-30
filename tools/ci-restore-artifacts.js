@@ -4,15 +4,16 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import minimist from 'minimist';
 import simpleGit from 'simple-git';
-import { getIndexDir, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
+import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['force'],
-  string: ['from'],
+  string: ['from', 'repo'],
   default: { force: false }
 });
 
-const root = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const root = rootArg || resolveRepoRoot(process.cwd());
 const fromDir = argv.from ? path.resolve(argv.from) : path.join(root, 'ci-artifacts');
 const manifestPath = path.join(fromDir, 'manifest.json');
 if (!fs.existsSync(manifestPath)) {

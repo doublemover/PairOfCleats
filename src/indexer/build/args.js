@@ -9,7 +9,7 @@ import minimist from 'minimist';
 export function parseBuildArgs(rawArgs) {
   const argv = minimist(rawArgs, {
     boolean: ['incremental', 'stub-embeddings', 'watch'],
-    string: ['model', 'watch-poll', 'watch-debounce'],
+    string: ['model', 'watch-poll', 'watch-debounce', 'repo'],
     alias: { i: 'incremental' },
     default: {
       mode: 'all',

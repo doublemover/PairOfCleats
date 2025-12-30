@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import minimist from 'minimist';
-import { loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
+import { loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
 import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/sqlite/schema.js';
 import { hasRequiredTables, normalizeFilePath } from '../src/sqlite/utils.js';
@@ -404,7 +404,7 @@ export async function compactDatabase(input) {
 const isDirectRun = import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isDirectRun) {
   const argv = minimist(process.argv.slice(2), {
-    string: ['mode'],
+    string: ['mode', 'repo'],
     boolean: ['dry-run', 'keep-backup'],
     default: {
       mode: 'all',
@@ -413,7 +413,8 @@ if (isDirectRun) {
     }
   });
 
-  const root = process.cwd();
+  const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+  const root = rootArg || resolveRepoRoot(process.cwd());
   const userConfig = loadUserConfig(root);
   const vectorExtension = getVectorExtensionConfig(root, userConfig);
   const sqlitePaths = resolveSqlitePaths(root, userConfig);

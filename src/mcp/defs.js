@@ -51,10 +51,45 @@ export function getToolDefs(defaultModelId) {
           query: { type: 'string' },
           mode: { type: 'string', enum: ['both', 'code', 'prose', 'records', 'all'] },
           backend: { type: 'string', enum: ['memory', 'sqlite', 'sqlite-fts'] },
+          output: { type: 'string', enum: ['compact', 'full'], description: 'Return compact JSON (default) or full payload.' },
           ann: { type: 'boolean', description: 'Enable ANN re-ranking (default uses config).' },
           top: { type: 'number', description: 'Top N results.' },
           context: { type: 'number', description: 'Context lines.' },
-          file: { type: 'string', description: 'Substring match for file paths.' },
+          type: { type: 'string', description: 'Filter by chunk kind/type.' },
+          author: { type: 'string', description: 'Filter by last author (git).' },
+          import: { type: 'string', description: 'Filter by imported module.' },
+          calls: { type: 'string', description: 'Filter by call relationships.' },
+          uses: { type: 'string', description: 'Filter by identifier usage.' },
+          signature: { type: 'string', description: 'Filter by signature text.' },
+          param: { type: 'string', description: 'Filter by parameter name.' },
+          decorator: { type: 'string', description: 'Filter by decorator/attribute.' },
+          inferredType: { type: 'string', description: 'Filter by inferred type.' },
+          returnType: { type: 'string', description: 'Filter by return type.' },
+          throws: { type: 'string', description: 'Filter by throws/raises.' },
+          reads: { type: 'string', description: 'Filter by read dataflow.' },
+          writes: { type: 'string', description: 'Filter by write dataflow.' },
+          mutates: { type: 'string', description: 'Filter by mutation dataflow.' },
+          alias: { type: 'string', description: 'Filter by alias dataflow.' },
+          awaits: { type: 'string', description: 'Filter by await targets.' },
+          risk: { type: 'string', description: 'Filter by risk tag.' },
+          riskTag: { type: 'string', description: 'Filter by risk tag.' },
+          riskSource: { type: 'string', description: 'Filter by risk source.' },
+          riskSink: { type: 'string', description: 'Filter by risk sink.' },
+          riskCategory: { type: 'string', description: 'Filter by risk category.' },
+          riskFlow: { type: 'string', description: 'Filter by risk flow.' },
+          branchesMin: { type: 'number', description: 'Min branch count.' },
+          loopsMin: { type: 'number', description: 'Min loop count.' },
+          breaksMin: { type: 'number', description: 'Min break count.' },
+          continuesMin: { type: 'number', description: 'Min continue count.' },
+          visibility: { type: 'string', description: 'Filter by visibility.' },
+          extends: { type: 'string', description: 'Filter by inheritance.' },
+          async: { type: 'boolean', description: 'Filter async constructs.' },
+          generator: { type: 'boolean', description: 'Filter generator constructs.' },
+          returns: { type: 'boolean', description: 'Filter chunks with returns.' },
+          churnMin: { type: 'number', description: 'Minimum git churn (added+deleted lines).' },
+          lint: { type: 'boolean', description: 'Filter chunks with lint results.' },
+          path: { type: 'string', description: 'Substring/regex match for file paths.' },
+          file: { type: 'string', description: 'Substring/regex match for file paths.' },
           ext: { type: 'string', description: 'Extension filter (ex: .js).' },
           meta: { type: 'object', description: 'Metadata filters for records (key/value).' },
           metaJson: { type: 'string', description: 'JSON metadata filters for records.' }
@@ -122,6 +157,133 @@ export function getToolDefs(defaultModelId) {
           repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
           model: { type: 'string', description: `Model id (default ${defaultModelId}).` },
           cacheDir: { type: 'string', description: 'Override cache directory.' }
+        }
+      }
+    },
+    {
+      name: 'download_dictionaries',
+      description: 'Download dictionary wordlists into the shared cache.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          lang: { type: 'string', description: 'Comma-separated language codes (ex: en).' },
+          dir: { type: 'string', description: 'Override dictionary directory.' },
+          url: { type: 'string', description: 'Extra source(s) name=url (repeatable).' },
+          update: { type: 'boolean', description: 'Check for updates (If-Modified-Since).' },
+          force: { type: 'boolean', description: 'Force re-downloads.' }
+        }
+      }
+    },
+    {
+      name: 'download_extensions',
+      description: 'Download SQLite ANN extensions into the cache.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          provider: { type: 'string', description: 'Extension provider (ex: sqlite-vec).' },
+          dir: { type: 'string', description: 'Override extension directory.' },
+          url: { type: 'string', description: 'Override download URL(s) name=url (repeatable).' },
+          out: { type: 'string', description: 'Explicit output path.' },
+          platform: { type: 'string', description: 'Override platform.' },
+          arch: { type: 'string', description: 'Override architecture.' },
+          update: { type: 'boolean', description: 'Check for updates (If-Modified-Since).' },
+          force: { type: 'boolean', description: 'Force re-downloads.' }
+        }
+      }
+    },
+    {
+      name: 'verify_extensions',
+      description: 'Verify SQLite ANN extension availability.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          provider: { type: 'string' },
+          dir: { type: 'string' },
+          path: { type: 'string' },
+          platform: { type: 'string' },
+          arch: { type: 'string' },
+          module: { type: 'string' },
+          table: { type: 'string' },
+          column: { type: 'string' },
+          encoding: { type: 'string' },
+          options: { type: 'string' },
+          annMode: { type: 'string' },
+          load: { type: 'boolean', description: 'Attempt to load extension (default true).' }
+        }
+      }
+    },
+    {
+      name: 'build_sqlite_index',
+      description: 'Build SQLite indexes from JSON artifacts.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          mode: { type: 'string', enum: ['all', 'code', 'prose'] },
+          incremental: { type: 'boolean' },
+          compact: { type: 'boolean' },
+          codeDir: { type: 'string' },
+          proseDir: { type: 'string' },
+          out: { type: 'string' }
+        }
+      }
+    },
+    {
+      name: 'compact_sqlite_index',
+      description: 'Compact SQLite indexes to prune unused rows.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          mode: { type: 'string', enum: ['all', 'code', 'prose'] },
+          dryRun: { type: 'boolean' },
+          keepBackup: { type: 'boolean' }
+        }
+      }
+    },
+    {
+      name: 'cache_gc',
+      description: 'Garbage-collect repo caches.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          dryRun: { type: 'boolean' },
+          maxBytes: { type: 'number' },
+          maxGb: { type: 'number' },
+          maxAgeDays: { type: 'number' }
+        }
+      }
+    },
+    {
+      name: 'clean_artifacts',
+      description: 'Remove repo cache artifacts (optional all repos).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          all: { type: 'boolean' },
+          dryRun: { type: 'boolean' }
+        }
+      }
+    },
+    {
+      name: 'bootstrap',
+      description: 'Bootstrap models/dictionaries and build indexes.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          skipInstall: { type: 'boolean' },
+          skipDicts: { type: 'boolean' },
+          skipIndex: { type: 'boolean' },
+          skipArtifacts: { type: 'boolean' },
+          skipTooling: { type: 'boolean' },
+          withSqlite: { type: 'boolean' },
+          incremental: { type: 'boolean' }
         }
       }
     },

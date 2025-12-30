@@ -101,13 +101,15 @@ runJson('decision', [
 
 run('build-index', [
   path.join(root, 'build_index.js'),
-  '--stub-embeddings'
+  '--stub-embeddings',
+  '--repo', repoRoot
 ], { cwd: repoRoot, env });
 
 run('build-records-index', [
   path.join(root, 'build_index.js'),
   '--mode', 'records',
-  '--stub-embeddings'
+  '--stub-embeddings',
+  '--repo', repoRoot
 ], { cwd: repoRoot, env });
 
 const recordSearch = runJson('search-records', [
@@ -117,7 +119,8 @@ const recordSearch = runJson('search-records', [
   '--meta', 'service=api',
   '--meta', 'env=prod',
   '--json',
-  '--no-ann'
+  '--no-ann',
+  '--repo', repoRoot
 ], { cwd: repoRoot, env });
 
 if (!Array.isArray(recordSearch.records) || recordSearch.records.length === 0) {

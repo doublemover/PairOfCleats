@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import minimist from 'minimist';
-import { loadUserConfig } from './dict-utils.js';
+import { loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['json', 'load'],
-  string: ['provider', 'dir', 'path', 'platform', 'arch', 'module', 'table', 'column', 'encoding', 'options', 'ann-mode'],
+  string: ['provider', 'dir', 'path', 'platform', 'arch', 'module', 'table', 'column', 'encoding', 'options', 'ann-mode', 'repo'],
   default: { json: false, load: true }
 });
 
-const root = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
 const overrides = {
   provider: argv.provider,

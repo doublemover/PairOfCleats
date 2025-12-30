@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import minimist from 'minimist';
-import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
+import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
 import { compactDatabase } from './compact-sqlite-index.js';
 import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/sqlite/schema.js';
@@ -21,12 +21,13 @@ try {
 }
 
 const argv = minimist(process.argv.slice(2), {
-  string: ['code-dir', 'prose-dir', 'out', 'mode'],
+  string: ['code-dir', 'prose-dir', 'out', 'mode', 'repo'],
   boolean: ['incremental', 'compact'],
   default: { mode: 'all', incremental: false, compact: false }
 });
 
-const root = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
 const modelConfig = getModelConfig(root, userConfig);
 const vectorExtension = getVectorExtensionConfig(root, userConfig);

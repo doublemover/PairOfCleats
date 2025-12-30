@@ -103,6 +103,13 @@ export async function writeIndexArtifacts(input) {
 
   const cacheHits = state.scannedFilesTimes.filter((entry) => entry.cached).length;
   const cacheMisses = state.scannedFilesTimes.length - cacheHits;
+  const skippedByReason = state.skippedFiles.reduce((acc, entry) => {
+    const reason = entry && typeof entry === 'object' && entry.reason
+      ? String(entry.reason)
+      : 'unknown';
+    acc[reason] = (acc[reason] || 0) + 1;
+    return acc;
+  }, {});
   const metrics = {
     generatedAt: new Date().toISOString(),
     repoRoot: path.resolve(root),
@@ -117,7 +124,8 @@ export async function writeIndexArtifacts(input) {
     files: {
       scanned: state.scannedFiles.length,
       skipped: state.skippedFiles.length,
-      candidates: fileCounts.candidates
+      candidates: fileCounts.candidates,
+      skippedByReason
     },
     chunks: {
       total: state.chunks.length,

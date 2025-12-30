@@ -9,16 +9,17 @@ import { URL } from 'node:url';
 import { createGunzip } from 'node:zlib';
 import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
-import { loadUserConfig } from './dict-utils.js';
+import { loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['update', 'force'],
-  string: ['provider', 'dir', 'url', 'out', 'platform', 'arch'],
+  string: ['provider', 'dir', 'url', 'out', 'platform', 'arch', 'repo'],
   default: { update: false, force: false }
 });
 
-const repoRoot = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const repoRoot = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(repoRoot);
 const overrides = {
   provider: argv.provider,

@@ -49,10 +49,10 @@ function run(args, label, cwd, envVars) {
   return result.stdout || '';
 }
 
-run([path.join(root, 'build_index.js'), '--stub-embeddings'], 'build index', repoRoot, env);
+run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index', repoRoot, env);
 
 const query = 'greet';
-const searchArgs = [path.join(root, 'search.js'), query, '--json', '--backend', 'memory', '--no-ann'];
+const searchArgs = [path.join(root, 'search.js'), query, '--json', '--backend', 'memory', '--no-ann', '--repo', repoRoot];
 const first = JSON.parse(run(searchArgs, 'search (first)', repoRoot, env));
 const second = JSON.parse(run(searchArgs, 'search (second)', repoRoot, env));
 

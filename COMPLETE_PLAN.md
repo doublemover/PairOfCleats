@@ -437,15 +437,15 @@ Work items:
 - [x] Remove or implement build `--chunk` option; update docs/tests.
 - [x] Enable GitHub Actions workflows under `.github/workflows` with CI.
 
-## Phase 44: Prioritized Issues - P1 High ROI (status: todo)
+## Phase 44: Prioritized Issues - P1 High ROI (status: done)
 Goal: Bring MCP/CLI parity and improve indexing robustness.
 Work items:
-- [ ] Expand MCP `search` filters to CLI parity and default to `--json-compact`.
-- [ ] Add MCP ops tools for download/build/maintain workflows.
-- [ ] Add `--path` alias filter and ensure CLI/MCP path/ext filters are consistent.
-- [ ] Auto-detect repo root for CLI/tools; add `--repo` overrides.
-- [ ] Add file-size guardrails with skip/partial index reporting.
-- [ ] Graceful shutdown for watch mode with lock cleanup.
+- [x] Expand MCP `search` filters to CLI parity and default to `--json-compact`.
+- [x] Add MCP ops tools for download/build/maintain workflows.
+- [x] Add `--path` alias filter and ensure CLI/MCP path/ext filters are consistent.
+- [x] Auto-detect repo root for CLI/tools; add `--repo` overrides.
+- [x] Add file-size guardrails with skip/partial index reporting.
+- [x] Graceful shutdown for watch mode with lock cleanup.
 
 ## Phase 45: Prioritized Issues - P2 Enhancements (status: todo)
 Goal: Improve search UX and reduce index footprint.

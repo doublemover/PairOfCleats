@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
 export const DEFAULT_MODEL_ID = 'Xenova/all-MiniLM-L12-v2';
 export const DEFAULT_TRIAGE_PROMOTE_FIELDS = [
@@ -76,6 +77,45 @@ export function getDictConfig(repoRoot, userConfig = null) {
 export function getRepoId(repoRoot) {
   const resolved = path.resolve(repoRoot);
   return crypto.createHash('sha1').update(resolved).digest('hex');
+}
+
+/**
+ * Resolve the repo root from a starting directory.
+ * @param {string} startPath
+ * @returns {string}
+ */
+export function resolveRepoRoot(startPath = process.cwd()) {
+  const base = path.resolve(startPath);
+  const gitRoot = resolveGitRoot(base);
+  if (gitRoot) return gitRoot;
+  const configRoot = findConfigRoot(base);
+  return configRoot || base;
+}
+
+function resolveGitRoot(startPath) {
+  try {
+    const result = spawnSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: startPath,
+      encoding: 'utf8'
+    });
+    if (result.status !== 0) return null;
+    const root = String(result.stdout || '').trim();
+    return root && fs.existsSync(root) ? root : null;
+  } catch {
+    return null;
+  }
+}
+
+function findConfigRoot(startPath) {
+  let current = path.resolve(startPath);
+  while (true) {
+    const configPath = path.join(current, '.pairofcleats.json');
+    if (fs.existsSync(configPath)) return current;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return null;
 }
 
 /**

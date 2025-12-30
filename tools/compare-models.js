@@ -14,18 +14,20 @@ import {
   getModelConfig,
   getRepoId,
   loadUserConfig,
+  resolveRepoRoot,
   resolveSqlitePaths
 } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
 const argv = minimist(rawArgs, {
   boolean: ['json', 'build', 'build-index', 'build-sqlite', 'incremental', 'stub-embeddings', 'ann', 'no-ann'],
-  string: ['models', 'baseline', 'queries', 'backend', 'out', 'mode', 'cache-root'],
+  string: ['models', 'baseline', 'queries', 'backend', 'out', 'mode', 'cache-root', 'repo'],
   alias: { n: 'top', q: 'queries' },
   default: { top: 5, limit: 0 }
 });
 
-const root = process.cwd();
+const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const root = rootArg || resolveRepoRoot(process.cwd());
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const userConfig = loadUserConfig(root);
 const configCacheRoot = typeof userConfig.cache?.root === 'string' && userConfig.cache.root.trim()
