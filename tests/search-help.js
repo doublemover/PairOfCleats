@@ -10,7 +10,7 @@ if (result.status === 0) {
 }
 
 const output = `${result.stdout || ''}${result.stderr || ''}`;
-const requiredFlags = ['--calls', '--uses', '--author', '--import'];
+const requiredFlags = ['--calls', '--uses', '--author', '--import', '--explain'];
 for (const flag of requiredFlags) {
   if (!output.includes(flag)) {
     console.error(`Help output missing flag: ${flag}`);

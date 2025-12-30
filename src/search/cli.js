@@ -23,8 +23,22 @@ import { createSqliteHelpers } from './sqlite-helpers.js';
 import { createSearchPipeline } from './pipeline.js';
 
 const argv = minimist(process.argv.slice(2), {
-  boolean: ['json', 'json-compact', 'human', 'stats', 'ann', 'headline', 'lint', 'matched', 'async', 'generator', 'returns'],
-  alias: { n: 'top', c: 'context', t: 'type' },
+  boolean: [
+    'json',
+    'json-compact',
+    'human',
+    'stats',
+    'ann',
+    'headline',
+    'lint',
+    'matched',
+    'async',
+    'generator',
+    'returns',
+    'explain',
+    'why'
+  ],
+  alias: { n: 'top', c: 'context', t: 'type', why: 'explain' },
   default: { n: 5, context: 3 },
   string: [
     'calls',
@@ -107,7 +121,7 @@ const metricsDir = getMetricsDir(ROOT, userConfig);
 const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
 const rawArgs = process.argv.slice(2);
 const query = argv._.join(' ').trim();
-if (!query) {
+  if (!query) {
   console.error([
     'usage: search "query" [options]',
     '',
@@ -121,7 +135,7 @@ if (!query) {
     '  --model <id>',
     '  --fts-profile <name> | --fts-weights <json|csv>',
     '  --bm25-k1 <num> | --bm25-b <num>',
-    '  --headline | --matched',
+    '  --headline | --matched | --explain | --why',
     '  Filters:',
     '    --type <kind> --author <name> --import <module> --calls <name> --uses <name>',
     '    --signature <text> --param <name> --decorator <name> --inferred-type <type> --return-type <type>',
@@ -204,6 +218,7 @@ const queryCacheTtlMs = Number.isFinite(Number(queryCacheConfig.ttlMs))
 const queryCachePath = path.join(metricsDir, 'queryCache.json');
 const jsonCompact = argv['json-compact'] === true;
 const jsonOutput = argv.json || jsonCompact;
+const explain = argv.explain === true || argv.why === true;
 
 const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
 
@@ -667,7 +682,7 @@ const searchPipeline = createSearchPipeline({
  * @param {object} hit
  * @returns {object}
  */
-function compactHit(hit) {
+function compactHit(hit, includeExplain = false) {
   if (!hit || typeof hit !== 'object') return hit;
   const compact = {};
   const fields = [
@@ -691,6 +706,9 @@ function compactHit(hit) {
   ];
   for (const field of fields) {
     if (hit[field] !== undefined) compact[field] = hit[field];
+  }
+  if (includeExplain && hit.scoreBreakdown !== undefined) {
+    compact.scoreBreakdown = hit.scoreBreakdown;
   }
   return compact;
 }
@@ -776,9 +794,9 @@ function compactHit(hit) {
     const memory = process.memoryUsage();
     console.log(JSON.stringify({
       backend: backendLabel,
-      prose: jsonCompact ? proseHits.map(compactHit) : proseHits,
-      code: jsonCompact ? codeHits.map(compactHit) : codeHits,
-      records: jsonCompact ? recordHits.map(compactHit) : recordHits,
+      prose: jsonCompact ? proseHits.map((hit) => compactHit(hit, explain)) : proseHits,
+      code: jsonCompact ? codeHits.map((hit) => compactHit(hit, explain)) : codeHits,
+      records: jsonCompact ? recordHits.map((hit) => compactHit(hit, explain)) : recordHits,
       stats: {
         elapsedMs: Date.now() - t0,
         annEnabled,
@@ -840,6 +858,7 @@ function compactHit(hit) {
           mode: 'prose',
           score: h.score,
           scoreType: h.scoreType,
+          explain,
           color,
           queryTokens,
           rx,
@@ -854,6 +873,7 @@ function compactHit(hit) {
           mode: 'prose',
           score: h.score,
           scoreType: h.scoreType,
+          explain,
           color,
           queryTokens,
           rx,
@@ -875,6 +895,7 @@ function compactHit(hit) {
           mode: 'code',
           score: h.score,
           scoreType: h.scoreType,
+          explain,
           color,
           queryTokens,
           rx,
@@ -889,6 +910,7 @@ function compactHit(hit) {
           mode: 'code',
           score: h.score,
           scoreType: h.scoreType,
+          explain,
           color,
           queryTokens,
           rx,
@@ -909,6 +931,7 @@ function compactHit(hit) {
           mode: 'records',
           score: h.score,
           scoreType: h.scoreType,
+          explain,
           color,
           queryTokens,
           rx,
@@ -923,6 +946,7 @@ function compactHit(hit) {
           mode: 'records',
           score: h.score,
           scoreType: h.scoreType,
+          explain,
           color,
           queryTokens,
           rx,

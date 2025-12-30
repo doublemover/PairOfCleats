@@ -178,6 +178,11 @@ const actions = [
     covers: ['search-filters-test']
   },
   {
+    label: 'search-explain-test',
+    run: () => runNode('search-explain-test', path.join(root, 'tests', 'search-explain.js')),
+    covers: ['search-explain-test']
+  },
+  {
     label: 'ext-filter-test',
     run: () => runNode('ext-filter-test', path.join(root, 'tests', 'ext-filter.js')),
     covers: ['ext-filter-test']

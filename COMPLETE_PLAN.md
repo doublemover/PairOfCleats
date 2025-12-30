@@ -481,12 +481,12 @@ Work items:
 - [x] Implement `pairofcleats server` (HTTP JSON only) with search/status.
 - [x] Add tests for API responses and CLI launch/stop behavior.
 
-## Phase 49: CLI Explainability (status: todo)
+## Phase 49: CLI Explainability (status: done)
 Goal: Improve human-readable scoring explanations.
 Work items:
-- [ ] Add `--explain` / `--why` to CLI output to surface score breakdowns.
-- [ ] Document explainability output in README/docs.
-- [ ] Add tests covering explainability output.
+- [x] Add `--explain` / `--why` to CLI output to surface score breakdowns.
+- [x] Document explainability output in README/docs.
+- [x] Add tests covering explainability output.
 
 ## Phase 50: Editor Integration (status: todo)
 Goal: CLI-first integration followed by a minimal VS Code extension.

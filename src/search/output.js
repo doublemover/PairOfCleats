@@ -368,6 +368,61 @@ const formatScore = (score, scoreType, color) => {
   return color.green(label);
 };
 
+const formatExplainLine = (label, parts, color) => {
+  const filtered = parts.filter(Boolean);
+  if (!filtered.length) return null;
+  return color.gray(`   ${label}: `) + filtered.join(', ');
+};
+
+const formatScoreBreakdown = (scoreBreakdown, color) => {
+  if (!scoreBreakdown || typeof scoreBreakdown !== 'object') return [];
+  const lines = [];
+  const selected = scoreBreakdown.selected || null;
+  if (selected) {
+    const parts = [];
+    if (selected.type) parts.push(`type=${selected.type}`);
+    if (Number.isFinite(selected.score)) parts.push(`score=${selected.score.toFixed(4)}`);
+    const line = formatExplainLine('Score', parts, color);
+    if (line) lines.push(line);
+  }
+  const sparse = scoreBreakdown.sparse || null;
+  if (sparse) {
+    const parts = [];
+    if (sparse.type) parts.push(`type=${sparse.type}`);
+    if (Number.isFinite(sparse.score)) parts.push(`score=${sparse.score.toFixed(4)}`);
+    if (Number.isFinite(sparse.k1)) parts.push(`k1=${sparse.k1.toFixed(2)}`);
+    if (Number.isFinite(sparse.b)) parts.push(`b=${sparse.b.toFixed(2)}`);
+    if (sparse.normalized != null) parts.push(`normalized=${sparse.normalized}`);
+    if (sparse.profile) parts.push(`profile=${sparse.profile}`);
+    if (Array.isArray(sparse.weights) && sparse.weights.length) {
+      const weights = sparse.weights
+        .map((value) => (Number.isFinite(value) ? value.toFixed(2) : String(value)))
+        .join('/');
+      parts.push(`weights=${weights}`);
+    }
+    const line = formatExplainLine('Sparse', parts, color);
+    if (line) lines.push(line);
+  }
+  const ann = scoreBreakdown.ann || null;
+  if (ann) {
+    const parts = [];
+    if (Number.isFinite(ann.score)) parts.push(`score=${ann.score.toFixed(4)}`);
+    if (ann.source) parts.push(`source=${ann.source}`);
+    const line = formatExplainLine('ANN', parts, color);
+    if (line) lines.push(line);
+  }
+  const phrase = scoreBreakdown.phrase || null;
+  if (phrase) {
+    const parts = [];
+    if (Number.isFinite(phrase.matches)) parts.push(`matches=${phrase.matches}`);
+    if (Number.isFinite(phrase.boost)) parts.push(`boost=${phrase.boost.toFixed(4)}`);
+    if (Number.isFinite(phrase.factor)) parts.push(`factor=${phrase.factor.toFixed(2)}`);
+    const line = formatExplainLine('Phrase', parts, color);
+    if (line) lines.push(line);
+  }
+  return lines;
+};
+
 /**
  * Render a full, human-readable result entry.
  * @param {object} options
@@ -379,6 +434,7 @@ export function formatFullChunk({
   mode,
   score,
   scoreType,
+  explain = false,
   color,
   queryTokens = [],
   rx,
@@ -405,6 +461,13 @@ export function formatFullChunk({
   ].filter(Boolean).join('  ');
 
   out += line1 + '\n';
+
+  if (explain && chunk.scoreBreakdown) {
+    const explainLines = formatScoreBreakdown(chunk.scoreBreakdown, c);
+    if (explainLines.length) {
+      out += explainLines.join('\n') + '\n';
+    }
+  }
 
   const headlinePart = chunk.headline ? c.bold('Headline: ') + c.underline(chunk.headline) : '';
   const lastModPart = chunk.last_modified ? c.gray('Last Modified: ') + c.bold(chunk.last_modified) : '';
@@ -669,6 +732,7 @@ export function formatShortChunk({
   mode,
   score,
   scoreType,
+  explain = false,
   color,
   queryTokens = [],
   rx,
@@ -713,6 +777,13 @@ export function formatShortChunk({
     );
     if (matchedTokens.length) {
       out += color.gray(` Matched: ${matchedTokens.join(', ')}`);
+    }
+  }
+
+  if (explain && chunk.scoreBreakdown) {
+    const explainLines = formatScoreBreakdown(chunk.scoreBreakdown, color);
+    if (explainLines.length) {
+      out += '\n' + explainLines.join('\n');
     }
   }
 

@@ -86,6 +86,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 - Output:
   - human-readable (color), `--json` (full), or `--json-compact` (lean tooling payload)
   - full JSON includes `score` (selected), `scoreType`, `sparseScore`, `annScore`, and `scoreBreakdown` (sparse/ann/phrase/selected)
+  - `--explain` / `--why` prints a score breakdown in human output (selected/sparse/ANN/phrase)
 - Optional query cache (`search.queryCache.*` in `.pairofcleats.json`)
 </details>
 
@@ -216,6 +217,7 @@ Core:
 - `npm run fixture-smoke`
 - `npm run fixture-parity`
 - `npm run fixture-eval`
+- `npm run search-explain-test`
 
 Fidelity:
 - `npm run language-fidelity-test`
