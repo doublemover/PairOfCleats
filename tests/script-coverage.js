@@ -173,6 +173,26 @@ const actions = [
     covers: ['search-filters-test']
   },
   {
+    label: 'ext-filter-test',
+    run: () => runNode('ext-filter-test', path.join(root, 'tests', 'ext-filter.js')),
+    covers: ['ext-filter-test']
+  },
+  {
+    label: 'filter-strictness-test',
+    run: () => runNode('filter-strictness-test', path.join(root, 'tests', 'filter-strictness.js')),
+    covers: ['filter-strictness-test']
+  },
+  {
+    label: 'search-missing-index-test',
+    run: () => runNode('search-missing-index-test', path.join(root, 'tests', 'search-missing-index.js')),
+    covers: ['search-missing-index-test']
+  },
+  {
+    label: 'search-help-test',
+    run: () => runNode('search-help-test', path.join(root, 'tests', 'search-help.js')),
+    covers: ['search-help-test']
+  },
+  {
     label: 'unicode-offset-test',
     run: () => runNode('unicode-offset-test', path.join(root, 'tests', 'unicode-offset.js')),
     covers: []

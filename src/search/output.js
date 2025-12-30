@@ -199,18 +199,26 @@ export function filterChunks(meta, filters = {}) {
       const churnValue = Number(c.churn);
       if (!Number.isFinite(churnValue) || churnValue < churn) return false;
     }
-    if (calls && c.codeRelations && c.codeRelations.calls) {
-      const found = c.codeRelations.calls.find(([fn, callName]) => fn === calls || callName === calls);
+    if (calls) {
+      const callsList = c.codeRelations?.calls;
+      if (!Array.isArray(callsList)) return false;
+      const found = callsList.find(([fn, callName]) => fn === calls || callName === calls);
       if (!found) return false;
     }
-    if (uses && c.codeRelations && c.codeRelations.usages) {
-      if (!c.codeRelations.usages.includes(uses)) return false;
+    if (uses) {
+      const usages = c.codeRelations?.usages;
+      if (!Array.isArray(usages)) return false;
+      if (!usages.includes(uses)) return false;
     }
-    if (signature && c.docmeta?.signature) {
-      if (!c.docmeta.signature.includes(signature)) return false;
+    if (signature) {
+      const sig = c.docmeta?.signature;
+      if (!sig) return false;
+      if (!sig.includes(signature)) return false;
     }
-    if (param && c.docmeta?.params) {
-      if (!c.docmeta.params.includes(param)) return false;
+    if (param) {
+      const params = c.docmeta?.params;
+      if (!Array.isArray(params)) return false;
+      if (!params.includes(param)) return false;
     }
     if (decorator && !matchList(c.docmeta?.decorators, decorator)) return false;
     if (returnType) {

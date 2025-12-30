@@ -72,7 +72,11 @@
     "script-coverage-test": "node tests/script-coverage.js",
     "setup-test": "node tests/setup.js",
     "cache-gc-test": "node tests/cache-gc.js",
-    "search-filters-test": "node tests/search-filters.js"
+    "search-filters-test": "node tests/search-filters.js",
+    "ext-filter-test": "node tests/ext-filter.js",
+    "filter-strictness-test": "node tests/filter-strictness.js",
+    "search-missing-index-test": "node tests/search-missing-index.js",
+    "search-help-test": "node tests/search-help.js"
   },
   "dependencies": {
     "@xenova/transformers": "2.17.2",

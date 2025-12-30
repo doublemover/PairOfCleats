@@ -108,7 +108,31 @@ const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
 const rawArgs = process.argv.slice(2);
 const query = argv._.join(' ').trim();
 if (!query) {
-  console.error('usage: search "query" [--repo path|--json|--json-compact|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode code|prose|both|records|all|--meta key=value|--meta-json {...}|--path path|--file path|--ext .ext|--churn [min]|--modified-after date|--modified-since days|--chunk-author name|--signature|--param|--decorator|--inferred-type|--return-type|--throws|--reads|--writes|--mutates|--alias|--awaits|--branches|--loops|--breaks|--continues|--risk|--risk-tag|--risk-source|--risk-sink|--risk-category|--risk-flow|--extends|--visibility|--async|--generator|--returns');
+  console.error([
+    'usage: search "query" [options]',
+    '',
+    'Options:',
+    '  --repo <path>',
+    '  --mode code|prose|both|records|all',
+    '  --backend memory|sqlite|sqlite-fts',
+    '  --top N, --context N',
+    '  --json | --json-compact | --human | --stats',
+    '  --ann | --no-ann',
+    '  --model <id>',
+    '  --fts-profile <name> | --fts-weights <json|csv>',
+    '  --bm25-k1 <num> | --bm25-b <num>',
+    '  --headline | --matched',
+    '  Filters:',
+    '    --type <kind> --author <name> --import <module> --calls <name> --uses <name>',
+    '    --signature <text> --param <name> --decorator <name> --inferred-type <type> --return-type <type>',
+    '    --throws <name> --reads <name> --writes <name> --mutates <name> --alias <name> --awaits <name>',
+    '    --branches <min> --loops <min> --breaks <min> --continues <min>',
+    '    --risk <tag> --risk-tag <tag> --risk-source <name> --risk-sink <name> --risk-category <name> --risk-flow <name>',
+    '    --visibility <name> --extends <name> --async --generator --returns --lint',
+    '    --churn [min] --modified-after <date> --modified-since <days> --chunk-author <name>',
+    '    --path <pattern> --file <pattern> --ext <.ext>',
+    '    --meta <k=v> --meta-json <json>'
+  ].join('\n'));
   process.exit(1);
 }
 const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
@@ -400,6 +424,22 @@ function resolveIndexDir(mode) {
 }
 
 /**
+ * Ensure a file-backed index exists for a mode.
+ * @param {'code'|'prose'|'records'} mode
+ * @returns {string}
+ */
+function requireIndexDir(mode) {
+  const dir = resolveIndexDir(mode);
+  const metaPath = path.join(dir, 'chunk_meta.json');
+  if (!fsSync.existsSync(metaPath)) {
+    const suffix = mode === 'records' ? ' --mode records' : '';
+    console.error(`[search] ${mode} index not found at ${dir}. Run "pairofcleats build-index${suffix}" or "npm run build-index${suffix}".`);
+    process.exit(1);
+  }
+  return dir;
+}
+
+/**
  * Build a size/mtime signature for a file.
  * @param {string} filePath
  * @returns {string|null}
@@ -515,14 +555,17 @@ function buildQueryCacheKey() {
 }
 
 
+const proseDir = runProse && !useSqlite ? requireIndexDir('prose') : null;
+const codeDir = runCode && !useSqlite ? requireIndexDir('code') : null;
+const recordsDir = runRecords ? requireIndexDir('records') : null;
 const idxProse = runProse
-  ? (useSqlite ? loadIndexFromSqlite('prose') : loadIndex(resolveIndexDir('prose')))
+  ? (useSqlite ? loadIndexFromSqlite('prose') : loadIndex(proseDir))
   : { chunkMeta: [], denseVec: null, minhash: null };
 const idxCode = runCode
-  ? (useSqlite ? loadIndexFromSqlite('code') : loadIndex(resolveIndexDir('code')))
+  ? (useSqlite ? loadIndexFromSqlite('code') : loadIndex(codeDir))
   : { chunkMeta: [], denseVec: null, minhash: null };
 const idxRecords = runRecords
-  ? loadIndex(resolveIndexDir('records'))
+  ? loadIndex(recordsDir)
   : { chunkMeta: [], denseVec: null, minhash: null };
 modelIdForCode = runCode ? (idxCode?.denseVec?.model || modelIdDefault) : null;
 modelIdForProse = runProse ? (idxProse?.denseVec?.model || modelIdDefault) : null;

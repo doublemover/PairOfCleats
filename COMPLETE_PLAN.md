@@ -464,3 +464,39 @@ Work items:
 - [x] Add config schema + validation command.
 - [x] Pin dependency versions (remove `*`) and document policy.
 - [x] Refactor `search.js` into modules for testability.
+
+## Phase 47: Audit Fixes - P0/P1 (status: done)
+Goal: Close audit-listed correctness and UX issues.
+Work items:
+- [x] Fix invalid regex in `src/search/filters.js` and add ext filter test.
+- [x] Make search filters strict when metadata is missing (`signature`, `param`, `calls`, `uses`).
+- [x] Update CLI usage/help text to include all supported flags.
+- [x] Add friendly "index missing" error with next-step hint.
+- [x] Add targeted tests for filter strictness and missing index UX.
+
+## Phase 48: Minimal API Server (status: todo)
+Goal: Provide a lightweight local HTTP JSON API for search/index status.
+Work items:
+- [ ] Draft design doc for minimal API endpoints and payloads.
+- [ ] Implement `pairofcleats server` (HTTP JSON only) with search/status.
+- [ ] Add tests for API responses and CLI launch/stop behavior.
+
+## Phase 49: CLI Explainability (status: todo)
+Goal: Improve human-readable scoring explanations.
+Work items:
+- [ ] Add `--explain` / `--why` to CLI output to surface score breakdowns.
+- [ ] Document explainability output in README/docs.
+- [ ] Add tests covering explainability output.
+
+## Phase 50: Editor Integration (status: todo)
+Goal: CLI-first integration followed by a minimal VS Code extension.
+Work items:
+- [ ] Define CLI contract for editor use (JSON compact + file/line hints).
+- [ ] Prototype VS Code extension that shells out to `pairofcleats search`.
+- [ ] Add integration docs and basic extension tests.
+
+## Phase 51: Streaming Enhancements (status: todo)
+Goal: Add WebSocket/streaming responses on top of the minimal API.
+Work items:
+- [ ] Add streaming endpoints for long-running searches/index status.
+- [ ] Add client-side examples and tests.

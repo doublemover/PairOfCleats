@@ -11,12 +11,12 @@ export function normalizeExtFilter(extArg) {
   const normalized = [];
   for (const entry of entries) {
     String(entry || '')
-      .split(/[,\\s]+/)
+      .split(/[,\s]+/)
       .map((raw) => raw.trim())
       .filter(Boolean)
       .forEach((raw) => {
         let value = raw.toLowerCase();
-        value = value.replace(/^\\*+/, '');
+        value = value.replace(/^\*+/, '');
         if (!value) return;
         if (!value.startsWith('.')) value = `.${value}`;
         normalized.push(value);
