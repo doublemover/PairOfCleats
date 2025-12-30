@@ -151,7 +151,10 @@ export function filterChunks(meta, filters = {}) {
       if (!c.codeRelations.imports.includes(importName)) return false;
     }
     if (lint && (!c.lint || !c.lint.length)) return false;
-    if (churn && (!c.churn || c.churn < churn)) return false;
+    if (churn !== null && churn !== undefined) {
+      const churnValue = Number(c.churn);
+      if (!Number.isFinite(churnValue) || churnValue < churn) return false;
+    }
     if (calls && c.codeRelations && c.codeRelations.calls) {
       const found = c.codeRelations.calls.find(([fn, callName]) => fn === calls || callName === calls);
       if (!found) return false;

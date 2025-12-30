@@ -47,7 +47,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - dataflow (reads/writes/mutations/aliases) + control-flow summaries
   - risk signals (sources/sinks/flows + tags, with cross-file call correlation)
   - type inference (intra-file, optional cross-file)
-  - git metadata, JS complexity/lint, headline + neighbor context
+  - git metadata (last author/date, churn = added+deleted lines), JS complexity/lint, headline + neighbor context
 - Triage records (findings + decisions) indexed outside the repo
 - Index artifacts:
   - token/phrase/chargram postings
@@ -74,7 +74,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - `--risk`, `--risk-tag`, `--risk-source`, `--risk-sink`, `--risk-category`, `--risk-flow`
   - `--branches`, `--loops`, `--breaks`, `--continues`
   - `--async`, `--generator`, `--returns`
-  - `--author`, `--churn`, `--lint`, `--calls`, `--import`, `--uses`, `--extends`
+  - `--author`, `--churn [min]` (git numstat added+deleted), `--lint`, `--calls`, `--import`, `--uses`, `--extends`
   - `--file`, `--ext` (generic file filters)
   - `--meta`, `--meta-json` (records metadata filters)
 - Output:

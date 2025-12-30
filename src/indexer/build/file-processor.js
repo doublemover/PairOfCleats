@@ -158,7 +158,6 @@ export function createFileProcessor(options) {
       }
     }
     if (!fileHash) fileHash = sha1(text);
-    text = text.normalize('NFKD');
 
     const { lang, context: languageContext } = buildLanguageContext({
       ext,

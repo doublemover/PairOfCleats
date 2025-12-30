@@ -21,7 +21,7 @@ import { rankBM25, rankDenseVectors, rankMinhash } from './src/search/rankers.js
 import { extractNgrams, splitId, splitWordsWithDict, tri } from './src/shared/tokenize.js';
 
 const argv = minimist(process.argv.slice(2), {
-  boolean: ['json', 'json-compact', 'human', 'stats', 'ann', 'headline', 'lint', 'churn', 'matched', 'async', 'generator', 'returns'],
+  boolean: ['json', 'json-compact', 'human', 'stats', 'ann', 'headline', 'lint', 'matched', 'async', 'generator', 'returns'],
   alias: { n: 'top', c: 'context', t: 'type' },
   default: { n: 5, context: 3 },
   string: [
@@ -36,6 +36,7 @@ const argv = minimist(process.argv.slice(2), {
     'reads',
     'writes',
     'mutates',
+    'churn',
     'alias',
     'awaits',
     'branches',
@@ -98,7 +99,7 @@ const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
 const rawArgs = process.argv.slice(2);
 const query = argv._.join(' ').trim();
 if (!query) {
-  console.error('usage: search "query" [--json|--json-compact|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode code|prose|both|records|all|--meta key=value|--meta-json {...}|--file path|--ext .ext|--signature|--param|--decorator|--inferred-type|--return-type|--throws|--reads|--writes|--mutates|--alias|--awaits|--branches|--loops|--breaks|--continues|--risk|--risk-tag|--risk-source|--risk-sink|--risk-category|--risk-flow|--extends|--visibility|--async|--generator|--returns');
+  console.error('usage: search "query" [--json|--json-compact|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode code|prose|both|records|all|--meta key=value|--meta-json {...}|--file path|--ext .ext|--churn [min]|--signature|--param|--decorator|--inferred-type|--return-type|--throws|--reads|--writes|--mutates|--alias|--awaits|--branches|--loops|--breaks|--continues|--risk|--risk-tag|--risk-source|--risk-sink|--risk-category|--risk-flow|--extends|--visibility|--async|--generator|--returns');
   process.exit(1);
 }
 const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
@@ -119,6 +120,7 @@ const branchesMin = Number.isFinite(Number(argv.branches)) ? Number(argv.branche
 const loopsMin = Number.isFinite(Number(argv.loops)) ? Number(argv.loops) : null;
 const breaksMin = Number.isFinite(Number(argv.breaks)) ? Number(argv.breaks) : null;
 const continuesMin = Number.isFinite(Number(argv.continues)) ? Number(argv.continues) : null;
+const churnMin = parseChurnArg(argv.churn);
 const fileFilter = argv.file || null;
 const extFilter = normalizeExtFilter(argv.ext);
 const metaFilters = parseMetaFilters(argv.meta, argv['meta-json']);
@@ -219,6 +221,22 @@ function parseMetaFilters(metaArg, metaJsonArg) {
     }
   }
   return filters.length ? filters : null;
+}
+
+/**
+ * Normalize the churn argument into a numeric threshold.
+ * @param {unknown} value
+ * @returns {number|null}
+ */
+function parseChurnArg(value) {
+  if (value === undefined) return null;
+  if (value === true || value === '') return 1;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    console.error(`Invalid --churn value: ${value}`);
+    process.exit(1);
+  }
+  return parsed;
 }
 
 
@@ -495,7 +513,7 @@ function buildQueryCacheKey() {
       param: argv.param || null,
       import: searchImport,
       lint: argv.lint || false,
-      churn: argv.churn || null,
+      churn: churnMin,
       decorator: argv.decorator || null,
       inferredType: argv['inferred-type'] || null,
       returnType: argv['return-type'] || null,
@@ -882,12 +900,12 @@ modelIdForRecords = runRecords ? (idxRecords?.denseVec?.model || modelIdDefault)
 
 // --- QUERY TOKENIZATION ---
 
-let queryTokens = splitId(query);
+let queryTokens = splitId(query).map((tok) => tok.normalize('NFKD'));
 
-queryTokens = queryTokens.flatMap(tok => {
+queryTokens = queryTokens.flatMap((tok) => {
   if (tok.length <= 3 || dict.has(tok)) return [tok];
   return splitWordsWithDict(tok, dict);
-});
+}).map((tok) => tok.normalize('NFKD'));
 
 const rx = queryTokens.length ? new RegExp(`(${queryTokens.join('|')})`, 'ig') : null;
 
@@ -968,7 +986,7 @@ function runSearch(idx, mode, queryEmbedding) {
     call: searchCall,
     importName: searchImport,
     lint: argv.lint,
-    churn: argv.churn,
+    churn: churnMin,
     calls: argv.calls,
     uses: argv.uses,
     signature: argv.signature,

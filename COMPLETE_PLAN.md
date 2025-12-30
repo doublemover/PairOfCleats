@@ -427,3 +427,40 @@ Work items:
 - [x] Add MCP tool wrappers for ingest/decision/context packs and allow `records` mode in MCP build/search.
 - [x] Add triage fixtures + `tests/triage-records.js` and script wiring in `package.json`.
 - [x] Update README + docs to describe triage workflows and new CLI/MCP tools.
+
+## Phase 43: Prioritized Issues - P0 Correctness (status: done)
+Goal: Fix correctness issues and broken/unused CLI behavior.
+Work items:
+- [x] Fix `--churn` CLI parsing, numeric thresholds, cache keys, and docs.
+- [x] Replace churn metric with git numstat-based churn; add tests.
+- [x] Fix Unicode offset drift between indexing and rendering; add fixture test.
+- [x] Remove or implement build `--chunk` option; update docs/tests.
+- [x] Enable GitHub Actions workflows under `.github/workflows` with CI.
+
+## Phase 44: Prioritized Issues - P1 High ROI (status: todo)
+Goal: Bring MCP/CLI parity and improve indexing robustness.
+Work items:
+- [ ] Expand MCP `search` filters to CLI parity and default to `--json-compact`.
+- [ ] Add MCP ops tools for download/build/maintain workflows.
+- [ ] Add `--path` alias filter and ensure CLI/MCP path/ext filters are consistent.
+- [ ] Auto-detect repo root for CLI/tools; add `--repo` overrides.
+- [ ] Add file-size guardrails with skip/partial index reporting.
+- [ ] Graceful shutdown for watch mode with lock cleanup.
+
+## Phase 45: Prioritized Issues - P2 Enhancements (status: todo)
+Goal: Improve search UX and reduce index footprint.
+Work items:
+- [ ] Add negative terms and quoted phrases to query parsing.
+- [ ] Add modified-since/after filters (git-aware recency).
+- [ ] Add chunk-author filter and output rendering.
+- [ ] Make chargram/phrase-ngrams configurable and handle missing artifacts.
+- [ ] Clarify score fields (`score`, `annScore`, `scoreBreakdown`) in JSON + docs.
+- [ ] Remove redundant `call` vs `calls` filtering path.
+
+## Phase 46: Prioritized Issues - P3 Maintainability (status: todo)
+Goal: Improve packaging, configuration safety, and testability.
+Work items:
+- [ ] Add `pairofcleats` CLI entrypoint with subcommands.
+- [ ] Add config schema + validation command.
+- [ ] Pin dependency versions (remove `*`) and document policy.
+- [ ] Refactor `search.js` into modules for testability.

@@ -163,6 +163,16 @@ const actions = [
     covers: []
   },
   {
+    label: 'churn-filter-test',
+    run: () => runNode('churn-filter-test', path.join(root, 'tests', 'churn-filter.js')),
+    covers: []
+  },
+  {
+    label: 'unicode-offset-test',
+    run: () => runNode('unicode-offset-test', path.join(root, 'tests', 'unicode-offset.js')),
+    covers: []
+  },
+  {
     label: 'ts-jsx-fixtures',
     run: () => runNode('ts-jsx-fixtures', path.join(root, 'tests', 'ts-jsx-fixtures.js')),
     covers: []

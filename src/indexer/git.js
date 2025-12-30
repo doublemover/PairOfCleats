@@ -36,14 +36,15 @@ export async function getGitMeta(file, start = 0, end = 0, options = {}) {
   try {
     const git = simpleGit();
     const log = await git.log({ file, n: 10 });
-    let churn = 0;
-    for (const c of log.all) {
-      churn += c.body ? c.body.length : 0;
-    }
+    const { added, deleted } = await computeNumstatChurn(git, file, log.all.length || 10);
+    const churn = added + deleted;
     const meta = {
       last_modified: log.latest?.date || null,
       last_author: log.latest?.author_name || null,
-      churn
+      churn,
+      churn_added: added,
+      churn_deleted: deleted,
+      churn_commits: log.all.length || 0
     };
     gitMetaCache.set(file, meta);
     let blameData = {};
@@ -65,5 +66,33 @@ export async function getGitMeta(file, start = 0, end = 0, options = {}) {
     };
   } catch {
     return {};
+  }
+}
+
+/**
+ * Compute churn from git numstat output.
+ * @param {import('simple-git').SimpleGit} git
+ * @param {string} file
+ * @param {number} limit
+ * @returns {Promise<{added:number,deleted:number}>}
+ */
+async function computeNumstatChurn(git, file, limit) {
+  try {
+    const raw = await git.raw(['log', '--numstat', '-n', String(limit), '--format=', '--', file]);
+    let added = 0;
+    let deleted = 0;
+    for (const line of raw.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const parts = trimmed.split('\t');
+      if (parts.length < 2) continue;
+      const addedVal = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10);
+      const deletedVal = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10);
+      if (Number.isFinite(addedVal)) added += addedVal;
+      if (Number.isFinite(deletedVal)) deleted += deletedVal;
+    }
+    return { added, deleted };
+  } catch {
+    return { added: 0, deleted: 0 };
   }
 }

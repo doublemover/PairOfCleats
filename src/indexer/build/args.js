@@ -13,7 +13,6 @@ export function parseBuildArgs(rawArgs) {
     alias: { i: 'incremental' },
     default: {
       mode: 'all',
-      chunk: 600,
       dims: 512,
       threads: os.cpus().length,
       incremental: false,
