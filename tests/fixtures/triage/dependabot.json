@@ -1,0 +1,24 @@
+[
+  {
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-02T00:00:00Z",
+    "security_advisory": {
+      "cve_id": "CVE-2024-0002",
+      "summary": "Dependabot util advisory",
+      "description": "A sample dependabot advisory for util.",
+      "severity": "medium",
+      "references": ["https://example.com/advisory"]
+    },
+    "security_vulnerability": {
+      "package": { "name": "util", "ecosystem": "npm" },
+      "vulnerable_version_range": "<2.0.0",
+      "first_patched_version": { "identifier": "2.0.0" }
+    },
+    "dependency": {
+      "package": { "name": "util", "ecosystem": "npm" },
+      "manifest_path": "src/util.js",
+      "version": "1.0.0"
+    },
+    "alert": { "id": 42 }
+  }
+]

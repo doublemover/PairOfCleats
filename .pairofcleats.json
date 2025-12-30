@@ -37,11 +37,37 @@
       "ttlMs": 0
     }
   },
+  "triage": {
+    "recordsDir": "",
+    "storeRawPayload": false,
+    "promoteFields": [
+      "recordType",
+      "source",
+      "recordId",
+      "service",
+      "env",
+      "team",
+      "owner",
+      "vulnId",
+      "cve",
+      "packageName",
+      "packageEcosystem",
+      "severity",
+      "status",
+      "assetId"
+    ],
+    "contextPack": {
+      "maxHistory": 5,
+      "maxEvidencePerQuery": 5
+    }
+  },
   "indexing": {
     "concurrency": 4,
     "importConcurrency": 4,
     "astDataflow": true,
     "controlFlow": true,
+    "riskAnalysis": true,
+    "riskAnalysisCrossFile": true,
     "typeInference": false,
     "typeInferenceCrossFile": false
   },

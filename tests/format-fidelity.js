@@ -72,6 +72,9 @@ if (!findChunk(codeMeta, { file: 'src/config.yaml', nameIncludes: 'database' }))
 if (!findChunk(codeMeta, { file: '.github/workflows/ci.yml', nameIncludes: 'build' })) {
   failures.push('Missing GitHub Actions chunk for build job.');
 }
+if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'Blob' })) {
+  failures.push('Missing fallback blob chunk for unknown.html.');
+}
 
 if (!findChunk(proseMeta, { file: 'docs/guide.rst', nameIncludes: 'Guide' })) {
   failures.push('Missing RST chunk for Guide.');

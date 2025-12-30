@@ -26,6 +26,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const controlFlowEnabled = indexingConfig.controlFlow !== false;
   const typeInferenceEnabled = indexingConfig.typeInference === true;
   const typeInferenceCrossFileEnabled = indexingConfig.typeInferenceCrossFile === true;
+  const riskAnalysisEnabled = indexingConfig.riskAnalysis !== false;
+  const riskAnalysisCrossFileEnabled = riskAnalysisEnabled
+    && indexingConfig.riskAnalysisCrossFile !== false;
   const gitBlameEnabled = indexingConfig.gitBlame !== false;
   const sqlConfig = userConfig.sql || {};
   const defaultSqlDialects = {
@@ -127,6 +130,12 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   if (!gitBlameEnabled) {
     log('Git blame metadata disabled via indexing.gitBlame.');
   }
+  if (!riskAnalysisEnabled) {
+    log('Risk analysis disabled via indexing.riskAnalysis.');
+  }
+  if (!riskAnalysisCrossFileEnabled && riskAnalysisEnabled) {
+    log('Cross-file risk correlation disabled via indexing.riskAnalysisCrossFile.');
+  }
 
   const languageOptions = {
     astDataflowEnabled,
@@ -146,6 +155,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     controlFlowEnabled,
     typeInferenceEnabled,
     typeInferenceCrossFileEnabled,
+    riskAnalysisEnabled,
+    riskAnalysisCrossFileEnabled,
     gitBlameEnabled,
     resolveSqlDialect,
     fileConcurrency,

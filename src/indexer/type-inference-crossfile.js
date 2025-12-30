@@ -76,6 +76,32 @@ const extractReturnTypes = (chunk) => {
   return uniqueTypes(types);
 };
 
+const extractParamTypes = (chunk) => {
+  const docmeta = chunk?.docmeta || {};
+  const paramNames = Array.isArray(docmeta.params) ? docmeta.params : [];
+  const paramTypes = {};
+
+  if (docmeta.paramTypes && typeof docmeta.paramTypes === 'object') {
+    for (const [name, type] of Object.entries(docmeta.paramTypes)) {
+      if (!name || !type) continue;
+      paramTypes[name] = uniqueTypes([...(paramTypes[name] || []), type]);
+    }
+  }
+
+  const inferred = docmeta.inferredTypes?.params || {};
+  if (inferred && typeof inferred === 'object') {
+    for (const [name, entries] of Object.entries(inferred)) {
+      if (!name || !Array.isArray(entries)) continue;
+      for (const entry of entries) {
+        if (!entry?.type) continue;
+        paramTypes[name] = uniqueTypes([...(paramTypes[name] || []), entry.type]);
+      }
+    }
+  }
+
+  return { paramNames, paramTypes };
+};
+
 const resolveUniqueSymbol = (index, name) => {
   if (!name) return null;
   const direct = index.get(name) || [];
@@ -218,21 +244,31 @@ export async function applyCrossFileInference({
   chunks,
   enabled,
   log = () => {},
-  useTooling = false
+  useTooling = false,
+  enableTypeInference = true,
+  enableRiskCorrelation = false
 }) {
-  if (!enabled) return { linkedCalls: 0, linkedUsages: 0, inferredReturns: 0 };
+  if (!enabled) {
+    return { linkedCalls: 0, linkedUsages: 0, inferredReturns: 0, riskFlows: 0 };
+  }
   const symbolIndex = new Map();
   const symbolEntries = [];
   const entryByKey = new Map();
+  const chunkByKey = new Map();
+  const riskSeverityRank = { low: 1, medium: 2, high: 3 };
 
   for (const chunk of chunks) {
     if (!chunk?.name) continue;
+    chunkByKey.set(`${chunk.file}::${chunk.name}`, chunk);
+    const { paramNames, paramTypes } = extractParamTypes(chunk);
     const entry = {
       name: chunk.name,
       file: chunk.file,
       kind: chunk.kind || null,
       returnTypes: extractReturnTypes(chunk),
-      typeDeclaration: isTypeDeclaration(chunk.kind)
+      typeDeclaration: isTypeDeclaration(chunk.kind),
+      paramNames,
+      paramTypes
     };
     symbolEntries.push(entry);
     entryByKey.set(`${chunk.file}::${chunk.name}`, entry);
@@ -242,7 +278,7 @@ export async function applyCrossFileInference({
   }
 
   let tsTypesByFile = null;
-  if (useTooling) {
+  if (useTooling && enableTypeInference) {
     const tsFiles = symbolEntries
       .map((entry) => entry.file)
       .filter((file) => file.endsWith('.ts') || file.endsWith('.tsx') || file.endsWith('.mts') || file.endsWith('.cts'))
@@ -278,28 +314,83 @@ export async function applyCrossFileInference({
   let linkedCalls = 0;
   let linkedUsages = 0;
   let inferredReturns = 0;
+  let riskFlows = 0;
 
-  for (const chunk of chunks) {
-    if (!chunk) continue;
-    if (chunk.docmeta && chunk.docmeta.returnsValue) {
-      const chunkText = await getChunkText(chunk);
-      const { news: returnNews } = extractReturnCalls(chunkText);
-      for (const typeName of returnNews) {
-        if (addInferredReturn(chunk.docmeta, typeName, FLOW_SOURCE, FLOW_CONFIDENCE)) {
-          inferredReturns += 1;
-        }
-        const entry = entryByKey.get(`${chunk.file}::${chunk.name}`);
-        if (entry) {
-          entry.returnTypes = uniqueTypes([...(entry.returnTypes || []), typeName]);
+  if (enableTypeInference) {
+    for (const chunk of chunks) {
+      if (!chunk) continue;
+      if (chunk.docmeta && chunk.docmeta.returnsValue) {
+        const chunkText = await getChunkText(chunk);
+        const { news: returnNews } = extractReturnCalls(chunkText);
+        for (const typeName of returnNews) {
+          if (addInferredReturn(chunk.docmeta, typeName, FLOW_SOURCE, FLOW_CONFIDENCE)) {
+            inferredReturns += 1;
+          }
+          const entry = entryByKey.get(`${chunk.file}::${chunk.name}`);
+          if (entry) {
+            entry.returnTypes = uniqueTypes([...(entry.returnTypes || []), typeName]);
+          }
         }
       }
     }
   }
 
+  const normalizeRisk = (chunk) => {
+    if (!chunk) return null;
+    if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
+    const base = chunk.docmeta.risk && typeof chunk.docmeta.risk === 'object'
+      ? chunk.docmeta.risk
+      : {};
+    const risk = {
+      ...base,
+      tags: Array.isArray(base.tags) ? base.tags.slice() : [],
+      categories: Array.isArray(base.categories) ? base.categories.slice() : [],
+      sources: Array.isArray(base.sources) ? base.sources.slice() : [],
+      sinks: Array.isArray(base.sinks) ? base.sinks.slice() : [],
+      flows: Array.isArray(base.flows) ? base.flows.slice() : []
+    };
+    chunk.docmeta.risk = risk;
+    return risk;
+  };
+
+  const addUnique = (list, value) => {
+    if (!value) return;
+    if (!list.includes(value)) list.push(value);
+  };
+
+  const riskFlowKeys = new WeakMap();
+  const flowKey = (flow) => `${flow.source}::${flow.sink}::${flow.scope || 'local'}::${flow.via || ''}`;
+  const getFlowKeys = (chunk, risk) => {
+    if (!chunk || !risk) return null;
+    let keys = riskFlowKeys.get(chunk);
+    if (!keys) {
+      keys = new Set();
+      if (Array.isArray(risk.flows)) {
+        for (const existing of risk.flows) {
+          if (!existing) continue;
+          keys.add(flowKey(existing));
+        }
+      }
+      riskFlowKeys.set(chunk, keys);
+    }
+    return keys;
+  };
+  const addRiskFlow = (chunk, risk, flow) => {
+    if (!risk || !flow) return false;
+    const keys = getFlowKeys(chunk, risk);
+    if (!keys) return false;
+    const key = flowKey(flow);
+    if (keys.has(key)) return false;
+    keys.add(key);
+    risk.flows.push(flow);
+    return true;
+  };
+
   for (const chunk of chunks) {
     if (!chunk) continue;
     const relations = chunk.codeRelations || {};
     const callLinks = [];
+    const callSummaries = [];
     const usageLinks = [];
 
     if (Array.isArray(relations.calls)) {
@@ -307,12 +398,47 @@ export async function applyCrossFileInference({
         const resolved = resolveUniqueSymbol(symbolIndex, callee);
         if (!resolved) continue;
         if (resolved.file === chunk.file && resolved.name === chunk.name) continue;
-        addLink(callLinks, {
+        const link = {
           name: callee,
           target: resolved.name,
           file: resolved.file,
           kind: resolved.kind
-        });
+        };
+        if (resolved.returnTypes?.length) link.returnTypes = resolved.returnTypes;
+        if (resolved.paramNames?.length) link.paramNames = resolved.paramNames;
+        if (resolved.paramTypes && Object.keys(resolved.paramTypes).length) link.paramTypes = resolved.paramTypes;
+        addLink(callLinks, link);
+      }
+    }
+
+    if (Array.isArray(relations.callDetails)) {
+      for (const detail of relations.callDetails) {
+        const callee = detail?.callee;
+        if (!callee) continue;
+        const resolved = resolveUniqueSymbol(symbolIndex, callee);
+        if (!resolved) continue;
+        if (resolved.file === chunk.file && resolved.name === chunk.name) continue;
+        const args = Array.isArray(detail.args) ? detail.args : [];
+        const summary = {
+          name: callee,
+          target: resolved.name,
+          file: resolved.file,
+          kind: resolved.kind,
+          args
+        };
+        if (resolved.returnTypes?.length) summary.returnTypes = resolved.returnTypes;
+        if (resolved.paramNames?.length) summary.params = resolved.paramNames;
+        if (resolved.paramTypes && Object.keys(resolved.paramTypes).length) summary.paramTypes = resolved.paramTypes;
+        if (args.length && resolved.paramNames?.length) {
+          const argMap = {};
+          for (let i = 0; i < resolved.paramNames.length && i < args.length; i += 1) {
+            const paramName = resolved.paramNames[i];
+            const argValue = args[i];
+            if (paramName && argValue) argMap[paramName] = argValue;
+          }
+          if (Object.keys(argMap).length) summary.argMap = argMap;
+        }
+        addLink(callSummaries, summary);
       }
     }
 
@@ -334,13 +460,16 @@ export async function applyCrossFileInference({
       relations.callLinks = callLinks;
       linkedCalls += callLinks.length;
     }
+    if (callSummaries.length) {
+      relations.callSummaries = callSummaries;
+    }
     if (usageLinks.length) {
       relations.usageLinks = usageLinks;
       linkedUsages += usageLinks.length;
     }
     chunk.codeRelations = relations;
 
-    if (chunk.docmeta && chunk.docmeta.returnsValue) {
+    if (enableTypeInference && chunk.docmeta && chunk.docmeta.returnsValue) {
       const chunkText = await getChunkText(chunk);
       const { calls: returnCalls } = extractReturnCalls(chunkText);
       for (const callName of returnCalls) {
@@ -354,7 +483,7 @@ export async function applyCrossFileInference({
       }
     }
 
-    if (tsTypesByFile && chunk.docmeta && chunk.file) {
+    if (tsTypesByFile && enableTypeInference && chunk.docmeta && chunk.file) {
       const absFile = path.resolve(rootDir, chunk.file);
       const tsMap = tsTypesByFile.get(absFile);
       if (tsMap && tsMap[chunk.name]) {
@@ -372,7 +501,46 @@ export async function applyCrossFileInference({
         }
       }
     }
+
+    if (enableRiskCorrelation && callLinks.length) {
+      const callerRisk = chunk.docmeta?.risk;
+      const callerSources = Array.isArray(callerRisk?.sources) ? callerRisk.sources : [];
+      if (callerSources.length) {
+        for (const link of callLinks) {
+          const calleeChunk = chunkByKey.get(`${link.file}::${link.target}`);
+          const calleeRisk = calleeChunk?.docmeta?.risk;
+          const calleeSinks = Array.isArray(calleeRisk?.sinks) ? calleeRisk.sinks : [];
+          if (!calleeSinks.length) continue;
+          const risk = normalizeRisk(chunk);
+          for (const sink of calleeSinks) {
+            if (sink.category) addUnique(risk.categories, sink.category);
+            const sinkTags = Array.isArray(sink.tags) && sink.tags.length
+              ? sink.tags
+              : (Array.isArray(calleeRisk?.tags) ? calleeRisk.tags : []);
+            sinkTags.forEach((tag) => addUnique(risk.tags, tag));
+            if (sink.severity) {
+              const currentRank = riskSeverityRank[risk.severity] || 0;
+              const sinkRank = riskSeverityRank[sink.severity] || 0;
+              if (sinkRank > currentRank) risk.severity = sink.severity;
+            }
+          }
+          for (const source of callerSources) {
+            for (const sink of calleeSinks) {
+              const flow = {
+                source: source.name,
+                sink: sink.name,
+                category: sink.category || null,
+                severity: sink.severity || null,
+                scope: 'cross-file',
+                via: `${chunk.name}->${link.target}`
+              };
+              if (addRiskFlow(chunk, risk, flow)) riskFlows += 1;
+            }
+          }
+        }
+      }
+    }
   }
 
-  return { linkedCalls, linkedUsages, inferredReturns };
+  return { linkedCalls, linkedUsages, inferredReturns, riskFlows };
 }

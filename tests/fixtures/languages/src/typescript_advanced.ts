@@ -30,3 +30,10 @@ export class Widget extends BaseWidget implements Renderer {
 export function makeWidget(name: string): Widget {
   return new Widget(name, { size: 2 });
 }
+
+export function buildWidgetAliases(label: string | null): Array<string> {
+  const name = label;
+  const items = ['a', 'b'];
+  const copy = items;
+  return items;
+}

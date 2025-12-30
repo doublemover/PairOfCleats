@@ -170,6 +170,24 @@ for (const fixtureName of fixtures) {
         console.error(`Fixture search returned no results for query: ${query} (${backend})`);
         process.exit(1);
       }
+      const hits = [...(payload.code || []), ...(payload.prose || [])];
+      const sample = hits[0];
+      if (!Number.isFinite(sample?.score)) {
+        console.error(`Fixture search missing score for query: ${query} (${backend})`);
+        process.exit(1);
+      }
+      if (!sample?.scoreType) {
+        console.error(`Fixture search missing scoreType for query: ${query} (${backend})`);
+        process.exit(1);
+      }
+      if (!sample?.scoreBreakdown?.selected) {
+        console.error(`Fixture search missing scoreBreakdown for query: ${query} (${backend})`);
+        process.exit(1);
+      }
+      if (sample.scoreBreakdown.selected.type !== sample.scoreType) {
+        console.error(`Fixture search scoreType mismatch for query: ${query} (${backend})`);
+        process.exit(1);
+      }
     }
   }
 
@@ -194,6 +212,14 @@ for (const fixtureName of fixtures) {
     console.error('Fixture compact JSON missing hit identity fields.');
     process.exit(1);
   }
+  if (!Number.isFinite(compactSample.score)) {
+    console.error('Fixture compact JSON missing score.');
+    process.exit(1);
+  }
+  if (!compactSample.scoreType) {
+    console.error('Fixture compact JSON missing scoreType.');
+    process.exit(1);
+  }
   const forbiddenFields = [
     'tokens',
     'ngrams',
@@ -205,7 +231,8 @@ for (const fixtureName of fixtures) {
     'complexity',
     'lint',
     'externalDocs',
-    'chunk_authors'
+    'chunk_authors',
+    'scoreBreakdown'
   ];
   for (const field of forbiddenFields) {
     if (compactSample[field] !== undefined) {

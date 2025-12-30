@@ -252,6 +252,10 @@ export function buildChunkRelations({ lang, chunk, fileRelations }) {
     const callsForChunk = fileRelations.calls.filter(([caller]) => caller && caller === chunk.name);
     if (callsForChunk.length) output.calls = callsForChunk;
   }
+  if (chunk?.name && Array.isArray(fileRelations.callDetails)) {
+    const detailsForChunk = fileRelations.callDetails.filter((detail) => detail?.caller === chunk.name);
+    if (detailsForChunk.length) output.callDetails = detailsForChunk;
+  }
   if (lang?.attachName && chunk?.name) output.name = chunk.name;
   return output;
 }

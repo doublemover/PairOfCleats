@@ -143,9 +143,19 @@ const actions = [
     covers: ['repometrics-dashboard-test', 'repometrics-dashboard']
   },
   {
+    label: 'triage-test',
+    run: () => runNode('triage-test', path.join(root, 'tests', 'triage-records.js')),
+    covers: ['triage-test']
+  },
+  {
     label: 'mcp-server-test',
     run: () => runNode('mcp-server-test', path.join(root, 'tests', 'mcp-server.js')),
     covers: ['mcp-server-test', 'mcp-server']
+  },
+  {
+    label: 'git-hooks-test',
+    run: () => runNode('git-hooks-test', path.join(root, 'tests', 'git-hooks.js')),
+    covers: ['git-hooks-test', 'git-hooks']
   },
   {
     label: 'git-meta-test',
@@ -228,6 +238,11 @@ const actions = [
     covers: ['report-artifacts']
   },
   {
+    label: 'cache-gc-test',
+    run: () => runNode('cache-gc-test', path.join(root, 'tests', 'cache-gc.js')),
+    covers: ['cache-gc', 'cache-gc-test']
+  },
+  {
     label: 'generate-repo-dict',
     run: () => runNode('generate-repo-dict', path.join(root, 'tools', 'generate-repo-dict.js'), ['--min-count', '1'], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['generate-repo-dict']
@@ -288,6 +303,7 @@ for (const action of actions) {
 markSkipped('download-models', 'requires network model download');
 markSkipped('bench', 'benchmarks are long-running');
 markSkipped('bench-ann', 'benchmarks are long-running');
+markSkipped('watch-index', 'watch mode runs until interrupted');
 markSkipped('format', 'modifies working tree');
 markSkipped('lint', 'requires npm install and project lint config');
 

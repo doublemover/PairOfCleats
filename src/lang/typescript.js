@@ -54,6 +54,26 @@ function extractTypeScriptParams(signature) {
   return params;
 }
 
+function extractTypeScriptParamTypes(signature) {
+  const match = signature.match(/\(([^)]*)\)/);
+  if (!match) return {};
+  const paramTypes = {};
+  for (const part of match[1].split(',')) {
+    let seg = part.trim();
+    if (!seg) continue;
+    seg = seg.replace(/=.+$/g, '').trim();
+    seg = seg.replace(/\b(public|private|protected|readonly|override)\b/g, '').trim();
+    seg = seg.replace(/^\.\.\./, '').trim();
+    const [rawName, ...rest] = seg.split(':');
+    if (!rawName || !rest.length) continue;
+    const name = rawName.replace(/\?/g, '').replace(/[^A-Za-z0-9_$]/g, '').trim();
+    const type = rest.join(':').trim();
+    if (!name || !type) continue;
+    paramTypes[name] = type;
+  }
+  return paramTypes;
+}
+
 function extractTypeScriptReturns(signature) {
   const idx = signature.indexOf(')');
   if (idx === -1) return null;
@@ -266,6 +286,7 @@ export function buildTypeScriptChunks(text) {
         endLine: offsetToLine(lineIndex, end),
         signature,
         params: extractTypeScriptParams(signature),
+        paramTypes: extractTypeScriptParamTypes(signature),
         returns: parsed.returns,
         modifiers,
         visibility: extractVisibility(modifiers),
@@ -288,6 +309,7 @@ export function buildTypeScriptChunks(text) {
         endLine: offsetToLine(lineIndex, end),
         signature,
         params: extractTypeScriptParams(signature),
+        paramTypes: extractTypeScriptParamTypes(signature),
         returns: parsed.returns,
         modifiers,
         visibility: extractVisibility(modifiers),
@@ -311,6 +333,7 @@ export function buildTypeScriptChunks(text) {
         endLine: offsetToLine(lineIndex, end),
         signature,
         params: extractTypeScriptParams(signature),
+        paramTypes: extractTypeScriptParamTypes(signature),
         returns: parsed.returns,
         modifiers,
         visibility: extractVisibility(modifiers),
@@ -347,6 +370,7 @@ export function buildTypeScriptChunks(text) {
         endLine: offsetToLine(lineIndex, end),
         signature,
         params: extractTypeScriptParams(signature),
+        paramTypes: extractTypeScriptParamTypes(signature),
         returns: parsed.returns,
         modifiers,
         visibility: extractVisibility(modifiers),
@@ -420,6 +444,7 @@ export function buildTypeScriptRelations(text, allImports, tsChunks) {
 export function extractTypeScriptDocMeta(chunk) {
   const meta = chunk.meta || {};
   const params = Array.isArray(meta.params) ? meta.params : [];
+  const paramTypes = meta.paramTypes && typeof meta.paramTypes === 'object' ? meta.paramTypes : {};
   const decorators = Array.isArray(meta.attributes) ? meta.attributes : [];
   const modifiers = Array.isArray(meta.modifiers) ? meta.modifiers : [];
   const extendsList = Array.isArray(meta.extends) ? meta.extends : [];
@@ -428,6 +453,7 @@ export function extractTypeScriptDocMeta(chunk) {
   return {
     doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
     params,
+    paramTypes,
     returns,
     returnType: returns,
     signature: meta.signature || null,

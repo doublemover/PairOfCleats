@@ -171,6 +171,83 @@ if (asyncPayload) {
   }
 }
 
+const aliasChunk = findChunk({ file: 'src/javascript_advanced.js', nameIncludes: 'buildAliases' });
+if (!aliasChunk) {
+  failures.push('Missing JavaScript alias chunk (buildAliases).');
+} else {
+  const aliases = aliasChunk.docmeta?.dataflow?.aliases || [];
+  if (!aliases.includes('name=label') || !aliases.includes('copy=items')) {
+    failures.push('JavaScript alias tracking missing expected aliases for buildAliases.');
+  }
+  const inferredLocals = aliasChunk.docmeta?.inferredTypes?.locals?.copy || [];
+  if (!inferredLocals.some((entry) => entry.type === 'array')) {
+    failures.push('JavaScript inferredTypes missing array for copy alias.');
+  }
+}
+
+const riskChunk = findChunk({ file: 'src/javascript_risk.js', nameIncludes: 'runCommand' });
+if (!riskChunk) {
+  failures.push('Missing JavaScript risk chunk (runCommand).');
+} else {
+  const risk = riskChunk.docmeta?.risk;
+  if (!risk || !Array.isArray(risk.tags) || !risk.tags.includes('command-exec')) {
+    failures.push('Risk tags missing command-exec for runCommand.');
+  }
+  const flowMatch = (risk?.flows || []).some(
+    (flow) => flow.source === 'req.body' && flow.sink === 'exec'
+  );
+  if (!flowMatch) {
+    failures.push('Risk flows missing req.body->exec for runCommand.');
+  }
+}
+
+const crossFileRisk = findChunk({ file: 'src/javascript_risk_source.js', nameIncludes: 'handleRequest' });
+if (!crossFileRisk) {
+  failures.push('Missing cross-file risk chunk (handleRequest).');
+} else {
+  const flows = crossFileRisk.docmeta?.risk?.flows || [];
+  const crossFlow = flows.some(
+    (flow) => flow.source === 'req.body' && flow.sink === 'exec' && flow.scope === 'cross-file'
+  );
+  if (!crossFlow) {
+    failures.push('Cross-file risk flow missing req.body->exec for handleRequest.');
+  }
+}
+
+const riskSearch = runSearch(
+  [searchPath, 'exec', '--json', '--mode', 'code', '--risk', 'command-exec', '--no-ann'],
+  'search (risk filter)'
+);
+let riskPayload = null;
+try {
+  riskPayload = JSON.parse(riskSearch);
+} catch {
+  failures.push('Search risk filter failed: invalid JSON output.');
+}
+if (riskPayload) {
+  const riskHits = riskPayload.code || [];
+  if (!riskHits.length) {
+    failures.push('Search risk filter failed: no results for command-exec.');
+  }
+}
+
+const flowSearch = runSearch(
+  [searchPath, 'req', '--json', '--mode', 'code', '--risk-flow', 'req.body->exec', '--no-ann'],
+  'search (risk flow filter)'
+);
+let flowPayload = null;
+try {
+  flowPayload = JSON.parse(flowSearch);
+} catch {
+  failures.push('Search risk flow filter failed: invalid JSON output.');
+}
+if (flowPayload) {
+  const flowHits = flowPayload.code || [];
+  if (!flowHits.length) {
+    failures.push('Search risk flow filter failed: no results for req.body->exec.');
+  }
+}
+
 if (pythonAvailable) {
   const pointChunk = findChunk({ file: 'src/python_advanced.py', kind: 'ClassDeclaration', nameIncludes: 'Point' });
   if (!pointChunk) {
@@ -452,6 +529,27 @@ if (!tsFunc) {
   const controlFlow = tsFunc.docmeta?.controlFlow;
   if (!controlFlow || !(controlFlow.returns >= 1)) {
     failures.push('TypeScript controlFlow missing returns for makeWidget.');
+  }
+}
+
+const tsAlias = findChunk({ file: 'src/typescript_advanced.ts', kind: 'FunctionDeclaration', nameIncludes: 'buildWidgetAliases' });
+if (!tsAlias) {
+  failures.push('Missing TypeScript alias chunk (buildWidgetAliases).');
+} else {
+  const inferredParams = tsAlias.docmeta?.inferredTypes?.params?.label || [];
+  if (!inferredParams.some((entry) => entry.type === 'string')) {
+    failures.push('TypeScript inferredTypes missing string for label param.');
+  }
+  if (!inferredParams.some((entry) => entry.type === 'null')) {
+    failures.push('TypeScript inferredTypes missing null for label param.');
+  }
+  const inferredReturns = tsAlias.docmeta?.inferredTypes?.returns || [];
+  if (!inferredReturns.some((entry) => entry.type === 'Array')) {
+    failures.push('TypeScript inferredTypes missing Array return for buildWidgetAliases.');
+  }
+  const inferredLocals = tsAlias.docmeta?.inferredTypes?.locals?.copy || [];
+  if (!inferredLocals.some((entry) => entry.type === 'array')) {
+    failures.push('TypeScript inferredTypes missing array for copy alias.');
   }
 }
 

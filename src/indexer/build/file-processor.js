@@ -3,6 +3,7 @@ import path from 'node:path';
 import { analyzeComplexity, lintChunk } from '../analysis.js';
 import { smartChunk } from '../chunking.js';
 import { buildChunkRelations, buildLanguageContext } from '../language-registry.js';
+import { detectRiskSignals } from '../risk.js';
 import { inferTypeMetadata } from '../type-inference.js';
 import { SimpleMinHash } from '../minhash.js';
 import { getHeadline } from '../headline.js';
@@ -31,6 +32,7 @@ export function createFileProcessor(options) {
     incrementalState,
     getChunkEmbedding,
     typeInferenceEnabled,
+    riskAnalysisEnabled,
     seenFiles,
     gitBlameEnabled
   } = options;
@@ -180,7 +182,7 @@ export function createFileProcessor(options) {
       ext,
       relPath: relKey,
       mode,
-      ...languageContext
+      context: languageContext
     });
     const fileChunks = [];
 
@@ -256,6 +258,12 @@ export function createFileProcessor(options) {
           });
           if (inferredTypes) {
             docmeta = { ...docmeta, inferredTypes };
+          }
+        }
+        if (riskAnalysisEnabled) {
+          const risk = detectRiskSignals({ text: ctext });
+          if (risk) {
+            docmeta = { ...docmeta, risk };
           }
         }
       }

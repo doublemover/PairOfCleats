@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2025-12-28T23:39:48.717Z",
+  "generatedAt": "2025-12-29T02:42:32.637Z",
   "repo": {
     "root": "C:\\Users\\sneak\\Development\\PairOfCleats_CODEX",
     "repoId": "8c76cec86f7d90e372915a640348d0c6b3263422"
@@ -20,14 +20,14 @@
   "summary": {
     "models": {
       "Xenova/all-MiniLM-L12-v2": {
-        "elapsedMsAvg": 240.6,
-        "wallMsAvg": 342.93333333333334,
+        "elapsedMsAvg": 266.6666666666667,
+        "wallMsAvg": 390.93333333333334,
         "codeCountAvg": 4.666666666666667,
         "proseCountAvg": 4.733333333333333
       },
       "Xenova/all-MiniLM-L6-v2": {
-        "elapsedMsAvg": 235.6,
-        "wallMsAvg": 337.4,
+        "elapsedMsAvg": 268.4,
+        "wallMsAvg": 391.73333333333335,
         "codeCountAvg": 4.666666666666667,
         "proseCountAvg": 4.733333333333333
       }
@@ -55,14 +55,14 @@
       "query": "index",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 243,
-          "wallMs": 348,
+          "elapsedMs": 341,
+          "wallMs": 482,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 235,
-          "wallMs": 337,
+          "elapsedMs": 261,
+          "wallMs": 373,
           "codeCount": 5,
           "proseCount": 5
         }
@@ -88,14 +88,14 @@
       "query": "search",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 238,
-          "wallMs": 341,
+          "elapsedMs": 277,
+          "wallMs": 421,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 248,
-          "wallMs": 359,
+          "elapsedMs": 266,
+          "wallMs": 389,
           "codeCount": 5,
           "proseCount": 5
         }
@@ -121,14 +121,14 @@
       "query": "sqlite",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 245,
-          "wallMs": 349,
+          "elapsedMs": 316,
+          "wallMs": 441,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 246,
-          "wallMs": 348,
+          "elapsedMs": 256,
+          "wallMs": 383,
           "codeCount": 5,
           "proseCount": 5
         }
@@ -154,14 +154,14 @@
       "query": "dictionary",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 256,
-          "wallMs": 356,
+          "elapsedMs": 254,
+          "wallMs": 385,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 237,
-          "wallMs": 337,
+          "elapsedMs": 270,
+          "wallMs": 403,
           "codeCount": 5,
           "proseCount": 5
         }
@@ -187,14 +187,14 @@
       "query": "bootstrap",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 238,
-          "wallMs": 342,
+          "elapsedMs": 262,
+          "wallMs": 387,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 233,
-          "wallMs": 333,
+          "elapsedMs": 262,
+          "wallMs": 391,
           "codeCount": 5,
           "proseCount": 5
         }
@@ -220,14 +220,14 @@
       "query": "chunk",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 241,
-          "wallMs": 340,
+          "elapsedMs": 252,
+          "wallMs": 364,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 243,
-          "wallMs": 346,
+          "elapsedMs": 251,
+          "wallMs": 371,
           "codeCount": 5,
           "proseCount": 5
         }
@@ -253,14 +253,14 @@
       "query": "minhash",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 246,
-          "wallMs": 348,
+          "elapsedMs": 262,
+          "wallMs": 389,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 237,
-          "wallMs": 339,
+          "elapsedMs": 253,
+          "wallMs": 365,
           "codeCount": 5,
           "proseCount": 5
         }
@@ -286,14 +286,14 @@
       "query": "ann",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 239,
-          "wallMs": 344,
+          "elapsedMs": 255,
+          "wallMs": 367,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 229,
-          "wallMs": 327,
+          "elapsedMs": 259,
+          "wallMs": 371,
           "codeCount": 5,
           "proseCount": 5
         }
@@ -319,14 +319,14 @@
       "query": "bm25",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 239,
-          "wallMs": 345,
+          "elapsedMs": 250,
+          "wallMs": 374,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 235,
-          "wallMs": 333,
+          "elapsedMs": 252,
+          "wallMs": 373,
           "codeCount": 5,
           "proseCount": 5
         }
@@ -352,14 +352,14 @@
       "query": "cache",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 246,
-          "wallMs": 346,
+          "elapsedMs": 274,
+          "wallMs": 399,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 229,
-          "wallMs": 329,
+          "elapsedMs": 252,
+          "wallMs": 383,
           "codeCount": 5,
           "proseCount": 5
         }
@@ -385,14 +385,14 @@
       "query": "python",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 241,
-          "wallMs": 342,
+          "elapsedMs": 251,
+          "wallMs": 361,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 230,
-          "wallMs": 335,
+          "elapsedMs": 307,
+          "wallMs": 432,
           "codeCount": 5,
           "proseCount": 5
         }
@@ -418,14 +418,14 @@
       "query": "docstring",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 231,
-          "wallMs": 336,
+          "elapsedMs": 249,
+          "wallMs": 376,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 230,
-          "wallMs": 332,
+          "elapsedMs": 287,
+          "wallMs": 415,
           "codeCount": 5,
           "proseCount": 5
         }
@@ -451,14 +451,14 @@
       "query": "repometrics",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 244,
-          "wallMs": 348,
+          "elapsedMs": 259,
+          "wallMs": 373,
           "codeCount": 5,
           "proseCount": 1
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 234,
-          "wallMs": 338,
+          "elapsedMs": 323,
+          "wallMs": 458,
           "codeCount": 5,
           "proseCount": 1
         }
@@ -484,14 +484,14 @@
       "query": "fts",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 234,
-          "wallMs": 334,
+          "elapsedMs": 250,
+          "wallMs": 374,
           "codeCount": 0,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 239,
-          "wallMs": 340,
+          "elapsedMs": 277,
+          "wallMs": 390,
           "codeCount": 0,
           "proseCount": 5
         }
@@ -517,14 +517,14 @@
       "query": "incremental",
       "runs": {
         "Xenova/all-MiniLM-L12-v2": {
-          "elapsedMs": 228,
-          "wallMs": 325,
+          "elapsedMs": 248,
+          "wallMs": 371,
           "codeCount": 5,
           "proseCount": 5
         },
         "Xenova/all-MiniLM-L6-v2": {
-          "elapsedMs": 229,
-          "wallMs": 328,
+          "elapsedMs": 250,
+          "wallMs": 379,
           "codeCount": 5,
           "proseCount": 5
         }

@@ -36,11 +36,22 @@ const argv = minimist(process.argv.slice(2), {
     'reads',
     'writes',
     'mutates',
+    'alias',
     'awaits',
     'branches',
     'loops',
     'breaks',
     'continues',
+    'risk',
+    'risk-tag',
+    'risk-source',
+    'risk-sink',
+    'risk-category',
+    'risk-flow',
+    'meta',
+    'meta-json',
+    'file',
+    'ext',
     'visibility',
     'extends',
     'mode',
@@ -87,7 +98,7 @@ const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
 const rawArgs = process.argv.slice(2);
 const query = argv._.join(' ').trim();
 if (!query) {
-  console.error('usage: search "query" [--json|--json-compact|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode|--signature|--param|--decorator|--inferred-type|--return-type|--throws|--reads|--writes|--mutates|--awaits|--branches|--loops|--breaks|--continues|--extends|--visibility|--async|--generator|--returns');
+  console.error('usage: search "query" [--json|--json-compact|--human|--stats|--no-ann|--context N|--type T|--backend memory|sqlite|sqlite-fts|...]|--mode code|prose|both|records|all|--meta key=value|--meta-json {...}|--file path|--ext .ext|--signature|--param|--decorator|--inferred-type|--return-type|--throws|--reads|--writes|--mutates|--alias|--awaits|--branches|--loops|--breaks|--continues|--risk|--risk-tag|--risk-source|--risk-sink|--risk-category|--risk-flow|--extends|--visibility|--async|--generator|--returns');
   process.exit(1);
 }
 const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
@@ -95,16 +106,27 @@ const searchType = argv.type || null;
 const searchAuthor = argv.author || null;
 const searchCall = argv.calls || null;
 const searchImport = argv.import || null;
-const searchMode = argv.mode || 'both';
+const searchMode = String(argv.mode || 'both').toLowerCase();
+const allowedModes = new Set(['code', 'prose', 'both', 'records', 'all']);
+if (!allowedModes.has(searchMode)) {
+  console.error(`Invalid --mode ${searchMode}. Use code|prose|both|records|all.`);
+  process.exit(1);
+}
+const runCode = searchMode === 'code' || searchMode === 'both' || searchMode === 'all';
+const runProse = searchMode === 'prose' || searchMode === 'both' || searchMode === 'all';
+const runRecords = searchMode === 'records' || searchMode === 'all';
 const branchesMin = Number.isFinite(Number(argv.branches)) ? Number(argv.branches) : null;
 const loopsMin = Number.isFinite(Number(argv.loops)) ? Number(argv.loops) : null;
 const breaksMin = Number.isFinite(Number(argv.breaks)) ? Number(argv.breaks) : null;
 const continuesMin = Number.isFinite(Number(argv.continues)) ? Number(argv.continues) : null;
+const fileFilter = argv.file || null;
+const extFilter = normalizeExtFilter(argv.ext);
+const metaFilters = parseMetaFilters(argv.meta, argv['meta-json']);
 const sqlitePaths = resolveSqlitePaths(ROOT, userConfig);
 const sqliteCodePath = sqlitePaths.codePath;
 const sqliteProsePath = sqlitePaths.prosePath;
-const needsCode = searchMode !== 'prose';
-const needsProse = searchMode !== 'code';
+const needsCode = runCode;
+const needsProse = runProse;
 const backendArg = typeof argv.backend === 'string' ? argv.backend.toLowerCase() : '';
 const sqliteScoreModeConfig = sqliteConfig.scoreMode === 'fts';
 const sqliteFtsRequested = backendArg === 'sqlite-fts' || backendArg === 'fts' || (!backendArg && sqliteScoreModeConfig);
@@ -132,6 +154,73 @@ const jsonOutput = argv.json || jsonCompact;
 
 const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
 
+/**
+ * Normalize extension filters into a lowercase list.
+ * @param {string|string[]|null|undefined} extArg
+ * @returns {string[]|null}
+ */
+function normalizeExtFilter(extArg) {
+  const entries = Array.isArray(extArg) ? extArg : (extArg ? [extArg] : []);
+  if (!entries.length) return null;
+  const normalized = [];
+  for (const entry of entries) {
+    String(entry || '')
+      .split(/[,\s]+/)
+      .map((raw) => raw.trim())
+      .filter(Boolean)
+      .forEach((raw) => {
+        let value = raw.toLowerCase();
+        value = value.replace(/^\*+/, '');
+        if (!value) return;
+        if (!value.startsWith('.')) value = `.${value}`;
+        normalized.push(value);
+      });
+  }
+  return normalized.length ? Array.from(new Set(normalized)) : null;
+}
+
+/**
+ * Parse --meta and --meta-json into a normalized filter list.
+ * @param {string|string[]|null|undefined} metaArg
+ * @param {string|string[]|null|undefined} metaJsonArg
+ * @returns {Array<{key:string,value:any}>|null}
+ */
+function parseMetaFilters(metaArg, metaJsonArg) {
+  const filters = [];
+  const pushFilter = (rawKey, rawValue) => {
+    const key = String(rawKey || '').trim();
+    if (!key) return;
+    const value = rawValue === undefined ? null : rawValue;
+    filters.push({ key, value });
+  };
+  const handleEntry = (entry) => {
+    const text = String(entry || '').trim();
+    if (!text) return;
+    const split = text.split('=');
+    const key = split.shift();
+    const value = split.length ? split.join('=').trim() : null;
+    pushFilter(key, value === '' ? null : value);
+  };
+  const metaEntries = Array.isArray(metaArg) ? metaArg : (metaArg ? [metaArg] : []);
+  metaEntries.forEach(handleEntry);
+  const jsonEntries = Array.isArray(metaJsonArg) ? metaJsonArg : (metaJsonArg ? [metaJsonArg] : []);
+  for (const entry of jsonEntries) {
+    const parsed = parseJson(entry, null);
+    if (!parsed) continue;
+    if (Array.isArray(parsed)) {
+      parsed.forEach((item) => {
+        if (typeof item === 'string') handleEntry(item);
+        else if (item && typeof item === 'object') {
+          Object.entries(item).forEach(([key, value]) => pushFilter(key, value));
+        }
+      });
+    } else if (parsed && typeof parsed === 'object') {
+      Object.entries(parsed).forEach(([key, value]) => pushFilter(key, value));
+    }
+  }
+  return filters.length ? filters : null;
+}
+
 
 if (backendForcedSqlite && !sqliteAvailable) {
   const missing = [];
@@ -142,14 +231,19 @@ if (backendForcedSqlite && !sqliteAvailable) {
   process.exit(1);
 }
 
-let useSqlite = (backendForcedSqlite || (!backendDisabled && sqliteConfigured)) && sqliteAvailable;
+const needsSqlite = runCode || runProse;
+if (!needsSqlite && backendForcedSqlite) {
+  console.warn('SQLite backend requested, but records-only mode selected; using file-backed records index.');
+}
+let useSqlite = needsSqlite && (backendForcedSqlite || (!backendDisabled && sqliteConfigured)) && sqliteAvailable;
 let dbCode = null;
 let dbProse = null;
 const vectorAnnState = {
   code: { available: false },
-  prose: { available: false }
+  prose: { available: false },
+  records: { available: false }
 };
-const vectorAnnUsed = { code: false, prose: false };
+const vectorAnnUsed = { code: false, prose: false, records: false };
 let vectorAnnWarned = false;
 if (useSqlite) {
   let Database;
@@ -239,10 +333,9 @@ if (useSqlite) {
 const backendLabel = useSqlite
   ? (sqliteFtsRequested ? 'sqlite-fts' : 'sqlite')
   : 'memory';
-const runCode = needsCode;
-const runProse = needsProse;
 let modelIdForCode = null;
 let modelIdForProse = null;
+let modelIdForRecords = null;
 
 /**
  * Return the active SQLite connection for a mode.
@@ -251,7 +344,9 @@ let modelIdForProse = null;
  */
 function getSqliteDb(mode) {
   if (!useSqlite) return null;
-  return mode === 'code' ? dbCode : dbProse;
+  if (mode === 'code') return dbCode;
+  if (mode === 'prose') return dbProse;
+  return null;
 }
 
 
@@ -305,7 +400,7 @@ function loadIndex(dir) {
 }
 /**
  * Resolve the index directory (cache-first, local fallback).
- * @param {'code'|'prose'} mode
+ * @param {'code'|'prose'|'records'} mode
  * @returns {string}
  */
 function resolveIndexDir(mode) {
@@ -338,10 +433,15 @@ function fileSignature(filePath) {
  */
 function getIndexSignature() {
   if (useSqlite) {
+    const recordDir = runRecords ? resolveIndexDir('records') : null;
+    const recordMeta = recordDir ? path.join(recordDir, 'chunk_meta.json') : null;
+    const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
     return {
       backend: backendLabel,
       code: fileSignature(sqliteCodePath),
-      prose: fileSignature(sqliteProsePath)
+      prose: fileSignature(sqliteProsePath),
+      records: recordMeta ? fileSignature(recordMeta) : null,
+      recordsDense: recordDense ? fileSignature(recordDense) : null
     };
   }
   const codeDir = resolveIndexDir('code');
@@ -350,12 +450,17 @@ function getIndexSignature() {
   const proseMeta = path.join(proseDir, 'chunk_meta.json');
   const codeDense = path.join(codeDir, 'dense_vectors_uint8.json');
   const proseDense = path.join(proseDir, 'dense_vectors_uint8.json');
+  const recordDir = runRecords ? resolveIndexDir('records') : null;
+  const recordMeta = recordDir ? path.join(recordDir, 'chunk_meta.json') : null;
+  const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
   return {
     backend: backendLabel,
     code: fileSignature(codeMeta),
     prose: fileSignature(proseMeta),
     codeDense: fileSignature(codeDense),
-    proseDense: fileSignature(proseDense)
+    proseDense: fileSignature(proseDense),
+    records: recordMeta ? fileSignature(recordMeta) : null,
+    recordsDense: recordDense ? fileSignature(recordDense) : null
   };
 }
 
@@ -378,7 +483,8 @@ function buildQueryCacheKey() {
     sqliteFtsWeights,
     models: {
       code: modelIdForCode,
-      prose: modelIdForProse
+      prose: modelIdForProse,
+      records: modelIdForRecords
     },
     filters: {
       type: searchType,
@@ -397,12 +503,21 @@ function buildQueryCacheKey() {
       reads: argv.reads || null,
       writes: argv.writes || null,
       mutates: argv.mutates || null,
+      risk: argv.risk || null,
+      riskTag: argv['risk-tag'] || null,
+      riskSource: argv['risk-source'] || null,
+      riskSink: argv['risk-sink'] || null,
+      riskCategory: argv['risk-category'] || null,
+      riskFlow: argv['risk-flow'] || null,
       awaits: argv.awaits || null,
       visibility: argv.visibility || null,
       extends: argv.extends || null,
       async: argv.async || false,
       generator: argv.generator || false,
-      returns: argv.returns || false
+      returns: argv.returns || false,
+      file: fileFilter || null,
+      ext: extFilter || null,
+      meta: metaFilters
     }
   };
   const raw = JSON.stringify(payload);
@@ -758,8 +873,12 @@ const idxProse = runProse
 const idxCode = runCode
   ? (useSqlite ? loadIndexFromSqlite('code') : loadIndex(resolveIndexDir('code')))
   : { chunkMeta: [], denseVec: null, minhash: null };
+const idxRecords = runRecords
+  ? loadIndex(resolveIndexDir('records'))
+  : { chunkMeta: [], denseVec: null, minhash: null };
 modelIdForCode = runCode ? (idxCode?.denseVec?.model || modelIdDefault) : null;
 modelIdForProse = runProse ? (idxProse?.denseVec?.model || modelIdDefault) : null;
+modelIdForRecords = runRecords ? (idxRecords?.denseVec?.model || modelIdDefault) : null;
 
 // --- QUERY TOKENIZATION ---
 
@@ -795,7 +914,7 @@ function rankVectorAnnSqlite(mode, queryEmbedding, topN, candidateSet) {
  * @returns {Set<number>|null}
  */
 function buildCandidateSet(idx, tokens, mode) {
-  if (useSqlite) return buildCandidateSetSqlite(mode, tokens);
+  if (useSqlite && (mode === 'code' || mode === 'prose')) return buildCandidateSetSqlite(mode, tokens);
 
   const candidates = new Set();
   let matched = false;
@@ -840,6 +959,7 @@ function buildCandidateSet(idx, tokens, mode) {
  */
 function runSearch(idx, mode, queryEmbedding) {
   const meta = idx.chunkMeta;
+  const sqliteEnabledForMode = useSqlite && (mode === 'code' || mode === 'prose');
 
   // Filtering
   const filteredMeta = filterChunks(meta, {
@@ -860,6 +980,13 @@ function runSearch(idx, mode, queryEmbedding) {
     reads: argv.reads,
     writes: argv.writes,
     mutates: argv.mutates,
+    alias: argv.alias,
+    risk: argv.risk,
+    riskTag: argv['risk-tag'],
+    riskSource: argv['risk-source'],
+    riskSink: argv['risk-sink'],
+    riskCategory: argv['risk-category'],
+    riskFlow: argv['risk-flow'],
     awaits: argv.awaits,
     branches: branchesMin,
     loops: loopsMin,
@@ -869,18 +996,21 @@ function runSearch(idx, mode, queryEmbedding) {
     extends: argv.extends,
     async: argv.async,
     generator: argv.generator,
-    returns: argv.returns
+    returns: argv.returns,
+    file: fileFilter,
+    ext: extFilter,
+    meta: metaFilters
   });
   const allowedIdx = new Set(filteredMeta.map(c => c.id));
 
   // Main search: BM25 token match
   let candidates = null;
   let bmHits = [];
-  if (useSqlite && sqliteFtsRequested) {
+  if (sqliteEnabledForMode && sqliteFtsRequested) {
     bmHits = rankSqliteFts(idx, queryTokens, mode, argv.n * 3, sqliteFtsNormalize);
     candidates = bmHits.length ? new Set(bmHits.map(h => h.idx)) : null;
   } else {
-    const tokenIndexOverride = useSqlite ? getTokenIndexForQuery(queryTokens, mode) : null;
+    const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode) : null;
     candidates = buildCandidateSet(idx, queryTokens, mode);
     bmHits = rankBM25({
       idx,
@@ -893,40 +1023,102 @@ function runSearch(idx, mode, queryEmbedding) {
   }
   // MinHash (embedding) ANN, if requested
   let annHits = [];
+  let annSource = null;
   if (annEnabled) {
     if (queryEmbedding && vectorAnnState[mode]?.available) {
       annHits = rankVectorAnnSqlite(mode, queryEmbedding, argv.n * 3, candidates);
       if (!annHits.length && candidates && candidates.size) {
         annHits = rankVectorAnnSqlite(mode, queryEmbedding, argv.n * 3, null);
       }
-      if (annHits.length) vectorAnnUsed[mode] = true;
+      if (annHits.length) {
+        vectorAnnUsed[mode] = true;
+        annSource = 'sqlite-vector';
+      }
     }
-    if (!annHits.length && queryEmbedding && idx.denseVec?.vectors?.length) {
+    if (!annHits.length && queryEmbedding && idx.denseVec?.vectors?.length) {   
       annHits = rankDenseVectors(idx, queryEmbedding, argv.n * 3, candidates);
+      if (annHits.length) annSource = 'dense';
     }
     if (!annHits.length) {
       annHits = rankMinhash(idx, queryTokens, argv.n * 3);
+      if (annHits.length) annSource = 'minhash';
     }
   }
 
   // Combine and dedup
-  let allHits = new Map();
-  bmHits.forEach(h => allHits.set(h.idx, { score: h.score, kind: 'bm25' }));
-  annHits.forEach(h => {
-    if (!allHits.has(h.idx) || h.sim > allHits.get(h.idx).score)
-      allHits.set(h.idx, { score: h.sim, kind: 'ann' });
+  const allHits = new Map();
+  const sparseType = (sqliteEnabledForMode && sqliteFtsRequested) ? 'fts' : 'bm25';
+  const recordHit = (idxVal, update) => {
+    const current = allHits.get(idxVal) || { bm25: null, fts: null, ann: null, annSource: null };
+    allHits.set(idxVal, { ...current, ...update });
+  };
+  bmHits.forEach((h) => {
+    recordHit(h.idx, sparseType === 'fts' ? { fts: h.score } : { bm25: h.score });
+  });
+  annHits.forEach((h) => {
+    recordHit(h.idx, { ann: h.sim, annSource });
   });
 
-  // Sort and map to final results
-  const ranked = [...allHits.entries()]
-    .filter(([idx, _]) => allowedIdx.has(idx))
-    .sort((a, b) => (b[1].score - a[1].score) || (a[0] - b[0]))
-    .slice(0, argv.n)
-    .map(([idxVal, obj]) => {
+  const scored = [...allHits.entries()]
+    .filter(([idxVal]) => allowedIdx.has(idxVal))
+    .map(([idxVal, scores]) => {
+      const sparseScore = scores.fts ?? scores.bm25 ?? null;
+      const annScore = scores.ann ?? null;
+      let scoreType = null;
+      let score = null;
+      if (annScore != null && (sparseScore == null || annScore > sparseScore)) {
+        scoreType = 'ann';
+        score = annScore;
+      } else if (sparseScore != null) {
+        scoreType = scores.fts != null ? 'fts' : 'bm25';
+        score = sparseScore;
+      } else {
+        scoreType = 'none';
+        score = 0;
+      }
       const chunk = meta[idxVal];
-      return chunk ? { ...chunk, annScore: obj.score, annType: obj.kind } : null;
+      if (!chunk) return null;
+      const scoreBreakdown = {
+        sparse: sparseScore != null ? {
+          type: scores.fts != null ? 'fts' : 'bm25',
+          score: sparseScore,
+          normalized: scores.fts != null ? sqliteFtsNormalize : null,
+          weights: scores.fts != null ? sqliteFtsWeights : null,
+          profile: scores.fts != null ? sqliteFtsProfile : null,
+          k1: scores.bm25 != null ? bm25K1 : null,
+          b: scores.bm25 != null ? bm25B : null
+        } : null,
+        ann: annScore != null ? {
+          score: annScore,
+          source: scores.annSource || null
+        } : null,
+        selected: {
+          type: scoreType,
+          score
+        }
+      };
+      return {
+        idx: idxVal,
+        score,
+        scoreType,
+        scoreBreakdown,
+        chunk
+      };
     })
-    .filter(x => x);
+    .filter(Boolean)
+    .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
+    .slice(0, argv.n);
+
+  const ranked = scored
+    .map((entry) => ({
+      ...entry.chunk,
+      score: entry.score,
+      scoreType: entry.scoreType,
+      annScore: entry.score,
+      annType: entry.scoreType,
+      scoreBreakdown: entry.scoreBreakdown
+    }))
+    .filter(Boolean);
 
   return ranked;
 }
@@ -950,6 +1142,8 @@ function compactHit(hit) {
     'kind',
     'name',
     'headline',
+    'score',
+    'scoreType',
     'annScore',
     'annType'
   ];
@@ -979,9 +1173,14 @@ function compactHit(hit) {
       const ttl = Number.isFinite(Number(entry.ttlMs)) ? Number(entry.ttlMs) : queryCacheTtlMs;
       if (!ttl || (Date.now() - entry.ts) <= ttl) {
         cachedPayload = entry.payload || null;
-        if (cachedPayload && (cachedPayload.code || cachedPayload.prose)) {
-          cacheHit = true;
-          entry.ts = Date.now();
+        if (cachedPayload) {
+          const hasCode = !runCode || Array.isArray(cachedPayload.code);
+          const hasProse = !runProse || Array.isArray(cachedPayload.prose);
+          const hasRecords = !runRecords || Array.isArray(cachedPayload.records);
+          if (hasCode && hasProse && hasRecords) {
+            cacheHit = true;
+            entry.ts = Date.now();
+          }
         }
       }
     }
@@ -989,7 +1188,8 @@ function compactHit(hit) {
 
   const needsEmbedding = !cacheHit && annEnabled && (
     (runProse && (idxProse.denseVec?.vectors?.length || vectorAnnState.prose.available)) ||
-    (runCode && (idxCode.denseVec?.vectors?.length || vectorAnnState.code.available))
+    (runCode && (idxCode.denseVec?.vectors?.length || vectorAnnState.code.available)) ||
+    (runRecords && idxRecords.denseVec?.vectors?.length)
   );
   const embeddingCache = new Map();
   const getEmbeddingForModel = async (modelId, dims) => {
@@ -1012,12 +1212,18 @@ function compactHit(hit) {
   const queryEmbeddingProse = needsEmbedding && runProse && (idxProse.denseVec?.vectors?.length || vectorAnnState.prose.available)
     ? await getEmbeddingForModel(modelIdForProse, idxProse.denseVec?.dims || null)
     : null;
+  const queryEmbeddingRecords = needsEmbedding && runRecords && idxRecords.denseVec?.vectors?.length
+    ? await getEmbeddingForModel(modelIdForRecords, idxRecords.denseVec?.dims || null)
+    : null;
   const proseHits = cacheHit && cachedPayload
     ? (cachedPayload.prose || [])
     : (runProse ? runSearch(idxProse, 'prose', queryEmbeddingProse) : []);
   const codeHits = cacheHit && cachedPayload
     ? (cachedPayload.code || [])
     : (runCode ? runSearch(idxCode, 'code', queryEmbeddingCode) : []);
+  const recordHits = cacheHit && cachedPayload
+    ? (cachedPayload.records || [])
+    : (runRecords ? runSearch(idxRecords, 'records', queryEmbeddingRecords) : []);
   const annBackend = vectorAnnEnabled && (vectorAnnUsed.code || vectorAnnUsed.prose)
     ? 'sqlite-extension'
     : 'js';
@@ -1030,6 +1236,7 @@ function compactHit(hit) {
       backend: backendLabel,
       prose: jsonCompact ? proseHits.map(compactHit) : proseHits,
       code: jsonCompact ? codeHits.map(compactHit) : codeHits,
+      records: jsonCompact ? recordHits.map(compactHit) : recordHits,
       stats: {
         elapsedMs: Date.now() - t0,
         annEnabled,
@@ -1040,12 +1247,14 @@ function compactHit(hit) {
           table: vectorExtension.table,
           available: {
             code: vectorAnnState.code.available,
-            prose: vectorAnnState.prose.available
+            prose: vectorAnnState.prose.available,
+            records: vectorAnnState.records.available
           }
         } : null,
         models: {
           code: modelIdForCode,
-          prose: modelIdForProse
+          prose: modelIdForProse,
+          records: modelIdForRecords
         },
         cache: {
           enabled: queryCacheEnabled,
@@ -1066,6 +1275,7 @@ function compactHit(hit) {
   if (!jsonOutput) {
     let showProse = runProse ? argv.n : 0;
     let showCode = runCode ? argv.n : 0;
+    let showRecords = runRecords ? argv.n : 0;
 
   if (runProse && runCode) {
     if (proseHits.length < argv.n) {
@@ -1087,6 +1297,7 @@ function compactHit(hit) {
           index: i,
           mode: 'prose',
           annScore: h.annScore,
+          scoreType: h.scoreType ?? h.annType,
           color,
           queryTokens,
           rx,
@@ -1100,6 +1311,7 @@ function compactHit(hit) {
           index: i,
           mode: 'prose',
           annScore: h.annScore,
+          scoreType: h.scoreType ?? h.annType,
           color,
           queryTokens,
           rx,
@@ -1120,6 +1332,7 @@ function compactHit(hit) {
           index: i,
           mode: 'code',
           annScore: h.annScore,
+          scoreType: h.scoreType ?? h.annType,
           color,
           queryTokens,
           rx,
@@ -1133,6 +1346,7 @@ function compactHit(hit) {
           index: i,
           mode: 'code',
           annScore: h.annScore,
+          scoreType: h.scoreType ?? h.annType,
           color,
           queryTokens,
           rx,
@@ -1143,10 +1357,50 @@ function compactHit(hit) {
     console.log('\n');
   }
 
+  if (runRecords) {
+    console.log(color.bold(`===== 🧾 Records Results (${backendLabel}) =====`));
+    recordHits.slice(0, showRecords).forEach((h, i) => {
+      if (i < 2) {
+        process.stdout.write(formatFullChunk({
+          chunk: h,
+          index: i,
+          mode: 'records',
+          annScore: h.annScore,
+          scoreType: h.scoreType ?? h.annType,
+          color,
+          queryTokens,
+          rx,
+          matched: argv.matched,
+          rootDir: null,
+          summaryState: null
+        }));
+      } else {
+        process.stdout.write(formatShortChunk({
+          chunk: h,
+          index: i,
+          mode: 'records',
+          annScore: h.annScore,
+          scoreType: h.scoreType ?? h.annType,
+          color,
+          queryTokens,
+          rx,
+          matched: argv.matched
+        }));
+      }
+    });
+    console.log('\n');
+  }
+ 
     // Optionally stats
     if (argv.stats) {
       const cacheTag = queryCacheEnabled ? (cacheHit ? 'cache=hit' : 'cache=miss') : 'cache=off';
-      console.log(color.gray(`Stats: prose chunks=${idxProse.chunkMeta.length}, code chunks=${idxCode.chunkMeta.length} (${cacheTag})`));
+      const statsParts = [
+        `prose chunks=${idxProse.chunkMeta.length}`,
+        `code chunks=${idxCode.chunkMeta.length}`,
+        runRecords ? `records chunks=${idxRecords.chunkMeta.length}` : null,
+        `(${cacheTag})`
+      ].filter(Boolean);
+      console.log(color.gray(`Stats: ${statsParts.join(', ')}`));
     }
   }
 
@@ -1163,14 +1417,15 @@ function compactHit(hit) {
     metrics = {};
   }
   const inc = (f, key) => {
-    if (!metrics[f]) metrics[f] = { md: 0, code: 0, terms: [] };
-    metrics[f][key]++;
+    if (!metrics[f]) metrics[f] = { md: 0, code: 0, records: 0, terms: [] };
+    metrics[f][key] = (metrics[f][key] || 0) + 1;
     queryTokens.forEach((t) => {
       if (!metrics[f].terms.includes(t)) metrics[f].terms.push(t);
     });
   };
   proseHits.forEach((h) => inc(h.file, 'md'));
   codeHits.forEach((h) => inc(h.file, 'code'));
+  recordHits.forEach((h) => inc(h.file, 'records'));
   await fs.writeFile(metricsPath, JSON.stringify(metrics) + '\n');
 
   await fs.appendFile(
@@ -1180,12 +1435,13 @@ function compactHit(hit) {
       query,
       mdFiles: proseHits.length,
       codeFiles: codeHits.length,
+      recordFiles: recordHits.length,
       ms: Date.now() - t0,
       cached: cacheHit,
     }) + '\n'
   );
 
-  if (proseHits.length === 0 && codeHits.length === 0) {
+  if (proseHits.length === 0 && codeHits.length === 0 && recordHits.length === 0) {
     await fs.appendFile(
       noResultPath,
       JSON.stringify({ time: new Date().toISOString(), query }) + '\n'
@@ -1207,7 +1463,8 @@ function compactHit(hit) {
         },
         payload: {
           prose: proseHits,
-          code: codeHits
+          code: codeHits,
+          records: recordHits
         }
       });
     }

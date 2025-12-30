@@ -1,0 +1,36 @@
+[
+  {
+    "recordType": "finding",
+    "source": "generic",
+    "stableKey": "util-find-1",
+    "service": "api",
+    "env": "prod",
+    "team": "core",
+    "owner": "security@example.com",
+    "vuln": {
+      "vulnId": "CVE-2024-0001",
+      "title": "Add helper input validation issue",
+      "description": "Improper input validation in the add helper.",
+      "severity": "high"
+    },
+    "package": {
+      "name": "add",
+      "importName": "add-helper",
+      "ecosystem": "npm",
+      "installedVersion": "0.9.0",
+      "affectedRange": "<1.0.0",
+      "fixedVersion": "1.0.0",
+      "manifestPath": "src/util.js"
+    },
+    "exposure": {
+      "internetExposed": true,
+      "publicEndpoint": "https://api.example.com/v1",
+      "dataSensitivity": "pii",
+      "businessCriticality": "high",
+      "compensatingControls": [
+        "waf",
+        "rate limiting"
+      ]
+    }
+  }
+]

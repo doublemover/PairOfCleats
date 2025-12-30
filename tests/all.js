@@ -8,6 +8,17 @@ const argv = minimist(process.argv.slice(2), {
   default: { 'skip-bench': false, 'skip-script-coverage': false }
 });
 
+const envSkipBench = process.env.PAIROFCLEATS_SKIP_BENCH === 'true'
+  || process.env.PAIROFCLEATS_SKIP_BENCH === '1'
+  || process.env.npm_config_skip_bench === 'true'
+  || process.env.npm_config_skip_bench === '1';
+const envSkipScript = process.env.PAIROFCLEATS_SKIP_SCRIPT_COVERAGE === 'true'
+  || process.env.PAIROFCLEATS_SKIP_SCRIPT_COVERAGE === '1'
+  || process.env.npm_config_skip_script_coverage === 'true'
+  || process.env.npm_config_skip_script_coverage === '1';
+const skipBench = argv['skip-bench'] || envSkipBench;
+const skipScriptCoverage = argv['skip-script-coverage'] || envSkipScript;
+
 const root = process.cwd();
 const run = (label, args) => {
   const result = spawnSync(process.execPath, args, { stdio: 'inherit' });
@@ -17,11 +28,11 @@ const run = (label, args) => {
   }
 };
 
-if (!argv['skip-script-coverage']) {
+if (!skipScriptCoverage) {
   run('script-coverage-test', [path.join(root, 'tests', 'script-coverage.js')]);
 }
 
-if (!argv['skip-bench']) {
+if (!skipBench) {
   run('bench', [
     path.join(root, 'tests', 'bench.js'),
     '--build',

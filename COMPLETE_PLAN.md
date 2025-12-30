@@ -305,3 +305,125 @@ Work items:
 - [x] Add async MCP build support (stream output vs `spawnSync`) and document error payloads.
 - [x] Add MCP error-path tests (invalid repo path, missing indexes).
 - [x] Add a docs consistency test to catch stale plan/roadmap references.
+
+## Phase 30: Scoring + JSON Consolidation (status: done)
+Goal: Standardize scoring outputs across backends and make JSON payloads consistent and inspectable.
+Work items:
+- [x] Align score labels and semantics across memory/sqlite/sqlite-fts paths (including ANN fallback).
+- [x] Add score breakdowns (BM25/FTS/ANN components, normalization flags, weights).
+- [x] Ensure `--json-compact` preserves the same fields across backends and filters.
+- [x] Update compare/parity harnesses to consume the unified score schema.
+- [x] Add targeted tests for score breakdown parity.
+Notes:
+- Enhancement thread 1 (scoring transparency) is implemented here.
+
+## Phase 31: Index Pipeline Pluginization (status: done)
+Goal: Replace large conditional flows with a registry-based indexing pipeline.
+Work items:
+- [x] Build a per-language/format registry for scanners, parsers, and enrichers.
+- [x] Centralize shared helpers (tokenize, metadata normalization, relations).
+- [x] Reduce build_index control flow into steps with explicit inputs/outputs.
+- [x] Add fixtures/tests for registry ordering and missing-handler fallbacks.
+Notes:
+- Enhancement thread 3 (parser SDK) is implemented here.
+
+## Phase 32: Language Semantics Depth (status: done)
+Goal: Improve type inference, control flow, and dataflow richness with interprocedural context.
+Work items:
+- [x] Expand intra-file type inference precision (literal unions, generics, propagation).
+- [x] Add interprocedural summaries (callsite argument/return linking).
+- [x] Extend dataflow with alias tracking for supported languages.
+- [x] Add fidelity fixtures covering new semantic edges.
+Notes:
+- Enhancement thread 2 (language semantics) is implemented here.
+
+## Phase 33: Continuous Indexing (status: done)
+Goal: Support live updates via watchers and git hooks with safe concurrency.
+Work items:
+- [x] Add a watch mode to trigger incremental indexing on file changes.
+- [x] Add optional git hook installers (post-commit / post-merge).
+- [x] Add lock/health checks to avoid concurrent writes.
+- [x] Document workflows for CI and local dev.
+Notes:
+- Enhancement thread 4 (continuous update loop) is implemented here.
+
+## Phase 34: Artifact Lifecycle + Cache Hygiene (status: done)
+Goal: Manage cache size, retention, and shared artifacts safely.
+Work items:
+- [x] Add cache quota and GC policy (age/size-based eviction).
+- [x] Add artifact health checks and cold-cache rebuild hints.
+- [x] Expand report-artifacts with per-repo and global rollups.
+- [x] Add tests for GC and quota handling.
+Notes:
+- Enhancement thread 5 (cache/artifact hygiene) is implemented here.
+
+## Phase 35: MCP UX Enhancements (status: done)
+Goal: Make MCP interactions richer, safer, and more transparent.
+Work items:
+- [x] Stream progress for long-running MCP tasks (index build, download).
+- [x] Add remediation hints on common errors (missing models/dicts/sqlite).
+- [x] Add MCP tool to inspect config + cache status with warnings.
+- [x] Add MCP-focused tests for error and progress payloads.
+Notes:
+- Enhancement thread 6 (MCP UX) is implemented here.
+
+## Phase 36: Agent-Focused SAST Features (status: done)
+Goal: Provide lightweight risk signals and flows for agent workflows.
+Work items:
+- [x] Add taint-like flow summaries for sources/sinks (configurable).
+- [x] Add risky API usage detectors with metadata tags.
+- [x] Add search filters for risk categories and flows.
+- [x] Add fixtures/tests for sample flows.
+Notes:
+- Enhancement thread 7 (SAST-adjacent) is implemented here.
+
+## Phase 37: Triage Records + Context Packs (Phase 0: spec review + plan) (status: done)
+Goal: Review the v1 triage spec, map touched systems, and capture assumptions for a safe rollout.
+Work items:
+- [x] Review newfeature.md and current build/search/config flows to map integration points.
+- [x] Confirm cache-only storage for triage artifacts (no repo writes).
+- [x] Document assumptions and guardrails before implementation.
+Assumptions/guardrails:
+- Keep `build_index --mode all` semantics as code+prose only; records are opt-in via `--mode records`.
+- Triage records live under the repo cache by default; no triage data written to the repo tree.
+- Promote only selected fields into `docmeta.record` to avoid bloating chunk metadata.
+- Record indexing can be a full rebuild in v1 (expected low volume); incremental support is optional.
+- Meta filtering uses case-insensitive matching and ignores missing fields rather than erroring.
+- Context packs can invoke `search.js` via a child process in v1 (no core search refactor required).
+
+## Phase 38: Triage Records + Context Packs (Phase 1: config + paths + schema) (status: done)
+Goal: Add triage config and path resolution, plus shared helpers for stable record IDs.
+Work items:
+- [x] Add `triage` config defaults to `.pairofcleats.json` and config loaders.
+- [x] Extend `tools/dict-utils.js` with `getTriageRecordsDir()` and allow `getIndexDir(..., 'records')`.
+- [x] Define shared helpers for recordId generation and promoted field extraction.
+
+## Phase 39: Triage Records + Context Packs (Phase 2: ingest + normalize + render + decisions) (status: done)
+Goal: Ingest findings into normalized records and render human/indexable views.
+Work items:
+- [x] Implement `tools/triage/ingest.js` with Dependabot, AWS Inspector, and generic adapters.
+- [x] Add normalization modules in `src/triage/normalize/` with parse warnings and metadata routing.
+- [x] Add `src/triage/render.js` to render canonical markdown views.
+- [x] Implement `tools/triage/decision.js` to create decision records linked to findings.
+
+## Phase 40: Triage Records + Context Packs (Phase 3: records indexing) (status: done)
+Goal: Build a dedicated records index with prose-style tokenization and optional incremental caching.
+Work items:
+- [x] Allow `--mode records` in build args and route to a new records indexer.
+- [x] Add `src/triage/index-records.js` to build `index-records` from record markdown + JSON.
+- [x] Store promoted fields in `docmeta.record` and keep artifacts small.
+
+## Phase 41: Triage Records + Context Packs (Phase 4: records search + meta filters) (status: done)
+Goal: Enable records search with metadata-first filtering and JSON output support.
+Work items:
+- [x] Extend `search.js` to include `--mode records` and optional `--meta`/`--meta-json`.
+- [x] Add record output section and JSON `records` payloads in `src/search/output.js`.
+- [x] Add generic file/ext filters if not already present and apply them to records.
+
+## Phase 42: Triage Records + Context Packs (Phase 5: context packs + MCP + tests + docs) (status: done)
+Goal: Produce LLM-ready context packs, expose MCP tools, and add tests/fixtures/docs.
+Work items:
+- [x] Implement `tools/triage/context-pack.js` (history + repo evidence).
+- [x] Add MCP tool wrappers for ingest/decision/context packs and allow `records` mode in MCP build/search.
+- [x] Add triage fixtures + `tests/triage-records.js` and script wiring in `package.json`.
+- [x] Update README + docs to describe triage workflows and new CLI/MCP tools.

@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import { getIndexDir } from '../../../tools/dict-utils.js';
+import { buildRecordsIndexForRepo } from '../../triage/index-records.js';
 import { applyCrossFileInference } from '../type-inference-crossfile.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import { log, showProgress } from '../../shared/progress.js';
@@ -14,9 +15,13 @@ import { createIndexState, appendChunk } from './state.js';
 
 /**
  * Build indexes for a given mode.
- * @param {{mode:'code'|'prose',runtime:object}} input
+ * @param {{mode:'code'|'prose'|'records',runtime:object}} input
  */
 export async function buildIndexForMode({ mode, runtime }) {
+  if (mode === 'records') {
+    await buildRecordsIndexForRepo({ runtime });
+    return;
+  }
   const outDir = getIndexDir(runtime.root, mode, runtime.userConfig);
   await fs.mkdir(outDir, { recursive: true });
   log(`\n📄  Scanning ${mode} …`);
@@ -74,6 +79,7 @@ export async function buildIndexForMode({ mode, runtime }) {
     incrementalState,
     getChunkEmbedding: runtime.getChunkEmbedding,
     typeInferenceEnabled: runtime.typeInferenceEnabled,
+    riskAnalysisEnabled: runtime.riskAnalysisEnabled,
     seenFiles,
     gitBlameEnabled: runtime.gitBlameEnabled
   });
@@ -123,16 +129,20 @@ export async function buildIndexForMode({ mode, runtime }) {
     log
   });
 
-  if (mode === 'code' && runtime.typeInferenceEnabled && runtime.typeInferenceCrossFileEnabled) {
+  const crossFileEnabled = runtime.typeInferenceCrossFileEnabled || runtime.riskAnalysisCrossFileEnabled;
+  if (mode === 'code' && crossFileEnabled) {
     const crossFileStats = await applyCrossFileInference({
       rootDir: runtime.root,
       chunks: state.chunks,
       enabled: true,
       log,
-      useTooling: true
+      useTooling: runtime.typeInferenceEnabled && runtime.typeInferenceCrossFileEnabled,
+      enableTypeInference: runtime.typeInferenceEnabled,
+      enableRiskCorrelation: runtime.riskAnalysisEnabled && runtime.riskAnalysisCrossFileEnabled
     });
     if (crossFileStats) {
-      log(`Cross-file inference: callLinks=${crossFileStats.linkedCalls}, usageLinks=${crossFileStats.linkedUsages}, returns=${crossFileStats.inferredReturns}`);
+      const riskFlows = Number.isFinite(crossFileStats.riskFlows) ? crossFileStats.riskFlows : 0;
+      log(`Cross-file inference: callLinks=${crossFileStats.linkedCalls}, usageLinks=${crossFileStats.linkedUsages}, returns=${crossFileStats.inferredReturns}, riskFlows=${riskFlows}`);
     }
     await updateBundlesWithChunks({
       enabled: runtime.incrementalEnabled,

@@ -44,3 +44,14 @@ export class Widget extends BaseWidget {
     return this.count;
   }
 }
+
+/**
+ * @param {string | null} label
+ * @returns {Array<string>}
+ */
+export function buildAliases(label) {
+  const name = label;
+  const items = ['a', 'b'];
+  const copy = items;
+  return items;
+}

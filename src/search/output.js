@@ -28,6 +28,13 @@ export function filterChunks(meta, filters = {}) {
     reads,
     writes,
     mutates,
+    alias,
+    risk,
+    riskTag,
+    riskSource,
+    riskSink,
+    riskCategory,
+    riskFlow,
     awaits,
     branches,
     loops,
@@ -38,9 +45,30 @@ export function filterChunks(meta, filters = {}) {
     extends: extendsFilter,
     async: asyncOnly,
     generator: generatorOnly,
-    returns: returnsOnly
+    returns: returnsOnly,
+    file,
+    ext,
+    meta: metaFilter
   } = filters;
   const normalize = (value) => String(value || '').toLowerCase();
+  const normalizeList = (value) => {
+    if (!value) return [];
+    const entries = Array.isArray(value) ? value : [value];
+    return entries
+      .flatMap((entry) => String(entry || '').split(/[,\s]+/))
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  };
+  const fileNeedles = normalizeList(file).map(normalize);
+  const extNeedles = normalizeList(ext)
+    .map((entry) => {
+      let value = entry.toLowerCase();
+      value = value.replace(/^\*+/, '');
+      if (value && !value.startsWith('.')) value = `.${value}`;
+      return value;
+    })
+    .filter(Boolean);
+  const metaFilters = Array.isArray(metaFilter) ? metaFilter : (metaFilter ? [metaFilter] : []);
   const matchList = (list, value) => {
     if (!value) return true;
     if (!Array.isArray(list)) return false;
@@ -70,9 +98,49 @@ export function filterChunks(meta, filters = {}) {
     return types.some((entry) => normalize(entry).includes(needle));
   };
   const truthy = (value) => value === true;
+  const resolveMetaField = (record, key) => {
+    if (!record || typeof record !== 'object' || !key) return undefined;
+    if (!key.includes('.')) return record[key];
+    return key.split('.').reduce((acc, part) => (acc && typeof acc === 'object' ? acc[part] : undefined), record);
+  };
+  const matchMetaFilters = (chunk) => {
+    if (!metaFilters.length) return true;
+    const recordMeta = chunk?.docmeta?.record;
+    if (!recordMeta || typeof recordMeta !== 'object') return false;
+    for (const filter of metaFilters) {
+      const key = filter?.key;
+      if (!key) continue;
+      const value = filter?.value;
+      const field = resolveMetaField(recordMeta, key);
+      if (value == null || value === '') {
+        if (field == null) return false;
+        if (Array.isArray(field) && field.length === 0) return false;
+        if (typeof field === 'string' && !field.trim()) return false;
+        continue;
+      }
+      const needle = normalize(value);
+      if (Array.isArray(field)) {
+        if (!field.some((entry) => normalize(entry).includes(needle))) return false;
+      } else if (field && typeof field === 'object') {
+        if (!normalize(JSON.stringify(field)).includes(needle)) return false;
+      } else if (!normalize(field).includes(needle)) {
+        return false;
+      }
+    }
+    return true;
+  };
 
   return meta.filter((c) => {
     if (!c) return false;
+    if (fileNeedles.length) {
+      const fileValue = normalize(c.file);
+      if (!fileNeedles.some((needle) => fileValue.includes(needle))) return false;
+    }
+    if (extNeedles.length) {
+      const extValue = normalize(c.ext || path.extname(c.file || ''));
+      if (!extNeedles.includes(extValue)) return false;
+    }
+    if (!matchMetaFilters(c)) return false;
     if (type && c.kind && c.kind.toLowerCase() !== type.toLowerCase()) return false;
     if (author && c.last_author && !c.last_author.toLowerCase().includes(author.toLowerCase())) return false;
     if (call && c.codeRelations && c.codeRelations.calls) {
@@ -112,6 +180,34 @@ export function filterChunks(meta, filters = {}) {
     if (reads && !matchList(c.docmeta?.dataflow?.reads, reads)) return false;
     if (writes && !matchList(c.docmeta?.dataflow?.writes, writes)) return false;
     if (mutates && !matchList(c.docmeta?.dataflow?.mutations, mutates)) return false;
+    if (alias && !matchList(c.docmeta?.dataflow?.aliases, alias)) return false;
+    const riskMeta = c.docmeta?.risk || null;
+    const riskTagValue = riskTag || risk;
+    if (riskTagValue && !matchList(riskMeta?.tags, riskTagValue)) return false;
+    if (riskSource) {
+      const sourceNames = Array.isArray(riskMeta?.sources)
+        ? riskMeta.sources.map((source) => source.name)
+        : null;
+      if (!matchList(sourceNames, riskSource)) return false;
+    }
+    if (riskSink) {
+      const sinkNames = Array.isArray(riskMeta?.sinks)
+        ? riskMeta.sinks.map((sink) => sink.name)
+        : null;
+      if (!matchList(sinkNames, riskSink)) return false;
+    }
+    if (riskCategory) {
+      const categories = Array.isArray(riskMeta?.categories)
+        ? riskMeta.categories
+        : (Array.isArray(riskMeta?.sinks) ? riskMeta.sinks.map((sink) => sink.category) : null);
+      if (!matchList(categories, riskCategory)) return false;
+    }
+    if (riskFlow) {
+      const flows = Array.isArray(riskMeta?.flows)
+        ? riskMeta.flows.map((flow) => `${flow.source}->${flow.sink}`)
+        : null;
+      if (!matchList(flows, riskFlow)) return false;
+    }
     if (branches != null) {
       const count = c.docmeta?.controlFlow?.branches;
       if (!Number.isFinite(count) || count < branches) return false;
@@ -211,6 +307,12 @@ const formatInferredMap = (map, limit = 3) => {
   return entries.join(', ');
 };
 
+const formatScore = (score, scoreType, color) => {
+  if (!Number.isFinite(score)) return '';
+  const label = scoreType ? `${score.toFixed(2)} ${scoreType}` : score.toFixed(2);
+  return color.green(label);
+};
+
 /**
  * Render a full, human-readable result entry.
  * @param {object} options
@@ -221,6 +323,7 @@ export function formatFullChunk({
   index,
   mode,
   annScore,
+  scoreType,
   color,
   queryTokens = [],
   rx,
@@ -238,7 +341,7 @@ export function formatFullChunk({
     c.bold(c[mode === 'code' ? 'blue' : 'magenta'](`${index + 1}. ${chunk.file}`)),
     c.cyan(chunk.name || ''),
     c.yellow(chunk.kind || ''),
-    c.green(`${annScore.toFixed(2)}`),
+    formatScore(annScore, scoreType, c),
     c.gray(`Start/End: ${chunk.start}/${chunk.end}`),
     (chunk.startLine && chunk.endLine)
       ? c.gray(`Lines: ${chunk.startLine}-${chunk.endLine}`)
@@ -253,7 +356,7 @@ export function formatFullChunk({
   const secondLine = [headlinePart, lastModPart].filter(Boolean).join('   ');
   if (secondLine) out += '   ' + secondLine + '\n';
 
-  if (chunk.last_author && chunk.last_author !== '2xmvr') {
+  if (chunk.last_author) {
     out += c.gray('   Last Author: ') + c.green(chunk.last_author) + '\n';
   }
 
@@ -271,6 +374,16 @@ export function formatFullChunk({
 
   if (chunk.codeRelations?.calls?.length) {
     out += c.yellow('   Calls: ') + chunk.codeRelations.calls.map(([a, b]) => `${a}->${b}`).join(', ') + '\n';
+  }
+  if (chunk.codeRelations?.callSummaries?.length) {
+    const summaries = chunk.codeRelations.callSummaries.slice(0, 3).map((summary) => {
+      const args = Array.isArray(summary.args) && summary.args.length ? summary.args.join(', ') : '';
+      const returns = Array.isArray(summary.returnTypes) && summary.returnTypes.length
+        ? ` -> ${summary.returnTypes.join(' | ')}`
+        : '';
+      return `${summary.name}(${args})${returns}`;
+    });
+    out += c.yellow('   CallSummary: ') + summaries.join(', ') + '\n';
   }
 
   if (chunk.codeRelations?.importLinks?.length) {
@@ -310,6 +423,33 @@ export function formatFullChunk({
     );
     if (matchedTokens.length) {
       out += c.gray('   Matched: ') + matchedTokens.join(', ') + '\n';
+    }
+  }
+
+  const recordMeta = chunk.docmeta?.record || null;
+  if (recordMeta) {
+    const recordParts = [];
+    if (recordMeta.recordType) recordParts.push(`type=${recordMeta.recordType}`);
+    if (recordMeta.severity) recordParts.push(`severity=${recordMeta.severity}`);
+    if (recordMeta.status) recordParts.push(`status=${recordMeta.status}`);
+    const vulnId = recordMeta.vulnId || recordMeta.cve;
+    if (vulnId) recordParts.push(`vuln=${vulnId}`);
+    if (recordMeta.packageName) recordParts.push(`package=${recordMeta.packageName}`);
+    if (recordMeta.packageEcosystem) recordParts.push(`ecosystem=${recordMeta.packageEcosystem}`);
+    if (recordParts.length) {
+      out += c.yellow('   Record: ') + recordParts.join(', ') + '\n';
+    }
+    const routeParts = [];
+    if (recordMeta.service) routeParts.push(`service=${recordMeta.service}`);
+    if (recordMeta.env) routeParts.push(`env=${recordMeta.env}`);
+    if (recordMeta.team) routeParts.push(`team=${recordMeta.team}`);
+    if (recordMeta.owner) routeParts.push(`owner=${recordMeta.owner}`);
+    if (recordMeta.assetId) routeParts.push(`asset=${recordMeta.assetId}`);
+    if (routeParts.length) {
+      out += c.gray('   Route: ') + routeParts.join(', ') + '\n';
+    }
+    if (chunk.docmeta?.doc) {
+      out += c.gray('   Summary: ') + chunk.docmeta.doc + '\n';
     }
   }
 
@@ -378,11 +518,29 @@ export function formatFullChunk({
     if (dataflow.mutations?.length) {
       out += c.gray('   Mutates: ') + dataflow.mutations.slice(0, 6).join(', ') + '\n';
     }
+    if (dataflow.aliases?.length) {
+      out += c.gray('   Aliases: ') + dataflow.aliases.slice(0, 6).join(', ') + '\n';
+    }
     if (dataflow.globals?.length) {
       out += c.gray('   Globals: ') + dataflow.globals.slice(0, 6).join(', ') + '\n';
     }
     if (dataflow.nonlocals?.length) {
       out += c.gray('   Nonlocals: ') + dataflow.nonlocals.slice(0, 6).join(', ') + '\n';
+    }
+  }
+  const risk = chunk.docmeta?.risk || null;
+  if (risk) {
+    if (risk.severity) {
+      out += c.red(`   RiskLevel: ${risk.severity}`) + '\n';
+    }
+    if (risk.tags?.length) {
+      out += c.red('   RiskTags: ') + risk.tags.slice(0, 6).join(', ') + '\n';
+    }
+    if (risk.flows?.length) {
+      const flowList = risk.flows.slice(0, 3).map((flow) =>
+        `${flow.source}->${flow.sink} (${flow.category})`
+      );
+      out += c.red('   RiskFlows: ') + flowList.join(', ') + '\n';
     }
   }
   const controlFlow = chunk.docmeta?.controlFlow || null;
@@ -421,7 +579,7 @@ export function formatFullChunk({
     out += c.gray('   postContext: ') + cleanedPostContext.map((line) => c.green(line.trim())).join(' | ') + '\n';
   }
 
-  if (summaryState && rootDir) {
+  if (summaryState && rootDir && !chunk.docmeta?.record) {
     if (index === 0) summaryState.lastCount = 0;
     if (index < 5) {
       let maxWords = 10;
@@ -450,6 +608,7 @@ export function formatShortChunk({
   index,
   mode,
   annScore,
+  scoreType,
   color,
   queryTokens = [],
   rx,
@@ -460,10 +619,27 @@ export function formatShortChunk({
   }
   let out = '';
   out += `${color.bold(color[mode === 'code' ? 'blue' : 'magenta'](`${index + 1}. ${chunk.file}`))}`;
-  out += color.yellow(` [${annScore.toFixed(2)}]`);
+  const scoreLabel = Number.isFinite(annScore)
+    ? `[${scoreType ? `${annScore.toFixed(2)} ${scoreType}` : annScore.toFixed(2)}]`
+    : '';
+  if (scoreLabel) {
+    out += color.yellow(` ${scoreLabel}`);
+  }
   if (chunk.name) out += ' ' + color.cyan(chunk.name);
   out += color.gray(` (${chunk.kind || 'unknown'})`);
-  if (chunk.last_author && chunk.last_author !== '2xmvr') out += color.green(` by ${chunk.last_author}`);
+  const recordMeta = chunk.docmeta?.record || null;
+  if (recordMeta) {
+    const recordBits = [];
+    if (recordMeta.severity) recordBits.push(recordMeta.severity);
+    if (recordMeta.status) recordBits.push(recordMeta.status);
+    const vulnId = recordMeta.vulnId || recordMeta.cve;
+    if (vulnId) recordBits.push(vulnId);
+    if (recordMeta.packageName) recordBits.push(recordMeta.packageName);
+    if (recordBits.length) {
+      out += color.yellow(` [${recordBits.join(' | ')}]`);
+    }
+  }
+  if (chunk.last_author) out += color.green(` by ${chunk.last_author}`);
   if (chunk.headline) out += ` - ${color.underline(chunk.headline)}`;
   else if (chunk.tokens && chunk.tokens.length && rx) {
     out += ' - ' + chunk.tokens.slice(0, 10).join(' ').replace(rx, (m) => color.bold(color.yellow(m)));

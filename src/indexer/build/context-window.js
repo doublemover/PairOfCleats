@@ -33,7 +33,7 @@ export async function estimateContextWindow({ files, root, mode, languageOptions
       ext,
       relPath: relSampleKey,
       mode,
-      ...sampleContext
+      context: sampleContext
     });
     sampleChunkLens.push(...chunks0.map(c =>
       text.slice(c.start, c.end).split('\n').length

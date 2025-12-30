@@ -271,6 +271,7 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
   const imports = new Set();
   const exports = new Set();
   const calls = [];
+  const callDetails = [];
   const usages = new Set();
   const functionMeta = {};
   const classMeta = {};
@@ -311,6 +312,7 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
         reads: new Set(),
         writes: new Set(),
         mutations: new Set(),
+        aliases: new Set(),
         throws: new Set(),
         awaits: new Set(),
         returns: false,
@@ -339,6 +341,13 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
     const scope = currentFunction();
     if (!scope) return;
     ensureFlow(scope).mutations.add(name);
+  };
+
+  const recordAlias = (name, target) => {
+    if (!dataflowEnabled || !name || !target) return;
+    const scope = currentFunction();
+    if (!scope) return;
+    ensureFlow(scope).aliases.add(`${name}=${target}`);
   };
 
   const recordThrow = (name) => {
@@ -506,6 +515,22 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
     names.forEach((name) => recordWrite(name));
   };
 
+  const formatCallArg = (arg) => {
+    if (!arg) return '...';
+    if (arg.type === 'Identifier') return arg.name;
+    if (arg.type === 'Literal') return JSON.stringify(arg.value);
+    if (arg.type === 'MemberExpression') return getMemberName(arg) || 'member';
+    if (arg.type === 'CallExpression') {
+      const callee = getCalleeName(arg.callee);
+      return callee ? `${callee}(...)` : 'call(...)';
+    }
+    if (arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression') return 'fn(...)';
+    if (arg.type === 'ObjectExpression') return '{...}';
+    if (arg.type === 'ArrayExpression') return '[...]';
+    if (arg.type === 'TemplateLiteral') return '`...`';
+    return '...';
+  };
+
   const walk = (node, parent) => {
     if (!node) return;
     if (Array.isArray(node)) {
@@ -555,7 +580,11 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
     if (node.type === 'CallExpression') {
       const calleeName = getCalleeName(node.callee);
       const callerName = functionStack.length ? functionStack[functionStack.length - 1] : '(module)';
-      if (calleeName) calls.push([callerName, calleeName]);
+      if (calleeName) {
+        calls.push([callerName, calleeName]);
+        const args = Array.isArray(node.arguments) ? node.arguments.map((arg) => formatCallArg(arg)) : [];
+        callDetails.push({ caller: callerName, callee: calleeName, args });
+      }
     }
 
     if (node.type === 'Identifier') {
@@ -567,11 +596,17 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
 
     if (node.type === 'VariableDeclarator' && node.id) {
       recordPatternWrite(node.id);
+      if (node.id.type === 'Identifier' && node.init) {
+        const target = getMemberName(node.init);
+        if (target) recordAlias(node.id.name, target);
+      }
     }
 
     if (node.type === 'AssignmentExpression' && node.left) {
       if (node.left.type === 'Identifier') {
         recordWrite(node.left.name);
+        const target = getMemberName(node.right);
+        if (target) recordAlias(node.left.name, target);
       } else if (node.left.type === 'MemberExpression') {
         recordMutation(getMemberName(node.left));
       } else {
@@ -666,7 +701,8 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
       meta.dataflow = {
         reads: Array.from(flow.reads),
         writes: Array.from(flow.writes),
-        mutations: Array.from(flow.mutations)
+        mutations: Array.from(flow.mutations),
+        aliases: Array.from(flow.aliases)
       };
       meta.throws = Array.from(flow.throws);
       meta.awaits = Array.from(flow.awaits);
@@ -686,6 +722,7 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
     imports: Array.from(imports),
     exports: Array.from(exports),
     calls,
+    callDetails,
     usages: Array.from(usages),
     importLinks,
     functionMeta,

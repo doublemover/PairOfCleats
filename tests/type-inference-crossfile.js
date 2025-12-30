@@ -99,6 +99,18 @@ if (!callLinks.some((link) => link.target === 'createWidget' && link.file === 's
   console.error('Cross-file inference missing call link to createWidget.');
   process.exit(1);
 }
+const callLink = callLinks.find((link) => link.target === 'createWidget' && link.file === 'src/creator.js');
+if (!callLink?.returnTypes?.includes('Widget')) {
+  console.error('Cross-file inference missing returnTypes for createWidget call link.');
+  process.exit(1);
+}
+
+const callSummaries = buildWidget.codeRelations?.callSummaries || [];
+const callSummary = callSummaries.find((link) => link.target === 'createWidget' && link.file === 'src/creator.js');
+if (!callSummary?.returnTypes?.includes('Widget')) {
+  console.error('Cross-file inference missing call summary returnTypes for createWidget.');
+  process.exit(1);
+}
 
 const usageLinks = buildWidget.codeRelations?.usageLinks || [];
 if (!usageLinks.some((link) => link.target === 'Widget' && link.file === 'src/creator.js')) {

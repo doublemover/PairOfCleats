@@ -8,9 +8,12 @@ const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'summary-report');
 const cacheRoot = path.join(tempRoot, 'cache');
 const outPath = path.join(tempRoot, 'combined-summary.json');
+const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
+const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const env = {
   ...process.env,
@@ -28,7 +31,7 @@ const result = spawnSync(
     '--out',
     outPath
   ],
-  { env, encoding: 'utf8' }
+  { env, encoding: 'utf8', cwd: repoRoot }
 );
 
 if (result.status !== 0) {

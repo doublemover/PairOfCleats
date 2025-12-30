@@ -6,6 +6,7 @@
   "description": "Hybrid semantic indexer and search utility for codebases",
   "scripts": {
     "build-index": "node build_index.js",
+    "watch-index": "node build_index.js --watch",
     "search": "node search.js",
     "merge-history": "node tools/mergeSearchHistory.js",
     "merge-no-results": "node tools/mergeNoResultQueries.js",
@@ -17,9 +18,12 @@
     "generate-repo-dict": "node tools/generate-repo-dict.js",
     "tooling-detect": "node tools/tooling-detect.js",
     "tooling-install": "node tools/tooling-install.js",
+    "git-hooks": "node tools/git-hooks.js",
+    "git-hooks-test": "node tests/git-hooks.js",
     "build-sqlite-index": "node tools/build-sqlite-index.js",
     "search-sqlite": "node tools/search-sqlite.js",
     "report-artifacts": "node tools/report-artifacts.js",
+    "cache-gc": "node tools/cache-gc.js",
     "clean-artifacts": "node tools/clean-artifacts.js",
     "compact-sqlite-index": "node tools/compact-sqlite-index.js",
     "repometrics-dashboard": "node tools/repometrics-dashboard.js",
@@ -50,6 +54,7 @@
     "language-fidelity-test": "node tests/language-fidelity.js",
     "format-fidelity-test": "node tests/format-fidelity.js",
     "repometrics-dashboard-test": "node tests/repometrics-dashboard.js",        
+    "triage-test": "node tests/triage-records.js",
     "mcp-server-test": "node tests/mcp-server.js",
     "compare-models-test": "node tests/compare-models.js",
     "docs-consistency-test": "node tests/docs-consistency.js",
@@ -59,7 +64,8 @@
     "tooling-detect-test": "node tests/tooling-detect.js",
     "tooling-install-test": "node tests/tooling-install.js",
     "script-coverage-test": "node tests/script-coverage.js",
-    "setup-test": "node tests/setup.js"
+    "setup-test": "node tests/setup.js",
+    "cache-gc-test": "node tests/cache-gc.js"
   },
   "dependencies": {
     "@xenova/transformers": "*",

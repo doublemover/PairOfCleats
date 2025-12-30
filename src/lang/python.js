@@ -199,11 +199,37 @@ def await_name(node):
         return call_name(node.func)
     return call_name(node)
 
+def alias_target(node):
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return call_name(node) or target_name(node)
+    return None
+
+def format_arg_value(node):
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Constant):
+        return repr(node.value)
+    if isinstance(node, ast.Attribute):
+        return call_name(node) or target_name(node) or "attr"
+    if isinstance(node, ast.Call):
+        callee = call_name(node.func)
+        return f"{callee}(...)" if callee else "call(...)"
+    if isinstance(node, ast.Lambda):
+        return "lambda"
+    if isinstance(node, ast.Dict):
+        return "{...}"
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return "[...]"
+    return "..."
+
 class Collector(ast.NodeVisitor):
     def __init__(self):
         self.defs = []
         self.imports = set()
         self.calls = []
+        self.call_details = []
         self.usages = set()
         self.exports = set()
         self.class_stack = []
@@ -221,6 +247,7 @@ class Collector(ast.NodeVisitor):
                 "reads": set(),
                 "writes": set(),
                 "mutations": set(),
+                "aliases": set(),
                 "globals": set(),
                 "nonlocals": set(),
                 "throws": set(),
@@ -250,6 +277,13 @@ class Collector(ast.NodeVisitor):
         if not scope:
             return
         self.ensure_flow(scope)["mutations"].add(name)
+    def record_alias(self, name, target):
+        if not dataflow_enabled or not name or not target:
+            return
+        scope = self.current_scope()
+        if not scope:
+            return
+        self.ensure_flow(scope)["aliases"].add(name + "=" + target)
     def record_throw(self, name):
         if not dataflow_enabled or not name:
             return
@@ -374,6 +408,15 @@ class Collector(ast.NodeVisitor):
             caller = self.current_func()
             self.calls.append([caller, callee])
             self.call_map.setdefault(caller, set()).add(callee)
+            args = []
+            for arg in node.args:
+                args.append(format_arg_value(arg))
+            for kw in node.keywords:
+                if kw.arg:
+                    args.append(f"{kw.arg}=" + format_arg_value(kw.value))
+                else:
+                    args.append("**...")
+            self.call_details.append({"caller": caller, "callee": callee, "args": args})
         self.generic_visit(node)
     def visit_Assign(self, node):
         writes = set()
@@ -384,6 +427,10 @@ class Collector(ast.NodeVisitor):
             self.record_write(name)
         for name in mutations:
             self.record_mutation(name)
+        if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            target = alias_target(node.value)
+            if target:
+                self.record_alias(node.targets[0].id, target)
         self.generic_visit(node)
     def visit_AnnAssign(self, node):
         writes = set()
@@ -393,6 +440,10 @@ class Collector(ast.NodeVisitor):
             self.record_write(name)
         for name in mutations:
             self.record_mutation(name)
+        if isinstance(node.target, ast.Name):
+            target = alias_target(node.value) if getattr(node, "value", None) is not None else None
+            if target:
+                self.record_alias(node.target.id, target)
         self.generic_visit(node)
     def visit_AugAssign(self, node):
         writes = set()
@@ -477,6 +528,7 @@ for entry in collector.defs:
             "reads": sorted(flow["reads"]),
             "writes": sorted(flow["writes"]),
             "mutations": sorted(flow["mutations"]),
+            "aliases": sorted(flow["aliases"]),
             "globals": sorted(flow["globals"]),
             "nonlocals": sorted(flow["nonlocals"])
         }
@@ -493,6 +545,7 @@ result = {
     "defs": collector.defs,
     "imports": sorted(collector.imports),
     "calls": collector.calls,
+    "callDetails": collector.call_details,
     "usages": sorted(collector.usages),
     "exports": sorted(collector.exports)
 }
@@ -717,11 +770,13 @@ export function buildPythonRelations(text, allImports, pythonAst) {
   let imports = [];
   let usages = [];
   let calls = [];
+  let callDetails = [];
   let exports = [];
   if (pythonAst) {
     imports = Array.isArray(pythonAst.imports) ? pythonAst.imports : [];
     usages = Array.isArray(pythonAst.usages) ? pythonAst.usages : [];
     calls = Array.isArray(pythonAst.calls) ? pythonAst.calls : [];
+    callDetails = Array.isArray(pythonAst.callDetails) ? pythonAst.callDetails : [];
     exports = Array.isArray(pythonAst.exports) ? pythonAst.exports : [];
   } else {
     const fallback = collectPythonImports(text);
@@ -736,6 +791,7 @@ export function buildPythonRelations(text, allImports, pythonAst) {
     imports,
     exports,
     calls,
+    callDetails,
     usages,
     importLinks
   };

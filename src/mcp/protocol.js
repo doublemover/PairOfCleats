@@ -10,6 +10,16 @@ export function sendMessage(payload, output = process.stdout) {
 }
 
 /**
+ * Send a JSON-RPC notification.
+ * @param {string} method
+ * @param {object} params
+ * @param {NodeJS.WritableStream} [output]
+ */
+export function sendNotification(method, params, output = process.stdout) {
+  sendMessage({ jsonrpc: '2.0', method, params }, output);
+}
+
+/**
  * Send a JSON-RPC result response.
  * @param {string|number|null} id
  * @param {any} result

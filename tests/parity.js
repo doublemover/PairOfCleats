@@ -141,6 +141,14 @@ function hitKey(hit, index) {
   return String(index);
 }
 
+function hitScore(hit) {
+  if (!hit || typeof hit !== 'object') return 0;
+  if (Number.isFinite(hit.score)) return hit.score;
+  if (Number.isFinite(hit.annScore)) return hit.annScore;
+  const selected = hit.scoreBreakdown?.selected?.score;
+  return Number.isFinite(selected) ? selected : 0;
+}
+
 function summarizeMatch(memoryHits, sqliteHits) {
   const mem = memoryHits.slice(0, topN);
   const sql = sqliteHits.slice(0, topN);
@@ -153,8 +161,8 @@ function summarizeMatch(memoryHits, sqliteHits) {
   const intersection = memKeys.filter((key) => sqlSet.has(key));
   const overlap = intersection.length / Math.max(1, Math.min(memKeys.length, sqlKeys.length));
 
-  const memScores = new Map(mem.map((hit, idx) => [hitKey(hit, idx), hit.annScore || 0]));
-  const sqlScores = new Map(sql.map((hit, idx) => [hitKey(hit, idx), hit.annScore || 0]));
+  const memScores = new Map(mem.map((hit, idx) => [hitKey(hit, idx), hitScore(hit)]));
+  const sqlScores = new Map(sql.map((hit, idx) => [hitKey(hit, idx), hitScore(hit)]));
   const deltas = intersection.map((key) => Math.abs((memScores.get(key) || 0) - (sqlScores.get(key) || 0)));
   const avgDelta = deltas.length ? deltas.reduce((a, b) => a + b, 0) / deltas.length : 0;
 

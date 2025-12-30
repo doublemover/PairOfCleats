@@ -5,6 +5,22 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 
 export const DEFAULT_MODEL_ID = 'Xenova/all-MiniLM-L12-v2';
+export const DEFAULT_TRIAGE_PROMOTE_FIELDS = [
+  'recordType',
+  'source',
+  'recordId',
+  'service',
+  'env',
+  'team',
+  'owner',
+  'vulnId',
+  'cve',
+  'packageName',
+  'packageEcosystem',
+  'severity',
+  'status',
+  'assetId'
+];
 
 /**
  * Load repo-local configuration from .pairofcleats.json.
@@ -94,12 +110,55 @@ export function getModelConfig(repoRoot, userConfig = null) {
 /**
  * Resolve the index directory for a repo/mode.
  * @param {string} repoRoot
- * @param {'code'|'prose'} mode
+ * @param {'code'|'prose'|'records'} mode
  * @param {object|null} userConfig
  * @returns {string}
  */
 export function getIndexDir(repoRoot, mode, userConfig = null) {
   return path.join(getRepoCacheRoot(repoRoot, userConfig), `index-${mode}`);
+}
+
+/**
+ * Resolve triage configuration for a repo.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @returns {{recordsDir:string,storeRawPayload:boolean,promoteFields:string[],contextPack:{maxHistory:number,maxEvidencePerQuery:number}}}
+ */
+export function getTriageConfig(repoRoot, userConfig = null) {
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  const triage = cfg.triage || {};
+  const repoCacheRoot = getRepoCacheRoot(repoRoot, cfg);
+  const defaultRecordsDir = path.join(repoCacheRoot, 'triage', 'records');
+  const recordsDir = (typeof triage.recordsDir === 'string' && triage.recordsDir.trim())
+    ? resolvePath(repoRoot, triage.recordsDir)
+    : defaultRecordsDir;
+  const promoteFields = Array.isArray(triage.promoteFields)
+    ? triage.promoteFields
+    : DEFAULT_TRIAGE_PROMOTE_FIELDS;
+  const contextPack = triage.contextPack || {};
+  const maxHistory = Number.isFinite(Number(contextPack.maxHistory)) ? Number(contextPack.maxHistory) : 5;
+  const maxEvidencePerQuery = Number.isFinite(Number(contextPack.maxEvidencePerQuery))
+    ? Number(contextPack.maxEvidencePerQuery)
+    : 5;
+  return {
+    recordsDir,
+    storeRawPayload: triage.storeRawPayload === true,
+    promoteFields,
+    contextPack: {
+      maxHistory,
+      maxEvidencePerQuery
+    }
+  };
+}
+
+/**
+ * Resolve the triage records directory for a repo.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @returns {string}
+ */
+export function getTriageRecordsDir(repoRoot, userConfig = null) {
+  return getTriageConfig(repoRoot, userConfig).recordsDir;
 }
 
 /**

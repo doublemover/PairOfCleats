@@ -38,6 +38,93 @@ const JS_TYPES = {
 
 const normalizeText = (value) => String(value || '').trim();
 
+const splitTopLevel = (value, delimiter) => {
+  const parts = [];
+  if (!value) return parts;
+  let current = '';
+  let depth = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    const ch = value[i];
+    if (ch === '<' || ch === '[' || ch === '(') depth += 1;
+    if (ch === '>' || ch === ']' || ch === ')') depth = Math.max(0, depth - 1);
+    if (ch === delimiter && depth === 0) {
+      parts.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+};
+
+const stripOptionalSuffix = (value) => {
+  if (!value) return value;
+  if (value.endsWith('?')) return value.slice(0, -1).trim();
+  return value;
+};
+
+const parseGeneric = (value) => {
+  if (!value) return null;
+  const ltIndex = value.indexOf('<');
+  const lbIndex = value.indexOf('[');
+  const index = ltIndex >= 0 && (lbIndex < 0 || ltIndex < lbIndex) ? ltIndex : lbIndex;
+  if (index < 0) return null;
+  const closer = value[index] === '<' ? '>' : ']';
+  const closeIndex = value.lastIndexOf(closer);
+  if (closeIndex <= index) return null;
+  const outer = value.slice(0, index).trim();
+  const inner = value.slice(index + 1, closeIndex).trim();
+  if (!outer || !inner) return null;
+  return { outer, inner };
+};
+
+const expandUnionTypes = (value, languageId) => {
+  const normalized = normalizeText(value);
+  if (!normalized) return [];
+  if (languageId === 'python') {
+    const optionalMatch = normalized.match(/^(?:typing\.)?Optional\[(.+)\]$/);
+    if (optionalMatch) {
+      const inner = optionalMatch[1];
+      return splitTopLevel(inner, ',').concat(PYTHON_TYPES.null);
+    }
+    const unionMatch = normalized.match(/^(?:typing\.)?Union\[(.+)\]$/);
+    if (unionMatch) {
+      return splitTopLevel(unionMatch[1], ',');
+    }
+  }
+  const parts = splitTopLevel(normalized, '|');
+  if (parts.length > 1) return parts;
+  return [];
+};
+
+const expandTypeCandidates = (raw, languageId) => {
+  const initial = normalizeText(raw);
+  if (!initial) return [];
+  const seen = new Set();
+  const queue = [initial];
+  while (queue.length) {
+    const current = normalizeText(queue.shift());
+    if (!current || seen.has(current)) continue;
+    seen.add(current);
+    const stripped = stripOptionalSuffix(current);
+    if (stripped && stripped !== current) {
+      queue.push(stripped);
+      if (languageId !== 'python') queue.push('undefined');
+    }
+    const unions = expandUnionTypes(current, languageId);
+    if (unions.length) {
+      unions.forEach((entry) => queue.push(entry));
+    }
+    const generic = parseGeneric(current);
+    if (generic) {
+      if (generic.outer) queue.push(generic.outer);
+      splitTopLevel(generic.inner, ',').forEach((entry) => queue.push(entry));
+    }
+  }
+  return Array.from(seen).filter(Boolean);
+};
+
 const normalizeDefaultValue = (raw) => {
   let value = normalizeText(raw);
   if (!value || value === '...' || value === '…') return '';
@@ -90,6 +177,30 @@ const inferLiteralType = (raw, languageId) => {
   return null;
 };
 
+const addTypes = (bucket, key, entry, languageId) => {
+  if (!bucket || !key || !entry?.type) return false;
+  const expanded = expandTypeCandidates(entry.type, languageId);
+  if (!expanded.length) return false;
+  let hasData = false;
+  for (const type of expanded) {
+    if (!type) continue;
+    hasData = addEntry(bucket, key, { ...entry, type }) || hasData;
+  }
+  return hasData;
+};
+
+const addReturnTypes = (list, entry, languageId) => {
+  if (!Array.isArray(list) || !entry?.type) return false;
+  const expanded = expandTypeCandidates(entry.type, languageId);
+  if (!expanded.length) return false;
+  let hasData = false;
+  for (const type of expanded) {
+    if (!type) continue;
+    hasData = addListEntry(list, { ...entry, type }) || hasData;
+  }
+  return hasData;
+};
+
 const addEntry = (bucket, key, entry) => {
   if (!bucket || !key || !entry?.type) return false;
   const list = bucket[key] || [];
@@ -114,9 +225,10 @@ const addListEntry = (list, entry) => {
   return true;
 };
 
-const inferAssignments = (chunkText, languageId) => {
+const inferAssignments = (chunkText, languageId, knownTypes) => {
   const locals = {};
-  if (!chunkText) return locals;
+  const aliases = new Set();
+  if (!chunkText) return { locals, aliases: [] };
   const lines = chunkText.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
@@ -139,7 +251,43 @@ const inferAssignments = (chunkText, languageId) => {
       confidence: CONFIDENCE.literal
     });
   }
-  return locals;
+  if (knownTypes && typeof knownTypes.get === 'function') {
+    for (const [name, entries] of Object.entries(locals)) {
+      const list = Array.isArray(entries) ? entries : [];
+      if (!list.length) continue;
+      const existing = knownTypes.get(name) || [];
+      for (const entry of list) {
+        if (!entry?.type) continue;
+        existing.push(entry.type);
+      }
+      knownTypes.set(name, existing);
+    }
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('*')) continue;
+      if (trimmed.includes('==') || trimmed.includes('!=') || trimmed.includes('=>')) continue;
+      if (trimmed.includes('>=') || trimmed.includes('<=')) continue;
+      let match = trimmed.match(/^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$.]*)\s*;?$/);
+      if (!match) {
+        match = trimmed.match(/^([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$.]*)\s*;?$/);
+      }
+      if (!match) continue;
+      const name = match[1];
+      const value = match[2];
+      if (name && value) aliases.add(`${name}=${value}`);
+      const types = knownTypes.get(value);
+      if (!types || !types.length) continue;
+      for (const type of types) {
+        addEntry(locals, name, {
+          type,
+          source: TYPE_SOURCES.flow,
+          confidence: CONFIDENCE.flow
+        });
+      }
+    }
+  }
+  return { locals, aliases: Array.from(aliases) };
 };
 
 export function inferTypeMetadata({ docmeta, chunkText, languageId }) {
@@ -156,63 +304,80 @@ export function inferTypeMetadata({ docmeta, chunkText, languageId }) {
   for (const [name, type] of Object.entries(paramTypes)) {
     const normalized = normalizeText(type);
     if (!normalized) continue;
-    hasData = addEntry(inferred.params, name, {
+    hasData = addTypes(inferred.params, name, {
       type: normalized,
       source: TYPE_SOURCES.annotation,
       confidence: CONFIDENCE.annotation
-    }) || hasData;
+    }, languageId) || hasData;
   }
 
   const paramDefaults = docmeta.paramDefaults || {};
   for (const [name, value] of Object.entries(paramDefaults)) {
     const inferredType = inferLiteralType(value, languageId);
     if (!inferredType) continue;
-    hasData = addEntry(inferred.params, name, {
+    hasData = addTypes(inferred.params, name, {
       type: inferredType,
       source: TYPE_SOURCES.default,
       confidence: CONFIDENCE.default
-    }) || hasData;
+    }, languageId) || hasData;
   }
 
   const returnType = normalizeText(docmeta.returnType);
   if (returnType) {
-    hasData = addListEntry(inferred.returns, {
+    hasData = addReturnTypes(inferred.returns, {
       type: returnType,
       source: TYPE_SOURCES.annotation,
       confidence: CONFIDENCE.annotation
-    }) || hasData;
+    }, languageId) || hasData;
   }
 
   if (Array.isArray(docmeta.fields)) {
     for (const field of docmeta.fields) {
       if (!field || !field.name) continue;
       if (field.type) {
-        hasData = addEntry(inferred.fields, field.name, {
+        hasData = addTypes(inferred.fields, field.name, {
           type: normalizeText(field.type),
           source: TYPE_SOURCES.annotation,
           confidence: CONFIDENCE.annotation
-        }) || hasData;
+        }, languageId) || hasData;
       }
       if (field.default) {
         const inferredType = inferLiteralType(field.default, languageId);
         if (inferredType) {
-          hasData = addEntry(inferred.fields, field.name, {
+          hasData = addTypes(inferred.fields, field.name, {
             type: inferredType,
             source: TYPE_SOURCES.default,
             confidence: CONFIDENCE.default
-          }) || hasData;
+          }, languageId) || hasData;
         }
       }
     }
   }
 
-  const locals = inferAssignments(chunkText, languageId);
+  const knownTypes = new Map();
+  const captureKnownTypes = (bucket) => {
+    if (!bucket || typeof bucket !== 'object') return;
+    for (const [name, entries] of Object.entries(bucket)) {
+      const list = Array.isArray(entries) ? entries : [];
+      if (!list.length) continue;
+      const existing = knownTypes.get(name) || [];
+      for (const entry of list) {
+        if (!entry?.type) continue;
+        existing.push(entry.type);
+      }
+      knownTypes.set(name, existing);
+    }
+  };
+  captureKnownTypes(inferred.params);
+  captureKnownTypes(inferred.fields);
+
+  const assignmentResult = inferAssignments(chunkText, languageId, knownTypes);
+  const locals = assignmentResult.locals || {};
   for (const [name, entries] of Object.entries(locals)) {
     for (const entry of entries) {
       hasData = addEntry(inferred.locals, name, entry) || hasData;
     }
   }
-
   if (!hasData) return null;
   if (!Object.keys(inferred.params).length) delete inferred.params;
   if (!Object.keys(inferred.fields).length) delete inferred.fields;

@@ -8,8 +8,8 @@ import minimist from 'minimist';
  */
 export function parseBuildArgs(rawArgs) {
   const argv = minimist(rawArgs, {
-    boolean: ['incremental', 'stub-embeddings'],
-    string: ['model'],
+    boolean: ['incremental', 'stub-embeddings', 'watch'],
+    string: ['model', 'watch-poll', 'watch-debounce'],
     alias: { i: 'incremental' },
     default: {
       mode: 'all',
@@ -17,7 +17,10 @@ export function parseBuildArgs(rawArgs) {
       dims: 512,
       threads: os.cpus().length,
       incremental: false,
-      'stub-embeddings': false
+      'stub-embeddings': false,
+      watch: false,
+      'watch-poll': 2000,
+      'watch-debounce': 500
     }
   });
   const modes = argv.mode === 'all' ? ['prose', 'code'] : [argv.mode];

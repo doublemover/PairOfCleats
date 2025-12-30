@@ -302,6 +302,47 @@ function chunkYaml(text, relPath) {
   return null;
 }
 
+const CODE_CHUNKERS = [
+  { id: 'javascript', match: (ext) => isJsLike(ext), chunk: ({ text }) => buildJsChunks(text) },
+  { id: 'typescript', match: (ext) => isTypeScript(ext), chunk: ({ text, context }) => context?.tsChunks || buildTypeScriptChunks(text) },
+  { id: 'python', match: (ext) => ext === '.py', chunk: ({ text, context }) => {
+    const astChunks = buildPythonChunksFromAst(text, context?.pythonAst || null);
+    return (astChunks && astChunks.length) ? astChunks : buildPythonHeuristicChunks(text);
+  } },
+  { id: 'swift', match: (ext) => ext === '.swift', chunk: ({ text, context }) => context?.swiftChunks || buildSwiftChunks(text) },
+  { id: 'clike', match: (ext) => isCLike(ext), chunk: ({ text, ext, context }) => context?.clikeChunks || buildCLikeChunks(text, ext) },
+  { id: 'rust', match: (ext) => isRust(ext), chunk: ({ text, context }) => context?.rustChunks || buildRustChunks(text) },
+  { id: 'go', match: (ext) => isGo(ext), chunk: ({ text, context }) => context?.goChunks || buildGoChunks(text) },
+  { id: 'java', match: (ext) => isJava(ext), chunk: ({ text, context }) => context?.javaChunks || buildJavaChunks(text) },
+  { id: 'perl', match: (ext) => isPerl(ext), chunk: ({ text, context }) => context?.perlChunks || buildPerlChunks(text) },
+  { id: 'shell', match: (ext) => isShell(ext), chunk: ({ text, context }) => context?.shellChunks || buildShellChunks(text) },
+  { id: 'csharp', match: (ext) => isCSharp(ext), chunk: ({ text, context }) => context?.csharpChunks || buildCSharpChunks(text) },
+  { id: 'kotlin', match: (ext) => isKotlin(ext), chunk: ({ text, context }) => context?.kotlinChunks || buildKotlinChunks(text) },
+  { id: 'ruby', match: (ext) => isRuby(ext), chunk: ({ text, context }) => context?.rubyChunks || buildRubyChunks(text) },
+  { id: 'php', match: (ext) => isPhp(ext), chunk: ({ text, context }) => context?.phpChunks || buildPhpChunks(text) },
+  { id: 'lua', match: (ext) => isLua(ext), chunk: ({ text, context }) => context?.luaChunks || buildLuaChunks(text) },
+  { id: 'sql', match: (ext) => isSql(ext), chunk: ({ text, context }) => context?.sqlChunks || buildSqlChunks(text) }
+];
+
+const CODE_FORMAT_CHUNKERS = [
+  { id: 'json', match: (ext) => ext === '.json', chunk: ({ text }) => chunkJson(text) },
+  { id: 'ini', match: (ext) => ['.toml', '.ini', '.cfg', '.conf'].includes(ext), chunk: ({ text }) => chunkIniToml(text) },
+  { id: 'xml', match: (ext) => ext === '.xml', chunk: ({ text }) => chunkXml(text) },
+  { id: 'dockerfile', match: (ext) => ext === '.dockerfile', chunk: ({ text }) => chunkDockerfile(text) },
+  { id: 'makefile', match: (ext) => ext === '.makefile', chunk: ({ text }) => chunkMakefile(text) },
+  { id: 'yaml', match: (ext) => ext === '.yaml' || ext === '.yml', chunk: ({ text, relPath }) => chunkYaml(text, relPath) }
+];
+
+const PROSE_CHUNKERS = [
+  { id: 'markdown', match: (ext) => ext === '.md', chunk: ({ text }) => chunkMarkdown(text) },
+  { id: 'rst', match: (ext) => ext === '.rst', chunk: ({ text }) => chunkRst(text) },
+  { id: 'asciidoc', match: (ext) => ext === '.adoc' || ext === '.asciidoc', chunk: ({ text }) => chunkAsciiDoc(text) }
+];
+
+const resolveChunker = (chunkers, ext, relPath) => (
+  chunkers.find((entry) => entry.match(ext, relPath)) || null
+);
+
 /**
  * Build chunks for a single file using language-aware heuristics.
  * Falls back to generic fixed-size chunks when no parser matches.
@@ -310,14 +351,7 @@ function chunkYaml(text, relPath) {
  * @param {string} params.ext
  * @param {string|null} [params.relPath]
  * @param {'code'|'prose'} params.mode
- * @param {object|null} [params.pythonAst]
- * @param {Array|null} [params.swiftChunks]
- * @param {Array|null} [params.clikeChunks]
- * @param {Array|null} [params.rustChunks]
- * @param {Array|null} [params.goChunks]
- * @param {Array|null} [params.javaChunks]
- * @param {Array|null} [params.perlChunks]
- * @param {Array|null} [params.shellChunks]
+ * @param {object} [params.context]
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>}
  */
 export function smartChunk({
@@ -325,126 +359,25 @@ export function smartChunk({
   ext,
   relPath = null,
   mode,
-  pythonAst = null,
-  swiftChunks = null,
-  clikeChunks = null,
-  rustChunks = null,
-  goChunks = null,
-  javaChunks = null,
-  perlChunks = null,
-  shellChunks = null,
-  tsChunks = null,
-  csharpChunks = null,
-  kotlinChunks = null,
-  rubyChunks = null,
-  phpChunks = null,
-  luaChunks = null,
-  sqlChunks = null
+  context = {}
 }) {
   if (mode === 'prose') {
-    if (ext === '.md') {
-      const chunks = chunkMarkdown(text);
-      if (chunks) return chunks;
+    const chunker = resolveChunker(PROSE_CHUNKERS, ext, relPath);
+    if (chunker) {
+      const chunks = chunker.chunk({ text, ext, relPath, context });
+      if (chunks && chunks.length) return chunks;
     }
-    if (ext === '.rst') {
-      const chunks = chunkRst(text);
-      if (chunks) return chunks;
-    }
-    if (ext === '.adoc' || ext === '.asciidoc') {
-      const chunks = chunkAsciiDoc(text);
-      if (chunks) return chunks;
-    }
-  }
-  if (mode === 'code' && isJsLike(ext)) {
-    const chunks = buildJsChunks(text);
-    if (chunks && chunks.length) return chunks;
-  }
-  if (mode === 'code' && isTypeScript(ext)) {
-    const chunkList = tsChunks || buildTypeScriptChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && ext === '.py') {
-    const astChunks = buildPythonChunksFromAst(text, pythonAst);
-    if (astChunks && astChunks.length) return astChunks;
-    const fallback = buildPythonHeuristicChunks(text);
-    if (fallback && fallback.length) return fallback;
-  }
-  if (mode === 'code' && ext === '.swift') {
-    const chunkList = swiftChunks || buildSwiftChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && isCLike(ext)) {
-    const chunkList = clikeChunks || buildCLikeChunks(text, ext);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && isRust(ext)) {
-    const chunkList = rustChunks || buildRustChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && isGo(ext)) {
-    const chunkList = goChunks || buildGoChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && isJava(ext)) {
-    const chunkList = javaChunks || buildJavaChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && isPerl(ext)) {
-    const chunkList = perlChunks || buildPerlChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && isShell(ext)) {
-    const chunkList = shellChunks || buildShellChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && isCSharp(ext)) {
-    const chunkList = csharpChunks || buildCSharpChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && isKotlin(ext)) {
-    const chunkList = kotlinChunks || buildKotlinChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && isRuby(ext)) {
-    const chunkList = rubyChunks || buildRubyChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && isPhp(ext)) {
-    const chunkList = phpChunks || buildPhpChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && isLua(ext)) {
-    const chunkList = luaChunks || buildLuaChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
-  }
-  if (mode === 'code' && isSql(ext)) {
-    const chunkList = sqlChunks || buildSqlChunks(text);
-    if (chunkList && chunkList.length) return chunkList;
   }
   if (mode === 'code') {
-    if (ext === '.json') {
-      const chunks = chunkJson(text);
-      if (chunks) return chunks;
+    const codeChunker = resolveChunker(CODE_CHUNKERS, ext, relPath);
+    if (codeChunker) {
+      const chunks = codeChunker.chunk({ text, ext, relPath, context });
+      if (chunks && chunks.length) return chunks;
     }
-    if (ext === '.toml' || ext === '.ini' || ext === '.cfg' || ext === '.conf') {
-      const chunks = chunkIniToml(text);
-      if (chunks) return chunks;
-    }
-    if (ext === '.xml') {
-      const chunks = chunkXml(text);
-      if (chunks) return chunks;
-    }
-    if (ext === '.dockerfile') {
-      const chunks = chunkDockerfile(text);
-      if (chunks) return chunks;
-    }
-    if (ext === '.makefile') {
-      const chunks = chunkMakefile(text);
-      if (chunks) return chunks;
-    }
-    if (ext === '.yaml' || ext === '.yml') {
-      const chunks = chunkYaml(text, relPath);
-      if (chunks) return chunks;
+    const formatChunker = resolveChunker(CODE_FORMAT_CHUNKERS, ext, relPath);
+    if (formatChunker) {
+      const chunks = formatChunker.chunk({ text, ext, relPath, context });
+      if (chunks && chunks.length) return chunks;
     }
   }
   if (mode === 'prose' && EXTS_PROSE.has(ext)) {

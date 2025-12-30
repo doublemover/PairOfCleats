@@ -1,0 +1,24 @@
+[
+  {
+    "findingArn": "arn:aws:inspector2:us-east-1:123456789012:finding/1",
+    "severity": "HIGH",
+    "title": "CVE-2024-0003",
+    "description": "A sample inspector finding for util.",
+    "packageVulnerabilityDetails": {
+      "vulnerabilityId": "CVE-2024-0003",
+      "severity": "HIGH",
+      "referenceUrls": ["https://example.com/inspector"],
+      "vulnerablePackages": [
+        {
+          "name": "util",
+          "packageManager": "npm",
+          "version": "1.0.0",
+          "fixedVersion": "1.1.0"
+        }
+      ]
+    },
+    "resources": [
+      { "id": "i-123", "type": "EC2" }
+    ]
+  }
+]

@@ -317,6 +317,14 @@ function hitKey(hit, index) {
   return String(index);
 }
 
+function hitScore(hit) {
+  if (!hit || typeof hit !== 'object') return 0;
+  if (Number.isFinite(hit.score)) return hit.score;
+  if (Number.isFinite(hit.annScore)) return hit.annScore;
+  const selected = hit.scoreBreakdown?.selected?.score;
+  return Number.isFinite(selected) ? selected : 0;
+}
+
 /**
  * Compare top-N hit lists and compute overlap metrics.
  * @param {Array<object>} baseHits
@@ -335,8 +343,8 @@ function compareHits(baseHits, otherHits) {
   const intersection = baseKeys.filter((key) => otherSet.has(key));
   const overlap = intersection.length / Math.max(1, Math.min(baseKeys.length, otherKeys.length));
 
-  const baseScores = new Map(base.map((hit, idx) => [hitKey(hit, idx), hit.annScore || 0]));
-  const otherScores = new Map(other.map((hit, idx) => [hitKey(hit, idx), hit.annScore || 0]));
+  const baseScores = new Map(base.map((hit, idx) => [hitKey(hit, idx), hitScore(hit)]));
+  const otherScores = new Map(other.map((hit, idx) => [hitKey(hit, idx), hitScore(hit)]));
   const deltas = intersection.map((key) => Math.abs((baseScores.get(key) || 0) - (otherScores.get(key) || 0)));
   const avgDelta = deltas.length ? deltas.reduce((a, b) => a + b, 0) / deltas.length : 0;
 

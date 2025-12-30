@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 import simpleGit from 'simple-git';
 import { getToolDefs } from '../src/mcp/defs.js';
-import { sendError, sendResult } from '../src/mcp/protocol.js';
+import { sendError, sendNotification, sendResult } from '../src/mcp/protocol.js';
 import {
   DEFAULT_MODEL_ID,
   getCacheRoot,
@@ -19,6 +19,7 @@ import {
   loadUserConfig,
   resolveSqlitePaths
 } from './dict-utils.js';
+import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -49,6 +50,7 @@ function resolveRepoPath(inputPath) {
 function listArtifacts(repoPath, userConfig) {
   const indexCode = getIndexDir(repoPath, 'code', userConfig);
   const indexProse = getIndexDir(repoPath, 'prose', userConfig);
+  const indexRecords = getIndexDir(repoPath, 'records', userConfig);
   const metricsDir = getMetricsDir(repoPath, userConfig);
   const sqlitePaths = resolveSqlitePaths(repoPath, userConfig);
   return {
@@ -62,12 +64,18 @@ function listArtifacts(repoPath, userConfig) {
         dir: indexProse,
         chunkMeta: path.join(indexProse, 'chunk_meta.json'),
         tokenPostings: path.join(indexProse, 'token_postings.json')
+      },
+      records: {
+        dir: indexRecords,
+        chunkMeta: path.join(indexRecords, 'chunk_meta.json'),
+        tokenPostings: path.join(indexRecords, 'token_postings.json')
       }
     },
     metrics: {
       dir: metricsDir,
       indexCode: path.join(metricsDir, 'index-code.json'),
       indexProse: path.join(metricsDir, 'index-prose.json'),
+      indexRecords: path.join(metricsDir, 'index-records.json'),
       queryCache: path.join(metricsDir, 'queryCache.json')
     },
     sqlite: {
@@ -184,6 +192,11 @@ async function indexStatus(args = {}) {
         dir: artifacts.index.prose.dir,
         chunkMeta: statIfExists(artifacts.index.prose.chunkMeta),
         tokenPostings: statIfExists(artifacts.index.prose.tokenPostings)
+      },
+      records: {
+        dir: artifacts.index.records.dir,
+        chunkMeta: statIfExists(artifacts.index.records.chunkMeta),
+        tokenPostings: statIfExists(artifacts.index.records.tokenPostings)
       }
     },
     sqlite: {
@@ -195,11 +208,103 @@ async function indexStatus(args = {}) {
       dir: artifacts.metrics.dir,
       indexCode: statIfExists(artifacts.metrics.indexCode),
       indexProse: statIfExists(artifacts.metrics.indexProse),
+      indexRecords: statIfExists(artifacts.metrics.indexRecords),
       queryCache: statIfExists(artifacts.metrics.queryCache)
     }
   };
 
   return report;
+}
+
+/**
+ * Inspect configuration + cache status with warnings.
+ * @param {object} [args]
+ * @returns {Promise<object>}
+ */
+async function configStatus(args = {}) {
+  const repoPath = resolveRepoPath(args.repoPath);
+  const userConfig = loadUserConfig(repoPath);
+  const cacheRoot = (userConfig.cache && userConfig.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+  const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
+  const dictConfig = getDictConfig(repoPath, userConfig);
+  const dictionaryPaths = await getDictionaryPaths(repoPath, dictConfig);
+  const modelConfig = getModelConfig(repoPath, userConfig);
+  const modelsDir = modelConfig.dir;
+  const modelDirName = `models--${modelConfig.id.replace('/', '--')}`;
+  const modelPath = path.join(modelsDir, modelDirName);
+  const sqlitePaths = resolveSqlitePaths(repoPath, userConfig);
+  const sqliteConfigured = userConfig.sqlite?.use !== false;
+  const vectorConfig = getVectorExtensionConfig(repoPath, userConfig);
+  const vectorPath = resolveVectorExtensionPath(vectorConfig);
+
+  const warnings = [];
+  if (!dictionaryPaths.length && (dictConfig.languages.length || dictConfig.files.length || dictConfig.includeSlang || dictConfig.enableRepoDictionary)) {
+    warnings.push({
+      code: 'dictionary_missing',
+      message: 'No dictionary files found; identifier splitting will be limited.'
+    });
+  }
+  if (!fs.existsSync(modelPath)) {
+    warnings.push({
+      code: 'model_missing',
+      message: `Embedding model not found (${modelConfig.id}). Run npm run download-models.`
+    });
+  }
+  if (sqliteConfigured) {
+    const missing = [];
+    if (!fs.existsSync(sqlitePaths.codePath)) missing.push(`code=${sqlitePaths.codePath}`);
+    if (!fs.existsSync(sqlitePaths.prosePath)) missing.push(`prose=${sqlitePaths.prosePath}`);
+    if (missing.length) {
+      warnings.push({
+        code: 'sqlite_missing',
+        message: `SQLite indexes missing (${missing.join(', ')}). Run npm run build-sqlite-index.`
+      });
+    }
+  }
+  if (vectorConfig.enabled) {
+    if (!vectorPath || !fs.existsSync(vectorPath)) {
+      warnings.push({
+        code: 'extension_missing',
+        message: 'SQLite vector extension is enabled but not installed.'
+      });
+    }
+  }
+
+  return {
+    repoPath,
+    repoId: getRepoId(repoPath),
+    config: {
+      cacheRoot,
+      repoCacheRoot,
+      dictionary: dictConfig,
+      models: modelConfig,
+      sqlite: {
+        use: sqliteConfigured,
+        annMode: userConfig.sqlite?.annMode || null,
+        codeDbPath: sqlitePaths.codePath,
+        proseDbPath: sqlitePaths.prosePath
+      },
+      search: userConfig.search || {},
+      indexing: userConfig.indexing || {},
+      tooling: userConfig.tooling || {}
+    },
+    cache: {
+      cacheRootExists: fs.existsSync(cacheRoot),
+      repoCacheExists: fs.existsSync(repoCacheRoot),
+      dictionaries: dictionaryPaths,
+      modelAvailable: fs.existsSync(modelPath),
+      sqlite: {
+        codeExists: fs.existsSync(sqlitePaths.codePath),
+        proseExists: fs.existsSync(sqlitePaths.prosePath)
+      },
+      vectorExtension: {
+        enabled: vectorConfig.enabled,
+        path: vectorPath,
+        available: !!(vectorPath && fs.existsSync(vectorPath))
+      }
+    },
+    warnings
+  };
 }
 
 /**
@@ -218,10 +323,64 @@ function runNodeSync(cwd, args) {
 }
 
 /**
+ * Normalize meta filters into CLI-friendly key/value strings.
+ * @param {any} meta
+ * @returns {string[]|null}
+ */
+function normalizeMetaFilters(meta) {
+  if (!meta) return null;
+  if (Array.isArray(meta)) {
+    const entries = meta.flatMap((entry) => {
+      if (entry == null) return [];
+      if (typeof entry === 'string') return [entry];
+      if (typeof entry === 'object') {
+        return Object.entries(entry).map(([key, value]) =>
+          value == null || value === '' ? String(key) : `${key}=${value}`
+        );
+      }
+      return [String(entry)];
+    });
+    return entries.length ? entries : null;
+  }
+  if (typeof meta === 'object') {
+    const entries = Object.entries(meta).map(([key, value]) =>
+      value == null || value === '' ? String(key) : `${key}=${value}`
+    );
+    return entries.length ? entries : null;
+  }
+  return [String(meta)];
+}
+
+/**
+ * Build a line buffer for progress streaming.
+ * @param {(line:string)=>void} onLine
+ * @returns {{push:(text:string)=>void,flush:()=>void}}
+ */
+function createLineBuffer(onLine) {
+  let buffer = '';
+  return {
+    push(text) {
+      buffer += text;
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed) onLine(trimmed);
+      }
+    },
+    flush() {
+      const trimmed = buffer.trim();
+      if (trimmed) onLine(trimmed);
+      buffer = '';
+    }
+  };
+}
+
+/**
  * Run a node command asynchronously with optional stderr streaming.
  * @param {string} cwd
  * @param {string[]} args
- * @param {{streamOutput?:boolean}} [options]
+ * @param {{streamOutput?:boolean,onLine?:(payload:{stream:string,line:string})=>void}} [options]
  * @returns {Promise<{stdout:string,stderr:string}>}
  */
 function runNodeAsync(cwd, args, options = {}) {
@@ -230,15 +389,24 @@ function runNodeAsync(cwd, args, options = {}) {
     let stdout = '';
     let stderr = '';
     const streamOutput = options.streamOutput === true;
+    const onLine = typeof options.onLine === 'function' ? options.onLine : null;
+    const stdoutBuffer = onLine
+      ? createLineBuffer((line) => onLine({ stream: 'stdout', line }))
+      : null;
+    const stderrBuffer = onLine
+      ? createLineBuffer((line) => onLine({ stream: 'stderr', line }))
+      : null;
     child.stdout?.on('data', (chunk) => {
       const text = chunk.toString();
       stdout += text;
       if (streamOutput) process.stderr.write(text);
+      stdoutBuffer?.push(text);
     });
     child.stderr?.on('data', (chunk) => {
       const text = chunk.toString();
       stderr += text;
       if (streamOutput) process.stderr.write(text);
+      stderrBuffer?.push(text);
     });
     child.on('error', (err) => {
       const error = new Error(err.message || 'Command failed');
@@ -247,6 +415,8 @@ function runNodeAsync(cwd, args, options = {}) {
       reject(error);
     });
     child.on('close', (code) => {
+      stdoutBuffer?.flush();
+      stderrBuffer?.flush();
       if (code === 0) {
         resolve({ stdout, stderr });
         return;
@@ -265,6 +435,41 @@ function runNodeAsync(cwd, args, options = {}) {
  * @param {any} error
  * @returns {{message:string,code?:number,stderr?:string,stdout?:string}}
  */
+function getRemediationHint(error) {
+  const parts = [error?.message, error?.stderr, error?.stdout]
+    .filter(Boolean)
+    .join('\n')
+    .toLowerCase();
+  if (!parts) return null;
+
+  if (parts.includes('sqlite backend requested but index not found')
+    || parts.includes('missing required tables')) {
+    return 'Run `npm run build-sqlite-index` or set sqlite.use=false / --backend memory.';
+  }
+  if (parts.includes('better-sqlite3 is required')) {
+    return 'Run `npm install` and ensure better-sqlite3 can load on this platform.';
+  }
+  if (parts.includes('chunk_meta.json') || parts.includes('minhash_signatures')) {
+    return 'Run `npm run build-index` (or `npm run setup`/`npm run bootstrap`) to generate indexes.';
+  }
+  if ((parts.includes('model') || parts.includes('xenova') || parts.includes('transformers'))
+    && (parts.includes('not found') || parts.includes('failed') || parts.includes('fetch') || parts.includes('download') || parts.includes('enoent'))) {
+    return 'Run `npm run download-models` or use `--stub-embeddings` / `PAIROFCLEATS_EMBEDDINGS=stub`.';
+  }
+  if (parts.includes('dictionary')
+    || parts.includes('wordlist')
+    || parts.includes('words_alpha')
+    || parts.includes('download-dicts')) {
+    return 'Run `npm run download-dicts -- --lang en` (or configure dictionary.files/languages).';
+  }
+  return null;
+}
+
+/**
+ * Format error payloads for tool responses.
+ * @param {any} error
+ * @returns {{message:string,code?:number,stderr?:string,stdout?:string,hint?:string}}
+ */
 function formatToolError(error) {
   const payload = {
     message: error?.message || String(error)
@@ -272,7 +477,29 @@ function formatToolError(error) {
   if (error?.code !== undefined) payload.code = error.code;
   if (error?.stderr) payload.stderr = String(error.stderr).trim();
   if (error?.stdout) payload.stdout = String(error.stdout).trim();
+  const hint = getRemediationHint(error);
+  if (hint) payload.hint = hint;
   return payload;
+}
+
+/**
+ * Emit a progress notification for long-running tools.
+ * @param {string|number|null} id
+ * @param {string} tool
+ * @param {{message:string,stream?:string,phase?:string}} payload
+ */
+function sendProgress(id, tool, payload) {
+  if (id === null || id === undefined) return;
+  const message = payload?.message ? String(payload.message) : '';
+  if (!message) return;
+  sendNotification('notifications/progress', {
+    id,
+    tool,
+    message,
+    stream: payload?.stream || 'info',
+    phase: payload?.phase || 'progress',
+    ts: new Date().toISOString()
+  });
 }
 
 /**
@@ -281,10 +508,22 @@ function formatToolError(error) {
  * @param {string} artifactsDir
  * @returns {boolean}
  */
-function maybeRestoreArtifacts(repoPath, artifactsDir) {
+function maybeRestoreArtifacts(repoPath, artifactsDir, progress) {
   const fromDir = artifactsDir ? path.resolve(artifactsDir) : path.join(repoPath, 'ci-artifacts');
   if (!fs.existsSync(path.join(fromDir, 'manifest.json'))) return false;
+  if (progress) {
+    progress({
+      message: `Restoring CI artifacts from ${fromDir}`,
+      phase: 'start'
+    });
+  }
   runNodeSync(repoPath, [path.join(ROOT, 'tools', 'ci-restore-artifacts.js'), '--from', fromDir]);
+  if (progress) {
+    progress({
+      message: 'CI artifacts restored.',
+      phase: 'done'
+    });
+  }
   return true;
 }
 
@@ -293,7 +532,7 @@ function maybeRestoreArtifacts(repoPath, artifactsDir) {
  * @param {object} [args]
  * @returns {object}
  */
-async function buildIndex(args = {}) {
+async function buildIndex(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const userConfig = loadUserConfig(repoPath);
   const sqliteConfigured = userConfig.sqlite?.use !== false;
@@ -301,31 +540,54 @@ async function buildIndex(args = {}) {
   const mode = args.mode || 'all';
   const incremental = args.incremental === true;
   const stubEmbeddings = args.stubEmbeddings === true;
+  const buildSqlite = shouldUseSqlite && mode !== 'records';
   const useArtifacts = args.useArtifacts === true;
+  const progress = typeof context.progress === 'function' ? context.progress : null;
+  const progressLine = progress
+    ? ({ stream, line }) => progress({ message: line, stream })
+    : null;
 
   let restoredArtifacts = false;
   if (useArtifacts) {
-    restoredArtifacts = maybeRestoreArtifacts(repoPath, args.artifactsDir);
+    restoredArtifacts = maybeRestoreArtifacts(repoPath, args.artifactsDir, progress);
   }
 
   if (!restoredArtifacts) {
+    if (progress) {
+      progress({
+        message: `Building ${mode} index${incremental ? ' (incremental)' : ''}.`,
+        phase: 'start'
+      });
+    }
     const indexArgs = [path.join(ROOT, 'build_index.js')];
     if (mode && mode !== 'all') indexArgs.push('--mode', mode);
     if (incremental) indexArgs.push('--incremental');
     if (stubEmbeddings) indexArgs.push('--stub-embeddings');
-    await runNodeAsync(repoPath, indexArgs, { streamOutput: true });
+    await runNodeAsync(repoPath, indexArgs, { streamOutput: true, onLine: progressLine });
   }
 
-  if (shouldUseSqlite) {
+  if (buildSqlite) {
+    if (progress) {
+      progress({
+        message: `Building SQLite index${incremental ? ' (incremental)' : ''}.`,
+        phase: 'start'
+      });
+    }
     const sqliteArgs = [path.join(ROOT, 'tools', 'build-sqlite-index.js')];
     if (incremental) sqliteArgs.push('--incremental');
-    await runNodeAsync(repoPath, sqliteArgs, { streamOutput: true });
+    await runNodeAsync(repoPath, sqliteArgs, { streamOutput: true, onLine: progressLine });
+  }
+  if (progress) {
+    progress({
+      message: 'Index build complete.',
+      phase: 'done'
+    });
   }
 
   return {
     repoPath,
     mode,
-    sqlite: shouldUseSqlite,
+    sqlite: buildSqlite,
     incremental,
     restoredArtifacts
   };
@@ -345,6 +607,10 @@ function runSearch(args = {}) {
   const ann = typeof args.ann === 'boolean' ? args.ann : null;
   const top = Number.isFinite(Number(args.top)) ? Math.max(1, Number(args.top)) : null;
   const context = Number.isFinite(Number(args.context)) ? Math.max(0, Number(args.context)) : null;
+  const fileFilter = args.file ? String(args.file) : null;
+  const extFilter = args.ext ? String(args.ext) : null;
+  const metaFilters = normalizeMetaFilters(args.meta);
+  const metaJson = args.metaJson || null;
 
   const searchArgs = [path.join(ROOT, 'search.js'), query, '--json'];
   if (mode && mode !== 'both') searchArgs.push('--mode', mode);
@@ -353,6 +619,15 @@ function runSearch(args = {}) {
   if (ann === false) searchArgs.push('--no-ann');
   if (top) searchArgs.push('-n', String(top));
   if (context !== null) searchArgs.push('--context', String(context));
+  if (fileFilter) searchArgs.push('--file', fileFilter);
+  if (extFilter) searchArgs.push('--ext', extFilter);
+  if (Array.isArray(metaFilters)) {
+    metaFilters.forEach((entry) => searchArgs.push('--meta', entry));
+  }
+  if (metaJson) {
+    const jsonValue = typeof metaJson === 'string' ? metaJson : JSON.stringify(metaJson);
+    searchArgs.push('--meta-json', jsonValue);
+  }
 
   const stdout = runNodeSync(repoPath, searchArgs);
   return JSON.parse(stdout || '{}');
@@ -363,14 +638,27 @@ function runSearch(args = {}) {
  * @param {object} [args]
  * @returns {{model:string,output:string}}
  */
-function downloadModels(args = {}) {
+async function downloadModels(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const userConfig = loadUserConfig(repoPath);
   const modelConfig = getModelConfig(repoPath, userConfig);
   const model = args.model || modelConfig.id || DEFAULT_MODEL_ID;
   const scriptArgs = [path.join(ROOT, 'tools', 'download-models.js'), '--model', model];
   if (args.cacheDir) scriptArgs.push('--cache-dir', args.cacheDir);
-  const stdout = runNodeSync(repoPath, scriptArgs);
+  const progress = typeof context.progress === 'function' ? context.progress : null;
+  const progressLine = progress
+    ? ({ stream, line }) => progress({ message: line, stream })
+    : null;
+  if (progress) {
+    progress({ message: `Downloading model ${model}.`, phase: 'start' });
+  }
+  const { stdout } = await runNodeAsync(repoPath, scriptArgs, {
+    streamOutput: true,
+    onLine: progressLine
+  });
+  if (progress) {
+    progress({ message: `Model download complete (${model}).`, phase: 'done' });
+  }
   return { model, output: stdout.trim() };
 }
 
@@ -386,23 +674,141 @@ function reportArtifacts(args = {}) {
 }
 
 /**
+ * Handle the MCP triage_ingest tool call.
+ * @param {object} [args]
+ * @returns {Promise<object>}
+ */
+async function triageIngest(args = {}, context = {}) {
+  const repoPath = resolveRepoPath(args.repoPath);
+  const source = String(args.source || '').trim();
+  const inputPath = String(args.inputPath || '').trim();
+  if (!source || !inputPath) {
+    throw new Error('source and inputPath are required.');
+  }
+  const resolvedInput = path.isAbsolute(inputPath) ? inputPath : path.join(repoPath, inputPath);
+  const metaFilters = normalizeMetaFilters(args.meta);
+  const ingestArgs = [path.join(ROOT, 'tools', 'triage', 'ingest.js'), '--source', source, '--in', resolvedInput];
+  ingestArgs.push('--repo', repoPath);
+  if (Array.isArray(metaFilters)) {
+    metaFilters.forEach((entry) => ingestArgs.push('--meta', entry));
+  }
+  const progress = typeof context.progress === 'function' ? context.progress : null;
+  const progressLine = progress
+    ? ({ stream, line }) => progress({ message: line, stream })
+    : null;
+  if (progress) {
+    progress({ message: `Ingesting ${source} findings.`, phase: 'start' });
+  }
+  const { stdout } = await runNodeAsync(repoPath, ingestArgs, { streamOutput: true, onLine: progressLine });
+  let payload = {};
+  try {
+    payload = JSON.parse(stdout || '{}');
+  } catch (error) {
+    throw new Error(`Failed to parse ingest output: ${error?.message || error}`);
+  }
+  if (args.buildIndex) {
+    await buildIndex({
+      repoPath,
+      mode: 'records',
+      incremental: args.incremental === true,
+      stubEmbeddings: args.stubEmbeddings === true,
+      sqlite: false
+    }, context);
+  }
+  if (progress) {
+    progress({ message: 'Triage ingest complete.', phase: 'done' });
+  }
+  return payload;
+}
+
+/**
+ * Handle the MCP triage_decision tool call.
+ * @param {object} [args]
+ * @returns {object}
+ */
+function triageDecision(args = {}) {
+  const repoPath = resolveRepoPath(args.repoPath);
+  const finding = String(args.finding || '').trim();
+  const status = String(args.status || '').trim();
+  if (!finding || !status) {
+    throw new Error('finding and status are required.');
+  }
+  const metaFilters = normalizeMetaFilters(args.meta);
+  const decisionArgs = [path.join(ROOT, 'tools', 'triage', 'decision.js'), '--finding', finding, '--status', status];
+  decisionArgs.push('--repo', repoPath);
+  if (args.justification) decisionArgs.push('--justification', String(args.justification));
+  if (args.reviewer) decisionArgs.push('--reviewer', String(args.reviewer));
+  if (args.expires) decisionArgs.push('--expires', String(args.expires));
+  if (Array.isArray(metaFilters)) {
+    metaFilters.forEach((entry) => decisionArgs.push('--meta', entry));
+  }
+  const codes = Array.isArray(args.codes) ? args.codes : (args.codes ? [args.codes] : []);
+  const evidence = Array.isArray(args.evidence) ? args.evidence : (args.evidence ? [args.evidence] : []);
+  codes.filter(Boolean).forEach((code) => decisionArgs.push('--code', String(code)));
+  evidence.filter(Boolean).forEach((item) => decisionArgs.push('--evidence', String(item)));
+  const stdout = runNodeSync(repoPath, decisionArgs);
+  return JSON.parse(stdout || '{}');
+}
+
+/**
+ * Handle the MCP triage_context_pack tool call.
+ * @param {object} [args]
+ * @returns {Promise<object>}
+ */
+async function triageContextPack(args = {}, context = {}) {
+  const repoPath = resolveRepoPath(args.repoPath);
+  const recordId = String(args.recordId || '').trim();
+  if (!recordId) throw new Error('recordId is required.');
+  const contextArgs = [path.join(ROOT, 'tools', 'triage', 'context-pack.js'), '--record', recordId];
+  contextArgs.push('--repo', repoPath);
+  if (args.outPath) contextArgs.push('--out', String(args.outPath));
+  if (args.ann === true) contextArgs.push('--ann');
+  if (args.ann === false) contextArgs.push('--no-ann');
+  if (args.stubEmbeddings === true) contextArgs.push('--stub-embeddings');
+  const progress = typeof context.progress === 'function' ? context.progress : null;
+  const progressLine = progress
+    ? ({ stream, line }) => progress({ message: line, stream })
+    : null;
+  if (progress) {
+    progress({ message: 'Building triage context pack.', phase: 'start' });
+  }
+  const { stdout } = await runNodeAsync(repoPath, contextArgs, { streamOutput: true, onLine: progressLine });
+  if (progress) {
+    progress({ message: 'Context pack ready.', phase: 'done' });
+  }
+  try {
+    return JSON.parse(stdout || '{}');
+  } catch (error) {
+    throw new Error(`Failed to parse context pack output: ${error?.message || error}`);
+  }
+}
+
+/**
  * Dispatch an MCP tool call by name.
  * @param {string} name
  * @param {object} args
  * @returns {Promise<any>}
  */
-async function handleToolCall(name, args) {
+async function handleToolCall(name, args, context = {}) {
   switch (name) {
     case 'index_status':
       return await indexStatus(args);
+    case 'config_status':
+      return await configStatus(args);
     case 'build_index':
-      return await buildIndex(args);
+      return await buildIndex(args, context);
     case 'search':
       return runSearch(args);
     case 'download_models':
-      return downloadModels(args);
+      return await downloadModels(args, context);
     case 'report_artifacts':
       return reportArtifacts(args);
+    case 'triage_ingest':
+      return await triageIngest(args, context);
+    case 'triage_decision':
+      return triageDecision(args);
+    case 'triage_context_pack':
+      return await triageContextPack(args, context);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -453,7 +859,8 @@ async function handleMessage(message) {
     const name = params?.name;
     const args = params?.arguments || {};
     try {
-      const result = await handleToolCall(name, args);
+      const progress = (payload) => sendProgress(id, name, payload);
+      const result = await handleToolCall(name, args, { progress, toolCallId: id });
       sendResult(id, {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
       });

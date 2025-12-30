@@ -6,8 +6,8 @@ import minimist from 'minimist';
 import { getCacheRoot, getDictConfig, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
-  boolean: ['json'],
-  default: { json: false }
+  boolean: ['json', 'all'],
+  default: { json: false, all: false }
 });
 
 const root = process.cwd();
@@ -101,6 +101,63 @@ const cacheRootSize = await sizeOfPath(cacheRoot);
 const dictSize = await sizeOfPath(dictDir);
 const overallSize = cacheRootSize + sqliteOutsideCacheSize;
 
+const health = { issues: [], hints: [] };
+const indexIssues = [];
+if (!fs.existsSync(repoArtifacts.indexCode)) {
+  indexIssues.push('index-code directory missing');
+} else {
+  if (!fs.existsSync(path.join(repoArtifacts.indexCode, 'chunk_meta.json'))) {
+    indexIssues.push('index-code chunk_meta.json missing');
+  }
+  if (!fs.existsSync(path.join(repoArtifacts.indexCode, 'token_postings.json'))) {
+    indexIssues.push('index-code token_postings.json missing');
+  }
+}
+if (!fs.existsSync(repoArtifacts.indexProse)) {
+  indexIssues.push('index-prose directory missing');
+} else {
+  if (!fs.existsSync(path.join(repoArtifacts.indexProse, 'chunk_meta.json'))) {
+    indexIssues.push('index-prose chunk_meta.json missing');
+  }
+  if (!fs.existsSync(path.join(repoArtifacts.indexProse, 'token_postings.json'))) {
+    indexIssues.push('index-prose token_postings.json missing');
+  }
+}
+if (indexIssues.length) {
+  health.issues.push(...indexIssues);
+  health.hints.push('Run `npm run build-index` to rebuild file-backed indexes.');
+}
+
+const sqliteIssues = [];
+if (userConfig.sqlite?.use === true) {
+  if (!fs.existsSync(sqlitePaths.codePath)) sqliteIssues.push('sqlite code db missing');
+  if (!fs.existsSync(sqlitePaths.prosePath)) sqliteIssues.push('sqlite prose db missing');
+}
+if (sqliteIssues.length) {
+  health.issues.push(...sqliteIssues);
+  health.hints.push('Run `npm run build-sqlite-index` to rebuild SQLite indexes.');
+}
+
+const repoRollups = [];
+if (argv.all) {
+  const reposRoot = path.join(cacheRoot, 'repos');
+  if (fs.existsSync(reposRoot)) {
+    const entries = await fsPromises.readdir(reposRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const repoPath = path.join(reposRoot, entry.name);
+      const bytes = await sizeOfPath(repoPath);
+      const stat = await fsPromises.stat(repoPath);
+      repoRollups.push({
+        id: entry.name,
+        path: path.resolve(repoPath),
+        bytes,
+        mtime: stat.mtime ? stat.mtime.toISOString() : null
+      });
+    }
+  }
+}
+
 if (argv.json) {
   const sqlitePayload = {
     code: sqliteStats.code,
@@ -114,6 +171,7 @@ if (argv.json) {
       artifacts: repoArtifactSizes,
       sqlite: sqlitePayload
     },
+    health,
     overall: {
       cacheRoot: path.resolve(cacheRoot),
       cacheBytes: cacheRootSize,
@@ -122,6 +180,14 @@ if (argv.json) {
       totalBytes: overallSize
     }
   };
+  if (argv.all) {
+    const totalRepoBytes = repoRollups.reduce((sum, repo) => sum + repo.bytes, 0);
+    payload.allRepos = {
+      root: path.resolve(path.join(cacheRoot, 'repos')),
+      repos: repoRollups,
+      totalBytes: totalRepoBytes
+    };
+  }
   console.log(JSON.stringify(payload, null, 2));
   process.exit(0);
 }
@@ -147,3 +213,19 @@ if (sqliteOutsideCacheSize) {
   console.log(`- sqlite outside cache: ${formatBytes(sqliteOutsideCacheSize)}`);
 }
 console.log(`- total: ${formatBytes(overallSize)}`);
+
+if (health.issues.length) {
+  console.log('\nHealth');
+  health.issues.forEach((issue) => console.log(`- issue: ${issue}`));
+  health.hints.forEach((hint) => console.log(`- hint: ${hint}`));
+}
+
+if (argv.all) {
+  const totalRepoBytes = repoRollups.reduce((sum, repo) => sum + repo.bytes, 0);
+  console.log('\nAll repos');
+  console.log(`- root: ${path.resolve(path.join(cacheRoot, 'repos'))}`);
+  console.log(`- total: ${formatBytes(totalRepoBytes)}`);
+  for (const repo of repoRollups.sort((a, b) => b.bytes - a.bytes)) {
+    console.log(`- ${repo.id}: ${formatBytes(repo.bytes)} (${repo.path})`);
+  }
+}
