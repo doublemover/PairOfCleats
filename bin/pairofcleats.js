@@ -31,6 +31,8 @@ const COMMANDS = new Map([
   ['repometrics-dashboard', { script: 'tools/repometrics-dashboard.js', extraArgs: [] }],
   ['compare-models', { script: 'tools/compare-models.js', extraArgs: [] }],
   ['summary-report', { script: 'tools/combined-summary.js', extraArgs: [] }],
+  ['api-server', { script: 'tools/api-server.js', extraArgs: [] }],
+  ['server', { script: 'tools/api-server.js', extraArgs: [] }],
   ['uninstall', { script: 'tools/uninstall.js', extraArgs: [] }],
   ['mcp-server', { script: 'tools/mcp-server.js', extraArgs: [] }],
   ['mcp', { script: 'tools/mcp-server.js', extraArgs: [] }],
@@ -164,6 +166,8 @@ Reports + services:
   repometrics-dashboard    Summarize repometrics
   compare-models           Compare search models
   summary-report           Generate summary report
+  server                  Run local HTTP JSON API
+  api-server              Alias for server
   mcp-server               Run MCP server
   mcp                      Alias for mcp-server
 

@@ -26,6 +26,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - Add `--with-sqlite` to build SQLite indexes.
   - Add `--incremental` to reuse per-file cache bundles.
 - `npm run watch-index` (polls for file changes and rebuilds incrementally)     
+- `npm run api-server` (local HTTP JSON API for status/search)
 - Cache is outside the repo by default; set `cache.root` in `.pairofcleats.json` to override.
 - CLI commands auto-detect repo roots; use `--repo <path>` to override.
 - Local CLI entrypoint: `node bin/pairofcleats.js <command>` (mirrors `npm run` scripts).
@@ -165,6 +166,18 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 </details>
 
 <details>
+<summary><h2>API server</h2></summary>
+
+Run: `npm run api-server` or `node bin/pairofcleats.js server`
+
+Endpoints:
+- `GET /health`
+- `GET /status?repo=<path>`
+- `POST /search` (JSON payload mirrors CLI filters)
+- Docs: [`docs/api-server.md`](docs/api-server.md)
+</details>
+
+<details>
 <summary><h2>MCP server</h2></summary>
 
 Run: `npm run mcp-server`
@@ -234,6 +247,7 @@ Reports + MCP:
 - `npm run compare-models-test`
 - `npm run summary-report-test`
 - `npm run mcp-server-test`
+- `npm run api-server-test`
 
 Meta:
 - `npm run script-coverage-test`
@@ -266,6 +280,7 @@ Meta:
 - [`docs/language-fidelity.md`](docs/language-fidelity.md) - parsing validation checklist
 - [`docs/parser-backbone.md`](docs/parser-backbone.md) - parser and inference strategy
 - [`docs/language-handler-imports.md`](docs/language-handler-imports.md) - registry import tradeoffs
+- [`docs/api-server.md`](docs/api-server.md) - local HTTP JSON API surface
 - [`docs/sqlite-index-schema.md`](docs/sqlite-index-schema.md) - SQLite schema for artifacts
 - [`docs/sqlite-incremental-updates.md`](docs/sqlite-incremental-updates.md) - incremental update flow
 - [`docs/sqlite-compaction.md`](docs/sqlite-compaction.md) - compaction details

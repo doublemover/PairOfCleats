@@ -474,12 +474,12 @@ Work items:
 - [x] Add friendly "index missing" error with next-step hint.
 - [x] Add targeted tests for filter strictness and missing index UX.
 
-## Phase 48: Minimal API Server (status: todo)
+## Phase 48: Minimal API Server (status: done)
 Goal: Provide a lightweight local HTTP JSON API for search/index status.
 Work items:
-- [ ] Draft design doc for minimal API endpoints and payloads.
-- [ ] Implement `pairofcleats server` (HTTP JSON only) with search/status.
-- [ ] Add tests for API responses and CLI launch/stop behavior.
+- [x] Draft design doc for minimal API endpoints and payloads.
+- [x] Implement `pairofcleats server` (HTTP JSON only) with search/status.
+- [x] Add tests for API responses and CLI launch/stop behavior.
 
 ## Phase 49: CLI Explainability (status: todo)
 Goal: Improve human-readable scoring explanations.
