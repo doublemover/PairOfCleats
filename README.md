@@ -28,6 +28,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 - `npm run watch-index` (polls for file changes and rebuilds incrementally)     
 - Cache is outside the repo by default; set `cache.root` in `.pairofcleats.json` to override.
 - CLI commands auto-detect repo roots; use `--repo <path>` to override.
+- Local CLI entrypoint: `node bin/pairofcleats.js <command>` (mirrors `npm run` scripts).
 
 <details>
 <summary><h2>Index features</h2></summary>
@@ -157,6 +158,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
     - Detect tooling: `npm run tooling-detect`
     - Install tooling: `npm run tooling-install -- --scope cache`
     - Git hooks: `npm run git-hooks -- --install`
+    - Validate config: `npm run config-validate -- --config .pairofcleats.json`
   - Build indexes:
     - File-backed: `node build_index.js` (add `--incremental` if desired)
     - SQLite: `npm run build-sqlite-index`
@@ -272,6 +274,7 @@ Meta:
 - [`docs/repometrics-dashboard.md`](docs/repometrics-dashboard.md) - repometrics output and usage
 - [`docs/setup.md`](docs/setup.md) - unified setup flow and flags
 - [`docs/triage-records.md`](docs/triage-records.md) - triage ingestion + context packs
+- [`docs/config-schema.json`](docs/config-schema.json) - config schema for `.pairofcleats.json`
 </details>
 
 <details>

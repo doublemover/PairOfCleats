@@ -296,6 +296,16 @@ const actions = [
     label: 'setup-test',
     run: () => runNode('setup-test', path.join(root, 'tests', 'setup.js')),
     covers: ['setup', 'setup-test']
+  },
+  {
+    label: 'config-validate-test',
+    run: () => runNode('config-validate-test', path.join(root, 'tests', 'config-validate.js')),
+    covers: ['config-validate', 'config-validate-test']
+  },
+  {
+    label: 'cli-test',
+    run: () => runNode('cli-test', path.join(root, 'tests', 'cli.js')),
+    covers: ['cli-test']
   }
 ];
 

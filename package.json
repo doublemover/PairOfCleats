@@ -3,6 +3,9 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "pairofcleats": "bin/pairofcleats.js"
+  },
   "description": "Hybrid semantic indexer and search utility for codebases",
   "scripts": {
     "build-index": "node build_index.js",
@@ -29,6 +32,7 @@
     "repometrics-dashboard": "node tools/repometrics-dashboard.js",
     "compare-models": "node tools/compare-models.js",
     "summary-report": "node tools/combined-summary.js",
+    "config-validate": "node tools/validate-config.js",
     "uninstall": "node tools/uninstall.js",
     "mcp-server": "node tools/mcp-server.js",
     "test-all": "node tests/all.js",
@@ -59,7 +63,9 @@
     "compare-models-test": "node tests/compare-models.js",
     "docs-consistency-test": "node tests/docs-consistency.js",
     "summary-report-test": "node tests/summary-report.js",
-    "type-inference-crossfile-test": "node tests/type-inference-crossfile.js",
+    "config-validate-test": "node tests/config-validate.js",
+    "cli-test": "node tests/cli.js",
+    "type-inference-crossfile-test": "node tests/type-inference-crossfile.js",  
     "download-extensions-test": "node tests/download-extensions.js",
     "tooling-detect-test": "node tests/tooling-detect.js",
     "tooling-install-test": "node tests/tooling-install.js",
@@ -69,22 +75,22 @@
     "search-filters-test": "node tests/search-filters.js"
   },
   "dependencies": {
-    "@xenova/transformers": "*",
-    "acorn": "*",
-    "adm-zip": "*",
-    "better-sqlite3": "*",
-    "escomplex": "*",
-    "eslint": "*",
-    "esprima": "*",
-    "ignore": "*",
-    "minhash": "*",
-    "minimist": "*",
-    "seedrandom": "*",
-    "simple-git": "*",
-    "snowball-stemmers": "*",
-    "strip-comments": "*",
-    "tar-fs": "*",
-    "varint": "*",
-    "yaml": "*"
+    "@xenova/transformers": "2.17.2",
+    "acorn": "8.15.0",
+    "adm-zip": "0.5.16",
+    "better-sqlite3": "12.5.0",
+    "escomplex": "2.0.0-alpha",
+    "eslint": "9.39.2",
+    "esprima": "4.0.1",
+    "ignore": "5.3.2",
+    "minhash": "0.0.9",
+    "minimist": "1.2.8",
+    "seedrandom": "3.0.5",
+    "simple-git": "3.30.0",
+    "snowball-stemmers": "0.6.0",
+    "strip-comments": "2.0.1",
+    "tar-fs": "3.1.1",
+    "varint": "6.0.0",
+    "yaml": "2.8.2"
   }
 }
