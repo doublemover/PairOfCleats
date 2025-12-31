@@ -164,6 +164,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - Build indexes:
     - File-backed: `node build_index.js` (add `--incremental` if desired)
     - SQLite: `npm run build-sqlite-index`
+    - Validate: `npm run index-validate`
 </details>
 
 <details>
@@ -247,6 +248,7 @@ Tooling + caches:
 - `npm run tooling-detect-test`
 - `npm run tooling-install-test`
 - `npm run query-cache-test`
+- `npm run index-validate-test`
 - `npm run clean-artifacts-test`
 - `npm run uninstall-test`
 - `npm run cache-gc-test`
@@ -274,6 +276,7 @@ Meta:
 <summary><h2>Maintenance</h2></summary>
 
 - Report cache sizes: `npm run report-artifacts` (add `-- --all` for all repos)
+- Validate index artifacts: `npm run index-validate`
 - Cache GC (age/size): `npm run cache-gc -- --max-gb 10` or `--max-age-days 30`
 - Clean repo artifacts: `npm run clean-artifacts` (add `-- --all` to clear repo caches; keeps models/dictionaries/extensions)
 - Uninstall caches + models + extensions: `npm run uninstall`

@@ -143,6 +143,11 @@ const actions = [
     covers: ['repometrics-dashboard-test', 'repometrics-dashboard']
   },
   {
+    label: 'index-validate-test',
+    run: () => runNode('index-validate-test', path.join(root, 'tests', 'index-validate.js')),
+    covers: ['index-validate-test', 'index-validate']
+  },
+  {
     label: 'triage-test',
     run: () => runNode('triage-test', path.join(root, 'tests', 'triage-records.js')),
     covers: ['triage-test']

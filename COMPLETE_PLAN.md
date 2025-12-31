@@ -508,3 +508,33 @@ Work items:
 - [x] Extend Python AST extraction to include control-flow counts and surface `controlFlow` in docmeta.
 - [x] Add TypeScript alias coverage to language fidelity tests.
 - [x] Refresh AST/dataflow docs and run language fidelity checks.
+
+## Phase 53: Search CLI Modularization (status: done)
+Goal: Break `src/search/cli.js` into focused modules for maintainability without changing behavior.
+Work items:
+- [x] Extract argument parsing + mode validation into a dedicated helper.
+- [x] Move index loading/signature + query cache key helpers into shared CLI utilities.
+- [x] Encapsulate SQLite connection setup and ANN extension probing in a helper module.
+- [x] Keep output/rendering and pipeline wiring stable; update any impacted tests.
+
+## Phase 54: Shared Language Parsing Helpers (status: done)
+Goal: Reduce repeated doc/signature/modifier logic across heuristic language handlers.
+Work items:
+- [x] Expand `src/lang/shared.js` with configurable doc comment extraction utilities.
+- [x] Replace per-language doc comment helpers with shared utilities where possible.
+- [x] Add regression coverage for docstring extraction on representative fixtures.
+
+## Phase 55: Index Validation Tooling (status: done)
+Goal: Add a dedicated index/cache validation command for quick health checks.
+Work items:
+- [x] Implement `tools/index-validate.js` with human + JSON output and exit codes.
+- [x] Check required artifacts based on config (phrase/chargram postings, sqlite DBs).
+- [x] Add npm script and surface a setup/bootstrap hint for the validator.
+- [x] Document usage in README and relevant setup docs.
+
+## Phase 56: Regression Coverage + Docs Parity (status: done)
+Goal: Ensure new refactors are covered and documentation matches current behavior.
+Work items:
+- [x] Add tests for index validation and docstring extraction updates.
+- [x] Refresh README maintenance/setup sections to include new tooling.
+- [x] Confirm `COMPLETE_PLAN.md` statuses are updated after each phase.

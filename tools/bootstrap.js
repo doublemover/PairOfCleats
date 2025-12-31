@@ -136,4 +136,5 @@ if (argv['with-sqlite']) {
   run(process.execPath, sqliteArgs, 'build sqlite index');
 }
 
+console.log('[bootstrap] Tip: run npm run index-validate to verify index artifacts.');
 console.log('\nBootstrap complete.');

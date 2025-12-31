@@ -451,6 +451,7 @@ recordStep('index', {
 if (rl) rl.close();
 
 log('Setup complete.');
+log('Tip: run npm run index-validate to verify index artifacts.');
 if (jsonOutput) {
   console.log(JSON.stringify(summary, null, 2));
 }
