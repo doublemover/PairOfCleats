@@ -73,5 +73,5 @@ This document defines the "complete" AST metadata feature set and how each AST-b
 - Type inference: annotations + defaults + literal assignments (when enabled).
 
 ## Heuristic languages
-- C/C++/ObjC, Rust, Go, Java, Swift, C#, Kotlin, Ruby, PHP, Lua, Perl, Shell include heuristic dataflow (reads/writes/mutations/aliases/throws/awaits/yields/returns) when enabled.
+- C/C++/ObjC, Rust, Go, Java, Swift, C#, Kotlin, Ruby, PHP, Lua, SQL, Perl, Shell include heuristic dataflow (reads/writes/mutations/aliases/throws/awaits/yields/returns) when enabled.
 - Control-flow keyword counts (branches/loops/returns/breaks/continues/throws/awaits/yields) are captured when enabled.

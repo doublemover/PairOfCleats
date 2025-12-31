@@ -112,6 +112,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Statement doc comments are captured from preceding -- or /* */ blocks.
 - Dialect metadata is captured via extension mapping or config overrides.
 - Exports include declared objects when possible.
+- Heuristic dataflow/control-flow metadata is present when enabled.
 
 ## Perl (lite)
 - package declarations and subs are chunked.
