@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import minimist from 'minimist';
+import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './tooling-utils.js';
 import { getToolingConfig, resolveRepoRoot } from './dict-utils.js';

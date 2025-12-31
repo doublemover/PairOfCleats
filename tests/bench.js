@@ -66,6 +66,7 @@ function runSearch(query, backend) {
     searchPath,
     query,
     '--json',
+    '--json-compact',
     '--stats',
     '--backend',
     backend,
@@ -77,7 +78,10 @@ function runSearch(query, backend) {
   if (bm25BArg) args.push('--bm25-b', String(bm25BArg));
   if (ftsProfileArg) args.push('--fts-profile', String(ftsProfileArg));
   if (ftsWeightsArg) args.push('--fts-weights', String(ftsWeightsArg));
-  const result = spawnSync(process.execPath, args, { encoding: 'utf8' });
+  const env = stubEmbeddings
+    ? { ...process.env, PAIROFCLEATS_EMBEDDINGS: 'stub' }
+    : process.env;
+  const result = spawnSync(process.execPath, args, { encoding: 'utf8', env });
   if (result.status !== 0) {
     console.error(`Search failed for backend=${backend} query="${query}"`);
     if (result.stderr) console.error(result.stderr.trim());

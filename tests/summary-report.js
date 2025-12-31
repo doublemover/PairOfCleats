@@ -25,6 +25,8 @@ const result = spawnSync(
   process.execPath,
   [
     path.join(root, 'tools', 'combined-summary.js'),
+    '--repo',
+    repoRoot,
     '--models',
     'Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2',
     '--no-ann',

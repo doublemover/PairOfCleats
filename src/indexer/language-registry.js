@@ -23,7 +23,7 @@ import { buildKotlinChunks, buildKotlinRelations, collectKotlinImports, computeK
 import { buildRubyChunks, buildRubyRelations, collectRubyImports, computeRubyFlow, extractRubyDocMeta } from '../lang/ruby.js';
 import { buildPhpChunks, buildPhpRelations, collectPhpImports, computePhpFlow, extractPhpDocMeta } from '../lang/php.js';
 import { buildLuaChunks, buildLuaRelations, collectLuaImports, computeLuaFlow, extractLuaDocMeta } from '../lang/lua.js';
-import { buildSqlChunks, buildSqlRelations, collectSqlImports, extractSqlDocMeta } from '../lang/sql.js';
+import { buildSqlChunks, buildSqlRelations, collectSqlImports, computeSqlFlow, extractSqlDocMeta } from '../lang/sql.js';
 import { buildPerlChunks, buildPerlRelations, collectPerlImports, computePerlFlow, extractPerlDocMeta } from '../lang/perl.js';
 import { getPythonAst, collectPythonImports, buildPythonRelations, extractPythonDocMeta } from '../lang/python.js';
 import { buildRustChunks, buildRustRelations, collectRustImports, computeRustFlow, extractRustDocMeta } from '../lang/rust.js';
@@ -209,6 +209,7 @@ const LANGUAGE_REGISTRY = [
       : {}),
     buildRelations: ({ text, allImports, context }) => buildSqlRelations(text, allImports, context.sqlChunks),
     extractDocMeta: ({ chunk }) => extractSqlDocMeta(chunk),
+    flow: ({ text, chunk, options }) => computeSqlFlow(text, chunk, flowOptions(options)),
     attachName: true
   },
   {

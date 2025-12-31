@@ -317,8 +317,14 @@ async function configStatus(args = {}) {
 function runNodeSync(cwd, args) {
   const result = spawnSync(process.execPath, args, { cwd, encoding: 'utf8' });
   if (result.status !== 0) {
-    const err = result.stderr || `Command failed: ${args.join(' ')}`;
-    throw new Error(err.trim());
+    const stderr = (result.stderr || '').trim();
+    const stdout = (result.stdout || '').trim();
+    const message = stderr || stdout || `Command failed: ${args.join(' ')}`;
+    const error = new Error(message.trim());
+    error.code = result.status;
+    error.stderr = stderr;
+    error.stdout = stdout;
+    throw error;
   }
   return result.stdout || '';
 }
@@ -487,7 +493,11 @@ function getRemediationHint(error) {
   if (parts.includes('better-sqlite3 is required')) {
     return 'Run `npm install` and ensure better-sqlite3 can load on this platform.';
   }
-  if (parts.includes('chunk_meta.json') || parts.includes('minhash_signatures')) {
+  if (parts.includes('chunk_meta.json')
+    || parts.includes('minhash_signatures')
+    || parts.includes('index not found')
+    || parts.includes('build-index')
+    || parts.includes('build index')) {
     return 'Run `npm run build-index` (or `npm run setup`/`npm run bootstrap`) to generate indexes.';
   }
   if ((parts.includes('model') || parts.includes('xenova') || parts.includes('transformers'))
@@ -555,7 +565,7 @@ function maybeRestoreArtifacts(repoPath, artifactsDir, progress) {
       phase: 'start'
     });
   }
-  runNodeSync(repoPath, [path.join(ROOT, 'tools', 'ci-restore-artifacts.js'), '--from', fromDir]);
+  runNodeSync(repoPath, [path.join(ROOT, 'tools', 'ci-restore-artifacts.js'), '--repo', repoPath, '--from', fromDir]);
   if (progress) {
     progress({
       message: 'CI artifacts restored.',
@@ -597,7 +607,7 @@ async function buildIndex(args = {}, context = {}) {
         phase: 'start'
       });
     }
-    const indexArgs = [path.join(ROOT, 'build_index.js')];
+    const indexArgs = [path.join(ROOT, 'build_index.js'), '--repo', repoPath];
     if (mode && mode !== 'all') indexArgs.push('--mode', mode);
     if (incremental) indexArgs.push('--incremental');
     if (stubEmbeddings) indexArgs.push('--stub-embeddings');
@@ -611,7 +621,7 @@ async function buildIndex(args = {}, context = {}) {
         phase: 'start'
       });
     }
-    const sqliteArgs = [path.join(ROOT, 'tools', 'build-sqlite-index.js')];
+    const sqliteArgs = [path.join(ROOT, 'tools', 'build-sqlite-index.js'), '--repo', repoPath];
     if (incremental) sqliteArgs.push('--incremental');
     await runNodeAsync(repoPath, sqliteArgs, { streamOutput: true, onLine: progressLine });
   }
@@ -692,6 +702,7 @@ function runSearch(args = {}) {
 
   const useCompact = output !== 'full' && output !== 'json';
   const searchArgs = [path.join(ROOT, 'search.js'), query, useCompact ? '--json-compact' : '--json'];
+  searchArgs.push('--repo', repoPath);
   if (mode && mode !== 'both') searchArgs.push('--mode', mode);
   if (backend) searchArgs.push('--backend', backend);
   if (ann === true) searchArgs.push('--ann');
@@ -764,7 +775,7 @@ async function downloadModels(args = {}, context = {}) {
   const userConfig = loadUserConfig(repoPath);
   const modelConfig = getModelConfig(repoPath, userConfig);
   const model = args.model || modelConfig.id || DEFAULT_MODEL_ID;
-  const scriptArgs = [path.join(ROOT, 'tools', 'download-models.js'), '--model', model];
+  const scriptArgs = [path.join(ROOT, 'tools', 'download-models.js'), '--model', model, '--repo', repoPath];
   if (args.cacheDir) scriptArgs.push('--cache-dir', args.cacheDir);
   const progress = typeof context.progress === 'function' ? context.progress : null;
   const progressLine = progress
@@ -790,7 +801,7 @@ async function downloadModels(args = {}, context = {}) {
  */
 async function downloadDictionaries(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'download-dicts.js')];
+  const scriptArgs = [path.join(ROOT, 'tools', 'download-dicts.js'), '--repo', repoPath];
   if (args.lang) scriptArgs.push('--lang', String(args.lang));
   const urls = Array.isArray(args.url) ? args.url : (args.url ? [args.url] : []);
   urls.forEach((value) => scriptArgs.push('--url', String(value)));
@@ -819,7 +830,7 @@ async function downloadDictionaries(args = {}, context = {}) {
  */
 async function downloadExtensions(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'download-extensions.js')];
+  const scriptArgs = [path.join(ROOT, 'tools', 'download-extensions.js'), '--repo', repoPath];
   if (args.provider) scriptArgs.push('--provider', String(args.provider));
   if (args.dir) scriptArgs.push('--dir', String(args.dir));
   if (args.out) scriptArgs.push('--out', String(args.out));
@@ -853,7 +864,7 @@ async function downloadExtensions(args = {}, context = {}) {
  */
 function verifyExtensions(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'verify-extensions.js'), '--json'];
+  const scriptArgs = [path.join(ROOT, 'tools', 'verify-extensions.js'), '--json', '--repo', repoPath];
   if (args.provider) scriptArgs.push('--provider', String(args.provider));
   if (args.dir) scriptArgs.push('--dir', String(args.dir));
   if (args.path) scriptArgs.push('--path', String(args.path));
@@ -881,7 +892,7 @@ function verifyExtensions(args = {}) {
  */
 async function buildSqliteIndex(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'build-sqlite-index.js')];
+  const scriptArgs = [path.join(ROOT, 'tools', 'build-sqlite-index.js'), '--repo', repoPath];
   if (args.mode) scriptArgs.push('--mode', String(args.mode));
   if (args.incremental === true) scriptArgs.push('--incremental');
   if (args.compact === true) scriptArgs.push('--compact');
@@ -905,7 +916,7 @@ async function buildSqliteIndex(args = {}, context = {}) {
  */
 async function compactSqliteIndex(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'compact-sqlite-index.js')];
+  const scriptArgs = [path.join(ROOT, 'tools', 'compact-sqlite-index.js'), '--repo', repoPath];
   if (args.mode) scriptArgs.push('--mode', String(args.mode));
   if (args.dryRun === true) scriptArgs.push('--dry-run');
   if (args.keepBackup === true) scriptArgs.push('--keep-backup');
@@ -926,7 +937,7 @@ async function compactSqliteIndex(args = {}, context = {}) {
  */
 function cacheGc(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'cache-gc.js'), '--json'];
+  const scriptArgs = [path.join(ROOT, 'tools', 'cache-gc.js'), '--json', '--repo', repoPath];
   if (args.dryRun === true) scriptArgs.push('--dry-run');
   if (Number.isFinite(Number(args.maxBytes))) scriptArgs.push('--max-bytes', String(args.maxBytes));
   if (Number.isFinite(Number(args.maxGb))) scriptArgs.push('--max-gb', String(args.maxGb));
@@ -946,7 +957,7 @@ function cacheGc(args = {}) {
  */
 async function cleanArtifacts(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'clean-artifacts.js')];
+  const scriptArgs = [path.join(ROOT, 'tools', 'clean-artifacts.js'), '--repo', repoPath];
   if (args.all === true) scriptArgs.push('--all');
   if (args.dryRun === true) scriptArgs.push('--dry-run');
   const stdout = await runToolWithProgress({
@@ -966,7 +977,7 @@ async function cleanArtifacts(args = {}, context = {}) {
  */
 async function runBootstrap(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'bootstrap.js')];
+  const scriptArgs = [path.join(ROOT, 'tools', 'bootstrap.js'), '--repo', repoPath];
   if (args.skipInstall === true) scriptArgs.push('--skip-install');
   if (args.skipDicts === true) scriptArgs.push('--skip-dicts');
   if (args.skipIndex === true) scriptArgs.push('--skip-index');
@@ -991,7 +1002,7 @@ async function runBootstrap(args = {}, context = {}) {
  */
 function reportArtifacts(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const stdout = runNodeSync(repoPath, [path.join(ROOT, 'tools', 'report-artifacts.js'), '--json']);
+  const stdout = runNodeSync(repoPath, [path.join(ROOT, 'tools', 'report-artifacts.js'), '--json', '--repo', repoPath]);
   return JSON.parse(stdout || '{}');
 }
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import minimist from 'minimist';
+import path from 'node:path';
 import { buildToolingReport, normalizeLanguageList } from './tooling-utils.js';
 import { resolveRepoRoot } from './dict-utils.js';
 

@@ -61,7 +61,7 @@ const reportPaths = {
  * @returns {void}
  */
 function runNode(args, label) {
-  const result = spawnSync(process.execPath, args, { stdio: 'inherit' });
+  const result = spawnSync(process.execPath, args, { stdio: 'inherit', cwd: root });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);
@@ -95,7 +95,7 @@ function ensureParityIndexes() {
       console.error('Index missing for parity. Re-run with --build.');
       process.exit(1);
     }
-    const args = [path.join(scriptRoot, 'build_index.js')];
+    const args = [path.join(scriptRoot, 'build_index.js'), '--repo', root];
     if (argv.incremental) args.push('--incremental');
     runNode(args, 'build index');
   }
@@ -107,7 +107,7 @@ function ensureParityIndexes() {
       console.error('SQLite index missing for parity. Re-run with --build.');
       process.exit(1);
     }
-    const args = [path.join(scriptRoot, 'tools', 'build-sqlite-index.js')];
+    const args = [path.join(scriptRoot, 'tools', 'build-sqlite-index.js'), '--repo', root];
     if (argv.incremental) args.push('--incremental');
     runNode(args, 'build sqlite index');
   }
@@ -121,6 +121,8 @@ function ensureParityIndexes() {
 function buildCompareArgs({ backend, outPath }) {
   const args = [
     path.join(scriptRoot, 'tools', 'compare-models.js'),
+    '--repo',
+    root,
     '--models',
     models.join(','),
     '--baseline',

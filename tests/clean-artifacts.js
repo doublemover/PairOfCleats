@@ -53,7 +53,7 @@ await fsPromises.writeFile(path.join(extensionsDir, 'ext.bin'), 'ext');
 
 const result = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'clean-artifacts.js')],
+  [path.join(root, 'tools', 'clean-artifacts.js'), '--repo', repoRoot],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 
@@ -74,7 +74,7 @@ await fsPromises.writeFile(path.join(repoCacheRoot, 'marker.txt'), 'marker');
 
 const resultAll = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'clean-artifacts.js'), '--all'],
+  [path.join(root, 'tools', 'clean-artifacts.js'), '--repo', repoRoot, '--all'],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 

@@ -586,6 +586,13 @@ if (!luaMethod) {
 const sqlTable = findChunk({ file: 'src/sql_advanced.sql', kind: 'TableDeclaration', nameIncludes: 'widgets' });
 if (!sqlTable) {
   failures.push('Missing SQL table chunk (widgets).');
+} else {
+  if (!Array.isArray(sqlTable.docmeta?.dataflow?.reads)) {
+    failures.push('SQL dataflow missing for widgets.');
+  }
+  if (typeof sqlTable.docmeta?.controlFlow?.branches !== 'number') {
+    failures.push('SQL control flow missing for widgets.');
+  }
 }
 
 const pgTable = findChunk({ file: 'src/sql_postgres.psql', kind: 'TableDeclaration', nameIncludes: 'pg_widgets' });

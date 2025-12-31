@@ -42,13 +42,13 @@ function run(cmd, args, label) {
 }
 
 if (!argv['skip-build']) {
-  const args = [path.join(scriptRoot, 'build_index.js')];
+  const args = [path.join(scriptRoot, 'build_index.js'), '--repo', root];
   if (argv.incremental) args.push('--incremental');
   run(process.execPath, args, 'build index');
 }
 
 if (!argv['skip-sqlite']) {
-  const args = [path.join(scriptRoot, 'tools', 'build-sqlite-index.js')];
+  const args = [path.join(scriptRoot, 'tools', 'build-sqlite-index.js'), '--repo', root];
   if (argv.incremental) args.push('--incremental');
   run(process.execPath, args, 'build sqlite index');
 }

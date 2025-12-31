@@ -1,4 +1,5 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
+import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 
 /**
  * SQL language chunking and relations.
@@ -61,6 +62,81 @@ function splitSqlStatements(text) {
   }
   return statements;
 }
+
+function stripSqlComments(text) {
+  let out = '';
+  let inSingle = false;
+  let inDouble = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (inLineComment) {
+      if (ch === '\n') {
+        inLineComment = false;
+        out += ch;
+      }
+      continue;
+    }
+    if (inBlockComment) {
+      if (ch === '*' && next === '/') {
+        inBlockComment = false;
+        i++;
+      }
+      continue;
+    }
+    if (!inSingle && !inDouble) {
+      if (ch === '-' && next === '-') {
+        inLineComment = true;
+        i++;
+        continue;
+      }
+      if (ch === '/' && next === '*') {
+        inBlockComment = true;
+        i++;
+        continue;
+      }
+    }
+    if (!inDouble && ch === '\'' && text[i - 1] !== '\\') {
+      inSingle = !inSingle;
+    } else if (!inSingle && ch === '"' && text[i - 1] !== '\\') {
+      inDouble = !inDouble;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+const SQL_FLOW_SKIP = new Set();
+const SQL_FLOW_SKIP_WORDS = [
+  'select', 'from', 'where', 'join', 'inner', 'left', 'right', 'full', 'cross',
+  'on', 'group', 'order', 'by', 'having', 'limit', 'offset',
+  'insert', 'into', 'update', 'delete', 'create', 'table', 'view', 'materialized',
+  'procedure', 'function', 'trigger', 'index', 'schema', 'database',
+  'values', 'set', 'as', 'and', 'or', 'distinct',
+  'case', 'when', 'then', 'else', 'end', 'if', 'elseif', 'elsif',
+  'return', 'returns', 'begin', 'loop', 'while', 'repeat', 'until', 'for',
+  'declare', 'cursor', 'fetch', 'raise', 'signal',
+  'primary', 'key', 'foreign', 'references', 'constraint', 'default', 'null', 'is', 'not',
+  'true', 'false'
+];
+const addSqlSkip = (keyword) => {
+  if (!keyword) return;
+  SQL_FLOW_SKIP.add(keyword);
+  SQL_FLOW_SKIP.add(keyword.toUpperCase());
+  SQL_FLOW_SKIP.add(keyword[0].toUpperCase() + keyword.slice(1));
+};
+SQL_FLOW_SKIP_WORDS.forEach(addSqlSkip);
+
+const SQL_CONTROL_FLOW = {
+  branchKeywords: ['case', 'when', 'then', 'else', 'if', 'elseif', 'elsif'],
+  loopKeywords: ['loop', 'while', 'repeat', 'until', 'for', 'foreach'],
+  returnKeywords: ['return'],
+  breakKeywords: ['break', 'leave', 'exit'],
+  continueKeywords: ['continue'],
+  throwKeywords: ['raise', 'signal']
+};
 
 function extractSqlDocComment(lines, startLineIdx) {
   let i = startLineIdx - 1;
@@ -189,6 +265,50 @@ export function buildSqlRelations(text, allImports, sqlChunks) {
 }
 
 /**
+ * Heuristic control-flow/dataflow extraction for SQL chunks.
+ * @param {string} text
+ * @param {{start:number,end:number}} chunk
+ * @param {{dataflow?:boolean,controlFlow?:boolean}} [options]
+ * @returns {{dataflow:(object|null),controlFlow:(object|null),throws:string[],awaits:string[],yields:boolean,returnsValue:boolean}|null}
+ */
+export function computeSqlFlow(text, chunk, options = {}) {
+  if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) return null;
+  if (chunk.end <= chunk.start) return null;
+  const slice = text.slice(chunk.start, chunk.end);
+  const cleaned = stripSqlComments(slice);
+  const dataflowEnabled = options.dataflow !== false;
+  const controlFlowEnabled = options.controlFlow !== false;
+  const out = {
+    dataflow: null,
+    controlFlow: null,
+    throws: [],
+    awaits: [],
+    yields: false,
+    returnsValue: false
+  };
+
+  if (dataflowEnabled) {
+    out.dataflow = buildHeuristicDataflow(cleaned, {
+      skip: SQL_FLOW_SKIP,
+      memberOperators: ['.', '::']
+    });
+    out.returnsValue = hasReturnValue(cleaned);
+    const throws = new Set();
+    for (const match of cleaned.matchAll(/\b(?:raise|signal)\b\s+([A-Za-z_][A-Za-z0-9_]*)/gi)) {
+      const name = match[1];
+      if (name) throws.add(name);
+    }
+    out.throws = Array.from(throws);
+  }
+
+  if (controlFlowEnabled) {
+    out.controlFlow = summarizeControlFlow(cleaned, SQL_CONTROL_FLOW);
+  }
+
+  return out;
+}
+
+/**
  * Normalize SQL-specific doc metadata for search output.
  * @param {{meta?:Object}} chunk
  * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null)}}
@@ -200,6 +320,12 @@ export function extractSqlDocMeta(chunk) {
     params: [],
     returns: null,
     signature: meta.signature || null,
-    dialect: meta.dialect || null
+    dialect: meta.dialect || null,
+    dataflow: meta.dataflow || null,
+    throws: meta.throws || [],
+    awaits: meta.awaits || [],
+    yields: meta.yields || false,
+    returnsValue: meta.returnsValue || false,
+    controlFlow: meta.controlFlow || null
   };
 }
