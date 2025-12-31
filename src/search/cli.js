@@ -8,10 +8,12 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
-import minimist from 'minimist';
-import { DEFAULT_MODEL_ID, getDictionaryPaths, getDictConfig, getIndexDir, getMetricsDir, getModelConfig, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from '../../tools/dict-utils.js';
-import { getVectorExtensionConfig, hasVectorTable, loadVectorExtension, queryVectorAnn, resolveVectorExtensionPath } from '../../tools/vector-extension.js';
+import { DEFAULT_MODEL_ID, getDictConfig, getMetricsDir, getModelConfig, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from '../../tools/dict-utils.js';
+import { getVectorExtensionConfig, queryVectorAnn } from '../../tools/vector-extension.js';
+import { getSearchUsage, parseSearchArgs, resolveSearchMode } from './cli-args.js';
+import { loadDictionary } from './cli-dictionary.js';
+import { buildQueryCacheKey, getIndexSignature, loadIndex, requireIndexDir } from './cli-index.js';
+import { createSqliteBackend } from './cli-sqlite.js';
 import { resolveFtsWeights } from './fts.js';
 import { getQueryEmbedding } from './embedding.js';
 import { loadQueryCache, parseJson, pruneQueryCache } from './query-cache.js';
@@ -22,69 +24,8 @@ import { normalizePostingsConfig } from '../shared/postings-config.js';
 import { createSqliteHelpers } from './sqlite-helpers.js';
 import { createSearchPipeline } from './pipeline.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: [
-    'json',
-    'json-compact',
-    'human',
-    'stats',
-    'ann',
-    'headline',
-    'lint',
-    'matched',
-    'async',
-    'generator',
-    'returns',
-    'explain',
-    'why'
-  ],
-  alias: { n: 'top', c: 'context', t: 'type', why: 'explain' },
-  default: { n: 5, context: 3 },
-  string: [
-    'calls',
-    'uses',
-    'signature',
-    'param',
-    'decorator',
-    'inferred-type',
-    'return-type',
-    'throws',
-    'reads',
-    'writes',
-    'mutates',
-    'churn',
-    'alias',
-    'awaits',
-    'branches',
-    'loops',
-    'breaks',
-    'continues',
-    'risk',
-    'risk-tag',
-    'risk-source',
-    'risk-sink',
-    'risk-category',
-    'risk-flow',
-    'meta',
-    'meta-json',
-    'file',
-    'ext',
-    'chunk-author',
-    'modified-after',
-    'modified-since',
-    'visibility',
-    'extends',
-    'mode',
-    'backend',
-    'path',
-    'model',
-    'repo',
-    'fts-profile',
-    'fts-weights',
-    'bm25-k1',
-    'bm25-b'
-  ],
-});
+const rawArgs = process.argv.slice(2);
+const argv = parseSearchArgs(rawArgs);
 const t0 = Date.now();
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const ROOT = rootArg || resolveRepoRoot(process.cwd());
@@ -119,34 +60,9 @@ if (argv['fts-weights']) {
 }
 const metricsDir = getMetricsDir(ROOT, userConfig);
 const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
-const rawArgs = process.argv.slice(2);
 const query = argv._.join(' ').trim();
-  if (!query) {
-  console.error([
-    'usage: search "query" [options]',
-    '',
-    'Options:',
-    '  --repo <path>',
-    '  --mode code|prose|both|records|all',
-    '  --backend memory|sqlite|sqlite-fts',
-    '  --top N, --context N',
-    '  --json | --json-compact | --human | --stats',
-    '  --ann | --no-ann',
-    '  --model <id>',
-    '  --fts-profile <name> | --fts-weights <json|csv>',
-    '  --bm25-k1 <num> | --bm25-b <num>',
-    '  --headline | --matched | --explain | --why',
-    '  Filters:',
-    '    --type <kind> --author <name> --import <module> --calls <name> --uses <name>',
-    '    --signature <text> --param <name> --decorator <name> --inferred-type <type> --return-type <type>',
-    '    --throws <name> --reads <name> --writes <name> --mutates <name> --alias <name> --awaits <name>',
-    '    --branches <min> --loops <min> --breaks <min> --continues <min>',
-    '    --risk <tag> --risk-tag <tag> --risk-source <name> --risk-sink <name> --risk-category <name> --risk-flow <name>',
-    '    --visibility <name> --extends <name> --async --generator --returns --lint',
-    '    --churn [min] --modified-after <date> --modified-since <days> --chunk-author <name>',
-    '    --path <pattern> --file <pattern> --ext <.ext>',
-    '    --meta <k=v> --meta-json <json>'
-  ].join('\n'));
+if (!query) {
+  console.error(getSearchUsage());
   process.exit(1);
 }
 const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
@@ -154,15 +70,14 @@ const searchType = argv.type || null;
 const searchAuthor = argv.author || null;
 const searchImport = argv.import || null;
 const chunkAuthorFilter = argv['chunk-author'] || null;
-const searchMode = String(argv.mode || 'both').toLowerCase();
-const allowedModes = new Set(['code', 'prose', 'both', 'records', 'all']);
-if (!allowedModes.has(searchMode)) {
-  console.error(`Invalid --mode ${searchMode}. Use code|prose|both|records|all.`);
+let searchModeInfo;
+try {
+  searchModeInfo = resolveSearchMode(argv.mode);
+} catch (err) {
+  console.error(err.message);
   process.exit(1);
 }
-const runCode = searchMode === 'code' || searchMode === 'both' || searchMode === 'all';
-const runProse = searchMode === 'prose' || searchMode === 'both' || searchMode === 'all';
-const runRecords = searchMode === 'records' || searchMode === 'all';
+const { searchMode, runCode, runProse, runRecords } = searchModeInfo;
 const branchesMin = Number.isFinite(Number(argv.branches)) ? Number(argv.branches) : null;
 const loopsMin = Number.isFinite(Number(argv.loops)) ? Number(argv.loops) : null;
 const breaksMin = Number.isFinite(Number(argv.breaks)) ? Number(argv.breaks) : null;
@@ -236,99 +151,22 @@ if (!needsSqlite && backendForcedSqlite) {
   console.warn('SQLite backend requested, but records-only mode selected; using file-backed records index.');
 }
 let useSqlite = needsSqlite && (backendForcedSqlite || (!backendDisabled && sqliteConfigured)) && sqliteAvailable;
-let dbCode = null;
-let dbProse = null;
-const vectorAnnState = {
-  code: { available: false },
-  prose: { available: false },
-  records: { available: false }
-};
-const vectorAnnUsed = { code: false, prose: false, records: false };
-let vectorAnnWarned = false;
-if (useSqlite) {
-  let Database;
-  try {
-    ({ default: Database } = await import('better-sqlite3'));
-  } catch (err) {
-    console.error('better-sqlite3 is required for the SQLite backend. Run npm install first.');
-    process.exit(1);
-  }
-
-  const requiredTables = sqliteFtsRequested
-    ? [
-      'chunks',
-      'chunks_fts',
-      'minhash_signatures',
-      'dense_vectors',
-      'dense_meta'
-    ]
-    : [
-      'chunks',
-      'token_vocab',
-      'token_postings',
-      'doc_lengths',
-      'token_stats',
-      'phrase_vocab',
-      'phrase_postings',
-      'chargram_vocab',
-      'chargram_postings',
-      'minhash_signatures',
-      'dense_vectors',
-      'dense_meta'
-    ];
-
-  const openSqlite = (dbPath, label) => {
-    const db = new Database(dbPath, { readonly: true });
-    const tableRows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-    const tableNames = new Set(tableRows.map((row) => row.name));
-    const missing = requiredTables.filter((name) => !tableNames.has(name));
-    if (missing.length) {
-      const message = `SQLite index ${label} is missing required tables (${missing.join(', ')}). Rebuild with npm run build-sqlite-index.`;
-      if (backendForcedSqlite) {
-        console.error(message);
-        process.exit(1);
-      }
-      console.warn(`${message} Falling back to file-backed indexes.`);
-      db.close();
-      return null;
-    }
-    return db;
-  };
-
-  const initVectorAnn = (db, mode) => {
-    if (!vectorAnnEnabled || !db) return;
-    const loadResult = loadVectorExtension(db, vectorExtension, `sqlite ${mode}`);
-    if (!loadResult.ok) {
-      if (!vectorAnnWarned) {
-        const extPath = resolveVectorExtensionPath(vectorExtension);
-        console.warn(`[ann] SQLite vector extension unavailable (${loadResult.reason}).`);
-        console.warn(`[ann] Expected extension at ${extPath || 'unset'}; falling back to JS ANN.`);
-        vectorAnnWarned = true;
-      }
-      return;
-    }
-    if (!hasVectorTable(db, vectorExtension.table)) {
-      if (!vectorAnnWarned) {
-        console.warn(`[ann] SQLite vector table missing (${vectorExtension.table}). Rebuild with npm run build-sqlite-index.`);
-        vectorAnnWarned = true;
-      }
-      return;
-    }
-    vectorAnnState[mode].available = true;
-  };
-
-  if (needsCode) dbCode = openSqlite(sqliteCodePath, 'code');
-  if (needsProse) dbProse = openSqlite(sqliteProsePath, 'prose');
-  if (needsCode) initVectorAnn(dbCode, 'code');
-  if (needsProse) initVectorAnn(dbProse, 'prose');
-  if ((needsCode && !dbCode) || (needsProse && !dbProse)) {
-    if (dbCode) dbCode.close();
-    if (dbProse) dbProse.close();
-    dbCode = null;
-    dbProse = null;
-    useSqlite = false;
-  }
-}
+const sqliteBackend = await createSqliteBackend({
+  useSqlite,
+  needsCode,
+  needsProse,
+  sqliteCodePath,
+  sqliteProsePath,
+  sqliteFtsRequested,
+  backendForcedSqlite,
+  vectorExtension,
+  vectorAnnEnabled
+});
+useSqlite = sqliteBackend.useSqlite;
+let dbCode = sqliteBackend.dbCode;
+let dbProse = sqliteBackend.dbProse;
+const vectorAnnState = sqliteBackend.vectorAnnState;
+const vectorAnnUsed = sqliteBackend.vectorAnnUsed;
 
 const backendLabel = useSqlite
   ? (sqliteFtsRequested ? 'sqlite-fts' : 'sqlite')
@@ -368,18 +206,7 @@ const {
 
 
 const dictConfig = getDictConfig(ROOT, userConfig);
-const dictionaryPaths = await getDictionaryPaths(ROOT, dictConfig);
-const dict = new Set();
-for (const dictFile of dictionaryPaths) {
-  try {
-    const contents = fsSync.readFileSync(dictFile, 'utf8');
-    contents
-      .split(/\r?\n/)
-      .map((w) => w.trim().toLowerCase())
-      .filter(Boolean)
-      .forEach((w) => dict.add(w));
-  } catch {}
-}
+const { dict } = await loadDictionary(ROOT, dictConfig);
 
 const color = {
   green: (t) => `\x1b[32m${t}\x1b[0m`,
@@ -393,194 +220,17 @@ const color = {
   underline: (t) => `\x1b[4m${t}\x1b[0m`
 };
 
-// --- LOAD INDEX ---
-/**
- * Load file-backed index artifacts from a directory.
- * @param {string} dir
- * @returns {object}
- */
-function loadIndex(dir) {
-  const readJson = (name) => JSON.parse(fsSync.readFileSync(path.join(dir, name), 'utf8'));
-  const loadOptional = (name) => {
-    try {
-      return readJson(name);
-    } catch {
-      return null;
-    }
-  };
-  const chunkMeta = readJson('chunk_meta.json');
-  const denseVec = loadOptional('dense_vectors_uint8.json');
-  if (denseVec && !denseVec.model) denseVec.model = modelIdDefault;
-  const idx = {
-    chunkMeta,
-    denseVec,
-    minhash: loadOptional('minhash_signatures.json'),
-    phraseNgrams: loadOptional('phrase_ngrams.json'),
-    chargrams: loadOptional('chargram_postings.json')
-  };
-  try {
-    idx.tokenIndex = readJson('token_postings.json');
-  } catch {}
-  return idx;
-}
-/**
- * Resolve the index directory (cache-first, local fallback).
- * @param {'code'|'prose'|'records'} mode
- * @returns {string}
- */
-function resolveIndexDir(mode) {
-  const cached = getIndexDir(ROOT, mode, userConfig);
-  const cachedMeta = path.join(cached, 'chunk_meta.json');
-  if (fsSync.existsSync(cachedMeta)) return cached;
-  const local = path.join(ROOT, `index-${mode}`);
-  const localMeta = path.join(local, 'chunk_meta.json');
-  if (fsSync.existsSync(localMeta)) return local;
-  return cached;
-}
-
-/**
- * Ensure a file-backed index exists for a mode.
- * @param {'code'|'prose'|'records'} mode
- * @returns {string}
- */
-function requireIndexDir(mode) {
-  const dir = resolveIndexDir(mode);
-  const metaPath = path.join(dir, 'chunk_meta.json');
-  if (!fsSync.existsSync(metaPath)) {
-    const suffix = mode === 'records' ? ' --mode records' : '';
-    console.error(`[search] ${mode} index not found at ${dir}. Run "pairofcleats build-index${suffix}" or "npm run build-index${suffix}".`);
-    process.exit(1);
-  }
-  return dir;
-}
-
-/**
- * Build a size/mtime signature for a file.
- * @param {string} filePath
- * @returns {string|null}
- */
-function fileSignature(filePath) {
-  try {
-    const stat = fsSync.statSync(filePath);
-    return `${stat.size}:${stat.mtimeMs}`;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Build a signature payload for cache invalidation.
- * @returns {object}
- */
-function getIndexSignature() {
-  if (useSqlite) {
-    const recordDir = runRecords ? resolveIndexDir('records') : null;
-    const recordMeta = recordDir ? path.join(recordDir, 'chunk_meta.json') : null;
-    const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
-    return {
-      backend: backendLabel,
-      code: fileSignature(sqliteCodePath),
-      prose: fileSignature(sqliteProsePath),
-      records: recordMeta ? fileSignature(recordMeta) : null,
-      recordsDense: recordDense ? fileSignature(recordDense) : null
-    };
-  }
-  const codeDir = resolveIndexDir('code');
-  const proseDir = resolveIndexDir('prose');
-  const codeMeta = path.join(codeDir, 'chunk_meta.json');
-  const proseMeta = path.join(proseDir, 'chunk_meta.json');
-  const codeDense = path.join(codeDir, 'dense_vectors_uint8.json');
-  const proseDense = path.join(proseDir, 'dense_vectors_uint8.json');
-  const recordDir = runRecords ? resolveIndexDir('records') : null;
-  const recordMeta = recordDir ? path.join(recordDir, 'chunk_meta.json') : null;
-  const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
-  return {
-    backend: backendLabel,
-    code: fileSignature(codeMeta),
-    prose: fileSignature(proseMeta),
-    codeDense: fileSignature(codeDense),
-    proseDense: fileSignature(proseDense),
-    records: recordMeta ? fileSignature(recordMeta) : null,
-    recordsDense: recordDense ? fileSignature(recordDense) : null
-  };
-}
-
-/**
- * Build a deterministic cache key for the current query + settings.
- * @returns {{key:string,payload:object}}
- */
-function buildQueryCacheKey() {
-  const payload = {
-    query,
-    backend: backendLabel,
-    mode: searchMode,
-    topN: argv.n,
-    ann: annEnabled,
-    annMode: vectorExtension.annMode,
-    annProvider: vectorExtension.provider,
-    annExtension: vectorAnnEnabled,
-    sqliteFtsNormalize,
-    sqliteFtsProfile,
-    sqliteFtsWeights,
-    models: {
-      code: modelIdForCode,
-      prose: modelIdForProse,
-      records: modelIdForRecords
-    },
-    filters: {
-      type: searchType,
-      author: searchAuthor,
-      calls: argv.calls || null,
-      uses: argv.uses || null,
-      signature: argv.signature || null,
-      param: argv.param || null,
-      import: searchImport,
-      lint: argv.lint || false,
-      churn: churnMin,
-      decorator: argv.decorator || null,
-      inferredType: argv['inferred-type'] || null,
-      returnType: argv['return-type'] || null,
-      throws: argv.throws || null,
-      reads: argv.reads || null,
-      writes: argv.writes || null,
-      mutates: argv.mutates || null,
-      risk: argv.risk || null,
-      riskTag: argv['risk-tag'] || null,
-      riskSource: argv['risk-source'] || null,
-      riskSink: argv['risk-sink'] || null,
-      riskCategory: argv['risk-category'] || null,
-      riskFlow: argv['risk-flow'] || null,
-      awaits: argv.awaits || null,
-      visibility: argv.visibility || null,
-      extends: argv.extends || null,
-      async: argv.async || false,
-      generator: argv.generator || false,
-      returns: argv.returns || false,
-      file: fileFilter || null,
-      ext: extFilter || null,
-      meta: metaFilters,
-      chunkAuthor: chunkAuthorFilter || null,
-      modifiedAfter,
-      modifiedSinceDays
-    }
-  };
-  const raw = JSON.stringify(payload);
-  const key = crypto.createHash('sha1').update(raw).digest('hex');
-  return { key, payload };
-}
-
-
-const proseDir = runProse && !useSqlite ? requireIndexDir('prose') : null;
-const codeDir = runCode && !useSqlite ? requireIndexDir('code') : null;
-const recordsDir = runRecords ? requireIndexDir('records') : null;
+const proseDir = runProse && !useSqlite ? requireIndexDir(ROOT, 'prose', userConfig) : null;
+const codeDir = runCode && !useSqlite ? requireIndexDir(ROOT, 'code', userConfig) : null;
+const recordsDir = runRecords ? requireIndexDir(ROOT, 'records', userConfig) : null;
 const idxProse = runProse
-  ? (useSqlite ? loadIndexFromSqlite('prose') : loadIndex(proseDir))
+  ? (useSqlite ? loadIndexFromSqlite('prose') : loadIndex(proseDir, { modelIdDefault }))
   : { chunkMeta: [], denseVec: null, minhash: null };
 const idxCode = runCode
-  ? (useSqlite ? loadIndexFromSqlite('code') : loadIndex(codeDir))
+  ? (useSqlite ? loadIndexFromSqlite('code') : loadIndex(codeDir, { modelIdDefault }))
   : { chunkMeta: [], denseVec: null, minhash: null };
 const idxRecords = runRecords
-  ? loadIndex(recordsDir)
+  ? loadIndex(recordsDir, { modelIdDefault })
   : { chunkMeta: [], denseVec: null, minhash: null };
 modelIdForCode = runCode ? (idxCode?.denseVec?.model || modelIdDefault) : null;
 modelIdForProse = runProse ? (idxProse?.denseVec?.model || modelIdDefault) : null;
@@ -653,6 +303,42 @@ const filters = {
   excludePhrases: excludePhraseNgrams,
   excludePhraseRange
 };
+const cacheFilters = {
+  type: searchType,
+  author: searchAuthor,
+  calls: argv.calls || null,
+  uses: argv.uses || null,
+  signature: argv.signature || null,
+  param: argv.param || null,
+  import: searchImport,
+  lint: argv.lint || false,
+  churn: churnMin,
+  decorator: argv.decorator || null,
+  inferredType: argv['inferred-type'] || null,
+  returnType: argv['return-type'] || null,
+  throws: argv.throws || null,
+  reads: argv.reads || null,
+  writes: argv.writes || null,
+  mutates: argv.mutates || null,
+  risk: argv.risk || null,
+  riskTag: argv['risk-tag'] || null,
+  riskSource: argv['risk-source'] || null,
+  riskSink: argv['risk-sink'] || null,
+  riskCategory: argv['risk-category'] || null,
+  riskFlow: argv['risk-flow'] || null,
+  awaits: argv.awaits || null,
+  visibility: argv.visibility || null,
+  extends: argv.extends || null,
+  async: argv.async || false,
+  generator: argv.generator || false,
+  returns: argv.returns || false,
+  file: fileFilter || null,
+  ext: extFilter || null,
+  meta: metaFilters,
+  chunkAuthor: chunkAuthorFilter || null,
+  modifiedAfter,
+  modifiedSinceDays
+};
 const searchPipeline = createSearchPipeline({
   useSqlite,
   sqliteFtsRequested,
@@ -723,9 +409,35 @@ function compactHit(hit, includeExplain = false) {
   let cachedPayload = null;
 
   if (queryCacheEnabled) {
-    const signature = getIndexSignature();
+    const signature = getIndexSignature({
+      useSqlite,
+      backendLabel,
+      sqliteCodePath,
+      sqliteProsePath,
+      runRecords,
+      root: ROOT,
+      userConfig
+    });
     cacheSignature = JSON.stringify(signature);
-    const cacheKeyInfo = buildQueryCacheKey();
+    const cacheKeyInfo = buildQueryCacheKey({
+      query,
+      backend: backendLabel,
+      mode: searchMode,
+      topN: argv.n,
+      ann: annEnabled,
+      annMode: vectorExtension.annMode,
+      annProvider: vectorExtension.provider,
+      annExtension: vectorAnnEnabled,
+      sqliteFtsNormalize,
+      sqliteFtsProfile,
+      sqliteFtsWeights,
+      models: {
+        code: modelIdForCode,
+        prose: modelIdForProse,
+        records: modelIdForRecords
+      },
+      filters: cacheFilters
+    });
     cacheKey = cacheKeyInfo.key;
     cacheData = loadQueryCache(queryCachePath);
     const entry = cacheData.entries.find((e) => e.key === cacheKey && e.signature === cacheSignature);
