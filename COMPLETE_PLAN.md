@@ -500,3 +500,11 @@ Goal: Add WebSocket/streaming responses on top of the minimal API.
 Work items:
 - [x] Add streaming endpoints for long-running searches/index status.
 - [x] Add client-side examples and tests.
+
+## Phase 52: AST/Dataflow Enrichment Pass (status: done)
+Goal: Expand AST-derived control-flow and heuristic dataflow coverage for richer metadata.
+Work items:
+- [x] Add heuristic alias detection to shared dataflow extraction.
+- [x] Extend Python AST extraction to include control-flow counts and surface `controlFlow` in docmeta.
+- [x] Add TypeScript alias coverage to language fidelity tests.
+- [x] Refresh AST/dataflow docs and run language fidelity checks.

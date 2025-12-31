@@ -7,6 +7,17 @@ const DEFAULT_ASSIGNMENT_OPERATORS = [
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const normalizeFlowName = (raw, memberOperators) => {
+  let name = raw.replace(/\s+/g, '');
+  for (const op of memberOperators) {
+    name = name.split(op).join('.');
+  }
+  if (name.includes('[')) {
+    name = name.replace(/\[[^\]]*\]/g, '[]');
+  }
+  return name;
+};
+
 /**
  * Normalize text for flow scanning by removing comparison operators.
  * @param {string} text
@@ -59,20 +70,9 @@ export function extractWritesAndMutations(text, options = {}) {
   const writes = new Set();
   const mutations = new Set();
 
-  const normalizeName = (raw) => {
-    let name = raw.replace(/\s+/g, '');
-    for (const op of memberOperators) {
-      name = name.split(op).join('.');
-    }
-    if (name.includes('[')) {
-      name = name.replace(/\[[^\]]*\]/g, '[]');
-    }
-    return name;
-  };
-
   const recordName = (raw) => {
     if (!raw) return;
-    const normalized = normalizeName(raw);
+    const normalized = normalizeFlowName(raw, memberOperators);
     if (!normalized) return;
     if (normalized.includes('.') || normalized.includes('[]')) {
       mutations.add(normalized);
@@ -89,6 +89,57 @@ export function extractWritesAndMutations(text, options = {}) {
   }
 
   return { writes, mutations };
+}
+
+/**
+ * Extract alias assignments from text (lhs=rhs).
+ * @param {string} text
+ * @param {object} [options]
+ * @param {string} [options.identifierPattern]
+ * @param {string[]} [options.memberOperators]
+ * @param {string[]} [options.aliasOperators]
+ * @param {string[]} [options.declarationKeywords]
+ * @param {boolean} [options.allowIndex]
+ * @returns {Set<string>}
+ */
+export function extractAliases(text, options = {}) {
+  const identifierPattern = options.identifierPattern || '[A-Za-z_][A-Za-z0-9_]*';
+  const memberOperators = Array.isArray(options.memberOperators)
+    ? options.memberOperators
+    : ['.', '->', '::'];
+  const aliasOperators = Array.isArray(options.aliasOperators)
+    ? options.aliasOperators
+    : ['=', ':='];
+  const declarationKeywords = Array.isArray(options.declarationKeywords)
+    ? options.declarationKeywords
+    : ['const', 'let', 'var', 'val', 'mut', 'auto'];
+  const allowIndex = options.allowIndex !== false;
+
+  const cleaned = normalizeFlowText(text);
+  const memberOps = memberOperators.length
+    ? memberOperators.map(escapeRegExp).join('|')
+    : '';
+  const memberPart = memberOps ? `(?:\\s*(?:${memberOps})\\s*${identifierPattern})*` : '';
+  const indexPart = allowIndex ? '(?:\\s*\\[[^\\]]+\\])*' : '';
+  const lhsPattern = identifierPattern;
+  const rhsPattern = `${identifierPattern}${memberPart}${indexPart}`;
+  const opPattern = aliasOperators.map(escapeRegExp).join('|');
+  const declPrefix = declarationKeywords.length
+    ? `(?:\\b(?:${declarationKeywords.map(escapeRegExp).join('|')})\\b\\s+)*`
+    : '';
+  const aliasRe = new RegExp(`${declPrefix}(${lhsPattern})\\s*(?:${opPattern})\\s*(${rhsPattern})`, 'g');
+
+  const aliases = new Set();
+  for (const match of cleaned.matchAll(aliasRe)) {
+    const lhsRaw = match[1];
+    const rhsRaw = match[2];
+    if (!lhsRaw || !rhsRaw) continue;
+    const lhs = normalizeFlowName(lhsRaw, memberOperators);
+    const rhs = normalizeFlowName(rhsRaw, memberOperators);
+    if (!lhs || !rhs) continue;
+    aliases.add(`${lhs}=${rhs}`);
+  }
+  return aliases;
 }
 
 /**
@@ -165,7 +216,7 @@ export function summarizeControlFlow(text, options = {}) {
  * @param {RegExp} [options.identifierRegex]
  * @param {Set<string>} [options.skip]
  * @param {(name:string)=>string} [options.normalize]
- * @returns {{reads:string[],writes:string[],mutations:string[]}}
+ * @returns {{reads:string[],writes:string[],mutations:string[],aliases:string[]}}
  */
 export function buildHeuristicDataflow(text, options = {}) {
   const normalize = typeof options.normalize === 'function' ? options.normalize : (name) => name;
@@ -175,8 +226,16 @@ export function buildHeuristicDataflow(text, options = {}) {
     assignmentOperators: options.assignmentOperators,
     allowIndex: options.allowIndex
   });
+  const rawAliases = extractAliases(text, {
+    identifierPattern: options.identifierPattern,
+    memberOperators: options.memberOperators,
+    aliasOperators: options.aliasOperators,
+    declarationKeywords: options.declarationKeywords,
+    allowIndex: options.allowIndex
+  });
   const writes = new Set();
   const mutations = new Set();
+  const aliases = new Set();
   for (const name of rawWrites) {
     const normalized = normalize(name);
     if (normalized) writes.add(normalized);
@@ -184,6 +243,13 @@ export function buildHeuristicDataflow(text, options = {}) {
   for (const name of rawMutations) {
     const normalized = normalize(name);
     if (normalized) mutations.add(normalized);
+  }
+  for (const alias of rawAliases) {
+    const [lhs, rhs] = alias.split('=');
+    const normalizedLhs = normalize(lhs);
+    const normalizedRhs = normalize(rhs);
+    if (!normalizedLhs || !normalizedRhs) continue;
+    aliases.add(`${normalizedLhs}=${normalizedRhs}`);
   }
   const identifiers = extractIdentifiers(text, {
     regex: options.identifierRegex,
@@ -199,7 +265,8 @@ export function buildHeuristicDataflow(text, options = {}) {
   return {
     reads: sortedUnique(reads),
     writes: sortedUnique(writes),
-    mutations: sortedUnique(mutations)
+    mutations: sortedUnique(mutations),
+    aliases: sortedUnique(aliases)
   };
 }
 

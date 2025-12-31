@@ -268,6 +268,7 @@ export function collectImports(text) {
  */
 export function buildCodeRelations(text, relPath, allImports, options = {}) {
   const dataflowEnabled = options.dataflow !== false;
+  const controlFlowEnabled = options.controlFlow !== false;
   const imports = new Set();
   const exports = new Set();
   const calls = [];
@@ -316,10 +317,28 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
         throws: new Set(),
         awaits: new Set(),
         returns: false,
-        yields: false
+        yields: false,
+        controlFlow: {
+          branches: 0,
+          loops: 0,
+          returns: 0,
+          breaks: 0,
+          continues: 0,
+          throws: 0,
+          awaits: 0,
+          yields: 0
+        }
       });
     }
     return flowByName.get(name);
+  };
+
+  const recordControl = (key, count = 1) => {
+    if (!controlFlowEnabled || !key) return;
+    const scope = currentFunction();
+    if (!scope) return;
+    const flow = ensureFlow(scope);
+    flow.controlFlow[key] = (flow.controlFlow[key] || 0) + count;
   };
 
   const recordRead = (name) => {
@@ -351,6 +370,7 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
   };
 
   const recordThrow = (name) => {
+    recordControl('throws');
     if (!dataflowEnabled || !name) return;
     const scope = currentFunction();
     if (!scope) return;
@@ -358,6 +378,7 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
   };
 
   const recordAwait = (name) => {
+    recordControl('awaits');
     if (!dataflowEnabled || !name) return;
     const scope = currentFunction();
     if (!scope) return;
@@ -365,6 +386,7 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
   };
 
   const recordReturn = () => {
+    recordControl('returns');
     if (!dataflowEnabled) return;
     const scope = currentFunction();
     if (!scope) return;
@@ -372,6 +394,7 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
   };
 
   const recordYield = () => {
+    recordControl('yields');
     if (!dataflowEnabled) return;
     const scope = currentFunction();
     if (!scope) return;
@@ -587,6 +610,33 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
       }
     }
 
+    if (node.type === 'IfStatement' || node.type === 'ConditionalExpression') {
+      recordControl('branches');
+    }
+    if (node.type === 'SwitchStatement') {
+      const count = Array.isArray(node.cases) && node.cases.length ? node.cases.length : 1;
+      recordControl('branches', count);
+    }
+    if (node.type === 'TryStatement') {
+      recordControl('branches');
+    }
+    if (node.type === 'CatchClause') {
+      recordControl('branches');
+    }
+    if (node.type === 'ForStatement'
+      || node.type === 'ForInStatement'
+      || node.type === 'ForOfStatement'
+      || node.type === 'WhileStatement'
+      || node.type === 'DoWhileStatement') {
+      recordControl('loops');
+    }
+    if (node.type === 'BreakStatement') {
+      recordControl('breaks');
+    }
+    if (node.type === 'ContinueStatement') {
+      recordControl('continues');
+    }
+
     if (node.type === 'Identifier') {
       usages.add(node.name);
       if (shouldCountRead(node, parent)) {
@@ -695,21 +745,26 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
     });
   } catch {}
 
-  if (dataflowEnabled) {
+  if (dataflowEnabled || controlFlowEnabled) {
     for (const [name, flow] of flowByName.entries()) {
       const meta = functionMeta[name] || {};
-      meta.dataflow = {
-        reads: Array.from(flow.reads),
-        writes: Array.from(flow.writes),
-        mutations: Array.from(flow.mutations),
-        aliases: Array.from(flow.aliases)
-      };
-      meta.throws = Array.from(flow.throws);
-      meta.awaits = Array.from(flow.awaits);
-      meta.returnsValue = !!flow.returns;
-      meta.yields = !!flow.yields;
-      meta.modifiers = meta.modifiers || {};
-      meta.modifiers.generator = !!flow.yields;
+      if (dataflowEnabled) {
+        meta.dataflow = {
+          reads: Array.from(flow.reads),
+          writes: Array.from(flow.writes),
+          mutations: Array.from(flow.mutations),
+          aliases: Array.from(flow.aliases)
+        };
+        meta.throws = Array.from(flow.throws);
+        meta.awaits = Array.from(flow.awaits);
+        meta.returnsValue = !!flow.returns;
+        meta.yields = !!flow.yields;
+        meta.modifiers = meta.modifiers || {};
+        meta.modifiers.generator = !!flow.yields;
+      }
+      if (controlFlowEnabled && flow.controlFlow) {
+        meta.controlFlow = { ...flow.controlFlow };
+      }
       functionMeta[name] = meta;
     }
   }
@@ -771,6 +826,7 @@ export function extractDocMeta(text, chunk, astMeta = null) {
     modifiers: nameMeta?.modifiers || null,
     methodKind: nameMeta?.methodKind || null,
     dataflow: nameMeta?.dataflow || null,
+    controlFlow: nameMeta?.controlFlow || null,
     throws: nameMeta?.throws || [],
     awaits: nameMeta?.awaits || [],
     yields: nameMeta?.yields || false,

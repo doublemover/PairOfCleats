@@ -21,6 +21,7 @@ except Exception as e:
     sys.exit(0)
 
 dataflow_enabled = os.environ.get("PAIROFCLEATS_AST_DATAFLOW", "1").lower() not in ("0", "false", "no")
+control_flow_enabled = os.environ.get("PAIROFCLEATS_AST_CONTROL_FLOW", "1").lower() not in ("0", "false", "no")
 
 def safe_unparse(node):
     try:
@@ -253,9 +254,28 @@ class Collector(ast.NodeVisitor):
                 "throws": set(),
                 "awaits": set(),
                 "returns": False,
-                "yields": False
+                "yields": False,
+                "controlFlow": {
+                    "branches": 0,
+                    "loops": 0,
+                    "returns": 0,
+                    "breaks": 0,
+                    "continues": 0,
+                    "throws": 0,
+                    "awaits": 0,
+                    "yields": 0
+                }
             }
         return self.flow[name]
+    def record_control(self, kind, amount=1):
+        if not control_flow_enabled or not kind:
+            return
+        scope = self.current_scope()
+        if not scope:
+            return
+        flow = self.ensure_flow(scope)
+        if kind in flow["controlFlow"]:
+            flow["controlFlow"][kind] += amount
     def record_read(self, name):
         if not dataflow_enabled or not name:
             return
@@ -285,6 +305,7 @@ class Collector(ast.NodeVisitor):
             return
         self.ensure_flow(scope)["aliases"].add(name + "=" + target)
     def record_throw(self, name):
+        self.record_control("throws")
         if not dataflow_enabled or not name:
             return
         scope = self.current_scope()
@@ -292,6 +313,7 @@ class Collector(ast.NodeVisitor):
             return
         self.ensure_flow(scope)["throws"].add(name)
     def record_await(self, name):
+        self.record_control("awaits")
         if not dataflow_enabled or not name:
             return
         scope = self.current_scope()
@@ -299,6 +321,7 @@ class Collector(ast.NodeVisitor):
             return
         self.ensure_flow(scope)["awaits"].add(name)
     def record_return(self):
+        self.record_control("returns")
         if not dataflow_enabled:
             return
         scope = self.current_scope()
@@ -306,6 +329,7 @@ class Collector(ast.NodeVisitor):
             return
         self.ensure_flow(scope)["returns"] = True
     def record_yield(self):
+        self.record_control("yields")
         if not dataflow_enabled:
             return
         scope = self.current_scope()
@@ -455,7 +479,14 @@ class Collector(ast.NodeVisitor):
         for name in mutations:
             self.record_mutation(name)
         self.generic_visit(node)
+    def visit_If(self, node):
+        self.record_control("branches")
+        self.generic_visit(node)
+    def visit_IfExp(self, node):
+        self.record_control("branches")
+        self.generic_visit(node)
     def visit_For(self, node):
+        self.record_control("loops")
         writes = set()
         mutations = set()
         collect_targets(node.target, writes, mutations)
@@ -466,6 +497,24 @@ class Collector(ast.NodeVisitor):
         self.generic_visit(node)
     def visit_AsyncFor(self, node):
         self.visit_For(node)
+    def visit_While(self, node):
+        self.record_control("loops")
+        self.generic_visit(node)
+    def visit_Try(self, node):
+        if control_flow_enabled:
+            branch_count = len(getattr(node, "handlers", []) or [])
+            if getattr(node, "orelse", None):
+                branch_count += 1
+            if getattr(node, "finalbody", None):
+                branch_count += 1
+            if branch_count:
+                self.record_control("branches", branch_count)
+        self.generic_visit(node)
+    def visit_Match(self, node):
+        if control_flow_enabled:
+            case_count = len(getattr(node, "cases", []) or [])
+            self.record_control("branches", case_count or 1)
+        self.generic_visit(node)
     def visit_With(self, node):
         for item in node.items:
             if item.optional_vars:
@@ -486,19 +535,23 @@ class Collector(ast.NodeVisitor):
         exc = None
         if node.exc is not None:
             exc = call_name(node.exc) or safe_unparse(node.exc)
-        if exc:
-            self.record_throw(exc)
+        self.record_throw(exc)
         self.generic_visit(node)
     def visit_Await(self, node):
         name = await_name(node.value)
-        if name:
-            self.record_await(name)
+        self.record_await(name)
         self.generic_visit(node)
     def visit_Yield(self, node):
         self.record_yield()
         self.generic_visit(node)
     def visit_YieldFrom(self, node):
         self.record_yield()
+        self.generic_visit(node)
+    def visit_Break(self, node):
+        self.record_control("breaks")
+        self.generic_visit(node)
+    def visit_Continue(self, node):
+        self.record_control("continues")
         self.generic_visit(node)
     def visit_Global(self, node):
         if dataflow_enabled:
@@ -524,23 +577,26 @@ for entry in collector.defs:
     entry["calls"] = sorted(calls) if calls else []
     flow = collector.flow.get(entry["name"])
     if flow:
-        entry["dataflow"] = {
-            "reads": sorted(flow["reads"]),
-            "writes": sorted(flow["writes"]),
-            "mutations": sorted(flow["mutations"]),
-            "aliases": sorted(flow["aliases"]),
-            "globals": sorted(flow["globals"]),
-            "nonlocals": sorted(flow["nonlocals"])
-        }
-        entry["throws"] = sorted(flow["throws"])
-        entry["awaits"] = sorted(flow["awaits"])
-        entry["returnsValue"] = bool(flow["returns"])
-        entry["yields"] = bool(flow["yields"])
-        entry["modifiers"] = {
-            "async": bool(entry.get("async")),
-            "generator": bool(flow["yields"]),
-            "visibility": entry.get("visibility") or "public"
-        }
+        if dataflow_enabled:
+            entry["dataflow"] = {
+                "reads": sorted(flow["reads"]),
+                "writes": sorted(flow["writes"]),
+                "mutations": sorted(flow["mutations"]),
+                "aliases": sorted(flow["aliases"]),
+                "globals": sorted(flow["globals"]),
+                "nonlocals": sorted(flow["nonlocals"])
+            }
+            entry["throws"] = sorted(flow["throws"])
+            entry["awaits"] = sorted(flow["awaits"])
+            entry["returnsValue"] = bool(flow["returns"])
+            entry["yields"] = bool(flow["yields"])
+            entry["modifiers"] = {
+                "async": bool(entry.get("async")),
+                "generator": bool(flow["yields"]),
+                "visibility": entry.get("visibility") or "public"
+            }
+        if control_flow_enabled:
+            entry["controlFlow"] = flow["controlFlow"]
 result = {
     "defs": collector.defs,
     "imports": sorted(collector.imports),
@@ -582,13 +638,15 @@ export function getPythonAst(text, log, options = {}) {
   const pythonBin = findPythonExecutable(log);
   if (!pythonBin) return null;
   const dataflowEnabled = options.dataflow !== false;
+  const controlFlowEnabled = options.controlFlow !== false;
   const result = spawnSync(pythonBin, ['-c', PYTHON_AST_SCRIPT], {
     input: text,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
     env: {
       ...process.env,
-      PAIROFCLEATS_AST_DATAFLOW: dataflowEnabled ? '1' : '0'
+      PAIROFCLEATS_AST_DATAFLOW: dataflowEnabled ? '1' : '0',
+      PAIROFCLEATS_AST_CONTROL_FLOW: controlFlowEnabled ? '1' : '0'
     }
   });
   if (result.status !== 0 || !result.stdout) return null;
@@ -651,6 +709,7 @@ export function buildPythonChunksFromAst(text, astData) {
         bases: current.bases || [],
         modifiers: current.modifiers || null,
         dataflow: current.dataflow || null,
+        controlFlow: current.controlFlow || null,
         throws: current.throws || [],
         awaits: current.awaits || [],
         yields: current.yields || false,
@@ -809,6 +868,7 @@ export function extractPythonDocMeta(chunk) {
   const fields = Array.isArray(meta.fields) ? meta.fields : [];
   const modifiers = meta.modifiers && typeof meta.modifiers === 'object' ? meta.modifiers : null;
   const dataflow = meta.dataflow && typeof meta.dataflow === 'object' ? meta.dataflow : null;
+  const controlFlow = meta.controlFlow && typeof meta.controlFlow === 'object' ? meta.controlFlow : null;
   const bases = Array.isArray(meta.bases) ? meta.bases : [];
   const throws = Array.isArray(meta.throws) ? meta.throws : [];
   const awaits = Array.isArray(meta.awaits) ? meta.awaits : [];
@@ -826,6 +886,7 @@ export function extractPythonDocMeta(chunk) {
     visibility: meta.visibility || null,
     bases,
     dataflow,
+    controlFlow,
     throws,
     awaits,
     yields: meta.yields || false,

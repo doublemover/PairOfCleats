@@ -537,6 +537,10 @@ const tsAlias = findChunk({ file: 'src/typescript_advanced.ts', kind: 'FunctionD
 if (!tsAlias) {
   failures.push('Missing TypeScript alias chunk (buildWidgetAliases).');
 } else {
+  const tsAliases = tsAlias.docmeta?.dataflow?.aliases || [];
+  if (!tsAliases.includes('name=label') || !tsAliases.includes('copy=items')) {
+    failures.push('TypeScript alias tracking missing expected aliases for buildWidgetAliases.');
+  }
   const inferredParams = tsAlias.docmeta?.inferredTypes?.params?.label || [];
   if (!inferredParams.some((entry) => entry.type === 'string')) {
     failures.push('TypeScript inferredTypes missing string for label param.');

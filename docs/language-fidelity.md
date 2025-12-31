@@ -19,7 +19,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Decorators, docstrings, params, and returns are captured.
 - Dataclass/attrs field definitions are surfaced in metadata.
 - Imports and calls are captured from AST.
-- Dataflow metadata includes reads/writes/mutations/throws/awaits/yields when enabled.
+- Dataflow metadata includes reads/writes/mutations/aliases/throws/awaits/yields when enabled.
 - Control-flow metadata includes branch/loop/return counts when enabled.
 - Base classes, visibility, and param type/default metadata are present when available.
 
@@ -28,7 +28,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Signatures and params are captured from AST (including defaults).
 - Modifiers include async/generator/static and visibility where detectable.
 - Class inheritance (`extends`) is captured for class declarations.
-- Dataflow metadata includes reads/writes/mutations/throws/awaits/yields when enabled.
+- Dataflow metadata includes reads/writes/mutations/aliases/throws/awaits/yields when enabled.
 - Control-flow metadata includes branch/loop/return counts when enabled.
 
 ## Swift
@@ -71,6 +71,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Doc comments and decorators are captured in metadata.
 - Imports/exports are captured from ES module syntax.
 - Calls/usages are captured for function bodies when possible.
+- Dataflow metadata includes reads/writes/mutations/aliases/throws/awaits/yields when enabled.
 
 ## C#
 - namespace/type declarations are chunked.

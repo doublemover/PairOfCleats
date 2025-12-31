@@ -65,7 +65,10 @@ const LANGUAGE_REGISTRY = [
     match: (ext) => isJsLike(ext),
     collectImports: (text) => collectImports(text),
     buildRelations: ({ text, relPath, allImports, options }) =>
-      buildCodeRelations(text, relPath, allImports, { dataflow: options.astDataflowEnabled }),
+      buildCodeRelations(text, relPath, allImports, {
+        dataflow: options.astDataflowEnabled,
+        controlFlow: options.controlFlowEnabled
+      }),
     extractDocMeta: ({ text, chunk, fileRelations }) => extractDocMeta(text, chunk, fileRelations),
     flow: ({ text, chunk, options }) => buildControlFlowOnly(text, chunk, options, JS_CONTROL_FLOW),
     attachName: false
@@ -85,7 +88,12 @@ const LANGUAGE_REGISTRY = [
     match: (ext) => ext === '.py',
     collectImports: (text) => collectPythonImports(text).imports,
     prepare: ({ text, mode, options }) => (mode === 'code'
-      ? { pythonAst: getPythonAst(text, options.log, { dataflow: options.astDataflowEnabled }) }
+      ? {
+        pythonAst: getPythonAst(text, options.log, {
+          dataflow: options.astDataflowEnabled,
+          controlFlow: options.controlFlowEnabled
+        })
+      }
       : {}),
     buildRelations: ({ text, allImports, context }) => buildPythonRelations(text, allImports, context.pythonAst),
     extractDocMeta: ({ chunk }) => extractPythonDocMeta(chunk),
