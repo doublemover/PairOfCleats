@@ -1,4 +1,5 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
+import { extractDocComment } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 
 /**
@@ -138,36 +139,48 @@ const SQL_CONTROL_FLOW = {
   throwKeywords: ['raise', 'signal']
 };
 
-function extractSqlDocComment(lines, startLineIdx) {
-  let i = startLineIdx - 1;
-  while (i >= 0 && lines[i].trim() === '') i--;
-  if (i < 0) return '';
-  const out = [];
-  while (i >= 0) {
+const SQL_DOC_OPTIONS = {
+  linePrefixes: ['--'],
+  blockStarts: ['/*'],
+  blockEnd: '*/'
+};
+
+function extractSqlLeadingDoc(statementText) {
+  const lines = statementText.split('\n');
+  const docLines = [];
+  let signature = '';
+  let i = 0;
+  while (i < lines.length) {
     const trimmed = lines[i].trim();
-    if (trimmed.startsWith('--')) {
-      out.unshift(trimmed.replace(/^--\s?/, ''));
-      i--;
+    if (!trimmed) {
+      i++;
       continue;
     }
-    if (trimmed.endsWith('*/')) {
+    if (trimmed.startsWith('--')) {
+      docLines.push(trimmed.replace(/^--\s?/, ''));
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith('/*')) {
       const raw = [];
-      while (i >= 0) {
-        raw.unshift(lines[i]);
-        if (lines[i].includes('/*')) break;
-        i--;
+      while (i < lines.length) {
+        raw.push(lines[i]);
+        if (lines[i].includes('*/')) break;
+        i++;
       }
       const cleaned = raw
         .map((line) => line.replace(/^\s*\/\*+/, '').replace(/\*\/\s*$/, '').replace(/^\s*\*\s?/, '').trim())
         .filter(Boolean)
         .join('\n')
         .trim();
-      if (cleaned) out.unshift(cleaned);
-      break;
+      if (cleaned) docLines.push(cleaned);
+      i++;
+      continue;
     }
+    signature = trimmed;
     break;
   }
-  return out.join('\n').trim();
+  return { docstring: docLines.join('\n').trim(), signature };
 }
 
 function classifySqlStatement(statement) {
@@ -222,7 +235,9 @@ export function buildSqlChunks(text, options = {}) {
     const { kind, name } = classifySqlStatement(stmt.text);
     const startLine = offsetToLine(lineIndex, stmt.start);
     const endLine = offsetToLine(lineIndex, stmt.end);
-    const docstring = extractSqlDocComment(lines, startLine - 1);
+    const leading = extractSqlLeadingDoc(stmt.text);
+    const docstring = extractDocComment(lines, startLine - 1, SQL_DOC_OPTIONS) || leading.docstring;
+    const signature = leading.signature || stmt.text.trim().split('\n')[0].trim();
     decls.push({
       start: stmt.start,
       end: stmt.end,
@@ -231,7 +246,7 @@ export function buildSqlChunks(text, options = {}) {
       meta: {
         startLine,
         endLine,
-        signature: stmt.text.trim().split('\n')[0].trim(),
+        signature,
         docstring,
         dialect
       }

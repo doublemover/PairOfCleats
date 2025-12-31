@@ -186,6 +186,27 @@ if (!aliasChunk) {
   }
 }
 
+const goDocChunk = findChunk({ file: 'src/go_advanced.go', kind: 'StructDeclaration', nameIncludes: 'Widget' });
+if (!goDocChunk) {
+  failures.push('Missing Go struct chunk (Widget).');
+} else if (!String(goDocChunk.docmeta?.doc || '').includes('Widget holds a name')) {
+  failures.push('Go docstring missing for Widget struct.');
+}
+
+const perlDocChunk = findChunk({ file: 'src/perl_advanced.pl', kind: 'FunctionDeclaration', nameIncludes: 'greet' });
+if (!perlDocChunk) {
+  failures.push('Missing Perl function chunk (greet).');
+} else if (!String(perlDocChunk.docmeta?.doc || '').includes('Greets a caller')) {
+  failures.push('Perl docstring missing for greet.');
+}
+
+const sqlDocChunk = findChunk({ file: 'src/sql_advanced.sql', kind: 'TableDeclaration', nameIncludes: 'widgets' });
+if (!sqlDocChunk) {
+  failures.push('Missing SQL table chunk (widgets).');
+} else if (!String(sqlDocChunk.docmeta?.doc || '').includes('Widget table')) {
+  failures.push('SQL docstring missing for widgets.');
+}
+
 const riskChunk = findChunk({ file: 'src/javascript_risk.js', nameIncludes: 'runCommand' });
 if (!riskChunk) {
   failures.push('Missing JavaScript risk chunk (runCommand).');

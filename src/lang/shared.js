@@ -12,44 +12,85 @@ export function sliceSignature(text, start, bodyStart) {
 }
 
 /**
- * Extract a doc comment immediately above a declaration.
- * Supports /// and /** block comment styles.
- * @param {string[]} lines
- * @param {number} startLineIdx
+ * Escape a value for use in a RegExp.
+ * @param {string} value
  * @returns {string}
  */
-export function extractDocComment(lines, startLineIdx) {
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Extract a doc comment immediately above a declaration.
+ * Supports configurable line/block styles.
+ * @param {string[]} lines
+ * @param {number} startLineIdx
+ * @param {{linePrefixes?:string[]|string,blockStarts?:string[]|string,blockEnd?:string,skipLine?:(line:string)=>boolean}} [options]
+ * @returns {string}
+ */
+export function extractDocComment(lines, startLineIdx, options = {}) {
+  const linePrefixesRaw = options.linePrefixes ?? ['///'];
+  const blockStartsRaw = options.blockStarts ?? ['/**'];
+  const linePrefixes = Array.isArray(linePrefixesRaw) ? linePrefixesRaw.filter(Boolean) : [linePrefixesRaw].filter(Boolean);
+  const blockStarts = Array.isArray(blockStartsRaw) ? blockStartsRaw.filter(Boolean) : [blockStartsRaw].filter(Boolean);
+  const blockEnd = options.blockEnd ?? '*/';
+  const skipLine = typeof options.skipLine === 'function' ? options.skipLine : null;
   let i = startLineIdx - 1;
   while (i >= 0 && lines[i].trim() === '') i--;
   if (i < 0) return '';
   const trimmed = lines[i].trim();
-  if (trimmed.startsWith('///')) {
-    const out = [];
-    while (i >= 0 && lines[i].trim().startsWith('///')) {
-      out.unshift(lines[i].trim().replace(/^\/\/\/\s?/, ''));
-      i--;
+  if (linePrefixes.length) {
+    const initialPrefix = linePrefixes.find((prefix) => trimmed.startsWith(prefix));
+    if (initialPrefix) {
+      const out = [];
+      while (i >= 0) {
+        const line = lines[i].trim();
+        if (skipLine && skipLine(line)) {
+          i--;
+          continue;
+        }
+        const matchedPrefix = linePrefixes.find((prefix) => line.startsWith(prefix));
+        if (!matchedPrefix) break;
+        const prefixRegex = new RegExp(`^\\s*${escapeRegExp(matchedPrefix)}\\s?`);
+        out.unshift(line.replace(prefixRegex, '').trim());
+        i--;
+      }
+      return out.join('\n').trim();
     }
-    return out.join('\n').trim();
   }
-  if (trimmed.includes('*/')) {
+
+  if (blockEnd && trimmed.includes(blockEnd) && blockStarts.length) {
     const raw = [];
+    let foundStart = false;
     while (i >= 0) {
-      raw.unshift(lines[i]);
-      if (lines[i].includes('/**')) break;
+      const line = lines[i];
+      raw.unshift(line);
+      if (blockStarts.some((start) => line.includes(start))) {
+        foundStart = true;
+        break;
+      }
       i--;
     }
+    if (!foundStart) return '';
     return raw
-      .map((line) =>
-        line
-          .replace(/^\s*\/\*\*?/, '')
-          .replace(/\*\/\s*$/, '')
-          .replace(/^\s*\*\s?/, '')
-          .trim()
-      )
+      .map((line) => {
+        let cleaned = line;
+        for (const start of blockStarts) {
+          const startRegex = new RegExp(`^\\s*${escapeRegExp(start)}`);
+          cleaned = cleaned.replace(startRegex, '');
+        }
+        if (blockEnd) {
+          const endRegex = new RegExp(`${escapeRegExp(blockEnd)}\\s*$`);
+          cleaned = cleaned.replace(endRegex, '');
+        }
+        cleaned = cleaned.replace(/^\s*\*\s?/, '');
+        return cleaned.trim();
+      })
       .filter(Boolean)
       .join('\n')
       .trim();
   }
+
   return '';
 }
 

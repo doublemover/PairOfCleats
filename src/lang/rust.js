@@ -1,5 +1,5 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
-import { sliceSignature } from './shared.js';
+import { extractDocComment, sliceSignature } from './shared.js';
 import { findCLikeBodyBounds } from './clike.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 
@@ -19,42 +19,11 @@ const RUST_USAGE_SKIP = new Set([
   'f32', 'f64', 'bool', 'str', 'String'
 ]);
 
-function extractRustDocComment(lines, startLineIdx) {
-  let i = startLineIdx - 1;
-  while (i >= 0 && lines[i].trim() === '') i--;
-  if (i < 0) return '';
-  const trimmed = lines[i].trim();
-  if (trimmed.startsWith('///') || trimmed.startsWith('//!')) {
-    const out = [];
-    while (i >= 0) {
-      const line = lines[i].trim();
-      if (!line.startsWith('///') && !line.startsWith('//!')) break;
-      out.unshift(line.replace(/^\/\/[!/]\s?/, ''));
-      i--;
-    }
-    return out.join('\n').trim();
-  }
-  if (trimmed.includes('*/')) {
-    const raw = [];
-    while (i >= 0) {
-      raw.unshift(lines[i]);
-      if (lines[i].includes('/**') || lines[i].includes('/*!')) break;
-      i--;
-    }
-    return raw
-      .map((line) =>
-        line
-          .replace(/^\s*\/\*+!?/, '')
-          .replace(/\*\/\s*$/, '')
-          .replace(/^\s*\*\s?/, '')
-          .trim()
-      )
-      .filter(Boolean)
-      .join('\n')
-      .trim();
-  }
-  return '';
-}
+const RUST_DOC_OPTIONS = {
+  linePrefixes: ['///', '//!'],
+  blockStarts: ['/**', '/*!'],
+  blockEnd: '*/'
+};
 
 function collectRustAttributes(lines, startLineIdx, signature) {
   const attrs = new Set();
@@ -219,7 +188,7 @@ export function buildRustChunks(text) {
       endLine: offsetToLine(lineIndex, end),
       signature,
       modifiers: extractRustModifiers(signature),
-      docstring: extractRustDocComment(lines, i),
+      docstring: extractDocComment(lines, i, RUST_DOC_OPTIONS),
       attributes: collectRustAttributes(lines, i, signature)
     };
     const entry = { start, end, name: match[1], kind: 'MacroDeclaration', meta };
@@ -253,7 +222,7 @@ export function buildRustChunks(text) {
       endLine: offsetToLine(lineIndex, end),
       signature,
       modifiers: extractRustModifiers(signature),
-      docstring: extractRustDocComment(lines, i),
+      docstring: extractDocComment(lines, i, RUST_DOC_OPTIONS),
       attributes: collectRustAttributes(lines, i, signature)
     };
     const entry = { start, end, name: match[2], kind, meta };
@@ -284,7 +253,7 @@ export function buildRustChunks(text) {
         endLine: offsetToLine(lineIndex, end),
         signature,
         modifiers: extractRustModifiers(signature),
-        docstring: extractRustDocComment(lines, i),
+        docstring: extractDocComment(lines, i, RUST_DOC_OPTIONS),
         attributes: collectRustAttributes(lines, i, signature),
         implFor: typeName
       }
@@ -334,7 +303,7 @@ export function buildRustChunks(text) {
       params: extractRustParams(signature),
       returns: extractRustReturns(signature),
       modifiers: extractRustModifiers(signature),
-      docstring: extractRustDocComment(lines, i),
+      docstring: extractDocComment(lines, i, RUST_DOC_OPTIONS),
       attributes: collectRustAttributes(lines, i, signature)
     };
     decls.push({ start, end, name, kind, meta });
