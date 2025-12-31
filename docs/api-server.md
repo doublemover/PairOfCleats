@@ -44,6 +44,15 @@ Response:
 }
 ```
 
+### `GET /status/stream`
+Streams status as Server-Sent Events (SSE). Each event includes JSON `data`.
+
+Events:
+- `start` `{ ok, repo }`
+- `result` `{ ok, repo, status }`
+- `error` `{ ok: false, message, stderr? }`
+- `done` `{ ok }`
+
 ### `POST /search`
 Executes `search.js` with the provided payload and returns JSON output.
 
@@ -60,6 +69,24 @@ Response:
   "repo": "/path/to/repo",
   "result": { "code": [ ... ], "prose": [ ... ] }
 }
+```
+
+### `POST /search/stream`
+Runs a search and streams progress/results as SSE events. The request payload
+matches `/search`.
+
+Events:
+- `start` `{ ok: true }`
+- `log` `{ stream: "stderr", message }` (stderr lines, if any)
+- `result` `{ ok: true, repo, result }`
+- `error` `{ ok: false, message, code?, stderr? }`
+- `done` `{ ok }`
+
+Example:
+```bash
+curl -N http://127.0.0.1:7345/search/stream \
+  -H "Content-Type: application/json" \
+  -d '{"query":"return","mode":"code"}'
 ```
 
 Notes:

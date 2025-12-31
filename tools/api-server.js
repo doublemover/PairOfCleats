@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import minimist from 'minimist';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveRepoRoot } from './dict-utils.js';
 
@@ -89,6 +89,56 @@ const sendJson = (res, statusCode, payload) => {
     'Access-Control-Allow-Origin': '*'
   });
   res.end(body);
+};
+
+/**
+ * Write SSE headers for streaming responses.
+ * @param {import('node:http').ServerResponse} res
+ */
+const sendSseHeaders = (res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  });
+  res.write('\n');
+};
+
+/**
+ * Send a Server-Sent Event payload.
+ * @param {import('node:http').ServerResponse} res
+ * @param {string} event
+ * @param {any} payload
+ */
+const sendSseEvent = (res, event, payload) => {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+};
+
+/**
+ * Build a line buffer for streaming logs.
+ * @param {(line:string)=>void} onLine
+ * @returns {{push:(text:string)=>void,flush:()=>void}}
+ */
+const createLineBuffer = (onLine) => {
+  let buffer = '';
+  return {
+    push(text) {
+      buffer += text;
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed) onLine(trimmed);
+      }
+    },
+    flush() {
+      const trimmed = buffer.trim();
+      if (trimmed) onLine(trimmed);
+      buffer = '';
+    }
+  };
 };
 
 /**
@@ -276,6 +326,43 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (requestUrl.pathname === '/status/stream' && req.method === 'GET') {
+    let repoPath = '';
+    try {
+      repoPath = resolveRepo(requestUrl.searchParams.get('repo'));
+    } catch (err) {
+      sendSseHeaders(res);
+      sendSseEvent(res, 'error', { ok: false, message: err?.message || 'Invalid repo path.' });
+      sendSseEvent(res, 'done', { ok: false });
+      res.end();
+      return;
+    }
+    sendSseHeaders(res);
+    sendSseEvent(res, 'start', { ok: true, repo: repoPath });
+    const args = [path.join(ROOT, 'tools', 'report-artifacts.js'), '--json', '--repo', repoPath];
+    const result = runNodeSync(repoPath, args);
+    if (result.status !== 0) {
+      sendSseEvent(res, 'error', {
+        ok: false,
+        message: 'Failed to collect status.',
+        stderr: result.stderr ? String(result.stderr).trim() : null
+      });
+      sendSseEvent(res, 'done', { ok: false });
+      res.end();
+      return;
+    }
+    try {
+      const payload = JSON.parse(result.stdout || '{}');
+      sendSseEvent(res, 'result', { ok: true, repo: repoPath, status: payload });
+      sendSseEvent(res, 'done', { ok: true });
+    } catch (err) {
+      sendSseEvent(res, 'error', { ok: false, message: 'Invalid status response.', error: err?.message || String(err) });
+      sendSseEvent(res, 'done', { ok: false });
+    }
+    res.end();
+    return;
+  }
+
   if (requestUrl.pathname === '/status' && req.method === 'GET') {
     let repoPath = '';
     try {
@@ -298,6 +385,91 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       sendError(res, 500, 'Invalid status response.', { error: err?.message || String(err) });
     }
+    return;
+  }
+
+  if (requestUrl.pathname === '/search/stream' && req.method === 'POST') {
+    sendSseHeaders(res);
+    sendSseEvent(res, 'start', { ok: true });
+    let raw;
+    try {
+      raw = await parseBody(req);
+    } catch (err) {
+      sendSseEvent(res, 'error', { ok: false, message: err?.message || 'Request body too large.' });
+      sendSseEvent(res, 'done', { ok: false });
+      res.end();
+      return;
+    }
+    let payload = null;
+    try {
+      payload = raw ? JSON.parse(raw) : null;
+    } catch {
+      sendSseEvent(res, 'error', { ok: false, message: 'Invalid JSON payload.' });
+      sendSseEvent(res, 'done', { ok: false });
+      res.end();
+      return;
+    }
+    let repoPath = '';
+    try {
+      repoPath = resolveRepo(payload?.repoPath || payload?.repo);
+    } catch (err) {
+      sendSseEvent(res, 'error', { ok: false, message: err?.message || 'Invalid repo path.' });
+      sendSseEvent(res, 'done', { ok: false });
+      res.end();
+      return;
+    }
+    const searchArgs = buildSearchArgs(repoPath, payload || {});
+    if (!searchArgs.ok) {
+      sendSseEvent(res, 'error', { ok: false, message: searchArgs.message || 'Invalid search payload.' });
+      sendSseEvent(res, 'done', { ok: false });
+      res.end();
+      return;
+    }
+
+    const child = spawn(process.execPath, searchArgs.args, { cwd: repoPath });
+    let stdout = '';
+    let stderr = '';
+    const stderrBuffer = createLineBuffer((line) => {
+      sendSseEvent(res, 'log', { stream: 'stderr', message: line });
+    });
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on('data', (chunk) => {
+      const text = chunk.toString();
+      stderr += text;
+      stderrBuffer.push(text);
+    });
+    req.on('close', () => {
+      if (!child.killed) child.kill('SIGTERM');
+    });
+    child.on('close', (code) => {
+      stderrBuffer.flush();
+      if (code !== 0) {
+        sendSseEvent(res, 'error', {
+          ok: false,
+          message: 'Search failed.',
+          code,
+          stderr: stderr.trim() || null
+        });
+        sendSseEvent(res, 'done', { ok: false });
+        res.end();
+        return;
+      }
+      try {
+        const body = JSON.parse(stdout || '{}');
+        sendSseEvent(res, 'result', { ok: true, repo: repoPath, result: body });
+        sendSseEvent(res, 'done', { ok: true });
+      } catch (err) {
+        sendSseEvent(res, 'error', {
+          ok: false,
+          message: 'Invalid search response.',
+          error: err?.message || String(err)
+        });
+        sendSseEvent(res, 'done', { ok: false });
+      }
+      res.end();
+    });
     return;
   }
 

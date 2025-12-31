@@ -175,6 +175,8 @@ Endpoints:
 - `GET /health`
 - `GET /status?repo=<path>`
 - `POST /search` (JSON payload mirrors CLI filters)
+- `GET /status/stream` (SSE)
+- `POST /search/stream` (SSE)
 - Docs: [`docs/api-server.md`](docs/api-server.md)
 </details>
 
@@ -259,6 +261,7 @@ Reports + MCP:
 - `npm run summary-report-test`
 - `npm run mcp-server-test`
 - `npm run api-server-test`
+- `npm run api-server-stream-test`
 - `npm run vscode-extension-test`
 
 Meta:

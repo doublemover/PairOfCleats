@@ -495,8 +495,8 @@ Work items:
 - [x] Prototype VS Code extension that shells out to `pairofcleats search`.
 - [x] Add integration docs and basic extension tests.
 
-## Phase 51: Streaming Enhancements (status: todo)
+## Phase 51: Streaming Enhancements (status: done)
 Goal: Add WebSocket/streaming responses on top of the minimal API.
 Work items:
-- [ ] Add streaming endpoints for long-running searches/index status.
-- [ ] Add client-side examples and tests.
+- [x] Add streaming endpoints for long-running searches/index status.
+- [x] Add client-side examples and tests.

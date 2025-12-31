@@ -62,6 +62,7 @@
     "triage-test": "node tests/triage-records.js",
     "mcp-server-test": "node tests/mcp-server.js",
     "api-server-test": "node tests/api-server.js",
+    "api-server-stream-test": "node tests/api-server-stream.js",
     "compare-models-test": "node tests/compare-models.js",
     "docs-consistency-test": "node tests/docs-consistency.js",
     "summary-report-test": "node tests/summary-report.js",

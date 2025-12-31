@@ -158,6 +158,11 @@ const actions = [
     covers: ['api-server-test', 'api-server']
   },
   {
+    label: 'api-server-stream-test',
+    run: () => runNode('api-server-stream-test', path.join(root, 'tests', 'api-server-stream.js')),
+    covers: ['api-server-stream-test']
+  },
+  {
     label: 'git-hooks-test',
     run: () => runNode('git-hooks-test', path.join(root, 'tests', 'git-hooks.js')),
     covers: ['git-hooks-test', 'git-hooks']
