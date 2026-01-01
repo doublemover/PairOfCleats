@@ -1,0 +1,10 @@
+fn
+struct
+enum
+impl
+trait
+async
+await
+Result
+Option
+use

@@ -6,12 +6,13 @@ import minimist from 'minimist';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['ann', 'no-ann', 'json', 'write-report', 'build', 'build-index', 'build-sqlite', 'incremental', 'stub-embeddings'],
-  string: ['queries', 'backend', 'out', 'bm25-k1', 'bm25-b', 'fts-profile', 'fts-weights'],
+  string: ['queries', 'backend', 'out', 'bm25-k1', 'bm25-b', 'fts-profile', 'fts-weights', 'repo'],
   alias: { n: 'top', q: 'queries' },
   default: { top: 5, limit: 0, json: false, 'write-report': false }
 });
 
 const root = process.cwd();
+const repoArg = argv.repo ? path.resolve(argv.repo) : null;
 const searchPath = path.join(root, 'search.js');
 const reportPath = path.join(root, 'tools', 'report-artifacts.js');
 const buildIndexPath = path.join(root, 'build_index.js');
@@ -43,6 +44,7 @@ const limit = Math.max(0, parseInt(argv.limit, 10) || 0);
 const selectedQueries = limit > 0 ? queries.slice(0, limit) : queries;
 const annEnabled = argv.ann !== false;
 const annArg = annEnabled ? '--ann' : '--no-ann';
+const jsonOutput = argv.json === true;
 const bm25K1Arg = argv['bm25-k1'];
 const bm25BArg = argv['bm25-b'];
 const ftsProfileArg = argv['fts-profile'];
@@ -74,6 +76,7 @@ function runSearch(query, backend) {
     String(topN),
     annArg
   ];
+  if (repoArg) args.push('--repo', repoArg);
   if (bm25K1Arg) args.push('--bm25-k1', String(bm25K1Arg));
   if (bm25BArg) args.push('--bm25-b', String(bm25BArg));
   if (ftsProfileArg) args.push('--fts-profile', String(ftsProfileArg));
@@ -115,7 +118,15 @@ function buildStats(values) {
 
 function runBuild(args, label, env) {
   const start = Date.now();
-  const result = spawnSync(process.execPath, args, { env, stdio: 'inherit' });
+  const result = spawnSync(process.execPath, args, {
+    env,
+    encoding: 'utf8',
+    stdio: jsonOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit'
+  });
+  if (jsonOutput) {
+    if (result.stdout) process.stderr.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+  }
   if (result.status !== 0) {
     console.error(`Build failed: ${label}`);
     process.exit(result.status ?? 1);
@@ -129,12 +140,14 @@ if (buildIndex || buildSqlite) {
   if (stubEmbeddings) buildEnv.PAIROFCLEATS_EMBEDDINGS = 'stub';
   if (buildIndex) {
     const args = [buildIndexPath];
+    if (repoArg) args.push('--repo', repoArg);
     if (stubEmbeddings) args.push('--stub-embeddings');
     if (buildIncremental) args.push('--incremental');
     buildMs.index = runBuild(args, 'build index', buildEnv);
   }
   if (buildSqlite) {
     const args = [buildSqlitePath];
+    if (repoArg) args.push('--repo', repoArg);
     if (buildIncremental) args.push('--incremental');
     buildMs.sqlite = runBuild(args, 'build sqlite', buildEnv);
   }
@@ -165,7 +178,9 @@ for (const query of selectedQueries) {
   }
 }
 
-const reportResult = spawnSync(process.execPath, [reportPath, '--json'], { encoding: 'utf8' });
+const reportArgs = [reportPath, '--json'];
+if (repoArg) reportArgs.push('--repo', repoArg);
+const reportResult = spawnSync(process.execPath, reportArgs, { encoding: 'utf8' });
 const artifactReport = reportResult.status === 0 ? JSON.parse(reportResult.stdout || '{}') : {};
 
 const latencyStats = Object.fromEntries(backends.map((b) => [b, buildStats(latency[b])]));
@@ -190,6 +205,7 @@ const summary = {
 
 const output = {
   generatedAt: new Date().toISOString(),
+  repo: { root: repoArg || root },
   summary,
   artifacts: artifactReport
 };

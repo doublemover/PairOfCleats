@@ -6,6 +6,17 @@ const DEFAULT_STALE_MS = 30 * 60 * 1000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const isProcessAlive = (pid) => {
+  if (!Number.isFinite(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    if (err?.code === 'EPERM') return true;
+    return false;
+  }
+};
+
 const readLockInfo = async (lockPath) => {
   try {
     const raw = await fs.readFile(lockPath, 'utf8');
@@ -73,12 +84,20 @@ export async function acquireIndexLock({
           continue;
         } catch {}
       }
+      const info = await readLockInfo(lockPath);
+      const pid = Number.isFinite(info?.pid) ? Number(info.pid) : null;
+      if (pid && !isProcessAlive(pid)) {
+        try {
+          await fs.rm(lockPath, { force: true });
+          continue;
+        } catch {}
+      }
       if (waitMs > 0 && Date.now() < deadline) {
         await sleep(pollMs);
         continue;
       }
-      const info = fsSync.existsSync(lockPath) ? await readLockInfo(lockPath) : null;
-      const detail = info?.pid ? ` (pid ${info.pid})` : '';
+      const detailInfo = info || (fsSync.existsSync(lockPath) ? await readLockInfo(lockPath) : null);
+      const detail = detailInfo?.pid ? ` (pid ${detailInfo.pid})` : '';
       log(`Index lock held, skipping build${detail}.`);
       return null;
     }

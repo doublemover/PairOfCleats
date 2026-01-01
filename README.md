@@ -273,7 +273,7 @@ Reports + MCP:
 Meta:
 - `npm run script-coverage-test`
 - `npm run docs-consistency-test`
-- `npm run bench` / `npm run bench-ann`
+- `npm run bench` / `npm run bench-ann` / `npm run bench-language`
 </details>
 
 <details>
@@ -309,6 +309,7 @@ Meta:
 - [`docs/sqlite-compaction.md`](docs/sqlite-compaction.md) - compaction details
 - [`docs/sqlite-ann-extension.md`](docs/sqlite-ann-extension.md) - SQLite ANN extension setup
 - [`docs/model-comparison.md`](docs/model-comparison.md) - model evaluation harness
+- [`docs/language-benchmarks.md`](docs/language-benchmarks.md) - language benchmark repos and workflow
 - [`docs/query-cache.md`](docs/query-cache.md) - query cache behavior
 - [`docs/repometrics-dashboard.md`](docs/repometrics-dashboard.md) - repometrics output and usage
 - [`docs/setup.md`](docs/setup.md) - unified setup flow and flags

@@ -1,0 +1,10 @@
+function
+local
+require
+table
+module
+metatable
+ngx
+kong
+return
+setmetatable

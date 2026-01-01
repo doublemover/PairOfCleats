@@ -1,0 +1,197 @@
+{
+  "javascript": {
+    "label": "JavaScript / TypeScript",
+    "queries": "benchmarks/queries/javascript.txt",
+    "repos": {
+      "large": [
+        "microsoft/vscode",
+        "vercel/next.js"
+      ],
+      "typical": [
+        "expressjs/express"
+      ]
+    }
+  },
+  "python": {
+    "label": "Python",
+    "queries": "benchmarks/queries/python.txt",
+    "repos": {
+      "large": [
+        "ansible/ansible",
+        "saltstack/salt"
+      ],
+      "typical": [
+        "psf/requests"
+      ]
+    }
+  },
+  "swift": {
+    "label": "Swift",
+    "queries": "benchmarks/queries/swift.txt",
+    "repos": {
+      "large": [
+        "apple/swift",
+        "apple/swift-nio"
+      ],
+      "typical": [
+        "Alamofire/Alamofire"
+      ]
+    }
+  },
+  "rust": {
+    "label": "Rust",
+    "queries": "benchmarks/queries/rust.txt",
+    "repos": {
+      "large": [
+        "rust-lang/rust",
+        "servo/servo"
+      ],
+      "typical": [
+        "BurntSushi/ripgrep"
+      ]
+    }
+  },
+  "clike": {
+    "label": "C / C++ / Objective-C",
+    "queries": "benchmarks/queries/clike.txt",
+    "repos": {
+      "large": [
+        "llvm/llvm-project",
+        "opencv/opencv"
+      ],
+      "typical": [
+        "curl/curl"
+      ]
+    }
+  },
+  "go": {
+    "label": "Go",
+    "queries": "benchmarks/queries/go.txt",
+    "repos": {
+      "large": [
+        "kubernetes/kubernetes",
+        "prometheus/prometheus"
+      ],
+      "typical": [
+        "gin-gonic/gin"
+      ]
+    }
+  },
+  "java": {
+    "label": "Java",
+    "queries": "benchmarks/queries/java.txt",
+    "repos": {
+      "large": [
+        "apache/kafka",
+        "elastic/elasticsearch"
+      ],
+      "typical": [
+        "spring-projects/spring-boot"
+      ]
+    }
+  },
+  "csharp": {
+    "label": "C#",
+    "queries": "benchmarks/queries/csharp.txt",
+    "repos": {
+      "large": [
+        "dotnet/runtime",
+        "dotnet/roslyn"
+      ],
+      "typical": [
+        "AutoMapper/AutoMapper"
+      ]
+    }
+  },
+  "kotlin": {
+    "label": "Kotlin",
+    "queries": "benchmarks/queries/kotlin.txt",
+    "repos": {
+      "large": [
+        "JetBrains/kotlin",
+        "ktorio/ktor"
+      ],
+      "typical": [
+        "Kotlin/kotlinx.coroutines"
+      ]
+    }
+  },
+  "ruby": {
+    "label": "Ruby",
+    "queries": "benchmarks/queries/ruby.txt",
+    "repos": {
+      "large": [
+        "rails/rails",
+        "discourse/discourse"
+      ],
+      "typical": [
+        "jekyll/jekyll"
+      ]
+    }
+  },
+  "php": {
+    "label": "PHP",
+    "queries": "benchmarks/queries/php.txt",
+    "repos": {
+      "large": [
+        "laravel/framework",
+        "symfony/symfony"
+      ],
+      "typical": [
+        "composer/composer"
+      ]
+    }
+  },
+  "lua": {
+    "label": "Lua",
+    "queries": "benchmarks/queries/lua.txt",
+    "repos": {
+      "large": [
+        "Kong/kong",
+        "torch/torch7"
+      ],
+      "typical": [
+        "luarocks/luarocks"
+      ]
+    }
+  },
+  "sql": {
+    "label": "SQL",
+    "queries": "benchmarks/queries/sql.txt",
+    "repos": {
+      "large": [
+        "postgres/postgres",
+        "mysql/mysql-server"
+      ],
+      "typical": [
+        "dbt-labs/jaffle_shop"
+      ]
+    }
+  },
+  "perl": {
+    "label": "Perl",
+    "queries": "benchmarks/queries/perl.txt",
+    "repos": {
+      "large": [
+        "bestpractical/rt",
+        "metacpan/metacpan-web"
+      ],
+      "typical": [
+        "mojolicious/mojo"
+      ]
+    }
+  },
+  "shell": {
+    "label": "Shell",
+    "queries": "benchmarks/queries/shell.txt",
+    "repos": {
+      "large": [
+        "ohmyzsh/ohmyzsh",
+        "nvm-sh/nvm"
+      ],
+      "typical": [
+        "bash-it/bash-it"
+      ]
+    }
+  }
+}

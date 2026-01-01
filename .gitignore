@@ -4,6 +4,9 @@ index-code/
 index-prose/
 ci-artifacts/
 tests/.cache/
+benchmarks/repos/
+benchmarks/cache/
+benchmarks/results/
 docs/benchmarks.json
 docs/phase3-parity-report.json
 *.db

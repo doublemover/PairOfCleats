@@ -1,0 +1,10 @@
+class
+interface
+public
+private
+async
+Task
+using
+namespace
+record
+linq

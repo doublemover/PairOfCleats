@@ -1,0 +1,10 @@
+int
+struct
+class
+template
+namespace
+typedef
+extern
+include
+@interface
+@implementation

@@ -1,0 +1,10 @@
+select
+insert
+update
+delete
+create
+alter
+join
+index
+transaction
+schema

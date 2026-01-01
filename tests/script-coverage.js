@@ -101,6 +101,11 @@ const actions = [
     covers: ['incremental-manifest-test']
   },
   {
+    label: 'index-lock-test',
+    run: () => runNode('index-lock-test', path.join(root, 'tests', 'index-lock.js')),
+    covers: ['index-lock-test']
+  },
+  {
     label: 'sqlite-compact-test',
     run: () => runNode('sqlite-compact-test', path.join(root, 'tests', 'sqlite-compact.js')),
     covers: ['sqlite-compact-test', 'compact-sqlite-index']
@@ -159,6 +164,11 @@ const actions = [
     label: 'compare-models-test',
     run: () => runNode('compare-models-test', path.join(root, 'tests', 'compare-models.js')),
     covers: ['compare-models-test', 'compare-models']
+  },
+  {
+    label: 'bench-language-repos-test',
+    run: () => runNode('bench-language-repos-test', path.join(root, 'tests', 'bench-language-repos.js')),
+    covers: ['bench-language-test']
   },
   {
     label: 'summary-report-test',
@@ -431,9 +441,16 @@ for (const action of actions) {
 markSkipped('download-models', 'requires network model download');
 markSkipped('bench', 'benchmarks are long-running');
 markSkipped('bench-ann', 'benchmarks are long-running');
+markSkipped('bench-language', 'benchmarks are long-running');
 markSkipped('watch-index', 'watch mode runs until interrupted');
 markSkipped('format', 'modifies working tree');
 markSkipped('lint', 'requires npm install and project lint config');
+
+for (const name of coverage.keys()) {
+  if (name.startsWith('bench-language:')) {
+    markSkipped(name, 'bench-language variants are long-running');
+  }
+}
 
 const shellScripts = [
   path.join(root, 'merge-history.sh'),

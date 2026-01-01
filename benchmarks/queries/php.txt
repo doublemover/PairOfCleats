@@ -1,0 +1,10 @@
+function
+class
+namespace
+use
+public
+private
+trait
+extends
+composer
+$this

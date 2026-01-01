@@ -614,3 +614,12 @@ Goal: Avoid repeated hashing when cached bundles are reused via hash fallback.
 Work items:
 - [x] Emit updated manifest entries on cached bundle hits (even when reusing bundles).
 - [x] Add regression tests for manifest refresh behavior.
+
+## Phase 66: Benchmark Runner Resilience (status: todo)
+Goal: Make benchmark runs robust against stale index locks and long-running builds.
+Work items:
+- [ ] Detect stale index locks during benchmark builds and either wait/retry or clear safely.
+- [ ] Add an option for per-run cache roots (or per-repo lock namespaces) to avoid lock collisions.
+- [ ] Emit a clear failure summary when a benchmark build is skipped due to locks.
+- [ ] Add a regression test that simulates a stale lock during bench runs.
+- [ ] Document lock handling and recommended bench workflows.
