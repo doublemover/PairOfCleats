@@ -1,4 +1,5 @@
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import { buildLineIndex, lineColToOffset, offsetToLine } from '../shared/lines.js';
 
 /**
@@ -8,20 +9,28 @@ import { buildLineIndex, lineColToOffset, offsetToLine } from '../shared/lines.j
 
 const PYTHON_CANDIDATES = ['python', 'python3'];
 let pythonExecutable = null;
-let pythonChecked = false;
 let pythonWarned = false;
+let pythonCheckPromise = null;
+let pythonPool = null;
+let pythonPoolSignature = null;
+let pythonPoolHooked = false;
 
 const PYTHON_AST_SCRIPT = `
-import ast, json, os, sys
-source = sys.stdin.read()
-try:
-    tree = ast.parse(source)
-except Exception as e:
-    print(json.dumps({"error": str(e)}))
-    sys.exit(0)
+import ast, json, sys
 
-dataflow_enabled = os.environ.get("PAIROFCLEATS_AST_DATAFLOW", "1").lower() not in ("0", "false", "no")
-control_flow_enabled = os.environ.get("PAIROFCLEATS_AST_CONTROL_FLOW", "1").lower() not in ("0", "false", "no")
+dataflow_enabled = True
+control_flow_enabled = True
+
+def to_bool(value, default=True):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.lower() not in ("0", "false", "no", "off", "")
+    return bool(value)
 
 def safe_unparse(node):
     try:
@@ -570,61 +579,347 @@ class Collector(ast.NodeVisitor):
                     flow["nonlocals"].add(name)
         self.generic_visit(node)
 
-collector = Collector()
-collector.visit(tree)
-for entry in collector.defs:
-    calls = collector.call_map.get(entry["name"])
-    entry["calls"] = sorted(calls) if calls else []
-    flow = collector.flow.get(entry["name"])
-    if flow:
-        if dataflow_enabled:
-            entry["dataflow"] = {
-                "reads": sorted(flow["reads"]),
-                "writes": sorted(flow["writes"]),
-                "mutations": sorted(flow["mutations"]),
-                "aliases": sorted(flow["aliases"]),
-                "globals": sorted(flow["globals"]),
-                "nonlocals": sorted(flow["nonlocals"])
-            }
-            entry["throws"] = sorted(flow["throws"])
-            entry["awaits"] = sorted(flow["awaits"])
-            entry["returnsValue"] = bool(flow["returns"])
-            entry["yields"] = bool(flow["yields"])
-            entry["modifiers"] = {
-                "async": bool(entry.get("async")),
-                "generator": bool(flow["yields"]),
-                "visibility": entry.get("visibility") or "public"
-            }
-        if control_flow_enabled:
-            entry["controlFlow"] = flow["controlFlow"]
-result = {
-    "defs": collector.defs,
-    "imports": sorted(collector.imports),
-    "calls": collector.calls,
-    "callDetails": collector.call_details,
-    "usages": sorted(collector.usages),
-    "exports": sorted(collector.exports)
-}
-print(json.dumps(result))
+def parse_source(source, dataflow_flag=True, control_flow_flag=True):
+    global dataflow_enabled, control_flow_enabled
+    dataflow_enabled = bool(dataflow_flag)
+    control_flow_enabled = bool(control_flow_flag)
+    try:
+        tree = ast.parse(source)
+    except Exception as e:
+        return {"error": str(e)}
+    collector = Collector()
+    collector.visit(tree)
+    for entry in collector.defs:
+        calls = collector.call_map.get(entry["name"])
+        entry["calls"] = sorted(calls) if calls else []
+        flow = collector.flow.get(entry["name"])
+        if flow:
+            if dataflow_enabled:
+                entry["dataflow"] = {
+                    "reads": sorted(flow["reads"]),
+                    "writes": sorted(flow["writes"]),
+                    "mutations": sorted(flow["mutations"]),
+                    "aliases": sorted(flow["aliases"]),
+                    "globals": sorted(flow["globals"]),
+                    "nonlocals": sorted(flow["nonlocals"])
+                }
+                entry["throws"] = sorted(flow["throws"])
+                entry["awaits"] = sorted(flow["awaits"])
+                entry["returnsValue"] = bool(flow["returns"])
+                entry["yields"] = bool(flow["yields"])
+                entry["modifiers"] = {
+                    "async": bool(entry.get("async")),
+                    "generator": bool(flow["yields"]),
+                    "visibility": entry.get("visibility") or "public"
+                }
+            if control_flow_enabled:
+                entry["controlFlow"] = flow["controlFlow"]
+    result = {
+        "defs": collector.defs,
+        "imports": sorted(collector.imports),
+        "calls": collector.calls,
+        "callDetails": collector.call_details,
+        "usages": sorted(collector.usages),
+        "exports": sorted(collector.exports)
+    }
+    return result
+
+def main():
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except Exception as e:
+            sys.stdout.write(json.dumps({"id": None, "error": str(e)}) + "\\n")
+            sys.stdout.flush()
+            continue
+        req_id = payload.get("id")
+        source = payload.get("text") or ""
+        dataflow_flag = to_bool(payload.get("dataflow"), True)
+        control_flow_flag = to_bool(payload.get("controlFlow"), True)
+        result = parse_source(source, dataflow_flag, control_flow_flag)
+        sys.stdout.write(json.dumps({"id": req_id, "result": result}) + "\\n")
+        sys.stdout.flush()
+
+if __name__ == "__main__":
+    main()
 `;
 
-function findPythonExecutable(log) {
-  if (pythonChecked) return pythonExecutable;
-  pythonChecked = true;
-  for (const candidate of PYTHON_CANDIDATES) {
-    const result = spawnSync(candidate, ['-c', 'import sys; sys.stdout.write("ok")'], { encoding: 'utf8' });
-    if (result.status === 0 && result.stdout.trim() === 'ok') {
-      pythonExecutable = candidate;
-      break;
+const PYTHON_AST_DEFAULTS = {
+  enabled: true,
+  workerCount: 2,
+  maxWorkers: 2,
+  scaleUpQueueMs: 250,
+  taskTimeoutMs: 30000,
+  maxRetries: 1
+};
+
+async function checkPythonCandidate(candidate) {
+  return new Promise((resolve) => {
+    const proc = spawn(candidate, ['-c', 'import sys; sys.stdout.write("ok")'], {
+      stdio: ['ignore', 'pipe', 'ignore']
+    });
+    let output = '';
+    proc.stdout.on('data', (chunk) => {
+      output += chunk.toString();
+    });
+    proc.on('error', () => resolve(false));
+    proc.on('close', (code) => resolve(code === 0 && output.trim() === 'ok'));
+  });
+}
+
+async function findPythonExecutable(log) {
+  if (pythonExecutable) return pythonExecutable;
+  if (pythonCheckPromise) return pythonCheckPromise;
+  pythonCheckPromise = (async () => {
+    for (const candidate of PYTHON_CANDIDATES) {
+      const ok = await checkPythonCandidate(candidate);
+      if (ok) {
+        pythonExecutable = candidate;
+        break;
+      }
     }
-  }
-  if (!pythonExecutable && !pythonWarned) {
-    if (typeof log === 'function') {
-      log('Python AST unavailable (python not found); using heuristic chunking for .py.');
+    if (!pythonExecutable && !pythonWarned) {
+      if (typeof log === 'function') {
+        log('Python AST unavailable (python not found); using heuristic chunking for .py.');
+      }
+      pythonWarned = true;
     }
-    pythonWarned = true;
+    return pythonExecutable;
+  })();
+  return pythonCheckPromise;
+}
+
+function normalizePythonAstConfig(config = {}) {
+  if (config.enabled === false) return { enabled: false };
+  const workerCountRaw = Number(config.workerCount);
+  const workerCount = Number.isFinite(workerCountRaw)
+    ? Math.max(1, Math.floor(workerCountRaw))
+    : PYTHON_AST_DEFAULTS.workerCount;
+  const maxWorkersRaw = Number(config.maxWorkers);
+  const maxWorkers = Number.isFinite(maxWorkersRaw)
+    ? Math.max(workerCount, Math.floor(maxWorkersRaw))
+    : Math.max(workerCount, PYTHON_AST_DEFAULTS.maxWorkers);
+  const scaleUpQueueMsRaw = Number(config.scaleUpQueueMs);
+  const scaleUpQueueMs = Number.isFinite(scaleUpQueueMsRaw)
+    ? Math.max(0, Math.floor(scaleUpQueueMsRaw))
+    : PYTHON_AST_DEFAULTS.scaleUpQueueMs;
+  const taskTimeoutMsRaw = Number(config.taskTimeoutMs);
+  const taskTimeoutMs = Number.isFinite(taskTimeoutMsRaw)
+    ? Math.max(1000, Math.floor(taskTimeoutMsRaw))
+    : PYTHON_AST_DEFAULTS.taskTimeoutMs;
+  const maxRetriesRaw = Number(config.maxRetries);
+  const maxRetries = Number.isFinite(maxRetriesRaw)
+    ? Math.max(0, Math.floor(maxRetriesRaw))
+    : PYTHON_AST_DEFAULTS.maxRetries;
+  return {
+    enabled: true,
+    workerCount,
+    maxWorkers,
+    scaleUpQueueMs,
+    taskTimeoutMs,
+    maxRetries
+  };
+}
+
+function createPythonAstPool({ pythonBin, config, log }) {
+  const state = {
+    pythonBin,
+    config,
+    log,
+    workers: [],
+    queue: [],
+    nextId: 1,
+    stopping: false
+  };
+
+  const requeueJob = (job, reason) => {
+    job.attempts = (job.attempts || 0) + 1;
+    job.lastError = reason || null;
+    if (job.attempts > config.maxRetries) {
+      job.resolve(null);
+      return;
+    }
+    job.queuedAt = Date.now();
+    state.queue.unshift(job);
+  };
+
+  const detachWorker = (worker) => {
+    state.workers = state.workers.filter((w) => w !== worker);
+  };
+
+  const handleWorkerExit = (worker, reason) => {
+    if (worker.exited) return;
+    worker.exited = true;
+    const pending = Array.from(worker.pending.values());
+    worker.pending.clear();
+    worker.busy = false;
+    detachWorker(worker);
+    for (const job of pending) {
+      if (job.timer) clearTimeout(job.timer);
+      requeueJob(job, reason);
+    }
+    if (!state.stopping && state.workers.length < config.workerCount) {
+      spawnWorker();
+    }
+    drainQueue();
+  };
+
+  const handleLine = (worker, line) => {
+    let payload;
+    try {
+      payload = JSON.parse(line);
+    } catch (err) {
+      if (typeof log === 'function') {
+        log(`[python-ast] Failed to parse worker output: ${String(err)}`);
+      }
+      return;
+    }
+    const job = worker.pending.get(payload.id);
+    if (!job) return;
+    if (job.timer) clearTimeout(job.timer);
+    worker.pending.delete(payload.id);
+    worker.busy = false;
+    const result = payload?.result;
+    if (payload?.error || result?.error) {
+      job.resolve(null);
+    } else {
+      job.resolve(result || null);
+    }
+    drainQueue();
+  };
+
+  const spawnWorker = () => {
+    const proc = spawn(pythonBin, ['-u', '-c', PYTHON_AST_SCRIPT], {
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    proc.unref();
+    const worker = {
+      id: state.workers.length + 1,
+      proc,
+      pending: new Map(),
+      busy: false,
+      busySince: 0,
+      exited: false
+    };
+    state.workers.push(worker);
+    const rl = createInterface({ input: proc.stdout, crlfDelay: Infinity });
+    rl.on('line', (line) => handleLine(worker, line));
+    proc.on('error', (err) => handleWorkerExit(worker, err));
+    proc.on('exit', (code, signal) =>
+      handleWorkerExit(worker, code ? new Error(`exit ${code}`) : signal)
+    );
+    proc.stderr.on('data', (chunk) => {
+      if (typeof log === 'function' && !state.stopping) {
+        log(`[python-ast] ${chunk.toString().trim()}`);
+      }
+    });
+    return worker;
+  };
+
+  const assignJob = (worker, job) => {
+    if (!worker || worker.exited) return;
+    job.startedAt = Date.now();
+    worker.busy = true;
+    worker.busySince = job.startedAt;
+    worker.pending.set(job.id, job);
+    const payload = {
+      id: job.id,
+      text: job.text,
+      dataflow: job.dataflow,
+      controlFlow: job.controlFlow
+    };
+    try {
+      worker.proc.stdin.write(`${JSON.stringify(payload)}\n`);
+    } catch (err) {
+      handleWorkerExit(worker, err);
+      return;
+    }
+    job.timer = setTimeout(() => {
+      handleWorkerExit(worker, new Error('timeout'));
+    }, config.taskTimeoutMs);
+  };
+
+  const maybeScale = () => {
+    if (!state.queue.length) return;
+    if (state.workers.length >= config.maxWorkers) return;
+    const oldestWaitMs = Date.now() - state.queue[0].queuedAt;
+    if (oldestWaitMs < config.scaleUpQueueMs) return;
+    spawnWorker();
+  };
+
+  const drainQueue = () => {
+    if (state.stopping) return;
+    let idle = state.workers.find((worker) => !worker.busy && !worker.exited);
+    while (idle && state.queue.length) {
+      const job = state.queue.shift();
+      assignJob(idle, job);
+      idle = state.workers.find((worker) => !worker.busy && !worker.exited);
+    }
+    maybeScale();
+  };
+
+  for (let i = 0; i < config.workerCount; i += 1) {
+    spawnWorker();
   }
-  return pythonExecutable;
+
+  return {
+    request(text, { dataflow, controlFlow }) {
+      return new Promise((resolve) => {
+        const job = {
+          id: state.nextId++,
+          text,
+          dataflow,
+          controlFlow,
+          attempts: 0,
+          queuedAt: Date.now(),
+          resolve
+        };
+        state.queue.push(job);
+        drainQueue();
+      });
+    },
+    shutdown() {
+      state.stopping = true;
+      for (const worker of state.workers) {
+        try {
+          worker.proc.kill();
+        } catch {}
+      }
+      state.workers = [];
+      state.queue = [];
+    }
+  };
+}
+
+async function getPythonAstPool(log, config = {}) {
+  const normalized = normalizePythonAstConfig(config);
+  if (!normalized.enabled) return null;
+  const pythonBin = await findPythonExecutable(log);
+  if (!pythonBin) return null;
+  const signature = JSON.stringify(normalized);
+  if (!pythonPool || pythonPoolSignature !== signature) {
+    if (pythonPool) pythonPool.shutdown();
+    pythonPool = createPythonAstPool({ pythonBin, config: normalized, log });
+    pythonPoolSignature = signature;
+  }
+  if (!pythonPoolHooked) {
+    pythonPoolHooked = true;
+    process.once('exit', () => pythonPool?.shutdown());
+    process.once('SIGINT', () => pythonPool?.shutdown());
+    process.once('SIGTERM', () => pythonPool?.shutdown());
+  }
+  return pythonPool;
+}
+
+export function shutdownPythonAstPool() {
+  if (pythonPool) {
+    pythonPool.shutdown();
+    pythonPool = null;
+    pythonPoolSignature = null;
+  }
 }
 
 /**
@@ -632,31 +927,14 @@ function findPythonExecutable(log) {
  * Returns null when python is unavailable or parsing fails.
  * @param {string} text
  * @param {(msg:string)=>void} [log]
- * @returns {object|null}
+ * @returns {Promise<object|null>}
  */
-export function getPythonAst(text, log, options = {}) {
-  const pythonBin = findPythonExecutable(log);
-  if (!pythonBin) return null;
+export async function getPythonAst(text, log, options = {}) {
+  const pool = await getPythonAstPool(log, options.pythonAst || {});
+  if (!pool) return null;
   const dataflowEnabled = options.dataflow !== false;
   const controlFlowEnabled = options.controlFlow !== false;
-  const result = spawnSync(pythonBin, ['-c', PYTHON_AST_SCRIPT], {
-    input: text,
-    encoding: 'utf8',
-    maxBuffer: 10 * 1024 * 1024,
-    env: {
-      ...process.env,
-      PAIROFCLEATS_AST_DATAFLOW: dataflowEnabled ? '1' : '0',
-      PAIROFCLEATS_AST_CONTROL_FLOW: controlFlowEnabled ? '1' : '0'
-    }
-  });
-  if (result.status !== 0 || !result.stdout) return null;
-  try {
-    const parsed = JSON.parse(result.stdout);
-    if (parsed && parsed.error) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+  return pool.request(text, { dataflow: dataflowEnabled, controlFlow: controlFlowEnabled });
 }
 
 /**

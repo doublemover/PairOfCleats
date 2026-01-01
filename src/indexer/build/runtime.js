@@ -45,6 +45,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const riskAnalysisCrossFileEnabled = riskAnalysisEnabled
     && indexingConfig.riskAnalysisCrossFile !== false;
   const gitBlameEnabled = indexingConfig.gitBlame !== false;
+  const pythonAstConfig = indexingConfig.pythonAst || {};
+  const pythonAstEnabled = pythonAstConfig.enabled !== false;
   const sqlConfig = userConfig.sql || {};
   const defaultSqlDialects = {
     '.psql': 'postgres',
@@ -136,6 +138,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   if (!controlFlowEnabled) {
     log('Control-flow metadata disabled via indexing.controlFlow.');
   }
+  if (!pythonAstEnabled) {
+    log('Python AST metadata disabled via indexing.pythonAst.enabled.');
+  }
   if (typeInferenceEnabled) {
     log('Type inference metadata enabled via indexing.typeInference.');
   }
@@ -161,6 +166,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const languageOptions = {
     astDataflowEnabled,
     controlFlowEnabled,
+    pythonAst: pythonAstConfig,
     resolveSqlDialect,
     log
   };

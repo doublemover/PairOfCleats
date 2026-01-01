@@ -21,7 +21,7 @@ export async function estimateContextWindow({ files, root, mode, languageOptions
     const ext = rawExt || (isSpecialCodeFile(baseName)
       ? (baseName.toLowerCase() === 'dockerfile' ? '.dockerfile' : '.makefile')
       : rawExt);
-    const { context: sampleContext } = buildLanguageContext({
+    const { context: sampleContext } = await buildLanguageContext({
       ext,
       relPath: relSampleKey,
       mode,

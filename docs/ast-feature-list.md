@@ -50,6 +50,7 @@ This document defines the "complete" AST metadata feature set and how each AST-b
 - `indexing.riskAnalysisCrossFile` (default: true) controls cross-file risk correlation.
 - `indexing.typeInference` (default: false) controls whether inferred types are collected.
 - `indexing.typeInferenceCrossFile` (default: false) controls cross-file inference and linking.
+- `indexing.pythonAst.*` controls Python AST worker behavior (enable/disable, worker counts, timeouts).
 
 ## Per-language coverage
 

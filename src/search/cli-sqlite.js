@@ -118,3 +118,32 @@ export async function createSqliteBackend(options) {
 
   return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed };
 }
+
+/**
+ * Probe SQLite chunk counts for auto-backend selection.
+ * @param {string} dbPath
+ * @param {'code'|'prose'} mode
+ * @returns {Promise<number|null>}
+ */
+export async function getSqliteChunkCount(dbPath, mode) {
+  let Database;
+  try {
+    ({ default: Database } = await import('better-sqlite3'));
+  } catch {
+    return null;
+  }
+  let db;
+  try {
+    db = new Database(dbPath, { readonly: true });
+    const row = db.prepare('SELECT COUNT(*) as count FROM chunks WHERE mode = ?').get(mode);
+    return typeof row?.count === 'number' ? row.count : null;
+  } catch {
+    return null;
+  } finally {
+    if (db) {
+      try {
+        db.close();
+      } catch {}
+    }
+  }
+}

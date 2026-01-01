@@ -47,6 +47,10 @@ export function buildPostings(input) {
   const dims = chunks[0]?.embedding.length || 384;
   const embeddingVectors = chunks.map((c) => c.embedding);
   const quantizedVectors = embeddingVectors.map((vec) => quantizeVec(vec));
+  const embeddingDocVectors = chunks.map((c) => c.embed_doc);
+  const embeddingCodeVectors = chunks.map((c) => c.embed_code);
+  const quantizedDocVectors = embeddingDocVectors.map((vec) => quantizeVec(vec));
+  const quantizedCodeVectors = embeddingCodeVectors.map((vec) => quantizeVec(vec));
 
   const phraseVocab = phraseEnabled ? Array.from(phrasePost.keys()) : [];
   const phrasePostings = phraseEnabled ? phraseVocab.map((k) => Array.from(phrasePost.get(k))) : [];
@@ -76,6 +80,8 @@ export function buildPostings(input) {
     avgDocLen,
     minhashSigs,
     dims,
-    quantizedVectors
+    quantizedVectors,
+    quantizedDocVectors,
+    quantizedCodeVectors
   };
 }

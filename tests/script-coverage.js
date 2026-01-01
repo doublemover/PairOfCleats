@@ -96,6 +96,11 @@ const actions = [
     covers: ['sqlite-incremental-test']
   },
   {
+    label: 'incremental-manifest-test',
+    run: () => runNode('incremental-manifest-test', path.join(root, 'tests', 'incremental-manifest.js')),
+    covers: ['incremental-manifest-test']
+  },
+  {
     label: 'sqlite-compact-test',
     run: () => runNode('sqlite-compact-test', path.join(root, 'tests', 'sqlite-compact.js')),
     covers: ['sqlite-compact-test', 'compact-sqlite-index']
@@ -216,6 +221,11 @@ const actions = [
     covers: ['search-filters-test']
   },
   {
+    label: 'sqlite-auto-backend-test',
+    run: () => runNode('sqlite-auto-backend-test', path.join(root, 'tests', 'sqlite-auto-backend.js')),
+    covers: ['sqlite-auto-backend-test']
+  },
+  {
     label: 'search-explain-test',
     run: () => runNode('search-explain-test', path.join(root, 'tests', 'search-explain.js')),
     covers: ['search-explain-test']
@@ -234,6 +244,11 @@ const actions = [
     label: 'filter-strictness-test',
     run: () => runNode('filter-strictness-test', path.join(root, 'tests', 'filter-strictness.js')),
     covers: ['filter-strictness-test']
+  },
+  {
+    label: 'filter-index-test',
+    run: () => runNode('filter-index-test', path.join(root, 'tests', 'filter-index.js')),
+    covers: ['filter-index-test']
   },
   {
     label: 'search-missing-index-test',
@@ -268,6 +283,11 @@ const actions = [
   {
     label: 'python-fallback-test',
     run: () => runNode('python-fallback-test', path.join(root, 'tests', 'python-fallback.js')),
+    covers: []
+  },
+  {
+    label: 'python-ast-worker-test',
+    run: () => runNode('python-ast-worker-test', path.join(root, 'tests', 'python-ast-worker.js')),
     covers: []
   },
   {

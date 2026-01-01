@@ -13,7 +13,7 @@ import { getVectorExtensionConfig, queryVectorAnn } from '../../tools/vector-ext
 import { getSearchUsage, parseSearchArgs, resolveSearchMode } from './cli-args.js';
 import { loadDictionary } from './cli-dictionary.js';
 import { buildQueryCacheKey, getIndexSignature, loadIndex, requireIndexDir } from './cli-index.js';
-import { createSqliteBackend } from './cli-sqlite.js';
+import { createSqliteBackend, getSqliteChunkCount } from './cli-sqlite.js';
 import { resolveFtsWeights } from './fts.js';
 import { getQueryEmbedding } from './embedding.js';
 import { loadQueryCache, parseJson, pruneQueryCache } from './query-cache.js';
@@ -33,6 +33,10 @@ const userConfig = loadUserConfig(ROOT);
 const modelConfig = getModelConfig(ROOT, userConfig);
 const modelIdDefault = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
 const sqliteConfig = userConfig.sqlite || {};
+const sqliteAutoChunkThresholdRaw = userConfig.search?.sqliteAutoChunkThreshold;
+const sqliteAutoChunkThreshold = Number.isFinite(Number(sqliteAutoChunkThresholdRaw))
+  ? Math.max(0, Number(sqliteAutoChunkThresholdRaw))
+  : 5000;
 const postingsConfig = normalizePostingsConfig(userConfig.indexing?.postings || {});
 const vectorExtension = getVectorExtensionConfig(ROOT, userConfig);
 const bm25Config = userConfig.search?.bm25 || {};
@@ -150,7 +154,27 @@ const needsSqlite = runCode || runProse;
 if (!needsSqlite && backendForcedSqlite) {
   console.warn('SQLite backend requested, but records-only mode selected; using file-backed records index.');
 }
-let useSqlite = needsSqlite && (backendForcedSqlite || (!backendDisabled && sqliteConfigured)) && sqliteAvailable;
+let autoUseSqlite = true;
+if (
+  needsSqlite
+  && !backendForcedSqlite
+  && !backendDisabled
+  && sqliteConfigured
+  && sqliteAvailable
+  && sqliteAutoChunkThreshold > 0
+) {
+  const counts = [];
+  if (needsCode) counts.push(await getSqliteChunkCount(sqliteCodePath, 'code'));
+  if (needsProse) counts.push(await getSqliteChunkCount(sqliteProsePath, 'prose'));
+  const knownCounts = counts.filter((count) => Number.isFinite(count));
+  if (knownCounts.length) {
+    const maxCount = Math.max(...knownCounts);
+    autoUseSqlite = maxCount >= sqliteAutoChunkThreshold;
+  }
+}
+let useSqlite = needsSqlite
+  && (backendForcedSqlite || (!backendDisabled && sqliteConfigured && autoUseSqlite))
+  && sqliteAvailable;
 const sqliteBackend = await createSqliteBackend({
   useSqlite,
   needsCode,

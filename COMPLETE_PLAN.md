@@ -545,3 +545,72 @@ Work items:
 - [x] Add tests for index validation and docstring extraction updates.
 - [x] Refresh README maintenance/setup sections to include new tooling.
 - [x] Confirm `COMPLETE_PLAN.md` statuses are updated after each phase.
+
+## Phase 57: Dictionary Tokenization Robustness (status: todo)
+Goal: Prevent dictionary-based splitting from devolving unknown identifiers into single-character tokens and add a benchmark harness for segmentation options.
+Work items:
+- [ ] Update `splitWordsWithDict` to preserve unknown spans instead of emitting single characters.
+- [ ] Align query token expansion to the updated dictionary-splitting behavior.
+- [ ] Add a benchmark/experiment harness to compare greedy vs DP segmentation (coverage + token counts).
+- [ ] Add regression tests for unknown identifiers in indexing and query parsing.
+
+## Phase 58: Git Blame Range Correctness (status: todo)
+Goal: Ensure blame ranges are computed on line numbers (not character offsets) so chunk authors are accurate.
+Work items:
+- [ ] Compute start/end line numbers before calling `getGitMeta` and pass line ranges to git blame.
+- [ ] Reconcile 0-based vs 1-based line expectations and remove inconsistent +1 adjustments.
+- [ ] Add fixture coverage that validates `chunk_authors` population.
+
+## Phase 59: YAML Chunking Fix + Configurable Top-Level Strategy (status: todo)
+Goal: Avoid overlapping YAML chunks and allow configurable sectioning defaults.
+Work items:
+- [ ] Default YAML to a single root chunk to avoid overlap and incorrect ranges.
+- [ ] Add an optional config to enable top-level key chunking via line/indent scanning.
+- [ ] Ensure key scanning uses line offsets (no `indexOf` on values).
+- [ ] Add format-fidelity tests for YAML chunk boundaries and configurable strategy.
+
+## Phase 60: External Docs URL Correctness (status: todo)
+Goal: Ensure scoped npm package links are correct.
+Work items:
+- [ ] Preserve `@` in scoped package URLs and URL-encode path segments.
+- [ ] Add regression tests for npm scoped module URLs in external docs.
+
+## Phase 61: ANN vs Sparse Scoring Selection (status: todo)
+Goal: Make ANN selection scale-safe by using sparse-first fallback and enable benchmarking of normalized blends.
+Work items:
+- [ ] Change score selection to prefer sparse scores unless sparse is absent/weak.
+- [ ] Add optional normalized blend mode with tunable weights (disabled by default).
+- [ ] Add benchmark harness to compare sparse-only, ANN-fallback, and blend strategies.
+- [ ] Update score docs/tests to reflect selection logic and config knobs.
+
+## Phase 62: Python AST Worker Pool (status: done)
+Goal: Remove per-file Python AST spawn sync blocking by using a long-lived worker pool with recovery and scaling.
+Work items:
+- [x] Replace sync Python AST parsing with an async worker pool (stdio JSONL) and keep heuristics as fallback.
+- [x] Support multi-tenant behavior: restart crashed workers, scale up to max workers when queue waits grow.
+- [x] Add config defaults for python AST workers (enabled, workerCount, maxWorkers, timeouts).
+- [x] Update language registry/build pipeline to await async AST metadata.
+- [x] Add tests for Python AST worker behavior (skip when Python is unavailable).
+- [x] Update docs/config references for new python AST options.
+
+## Phase 63: Search Performance Indexes + Auto SQLite (status: done)
+Goal: Reduce per-query overhead by caching lookup maps and prefiltering by common attributes.
+Work items:
+- [x] Precompute vocab lookup maps at index load (phrase/chargram) and reuse in query pipeline.
+- [x] Add filter index for ext/kind/author/chunkAuthor/visibility to avoid full scans.
+- [x] Add `search.sqliteAutoChunkThreshold` (default 5000) to auto-select SQLite on larger repos.
+- [x] Add tests for filter index behavior and SQLite auto-selection.
+- [x] Document auto-backend selection and filter index behavior.
+
+## Phase 64: Dense Vector Merge + Separate Doc/Code Vectors (status: done)
+Goal: Prevent quantization clipping and preserve doc/code embeddings for future use.
+Work items:
+- [x] Normalize merged embeddings ((doc+code)/2, L2 normalize) before quantization.
+- [x] Persist separate doc/code dense vector artifacts alongside merged vectors.
+- [x] Update metrics/docs/tests to reflect new dense artifacts.
+
+## Phase 65: Incremental Manifest Refresh (status: done)
+Goal: Avoid repeated hashing when cached bundles are reused via hash fallback.
+Work items:
+- [x] Emit updated manifest entries on cached bundle hits (even when reusing bundles).
+- [x] Add regression tests for manifest refresh behavior.

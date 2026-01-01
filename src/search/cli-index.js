@@ -2,6 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { getIndexDir } from '../../tools/dict-utils.js';
+import { buildFilterIndex } from './filter-index.js';
 
 /**
  * Load file-backed index artifacts from a directory.
@@ -21,14 +22,27 @@ export function loadIndex(dir, options) {
   };
   const chunkMeta = readJson('chunk_meta.json');
   const denseVec = loadOptional('dense_vectors_uint8.json');
+  const denseVecDoc = loadOptional('dense_vectors_doc_uint8.json');
+  const denseVecCode = loadOptional('dense_vectors_code_uint8.json');
   if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
+  if (denseVecDoc && !denseVecDoc.model && modelIdDefault) denseVecDoc.model = modelIdDefault;
+  if (denseVecCode && !denseVecCode.model && modelIdDefault) denseVecCode.model = modelIdDefault;
   const idx = {
     chunkMeta,
     denseVec,
+    denseVecDoc,
+    denseVecCode,
     minhash: loadOptional('minhash_signatures.json'),
     phraseNgrams: loadOptional('phrase_ngrams.json'),
     chargrams: loadOptional('chargram_postings.json')
   };
+  if (idx.phraseNgrams?.vocab && !idx.phraseNgrams.vocabIndex) {
+    idx.phraseNgrams.vocabIndex = new Map(idx.phraseNgrams.vocab.map((term, i) => [term, i]));
+  }
+  if (idx.chargrams?.vocab && !idx.chargrams.vocabIndex) {
+    idx.chargrams.vocabIndex = new Map(idx.chargrams.vocab.map((term, i) => [term, i]));
+  }
+  idx.filterIndex = buildFilterIndex(chunkMeta);
   try {
     idx.tokenIndex = readJson('token_postings.json');
   } catch {}

@@ -8,6 +8,7 @@ import { acquireIndexLock } from './src/indexer/build/lock.js';
 import { watchIndex } from './src/indexer/build/watch.js';
 import { log } from './src/shared/progress.js';
 import { resolveRepoRoot } from './tools/dict-utils.js';
+import { shutdownPythonAstPool } from './src/lang/python.js';
 
 const { argv, modes } = parseBuildArgs(process.argv.slice(2));
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
@@ -32,6 +33,7 @@ try {
   }
 } finally {
   await lock.release();
+  shutdownPythonAstPool();
 }
 
 log('\nDone.');

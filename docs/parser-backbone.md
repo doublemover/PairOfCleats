@@ -61,6 +61,9 @@ Planned config keys:
 - indexing.typeInference (default false)
 - indexing.typeInferenceCrossFile (default false)
 - indexing.gitBlame (default true)
+- indexing.pythonAst.enabled (default true)
+- indexing.pythonAst.workerCount / maxWorkers / scaleUpQueueMs / taskTimeoutMs
+- search.sqliteAutoChunkThreshold (default 5000)
 
 ## SQL dialects
 - PostgreSQL, MySQL, and SQLite grammars with dialect selection rules.

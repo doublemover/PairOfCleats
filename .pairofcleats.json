@@ -30,6 +30,7 @@
   },
   "search": {
     "annDefault": true,
+    "sqliteAutoChunkThreshold": 5000,
     "sqliteFtsNormalize": false,
     "queryCache": {
       "enabled": false,
@@ -66,6 +67,14 @@
     "importConcurrency": 4,
     "astDataflow": true,
     "controlFlow": true,
+    "pythonAst": {
+      "enabled": true,
+      "workerCount": 2,
+      "maxWorkers": 2,
+      "scaleUpQueueMs": 250,
+      "taskTimeoutMs": 30000,
+      "maxRetries": 1
+    },
     "riskAnalysis": true,
     "riskAnalysisCrossFile": true,
     "typeInference": false,

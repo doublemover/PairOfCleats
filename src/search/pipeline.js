@@ -47,7 +47,8 @@ export function createSearchPipeline(context) {
     let matched = false;
 
     if (postingsConfig.enablePhraseNgrams !== false && idx.phraseNgrams?.vocab && idx.phraseNgrams?.postings) {
-      const vocabIndex = new Map(idx.phraseNgrams.vocab.map((t, i) => [t, i]));
+      const vocabIndex = idx.phraseNgrams.vocabIndex
+        || (idx.phraseNgrams.vocabIndex = new Map(idx.phraseNgrams.vocab.map((t, i) => [t, i])));
       const ngrams = extractNgrams(tokens, postingsConfig.phraseMinN, postingsConfig.phraseMaxN);
       for (const ng of ngrams) {
         const hit = vocabIndex.get(ng);
@@ -59,7 +60,8 @@ export function createSearchPipeline(context) {
     }
 
     if (postingsConfig.enableChargrams !== false && idx.chargrams?.vocab && idx.chargrams?.postings) {
-      const vocabIndex = new Map(idx.chargrams.vocab.map((t, i) => [t, i]));
+      const vocabIndex = idx.chargrams.vocabIndex
+        || (idx.chargrams.vocabIndex = new Map(idx.chargrams.vocab.map((t, i) => [t, i])));
       for (const token of tokens) {
         for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; n++) {
           for (const gram of tri(token, n)) {
@@ -102,7 +104,7 @@ export function createSearchPipeline(context) {
     const sqliteEnabledForMode = useSqlite && (mode === 'code' || mode === 'prose');
 
     // Filtering
-    const filteredMeta = filterChunks(meta, filters);
+    const filteredMeta = filterChunks(meta, filters, idx.filterIndex);
     const allowedIdx = new Set(filteredMeta.map((c) => c.id));
 
     const searchTopN = Math.max(1, Number(topN) || 1);

@@ -72,6 +72,14 @@ export async function writeIndexArtifacts(input) {
       JSON.stringify({ model: modelId, dims: postings.dims, scale: 1.0, vectors: postings.quantizedVectors }) + '\n'
     ),
     fs.writeFile(
+      path.join(outDir, 'dense_vectors_doc_uint8.json'),
+      JSON.stringify({ model: modelId, dims: postings.dims, scale: 1.0, vectors: postings.quantizedDocVectors }) + '\n'
+    ),
+    fs.writeFile(
+      path.join(outDir, 'dense_vectors_code_uint8.json'),
+      JSON.stringify({ model: modelId, dims: postings.dims, scale: 1.0, vectors: postings.quantizedCodeVectors }) + '\n'
+    ),
+    fs.writeFile(
       path.join(outDir, 'chunk_meta.json'),
       JSON.stringify(chunkMeta) + '\n'
     ),

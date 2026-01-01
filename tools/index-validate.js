@@ -47,7 +47,11 @@ const requiredFiles = ['chunk_meta.json', 'token_postings.json'];
 if (postingsConfig.enablePhraseNgrams) requiredFiles.push('phrase_ngrams.json');
 if (postingsConfig.enableChargrams) requiredFiles.push('chargram_postings.json');
 const optionalFiles = ['minhash_signatures.json'];
-if (userConfig.search?.annDefault !== false) optionalFiles.push('dense_vectors_uint8.json');
+if (userConfig.search?.annDefault !== false) {
+  optionalFiles.push('dense_vectors_uint8.json');
+  optionalFiles.push('dense_vectors_doc_uint8.json');
+  optionalFiles.push('dense_vectors_code_uint8.json');
+}
 
 for (const mode of modes) {
   const dir = resolveIndexDir(mode);

@@ -89,11 +89,12 @@ const LANGUAGE_REGISTRY = [
     id: 'python',
     match: (ext) => ext === '.py',
     collectImports: (text) => collectPythonImports(text).imports,
-    prepare: ({ text, mode, options }) => (mode === 'code'
+    prepare: async ({ text, mode, options }) => (mode === 'code'
       ? {
-        pythonAst: getPythonAst(text, options.log, {
+        pythonAst: await getPythonAst(text, options.log, {
           dataflow: options.astDataflowEnabled,
-          controlFlow: options.controlFlowEnabled
+          controlFlow: options.controlFlowEnabled,
+          pythonAst: options.pythonAst
         })
       }
       : {}),
@@ -248,10 +249,10 @@ export function collectLanguageImports({ ext, relPath, text, mode, options }) {
   return Array.isArray(imports) ? imports : [];
 }
 
-export function buildLanguageContext({ ext, relPath, mode, text, options }) {
+export async function buildLanguageContext({ ext, relPath, mode, text, options }) {
   const lang = getLanguageForFile(ext, relPath);
   const context = lang && typeof lang.prepare === 'function'
-    ? lang.prepare({ ext, relPath, mode, text, options })
+    ? await lang.prepare({ ext, relPath, mode, text, options })
     : {};
   return { lang, context };
 }

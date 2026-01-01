@@ -10,6 +10,7 @@ import { getHeadline } from '../headline.js';
 import { getGitMeta } from '../git.js';
 import { getFieldWeight } from '../field-weighting.js';
 import { isGo, isJsLike, isSpecialCodeFile, STOP, SYN } from '../constants.js';
+import { normalizeVec } from '../embedding.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 import { extractNgrams, splitId, splitWordsWithDict, stem, tri } from '../../shared/tokenize.js';
@@ -133,6 +134,13 @@ export function createFileProcessor(options) {
     fileHash = cachedResult.fileHash;
 
     if (cachedBundle && Array.isArray(cachedBundle.chunks)) {
+      const cachedEntry = incrementalState.manifest?.files?.[relKey] || null;
+      const manifestEntry = cachedEntry ? {
+        hash: fileHash || cachedEntry.hash || null,
+        mtimeMs: fileStat.mtimeMs,
+        size: fileStat.size,
+        bundle: cachedEntry.bundle || `${sha1(relKey)}.json`
+      } : null;
       const updatedChunks = cachedBundle.chunks.map((cachedChunk) => {
         const updatedChunk = { ...cachedChunk };
         if (updatedChunk.codeRelations?.imports) {
@@ -155,7 +163,7 @@ export function createFileProcessor(options) {
         cached: true,
         durationMs: fileDurationMs,
         chunks: updatedChunks,
-        manifestEntry: null
+        manifestEntry
       };
     }
 
@@ -168,7 +176,7 @@ export function createFileProcessor(options) {
     }
     if (!fileHash) fileHash = sha1(text);
 
-    const { lang, context: languageContext } = buildLanguageContext({
+    const { lang, context: languageContext } = await buildLanguageContext({
       ext,
       relPath: relKey,
       mode,
@@ -308,7 +316,8 @@ export function createFileProcessor(options) {
 
       const embed_doc = await getChunkEmbedding(docmeta.doc || '');
       const embed_code = await getChunkEmbedding(ctext);
-      const embedding = embed_doc.map((v, i) => v + embed_code[i]);
+      const merged = embed_doc.map((v, i) => (v + embed_code[i]) / 2);
+      const embedding = normalizeVec(merged);
 
       const mh = new SimpleMinHash();
       tokens.forEach((t) => mh.update(t));

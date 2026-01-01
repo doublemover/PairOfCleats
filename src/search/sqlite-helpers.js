@@ -1,6 +1,7 @@
 import { extractNgrams, tri } from '../shared/tokenize.js';
 import { parseArrayField, parseJson } from './query-cache.js';
 import { buildFtsBm25Expr } from './fts.js';
+import { buildFilterIndex } from './filter-index.js';
 
 const SQLITE_IN_LIMIT = 900;
 
@@ -112,7 +113,8 @@ export function createSqliteHelpers(options) {
     return {
       chunkMeta,
       denseVec,
-      minhash
+      minhash,
+      filterIndex: buildFilterIndex(chunkMeta)
     };
   }
 

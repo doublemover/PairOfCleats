@@ -16,6 +16,18 @@ export function quantizeVec(vec, minVal = -1, maxVal = 1, levels = 256) {
 }
 
 /**
+ * L2-normalize an embedding vector.
+ * @param {number[]} vec
+ * @returns {number[]}
+ */
+export function normalizeVec(vec) {
+  if (!Array.isArray(vec) || vec.length === 0) return vec || [];
+  const norm = Math.sqrt(vec.reduce((sum, v) => sum + v * v, 0));
+  if (!Number.isFinite(norm) || norm === 0) return vec;
+  return vec.map((v) => v / norm);
+}
+
+/**
  * Build an embedder wrapper for chunk embeddings.
  * @param {object} options
  * @param {boolean} options.useStubEmbeddings

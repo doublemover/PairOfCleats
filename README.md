@@ -12,7 +12,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 
 ## Requirements
 - Node.js 18+
-- Optional: Python 3 for AST-based metadata on `.py` files (fallbacks to heuristics)
+- Optional: Python 3 for AST-based metadata on `.py` files (fallbacks to heuristics; worker pool via `indexing.pythonAst.*`)
 - Optional: SQLite backend (via `better-sqlite3`)
 - Optional: SQLite vector extension (`sqlite-vec`) for ANN acceleration
 
@@ -58,7 +58,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - token postings (always)
   - phrase/chargram postings (configurable via `indexing.postings.*`)
   - MinHash signatures
-  - dense vectors (MiniLM)
+  - dense vectors (merged + doc/code variants; MiniLM)
   - incremental per-file cache bundles
 </details>
 
@@ -74,6 +74,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - `memory` (file-backed JSON)
   - `sqlite` (same scoring, shared artifacts)
   - `sqlite-fts` (SQLite-only FTS5 scoring)
+- Common filters (ext/kind/author/visibility) use precomputed indexes for speed.
 - Filters (high-signal subset):
   - `--type`, `--signature`, `--param`, `--decorator`, `--inferred-type`, `--return-type`
   - `--throws`, `--reads`, `--writes`, `--mutates`, `--awaits`
@@ -138,7 +139,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 
 - Build: `npm run build-sqlite-index`
 - Uses split DBs (`index-code.db` + `index-prose.db`) for concurrency
-- `search.js` auto-uses SQLite when `sqlite.use: true` and DBs exist
+- `search.js` auto-uses SQLite when `sqlite.use: true` and DBs exist, unless `search.sqliteAutoChunkThreshold` keeps small repos on file-backed indexes (default 5000; set 0 to always prefer SQLite)
 - FTS5 scoring (optional): set `sqlite.scoreMode` to `fts`
 - ANN extension (optional): set `sqlite.annMode = "extension"` and install `sqlite-vec`
   - ANN is on by default when `search.annDefault` is true; use `--no-ann` or set `search.annDefault: false` to disable

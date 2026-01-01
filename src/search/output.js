@@ -11,7 +11,7 @@ const summaryCache = new Map();
  * @param {object} filters
  * @returns {Array}
  */
-export function filterChunks(meta, filters = {}) {
+export function filterChunks(meta, filters = {}, filterIndex = null) {
   const {
     type,
     author,
@@ -92,6 +92,39 @@ export function filterChunks(meta, filters = {}) {
   const metaFilters = Array.isArray(metaFilter) ? metaFilter : (metaFilter ? [metaFilter] : []);
   const excludeNeedles = normalizeList(excludeTokens).map(normalize);
   const excludePhraseNeedles = normalizeList(excludePhrases).map(normalize);
+  const collectExactMatches = (map, values) => {
+    const matches = new Set();
+    for (const value of values) {
+      if (!value) continue;
+      const set = map.get(value);
+      if (!set) continue;
+      for (const id of set) matches.add(id);
+    }
+    return matches;
+  };
+  const collectSubstringMatches = (map, needle) => {
+    const matches = new Set();
+    if (!needle) return matches;
+    for (const [key, set] of map.entries()) {
+      if (!key.includes(needle)) continue;
+      for (const id of set) matches.add(id);
+    }
+    return matches;
+  };
+  const intersectSets = (sets) => {
+    if (!sets.length) return null;
+    let acc = sets[0];
+    for (let i = 1; i < sets.length; i += 1) {
+      const next = sets[i];
+      const merged = new Set();
+      for (const id of acc) {
+        if (next.has(id)) merged.add(id);
+      }
+      acc = merged;
+      if (!acc.size) break;
+    }
+    return acc;
+  };
   const matchList = (list, value) => {
     if (!value) return true;
     if (!Array.isArray(list)) return false;
@@ -153,7 +186,31 @@ export function filterChunks(meta, filters = {}) {
     return true;
   };
 
-  return meta.filter((c) => {
+  const indexedSets = [];
+  if (filterIndex) {
+    if (extNeedles.length && filterIndex.byExt) {
+      indexedSets.push(collectExactMatches(filterIndex.byExt, extNeedles));
+    }
+    if (type && filterIndex.byKind) {
+      const typeNeedles = normalizeList(type).map(normalize);
+      indexedSets.push(collectExactMatches(filterIndex.byKind, typeNeedles));
+    }
+    if (author && filterIndex.byAuthor) {
+      indexedSets.push(collectSubstringMatches(filterIndex.byAuthor, normalize(author)));
+    }
+    if (chunkAuthor && filterIndex.byChunkAuthor) {
+      indexedSets.push(collectSubstringMatches(filterIndex.byChunkAuthor, normalize(chunkAuthor)));
+    }
+    if (visibility && filterIndex.byVisibility) {
+      indexedSets.push(collectSubstringMatches(filterIndex.byVisibility, normalize(visibility)));
+    }
+  }
+  const candidateIds = indexedSets.length ? intersectSets(indexedSets) : null;
+  const sourceMeta = candidateIds
+    ? Array.from(candidateIds).map((id) => meta[id]).filter(Boolean)
+    : meta;
+
+  return sourceMeta.filter((c) => {
     if (!c) return false;
     if (fileMatchers.length) {
       const fileValue = String(c.file || '');

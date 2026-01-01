@@ -73,6 +73,7 @@
       "additionalProperties": false,
       "properties": {
         "annDefault": { "type": "boolean" },
+        "sqliteAutoChunkThreshold": { "type": "number" },
         "sqliteFtsNormalize": { "type": "boolean" },
         "sqliteFtsProfile": { "type": "string" },
         "sqliteFtsWeights": {
@@ -132,6 +133,18 @@
         "maxFileBytes": { "type": ["number", "boolean"] },
         "astDataflow": { "type": "boolean" },
         "controlFlow": { "type": "boolean" },
+        "pythonAst": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "workerCount": { "type": "number" },
+            "maxWorkers": { "type": "number" },
+            "scaleUpQueueMs": { "type": "number" },
+            "taskTimeoutMs": { "type": "number" },
+            "maxRetries": { "type": "number" }
+          }
+        },
         "riskAnalysis": { "type": "boolean" },
         "riskAnalysisCrossFile": { "type": "boolean" },
         "typeInference": { "type": "boolean" },
