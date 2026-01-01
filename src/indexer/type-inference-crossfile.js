@@ -3,6 +3,10 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { getToolingConfig } from '../../tools/dict-utils.js';
+import { buildLineIndex } from '../shared/lines.js';
+import { createLspClient, languageIdForFileExt, pathToFileUri } from '../tooling/lsp/client.js';
+import { rangeToOffsets } from '../tooling/lsp/positions.js';
+import { flattenSymbols } from '../tooling/lsp/symbols.js';
 
 const FLOW_SOURCE = 'flow';
 const TOOLING_SOURCE = 'tooling';
@@ -166,25 +170,355 @@ const extractReturnCalls = (chunkText) => {
   return { calls, news };
 };
 
+const splitParams = (value) => {
+  if (!value) return [];
+  const params = [];
+  let current = '';
+  let depthAngle = 0;
+  let depthParen = 0;
+  let depthBracket = 0;
+  let depthBrace = 0;
+  for (const ch of value) {
+    if (ch === '<') depthAngle += 1;
+    if (ch === '>' && depthAngle > 0) depthAngle -= 1;
+    if (ch === '(') depthParen += 1;
+    if (ch === ')' && depthParen > 0) depthParen -= 1;
+    if (ch === '[') depthBracket += 1;
+    if (ch === ']' && depthBracket > 0) depthBracket -= 1;
+    if (ch === '{') depthBrace += 1;
+    if (ch === '}' && depthBrace > 0) depthBrace -= 1;
+    if (ch === ',' && depthAngle === 0 && depthParen === 0 && depthBracket === 0 && depthBrace === 0) {
+      if (current.trim()) params.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) params.push(current.trim());
+  return params;
+};
+
+const normalizeHoverContents = (contents) => {
+  if (!contents) return '';
+  if (typeof contents === 'string') return contents;
+  if (Array.isArray(contents)) {
+    return contents.map((entry) => normalizeHoverContents(entry)).filter(Boolean).join('\n');
+  }
+  if (typeof contents === 'object') {
+    if (typeof contents.value === 'string') return contents.value;
+    if (typeof contents.language === 'string' && typeof contents.value === 'string') return contents.value;
+  }
+  return '';
+};
+
+const extractSwiftSignature = (detail) => {
+  const open = detail.indexOf('(');
+  const close = detail.lastIndexOf(')');
+  if (open === -1 || close === -1 || close < open) return null;
+  const signature = detail.trim();
+  const paramsText = detail.slice(open + 1, close).trim();
+  const after = detail.slice(close + 1).trim();
+  const arrowMatch = after.match(/->\s*(.+)$/);
+  const returnType = arrowMatch ? arrowMatch[1].trim() : null;
+  const paramTypes = {};
+  const paramNames = [];
+  for (const part of splitParams(paramsText)) {
+    const cleaned = part.replace(/=.*/g, '').trim();
+    if (!cleaned) continue;
+    const segments = cleaned.split(':');
+    if (segments.length < 2) continue;
+    const nameTokens = segments[0].trim().split(/\s+/).filter(Boolean);
+    let name = nameTokens[nameTokens.length - 1] || '';
+    if (name === '_' && nameTokens.length > 1) {
+      name = nameTokens[nameTokens.length - 2] || '';
+    }
+    const type = segments.slice(1).join(':').trim();
+    if (!name || !type) continue;
+    paramNames.push(name);
+    paramTypes[name] = type;
+  }
+  return { signature, returnType, paramTypes, paramNames };
+};
+
+const extractObjcSignature = (detail) => {
+  if (!detail.includes(':')) return null;
+  const signature = detail.trim();
+  const returnMatch = signature.match(/\(([^)]+)\)\s*[^:]+/);
+  const returnType = returnMatch ? returnMatch[1].trim() : null;
+  const paramTypes = {};
+  const paramNames = [];
+  const paramRe = /:\s*\(([^)]+)\)\s*([A-Za-z_][\w]*)/g;
+  let match;
+  while ((match = paramRe.exec(signature)) !== null) {
+    const type = match[1]?.trim();
+    const name = match[2]?.trim();
+    if (!type || !name) continue;
+    paramNames.push(name);
+    paramTypes[name] = type;
+  }
+  if (!returnType && !paramNames.length) return null;
+  return { signature, returnType, paramTypes, paramNames };
+};
+
+const extractClikeSignature = (detail, symbolName) => {
+  const open = detail.indexOf('(');
+  const close = detail.lastIndexOf(')');
+  if (open === -1 || close === -1 || close < open) return null;
+  const signature = detail.trim();
+  const before = detail.slice(0, open).trim();
+  const paramsText = detail.slice(open + 1, close).trim();
+  let returnType = null;
+  if (before) {
+    let idx = -1;
+    if (symbolName) {
+      idx = before.lastIndexOf(symbolName);
+      if (idx === -1) idx = before.lastIndexOf(`::${symbolName}`);
+      if (idx !== -1 && before[idx] === ':' && before[idx - 1] === ':') idx -= 1;
+    }
+    returnType = idx > 0 ? before.slice(0, idx).trim() : before;
+    returnType = returnType.replace(/\b(static|inline|constexpr|virtual|extern|friend)\b/g, '').trim();
+  }
+  const paramTypes = {};
+  const paramNames = [];
+  for (const part of splitParams(paramsText)) {
+    const cleaned = part.trim();
+    if (!cleaned || cleaned === 'void' || cleaned === '...') continue;
+    const noDefault = cleaned.split('=').shift().trim();
+    const nameMatch = noDefault.match(/([A-Za-z_][\w]*)\s*(?:\[[^\]]*\])?$/);
+    if (!nameMatch) continue;
+    const name = nameMatch[1];
+    const type = noDefault.slice(0, nameMatch.index).trim();
+    if (!name || !type) continue;
+    paramNames.push(name);
+    paramTypes[name] = type;
+  }
+  return { signature, returnType, paramTypes, paramNames };
+};
+
+const extractSignatureInfo = (detail, languageId, symbolName) => {
+  if (!detail || typeof detail !== 'string') return null;
+  const trimmed = detail.trim();
+  if (!trimmed) return null;
+  if (languageId === 'swift') return extractSwiftSignature(trimmed);
+  if (languageId === 'objective-c' || languageId === 'objective-cpp') {
+    const objc = extractObjcSignature(trimmed);
+    if (objc) return objc;
+  }
+  if (languageId === 'c' || languageId === 'cpp' || languageId === 'objective-c' || languageId === 'objective-cpp') {
+    return extractClikeSignature(trimmed, symbolName);
+  }
+  return null;
+};
+
+const findChunkForOffsets = (chunks, start, end) => {
+  let best = null;
+  let bestSpan = Infinity;
+  for (const chunk of chunks || []) {
+    if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) continue;
+    if (start >= chunk.start && end <= chunk.end) {
+      const span = chunk.end - chunk.start;
+      if (span < bestSpan) {
+        best = chunk;
+        bestSpan = span;
+      }
+    }
+  }
+  return best;
+};
+
+const resolveCompileCommandsDir = (rootDir, clangdConfig) => {
+  const candidates = [];
+  if (clangdConfig?.compileCommandsDir) {
+    const value = clangdConfig.compileCommandsDir;
+    candidates.push(path.isAbsolute(value) ? value : path.join(rootDir, value));
+  } else {
+    candidates.push(rootDir);
+    candidates.push(path.join(rootDir, 'build'));
+    candidates.push(path.join(rootDir, 'out'));
+    candidates.push(path.join(rootDir, 'cmake-build-debug'));
+    candidates.push(path.join(rootDir, 'cmake-build-release'));
+  }
+  for (const dir of candidates) {
+    const candidate = path.join(dir, 'compile_commands.json');
+    if (fsSync.existsSync(candidate)) return dir;
+  }
+  return null;
+};
+
+const buildChunksByFile = (chunks) => {
+  const byFile = new Map();
+  for (const chunk of chunks || []) {
+    if (!chunk?.file) continue;
+    const list = byFile.get(chunk.file) || [];
+    list.push(chunk);
+    byFile.set(chunk.file, list);
+  }
+  return byFile;
+};
+
+const filterChunksByExt = (chunksByFile, extensions) => {
+  const extSet = new Set(extensions.map((ext) => ext.toLowerCase()));
+  const filtered = new Map();
+  for (const [file, chunks] of chunksByFile.entries()) {
+    const ext = path.extname(file).toLowerCase();
+    if (!extSet.has(ext)) continue;
+    filtered.set(file, chunks);
+  }
+  return filtered;
+};
+
+const applyLspTypes = async ({
+  rootDir,
+  chunksByFile,
+  entryByKey,
+  log,
+  cmd,
+  args,
+  timeoutMs = 15000
+}) => {
+  const files = Array.from(chunksByFile.keys());
+  if (!files.length) return { inferredReturns: 0, enriched: 0 };
+
+  const client = createLspClient({ cmd, args, cwd: rootDir, log });
+  const rootUri = pathToFileUri(rootDir);
+  try {
+    await client.initialize({
+      rootUri,
+      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } }
+    });
+  } catch (err) {
+    log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
+    client.kill();
+    return { inferredReturns: 0, enriched: 0 };
+  }
+
+  let inferredReturns = 0;
+  let enriched = 0;
+  for (const file of files) {
+    const absPath = path.join(rootDir, file);
+    let text = '';
+    try {
+      text = await fs.readFile(absPath, 'utf8');
+    } catch {
+      continue;
+    }
+    const uri = pathToFileUri(absPath);
+    const languageId = languageIdForFileExt(path.extname(file));
+    client.notify('textDocument/didOpen', {
+      textDocument: {
+        uri,
+        languageId,
+        version: 1,
+        text
+      }
+    });
+
+    let symbols = null;
+    try {
+      symbols = await client.request('textDocument/documentSymbol', { textDocument: { uri } }, { timeoutMs });
+    } catch (err) {
+      log(`[index] ${cmd} documentSymbol failed (${file}): ${err?.message || err}`);
+      client.notify('textDocument/didClose', { textDocument: { uri } });
+      continue;
+    }
+    const flattened = flattenSymbols(symbols || []);
+    if (!flattened.length) {
+      client.notify('textDocument/didClose', { textDocument: { uri } });
+      continue;
+    }
+
+    const lineIndex = buildLineIndex(text);
+    const fileChunks = chunksByFile.get(file) || [];
+
+    for (const symbol of flattened) {
+      const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
+      const target = findChunkForOffsets(fileChunks, offsets.start, offsets.end);
+      if (!target) continue;
+      const entry = entryByKey.get(`${target.file}::${target.name}`);
+      let info = extractSignatureInfo(symbol.detail, languageId, symbol.name);
+      if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) {
+        try {
+          const hover = await client.request('textDocument/hover', {
+            textDocument: { uri },
+            position: symbol.selectionRange?.start || symbol.range?.start
+          }, { timeoutMs: 8000 });
+          const hoverText = normalizeHoverContents(hover?.contents);
+          const hoverInfo = extractSignatureInfo(hoverText, languageId, symbol.name);
+          if (hoverInfo) info = hoverInfo;
+        } catch {}
+      }
+      if (!info) continue;
+
+      if (!target.docmeta || typeof target.docmeta !== 'object') target.docmeta = {};
+      if (info.signature && !target.docmeta.signature) target.docmeta.signature = info.signature;
+      if (info.paramNames?.length && (!Array.isArray(target.docmeta.params) || !target.docmeta.params.length)) {
+        target.docmeta.params = info.paramNames.slice();
+      }
+      if (info.returnType) {
+        if (!target.docmeta.returnType) target.docmeta.returnType = info.returnType;
+        if (addInferredReturn(target.docmeta, info.returnType, TOOLING_SOURCE, TOOLING_CONFIDENCE)) {
+          inferredReturns += 1;
+        }
+        if (entry) {
+          entry.returnTypes = uniqueTypes([...(entry.returnTypes || []), info.returnType]);
+        }
+      }
+      if (info.paramTypes && Object.keys(info.paramTypes).length) {
+        if (!target.docmeta.paramTypes || typeof target.docmeta.paramTypes !== 'object') {
+          target.docmeta.paramTypes = {};
+        }
+        for (const [name, type] of Object.entries(info.paramTypes)) {
+          if (!name || !type) continue;
+          if (!target.docmeta.paramTypes[name]) target.docmeta.paramTypes[name] = type;
+          addInferredParam(target.docmeta, name, type, TOOLING_SOURCE, TOOLING_CONFIDENCE);
+          if (entry) {
+            const existing = entry.paramTypes?.[name] || [];
+            entry.paramTypes = entry.paramTypes || {};
+            entry.paramTypes[name] = uniqueTypes([...(existing || []), type]);
+          }
+        }
+      }
+      enriched += 1;
+    }
+
+    client.notify('textDocument/didClose', { textDocument: { uri } });
+  }
+
+  await client.shutdownAndExit();
+  client.kill();
+  return { inferredReturns, enriched };
+};
+
 async function loadTypeScript(toolingConfig, repoRoot) {
+  if (toolingConfig?.typescript?.enabled === false) return null;
   const toolingRoot = toolingConfig?.dir || '';
-  const candidates = [
-    path.join(repoRoot, 'node_modules', 'typescript', 'lib', 'typescript.js'),
-    toolingRoot ? path.join(toolingRoot, 'node', 'node_modules', 'typescript', 'lib', 'typescript.js') : null
-  ].filter(Boolean);
-  for (const candidate of candidates) {
-    if (!fsSync.existsSync(candidate)) continue;
+  const resolveOrder = Array.isArray(toolingConfig?.typescript?.resolveOrder)
+    ? toolingConfig.typescript.resolveOrder
+    : ['repo', 'cache', 'global'];
+  const lookup = {
+    repo: path.join(repoRoot, 'node_modules', 'typescript', 'lib', 'typescript.js'),
+    cache: toolingRoot ? path.join(toolingRoot, 'node', 'node_modules', 'typescript', 'lib', 'typescript.js') : null,
+    tooling: toolingRoot ? path.join(toolingRoot, 'node', 'node_modules', 'typescript', 'lib', 'typescript.js') : null
+  };
+
+  for (const entry of resolveOrder) {
+    const key = String(entry || '').toLowerCase();
+    if (key === 'global') {
+      try {
+        const mod = await import('typescript');
+        return mod?.default || mod;
+      } catch {
+        continue;
+      }
+    }
+    const candidate = lookup[key];
+    if (!candidate || !fsSync.existsSync(candidate)) continue;
     try {
       const mod = await import(pathToFileURL(candidate).href);
       return mod?.default || mod;
     } catch {}
   }
-  try {
-    const mod = await import('typescript');
-    return mod?.default || mod;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 const buildTypeScriptMap = (ts, filePaths) => {
@@ -251,6 +585,7 @@ export async function applyCrossFileInference({
   if (!enabled) {
     return { linkedCalls: 0, linkedUsages: 0, inferredReturns: 0, riskFlows: 0 };
   }
+  const toolingConfig = useTooling ? getToolingConfig(rootDir) : null;
   const symbolIndex = new Map();
   const symbolEntries = [];
   const entryByKey = new Map();
@@ -277,6 +612,7 @@ export async function applyCrossFileInference({
     if (leaf && leaf !== chunk.name) addSymbol(symbolIndex, leaf, entry);
   }
 
+  const chunksByFile = buildChunksByFile(chunks);
   let tsTypesByFile = null;
   if (useTooling && enableTypeInference) {
     const tsFiles = symbolEntries
@@ -285,13 +621,65 @@ export async function applyCrossFileInference({
       .map((file) => path.resolve(rootDir, file));
     const uniqueTsFiles = Array.from(new Set(tsFiles));
     if (uniqueTsFiles.length) {
-      const toolingConfig = getToolingConfig(rootDir);
       const ts = await loadTypeScript(toolingConfig, rootDir);
       if (ts) {
         tsTypesByFile = buildTypeScriptMap(ts, uniqueTsFiles);
         log(`[index] TypeScript tooling enabled for ${uniqueTsFiles.length} file(s).`);
       } else {
         log('[index] TypeScript tooling not detected; skipping tooling-based types.');
+      }
+    }
+  }
+
+  let linkedCalls = 0;
+  let linkedUsages = 0;
+  let inferredReturns = 0;
+  let riskFlows = 0;
+
+  if (useTooling && enableTypeInference && toolingConfig?.autoEnableOnDetect !== false) {
+    const clangdFiles = filterChunksByExt(chunksByFile, [
+      '.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'
+    ]);
+    if (clangdFiles.size) {
+      const clangdConfig = toolingConfig?.clangd || {};
+      const compileCommandsDir = resolveCompileCommandsDir(rootDir, clangdConfig);
+      const requireCompilationDatabase = clangdConfig.requireCompilationDatabase === true;
+      if (!compileCommandsDir && requireCompilationDatabase) {
+        log('[index] clangd requires compile_commands.json; skipping tooling-based types.');
+      } else {
+        const clangdArgs = [];
+        if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
+        if (!compileCommandsDir) {
+          log('[index] clangd running in best-effort mode (compile_commands.json not found).');
+        }
+        const clangdResult = await applyLspTypes({
+          rootDir,
+          chunksByFile: clangdFiles,
+          entryByKey,
+          log,
+          cmd: 'clangd',
+          args: clangdArgs
+        });
+        inferredReturns += clangdResult.inferredReturns || 0;
+        if (clangdResult.enriched) {
+          log(`[index] clangd enriched ${clangdResult.enriched} symbol(s).`);
+        }
+      }
+    }
+
+    const swiftFiles = filterChunksByExt(chunksByFile, ['.swift']);
+    if (swiftFiles.size) {
+      const swiftResult = await applyLspTypes({
+        rootDir,
+        chunksByFile: swiftFiles,
+        entryByKey,
+        log,
+        cmd: 'sourcekit-lsp',
+        args: []
+      });
+      inferredReturns += swiftResult.inferredReturns || 0;
+      if (swiftResult.enriched) {
+        log(`[index] sourcekit-lsp enriched ${swiftResult.enriched} symbol(s).`);
       }
     }
   }
@@ -310,11 +698,6 @@ export async function applyCrossFileInference({
     const text = textCache.get(absPath) || '';
     return text.slice(chunk.start, chunk.end);
   };
-
-  let linkedCalls = 0;
-  let linkedUsages = 0;
-  let inferredReturns = 0;
-  let riskFlows = 0;
 
   if (enableTypeInference) {
     for (const chunk of chunks) {
@@ -489,14 +872,30 @@ export async function applyCrossFileInference({
       if (tsMap && tsMap[chunk.name]) {
         const tsEntry = tsMap[chunk.name];
         if (tsEntry.returnType) {
+          if (!chunk.docmeta.returnType) chunk.docmeta.returnType = tsEntry.returnType;
           if (addInferredReturn(chunk.docmeta, tsEntry.returnType, TOOLING_SOURCE, TOOLING_CONFIDENCE)) {
             inferredReturns += 1;
           }
+          const entry = entryByKey.get(`${chunk.file}::${chunk.name}`);
+          if (entry) {
+            entry.returnTypes = uniqueTypes([...(entry.returnTypes || []), tsEntry.returnType]);
+          }
         }
         const params = tsEntry.paramTypes || {};
-        for (const [name, type] of Object.entries(params)) {
-          if (addInferredParam(chunk.docmeta, name, type, TOOLING_SOURCE, TOOLING_CONFIDENCE)) {
-            // no-op, keep count minimal
+        if (Object.keys(params).length) {
+          if (!chunk.docmeta.paramTypes || typeof chunk.docmeta.paramTypes !== 'object') {
+            chunk.docmeta.paramTypes = {};
+          }
+          for (const [name, type] of Object.entries(params)) {
+            if (!name || !type) continue;
+            if (!chunk.docmeta.paramTypes[name]) chunk.docmeta.paramTypes[name] = type;
+            addInferredParam(chunk.docmeta, name, type, TOOLING_SOURCE, TOOLING_CONFIDENCE);
+            const entry = entryByKey.get(`${chunk.file}::${chunk.name}`);
+            if (entry) {
+              const existing = entry.paramTypes?.[name] || [];
+              entry.paramTypes = entry.paramTypes || {};
+              entry.paramTypes[name] = uniqueTypes([...(existing || []), type]);
+            }
           }
         }
       }

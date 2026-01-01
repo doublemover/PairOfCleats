@@ -16,6 +16,9 @@ if (coverage.has('script-coverage-test')) {
 if (coverage.has('test-all')) {
   markSkipped('test-all', 'aggregates script-coverage-test and bench');
 }
+if (coverage.has('test-all-no-bench')) {
+  markSkipped('test-all-no-bench', 'aggregates script-coverage-test without bench');
+}
 
 const baseCacheRoot = path.join(root, 'tests', '.cache', 'script-coverage');
 const repoCacheRoot = path.join(baseCacheRoot, 'repo');
@@ -121,6 +124,11 @@ const actions = [
     label: 'format-fidelity-test',
     run: () => runNode('format-fidelity-test', path.join(root, 'tests', 'format-fidelity.js')),
     covers: ['format-fidelity-test']
+  },
+  {
+    label: 'tooling-lsp-test',
+    run: () => runNode('tooling-lsp-test', path.join(root, 'tests', 'tooling-lsp.js')),
+    covers: []
   },
   {
     label: 'compare-models-test',

@@ -15,6 +15,7 @@ const LANGUAGE_EXTENSIONS = {
   rust: ['.rs'],
   go: ['.go'],
   java: ['.java'],
+  swift: ['.swift'],
   shell: ['.sh', '.bash', '.zsh', '.ksh'],
   csharp: ['.cs'],
   kotlin: ['.kt', '.kts'],
@@ -45,6 +46,7 @@ const TOOL_DOCS = {
   'rust-analyzer': 'https://rust-analyzer.github.io/',
   gopls: 'https://pkg.go.dev/golang.org/x/tools/gopls',
   jdtls: 'https://github.com/eclipse-jdtls/eclipse.jdt.ls',
+  'sourcekit-lsp': 'https://www.swift.org/download/',
   'kotlin-language-server': 'https://github.com/fwcd/kotlin-language-server',
   omnisharp: 'https://github.com/OmniSharp/omnisharp-roslyn',
   solargraph: 'https://solargraph.org/',
@@ -179,6 +181,16 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
         manual: true
       },
       docs: TOOL_DOCS.clangd
+    },
+    {
+      id: 'sourcekit-lsp',
+      label: 'SourceKit-LSP',
+      languages: ['swift'],
+      detect: { cmd: 'sourcekit-lsp', args: ['--help'], binDirs: [] },
+      install: {
+        manual: true
+      },
+      docs: TOOL_DOCS['sourcekit-lsp']
     },
     {
       id: 'rust-analyzer',

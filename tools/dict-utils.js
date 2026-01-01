@@ -286,12 +286,31 @@ export function getToolingDir(repoRoot, userConfig = null) {
 export function getToolingConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const tooling = cfg.tooling || {};
+  const typescript = tooling.typescript || {};
+  const clangd = tooling.clangd || {};
   const installScope = (tooling.installScope || process.env.PAIROFCLEATS_TOOLING_INSTALL_SCOPE || 'cache').toLowerCase();
+  const normalizeOrder = (value) => {
+    if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
+    if (typeof value === 'string') {
+      return value.split(',').map((entry) => entry.trim()).filter(Boolean);
+    }
+    return null;
+  };
+  const resolveOrder = normalizeOrder(typescript.resolveOrder) || ['repo', 'cache', 'global'];
   return {
     autoInstallOnDetect: tooling.autoInstallOnDetect === true,
+    autoEnableOnDetect: tooling.autoEnableOnDetect !== false,
     installScope,
     allowGlobalFallback: tooling.allowGlobalFallback !== false,
-    dir: getToolingDir(repoRoot, cfg)
+    dir: getToolingDir(repoRoot, cfg),
+    typescript: {
+      enabled: typescript.enabled !== false,
+      resolveOrder
+    },
+    clangd: {
+      requireCompilationDatabase: clangd.requireCompilationDatabase === true,
+      compileCommandsDir: typeof clangd.compileCommandsDir === 'string' ? clangd.compileCommandsDir : ''
+    }
   };
 }
 

@@ -73,5 +73,6 @@ This document defines the "complete" AST metadata feature set and how each AST-b
 - Type inference: annotations + defaults + literal assignments (when enabled).
 
 ## Heuristic languages
+- C/C++/ObjC and Swift can be enriched with LSP tooling (clangd/sourcekit-lsp) for signatures and types when tooling is enabled; clangd uses compile_commands.json when available and runs best-effort without it.
 - C/C++/ObjC, Rust, Go, Java, Swift, C#, Kotlin, Ruby, PHP, Lua, SQL, Perl, Shell include heuristic dataflow (reads/writes/mutations/aliases/throws/awaits/yields/returns) when enabled.
 - Control-flow keyword counts (branches/loops/returns/breaks/continues/throws/awaits/yields) are captured when enabled.

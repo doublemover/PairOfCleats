@@ -139,7 +139,7 @@ export async function buildIndexForMode({ mode, runtime }) {
       chunks: state.chunks,
       enabled: true,
       log,
-      useTooling: runtime.typeInferenceEnabled && runtime.typeInferenceCrossFileEnabled,
+      useTooling: runtime.typeInferenceEnabled && runtime.typeInferenceCrossFileEnabled && runtime.toolingEnabled,
       enableTypeInference: runtime.typeInferenceEnabled,
       enableRiskCorrelation: runtime.riskAnalysisEnabled && runtime.riskAnalysisCrossFileEnabled
     });

@@ -47,8 +47,13 @@ This document describes the planned unified parsing backbone, native parser usag
 
 Planned config keys:
 - tooling.autoInstallOnDetect (default false)
+- tooling.autoEnableOnDetect (default true)
 - tooling.installScope (cache | user | system)
 - tooling.allowGlobalFallback (default true)
+- tooling.typescript.enabled (default true)
+- tooling.typescript.resolveOrder (default: repo, cache, global)
+- tooling.clangd.requireCompilationDatabase (default false; best-effort without compile_commands.json)
+- tooling.clangd.compileCommandsDir (optional)
 - indexing.cfg (default false)
 - indexing.astDataflow (default true)
 - indexing.typeInference (default false)

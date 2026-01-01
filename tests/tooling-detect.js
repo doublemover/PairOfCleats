@@ -24,7 +24,7 @@ try {
 }
 
 const languages = payload.languages || {};
-const required = ['python', 'rust', 'go', 'java', 'cpp', 'objc'];
+const required = ['python', 'rust', 'go', 'java', 'cpp', 'objc', 'swift'];
 for (const lang of required) {
   if (!languages[lang]) {
     console.error(`Missing detected language: ${lang}`);
@@ -33,7 +33,7 @@ for (const lang of required) {
 }
 
 const toolIds = (payload.tools || []).map((tool) => tool.id);
-const toolRequired = ['clangd', 'gopls', 'rust-analyzer', 'jdtls'];
+const toolRequired = ['clangd', 'gopls', 'rust-analyzer', 'jdtls', 'sourcekit-lsp'];
 for (const tool of toolRequired) {
   if (!toolIds.includes(tool)) {
     console.error(`Missing tooling entry: ${tool}`);

@@ -37,12 +37,14 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Signatures and modifiers are captured.
 - Generics and where clauses are captured in metadata.
 - Extensions do not break chunking.
+- When sourcekit-lsp is available, signatures and types are enriched from LSP metadata.
 
 ## ObjC/C/C++
 - C-family functions and types are chunked with brace matching.
 - ObjC interface/implementation blocks are chunked by @end.
 - ObjC method selectors include the parent type when known.
 - Includes are captured as imports; basic calls/usages are present when possible.
+- When clangd is available, signatures and types are enriched from LSP metadata (best-effort without compile_commands.json; set `tooling.clangd.requireCompilationDatabase` to enforce).
 
 ## Rust
 - struct/enum/trait/mod/impl/fn declarations are chunked.

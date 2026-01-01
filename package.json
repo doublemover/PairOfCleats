@@ -38,6 +38,7 @@
     "api-server": "node tools/api-server.js",
     "mcp-server": "node tools/mcp-server.js",
     "test-all": "node tests/all.js",
+    "test-all-no-bench": "node tests/all.js --skip-bench",
     "verify": "node tests/smoke.js",
     "setup": "node tools/setup.js",
     "bootstrap": "node tools/bootstrap.js",

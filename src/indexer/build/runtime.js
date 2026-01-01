@@ -7,6 +7,7 @@ import {
   getDictConfig,
   getModelConfig,
   getRepoCacheRoot,
+  getToolingConfig,
   loadUserConfig
 } from '../../../tools/dict-utils.js';
 import { createEmbedder } from '../embedding.js';
@@ -22,6 +23,8 @@ import { normalizePostingsConfig } from '../../shared/postings-config.js';
 export async function createBuildRuntime({ root, argv, rawArgv }) {
   const userConfig = loadUserConfig(root);
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const toolingConfig = getToolingConfig(root, userConfig);
+  const toolingEnabled = toolingConfig.autoEnableOnDetect !== false;
   const indexingConfig = userConfig.indexing || {};
   const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});
   const maxFileBytesRaw = indexingConfig.maxFileBytes;
@@ -168,6 +171,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     rawArgv,
     userConfig,
     repoCacheRoot,
+    toolingConfig,
+    toolingEnabled,
     indexingConfig,
     postingsConfig,
     astDataflowEnabled,

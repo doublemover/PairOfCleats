@@ -35,6 +35,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 <summary><h2>Index features</h2></summary>
 
 - Languages: JavaScript/TypeScript, Python, Swift, Rust, C/C++/ObjC, Go, Java, C#, Kotlin, Ruby, PHP, Lua, SQL (dialects), Perl, Shell
+- LSP enrichment (clangd/sourcekit-lsp) is best-effort; clangd uses compile_commands.json when available and can be required via `tooling.clangd.requireCompilationDatabase`
 - Config formats: JSON, TOML, INI/CFG/CONF, XML, YAML, Dockerfile, Makefile, GitHub Actions YAML
 - Docs: Markdown, RST, AsciiDoc
 - Chunking:
@@ -222,7 +223,9 @@ Tools:
 <summary><h2>Tests</h2></summary>
 
 All-in-one (runs everything it can):
-- `npm run test-all` (pass `-- --skip-bench` to skip the benchmark run)
+- `npm run test-all`
+- `npm run test-all-no-bench` (skips the benchmark run)
+- `npm run test-all -- --skip-bench` (same as above)
 
 Core:
 - `npm run verify`

@@ -176,9 +176,26 @@
       "additionalProperties": false,
       "properties": {
         "autoInstallOnDetect": { "type": "boolean" },
+        "autoEnableOnDetect": { "type": "boolean" },
         "installScope": { "type": "string" },
         "allowGlobalFallback": { "type": "boolean" },
-        "dir": { "type": "string" }
+        "dir": { "type": "string" },
+        "typescript": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "resolveOrder": { "type": ["array", "string"], "items": { "type": "string" } }
+          }
+        },
+        "clangd": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requireCompilationDatabase": { "type": "boolean" },
+            "compileCommandsDir": { "type": "string" }
+          }
+        }
       }
     },
     "extensions": {
