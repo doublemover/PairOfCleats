@@ -136,6 +136,11 @@ const actions = [
     covers: []
   },
   {
+    label: 'type-inference-lsp-enrichment-test',
+    run: () => runNode('type-inference-lsp-enrichment-test', path.join(root, 'tests', 'type-inference-lsp-enrichment.js')),
+    covers: ['type-inference-lsp-enrichment-test']
+  },
+  {
     label: 'format-fidelity-test',
     run: () => runNode('format-fidelity-test', path.join(root, 'tests', 'format-fidelity.js')),
     covers: ['format-fidelity-test']

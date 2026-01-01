@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { buildLineIndex } from '../../shared/lines.js';
@@ -83,15 +84,31 @@ const findChunkForOffsets = (chunks, offsets, symbolName) => {
   return best;
 };
 
+const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
+
 const canRunClangd = (cmd) => {
   try {
-    const result = spawnSync(cmd, ['--version'], { stdio: 'ignore' });
+    const result = spawnSync(cmd, ['--version'], { stdio: 'ignore', shell: shouldUseShell(cmd) });
     if (result.error) return false;
     if (typeof result.status === 'number') return result.status === 0;
     return true;
   } catch {
     return false;
   }
+};
+
+const resolveCommand = (cmd) => {
+  if (process.platform !== 'win32') return cmd;
+  const lowered = String(cmd || '').toLowerCase();
+  if (lowered.endsWith('.exe') || lowered.endsWith('.cmd') || lowered.endsWith('.bat')) return cmd;
+  const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  for (const ext of ['.exe', '.cmd', '.bat']) {
+    for (const dir of pathEntries) {
+      const candidate = path.join(dir, `${cmd}${ext}`);
+      if (fsSync.existsSync(candidate)) return candidate;
+    }
+  }
+  return cmd;
 };
 
 export async function collectClangdTypes({
@@ -102,15 +119,17 @@ export async function collectClangdTypes({
   args = [],
   timeoutMs = 15000
 }) {
+  const resolvedCmd = resolveCommand(cmd);
+  const useShell = shouldUseShell(resolvedCmd);
   const files = Array.from(chunksByFile.keys());
   if (!files.length) return { typesByChunk: new Map(), enriched: 0 };
 
-  if (!canRunClangd(cmd)) {
+  if (!canRunClangd(resolvedCmd)) {
     log('[index] clangd not detected; skipping tooling-based types.');
     return { typesByChunk: new Map(), enriched: 0 };
   }
 
-  const client = createLspClient({ cmd, args, cwd: rootDir, log });
+  const client = createLspClient({ cmd: resolvedCmd, args, cwd: rootDir, log, shell: useShell });
   const rootUri = pathToFileUri(rootDir);
   try {
     await client.initialize({

@@ -72,6 +72,7 @@
     "config-validate-test": "node tests/config-validate.js",
     "cli-test": "node tests/cli.js",
     "type-inference-crossfile-test": "node tests/type-inference-crossfile.js",  
+    "type-inference-lsp-enrichment-test": "node tests/type-inference-lsp-enrichment.js",
     "download-extensions-test": "node tests/download-extensions.js",
     "tooling-detect-test": "node tests/tooling-detect.js",
     "tooling-install-test": "node tests/tooling-install.js",

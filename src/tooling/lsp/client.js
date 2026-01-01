@@ -50,6 +50,7 @@ export function createLspClient(options) {
     args = [],
     cwd,
     env,
+    shell = false,
     log = () => {},
     onNotification,
     onRequest
@@ -117,7 +118,7 @@ export function createLspClient(options) {
 
   const start = () => {
     if (proc) return proc;
-    proc = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, env });
+    proc = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, env, shell });
     const parser = createFramedJsonRpcParser({
       onMessage: handleMessage,
       onError: (err) => log(`[lsp] parse error: ${err.message}`)
