@@ -3,7 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { getToolingConfig } from '../../tools/dict-utils.js';
 import { collectLspTypes } from '../tooling/providers/lsp.js';
-import { collectTypeScriptTypes } from '../tooling/providers/typescript.js';
+import { collectTypeScriptTypes } from './tooling/typescript-provider.js';
 import { mergeToolingMaps, uniqueTypes } from '../tooling/providers/shared.js';
 
 const FLOW_SOURCE = 'flow';

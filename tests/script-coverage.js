@@ -121,6 +121,11 @@ const actions = [
     covers: []
   },
   {
+    label: 'type-inference-typescript-provider-no-ts',
+    run: () => runNode('type-inference-typescript-provider-no-ts', path.join(root, 'tests', 'type-inference-typescript-provider-no-ts.js')),
+    covers: []
+  },
+  {
     label: 'format-fidelity-test',
     run: () => runNode('format-fidelity-test', path.join(root, 'tests', 'format-fidelity.js')),
     covers: ['format-fidelity-test']
