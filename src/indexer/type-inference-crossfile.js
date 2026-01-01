@@ -367,17 +367,122 @@ const filterChunksByExt = (chunksByFile, extensions) => {
   return filtered;
 };
 
-const applyLspTypes = async ({
+const filterChunksByPredicate = (chunksByFile, predicate) => {
+  const filtered = new Map();
+  for (const [file, chunks] of chunksByFile.entries()) {
+    const kept = chunks.filter((chunk) => predicate(chunk));
+    if (kept.length) filtered.set(file, kept);
+  }
+  return filtered;
+};
+
+const hasToolingReturn = (chunk) => {
+  const inferred = chunk?.docmeta?.inferredTypes?.returns;
+  if (!Array.isArray(inferred)) return false;
+  return inferred.some((entry) => entry?.source === TOOLING_SOURCE);
+};
+
+const createToolingEntry = () => ({ returns: [], params: {}, signature: '', paramNames: [] });
+
+const mergeToolingEntry = (target, incoming) => {
+  if (!incoming) return target;
+  if (incoming.signature && !target.signature) target.signature = incoming.signature;
+  if (incoming.paramNames?.length && (!target.paramNames || !target.paramNames.length)) {
+    target.paramNames = incoming.paramNames.slice();
+  }
+  if (Array.isArray(incoming.returns) && incoming.returns.length) {
+    target.returns = uniqueTypes([...(target.returns || []), ...incoming.returns]);
+  }
+  if (incoming.params && typeof incoming.params === 'object') {
+    for (const [name, types] of Object.entries(incoming.params)) {
+      if (!name || !Array.isArray(types)) continue;
+      const existing = target.params?.[name] || [];
+      target.params[name] = uniqueTypes([...(existing || []), ...types]);
+    }
+  }
+  return target;
+};
+
+const mergeToolingMaps = (base, incoming) => {
+  for (const [key, value] of incoming || []) {
+    if (!base.has(key)) {
+      const entry = createToolingEntry();
+      mergeToolingEntry(entry, value);
+      base.set(key, entry);
+      continue;
+    }
+    mergeToolingEntry(base.get(key), value);
+  }
+  return base;
+};
+
+const applyToolingTypes = (typesByChunk, chunkByKey, entryByKey) => {
+  let inferredReturns = 0;
+  let enriched = 0;
+  for (const [key, info] of typesByChunk.entries()) {
+    const chunk = chunkByKey.get(key);
+    if (!chunk || !info) continue;
+    if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
+    const entry = entryByKey.get(key);
+    let touched = false;
+    if (info.signature && !chunk.docmeta.signature) {
+      chunk.docmeta.signature = info.signature;
+      touched = true;
+    }
+    if (info.paramNames?.length && (!Array.isArray(chunk.docmeta.params) || !chunk.docmeta.params.length)) {
+      chunk.docmeta.params = info.paramNames.slice();
+      touched = true;
+    }
+    if (entry && info.paramNames?.length && (!Array.isArray(entry.paramNames) || !entry.paramNames.length)) {
+      entry.paramNames = info.paramNames.slice();
+    }
+    if (Array.isArray(info.returns) && info.returns.length) {
+      for (const type of uniqueTypes(info.returns)) {
+        if (!type) continue;
+        if (!chunk.docmeta.returnType) chunk.docmeta.returnType = type;
+        if (addInferredReturn(chunk.docmeta, type, TOOLING_SOURCE, TOOLING_CONFIDENCE)) {
+          inferredReturns += 1;
+          touched = true;
+        }
+        if (entry) {
+          entry.returnTypes = uniqueTypes([...(entry.returnTypes || []), type]);
+        }
+      }
+    }
+    if (info.params && typeof info.params === 'object') {
+      if (!chunk.docmeta.paramTypes || typeof chunk.docmeta.paramTypes !== 'object') {
+        chunk.docmeta.paramTypes = {};
+      }
+      for (const [name, types] of Object.entries(info.params)) {
+        if (!name || !Array.isArray(types)) continue;
+        for (const type of uniqueTypes(types)) {
+          if (!type) continue;
+          if (!chunk.docmeta.paramTypes[name]) chunk.docmeta.paramTypes[name] = type;
+          addInferredParam(chunk.docmeta, name, type, TOOLING_SOURCE, TOOLING_CONFIDENCE);
+          if (entry) {
+            const existing = entry.paramTypes?.[name] || [];
+            entry.paramTypes = entry.paramTypes || {};
+            entry.paramTypes[name] = uniqueTypes([...(existing || []), type]);
+          }
+          touched = true;
+        }
+      }
+    }
+    if (touched) enriched += 1;
+  }
+  return { inferredReturns, enriched };
+};
+
+const collectLspTypes = async ({
   rootDir,
   chunksByFile,
-  entryByKey,
   log,
   cmd,
   args,
   timeoutMs = 15000
 }) => {
   const files = Array.from(chunksByFile.keys());
-  if (!files.length) return { inferredReturns: 0, enriched: 0 };
+  if (!files.length) return { typesByChunk: new Map(), enriched: 0 };
 
   const client = createLspClient({ cmd, args, cwd: rootDir, log });
   const rootUri = pathToFileUri(rootDir);
@@ -389,10 +494,10 @@ const applyLspTypes = async ({
   } catch (err) {
     log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
     client.kill();
-    return { inferredReturns: 0, enriched: 0 };
+    return { typesByChunk: new Map(), enriched: 0 };
   }
 
-  let inferredReturns = 0;
+  const typesByChunk = new Map();
   let enriched = 0;
   for (const file of files) {
     const absPath = path.join(rootDir, file);
@@ -434,7 +539,6 @@ const applyLspTypes = async ({
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
       const target = findChunkForOffsets(fileChunks, offsets.start, offsets.end);
       if (!target) continue;
-      const entry = entryByKey.get(`${target.file}::${target.name}`);
       let info = extractSignatureInfo(symbol.detail, languageId, symbol.name);
       if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) {
         try {
@@ -449,35 +553,21 @@ const applyLspTypes = async ({
       }
       if (!info) continue;
 
-      if (!target.docmeta || typeof target.docmeta !== 'object') target.docmeta = {};
-      if (info.signature && !target.docmeta.signature) target.docmeta.signature = info.signature;
-      if (info.paramNames?.length && (!Array.isArray(target.docmeta.params) || !target.docmeta.params.length)) {
-        target.docmeta.params = info.paramNames.slice();
+      const key = `${target.file}::${target.name}`;
+      const entry = typesByChunk.get(key) || createToolingEntry();
+      if (info.signature && !entry.signature) entry.signature = info.signature;
+      if (info.paramNames?.length && (!entry.paramNames || !entry.paramNames.length)) {
+        entry.paramNames = info.paramNames.slice();
       }
-      if (info.returnType) {
-        if (!target.docmeta.returnType) target.docmeta.returnType = info.returnType;
-        if (addInferredReturn(target.docmeta, info.returnType, TOOLING_SOURCE, TOOLING_CONFIDENCE)) {
-          inferredReturns += 1;
-        }
-        if (entry) {
-          entry.returnTypes = uniqueTypes([...(entry.returnTypes || []), info.returnType]);
-        }
-      }
+      if (info.returnType) entry.returns = uniqueTypes([...(entry.returns || []), info.returnType]);
       if (info.paramTypes && Object.keys(info.paramTypes).length) {
-        if (!target.docmeta.paramTypes || typeof target.docmeta.paramTypes !== 'object') {
-          target.docmeta.paramTypes = {};
-        }
         for (const [name, type] of Object.entries(info.paramTypes)) {
           if (!name || !type) continue;
-          if (!target.docmeta.paramTypes[name]) target.docmeta.paramTypes[name] = type;
-          addInferredParam(target.docmeta, name, type, TOOLING_SOURCE, TOOLING_CONFIDENCE);
-          if (entry) {
-            const existing = entry.paramTypes?.[name] || [];
-            entry.paramTypes = entry.paramTypes || {};
-            entry.paramTypes[name] = uniqueTypes([...(existing || []), type]);
-          }
+          const existing = entry.params?.[name] || [];
+          entry.params[name] = uniqueTypes([...(existing || []), type]);
         }
       }
+      typesByChunk.set(key, entry);
       enriched += 1;
     }
 
@@ -486,7 +576,7 @@ const applyLspTypes = async ({
 
   await client.shutdownAndExit();
   client.kill();
-  return { inferredReturns, enriched };
+  return { typesByChunk, enriched };
 };
 
 async function loadTypeScript(toolingConfig, repoRoot) {
@@ -573,6 +663,54 @@ const buildTypeScriptMap = (ts, filePaths) => {
   return byFile;
 };
 
+async function collectTypeScriptTypes({ rootDir, chunksByFile, log, toolingConfig }) {
+  const tsFiles = Array.from(chunksByFile.keys())
+    .filter((file) => ['.ts', '.tsx', '.mts', '.cts'].includes(path.extname(file).toLowerCase()))
+    .map((file) => path.resolve(rootDir, file));
+  const uniqueTsFiles = Array.from(new Set(tsFiles));
+  if (!uniqueTsFiles.length) return { typesByChunk: new Map(), fileCount: 0 };
+
+  if (toolingConfig?.typescript?.enabled === false) {
+    log('[index] TypeScript tooling disabled; skipping tooling-based types.');
+    return { typesByChunk: new Map(), fileCount: uniqueTsFiles.length };
+  }
+
+  const ts = await loadTypeScript(toolingConfig, rootDir);
+  if (!ts) {
+    log('[index] TypeScript tooling not detected; skipping tooling-based types.');
+    return { typesByChunk: new Map(), fileCount: uniqueTsFiles.length };
+  }
+
+  const typesByChunk = new Map();
+  const tsTypesByFile = buildTypeScriptMap(ts, uniqueTsFiles);
+  for (const [file, chunks] of chunksByFile.entries()) {
+    const ext = path.extname(file).toLowerCase();
+    if (!['.ts', '.tsx', '.mts', '.cts'].includes(ext)) continue;
+    const absFile = path.resolve(rootDir, file);
+    const fileMap = tsTypesByFile.get(absFile);
+    if (!fileMap) continue;
+    for (const chunk of chunks) {
+      const tsEntry = fileMap[chunk.name];
+      if (!tsEntry) continue;
+      const key = `${chunk.file}::${chunk.name}`;
+      const entry = typesByChunk.get(key) || createToolingEntry();
+      if (tsEntry.returnType) {
+        entry.returns = uniqueTypes([...(entry.returns || []), tsEntry.returnType]);
+      }
+      if (tsEntry.paramTypes && typeof tsEntry.paramTypes === 'object') {
+        for (const [name, type] of Object.entries(tsEntry.paramTypes)) {
+          if (!name || !type) continue;
+          const existing = entry.params?.[name] || [];
+          entry.params[name] = uniqueTypes([...(existing || []), type]);
+        }
+      }
+      typesByChunk.set(key, entry);
+    }
+  }
+  log(`[index] TypeScript tooling enabled for ${uniqueTsFiles.length} file(s).`);
+  return { typesByChunk, fileCount: uniqueTsFiles.length };
+}
+
 export async function applyCrossFileInference({
   rootDir,
   chunks,
@@ -613,31 +751,28 @@ export async function applyCrossFileInference({
   }
 
   const chunksByFile = buildChunksByFile(chunks);
-  let tsTypesByFile = null;
-  if (useTooling && enableTypeInference) {
-    const tsFiles = symbolEntries
-      .map((entry) => entry.file)
-      .filter((file) => file.endsWith('.ts') || file.endsWith('.tsx') || file.endsWith('.mts') || file.endsWith('.cts'))
-      .map((file) => path.resolve(rootDir, file));
-    const uniqueTsFiles = Array.from(new Set(tsFiles));
-    if (uniqueTsFiles.length) {
-      const ts = await loadTypeScript(toolingConfig, rootDir);
-      if (ts) {
-        tsTypesByFile = buildTypeScriptMap(ts, uniqueTsFiles);
-        log(`[index] TypeScript tooling enabled for ${uniqueTsFiles.length} file(s).`);
-      } else {
-        log('[index] TypeScript tooling not detected; skipping tooling-based types.');
-      }
-    }
-  }
 
   let linkedCalls = 0;
   let linkedUsages = 0;
   let inferredReturns = 0;
   let riskFlows = 0;
 
-  if (useTooling && enableTypeInference && toolingConfig?.autoEnableOnDetect !== false) {
-    const clangdFiles = filterChunksByExt(chunksByFile, [
+  const toolingEnabled = useTooling && enableTypeInference && toolingConfig?.autoEnableOnDetect !== false;
+  if (toolingEnabled) {
+    const toolingChunksByFile = filterChunksByPredicate(chunksByFile, (chunk) => !hasToolingReturn(chunk));
+    const toolingTypes = new Map();
+
+    if (toolingChunksByFile.size) {
+      const tsResult = await collectTypeScriptTypes({
+        rootDir,
+        chunksByFile: toolingChunksByFile,
+        log,
+        toolingConfig
+      });
+      mergeToolingMaps(toolingTypes, tsResult.typesByChunk);
+    }
+
+    const clangdFiles = filterChunksByExt(toolingChunksByFile, [
       '.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'
     ]);
     if (clangdFiles.size) {
@@ -652,34 +787,36 @@ export async function applyCrossFileInference({
         if (!compileCommandsDir) {
           log('[index] clangd running in best-effort mode (compile_commands.json not found).');
         }
-        const clangdResult = await applyLspTypes({
+        const clangdResult = await collectLspTypes({
           rootDir,
           chunksByFile: clangdFiles,
-          entryByKey,
           log,
           cmd: 'clangd',
           args: clangdArgs
         });
-        inferredReturns += clangdResult.inferredReturns || 0;
-        if (clangdResult.enriched) {
-          log(`[index] clangd enriched ${clangdResult.enriched} symbol(s).`);
-        }
+        mergeToolingMaps(toolingTypes, clangdResult.typesByChunk);
+        if (clangdResult.enriched) log(`[index] clangd enriched ${clangdResult.enriched} symbol(s).`);
       }
     }
 
-    const swiftFiles = filterChunksByExt(chunksByFile, ['.swift']);
+    const swiftFiles = filterChunksByExt(toolingChunksByFile, ['.swift']);
     if (swiftFiles.size) {
-      const swiftResult = await applyLspTypes({
+      const swiftResult = await collectLspTypes({
         rootDir,
         chunksByFile: swiftFiles,
-        entryByKey,
         log,
         cmd: 'sourcekit-lsp',
         args: []
       });
-      inferredReturns += swiftResult.inferredReturns || 0;
-      if (swiftResult.enriched) {
-        log(`[index] sourcekit-lsp enriched ${swiftResult.enriched} symbol(s).`);
+      mergeToolingMaps(toolingTypes, swiftResult.typesByChunk);
+      if (swiftResult.enriched) log(`[index] sourcekit-lsp enriched ${swiftResult.enriched} symbol(s).`);
+    }
+
+    if (toolingTypes.size) {
+      const applyResult = applyToolingTypes(toolingTypes, chunkByKey, entryByKey);
+      inferredReturns += applyResult.inferredReturns || 0;
+      if (applyResult.enriched) {
+        log(`[index] tooling enriched ${applyResult.enriched} symbol(s).`);
       }
     }
   }
@@ -861,41 +998,6 @@ export async function applyCrossFileInference({
         for (const type of resolved.returnTypes) {
           if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, FLOW_CONFIDENCE)) {
             inferredReturns += 1;
-          }
-        }
-      }
-    }
-
-    if (tsTypesByFile && enableTypeInference && chunk.docmeta && chunk.file) {
-      const absFile = path.resolve(rootDir, chunk.file);
-      const tsMap = tsTypesByFile.get(absFile);
-      if (tsMap && tsMap[chunk.name]) {
-        const tsEntry = tsMap[chunk.name];
-        if (tsEntry.returnType) {
-          if (!chunk.docmeta.returnType) chunk.docmeta.returnType = tsEntry.returnType;
-          if (addInferredReturn(chunk.docmeta, tsEntry.returnType, TOOLING_SOURCE, TOOLING_CONFIDENCE)) {
-            inferredReturns += 1;
-          }
-          const entry = entryByKey.get(`${chunk.file}::${chunk.name}`);
-          if (entry) {
-            entry.returnTypes = uniqueTypes([...(entry.returnTypes || []), tsEntry.returnType]);
-          }
-        }
-        const params = tsEntry.paramTypes || {};
-        if (Object.keys(params).length) {
-          if (!chunk.docmeta.paramTypes || typeof chunk.docmeta.paramTypes !== 'object') {
-            chunk.docmeta.paramTypes = {};
-          }
-          for (const [name, type] of Object.entries(params)) {
-            if (!name || !type) continue;
-            if (!chunk.docmeta.paramTypes[name]) chunk.docmeta.paramTypes[name] = type;
-            addInferredParam(chunk.docmeta, name, type, TOOLING_SOURCE, TOOLING_CONFIDENCE);
-            const entry = entryByKey.get(`${chunk.file}::${chunk.name}`);
-            if (entry) {
-              const existing = entry.paramTypes?.[name] || [];
-              entry.paramTypes = entry.paramTypes || {};
-              entry.paramTypes[name] = uniqueTypes([...(existing || []), type]);
-            }
           }
         }
       }
