@@ -281,7 +281,7 @@ export function getToolingDir(repoRoot, userConfig = null) {
  * Resolve tooling configuration for a repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
- * @returns {{autoInstallOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string}}
+ * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string},clangd:{requireCompilationDatabase:boolean,compileCommandsDir:string}}}
  */
 export function getToolingConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
@@ -305,7 +305,9 @@ export function getToolingConfig(repoRoot, userConfig = null) {
     dir: getToolingDir(repoRoot, cfg),
     typescript: {
       enabled: typescript.enabled !== false,
-      resolveOrder
+      resolveOrder,
+      useTsconfig: typescript.useTsconfig !== false,
+      tsconfigPath: typeof typescript.tsconfigPath === 'string' ? typescript.tsconfigPath : ''
     },
     clangd: {
       requireCompilationDatabase: clangd.requireCompilationDatabase === true,

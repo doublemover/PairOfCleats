@@ -185,7 +185,9 @@
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
-            "resolveOrder": { "type": ["array", "string"], "items": { "type": "string" } }
+            "resolveOrder": { "type": ["array", "string"], "items": { "type": "string" } },
+            "useTsconfig": { "type": "boolean" },
+            "tsconfigPath": { "type": "string" }
           }
         },
         "clangd": {

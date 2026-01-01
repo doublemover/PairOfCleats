@@ -52,6 +52,8 @@ Planned config keys:
 - tooling.allowGlobalFallback (default true)
 - tooling.typescript.enabled (default true)
 - tooling.typescript.resolveOrder (default: repo, cache, global)
+- tooling.typescript.useTsconfig (default true)
+- tooling.typescript.tsconfigPath (optional)
 - tooling.clangd.requireCompilationDatabase (default false; best-effort without compile_commands.json)
 - tooling.clangd.compileCommandsDir (optional)
 - indexing.cfg (default false)
