@@ -77,7 +77,9 @@ const LANGUAGE_REGISTRY = [
     id: 'typescript',
     match: (ext) => isTypeScript(ext),
     collectImports: (text) => collectTypeScriptImports(text),
-    prepare: ({ text, mode }) => (mode === 'code' ? { tsChunks: buildTypeScriptChunks(text) } : {}),
+    prepare: ({ text, mode, ext, relPath }) => (mode === 'code'
+      ? { tsChunks: buildTypeScriptChunks(text, { ext, relPath }) }
+      : {}),
     buildRelations: ({ text, allImports, context }) => buildTypeScriptRelations(text, allImports, context.tsChunks),
     extractDocMeta: ({ chunk }) => extractTypeScriptDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeTypeScriptFlow(text, chunk, flowOptions(options)),

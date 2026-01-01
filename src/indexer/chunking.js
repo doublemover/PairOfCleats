@@ -304,7 +304,7 @@ function chunkYaml(text, relPath) {
 
 const CODE_CHUNKERS = [
   { id: 'javascript', match: (ext) => isJsLike(ext), chunk: ({ text }) => buildJsChunks(text) },
-  { id: 'typescript', match: (ext) => isTypeScript(ext), chunk: ({ text, context }) => context?.tsChunks || buildTypeScriptChunks(text) },
+  { id: 'typescript', match: (ext) => isTypeScript(ext), chunk: ({ text, ext, relPath, context }) => context?.tsChunks || buildTypeScriptChunks(text, { ext, relPath }) },
   { id: 'python', match: (ext) => ext === '.py', chunk: ({ text, context }) => {
     const astChunks = buildPythonChunksFromAst(text, context?.pythonAst || null);
     return (astChunks && astChunks.length) ? astChunks : buildPythonHeuristicChunks(text);

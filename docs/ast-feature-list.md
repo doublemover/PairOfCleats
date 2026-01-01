@@ -62,6 +62,15 @@ This document defines the "complete" AST metadata feature set and how each AST-b
 - Control-flow: keyword counts (branches/loops/returns/breaks/continues/throws/awaits/yields).
 - Type inference: annotations + defaults + literal assignments (when enabled).
 
+### TypeScript (Compiler AST when available)
+- Declarations: class/interface/enum/type/function/method chunks via the TypeScript compiler API when available; heuristic fallback otherwise.
+- Signatures: params + return annotations from AST when possible, signature text fallback.
+- Modifiers: async/static/visibility/export extracted from signatures.
+- Inheritance: extends/implements from AST (fallback to signature parsing).
+- Dataflow: heuristic reads/writes/mutations/aliases/throws/returns/awaits/yields per function.
+- Control-flow: keyword counts (branches/loops/returns/breaks/continues/throws/awaits/yields).
+- Type inference: tooling-based types from the TypeScript compiler when enabled.
+
 ### Python (stdlib ast)
 - Declarations: function/method/class chunks via AST.
 - Signatures: full args (positional, keyword-only, varargs), defaults, return type annotations.
