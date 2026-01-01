@@ -126,6 +126,16 @@ const actions = [
     covers: []
   },
   {
+    label: 'type-inference-clangd-provider-no-clangd',
+    run: () => runNode('type-inference-clangd-provider-no-clangd', path.join(root, 'tests', 'type-inference-clangd-provider-no-clangd.js')),
+    covers: []
+  },
+  {
+    label: 'type-inference-sourcekit-provider-no-sourcekit',
+    run: () => runNode('type-inference-sourcekit-provider-no-sourcekit', path.join(root, 'tests', 'type-inference-sourcekit-provider-no-sourcekit.js')),
+    covers: []
+  },
+  {
     label: 'format-fidelity-test',
     run: () => runNode('format-fidelity-test', path.join(root, 'tests', 'format-fidelity.js')),
     covers: ['format-fidelity-test']

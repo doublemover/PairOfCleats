@@ -3,6 +3,8 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { getToolingConfig } from '../../tools/dict-utils.js';
 import { collectLspTypes } from '../tooling/providers/lsp.js';
+import { collectClangdTypes, CLIKE_EXTS } from './tooling/clangd-provider.js';
+import { collectSourcekitTypes, SWIFT_EXTS } from './tooling/sourcekit-provider.js';
 import { collectTypeScriptTypes } from './tooling/typescript-provider.js';
 import { mergeToolingMaps, uniqueTypes } from '../tooling/providers/shared.js';
 
@@ -340,9 +342,7 @@ export async function applyCrossFileInference({
       mergeToolingMaps(toolingTypes, tsResult.typesByChunk);
     }
 
-    const clangdFiles = filterChunksByExt(toolingChunksByFile, [
-      '.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'
-    ]);
+    const clangdFiles = filterChunksByExt(toolingChunksByFile, CLIKE_EXTS);
     if (clangdFiles.size) {
       const clangdConfig = toolingConfig?.clangd || {};
       const compileCommandsDir = resolveCompileCommandsDir(rootDir, clangdConfig);
@@ -355,7 +355,7 @@ export async function applyCrossFileInference({
         if (!compileCommandsDir) {
           log('[index] clangd running in best-effort mode (compile_commands.json not found).');
         }
-        const clangdResult = await collectLspTypes({
+        const clangdResult = await collectClangdTypes({
           rootDir,
           chunksByFile: clangdFiles,
           log,
@@ -367,9 +367,9 @@ export async function applyCrossFileInference({
       }
     }
 
-    const swiftFiles = filterChunksByExt(toolingChunksByFile, ['.swift']);
+    const swiftFiles = filterChunksByExt(toolingChunksByFile, SWIFT_EXTS);
     if (swiftFiles.size) {
-      const swiftResult = await collectLspTypes({
+      const swiftResult = await collectSourcekitTypes({
         rootDir,
         chunksByFile: swiftFiles,
         log,

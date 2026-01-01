@@ -118,7 +118,7 @@ function ensureParityIndexes() {
  * @param {{backend?:string,outPath:string}} params
  * @returns {string[]}
  */
-function buildCompareArgs({ backend, outPath }) {
+function buildCompareArgs({ backend, outPath, buildIndex, buildSqlite }) {
   const args = [
     path.join(scriptRoot, 'tools', 'compare-models.js'),
     '--repo',
@@ -136,8 +136,8 @@ function buildCompareArgs({ backend, outPath }) {
   if (argv.limit) args.push('--limit', String(argv.limit));
   if (argv.mode) args.push('--mode', argv.mode);
   if (!annEnabled) args.push('--no-ann');
-  if (buildEnabled) args.push('--build');
-  if (buildEnabled && backend === 'sqlite') args.push('--build-sqlite');
+  if (buildIndex) args.push('--build');
+  if (buildSqlite) args.push('--build-sqlite');
   if (argv.incremental) args.push('--incremental');
   return args;
 }
@@ -166,8 +166,14 @@ function buildParityArgs({ backend, outPath }) {
   return args;
 }
 
-runNode(buildCompareArgs({ outPath: reportPaths.compareMemory }), 'compare models (memory)');
-runNode(buildCompareArgs({ outPath: reportPaths.compareSqlite, backend: 'sqlite' }), 'compare models (sqlite)');
+runNode(
+  buildCompareArgs({ outPath: reportPaths.compareMemory, buildIndex: buildEnabled, buildSqlite: false }),
+  'compare models (memory)'
+);
+runNode(
+  buildCompareArgs({ outPath: reportPaths.compareSqlite, backend: 'sqlite', buildIndex: false, buildSqlite: buildEnabled }),
+  'compare models (sqlite)'
+);
 
 ensureParityIndexes();
 runNode(buildParityArgs({ backend: 'sqlite', outPath: reportPaths.paritySqlite }), 'parity sqlite');

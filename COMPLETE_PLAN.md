@@ -267,8 +267,15 @@ Work items:
 - [x] Break `build_index.js` into focused modules (discovery/import scan/file processing/posting builders/artifact writers/metrics) to keep growth in check.
 
 ## Deferred / Do Not Surface (status: deferred)
-- [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
+- [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.     
   - Do not prioritize or bring this up unless explicitly requested.
+
+## Draft specs: LSP tooling provider roadmap (status: done)
+Note: Captured for reference; implemented in the current codebase.
+- [x] Draft 1: Shared JSON-RPC framing + reusable LSP client plumbing.
+- [x] Draft 2: Swift tooling detection/install registry (`sourcekit-lsp`).
+- [x] Draft 3: Cross-file inference refactor into tooling providers with ordering fixes.
+- [x] Draft 4: TypeScript Compiler API upgrades (tsconfig-aware + broader coverage).
 
 ## Phase 24: Indexing Core Reliability (status: done)
 - [x] Fix chunk weight wiring (`weightt` typo) and add a regression test for weight effects.

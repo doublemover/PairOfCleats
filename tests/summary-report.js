@@ -29,6 +29,10 @@ const result = spawnSync(
     repoRoot,
     '--models',
     'Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2',
+    '--limit',
+    '5',
+    '--top',
+    '3',
     '--no-ann',
     '--out',
     outPath

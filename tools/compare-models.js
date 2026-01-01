@@ -190,7 +190,9 @@ function runSearch(query, env) {
     backend,
     '-n',
     String(topN),
-    annArg
+    annArg,
+    '--repo',
+    root
   ];
   if (modeArg && modeArg !== 'both') {
     args.push('--mode', modeArg);
@@ -248,9 +250,8 @@ const limit = Math.max(0, parseInt(argv.limit, 10) || 0);
 const selectedQueries = limit > 0 ? queries.slice(0, limit) : queries;
 
 if (sqliteBackend && buildSqlite) {
-  const sqlitePaths = resolveSqlitePaths(root, userConfig);
-  if (!buildIndex && !fs.existsSync(sqlitePaths.codePath) && !fs.existsSync(sqlitePaths.prosePath)) {
-    console.error('SQLite index missing. Use --build or build the indexes first.');
+  if (!buildIndex && !ensureIndex(getModelCacheRoot(models[0]))) {
+    console.error('Index missing. Use --build or build the index first.');
     process.exit(1);
   }
 }
@@ -266,7 +267,7 @@ for (const modelId of models) {
   }
 
   if (buildIndex) {
-    const args = [path.join(scriptRoot, 'build_index.js')];
+    const args = [path.join(scriptRoot, 'build_index.js'), '--repo', root];
     if (buildIncremental) args.push('--incremental');
     if (stubEmbeddings) args.push('--stub-embeddings');
     runCommand(args, env, `build index (${modelId})`);
@@ -276,7 +277,7 @@ for (const modelId of models) {
   }
 
   if (buildSqlite) {
-    const args = [path.join(scriptRoot, 'tools', 'build-sqlite-index.js')];
+    const args = [path.join(scriptRoot, 'tools', 'build-sqlite-index.js'), '--repo', root];
     if (buildIncremental) args.push('--incremental');
     runCommand(args, env, `build sqlite (${modelId})`);
   } else if (sqliteBackend) {
