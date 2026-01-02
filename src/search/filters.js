@@ -64,3 +64,37 @@ export function parseMetaFilters(metaArg, metaJsonArg) {
   }
   return filters.length ? filters : null;
 }
+
+/**
+ * Check whether any search filters are active.
+ * @param {object|null|undefined} filters
+ * @returns {boolean}
+ */
+export function hasActiveFilters(filters) {
+  if (!filters || typeof filters !== 'object') return false;
+  for (const value of Object.values(filters)) {
+    if (value == null) continue;
+    if (typeof value === 'boolean') {
+      if (value) return true;
+      continue;
+    }
+    if (typeof value === 'number') {
+      if (Number.isFinite(value)) return true;
+      continue;
+    }
+    if (typeof value === 'string') {
+      if (value.trim()) return true;
+      continue;
+    }
+    if (Array.isArray(value)) {
+      if (value.length) return true;
+      continue;
+    }
+    if (typeof value === 'object') {
+      if (Object.keys(value).length) return true;
+      continue;
+    }
+    return true;
+  }
+  return false;
+}

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import path from 'node:path';
 import minimist from 'minimist';
 import { loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';

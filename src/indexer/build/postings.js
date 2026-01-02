@@ -27,6 +27,28 @@ export function buildPostings(input) {
     log
   } = input;
 
+  if (!Array.isArray(chunks) || chunks.length === 0) {
+    return {
+      k1: 1.2,
+      b: 0.75,
+      avgChunkLen: 0,
+      totalDocs: 0,
+      trimmedVocab: [],
+      phraseVocab: [],
+      phrasePostings: [],
+      chargramVocab: [],
+      chargramPostings: [],
+      tokenVocab: [],
+      tokenPostingsList: [],
+      avgDocLen: 0,
+      minhashSigs: [],
+      dims: 384,
+      quantizedVectors: [],
+      quantizedDocVectors: [],
+      quantizedCodeVectors: []
+    };
+  }
+
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
   const phraseEnabled = resolvedConfig.enablePhraseNgrams !== false;
   const chargramEnabled = resolvedConfig.enableChargrams !== false;

@@ -1,4 +1,3 @@
-import * as yaml from 'yaml';
 import {
   EXTS_PROSE,
   isCLike,
@@ -283,23 +282,58 @@ function chunkGitHubActions(text) {
   return chunks || [{ start: 0, end: text.length, name: 'workflow', kind: 'ConfigSection', meta: { format: 'github-actions' } }];
 }
 
-function chunkYaml(text, relPath) {
+function parseYamlTopLevelKey(line) {
+  const quoted = line.match(/^(['"])(.+?)\1\s*:/);
+  if (quoted) return quoted[2].trim();
+  const unquoted = line.match(/^([A-Za-z0-9_.-]+)\s*:/);
+  if (unquoted) return unquoted[1].trim();
+  return null;
+}
+
+function chunkYamlTopLevel(text) {
+  const lines = text.split('\n');
+  const headings = [];
+  for (let i = 0; i < lines.length; ++i) {
+    const line = lines[i];
+    if (!line || line.trim().length === 0) continue;
+    if (line.startsWith(' ') || line.startsWith('\t')) continue;
+    const trimmed = line.trim();
+    if (trimmed.startsWith('#') || trimmed === '---' || trimmed === '...') continue;
+    if (trimmed.startsWith('-')) continue;
+    const key = parseYamlTopLevelKey(line);
+    if (key) headings.push({ line: i, title: key });
+  }
+  const chunks = buildChunksFromLineHeadings(text, headings);
+  return chunks && chunks.length
+    ? chunks.map((chunk) => ({
+      ...chunk,
+      kind: 'ConfigSection',
+      meta: { ...(chunk.meta || {}), format: 'yaml', title: chunk.name }
+    }))
+    : null;
+}
+
+function resolveYamlChunkMode(text, context) {
+  const config = context?.yamlChunking || {};
+  const modeRaw = typeof config.mode === 'string' ? config.mode.toLowerCase() : '';
+  const mode = ['auto', 'root', 'top-level'].includes(modeRaw) ? modeRaw : 'auto';
+  const maxBytesRaw = Number(config.maxBytes);
+  const maxBytes = Number.isFinite(maxBytesRaw) ? Math.max(0, Math.floor(maxBytesRaw)) : 200 * 1024;
+  if (mode === 'auto') {
+    return text.length <= maxBytes ? 'top-level' : 'root';
+  }
+  return mode;
+}
+
+function chunkYaml(text, relPath, context) {
   const isWorkflow = relPath ? relPath.replace(/\\\\/g, '/').includes('.github/workflows/') : false;
   if (isWorkflow) return chunkGitHubActions(text);
-  try {
-    const doc = yaml.parse(text);
-    if (doc && typeof doc === 'object' && !Array.isArray(doc)) {
-      const keys = Object.keys(doc);
-      return keys.map((key) => ({
-        start: text.indexOf(key),
-        end: text.length,
-        name: key,
-        kind: 'ConfigSection',
-        meta: { title: key, format: 'yaml' }
-      }));
-    }
-  } catch {}
-  return null;
+  const mode = resolveYamlChunkMode(text, context);
+  if (mode === 'top-level') {
+    const chunks = chunkYamlTopLevel(text);
+    if (chunks && chunks.length) return chunks;
+  }
+  return [{ start: 0, end: text.length, name: 'root', kind: 'ConfigSection', meta: { format: 'yaml' } }];
 }
 
 const CODE_CHUNKERS = [
@@ -330,7 +364,7 @@ const CODE_FORMAT_CHUNKERS = [
   { id: 'xml', match: (ext) => ext === '.xml', chunk: ({ text }) => chunkXml(text) },
   { id: 'dockerfile', match: (ext) => ext === '.dockerfile', chunk: ({ text }) => chunkDockerfile(text) },
   { id: 'makefile', match: (ext) => ext === '.makefile', chunk: ({ text }) => chunkMakefile(text) },
-  { id: 'yaml', match: (ext) => ext === '.yaml' || ext === '.yml', chunk: ({ text, relPath }) => chunkYaml(text, relPath) }
+  { id: 'yaml', match: (ext) => ext === '.yaml' || ext === '.yml', chunk: ({ text, relPath, context }) => chunkYaml(text, relPath, context) }
 ];
 
 const PROSE_CHUNKERS = [

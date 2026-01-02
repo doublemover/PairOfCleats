@@ -45,76 +45,111 @@ export function createSqliteHelpers(options) {
   }
 
   /**
+   * Map a chunk row into the in-memory metadata shape.
+   * @param {object} row
+   * @returns {object}
+   */
+  function mapChunkRow(row) {
+    return {
+      id: row.id,
+      file: row.file,
+      start: row.start,
+      end: row.end,
+      startLine: row.startLine,
+      endLine: row.endLine,
+      ext: row.ext,
+      kind: row.kind,
+      name: row.name,
+      weight: typeof row.weight === 'number' ? row.weight : 1,
+      headline: row.headline,
+      preContext: parseJson(row.preContext, []),
+      postContext: parseJson(row.postContext, []),
+      tokens: parseArrayField(row.tokens),
+      ngrams: parseJson(row.ngrams, []),
+      codeRelations: parseJson(row.codeRelations, null),
+      docmeta: parseJson(row.docmeta, null),
+      stats: parseJson(row.stats, null),
+      complexity: parseJson(row.complexity, null),
+      lint: parseJson(row.lint, null),
+      externalDocs: parseJson(row.externalDocs, null),
+      last_modified: row.last_modified,
+      last_author: row.last_author,
+      churn: row.churn,
+      chunk_authors: parseJson(row.chunk_authors, null)
+    };
+  }
+
+  /**
+   * Fill an array of chunk metadata with rows.
+   * @param {Array<object>} rows
+   * @param {Array<object>} target
+   */
+  function hydrateChunkMeta(rows, target) {
+    for (const row of rows) {
+      target[row.id] = mapChunkRow(row);
+    }
+  }
+
+  /**
    * Load index artifacts from SQLite into in-memory structures.
    * @param {'code'|'prose'} mode
    * @returns {object}
    */
-  function loadIndexFromSqlite(mode) {
+  function loadIndexFromSqlite(mode, options = {}) {
     const db = getDb(mode);
     if (!db) throw new Error('SQLite backend requested but database is not available.');
-    const chunkRows = db.prepare('SELECT * FROM chunks WHERE mode = ? ORDER BY id').all(mode);
+    const includeMinhash = options.includeMinhash !== false;
+    const includeDense = options.includeDense !== false;
+    const includeChunks = options.includeChunks !== false;
+    const includeFilterIndex = options.includeFilterIndex !== false;
     let maxLocalId = -1;
-    for (const row of chunkRows) {
-      if (row.id > maxLocalId) maxLocalId = row.id;
+    let chunkMeta = [];
+    if (includeChunks) {
+      const chunkRows = db.prepare('SELECT * FROM chunks WHERE mode = ? ORDER BY id').all(mode);
+      for (const row of chunkRows) {
+        if (row.id > maxLocalId) maxLocalId = row.id;
+      }
+      chunkMeta = maxLocalId >= 0 ? Array.from({ length: maxLocalId + 1 }) : [];
+      hydrateChunkMeta(chunkRows, chunkMeta);
+    } else {
+      const maxRow = db.prepare('SELECT MAX(id) as maxId FROM chunks WHERE mode = ?').get(mode);
+      maxLocalId = Number.isFinite(maxRow?.maxId) ? maxRow.maxId : -1;
+      chunkMeta = maxLocalId >= 0 ? Array.from({ length: maxLocalId + 1 }) : [];
     }
 
-    const chunkMeta = maxLocalId >= 0 ? Array.from({ length: maxLocalId + 1 }) : [];
-    for (const row of chunkRows) {
-      chunkMeta[row.id] = {
-        id: row.id,
-        file: row.file,
-        start: row.start,
-        end: row.end,
-        startLine: row.startLine,
-        endLine: row.endLine,
-        ext: row.ext,
-        kind: row.kind,
-        name: row.name,
-        weight: typeof row.weight === 'number' ? row.weight : 1,
-        headline: row.headline,
-        preContext: parseJson(row.preContext, []),
-        postContext: parseJson(row.postContext, []),
-        tokens: parseArrayField(row.tokens),
-        ngrams: parseJson(row.ngrams, []),
-        codeRelations: parseJson(row.codeRelations, null),
-        docmeta: parseJson(row.docmeta, null),
-        stats: parseJson(row.stats, null),
-        complexity: parseJson(row.complexity, null),
-        lint: parseJson(row.lint, null),
-        externalDocs: parseJson(row.externalDocs, null),
-        last_modified: row.last_modified,
-        last_author: row.last_author,
-        churn: row.churn,
-        chunk_authors: parseJson(row.chunk_authors, null)
-      };
+    let minhash = null;
+    if (includeMinhash) {
+      const signatures = Array.from({ length: chunkMeta.length });
+      const sigStmt = db.prepare('SELECT doc_id, sig FROM minhash_signatures WHERE mode = ? ORDER BY doc_id');
+      for (const row of sigStmt.iterate(mode)) {
+        signatures[row.doc_id] = unpackUint32(row.sig);
+      }
+      minhash = signatures.length ? { signatures } : null;
     }
 
-    const signatures = Array.from({ length: chunkMeta.length });
-    const sigStmt = db.prepare('SELECT doc_id, sig FROM minhash_signatures WHERE mode = ? ORDER BY doc_id');
-    for (const row of sigStmt.iterate(mode)) {
-      signatures[row.doc_id] = unpackUint32(row.sig);
+    let denseVec = null;
+    if (includeDense) {
+      const denseMeta = db.prepare('SELECT dims, scale, model FROM dense_meta WHERE mode = ?').get(mode) || {};
+      const vectors = Array.from({ length: chunkMeta.length });
+      const denseStmt = db.prepare('SELECT doc_id, vector FROM dense_vectors WHERE mode = ? ORDER BY doc_id');
+      for (const row of denseStmt.iterate(mode)) {
+        vectors[row.doc_id] = row.vector;
+      }
+      const fallbackVec = vectors.find((vec) => vec && vec.length);
+      denseVec = vectors.length ? {
+        model: denseMeta.model || modelIdDefault,
+        dims: denseMeta.dims || (fallbackVec ? fallbackVec.length : 0),
+        scale: typeof denseMeta.scale === 'number' ? denseMeta.scale : 1.0,
+        vectors
+      } : null;
     }
-    const minhash = signatures.length ? { signatures } : null;
-
-    const denseMeta = db.prepare('SELECT dims, scale, model FROM dense_meta WHERE mode = ?').get(mode) || {};
-    const vectors = Array.from({ length: chunkMeta.length });
-    const denseStmt = db.prepare('SELECT doc_id, vector FROM dense_vectors WHERE mode = ? ORDER BY doc_id');
-    for (const row of denseStmt.iterate(mode)) {
-      vectors[row.doc_id] = row.vector;
-    }
-    const fallbackVec = vectors.find((vec) => vec && vec.length);
-    const denseVec = vectors.length ? {
-      model: denseMeta.model || modelIdDefault,
-      dims: denseMeta.dims || (fallbackVec ? fallbackVec.length : 0),
-      scale: typeof denseMeta.scale === 'number' ? denseMeta.scale : 1.0,
-      vectors
-    } : null;
 
     return {
       chunkMeta,
       denseVec,
       minhash,
-      filterIndex: buildFilterIndex(chunkMeta)
+      filterIndex: includeFilterIndex ? buildFilterIndex(chunkMeta) : null,
+      loadChunkMetaByIds
     };
   }
 
@@ -130,6 +165,30 @@ export function createSqliteHelpers(options) {
       chunks.push(items.slice(i, i + size));
     }
     return chunks;
+  }
+
+  /**
+   * Load chunk metadata rows for a list of ids.
+   * @param {'code'|'prose'} mode
+   * @param {number[]} ids
+   * @param {Array<object>|null} target
+   * @returns {Array<object>}
+   */
+  function loadChunkMetaByIds(mode, ids, target = null) {
+    const db = getDb(mode);
+    if (!db || !ids || !ids.length) return target || [];
+    const unique = Array.from(new Set(ids.filter((id) => Number.isFinite(id))));
+    if (!unique.length) return target || [];
+    const out = target || [];
+    for (const chunk of chunkArray(unique)) {
+      const placeholders = chunk.map(() => '?').join(',');
+      const stmt = db.prepare(
+        `SELECT * FROM chunks WHERE mode = ? AND id IN (${placeholders})`
+      );
+      const rows = stmt.all(mode, ...chunk);
+      hydrateChunkMeta(rows, out);
+    }
+    return out;
   }
 
   /**
@@ -350,7 +409,11 @@ export function createSqliteHelpers(options) {
     const ftsQuery = queryTokens.join(' ');
     const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights);
     const rows = db.prepare(
-      `SELECT rowid AS id, ${bm25Expr} AS score FROM chunks_fts WHERE chunks_fts MATCH ? AND mode = ? ORDER BY score ASC, rowid ASC LIMIT ?`
+      `SELECT chunks_fts.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
+       FROM chunks_fts
+       JOIN chunks ON chunks.id = chunks_fts.rowid
+       WHERE chunks_fts MATCH ? AND chunks.mode = ?
+       ORDER BY score ASC, chunks_fts.rowid ASC LIMIT ?`
     ).all(ftsQuery, mode, topN);
     const rawScores = rows.map((row) => -row.score);
     let min = 0;
@@ -362,8 +425,10 @@ export function createSqliteHelpers(options) {
     const hits = [];
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      if (row.id < 0 || row.id >= idx.chunkMeta.length) continue;
-      const weight = idx.chunkMeta[row.id]?.weight || 1;
+      if (row.id == null || row.id < 0) continue;
+      const weight = typeof row.weight === 'number'
+        ? row.weight
+        : (idx.chunkMeta?.[row.id]?.weight || 1);
       const raw = rawScores[i];
       const normalized = normalizeScores
         ? (max > min ? (raw - min) / (max - min) : 1)

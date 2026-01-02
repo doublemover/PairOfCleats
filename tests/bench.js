@@ -5,7 +5,8 @@ import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import { getRuntimeConfig, loadUserConfig, resolveNodeOptions } from '../tools/dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
+const rawArgs = process.argv.slice(2);
+const argv = minimist(rawArgs, {
   boolean: ['ann', 'no-ann', 'json', 'write-report', 'build', 'build-index', 'build-sqlite', 'incremental', 'stub-embeddings'],
   string: ['queries', 'backend', 'out', 'bm25-k1', 'bm25-b', 'fts-profile', 'fts-weights', 'repo'],
   alias: { n: 'top', q: 'queries' },
@@ -43,7 +44,8 @@ if (!queries.length) {
 const topN = Math.max(1, parseInt(argv.top, 10) || 5);
 const limit = Math.max(0, parseInt(argv.limit, 10) || 0);
 const selectedQueries = limit > 0 ? queries.slice(0, limit) : queries;
-const annEnabled = argv.ann !== false;
+const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
+const annEnabled = annFlagPresent ? argv.ann === true : true;
 const annArg = annEnabled ? '--ann' : '--no-ann';
 const jsonOutput = argv.json === true;
 const bm25K1Arg = argv['bm25-k1'];
@@ -64,7 +66,8 @@ const buildSqlite = argv['build-sqlite'] || argv.build;
 if (buildSqlite && !buildIndex) buildIndex = true;
 const buildIncremental = argv.incremental === true;
 const stubEmbeddings = argv['stub-embeddings'] === true;
-const runtimeConfig = getRuntimeConfig(root, loadUserConfig(root));
+const runtimeRoot = repoArg || root;
+const runtimeConfig = getRuntimeConfig(runtimeRoot, loadUserConfig(runtimeRoot));
 const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
 const baseEnv = resolvedNodeOptions
   ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }

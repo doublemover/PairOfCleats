@@ -15,12 +15,15 @@ export function writeFramedJsonRpc(outputStream, payload) {
 
 /**
  * Create a framed JSON-RPC parser for Content-Length-delimited payloads.
- * @param {{onMessage?:(msg:object)=>void,onError?:(err:Error)=>void}} input
+ * @param {{onMessage?:(msg:object)=>void,onError?:(err:Error)=>void,maxBufferBytes?:number}} input
  * @returns {{push:(chunk:Buffer|string)=>void}}
  */
-export function createFramedJsonRpcParser({ onMessage, onError } = {}) {
+export function createFramedJsonRpcParser({ onMessage, onError, maxBufferBytes } = {}) {
   const handleMessage = typeof onMessage === 'function' ? onMessage : () => {};
   const handleError = typeof onError === 'function' ? onError : () => {};
+  const maxBuffer = Number.isFinite(Number(maxBufferBytes))
+    ? Math.max(0, Number(maxBufferBytes))
+    : 8 * 1024 * 1024;
   let buffer = Buffer.alloc(0);
 
   const parse = () => {
@@ -58,7 +61,16 @@ export function createFramedJsonRpcParser({ onMessage, onError } = {}) {
     push(chunk) {
       if (!chunk || chunk.length === 0) return;
       const next = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      buffer = Buffer.concat([buffer, next]);
+      if (maxBuffer && buffer.length + next.length > maxBuffer) {
+        handleError(new Error('JSON-RPC buffer exceeded maximum size.'));
+        buffer = Buffer.alloc(0);
+        return;
+      }
+      if (buffer.length === 0) {
+        buffer = next;
+      } else {
+        buffer = Buffer.concat([buffer, next], buffer.length + next.length);
+      }
       parse();
     }
   };

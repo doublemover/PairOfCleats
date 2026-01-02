@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import minimist from 'minimist';
 import { runCommand, runCommandOrExit } from './cli-utils.js';
-import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getToolingConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
+import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot } from './dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
 const argv = minimist(process.argv.slice(2), {
@@ -37,6 +37,11 @@ if (argv['validate-config'] && fs.existsSync(configPath)) {
 }
 
 const userConfig = loadUserConfig(root);
+const runtimeConfig = getRuntimeConfig(root, userConfig);
+const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+const baseEnv = resolvedNodeOptions
+  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
+  : process.env;
 const vectorExtension = getVectorExtensionConfig(root, userConfig);
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const incrementalCacheRoot = path.join(repoCacheRoot, 'incremental');
@@ -54,7 +59,7 @@ let restoredArtifacts = false;
  * @param {string} label
  */
 function run(cmd, args, label) {
-  runCommandOrExit(label || cmd, cmd, args, { cwd: root, stdio: 'inherit' });
+  runCommandOrExit(label || cmd, cmd, args, { cwd: root, stdio: 'inherit', env: baseEnv });
 }
 
 if (!argv['skip-install']) {
@@ -92,7 +97,7 @@ if (!argv['skip-tooling']) {
   const detectResult = runCommand(
     process.execPath,
     [path.join('tools', 'tooling-detect.js'), '--root', root, '--json'],
-    { cwd: root, encoding: 'utf8', stdio: 'pipe' }
+    { cwd: root, encoding: 'utf8', stdio: 'pipe', env: baseEnv }
   );
   if (detectResult.status === 0 && detectResult.stdout) {
     try {
@@ -119,7 +124,7 @@ if (!argv['skip-artifacts'] && fs.existsSync(path.join(artifactsDir, 'manifest.j
   const result = runCommand(
     process.execPath,
     [path.join('tools', 'ci-restore-artifacts.js'), '--from', artifactsDir],
-    { cwd: root, stdio: 'inherit' }
+    { cwd: root, stdio: 'inherit', env: baseEnv }
   );
   restoredArtifacts = result.ok;
 }

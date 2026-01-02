@@ -118,14 +118,20 @@ function jaccard(sigA, sigB) {
  * @param {number} topN
  * @returns {Array<{idx:number,sim:number}>}
  */
-export function rankMinhash(idx, tokens, topN) {
+export function rankMinhash(idx, tokens, topN, candidateSet = null) {
   if (!idx.minhash?.signatures?.length) return [];
+  if (!Array.isArray(tokens) || !tokens.length) return [];
   const qSig = minhashSigForTokens(tokens);
-  const scored = idx.minhash.signatures
-    .map((sig, i) => ({ idx: i, sim: jaccard(qSig, sig) }))
+  const ids = candidateSet ? Array.from(candidateSet) : idx.minhash.signatures.map((_, i) => i);
+  const scored = [];
+  for (const id of ids) {
+    const sig = idx.minhash.signatures[id];
+    if (!sig) continue;
+    scored.push({ idx: id, sim: jaccard(qSig, sig) });
+  }
+  return scored
     .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
     .slice(0, topN);
-  return scored;
 }
 
 /**

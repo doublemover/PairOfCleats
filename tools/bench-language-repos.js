@@ -59,11 +59,7 @@ const reposRoot = path.resolve(argv.root || path.join(scriptRoot, 'benchmarks', 
 const cacheRoot = path.resolve(argv['cache-root'] || path.join(scriptRoot, 'benchmarks', 'cache'));
 const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));
 const logPath = path.resolve(argv.log || path.join(resultsRoot, 'bench-language.log'));
-const runtimeConfig = getRuntimeConfig(scriptRoot, loadUserConfig(scriptRoot));
-const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
-const baseEnv = resolvedNodeOptions
-  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
-  : { ...process.env };
+const baseEnv = { ...process.env };
 
 const cloneEnabled = argv['no-clone'] ? false : argv.clone !== false;
 const dryRun = argv['dry-run'] === true;
@@ -220,7 +216,7 @@ function killProcessTree(pid) {
       spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
       return;
     }
-    process.kill(-pid, 'SIGTERM');
+    process.kill(pid, 'SIGTERM');
   } catch {}
 }
 
@@ -431,6 +427,15 @@ async function runProcess(label, cmd, args, options = {}) {
     child.stderr.on('data', (chunk) => handleChunk(chunk, 'stderr'));
     child.on('error', (err) => {
       writeLog(`[error] ${label} spawn failed: ${err?.message || err}`);
+      clearActiveChild(child);
+      console.error(`Failed: ${label}`);
+      if (logHistory.length) {
+        console.error('Last log lines:');
+        logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));
+        logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));
+      }
+      logExit('failure', 1);
+      process.exit(1);
     });
     child.on('close', (code) => {
       if (carry.stdout) appendLog(carry.stdout);
@@ -661,6 +666,13 @@ for (const task of tasks) {
     }
   }
 
+  const repoUserConfig = loadUserConfig(repoPath);
+  const repoRuntimeConfig = getRuntimeConfig(repoPath, repoUserConfig);
+  const repoNodeOptions = resolveNodeOptions(repoRuntimeConfig, baseEnv.NODE_OPTIONS || '');
+  const repoEnvBase = repoNodeOptions
+    ? { ...baseEnv, NODE_OPTIONS: repoNodeOptions }
+    : { ...baseEnv };
+
   const outDir = path.join(resultsRoot, task.language);
   const outFile = path.join(outDir, `${task.repo.replace('/', '__')}.json`);
   await fsPromises.mkdir(outDir, { recursive: true });
@@ -723,7 +735,7 @@ for (const task of tasks) {
     await runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
       cwd: scriptRoot,
       env: {
-        ...baseEnv,
+        ...repoEnvBase,
         PAIROFCLEATS_CACHE_ROOT: cacheRoot,
         PAIROFCLEATS_PROGRESS_FILES: '1'
       }

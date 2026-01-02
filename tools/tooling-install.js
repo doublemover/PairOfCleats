@@ -19,7 +19,9 @@ const allowFallback = argv['no-fallback'] ? false : toolingConfig.allowGlobalFal
 const languageOverride = normalizeLanguageList(argv.languages);
 const toolOverride = normalizeLanguageList(argv.tools);
 
-const report = await buildToolingReport(root, languageOverride);
+const report = toolOverride.length
+  ? { languages: {}, formats: {} }
+  : await buildToolingReport(root, languageOverride, { skipScan: languageOverride.length > 0 });
 const languageList = languageOverride.length ? languageOverride : Object.keys(report.languages || {});
 const tools = toolOverride.length
   ? resolveToolsById(toolOverride, toolingConfig.dir, root)

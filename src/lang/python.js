@@ -1014,14 +1014,15 @@ export function buildPythonHeuristicChunks(text) {
   const lines = text.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const match = line.match(/^([ \t]*)(class|def)\s+([A-Za-z_][A-Za-z0-9_]*)/);
+    const match = line.match(/^([ \t]*)(async\s+)?(class|def)\s+([A-Za-z_][A-Za-z0-9_]*)/);
     if (!match) continue;
     const indent = indentValue(match[1]);
+    const isAsync = Boolean(match[2]);
     while (classStack.length && indent <= classStack[classStack.length - 1].indent) {
       classStack.pop();
     }
-    const kind = match[2] === 'class' ? 'ClassDeclaration' : 'FunctionDeclaration';
-    let name = match[3];
+    const kind = match[3] === 'class' ? 'ClassDeclaration' : 'FunctionDeclaration';
+    let name = match[4];
     if (kind === 'ClassDeclaration') {
       classStack.push({ name, indent });
     } else if (classStack.length && indent > classStack[classStack.length - 1].indent) {
@@ -1032,7 +1033,8 @@ export function buildPythonHeuristicChunks(text) {
       startLine: i + 1,
       indent,
       name,
-      kind
+      kind,
+      async: kind === 'FunctionDeclaration' ? isAsync : false
     });
   }
   if (defs.length) {
@@ -1052,7 +1054,7 @@ export function buildPythonHeuristicChunks(text) {
         end,
         name: current.name,
         kind: current.kind,
-        meta: { startLine: current.startLine, endLine }
+        meta: { startLine: current.startLine, endLine, async: current.async || false }
       });
     }
     return chunks;

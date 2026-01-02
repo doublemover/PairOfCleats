@@ -14,7 +14,9 @@ const explicitRoot = argv.root || argv.repo;
 const root = explicitRoot ? path.resolve(explicitRoot) : resolveRepoRoot(process.cwd());
 const languageOverride = normalizeLanguageList(argv.languages);
 
-const report = await buildToolingReport(root, languageOverride);
+const report = await buildToolingReport(root, languageOverride, {
+  skipScan: languageOverride.length > 0
+});
 
 if (argv.json) {
   console.log(JSON.stringify(report, null, 2));

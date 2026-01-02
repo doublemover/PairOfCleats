@@ -1,4 +1,5 @@
 import { filterChunks } from './output.js';
+import { hasActiveFilters } from './filters.js';
 import { rankBM25, rankDenseVectors, rankMinhash } from './rankers.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
 
@@ -21,8 +22,11 @@ export function createSearchPipeline(context) {
     phraseNgramSet,
     phraseRange,
     filters,
+    filtersActive,
     topN,
     annEnabled,
+    scoreBlend,
+    minhashMaxDocs,
     vectorAnnState,
     vectorAnnUsed,
     buildCandidateSetSqlite,
@@ -30,6 +34,16 @@ export function createSearchPipeline(context) {
     rankSqliteFts,
     rankVectorAnnSqlite
   } = context;
+  const blendEnabled = scoreBlend?.enabled === true;
+  const blendSparseWeight = Number.isFinite(Number(scoreBlend?.sparseWeight))
+    ? Number(scoreBlend.sparseWeight)
+    : 1;
+  const blendAnnWeight = Number.isFinite(Number(scoreBlend?.annWeight))
+    ? Number(scoreBlend.annWeight)
+    : 1;
+  const minhashLimit = Number.isFinite(Number(minhashMaxDocs)) && Number(minhashMaxDocs) > 0
+    ? Number(minhashMaxDocs)
+    : null;
 
   /**
    * Build a candidate set from file-backed indexes (or SQLite).
@@ -102,10 +116,13 @@ export function createSearchPipeline(context) {
   return function runSearch(idx, mode, queryEmbedding) {
     const meta = idx.chunkMeta;
     const sqliteEnabledForMode = useSqlite && (mode === 'code' || mode === 'prose');
+    const filtersEnabled = typeof filtersActive === 'boolean'
+      ? filtersActive
+      : hasActiveFilters(filters);
 
     // Filtering
-    const filteredMeta = filterChunks(meta, filters, idx.filterIndex);
-    const allowedIdx = new Set(filteredMeta.map((c) => c.id));
+    const filteredMeta = filtersEnabled ? filterChunks(meta, filters, idx.filterIndex) : meta;
+    const allowedIdx = filtersEnabled ? new Set(filteredMeta.map((c) => c.id)) : null;
 
     const searchTopN = Math.max(1, Number(topN) || 1);
     const expandedTopN = searchTopN * 3;
@@ -148,9 +165,22 @@ export function createSearchPipeline(context) {
         if (annHits.length) annSource = 'dense';
       }
       if (!annHits.length) {
-        annHits = rankMinhash(idx, queryTokens, expandedTopN);
-        if (annHits.length) annSource = 'minhash';
+        const minhashCandidates = candidates || (bmHits.length ? new Set(bmHits.map((h) => h.idx)) : null);
+        const minhashTotal = minhashCandidates ? minhashCandidates.size : (idx.minhash?.signatures?.length || 0);
+        const allowMinhash = minhashTotal > 0 && (!minhashLimit || minhashTotal <= minhashLimit);
+        if (allowMinhash) {
+          annHits = rankMinhash(idx, queryTokens, expandedTopN, minhashCandidates);
+          if (annHits.length) annSource = 'minhash';
+        }
       }
+    }
+
+    if (idx.loadChunkMetaByIds) {
+      const idsToLoad = new Set();
+      bmHits.forEach((h) => idsToLoad.add(h.idx));
+      annHits.forEach((h) => idsToLoad.add(h.idx));
+      const missing = Array.from(idsToLoad).filter((id) => !meta[id]);
+      if (missing.length) idx.loadChunkMetaByIds(mode, missing, meta);
     }
 
     // Combine and dedup
@@ -167,20 +197,50 @@ export function createSearchPipeline(context) {
       recordHit(h.idx, { ann: h.sim, annSource });
     });
 
+    const sparseMaxScore = bmHits.length
+      ? Math.max(...bmHits.map((hit) => (hit.score ?? hit.sim ?? 0)))
+      : null;
     const scored = [...allHits.entries()]
-      .filter(([idxVal]) => allowedIdx.has(idxVal))
+      .filter(([idxVal]) => !allowedIdx || allowedIdx.has(idxVal))
       .map(([idxVal, scores]) => {
         const sparseScore = scores.fts ?? scores.bm25 ?? null;
         const annScore = scores.ann ?? null;
         const sparseTypeValue = scores.fts != null ? 'fts' : (scores.bm25 != null ? 'bm25' : null);
         let scoreType = null;
         let score = null;
-        if (annScore != null && (sparseScore == null || annScore > sparseScore)) {
-          scoreType = 'ann';
-          score = annScore;
+        let blendInfo = null;
+        if (blendEnabled && (sparseScore != null || annScore != null)) {
+          const sparseMax = sparseScore != null
+            ? Math.max(sparseScore, sparseMaxScore || 0)
+            : 0;
+          const normalizedSparse = sparseScore != null && sparseMax > 0
+            ? sparseScore / sparseMax
+            : null;
+          const clippedAnn = annScore != null
+            ? Math.max(-1, Math.min(1, annScore))
+            : null;
+          const normalizedAnn = clippedAnn != null ? (clippedAnn + 1) / 2 : null;
+          const activeSparseWeight = normalizedSparse != null ? blendSparseWeight : 0;
+          const activeAnnWeight = normalizedAnn != null ? blendAnnWeight : 0;
+          const weightSum = activeSparseWeight + activeAnnWeight;
+          const blended = weightSum > 0
+            ? ((normalizedSparse ?? 0) * activeSparseWeight + (normalizedAnn ?? 0) * activeAnnWeight) / weightSum
+            : 0;
+          scoreType = 'blend';
+          score = blended;
+          blendInfo = {
+            score: blended,
+            sparseNormalized: normalizedSparse,
+            annNormalized: normalizedAnn,
+            sparseWeight: activeSparseWeight,
+            annWeight: activeAnnWeight
+          };
         } else if (sparseScore != null) {
           scoreType = sparseTypeValue;
           score = sparseScore;
+        } else if (annScore != null) {
+          scoreType = 'ann';
+          score = annScore;
         } else {
           scoreType = 'none';
           score = 0;
@@ -218,6 +278,7 @@ export function createSearchPipeline(context) {
             boost: phraseBoost,
             factor: phraseFactor
           } : null,
+          blend: blendInfo,
           selected: {
             type: scoreType,
             score

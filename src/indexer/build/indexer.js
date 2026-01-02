@@ -76,6 +76,7 @@ export async function buildIndexForMode({ mode, runtime }) {
   const { processFile } = createFileProcessor({
     root: runtime.root,
     mode,
+    dictConfig: runtime.dictConfig,
     dictWords: runtime.dictWords,
     languageOptions: runtime.languageOptions,
     postingsConfig: runtime.postingsConfig,
@@ -90,20 +91,8 @@ export async function buildIndexForMode({ mode, runtime }) {
   });
 
   let processedFiles = 0;
-  const fileResults = await runWithConcurrency(allFiles, runtime.fileConcurrency, async (abs, fileIndex) => {
-    if (showFileProgress) {
-      const rel = toPosix(path.relative(runtime.root, abs));
-      logLine(`File ${fileIndex + 1}/${allFiles.length} ${rel}`);
-    }
-    const result = await processFile(abs, fileIndex);
-    processedFiles += 1;
-    showProgress('Files', processedFiles, allFiles.length);
-    return result;
-  });
-  showProgress('Files', allFiles.length, allFiles.length);
-
-  for (const result of fileResults) {
-    if (!result) continue;
+  const handleFileResult = (result) => {
+    if (!result) return;
     for (const chunk of result.chunks) {
       appendChunk(state, { ...chunk }, runtime.postingsConfig);
     }
@@ -112,7 +101,23 @@ export async function buildIndexForMode({ mode, runtime }) {
     if (result.manifestEntry) {
       incrementalState.manifest.files[result.relKey] = result.manifestEntry;
     }
-  }
+  };
+  await runWithConcurrency(
+    allFiles,
+    runtime.fileConcurrency,
+    async (abs, fileIndex) => {
+      if (showFileProgress) {
+        const rel = toPosix(path.relative(runtime.root, abs));
+        logLine(`File ${fileIndex + 1}/${allFiles.length} ${rel}`);
+      }
+      const result = await processFile(abs, fileIndex);
+      processedFiles += 1;
+      showProgress('Files', processedFiles, allFiles.length);
+      return result;
+    },
+    { collectResults: false, onResult: handleFileResult }
+  );
+  showProgress('Files', allFiles.length, allFiles.length);
 
   timing.processMs = Date.now() - processStart;
 

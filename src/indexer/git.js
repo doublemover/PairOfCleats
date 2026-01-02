@@ -1,3 +1,4 @@
+import path from 'node:path';
 import simpleGit from 'simple-git';
 
 const gitMetaCache = new Map();
@@ -6,20 +7,29 @@ const gitMetaCache = new Map();
  * Fetch git metadata for a file/chunk (author, date, churn, blame authors).
  * Returns empty object when git is unavailable or fails.
  * @param {string} file
- * @param {number} [start]
- * @param {number} [end]
- * @param {{blame?:boolean}} [options]
+ * @param {number} [startLine]
+ * @param {number} [endLine]
+ * @param {{blame?:boolean,baseDir?:string}} [options]
  * @returns {Promise<{last_modified?:string,last_author?:string,churn?:number,chunk_authors?:string[]}|{}>}
  */
-export async function getGitMeta(file, start = 0, end = 0, options = {}) {
+export async function getGitMeta(file, startLine = 1, endLine = 1, options = {}) {
   const blameEnabled = options.blame !== false;
-  if (gitMetaCache.has(file)) {
-    const cached = gitMetaCache.get(file);
+  const baseDir = options.baseDir
+    ? path.resolve(options.baseDir)
+    : (path.isAbsolute(file) ? path.dirname(file) : process.cwd());
+  const relFile = path.isAbsolute(file) ? path.relative(baseDir, file) : file;
+  const fileArg = relFile.split(path.sep).join('/');
+  const cacheKey = `${baseDir}::${fileArg}`;
+  const start = Math.max(1, Number.parseInt(startLine, 10) || 1);
+  const end = Math.max(start, Number.parseInt(endLine, 10) || start);
+
+  if (gitMetaCache.has(cacheKey)) {
+    const cached = gitMetaCache.get(cacheKey);
     if (!blameEnabled) return cached;
     let blameData = {};
     try {
-      const git = simpleGit();
-      const blame = await git.raw(['blame', '-L', `${start + 1},${end + 1}`, file]);
+      const git = simpleGit({ baseDir });
+      const blame = await git.raw(['blame', '-L', `${start},${end}`, '--', fileArg]);
       const authors = new Set();
       for (const line of blame.split('\n')) {
         const m = line.match(/^\^?\w+\s+\(([^)]+)\s+\d{4}/);
@@ -34,9 +44,9 @@ export async function getGitMeta(file, start = 0, end = 0, options = {}) {
   }
 
   try {
-    const git = simpleGit();
-    const log = await git.log({ file, n: 10 });
-    const { added, deleted } = await computeNumstatChurn(git, file, log.all.length || 10);
+    const git = simpleGit({ baseDir });
+    const log = await git.log({ file: fileArg, n: 10 });
+    const { added, deleted } = await computeNumstatChurn(git, fileArg, log.all.length || 10);
     const churn = added + deleted;
     const meta = {
       last_modified: log.latest?.date || null,
@@ -46,11 +56,11 @@ export async function getGitMeta(file, start = 0, end = 0, options = {}) {
       churn_deleted: deleted,
       churn_commits: log.all.length || 0
     };
-    gitMetaCache.set(file, meta);
+    gitMetaCache.set(cacheKey, meta);
     let blameData = {};
     if (blameEnabled) {
       try {
-        const blame = await git.raw(['blame', '-L', `${start + 1},${end + 1}`, file]);
+        const blame = await git.raw(['blame', '-L', `${start},${end}`, '--', fileArg]);
         const authors = new Set();
         for (const line of blame.split('\n')) {
           const m = line.match(/^\^?\w+\s+\(([^)]+)\s+\d{4}/);

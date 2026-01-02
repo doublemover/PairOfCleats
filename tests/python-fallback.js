@@ -17,9 +17,10 @@ const chunks = buildPythonHeuristicChunks(text) || [];
 const hasPoint = chunks.some((chunk) => chunk.name === 'Point');
 const hasDistance = chunks.some((chunk) => chunk.name === 'Point.distance');
 const hasOuter = chunks.some((chunk) => chunk.name === 'outer');
+const hasFetch = chunks.some((chunk) => chunk.name === 'fetch_data');
 
-if (!hasPoint || !hasDistance || !hasOuter) {
-  console.error('Python heuristic fallback missing expected chunks (Point, Point.distance, outer).');
+if (!hasPoint || !hasDistance || !hasOuter || !hasFetch) {
+  console.error('Python heuristic fallback missing expected chunks (Point, Point.distance, outer, fetch_data).');
   process.exit(1);
 }
 

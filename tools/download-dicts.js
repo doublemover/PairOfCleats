@@ -50,8 +50,10 @@ function parseUrls(input) {
   const items = Array.isArray(input) ? input : [input];
   const sources = [];
   for (const item of items) {
-    const [name, url] = item.split('=');
-    if (!name || !url) continue;
+    const eq = item.indexOf('=');
+    if (eq <= 0 || eq >= item.length - 1) continue;
+    const name = item.slice(0, eq);
+    const url = item.slice(eq + 1);
     sources.push({ name, url, file: `${name}.txt` });
   }
   return sources;

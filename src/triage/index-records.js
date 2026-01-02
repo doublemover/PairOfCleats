@@ -47,7 +47,7 @@ export async function buildRecordsIndexForRepo({ runtime }) {
     const record = await loadRecordJson(recordsDir, absPath);
     const docmeta = buildDocMeta(record, triageConfig);
 
-    const tokenPayload = tokenizeRecord(text, runtime.dictWords, '.md', postingsConfig);
+    const tokenPayload = tokenizeRecord(text, runtime.dictWords, runtime.dictConfig, '.md', postingsConfig);
     if (!tokenPayload.tokens.length) continue;
 
     const stats = computeTokenStats(tokenPayload.tokens);
@@ -153,7 +153,8 @@ async function listMarkdownFiles(rootDir) {
 
 async function loadRecordJson(recordsDir, mdPath) {
   const base = path.basename(mdPath, '.md');
-  const jsonPath = path.join(recordsDir, `${base}.json`);
+  const dir = path.dirname(mdPath);
+  const jsonPath = path.join(dir, `${base}.json`);
   try {
     const raw = await fs.readFile(jsonPath, 'utf8');
     return JSON.parse(raw);
@@ -172,12 +173,12 @@ function buildDocMeta(record, triageConfig) {
   return docmeta;
 }
 
-function tokenizeRecord(text, dictWords, ext, postingsConfig) {
+function tokenizeRecord(text, dictWords, dictConfig, ext, postingsConfig) {
   let tokens = splitId(text);
   tokens = tokens.map((t) => t.normalize('NFKD'));
 
   if (ext !== '.md') {
-    tokens = tokens.flatMap((t) => splitWordsWithDict(t, dictWords));
+    tokens = tokens.flatMap((t) => splitWordsWithDict(t, dictWords, dictConfig));
   }
 
   tokens = tokens.filter((w) => !STOP.has(w));

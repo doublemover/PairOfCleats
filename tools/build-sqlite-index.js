@@ -782,6 +782,23 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
   const phraseIdMap = ensureVocabIds(db, mode, 'phrase_vocab', 'phrase_id', 'ngram', phraseValues, insertPhraseVocab);
   const chargramIdMap = ensureVocabIds(db, mode, 'chargram_vocab', 'gram_id', 'gram', chargramValues, insertChargramVocab);
 
+  const existingIdsByFile = new Map();
+  const freeDocIds = [];
+  const loadDocIds = (file) => {
+    const normalizedFile = normalizeFilePath(file);
+    const docRows = db.prepare('SELECT id FROM chunks WHERE mode = ? AND file = ? ORDER BY id').all(mode, normalizedFile);
+    const ids = docRows.map((row) => row.id).filter((id) => Number.isFinite(id));
+    existingIdsByFile.set(file, { normalizedFile, ids });
+    return ids;
+  };
+  for (const file of deleted) {
+    const ids = loadDocIds(file);
+    if (ids.length) freeDocIds.push(...ids);
+  }
+  for (const file of changed) {
+    loadDocIds(file);
+  }
+
   const maxRow = db.prepare('SELECT MAX(id) AS maxId FROM chunks WHERE mode = ?').get(mode);
   let nextDocId = Number.isFinite(maxRow?.maxId) ? maxRow.maxId + 1 : 0;
   const denseMetaRow = dbDenseMeta;
@@ -825,24 +842,34 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
 
   const applyChanges = db.transaction(() => {
     for (const file of deleted) {
-      const normalizedFile = normalizeFilePath(file);
-      const docRows = db.prepare('SELECT id FROM chunks WHERE mode = ? AND file = ?').all(mode, normalizedFile);
-      const docIds = docRows.map((row) => row.id);
+      const entry = existingIdsByFile.get(file);
+      const normalizedFile = entry?.normalizedFile || normalizeFilePath(file);
+      const docIds = entry?.ids || [];
       deleteDocIds(db, mode, docIds, vectorDeleteTargets);
       db.prepare('DELETE FROM file_manifest WHERE mode = ? AND file = ?').run(mode, normalizedFile);
     }
 
     for (const file of changed) {
-      const normalizedFile = normalizeFilePath(file);
-      const docRows = db.prepare('SELECT id FROM chunks WHERE mode = ? AND file = ?').all(mode, normalizedFile);
-      const docIds = docRows.map((row) => row.id);
+      const entry = existingIdsByFile.get(file);
+      const normalizedFile = entry?.normalizedFile || normalizeFilePath(file);
+      const reuseIds = entry?.ids || [];
+      const docIds = reuseIds;
+      let reuseIndex = 0;
       deleteDocIds(db, mode, docIds, vectorDeleteTargets);
 
       const bundle = bundles.get(file);
       let chunkCount = 0;
       for (const chunk of bundle.chunks || []) {
-        const docId = nextDocId;
-        nextDocId += 1;
+        let docId;
+        if (reuseIndex < reuseIds.length) {
+          docId = reuseIds[reuseIndex];
+          reuseIndex += 1;
+        } else if (freeDocIds.length) {
+          docId = freeDocIds.pop();
+        } else {
+          docId = nextDocId;
+          nextDocId += 1;
+        }
         const row = buildChunkRow(chunk, mode, docId);
         insertChunk.run(row);
         insertFts.run(row);
@@ -910,6 +937,9 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
 
         chunkCount += 1;
         insertedChunks += 1;
+      }
+      if (reuseIndex < reuseIds.length) {
+        freeDocIds.push(...reuseIds.slice(reuseIndex));
       }
 
       const entry = manifestFiles[file] || {};

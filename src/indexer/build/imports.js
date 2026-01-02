@@ -15,7 +15,10 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
   const start = Date.now();
   let processed = 0;
 
-  await runWithConcurrency(files, importConcurrency, async (absPath) => {
+  await runWithConcurrency(
+    files,
+    importConcurrency,
+    async (absPath) => {
     const rel = path.relative(root, absPath);
     const relKey = toPosix(rel);
     const ext = fileExt(rel);
@@ -39,8 +42,10 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
       allImports[mod].push(relKey);
     }
     processed++;
-    showProgress('Imports', processed, files.length);
-  });
+      showProgress('Imports', processed, files.length);
+    },
+    { collectResults: false }
+  );
 
   showProgress('Imports', files.length, files.length);
   return { allImports, durationMs: Date.now() - start };

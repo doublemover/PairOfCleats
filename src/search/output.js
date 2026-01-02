@@ -2,8 +2,35 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { extractNgrams } from '../shared/tokenize.js';
 
+const resolveCacheLimit = (raw, fallback) => {
+  const parsed = Number(raw);
+  if (Number.isFinite(parsed)) return Math.max(0, Math.floor(parsed));
+  return fallback;
+};
+
+const FILE_CACHE_MAX = resolveCacheLimit(process.env.PAIROFCLEATS_FILE_CACHE_MAX, 100);
+const SUMMARY_CACHE_MAX = resolveCacheLimit(process.env.PAIROFCLEATS_SUMMARY_CACHE_MAX, 2000);
+
 const fileTextCache = new Map();
 const summaryCache = new Map();
+
+const getBoundedCache = (cache, key) => {
+  if (!cache.has(key)) return null;
+  const value = cache.get(key);
+  cache.delete(key);
+  cache.set(key, value);
+  return value;
+};
+
+const setBoundedCache = (cache, key, value, maxEntries) => {
+  if (maxEntries <= 0) return;
+  if (cache.has(key)) cache.delete(key);
+  cache.set(key, value);
+  if (cache.size > maxEntries) {
+    const oldestKey = cache.keys().next().value;
+    cache.delete(oldestKey);
+  }
+};
 
 /**
  * Filter chunk metadata by search constraints.
@@ -89,6 +116,8 @@ export function filterChunks(meta, filters = {}, filterIndex = null) {
       return value;
     })
     .filter(Boolean);
+  const typeNeedles = normalizeList(type).map(normalize);
+  const authorNeedles = normalizeList(author).map(normalize);
   const metaFilters = Array.isArray(metaFilter) ? metaFilter : (metaFilter ? [metaFilter] : []);
   const excludeNeedles = normalizeList(excludeTokens).map(normalize);
   const excludePhraseNeedles = normalizeList(excludePhrases).map(normalize);
@@ -107,6 +136,14 @@ export function filterChunks(meta, filters = {}, filterIndex = null) {
     if (!needle) return matches;
     for (const [key, set] of map.entries()) {
       if (!key.includes(needle)) continue;
+      for (const id of set) matches.add(id);
+    }
+    return matches;
+  };
+  const collectAnySubstringMatches = (map, values) => {
+    const matches = new Set();
+    for (const value of values) {
+      const set = collectSubstringMatches(map, value);
       for (const id of set) matches.add(id);
     }
     return matches;
@@ -191,12 +228,11 @@ export function filterChunks(meta, filters = {}, filterIndex = null) {
     if (extNeedles.length && filterIndex.byExt) {
       indexedSets.push(collectExactMatches(filterIndex.byExt, extNeedles));
     }
-    if (type && filterIndex.byKind) {
-      const typeNeedles = normalizeList(type).map(normalize);
+    if (typeNeedles.length && filterIndex.byKind) {
       indexedSets.push(collectExactMatches(filterIndex.byKind, typeNeedles));
     }
-    if (author && filterIndex.byAuthor) {
-      indexedSets.push(collectSubstringMatches(filterIndex.byAuthor, normalize(author)));
+    if (authorNeedles.length && filterIndex.byAuthor) {
+      indexedSets.push(collectAnySubstringMatches(filterIndex.byAuthor, authorNeedles));
     }
     if (chunkAuthor && filterIndex.byChunkAuthor) {
       indexedSets.push(collectSubstringMatches(filterIndex.byChunkAuthor, normalize(chunkAuthor)));
@@ -245,8 +281,22 @@ export function filterChunks(meta, filters = {}, filterIndex = null) {
       const lastModified = c.last_modified ? Date.parse(c.last_modified) : NaN;
       if (!Number.isFinite(lastModified) || lastModified < modifiedAfter) return false;
     }
-    if (type && c.kind && c.kind.toLowerCase() !== type.toLowerCase()) return false;
-    if (author && c.last_author && !c.last_author.toLowerCase().includes(author.toLowerCase())) return false;
+    if (typeNeedles.length) {
+      const kindValue = c.kind;
+      if (!kindValue) return false;
+      const kinds = Array.isArray(kindValue) ? kindValue : [kindValue];
+      const matches = kinds.some((entry) => typeNeedles.includes(normalize(entry)));
+      if (!matches) return false;
+    }
+    if (authorNeedles.length) {
+      const authorValue = c.last_author;
+      if (!authorValue) return false;
+      const authors = Array.isArray(authorValue) ? authorValue : [authorValue];
+      const matches = authorNeedles.some((needle) =>
+        authors.some((entry) => normalize(entry).includes(needle))
+      );
+      if (!matches) return false;
+    }
     if (chunkAuthor && !matchList(c.chunk_authors, chunkAuthor)) return false;
     if (importName && c.codeRelations && c.codeRelations.imports) {
       if (!c.codeRelations.imports.includes(importName)) return false;
@@ -379,17 +429,20 @@ function getBodySummary(rootDir, chunk, maxWords = 80) {
   try {
     const absPath = path.join(rootDir, chunk.file);
     const cacheKey = `${absPath}:${chunk.start}:${chunk.end}:${maxWords}`;
-    if (summaryCache.has(cacheKey)) return summaryCache.get(cacheKey);
-    let text = fileTextCache.get(absPath);
+    if (SUMMARY_CACHE_MAX > 0) {
+      const cached = getBoundedCache(summaryCache, cacheKey);
+      if (cached) return cached;
+    }
+    let text = FILE_CACHE_MAX > 0 ? getBoundedCache(fileTextCache, absPath) : null;
     if (!text) {
       text = fs.readFileSync(absPath, 'utf8');
-      fileTextCache.set(absPath, text);
+      setBoundedCache(fileTextCache, absPath, text, FILE_CACHE_MAX);
     }
     const chunkText = text.slice(chunk.start, chunk.end)
       .replace(/\s+/g, ' ')
       .trim();
     const words = chunkText.split(/\s+/).slice(0, maxWords).join(' ');
-    summaryCache.set(cacheKey, words);
+    setBoundedCache(summaryCache, cacheKey, words, SUMMARY_CACHE_MAX);
     return words;
   } catch {
     return '(Could not load summary)';
@@ -466,6 +519,20 @@ const formatScoreBreakdown = (scoreBreakdown, color) => {
     if (Number.isFinite(ann.score)) parts.push(`score=${ann.score.toFixed(4)}`);
     if (ann.source) parts.push(`source=${ann.source}`);
     const line = formatExplainLine('ANN', parts, color);
+    if (line) lines.push(line);
+  }
+  const blend = scoreBreakdown.blend || null;
+  if (blend) {
+    const parts = [];
+    if (Number.isFinite(blend.score)) parts.push(`score=${blend.score.toFixed(4)}`);
+    if (Number.isFinite(blend.sparseNormalized)) parts.push(`sparseNorm=${blend.sparseNormalized.toFixed(4)}`);
+    if (Number.isFinite(blend.annNormalized)) parts.push(`annNorm=${blend.annNormalized.toFixed(4)}`);
+    if (Number.isFinite(blend.sparseWeight) || Number.isFinite(blend.annWeight)) {
+      const sparseWeight = Number.isFinite(blend.sparseWeight) ? blend.sparseWeight.toFixed(2) : '0.00';
+      const annWeight = Number.isFinite(blend.annWeight) ? blend.annWeight.toFixed(2) : '0.00';
+      parts.push(`weights=${sparseWeight}/${annWeight}`);
+    }
+    const line = formatExplainLine('Blend', parts, color);
     if (line) lines.push(line);
   }
   const phrase = scoreBreakdown.phrase || null;

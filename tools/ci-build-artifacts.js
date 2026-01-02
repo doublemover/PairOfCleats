@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import simpleGit from 'simple-git';
 import { fileURLToPath } from 'node:url';
-import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
+import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['skip-build', 'skip-sqlite', 'incremental'],
@@ -22,6 +22,11 @@ const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const userConfig = loadUserConfig(root);
+const runtimeConfig = getRuntimeConfig(root, userConfig);
+const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+const baseEnv = resolvedNodeOptions
+  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
+  : process.env;
 const outDir = argv.out ? path.resolve(argv.out) : path.join(root, 'ci-artifacts');
 const codeDir = getIndexDir(root, 'code', userConfig);
 const proseDir = getIndexDir(root, 'prose', userConfig);
@@ -34,7 +39,7 @@ const sqlitePaths = resolveSqlitePaths(root, userConfig);
  * @param {string} label
  */
 function run(cmd, args, label) {
-  const result = spawnSync(cmd, args, { stdio: 'inherit' });
+  const result = spawnSync(cmd, args, { stdio: 'inherit', env: baseEnv });
   if (result.status !== 0) {
     console.error(`Failed: ${label || cmd}`);
     process.exit(result.status ?? 1);

@@ -13,7 +13,9 @@ import {
   getDictConfig,
   getModelConfig,
   getRepoId,
+  getRuntimeConfig,
   loadUserConfig,
+  resolveNodeOptions,
   resolveRepoRoot,
   resolveSqlitePaths
 } from './dict-utils.js';
@@ -30,6 +32,11 @@ const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const userConfig = loadUserConfig(root);
+const runtimeConfig = getRuntimeConfig(root, userConfig);
+const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+const baseEnv = resolvedNodeOptions
+  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
+  : process.env;
 const configCacheRoot = typeof userConfig.cache?.root === 'string' && userConfig.cache.root.trim()
   ? path.resolve(userConfig.cache.root)
   : null;
@@ -125,7 +132,7 @@ function getModelCacheRoot(modelId) {
  */
 function buildEnv(modelId, modelCacheRoot) {
   const env = {
-    ...process.env,
+    ...baseEnv,
     PAIROFCLEATS_MODEL: modelId
   };
   if (modelCacheRoot) env.PAIROFCLEATS_CACHE_ROOT = modelCacheRoot;

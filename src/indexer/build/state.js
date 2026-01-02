@@ -87,7 +87,8 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
     }
   }
 
-  tokens.forEach((t) => state.df.set(t, (state.df.get(t) || 0) + 1));
+  const uniqueTokens = new Set(tokens);
+  uniqueTokens.forEach((t) => state.df.set(t, (state.df.get(t) || 0) + 1));
   chunk.id = chunkId;
   state.chunks.push(chunk);
 }

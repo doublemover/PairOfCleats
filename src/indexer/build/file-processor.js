@@ -26,6 +26,7 @@ export function createFileProcessor(options) {
   const {
     root,
     mode,
+    dictConfig,
     dictWords,
     languageOptions,
     postingsConfig,
@@ -39,6 +40,7 @@ export function createFileProcessor(options) {
     gitBlameEnabled
   } = options;
   const { astDataflowEnabled, controlFlowEnabled } = languageOptions;
+  const dictSplitOptions = dictConfig || {};
   const phraseNgramsEnabled = postingsConfig?.enablePhraseNgrams !== false;
   const chargramsEnabled = postingsConfig?.enableChargrams !== false;
   let phraseMinN = Number.isFinite(Number(postingsConfig?.phraseMinN)) ? Number(postingsConfig.phraseMinN) : 2;
@@ -91,7 +93,8 @@ export function createFileProcessor(options) {
         const base = mod.split('.')[0];
         if (base) externalDocs.push(`https://pypi.org/project/${base}`);
       } else if (isNode) {
-        externalDocs.push(`https://www.npmjs.com/package/${mod.replace(/^@/, '')}`);
+        const encoded = encodeURIComponent(mod).replace(/%2F/g, '/');
+        externalDocs.push(`https://www.npmjs.com/package/${encoded}`);
       } else if (isGoLang) {
         externalDocs.push(`https://pkg.go.dev/${mod}`);
       }
@@ -198,7 +201,10 @@ export function createFileProcessor(options) {
       ext,
       relPath: relKey,
       mode,
-      context: languageContext
+      context: {
+        ...languageContext,
+        yamlChunking: languageOptions?.yamlChunking
+      }
     });
     const fileChunks = [];
 
@@ -210,7 +216,7 @@ export function createFileProcessor(options) {
       tokens = tokens.map((t) => t.normalize('NFKD'));
 
       if (!(mode === 'prose' && ext === '.md')) {
-        tokens = tokens.flatMap((t) => splitWordsWithDict(t, dictWords));
+        tokens = tokens.flatMap((t) => splitWordsWithDict(t, dictWords, dictSplitOptions));
       }
 
       if (mode === 'prose') {
@@ -314,8 +320,11 @@ export function createFileProcessor(options) {
       const entropy = -counts.reduce((e, c) => e + (c / sum) * Math.log2(c / sum), 0);
       const stats = { unique, entropy, sum };
 
-      const embed_doc = await getChunkEmbedding(docmeta.doc || '');
+      const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
       const embed_code = await getChunkEmbedding(ctext);
+      const embed_doc = docText.trim()
+        ? await getChunkEmbedding(docText)
+        : embed_code.map(() => 0);
       const merged = embed_doc.map((v, i) => (v + embed_code[i]) / 2);
       const embedding = normalizeVec(merged);
 
@@ -329,12 +338,14 @@ export function createFileProcessor(options) {
       if (ci > 0) preContext = text.slice(sc[ci - 1].start, sc[ci - 1].end).split('\n').slice(-contextWin);
       if (ci + 1 < sc.length) postContext = text.slice(sc[ci + 1].start, sc[ci + 1].end).split('\n').slice(0, contextWin);
 
-      const gitMeta = await getGitMeta(abs, c.start, c.end, { blame: gitBlameEnabled });
-
-      const externalDocs = buildExternalDocs(ext, codeRelations);
-
       const startLine = c.meta?.startLine || offsetToLine(lineIndex, c.start);
       const endLine = c.meta?.endLine || offsetToLine(lineIndex, c.end);
+      const gitMeta = await getGitMeta(relKey, startLine, endLine, {
+        blame: gitBlameEnabled,
+        baseDir: root
+      });
+
+      const externalDocs = buildExternalDocs(ext, codeRelations);
 
       const chunkPayload = {
         file: relKey,

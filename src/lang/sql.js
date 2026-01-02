@@ -13,10 +13,21 @@ function splitSqlStatements(text) {
   let inDouble = false;
   let inLineComment = false;
   let inBlockComment = false;
+  let dollarTag = null;
+  let delimiter = ';';
 
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     const next = text[i + 1];
+    const lineStart = i === 0 || text[i - 1] === '\n' || text[i - 1] === '\r';
+
+    if (dollarTag) {
+      if (text.startsWith(dollarTag, i)) {
+        i += dollarTag.length - 1;
+        dollarTag = null;
+      }
+      continue;
+    }
 
     if (inLineComment) {
       if (ch === '\n') inLineComment = false;
@@ -41,6 +52,21 @@ function splitSqlStatements(text) {
         continue;
       }
     }
+    if (lineStart && !inSingle && !inDouble && !inLineComment && !inBlockComment) {
+      let j = i;
+      while (j < text.length && (text[j] === ' ' || text[j] === '\t')) j++;
+      if (text.slice(j, j + 9).toLowerCase() === 'delimiter' && /\s/.test(text[j + 9] || '')) {
+        let k = j + 9;
+        while (k < text.length && (text[k] === ' ' || text[k] === '\t')) k++;
+        let endLine = text.indexOf('\n', k);
+        if (endLine === -1) endLine = text.length;
+        const rawDelimiter = text.slice(k, endLine).trim();
+        if (rawDelimiter) delimiter = rawDelimiter;
+        start = Math.max(start, endLine + 1);
+        i = endLine;
+        continue;
+      }
+    }
     if (!inDouble && ch === '\'' && text[i - 1] !== '\\') {
       inSingle = !inSingle;
       continue;
@@ -50,11 +76,26 @@ function splitSqlStatements(text) {
       continue;
     }
 
-    if (!inSingle && !inDouble && ch === ';') {
-      const end = i + 1;
-      const slice = text.slice(start, end);
-      if (slice.trim()) statements.push({ start, end, text: slice });
-      start = end;
+    if (!inSingle && !inDouble) {
+      if (delimiter && text.startsWith(delimiter, i)) {
+        const end = i + delimiter.length;
+        const slice = text.slice(start, end);
+        if (slice.trim()) statements.push({ start, end, text: slice });
+        start = end;
+        i = end - 1;
+        continue;
+      }
+      if (ch === '$') {
+        const end = text.indexOf('$', i + 1);
+        if (end !== -1) {
+          const tag = text.slice(i, end + 1);
+          if (tag === '$$' || /^\$[A-Za-z_][A-Za-z0-9_]*\$$/.test(tag)) {
+            dollarTag = tag;
+            i = end;
+            continue;
+          }
+        }
+      }
     }
   }
   if (start < text.length) {

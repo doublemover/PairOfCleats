@@ -31,7 +31,7 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
 if [ -z "$ROOT" ]; then
   exit 0
 fi
-node "$ROOT/build_index.js" --incremental
+node "$ROOT/bin/pairofcleats.js" build-index --incremental --repo "$ROOT"
 `;
 
 const ensureHooksDir = async () => {

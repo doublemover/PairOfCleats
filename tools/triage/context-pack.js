@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import minimist from 'minimist';
-import { getRepoCacheRoot, getTriageConfig, loadUserConfig, resolveRepoRoot } from '../dict-utils.js';
+import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot } from '../dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: ['stub-embeddings', 'ann'],
@@ -21,6 +21,11 @@ if (!recordId) {
 }
 
 const userConfig = loadUserConfig(repoRoot);
+const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
+const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+const baseEnv = resolvedNodeOptions
+  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
+  : { ...process.env };
 const triageConfig = getTriageConfig(repoRoot, userConfig);
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const recordsDir = triageConfig.recordsDir;
@@ -235,7 +240,7 @@ function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
   }
   if (annFlagPresent && argv.ann === true) args.push('--ann');
   if (annFlagPresent && argv.ann === false) args.push('--no-ann');
-  const env = { ...process.env };
+  const env = { ...baseEnv };
   if (argv['stub-embeddings']) env.PAIROFCLEATS_EMBEDDINGS = 'stub';
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, encoding: 'utf8' });
   if (result.status !== 0) {

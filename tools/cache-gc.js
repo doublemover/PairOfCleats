@@ -84,17 +84,21 @@ if (!fsSync.existsSync(repoRoot)) {
 
 const entries = await fs.readdir(repoRoot, { withFileTypes: true });
 const repos = [];
+const needsSizeScan = maxBytes != null;
 for (const entry of entries) {
   if (!entry.isDirectory()) continue;
   const repoPath = path.join(repoRoot, entry.name);
   const stat = await fs.stat(repoPath);
-  const bytes = await sizeOfPath(repoPath);
-  repos.push({
+  const repo = {
     id: entry.name,
     path: repoPath,
-    bytes,
+    bytes: null,
     mtimeMs: stat.mtimeMs
-  });
+  };
+  if (needsSizeScan) {
+    repo.bytes = await sizeOfPath(repoPath);
+  }
+  repos.push(repo);
 }
 
 const removals = [];
@@ -123,6 +127,14 @@ if (maxBytes != null) {
   }
 }
 
+if (!needsSizeScan && removals.length) {
+  for (const repo of removals) {
+    if (!Number.isFinite(repo.bytes)) {
+      repo.bytes = await sizeOfPath(repo.path);
+    }
+  }
+}
+
 for (const repo of removals) {
   if (isRootPath(repo.path)) {
     console.error(`refusing to delete root path: ${repo.path}`);
@@ -132,8 +144,11 @@ for (const repo of removals) {
   await fs.rm(repo.path, { recursive: true, force: true });
 }
 
-const totalBytes = repos.reduce((sum, repo) => sum + repo.bytes, 0);
-const freedBytes = removals.reduce((sum, repo) => sum + repo.bytes, 0);
+const hasSizeData = repos.some((repo) => Number.isFinite(repo.bytes));
+const totalBytes = hasSizeData
+  ? repos.reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0)
+  : null;
+const freedBytes = removals.reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0);
 const payload = {
   ok: true,
   dryRun,

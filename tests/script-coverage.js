@@ -156,6 +156,21 @@ const actions = [
     covers: ['format-fidelity-test']
   },
   {
+    label: 'chunking-yaml-test',
+    run: () => runNode('chunking-yaml-test', path.join(root, 'tests', 'chunking-yaml.js')),
+    covers: []
+  },
+  {
+    label: 'chunking-sql-lua-test',
+    run: () => runNode('chunking-sql-lua-test', path.join(root, 'tests', 'chunking-sql-lua.js')),
+    covers: []
+  },
+  {
+    label: 'tokenize-dictionary-test',
+    run: () => runNode('tokenize-dictionary-test', path.join(root, 'tests', 'tokenize-dictionary.js')),
+    covers: []
+  },
+  {
     label: 'tooling-lsp-test',
     run: () => runNode('tooling-lsp-test', path.join(root, 'tests', 'tooling-lsp.js')),
     covers: []

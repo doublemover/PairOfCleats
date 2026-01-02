@@ -14,7 +14,9 @@
         "includeSlang": { "type": "boolean" },
         "slangDirs": { "type": "array", "items": { "type": "string" } },
         "slangFiles": { "type": "array", "items": { "type": "string" } },
-        "enableRepoDictionary": { "type": "boolean" }
+        "enableRepoDictionary": { "type": "boolean" },
+        "segmentation": { "type": "string" },
+        "dpMaxTokenLength": { "type": "number" }
       }
     },
     "cache": {
@@ -88,6 +90,16 @@
             "tokens": { "type": "number" }
           }
         },
+        "scoreBlend": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "sparseWeight": { "type": "number" },
+            "annWeight": { "type": "number" }
+          }
+        },
+        "minhashMaxDocs": { "type": "number" },
         "queryCache": {
           "type": "object",
           "additionalProperties": false,
@@ -150,6 +162,8 @@
         "typeInference": { "type": "boolean" },
         "typeInferenceCrossFile": { "type": "boolean" },
         "gitBlame": { "type": "boolean" },
+        "yamlChunking": { "type": "string" },
+        "yamlTopLevelMaxBytes": { "type": "number" },
         "postings": {
           "type": "object",
           "additionalProperties": false,

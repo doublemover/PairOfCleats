@@ -78,11 +78,11 @@ export function parseQueryInput(raw) {
 
 const normalizeToken = (value) => String(value || '').normalize('NFKD');
 
-const expandQueryToken = (raw, dict) => {
+const expandQueryToken = (raw, dict, options) => {
   const normalized = normalizeToken(raw);
   if (!normalized) return [];
   if (normalized.length <= 3 || dict.has(normalized)) return [normalized];
-  const expanded = splitWordsWithDict(normalized, dict);
+  const expanded = splitWordsWithDict(normalized, dict, options);
   return expanded.length ? expanded : [normalized];
 };
 
@@ -92,13 +92,13 @@ const expandQueryToken = (raw, dict) => {
  * @param {Set<string>} dict
  * @returns {string[]}
  */
-export function tokenizeQueryTerms(rawTerms, dict) {
+export function tokenizeQueryTerms(rawTerms, dict, options) {
   const tokens = [];
   const entries = Array.isArray(rawTerms) ? rawTerms : (rawTerms ? [rawTerms] : []);
   for (const entry of entries) {
     const parts = splitId(String(entry || '')).map(normalizeToken).filter(Boolean);
     for (const part of parts) {
-      tokens.push(...expandQueryToken(part, dict));
+      tokens.push(...expandQueryToken(part, dict, options));
     }
   }
   return tokens.filter(Boolean);
@@ -110,11 +110,11 @@ export function tokenizeQueryTerms(rawTerms, dict) {
  * @param {Set<string>} dict
  * @returns {string[]}
  */
-export function tokenizePhrase(phrase, dict) {
+export function tokenizePhrase(phrase, dict, options) {
   const parts = splitId(String(phrase || '')).map(normalizeToken).filter(Boolean);
   const tokens = [];
   for (const part of parts) {
-    tokens.push(...expandQueryToken(part, dict));
+    tokens.push(...expandQueryToken(part, dict, options));
   }
   return tokens.filter(Boolean);
 }

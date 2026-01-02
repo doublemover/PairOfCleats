@@ -17,7 +17,7 @@ import { createSqliteBackend, getSqliteChunkCount } from './cli-sqlite.js';
 import { resolveFtsWeights } from './fts.js';
 import { getQueryEmbedding } from './embedding.js';
 import { loadQueryCache, parseJson, pruneQueryCache } from './query-cache.js';
-import { normalizeExtFilter, parseMetaFilters } from './filters.js';
+import { hasActiveFilters, normalizeExtFilter, parseMetaFilters } from './filters.js';
 import { formatFullChunk, formatShortChunk } from './output.js';
 import { parseChurnArg, parseModifiedArgs, parseQueryInput, tokenizePhrase, tokenizeQueryTerms, buildPhraseNgrams } from './query-parse.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
@@ -126,6 +126,17 @@ const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann')
 const annDefault = userConfig.search?.annDefault !== false;
 const annEnabled = annFlagPresent ? argv.ann : annDefault;
 const vectorAnnEnabled = annEnabled && vectorExtension.enabled;
+const scoreBlendConfig = userConfig.search?.scoreBlend || {};
+const scoreBlendEnabled = scoreBlendConfig.enabled === true;
+const scoreBlendSparseWeight = Number.isFinite(Number(scoreBlendConfig.sparseWeight))
+  ? Number(scoreBlendConfig.sparseWeight)
+  : 1;
+const scoreBlendAnnWeight = Number.isFinite(Number(scoreBlendConfig.annWeight))
+  ? Number(scoreBlendConfig.annWeight)
+  : 1;
+const minhashMaxDocs = Number.isFinite(Number(userConfig.search?.minhashMaxDocs))
+  ? Math.max(0, Number(userConfig.search.minhashMaxDocs))
+  : 5000;
 const queryCacheConfig = userConfig.search?.queryCache || {};
 const queryCacheEnabled = queryCacheConfig.enabled === true;
 const queryCacheMaxEntries = Number.isFinite(Number(queryCacheConfig.maxEntries))
@@ -244,35 +255,19 @@ const color = {
   underline: (t) => `\x1b[4m${t}\x1b[0m`
 };
 
-const proseDir = runProse && !useSqlite ? requireIndexDir(ROOT, 'prose', userConfig) : null;
-const codeDir = runCode && !useSqlite ? requireIndexDir(ROOT, 'code', userConfig) : null;
-const recordsDir = runRecords ? requireIndexDir(ROOT, 'records', userConfig) : null;
-const idxProse = runProse
-  ? (useSqlite ? loadIndexFromSqlite('prose') : loadIndex(proseDir, { modelIdDefault }))
-  : { chunkMeta: [], denseVec: null, minhash: null };
-const idxCode = runCode
-  ? (useSqlite ? loadIndexFromSqlite('code') : loadIndex(codeDir, { modelIdDefault }))
-  : { chunkMeta: [], denseVec: null, minhash: null };
-const idxRecords = runRecords
-  ? loadIndex(recordsDir, { modelIdDefault })
-  : { chunkMeta: [], denseVec: null, minhash: null };
-modelIdForCode = runCode ? (idxCode?.denseVec?.model || modelIdDefault) : null;
-modelIdForProse = runProse ? (idxProse?.denseVec?.model || modelIdDefault) : null;
-modelIdForRecords = runRecords ? (idxRecords?.denseVec?.model || modelIdDefault) : null;
-
 // --- QUERY TOKENIZATION ---
 const parsedQuery = parseQueryInput(query);
-const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict);
+const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict, dictConfig);
 const phraseTokens = parsedQuery.phrases
-  .map((phrase) => tokenizePhrase(phrase, dict))
+  .map((phrase) => tokenizePhrase(phrase, dict, dictConfig))
   .filter((tokens) => tokens.length);
 const phraseInfo = buildPhraseNgrams(phraseTokens, postingsConfig);
 const phraseNgrams = phraseInfo.ngrams;
 const phraseNgramSet = phraseNgrams.length ? new Set(phraseNgrams) : null;
 const phraseRange = { min: phraseInfo.minLen, max: phraseInfo.maxLen };
-const excludeTokens = tokenizeQueryTerms(parsedQuery.excludeTerms, dict);
+const excludeTokens = tokenizeQueryTerms(parsedQuery.excludeTerms, dict, dictConfig);
 const excludePhraseTokens = parsedQuery.excludePhrases
-  .map((phrase) => tokenizePhrase(phrase, dict))
+  .map((phrase) => tokenizePhrase(phrase, dict, dictConfig))
   .filter((tokens) => tokens.length);
 const excludePhraseInfo = buildPhraseNgrams(excludePhraseTokens, postingsConfig);
 const excludePhraseNgrams = excludePhraseInfo.ngrams;
@@ -280,6 +275,7 @@ const excludePhraseRange = excludePhraseInfo.minLen && excludePhraseInfo.maxLen
   ? { min: excludePhraseInfo.minLen, max: excludePhraseInfo.maxLen }
   : null;
 const queryTokens = [...includeTokens, ...phraseTokens.flat()];
+const annActive = annEnabled && queryTokens.length > 0;
 const rx = queryTokens.length ? new RegExp(`(${queryTokens.join('|')})`, 'ig') : null;
 const embeddingQueryText = [...parsedQuery.includeTerms, ...parsedQuery.phrases]
   .join(' ')
@@ -327,6 +323,7 @@ const filters = {
   excludePhrases: excludePhraseNgrams,
   excludePhraseRange
 };
+const filtersActive = hasActiveFilters(filters);
 const cacheFilters = {
   type: searchType,
   author: searchAuthor,
@@ -363,6 +360,32 @@ const cacheFilters = {
   modifiedAfter,
   modifiedSinceDays
 };
+const sqliteLazyChunks = sqliteFtsRequested && !filtersActive;
+const proseDir = runProse && !useSqlite ? requireIndexDir(ROOT, 'prose', userConfig) : null;
+const codeDir = runCode && !useSqlite ? requireIndexDir(ROOT, 'code', userConfig) : null;
+const recordsDir = runRecords ? requireIndexDir(ROOT, 'records', userConfig) : null;
+const idxProse = runProse
+  ? (useSqlite ? loadIndexFromSqlite('prose', {
+    includeDense: annActive,
+    includeMinhash: annActive,
+    includeChunks: !sqliteLazyChunks,
+    includeFilterIndex: filtersActive
+  }) : loadIndex(proseDir, { modelIdDefault }))
+  : { chunkMeta: [], denseVec: null, minhash: null };
+const idxCode = runCode
+  ? (useSqlite ? loadIndexFromSqlite('code', {
+    includeDense: annActive,
+    includeMinhash: annActive,
+    includeChunks: !sqliteLazyChunks,
+    includeFilterIndex: filtersActive
+  }) : loadIndex(codeDir, { modelIdDefault }))
+  : { chunkMeta: [], denseVec: null, minhash: null };
+const idxRecords = runRecords
+  ? loadIndex(recordsDir, { modelIdDefault })
+  : { chunkMeta: [], denseVec: null, minhash: null };
+modelIdForCode = runCode ? (idxCode?.denseVec?.model || modelIdDefault) : null;
+modelIdForProse = runProse ? (idxProse?.denseVec?.model || modelIdDefault) : null;
+modelIdForRecords = runRecords ? (idxRecords?.denseVec?.model || modelIdDefault) : null;
 const searchPipeline = createSearchPipeline({
   useSqlite,
   sqliteFtsRequested,
@@ -376,8 +399,15 @@ const searchPipeline = createSearchPipeline({
   phraseNgramSet,
   phraseRange,
   filters,
+  filtersActive,
   topN: argv.n,
-  annEnabled,
+  annEnabled: annActive,
+  scoreBlend: {
+    enabled: scoreBlendEnabled,
+    sparseWeight: scoreBlendSparseWeight,
+    annWeight: scoreBlendAnnWeight
+  },
+  minhashMaxDocs,
   vectorAnnState,
   vectorAnnUsed,
   buildCandidateSetSqlite,
@@ -448,10 +478,16 @@ function compactHit(hit, includeExplain = false) {
       backend: backendLabel,
       mode: searchMode,
       topN: argv.n,
-      ann: annEnabled,
+      ann: annActive,
       annMode: vectorExtension.annMode,
       annProvider: vectorExtension.provider,
       annExtension: vectorAnnEnabled,
+      scoreBlend: {
+        enabled: scoreBlendEnabled,
+        sparseWeight: scoreBlendSparseWeight,
+        annWeight: scoreBlendAnnWeight
+      },
+      minhashMaxDocs,
       sqliteFtsNormalize,
       sqliteFtsProfile,
       sqliteFtsWeights,
@@ -482,7 +518,7 @@ function compactHit(hit, includeExplain = false) {
     }
   }
 
-  const needsEmbedding = !cacheHit && annEnabled && (
+  const needsEmbedding = !cacheHit && annActive && (
     (runProse && (idxProse.denseVec?.vectors?.length || vectorAnnState.prose.available)) ||
     (runCode && (idxCode.denseVec?.vectors?.length || vectorAnnState.code.available)) ||
     (runRecords && idxRecords.denseVec?.vectors?.length)
@@ -536,6 +572,7 @@ function compactHit(hit, includeExplain = false) {
       stats: {
         elapsedMs: Date.now() - t0,
         annEnabled,
+        annActive,
         annMode: vectorExtension.annMode,
         annBackend,
         annExtension: vectorAnnEnabled ? {

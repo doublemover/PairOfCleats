@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import { fileURLToPath } from 'node:url';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/compare/config.js';
-import { DEFAULT_MODEL_ID, getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
+import { DEFAULT_MODEL_ID, getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
 const argv = minimist(rawArgs, {
@@ -23,6 +23,11 @@ const argv = minimist(rawArgs, {
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
+const runtimeConfig = getRuntimeConfig(root, userConfig);
+const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+const baseEnv = resolvedNodeOptions
+  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
+  : process.env;
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const configCompare = Array.isArray(userConfig.models?.compare) ? userConfig.models.compare : [];
@@ -61,7 +66,7 @@ const reportPaths = {
  * @returns {void}
  */
 function runNode(args, label) {
-  const result = spawnSync(process.execPath, args, { stdio: 'inherit', cwd: root });
+  const result = spawnSync(process.execPath, args, { stdio: 'inherit', cwd: root, env: baseEnv });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);

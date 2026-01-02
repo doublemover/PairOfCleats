@@ -6,6 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import simpleGit from 'simple-git';
 import { getToolDefs } from '../src/mcp/defs.js';
 import { sendError, sendNotification, sendResult } from '../src/mcp/protocol.js';
+import { createFramedJsonRpcParser } from '../src/shared/jsonrpc.js';
 import {
   DEFAULT_MODEL_ID,
   getCacheRoot,
@@ -387,7 +388,7 @@ function createLineBuffer(onLine) {
  * Run a node command asynchronously with optional stderr streaming.
  * @param {string} cwd
  * @param {string[]} args
- * @param {{streamOutput?:boolean,onLine?:(payload:{stream:string,line:string})=>void}} [options]
+ * @param {{streamOutput?:boolean,onLine?:(payload:{stream:string,line:string})=>void,maxBufferBytes?:number}} [options]
  * @returns {Promise<{stdout:string,stderr:string}>}
  */
 function runNodeAsync(cwd, args, options = {}) {
@@ -397,6 +398,15 @@ function runNodeAsync(cwd, args, options = {}) {
     let stderr = '';
     const streamOutput = options.streamOutput === true;
     const onLine = typeof options.onLine === 'function' ? options.onLine : null;
+    const maxBufferBytes = Number.isFinite(Number(options.maxBufferBytes))
+      ? Math.max(0, Number(options.maxBufferBytes))
+      : 1024 * 1024;
+    const appendLimited = (current, text) => {
+      if (!maxBufferBytes) return current + text;
+      const combined = current + text;
+      if (combined.length <= maxBufferBytes) return combined;
+      return combined.slice(combined.length - maxBufferBytes);
+    };
     const stdoutBuffer = onLine
       ? createLineBuffer((line) => onLine({ stream: 'stdout', line }))
       : null;
@@ -405,13 +415,13 @@ function runNodeAsync(cwd, args, options = {}) {
       : null;
     child.stdout?.on('data', (chunk) => {
       const text = chunk.toString();
-      stdout += text;
+      stdout = appendLimited(stdout, text);
       if (streamOutput) process.stderr.write(text);
       stdoutBuffer?.push(text);
     });
     child.stderr?.on('data', (chunk) => {
       const text = chunk.toString();
-      stderr += text;
+      stderr = appendLimited(stderr, text);
       if (streamOutput) process.stderr.write(text);
       stderrBuffer?.push(text);
     });
@@ -1228,7 +1238,6 @@ async function handleMessage(message) {
   }
 }
 
-let buffer = Buffer.alloc(0);
 let processing = false;
 const queue = [];
 
@@ -1260,34 +1269,17 @@ function enqueueMessage(message) {
   processQueue();
 }
 
-/**
- * Parse framed JSON-RPC messages from the input buffer.
- */
-function parseBuffer() {
-  while (true) {
-    const headerEnd = buffer.indexOf('\r\n\r\n');
-    if (headerEnd === -1) return;
-    const header = buffer.slice(0, headerEnd).toString('utf8');
-    const lengthMatch = header.match(/Content-Length:\s*(\d+)/i);
-    if (!lengthMatch) {
-      buffer = buffer.slice(headerEnd + 4);
-      continue;
-    }
-    const length = parseInt(lengthMatch[1], 10);
-    const total = headerEnd + 4 + length;
-    if (buffer.length < total) return;
-    const body = buffer.slice(headerEnd + 4, total).toString('utf8');
-    buffer = buffer.slice(total);
-    try {
-      const msg = JSON.parse(body);
-      enqueueMessage(msg);
-    } catch {}
-  }
-}
+const maxBufferEnv = Number(process.env.PAIROFCLEATS_MCP_MAX_BUFFER_BYTES);
+const parser = createFramedJsonRpcParser({
+  onMessage: enqueueMessage,
+  onError: (err) => console.error(err?.message || err),
+  maxBufferBytes: Number.isFinite(maxBufferEnv) && maxBufferEnv > 0
+    ? maxBufferEnv
+    : undefined
+});
 
 process.stdin.on('data', (chunk) => {
-  buffer = Buffer.concat([buffer, chunk]);
-  parseBuffer();
+  parser.push(chunk);
 });
 
 process.stdin.on('end', () => {

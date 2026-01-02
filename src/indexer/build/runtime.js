@@ -45,6 +45,16 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const riskAnalysisCrossFileEnabled = riskAnalysisEnabled
     && indexingConfig.riskAnalysisCrossFile !== false;
   const gitBlameEnabled = indexingConfig.gitBlame !== false;
+  const yamlChunkingModeRaw = typeof indexingConfig.yamlChunking === 'string'
+    ? indexingConfig.yamlChunking.trim().toLowerCase()
+    : '';
+  const yamlChunkingMode = ['auto', 'root', 'top-level'].includes(yamlChunkingModeRaw)
+    ? yamlChunkingModeRaw
+    : 'auto';
+  const yamlTopLevelMaxBytesRaw = Number(indexingConfig.yamlTopLevelMaxBytes);
+  const yamlTopLevelMaxBytes = Number.isFinite(yamlTopLevelMaxBytesRaw)
+    ? Math.max(0, Math.floor(yamlTopLevelMaxBytesRaw))
+    : 200 * 1024;
   const pythonAstConfig = indexingConfig.pythonAst || {};
   const pythonAstEnabled = pythonAstConfig.enabled !== false;
   const sqlConfig = userConfig.sql || {};
@@ -168,6 +178,10 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     controlFlowEnabled,
     pythonAst: pythonAstConfig,
     resolveSqlDialect,
+    yamlChunking: {
+      mode: yamlChunkingMode,
+      maxBytes: yamlTopLevelMaxBytes
+    },
     log
   };
 

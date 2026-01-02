@@ -14,14 +14,17 @@ export function buildFilterIndex(chunkMeta = []) {
 
   const add = (map, value, id) => {
     if (!value) return;
-    const key = String(value || '').toLowerCase();
-    if (!key) return;
-    let bucket = map.get(key);
-    if (!bucket) {
-      bucket = new Set();
-      map.set(key, bucket);
+    const values = Array.isArray(value) ? value : [value];
+    for (const entry of values) {
+      const key = String(entry || '').toLowerCase();
+      if (!key) continue;
+      let bucket = map.get(key);
+      if (!bucket) {
+        bucket = new Set();
+        map.set(key, bucket);
+      }
+      bucket.add(id);
     }
-    bucket.add(id);
   };
 
   for (const chunk of chunkMeta) {

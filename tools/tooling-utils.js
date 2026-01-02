@@ -80,8 +80,8 @@ function canRun(cmd, args = ['--version']) {
 
 async function scanRepo(root) {
   const extCounts = new Map();
-  const filePaths = [];
   const lowerNames = new Set();
+  let workflowCount = 0;
   const visit = async (dir) => {
     let entries;
     try {
@@ -100,12 +100,16 @@ async function scanRepo(root) {
       if (SKIP_FILES.has(entry.name)) continue;
       const ext = path.extname(entry.name).toLowerCase();
       if (ext) extCounts.set(ext, (extCounts.get(ext) || 0) + 1);
-      filePaths.push(abs);
       lowerNames.add(entry.name.toLowerCase());
+      const normalized = abs.replace(/\\/g, '/').toLowerCase();
+      if (normalized.includes('/.github/workflows/')
+        && (normalized.endsWith('.yml') || normalized.endsWith('.yaml'))) {
+        workflowCount += 1;
+      }
     }
   };
   await visit(root);
-  return { extCounts, filePaths, lowerNames };
+  return { extCounts, lowerNames, workflowCount };
 }
 
 function buildLangHits(extCounts) {
@@ -119,7 +123,7 @@ function buildLangHits(extCounts) {
   return hits;
 }
 
-function buildFormatHits(extCounts, lowerNames, filePaths) {
+function buildFormatHits(extCounts, lowerNames, workflowCount) {
   const hits = {};
   for (const [format, exts] of Object.entries(FORMAT_EXTENSIONS)) {
     const matched = exts.filter((ext) => extCounts.has(ext));
@@ -132,21 +136,16 @@ function buildFormatHits(extCounts, lowerNames, filePaths) {
       hits[format] = { filenames: names, files: names.length };
     }
   }
-  const ghWorkflows = filePaths.filter((filePath) => {
-    const normalized = filePath.replace(/\\/g, '/').toLowerCase();
-    if (!normalized.includes('/.github/workflows/')) return false;
-    return normalized.endsWith('.yml') || normalized.endsWith('.yaml');
-  });
-  if (ghWorkflows.length) {
-    hits['github-actions'] = { extensions: ['.yml', '.yaml'], files: ghWorkflows.length };
+  if (workflowCount) {
+    hits['github-actions'] = { extensions: ['.yml', '.yaml'], files: workflowCount };
   }
   return hits;
 }
 
 export async function detectRepoLanguages(root) {
-  const { extCounts, filePaths, lowerNames } = await scanRepo(root);
+  const { extCounts, lowerNames, workflowCount } = await scanRepo(root);
   const languages = buildLangHits(extCounts);
-  const formats = buildFormatHits(extCounts, lowerNames, filePaths);
+  const formats = buildFormatHits(extCounts, lowerNames, workflowCount);
   return { languages, formats, extCounts };
 }
 
@@ -329,12 +328,21 @@ export function hasCommand(cmd) {
   return canRun(cmd, ['--version']);
 }
 
-export async function buildToolingReport(root, languageOverride = null) {
+export async function buildToolingReport(root, languageOverride = null, options = {}) {
   const toolingConfig = getToolingConfig(root);
-  const { languages, formats } = await detectRepoLanguages(root);
+  const skipScan = options.skipScan === true;
+  const detected = skipScan ? { languages: {}, formats: {} } : await detectRepoLanguages(root);
+  const languages = detected.languages || {};
+  const formats = detected.formats || {};
   const languageList = languageOverride && languageOverride.length
     ? languageOverride
     : Object.keys(languages);
+  const languageMap = (languageOverride && languageOverride.length && skipScan)
+    ? languageOverride.reduce((acc, lang) => {
+      acc[lang] = { extensions: [], files: 0, override: true };
+      return acc;
+    }, {})
+    : languages;
   const tools = resolveToolsForLanguages(languageList, toolingConfig.dir, root).map((tool) => {
     const status = detectTool(tool);
     return {
@@ -351,7 +359,7 @@ export async function buildToolingReport(root, languageOverride = null) {
   return {
     root,
     toolingRoot: toolingConfig.dir,
-    languages,
+    languages: languageMap,
     formats,
     tools
   };

@@ -64,10 +64,7 @@ const env = {
 };
 const repoArgs = ['--repo', repoRoot];
 
-const originalCwd = process.cwd();
-process.chdir(repoRoot);
-const gitMeta = await getGitMeta('notes.md', 0, 1, { blame: false });
-process.chdir(originalCwd);
+const gitMeta = await getGitMeta('notes.md', 1, 2, { blame: false, baseDir: repoRoot });
 const expectedChurn = 5;
 if (gitMeta.churn !== expectedChurn) {
   console.error(`Expected churn ${expectedChurn}, got ${gitMeta.churn}`);

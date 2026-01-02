@@ -65,7 +65,11 @@ export function getDictConfig(repoRoot, userConfig = null) {
     includeSlang: dict.includeSlang !== false,
     slangDirs: Array.isArray(dict.slangDirs) ? dict.slangDirs : [],
     slangFiles: Array.isArray(dict.slangFiles) ? dict.slangFiles : [],
-    enableRepoDictionary: dict.enableRepoDictionary === true
+    enableRepoDictionary: dict.enableRepoDictionary === true,
+    segmentation: typeof dict.segmentation === 'string' ? dict.segmentation : 'auto',
+    dpMaxTokenLength: Number.isFinite(Number(dict.dpMaxTokenLength))
+      ? Number(dict.dpMaxTokenLength)
+      : 32
   };
 }
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import minimist from 'minimist';
-import { getTriageConfig, loadUserConfig, resolveRepoRoot } from '../dict-utils.js';
+import { getRuntimeConfig, getTriageConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot } from '../dict-utils.js';
 import { normalizeDependabot } from '../../src/triage/normalize/dependabot.js';
 import { normalizeAwsInspector } from '../../src/triage/normalize/aws-inspector.js';
 import { normalizeGeneric } from '../../src/triage/normalize/generic.js';
@@ -18,7 +18,7 @@ const argv = minimist(process.argv.slice(2), {
 
 const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
 const source = normalizeSource(argv.source);
-const inputPath = argv.in ? path.resolve(argv.in) : null;
+const inputPath = argv.in ? path.resolve(repoRoot, argv.in) : null;
 
 if (!source || !inputPath) {
   console.error('usage: node tools/triage/ingest.js --source dependabot|aws_inspector|generic --in <file> [--repo <path>] [--meta key=value] [--build-index]');
@@ -26,6 +26,11 @@ if (!source || !inputPath) {
 }
 
 const userConfig = loadUserConfig(repoRoot);
+const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
+const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+const baseEnv = resolvedNodeOptions
+  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
+  : { ...process.env };
 const triageConfig = getTriageConfig(repoRoot, userConfig);
 const meta = parseMeta(argv.meta);
 
@@ -81,7 +86,9 @@ if (argv['build-index']) {
   const args = [path.join(scriptRoot, 'build_index.js'), '--mode', 'records', '--repo', repoRoot];
   if (argv.incremental) args.push('--incremental');
   if (argv['stub-embeddings']) args.push('--stub-embeddings');
-  const result = spawnSync(process.execPath, args, { cwd: repoRoot, stdio: 'inherit' });
+  const env = { ...baseEnv };
+  if (argv['stub-embeddings']) env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+  const result = spawnSync(process.execPath, args, { cwd: repoRoot, stdio: 'inherit', env });
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 

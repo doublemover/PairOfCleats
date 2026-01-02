@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import minimist from 'minimist';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveRepoRoot } from './dict-utils.js';
 
@@ -62,18 +62,28 @@ const normalizeMetaFilters = (meta) => {
 };
 
 /**
- * Run a node script in a directory and return its result.
+ * Run a node script asynchronously and return stdout/stderr.
  * @param {string} cwd
  * @param {string[]} args
- * @returns {import('node:child_process').SpawnSyncReturns<string>}
+ * @returns {Promise<{status:number,stdout:string,stderr:string}>}
  */
-const runNodeSync = (cwd, args) => {
-  const result = spawnSync(process.execPath, args, { cwd, encoding: 'utf8' });
-  if (result.error && result.status == null) {
-    return { ...result, status: 1, stderr: result.error.message };
-  }
-  return result;
-};
+const runNodeAsync = (cwd, args) => new Promise((resolve) => {
+  const child = spawn(process.execPath, args, { cwd });
+  let stdout = '';
+  let stderr = '';
+  child.stdout?.on('data', (chunk) => {
+    stdout += chunk.toString();
+  });
+  child.stderr?.on('data', (chunk) => {
+    stderr += chunk.toString();
+  });
+  child.on('error', (err) => {
+    resolve({ status: 1, stdout, stderr: err?.message || String(err) });
+  });
+  child.on('close', (code) => {
+    resolve({ status: code ?? 0, stdout, stderr });
+  });
+});
 
 /**
  * Write a JSON payload to the HTTP response.
@@ -340,7 +350,7 @@ const server = http.createServer(async (req, res) => {
     sendSseHeaders(res);
     sendSseEvent(res, 'start', { ok: true, repo: repoPath });
     const args = [path.join(ROOT, 'tools', 'report-artifacts.js'), '--json', '--repo', repoPath];
-    const result = runNodeSync(repoPath, args);
+    const result = await runNodeAsync(repoPath, args);
     if (result.status !== 0) {
       sendSseEvent(res, 'error', {
         ok: false,
@@ -372,7 +382,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     const args = [path.join(ROOT, 'tools', 'report-artifacts.js'), '--json', '--repo', repoPath];
-    const result = runNodeSync(repoPath, args);
+    const result = await runNodeAsync(repoPath, args);
     if (result.status !== 0) {
       sendError(res, 500, 'Failed to collect status.', {
         stderr: result.stderr ? String(result.stderr).trim() : null
@@ -500,7 +510,7 @@ const server = http.createServer(async (req, res) => {
       sendError(res, 400, searchArgs.message || 'Invalid search payload.');
       return;
     }
-    const result = runNodeSync(repoPath, searchArgs.args);
+    const result = await runNodeAsync(repoPath, searchArgs.args);
     if (result.status !== 0) {
       sendError(res, 500, 'Search failed.', {
         stderr: result.stderr ? String(result.stderr).trim() : null
