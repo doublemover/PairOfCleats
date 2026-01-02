@@ -546,40 +546,40 @@ Work items:
 - [x] Refresh README maintenance/setup sections to include new tooling.
 - [x] Confirm `COMPLETE_PLAN.md` statuses are updated after each phase.
 
-## Phase 57: Dictionary Tokenization Robustness (status: todo)
+## Phase 57: Dictionary Tokenization Robustness (status: partial)
 Goal: Prevent dictionary-based splitting from devolving unknown identifiers into single-character tokens and add a benchmark harness for segmentation options.
 Work items:
-- [ ] Update `splitWordsWithDict` to preserve unknown spans instead of emitting single characters.
-- [ ] Align query token expansion to the updated dictionary-splitting behavior.
+- [x] Update `splitWordsWithDict` to preserve unknown spans instead of emitting single characters.
+- [x] Align query token expansion to the updated dictionary-splitting behavior.
 - [ ] Add a benchmark/experiment harness to compare greedy vs DP segmentation (coverage + token counts).
-- [ ] Add regression tests for unknown identifiers in indexing and query parsing.
+- [x] Add regression tests for unknown identifiers in indexing and query parsing.
 
-## Phase 58: Git Blame Range Correctness (status: todo)
+## Phase 58: Git Blame Range Correctness (status: partial)
 Goal: Ensure blame ranges are computed on line numbers (not character offsets) so chunk authors are accurate.
 Work items:
-- [ ] Compute start/end line numbers before calling `getGitMeta` and pass line ranges to git blame.
+- [x] Compute start/end line numbers before calling `getGitMeta` and pass line ranges to git blame.
 - [ ] Reconcile 0-based vs 1-based line expectations and remove inconsistent +1 adjustments.
 - [ ] Add fixture coverage that validates `chunk_authors` population.
 
-## Phase 59: YAML Chunking Fix + Configurable Top-Level Strategy (status: todo)
+## Phase 59: YAML Chunking Fix + Configurable Top-Level Strategy (status: partial)
 Goal: Avoid overlapping YAML chunks and allow configurable sectioning defaults.
 Work items:
 - [ ] Default YAML to a single root chunk to avoid overlap and incorrect ranges.
-- [ ] Add an optional config to enable top-level key chunking via line/indent scanning.
-- [ ] Ensure key scanning uses line offsets (no `indexOf` on values).
-- [ ] Add format-fidelity tests for YAML chunk boundaries and configurable strategy.
+- [x] Add an optional config to enable top-level key chunking via line/indent scanning.
+- [x] Ensure key scanning uses line offsets (no `indexOf` on values).
+- [x] Add format-fidelity tests for YAML chunk boundaries and configurable strategy.
 
-## Phase 60: External Docs URL Correctness (status: todo)
+## Phase 60: External Docs URL Correctness (status: partial)
 Goal: Ensure scoped npm package links are correct.
 Work items:
-- [ ] Preserve `@` in scoped package URLs and URL-encode path segments.
+- [x] Preserve `@` in scoped package URLs and URL-encode path segments.
 - [ ] Add regression tests for npm scoped module URLs in external docs.
 
-## Phase 61: ANN vs Sparse Scoring Selection (status: todo)
+## Phase 61: ANN vs Sparse Scoring Selection (status: partial)
 Goal: Make ANN selection scale-safe by using sparse-first fallback and enable benchmarking of normalized blends.
 Work items:
-- [ ] Change score selection to prefer sparse scores unless sparse is absent/weak.
-- [ ] Add optional normalized blend mode with tunable weights (disabled by default).
+- [x] Change score selection to prefer sparse scores unless sparse is absent/weak.
+- [x] Add optional normalized blend mode with tunable weights (disabled by default).
 - [ ] Add benchmark harness to compare sparse-only, ANN-fallback, and blend strategies.
 - [ ] Update score docs/tests to reflect selection logic and config knobs.
 
@@ -687,4 +687,283 @@ Work items:
 - [ ] docs/api-server.md + docs/mcp-server.md: verify endpoints, request/response payloads, streaming behavior, and build/search flags; add samples.
 - [ ] docs/config-schema.json: audit every documented config key against actual usage; add/adjust schema descriptions where missing.
 - [ ] docs/combined-summary.json / model-compare*.json: verify sample reports are current or regenerate with placeholder notes (no stale fields).
-- [ ] ROADMAP.md: ensure “historical” status and link to COMPLETE_PLAN; remove stale roadmap items.
+- [ ] ROADMAP.md: ensure "historical" status and link to COMPLETE_PLAN; remove stale roadmap items.
+
+## Phase 69: Deps Fixes - JSON-RPC + LSP Protocol Dependencies (status: todo)
+Goal: Replace custom JSON-RPC framing with vetted libraries and standardize LSP protocol definitions.
+Work items:
+- [ ] Add `vscode-jsonrpc` and update `src/shared/jsonrpc.js` to wrap StreamMessageReader/Writer instead of custom framing logic.
+- [ ] Replace JSON-RPC usage in `tools/mcp-server.js` with the new shared adapter (remove old parser/writer references).
+- [ ] Update `src/tooling/lsp/client.js` to use `vscode-jsonrpc` streams and built-in request/notification plumbing.
+- [ ] Delete or archive any now-unused framing helpers and adjust imports where needed.
+- [ ] Add regression tests for JSON-RPC framing (split frames, large payloads) in MCP + LSP stub fixtures.
+- [ ] Add optional `vscode-languageserver-protocol` and wire constants/types into `src/tooling/lsp/symbols.js` and `src/tooling/lsp/positions.js`.
+- [ ] Document the JSON-RPC/LSP dependency change in developer docs and troubleshooting guides.
+
+## Phase 70: Deps Fixes - Concurrency, Caching, and IO Foundations (status: todo)
+Goal: Introduce best-in-class concurrency and cache primitives to reduce memory spikes and improve throughput.
+Work items:
+- [ ] Add `p-queue` and replace `src/shared/concurrency.js` with a queue-backed API (IO queue + CPU queue).
+- [ ] Route file discovery, chunking, lint/complexity, embedding, and imports to use queue backpressure (update `src/indexer/build/indexer.js`, `src/indexer/build/imports.js`, `src/indexer/build/file-processor.js`).
+- [ ] Add `lru-cache` and replace ad-hoc Map caches: `complexityCache`, `lintCache`, `fileTextCache`, `summaryCache`, and `gitMetaCache`.
+- [ ] Add config knobs for cache size/TTL in `.pairofcleats.json` and `docs/config-schema.json`.
+- [ ] Add cache eviction tests to cover max size and TTL expiry behavior.
+- [ ] Add observability for cache hits/evictions in verbose logging.
+
+## Phase 71: Deps Fixes - File Discovery + Watcher Modernization (status: todo)
+Goal: Speed up file enumeration and reduce redundant IO in indexing and watch mode.
+Work items:
+- [ ] Add `fdir` and refactor `src/indexer/build/discover.js` to use it for non-git repos.
+- [ ] Add a `git ls-files -z` fast path for git repos; keep a fallback for non-git trees.
+- [ ] Reuse a single discovery pass for code + prose modes (avoid double traversal in `build_index.js`).
+- [ ] Avoid double `stat()` calls by returning `{ abs, rel, stat }` from discovery and reusing in `file-processor`.
+- [ ] Replace polling watch mode in `src/indexer/build/watch.js` with `chokidar` (respect ignore patterns and debounce config).
+- [ ] Add tests/fixtures for discovery reuse, git ls-files path, and watcher debounce behavior.
+
+## Phase 72: Deps Fixes - JS/TS/Flow Parsing + Import Scanning (status: todo)
+Goal: Unify JS/TS/Flow parsing and speed up import graph extraction.
+Work items:
+- [ ] Add `es-module-lexer` and `cjs-module-lexer` to accelerate import scanning in `src/indexer/build/imports.js`.
+- [ ] Use lexer output to build `allImports` without full AST parsing for JS/TS files.
+- [ ] Add `@babel/parser` and consolidate JS/TS/Flow parsing to a single codepath (replace `acorn`/`esprima` fallbacks).
+- [ ] Update `src/lang/javascript.js`, `src/lang/typescript.js`, and `src/lang/flow.js` to share a unified Babel-based parser.
+- [ ] Add fixtures/tests for JSX/TSX/Flow syntax coverage and import extraction.
+- [ ] Evaluate whether `@typescript-eslint/typescript-estree` is needed for ESTree interop; document the decision.
+
+## Phase 73: Deps Fixes - Streaming Artifacts + Worker Pool (status: todo)
+Goal: Reduce peak memory during artifact writing and move CPU-heavy tasks off the main thread.
+Work items:
+- [ ] Add `json-stream-stringify` (or `json-stream-es`) and stream large artifact writes in `src/indexer/build/artifacts.js`.
+- [ ] Convert large arrays/maps (vectors, postings, ngrams, minhash) to streaming writers to avoid full `JSON.stringify`.
+- [ ] Add `piscina` and implement worker pool tasks for tokenization, ngrams, minhash, and quantization.
+- [ ] Add a worker protocol with schema validation and fallback to sync paths when workers are unavailable.
+- [ ] Add tests for streaming artifact output and worker pool correctness (small fixtures).
+
+## Phase 74: Deps Fixes - CLI + Process Execution Ergonomics (status: todo)
+Goal: Standardize CLI parsing and process handling using mature dependencies.
+Work items:
+- [ ] Evaluate `yargs` vs `commander` and choose one for CLI help/arg consistency (document pros/cons).
+- [ ] Migrate CLI entrypoints to the chosen parser, preserving existing flags and exit codes.
+- [ ] Add `execa` and replace raw `spawn/spawnSync` where error handling/streaming is complex (tools + LSP runners).
+- [ ] Evaluate `tree-kill` for cross-platform process tree termination; adopt only if safe on Windows.
+- [ ] Update CLI and process-related docs after migration.
+
+## Phase 75: Deps Fixes - Language Tooling Alignment (status: todo)
+Goal: Align LSP and parsing tools with current best-of-breed per language.
+Work items:
+- [ ] JavaScript/TypeScript: keep compiler API; add lexer pre-pass for imports; document `typescript-language-server` as optional.
+- [ ] Flow: fold into Babel-based JS/TS parsing path; remove standalone Flow parser if redundant.
+- [ ] C/C++/ObjC: keep clangd; add detection docs and optional tree-sitter fallback for macro-heavy files.
+- [ ] Swift: keep sourcekit-lsp; document tree-sitter-swift fallback for chunking.
+- [ ] Go: keep gopls; add optional tree-sitter-go chunking path.
+- [ ] Rust: keep rust-analyzer; add optional tree-sitter-rust chunking path.
+- [ ] Java: keep jdtls; add optional tree-sitter-java chunking path.
+- [ ] Kotlin: keep kotlin-language-server; add optional Kotlin official LSP when detected.
+- [ ] C#: keep OmniSharp; add optional Roslyn LSP provider with config switch.
+- [ ] Ruby: add Ruby LSP as preferred tool, Solargraph fallback; update tooling registry and docs.
+- [ ] PHP: add php-parser for AST chunking; add optional Intelephense LSP alongside Phpactor.
+- [ ] Lua: keep LuaLS; ensure detection/install docs are current.
+- [ ] SQL: keep sqls best-effort; add `node-sql-parser` for schema/table extraction.
+- [ ] Shell: add bash-language-server detection and docs; optional tree-sitter-bash fallback.
+- [ ] Perl: evaluate tree-sitter-perl; decide on heuristic-only vs optional LSP.
+- [ ] Add detection, install instructions, and config toggles for all new tools in `tools/tooling-utils.js` and docs.
+
+## Phase 76: Deps Fixes - Tree-sitter Backbone (status: todo)
+Goal: Introduce a unified tree-sitter parsing backbone with safe fallbacks.
+Work items:
+- [ ] Choose `tree-sitter` (native) vs `web-tree-sitter` (WASM) and document tradeoffs.
+- [ ] Add a centralized parser registry that loads grammars per language.
+- [ ] Implement tree-sitter chunking for Swift, Kotlin, C#, C/C++, ObjC as first targets.
+- [ ] Add tree-sitter chunking for Go/Rust/Java if grammars are stable.
+- [ ] Keep existing heuristic chunkers as fallback when tree-sitter fails or is unavailable.
+- [ ] Add fixtures and tests for tree-sitter chunk boundaries and symbol extraction.
+- [ ] Add config switches to enable/disable tree-sitter per language.
+
+## Phase 77: Deps Fixes - Dependency Hygiene (status: todo)
+Goal: Remove unused packages and consolidate redundant parsing stacks.
+Work items:
+- [ ] Audit usage of `minhash` (npm), `varint`, `seedrandom`, `yaml`, `strip-comments`; remove if unused.
+- [ ] Consolidate JS parsing dependencies (prefer Babel) and remove redundant `acorn`/`esprima` paths if safe.
+- [ ] Update `package.json`, lockfile, and docs to reflect dependency removals.
+- [ ] Add a small dependency audit test to ensure removed packages are not referenced.
+
+## Phase 78: Deps Fixes - Correctness and Spec Mismatches (status: todo)
+Goal: Resolve correctness bugs and spec mismatches highlighted in deps_fixes.md.
+Work items:
+- [ ] Remove dead `posts` computation in `src/indexer/build/postings.js`; add a test asserting no unused allocations.
+- [ ] Either implement a real `maxVocab` cap or remove the trimmed-vocab path to avoid misleading behavior.
+- [ ] Decide whether to use `dense_vectors_doc_uint8.json`/`dense_vectors_code_uint8.json`; wire into ranking or stop writing/loading them.
+- [ ] Fix dense vector `scale` metadata to match quantization step size (or remove field).
+- [ ] Skip `scanImports()` for prose mode and add a regression test ensuring no import scan runs.
+- [ ] Fix per-chunk relation duplication by separating file-level vs chunk-level relations (avoid copying full file relations into every chunk).
+- [ ] Rework `buildChunkRelations` to avoid O(chunks * calls) scanning (pre-index call maps per file).
+- [ ] Validate `git blame` line range off-by-one when chunk end offsets are exclusive; adjust `endLine` calculation as needed and add tests.
+- [ ] Clarify and document `importLinks` semantics; add tests that verify intended behavior.
+- [ ] Review ESLint API usage (`useEslintrc` options) and update for current ESLint version with a fallback warning.
+
+## Phase 79: Deps Fixes - Performance Quick Wins (status: todo)
+Goal: Apply low-risk changes that cut indexing time and index size.
+Work items:
+- [ ] Gate `.scannedfiles.json` and `.skippedfiles.json` behind `--debug` or config; store only counts + sample paths.
+- [ ] Reuse a single ESLint instance per build run; cache lint results for unchanged files.
+- [ ] Make `git blame` opt-in (or disable in benchmark profile) to avoid per-chunk blame by default.
+- [ ] Pre-split file lines once per file and reuse for `preContext`/`postContext` generation.
+- [ ] Deduplicate import lists in `scanImports` to avoid repeated file entries.
+- [ ] Add an LRU cap for `gitMetaCache` if not handled by Phase 70.
+- [ ] Reduce chunk metadata duplication by moving file-level data out of each chunk (even before full file_meta refactor).
+
+## Phase 80: Deps Fixes - Performance Refactors (status: todo)
+Goal: Tackle structural bottlenecks that dominate large-repo indexing.
+Work items:
+- [ ] Replace per-chunk git blame calls with one blame per file (line-porcelain), then derive chunk authors by line range.
+- [ ] Batch embeddings per file or per N chunks and normalize merged vectors once per batch.
+- [ ] Stream or switch artifact formats away from huge JSON arrays (JSONL/binary/compressed variants).
+- [ ] Split file-level metadata into `file_meta.json` and reference by file id in `chunk_meta.json`.
+- [ ] Add an incremental import graph cache and rebuild `allImports` from cached per-file imports.
+- [ ] Use one discovery pass for code+prose and avoid redundant directory walks.
+- [ ] Eliminate double stat calls by reusing discovery stats in `processFile`.
+- [ ] Optimize import scanning to avoid full `text.normalize('NFKD')` on every file.
+- [ ] Remove per-chunk `tokens` storage or replace with a compact representation when postings are available.
+- [ ] Move large numeric arrays (postings/vectors) to binary or SQLite-backed storage for large repos.
+- [ ] Compress postings (varint/delta) and build sorted posting lists to reduce memory footprint.
+
+## Phase 81: Deps Fixes - Benchmark Profiles + Knobs (status: todo)
+Goal: Make benchmarks measure core indexing without expensive enrichment by default.
+Work items:
+- [ ] Add a "benchmark profile" config (or CLI flag) that disables git blame, lint, risk/type inference, and chargrams.
+- [ ] Update benchmark scripts to apply the profile automatically and record which knobs were disabled.
+- [ ] Document benchmark profiles and recommended settings for large repos.
+
+## Todo Phase Detail + Questions (status: active)
+Goal: Add implementation detail for remaining todo phases and capture any open decisions.
+
+### Phase 57 details
+- Update `src/shared/tokenize.js` `splitWordsWithDict` so no-match spans emit the remaining substring (or a bounded unknown span), not single characters.
+- Ensure query parsing uses identical segmentation in `src/search/query.js` (`tokenizeQueryTerms`, `tokenizePhrase`).
+- Add a dict segmentation benchmark harness (e.g., `tools/bench-dict-seg.js`) to compare greedy vs DP segmentation on a fixed sample set; report token counts and coverage.
+- Tests: extend `tests/tokenize-dictionary.js` to cover unknown spans and query tokenization.
+
+### Phase 58 details
+- Compute blame ranges using line numbers derived before `getGitMeta` in `src/indexer/build/file-processor.js`.
+- Treat chunk end offsets as exclusive when deriving `endLine` (use `end - 1` with empty-chunk guard).
+- Tests: add a fixture with a multi-line file and assert `chunk_authors` matches expected lines.
+
+### Phase 59 details
+- Default YAML to a single root chunk in `src/indexer/chunking.js` unless config enables top-level splitting.
+- Add `indexing.yamlChunkStrategy` (values: `root` | `top-level`) and document in `docs/config-schema.json`.
+- Implement top-level splitting with line/indent scanning (no `indexOf`).
+- Tests: `tests/chunking-yaml.js` + `tests/format-fidelity.js` for boundary checks.
+
+### Phase 60 details
+- Update `buildExternalDocs` (in `src/indexer/build/file-processor.js`) to preserve `@` and `encodeURIComponent` scoped package paths.
+- Add a regression test for scoped npm modules (fixture in `tests/fixtures/external-docs` + new test file).
+
+### Phase 61 details
+- Prefer sparse scores by default in `src/search/pipeline.js` when BM25/FTS hits exist; ANN is fallback.
+- Keep normalized blend mode behind `search.scoreBlend` config; document weights and normalization.
+- Add a scoring comparison harness (e.g., `tools/bench-score-strategy.js`) that runs the same query set with `sparse`, `ann-fallback`, and `blend`.
+- Tests: update `tests/search-explain.js` to reflect scoreType changes and blend breakdown.
+
+### Phase 66 details
+- In `tools/bench-language-repos.js`, detect existing lock files under `<repoCacheRoot>/locks/index.lock` and honor stale/active states.
+- Add lock handling modes (wait/retry, stale-clear, fail-fast) and make the default configurable (default: fail-fast).
+- Add a bench flag for per-run cache roots or lock namespaces to avoid collisions (document default behavior).
+- Emit clear error summaries when builds are skipped due to locks (with lock age and pid if known).
+- Tests: add a fixture that writes a stale lock and validates bench behavior (skip vs retry).
+
+### Phase 68 details
+- README: update feature list (indexing/search/dicts/models/sqlite) and remove deprecated sections; add design-doc links.
+- README: add concise quickstart + "first index" path, plus consolidated "run all tests" command (exclude benchmarks by default).
+- README: make sections collapsible (tests, maintenance, cache layout, design docs).
+- Docs: sync `docs/setup.md`, `docs/editor-integration.md`, `docs/sqlite-*.md`, `docs/ast-feature-list.md`, `docs/language-fidelity.md`, `docs/repometrics-dashboard.md`, `docs/api-server.md`, `docs/mcp-server.md`.
+- `docs/config-schema.json`: audit keys vs actual config usage and add missing descriptions.
+- `ROADMAP.md`: ensure it links to `COMPLETE_PLAN.md` and removes stale items.
+
+### Phase 69 details
+- Add `vscode-jsonrpc` and replace custom framing in `src/shared/jsonrpc.js` + `tools/mcp-server.js`.
+- Update `src/tooling/lsp/client.js` to use `MessageReader/Writer` and request/notification helpers.
+- Add `vscode-languageserver-protocol` for symbol/position constants and type safety.
+- Add regression tests for split frames and large payload handling.
+
+### Phase 70 details
+- Replace `src/shared/concurrency.js` with `p-queue` (IO queue + CPU queue).
+- Route file IO, chunking, lint/complexity, and embedding dispatch through queues.
+- Replace ad-hoc caches with `lru-cache` (file text, lint/complexity, summary caches, git meta).
+- Add config for cache limits and TTL with sensible defaults (fileText 64MB, summary 32MB, lint 16MB, complexity 16MB, gitMeta 16MB); add eviction tests.
+
+### Phase 71 details
+- Use `git ls-files -z` when available for file discovery; fallback to `fdir`.
+- Reuse discovery results across code + prose; avoid double traversal.
+- Return `{ abs, rel, stat }` from discovery to avoid double `stat()` calls.
+- Replace watch polling with `chokidar`, with config-driven debounce and ignore rules.
+- Tests for discovery reuse and watcher behavior.
+
+### Phase 72 details
+- Add `es-module-lexer` + `cjs-module-lexer` in `src/indexer/build/imports.js` to avoid full AST parse for imports.
+- Consolidate JS/TS/Flow parsing in `src/lang/javascript.js`, `src/lang/typescript.js`, `src/lang/flow.js` using `@babel/parser`, keeping `acorn`/`esprima` fallbacks behind config for comparison.
+- Add fixtures for JSX/TSX/Flow syntax and ensure import extraction is correct.
+
+### Phase 73 details
+- Use streaming JSON writers for large artifacts in `src/indexer/build/artifacts.js`.
+- Add `piscina` worker pool for tokenization, ngrams, minhash, quantization (pure functions only).
+- Provide fallback to sync path when workers unavailable; add tests for stream correctness.
+
+### Phase 74 details
+- Adopt `yargs` for CLI parsing and migrate existing CLI tools without breaking flags.
+- Add `execa` where process spawning needs better error reporting and streaming.
+- Update CLI docs and `--help` outputs after migration.
+
+### Phase 75 details
+- Expand tooling registry in `tools/tooling-utils.js` for new LSPs and parsers (Ruby LSP, Roslyn, Intelephense, sql parser).
+- Add detection + install instructions and config toggles per tool.
+- Update docs to reflect per-language tool preferences and fallbacks.
+
+### Phase 76 details
+- Use native `tree-sitter` bindings by default; keep WASM as an optional fallback and document tradeoffs.
+- Implement a central grammar registry and per-language fallback logic.
+- Add tree-sitter chunkers for Swift/Kotlin/C#/C/C++/ObjC first, then Go/Rust/Java.
+- Add fixtures for chunk boundary validation and failure fallback paths.
+
+### Phase 77 details
+- Audit and remove unused dependencies (`minhash`, `varint`, `seedrandom`, `yaml`, `strip-comments`) if unreferenced.
+- Consolidate JS parsing stack after Babel adoption; update docs/tests.
+- Add a dependency usage test to prevent reintroducing removed packages.
+
+### Phase 78 details
+- Remove dead `posts` allocation in `src/indexer/build/postings.js`.
+- Either implement `maxVocab` pruning or remove the trimmed-vocab path to avoid misleading behavior.
+- Decide on `dense_vectors_doc_uint8.json`/`dense_vectors_code_uint8.json` usage (wire into ranking or stop writing/loading).
+- Fix dense vector `scale` metadata to match quantization step (or drop field).
+- Skip `scanImports()` for prose mode and add a regression test.
+- Separate file-level vs chunk-level relations to avoid per-chunk duplication.
+- Pre-index call/callDetails per file to avoid O(chunks * calls) scans.
+- Fix potential blame end-line off-by-one for chunkers without explicit line metadata.
+- Document `importLinks` semantics and add tests.
+- Review ESLint API usage for current version compatibility and warn on failures.
+
+### Phase 79 details
+- Gate `.scannedfiles.json` / `.skippedfiles.json` behind a debug flag and store only counts + samples by default.
+- Reuse a single ESLint instance per build and cache lint results for unchanged files.
+- Make git blame opt-in or auto-disabled for benchmark profiles.
+- Pre-split lines once per file for `preContext`/`postContext`.
+- Deduplicate import lists in `scanImports`.
+- Add an LRU cap for `gitMetaCache` if not handled by Phase 70.
+- Reduce chunk metadata duplication before full file_meta refactor.
+
+### Phase 80 details
+- Batch git blame per file with porcelain output and compute chunk authors by line range.
+- Batch embeddings per file or per N chunks; normalize once per batch.
+- Move artifacts to streaming/JSONL/binary formats for vectors and postings.
+- Split file-level metadata into `file_meta.json` and reference by file id in chunks.
+- Persist per-file imports in incremental bundles and rebuild `allImports` without rereading all files.
+- Avoid redundant discovery + stat passes for code/prose.
+- Consider dropping per-chunk `tokens` storage or replacing with a compact representation.
+- Move large numeric arrays to SQLite/binary for large repos.
+
+### Phase 81 details
+- Add a benchmark profile config preset plus CLI flag to disable expensive enrichment by default.
+- Record which knobs were disabled in benchmark summaries.
+- Document recommended benchmark settings for large repos.
+
+### Open questions
+- None.
