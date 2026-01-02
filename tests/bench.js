@@ -4,11 +4,23 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import { getRuntimeConfig, loadUserConfig, resolveNodeOptions } from '../tools/dict-utils.js';
+import { resolveBenchmarkProfile } from '../src/shared/bench-profile.js';
 import os from 'node:os';
 
 const rawArgs = process.argv.slice(2);
 const argv = minimist(rawArgs, {
-  boolean: ['ann', 'no-ann', 'json', 'write-report', 'build', 'build-index', 'build-sqlite', 'incremental', 'stub-embeddings'],
+  boolean: [
+    'ann',
+    'no-ann',
+    'json',
+    'write-report',
+    'build',
+    'build-index',
+    'build-sqlite',
+    'incremental',
+    'stub-embeddings',
+    'benchmark-profile'
+  ],
   string: ['queries', 'backend', 'out', 'bm25-k1', 'bm25-b', 'fts-profile', 'fts-weights', 'repo'],
   alias: { n: 'top', q: 'queries' },
   default: { top: 5, limit: 0, json: false, 'write-report': false }
@@ -68,7 +80,8 @@ if (buildSqlite && !buildIndex) buildIndex = true;
 const buildIncremental = argv.incremental === true;
 const stubEmbeddings = argv['stub-embeddings'] === true;
 const runtimeRoot = repoArg || root;
-const runtimeConfig = getRuntimeConfig(runtimeRoot, loadUserConfig(runtimeRoot));
+const userConfig = loadUserConfig(runtimeRoot);
+const runtimeConfig = getRuntimeConfig(runtimeRoot, userConfig);
 const heapArgRaw = argv['heap-mb'];
 const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgRaw)) : null;
 const heapRecommendation = getRecommendedHeapMb();
@@ -88,9 +101,14 @@ const runtimeConfigForRun = heapOverride
   ? { ...runtimeConfig, maxOldSpaceMb: heapOverride }
   : runtimeConfig;
 const resolvedNodeOptions = resolveNodeOptions(runtimeConfigForRun, baseNodeOptions);
+const benchmarkProfileArgPresent = rawArgs.includes('--benchmark-profile') || rawArgs.includes('--no-benchmark-profile');
+const benchmarkProfileEnvValue = benchmarkProfileArgPresent
+  ? (argv['benchmark-profile'] === true ? '1' : '0')
+  : (process.env.PAIROFCLEATS_BENCH_PROFILE || null);
+const benchmarkProfile = resolveBenchmarkProfile(userConfig.indexing || {}, benchmarkProfileEnvValue);
 const baseEnv = resolvedNodeOptions
   ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
-  : process.env;
+  : { ...process.env };
 if (heapOverride) {
   baseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapOverride);
   if (!jsonOutput) {
@@ -100,6 +118,9 @@ if (heapOverride) {
     );
   }
 }
+const benchEnv = benchmarkProfileEnvValue != null
+  ? { ...baseEnv, PAIROFCLEATS_BENCH_PROFILE: String(benchmarkProfileEnvValue) }
+  : baseEnv;
 
 function runSearch(query, backend) {
   const args = [
@@ -120,8 +141,8 @@ function runSearch(query, backend) {
   if (ftsProfileArg) args.push('--fts-profile', String(ftsProfileArg));
   if (ftsWeightsArg) args.push('--fts-weights', String(ftsWeightsArg));
   const env = stubEmbeddings
-    ? { ...baseEnv, PAIROFCLEATS_EMBEDDINGS: 'stub' }
-    : baseEnv;
+    ? { ...benchEnv, PAIROFCLEATS_EMBEDDINGS: 'stub' }
+    : benchEnv;
   const result = spawnSync(process.execPath, args, { encoding: 'utf8', env });
   if (result.status !== 0) {
     console.error(`Search failed for backend=${backend} query="${query}"`);
@@ -196,7 +217,7 @@ function runBuild(args, label, env) {
 
 const buildMs = {};
 if (buildIndex || buildSqlite) {
-  const buildEnv = { ...baseEnv };
+  const buildEnv = { ...benchEnv };
   if (stubEmbeddings) buildEnv.PAIROFCLEATS_EMBEDDINGS = 'stub';
   if (buildIndex) {
     const args = [buildIndexPath];
@@ -254,6 +275,10 @@ const summary = {
   queries: selectedQueries.length,
   topN,
   annEnabled,
+  benchmarkProfile: {
+    enabled: benchmarkProfile.enabled,
+    disabled: benchmarkProfile.disabled
+  },
   backends,
   latencyMsAvg: Object.fromEntries(backends.map((b) => [b, latencyStats[b].mean])),
   latencyMs: latencyStats,

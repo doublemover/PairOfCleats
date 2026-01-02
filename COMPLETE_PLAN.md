@@ -546,25 +546,25 @@ Work items:
 - [x] Refresh README maintenance/setup sections to include new tooling.
 - [x] Confirm `COMPLETE_PLAN.md` statuses are updated after each phase.
 
-## Phase 57: Dictionary Tokenization Robustness (status: partial)
+## Phase 57: Dictionary Tokenization Robustness (status: done)
 Goal: Prevent dictionary-based splitting from devolving unknown identifiers into single-character tokens and add a benchmark harness for segmentation options.
 Work items:
 - [x] Update `splitWordsWithDict` to preserve unknown spans instead of emitting single characters.
 - [x] Align query token expansion to the updated dictionary-splitting behavior.
-- [ ] Add a benchmark/experiment harness to compare greedy vs DP segmentation (coverage + token counts).
+- [x] Add a benchmark/experiment harness to compare greedy vs DP segmentation (coverage + token counts).
 - [x] Add regression tests for unknown identifiers in indexing and query parsing.
 
-## Phase 58: Git Blame Range Correctness (status: partial)
+## Phase 58: Git Blame Range Correctness (status: done)
 Goal: Ensure blame ranges are computed on line numbers (not character offsets) so chunk authors are accurate.
 Work items:
 - [x] Compute start/end line numbers before calling `getGitMeta` and pass line ranges to git blame.
-- [ ] Reconcile 0-based vs 1-based line expectations and remove inconsistent +1 adjustments.
-- [ ] Add fixture coverage that validates `chunk_authors` population.
+- [x] Reconcile 0-based vs 1-based line expectations and remove inconsistent +1 adjustments.
+- [x] Add fixture coverage that validates `chunk_authors` population.
 
-## Phase 59: YAML Chunking Fix + Configurable Top-Level Strategy (status: partial)
+## Phase 59: YAML Chunking Fix + Configurable Top-Level Strategy (status: done)
 Goal: Avoid overlapping YAML chunks and allow configurable sectioning defaults.
 Work items:
-- [ ] Default YAML to a single root chunk to avoid overlap and incorrect ranges.
+- [x] Default YAML to a single root chunk to avoid overlap and incorrect ranges.
 - [x] Add an optional config to enable top-level key chunking via line/indent scanning.
 - [x] Ensure key scanning uses line offsets (no `indexOf` on values).
 - [x] Add format-fidelity tests for YAML chunk boundaries and configurable strategy.
@@ -575,13 +575,13 @@ Work items:
 - [x] Preserve `@` in scoped package URLs and URL-encode path segments.
 - [ ] Add regression tests for npm scoped module URLs in external docs.
 
-## Phase 61: ANN vs Sparse Scoring Selection (status: partial)
+## Phase 61: ANN vs Sparse Scoring Selection (status: done)
 Goal: Make ANN selection scale-safe by using sparse-first fallback and enable benchmarking of normalized blends.
 Work items:
 - [x] Change score selection to prefer sparse scores unless sparse is absent/weak.
 - [x] Add optional normalized blend mode with tunable weights (disabled by default).
-- [ ] Add benchmark harness to compare sparse-only, ANN-fallback, and blend strategies.
-- [ ] Update score docs/tests to reflect selection logic and config knobs.
+- [x] Add benchmark harness to compare sparse-only, ANN-fallback, and blend strategies.
+- [x] Update score docs/tests to reflect selection logic and config knobs.
 
 ## Phase 62: Python AST Worker Pool (status: done)
 Goal: Remove per-file Python AST spawn sync blocking by using a long-lived worker pool with recovery and scaling.
@@ -615,14 +615,14 @@ Work items:
 - [x] Emit updated manifest entries on cached bundle hits (even when reusing bundles).
 - [x] Add regression tests for manifest refresh behavior.
 
-## Phase 66: Benchmark Runner Resilience (status: todo)
+## Phase 66: Benchmark Runner Resilience (status: done)
 Goal: Make benchmark runs robust against stale index locks and long-running builds.
 Work items:
-- [ ] Detect stale index locks during benchmark builds and either wait/retry or clear safely.
-- [ ] Add an option for per-run cache roots (or per-repo lock namespaces) to avoid lock collisions.
-- [ ] Emit a clear failure summary when a benchmark build is skipped due to locks.
-- [ ] Add a regression test that simulates a stale lock during bench runs.
-- [ ] Document lock handling and recommended bench workflows.
+- [x] Detect stale index locks during benchmark builds and either wait/retry or clear safely.
+- [x] Add an option for per-run cache roots (or per-repo lock namespaces) to avoid lock collisions.
+- [x] Emit a clear failure summary when a benchmark build is skipped due to locks.
+- [x] Add a regression test that simulates a stale lock during bench runs.
+- [x] Document lock handling and recommended bench workflows.
 
 ## Phase 67: BUGFIX - Indexing Correctness + Performance (status: done)
 Goal: Resolve critical indexing correctness bugs and high-impact performance regressions.
@@ -827,12 +827,12 @@ Work items:
 - [ ] Move large numeric arrays (postings/vectors) to binary or SQLite-backed storage for large repos.
 - [ ] Compress postings (varint/delta) and build sorted posting lists to reduce memory footprint.
 
-## Phase 81: Deps Fixes - Benchmark Profiles + Knobs (status: todo)
+## Phase 81: Deps Fixes - Benchmark Profiles + Knobs (status: done)
 Goal: Make benchmarks measure core indexing without expensive enrichment by default.
 Work items:
-- [ ] Add a "benchmark profile" config (or CLI flag) that disables git blame, lint, risk/type inference, and chargrams.
-- [ ] Update benchmark scripts to apply the profile automatically and record which knobs were disabled.
-- [ ] Document benchmark profiles and recommended settings for large repos.
+- [x] Add a "benchmark profile" config (or CLI flag) that disables git blame, lint, risk/type inference, and chargrams.
+- [x] Update benchmark scripts to apply the profile automatically and record which knobs were disabled.
+- [x] Document benchmark profiles and recommended settings for large repos.
 
 ## Todo Phase Detail + Questions (status: active)
 Goal: Add implementation detail for remaining todo phases and capture any open decisions.

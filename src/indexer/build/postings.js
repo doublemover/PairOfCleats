@@ -66,11 +66,18 @@ export function buildPostings(input) {
 
   const embedLabel = useStubEmbeddings ? 'stub' : 'model';
   log(`Using ${embedLabel} embeddings for dense vectors (${modelId})...`);
-  const dims = chunks[0]?.embedding.length || 384;
-  const embeddingVectors = chunks.map((c) => c.embedding);
+  const dims = Array.isArray(chunks[0]?.embedding) ? chunks[0].embedding.length : 384;
+  const zeroVec = new Array(dims).fill(0);
+  const embeddingVectors = chunks.map((c) =>
+    Array.isArray(c.embedding) ? c.embedding : zeroVec
+  );
   const quantizedVectors = embeddingVectors.map((vec) => quantizeVec(vec));
-  const embeddingDocVectors = chunks.map((c) => c.embed_doc);
-  const embeddingCodeVectors = chunks.map((c) => c.embed_code);
+  const embeddingDocVectors = chunks.map((c) =>
+    Array.isArray(c.embed_doc) ? c.embed_doc : (Array.isArray(c.embedding) ? c.embedding : zeroVec)
+  );
+  const embeddingCodeVectors = chunks.map((c) =>
+    Array.isArray(c.embed_code) ? c.embed_code : (Array.isArray(c.embedding) ? c.embedding : zeroVec)
+  );
   const quantizedDocVectors = embeddingDocVectors.map((vec) => quantizeVec(vec));
   const quantizedCodeVectors = embeddingCodeVectors.map((vec) => quantizeVec(vec));
 

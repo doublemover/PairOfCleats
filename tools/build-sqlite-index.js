@@ -942,13 +942,13 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
         freeDocIds.push(...reuseIds.slice(reuseIndex));
       }
 
-      const entry = manifestFiles[file] || {};
+      const manifestEntry = manifestFiles[file] || {};
       insertFileManifest.run(
         mode,
         normalizedFile,
-        entry?.hash || null,
-        Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
-        Number.isFinite(entry?.size) ? entry.size : null,
+        manifestEntry?.hash || null,
+        Number.isFinite(manifestEntry?.mtimeMs) ? manifestEntry.mtimeMs : null,
+        Number.isFinite(manifestEntry?.size) ? manifestEntry.size : null,
         chunkCount
       );
     }

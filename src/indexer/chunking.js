@@ -316,7 +316,7 @@ function chunkYamlTopLevel(text) {
 function resolveYamlChunkMode(text, context) {
   const config = context?.yamlChunking || {};
   const modeRaw = typeof config.mode === 'string' ? config.mode.toLowerCase() : '';
-  const mode = ['auto', 'root', 'top-level'].includes(modeRaw) ? modeRaw : 'auto';
+  const mode = ['auto', 'root', 'top-level'].includes(modeRaw) ? modeRaw : 'root';
   const maxBytesRaw = Number(config.maxBytes);
   const maxBytes = Number.isFinite(maxBytesRaw) ? Math.max(0, Math.floor(maxBytesRaw)) : 200 * 1024;
   if (mode === 'auto') {

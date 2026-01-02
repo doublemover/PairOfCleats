@@ -19,15 +19,18 @@ const argv = minimist(process.argv.slice(2), {
     'build-index',
     'build-sqlite',
     'incremental',
+    'benchmark-profile',
     'ann',
     'no-ann',
     'stub-embeddings',
-    'dry-run'
+    'dry-run',
+    'cache-run'
   ],
   string: [
     'config',
     'root',
     'cache-root',
+    'cache-suffix',
     'results',
     'log',
     'language',
@@ -45,20 +48,28 @@ const argv = minimist(process.argv.slice(2), {
     'fts-profile',
     'fts-weights',
     'log-lines',
-    'heap-mb'
+    'heap-mb',
+    'lock-mode',
+    'lock-wait-ms',
+    'lock-stale-ms'
   ],
   default: {
     json: false,
     list: false,
     clone: true,
-    'dry-run': false
+    'dry-run': false,
+    'benchmark-profile': true
   }
 });
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const configPath = path.resolve(argv.config || path.join(scriptRoot, 'benchmarks', 'repos.json'));
 const reposRoot = path.resolve(argv.root || path.join(scriptRoot, 'benchmarks', 'repos'));
-const cacheRoot = path.resolve(argv['cache-root'] || path.join(scriptRoot, 'benchmarks', 'cache'));
+const cacheRootBase = path.resolve(argv['cache-root'] || path.join(scriptRoot, 'benchmarks', 'cache'));
+const cacheSuffixRaw = typeof argv['cache-suffix'] === 'string' ? argv['cache-suffix'].trim() : '';
+const cacheRun = argv['cache-run'] === true;
+const cacheSuffix = cacheSuffixRaw || (cacheRun ? buildRunSuffix() : '');
+const cacheRoot = cacheSuffix ? path.resolve(cacheRootBase, cacheSuffix) : cacheRootBase;
 const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));
 const logPath = path.resolve(argv.log || path.join(resultsRoot, 'bench-language.log'));
 const baseEnv = { ...process.env };
@@ -98,6 +109,10 @@ const buildProgressState = {
 const buildProgressRegex = /^\s*(Files|Imports)\s+(\d+)\/(\d+)\s+\((\d+(?:\.\d+)?)%\)/i;
 const statusLines = logWindowSize + 2;
 const cacheConfig = { cache: { root: cacheRoot } };
+const benchmarkProfileEnabled = argv['benchmark-profile'] !== false;
+const lockMode = normalizeLockMode(argv['lock-mode']);
+const lockWaitMs = parseMs(argv['lock-wait-ms'], 5 * 60 * 1000);
+const lockStaleMs = parseMs(argv['lock-stale-ms'], 30 * 60 * 1000);
 const backendList = resolveBackendList(argv.backend);
 const wantsSqlite = backendList.includes('sqlite') || backendList.includes('sqlite-fts') || backendList.includes('fts');
 const heapArgRaw = argv['heap-mb'];
@@ -111,6 +126,116 @@ function parseList(value) {
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean);
+}
+
+function buildRunSuffix() {
+  const now = new Date();
+  const stamp = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0')
+  ].join('');
+  const time = [
+    String(now.getHours()).padStart(2, '0'),
+    String(now.getMinutes()).padStart(2, '0'),
+    String(now.getSeconds()).padStart(2, '0')
+  ].join('');
+  return `run-${stamp}-${time}`;
+}
+
+function parseMs(value, fallback) {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed >= 0) return Math.floor(parsed);
+  return fallback;
+}
+
+function normalizeLockMode(value) {
+  if (!value) return 'fail-fast';
+  const raw = String(value).trim().toLowerCase();
+  if (raw === 'wait' || raw === 'retry') return 'wait';
+  if (raw === 'stale-clear' || raw === 'stale') return 'stale-clear';
+  return 'fail-fast';
+}
+
+function isProcessAlive(pid) {
+  if (!Number.isFinite(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err?.code === 'EPERM';
+  }
+}
+
+async function readLockInfo(lockPath) {
+  try {
+    const raw = await fsPromises.readFile(lockPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getLockAgeMs(lockPath, info) {
+  if (info?.startedAt) {
+    const started = Date.parse(info.startedAt);
+    if (Number.isFinite(started)) return Math.max(0, Date.now() - started);
+  }
+  try {
+    const stat = await fsPromises.stat(lockPath);
+    return Math.max(0, Date.now() - stat.mtimeMs);
+  } catch {
+    return null;
+  }
+}
+
+function formatLockDetail(detail) {
+  if (!detail) return '';
+  const parts = [];
+  if (Number.isFinite(detail.ageMs)) {
+    parts.push(`age ${formatDuration(detail.ageMs)}`);
+  }
+  if (Number.isFinite(detail.pid)) {
+    parts.push(`pid ${detail.pid}`);
+  }
+  return parts.length ? `(${parts.join(', ')})` : '';
+}
+
+async function checkIndexLock(repoCacheRoot, repoLabel) {
+  const lockPath = path.join(repoCacheRoot, 'locks', 'index.lock');
+  if (!fs.existsSync(lockPath)) return { ok: true };
+  const info = await readLockInfo(lockPath);
+  const ageMs = await getLockAgeMs(lockPath, info);
+  const pid = Number.isFinite(Number(info?.pid)) ? Number(info.pid) : null;
+  const alive = pid ? isProcessAlive(pid) : null;
+  const detail = { lockPath, ageMs, pid, alive };
+  const isStale = (Number.isFinite(ageMs) && ageMs > lockStaleMs) || (pid && !alive);
+
+  if (lockMode === 'stale-clear' && isStale) {
+    try {
+      await fsPromises.rm(lockPath, { force: true });
+      appendLog(`[lock] cleared stale lock for ${repoLabel} ${formatLockDetail(detail)}`);
+      return { ok: true, cleared: true, detail };
+    } catch {}
+  }
+
+  if (lockMode === 'wait') {
+    const deadline = Date.now() + lockWaitMs;
+    while (Date.now() < deadline) {
+      if (!fs.existsSync(lockPath)) return { ok: true };
+      if (isStale) {
+        try {
+          await fsPromises.rm(lockPath, { force: true });
+          appendLog(`[lock] cleared stale lock for ${repoLabel} ${formatLockDetail(detail)}`);
+          return { ok: true, cleared: true, detail };
+        } catch {}
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  return { ok: false, detail };
 }
 
 function loadConfig() {
@@ -758,6 +883,30 @@ for (const task of tasks) {
     }
   }
 
+  const lockCheck = await checkIndexLock(repoCacheRoot, repoLabel);
+  if (!lockCheck.ok) {
+    const detail = formatLockDetail(lockCheck.detail);
+    const message = `Skipping ${repoLabel}: index lock held ${detail}`.trim();
+    appendLog(`[lock] ${message}`);
+    if (!quietMode) console.error(message);
+    completed += 1;
+    updateProgress(`Progress: ${completed}/${tasks.length} | skipped ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
+    updateMetrics('Metrics: skipped (lock)');
+    const entry = {
+      ...task,
+      repoPath,
+      outFile,
+      summary: null,
+      skipped: true,
+      skipReason: 'lock',
+      lock: lockCheck.detail || null
+    };
+    results.push(entry);
+    if (!groupedResults.has(task.language)) groupedResults.set(task.language, []);
+    groupedResults.get(task.language).push(entry);
+    continue;
+  }
+
   const benchArgs = [
     benchScript,
     '--repo',
@@ -785,6 +934,11 @@ for (const task of tasks) {
   if (argv['bm25-b']) benchArgs.push('--bm25-b', String(argv['bm25-b']));
   if (argv['fts-profile']) benchArgs.push('--fts-profile', String(argv['fts-profile']));
   if (argv['fts-weights']) benchArgs.push('--fts-weights', String(argv['fts-weights']));
+  if (benchmarkProfileEnabled) {
+    benchArgs.push('--benchmark-profile');
+  } else {
+    benchArgs.push('--no-benchmark-profile');
+  }
 
   updateProgress(`Progress: ${completed}/${tasks.length} | bench ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
 
@@ -797,6 +951,7 @@ for (const task of tasks) {
       env: {
         ...repoEnvBase,
         PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+        PAIROFCLEATS_BENCH_PROFILE: benchmarkProfileEnabled ? '1' : '0',
         PAIROFCLEATS_PROGRESS_FILES: '1'
       }
     });

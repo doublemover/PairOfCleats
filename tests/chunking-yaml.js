@@ -2,6 +2,16 @@
 import { smartChunk } from '../src/indexer/chunking.js';
 
 const text = "alpha: 1\nbeta: 2\n";
+const defaultChunks = smartChunk({
+  text,
+  ext: '.yaml',
+  relPath: 'config.yaml',
+  mode: 'code'
+});
+if (defaultChunks.length !== 1 || defaultChunks[0].name !== 'root') {
+  console.error('Expected default YAML chunking to return a root chunk.');
+  process.exit(1);
+}
 
 const top = smartChunk({
   text,

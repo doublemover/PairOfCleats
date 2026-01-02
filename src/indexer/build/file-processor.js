@@ -37,8 +37,12 @@ export function createFileProcessor(options) {
     typeInferenceEnabled,
     riskAnalysisEnabled,
     seenFiles,
-    gitBlameEnabled
+    gitBlameEnabled,
+    lintEnabled: lintEnabledRaw,
+    complexityEnabled: complexityEnabledRaw
   } = options;
+  const lintEnabled = lintEnabledRaw !== false;
+  const complexityEnabled = complexityEnabledRaw !== false;
   const { astDataflowEnabled, controlFlowEnabled } = languageOptions;
   const dictSplitOptions = dictConfig || {};
   const phraseNgramsEnabled = postingsConfig?.enablePhraseNgrams !== false;
@@ -295,19 +299,23 @@ export function createFileProcessor(options) {
 
       let complexity = {}, lint = [];
       if (isJsLike(ext) && mode === 'code') {
-        if (!complexityCache.has(rel)) {
-          const fullCode = text;
-          const compResult = await analyzeComplexity(fullCode, rel);
-          complexityCache.set(rel, compResult);
+        if (complexityEnabled) {
+          if (!complexityCache.has(rel)) {
+            const fullCode = text;
+            const compResult = await analyzeComplexity(fullCode, rel);
+            complexityCache.set(rel, compResult);
+          }
+          complexity = complexityCache.get(rel);
         }
-        complexity = complexityCache.get(rel);
 
-        if (!lintCache.has(rel)) {
-          const fullCode = text;
-          const lintResult = await lintChunk(fullCode, rel);
-          lintCache.set(rel, lintResult);
+        if (lintEnabled) {
+          if (!lintCache.has(rel)) {
+            const fullCode = text;
+            const lintResult = await lintChunk(fullCode, rel);
+            lintCache.set(rel, lintResult);
+          }
+          lint = lintCache.get(rel);
         }
-        lint = lintCache.get(rel);
       }
 
       const freq = {};
@@ -339,7 +347,9 @@ export function createFileProcessor(options) {
       if (ci + 1 < sc.length) postContext = text.slice(sc[ci + 1].start, sc[ci + 1].end).split('\n').slice(0, contextWin);
 
       const startLine = c.meta?.startLine || offsetToLine(lineIndex, c.start);
-      const endLine = c.meta?.endLine || offsetToLine(lineIndex, c.end);
+      const endOffset = c.end > c.start ? c.end - 1 : c.start;
+      let endLine = c.meta?.endLine || offsetToLine(lineIndex, endOffset);
+      if (endLine < startLine) endLine = startLine;
       const gitMeta = await getGitMeta(relKey, startLine, endLine, {
         blame: gitBlameEnabled,
         baseDir: root

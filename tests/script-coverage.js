@@ -171,6 +171,21 @@ const actions = [
     covers: []
   },
   {
+    label: 'bench-dict-seg',
+    run: () => runNode('bench-dict-seg', path.join(root, 'tools', 'bench-dict-seg.js'), ['--json', '--sample', '80']),
+    covers: ['bench-dict-seg']
+  },
+  {
+    label: 'bench-score-strategy',
+    run: () => runNode('bench-score-strategy', path.join(root, 'tools', 'bench-score-strategy.js'), ['--json', '--build', '--stub-embeddings', '--limit', '5']),
+    covers: ['bench-score-strategy']
+  },
+  {
+    label: 'git-blame-range-test',
+    run: () => runNode('git-blame-range-test', path.join(root, 'tests', 'git-blame-range.js')),
+    covers: ['git-blame-range-test']
+  },
+  {
     label: 'tooling-lsp-test',
     run: () => runNode('tooling-lsp-test', path.join(root, 'tests', 'tooling-lsp.js')),
     covers: []
@@ -184,6 +199,11 @@ const actions = [
     label: 'bench-language-repos-test',
     run: () => runNode('bench-language-repos-test', path.join(root, 'tests', 'bench-language-repos.js')),
     covers: ['bench-language-test']
+  },
+  {
+    label: 'bench-language-lock-test',
+    run: () => runNode('bench-language-lock-test', path.join(root, 'tests', 'bench-language-lock.js')),
+    covers: ['bench-language-lock-test']
   },
   {
     label: 'summary-report-test',

@@ -1,0 +1,160 @@
+#!/usr/bin/env node
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import minimist from 'minimist';
+import { splitWordsWithDict } from '../src/shared/tokenize.js';
+
+const argv = minimist(process.argv.slice(2), {
+  boolean: ['json'],
+  string: ['dict', 'tokens', 'out', 'sample', 'dp-max'],
+  default: { json: false }
+});
+
+const root = process.cwd();
+const dictPath = path.resolve(argv.dict || path.join(root, 'tests', 'fixtures', 'dicts', 'words.txt'));
+const tokensPath = argv.tokens ? path.resolve(argv.tokens) : null;
+const sampleLimit = Number.isFinite(Number(argv.sample))
+  ? Math.max(10, Number(argv.sample))
+  : 300;
+const dpMaxTokenLength = Number.isFinite(Number(argv['dp-max']))
+  ? Math.max(4, Math.floor(Number(argv['dp-max'])))
+  : 32;
+
+function camelize(a, b) {
+  if (!a) return b || '';
+  if (!b) return a;
+  return `${a}${b[0].toUpperCase()}${b.slice(1)}`;
+}
+
+function buildTokenSamples(words, limit) {
+  const base = words.slice(0, Math.min(words.length, 120));
+  const tokens = new Set();
+  for (const word of base) tokens.add(word);
+  for (let i = 0; i < base.length; i += 1) {
+    const a = base[i];
+    const b = base[(i + 1) % base.length];
+    const c = base[(i + 2) % base.length];
+    tokens.add(`${a}${b}`);
+    tokens.add(camelize(a, b));
+    tokens.add(`${a}_${b}`);
+    tokens.add(`${a}-${c}`);
+  }
+  const extras = [
+    'HTTPRequest',
+    'getUserProfile',
+    'userIDLookup',
+    'kubernetesClusterConfig',
+    'postgresConnectionString',
+    'lruCacheStats',
+    'xkcdToken',
+    'xyzzynotaword',
+    'foo2bar',
+    'ZalgoMode'
+  ];
+  extras.forEach((token) => tokens.add(token));
+  return Array.from(tokens).slice(0, limit);
+}
+
+async function loadTokens(words) {
+  if (tokensPath) {
+    const raw = await fs.readFile(tokensPath, 'utf8');
+    return raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, sampleLimit);
+  }
+  return buildTokenSamples(words, sampleLimit);
+}
+
+function measure(tokens, dict, segmentation) {
+  const start = Date.now();
+  let totalSegments = 0;
+  let totalChars = 0;
+  let dictChars = 0;
+  let unknownChars = 0;
+  let dictSegments = 0;
+  let unknownSegments = 0;
+  for (const token of tokens) {
+    if (!token) continue;
+    totalChars += token.length;
+    const segments = splitWordsWithDict(token.toLowerCase(), dict, {
+      segmentation,
+      dpMaxTokenLength
+    });
+    totalSegments += segments.length;
+    for (const seg of segments) {
+      if (dict.has(seg)) {
+        dictChars += seg.length;
+        dictSegments += 1;
+      } else {
+        unknownChars += seg.length;
+        unknownSegments += 1;
+      }
+    }
+  }
+  const durationMs = Date.now() - start;
+  const coverage = totalChars > 0 ? dictChars / totalChars : 0;
+  return {
+    segments: totalSegments,
+    avgSegmentsPerToken: tokens.length ? totalSegments / tokens.length : 0,
+    dictSegments,
+    unknownSegments,
+    dictChars,
+    unknownChars,
+    coverage,
+    durationMs
+  };
+}
+
+let dictRaw = '';
+try {
+  dictRaw = await fs.readFile(dictPath, 'utf8');
+} catch (err) {
+  console.error(`Failed to read dictionary at ${dictPath}`);
+  if (err?.message) console.error(err.message);
+  process.exit(1);
+}
+
+const dictWords = new Set(
+  dictRaw
+    .split(/\r?\n/)
+    .map((line) => line.trim().toLowerCase())
+    .filter(Boolean)
+);
+
+const tokens = await loadTokens(Array.from(dictWords));
+const greedy = measure(tokens, dictWords, 'greedy');
+const dp = measure(tokens, dictWords, 'dp');
+
+const summary = {
+  generatedAt: new Date().toISOString(),
+  dictPath,
+  dictWords: dictWords.size,
+  tokens: tokens.length,
+  dpMaxTokenLength,
+  strategies: {
+    greedy,
+    dp
+  }
+};
+
+if (argv.out) {
+  const outPath = path.resolve(argv.out);
+  await fs.writeFile(outPath, JSON.stringify(summary, null, 2));
+}
+
+if (argv.json) {
+  console.log(JSON.stringify(summary, null, 2));
+} else {
+  console.log('Dictionary segmentation benchmark');
+  console.log(`- Dict: ${dictPath}`);
+  console.log(`- Words: ${dictWords.size}`);
+  console.log(`- Tokens: ${tokens.length}`);
+  console.log(`- dpMaxTokenLength: ${dpMaxTokenLength}`);
+  for (const [name, stats] of Object.entries(summary.strategies)) {
+    console.log(`- ${name} avg segments: ${stats.avgSegmentsPerToken.toFixed(2)}`);
+    console.log(`- ${name} coverage: ${(stats.coverage * 100).toFixed(1)}%`);
+    console.log(`- ${name} duration: ${stats.durationMs} ms`);
+  }
+}

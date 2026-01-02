@@ -87,7 +87,9 @@ export async function buildIndexForMode({ mode, runtime }) {
     typeInferenceEnabled: runtime.typeInferenceEnabled,
     riskAnalysisEnabled: runtime.riskAnalysisEnabled,
     seenFiles,
-    gitBlameEnabled: runtime.gitBlameEnabled
+    gitBlameEnabled: runtime.gitBlameEnabled,
+    lintEnabled: runtime.lintEnabled,
+    complexityEnabled: runtime.complexityEnabled
   });
 
   let processedFiles = 0;

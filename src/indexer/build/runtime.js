@@ -14,6 +14,7 @@ import { createEmbedder } from '../embedding.js';
 import { log } from '../../shared/progress.js';
 import { buildIgnoreMatcher } from './ignore.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
+import { applyBenchmarkProfile } from '../../shared/bench-profile.js';
 
 /**
  * Create runtime configuration for build_index.
@@ -22,10 +23,14 @@ import { normalizePostingsConfig } from '../../shared/postings-config.js';
  */
 export async function createBuildRuntime({ root, argv, rawArgv }) {
   const userConfig = loadUserConfig(root);
+  const rawIndexingConfig = userConfig.indexing || {};
+  const { indexingConfig, profile: benchmarkProfile } = applyBenchmarkProfile(
+    rawIndexingConfig,
+    process.env.PAIROFCLEATS_BENCH_PROFILE
+  );
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const toolingConfig = getToolingConfig(root, userConfig);
   const toolingEnabled = toolingConfig.autoEnableOnDetect !== false;
-  const indexingConfig = userConfig.indexing || {};
   const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});
   const maxFileBytesRaw = indexingConfig.maxFileBytes;
   const maxFileBytesParsed = Number(maxFileBytesRaw);
@@ -45,12 +50,14 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const riskAnalysisCrossFileEnabled = riskAnalysisEnabled
     && indexingConfig.riskAnalysisCrossFile !== false;
   const gitBlameEnabled = indexingConfig.gitBlame !== false;
+  const lintEnabled = indexingConfig.lint !== false;
+  const complexityEnabled = indexingConfig.complexity !== false;
   const yamlChunkingModeRaw = typeof indexingConfig.yamlChunking === 'string'
     ? indexingConfig.yamlChunking.trim().toLowerCase()
     : '';
   const yamlChunkingMode = ['auto', 'root', 'top-level'].includes(yamlChunkingModeRaw)
     ? yamlChunkingModeRaw
-    : 'auto';
+    : 'root';
   const yamlTopLevelMaxBytesRaw = Number(indexingConfig.yamlTopLevelMaxBytes);
   const yamlTopLevelMaxBytes = Number.isFinite(yamlTopLevelMaxBytesRaw)
     ? Math.max(0, Math.floor(yamlTopLevelMaxBytesRaw))
@@ -142,6 +149,12 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   if (incrementalEnabled) {
     log(`Incremental cache enabled (root: ${path.join(repoCacheRoot, 'incremental')}).`);
   }
+  if (benchmarkProfile.enabled) {
+    const disabled = benchmarkProfile.disabled.length
+      ? benchmarkProfile.disabled.join(', ')
+      : 'none';
+    log(`Benchmark profile enabled: disabled ${disabled}.`);
+  }
   if (!astDataflowEnabled) {
     log('AST dataflow metadata disabled via indexing.astDataflow.');
   }
@@ -159,6 +172,12 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   }
   if (!gitBlameEnabled) {
     log('Git blame metadata disabled via indexing.gitBlame.');
+  }
+  if (!lintEnabled) {
+    log('Lint metadata disabled via indexing.lint.');
+  }
+  if (!complexityEnabled) {
+    log('Complexity metadata disabled via indexing.complexity.');
   }
   if (!riskAnalysisEnabled) {
     log('Risk analysis disabled via indexing.riskAnalysis.');
@@ -194,6 +213,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     toolingConfig,
     toolingEnabled,
     indexingConfig,
+    benchmarkProfile,
     postingsConfig,
     astDataflowEnabled,
     controlFlowEnabled,
@@ -202,6 +222,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     riskAnalysisEnabled,
     riskAnalysisCrossFileEnabled,
     gitBlameEnabled,
+    lintEnabled,
+    complexityEnabled,
     resolveSqlDialect,
     fileConcurrency,
     importConcurrency,

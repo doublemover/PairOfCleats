@@ -41,9 +41,13 @@ Use the language benchmark harness to run search and performance baselines acros
 - `--clone` / `--no-clone`: clone missing repos (default on).
 - `--root <path>`: clone destination root (default `benchmarks/repos`).
 - `--cache-root <path>`: cache root for all benchmark runs (default `benchmarks/cache`).
+- `--cache-suffix <name>` / `--cache-run`: append a suffix or auto-generate a run id to isolate caches per run.
 - `--build`, `--build-index`, `--build-sqlite`: build indexes before search. `--build-sqlite` requires file-backed indexes and will auto-enable `--build-index` when missing.
 - `--backend <csv|all>`: control backends passed to `tests/bench.js`.
 - `--ann` / `--no-ann`: toggle ANN for dense search.
+- `--benchmark-profile` / `--no-benchmark-profile`: toggle the benchmark profile (default on) which disables expensive enrichment (git blame, lint/complexity, risk, type inference, chargrams).
+- `--lock-mode <fail-fast|wait|stale-clear>`: handle existing index locks (default `fail-fast`).
+- `--lock-wait-ms <ms>` / `--lock-stale-ms <ms>`: tune wait and stale thresholds when lock mode is `wait`/`stale-clear`.
 - `--stub-embeddings`: run without model downloads.
 - `--log <file>`: write run logs to a specific file (default `benchmarks/results/bench-language.log`).
 - `--out <file>`: write aggregate JSON summary.
@@ -51,3 +55,4 @@ Use the language benchmark harness to run search and performance baselines acros
 ## Notes
 - `tests/bench.js` is the underlying runner and supports extra tuning flags (`--bm25-k1`, `--bm25-b`, `--fts-profile`, `--fts-weights`).
 - Queries are plain text, one query per line; lines starting with `#` are ignored.
+- The benchmark profile is on by default and recommended for large repos; disable it when you want full enrichment costs reflected in timings.

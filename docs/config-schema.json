@@ -162,7 +162,22 @@
         "typeInference": { "type": "boolean" },
         "typeInferenceCrossFile": { "type": "boolean" },
         "gitBlame": { "type": "boolean" },
-        "yamlChunking": { "type": "string" },
+        "lint": { "type": "boolean" },
+        "complexity": { "type": "boolean" },
+        "benchmarkProfile": {
+          "type": ["boolean", "object"],
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "disableGitBlame": { "type": "boolean" },
+            "disableLint": { "type": "boolean" },
+            "disableComplexity": { "type": "boolean" },
+            "disableChargrams": { "type": "boolean" },
+            "disableRisk": { "type": "boolean" },
+            "disableTypeInference": { "type": "boolean" }
+          }
+        },
+        "yamlChunking": { "type": "string", "enum": ["auto", "root", "top-level"] },
         "yamlTopLevelMaxBytes": { "type": "number" },
         "postings": {
           "type": "object",
