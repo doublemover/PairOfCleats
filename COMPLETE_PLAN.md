@@ -965,5 +965,43 @@ Goal: Add implementation detail for remaining todo phases and capture any open d
 - Record which knobs were disabled in benchmark summaries.
 - Document recommended benchmark settings for large repos.
 
+### Phase 82 details
+- Add a trigram/chargram candidate generator for substring and regex queries (regex to ngram prefilter).
+- Keep punctuation as first-class tokens for code search (no stemming or stop-word removal).
+- Add a safe regex prefilter stage that always verifies exact matches.
+- Document the prefilter strategy and limits in `docs/search.md` or equivalent.
+
+### Phase 83 details
+- Expand query language filters (repo, file/path, lang, branch, case) and ensure they are cheap.
+- Add symbol-aware ranking boosts for definitions/exports (ctags/tree-sitter/LSP).
+- Create a compact repo map artifact (symbols + signatures + file paths) for retrieval and navigation.
+- Add tests for filter correctness and ranking boost behavior.
+
+### Phase 84 details
+- Ingest SCIP and LSIF artifacts as optional inputs to populate definition/reference data.
+- Add ctags JSONL streaming ingestion and optional interactive mode support.
+- Add GNU Global tag DB as a fallback for languages without AST or LSP.
+- Document precedence and fallbacks between LSP, SCIP/LSIF, ctags, and tags.
+
+### Phase 85 details
+- Integrate structural search engines (ast-grep, Semgrep rules, Comby templates).
+- Add a rule-pack registry for security/risk signals and metadata extraction.
+- Provide a structural-search CLI path with tests and fixtures.
+
+### Phase 86 details
+- Add a service-mode indexer that separates repo sync, indexing, and query serving.
+- Implement durable job queues for multi-repo indexing with backpressure.
+- Add repo connectors and syncing policies aligned with Sourcebot-style workflows.
+
+### Phase 87 details
+- Prototype external sparse backends (Tantivy) and vector backends (LanceDB).
+- Evaluate server-backed search options (Meilisearch, Typesense) for UI suggestions.
+- Document tradeoffs and an adoption recommendation.
+
+### Phase 88 details
+- Expand retrieval evaluation harness with datasets and offline metrics (MRR/recall).
+- Add evaluation profiles inspired by Continue/Haystack guidance.
+- Keep evaluation results in `docs/` with reproducible scripts.
+
 ### Open questions
 - None.
