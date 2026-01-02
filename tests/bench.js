@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import { getRuntimeConfig, loadUserConfig, resolveNodeOptions } from '../tools/dict-utils.js';
+import os from 'node:os';
 
 const rawArgs = process.argv.slice(2);
 const argv = minimist(rawArgs, {
@@ -68,10 +69,37 @@ const buildIncremental = argv.incremental === true;
 const stubEmbeddings = argv['stub-embeddings'] === true;
 const runtimeRoot = repoArg || root;
 const runtimeConfig = getRuntimeConfig(runtimeRoot, loadUserConfig(runtimeRoot));
-const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+const heapArgRaw = argv['heap-mb'];
+const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgRaw)) : null;
+const heapRecommendation = getRecommendedHeapMb();
+const baseNodeOptions = stripMaxOldSpaceFlag(process.env.NODE_OPTIONS || '');
+const hasHeapFlag = baseNodeOptions.includes('--max-old-space-size');
+let heapOverride = null;
+if (Number.isFinite(heapArg) && heapArg > 0) {
+  heapOverride = heapArg;
+} else if (
+  !Number.isFinite(runtimeConfig.maxOldSpaceMb)
+  && !process.env.PAIROFCLEATS_MAX_OLD_SPACE_MB
+  && !hasHeapFlag
+) {
+  heapOverride = heapRecommendation.recommendedMb;
+}
+const runtimeConfigForRun = heapOverride
+  ? { ...runtimeConfig, maxOldSpaceMb: heapOverride }
+  : runtimeConfig;
+const resolvedNodeOptions = resolveNodeOptions(runtimeConfigForRun, baseNodeOptions);
 const baseEnv = resolvedNodeOptions
   ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
   : process.env;
+if (heapOverride) {
+  baseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapOverride);
+  if (!jsonOutput) {
+    console.log(
+      `[bench] heap ${formatGb(heapOverride)} (${heapOverride} MB) ` +
+        `(override with --heap-mb or PAIROFCLEATS_MAX_OLD_SPACE_MB)`
+    );
+  }
+}
 
 function runSearch(query, backend) {
   const args = [
@@ -123,6 +151,28 @@ function buildStats(values) {
     p95: percentile(sorted, 95),
     min: sorted[0],
     max: sorted[sorted.length - 1]
+  };
+}
+
+function stripMaxOldSpaceFlag(options) {
+  if (!options) return '';
+  return options
+    .replace(/--max-old-space-size=\d+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatGb(mb) {
+  return `${(mb / 1024).toFixed(1)} GB`;
+}
+
+function getRecommendedHeapMb() {
+  const totalMb = Math.floor(os.totalmem() / (1024 * 1024));
+  const recommended = Math.max(4096, Math.floor(totalMb * 0.75));
+  const rounded = Math.floor(recommended / 256) * 256;
+  return {
+    totalMb,
+    recommendedMb: Math.max(4096, rounded)
   };
 }
 
