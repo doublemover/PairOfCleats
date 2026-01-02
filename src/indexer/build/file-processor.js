@@ -97,7 +97,10 @@ export function createFileProcessor(options) {
         const base = mod.split('.')[0];
         if (base) externalDocs.push(`https://pypi.org/project/${base}`);
       } else if (isNode) {
-        const encoded = encodeURIComponent(mod).replace(/%2F/g, '/');
+        const encoded = mod
+          .split('/')
+          .map((segment) => encodeURIComponent(segment).replace(/%40/g, '@'))
+          .join('/');
         externalDocs.push(`https://www.npmjs.com/package/${encoded}`);
       } else if (isGoLang) {
         externalDocs.push(`https://pkg.go.dev/${mod}`);

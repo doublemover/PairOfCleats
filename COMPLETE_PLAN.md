@@ -569,11 +569,11 @@ Work items:
 - [x] Ensure key scanning uses line offsets (no `indexOf` on values).
 - [x] Add format-fidelity tests for YAML chunk boundaries and configurable strategy.
 
-## Phase 60: External Docs URL Correctness (status: partial)
+## Phase 60: External Docs URL Correctness (status: done)
 Goal: Ensure scoped npm package links are correct.
 Work items:
 - [x] Preserve `@` in scoped package URLs and URL-encode path segments.
-- [ ] Add regression tests for npm scoped module URLs in external docs.
+- [x] Add regression tests for npm scoped module URLs in external docs.
 
 ## Phase 61: ANN vs Sparse Scoring Selection (status: done)
 Goal: Make ANN selection scale-safe by using sparse-first fallback and enable benchmarking of normalized blends.

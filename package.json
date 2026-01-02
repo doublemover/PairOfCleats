@@ -24,6 +24,7 @@
     "git-hooks": "node tools/git-hooks.js",
     "git-hooks-test": "node tests/git-hooks.js",
     "git-blame-range-test": "node tests/git-blame-range.js",
+    "external-docs-test": "node tests/external-docs.js",
     "build-sqlite-index": "node tools/build-sqlite-index.js",
     "search-sqlite": "node tools/search-sqlite.js",
     "report-artifacts": "node tools/report-artifacts.js",

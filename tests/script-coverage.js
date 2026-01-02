@@ -186,6 +186,11 @@ const actions = [
     covers: ['git-blame-range-test']
   },
   {
+    label: 'external-docs-test',
+    run: () => runNode('external-docs-test', path.join(root, 'tests', 'external-docs.js')),
+    covers: ['external-docs-test']
+  },
+  {
     label: 'tooling-lsp-test',
     run: () => runNode('tooling-lsp-test', path.join(root, 'tests', 'tooling-lsp.js')),
     covers: []
