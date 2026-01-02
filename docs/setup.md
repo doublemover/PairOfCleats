@@ -21,6 +21,7 @@ The unified setup script (`npm run setup`) guides you through installing optiona
 - Restore CI artifacts when present.
 - Build file-backed indexes (optionally incremental).
 - Build SQLite indexes (optional).
+- Offer to set a Node heap limit for large repos (writes `runtime.maxOldSpaceMb`).
 
 ## Flags
 
@@ -30,6 +31,7 @@ The unified setup script (`npm run setup`) guides you through installing optiona
 - `--incremental`: Use incremental indexing if available.
 - `--validate-config`: Validate `.pairofcleats.json` before running setup.
 - `--skip-validate`: Skip config validation prompts.
+- `--heap-mb <mb>`: Persist a Node heap limit (max-old-space-size) in `.pairofcleats.json`.
 - `--tooling-scope cache|global`: Override tooling install scope.
 - `--skip-install`: Skip `npm install`.
 - `--skip-dicts`: Skip dictionary download.

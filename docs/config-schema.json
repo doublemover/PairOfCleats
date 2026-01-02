@@ -184,6 +184,14 @@
         "compare": { "type": "array", "items": { "type": "string" } }
       }
     },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxOldSpaceMb": { "type": "number" },
+        "nodeOptions": { "type": "string" }
+      }
+    },
     "tooling": {
       "type": "object",
       "additionalProperties": false,

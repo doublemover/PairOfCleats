@@ -101,6 +101,10 @@
     "id": "Xenova/all-MiniLM-L12-v2",
     "dir": ""
   },
+  "runtime": {
+    "maxOldSpaceMb": 98304,
+    "nodeOptions": ""
+  },
   "tooling": {
     "autoInstallOnDetect": false,
     "installScope": "cache",

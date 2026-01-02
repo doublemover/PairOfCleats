@@ -6,7 +6,7 @@ import readline from 'node:readline';
 import { spawn, spawnSync } from 'node:child_process';
 import minimist from 'minimist';
 import { fileURLToPath } from 'node:url';
-import { getRepoCacheRoot } from './dict-utils.js';
+import { getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions } from './dict-utils.js';
 
 const argv = minimist(process.argv.slice(2), {
   boolean: [
@@ -59,6 +59,11 @@ const reposRoot = path.resolve(argv.root || path.join(scriptRoot, 'benchmarks', 
 const cacheRoot = path.resolve(argv['cache-root'] || path.join(scriptRoot, 'benchmarks', 'cache'));
 const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));
 const logPath = path.resolve(argv.log || path.join(resultsRoot, 'bench-language.log'));
+const runtimeConfig = getRuntimeConfig(scriptRoot, loadUserConfig(scriptRoot));
+const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+const baseEnv = resolvedNodeOptions
+  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
+  : { ...process.env };
 
 const cloneEnabled = argv['no-clone'] ? false : argv.clone !== false;
 const dryRun = argv['dry-run'] === true;
@@ -82,6 +87,17 @@ let lastMetricsLogged = '';
 let activeChild = null;
 let activeLabel = '';
 let exitLogged = false;
+let currentRepoLabel = '';
+const buildProgressState = {
+  step: null,
+  total: 0,
+  startMs: 0,
+  lastLoggedMs: 0,
+  lastCount: 0,
+  lastPct: 0,
+  label: ''
+};
+const buildProgressRegex = /^\s*(Files|Imports)\s+(\d+)\/(\d+)\s+\((\d+(?:\.\d+)?)%\)/i;
 const statusLines = logWindowSize + 2;
 const cacheConfig = { cache: { root: cacheRoot } };
 const backendList = resolveBackendList(argv.backend);
@@ -269,6 +285,7 @@ function appendLog(line) {
   if (!cleaned) return;
   pushHistory(cleaned);
   writeLog(cleaned);
+  handleBuildProgress(cleaned);
   if (interactive) {
     logLines.push(cleaned);
     if (logLines.length > logWindowSize) logLines.shift();
@@ -276,6 +293,74 @@ function appendLog(line) {
   } else if (!quietMode) {
     console.log(cleaned);
   }
+}
+
+function resetBuildProgress(label = '') {
+  buildProgressState.step = null;
+  buildProgressState.total = 0;
+  buildProgressState.startMs = 0;
+  buildProgressState.lastLoggedMs = 0;
+  buildProgressState.lastCount = 0;
+  buildProgressState.lastPct = 0;
+  buildProgressState.label = label;
+}
+
+function handleBuildProgress(line) {
+  const match = buildProgressRegex.exec(line);
+  if (!match) return false;
+  const step = match[1];
+  const count = Number.parseInt(match[2], 10);
+  const total = Number.parseInt(match[3], 10);
+  const pct = Number.parseFloat(match[4]);
+  if (
+    !Number.isFinite(count) ||
+    !Number.isFinite(total) ||
+    !Number.isFinite(pct) ||
+    total <= 0
+  ) {
+    return true;
+  }
+  const label = currentRepoLabel || activeLabel || '';
+  const now = Date.now();
+  if (
+    buildProgressState.step !== step ||
+    buildProgressState.total !== total ||
+    count < buildProgressState.lastCount ||
+    buildProgressState.label !== label
+  ) {
+    buildProgressState.step = step;
+    buildProgressState.total = total;
+    buildProgressState.startMs = now;
+    buildProgressState.lastLoggedMs = 0;
+    buildProgressState.lastCount = 0;
+    buildProgressState.lastPct = 0;
+    buildProgressState.label = label;
+  }
+  if (!buildProgressState.startMs) buildProgressState.startMs = now;
+  const elapsedMs = now - buildProgressState.startMs;
+  const rate = elapsedMs > 0 ? count / (elapsedMs / 1000) : 0;
+  const remaining = total - count;
+  const etaMs = rate > 0 && remaining > 0 ? (remaining / rate) * 1000 : 0;
+  const pctDelta = pct - buildProgressState.lastPct;
+  const countDelta = count - buildProgressState.lastCount;
+  const shouldLog =
+    count === total ||
+    now - buildProgressState.lastLoggedMs >= 5000 ||
+    pctDelta >= 1 ||
+    countDelta >= 500;
+  if (shouldLog) {
+    const rateText = rate > 0 ? `${rate.toFixed(1)}/s` : 'n/a';
+    const etaText = etaMs > 0 ? formatDuration(etaMs) : 'n/a';
+    const labelText = label ? ` ${label}` : '';
+    const message = `Indexing${labelText} ${step} ${count}/${total} (${pct.toFixed(
+      1
+    )}%) | rate ${rateText} | elapsed ${formatDuration(elapsedMs)} | eta ${etaText}`;
+    updateMetrics(message);
+    buildProgressState.lastLoggedMs = now;
+    buildProgressState.lastCount = count;
+    buildProgressState.lastPct = pct;
+  }
+  return true;
 }
 
 function formatDuration(ms) {
@@ -559,6 +644,8 @@ for (const task of tasks) {
   await fsPromises.mkdir(path.dirname(repoPath), { recursive: true });
   const repoLabel = `${task.language}/${task.repo}`;
   const phaseLabel = `repo ${repoLabel} (${task.tier})`;
+  currentRepoLabel = repoLabel;
+  resetBuildProgress(repoLabel);
 
   if (!fs.existsSync(repoPath)) {
     if (!cloneEnabled && !dryRun) {
@@ -583,6 +670,12 @@ for (const task of tasks) {
   const missingSqlite = wantsSqlite && needsSqliteArtifacts(repoCacheRoot);
   let autoBuildIndex = false;
   let autoBuildSqlite = false;
+  const buildIndexRequested = argv.build || argv['build-index'];
+  const buildSqliteRequested = argv.build || argv['build-sqlite'];
+  if (buildSqliteRequested && !buildIndexRequested && missingIndex) {
+    autoBuildIndex = true;
+    appendLog('[auto-build] sqlite build requires index artifacts; enabling build-index.');
+  }
   if (!argv.build && !argv['build-index'] && !argv['build-sqlite']) {
     if (missingIndex) autoBuildIndex = true;
     if (missingSqlite) autoBuildSqlite = true;
@@ -629,7 +722,11 @@ for (const task of tasks) {
   } else {
     await runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
       cwd: scriptRoot,
-      env: { ...process.env, PAIROFCLEATS_CACHE_ROOT: cacheRoot }
+      env: {
+        ...baseEnv,
+        PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+        PAIROFCLEATS_PROGRESS_FILES: '1'
+      }
     });
     try {
       const raw = await fsPromises.readFile(outFile, 'utf8');

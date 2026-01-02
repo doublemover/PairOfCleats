@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import minimist from 'minimist';
 import readline from 'node:readline/promises';
 import {
@@ -10,8 +11,10 @@ import {
   getIndexDir,
   getModelConfig,
   getRepoCacheRoot,
+  getRuntimeConfig,
   getToolingConfig,
   loadUserConfig,
+  resolveNodeOptions,
   resolveRepoRoot
 } from './dict-utils.js';
 import { runCommand as runCommandBase } from './cli-utils.js';
@@ -34,7 +37,7 @@ const argv = minimist(process.argv.slice(2), {
     'with-sqlite',
     'incremental'
   ],
-  string: ['root', 'repo', 'tooling-scope'],
+  string: ['root', 'repo', 'tooling-scope', 'heap-mb'],
   alias: { ci: 'non-interactive', s: 'with-sqlite', i: 'incremental' },
   default: {
     'non-interactive': false,
@@ -110,8 +113,50 @@ async function promptChoice(question, choices, defaultChoice) {
   return match || defaultChoice;
 }
 
+function formatGb(mb) {
+  return `${(mb / 1024).toFixed(1)} GB`;
+}
+
+function getRecommendedHeapMb() {
+  const totalMb = Math.floor(os.totalmem() / (1024 * 1024));
+  const recommended = Math.max(4096, Math.floor(totalMb * 0.75));
+  const rounded = Math.floor(recommended / 256) * 256;
+  return {
+    totalMb,
+    recommendedMb: Math.max(4096, rounded)
+  };
+}
+
+async function updateRuntimeConfig(maxOldSpaceMb) {
+  const existing = configExists
+    ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
+    : {};
+  const next = {
+    ...existing,
+    runtime: {
+      ...(existing.runtime || {}),
+      maxOldSpaceMb
+    }
+  };
+  await fsPromises.writeFile(configPath, JSON.stringify(next, null, 2));
+  configExists = true;
+  return next;
+}
+
+function buildRuntimeEnv(config) {
+  const runtimeConfig = getRuntimeConfig(root, config);
+  const nodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+  return nodeOptions ? { ...process.env, NODE_OPTIONS: nodeOptions } : { ...process.env };
+}
+
+let runtimeEnv = { ...process.env };
+
 function runCommand(cmd, args, options = {}) {
-  const spawnOptions = { cwd: root, ...options };
+  const spawnOptions = {
+    cwd: root,
+    ...options,
+    env: { ...runtimeEnv, ...(options.env || {}) }
+  };
   if (!('stdio' in spawnOptions)) {
     spawnOptions.stdio = jsonOutput ? 'pipe' : 'inherit';
   }
@@ -143,7 +188,7 @@ async function hasEntries(dirPath) {
 log(`Starting setup in ${root}`);
 
 const configPath = path.join(root, '.pairofcleats.json');
-const configExists = fs.existsSync(configPath);
+let configExists = fs.existsSync(configPath);
 let shouldValidateConfig = argv['validate-config'] === true;
 if (!argv['skip-validate'] && configExists && !shouldValidateConfig && !nonInteractive) {
   shouldValidateConfig = await promptYesNo('Validate .pairofcleats.json now?', true);
@@ -169,12 +214,48 @@ if (shouldValidateConfig && configExists) {
   recordStep('config', { skipped: true, present: configExists, configPath });
 }
 
-const userConfig = loadUserConfig(root);
+let userConfig = loadUserConfig(root);
+runtimeEnv = buildRuntimeEnv(userConfig);
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const incrementalCacheRoot = path.join(repoCacheRoot, 'incremental');
 const useIncremental = argv.incremental || fs.existsSync(incrementalCacheRoot);
 summary.incremental = useIncremental;
 if (useIncremental) log('Incremental indexing enabled.');
+
+const heapArgRaw = argv['heap-mb'];
+const heapArg = Number.isFinite(Number(heapArgRaw)) ? Number(heapArgRaw) : null;
+const currentHeap = Number(userConfig.runtime?.maxOldSpaceMb);
+const heapConfigured = Number.isFinite(currentHeap) && currentHeap > 0;
+const heapRecommendation = getRecommendedHeapMb();
+let runtimeUpdated = false;
+let heapValue = heapConfigured ? currentHeap : null;
+
+if (Number.isFinite(heapArg) && heapArg > 0) {
+  userConfig = await updateRuntimeConfig(Math.floor(heapArg));
+  runtimeEnv = buildRuntimeEnv(userConfig);
+  runtimeUpdated = true;
+  heapValue = Math.floor(heapArg);
+  log(`Configured Node heap limit at ${formatGb(heapValue)}.`);
+} else if (!heapConfigured) {
+  const defaultYes = heapRecommendation.totalMb >= 16384;
+  const shouldSet = await promptYesNo(
+    `Set Node heap limit to ${formatGb(heapRecommendation.recommendedMb)}?`,
+    defaultYes
+  );
+  if (shouldSet) {
+    userConfig = await updateRuntimeConfig(heapRecommendation.recommendedMb);
+    runtimeEnv = buildRuntimeEnv(userConfig);
+    runtimeUpdated = true;
+    heapValue = heapRecommendation.recommendedMb;
+    log(`Configured Node heap limit at ${formatGb(heapValue)}.`);
+  }
+}
+recordStep('runtime', {
+  configured: runtimeUpdated || heapConfigured,
+  maxOldSpaceMb: heapValue,
+  recommendedMb: heapRecommendation.recommendedMb,
+  skipped: !(runtimeUpdated || heapConfigured)
+});
 
 const nodeModules = path.join(root, 'node_modules');
 if (argv['skip-install']) {

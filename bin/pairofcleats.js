@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot } from '../tools/dict-utils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -111,10 +112,23 @@ function runScript(scriptPath, extraArgs, restArgs) {
     console.error(`Script not found: ${resolved}`);
     process.exit(1);
   }
+  const repoOverride = extractRepoArg(restArgs);
+  const repoRoot = repoOverride ? path.resolve(repoOverride) : resolveRepoRoot(process.cwd());
+  const userConfig = loadUserConfig(repoRoot);
+  const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
+  const nodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+  const env = nodeOptions ? { ...process.env, NODE_OPTIONS: nodeOptions } : process.env;
   const result = spawnSync(process.execPath, [resolved, ...extraArgs, ...restArgs], {
-    stdio: 'inherit'
+    stdio: 'inherit',
+    env
   });
   process.exit(result.status ?? 1);
+}
+
+function extractRepoArg(args) {
+  const idx = args.indexOf('--repo');
+  if (idx >= 0 && args[idx + 1]) return args[idx + 1];
+  return null;
 }
 
 function isHelpCommand(value) {

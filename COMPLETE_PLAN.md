@@ -623,3 +623,68 @@ Work items:
 - [ ] Emit a clear failure summary when a benchmark build is skipped due to locks.
 - [ ] Add a regression test that simulates a stale lock during bench runs.
 - [ ] Document lock handling and recommended bench workflows.
+
+## Phase 67: BUGFIX - Indexing Correctness + Performance (status: todo)
+Goal: Resolve critical indexing correctness bugs and high-impact performance regressions.
+Work items:
+- [ ] Fix git blame ranges to use line numbers (not character offsets) and eliminate off-by-one adjustments; validate chunk authors are populated.
+- [ ] Ensure git metadata runs from the repo root (or uses `simpleGit({ baseDir })`) so `--repo` indexing works reliably.
+- [ ] Replace YAML `indexOf`-based chunking with line/indent boundaries to avoid overlap and negative offsets.
+- [ ] Stop dictionary splitting from devolving unknown spans into single-character tokens (preserve unknown spans).
+- [ ] Avoid unbounded memory growth during indexing by streaming results instead of retaining all file chunks in memory.
+- [ ] Skip `embed_doc` model calls when docstrings are empty to reduce embedding work on code-only chunks.
+- [ ] Reduce `splitWordsWithDict` worst-case cost (add a bounded fallback/DP path) to avoid O(n²) token splitting.
+- [ ] Make ANN vs sparse score selection scale-safe (normalize or sparse-first fallback).
+- [ ] Tighten filter semantics for `--type`/`--author` so missing metadata does not pass and multi-value types are handled.
+- [ ] Prevent exclude-only queries from triggering ANN embeddings that ignore exclusion semantics.
+- [ ] Avoid O(N) MinHash scanning without a candidate set; gate or reduce fallback cost.
+- [ ] Bound search summary caches (`fileTextCache`/`summaryCache`) to prevent unbounded growth in long-running processes.
+- [ ] Prevent SQLite incremental updates from growing doc ids unbounded (avoid sparse `chunkMeta` + vector arrays).
+- [ ] Avoid loading all SQLite chunks/vectors for FTS-only searches; stream or lazy-load where possible.
+- [ ] Clarify ANN fallback behavior when sqlite-vec is unavailable (avoid silent JS ANN mismatch per mode).
+- [ ] Fix tooling extension verification crash (missing `path` import in `tools/verify-extensions.js`).
+- [ ] Fix `--url name=url` parsing in download-dicts/download-extensions to split on the first `=` so URLs with query strings work.
+- [ ] Reduce tooling detection memory overhead by avoiding full `filePaths` accumulation just to detect workflow/config files.
+- [ ] Skip full repo scans in tooling detect/install when language/tool overrides are provided (avoid unnecessary I/O on large repos).
+- [ ] Honor `--no-ann` in benchmark runs (currently `tests/bench.js` always forces `--ann`).
+- [ ] Fix bench runner `runProcess` to resolve/reject on spawn errors (missing binaries currently hang the run).
+- [ ] Make bench runner process termination reliable on POSIX (spawn detached or kill child PID directly instead of `process.kill(-pid)` without a process group).
+- [ ] Remove `spawnSync` usage from API server handlers so concurrent HTTP requests don’t block the event loop (`/search` + `/status`).
+- [ ] Avoid unbounded stdout/stderr buffering in MCP tool runners; cap or stream output to prevent memory spikes during long index builds.
+- [ ] Replace the MCP server's inline JSON-RPC parser with the shared parser, add a size guard, and avoid Buffer.concat churn to prevent unbounded memory growth.
+- [ ] Ensure bootstrap/CI build scripts honor runtime Node options (max-old-space) so large repo indexing doesn’t ignore configured heap limits.
+- [ ] Update git hook installer to respect runtime Node options (or call `pairofcleats build-index`) so incremental hook runs don’t ignore heap config.
+- [ ] Ensure compare-models/combined-summary spawn child Node processes with runtime Node options from config (avoid OOM on large repos).
+- [ ] Ensure benchmark runners (`tests/bench.js`, `tools/bench-language-repos.js`) derive NODE_OPTIONS from the target repo config (not the tool repo), so max-old-space settings apply to large repo benches.
+- [ ] Avoid eager repo-size scans in cache GC when only age-based cleanup is requested; compute sizes lazily to reduce IO cost.
+- [ ] Fix triage ingest path resolution so `--in` is relative to `--repo` (not CWD) when a repo override is provided.
+- [ ] Ensure triage ingest/context-pack invoke search/build with runtime Node options (respect configured heap limits).
+- [ ] Remove or regenerate unused SQLite fixture artifacts (including WAL/SHM) to reduce repo bloat and avoid WAL mode confusion in tests.
+- [ ] Fix Lua chunker block termination to handle `end` lines with trailing comments (avoid unterminated decl blocks).
+- [ ] Expand SQL statement splitting to handle dollar-quoted strings / dialect delimiters (e.g., `$$`, `$tag$`, `DELIMITER`) so function/procedure bodies are not split mid-statement.
+- [ ] Update Python heuristic chunker to recognize `async def` when AST tooling is unavailable.
+- [ ] Fix BM25 document-frequency tracking to count unique tokens per chunk (current `df` increments per occurrence, inflating IDF).
+- [ ] Guard `buildPostings` against empty chunk sets (avoid reduce-on-empty crashes and handle missing embeddings gracefully).
+- [ ] Make context-window estimation resilient to unreadable/invalid-encoding sample files (skip failures instead of aborting indexing).
+- [ ] Fix triage record JSON sidecar lookup to respect nested directories (use the Markdown file’s directory, not the records root).
+
+## Phase 68: Documentation Parity + Excellence (status: todo)
+Goal: Ensure all docs are accurate, complete, and easy to consume for users and maintainers.
+Work items:
+- [ ] README: re-audit every command, feature, and default; remove outdated sections; add crisp, accurate feature inventory; ensure install/setup steps match current scripts and defaults.
+- [ ] README: add a concise “quickstart” and “first index” path; include CLI examples for build/search/bootstrap/setup; document SQLite default behavior and ANN fallback.
+- [ ] README: add link-out section for design docs (MCP, SQLite, parser backbone, benchmarks, triage); keep each link annotated with a one-sentence summary.
+- [ ] README: update cache layout section (collapsed) with current cache roots, repo cache layout, and artifact paths; ensure doc matches `getRepoCacheRoot` and sqlite split DBs.
+- [ ] README: update dictionary/model cache sections (collapsed) to match `download-dicts`, `download-models`, and repo dictionary behavior (default english wordlist).
+- [ ] README: update tooling section (collapsed) to document auto-install, cache-local installs, and manual tool links; include clangd/sourcekit-lsp requirements.
+- [ ] README: update testing section to be collapsible, grouped by “smoke”, “parity”, “bench”, “script-coverage”, and “full”; include the all-in-one test command.
+- [ ] README: update maintenance section (collapsed) with uninstall, clean-artifacts, cache-gc, index-validate; include safety notes.
+- [ ] docs/setup.md: align with `tools/setup.js` options (non-interactive/CI, heap configuration, skip flags, sqlite build flow).
+- [ ] docs/editor-integration.md: ensure VS Code extension instructions and CLI args match current config keys (searchBackend/searchAnn/extraSearchArgs).
+- [ ] docs/sqlite-*.md: ensure schema/version details, split DB layout, incremental/compaction paths, and ANN extension config match code.
+- [ ] docs/ast-feature-list.md + docs/language-fidelity.md: refresh coverage tables, mark tool-assisted type inference requirements, and note fallback behaviors.
+- [ ] docs/repometrics-dashboard.md: verify inputs/outputs and update examples to match metrics JSONL paths and fields.
+- [ ] docs/api-server.md + docs/mcp-server.md: verify endpoints, request/response payloads, streaming behavior, and build/search flags; add samples.
+- [ ] docs/config-schema.json: audit every documented config key against actual usage; add/adjust schema descriptions where missing.
+- [ ] docs/combined-summary.json / model-compare*.json: verify sample reports are current or regenerate with placeholder notes (no stale fields).
+- [ ] ROADMAP.md: ensure “historical” status and link to COMPLETE_PLAN; remove stale roadmap items.

@@ -1,9 +1,11 @@
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { getIndexDir } from '../../../tools/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../triage/index-records.js';
 import { applyCrossFileInference } from '../type-inference-crossfile.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
-import { log, showProgress } from '../../shared/progress.js';
+import { log, logLine, showProgress } from '../../shared/progress.js';
+import { toPosix } from '../../shared/files.js';
 import { writeIndexArtifacts } from './artifacts.js';
 import { estimateContextWindow } from './context-window.js';
 import { discoverFiles } from './discover.js';
@@ -69,6 +71,7 @@ export async function buildIndexForMode({ mode, runtime }) {
   log('Processing and indexing files...');
   const processStart = Date.now();
   log(`Indexing concurrency: files=${runtime.fileConcurrency}, imports=${runtime.importConcurrency}`);
+  const showFileProgress = process.env.PAIROFCLEATS_PROGRESS_FILES === '1';
 
   const { processFile } = createFileProcessor({
     root: runtime.root,
@@ -88,6 +91,10 @@ export async function buildIndexForMode({ mode, runtime }) {
 
   let processedFiles = 0;
   const fileResults = await runWithConcurrency(allFiles, runtime.fileConcurrency, async (abs, fileIndex) => {
+    if (showFileProgress) {
+      const rel = toPosix(path.relative(runtime.root, abs));
+      logLine(`File ${fileIndex + 1}/${allFiles.length} ${rel}`);
+    }
     const result = await processFile(abs, fileIndex);
     processedFiles += 1;
     showProgress('Files', processedFiles, allFiles.length);

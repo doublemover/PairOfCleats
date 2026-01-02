@@ -17,3 +17,11 @@ export function showProgress(step, i, total) {
 export function log(msg) {
   process.stderr.write(`\n${msg}\n`);
 }
+
+/**
+ * Write a single log line to stderr without extra spacing.
+ * @param {string} msg
+ */
+export function logLine(msg) {
+  process.stderr.write(`${msg}\n`);
+}

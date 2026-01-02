@@ -13,6 +13,8 @@ Use the language benchmark harness to run search and performance baselines acros
   - `npm run bench-language:list`
 - Run only JavaScript repos (clone if missing, build indexes, write per-repo JSON):
   - `npm run bench-language:javascript -- --build`
+- Run everything with builds (avoids npm CLI warnings for `--build`):
+  - `npm run bench-language:build`
 - Run only typical repos, skip cloning:
   - `npm run bench-language:typical -- --no-clone`
 - Write an aggregate summary for Grafana:
@@ -30,7 +32,7 @@ Use the language benchmark harness to run search and performance baselines acros
 - Summary output is printed to the console; use `--json` and/or `--out` for a machine-readable aggregate.
 - The runner shows a live progress line, a metrics line, and a small log window when stdout is a TTY. Use `--log-lines 3|4|5` to change the window height.
 - A run log is appended to `benchmarks/results/bench-language.log` by default (override with `--log <file>`).
-- Runs now log start/finish, termination signals, and in-progress indexing counters (expect larger logs on large repos).
+- Runs now log start/finish, termination signals, and in-progress indexing counters with elapsed time, rate, and ETA, plus recent file names during indexing (expect larger logs on large repos).
 - If index artifacts are missing, the runner auto-enables build steps even if `--build` was not provided.
 
 ## Key flags
@@ -39,7 +41,7 @@ Use the language benchmark harness to run search and performance baselines acros
 - `--clone` / `--no-clone`: clone missing repos (default on).
 - `--root <path>`: clone destination root (default `benchmarks/repos`).
 - `--cache-root <path>`: cache root for all benchmark runs (default `benchmarks/cache`).
-- `--build`, `--build-index`, `--build-sqlite`: build indexes before search.
+- `--build`, `--build-index`, `--build-sqlite`: build indexes before search. `--build-sqlite` requires file-backed indexes and will auto-enable `--build-index` when missing.
 - `--backend <csv|all>`: control backends passed to `tests/bench.js`.
 - `--ann` / `--no-ann`: toggle ANN for dense search.
 - `--stub-embeddings`: run without model downloads.

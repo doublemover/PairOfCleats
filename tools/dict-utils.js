@@ -148,6 +148,44 @@ export function getModelConfig(repoRoot, userConfig = null) {
 }
 
 /**
+ * Resolve runtime configuration for a repo.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @returns {{maxOldSpaceMb:number|null,nodeOptions:string}}
+ */
+export function getRuntimeConfig(repoRoot, userConfig = null) {
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  const runtime = cfg.runtime || {};
+  const rawMaxOldSpace = runtime.maxOldSpaceMb ?? process.env.PAIROFCLEATS_MAX_OLD_SPACE_MB;
+  const parsedMaxOldSpace = Number(rawMaxOldSpace);
+  const maxOldSpaceMb = Number.isFinite(parsedMaxOldSpace) && parsedMaxOldSpace > 0
+    ? parsedMaxOldSpace
+    : null;
+  const nodeOptionsRaw = runtime.nodeOptions ?? process.env.PAIROFCLEATS_NODE_OPTIONS;
+  const nodeOptions = typeof nodeOptionsRaw === 'string' ? nodeOptionsRaw.trim() : '';
+  return { maxOldSpaceMb, nodeOptions };
+}
+
+/**
+ * Merge runtime Node options with existing NODE_OPTIONS.
+ * @param {{maxOldSpaceMb:number|null,nodeOptions:string}} runtimeConfig
+ * @param {string} [baseOptions]
+ * @returns {string}
+ */
+export function resolveNodeOptions(runtimeConfig, baseOptions = process.env.NODE_OPTIONS || '') {
+  const base = typeof baseOptions === 'string' ? baseOptions.trim() : '';
+  const extras = [];
+  if (runtimeConfig?.nodeOptions) extras.push(runtimeConfig.nodeOptions.trim());
+  if (Number.isFinite(runtimeConfig?.maxOldSpaceMb) && runtimeConfig.maxOldSpaceMb > 0) {
+    const combined = [base, ...extras].join(' ');
+    if (!combined.includes('--max-old-space-size')) {
+      extras.push(`--max-old-space-size=${Math.floor(runtimeConfig.maxOldSpaceMb)}`);
+    }
+  }
+  return [base, ...extras].filter(Boolean).join(' ').trim();
+}
+
+/**
  * Resolve the index directory for a repo/mode.
  * @param {string} repoRoot
  * @param {'code'|'prose'|'records'} mode
