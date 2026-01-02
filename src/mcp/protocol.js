@@ -1,12 +1,12 @@
+import { writeFramedJsonRpc } from '../shared/jsonrpc.js';
+
 /**
  * Send a JSON-RPC payload with Content-Length framing.
  * @param {object} payload
  * @param {NodeJS.WritableStream} [output]
  */
 export function sendMessage(payload, output = process.stdout) {
-  const json = JSON.stringify(payload);
-  const header = `Content-Length: ${Buffer.byteLength(json, 'utf8')}\r\n\r\n`;
-  output.write(header + json);
+  writeFramedJsonRpc(output, payload);
 }
 
 /**

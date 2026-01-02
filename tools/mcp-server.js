@@ -6,7 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import simpleGit from 'simple-git';
 import { getToolDefs } from '../src/mcp/defs.js';
 import { sendError, sendNotification, sendResult } from '../src/mcp/protocol.js';
-import { createFramedJsonRpcParser } from '../src/shared/jsonrpc.js';
+import { StreamMessageReader } from 'vscode-jsonrpc';
 import {
   DEFAULT_MODEL_ID,
   getCacheRoot,
@@ -1269,19 +1269,7 @@ function enqueueMessage(message) {
   processQueue();
 }
 
-const maxBufferEnv = Number(process.env.PAIROFCLEATS_MCP_MAX_BUFFER_BYTES);
-const parser = createFramedJsonRpcParser({
-  onMessage: enqueueMessage,
-  onError: (err) => console.error(err?.message || err),
-  maxBufferBytes: Number.isFinite(maxBufferEnv) && maxBufferEnv > 0
-    ? maxBufferEnv
-    : undefined
-});
-
-process.stdin.on('data', (chunk) => {
-  parser.push(chunk);
-});
-
-process.stdin.on('end', () => {
-  process.exit(0);
-});
+const reader = new StreamMessageReader(process.stdin);
+reader.onError((err) => console.error(err?.message || err));
+reader.onClose(() => process.exit(0));
+reader.listen(enqueueMessage);

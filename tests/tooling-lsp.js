@@ -13,6 +13,14 @@ const parser = createFramedJsonRpcParser({
   onError: (err) => errors.push(err)
 });
 
+const waitFor = async (count) => {
+  for (let i = 0; i < 50; i += 1) {
+    if (messages.length >= count) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error(`Timed out waiting for ${count} messages.`);
+};
+
 const msgOne = { jsonrpc: '2.0', id: 1, result: 'ok' };
 const msgTwo = { jsonrpc: '2.0', method: 'notify', params: { ok: true } };
 
@@ -26,6 +34,7 @@ const combined = Buffer.concat([frame(msgOne), frame(msgTwo)]);
 parser.push(combined.slice(0, 12));
 parser.push(combined.slice(12));
 
+await waitFor(2);
 assert.equal(errors.length, 0);
 assert.equal(messages.length, 2);
 assert.deepEqual(messages[0], msgOne);
@@ -34,13 +43,37 @@ assert.deepEqual(messages[1], msgTwo);
 const capture = new PassThrough();
 const capturedChunks = [];
 capture.on('data', (chunk) => capturedChunks.push(chunk));
-writeFramedJsonRpc(capture, msgOne);
+await writeFramedJsonRpc(capture, msgOne);
 const parserTwo = createFramedJsonRpcParser({
   onMessage: (msg) => messages.push(msg),
   onError: (err) => errors.push(err)
 });
 parserTwo.push(Buffer.concat(capturedChunks));
+await waitFor(3);
 assert.deepEqual(messages[messages.length - 1], msgOne);
+
+const largeMessages = [];
+const largeErrors = [];
+const parserLarge = createFramedJsonRpcParser({
+  onMessage: (msg) => largeMessages.push(msg),
+  onError: (err) => largeErrors.push(err)
+});
+const largePayload = {
+  jsonrpc: '2.0',
+  id: 99,
+  result: 'x'.repeat(512 * 1024)
+};
+const largeFrame = frame(largePayload);
+for (let i = 0; i < largeFrame.length; i += 1024) {
+  parserLarge.push(largeFrame.slice(i, i + 1024));
+}
+for (let i = 0; i < 50; i += 1) {
+  if (largeMessages.length) break;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+assert.equal(largeErrors.length, 0);
+assert.equal(largeMessages.length, 1);
+assert.equal(largeMessages[0].id, 99);
 
 const docSymbols = [
   {

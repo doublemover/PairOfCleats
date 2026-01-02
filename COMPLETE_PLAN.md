@@ -689,7 +689,7 @@ Work items:
 - [ ] docs/combined-summary.json / model-compare*.json: verify sample reports are current or regenerate with placeholder notes (no stale fields).
 - [ ] ROADMAP.md: ensure "historical" status and link to COMPLETE_PLAN; remove stale roadmap items.
 
-## Phase 69: Deps Fixes - JSON-RPC + LSP Protocol Dependencies (status: todo)
+## Phase 69: Deps Fixes - JSON-RPC + LSP Protocol Dependencies (status: done)
 Goal: Replace custom JSON-RPC framing with vetted libraries and standardize LSP protocol definitions.
 Work items:
 - [ ] Add `vscode-jsonrpc` and update `src/shared/jsonrpc.js` to wrap StreamMessageReader/Writer instead of custom framing logic.

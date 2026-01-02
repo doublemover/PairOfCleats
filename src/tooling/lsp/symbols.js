@@ -1,6 +1,9 @@
+import { SymbolKind } from 'vscode-languageserver-protocol';
+
 const isSymbolInformation = (symbol) => Boolean(symbol && symbol.location && symbol.location.range);
 
-const coerceKind = (kind) => (kind === undefined ? null : kind);
+const isValidKind = (kind) => Number.isInteger(kind) && SymbolKind[kind] !== undefined;
+const coerceKind = (kind) => (isValidKind(kind) ? kind : null);
 
 function flattenDocumentSymbols(symbols, parentName = '') {
   const out = [];

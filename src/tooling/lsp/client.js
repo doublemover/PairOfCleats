@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createFramedJsonRpcParser, writeFramedJsonRpc } from '../../shared/jsonrpc.js';
+import { StreamMessageReader, StreamMessageWriter } from 'vscode-jsonrpc';
 
 /**
  * Convert a local path to a file:// URI.
@@ -58,12 +58,14 @@ export function createLspClient(options) {
   if (!cmd) throw new Error('createLspClient requires a command.');
 
   let proc = null;
+  let reader = null;
+  let writer = null;
   let nextId = 1;
   const pending = new Map();
 
   const send = (payload) => {
-    if (!proc?.stdin) return;
-    writeFramedJsonRpc(proc.stdin, payload);
+    if (!writer) return;
+    writer.write(payload);
   };
 
   const handleResponse = (message) => {
@@ -119,11 +121,11 @@ export function createLspClient(options) {
   const start = () => {
     if (proc) return proc;
     proc = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, env, shell });
-    const parser = createFramedJsonRpcParser({
-      onMessage: handleMessage,
-      onError: (err) => log(`[lsp] parse error: ${err.message}`)
-    });
-    proc.stdout.on('data', (chunk) => parser.push(chunk));
+    reader = new StreamMessageReader(proc.stdout);
+    writer = new StreamMessageWriter(proc.stdin);
+    reader.onError((err) => log(`[lsp] parse error: ${err.message}`));
+    reader.onClose(() => log('[lsp] reader closed'));
+    reader.listen(handleMessage);
     proc.stderr.on('data', (chunk) => {
       const text = chunk.toString('utf8').trim();
       if (text) log(`[lsp] ${text}`);
@@ -135,6 +137,8 @@ export function createLspClient(options) {
       }
       pending.clear();
       proc = null;
+      reader = null;
+      writer = null;
     });
     proc.on('exit', (code, signal) => {
       for (const entry of pending.values()) {
@@ -143,6 +147,8 @@ export function createLspClient(options) {
       }
       pending.clear();
       proc = null;
+      reader = null;
+      writer = null;
     });
     return proc;
   };

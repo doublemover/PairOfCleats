@@ -133,6 +133,8 @@
     "strip-comments": "2.0.1",
     "tar-fs": "3.1.1",
     "varint": "6.0.0",
+    "vscode-jsonrpc": "8.2.1",
+    "vscode-languageserver-protocol": "3.17.5",
     "yaml": "2.8.2"
   }
 }
