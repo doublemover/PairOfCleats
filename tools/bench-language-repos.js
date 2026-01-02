@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import readline from 'node:readline';
 import { spawn, spawnSync } from 'node:child_process';
 import minimist from 'minimist';
@@ -43,7 +44,8 @@ const argv = minimist(process.argv.slice(2), {
     'bm25-b',
     'fts-profile',
     'fts-weights',
-    'log-lines'
+    'log-lines',
+    'heap-mb'
   ],
   default: {
     json: false,
@@ -98,6 +100,10 @@ const statusLines = logWindowSize + 2;
 const cacheConfig = { cache: { root: cacheRoot } };
 const backendList = resolveBackendList(argv.backend);
 const wantsSqlite = backendList.includes('sqlite') || backendList.includes('sqlite-fts') || backendList.includes('fts');
+const heapArgRaw = argv['heap-mb'];
+const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgRaw)) : null;
+const heapRecommendation = getRecommendedHeapMb();
+let heapLogged = false;
 
 function parseList(value) {
   if (!value) return [];
@@ -367,6 +373,28 @@ function formatDuration(ms) {
   if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
+}
+
+function formatGb(mb) {
+  return `${(mb / 1024).toFixed(1)} GB`;
+}
+
+function stripMaxOldSpaceFlag(options) {
+  if (!options) return '';
+  return options
+    .replace(/--max-old-space-size=\d+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getRecommendedHeapMb() {
+  const totalMb = Math.floor(os.totalmem() / (1024 * 1024));
+  const recommended = Math.max(4096, Math.floor(totalMb * 0.75));
+  const rounded = Math.floor(recommended / 256) * 256;
+  return {
+    totalMb,
+    recommendedMb: Math.max(4096, rounded)
+  };
 }
 
 function formatMetricSummary(summary) {
@@ -668,10 +696,42 @@ for (const task of tasks) {
 
   const repoUserConfig = loadUserConfig(repoPath);
   const repoRuntimeConfig = getRuntimeConfig(repoPath, repoUserConfig);
-  const repoNodeOptions = resolveNodeOptions(repoRuntimeConfig, baseEnv.NODE_OPTIONS || '');
+  let baseNodeOptions = baseEnv.NODE_OPTIONS || '';
+  if (Number.isFinite(heapArg) && heapArg > 0) {
+    baseNodeOptions = stripMaxOldSpaceFlag(baseNodeOptions);
+  }
+  const hasHeapFlag = baseNodeOptions.includes('--max-old-space-size');
+  let heapOverride = null;
+  if (Number.isFinite(heapArg) && heapArg > 0) {
+    heapOverride = heapArg;
+    if (!heapLogged) {
+      appendLog(`[heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) from --heap-mb.`);
+      heapLogged = true;
+    }
+  } else if (
+    !Number.isFinite(repoRuntimeConfig.maxOldSpaceMb)
+    && !process.env.PAIROFCLEATS_MAX_OLD_SPACE_MB
+    && !hasHeapFlag
+  ) {
+    heapOverride = heapRecommendation.recommendedMb;
+    if (!heapLogged) {
+      appendLog(
+        `[auto-heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) for Node heap. ` +
+          'Override with --heap-mb or PAIROFCLEATS_MAX_OLD_SPACE_MB.'
+      );
+      heapLogged = true;
+    }
+  }
+  const runtimeConfigForRun = heapOverride
+    ? { ...repoRuntimeConfig, maxOldSpaceMb: heapOverride }
+    : repoRuntimeConfig;
+  const repoNodeOptions = resolveNodeOptions(runtimeConfigForRun, baseNodeOptions);
   const repoEnvBase = repoNodeOptions
     ? { ...baseEnv, NODE_OPTIONS: repoNodeOptions }
     : { ...baseEnv };
+  if (heapOverride) {
+    repoEnvBase.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapOverride);
+  }
 
   const outDir = path.join(resultsRoot, task.language);
   const outFile = path.join(outDir, `${task.repo.replace('/', '__')}.json`);
