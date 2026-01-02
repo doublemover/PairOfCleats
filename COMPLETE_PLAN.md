@@ -668,7 +668,7 @@ Work items:
 - [x] Make context-window estimation resilient to unreadable/invalid-encoding sample files (skip failures instead of aborting indexing).
 - [x] Fix triage record JSON sidecar lookup to respect nested directories (use the Markdown file’s directory, not the records root).
 
-## Phase 68: Documentation Parity + Excellence (status: todo)
+## Phase 68: Documentation Parity + Excellence (status: done)
 Goal: Ensure all docs are accurate, complete, and easy to consume for users and maintainers.
 Work items:
 - [ ] README: re-audit every command, feature, and default; remove outdated sections; add crisp, accurate feature inventory; ensure install/setup steps match current scripts and defaults.

@@ -218,6 +218,7 @@ Tools:
 - `search` defaults to compact JSON payloads (set `output: "full"` for full JSON).
 - Progress: long-running tools emit `notifications/progress` with `{ id, tool, message, stream, phase }`.
 - Errors: `tools/call` responses set `isError=true` and return a JSON payload with `message` plus optional `code`, `stdout`, `stderr`, `hint`.
+- Docs: [`docs/mcp-server.md`](docs/mcp-server.md)
 </details>
 
 <details>
@@ -303,7 +304,8 @@ Meta:
 - [`docs/parser-backbone.md`](docs/parser-backbone.md) - parser and inference strategy
 - [`docs/language-handler-imports.md`](docs/language-handler-imports.md) - registry import tradeoffs
 - [`docs/editor-integration.md`](docs/editor-integration.md) - editor contract + VS Code extension
-- [`docs/api-server.md`](docs/api-server.md) - local HTTP JSON API surface
+- [`docs/api-server.md`](docs/api-server.md) - local HTTP JSON API surface      
+- [`docs/mcp-server.md`](docs/mcp-server.md) - MCP tool surface and behavior
 - [`docs/sqlite-index-schema.md`](docs/sqlite-index-schema.md) - SQLite schema for artifacts
 - [`docs/sqlite-incremental-updates.md`](docs/sqlite-incremental-updates.md) - incremental update flow
 - [`docs/sqlite-compaction.md`](docs/sqlite-compaction.md) - compaction details
@@ -315,6 +317,7 @@ Meta:
 - [`docs/setup.md`](docs/setup.md) - unified setup flow and flags
 - [`docs/triage-records.md`](docs/triage-records.md) - triage ingestion + context packs
 - [`docs/config-schema.json`](docs/config-schema.json) - config schema for `.pairofcleats.json`
+- [`docs/references/README.md`](docs/references/README.md) - OSS references and takeaways
 </details>
 
 <details>
