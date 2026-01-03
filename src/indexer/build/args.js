@@ -14,7 +14,7 @@ export function parseBuildArgs(rawArgs) {
     })
     .options({
       mode: { type: 'string', default: 'all' },
-      dims: { type: 'number', default: 512 },
+      dims: { type: 'number', default: 384 },
       threads: { type: 'number', default: os.cpus().length },
       incremental: { type: 'boolean', default: false, alias: 'i' },
       'stub-embeddings': { type: 'boolean', default: false },

@@ -7,7 +7,7 @@ let TreeSitter = null;
 let treeSitterLoadError = null;
 const parserCache = new Map();
 const languageCache = new Map();
-let loggedMissing = false;
+const loggedMissing = new Set();
 const loggedParseFailures = new Set();
 
 const LANGUAGE_MODULES = {
@@ -257,14 +257,17 @@ function loadLanguageModule(moduleName) {
   if (!moduleName) return null;
   if (languageCache.has(moduleName)) return languageCache.get(moduleName);
   let mod = null;
+  let error = null;
   try {
     mod = require(moduleName);
-  } catch {
+  } catch (err) {
     mod = null;
+    error = err;
   }
   const resolved = mod?.language || mod?.default || mod || null;
-  languageCache.set(moduleName, resolved);
-  return resolved;
+  const entry = { language: resolved, error };
+  languageCache.set(moduleName, entry);
+  return entry;
 }
 
 function resolveLanguageId(languageId) {
@@ -278,14 +281,25 @@ function getParser(languageId) {
   if (!resolvedId) return null;
   if (parserCache.has(resolvedId)) return parserCache.get(resolvedId);
   const moduleName = LANGUAGE_MODULES[resolvedId];
-  const language = loadLanguageModule(moduleName);
-  if (!language) return null;
+  const entry = loadLanguageModule(moduleName);
+  const language = entry?.language || null;
+  if (!language) {
+    if (!loggedMissing.has(resolvedId)) {
+      const reason = entry?.error?.message || 'module not available';
+      console.warn(`[tree-sitter] Missing grammar for ${resolvedId} (${reason}). Install ${moduleName} with native bindings.`);
+      loggedMissing.add(resolvedId);
+    }
+    return null;
+  }
   const parser = new Parser();
   try {
     parser.setLanguage(language);
   } catch (err) {
     parserCache.set(resolvedId, null);
-    console.warn(`[tree-sitter] Failed to load ${resolvedId}: ${err?.message || err}`);
+    if (!loggedMissing.has(resolvedId)) {
+      console.warn(`[tree-sitter] Failed to load ${resolvedId}: ${err?.message || err}. Rebuild ${moduleName} native bindings.`);
+      loggedMissing.add(resolvedId);
+    }
     return null;
   }
   parserCache.set(resolvedId, parser);
