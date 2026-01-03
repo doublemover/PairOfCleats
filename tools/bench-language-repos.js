@@ -51,6 +51,7 @@ const argv = createCli({
     'fts-weights': { type: 'string' },
     'log-lines': { type: 'number' },
     'heap-mb': { type: 'number' },
+    threads: { type: 'number' },
     'lock-mode': { type: 'string' },
     'lock-wait-ms': { type: 'number' },
     'lock-stale-ms': { type: 'number' }
@@ -83,6 +84,7 @@ const logLines = Array(logWindowSize).fill('');
 const logHistory = [];
 let metricsLine = '';
 let progressLine = '';
+let fileProgressLine = '';
 let statusRendered = false;
 let cloneTool = null;
 let logStream = null;
@@ -104,12 +106,16 @@ const buildProgressState = {
   lineTotals: { code: 0, prose: 0 },
   linesProcessed: { code: 0, prose: 0 },
   linesByFile: { code: new Map(), prose: new Map() },
-  filesSeen: { code: new Set(), prose: new Set() }
+  filesSeen: { code: new Set(), prose: new Set() },
+  currentFile: null,
+  currentLine: 0,
+  currentLineTotal: 0
 };
 const buildProgressRegex = /^\s*(Files|Imports)\s+(\d+)\/(\d+)\s+\((\d+(?:\.\d+)?)%\)/i;
 const buildFileRegex = /^\s*Files\s+\d+\/\d+\s+\(\d+(?:\.\d+)?%\)\s+File\s+\d+\/\d+\s+(.+)$/i;
 const buildScanRegex = /Scanning\s+(code|prose)/i;
-const statusLines = logWindowSize + 2;
+const buildLineRegex = /^\s*Line\s+(\d+)\s*\/\s*(\d+)/i;
+const statusLines = logWindowSize + 3;
 const cacheConfig = { cache: { root: cacheRoot } };
 const benchmarkProfileEnabled = argv['benchmark-profile'] !== false;
 const lockMode = normalizeLockMode(
@@ -379,6 +385,13 @@ function pushHistory(line) {
   if (logHistory.length > logHistorySize) logHistory.shift();
 }
 
+function truncateDisplay(line) {
+  if (!line) return '';
+  const width = Number.isFinite(process.stdout.columns) ? process.stdout.columns : 120;
+  if (line.length <= width) return line;
+  return `${line.slice(0, Math.max(0, width - 1))}…`;
+}
+
 function renderStatus() {
   if (!interactive) return;
   if (!statusRendered) {
@@ -389,10 +402,11 @@ function renderStatus() {
   const lines = [...logLines];
   while (lines.length < logWindowSize) lines.push('');
   lines.push(metricsLine);
+  lines.push(fileProgressLine);
   lines.push(progressLine);
   for (const line of lines) {
     readline.clearLine(process.stdout, 0);
-    process.stdout.write(line || '');
+    process.stdout.write(truncateDisplay(line || ''));
     process.stdout.write('\n');
   }
 }
@@ -423,6 +437,20 @@ function updateMetrics(message) {
   }
 }
 
+function updateFileProgressLine() {
+  const file = buildProgressState.currentFile;
+  const current = buildProgressState.currentLine;
+  const total = buildProgressState.currentLineTotal;
+  if (!file) {
+    fileProgressLine = '';
+    renderStatus();
+    return;
+  }
+  const lineSegment = total > 0 ? ` [${current}/${total}]` : '';
+  fileProgressLine = `File: ${file}${lineSegment}`;
+  renderStatus();
+}
+
 function appendLog(line) {
   const cleaned = line.replace(/\r/g, '').trimEnd();
   if (!cleaned) return;
@@ -430,6 +458,7 @@ function appendLog(line) {
   writeLog(cleaned);
   handleBuildMode(cleaned);
   handleBuildFileLine(cleaned);
+  handleBuildLineProgress(cleaned);
   handleBuildProgress(cleaned);
   if (interactive) {
     logLines.push(cleaned);
@@ -453,6 +482,10 @@ function resetBuildProgress(label = '') {
   buildProgressState.linesByFile = { code: new Map(), prose: new Map() };
   buildProgressState.linesProcessed = { code: 0, prose: 0 };
   buildProgressState.filesSeen = { code: new Set(), prose: new Set() };
+  buildProgressState.currentFile = null;
+  buildProgressState.currentLine = 0;
+  buildProgressState.currentLineTotal = 0;
+  updateFileProgressLine();
 }
 
 function handleBuildMode(line) {
@@ -472,12 +505,27 @@ function handleBuildFileLine(line) {
   const rawPath = match[1].trim();
   if (!rawPath) return;
   const rel = toPosix(rawPath);
+  buildProgressState.currentFile = rel;
+  buildProgressState.currentLineTotal = buildProgressState.linesByFile[mode].get(rel) || 0;
+  buildProgressState.currentLine = 0;
+  updateFileProgressLine();
   const seen = buildProgressState.filesSeen[mode];
   if (seen.has(rel)) return;
   const lineCount = buildProgressState.linesByFile[mode].get(rel);
   if (!Number.isFinite(lineCount)) return;
   seen.add(rel);
   buildProgressState.linesProcessed[mode] += lineCount;
+}
+
+function handleBuildLineProgress(line) {
+  const match = buildLineRegex.exec(line);
+  if (!match) return;
+  const current = Number.parseInt(match[1], 10);
+  const total = Number.parseInt(match[2], 10);
+  if (!Number.isFinite(current) || !Number.isFinite(total) || total <= 0) return;
+  buildProgressState.currentLine = current;
+  buildProgressState.currentLineTotal = total;
+  updateFileProgressLine();
 }
 
 function handleBuildProgress(line) {
@@ -517,14 +565,16 @@ function handleBuildProgress(line) {
   const remaining = total - count;
   let etaMs = rate > 0 && remaining > 0 ? (remaining / rate) * 1000 : 0;
   let lineRate = 0;
+  let remainingLines = 0;
+  let totalLines = 0;
   if (step.toLowerCase() === 'files' && buildProgressState.mode) {
     const mode = buildProgressState.mode;
-    const totalLines = buildProgressState.lineTotals[mode] || 0;
+    totalLines = buildProgressState.lineTotals[mode] || 0;
     const processedLines = buildProgressState.linesProcessed[mode] || 0;
     if (elapsedMs > 0 && processedLines > 0) {
       lineRate = processedLines / (elapsedMs / 1000);
     }
-    const remainingLines = totalLines - processedLines;
+    remainingLines = totalLines - processedLines;
     if (lineRate > 0 && remainingLines > 0) {
       etaMs = (remainingLines / lineRate) * 1000;
     }
@@ -542,9 +592,21 @@ function handleBuildProgress(line) {
     const etaText = etaMs > 0 ? formatDuration(etaMs) : 'n/a';
     const labelText = label ? ` ${label}` : '';
     const lineRateSegment = lineRateText ? ` | lines ${lineRateText}` : '';
+    const totalLinesText = totalLines > 0 ? `${formatLoc(totalLines)}` : null;
+    const processedLinesText = totalLines > 0
+      ? `${formatLoc(totalLines - remainingLines)}/${totalLinesText}`
+      : null;
+    const linesElapsedSegment = processedLinesText ? ` (${processedLinesText})` : '';
+    const remainingLinesText = remainingLines > 0 ? formatLoc(remainingLines) : null;
+    const etaSegment = remainingLinesText ? `${etaText} (${remainingLinesText} rem)` : etaText;
+    const currentLineSegment = (buildProgressState.currentLineTotal > 0)
+      ? ` [${buildProgressState.currentLine}/${buildProgressState.currentLineTotal}]`
+      : '';
     const message = `Indexing${labelText} ${step} ${count}/${total} (${pct.toFixed(
       1
-    )}%) | rate ${rateText}${lineRateSegment} | elapsed ${formatDuration(elapsedMs)} | eta ${etaText}`;
+    )}%)${currentLineSegment} | rate ${rateText}${lineRateSegment} | elapsed ${formatDuration(
+      elapsedMs
+    )}${linesElapsedSegment} | eta ${etaSegment}`;
     updateMetrics(message);
     buildProgressState.lastLoggedMs = now;
     buildProgressState.lastCount = count;
@@ -565,6 +627,13 @@ function formatDuration(ms) {
 
 function formatGb(mb) {
   return `${(mb / 1024).toFixed(1)} GB`;
+}
+
+function formatLoc(value) {
+  if (!Number.isFinite(value)) return 'n/a';
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return `${Math.floor(value)}`;
 }
 
 async function countLines(filePath) {
@@ -814,8 +883,14 @@ function printSummary(label, summary, count) {
 
 const config = loadConfig();
 const languageFilter = parseList(argv.languages || argv.language).map((entry) => entry.toLowerCase());
-const tierFilter = parseList(argv.tier).map((entry) => entry.toLowerCase());
+let tierFilter = parseList(argv.tier).map((entry) => entry.toLowerCase());
 const repoFilter = parseList(argv.only || argv.repos).map((entry) => entry.toLowerCase());
+if (!tierFilter.length && Array.isArray(argv._) && argv._.length) {
+  const positionalTiers = argv._
+    .map((entry) => String(entry).toLowerCase())
+    .filter((entry) => entry === 'large' || entry === 'typical' || entry === 'small' || entry === 'tiny');
+  if (positionalTiers.length) tierFilter = positionalTiers;
+}
 
 const tasks = [];
 for (const [language, entry] of Object.entries(config)) {
@@ -1070,6 +1145,7 @@ for (const task of tasks) {
   if (argv['bm25-b']) benchArgs.push('--bm25-b', String(argv['bm25-b']));
   if (argv['fts-profile']) benchArgs.push('--fts-profile', String(argv['fts-profile']));
   if (argv['fts-weights']) benchArgs.push('--fts-weights', String(argv['fts-weights']));
+  if (argv.threads) benchArgs.push('--threads', String(argv.threads));
   if (benchmarkProfileEnabled) {
     benchArgs.push('--benchmark-profile');
   } else {
@@ -1088,7 +1164,8 @@ for (const task of tasks) {
         ...repoEnvBase,
         PAIROFCLEATS_CACHE_ROOT: cacheRoot,
         PAIROFCLEATS_BENCH_PROFILE: benchmarkProfileEnabled ? '1' : '0',
-        PAIROFCLEATS_PROGRESS_FILES: '1'
+        PAIROFCLEATS_PROGRESS_FILES: '1',
+        PAIROFCLEATS_PROGRESS_LINES: '1'
       }
     });
     try {

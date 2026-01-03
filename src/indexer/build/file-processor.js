@@ -13,7 +13,7 @@ import { normalizeVec } from '../embedding.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { createLruCache, estimateJsonBytes } from '../../shared/cache.js';
 import { fileExt, toPosix } from '../../shared/files.js';
-import { log } from '../../shared/progress.js';
+import { log, logLine } from '../../shared/progress.js';
 import { readCachedBundle, writeIncrementalBundle } from './incremental.js';
 import { sha1 } from '../../shared/hash.js';
 import { createTokenizationContext, tokenizeChunkText } from './tokenization.js';
@@ -57,6 +57,7 @@ export function createFileProcessor(options) {
   const cpuQueue = queues?.cpu || null;
   const runIo = ioQueue ? (fn) => ioQueue.add(fn) : (fn) => fn();
   const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn) : (fn) => fn();
+  const showLineProgress = true;
   const tokenContext = createTokenizationContext({
     dictWords,
     dictConfig,
@@ -291,6 +292,9 @@ export function createFileProcessor(options) {
       });
       const lineIndex = buildLineIndex(text);
       const fileLines = text.split('\n');
+      const totalLines = fileLines.length || 1;
+      let lastLineLogged = 0;
+      let lastLineLogMs = 0;
       const rawRelations = (mode === 'code' && lang && typeof lang.buildRelations === 'function')
         ? lang.buildRelations({
           text,
@@ -343,6 +347,18 @@ export function createFileProcessor(options) {
       for (let ci = 0; ci < sc.length; ++ci) {
         const c = sc[ci];
         const ctext = text.slice(c.start, c.end);
+        if (showLineProgress) {
+          const currentLine = chunkLineRanges[ci]?.endLine ?? totalLines;
+          const now = Date.now();
+          const shouldLog = currentLine >= totalLines
+            || currentLine - lastLineLogged >= 200
+            || now - lastLineLogMs >= 1000;
+          if (shouldLog && currentLine > lastLineLogged) {
+            lastLineLogged = currentLine;
+            lastLineLogMs = now;
+            logLine(`Line ${currentLine}/${totalLines}`);
+          }
+        }
 
         let tokenPayload = null;
         if (useWorkerForTokens) {

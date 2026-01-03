@@ -2,7 +2,6 @@ export const SKIP_DIRS = new Set([
   '.git',
   '.repoMetrics',
   'coverage',
-  'css',
   'dist',
   'exports',
   'holiday93',
@@ -69,6 +68,8 @@ export const CSHARP_EXTS = new Set(['.cs']);
 export const KOTLIN_EXTS = new Set(['.kt', '.kts']);
 export const RUBY_EXTS = new Set(['.rb']);
 export const PHP_EXTS = new Set(['.php', '.phtml']);
+export const HTML_EXTS = new Set(['.html', '.htm']);
+export const CSS_EXTS = new Set(['.css']);
 export const LUA_EXTS = new Set(['.lua']);
 export const SQL_EXTS = new Set(['.sql', '.psql', '.pgsql', '.mysql', '.sqlite']);
 export const PERL_EXTS = new Set(['.pl', '.pm']);
@@ -76,7 +77,7 @@ export const SHELL_EXTS = new Set(['.sh', '.bash', '.zsh', '.ksh']);
 
 export const EXTS_CODE = new Set([
   '.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx', '.mts', '.cts', '.yml', '.yaml', '.sh',
-  '.html', '.py', '.swift', '.rs', '.c', '.cc', '.cpp', '.h', '.hpp', '.hh',
+  '.html', '.htm', '.css', '.py', '.swift', '.rs', '.c', '.cc', '.cpp', '.h', '.hpp', '.hh',
   '.m', '.mm', '.go', '.java', '.cs', '.kt', '.kts', '.rb', '.php', '.phtml',
   '.lua', '.sql', '.psql', '.pgsql', '.mysql', '.sqlite', '.pl', '.pm', '.bash',
   '.zsh', '.ksh', '.json', '.toml', '.ini', '.xml', '.cfg', '.conf'
@@ -222,6 +223,18 @@ export const isRuby = (ext) => RUBY_EXTS.has(ext);
  * @returns {boolean}
  */
 export const isPhp = (ext) => PHP_EXTS.has(ext);
+/**
+ * Check if an extension is HTML.
+ * @param {string} ext
+ * @returns {boolean}
+ */
+export const isHtml = (ext) => HTML_EXTS.has(ext);
+/**
+ * Check if an extension is CSS.
+ * @param {string} ext
+ * @returns {boolean}
+ */
+export const isCss = (ext) => CSS_EXTS.has(ext);
 /**
  * Check if an extension is Lua.
  * @param {string} ext

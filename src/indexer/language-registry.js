@@ -10,6 +10,8 @@ import {
   isKotlin,
   isRuby,
   isPhp,
+  isHtml,
+  isCss,
   isLua,
   isSql
 } from './constants.js';
@@ -22,6 +24,8 @@ import { buildCSharpChunks, buildCSharpRelations, collectCSharpImports, computeC
 import { buildKotlinChunks, buildKotlinRelations, collectKotlinImports, computeKotlinFlow, extractKotlinDocMeta } from '../lang/kotlin.js';
 import { buildRubyChunks, buildRubyRelations, collectRubyImports, computeRubyFlow, extractRubyDocMeta } from '../lang/ruby.js';
 import { buildPhpChunks, buildPhpRelations, collectPhpImports, computePhpFlow, extractPhpDocMeta } from '../lang/php.js';
+import { buildHtmlChunks, buildHtmlRelations, collectHtmlImports, computeHtmlFlow, extractHtmlDocMeta, getHtmlMetadata } from '../lang/html.js';
+import { buildCssChunks, buildCssRelations, collectCssImports, computeCssFlow, extractCssDocMeta } from '../lang/css.js';
 import { buildLuaChunks, buildLuaRelations, collectLuaImports, computeLuaFlow, extractLuaDocMeta } from '../lang/lua.js';
 import { buildSqlChunks, buildSqlRelations, collectSqlImports, computeSqlFlow, extractSqlDocMeta } from '../lang/sql.js';
 import { buildPerlChunks, buildPerlRelations, collectPerlImports, computePerlFlow, extractPerlDocMeta } from '../lang/perl.js';
@@ -213,6 +217,32 @@ const LANGUAGE_REGISTRY = [
     extractDocMeta: ({ chunk }) => extractPhpDocMeta(chunk),
     flow: ({ text, chunk, options }) => computePhpFlow(text, chunk, flowOptions(options)),
     attachName: true
+  },
+  {
+    id: 'html',
+    match: (ext) => isHtml(ext),
+    collectImports: (text) => collectHtmlImports(text),
+    prepare: ({ text, mode, options }) => (mode === 'code'
+      ? {
+        htmlChunks: buildHtmlChunks(text, options),
+        htmlMeta: getHtmlMetadata(text)
+      }
+      : {}),
+    buildRelations: ({ text, allImports, context }) =>
+      buildHtmlRelations(text, allImports, context.htmlChunks, context.htmlMeta),
+    extractDocMeta: ({ chunk, context }) => extractHtmlDocMeta(chunk, context?.htmlMeta),
+    flow: () => computeHtmlFlow(),
+    attachName: false
+  },
+  {
+    id: 'css',
+    match: (ext) => isCss(ext),
+    collectImports: (text) => collectCssImports(text),
+    prepare: ({ text, mode }) => (mode === 'code' ? { cssChunks: buildCssChunks(text) } : {}),
+    buildRelations: ({ text, allImports }) => buildCssRelations(text, allImports),
+    extractDocMeta: ({ chunk }) => extractCssDocMeta(chunk),
+    flow: () => computeCssFlow(),
+    attachName: false
   },
   {
     id: 'lua',

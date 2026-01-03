@@ -19,7 +19,9 @@ const LANGUAGE_MODULES = {
   objc: 'tree-sitter-objc',
   go: 'tree-sitter-go',
   rust: 'tree-sitter-rust',
-  java: 'tree-sitter-java'
+  java: 'tree-sitter-java',
+  css: 'tree-sitter-css',
+  html: 'tree-sitter-html'
 };
 
 const COMMON_NAME_NODE_TYPES = new Set([
@@ -239,6 +241,20 @@ const LANG_CONFIG = {
       constructor_declaration: 'ConstructorDeclaration'
     },
     docComments: { linePrefixes: ['//'], blockStarts: ['/**'] }
+  },
+  html: {
+    typeNodes: new Set([
+      'element',
+      'script_element',
+      'style_element'
+    ]),
+    memberNodes: new Set([]),
+    kindMap: {
+      element: 'ElementDeclaration',
+      script_element: 'ScriptElement',
+      style_element: 'StyleElement'
+    },
+    nameNodeTypes: new Set(['tag_name'])
   }
 };
 

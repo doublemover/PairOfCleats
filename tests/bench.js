@@ -31,7 +31,8 @@ const argv = createCli({
     repo: { type: 'string' },
     top: { type: 'number', default: 5 },
     limit: { type: 'number', default: 0 },
-    'heap-mb': { type: 'number' }
+    'heap-mb': { type: 'number' },
+    threads: { type: 'number' }
   },
   aliases: { n: 'top', q: 'queries' }
 }).parse();
@@ -229,13 +230,14 @@ const buildMs = {};
 if (buildIndex || buildSqlite) {
   const buildEnv = { ...benchEnv };
   if (stubEmbeddings) buildEnv.PAIROFCLEATS_EMBEDDINGS = 'stub';
-  if (buildIndex) {
-    const args = [buildIndexPath];
-    if (repoArg) args.push('--repo', repoArg);
-    if (stubEmbeddings) args.push('--stub-embeddings');
-    if (buildIncremental) args.push('--incremental');
-    buildMs.index = runBuild(args, 'build index', buildEnv);
-  }
+if (buildIndex) {
+  const args = [buildIndexPath];
+  if (repoArg) args.push('--repo', repoArg);
+  if (stubEmbeddings) args.push('--stub-embeddings');
+  if (buildIncremental) args.push('--incremental');
+  if (argv.threads) args.push('--threads', String(argv.threads));
+  buildMs.index = runBuild(args, 'build index', buildEnv);
+}
   if (buildSqlite) {
     const args = [buildSqlitePath];
     if (repoArg) args.push('--repo', repoArg);
