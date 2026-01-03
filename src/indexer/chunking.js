@@ -119,7 +119,7 @@ function parseJsonString(text, start) {
   return null;
 }
 
-function chunkJson(text) {
+export function chunkJson(text) {
   let parsed;
   try {
     parsed = JSON.parse(text);
@@ -180,7 +180,7 @@ function chunkIniToml(text) {
   return chunks || [{ start: 0, end: text.length, name: 'root', kind: 'ConfigSection', meta: { format: 'ini' } }];
 }
 
-function chunkXml(text) {
+export function chunkXml(text) {
   const keys = [];
   let depth = 0;
   let i = 0;
@@ -325,7 +325,7 @@ function resolveYamlChunkMode(text, context) {
   return mode;
 }
 
-function chunkYaml(text, relPath, context) {
+export function chunkYaml(text, relPath, context) {
   const isWorkflow = relPath ? relPath.replace(/\\\\/g, '/').includes('.github/workflows/') : false;
   if (isWorkflow) return chunkGitHubActions(text);
   const mode = resolveYamlChunkMode(text, context);

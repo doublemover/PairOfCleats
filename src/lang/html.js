@@ -16,6 +16,7 @@ import { buildLuaChunks } from './lua.js';
 import { buildSqlChunks } from './sql.js';
 import { buildShellChunks } from './shell.js';
 import { buildCssChunks } from './css.js';
+import { chunkJson, chunkXml, chunkYaml } from '../indexer/chunking.js';
 
 const IMPORTANT_TAGS = new Set([
   'html',
@@ -66,9 +67,11 @@ const LANGUAGE_ALIASES = new Map([
   ['scss', 'scss'],
   ['sass', 'sass'],
   ['less', 'less'],
-  ['html', 'html'],
+  ['yaml', 'yaml'],
+  ['yml', 'yaml'],
   ['xml', 'xml'],
   ['json', 'json'],
+  ['html', 'html'],
   ['bash', 'shell'],
   ['sh', 'shell'],
   ['shell', 'shell'],
@@ -85,6 +88,10 @@ const SCRIPT_TYPE_ALIASES = new Map([
   ['text/typescript', 'typescript'],
   ['application/typescript', 'typescript'],
   ['text/css', 'css'],
+  ['text/yaml', 'yaml'],
+  ['application/yaml', 'yaml'],
+  ['text/xml', 'xml'],
+  ['application/xml', 'xml'],
   ['application/json', 'json'],
   ['application/ld+json', 'json'],
   ['application/schema+json', 'json'],
@@ -207,6 +214,9 @@ const EMBEDDED_CHUNKERS = new Map([
   ['php', (text) => buildPhpChunks(text)],
   ['lua', (text) => buildLuaChunks(text)],
   ['sql', (text) => buildSqlChunks(text, { dialect: 'generic' })],
+  ['json', (text) => chunkJson(text)],
+  ['xml', (text) => chunkXml(text)],
+  ['yaml', (text, options) => chunkYaml(text, null, { yamlChunking: options?.yamlChunking })],
   ['css', (text) => buildCssChunks(text) || null],
   ['scss', (text) => buildCssChunks(text) || null],
   ['sass', (text) => buildCssChunks(text) || null],

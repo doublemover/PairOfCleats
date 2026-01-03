@@ -75,6 +75,9 @@ if (!findChunk(codeMeta, { file: '.github/workflows/ci.yml', nameIncludes: 'buil
 if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ElementDeclaration', nameIncludes: 'html' })) {
   failures.push('Missing HTML element chunk for unknown.html.');
 }
+if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ConfigSection', nameIncludes: 'settings' })) {
+  failures.push('Missing embedded JSON chunk for unknown.html.');
+}
 if (!findChunk(codeMeta, { file: 'src/styles.css', kind: 'StyleRule', nameIncludes: '.page-header' })) {
   failures.push('Missing CSS chunk for styles.css.');
 }
