@@ -1007,6 +1007,7 @@ Goal: Add implementation detail for remaining todo phases and capture any open d
 ### Phase 89 details (Problematic / gated)
 - `tests/type-inference-crossfile.js` hangs during `script-coverage`; gate it and capture a minimal repro note.
 - Re-enable the test after isolating the hang (likely in build/index shutdown or worker pool teardown).
+- `tests/type-inference-lsp-enrichment.js` fails with `ERR_STREAM_DESTROYED` from `vscode-jsonrpc`; gate it and capture logs in `docs/failing-tests.md`.
 
 ### Open questions
 - None.
