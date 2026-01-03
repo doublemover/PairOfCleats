@@ -33,7 +33,7 @@ Correctness fixes:
 - None in this pass.
 
 Open items:
-- None in this pass.
+- Reviewed tooling/utility scripts; no correctness issues found in this pass.
 
 ## Language Handlers
 
@@ -49,4 +49,4 @@ Correctness fixes:
 - None in this pass.
 
 Open items:
-- None in this pass.
+- Reviewed shared utilities; no correctness issues found in this pass.
