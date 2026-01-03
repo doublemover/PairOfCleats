@@ -8,19 +8,23 @@ let eslintInitWarned = false;
 async function getEslintInstance() {
   if (eslintInitFailed) return null;
   if (eslintInstance) return eslintInstance;
+  const primaryOptions = {
+    overrideConfigFile: null,
+    overrideConfig: {}
+  };
   try {
-    eslintInstance = new ESLint({ useEslintrc: false });
+    eslintInstance = new ESLint(primaryOptions);
     return eslintInstance;
   } catch (err) {
     const message = String(err?.message || err || '');
     if (!eslintInitWarned && message) {
-      console.warn(`[lint] ESLint init failed with legacy options: ${message}`);
+      console.warn(`[lint] ESLint init failed with overrideConfigFile=null: ${message}`);
       eslintInitWarned = true;
     }
     try {
-      eslintInstance = new ESLint({ overrideConfigFile: null });
+      eslintInstance = new ESLint({ useEslintrc: false });
       if (!eslintInitWarned) {
-        console.warn('[lint] ESLint fallback initialized with overrideConfigFile=null.');
+        console.warn('[lint] ESLint fallback initialized with useEslintrc=false.');
         eslintInitWarned = true;
       }
       return eslintInstance;
