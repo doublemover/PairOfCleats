@@ -21,6 +21,36 @@ export function loadIndex(dir, options) {
     }
   };
   const chunkMeta = readJson('chunk_meta.json');
+  const fileMetaRaw = loadOptional('file_meta.json');
+  let fileMetaById = null;
+  if (Array.isArray(fileMetaRaw)) {
+    fileMetaById = new Map();
+    for (const entry of fileMetaRaw) {
+      if (!entry || entry.id == null) continue;
+      fileMetaById.set(entry.id, entry);
+    }
+  }
+  if (!fileMetaById) {
+    const missingMeta = chunkMeta.some((chunk) => chunk && chunk.fileId != null && !chunk.file);
+    if (missingMeta) {
+      throw new Error('file_meta.json is required for fileId-based chunk metadata.');
+    }
+  } else {
+    for (const chunk of chunkMeta) {
+      if (!chunk || (chunk.file && chunk.ext)) continue;
+      const meta = fileMetaById.get(chunk.fileId);
+      if (!meta) continue;
+      if (!chunk.file) chunk.file = meta.file;
+      if (!chunk.ext) chunk.ext = meta.ext;
+      if (!chunk.externalDocs) chunk.externalDocs = meta.externalDocs;
+      if (!chunk.last_modified) chunk.last_modified = meta.last_modified;
+      if (!chunk.last_author) chunk.last_author = meta.last_author;
+      if (!chunk.churn) chunk.churn = meta.churn;
+      if (!chunk.churn_added) chunk.churn_added = meta.churn_added;
+      if (!chunk.churn_deleted) chunk.churn_deleted = meta.churn_deleted;
+      if (!chunk.churn_commits) chunk.churn_commits = meta.churn_commits;
+    }
+  }
   const fileRelationsRaw = loadOptional('file_relations.json');
   let fileRelations = null;
   if (Array.isArray(fileRelationsRaw)) {

@@ -26,16 +26,36 @@ export async function writeIndexArtifacts(input) {
     fileCounts
   } = input;
 
+  const fileMeta = [];
+  const fileIdByPath = new Map();
+  for (const c of state.chunks) {
+    if (!c?.file) continue;
+    if (fileIdByPath.has(c.file)) continue;
+    const id = fileMeta.length;
+    fileIdByPath.set(c.file, id);
+    fileMeta.push({
+      id,
+      file: c.file,
+      ext: c.ext,
+      externalDocs: c.externalDocs,
+      last_modified: c.last_modified,
+      last_author: c.last_author,
+      churn: c.churn,
+      churn_added: c.churn_added,
+      churn_deleted: c.churn_deleted,
+      churn_commits: c.churn_commits
+    });
+  }
+
   function* chunkMetaIterator(chunks) {
     for (const c of chunks) {
       yield {
         id: c.id,
-        file: c.file,
+        fileId: fileIdByPath.get(c.file) ?? null,
         start: c.start,
         end: c.end,
         startLine: c.startLine,
         endLine: c.endLine,
-        ext: c.ext,
         kind: c.kind,
         name: c.name,
         weight: c.weight,
@@ -49,10 +69,6 @@ export async function writeIndexArtifacts(input) {
         stats: c.stats,
         complexity: c.complexity,
         lint: c.lint,
-        externalDocs: c.externalDocs,
-        last_modified: c.last_modified,
-        last_author: c.last_author,
-        churn: c.churn,
         chunk_authors: c.chunk_authors
       };
     }
@@ -118,6 +134,10 @@ export async function writeIndexArtifacts(input) {
         fields: { model: modelId, dims: postings.dims, scale: denseScale },
         arrays: { vectors: postings.quantizedVectors }
       }
+    ),
+    writeJsonArrayFile(
+      path.join(outDir, 'file_meta.json'),
+      fileMeta
     ),
     writeJsonObjectFile(
       path.join(outDir, 'dense_vectors_doc_uint8.json'),
