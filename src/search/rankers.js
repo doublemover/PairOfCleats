@@ -146,10 +146,10 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
   const vectors = idx.denseVec?.vectors;
   if (!queryEmbedding || !Array.isArray(vectors) || !vectors.length) return [];
   const dims = idx.denseVec?.dims || queryEmbedding.length;
-  const levels = 256;
   const minVal = -1;
-  const maxVal = 1;
-  const scale = (maxVal - minVal) / (levels - 1);
+  const scale = Number.isFinite(idx.denseVec?.scale)
+    ? idx.denseVec.scale
+    : (2 / 255);
   const ids = candidateSet ? Array.from(candidateSet) : vectors.map((_, i) => i);
   const scored = [];
 

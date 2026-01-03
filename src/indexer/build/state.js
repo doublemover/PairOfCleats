@@ -18,7 +18,8 @@ export function createIndexState() {
     scannedFiles: [],
     scannedFilesTimes: [],
     skippedFiles: [],
-    totalTokens: 0
+    totalTokens: 0,
+    fileRelations: new Map()
   };
 }
 

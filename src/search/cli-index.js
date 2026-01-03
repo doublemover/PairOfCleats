@@ -21,6 +21,16 @@ export function loadIndex(dir, options) {
     }
   };
   const chunkMeta = readJson('chunk_meta.json');
+  const fileRelationsRaw = loadOptional('file_relations.json');
+  let fileRelations = null;
+  if (Array.isArray(fileRelationsRaw)) {
+    const map = new Map();
+    for (const entry of fileRelationsRaw) {
+      if (!entry || !entry.file) continue;
+      map.set(entry.file, entry.relations || null);
+    }
+    fileRelations = map;
+  }
   const denseVec = loadOptional('dense_vectors_uint8.json');
   const denseVecDoc = loadOptional('dense_vectors_doc_uint8.json');
   const denseVecCode = loadOptional('dense_vectors_code_uint8.json');
@@ -29,6 +39,7 @@ export function loadIndex(dir, options) {
   if (denseVecCode && !denseVecCode.model && modelIdDefault) denseVecCode.model = modelIdDefault;
   const idx = {
     chunkMeta,
+    fileRelations,
     denseVec,
     denseVecDoc,
     denseVecCode,
@@ -120,6 +131,10 @@ export function getIndexSignature(options) {
   };
 
   if (useSqlite) {
+    const codeDir = resolveIndexDir(root, 'code', userConfig);
+    const proseDir = resolveIndexDir(root, 'prose', userConfig);
+    const codeRelations = path.join(codeDir, 'file_relations.json');
+    const proseRelations = path.join(proseDir, 'file_relations.json');
     const recordDir = runRecords ? resolveIndexDir(root, 'records', userConfig) : null;
     const recordMeta = recordDir ? path.join(recordDir, 'chunk_meta.json') : null;
     const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
@@ -127,6 +142,8 @@ export function getIndexSignature(options) {
       backend: backendLabel,
       code: fileSignature(sqliteCodePath),
       prose: fileSignature(sqliteProsePath),
+      codeRelations: fileSignature(codeRelations),
+      proseRelations: fileSignature(proseRelations),
       records: recordMeta ? fileSignature(recordMeta) : null,
       recordsDense: recordDense ? fileSignature(recordDense) : null
     };
@@ -138,6 +155,8 @@ export function getIndexSignature(options) {
   const proseMeta = path.join(proseDir, 'chunk_meta.json');
   const codeDense = path.join(codeDir, 'dense_vectors_uint8.json');
   const proseDense = path.join(proseDir, 'dense_vectors_uint8.json');
+  const codeRelations = path.join(codeDir, 'file_relations.json');
+  const proseRelations = path.join(proseDir, 'file_relations.json');
   const recordDir = runRecords ? resolveIndexDir(root, 'records', userConfig) : null;
   const recordMeta = recordDir ? path.join(recordDir, 'chunk_meta.json') : null;
   const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
@@ -147,6 +166,8 @@ export function getIndexSignature(options) {
     prose: fileSignature(proseMeta),
     codeDense: fileSignature(codeDense),
     proseDense: fileSignature(proseDense),
+    codeRelations: fileSignature(codeRelations),
+    proseRelations: fileSignature(proseRelations),
     records: recordMeta ? fileSignature(recordMeta) : null,
     recordsDense: recordDense ? fileSignature(recordDense) : null
   };

@@ -75,7 +75,7 @@ export function getOutputCacheReporter() {
  * @param {object} filters
  * @returns {Array}
  */
-export function filterChunks(meta, filters = {}, filterIndex = null) {
+export function filterChunks(meta, filters = {}, filterIndex = null, fileRelations = null) {
   const {
     type,
     author,
@@ -259,6 +259,13 @@ export function filterChunks(meta, filters = {}, filterIndex = null) {
     }
     return true;
   };
+  const resolveFileRelations = (file) => {
+    if (!file || !fileRelations) return null;
+    if (typeof fileRelations.get === 'function') {
+      return fileRelations.get(file) || null;
+    }
+    return fileRelations[file] || null;
+  };
 
   const indexedSets = [];
   if (filterIndex) {
@@ -335,8 +342,9 @@ export function filterChunks(meta, filters = {}, filterIndex = null) {
       if (!matches) return false;
     }
     if (chunkAuthor && !matchList(c.chunk_authors, chunkAuthor)) return false;
-    if (importName && c.codeRelations && c.codeRelations.imports) {
-      if (!c.codeRelations.imports.includes(importName)) return false;
+    if (importName) {
+      const imports = c.codeRelations?.imports || resolveFileRelations(c.file)?.imports;
+      if (!Array.isArray(imports) || !imports.includes(importName)) return false;
     }
     if (lint && (!c.lint || !c.lint.length)) return false;
     if (churn !== null && churn !== undefined) {
@@ -350,7 +358,7 @@ export function filterChunks(meta, filters = {}, filterIndex = null) {
       if (!found) return false;
     }
     if (uses) {
-      const usages = c.codeRelations?.usages;
+      const usages = c.codeRelations?.usages || resolveFileRelations(c.file)?.usages;
       if (!Array.isArray(usages)) return false;
       if (!usages.includes(uses)) return false;
     }
@@ -668,11 +676,31 @@ export function formatFullChunk({
     out += c.yellow('   CallSummary: ') + summaries.join(', ') + '\n';
   }
 
-  if (chunk.codeRelations?.importLinks?.length) {
+  if (chunk.importLinks?.length) {
+    out += c.green('   ImportLinks: ') + chunk.importLinks.join(', ') + '\n';
+  } else if (chunk.codeRelations?.importLinks?.length) {
     out += c.green('   ImportLinks: ') + chunk.codeRelations.importLinks.join(', ') + '\n';
   }
 
-  if (chunk.codeRelations?.usages?.length) {
+  if (chunk.usages?.length) {
+    const usageFreq = Object.create(null);
+    chunk.usages.forEach((raw) => {
+      const trimmed = typeof raw === 'string' ? raw.trim() : '';
+      if (!trimmed) return;
+      usageFreq[trimmed] = (usageFreq[trimmed] || 0) + 1;
+    });
+
+    const usageEntries = Object.entries(usageFreq).sort((a, b) => b[1] - a[1]);
+    const maxCount = usageEntries[0]?.[1] || 0;
+
+    const usageStr = usageEntries.slice(0, 10).map(([usage, count]) => {
+      if (count === 1) return usage;
+      if (count === maxCount) return c.bold(c.yellow(`${usage} (${count})`));
+      return c.cyan(`${usage} (${count})`);
+    }).join(', ');
+
+    if (usageStr.length) out += c.cyan('   Usages: ') + usageStr + '\n';
+  } else if (chunk.codeRelations?.usages?.length) {
     const usageFreq = Object.create(null);
     chunk.codeRelations.usages.forEach((raw) => {
       const trimmed = typeof raw === 'string' ? raw.trim() : '';

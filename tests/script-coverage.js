@@ -218,9 +218,19 @@ const actions = [
     covers: []
   },
   {
+    label: 'prose-skip-imports-test',
+    run: () => runNode('prose-skip-imports-test', path.join(root, 'tests', 'prose-skip-imports.js')),
+    covers: ['prose-skip-imports-test']
+  },
+  {
     label: 'tokenize-dictionary-test',
     run: () => runNode('tokenize-dictionary-test', path.join(root, 'tests', 'tokenize-dictionary.js')),
     covers: []
+  },
+  {
+    label: 'import-links-test',
+    run: () => runNode('import-links-test', path.join(root, 'tests', 'import-links.js')),
+    covers: ['import-links-test']
   },
   {
     label: 'git-blame-range-test',

@@ -264,15 +264,21 @@ export async function buildLanguageContext({ ext, relPath, mode, text, options }
   return { lang, context };
 }
 
-export function buildChunkRelations({ lang, chunk, fileRelations }) {
+export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = null }) {
   if (!fileRelations) return {};
-  const output = { ...fileRelations };
-  if (chunk?.name && Array.isArray(fileRelations.calls)) {
-    const callsForChunk = fileRelations.calls.filter(([caller]) => caller && caller === chunk.name);
+  const output = {};
+  if (chunk?.name) {
+    const callsForChunk = callIndex?.callsByCaller
+      ? (callIndex.callsByCaller.get(chunk.name) || [])
+      : (Array.isArray(fileRelations.calls)
+        ? fileRelations.calls.filter(([caller]) => caller && caller === chunk.name)
+        : []);
     if (callsForChunk.length) output.calls = callsForChunk;
-  }
-  if (chunk?.name && Array.isArray(fileRelations.callDetails)) {
-    const detailsForChunk = fileRelations.callDetails.filter((detail) => detail?.caller === chunk.name);
+    const detailsForChunk = callIndex?.callDetailsByCaller
+      ? (callIndex.callDetailsByCaller.get(chunk.name) || [])
+      : (Array.isArray(fileRelations.callDetails)
+        ? fileRelations.callDetails.filter((detail) => detail?.caller === chunk.name)
+        : []);
     if (detailsForChunk.length) output.callDetails = detailsForChunk;
   }
   if (lang?.attachName && chunk?.name) output.name = chunk.name;

@@ -121,7 +121,9 @@ export function createSearchPipeline(context) {
       : hasActiveFilters(filters);
 
     // Filtering
-    const filteredMeta = filtersEnabled ? filterChunks(meta, filters, idx.filterIndex) : meta;
+    const filteredMeta = filtersEnabled
+      ? filterChunks(meta, filters, idx.filterIndex, idx.fileRelations)
+      : meta;
     const allowedIdx = filtersEnabled ? new Set(filteredMeta.map((c) => c.id)) : null;
 
     const searchTopN = Math.max(1, Number(topN) || 1);
@@ -247,6 +249,20 @@ export function createSearchPipeline(context) {
         }
         const chunk = meta[idxVal];
         if (!chunk) return null;
+        const fileRelations = idx.fileRelations
+          ? (typeof idx.fileRelations.get === 'function'
+            ? idx.fileRelations.get(chunk.file)
+            : idx.fileRelations[chunk.file])
+          : null;
+        const enrichedChunk = fileRelations
+          ? {
+            ...chunk,
+            imports: fileRelations.imports || chunk.imports,
+            exports: fileRelations.exports || chunk.exports,
+            usages: fileRelations.usages || chunk.usages,
+            importLinks: fileRelations.importLinks || chunk.importLinks
+          }
+          : chunk;
         let phraseMatches = 0;
         let phraseBoost = 0;
         let phraseFactor = 0;
@@ -289,7 +305,7 @@ export function createSearchPipeline(context) {
           score,
           scoreType,
           scoreBreakdown,
-          chunk,
+          chunk: enrichedChunk,
           sparseScore,
           sparseType: sparseTypeValue,
           annScore,

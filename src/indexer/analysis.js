@@ -3,6 +3,7 @@ import { ESLint } from 'eslint';
 
 let eslintInstance = null;
 let eslintInitFailed = false;
+let eslintInitWarned = false;
 
 async function getEslintInstance() {
   if (eslintInitFailed) return null;
@@ -10,9 +11,28 @@ async function getEslintInstance() {
   try {
     eslintInstance = new ESLint({ useEslintrc: false });
     return eslintInstance;
-  } catch {
-    eslintInitFailed = true;
-    return null;
+  } catch (err) {
+    const message = String(err?.message || err || '');
+    if (!eslintInitWarned && message) {
+      console.warn(`[lint] ESLint init failed with legacy options: ${message}`);
+      eslintInitWarned = true;
+    }
+    try {
+      eslintInstance = new ESLint({ overrideConfigFile: null });
+      if (!eslintInitWarned) {
+        console.warn('[lint] ESLint fallback initialized with overrideConfigFile=null.');
+        eslintInitWarned = true;
+      }
+      return eslintInstance;
+    } catch (fallbackErr) {
+      const fallbackMessage = String(fallbackErr?.message || fallbackErr || '');
+      if (!eslintInitWarned && fallbackMessage) {
+        console.warn(`[lint] ESLint fallback init failed: ${fallbackMessage}`);
+        eslintInitWarned = true;
+      }
+      eslintInitFailed = true;
+      return null;
+    }
   }
 }
 

@@ -288,7 +288,8 @@ export async function applyCrossFileInference({
   log = () => {},
   useTooling = false,
   enableTypeInference = true,
-  enableRiskCorrelation = false
+  enableRiskCorrelation = false,
+  fileRelations = null
 }) {
   if (!enabled) {
     return { linkedCalls: 0, linkedUsages: 0, inferredReturns: 0, riskFlows: 0 };
@@ -477,6 +478,11 @@ export async function applyCrossFileInference({
   for (const chunk of chunks) {
     if (!chunk) continue;
     const relations = chunk.codeRelations || {};
+    const fileRelation = fileRelations
+      ? (typeof fileRelations.get === 'function'
+        ? fileRelations.get(chunk.file)
+        : fileRelations[chunk.file])
+      : null;
     const callLinks = [];
     const callSummaries = [];
     const usageLinks = [];
@@ -530,8 +536,11 @@ export async function applyCrossFileInference({
       }
     }
 
-    if (Array.isArray(relations.usages)) {
-      for (const usage of relations.usages) {
+    const usageSource = Array.isArray(relations.usages)
+      ? relations.usages
+      : (Array.isArray(fileRelation?.usages) ? fileRelation.usages : null);
+    if (Array.isArray(usageSource)) {
+      for (const usage of usageSource) {
         const resolved = resolveUniqueSymbol(symbolIndex, usage);
         if (!resolved) continue;
         if (resolved.file === chunk.file && resolved.name === chunk.name) continue;

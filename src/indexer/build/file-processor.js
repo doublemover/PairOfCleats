@@ -106,13 +106,13 @@ export function createFileProcessor(options) {
     return output;
   };
 
-  const buildExternalDocs = (ext, codeRelations) => {
+  const buildExternalDocs = (ext, imports) => {
     const externalDocs = [];
-    if (!codeRelations?.imports || !codeRelations.imports.length) return externalDocs;
+    if (!imports || !imports.length) return externalDocs;
     const isPython = ext === '.py';
     const isNode = isJsLike(ext);
     const isGoLang = isGo(ext);
-    for (const mod of codeRelations.imports) {
+    for (const mod of imports) {
       if (mod.startsWith('.')) continue;
       if (isPython) {
         const base = mod.split('.')[0];
@@ -128,6 +128,62 @@ export function createFileProcessor(options) {
       }
     }
     return externalDocs;
+  };
+
+  const buildCallIndex = (relations) => {
+    if (!relations) return null;
+    const callsByCaller = new Map();
+    if (Array.isArray(relations.calls)) {
+      for (const entry of relations.calls) {
+        if (!entry || entry.length < 2) continue;
+        const caller = entry[0];
+        if (!caller) continue;
+        const list = callsByCaller.get(caller) || [];
+        list.push(entry);
+        callsByCaller.set(caller, list);
+      }
+    }
+    const callDetailsByCaller = new Map();
+    if (Array.isArray(relations.callDetails)) {
+      for (const detail of relations.callDetails) {
+        const caller = detail?.caller;
+        if (!caller) continue;
+        const list = callDetailsByCaller.get(caller) || [];
+        list.push(detail);
+        callDetailsByCaller.set(caller, list);
+      }
+    }
+    return { callsByCaller, callDetailsByCaller };
+  };
+
+  const buildFileRelations = (relations) => {
+    if (!relations) return null;
+    return {
+      imports: Array.isArray(relations.imports) ? relations.imports : [],
+      exports: Array.isArray(relations.exports) ? relations.exports : [],
+      usages: Array.isArray(relations.usages) ? relations.usages : [],
+      importLinks: Array.isArray(relations.importLinks) ? relations.importLinks : [],
+      functionMeta: relations.functionMeta && typeof relations.functionMeta === 'object'
+        ? relations.functionMeta
+        : {},
+      classMeta: relations.classMeta && typeof relations.classMeta === 'object'
+        ? relations.classMeta
+        : {}
+    };
+  };
+
+  const stripFileRelations = (codeRelations) => {
+    if (!codeRelations || typeof codeRelations !== 'object') return codeRelations;
+    const {
+      imports,
+      exports,
+      usages,
+      importLinks,
+      functionMeta,
+      classMeta,
+      ...rest
+    } = codeRelations;
+    return rest;
   };
 
   /**
@@ -179,17 +235,24 @@ export function createFileProcessor(options) {
         size: fileStat.size,
         bundle: cachedEntry.bundle || `${sha1(relKey)}.json`
       } : null;
+      let fileRelations = cachedBundle.fileRelations || null;
+      if (!fileRelations) {
+        const sample = cachedBundle.chunks.find((chunk) => chunk?.codeRelations);
+        if (sample?.codeRelations) {
+          fileRelations = buildFileRelations(sample.codeRelations);
+        }
+      }
+      if (fileRelations?.imports) {
+        const importLinks = fileRelations.imports
+          .map((i) => allImports[i])
+          .filter((x) => !!x)
+          .flat();
+        fileRelations = { ...fileRelations, importLinks };
+      }
       const updatedChunks = cachedBundle.chunks.map((cachedChunk) => {
         const updatedChunk = { ...cachedChunk };
-        if (updatedChunk.codeRelations?.imports) {
-          const importLinks = updatedChunk.codeRelations.imports
-            .map((i) => allImports[i])
-            .filter((x) => !!x)
-            .flat();
-          updatedChunk.codeRelations = {
-            ...updatedChunk.codeRelations,
-            importLinks
-          };
+        if (updatedChunk.codeRelations) {
+          updatedChunk.codeRelations = stripFileRelations(updatedChunk.codeRelations);
         }
         return updatedChunk;
       });
@@ -201,7 +264,8 @@ export function createFileProcessor(options) {
         cached: true,
         durationMs: fileDurationMs,
         chunks: updatedChunks,
-        manifestEntry
+        manifestEntry,
+        fileRelations
       };
     }
 
@@ -224,7 +288,7 @@ export function createFileProcessor(options) {
       });
       const lineIndex = buildLineIndex(text);
       const fileLines = text.split('\n');
-      const fileRelations = (mode === 'code' && lang && typeof lang.buildRelations === 'function')
+      const rawRelations = (mode === 'code' && lang && typeof lang.buildRelations === 'function')
         ? lang.buildRelations({
           text,
           relPath: relKey,
@@ -233,6 +297,8 @@ export function createFileProcessor(options) {
           options: languageOptions
         })
         : null;
+      const fileRelations = buildFileRelations(rawRelations);
+      const callIndex = buildCallIndex(rawRelations);
       const sc = smartChunk({
         text,
         ext,
@@ -310,7 +376,12 @@ export function createFileProcessor(options) {
             })
             : {};
           if (fileRelations) {
-            codeRelations = buildChunkRelations({ lang, chunk: c, fileRelations });
+            codeRelations = buildChunkRelations({
+              lang,
+              chunk: c,
+              fileRelations,
+              callIndex
+            });
           }
           const flowMeta = lang && typeof lang.flow === 'function'
             ? lang.flow({
@@ -399,7 +470,7 @@ export function createFileProcessor(options) {
           baseDir: root
         }));
 
-        const externalDocs = buildExternalDocs(ext, codeRelations);
+        const externalDocs = buildExternalDocs(ext, fileRelations?.imports);
 
         const chunkPayload = {
           file: relKey,
@@ -443,7 +514,8 @@ export function createFileProcessor(options) {
       relKey,
       fileStat,
       fileHash,
-      fileChunks
+      fileChunks,
+      fileRelations
     }));
 
     const fileDurationMs = Date.now() - fileStart;
@@ -454,6 +526,7 @@ export function createFileProcessor(options) {
       cached: false,
       durationMs: fileDurationMs,
       chunks: fileChunks,
+      fileRelations,
       manifestEntry
     };
   }

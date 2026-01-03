@@ -64,10 +64,10 @@ export async function readCachedBundle({ enabled, absPath, relKey, fileStat, man
 
 /**
  * Write bundle and return manifest entry.
- * @param {{enabled:boolean,bundleDir:string,relKey:string,fileStat:import('node:fs').Stats,fileHash:string,fileChunks:object[]}} input
+ * @param {{enabled:boolean,bundleDir:string,relKey:string,fileStat:import('node:fs').Stats,fileHash:string,fileChunks:object[],fileRelations:object|null}} input
  * @returns {Promise<object|null>}
  */
-export async function writeIncrementalBundle({ enabled, bundleDir, relKey, fileStat, fileHash, fileChunks }) {
+export async function writeIncrementalBundle({ enabled, bundleDir, relKey, fileStat, fileHash, fileChunks, fileRelations }) {
   if (!enabled) return null;
   const cacheKey = sha1(relKey);
   const bundlePath = path.join(bundleDir, `${cacheKey}.json`);
@@ -76,7 +76,8 @@ export async function writeIncrementalBundle({ enabled, bundleDir, relKey, fileS
     hash: fileHash,
     mtimeMs: fileStat.mtimeMs,
     size: fileStat.size,
-    chunks: fileChunks
+    chunks: fileChunks,
+    fileRelations
   };
   try {
     await fs.writeFile(bundlePath, JSON.stringify(bundle) + '\n');
@@ -117,9 +118,9 @@ export async function pruneIncrementalManifest({ enabled, manifest, manifestPath
 
 /**
  * Update incremental bundles after cross-file inference.
- * @param {{enabled:boolean,manifest:object,bundleDir:string,chunks:object[],log:(msg:string)=>void}} input
+ * @param {{enabled:boolean,manifest:object,bundleDir:string,chunks:object[],fileRelations:Map<string,object>|object|null,log:(msg:string)=>void}} input
  */
-export async function updateBundlesWithChunks({ enabled, manifest, bundleDir, chunks, log }) {
+export async function updateBundlesWithChunks({ enabled, manifest, bundleDir, chunks, fileRelations, log }) {
   if (!enabled) return;
   const chunkMap = new Map();
   for (const chunk of chunks) {
@@ -133,13 +134,20 @@ export async function updateBundlesWithChunks({ enabled, manifest, bundleDir, ch
     const bundleName = entry?.bundle;
     const fileChunks = chunkMap.get(file);
     if (!bundleName || !fileChunks) continue;
+    let relations = null;
+    if (fileRelations) {
+      relations = typeof fileRelations.get === 'function'
+        ? (fileRelations.get(file) || null)
+        : (fileRelations[file] || null);
+    }
     const bundlePath = path.join(bundleDir, bundleName);
     const bundle = {
       file,
       hash: entry.hash,
       mtimeMs: entry.mtimeMs,
       size: entry.size,
-      chunks: fileChunks
+      chunks: fileChunks,
+      fileRelations: relations
     };
     try {
       await fs.writeFile(bundlePath, JSON.stringify(bundle) + '\n');

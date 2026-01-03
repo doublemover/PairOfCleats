@@ -81,6 +81,14 @@ if (!alphaChunk || !betaChunk) {
 }
 const alphaAuthors = new Set(alphaChunk.chunk_authors || []);
 const betaAuthors = new Set(betaChunk.chunk_authors || []);
+if (alphaChunk.startLine !== 1 || alphaChunk.endLine !== 3) {
+  console.error(`Expected alpha chunk line range 1-3, got ${alphaChunk.startLine}-${alphaChunk.endLine}`);
+  process.exit(1);
+}
+if (!Number.isFinite(betaChunk.startLine) || betaChunk.startLine < 4) {
+  console.error(`Expected beta chunk start line >= 4, got ${betaChunk.startLine}`);
+  process.exit(1);
+}
 if (!alphaAuthors.has('Alpha Author')) {
   console.error(`Expected Alpha Author in alpha chunk authors, got ${Array.from(alphaAuthors).join(', ')}`);
   process.exit(1);

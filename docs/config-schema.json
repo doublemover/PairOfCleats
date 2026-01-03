@@ -124,6 +124,7 @@
         "sqliteAutoChunkThreshold": { "type": "number" },
         "sqliteFtsNormalize": { "type": "boolean" },
         "sqliteFtsProfile": { "type": "string" },
+        "denseVectorMode": { "type": "string", "enum": ["merged", "code", "doc", "auto"] },
         "sqliteFtsWeights": {
           "type": ["array", "object"],
           "items": { "type": "number" },

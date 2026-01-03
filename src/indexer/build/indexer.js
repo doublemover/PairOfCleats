@@ -63,16 +63,19 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   log(`→ Found ${allEntries.length} files.`);
   timing.discoverMs = Date.now() - discoverStart;
 
-  log('Scanning for imports...');
-  const importResult = await scanImports({
-    files: allEntries.map((entry) => entry.abs),
-    root: runtime.root,
-    mode,
-    languageOptions: runtime.languageOptions,
-    importConcurrency: runtime.importConcurrency,
-    queue: runtime.queues.io
-  });
-  timing.importsMs = importResult.durationMs;
+  let importResult = { allImports: {}, durationMs: 0 };
+  if (mode === 'code') {
+    log('Scanning for imports...');
+    importResult = await scanImports({
+      files: allEntries.map((entry) => entry.abs),
+      root: runtime.root,
+      mode,
+      languageOptions: runtime.languageOptions,
+      importConcurrency: runtime.importConcurrency,
+      queue: runtime.queues.io
+    });
+    timing.importsMs = importResult.durationMs;
+  }
 
   const contextWin = await estimateContextWindow({
     files: allEntries.map((entry) => entry.abs),
@@ -121,6 +124,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     state.scannedFiles.push(result.abs);
     if (result.manifestEntry) {
       incrementalState.manifest.files[result.relKey] = result.manifestEntry;
+    }
+    if (result.fileRelations) {
+      state.fileRelations.set(result.relKey, result.fileRelations);
     }
   };
   await runWithQueue(
@@ -175,7 +181,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       log,
       useTooling: runtime.typeInferenceEnabled && runtime.typeInferenceCrossFileEnabled && runtime.toolingEnabled,
       enableTypeInference: runtime.typeInferenceEnabled,
-      enableRiskCorrelation: runtime.riskAnalysisEnabled && runtime.riskAnalysisCrossFileEnabled
+      enableRiskCorrelation: runtime.riskAnalysisEnabled && runtime.riskAnalysisCrossFileEnabled,
+      fileRelations: state.fileRelations
     });
     if (crossFileStats) {
       const riskFlows = Number.isFinite(crossFileStats.riskFlows) ? crossFileStats.riskFlows : 0;
@@ -186,6 +193,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       manifest: incrementalState.manifest,
       bundleDir: incrementalState.bundleDir,
       chunks: state.chunks,
+      fileRelations: state.fileRelations,
       log
     });
   }

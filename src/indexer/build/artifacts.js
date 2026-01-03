@@ -57,6 +57,16 @@ export async function writeIndexArtifacts(input) {
       };
     }
   }
+  function* fileRelationsIterator(relations) {
+    if (!relations || typeof relations.entries !== 'function') return;
+    for (const [file, data] of relations.entries()) {
+      if (!file || !data) continue;
+      yield {
+        file,
+        relations: data
+      };
+    }
+  }
 
   const fileListConfig = userConfig?.indexing || {};
   const debugFileLists = fileListConfig.debugFileLists === true;
@@ -98,27 +108,28 @@ export async function writeIndexArtifacts(input) {
   }
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
+  const denseScale = 2 / 255;
   log('Writing index files...');
   const writeStart = Date.now();
   const writes = [
     writeJsonObjectFile(
       path.join(outDir, 'dense_vectors_uint8.json'),
       {
-        fields: { model: modelId, dims: postings.dims, scale: 1.0 },
+        fields: { model: modelId, dims: postings.dims, scale: denseScale },
         arrays: { vectors: postings.quantizedVectors }
       }
     ),
     writeJsonObjectFile(
       path.join(outDir, 'dense_vectors_doc_uint8.json'),
       {
-        fields: { model: modelId, dims: postings.dims, scale: 1.0 },
+        fields: { model: modelId, dims: postings.dims, scale: denseScale },
         arrays: { vectors: postings.quantizedDocVectors }
       }
     ),
     writeJsonObjectFile(
       path.join(outDir, 'dense_vectors_code_uint8.json'),
       {
-        fields: { model: modelId, dims: postings.dims, scale: 1.0 },
+        fields: { model: modelId, dims: postings.dims, scale: denseScale },
         arrays: { vectors: postings.quantizedCodeVectors }
       }
     ),
@@ -145,6 +156,12 @@ export async function writeIndexArtifacts(input) {
       }
     )
   ];
+  if (state.fileRelations && state.fileRelations.size) {
+    writes.push(writeJsonArrayFile(
+      path.join(outDir, 'file_relations.json'),
+      fileRelationsIterator(state.fileRelations)
+    ));
+  }
   if (resolvedConfig.enablePhraseNgrams !== false) {
     writes.push(writeJsonObjectFile(
       path.join(outDir, 'phrase_ngrams.json'),
@@ -161,7 +178,7 @@ export async function writeIndexArtifacts(input) {
   timing.writeMs = Date.now() - writeStart;
   timing.totalMs = Date.now() - timing.start;
   log(
-    `📦  ${mode.padEnd(5)}: ${state.chunks.length.toLocaleString()} chunks, ${postings.trimmedVocab.length.toLocaleString()} tokens, dims=${postings.dims}`
+    `📦  ${mode.padEnd(5)}: ${state.chunks.length.toLocaleString()} chunks, ${postings.tokenVocab.length.toLocaleString()} tokens, dims=${postings.dims}`
   );
 
   const cacheHits = state.scannedFilesTimes.filter((entry) => entry.cached).length;
@@ -196,7 +213,7 @@ export async function writeIndexArtifacts(input) {
     },
     tokens: {
       total: state.totalTokens,
-      vocab: postings.trimmedVocab.length
+      vocab: postings.tokenVocab.length
     },
     bm25: {
       k1: postings.k1,

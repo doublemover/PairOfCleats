@@ -48,7 +48,7 @@ Work items:
 - [ ] Add config switches to enable/disable tree-sitter per language.
 
 
-## Phase 77: Deps Fixes - Dependency Hygiene (status: todo)
+## Phase 77: Deps Fixes - Dependency Hygiene (status: done)
 Goal: Remove unused packages and consolidate redundant parsing stacks.
 Work items:
 - [ ] Audit usage of `minhash` (npm), `varint`, `seedrandom`, `yaml`, `strip-comments`; remove if unused.
@@ -57,7 +57,7 @@ Work items:
 - [ ] Add a small dependency audit test to ensure removed packages are not referenced.
 
 
-## Phase 78: Deps Fixes - Correctness and Spec Mismatches (status: todo)
+## Phase 78: Deps Fixes - Correctness and Spec Mismatches (status: done)
 Goal: Resolve correctness bugs and spec mismatches highlighted in deps_fixes.md.
 Work items:
 - [ ] Remove dead `posts` computation in `src/indexer/build/postings.js`; add a test asserting no unused allocations.
@@ -91,77 +91,6 @@ Work items:
 ## Todo Phase Detail + Questions (status: active)
 Goal: Add implementation detail for remaining todo phases and capture any open decisions.
 
-### Phase 57 details
-- Update `src/shared/tokenize.js` `splitWordsWithDict` so no-match spans emit the remaining substring (or a bounded unknown span), not single characters.
-- Ensure query parsing uses identical segmentation in `src/search/query.js` (`tokenizeQueryTerms`, `tokenizePhrase`).
-- Add a dict segmentation benchmark harness (e.g., `tools/bench-dict-seg.js`) to compare greedy vs DP segmentation on a fixed sample set; report token counts and coverage.
-- Tests: extend `tests/tokenize-dictionary.js` to cover unknown spans and query tokenization.
-
-### Phase 58 details
-- Compute blame ranges using line numbers derived before `getGitMeta` in `src/indexer/build/file-processor.js`.
-- Treat chunk end offsets as exclusive when deriving `endLine` (use `end - 1` with empty-chunk guard).
-- Tests: add a fixture with a multi-line file and assert `chunk_authors` matches expected lines.
-
-### Phase 59 details
-- Default YAML to a single root chunk in `src/indexer/chunking.js` unless config enables top-level splitting.
-- Add `indexing.yamlChunkStrategy` (values: `root` | `top-level`) and document in `docs/config-schema.json`.
-- Implement top-level splitting with line/indent scanning (no `indexOf`).
-- Tests: `tests/chunking-yaml.js` + `tests/format-fidelity.js` for boundary checks.
-
-### Phase 60 details
-- Update `buildExternalDocs` (in `src/indexer/build/file-processor.js`) to preserve `@` and `encodeURIComponent` scoped package paths.
-- Add a regression test for scoped npm modules (fixture in `tests/fixtures/external-docs` + new test file).
-
-### Phase 61 details
-- Prefer sparse scores by default in `src/search/pipeline.js` when BM25/FTS hits exist; ANN is fallback.
-- Keep normalized blend mode behind `search.scoreBlend` config; document weights and normalization.
-- Add a scoring comparison harness (e.g., `tools/bench-score-strategy.js`) that runs the same query set with `sparse`, `ann-fallback`, and `blend`.
-- Tests: update `tests/search-explain.js` to reflect scoreType changes and blend breakdown.
-
-### Phase 66 details
-- In `tools/bench-language-repos.js`, detect existing lock files under `<repoCacheRoot>/locks/index.lock` and honor stale/active states.
-- Add lock handling modes (wait/retry, stale-clear, fail-fast) and make the default configurable (default: fail-fast).
-- Add a bench flag for per-run cache roots or lock namespaces to avoid collisions (document default behavior).
-- Emit clear error summaries when builds are skipped due to locks (with lock age and pid if known).
-- Tests: add a fixture that writes a stale lock and validates bench behavior (skip vs retry).
-
-### Phase 68 details
-- README: update feature list (indexing/search/dicts/models/sqlite) and remove deprecated sections; add design-doc links.
-- README: add concise quickstart + "first index" path, plus consolidated "run all tests" command (exclude benchmarks by default).
-- README: make sections collapsible (tests, maintenance, cache layout, design docs).
-- Docs: sync `docs/setup.md`, `docs/editor-integration.md`, `docs/sqlite-*.md`, `docs/ast-feature-list.md`, `docs/language-fidelity.md`, `docs/repometrics-dashboard.md`, `docs/api-server.md`, `docs/mcp-server.md`.
-- `docs/config-schema.json`: audit keys vs actual config usage and add missing descriptions.
-- `ROADMAP.md`: ensure it links to `COMPLETE_PLAN.md` and removes stale items.
-
-### Phase 69 details
-- Add `vscode-jsonrpc` and replace custom framing in `src/shared/jsonrpc.js` + `tools/mcp-server.js`.
-- Update `src/tooling/lsp/client.js` to use `MessageReader/Writer` and request/notification helpers.
-- Add `vscode-languageserver-protocol` for symbol/position constants and type safety.
-- Add regression tests for split frames and large payload handling.
-
-### Phase 70 details
-- Replace `src/shared/concurrency.js` with `p-queue` (IO queue + CPU queue).
-- Route file IO, chunking, lint/complexity, and embedding dispatch through queues.
-- Replace ad-hoc caches with `lru-cache` (file text, lint/complexity, summary caches, git meta).
-- Add config for cache limits and TTL with sensible defaults (fileText 64MB, summary 32MB, lint 16MB, complexity 16MB, gitMeta 16MB); add eviction tests.
-
-### Phase 71 details
-- Use `git ls-files -z` when available for file discovery; fallback to `fdir`.
-- Reuse discovery results across code + prose; avoid double traversal.
-- Return `{ abs, rel, stat }` from discovery to avoid double `stat()` calls.
-- Replace watch polling with `chokidar`, with config-driven debounce and ignore rules.
-- Tests for discovery reuse and watcher behavior.
-
-### Phase 72 details
-- Add `es-module-lexer` + `cjs-module-lexer` in `src/indexer/build/imports.js` to avoid full AST parse for imports.
-- Consolidate JS/TS/Flow parsing in `src/lang/javascript.js`, `src/lang/typescript.js`, `src/lang/flow.js` using `@babel/parser`, keeping `acorn`/`esprima` fallbacks behind config for comparison.
-- Add fixtures for JSX/TSX/Flow syntax and ensure import extraction is correct.
-
-### Phase 73 details
-- Use streaming JSON writers for large artifacts in `src/indexer/build/artifacts.js`.
-- Add `piscina` worker pool for tokenization, ngrams, minhash, quantization (pure functions only).
-- Provide fallback to sync path when workers unavailable; add tests for stream correctness.
-
 ### Phase 75 details
 - Expand tooling registry in `tools/tooling-utils.js` for new LSPs and parsers (Ruby LSP, Roslyn, Intelephense, sql parser).
 - Add detection + install instructions and config toggles per tool.
@@ -173,32 +102,6 @@ Goal: Add implementation detail for remaining todo phases and capture any open d
 - Add tree-sitter chunkers for Swift/Kotlin/C#/C/C++/ObjC first, then Go/Rust/Java.
 - Add fixtures for chunk boundary validation and failure fallback paths.
 
-### Phase 77 details
-- Audit and remove unused dependencies (`minhash`, `varint`, `seedrandom`, `yaml`, `strip-comments`) if unreferenced.
-- Consolidate JS parsing stack after Babel adoption; update docs/tests.
-- Add a dependency usage test to prevent reintroducing removed packages.
-
-### Phase 78 details
-- Remove dead `posts` allocation in `src/indexer/build/postings.js`.
-- Either implement `maxVocab` pruning or remove the trimmed-vocab path to avoid misleading behavior.
-- Decide on `dense_vectors_doc_uint8.json`/`dense_vectors_code_uint8.json` usage (wire into ranking or stop writing/loading).
-- Fix dense vector `scale` metadata to match quantization step (or drop field).
-- Skip `scanImports()` for prose mode and add a regression test.
-- Separate file-level vs chunk-level relations to avoid per-chunk duplication.
-- Pre-index call/callDetails per file to avoid O(chunks * calls) scans.
-- Fix potential blame end-line off-by-one for chunkers without explicit line metadata.
-- Document `importLinks` semantics and add tests.
-- Review ESLint API usage for current version compatibility and warn on failures.
-
-### Phase 79 details
-- Gate `.scannedfiles.json` / `.skippedfiles.json` behind a debug flag and store only counts + samples by default.
-- Reuse a single ESLint instance per build and cache lint results for unchanged files.
-- Make git blame opt-in or auto-disabled for benchmark profiles.
-- Pre-split lines once per file for `preContext`/`postContext`.
-- Deduplicate import lists in `scanImports`.
-- Add an LRU cap for `gitMetaCache` if not handled by Phase 70.
-- Reduce chunk metadata duplication before full file_meta refactor.
-
 ### Phase 80 details
 - Batch git blame per file with porcelain output and compute chunk authors by line range.
 - Batch embeddings per file or per N chunks; normalize once per batch.
@@ -208,11 +111,6 @@ Goal: Add implementation detail for remaining todo phases and capture any open d
 - Avoid redundant discovery + stat passes for code/prose.
 - Consider dropping per-chunk `tokens` storage or replacing with a compact representation.
 - Move large numeric arrays to SQLite/binary for large repos.
-
-### Phase 81 details
-- Add a benchmark profile config preset plus CLI flag to disable expensive enrichment by default.
-- Record which knobs were disabled in benchmark summaries.
-- Document recommended benchmark settings for large repos.
 
 ### Phase 82 details
 - Add a trigram/chargram candidate generator for substring and regex queries (regex to ngram prefilter).
@@ -246,17 +144,3 @@ Goal: Add implementation detail for remaining todo phases and capture any open d
 - Prototype external sparse backends (Tantivy) and vector backends (LanceDB).
 - Evaluate server-backed search options (Meilisearch, Typesense) for UI suggestions.
 - Document tradeoffs and an adoption recommendation.
-
-### Phase 88 details
-- Expand retrieval evaluation harness with datasets and offline metrics (MRR/recall).
-- Add evaluation profiles inspired by Continue/Haystack guidance.
-- Keep evaluation results in `docs/` with reproducible scripts.
-
-### Phase 89 details (Problematic / gated)
-- `tests/type-inference-crossfile.js` hangs during `script-coverage`; gate it and capture a minimal repro note.
-- Re-enable the test after isolating the hang (likely in build/index shutdown or worker pool teardown).
-- `tests/type-inference-lsp-enrichment.js` fails with `ERR_STREAM_DESTROYED` from `vscode-jsonrpc`; gate it and capture logs in `docs/failing-tests.md`.
-- `tests/fixture-parity.js` intermittently crashes during the languages fixture on Windows (exit code 3221226505); gate it and track details in `docs/failing-tests.md`.
-
-### Open questions
-- None.

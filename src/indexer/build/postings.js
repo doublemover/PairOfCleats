@@ -34,7 +34,6 @@ export async function buildPostings(input) {
       b: 0.75,
       avgChunkLen: 0,
       totalDocs: 0,
-      trimmedVocab: [],
       phraseVocab: [],
       phrasePostings: [],
       chargramVocab: [],
@@ -57,13 +56,6 @@ export async function buildPostings(input) {
   const { k1, b } = tuneBM25Params(chunks);
   const N = chunks.length;
   const avgChunkLen = chunks.reduce((sum, c) => sum + c.tokens.length, 0) / Math.max(N, 1);
-
-  const vocabAll = Array.from(df.keys());
-  const trimmedVocab = vocabAll.slice();
-  const posts = trimmedVocab.map((token) => {
-    const posting = tokenPostings.get(token) || [];
-    return posting.map(([docId]) => docId);
-  });
 
   const embedLabel = useStubEmbeddings ? 'stub' : 'model';
   log(`Using ${embedLabel} embeddings for dense vectors (${modelId})...`);
@@ -120,7 +112,6 @@ export async function buildPostings(input) {
     b,
     avgChunkLen,
     totalDocs: N,
-    trimmedVocab,
     phraseVocab,
     phrasePostings,
     chargramVocab,

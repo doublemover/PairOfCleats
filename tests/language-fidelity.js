@@ -69,6 +69,20 @@ if (!fs.existsSync(chunkMetaPath)) {
 }
 
 const chunkMeta = JSON.parse(fs.readFileSync(chunkMetaPath, 'utf8'));
+const fileRelationsPath = path.join(codeDir, 'file_relations.json');
+let fileRelations = null;
+if (fs.existsSync(fileRelationsPath)) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(fileRelationsPath, 'utf8'));
+    if (Array.isArray(raw)) {
+      fileRelations = new Map();
+      raw.forEach((entry) => {
+        if (entry?.file) fileRelations.set(entry.file, entry.relations || null);
+      });
+    }
+  } catch {}
+}
+const getFileRelations = (file) => (fileRelations?.get(file) || null);
 
 function findChunk(match) {
   return chunkMeta.find((chunk) => {
@@ -491,7 +505,7 @@ const javaMethod = findChunk({ file: 'src/java_advanced.java', kind: 'MethodDecl
 if (!javaMethod) {
   failures.push('Missing Java method chunk (Box.add).');
 } else {
-  const imports = javaMethod.codeRelations?.imports || [];
+  const imports = javaMethod.codeRelations?.imports || getFileRelations(javaMethod.file)?.imports || [];
   if (!imports.some((imp) => imp === 'java.util.List')) {
     failures.push('Java import capture missing java.util.List.');
   }

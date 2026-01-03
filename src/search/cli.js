@@ -21,7 +21,7 @@ import {
 import { getVectorExtensionConfig, queryVectorAnn } from '../../tools/vector-extension.js';
 import { getSearchUsage, parseSearchArgs, resolveSearchMode } from './cli-args.js';
 import { loadDictionary } from './cli-dictionary.js';
-import { buildQueryCacheKey, getIndexSignature, loadIndex, requireIndexDir } from './cli-index.js';
+import { buildQueryCacheKey, getIndexSignature, loadIndex, requireIndexDir, resolveIndexDir } from './cli-index.js';
 import { createSqliteBackend, getSqliteChunkCount } from './cli-sqlite.js';
 import { resolveFtsWeights } from './fts.js';
 import { getQueryEmbedding } from './embedding.js';
@@ -162,6 +162,9 @@ const queryCachePath = path.join(metricsDir, 'queryCache.json');
 const jsonCompact = argv['json-compact'] === true;
 const jsonOutput = argv.json || jsonCompact;
 const explain = argv.explain === true || argv.why === true;
+const denseVectorMode = typeof userConfig.search?.denseVectorMode === 'string'
+  ? userConfig.search.denseVectorMode.toLowerCase()
+  : 'merged';
 
 const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
 
@@ -396,6 +399,45 @@ const idxCode = runCode
 const idxRecords = runRecords
   ? loadIndex(recordsDir, { modelIdDefault })
   : { chunkMeta: [], denseVec: null, minhash: null };
+const resolveDenseVector = (idx, mode) => {
+  if (!idx) return null;
+  if (denseVectorMode === 'code') return idx.denseVecCode || idx.denseVec || null;
+  if (denseVectorMode === 'doc') return idx.denseVecDoc || idx.denseVec || null;
+  if (denseVectorMode === 'auto') {
+    if (mode === 'code') return idx.denseVecCode || idx.denseVec || null;
+    if (mode === 'prose') return idx.denseVecDoc || idx.denseVec || null;
+  }
+  return idx.denseVec || null;
+};
+const loadFileRelations = (mode) => {
+  try {
+    const dir = resolveIndexDir(ROOT, mode, userConfig);
+    const relPath = path.join(dir, 'file_relations.json');
+    if (!fsSync.existsSync(relPath)) return null;
+    const raw = JSON.parse(fsSync.readFileSync(relPath, 'utf8'));
+    if (!Array.isArray(raw)) return null;
+    const map = new Map();
+    for (const entry of raw) {
+      if (!entry?.file) continue;
+      map.set(entry.file, entry.relations || null);
+    }
+    return map;
+  } catch {
+    return null;
+  }
+};
+if (runCode) {
+  idxCode.denseVec = resolveDenseVector(idxCode, 'code');
+  if (useSqlite && !idxCode.fileRelations) {
+    idxCode.fileRelations = loadFileRelations('code');
+  }
+}
+if (runProse) {
+  idxProse.denseVec = resolveDenseVector(idxProse, 'prose');
+  if (useSqlite && !idxProse.fileRelations) {
+    idxProse.fileRelations = loadFileRelations('prose');
+  }
+}
 modelIdForCode = runCode ? (idxCode?.denseVec?.model || modelIdDefault) : null;
 modelIdForProse = runProse ? (idxProse?.denseVec?.model || modelIdDefault) : null;
 modelIdForRecords = runRecords ? (idxRecords?.denseVec?.model || modelIdDefault) : null;
@@ -500,6 +542,7 @@ function compactHit(hit, includeExplain = false) {
         sparseWeight: scoreBlendSparseWeight,
         annWeight: scoreBlendAnnWeight
       },
+      denseVectorMode,
       minhashMaxDocs,
       sqliteFtsNormalize,
       sqliteFtsProfile,
