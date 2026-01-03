@@ -1011,3 +1011,10 @@ Work items:
 - Ensured punctuation tokens remain first-class for code search by adding FTS fallback to BM25 when needed.
 - Added coverage for regex file filters and punctuation queries.
 - Documented search prefilter behavior and limits in `docs/search.md`.
+
+
+### Phase 83 details
+- Verified query filters (file/path, lang, branch, case) run via filter index or early branch checks for low overhead.
+- Kept symbol-aware ranking boosts for definitions/exports with coverage in `tests/search-symbol-boost.js`.
+- Emitted compact `repo_map.json` artifacts with symbols, signatures, and file paths for navigation.
+- Added repo map coverage to fixture smoke tests.

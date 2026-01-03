@@ -53,12 +53,9 @@ Implemented; details moved to `COMPLETED_PHASES.md`.
 ## Phase 82: Deps Fixes - Search Prefilter (status: done)
 Implemented; details moved to `COMPLETED_PHASES.md`.
 
+## Phase 83: Deps Fixes - Query Filters + Symbol Boosts (status: done)
+Implemented; details moved to `COMPLETED_PHASES.md`.
+
 
 ## Todo Phase Detail + Questions (status: active)
 Goal: Add implementation detail for remaining todo phases and capture any open decisions.
-
-### Phase 83 details
-- Expand query language filters (repo, file/path, lang, branch, case) and ensure they are cheap.
-- Add symbol-aware ranking boosts for definitions/exports (ctags/tree-sitter/LSP).
-- Create a compact repo map artifact (symbols + signatures + file paths) for retrieval and navigation.
-- Add tests for filter correctness and ranking boost behavior.

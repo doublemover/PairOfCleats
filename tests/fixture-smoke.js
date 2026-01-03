@@ -137,11 +137,13 @@ for (const fixtureName of fixtures) {
     path.join(codeDir, 'dense_vectors_uint8.json'),
     path.join(codeDir, 'dense_vectors_doc_uint8.json'),
     path.join(codeDir, 'dense_vectors_code_uint8.json'),
+    path.join(codeDir, 'repo_map.json'),
     path.join(proseDir, 'chunk_meta.json'),
     path.join(proseDir, 'token_postings.json'),
     path.join(proseDir, 'dense_vectors_uint8.json'),
     path.join(proseDir, 'dense_vectors_doc_uint8.json'),
     path.join(proseDir, 'dense_vectors_code_uint8.json'),
+    path.join(proseDir, 'repo_map.json'),
     path.join(metricsDir, 'index-code.json'),
     path.join(metricsDir, 'index-prose.json'),
     sqlitePaths.codePath,
@@ -153,6 +155,19 @@ for (const fixtureName of fixtures) {
       console.error(`Missing fixture artifact: ${filePath}`);
       process.exit(1);
     }
+  }
+
+  const repoMapPath = path.join(codeDir, 'repo_map.json');
+  const repoMapRaw = fs.readFileSync(repoMapPath, 'utf8');
+  const repoMap = JSON.parse(repoMapRaw);
+  if (!Array.isArray(repoMap) || !repoMap.length) {
+    console.error('Fixture repo map missing or empty.');
+    process.exit(1);
+  }
+  const sampleEntry = repoMap.find((entry) => entry && entry.file && entry.name);
+  if (!sampleEntry) {
+    console.error('Fixture repo map missing expected fields.');
+    process.exit(1);
   }
 
   assertChunkWeights('code', path.join(codeDir, 'chunk_meta.json'));
