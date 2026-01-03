@@ -101,6 +101,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     contextWin,
     incrementalState,
     getChunkEmbedding: runtime.getChunkEmbedding,
+    getChunkEmbeddings: runtime.getChunkEmbeddings,
+    embeddingBatchSize: runtime.embeddingBatchSize,
     typeInferenceEnabled: runtime.typeInferenceEnabled,
     riskAnalysisEnabled: runtime.riskAnalysisEnabled,
     seenFiles,

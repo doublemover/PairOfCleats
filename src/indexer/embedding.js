@@ -34,13 +34,33 @@ export function normalizeVec(vec) {
  * @param {string} options.modelId
  * @param {number} options.dims
  * @param {string} options.modelsDir
- * @returns {{getChunkEmbedding:(text:string)=>Promise<number[]>,embedderPromise:Promise<any>|null}}
+ * @returns {{getChunkEmbedding:(text:string)=>Promise<number[]>,getChunkEmbeddings:(texts:string[])=>Promise<number[][]>,embedderPromise:Promise<any>|null}}
  */
 export function createEmbedder({ useStubEmbeddings, modelId, dims, modelsDir }) {
   if (modelsDir) {
     env.cacheDir = modelsDir;
   }
   const embedderPromise = useStubEmbeddings ? null : pipeline('feature-extraction', modelId);
+
+  const normalizeBatchOutput = (output, count) => {
+    if (!output) return Array.from({ length: count }, () => []);
+    if (Array.isArray(output)) {
+      return output.map((entry) => Array.from(entry.data || entry));
+    }
+    if (output.data && Array.isArray(output.dims) && output.dims.length === 2) {
+      const rows = output.dims[0];
+      const cols = output.dims[1];
+      const data = Array.from(output.data);
+      const out = [];
+      for (let i = 0; i < rows; i += 1) {
+        out.push(data.slice(i * cols, (i + 1) * cols));
+      }
+      while (out.length < count) out.push([]);
+      return out;
+    }
+    if (output.data) return [Array.from(output.data)];
+    return Array.from({ length: count }, () => []);
+  };
 
   async function getChunkEmbedding(text) {
     if (useStubEmbeddings) {
@@ -52,5 +72,17 @@ export function createEmbedder({ useStubEmbeddings, modelId, dims, modelsDir }) 
     return Array.from(output.data);
   }
 
-  return { getChunkEmbedding, embedderPromise };
+  async function getChunkEmbeddings(texts) {
+    const list = Array.isArray(texts) ? texts : [];
+    if (!list.length) return [];
+    if (useStubEmbeddings) {
+      const safeDims = Math.max(1, Number(dims) || 384);
+      return list.map((text) => stubEmbedding(text, safeDims));
+    }
+    const embedder = await embedderPromise;
+    const output = await embedder(list, { pooling: 'mean', normalize: true });
+    return normalizeBatchOutput(output, list.length);
+  }
+
+  return { getChunkEmbedding, getChunkEmbeddings, embedderPromise };
 }

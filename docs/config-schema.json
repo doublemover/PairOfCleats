@@ -207,6 +207,7 @@
             "maxRetries": { "type": "number" }
           }
         },
+        "embeddingBatchSize": { "type": "number" },
         "treeSitter": {
           "type": "object",
           "additionalProperties": false,

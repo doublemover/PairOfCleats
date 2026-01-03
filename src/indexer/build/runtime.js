@@ -88,6 +88,10 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const javascriptFlow = normalizeFlow(indexingConfig.javascriptFlow);
   const pythonAstConfig = indexingConfig.pythonAst || {};
   const pythonAstEnabled = pythonAstConfig.enabled !== false;
+  const embeddingBatchRaw = Number(indexingConfig.embeddingBatchSize);
+  const embeddingBatchSize = Number.isFinite(embeddingBatchRaw)
+    ? Math.max(0, Math.floor(embeddingBatchRaw))
+    : 0;
   const treeSitterConfig = indexingConfig.treeSitter || {};
   const treeSitterEnabled = treeSitterConfig.enabled !== false;
   const treeSitterLanguages = treeSitterConfig.languages || {};
@@ -161,7 +165,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   }
   const dictSummary = { files: dictionaryPaths.length, words: dictWords.size };
 
-  const { getChunkEmbedding } = createEmbedder({
+  const { getChunkEmbedding, getChunkEmbeddings } = createEmbedder({
     useStubEmbeddings,
     modelId,
     dims: argv.dims,
@@ -292,6 +296,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     typeInferenceCrossFileEnabled,
     riskAnalysisEnabled,
     riskAnalysisCrossFileEnabled,
+    embeddingBatchSize,
     gitBlameEnabled,
     lintEnabled,
     complexityEnabled,
@@ -313,7 +318,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     dictWords,
     dictSummary,
     getChunkEmbedding,
+    getChunkEmbeddings,
     languageOptions,
+    embeddingBatchSize,
     ignoreMatcher,
     ignoreConfig,
     ignoreFiles,

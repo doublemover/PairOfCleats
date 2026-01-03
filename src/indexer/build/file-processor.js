@@ -6,7 +6,7 @@ import { buildChunkRelations, buildLanguageContext } from '../language-registry.
 import { detectRiskSignals } from '../risk.js';
 import { inferTypeMetadata } from '../type-inference.js';
 import { getHeadline } from '../headline.js';
-import { getGitMeta } from '../git.js';
+import { getChunkAuthorsFromLines, getGitMetaForFile } from '../git.js';
 import { getFieldWeight } from '../field-weighting.js';
 import { isGo, isJsLike, isSpecialCodeFile } from '../constants.js';
 import { normalizeVec } from '../embedding.js';
@@ -35,6 +35,7 @@ export function createFileProcessor(options) {
     contextWin,
     incrementalState,
     getChunkEmbedding,
+    getChunkEmbeddings,
     typeInferenceEnabled,
     riskAnalysisEnabled,
     seenFiles,
@@ -45,7 +46,8 @@ export function createFileProcessor(options) {
     cacheReporter,
     queues,
     useCpuQueue = true,
-    workerPool = null
+    workerPool = null,
+    embeddingBatchSize = 0
   } = options;
   const lintEnabled = lintEnabledRaw !== false;
   const complexityEnabled = complexityEnabledRaw !== false;
@@ -299,6 +301,16 @@ export function createFileProcessor(options) {
         : null;
       const fileRelations = buildFileRelations(rawRelations);
       const callIndex = buildCallIndex(rawRelations);
+      const gitMeta = await runIo(() => getGitMetaForFile(relKey, {
+        blame: gitBlameEnabled,
+        baseDir: root
+      }));
+      const lineAuthors = Array.isArray(gitMeta?.lineAuthors)
+        ? gitMeta.lineAuthors
+        : null;
+      const fileGitMeta = gitMeta && typeof gitMeta === 'object'
+        ? Object.fromEntries(Object.entries(gitMeta).filter(([key]) => key !== 'lineAuthors'))
+        : {};
       const sc = smartChunk({
         text,
         ext,
@@ -321,6 +333,8 @@ export function createFileProcessor(options) {
         return { startLine, endLine };
       });
       const chunks = [];
+      const codeTexts = [];
+      const docTexts = [];
       const useWorkerForTokens = workerPool && workerPool.shouldUseForFile
         ? workerPool.shouldUseForFile(fileStat.size)
         : false;
@@ -442,12 +456,6 @@ export function createFileProcessor(options) {
         }
 
         const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
-        const embed_code = await getChunkEmbedding(ctext);
-        const embed_doc = docText.trim()
-          ? await getChunkEmbedding(docText)
-          : embed_code.map(() => 0);
-        const merged = embed_doc.map((v, i) => (v + embed_code[i]) / 2);
-        const embedding = normalizeVec(merged);
 
         const headline = getHeadline(c, tokens);
 
@@ -467,10 +475,13 @@ export function createFileProcessor(options) {
             postContext = fileLines.slice(startIdx, endIdx).slice(0, contextWin);
           }
         }
-        const gitMeta = await runIo(() => getGitMeta(relKey, startLine, endLine, {
-          blame: gitBlameEnabled,
-          baseDir: root
-        }));
+        const chunkAuthors = lineAuthors
+          ? getChunkAuthorsFromLines(lineAuthors, startLine, endLine)
+          : [];
+        const gitMeta = {
+          ...fileGitMeta,
+          ...(chunkAuthors.length ? { chunk_authors: chunkAuthors } : {})
+        };
 
         const externalDocs = buildExternalDocs(ext, fileRelations?.imports);
 
@@ -495,9 +506,9 @@ export function createFileProcessor(options) {
           headline,
           preContext,
           postContext,
-          embedding,
-          embed_doc,
-          embed_code,
+          embedding: [],
+          embed_doc: [],
+          embed_code: [],
           minhashSig,
           weight,
           ...gitMeta,
@@ -505,6 +516,74 @@ export function createFileProcessor(options) {
         };
 
         chunks.push(chunkPayload);
+        codeTexts.push(ctext);
+        docTexts.push(docText.trim() ? docText : '');
+      }
+
+      const embedBatch = async (texts) => {
+        if (!texts.length) return [];
+        if (typeof getChunkEmbeddings === 'function') {
+          return getChunkEmbeddings(texts);
+        }
+        const out = [];
+        for (const text of texts) {
+          out.push(await getChunkEmbedding(text));
+        }
+        return out;
+      };
+
+      const runBatched = async (texts) => {
+        if (!texts.length) return [];
+        const batchSize = Number.isFinite(embeddingBatchSize) ? embeddingBatchSize : 0;
+        if (!batchSize || texts.length <= batchSize) {
+          return embedBatch(texts);
+        }
+        const out = [];
+        for (let i = 0; i < texts.length; i += batchSize) {
+          const slice = texts.slice(i, i + batchSize);
+          const batch = await embedBatch(slice);
+          out.push(...batch);
+        }
+        return out;
+      };
+
+      let codeVectors = await runBatched(codeTexts);
+      if (!Array.isArray(codeVectors) || codeVectors.length !== chunks.length) {
+        codeVectors = [];
+        for (const text of codeTexts) {
+          codeVectors.push(await getChunkEmbedding(text));
+        }
+      }
+
+      const docVectors = new Array(chunks.length).fill(null);
+      const docIndexes = [];
+      const docPayloads = [];
+      for (let i = 0; i < docTexts.length; i += 1) {
+        if (docTexts[i]) {
+          docIndexes.push(i);
+          docPayloads.push(docTexts[i]);
+        }
+      }
+      if (docPayloads.length) {
+        const embeddedDocs = await runBatched(docPayloads);
+        for (let i = 0; i < docIndexes.length; i += 1) {
+          docVectors[docIndexes[i]] = embeddedDocs[i] || null;
+        }
+      }
+
+      const dims = Array.isArray(codeVectors[0]) ? codeVectors[0].length : 0;
+      for (let i = 0; i < chunks.length; i += 1) {
+        const chunk = chunks[i];
+        const embedCode = Array.isArray(codeVectors[i]) ? codeVectors[i] : [];
+        const embedDoc = Array.isArray(docVectors[i])
+          ? docVectors[i]
+          : (dims ? Array.from({ length: dims }, () => 0) : []);
+        const merged = embedCode.length
+          ? embedCode.map((v, idx) => (v + (embedDoc[idx] ?? 0)) / 2)
+          : embedDoc;
+        chunk.embed_code = embedCode;
+        chunk.embed_doc = embedDoc;
+        chunk.embedding = normalizeVec(merged);
       }
 
       return chunks;
