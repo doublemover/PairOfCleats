@@ -85,9 +85,33 @@ const resolveRulePath = (rulePath) => {
 };
 
 const isWindows = process.platform === 'win32';
-const runCommand = (cmd, args, options = {}) => {
-  const useShell = isWindows && /\.(cmd|bat)$/i.test(cmd);
-  return spawnSync(cmd, args, { ...options, shell: useShell });
+const runCommand = (resolved, args, options = {}) => {
+  const command = resolved?.command || resolved;
+  const argsPrefix = resolved?.argsPrefix || [];
+  const useShell = isWindows && /\.(cmd|bat)$/i.test(command);
+  return spawnSync(command, [...argsPrefix, ...args], { ...options, shell: useShell });
+};
+
+const findOnPath = (candidate) => {
+  const pathEnv = process.env.PATH || '';
+  const paths = pathEnv.split(path.delimiter).filter(Boolean);
+  const ext = path.extname(candidate);
+  const names = ext
+    ? [candidate]
+    : [
+      candidate,
+      `${candidate}.exe`,
+      `${candidate}.cmd`,
+      `${candidate}.bat`,
+      `${candidate}.ps1`
+    ];
+  for (const dir of paths) {
+    for (const name of names) {
+      const fullPath = path.join(dir, name);
+      if (fs.existsSync(fullPath)) return fullPath;
+    }
+  }
+  return null;
 };
 
 const resolveBinary = (engine) => {
@@ -96,21 +120,25 @@ const resolveBinary = (engine) => {
     'ast-grep': ['sg', 'ast-grep'],
     comby: ['comby']
   }[engine] || [];
-  const expanded = isWindows
-    ? candidates.flatMap((candidate) => [
-      `${candidate}.cmd`,
-      `${candidate}.bat`,
-      `${candidate}.exe`,
-      candidate
-    ])
-    : candidates;
-  for (const candidate of expanded) {
-    const result = runCommand(candidate, ['--version'], { encoding: 'utf8' });
-    if (!result.error && result.status === 0) return candidate;
-    const help = runCommand(candidate, ['--help'], { encoding: 'utf8' });
-    if (!help.error && help.status === 0) return candidate;
+  if (isWindows) {
+    for (const candidate of candidates) {
+      const resolved = findOnPath(candidate);
+      if (!resolved) continue;
+      const ext = path.extname(resolved).toLowerCase();
+      if (!ext || ['.js', '.mjs', '.cjs'].includes(ext)) {
+        return { command: process.execPath, argsPrefix: [resolved] };
+      }
+      return { command: resolved, argsPrefix: [] };
+    }
+    return { command: candidates[0] || engine, argsPrefix: [] };
   }
-  return (expanded[0] || candidates[0] || engine);
+  for (const candidate of candidates) {
+    const result = runCommand(candidate, ['--version'], { encoding: 'utf8' });
+    if (!result.error && result.status === 0) return { command: candidate, argsPrefix: [] };
+    const help = runCommand(candidate, ['--help'], { encoding: 'utf8' });
+    if (!help.error && help.status === 0) return { command: candidate, argsPrefix: [] };
+  }
+  return { command: candidates[0] || engine, argsPrefix: [] };
 };
 
 const parseJsonLines = (text) => text
