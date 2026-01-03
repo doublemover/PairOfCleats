@@ -1,14 +1,18 @@
 #!/usr/bin/env node
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import path from 'node:path';
 import { buildToolingReport, normalizeLanguageList } from './tooling-utils.js';
 import { resolveRepoRoot } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['json'],
-  string: ['root', 'repo', 'languages'],
-  default: { json: false }
-});
+const argv = createCli({
+  scriptName: 'tooling-detect',
+  options: {
+    json: { type: 'boolean', default: false },
+    root: { type: 'string' },
+    repo: { type: 'string' },
+    languages: { type: 'string' }
+  }
+}).parse();
 
 const explicitRoot = argv.root || argv.repo;
 const root = explicitRoot ? path.resolve(explicitRoot) : resolveRepoRoot(process.cwd());

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import readline from 'node:readline/promises';
 import {
   getDictionaryPaths,
@@ -20,42 +20,30 @@ import {
 import { runCommand as runCommandBase } from './cli-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: [
-    'json',
-    'non-interactive',
-    'validate-config',
-    'skip-validate',
-    'skip-install',
-    'skip-dicts',
-    'skip-models',
-    'skip-extensions',
-    'skip-tooling',
-    'skip-index',
-    'skip-sqlite',
-    'skip-artifacts',
-    'with-sqlite',
-    'incremental'
-  ],
-  string: ['root', 'repo', 'tooling-scope', 'heap-mb'],
-  alias: { ci: 'non-interactive', s: 'with-sqlite', i: 'incremental' },
-  default: {
-    'non-interactive': false,
-    'validate-config': false,
-    'skip-validate': false,
-    'skip-install': false,
-    'skip-dicts': false,
-    'skip-models': false,
-    'skip-extensions': false,
-    'skip-tooling': false,
-    'skip-index': false,
-    'skip-sqlite': false,
-    'skip-artifacts': false,
-    'with-sqlite': false,
-    incremental: false,
-    json: false
-  }
-});
+const argv = createCli({
+  scriptName: 'setup',
+  options: {
+    json: { type: 'boolean', default: false },
+    'non-interactive': { type: 'boolean', default: false },
+    'validate-config': { type: 'boolean', default: false },
+    'skip-validate': { type: 'boolean', default: false },
+    'skip-install': { type: 'boolean', default: false },
+    'skip-dicts': { type: 'boolean', default: false },
+    'skip-models': { type: 'boolean', default: false },
+    'skip-extensions': { type: 'boolean', default: false },
+    'skip-tooling': { type: 'boolean', default: false },
+    'skip-index': { type: 'boolean', default: false },
+    'skip-sqlite': { type: 'boolean', default: false },
+    'skip-artifacts': { type: 'boolean', default: false },
+    'with-sqlite': { type: 'boolean', default: false },
+    incremental: { type: 'boolean', default: false },
+    root: { type: 'string' },
+    repo: { type: 'string' },
+    'tooling-scope': { type: 'string' },
+    'heap-mb': { type: 'string' }
+  },
+  aliases: { ci: 'non-interactive', s: 'with-sqlite', i: 'incremental' }
+}).parse();
 
 const explicitRoot = argv.root || argv.repo;
 const root = explicitRoot ? path.resolve(explicitRoot) : resolveRepoRoot(process.cwd());

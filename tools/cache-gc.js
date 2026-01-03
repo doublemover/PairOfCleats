@@ -2,15 +2,21 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { getCacheRoot, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { isRootPath } from './path-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['dry-run', 'json'],
-  string: ['max-bytes', 'max-gb', 'max-age-days', 'repo'],
-  default: { 'dry-run': false, json: false }
-});
+const argv = createCli({
+  scriptName: 'cache-gc',
+  options: {
+    'dry-run': { type: 'boolean', default: false },
+    json: { type: 'boolean', default: false },
+    'max-bytes': { type: 'number' },
+    'max-gb': { type: 'number' },
+    'max-age-days': { type: 'number' },
+    repo: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

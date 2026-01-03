@@ -11,7 +11,14 @@
     "slangFiles": []
   },
   "cache": {
-    "root": ""
+    "root": "",
+    "runtime": {
+      "fileText": { "maxMb": 64, "ttlMs": 0 },
+      "summary": { "maxMb": 32, "ttlMs": 0 },
+      "lint": { "maxMb": 16, "ttlMs": 0 },
+      "complexity": { "maxMb": 16, "ttlMs": 0 },
+      "gitMeta": { "maxMb": 16, "ttlMs": 0 }
+    }
   },
   "sqlite": {
     "use": true,
@@ -67,6 +74,9 @@
     "importConcurrency": 4,
     "astDataflow": true,
     "controlFlow": true,
+    "javascriptParser": "babel",
+    "javascriptFlow": "auto",
+    "typescriptParser": "auto",
     "pythonAst": {
       "enabled": true,
       "workerCount": 2,
@@ -74,6 +84,14 @@
       "scaleUpQueueMs": 250,
       "taskTimeoutMs": 30000,
       "maxRetries": 1
+    },
+    "workerPool": {
+      "enabled": "auto",
+      "maxWorkers": 2,
+      "maxFileBytes": 524288,
+      "idleTimeoutMs": 30000,
+      "taskTimeoutMs": 60000,
+      "quantizeBatchSize": 128
     },
     "riskAnalysis": true,
     "riskAnalysisCrossFile": true,

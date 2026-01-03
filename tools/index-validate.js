@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { normalizePostingsConfig } from '../src/shared/postings-config.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['json'],
-  string: ['repo', 'mode'],
-  default: { json: false }
-});
+const argv = createCli({
+  scriptName: 'index-validate',
+  options: {
+    json: { type: 'boolean', default: false },
+    repo: { type: 'string' },
+    mode: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

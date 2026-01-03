@@ -2,15 +2,18 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { getCacheRoot, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { isInside, isRootPath } from './path-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['all', 'dry-run'],
-  string: ['repo'],
-  default: { all: false, 'dry-run': false }
-});
+const argv = createCli({
+  scriptName: 'clean-artifacts',
+  options: {
+    all: { type: 'boolean', default: false },
+    'dry-run': { type: 'boolean', default: false },
+    repo: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

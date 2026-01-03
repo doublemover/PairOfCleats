@@ -5,6 +5,7 @@ import { parseBuildArgs } from './src/indexer/build/args.js';
 import { createBuildRuntime } from './src/indexer/build/runtime.js';
 import { buildIndexForMode } from './src/indexer/build/indexer.js';
 import { acquireIndexLock } from './src/indexer/build/lock.js';
+import { discoverFilesForModes } from './src/indexer/build/discover.js';
 import { watchIndex } from './src/indexer/build/watch.js';
 import { log } from './src/shared/progress.js';
 import { resolveRepoRoot } from './tools/dict-utils.js';
@@ -28,11 +29,32 @@ if (argv.watch) {
 const lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
 if (!lock) process.exit(1);
 try {
+  let sharedDiscovery = null;
+  if (modes.includes('code') && modes.includes('prose')) {
+    const skippedByMode = { code: [], prose: [] };
+    const entriesByMode = await runtime.queues.io.add(() => discoverFilesForModes({
+      root: runtime.root,
+      modes: ['code', 'prose'],
+      ignoreMatcher: runtime.ignoreMatcher,
+      skippedByMode,
+      maxFileBytes: runtime.maxFileBytes
+    }));
+    sharedDiscovery = {
+      code: { entries: entriesByMode.code, skippedFiles: skippedByMode.code },
+      prose: { entries: entriesByMode.prose, skippedFiles: skippedByMode.prose }
+    };
+  }
   for (const mode of modes) {
-    await buildIndexForMode({ mode, runtime });
+    const discovery = sharedDiscovery ? sharedDiscovery[mode] : null;
+    await buildIndexForMode({ mode, runtime, discovery });
   }
 } finally {
   await lock.release();
+  if (runtime.workerPool) {
+    try {
+      await runtime.workerPool.destroy();
+    } catch {}
+  }
   shutdownPythonAstPool();
 }
 

@@ -1,10 +1,65 @@
 import * as acorn from 'acorn';
 import * as esprima from 'esprima';
+import { parseBabelAst } from './babel-parser.js';
 
 /**
  * JavaScript/TypeScript-like chunking and relations.
- * Uses Acorn/Esprima for lightweight AST extraction.
+ * Uses Babel for parsing by default with optional Acorn/Esprima fallbacks.
  */
+const JS_PARSERS = new Set(['auto', 'babel', 'acorn', 'esprima']);
+
+function resolveJsParser(options = {}) {
+  const raw = options.parser || options.javascript?.parser || options.javascriptParser;
+  const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return JS_PARSERS.has(normalized) ? normalized : 'babel';
+}
+
+function resolveFlowMode(options = {}) {
+  const raw = options.flowMode ?? options.flow ?? options.javascript?.flow ?? options.javascriptFlow;
+  if (raw === true) return 'on';
+  if (raw === false) return 'off';
+  const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return ['auto', 'on', 'off'].includes(normalized) ? normalized : 'auto';
+}
+
+function parseWithAcorn(text) {
+  return acorn.parse(text, {
+    ecmaVersion: 'latest',
+    locations: true,
+    ranges: true,
+    sourceType: 'module'
+  });
+}
+
+function parseWithEsprima(text) {
+  return esprima.parseModule(text, {
+    jsx: true,
+    tolerant: true,
+    loc: true,
+    range: true
+  });
+}
+
+export function parseJavaScriptAst(text, options = {}) {
+  const parser = resolveJsParser(options);
+  const flowMode = resolveFlowMode(options);
+  const ext = typeof options.ext === 'string' ? options.ext : '';
+  const tryParse = (kind) => {
+    try {
+      if (kind === 'babel') return parseBabelAst(text, { ext, flowMode, mode: 'javascript' });
+      if (kind === 'acorn') return parseWithAcorn(text);
+      if (kind === 'esprima') return parseWithEsprima(text);
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  if (parser === 'auto') {
+    return tryParse('babel') || tryParse('acorn') || tryParse('esprima');
+  }
+  return tryParse(parser);
+}
 
 function locMeta(node) {
   return node && node.loc ? {
@@ -31,7 +86,9 @@ function keyName(key) {
   if (!key) return 'anonymous';
   if (key.type === 'Identifier') return key.name;
   if (key.type === 'Literal') return String(key.value);
+  if (key.type === 'StringLiteral' || key.type === 'NumericLiteral') return String(key.value);
   if (key.type === 'PrivateIdentifier') return `#${key.name}`;
+  if (key.type === 'PrivateName' && key.id?.name) return `#${key.id.name}`;
   return 'computed';
 }
 
@@ -63,7 +120,9 @@ function collectPatternNames(node, out) {
   }
   if (node.type === 'ObjectPattern') {
     node.properties?.forEach((prop) => {
-      if (prop.type === 'Property') collectPatternNames(prop.value, out);
+      if (prop.type === 'Property' || prop.type === 'ObjectProperty') {
+        collectPatternNames(prop.value, out);
+      }
       if (prop.type === 'RestElement') collectPatternNames(prop.argument, out);
     });
   }
@@ -72,6 +131,9 @@ function collectPatternNames(node, out) {
 function formatDefault(node) {
   if (!node) return '...';
   if (node.type === 'Literal') return JSON.stringify(node.value);
+  if (node.type === 'StringLiteral' || node.type === 'NumericLiteral') return JSON.stringify(node.value);
+  if (node.type === 'BooleanLiteral') return node.value ? 'true' : 'false';
+  if (node.type === 'NullLiteral') return 'null';
   if (node.type === 'Identifier') return node.name;
   if (node.type === 'TemplateLiteral') return '`...`';
   if (node.type === 'ArrayExpression') return '[...]';
@@ -98,7 +160,7 @@ function formatParam(node) {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildJsChunks(text) {
+export function buildJsChunks(text, options = {}) {
   const chunks = [];
   const addChunk = (node, name, kind) => {
     if (!node) return;
@@ -138,24 +200,25 @@ export function buildJsChunks(text) {
     addChunk(node, className, kind || 'ClassDeclaration');
     if (!node.body?.body) return;
     for (const method of node.body.body) {
-      if (method.type === 'MethodDefinition' && method.key && method.value) {
-        addChunk(method, `${className}.${keyName(method.key)}`, 'MethodDefinition');
+      if ((method.type === 'MethodDefinition' && method.key && method.value)
+        || method.type === 'ClassMethod'
+        || method.type === 'ClassPrivateMethod') {
+        const key = method.key || method.id;
+        addChunk(method, `${className}.${keyName(key)}`, 'MethodDefinition');
       }
-      if (method.type === 'PropertyDefinition' && method.key && method.value &&
-        (method.value.type === 'FunctionExpression' || method.value.type === 'ArrowFunctionExpression')) {
+      if ((method.type === 'PropertyDefinition'
+        || method.type === 'ClassProperty'
+        || method.type === 'ClassPrivateProperty')
+        && method.key && method.value
+        && (method.value.type === 'FunctionExpression' || method.value.type === 'ArrowFunctionExpression')) {
         addChunk(method, `${className}.${keyName(method.key)}`, 'ClassPropertyFunction');
       }
     }
   };
 
-  try {
-    let ast = null;
-    try {
-      ast = acorn.parse(text, { ecmaVersion: 'latest', locations: true, sourceType: 'module' });
-    } catch {
-      ast = esprima.parseModule(text, { jsx: true, tolerant: true, loc: true, range: true });
-    }
-    for (const node of ast.body) {
+  const ast = options.ast || parseJavaScriptAst(text, options);
+  if (!ast || !Array.isArray(ast.body)) return null;
+  for (const node of ast.body) {
       if (node.type === 'FunctionDeclaration') {
         addChunk(node, node.id ? node.id.name : 'anonymous', 'FunctionDeclaration');
       }
@@ -208,9 +271,6 @@ export function buildJsChunks(text) {
       if (node.type === 'ExpressionStatement' && node.expression) {
         addFunctionFromAssignment(node.expression, 'ExportedAssignmentFunction');
       }
-    }
-  } catch {
-    return null;
   }
 
   if (!chunks.length) return [{ start: 0, end: text.length, name: 'root', kind: 'Module', meta: {} }];
@@ -218,11 +278,11 @@ export function buildJsChunks(text) {
 }
 
 /**
- * Collect import/require dependencies from JS source.
- * @param {string} text
+ * Collect import/require dependencies from JS AST.
+ * @param {object} ast
  * @returns {string[]}
  */
-export function collectImports(text) {
+export function collectImportsFromAst(ast) {
   const imports = new Set();
   const walk = (node) => {
     if (!node) return;
@@ -235,13 +295,27 @@ export function collectImports(text) {
     if (node.type === 'ImportDeclaration') {
       if (node.source && node.source.value) imports.add(node.source.value);
     }
-    if (node.type === 'ImportExpression' && node.source && node.source.type === 'Literal') {
-      if (typeof node.source.value === 'string') imports.add(node.source.value);
+    if ((node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration')
+      && node.source && node.source.value) {
+      imports.add(node.source.value);
+    }
+    if (node.type === 'TSImportEqualsDeclaration') {
+      const value = node.moduleReference?.expression?.value;
+      if (typeof value === 'string') imports.add(value);
+    }
+    if (node.type === 'ImportExpression' && node.source) {
+      const sourceValue = node.source.value;
+      if (typeof sourceValue === 'string') imports.add(sourceValue);
+    }
+    if (node.type === 'CallExpression' && node.callee?.type === 'Import') {
+      const arg = node.arguments?.[0];
+      const value = arg && (arg.value ?? null);
+      if (typeof value === 'string') imports.add(value);
     }
     if (node.type === 'CallExpression' && node.callee?.type === 'Identifier' &&
       node.callee.name === 'require') {
       const arg = node.arguments?.[0];
-      if (arg && arg.type === 'Literal' && typeof arg.value === 'string') {
+      if (arg && typeof arg.value === 'string') {
         imports.add(arg.value);
       }
     }
@@ -252,11 +326,20 @@ export function collectImports(text) {
     }
   };
 
-  try {
-    const ast = acorn.parse(text, { ecmaVersion: 'latest', sourceType: 'module' });
-    walk(ast);
-  } catch {}
+  walk(ast);
   return Array.from(imports);
+}
+
+/**
+ * Collect import/require dependencies from JS source.
+ * @param {string} text
+ * @param {object} [options]
+ * @returns {string[]}
+ */
+export function collectImports(text, options = {}) {
+  const ast = options.ast || parseJavaScriptAst(text, options);
+  if (!ast) return [];
+  return collectImportsFromAst(ast);
 }
 
 /**
@@ -283,13 +366,16 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
   const getMemberName = (node) => {
     if (!node) return null;
     if (node.type === 'Identifier') return node.name;
+    if (node.type === 'PrivateName' && node.id?.name) return `#${node.id.name}`;
     if (node.type === 'ThisExpression') return 'this';
     if (node.type === 'Super') return 'super';
-    if (node.type === 'MemberExpression') {
+    if (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression') {
       const obj = getMemberName(node.object);
       const prop = node.computed
-        ? (node.property?.type === 'Literal' ? String(node.property.value) : null)
-        : (node.property?.name || null);
+        ? (node.property?.type === 'Literal' || node.property?.type === 'StringLiteral'
+          ? String(node.property.value)
+          : null)
+        : (node.property?.name || node.property?.id?.name || null);
       if (obj && prop) return `${obj}.${prop}`;
       return obj || prop;
     }
@@ -299,8 +385,12 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
   const getCalleeName = (callee) => {
     if (!callee) return null;
     if (callee.type === 'ChainExpression') return getCalleeName(callee.expression);
+    if (callee.type === 'OptionalCallExpression') return getCalleeName(callee.callee);
+    if (callee.type === 'Import') return null;
     if (callee.type === 'Identifier') return callee.name;
-    if (callee.type === 'MemberExpression') return getMemberName(callee);
+    if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
+      return getMemberName(callee);
+    }
     if (callee.type === 'Super') return 'super';
     return null;
   };
@@ -408,7 +498,18 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
       const left = getMemberName(parent.left);
       if (left) return left;
     }
+    if ((node.type === 'ClassMethod' || node.type === 'ClassPrivateMethod') && node.key) {
+      const propName = keyName(node.key);
+      const className = classStack[classStack.length - 1];
+      return className ? `${className}.${propName}` : propName;
+    }
     if (parent && (parent.type === 'Property' || parent.type === 'PropertyDefinition') && parent.key) {
+      const propName = keyName(parent.key);
+      const className = classStack[classStack.length - 1];
+      return className ? `${className}.${propName}` : propName;
+    }
+    if (parent && (parent.type === 'ObjectProperty' || parent.type === 'ClassProperty'
+      || parent.type === 'ClassPrivateProperty') && parent.key) {
       const propName = keyName(parent.key);
       const className = classStack[classStack.length - 1];
       return className ? `${className}.${propName}` : propName;
@@ -468,6 +569,12 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
       const key = keyName(parent.key);
       modifiers.visibility = visibilityFor(key);
     }
+    if (node.type === 'ClassMethod' || node.type === 'ClassPrivateMethod') {
+      modifiers.static = !!node.static;
+      methodKind = node.kind || null;
+      const key = keyName(node.key);
+      modifiers.visibility = visibilityFor(key);
+    }
     if (!existing) {
       functionMeta[name] = {
         params: paramNames,
@@ -511,7 +618,10 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
   const isFunctionNode = (node) =>
     node.type === 'FunctionDeclaration' ||
     node.type === 'FunctionExpression' ||
-    node.type === 'ArrowFunctionExpression';
+    node.type === 'ArrowFunctionExpression' ||
+    node.type === 'ClassMethod' ||
+    node.type === 'ClassPrivateMethod' ||
+    node.type === 'ObjectMethod';
 
   const isIdentifierBinding = (node, parent) => {
     if (!parent || node.type !== 'Identifier') return false;
@@ -523,9 +633,19 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
       return parent.local === node;
     }
     if (parent.type === 'Property' && parent.key === node && !parent.computed) return true;
+    if (parent.type === 'ObjectProperty' && parent.key === node && !parent.computed) return true;
     if (parent.type === 'MemberExpression' && parent.property === node && !parent.computed) return true;
+    if (parent.type === 'OptionalMemberExpression' && parent.property === node && !parent.computed) return true;
     if (parent.type === 'MethodDefinition' && parent.key === node && !parent.computed) return true;
     if (parent.type === 'PropertyDefinition' && parent.key === node && !parent.computed) return true;
+    if ((parent.type === 'ClassProperty' || parent.type === 'ClassPrivateProperty')
+      && parent.key === node && !parent.computed) {
+      return true;
+    }
+    if ((parent.type === 'ClassMethod' || parent.type === 'ClassPrivateMethod')
+      && parent.key === node && !parent.computed) {
+      return true;
+    }
     if (parent.type === 'LabeledStatement' && parent.label === node) return true;
     return false;
   };
@@ -569,12 +689,19 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
       });
     }
 
-    if (node.type === 'ImportExpression' && node.source?.type === 'Literal') {
-      if (typeof node.source.value === 'string') imports.add(node.source.value);
+    if (node.type === 'ImportExpression' && node.source) {
+      const sourceValue = node.source.value;
+      if (typeof sourceValue === 'string') imports.add(sourceValue);
+    }
+    if (node.type === 'CallExpression' && node.callee?.type === 'Import') {
+      const arg = node.arguments?.[0];
+      const value = arg && (arg.value ?? null);
+      if (typeof value === 'string') imports.add(value);
     }
 
     if (node.type === 'ExportAllDeclaration') {
       exports.add('*');
+      if (node.source?.value) imports.add(node.source.value);
     }
 
     if (node.type === 'ExportNamedDeclaration') {
@@ -587,11 +714,17 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
       node.specifiers?.forEach((s) => {
         if (s.exported?.name) exports.add(s.exported.name);
       });
+      if (node.source?.value) imports.add(node.source.value);
     }
 
     if (node.type === 'ExportDefaultDeclaration') {
       if (node.declaration?.id?.name) exports.add(node.declaration.id.name);
       else exports.add('default');
+    }
+
+    if (node.type === 'TSImportEqualsDeclaration') {
+      const value = node.moduleReference?.expression?.value;
+      if (typeof value === 'string') imports.add(value);
     }
 
     if (node.type === 'AssignmentExpression') {
@@ -736,14 +869,27 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
     }
   };
 
-  try {
-    const ast = acorn.parse(text, { ecmaVersion: 'latest', sourceType: 'module' });
+  const ast = options.ast || parseJavaScriptAst(text, options);
+  if (ast) {
     walk(ast, null);
-    const tokens = esprima.tokenize(text, { tolerant: true });
-    tokens.forEach((t) => {
-      if (t.type === 'Identifier') usages.add(t.value);
-    });
-  } catch {}
+  }
+  const astTokens = Array.isArray(ast?.tokens) ? ast.tokens : null;
+  if (astTokens && astTokens.length) {
+    for (const token of astTokens) {
+      const label = token?.type?.label || token?.type;
+      if (label === 'name' || label === 'Identifier' || label === 'jsxName') {
+        const value = token.value || token.name;
+        if (value) usages.add(value);
+      }
+    }
+  } else {
+    try {
+      const tokens = esprima.tokenize(text, { tolerant: true });
+      tokens.forEach((t) => {
+        if (t.type === 'Identifier') usages.add(t.value);
+      });
+    } catch {}
+  }
 
   if (dataflowEnabled || controlFlowEnabled) {
     for (const [name, flow] of flowByName.entries()) {

@@ -5,17 +5,18 @@ import { smartChunk } from '../chunking.js';
 import { buildChunkRelations, buildLanguageContext } from '../language-registry.js';
 import { detectRiskSignals } from '../risk.js';
 import { inferTypeMetadata } from '../type-inference.js';
-import { SimpleMinHash } from '../minhash.js';
 import { getHeadline } from '../headline.js';
 import { getGitMeta } from '../git.js';
 import { getFieldWeight } from '../field-weighting.js';
-import { isGo, isJsLike, isSpecialCodeFile, STOP, SYN } from '../constants.js';
+import { isGo, isJsLike, isSpecialCodeFile } from '../constants.js';
 import { normalizeVec } from '../embedding.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
+import { createLruCache, estimateJsonBytes } from '../../shared/cache.js';
 import { fileExt, toPosix } from '../../shared/files.js';
-import { extractNgrams, splitId, splitWordsWithDict, stem, tri } from '../../shared/tokenize.js';
+import { log } from '../../shared/progress.js';
 import { readCachedBundle, writeIncrementalBundle } from './incremental.js';
 import { sha1 } from '../../shared/hash.js';
+import { createTokenizationContext, tokenizeChunkText } from './tokenization.js';
 
 /**
  * Create a file processor with shared caches.
@@ -39,22 +40,42 @@ export function createFileProcessor(options) {
     seenFiles,
     gitBlameEnabled,
     lintEnabled: lintEnabledRaw,
-    complexityEnabled: complexityEnabledRaw
+    complexityEnabled: complexityEnabledRaw,
+    cacheConfig,
+    cacheReporter,
+    queues,
+    useCpuQueue = true,
+    workerPool = null
   } = options;
   const lintEnabled = lintEnabledRaw !== false;
   const complexityEnabled = complexityEnabledRaw !== false;
   const { astDataflowEnabled, controlFlowEnabled } = languageOptions;
-  const dictSplitOptions = dictConfig || {};
-  const phraseNgramsEnabled = postingsConfig?.enablePhraseNgrams !== false;
-  const chargramsEnabled = postingsConfig?.enableChargrams !== false;
-  let phraseMinN = Number.isFinite(Number(postingsConfig?.phraseMinN)) ? Number(postingsConfig.phraseMinN) : 2;
-  let phraseMaxN = Number.isFinite(Number(postingsConfig?.phraseMaxN)) ? Number(postingsConfig.phraseMaxN) : Math.max(phraseMinN, 4);
-  if (phraseMaxN < phraseMinN) phraseMaxN = phraseMinN;
-  let chargramMinN = Number.isFinite(Number(postingsConfig?.chargramMinN)) ? Number(postingsConfig.chargramMinN) : 3;
-  let chargramMaxN = Number.isFinite(Number(postingsConfig?.chargramMaxN)) ? Number(postingsConfig.chargramMaxN) : Math.max(chargramMinN, 5);
-  if (chargramMaxN < chargramMinN) chargramMaxN = chargramMinN;
-  const complexityCache = new Map();
-  const lintCache = new Map();
+  const ioQueue = queues?.io || null;
+  const cpuQueue = queues?.cpu || null;
+  const runIo = ioQueue ? (fn) => ioQueue.add(fn) : (fn) => fn();
+  const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn) : (fn) => fn();
+  const tokenContext = createTokenizationContext({
+    dictWords,
+    dictConfig,
+    postingsConfig
+  });
+  let workerTokenizeFailed = false;
+  const lintCacheConfig = cacheConfig?.lint || {};
+  const complexityCacheConfig = cacheConfig?.complexity || {};
+  const lintCache = createLruCache({
+    name: 'lint',
+    maxMb: lintCacheConfig.maxMb,
+    ttlMs: lintCacheConfig.ttlMs,
+    sizeCalculation: estimateJsonBytes,
+    reporter: cacheReporter
+  });
+  const complexityCache = createLruCache({
+    name: 'complexity',
+    maxMb: complexityCacheConfig.maxMb,
+    ttlMs: complexityCacheConfig.ttlMs,
+    sizeCalculation: estimateJsonBytes,
+    reporter: cacheReporter
+  });
 
   const resolveExt = (absPath) => {
     const baseName = path.basename(absPath);
@@ -115,15 +136,22 @@ export function createFileProcessor(options) {
    * @param {number} fileIndex
    * @returns {Promise<object|null>}
    */
-  async function processFile(abs, fileIndex) {
+  async function processFile(fileEntry, fileIndex) {
+    const abs = typeof fileEntry === 'string' ? fileEntry : fileEntry.abs;
     const fileStart = Date.now();
-    const rel = path.relative(root, abs);
-    const relKey = toPosix(rel);
+    const relKey = typeof fileEntry === 'object' && fileEntry.rel
+      ? fileEntry.rel
+      : toPosix(path.relative(root, abs));
+    const rel = typeof fileEntry === 'object' && fileEntry.rel
+      ? fileEntry.rel.split('/').join(path.sep)
+      : path.relative(root, abs);
     if (seenFiles) seenFiles.add(relKey);
     const ext = resolveExt(abs);
     let fileStat;
     try {
-      fileStat = await fs.stat(abs);
+      fileStat = typeof fileEntry === 'object' && fileEntry.stat
+        ? fileEntry.stat
+        : await runIo(() => fs.stat(abs));
     } catch {
       return null;
     }
@@ -131,14 +159,14 @@ export function createFileProcessor(options) {
     let cachedBundle = null;
     let text = null;
     let fileHash = null;
-    const cachedResult = await readCachedBundle({
+    const cachedResult = await runIo(() => readCachedBundle({
       enabled: incrementalState.enabled,
       absPath: abs,
       relKey,
       fileStat,
       manifest: incrementalState.manifest,
       bundleDir: incrementalState.bundleDir
-    });
+    }));
     cachedBundle = cachedResult.cachedBundle;
     text = cachedResult.text;
     fileHash = cachedResult.fileHash;
@@ -179,229 +207,235 @@ export function createFileProcessor(options) {
 
     if (!text) {
       try {
-        text = await fs.readFile(abs, 'utf8');
+        text = await runIo(() => fs.readFile(abs, 'utf8'));
       } catch {
         return null;
       }
     }
-    if (!fileHash) fileHash = sha1(text);
+    if (!fileHash) fileHash = await runCpu(() => sha1(text));
 
-    const { lang, context: languageContext } = await buildLanguageContext({
-      ext,
-      relPath: relKey,
-      mode,
-      text,
-      options: languageOptions
-    });
-    const lineIndex = buildLineIndex(text);
-    const fileRelations = (mode === 'code' && lang && typeof lang.buildRelations === 'function')
-      ? lang.buildRelations({
-        text,
+    const fileChunks = await runCpu(async () => {
+      const { lang, context: languageContext } = await buildLanguageContext({
+        ext,
         relPath: relKey,
-        allImports,
-        context: languageContext,
+        mode,
+        text,
         options: languageOptions
-      })
-      : null;
-    const sc = smartChunk({
-      text,
-      ext,
-      relPath: relKey,
-      mode,
-      context: {
-        ...languageContext,
-        yamlChunking: languageOptions?.yamlChunking
-      }
-    });
-    const fileChunks = [];
-
-    for (let ci = 0; ci < sc.length; ++ci) {
-      const c = sc[ci];
-      const ctext = text.slice(c.start, c.end);
-
-      let tokens = splitId(ctext);
-      tokens = tokens.map((t) => t.normalize('NFKD'));
-
-      if (!(mode === 'prose' && ext === '.md')) {
-        tokens = tokens.flatMap((t) => splitWordsWithDict(t, dictWords, dictSplitOptions));
-      }
-
-      if (mode === 'prose') {
-        tokens = tokens.filter((w) => !STOP.has(w));
-        tokens = tokens.flatMap((w) => [w, stem(w)]);
-      }
-      const seq = [];
-      for (const w of tokens) {
-        seq.push(w);
-        if (SYN[w]) seq.push(SYN[w]);
-      }
-      if (!seq.length) continue;
-
-      const ngrams = phraseNgramsEnabled ? extractNgrams(seq, phraseMinN, phraseMaxN) : null;
-      let chargrams = null;
-      if (chargramsEnabled) {
-        const charSet = new Set();
-        seq.forEach((w) => {
-          for (let n = chargramMinN; n <= chargramMaxN; ++n) tri(w, n).forEach((g) => charSet.add(g));
-        });
-        chargrams = Array.from(charSet);
-      }
-
-      const meta = {
-        ...c.meta,
+      });
+      const lineIndex = buildLineIndex(text);
+      const fileRelations = (mode === 'code' && lang && typeof lang.buildRelations === 'function')
+        ? lang.buildRelations({
+          text,
+          relPath: relKey,
+          allImports,
+          context: languageContext,
+          options: languageOptions
+        })
+        : null;
+      const sc = smartChunk({
+        text,
         ext,
-        path: relKey,
-        kind: c.kind,
-        name: c.name,
-        file: relKey,
-        weight: getFieldWeight(c, rel)
-      };
+        relPath: relKey,
+        mode,
+        context: {
+          ...languageContext,
+          yamlChunking: languageOptions?.yamlChunking,
+          javascript: languageOptions?.javascript,
+          typescript: languageOptions?.typescript
+        }
+      });
+      const chunks = [];
+      const useWorkerForTokens = workerPool && workerPool.shouldUseForFile
+        ? workerPool.shouldUseForFile(fileStat.size)
+        : false;
 
-      let codeRelations = {}, docmeta = {};
-      if (mode === 'code') {
-        docmeta = lang && typeof lang.extractDocMeta === 'function'
-          ? lang.extractDocMeta({
-            text,
-            chunk: c,
-            fileRelations,
-            context: languageContext,
-            options: languageOptions
-          })
-          : {};
-        if (fileRelations) {
-          codeRelations = buildChunkRelations({ lang, chunk: c, fileRelations });
+      for (let ci = 0; ci < sc.length; ++ci) {
+        const c = sc[ci];
+        const ctext = text.slice(c.start, c.end);
+
+        let tokenPayload = null;
+        if (useWorkerForTokens) {
+          try {
+            tokenPayload = await workerPool.runTokenize({
+              text: ctext,
+              mode,
+              ext
+            });
+          } catch (err) {
+            if (!workerTokenizeFailed) {
+              log(`Worker tokenization failed; falling back to main thread. ${err?.message || err}`);
+              workerTokenizeFailed = true;
+            }
+          }
         }
-        const flowMeta = lang && typeof lang.flow === 'function'
-          ? lang.flow({
-            text,
-            chunk: c,
-            context: languageContext,
-            options: languageOptions
-          })
-          : null;
-        if (flowMeta) {
-          docmeta = mergeFlowMeta(docmeta, flowMeta);
-        }
-        if (typeInferenceEnabled) {
-          const inferredTypes = inferTypeMetadata({
-            docmeta,
-            chunkText: ctext,
-            languageId: lang?.id || null
+        if (!tokenPayload) {
+          tokenPayload = tokenizeChunkText({
+            text: ctext,
+            mode,
+            ext,
+            context: tokenContext
           });
-          if (inferredTypes) {
-            docmeta = { ...docmeta, inferredTypes };
+        }
+
+        const {
+          tokens,
+          seq,
+          ngrams,
+          chargrams,
+          minhashSig,
+          stats
+        } = tokenPayload;
+
+        if (!seq.length) continue;
+
+        const meta = {
+          ...c.meta,
+          ext,
+          path: relKey,
+          kind: c.kind,
+          name: c.name,
+          file: relKey,
+          weight: getFieldWeight(c, rel)
+        };
+
+        let codeRelations = {}, docmeta = {};
+        if (mode === 'code') {
+          docmeta = lang && typeof lang.extractDocMeta === 'function'
+            ? lang.extractDocMeta({
+              text,
+              chunk: c,
+              fileRelations,
+              context: languageContext,
+              options: languageOptions
+            })
+            : {};
+          if (fileRelations) {
+            codeRelations = buildChunkRelations({ lang, chunk: c, fileRelations });
+          }
+          const flowMeta = lang && typeof lang.flow === 'function'
+            ? lang.flow({
+              text,
+              chunk: c,
+              context: languageContext,
+              options: languageOptions
+            })
+            : null;
+          if (flowMeta) {
+            docmeta = mergeFlowMeta(docmeta, flowMeta);
+          }
+          if (typeInferenceEnabled) {
+            const inferredTypes = inferTypeMetadata({
+              docmeta,
+              chunkText: ctext,
+              languageId: lang?.id || null
+            });
+            if (inferredTypes) {
+              docmeta = { ...docmeta, inferredTypes };
+            }
+          }
+          if (riskAnalysisEnabled) {
+            const risk = detectRiskSignals({ text: ctext });
+            if (risk) {
+              docmeta = { ...docmeta, risk };
+            }
           }
         }
-        if (riskAnalysisEnabled) {
-          const risk = detectRiskSignals({ text: ctext });
-          if (risk) {
-            docmeta = { ...docmeta, risk };
+
+        let complexity = {}, lint = [];
+        if (isJsLike(ext) && mode === 'code') {
+          if (complexityEnabled) {
+            let cachedComplexity = complexityCache.get(rel);
+            if (!cachedComplexity) {
+              const fullCode = text;
+              const compResult = await analyzeComplexity(fullCode, rel);
+              complexityCache.set(rel, compResult);
+              cachedComplexity = compResult;
+            }
+            complexity = cachedComplexity || {};
+          }
+
+          if (lintEnabled) {
+            let cachedLint = lintCache.get(rel);
+            if (!cachedLint) {
+              const fullCode = text;
+              const lintResult = await lintChunk(fullCode, rel);
+              lintCache.set(rel, lintResult);
+              cachedLint = lintResult;
+            }
+            lint = cachedLint || [];
           }
         }
+
+        const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
+        const embed_code = await getChunkEmbedding(ctext);
+        const embed_doc = docText.trim()
+          ? await getChunkEmbedding(docText)
+          : embed_code.map(() => 0);
+        const merged = embed_doc.map((v, i) => (v + embed_code[i]) / 2);
+        const embedding = normalizeVec(merged);
+
+        const headline = getHeadline(c, tokens);
+
+        let preContext = [], postContext = [];
+        if (ci > 0) preContext = text.slice(sc[ci - 1].start, sc[ci - 1].end).split('\n').slice(-contextWin);
+        if (ci + 1 < sc.length) postContext = text.slice(sc[ci + 1].start, sc[ci + 1].end).split('\n').slice(0, contextWin);
+
+        const startLine = c.meta?.startLine || offsetToLine(lineIndex, c.start);
+        const endOffset = c.end > c.start ? c.end - 1 : c.start;
+        let endLine = c.meta?.endLine || offsetToLine(lineIndex, endOffset);
+        if (endLine < startLine) endLine = startLine;
+        const gitMeta = await runIo(() => getGitMeta(relKey, startLine, endLine, {
+          blame: gitBlameEnabled,
+          baseDir: root
+        }));
+
+        const externalDocs = buildExternalDocs(ext, codeRelations);
+
+        const chunkPayload = {
+          file: relKey,
+          ext,
+          start: c.start,
+          end: c.end,
+          startLine,
+          endLine,
+          kind: c.kind,
+          name: c.name,
+          tokens,
+          seq,
+          ngrams,
+          chargrams,
+          meta,
+          codeRelations,
+          docmeta,
+          stats,
+          complexity,
+          lint,
+          headline,
+          preContext,
+          postContext,
+          embedding,
+          embed_doc,
+          embed_code,
+          minhashSig,
+          weight: meta.weight,
+          ...gitMeta,
+          externalDocs
+        };
+
+        chunks.push(chunkPayload);
       }
 
-      let complexity = {}, lint = [];
-      if (isJsLike(ext) && mode === 'code') {
-        if (complexityEnabled) {
-          if (!complexityCache.has(rel)) {
-            const fullCode = text;
-            const compResult = await analyzeComplexity(fullCode, rel);
-            complexityCache.set(rel, compResult);
-          }
-          complexity = complexityCache.get(rel);
-        }
+      return chunks;
+    });
 
-        if (lintEnabled) {
-          if (!lintCache.has(rel)) {
-            const fullCode = text;
-            const lintResult = await lintChunk(fullCode, rel);
-            lintCache.set(rel, lintResult);
-          }
-          lint = lintCache.get(rel);
-        }
-      }
-
-      const freq = {};
-      tokens.forEach((t) => {
-        freq[t] = (freq[t] || 0) + 1;
-      });
-      const unique = Object.keys(freq).length;
-      const counts = Object.values(freq);
-      const sum = counts.reduce((a, b) => a + b, 0);
-      const entropy = -counts.reduce((e, c) => e + (c / sum) * Math.log2(c / sum), 0);
-      const stats = { unique, entropy, sum };
-
-      const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
-      const embed_code = await getChunkEmbedding(ctext);
-      const embed_doc = docText.trim()
-        ? await getChunkEmbedding(docText)
-        : embed_code.map(() => 0);
-      const merged = embed_doc.map((v, i) => (v + embed_code[i]) / 2);
-      const embedding = normalizeVec(merged);
-
-      const mh = new SimpleMinHash();
-      tokens.forEach((t) => mh.update(t));
-      const minhashSig = mh.hashValues;
-
-      const headline = getHeadline(c, tokens);
-
-      let preContext = [], postContext = [];
-      if (ci > 0) preContext = text.slice(sc[ci - 1].start, sc[ci - 1].end).split('\n').slice(-contextWin);
-      if (ci + 1 < sc.length) postContext = text.slice(sc[ci + 1].start, sc[ci + 1].end).split('\n').slice(0, contextWin);
-
-      const startLine = c.meta?.startLine || offsetToLine(lineIndex, c.start);
-      const endOffset = c.end > c.start ? c.end - 1 : c.start;
-      let endLine = c.meta?.endLine || offsetToLine(lineIndex, endOffset);
-      if (endLine < startLine) endLine = startLine;
-      const gitMeta = await getGitMeta(relKey, startLine, endLine, {
-        blame: gitBlameEnabled,
-        baseDir: root
-      });
-
-      const externalDocs = buildExternalDocs(ext, codeRelations);
-
-      const chunkPayload = {
-        file: relKey,
-        ext,
-        start: c.start,
-        end: c.end,
-        startLine,
-        endLine,
-        kind: c.kind,
-        name: c.name,
-        tokens,
-        seq,
-        ngrams,
-        chargrams,
-        meta,
-        codeRelations,
-        docmeta,
-        stats,
-        complexity,
-        lint,
-        headline,
-        preContext,
-        postContext,
-        embedding,
-        embed_doc,
-        embed_code,
-        minhashSig,
-        weight: meta.weight,
-        ...gitMeta,
-        externalDocs
-      };
-
-      fileChunks.push(chunkPayload);
-    }
-
-    const manifestEntry = await writeIncrementalBundle({
+    const manifestEntry = await runIo(() => writeIncrementalBundle({
       enabled: incrementalState.enabled,
       bundleDir: incrementalState.bundleDir,
       relKey,
       fileStat,
       fileHash,
       fileChunks
-    });
+    }));
 
     const fileDurationMs = Date.now() - fileStart;
     return {

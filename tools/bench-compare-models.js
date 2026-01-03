@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'compare-models');
+const tempRoot = path.join(root, 'benchmarks', 'cache', 'compare-models');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

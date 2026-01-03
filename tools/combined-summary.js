@@ -3,22 +3,30 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { fileURLToPath } from 'node:url';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/compare/config.js';
 import { DEFAULT_MODEL_ID, getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
-const argv = minimist(rawArgs, {
-  boolean: ['json', 'build', 'ann', 'no-ann', 'incremental'],
-  string: ['models', 'baseline', 'queries', 'out', 'top', 'limit', 'mode', 'repo'],
-  default: {
-    json: false,
-    build: true,
-    top: 5,
-    limit: 0
+const argv = createCli({
+  scriptName: 'summary-report',
+  options: {
+    json: { type: 'boolean', default: false },
+    build: { type: 'boolean', default: true },
+    ann: { type: 'boolean' },
+    'no-ann': { type: 'boolean' },
+    incremental: { type: 'boolean', default: false },
+    models: { type: 'string' },
+    baseline: { type: 'string' },
+    queries: { type: 'string' },
+    out: { type: 'string' },
+    top: { type: 'number', default: 5 },
+    limit: { type: 'number', default: 0 },
+    mode: { type: 'string' },
+    repo: { type: 'string' }
   }
-});
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

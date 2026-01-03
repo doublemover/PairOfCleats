@@ -8,7 +8,16 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_MODEL_ID, getDictConfig, getMetricsDir, getModelConfig, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from '../../tools/dict-utils.js';
+import {
+  DEFAULT_MODEL_ID,
+  getCacheRuntimeConfig,
+  getDictConfig,
+  getMetricsDir,
+  getModelConfig,
+  loadUserConfig,
+  resolveRepoRoot,
+  resolveSqlitePaths
+} from '../../tools/dict-utils.js';
 import { getVectorExtensionConfig, queryVectorAnn } from '../../tools/vector-extension.js';
 import { getSearchUsage, parseSearchArgs, resolveSearchMode } from './cli-args.js';
 import { loadDictionary } from './cli-dictionary.js';
@@ -18,7 +27,7 @@ import { resolveFtsWeights } from './fts.js';
 import { getQueryEmbedding } from './embedding.js';
 import { loadQueryCache, parseJson, pruneQueryCache } from './query-cache.js';
 import { hasActiveFilters, normalizeExtFilter, parseMetaFilters } from './filters.js';
-import { formatFullChunk, formatShortChunk } from './output.js';
+import { configureOutputCaches, formatFullChunk, formatShortChunk, getOutputCacheReporter } from './output.js';
 import { parseChurnArg, parseModifiedArgs, parseQueryInput, tokenizePhrase, tokenizeQueryTerms, buildPhraseNgrams } from './query-parse.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
 import { createSqliteHelpers } from './sqlite-helpers.js';
@@ -30,6 +39,10 @@ const t0 = Date.now();
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const ROOT = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(ROOT);
+const cacheConfig = getCacheRuntimeConfig(ROOT, userConfig);
+const verboseCache = process.env.PAIROFCLEATS_VERBOSE === '1';
+const cacheLog = verboseCache ? (msg) => process.stderr.write(`\n${msg}\n`) : null;
+configureOutputCaches({ cacheConfig, verbose: verboseCache, log: cacheLog });
 const modelConfig = getModelConfig(ROOT, userConfig);
 const modelIdDefault = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
 const sqliteConfig = userConfig.sqlite || {};
@@ -741,6 +754,11 @@ function compactHit(hit, includeExplain = false) {
       ].filter(Boolean);
       console.log(color.gray(`Stats: ${statsParts.join(', ')}`));
     }
+  }
+
+  const outputCacheReporter = getOutputCacheReporter();
+  if (verboseCache && outputCacheReporter) {
+    outputCacheReporter.report();
   }
 
   /* ---------- Update .repoMetrics and .searchHistory ---------- */

@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['skip-bench', 'skip-script-coverage'],
-  default: { 'skip-bench': false, 'skip-script-coverage': false }
-});
+const argv = createCli({
+  scriptName: 'test-all',
+  options: {
+    'skip-bench': { type: 'boolean', default: false },
+    'skip-script-coverage': { type: 'boolean', default: false }
+  }
+}).parse();
 
 const envSkipBench = process.env.PAIROFCLEATS_SKIP_BENCH === 'true'
   || process.env.PAIROFCLEATS_SKIP_BENCH === '1'

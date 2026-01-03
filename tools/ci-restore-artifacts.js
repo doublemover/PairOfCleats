@@ -2,15 +2,18 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import simpleGit from 'simple-git';
 import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['force'],
-  string: ['from', 'repo'],
-  default: { force: false }
-});
+const argv = createCli({
+  scriptName: 'ci-restore',
+  options: {
+    force: { type: 'boolean', default: false },
+    from: { type: 'string' },
+    repo: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

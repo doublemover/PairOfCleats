@@ -2,15 +2,26 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import minimist from 'minimist';
-import { spawnSync } from 'node:child_process';
+import { createCli } from '../src/shared/cli.js';
+import { execaSync } from 'execa';
 import { getIndexDir, loadUserConfig } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['build', 'build-index', 'json', 'stub-embeddings', 'in-place'],
-  string: ['repo', 'queries', 'out', 'backend', 'top', 'limit'],
-  default: { json: false, 'stub-embeddings': false }
-});
+const argv = createCli({
+  scriptName: 'bench-score-strategy',
+  options: {
+    build: { type: 'boolean', default: false },
+    'build-index': { type: 'boolean', default: false },
+    json: { type: 'boolean', default: false },
+    'stub-embeddings': { type: 'boolean', default: false },
+    'in-place': { type: 'boolean', default: false },
+    repo: { type: 'string' },
+    queries: { type: 'string' },
+    out: { type: 'string' },
+    backend: { type: 'string' },
+    top: { type: 'number' },
+    limit: { type: 'number' }
+  }
+}).parse();
 
 const root = process.cwd();
 const repoSource = path.resolve(
@@ -30,11 +41,11 @@ const buildRequested = argv.build === true || argv['build-index'] === true;
 const useStubEmbeddings = argv['stub-embeddings'] === true;
 
 function runCommand(label, args, env) {
-  const result = spawnSync(process.execPath, args, { encoding: 'utf8', env });
-  if (result.status !== 0) {
+  const result = execaSync(process.execPath, args, { encoding: 'utf8', env, reject: false });
+  if (result.exitCode !== 0) {
     console.error(`Failed: ${label}`);
     if (result.stderr) console.error(result.stderr.trim());
-    process.exit(result.status ?? 1);
+    process.exit(result.exitCode ?? 1);
   }
   return result.stdout || '';
 }

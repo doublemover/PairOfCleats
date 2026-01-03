@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
 import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/sqlite/schema.js';
@@ -403,15 +403,15 @@ export async function compactDatabase(input) {
 
 const isDirectRun = import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isDirectRun) {
-  const argv = minimist(process.argv.slice(2), {
-    string: ['mode', 'repo'],
-    boolean: ['dry-run', 'keep-backup'],
-    default: {
-      mode: 'all',
-      'dry-run': false,
-      'keep-backup': false
+  const argv = createCli({
+    scriptName: 'compact-sqlite-index',
+    options: {
+      mode: { type: 'string', default: 'all' },
+      repo: { type: 'string' },
+      'dry-run': { type: 'boolean', default: false },
+      'keep-backup': { type: 'boolean', default: false }
     }
-  });
+  }).parse();
 
   const rootArg = argv.repo ? path.resolve(argv.repo) : null;
   const root = rootArg || resolveRepoRoot(process.cwd());

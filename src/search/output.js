@@ -1,36 +1,73 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { extractNgrams } from '../shared/tokenize.js';
+import {
+  createCacheReporter,
+  createLruCache,
+  DEFAULT_CACHE_MB,
+  DEFAULT_CACHE_TTL_MS,
+  estimateStringBytes
+} from '../shared/cache.js';
 
-const resolveCacheLimit = (raw, fallback) => {
+const resolveEntryLimit = (raw) => {
   const parsed = Number(raw);
-  if (Number.isFinite(parsed)) return Math.max(0, Math.floor(parsed));
-  return fallback;
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
 };
 
-const FILE_CACHE_MAX = resolveCacheLimit(process.env.PAIROFCLEATS_FILE_CACHE_MAX, 100);
-const SUMMARY_CACHE_MAX = resolveCacheLimit(process.env.PAIROFCLEATS_SUMMARY_CACHE_MAX, 2000);
+let outputCacheReporter = createCacheReporter({ enabled: false, log: null });
+let fileTextCache = createLruCache({
+  name: 'fileText',
+  maxMb: DEFAULT_CACHE_MB.fileText,
+  ttlMs: DEFAULT_CACHE_TTL_MS.fileText,
+  sizeCalculation: estimateStringBytes,
+  reporter: outputCacheReporter
+});
+let summaryCache = createLruCache({
+  name: 'summary',
+  maxMb: DEFAULT_CACHE_MB.summary,
+  ttlMs: DEFAULT_CACHE_TTL_MS.summary,
+  sizeCalculation: estimateStringBytes,
+  reporter: outputCacheReporter
+});
 
-const fileTextCache = new Map();
-const summaryCache = new Map();
+export function configureOutputCaches({ cacheConfig = null, verbose = false, log = null } = {}) {
+  const entryLimits = {
+    fileText: resolveEntryLimit(process.env.PAIROFCLEATS_FILE_CACHE_MAX),
+    summary: resolveEntryLimit(process.env.PAIROFCLEATS_SUMMARY_CACHE_MAX)
+  };
+  outputCacheReporter = createCacheReporter({ enabled: verbose, log });
+  const fileTextConfig = cacheConfig?.fileText || {};
+  const summaryConfig = cacheConfig?.summary || {};
+  fileTextCache = createLruCache({
+    name: 'fileText',
+    maxMb: Number.isFinite(Number(fileTextConfig.maxMb))
+      ? Number(fileTextConfig.maxMb)
+      : DEFAULT_CACHE_MB.fileText,
+    ttlMs: Number.isFinite(Number(fileTextConfig.ttlMs))
+      ? Number(fileTextConfig.ttlMs)
+      : DEFAULT_CACHE_TTL_MS.fileText,
+    maxEntries: entryLimits.fileText,
+    sizeCalculation: estimateStringBytes,
+    reporter: outputCacheReporter
+  });
+  summaryCache = createLruCache({
+    name: 'summary',
+    maxMb: Number.isFinite(Number(summaryConfig.maxMb))
+      ? Number(summaryConfig.maxMb)
+      : DEFAULT_CACHE_MB.summary,
+    ttlMs: Number.isFinite(Number(summaryConfig.ttlMs))
+      ? Number(summaryConfig.ttlMs)
+      : DEFAULT_CACHE_TTL_MS.summary,
+    maxEntries: entryLimits.summary,
+    sizeCalculation: estimateStringBytes,
+    reporter: outputCacheReporter
+  });
+  return outputCacheReporter;
+}
 
-const getBoundedCache = (cache, key) => {
-  if (!cache.has(key)) return null;
-  const value = cache.get(key);
-  cache.delete(key);
-  cache.set(key, value);
-  return value;
-};
-
-const setBoundedCache = (cache, key, value, maxEntries) => {
-  if (maxEntries <= 0) return;
-  if (cache.has(key)) cache.delete(key);
-  cache.set(key, value);
-  if (cache.size > maxEntries) {
-    const oldestKey = cache.keys().next().value;
-    cache.delete(oldestKey);
-  }
-};
+export function getOutputCacheReporter() {
+  return outputCacheReporter;
+}
 
 /**
  * Filter chunk metadata by search constraints.
@@ -429,20 +466,18 @@ function getBodySummary(rootDir, chunk, maxWords = 80) {
   try {
     const absPath = path.join(rootDir, chunk.file);
     const cacheKey = `${absPath}:${chunk.start}:${chunk.end}:${maxWords}`;
-    if (SUMMARY_CACHE_MAX > 0) {
-      const cached = getBoundedCache(summaryCache, cacheKey);
-      if (cached) return cached;
-    }
-    let text = FILE_CACHE_MAX > 0 ? getBoundedCache(fileTextCache, absPath) : null;
-    if (!text) {
+    const cached = summaryCache.get(cacheKey);
+    if (cached !== null) return cached;
+    let text = fileTextCache.get(absPath);
+    if (text == null) {
       text = fs.readFileSync(absPath, 'utf8');
-      setBoundedCache(fileTextCache, absPath, text, FILE_CACHE_MAX);
+      fileTextCache.set(absPath, text);
     }
     const chunkText = text.slice(chunk.start, chunk.end)
       .replace(/\s+/g, ' ')
       .trim();
     const words = chunkText.split(/\s+/).slice(0, maxWords).join(' ');
-    setBoundedCache(summaryCache, cacheKey, words, SUMMARY_CACHE_MAX);
+    summaryCache.set(cacheKey, words);
     return words;
   } catch {
     return '(Could not load summary)';

@@ -25,7 +25,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 - `npm run bootstrap` (fast, no prompts)
   - Add `--with-sqlite` to build SQLite indexes.
   - Add `--incremental` to reuse per-file cache bundles.
-- `npm run watch-index` (polls for file changes and rebuilds incrementally)     
+- `npm run watch-index` (FS events by default; add `--watch-poll` to enable polling)     
 - `npm run api-server` (local HTTP JSON API for status/search)
 - Cache is outside the repo by default; set `cache.root` in `.pairofcleats.json` to override.
 - CLI commands auto-detect repo roots; use `--repo <path>` to override.
@@ -264,7 +264,6 @@ Triage:
 
 Reports + MCP:
 - `npm run repometrics-dashboard-test`
-- `npm run compare-models-test`
 - `npm run summary-report-test`
 - `npm run mcp-server-test`
 - `npm run api-server-test`

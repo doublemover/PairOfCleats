@@ -16,7 +16,7 @@ import {
 import { buildCLikeChunks, buildCLikeRelations, collectCLikeImports, computeCLikeFlow, extractCLikeDocMeta } from '../lang/clike.js';
 import { buildGoChunks, buildGoRelations, collectGoImports, computeGoFlow, extractGoDocMeta } from '../lang/go.js';
 import { buildJavaChunks, buildJavaRelations, collectJavaImports, computeJavaFlow, extractJavaDocMeta } from '../lang/java.js';
-import { buildCodeRelations, collectImports, extractDocMeta } from '../lang/javascript.js';
+import { buildCodeRelations, collectImports, extractDocMeta, parseJavaScriptAst } from '../lang/javascript.js';
 import { buildTypeScriptChunks, buildTypeScriptRelations, collectTypeScriptImports, computeTypeScriptFlow, extractTypeScriptDocMeta } from '../lang/typescript.js';
 import { buildCSharpChunks, buildCSharpRelations, collectCSharpImports, computeCSharpFlow, extractCSharpDocMeta } from '../lang/csharp.js';
 import { buildKotlinChunks, buildKotlinRelations, collectKotlinImports, computeKotlinFlow, extractKotlinDocMeta } from '../lang/kotlin.js';
@@ -63,9 +63,15 @@ const LANGUAGE_REGISTRY = [
   {
     id: 'javascript',
     match: (ext) => isJsLike(ext),
-    collectImports: (text) => collectImports(text),
-    buildRelations: ({ text, relPath, allImports, options }) =>
+    collectImports: (text, options) => collectImports(text, options),
+    prepare: ({ text, mode, ext, options }) => (mode === 'code'
+      ? { jsAst: parseJavaScriptAst(text, { ...options, ext }) }
+      : {}),
+    buildRelations: ({ text, relPath, allImports, context, options, ext }) =>
       buildCodeRelations(text, relPath, allImports, {
+        ...options,
+        ext,
+        ast: context?.jsAst,
         dataflow: options.astDataflowEnabled,
         controlFlow: options.controlFlowEnabled
       }),
@@ -76,11 +82,12 @@ const LANGUAGE_REGISTRY = [
   {
     id: 'typescript',
     match: (ext) => isTypeScript(ext),
-    collectImports: (text) => collectTypeScriptImports(text),
-    prepare: ({ text, mode, ext, relPath }) => (mode === 'code'
-      ? { tsChunks: buildTypeScriptChunks(text, { ext, relPath }) }
+    collectImports: (text, options) => collectTypeScriptImports(text, options),
+    prepare: ({ text, mode, ext, relPath, options }) => (mode === 'code'
+      ? { tsChunks: buildTypeScriptChunks(text, { ext, relPath, parser: options?.typescript?.parser }) }
       : {}),
-    buildRelations: ({ text, allImports, context }) => buildTypeScriptRelations(text, allImports, context.tsChunks),
+    buildRelations: ({ text, allImports, context, options, ext }) =>
+      buildTypeScriptRelations(text, allImports, context.tsChunks, { ...options, ext }),
     extractDocMeta: ({ chunk }) => extractTypeScriptDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeTypeScriptFlow(text, chunk, flowOptions(options)),
     attachName: true

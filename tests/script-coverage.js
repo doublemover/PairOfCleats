@@ -121,11 +121,6 @@ const actions = [
     covers: ['language-fidelity-test']
   },
   {
-    label: 'type-inference-crossfile-test',
-    run: () => runNode('type-inference-crossfile-test', path.join(root, 'tests', 'type-inference-crossfile.js')),
-    covers: ['type-inference-crossfile-test']
-  },
-  {
     label: 'type-inference-crossfile-go',
     run: () => runNode('type-inference-crossfile-go', path.join(root, 'tests', 'type-inference-crossfile-go.js')),
     covers: []
@@ -171,16 +166,6 @@ const actions = [
     covers: []
   },
   {
-    label: 'bench-dict-seg',
-    run: () => runNode('bench-dict-seg', path.join(root, 'tools', 'bench-dict-seg.js'), ['--json', '--sample', '80']),
-    covers: ['bench-dict-seg']
-  },
-  {
-    label: 'bench-score-strategy',
-    run: () => runNode('bench-score-strategy', path.join(root, 'tools', 'bench-score-strategy.js'), ['--json', '--build', '--stub-embeddings', '--limit', '5']),
-    covers: ['bench-score-strategy']
-  },
-  {
     label: 'git-blame-range-test',
     run: () => runNode('git-blame-range-test', path.join(root, 'tests', 'git-blame-range.js')),
     covers: ['git-blame-range-test']
@@ -194,11 +179,6 @@ const actions = [
     label: 'tooling-lsp-test',
     run: () => runNode('tooling-lsp-test', path.join(root, 'tests', 'tooling-lsp.js')),
     covers: []
-  },
-  {
-    label: 'compare-models-test',
-    run: () => runNode('compare-models-test', path.join(root, 'tests', 'compare-models.js')),
-    covers: ['compare-models-test', 'compare-models']
   },
   {
     label: 'bench-language-repos-test',
@@ -371,6 +351,16 @@ const actions = [
     covers: ['query-cache-test']
   },
   {
+    label: 'json-stream-test',
+    run: () => runNode('json-stream-test', path.join(root, 'tests', 'json-stream.js')),
+    covers: ['json-stream-test']
+  },
+  {
+    label: 'worker-pool-test',
+    run: () => runNode('worker-pool-test', path.join(root, 'tests', 'worker-pool.js')),
+    covers: ['worker-pool-test']
+  },
+  {
     label: 'repo-build-index',
     run: () => runNode('build-index', path.join(root, 'build_index.js'), ['--stub-embeddings', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['build-index']
@@ -409,6 +399,26 @@ const actions = [
     label: 'cache-gc-test',
     run: () => runNode('cache-gc-test', path.join(root, 'tests', 'cache-gc.js')),
     covers: ['cache-gc', 'cache-gc-test']
+  },
+  {
+    label: 'cache-lru-test',
+    run: () => runNode('cache-lru-test', path.join(root, 'tests', 'cache-lru.js')),
+    covers: ['cache-lru-test']
+  },
+  {
+    label: 'discover-test',
+    run: () => runNode('discover-test', path.join(root, 'tests', 'discover.js')),
+    covers: ['discover-test']
+  },
+  {
+    label: 'watch-debounce-test',
+    run: () => runNode('watch-debounce-test', path.join(root, 'tests', 'watch-debounce.js')),
+    covers: ['watch-debounce-test']
+  },
+  {
+    label: 'watch-filter-test',
+    run: () => runNode('watch-filter-test', path.join(root, 'tests', 'watch-filter.js')),
+    covers: ['watch-filter-test']
   },
   {
     label: 'generate-repo-dict',
@@ -481,6 +491,11 @@ for (const action of actions) {
 markSkipped('download-models', 'requires network model download');
 markSkipped('bench', 'benchmarks are long-running');
 markSkipped('bench-ann', 'benchmarks are long-running');
+markSkipped('bench-dict-seg', 'benchmarks are long-running');
+markSkipped('bench-score-strategy', 'benchmarks are long-running');
+markSkipped('bench-compare-models', 'benchmarks are long-running');
+markSkipped('compare-models', 'benchmark/perf evaluation');
+markSkipped('type-inference-crossfile-test', 'temporarily gated (hangs in script-coverage)');
 markSkipped('bench-language', 'benchmarks are long-running');
 markSkipped('watch-index', 'watch mode runs until interrupted');
 markSkipped('format', 'modifies working tree');

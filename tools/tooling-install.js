@@ -1,15 +1,23 @@
 #!/usr/bin/env node
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './tooling-utils.js';
 import { getToolingConfig, resolveRepoRoot } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['json', 'dry-run', 'no-fallback'],
-  string: ['root', 'repo', 'scope', 'languages', 'tools'],
-  default: { 'dry-run': false, json: false, 'no-fallback': false }
-});
+const argv = createCli({
+  scriptName: 'tooling-install',
+  options: {
+    json: { type: 'boolean', default: false },
+    'dry-run': { type: 'boolean', default: false },
+    'no-fallback': { type: 'boolean', default: false },
+    root: { type: 'string' },
+    repo: { type: 'string' },
+    scope: { type: 'string' },
+    languages: { type: 'string' },
+    tools: { type: 'string' }
+  }
+}).parse();
 
 const explicitRoot = argv.root || argv.repo;
 const root = explicitRoot ? path.resolve(explicitRoot) : resolveRepoRoot(process.cwd());

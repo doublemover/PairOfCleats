@@ -24,6 +24,52 @@
       "additionalProperties": false,
       "properties": {
         "root": { "type": "string" },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fileText": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxMb": { "type": "number" },
+                "ttlMs": { "type": "number" }
+              }
+            },
+            "summary": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxMb": { "type": "number" },
+                "ttlMs": { "type": "number" }
+              }
+            },
+            "lint": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxMb": { "type": "number" },
+                "ttlMs": { "type": "number" }
+              }
+            },
+            "complexity": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxMb": { "type": "number" },
+                "ttlMs": { "type": "number" }
+              }
+            },
+            "gitMeta": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxMb": { "type": "number" },
+                "ttlMs": { "type": "number" }
+              }
+            }
+          }
+        },
         "gc": {
           "type": "object",
           "additionalProperties": false,
@@ -145,6 +191,9 @@
         "maxFileBytes": { "type": ["number", "boolean"] },
         "astDataflow": { "type": "boolean" },
         "controlFlow": { "type": "boolean" },
+        "javascriptParser": { "type": "string" },
+        "javascriptFlow": { "type": ["string", "boolean"] },
+        "typescriptParser": { "type": "string" },
         "pythonAst": {
           "type": "object",
           "additionalProperties": false,
@@ -155,6 +204,18 @@
             "scaleUpQueueMs": { "type": "number" },
             "taskTimeoutMs": { "type": "number" },
             "maxRetries": { "type": "number" }
+          }
+        },
+        "workerPool": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": ["boolean", "string"] },
+            "maxWorkers": { "type": "number" },
+            "maxFileBytes": { "type": "number" },
+            "idleTimeoutMs": { "type": "number" },
+            "taskTimeoutMs": { "type": "number" },
+            "quantizeBatchSize": { "type": "number" }
           }
         },
         "riskAnalysis": { "type": "boolean" },

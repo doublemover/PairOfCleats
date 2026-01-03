@@ -102,7 +102,7 @@ export async function buildRecordsIndexForRepo({ runtime }) {
 
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);
 
-  const postings = buildPostings({
+  const postings = await buildPostings({
     chunks: state.chunks,
     df: state.df,
     tokenPostings: state.tokenPostings,
@@ -112,7 +112,8 @@ export async function buildRecordsIndexForRepo({ runtime }) {
     postingsConfig,
     modelId: runtime.modelId,
     useStubEmbeddings: runtime.useStubEmbeddings,
-    log
+    log,
+    workerPool: runtime.workerPool
   });
 
   await writeIndexArtifacts({

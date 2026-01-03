@@ -1,20 +1,28 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { execaSync } from 'execa';
 import { fileURLToPath } from 'node:url';
-import minimist from 'minimist';
+import { createCli } from '../../src/shared/cli.js';
 import { getRuntimeConfig, getTriageConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot } from '../dict-utils.js';
 import { normalizeDependabot } from '../../src/triage/normalize/dependabot.js';
 import { normalizeAwsInspector } from '../../src/triage/normalize/aws-inspector.js';
 import { normalizeGeneric } from '../../src/triage/normalize/generic.js';
 import { renderRecordMarkdown } from '../../src/triage/render.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['build-index', 'incremental', 'stub-embeddings'],
-  string: ['repo', 'source', 'in', 'meta'],
-  alias: { i: 'in' }
-});
+const argv = createCli({
+  scriptName: 'triage-ingest',
+  options: {
+    'build-index': { type: 'boolean', default: false },
+    incremental: { type: 'boolean', default: false },
+    'stub-embeddings': { type: 'boolean', default: false },
+    repo: { type: 'string' },
+    source: { type: 'string' },
+    in: { type: 'string' },
+    meta: { type: 'string', array: true }
+  },
+  aliases: { i: 'in' }
+}).parse();
 
 const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
 const source = normalizeSource(argv.source);
@@ -88,8 +96,8 @@ if (argv['build-index']) {
   if (argv['stub-embeddings']) args.push('--stub-embeddings');
   const env = { ...baseEnv };
   if (argv['stub-embeddings']) env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-  const result = spawnSync(process.execPath, args, { cwd: repoRoot, stdio: 'inherit', env });
-  if (result.status !== 0) process.exit(result.status ?? 1);
+  const result = execaSync(process.execPath, args, { cwd: repoRoot, stdio: 'inherit', env, reject: false });
+  if (result.exitCode !== 0) process.exit(result.exitCode ?? 1);
 }
 
 console.log(JSON.stringify(results, null, 2));

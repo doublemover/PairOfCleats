@@ -2,14 +2,19 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { resolveRepoRoot } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['install', 'uninstall', 'status'],
-  string: ['hooks', 'repo'],
-  default: { install: false, uninstall: false, status: false }
-});
+const argv = createCli({
+  scriptName: 'git-hooks',
+  options: {
+    install: { type: 'boolean', default: false },
+    uninstall: { type: 'boolean', default: false },
+    status: { type: 'boolean', default: false },
+    hooks: { type: 'string' },
+    repo: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

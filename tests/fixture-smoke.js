@@ -3,17 +3,19 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { getIndexDir, getMetricsDir, loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
 import { rankMinhash } from '../src/search/rankers.js';
 
 const root = process.cwd();
 const fixturesRoot = path.join(root, 'tests', 'fixtures');
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['all'],
-  string: ['fixture'],
-  default: { fixture: 'sample', all: false }
-});
+const argv = createCli({
+  scriptName: 'fixture-smoke',
+  options: {
+    all: { type: 'boolean', default: false },
+    fixture: { type: 'string', default: 'sample' }
+  }
+}).parse();
 
 function resolveFixtures() {
   if (!argv.all) return [argv.fixture];

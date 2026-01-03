@@ -3,20 +3,21 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import simpleGit from 'simple-git';
 import { fileURLToPath } from 'node:url';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['skip-build', 'skip-sqlite', 'incremental'],
-  string: ['out', 'repo'],
-  default: {
-    'skip-build': false,
-    'skip-sqlite': false,
-    'incremental': false
+const argv = createCli({
+  scriptName: 'ci-build',
+  options: {
+    'skip-build': { type: 'boolean', default: false },
+    'skip-sqlite': { type: 'boolean', default: false },
+    incremental: { type: 'boolean', default: false },
+    out: { type: 'string' },
+    repo: { type: 'string' }
   }
-});
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

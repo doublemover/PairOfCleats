@@ -1,15 +1,21 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { execaSync } from 'execa';
 import { fileURLToPath } from 'node:url';
-import minimist from 'minimist';
+import { createCli } from '../../src/shared/cli.js';
 import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot } from '../dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['stub-embeddings', 'ann'],
-  string: ['repo', 'record', 'out']
-});
+const argv = createCli({
+  scriptName: 'triage-context-pack',
+  options: {
+    'stub-embeddings': { type: 'boolean', default: false },
+    ann: { type: 'boolean' },
+    repo: { type: 'string' },
+    record: { type: 'string' },
+    out: { type: 'string' }
+  }
+}).parse();
 const rawArgs = process.argv.slice(2);
 const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
 
@@ -242,8 +248,8 @@ function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
   if (annFlagPresent && argv.ann === false) args.push('--no-ann');
   const env = { ...baseEnv };
   if (argv['stub-embeddings']) env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-  const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, encoding: 'utf8' });
-  if (result.status !== 0) {
+  const result = execaSync(process.execPath, args, { cwd: repoRoot, env, encoding: 'utf8', reject: false });
+  if (result.exitCode !== 0) {
     return { ok: false, error: result.stderr || result.stdout || 'search failed', payload: null };
   }
   try {

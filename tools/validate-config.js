@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { fileURLToPath } from 'node:url';
 import { resolveRepoRoot } from './dict-utils.js';
 import { validateConfig } from '../src/config/validate.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['json'],
-  string: ['repo', 'config'],
-  default: { json: false }
-});
+const argv = createCli({
+  scriptName: 'config-validate',
+  options: {
+    json: { type: 'boolean', default: false },
+    repo: { type: 'string' },
+    config: { type: 'string' }
+  }
+}).parse();
 
 const repoArg = argv.repo ? path.resolve(argv.repo) : null;
 const repoRoot = repoArg || resolveRepoRoot(process.cwd());

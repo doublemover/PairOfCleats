@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+import { execaSync } from 'execa';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,9 +9,10 @@ const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 const searchPath = path.join(scriptRoot, 'search.js');
 const forwarded = hasBackend ? args : ['--backend', 'sqlite-fts', ...args];
 
-const result = spawnSync(process.execPath, [searchPath, ...forwarded], {
+const result = execaSync(process.execPath, [searchPath, ...forwarded], {
   stdio: 'inherit',
-  env: process.env
+  env: process.env,
+  reject: false
 });
 
-process.exit(result.status ?? 1);
+process.exit(result.exitCode ?? 1);

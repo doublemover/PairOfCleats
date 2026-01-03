@@ -10,13 +10,19 @@ This document describes the planned unified parsing backbone, native parser usag
 ## Parser strategy
 
 ### Native parsers (preferred when stable)
-- JavaScript/TypeScript: native parser when available (Acorn/TypeScript compiler API).
+- JavaScript/Flow: Babel parser by default, with Acorn/Esprima fallbacks for comparison.
+- TypeScript: TypeScript compiler API when available; Babel parser fallback when not.
 - Python: stdlib ast via a local interpreter.
 - Other languages: native parsers only when stable and easy to integrate.
 
 ### Unified backbone
 - tree-sitter provides a consistent AST interface for new languages and formats.
 - Native parsers still run first when available to enrich or replace tree-sitter output.
+
+### ESTree interop
+- `@typescript-eslint/typescript-estree` was considered for strict ESTree output.
+- Current decision: not required because TypeScript compiler + Babel parser cover the needed syntax and metadata.
+- Revisit if ESTree-specific tooling or stricter AST interop becomes necessary.
 
 ## Planned metadata schema
 

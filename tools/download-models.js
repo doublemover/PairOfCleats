@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { pipeline, env } from '@xenova/transformers';
 import { DEFAULT_MODEL_ID, getModelConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  string: ['model', 'cache-dir', 'repo'],
-  default: {
-    model: DEFAULT_MODEL_ID
+const argv = createCli({
+  scriptName: 'download-models',
+  options: {
+    model: { type: 'string', default: DEFAULT_MODEL_ID },
+    'cache-dir': { type: 'string' },
+    repo: { type: 'string' }
   }
-});
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

@@ -1,0 +1,68 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { discoverFiles, discoverFilesForModes } from '../src/indexer/build/discover.js';
+import { buildIgnoreMatcher } from '../src/indexer/build/ignore.js';
+
+const root = process.cwd();
+const tempRoot = path.join(root, 'tests', '.cache', 'discover');
+
+await fs.rm(tempRoot, { recursive: true, force: true });
+await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
+await fs.mkdir(path.join(tempRoot, 'docs'), { recursive: true });
+
+const gitCheck = spawnSync('git', ['--version'], { encoding: 'utf8' });
+if (gitCheck.status !== 0) {
+  console.log('skip: git not available');
+  process.exit(0);
+}
+
+const runGit = (args) => {
+  const result = spawnSync('git', args, { cwd: tempRoot, encoding: 'utf8' });
+  if (result.status !== 0) {
+    throw new Error(`git ${args.join(' ')} failed: ${result.stderr || result.stdout}`);
+  }
+};
+
+runGit(['init']);
+runGit(['config', 'user.email', 'tests@example.com']);
+runGit(['config', 'user.name', 'Tests']);
+
+await fs.writeFile(path.join(tempRoot, 'src', 'app.js'), 'console.log("hi")\n');
+await fs.writeFile(path.join(tempRoot, 'docs', 'readme.md'), '# Hello\n');
+runGit(['add', '.']);
+runGit(['commit', '-m', 'init']);
+
+await fs.writeFile(path.join(tempRoot, 'src', 'untracked.js'), 'console.log("no")\n');
+
+const { ignoreMatcher } = await buildIgnoreMatcher({ root: tempRoot, userConfig: {} });
+
+const skipped = [];
+const codeEntries = await discoverFiles({
+  root: tempRoot,
+  mode: 'code',
+  ignoreMatcher,
+  skippedFiles: skipped,
+  maxFileBytes: null
+});
+const codeRel = codeEntries.map((entry) => entry.rel);
+assert.ok(codeRel.includes('src/app.js'), 'tracked code file missing');
+assert.ok(!codeRel.includes('src/untracked.js'), 'untracked file should not be discovered');
+assert.ok(codeEntries[0].stat && typeof codeEntries[0].stat.size === 'number', 'stat missing');
+
+const skippedByMode = { code: [], prose: [] };
+const byMode = await discoverFilesForModes({
+  root: tempRoot,
+  modes: ['code', 'prose'],
+  ignoreMatcher,
+  skippedByMode,
+  maxFileBytes: null
+});
+assert.ok(byMode.code.some((entry) => entry.rel === 'src/app.js'), 'code mode missing app.js');
+assert.ok(byMode.prose.some((entry) => entry.rel === 'docs/readme.md'), 'prose mode missing readme');
+assert.ok(!byMode.code.some((entry) => entry.rel === 'src/untracked.js'), 'untracked file should not appear');
+assert.ok(byMode.code.every((entry) => entry.stat), 'code entries missing stat');
+assert.ok(byMode.prose.every((entry) => entry.stat), 'prose entries missing stat');
+
+console.log('discover test passed');

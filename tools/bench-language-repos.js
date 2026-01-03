@@ -5,62 +5,54 @@ import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
 import { spawn, spawnSync } from 'node:child_process';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { fileURLToPath } from 'node:url';
 import { getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: [
-    'json',
-    'list',
-    'clone',
-    'no-clone',
-    'build',
-    'build-index',
-    'build-sqlite',
-    'incremental',
-    'benchmark-profile',
-    'ann',
-    'no-ann',
-    'stub-embeddings',
-    'dry-run',
-    'cache-run'
-  ],
-  string: [
-    'config',
-    'root',
-    'cache-root',
-    'cache-suffix',
-    'results',
-    'log',
-    'language',
-    'languages',
-    'tier',
-    'repos',
-    'only',
-    'queries',
-    'backend',
-    'out',
-    'top',
-    'limit',
-    'bm25-k1',
-    'bm25-b',
-    'fts-profile',
-    'fts-weights',
-    'log-lines',
-    'heap-mb',
-    'lock-mode',
-    'lock-wait-ms',
-    'lock-stale-ms'
-  ],
-  default: {
-    json: false,
-    list: false,
-    clone: true,
-    'dry-run': false,
-    'benchmark-profile': true
+const argv = createCli({
+  scriptName: 'bench-language',
+  options: {
+    json: { type: 'boolean', default: false },
+    list: { type: 'boolean', default: false },
+    clone: { type: 'boolean', default: true },
+    'no-clone': { type: 'boolean', default: false },
+    build: { type: 'boolean', default: false },
+    'build-index': { type: 'boolean', default: false },
+    'build-sqlite': { type: 'boolean', default: false },
+    incremental: { type: 'boolean', default: false },
+    'benchmark-profile': { type: 'boolean', default: true },
+    ann: { type: 'boolean' },
+    'no-ann': { type: 'boolean' },
+    'stub-embeddings': { type: 'boolean', default: false },
+    'dry-run': { type: 'boolean', default: false },
+    'cache-run': { type: 'boolean', default: false },
+    config: { type: 'string' },
+    root: { type: 'string' },
+    'cache-root': { type: 'string' },
+    'cache-suffix': { type: 'string' },
+    results: { type: 'string' },
+    log: { type: 'string' },
+    language: { type: 'string' },
+    languages: { type: 'string' },
+    tier: { type: 'string' },
+    repos: { type: 'string' },
+    only: { type: 'string' },
+    queries: { type: 'string' },
+    backend: { type: 'string' },
+    out: { type: 'string' },
+    top: { type: 'number' },
+    limit: { type: 'number' },
+    'bm25-k1': { type: 'number' },
+    'bm25-b': { type: 'number' },
+    'fts-profile': { type: 'string' },
+    'fts-weights': { type: 'string' },
+    'log-lines': { type: 'number' },
+    'heap-mb': { type: 'number' },
+    'lock-mode': { type: 'string' },
+    'lock-wait-ms': { type: 'number' },
+    'lock-stale-ms': { type: 'number' }
   }
-});
+}).parse();
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const configPath = path.resolve(argv.config || path.join(scriptRoot, 'benchmarks', 'repos.json'));

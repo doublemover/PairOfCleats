@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getMetricsDir } from '../../../tools/dict-utils.js';
 import { log } from '../../shared/progress.js';
+import { writeJsonArrayFile, writeJsonObjectFile } from '../../shared/json-stream.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
 /**
@@ -25,33 +26,37 @@ export async function writeIndexArtifacts(input) {
     fileCounts
   } = input;
 
-  const chunkMeta = state.chunks.map((c) => ({
-    id: c.id,
-    file: c.file,
-    start: c.start,
-    end: c.end,
-    startLine: c.startLine,
-    endLine: c.endLine,
-    ext: c.ext,
-    kind: c.kind,
-    name: c.name,
-    weight: c.weight,
-    headline: c.headline,
-    preContext: c.preContext,
-    postContext: c.postContext,
-    tokens: c.tokens,
-    ngrams: c.ngrams,
-    codeRelations: c.codeRelations,
-    docmeta: c.docmeta,
-    stats: c.stats,
-    complexity: c.complexity,
-    lint: c.lint,
-    externalDocs: c.externalDocs,
-    last_modified: c.last_modified,
-    last_author: c.last_author,
-    churn: c.churn,
-    chunk_authors: c.chunk_authors
-  }));
+  function* chunkMetaIterator(chunks) {
+    for (const c of chunks) {
+      yield {
+        id: c.id,
+        file: c.file,
+        start: c.start,
+        end: c.end,
+        startLine: c.startLine,
+        endLine: c.endLine,
+        ext: c.ext,
+        kind: c.kind,
+        name: c.name,
+        weight: c.weight,
+        headline: c.headline,
+        preContext: c.preContext,
+        postContext: c.postContext,
+        tokens: c.tokens,
+        ngrams: c.ngrams,
+        codeRelations: c.codeRelations,
+        docmeta: c.docmeta,
+        stats: c.stats,
+        complexity: c.complexity,
+        lint: c.lint,
+        externalDocs: c.externalDocs,
+        last_modified: c.last_modified,
+        last_author: c.last_author,
+        churn: c.churn,
+        chunk_authors: c.chunk_authors
+      };
+    }
+  }
 
   await fs.writeFile(
     path.join(outDir, '.scannedfiles.json'),
@@ -67,47 +72,60 @@ export async function writeIndexArtifacts(input) {
   log('Writing index files...');
   const writeStart = Date.now();
   const writes = [
-    fs.writeFile(
+    writeJsonObjectFile(
       path.join(outDir, 'dense_vectors_uint8.json'),
-      JSON.stringify({ model: modelId, dims: postings.dims, scale: 1.0, vectors: postings.quantizedVectors }) + '\n'
+      {
+        fields: { model: modelId, dims: postings.dims, scale: 1.0 },
+        arrays: { vectors: postings.quantizedVectors }
+      }
     ),
-    fs.writeFile(
+    writeJsonObjectFile(
       path.join(outDir, 'dense_vectors_doc_uint8.json'),
-      JSON.stringify({ model: modelId, dims: postings.dims, scale: 1.0, vectors: postings.quantizedDocVectors }) + '\n'
+      {
+        fields: { model: modelId, dims: postings.dims, scale: 1.0 },
+        arrays: { vectors: postings.quantizedDocVectors }
+      }
     ),
-    fs.writeFile(
+    writeJsonObjectFile(
       path.join(outDir, 'dense_vectors_code_uint8.json'),
-      JSON.stringify({ model: modelId, dims: postings.dims, scale: 1.0, vectors: postings.quantizedCodeVectors }) + '\n'
+      {
+        fields: { model: modelId, dims: postings.dims, scale: 1.0 },
+        arrays: { vectors: postings.quantizedCodeVectors }
+      }
     ),
-    fs.writeFile(
+    writeJsonArrayFile(
       path.join(outDir, 'chunk_meta.json'),
-      JSON.stringify(chunkMeta) + '\n'
+      chunkMetaIterator(state.chunks)
     ),
-    fs.writeFile(
+    writeJsonObjectFile(
       path.join(outDir, 'minhash_signatures.json'),
-      JSON.stringify({ signatures: postings.minhashSigs }) + '\n'
+      { arrays: { signatures: postings.minhashSigs } }
     ),
-    fs.writeFile(
+    writeJsonObjectFile(
       path.join(outDir, 'token_postings.json'),
-      JSON.stringify({
-        vocab: postings.tokenVocab,
-        postings: postings.tokenPostingsList,
-        docLengths: state.docLengths,
-        avgDocLen: postings.avgDocLen,
-        totalDocs: state.docLengths.length
-      }) + '\n'
+      {
+        fields: {
+          avgDocLen: postings.avgDocLen,
+          totalDocs: state.docLengths.length
+        },
+        arrays: {
+          vocab: postings.tokenVocab,
+          postings: postings.tokenPostingsList,
+          docLengths: state.docLengths
+        }
+      }
     )
   ];
   if (resolvedConfig.enablePhraseNgrams !== false) {
-    writes.push(fs.writeFile(
+    writes.push(writeJsonObjectFile(
       path.join(outDir, 'phrase_ngrams.json'),
-      JSON.stringify({ vocab: postings.phraseVocab, postings: postings.phrasePostings }) + '\n'
+      { arrays: { vocab: postings.phraseVocab, postings: postings.phrasePostings } }
     ));
   }
   if (resolvedConfig.enableChargrams !== false) {
-    writes.push(fs.writeFile(
+    writes.push(writeJsonObjectFile(
       path.join(outDir, 'chargram_postings.json'),
-      JSON.stringify({ vocab: postings.chargramVocab, postings: postings.chargramPostings }) + '\n'
+      { arrays: { vocab: postings.chargramVocab, postings: postings.chargramPostings } }
     ));
   }
   await Promise.all(writes);

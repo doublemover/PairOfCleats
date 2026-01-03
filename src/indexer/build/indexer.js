@@ -3,7 +3,8 @@ import path from 'node:path';
 import { getIndexDir } from '../../../tools/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../triage/index-records.js';
 import { applyCrossFileInference } from '../type-inference-crossfile.js';
-import { runWithConcurrency } from '../../shared/concurrency.js';
+import { runWithQueue } from '../../shared/concurrency.js';
+import { createCacheReporter } from '../../shared/cache.js';
 import { log, logLine, showProgress } from '../../shared/progress.js';
 import { toPosix } from '../../shared/files.js';
 import { writeIndexArtifacts } from './artifacts.js';
@@ -14,12 +15,13 @@ import { scanImports } from './imports.js';
 import { loadIncrementalState, pruneIncrementalManifest, updateBundlesWithChunks } from './incremental.js';
 import { buildPostings } from './postings.js';
 import { createIndexState, appendChunk } from './state.js';
+import { configureGitMetaCache } from '../git.js';
 
 /**
  * Build indexes for a given mode.
- * @param {{mode:'code'|'prose'|'records',runtime:object}} input
+ * @param {{mode:'code'|'prose'|'records',runtime:object,discovery?:{entries:Array,skippedFiles:Array}}} input
  */
-export async function buildIndexForMode({ mode, runtime }) {
+export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   if (mode === 'records') {
     await buildRecordsIndexForRepo({ runtime });
     return;
@@ -30,38 +32,50 @@ export async function buildIndexForMode({ mode, runtime }) {
   const timing = { start: Date.now() };
 
   const state = createIndexState();
+  if (discovery && Array.isArray(discovery.skippedFiles)) {
+    state.skippedFiles.push(...discovery.skippedFiles);
+  }
+  const cacheReporter = createCacheReporter({ enabled: runtime.verboseCache, log });
   const seenFiles = new Set();
   const incrementalState = await loadIncrementalState({
     repoCacheRoot: runtime.repoCacheRoot,
     mode,
     enabled: runtime.incrementalEnabled
   });
+  configureGitMetaCache(runtime.cacheConfig?.gitMeta, cacheReporter);
 
   log('Discovering files...');
   const discoverStart = Date.now();
-  const allFiles = await discoverFiles({
-    root: runtime.root,
-    mode,
-    ignoreMatcher: runtime.ignoreMatcher,
-    skippedFiles: state.skippedFiles,
-    maxFileBytes: runtime.maxFileBytes
-  });
-  allFiles.sort();
-  log(`→ Found ${allFiles.length} files.`);
+  let allEntries = null;
+  if (discovery && Array.isArray(discovery.entries)) {
+    allEntries = discovery.entries.slice();
+    log('→ Reusing shared discovery results.');
+  } else {
+    allEntries = await runtime.queues.io.add(() => discoverFiles({
+      root: runtime.root,
+      mode,
+      ignoreMatcher: runtime.ignoreMatcher,
+      skippedFiles: state.skippedFiles,
+      maxFileBytes: runtime.maxFileBytes
+    }));
+  }
+  allEntries.sort((a, b) => a.rel.localeCompare(b.rel));
+  log(`→ Found ${allEntries.length} files.`);
   timing.discoverMs = Date.now() - discoverStart;
 
   log('Scanning for imports...');
   const importResult = await scanImports({
-    files: allFiles,
+    files: allEntries.map((entry) => entry.abs),
     root: runtime.root,
     mode,
     languageOptions: runtime.languageOptions,
-    importConcurrency: runtime.importConcurrency
+    importConcurrency: runtime.importConcurrency,
+    queue: runtime.queues.io
   });
   timing.importsMs = importResult.durationMs;
 
   const contextWin = await estimateContextWindow({
-    files: allFiles,
+    files: allEntries.map((entry) => entry.abs),
     root: runtime.root,
     mode,
     languageOptions: runtime.languageOptions
@@ -70,7 +84,7 @@ export async function buildIndexForMode({ mode, runtime }) {
 
   log('Processing and indexing files...');
   const processStart = Date.now();
-  log(`Indexing concurrency: files=${runtime.fileConcurrency}, imports=${runtime.importConcurrency}`);
+  log(`Indexing concurrency: files=${runtime.fileConcurrency}, imports=${runtime.importConcurrency}, io=${runtime.ioConcurrency}, cpu=${runtime.cpuConcurrency}`);
   const showFileProgress = process.env.PAIROFCLEATS_PROGRESS_FILES === '1';
 
   const { processFile } = createFileProcessor({
@@ -89,7 +103,12 @@ export async function buildIndexForMode({ mode, runtime }) {
     seenFiles,
     gitBlameEnabled: runtime.gitBlameEnabled,
     lintEnabled: runtime.lintEnabled,
-    complexityEnabled: runtime.complexityEnabled
+    complexityEnabled: runtime.complexityEnabled,
+    cacheConfig: runtime.cacheConfig,
+    cacheReporter,
+    queues: runtime.queues,
+    useCpuQueue: false,
+    workerPool: runtime.workerPool
   });
 
   let processedFiles = 0;
@@ -104,22 +123,22 @@ export async function buildIndexForMode({ mode, runtime }) {
       incrementalState.manifest.files[result.relKey] = result.manifestEntry;
     }
   };
-  await runWithConcurrency(
-    allFiles,
-    runtime.fileConcurrency,
-    async (abs, fileIndex) => {
+  await runWithQueue(
+    runtime.queues.cpu,
+    allEntries,
+    async (entry, fileIndex) => {
       if (showFileProgress) {
-        const rel = toPosix(path.relative(runtime.root, abs));
-        logLine(`File ${fileIndex + 1}/${allFiles.length} ${rel}`);
+        const rel = entry.rel || toPosix(path.relative(runtime.root, entry.abs));
+        logLine(`File ${fileIndex + 1}/${allEntries.length} ${rel}`);
       }
-      const result = await processFile(abs, fileIndex);
+      const result = await processFile(entry, fileIndex);
       processedFiles += 1;
-      showProgress('Files', processedFiles, allFiles.length);
+      showProgress('Files', processedFiles, allEntries.length);
       return result;
     },
     { collectResults: false, onResult: handleFileResult }
   );
-  showProgress('Files', allFiles.length, allFiles.length);
+  showProgress('Files', allEntries.length, allEntries.length);
 
   timing.processMs = Date.now() - processStart;
 
@@ -133,7 +152,7 @@ export async function buildIndexForMode({ mode, runtime }) {
 
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);
 
-  const postings = buildPostings({
+  const postings = await buildPostings({
     chunks: state.chunks,
     df: state.df,
     tokenPostings: state.tokenPostings,
@@ -143,7 +162,8 @@ export async function buildIndexForMode({ mode, runtime }) {
     postingsConfig: runtime.postingsConfig,
     modelId: runtime.modelId,
     useStubEmbeddings: runtime.useStubEmbeddings,
-    log
+    log,
+    workerPool: runtime.workerPool
   });
 
   const crossFileEnabled = runtime.typeInferenceCrossFileEnabled || runtime.riskAnalysisCrossFileEnabled;
@@ -183,6 +203,7 @@ export async function buildIndexForMode({ mode, runtime }) {
     root: runtime.root,
     userConfig: runtime.userConfig,
     incrementalEnabled: runtime.incrementalEnabled,
-    fileCounts: { candidates: allFiles.length }
+    fileCounts: { candidates: allEntries.length }
   });
+  cacheReporter.report();
 }

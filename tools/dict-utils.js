@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../src/shared/cache.js';
 
 export const DEFAULT_MODEL_ID = 'Xenova/all-MiniLM-L12-v2';
 export const DEFAULT_TRIAGE_PROMOTE_FIELDS = [
@@ -168,6 +169,36 @@ export function getRuntimeConfig(repoRoot, userConfig = null) {
   const nodeOptionsRaw = runtime.nodeOptions ?? process.env.PAIROFCLEATS_NODE_OPTIONS;
   const nodeOptions = typeof nodeOptionsRaw === 'string' ? nodeOptionsRaw.trim() : '';
   return { maxOldSpaceMb, nodeOptions };
+}
+
+/**
+ * Resolve runtime cache limits and TTLs for a repo.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @returns {{fileText:{maxMb:number,ttlMs:number},summary:{maxMb:number,ttlMs:number},lint:{maxMb:number,ttlMs:number},complexity:{maxMb:number,ttlMs:number},gitMeta:{maxMb:number,ttlMs:number}}}
+ */
+export function getCacheRuntimeConfig(repoRoot, userConfig = null) {
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  const runtimeCache = cfg.cache?.runtime || {};
+  const resolveEntry = (key) => {
+    const entry = runtimeCache[key] || {};
+    const maxMbRaw = entry.maxMb ?? entry.maxMB;
+    const ttlMsRaw = entry.ttlMs ?? entry.ttlMS;
+    const maxMb = Number.isFinite(Number(maxMbRaw))
+      ? Math.max(0, Number(maxMbRaw))
+      : (DEFAULT_CACHE_MB[key] || 0);
+    const ttlMs = Number.isFinite(Number(ttlMsRaw))
+      ? Math.max(0, Number(ttlMsRaw))
+      : (DEFAULT_CACHE_TTL_MS[key] || 0);
+    return { maxMb, ttlMs };
+  };
+  return {
+    fileText: resolveEntry('fileText'),
+    summary: resolveEntry('summary'),
+    lint: resolveEntry('lint'),
+    complexity: resolveEntry('complexity'),
+    gitMeta: resolveEntry('gitMeta')
+  };
 }
 
 /**

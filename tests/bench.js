@@ -2,29 +2,39 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { getRuntimeConfig, loadUserConfig, resolveNodeOptions } from '../tools/dict-utils.js';
 import { resolveBenchmarkProfile } from '../src/shared/bench-profile.js';
 import os from 'node:os';
 
 const rawArgs = process.argv.slice(2);
-const argv = minimist(rawArgs, {
-  boolean: [
-    'ann',
-    'no-ann',
-    'json',
-    'write-report',
-    'build',
-    'build-index',
-    'build-sqlite',
-    'incremental',
-    'stub-embeddings',
-    'benchmark-profile'
-  ],
-  string: ['queries', 'backend', 'out', 'bm25-k1', 'bm25-b', 'fts-profile', 'fts-weights', 'repo'],
-  alias: { n: 'top', q: 'queries' },
-  default: { top: 5, limit: 0, json: false, 'write-report': false }
-});
+const argv = createCli({
+  scriptName: 'bench',
+  options: {
+    ann: { type: 'boolean' },
+    'no-ann': { type: 'boolean' },
+    json: { type: 'boolean', default: false },
+    'write-report': { type: 'boolean', default: false },
+    build: { type: 'boolean', default: false },
+    'build-index': { type: 'boolean', default: false },
+    'build-sqlite': { type: 'boolean', default: false },
+    incremental: { type: 'boolean', default: false },
+    'stub-embeddings': { type: 'boolean', default: false },
+    'benchmark-profile': { type: 'boolean', default: false },
+    queries: { type: 'string' },
+    backend: { type: 'string' },
+    out: { type: 'string' },
+    'bm25-k1': { type: 'number' },
+    'bm25-b': { type: 'number' },
+    'fts-profile': { type: 'string' },
+    'fts-weights': { type: 'string' },
+    repo: { type: 'string' },
+    top: { type: 'number', default: 5 },
+    limit: { type: 'number', default: 0 },
+    'heap-mb': { type: 'number' }
+  },
+  aliases: { n: 'top', q: 'queries' }
+}).parse();
 
 const root = process.cwd();
 const repoArg = argv.repo ? path.resolve(argv.repo) : null;

@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
 import { compactDatabase } from './compact-sqlite-index.js';
@@ -20,11 +20,18 @@ try {
   process.exit(1);
 }
 
-const argv = minimist(process.argv.slice(2), {
-  string: ['code-dir', 'prose-dir', 'out', 'mode', 'repo'],
-  boolean: ['incremental', 'compact'],
-  default: { mode: 'all', incremental: false, compact: false }
-});
+const argv = createCli({
+  scriptName: 'build-sqlite-index',
+  options: {
+    'code-dir': { type: 'string' },
+    'prose-dir': { type: 'string' },
+    out: { type: 'string' },
+    mode: { type: 'string', default: 'all' },
+    repo: { type: 'string' },
+    incremental: { type: 'boolean', default: false },
+    compact: { type: 'boolean', default: false }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

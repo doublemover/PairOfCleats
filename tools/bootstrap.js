@@ -1,26 +1,26 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { runCommand, runCommandOrExit } from './cli-utils.js';
 import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot } from './dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['skip-install', 'skip-dicts', 'skip-index', 'with-sqlite', 'incremental', 'skip-artifacts', 'skip-tooling', 'validate-config'],
-  string: ['repo'],
-  alias: { s: 'with-sqlite', i: 'incremental' },
-  default: {
-    'skip-install': false,
-    'skip-dicts': false,
-    'skip-index': false,
-    'with-sqlite': false,
-    'incremental': false,
-    'skip-artifacts': false,
-    'skip-tooling': false,
-    'validate-config': false
-  }
-});
+const argv = createCli({
+  scriptName: 'bootstrap',
+  options: {
+    'skip-install': { type: 'boolean', default: false },
+    'skip-dicts': { type: 'boolean', default: false },
+    'skip-index': { type: 'boolean', default: false },
+    'with-sqlite': { type: 'boolean', default: false },
+    incremental: { type: 'boolean', default: false },
+    'skip-artifacts': { type: 'boolean', default: false },
+    'skip-tooling': { type: 'boolean', default: false },
+    'validate-config': { type: 'boolean', default: false },
+    repo: { type: 'string' }
+  },
+  aliases: { s: 'with-sqlite', i: 'incremental' }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

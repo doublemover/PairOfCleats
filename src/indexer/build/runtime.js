@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   DEFAULT_MODEL_ID,
+  getCacheRuntimeConfig,
   getDictionaryPaths,
   getDictConfig,
   getModelConfig,
@@ -12,9 +13,11 @@ import {
 } from '../../../tools/dict-utils.js';
 import { createEmbedder } from '../embedding.js';
 import { log } from '../../shared/progress.js';
+import { createTaskQueues } from '../../shared/concurrency.js';
 import { buildIgnoreMatcher } from './ignore.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { applyBenchmarkProfile } from '../../shared/bench-profile.js';
+import { createIndexerWorkerPool, normalizeWorkerPoolConfig } from './worker-pool.js';
 
 /**
  * Create runtime configuration for build_index.
@@ -62,6 +65,27 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const yamlTopLevelMaxBytes = Number.isFinite(yamlTopLevelMaxBytesRaw)
     ? Math.max(0, Math.floor(yamlTopLevelMaxBytesRaw))
     : 200 * 1024;
+  const normalizeParser = (raw, fallback, allowed) => {
+    const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+    return allowed.includes(normalized) ? normalized : fallback;
+  };
+  const normalizeFlow = (raw) => {
+    if (raw === true) return 'on';
+    if (raw === false) return 'off';
+    const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+    return ['auto', 'on', 'off'].includes(normalized) ? normalized : 'auto';
+  };
+  const javascriptParser = normalizeParser(
+    indexingConfig.javascriptParser,
+    'babel',
+    ['auto', 'babel', 'acorn', 'esprima']
+  );
+  const typescriptParser = normalizeParser(
+    indexingConfig.typescriptParser,
+    'auto',
+    ['auto', 'typescript', 'babel', 'heuristic']
+  );
+  const javascriptFlow = normalizeFlow(indexingConfig.javascriptFlow);
   const pythonAstConfig = indexingConfig.pythonAst || {};
   const pythonAstEnabled = pythonAstConfig.enabled !== false;
   const sqlConfig = userConfig.sql || {};
@@ -101,6 +125,13 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
         : fileConcurrency
     )
   );
+  const ioConcurrency = Math.max(fileConcurrency, importConcurrency);
+  const cpuConcurrency = Math.max(1, Math.min(os.cpus().length, fileConcurrency));
+  const queues = createTaskQueues({ ioConcurrency, cpuConcurrency });
+  const workerPoolConfig = normalizeWorkerPoolConfig(
+    indexingConfig.workerPool || {},
+    { cpuLimit: cpuConcurrency }
+  );
 
   const incrementalEnabled = argv.incremental === true;
   const useStubEmbeddings = argv['stub-embeddings'] === true || process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
@@ -136,6 +167,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
 
   const { ignoreMatcher, config: ignoreConfig, ignoreFiles } = await buildIgnoreMatcher({ root, userConfig });
 
+  const cacheConfig = getCacheRuntimeConfig(root, userConfig);
+  const verboseCache = process.env.PAIROFCLEATS_VERBOSE === '1';
+
   if (dictSummary.files) {
     log(`Wordlists enabled: ${dictSummary.files} file(s), ${dictSummary.words.toLocaleString()} words for identifier splitting.`);
   } else {
@@ -155,6 +189,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       : 'none';
     log(`Benchmark profile enabled: disabled ${disabled}.`);
   }
+  log(`Queue concurrency: io=${ioConcurrency}, cpu=${cpuConcurrency}.`);
   if (!astDataflowEnabled) {
     log('AST dataflow metadata disabled via indexing.astDataflow.');
   }
@@ -191,10 +226,36 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   if (postingsConfig.enableChargrams === false) {
     log('Chargram postings disabled via indexing.postings.enableChargrams.');
   }
+  let workerPool = null;
+  if (workerPoolConfig.enabled !== false) {
+    workerPool = await createIndexerWorkerPool({
+      config: workerPoolConfig,
+      dictWords,
+      dictConfig,
+      postingsConfig,
+      log
+    });
+    if (workerPool) {
+      const modeLabel = workerPoolConfig.enabled === 'auto' ? 'auto' : 'on';
+      log(`Worker pool enabled (${modeLabel}, maxThreads=${workerPoolConfig.maxWorkers}).`);
+      if (workerPoolConfig.enabled === 'auto') {
+        log(`Worker pool auto threshold: maxFileBytes=${workerPoolConfig.maxFileBytes}.`);
+      }
+    } else {
+      log('Worker pool disabled (fallback to main thread).');
+    }
+  }
 
   const languageOptions = {
     astDataflowEnabled,
     controlFlowEnabled,
+    javascript: {
+      parser: javascriptParser,
+      flow: javascriptFlow
+    },
+    typescript: {
+      parser: typescriptParser
+    },
     pythonAst: pythonAstConfig,
     resolveSqlDialect,
     yamlChunking: {
@@ -227,11 +288,16 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     resolveSqlDialect,
     fileConcurrency,
     importConcurrency,
+    ioConcurrency,
+    cpuConcurrency,
+    queues,
     incrementalEnabled,
     useStubEmbeddings,
     modelConfig,
     modelId,
     modelsDir,
+    workerPoolConfig,
+    workerPool,
     dictConfig,
     dictionaryPaths,
     dictWords,
@@ -241,6 +307,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     ignoreMatcher,
     ignoreConfig,
     ignoreFiles,
-    maxFileBytes
+    maxFileBytes,
+    cacheConfig,
+    verboseCache
   };
 }

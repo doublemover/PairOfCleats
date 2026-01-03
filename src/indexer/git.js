@@ -1,7 +1,39 @@
 import path from 'node:path';
 import simpleGit from 'simple-git';
+import {
+  createLruCache,
+  DEFAULT_CACHE_MB,
+  DEFAULT_CACHE_TTL_MS,
+  estimateJsonBytes
+} from '../shared/cache.js';
 
-const gitMetaCache = new Map();
+let gitMetaCache = createLruCache({
+  name: 'gitMeta',
+  maxMb: DEFAULT_CACHE_MB.gitMeta,
+  ttlMs: DEFAULT_CACHE_TTL_MS.gitMeta,
+  sizeCalculation: estimateJsonBytes
+});
+
+/**
+ * Configure git metadata cache settings.
+ * @param {{maxMb?:number,ttlMs?:number}|null} cacheConfig
+ * @param {{track?:(stats:object)=>void}|null} reporter
+ */
+export function configureGitMetaCache(cacheConfig, reporter = null) {
+  const maxMb = Number.isFinite(Number(cacheConfig?.maxMb))
+    ? Number(cacheConfig.maxMb)
+    : DEFAULT_CACHE_MB.gitMeta;
+  const ttlMs = Number.isFinite(Number(cacheConfig?.ttlMs))
+    ? Number(cacheConfig.ttlMs)
+    : DEFAULT_CACHE_TTL_MS.gitMeta;
+  gitMetaCache = createLruCache({
+    name: 'gitMeta',
+    maxMb,
+    ttlMs,
+    sizeCalculation: estimateJsonBytes,
+    reporter
+  });
+}
 
 /**
  * Fetch git metadata for a file/chunk (author, date, churn, blame authors).
@@ -23,8 +55,8 @@ export async function getGitMeta(file, startLine = 1, endLine = 1, options = {})
   const start = Math.max(1, Number.parseInt(startLine, 10) || 1);
   const end = Math.max(start, Number.parseInt(endLine, 10) || start);
 
-  if (gitMetaCache.has(cacheKey)) {
-    const cached = gitMetaCache.get(cacheKey);
+  const cached = gitMetaCache.get(cacheKey);
+  if (cached) {
     if (!blameEnabled) return cached;
     let blameData = {};
     try {

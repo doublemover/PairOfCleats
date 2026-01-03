@@ -2,22 +2,22 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveRepoRoot } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['json', 'quiet'],
-  string: ['host', 'port', 'repo', 'output'],
-  default: {
-    host: '127.0.0.1',
-    port: '7345',
-    output: 'compact',
-    json: false,
-    quiet: false
+const argv = createCli({
+  scriptName: 'api-server',
+  options: {
+    host: { type: 'string', default: '127.0.0.1' },
+    port: { type: 'string', default: '7345' },
+    output: { type: 'string', default: 'compact' },
+    json: { type: 'boolean', default: false },
+    quiet: { type: 'boolean', default: false },
+    repo: { type: 'string' }
   }
-});
+}).parse();
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const host = argv.host || '127.0.0.1';

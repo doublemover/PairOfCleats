@@ -8,15 +8,24 @@ import { pipeline } from 'node:stream/promises';
 import { URL } from 'node:url';
 import { createGunzip } from 'node:zlib';
 import { spawnSync } from 'node:child_process';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['update', 'force'],
-  string: ['provider', 'dir', 'url', 'out', 'platform', 'arch', 'repo'],
-  default: { update: false, force: false }
-});
+const argv = createCli({
+  scriptName: 'download-extensions',
+  options: {
+    update: { type: 'boolean', default: false },
+    force: { type: 'boolean', default: false },
+    provider: { type: 'string' },
+    dir: { type: 'string' },
+    url: { type: 'string' },
+    out: { type: 'string' },
+    platform: { type: 'string' },
+    arch: { type: 'string' },
+    repo: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const repoRoot = rootArg || resolveRepoRoot(process.cwd());

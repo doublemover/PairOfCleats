@@ -2,14 +2,17 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { getCacheRoot, getDictConfig, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['json', 'all'],
-  string: ['repo'],
-  default: { json: false, all: false }
-});
+const argv = createCli({
+  scriptName: 'report-artifacts',
+  options: {
+    json: { type: 'boolean', default: false },
+    all: { type: 'boolean', default: false },
+    repo: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

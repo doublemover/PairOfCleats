@@ -32,3 +32,4 @@ PairOfCleats ships an MCP server that exposes indexing, search, and maintenance 
 ## Notes
 - Cache location defaults to the PairOfCleats cache root; override with `cache.root` or `PAIROFCLEATS_CACHE_ROOT`.
 - Repo paths are auto-detected; pass explicit `repoPath` when running out-of-tree.
+- JSON-RPC framing uses `vscode-jsonrpc`; LSP helpers rely on `vscode-languageserver-protocol` for symbol/position constants.

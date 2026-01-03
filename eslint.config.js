@@ -8,7 +8,8 @@ export default [
       'benchmarks/cache/**',
       'benchmarks/results/**',
       '**/.git/**',
-      '**/docs/phase3-parity-report.json'
+      '**/docs/phase3-parity-report.json',
+      'tests/fixtures/languages/src/javascript_flow.js'
     ]
   },
   {

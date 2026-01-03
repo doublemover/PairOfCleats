@@ -4,15 +4,24 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['ann', 'write-report', 'enforce'],
-  string: ['queries', 'out', 'search', 'sqlite-backend'],
-  alias: { n: 'top', q: 'queries' },
-  default: { top: 5, limit: 0, 'sqlite-backend': 'sqlite' }
-});
+const argv = createCli({
+  scriptName: 'parity',
+  options: {
+    ann: { type: 'boolean', default: true },
+    'write-report': { type: 'boolean', default: false },
+    enforce: { type: 'boolean', default: false },
+    queries: { type: 'string' },
+    out: { type: 'string' },
+    search: { type: 'string' },
+    'sqlite-backend': { type: 'string', default: 'sqlite' },
+    top: { type: 'number', default: 5 },
+    limit: { type: 'number', default: 0 }
+  },
+  aliases: { n: 'top', q: 'queries' }
+}).parse();
 
 const root = process.cwd();
 const repoArgs = ['--repo', root];

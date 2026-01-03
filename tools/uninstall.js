@@ -3,15 +3,18 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline/promises';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { getCacheRoot, getDictConfig, getExtensionsDir, getModelsDir, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { isInside, isRootPath } from './path-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['yes', 'dry-run'],
-  string: ['repo'],
-  default: { yes: false, 'dry-run': false }
-});
+const argv = createCli({
+  scriptName: 'uninstall',
+  options: {
+    yes: { type: 'boolean', default: false },
+    'dry-run': { type: 'boolean', default: false },
+    repo: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

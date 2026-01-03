@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { splitWordsWithDict } from '../src/shared/tokenize.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['json'],
-  string: ['dict', 'tokens', 'out', 'sample', 'dp-max'],
-  default: { json: false }
-});
+const argv = createCli({
+  scriptName: 'bench-dict-seg',
+  options: {
+    json: { type: 'boolean', default: false },
+    dict: { type: 'string' },
+    tokens: { type: 'string' },
+    out: { type: 'string' },
+    sample: { type: 'number' },
+    'dp-max': { type: 'number' }
+  }
+}).parse();
 
 const root = process.cwd();
 const dictPath = path.resolve(argv.dict || path.join(root, 'tests', 'fixtures', 'dicts', 'words.txt'));

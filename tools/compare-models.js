@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { execaSync } from 'execa';
 import { fileURLToPath } from 'node:url';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/compare/config.js';
 import {
   DEFAULT_MODEL_ID,
@@ -21,12 +21,30 @@ import {
 } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
-const argv = minimist(rawArgs, {
-  boolean: ['json', 'build', 'build-index', 'build-sqlite', 'incremental', 'stub-embeddings', 'ann', 'no-ann'],
-  string: ['models', 'baseline', 'queries', 'backend', 'out', 'mode', 'cache-root', 'repo'],
-  alias: { n: 'top', q: 'queries' },
-  default: { top: 5, limit: 0 }
-});
+const argv = createCli({
+  scriptName: 'compare-models',
+  options: {
+    json: { type: 'boolean', default: false },
+    build: { type: 'boolean', default: false },
+    'build-index': { type: 'boolean', default: false },
+    'build-sqlite': { type: 'boolean', default: false },
+    incremental: { type: 'boolean', default: false },
+    'stub-embeddings': { type: 'boolean', default: false },
+    ann: { type: 'boolean' },
+    'no-ann': { type: 'boolean' },
+    models: { type: 'string' },
+    baseline: { type: 'string' },
+    queries: { type: 'string' },
+    backend: { type: 'string' },
+    out: { type: 'string' },
+    mode: { type: 'string' },
+    'cache-root': { type: 'string' },
+    repo: { type: 'string' },
+    top: { type: 'number', default: 5 },
+    limit: { type: 'number', default: 0 }
+  },
+  aliases: { n: 'top', q: 'queries' }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
@@ -173,11 +191,11 @@ function ensureIndex(modelCacheRoot) {
  * @param {string} label
  */
 function runCommand(args, env, label) {
-  const stdio = argv.json ? ['ignore', process.stderr, process.stderr] : 'inherit';
-  const result = spawnSync(process.execPath, args, { env, stdio });
-  if (result.status !== 0) {
+  const stdio = argv.json ? ['ignore', 'ignore', 'ignore'] : 'inherit';
+  const result = execaSync(process.execPath, args, { env, stdio, reject: false });
+  if (result.exitCode !== 0) {
     console.error(`Failed: ${label}`);
-    process.exit(result.status ?? 1);
+    process.exit(result.exitCode ?? 1);
   }
 }
 
@@ -205,12 +223,12 @@ function runSearch(query, env) {
     args.push('--mode', modeArg);
   }
   const start = Date.now();
-  const result = spawnSync(process.execPath, args, { env, encoding: 'utf8' });
+  const result = execaSync(process.execPath, args, { env, encoding: 'utf8', reject: false });
   const wallMs = Date.now() - start;
-  if (result.status !== 0) {
+  if (result.exitCode !== 0) {
     console.error(`Search failed for query="${query}" (model=${env.PAIROFCLEATS_MODEL})`);
     if (result.stderr) console.error(result.stderr.trim());
-    process.exit(result.status ?? 1);
+    process.exit(result.exitCode ?? 1);
   }
   const payload = JSON.parse(result.stdout || '{}');
   return { payload, wallMs };

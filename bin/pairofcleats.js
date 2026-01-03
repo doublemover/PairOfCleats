@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+import { execaSync } from 'execa';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -118,11 +118,12 @@ function runScript(scriptPath, extraArgs, restArgs) {
   const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
   const nodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
   const env = nodeOptions ? { ...process.env, NODE_OPTIONS: nodeOptions } : process.env;
-  const result = spawnSync(process.execPath, [resolved, ...extraArgs, ...restArgs], {
+  const result = execaSync(process.execPath, [resolved, ...extraArgs, ...restArgs], {
     stdio: 'inherit',
-    env
+    env,
+    reject: false
   });
-  process.exit(result.status ?? 1);
+  process.exit(result.exitCode ?? 1);
 }
 
 function extractRepoArg(args) {

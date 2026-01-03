@@ -1,4 +1,4 @@
-import minimist from 'minimist';
+import yargs from 'yargs/yargs';
 
 const BOOLEAN_FLAGS = [
   'json',
@@ -70,12 +70,26 @@ const DEFAULTS = { n: 5, context: 3 };
  * @returns {object}
  */
 export function parseSearchArgs(rawArgs) {
-  return minimist(rawArgs, {
-    boolean: BOOLEAN_FLAGS,
-    alias: ALIASES,
-    default: DEFAULTS,
-    string: STRING_FLAGS
-  });
+  const options = {
+    n: { type: 'number', default: DEFAULTS.n },
+    context: { type: 'number', default: DEFAULTS.context }
+  };
+  for (const flag of BOOLEAN_FLAGS) {
+    options[flag] = { type: 'boolean' };
+  }
+  for (const flag of STRING_FLAGS) {
+    options[flag] = { type: 'string' };
+  }
+  return yargs(rawArgs)
+    .parserConfiguration({
+      'camel-case-expansion': false,
+      'dot-notation': false
+    })
+    .options(options)
+    .alias(ALIASES)
+    .help()
+    .alias('h', 'help')
+    .parse();
 }
 
 /**

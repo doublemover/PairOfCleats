@@ -5,14 +5,20 @@ import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { getDictConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['update', 'force'],
-  string: ['lang', 'dir', 'url', 'repo'],
-  default: { update: false, force: false }
-});
+const argv = createCli({
+  scriptName: 'download-dicts',
+  options: {
+    update: { type: 'boolean', default: false },
+    force: { type: 'boolean', default: false },
+    lang: { type: 'string' },
+    dir: { type: 'string' },
+    url: { type: 'string', array: true },
+    repo: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const repoRoot = rootArg || resolveRepoRoot(process.cwd());

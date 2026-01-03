@@ -1,16 +1,28 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../../src/shared/cli.js';
 import { getTriageConfig, loadUserConfig, resolveRepoRoot } from '../dict-utils.js';
 import { buildRecordId } from '../../src/triage/record-utils.js';
 import { applyRoutingMeta } from '../../src/triage/normalize/helpers.js';
 import { renderRecordMarkdown } from '../../src/triage/render.js';
 
-const argv = minimist(process.argv.slice(2), {
-  string: ['repo', 'finding', 'status', 'justification', 'reviewer', 'expires', 'meta', 'code', 'evidence'],
-  alias: { r: 'repo' }
-});
+const argv = createCli({
+  scriptName: 'triage-decision',
+  options: {
+    repo: { type: 'string' },
+    finding: { type: 'string' },
+    record: { type: 'string' },
+    status: { type: 'string' },
+    justification: { type: 'string' },
+    reviewer: { type: 'string' },
+    expires: { type: 'string' },
+    meta: { type: 'string', array: true },
+    code: { type: 'string', array: true },
+    evidence: { type: 'string', array: true }
+  },
+  aliases: { r: 'repo' }
+}).parse();
 
 const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
 const findingId = argv.finding || argv.record;
