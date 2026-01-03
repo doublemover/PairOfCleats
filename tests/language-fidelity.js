@@ -69,6 +69,14 @@ if (!fs.existsSync(chunkMetaPath)) {
 }
 
 const chunkMeta = JSON.parse(fs.readFileSync(chunkMetaPath, 'utf8'));
+const fileMetaPath = path.join(codeDir, 'file_meta.json');
+const fileMeta = fs.existsSync(fileMetaPath)
+  ? JSON.parse(fs.readFileSync(fileMetaPath, 'utf8'))
+  : [];
+const fileById = new Map(
+  (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
+);
+const resolveChunkFile = (chunk) => chunk?.file || fileById.get(chunk?.fileId) || null;
 const fileRelationsPath = path.join(codeDir, 'file_relations.json');
 let fileRelations = null;
 if (fs.existsSync(fileRelationsPath)) {
@@ -86,8 +94,9 @@ const getFileRelations = (file) => (fileRelations?.get(file) || null);
 
 function findChunk(match) {
   return chunkMeta.find((chunk) => {
-    if (!chunk || !chunk.file) return false;
-    if (match.file && chunk.file !== match.file) return false;
+    const file = resolveChunkFile(chunk);
+    if (!chunk || !file) return false;
+    if (match.file && file !== match.file) return false;
     if (match.kind && chunk.kind !== match.kind) return false;
     if (match.nameIncludes && !String(chunk.name || '').includes(match.nameIncludes)) return false;
     return true;
@@ -346,7 +355,7 @@ if (pythonAvailable) {
 }
 
 const jsWidgetClass = chunkMeta.find((chunk) => {
-  if (!chunk || chunk.file !== 'src/javascript_advanced.js') return false;
+  if (!chunk || resolveChunkFile(chunk) !== 'src/javascript_advanced.js') return false;
   if (chunk.name !== 'Widget') return false;
   return chunk.kind === 'ClassDeclaration' ||
     chunk.kind === 'ExportedClass' ||
@@ -505,7 +514,8 @@ const javaMethod = findChunk({ file: 'src/java_advanced.java', kind: 'MethodDecl
 if (!javaMethod) {
   failures.push('Missing Java method chunk (Box.add).');
 } else {
-  const imports = javaMethod.codeRelations?.imports || getFileRelations(javaMethod.file)?.imports || [];
+  const javaFile = resolveChunkFile(javaMethod);
+  const imports = javaMethod.codeRelations?.imports || getFileRelations(javaFile)?.imports || [];
   if (!imports.some((imp) => imp === 'java.util.List')) {
     failures.push('Java import capture missing java.util.List.');
   }
@@ -545,7 +555,7 @@ if (!shellFunc) {
 }
 
 const tsClass = chunkMeta.find((chunk) =>
-  chunk.file === 'src/typescript_advanced.ts' &&
+  resolveChunkFile(chunk) === 'src/typescript_advanced.ts' &&
   chunk.kind === 'ClassDeclaration' &&
   chunk.name === 'Widget'
 );

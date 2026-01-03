@@ -12,6 +12,8 @@ import {
   isKotlin,
   isRuby,
   isPhp,
+  isHtml,
+  isCss,
   isLua,
   isSql
 } from './constants.js';
@@ -21,6 +23,8 @@ import { buildCSharpChunks } from '../lang/csharp.js';
 import { buildKotlinChunks } from '../lang/kotlin.js';
 import { buildRubyChunks } from '../lang/ruby.js';
 import { buildPhpChunks } from '../lang/php.js';
+import { buildHtmlChunks } from '../lang/html.js';
+import { buildCssChunks } from '../lang/css.js';
 import { buildLuaChunks } from '../lang/lua.js';
 import { buildSqlChunks } from '../lang/sql.js';
 import { buildCLikeChunks } from '../lang/clike.js';
@@ -352,6 +356,10 @@ const CODE_CHUNKERS = [
     }) },
   { id: 'typescript', match: (ext) => isTypeScript(ext), chunk: ({ text, ext, relPath, context }) =>
     context?.tsChunks || buildTypeScriptChunks(text, { ext, relPath, parser: context?.typescript?.parser }) },
+  { id: 'html', match: (ext) => isHtml(ext), chunk: ({ text, context }) =>
+    context?.htmlChunks || buildHtmlChunks(text, getTreeSitterOptions(context)) },
+  { id: 'css', match: (ext) => isCss(ext), chunk: ({ text, context }) =>
+    context?.cssChunks || buildCssChunks(text) },
   { id: 'python', match: (ext) => ext === '.py', chunk: ({ text, context }) => {
     const astChunks = buildPythonChunksFromAst(text, context?.pythonAst || null);
     return (astChunks && astChunks.length) ? astChunks : buildPythonHeuristicChunks(text);

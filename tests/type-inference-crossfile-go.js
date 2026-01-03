@@ -125,9 +125,17 @@ if (!fs.existsSync(chunkMetaPath)) {
 }
 
 const chunkMeta = JSON.parse(fs.readFileSync(chunkMetaPath, 'utf8'));
+const fileMetaPath = path.join(codeDir, 'file_meta.json');
+const fileMeta = fs.existsSync(fileMetaPath)
+  ? JSON.parse(fs.readFileSync(fileMetaPath, 'utf8'))
+  : [];
+const fileById = new Map(
+  (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
+);
+const resolveChunkFile = (chunk) => chunk?.file || fileById.get(chunk?.fileId) || null;
 
 const buildGo = chunkMeta.find((chunk) =>
-  chunk.file === 'src/builder.go' &&
+  resolveChunkFile(chunk) === 'src/builder.go' &&
   chunk.name === 'BuildGoWidget'
 );
 if (!buildGo) {
@@ -142,7 +150,7 @@ if (!inferredGo.some((entry) => entry.type === 'GoWidget' && entry.source === 'f
 }
 
 const buildRust = chunkMeta.find((chunk) =>
-  chunk.file === 'src/lib.rs' &&
+  resolveChunkFile(chunk) === 'src/lib.rs' &&
   chunk.name === 'build_rust_widget'
 );
 if (!buildRust) {
@@ -157,7 +165,7 @@ if (!inferredRust.some((entry) => entry.type === 'RustWidget' && entry.source ==
 }
 
 const buildJava = chunkMeta.find((chunk) =>
-  chunk.file === 'src/JavaWidgetBuilder.java' &&
+  resolveChunkFile(chunk) === 'src/JavaWidgetBuilder.java' &&
   chunk.name === 'JavaWidgetBuilder.buildWidget'
 );
 if (!buildJava) {

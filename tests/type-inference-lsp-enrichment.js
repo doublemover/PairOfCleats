@@ -71,8 +71,17 @@ if (!fs.existsSync(metaPath)) {
 }
 
 const chunks = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-const cppChunk = chunks.find((chunk) => chunk.file === 'src/sample.cpp' && chunk.name === 'add');
-const swiftChunk = chunks.find((chunk) => chunk.file === 'src/sample.swift' && chunk.name === 'greet');
+const fileMetaPath = path.join(indexDir, 'file_meta.json');
+const fileMeta = fs.existsSync(fileMetaPath)
+  ? JSON.parse(fs.readFileSync(fileMetaPath, 'utf8'))
+  : [];
+const fileById = new Map(
+  (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
+);
+const resolveChunkFile = (chunk) => chunk?.file || fileById.get(chunk?.fileId) || null;
+
+const cppChunk = chunks.find((chunk) => resolveChunkFile(chunk) === 'src/sample.cpp' && chunk.name === 'add');
+const swiftChunk = chunks.find((chunk) => resolveChunkFile(chunk) === 'src/sample.swift' && chunk.name === 'greet');
 
 const hasToolingReturn = (chunk, type) => {
   const returns = chunk?.docmeta?.inferredTypes?.returns || [];

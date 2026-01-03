@@ -79,8 +79,17 @@ if (!fs.existsSync(chunkMetaPath)) {
 }
 
 const chunkMeta = JSON.parse(fs.readFileSync(chunkMetaPath, 'utf8'));
+const fileMetaPath = path.join(codeDir, 'file_meta.json');
+const fileMeta = fs.existsSync(fileMetaPath)
+  ? JSON.parse(fs.readFileSync(fileMetaPath, 'utf8'))
+  : [];
+const fileById = new Map(
+  (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
+);
+const resolveChunkFile = (chunk) => chunk?.file || fileById.get(chunk?.fileId) || null;
+
 const buildWidget = chunkMeta.find((chunk) =>
-  chunk.file === 'src/consumer.js' &&
+  resolveChunkFile(chunk) === 'src/consumer.js' &&
   chunk.name === 'buildWidget'
 );
 if (!buildWidget) {

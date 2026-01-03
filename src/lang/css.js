@@ -69,23 +69,23 @@ export function collectCssImports(text) {
 
 export function buildCssChunks(text) {
   const loader = loadParser();
-  if (!loader) return null;
+  if (!loader) return buildCssHeuristicChunks(text);
   const parser = new loader.TreeSitter();
   try {
     parser.setLanguage(loader.CssLanguage);
   } catch {
-    return null;
+    return buildCssHeuristicChunks(text);
   }
   let tree;
   try {
     tree = parser.parse(text);
   } catch {
-    return null;
+    return buildCssHeuristicChunks(text);
   }
   const rootNode = tree?.rootNode;
-  if (!rootNode) return null;
+  if (!rootNode) return buildCssHeuristicChunks(text);
   const nodes = gatherRuleNodes(rootNode);
-  if (!nodes.length) return null;
+  if (!nodes.length) return buildCssHeuristicChunks(text);
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const chunks = [];
@@ -116,6 +116,60 @@ export function buildCssChunks(text) {
   if (!chunks.length) return null;
   chunks.sort((a, b) => a.start - b.start);
   return chunks;
+}
+
+function buildCssHeuristicChunks(text) {
+  const chunks = [];
+  const lineIndex = buildLineIndex(text);
+  const lines = text.split('\n');
+  let idx = 0;
+  while (idx < text.length) {
+    const brace = text.indexOf('{', idx);
+    if (brace === -1) break;
+    const selectorStart = Math.max(text.lastIndexOf('\n', brace), text.lastIndexOf('\r', brace)) + 1;
+    const selector = text.slice(selectorStart, brace).trim();
+    if (!selector) {
+      idx = brace + 1;
+      continue;
+    }
+    let depth = 0;
+    let end = brace;
+    for (; end < text.length; end += 1) {
+      const ch = text[end];
+      if (ch === '{') depth += 1;
+      if (ch === '}') {
+        depth -= 1;
+        if (depth <= 0) {
+          end += 1;
+          break;
+        }
+      }
+    }
+    const start = selectorStart;
+    const endIdx = Math.min(text.length, end);
+    const startLine = offsetToLine(lineIndex, start);
+    const endLine = offsetToLine(lineIndex, Math.max(start, endIdx - 1));
+    const signature = sliceSignature(text, start, Math.min(endIdx, start + 240));
+    const docstring = extractDocComment(lines, startLine - 1, {
+      linePrefixes: ['/*', '/**'],
+      blockStarts: ['/*', '/**'],
+      blockEnd: '*/'
+    });
+    chunks.push({
+      start,
+      end: endIdx,
+      name: selector,
+      kind: selector.startsWith('@') ? 'AtRule' : 'StyleRule',
+      meta: {
+        signature,
+        docstring,
+        startLine,
+        endLine
+      }
+    });
+    idx = endIdx;
+  }
+  return chunks.length ? chunks : null;
 }
 
 export function buildCssRelations(text, allImports) {
