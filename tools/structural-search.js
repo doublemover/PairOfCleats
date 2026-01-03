@@ -85,6 +85,7 @@ const resolveRulePath = (rulePath) => {
 };
 
 const isWindows = process.platform === 'win32';
+const binaryCache = new Map();
 const runCommand = (resolved, args, options = {}) => {
   const command = resolved?.command || resolved;
   const argsPrefix = resolved?.argsPrefix || [];
@@ -105,40 +106,61 @@ const findOnPath = (candidate) => {
       `${candidate}.bat`,
       `${candidate}.ps1`
     ];
+  const checked = [];
   for (const dir of paths) {
     for (const name of names) {
       const fullPath = path.join(dir, name);
-      if (fs.existsSync(fullPath)) return fullPath;
+      checked.push(fullPath);
+      if (fs.existsSync(fullPath)) return { path: fullPath, checked };
     }
   }
-  return null;
+  return { path: null, checked };
 };
 
 const resolveBinary = (engine) => {
+  if (binaryCache.has(engine)) return binaryCache.get(engine);
   const candidates = {
     semgrep: ['semgrep'],
     'ast-grep': ['sg', 'ast-grep'],
     comby: ['comby']
   }[engine] || [];
   if (isWindows) {
+    let checkedPaths = [];
     for (const candidate of candidates) {
       const resolved = findOnPath(candidate);
-      if (!resolved) continue;
-      const ext = path.extname(resolved).toLowerCase();
+      checkedPaths = checkedPaths.concat(resolved.checked || []);
+      if (!resolved.path) continue;
+      const ext = path.extname(resolved.path).toLowerCase();
       if (!ext || ['.js', '.mjs', '.cjs'].includes(ext)) {
-        return { command: process.execPath, argsPrefix: [resolved] };
+        const output = { command: process.execPath, argsPrefix: [resolved.path], checkedPaths };
+        binaryCache.set(engine, output);
+        return output;
       }
-      return { command: resolved, argsPrefix: [] };
+      const output = { command: resolved.path, argsPrefix: [], checkedPaths };
+      binaryCache.set(engine, output);
+      return output;
     }
-    return { command: candidates[0] || engine, argsPrefix: [] };
+    const output = { command: candidates[0] || engine, argsPrefix: [], checkedPaths };
+    binaryCache.set(engine, output);
+    return output;
   }
   for (const candidate of candidates) {
     const result = runCommand(candidate, ['--version'], { encoding: 'utf8' });
-    if (!result.error && result.status === 0) return { command: candidate, argsPrefix: [] };
+    if (!result.error && result.status === 0) {
+      const output = { command: candidate, argsPrefix: [], checkedPaths: [] };
+      binaryCache.set(engine, output);
+      return output;
+    }
     const help = runCommand(candidate, ['--help'], { encoding: 'utf8' });
-    if (!help.error && help.status === 0) return { command: candidate, argsPrefix: [] };
+    if (!help.error && help.status === 0) {
+      const output = { command: candidate, argsPrefix: [], checkedPaths: [] };
+      binaryCache.set(engine, output);
+      return output;
+    }
   }
-  return { command: candidates[0] || engine, argsPrefix: [] };
+  const output = { command: candidates[0] || engine, argsPrefix: [], checkedPaths: [] };
+  binaryCache.set(engine, output);
+  return output;
 };
 
 const parseJsonLines = (text) => text
@@ -266,13 +288,24 @@ const parseComby = (output, pack, ruleId, message) => {
   return results;
 };
 
+const buildMissingBinaryMessage = (engine, cmd) => {
+  const checked = Array.isArray(cmd?.checkedPaths) ? cmd.checkedPaths : [];
+  if (!checked.length) return `${engine} binary not found on PATH.`;
+  return `${engine} binary not found on PATH. Checked: ${checked.join(', ')}`;
+};
+
 const runSemgrep = (pack, rules) => {
   const cmd = resolveBinary('semgrep');
   const args = ['--json'];
   for (const rulePath of rules) args.push('--config', rulePath);
   args.push('--quiet');
   const result = runCommand(cmd, args, { cwd: repoRoot, encoding: 'utf8' });
-  if (result.error) throw result.error;
+  if (result.error) {
+    if (result.error.code === 'ENOENT') {
+      throw new Error(buildMissingBinaryMessage('semgrep', cmd));
+    }
+    throw result.error;
+  }
   if (result.status !== 0 && !result.stdout) {
     throw new Error(result.stderr || 'semgrep failed');
   }
@@ -285,7 +318,12 @@ const runAstGrep = (pack, rules) => {
   for (const rulePath of rules) {
     const args = ['scan', '--json', '--rule', rulePath];
     const result = runCommand(cmd, args, { cwd: repoRoot, encoding: 'utf8' });
-    if (result.error) throw result.error;
+    if (result.error) {
+      if (result.error.code === 'ENOENT') {
+        throw new Error(buildMissingBinaryMessage('ast-grep', cmd));
+      }
+      throw result.error;
+    }
     if (result.status !== 0 && !result.stdout) {
       throw new Error(result.stderr || 'ast-grep failed');
     }
@@ -318,7 +356,12 @@ const runComby = (pack, rules) => {
       repoRoot
     ];
     const result = runCommand(cmd, args, { cwd: repoRoot, encoding: 'utf8' });
-    if (result.error) throw result.error;
+    if (result.error) {
+      if (result.error.code === 'ENOENT') {
+        throw new Error(buildMissingBinaryMessage('comby', cmd));
+      }
+      throw result.error;
+    }
     if (result.status !== 0 && !result.stdout) {
       throw new Error(result.stderr || 'comby failed');
     }
