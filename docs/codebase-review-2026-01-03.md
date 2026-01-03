@@ -14,10 +14,10 @@ Open items:
 ## Search + Scoring
 
 Correctness fixes:
-- None in this pass.
+- Added a minhash parity test to ensure search and indexing signatures stay compatible.
 
 Open items:
-- Validate minhash parity between indexing and search on a fixture (both currently use `SimpleMinHash`, so the risk is lower but not yet asserted).
+- None in this pass.
 
 ## SQLite
 

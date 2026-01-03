@@ -178,6 +178,11 @@ const actions = [
     covers: ['sqlite-ann-extension-test']
   },
   {
+    label: 'minhash-parity-test',
+    run: () => runNode('minhash-parity-test', path.join(root, 'tests', 'minhash-parity.js')),
+    covers: ['minhash-parity-test']
+  },
+  {
     label: 'language-fidelity-test',
     run: () => runNode('language-fidelity-test', path.join(root, 'tests', 'language-fidelity.js')),
     covers: ['language-fidelity-test']
