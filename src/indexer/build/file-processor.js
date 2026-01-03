@@ -47,7 +47,8 @@ export function createFileProcessor(options) {
     queues,
     useCpuQueue = true,
     workerPool = null,
-    embeddingBatchSize = 0
+    embeddingBatchSize = 0,
+    crashLogger = null
   } = options;
   const lintEnabled = lintEnabledRaw !== false;
   const complexityEnabled = complexityEnabledRaw !== false;
@@ -353,8 +354,18 @@ export function createFileProcessor(options) {
             });
           } catch (err) {
             if (!workerTokenizeFailed) {
-              log(`Worker tokenization failed; falling back to main thread. ${err?.message || err}`);
+              const message = err?.message || String(err);
+              log(`Worker tokenization failed; falling back to main thread. ${message}`);
               workerTokenizeFailed = true;
+            }
+            if (crashLogger?.enabled) {
+              crashLogger.logError({
+                phase: 'worker-tokenize',
+                file: relKey,
+                size: fileStat?.size || null,
+                message: err?.message || String(err),
+                stack: err?.stack || null
+              });
             }
           }
         }

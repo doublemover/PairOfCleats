@@ -278,6 +278,7 @@
         },
         "yamlChunking": { "type": "string", "enum": ["auto", "root", "top-level"] },
         "yamlTopLevelMaxBytes": { "type": "number" },
+        "debugCrash": { "type": "boolean" },
         "postings": {
           "type": "object",
           "additionalProperties": false,

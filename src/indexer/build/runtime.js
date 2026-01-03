@@ -141,6 +141,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   );
 
   const incrementalEnabled = argv.incremental === true;
+  const debugCrash = argv['debug-crash'] === true
+    || process.env.PAIROFCLEATS_DEBUG_CRASH === '1'
+    || indexingConfig.debugCrash === true;
   const useStubEmbeddings = argv['stub-embeddings'] === true || process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
   const modelConfig = getModelConfig(root, userConfig);
   const modelId = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
@@ -307,6 +310,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     cpuConcurrency,
     queues,
     incrementalEnabled,
+    debugCrash,
     useStubEmbeddings,
     modelConfig,
     modelId,

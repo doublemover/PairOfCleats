@@ -10,6 +10,7 @@ import { toPosix } from '../../shared/files.js';
 import { writeIndexArtifacts } from './artifacts.js';
 import { estimateContextWindow } from './context-window.js';
 import { discoverFiles } from './discover.js';
+import { createCrashLogger } from './crash-log.js';
 import { createFileProcessor } from './file-processor.js';
 import { scanImports } from './imports.js';
 import { loadIncrementalState, pruneIncrementalManifest, updateBundlesWithChunks } from './incremental.js';
@@ -26,10 +27,16 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     await buildRecordsIndexForRepo({ runtime });
     return;
   }
+  const crashLogger = await createCrashLogger({
+    repoCacheRoot: runtime.repoCacheRoot,
+    enabled: runtime.debugCrash,
+    log
+  });
   const outDir = getIndexDir(runtime.root, mode, runtime.userConfig);
   await fs.mkdir(outDir, { recursive: true });
   log(`\n📄  Scanning ${mode} …`);
   const timing = { start: Date.now() };
+  crashLogger.updatePhase(`scan:${mode}`);
 
   const state = createIndexState();
   if (discovery && Array.isArray(discovery.skippedFiles)) {
@@ -66,6 +73,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   let importResult = { allImports: {}, durationMs: 0 };
   if (mode === 'code') {
     log('Scanning for imports...');
+    crashLogger.updatePhase('imports');
     importResult = await scanImports({
       files: allEntries,
       root: runtime.root,
@@ -87,6 +95,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   log(`Auto-selected context window: ${contextWin} lines`);
 
   log('Processing and indexing files...');
+  crashLogger.updatePhase('processing');
   const processStart = Date.now();
   log(`Indexing concurrency: files=${runtime.fileConcurrency}, imports=${runtime.importConcurrency}, io=${runtime.ioConcurrency}, cpu=${runtime.cpuConcurrency}`);
   const showFileProgress = process.env.PAIROFCLEATS_PROGRESS_FILES === '1';
@@ -114,7 +123,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     cacheReporter,
     queues: runtime.queues,
     useCpuQueue: false,
-    workerPool: runtime.workerPool
+    workerPool: runtime.workerPool,
+    crashLogger
   });
 
   let processedFiles = 0;
@@ -140,10 +150,29 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
         const rel = entry.rel || toPosix(path.relative(runtime.root, entry.abs));
         logLine(`File ${fileIndex + 1}/${allEntries.length} ${rel}`);
       }
-      const result = await processFile(entry, fileIndex);
-      processedFiles += 1;
-      showProgress('Files', processedFiles, allEntries.length);
-      return result;
+      crashLogger.updateFile({
+        phase: 'processing',
+        mode,
+        fileIndex,
+        total: allEntries.length,
+        file: entry.rel,
+        size: entry.stat?.size || null
+      });
+      try {
+        const result = await processFile(entry, fileIndex);
+        processedFiles += 1;
+        showProgress('Files', processedFiles, allEntries.length);
+        return result;
+      } catch (err) {
+        crashLogger.logError({
+          phase: 'processing',
+          mode,
+          file: entry.rel,
+          message: err?.message || String(err),
+          stack: err?.stack || null
+        });
+        throw err;
+      }
     },
     { collectResults: false, onResult: handleFileResult }
   );
@@ -177,6 +206,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
 
   const crossFileEnabled = runtime.typeInferenceCrossFileEnabled || runtime.riskAnalysisCrossFileEnabled;
   if (mode === 'code' && crossFileEnabled) {
+    crashLogger.updatePhase('cross-file');
     const crossFileStats = await applyCrossFileInference({
       rootDir: runtime.root,
       chunks: state.chunks,
@@ -216,5 +246,6 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     incrementalEnabled: runtime.incrementalEnabled,
     fileCounts: { candidates: allEntries.length }
   });
+  crashLogger.updatePhase('done');
   cacheReporter.report();
 }

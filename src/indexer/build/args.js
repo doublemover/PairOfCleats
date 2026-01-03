@@ -22,6 +22,7 @@ export function parseBuildArgs(rawArgs) {
       'watch-poll': { type: 'number', default: 2000 },
       'watch-debounce': { type: 'number', default: 500 },
       sqlite: { type: 'boolean' },
+      'debug-crash': { type: 'boolean', default: false },
       model: { type: 'string' },
       repo: { type: 'string' }
     })
