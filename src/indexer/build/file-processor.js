@@ -280,7 +280,7 @@ export function createFileProcessor(options) {
     }
     if (!fileHash) fileHash = await runCpu(() => sha1(text));
 
-    const fileChunks = await runCpu(async () => {
+    const { chunks: fileChunks, fileRelations } = await runCpu(async () => {
       const { lang, context: languageContext } = await buildLanguageContext({
         ext,
         relPath: relKey,
@@ -586,7 +586,7 @@ export function createFileProcessor(options) {
         chunk.embedding = normalizeVec(merged);
       }
 
-      return chunks;
+      return { chunks, fileRelations };
     });
 
     const manifestEntry = await runIo(() => writeIncrementalBundle({
