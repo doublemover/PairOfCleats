@@ -251,6 +251,11 @@ const buildSearchArgs = (repoPath, payload) => {
   const asyncFilter = payload?.async === true;
   const generatorFilter = payload?.generator === true;
   const returnsFilter = payload?.returns === true;
+  const branchFilter = payload?.branch ? String(payload.branch) : null;
+  const langFilter = payload?.lang ? String(payload.lang) : null;
+  const caseAll = payload?.case === true;
+  const caseFile = payload?.caseFile === true || caseAll;
+  const caseTokens = payload?.caseTokens === true || caseAll;
   const fileFilters = [];
   const toList = (value) => (Array.isArray(value) ? value : (value == null ? [] : [value]));
   fileFilters.push(...toList(payload?.path));
@@ -301,6 +306,11 @@ const buildSearchArgs = (repoPath, payload) => {
   if (asyncFilter) searchArgs.push('--async');
   if (generatorFilter) searchArgs.push('--generator');
   if (returnsFilter) searchArgs.push('--returns');
+  if (branchFilter) searchArgs.push('--branch', branchFilter);
+  if (langFilter) searchArgs.push('--lang', langFilter);
+  if (caseAll) searchArgs.push('--case');
+  if (!caseAll && caseFile) searchArgs.push('--case-file');
+  if (!caseAll && caseTokens) searchArgs.push('--case-tokens');
   for (const entry of fileFilters) {
     if (entry == null || entry === '') continue;
     searchArgs.push('--path', String(entry));

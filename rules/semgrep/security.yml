@@ -1,0 +1,12 @@
+rules:
+  - id: poct-security-eval
+    patterns:
+      - pattern: eval(...)
+    message: Avoid eval() usage.
+    severity: WARNING
+    languages:
+      - javascript
+      - typescript
+    metadata:
+      category: security
+      confidence: LOW

@@ -1,0 +1,45 @@
+{
+  "packs": [
+    {
+      "id": "semgrep-security",
+      "label": "Semgrep security starter pack",
+      "engine": "semgrep",
+      "rules": [
+        "rules/semgrep/security.yml"
+      ],
+      "severity": "medium",
+      "tags": [
+        "security",
+        "baseline"
+      ],
+      "description": "Basic security-oriented rules for common code patterns."
+    },
+    {
+      "id": "astgrep-js-safety",
+      "label": "ast-grep JS safety pack",
+      "engine": "ast-grep",
+      "rules": [
+        "rules/ast-grep/js-safety.yml"
+      ],
+      "severity": "low",
+      "tags": [
+        "safety",
+        "javascript"
+      ],
+      "description": "Lightweight ast-grep rules for JS/TS safety checks."
+    },
+    {
+      "id": "comby-docs",
+      "label": "Comby documentation patterns",
+      "engine": "comby",
+      "rules": [
+        "rules/comby/todo.json"
+      ],
+      "severity": "info",
+      "tags": [
+        "documentation"
+      ],
+      "description": "Template-based checks for TODO-style documentation markers."
+    }
+  ]
+}

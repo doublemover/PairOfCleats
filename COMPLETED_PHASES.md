@@ -38,6 +38,27 @@ SQLite location:
 - [x] Store commit hash and dirty flag when git is present.
 
 
+## Phase 84: Tooling ingest + precedence (status: done)
+- [x] Added SCIP, LSIF, and ctags ingestion tooling with fixtures/tests.
+- [x] Added GNU Global (GTAGS) ingest as a fallback symbol source.
+- [x] Documented symbol source precedence and storage locations.
+
+
+## Phase 85: Structural search (status: done)
+- [x] Added structural search CLI for semgrep, ast-grep, and comby.
+- [x] Added rule-pack registry and example packs.
+- [x] Added fixtures/tests for structural search outputs.
+
+
+## Phase 86: Service-mode indexer (status: done)
+- [x] Added service-mode CLI with repo sync, durable queue, and worker processing.
+- [x] Documented service workflow and config examples.
+
+
+## Phase 87: External backend evaluation (status: done)
+- [x] Added external backend evaluation notes and recommendations.
+
+
 ## MCP surface (status: done)
 - [x] index_status(repoPath)
 - [x] build_index(repoPath, mode=all, incremental=true)

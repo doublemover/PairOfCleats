@@ -94,6 +94,11 @@ export function getToolDefs(defaultModelId) {
           path: { type: 'string', description: 'Substring/regex match for file paths.' },
           file: { type: 'string', description: 'Substring/regex match for file paths.' },
           ext: { type: 'string', description: 'Extension filter (ex: .js).' },
+          lang: { type: 'string', description: 'Language filter (maps to extensions).' },
+          branch: { type: 'string', description: 'Git branch filter (current branch).' },
+          case: { type: 'boolean', description: 'Case-sensitive matching for file/path and tokens.' },
+          caseFile: { type: 'boolean', description: 'Case-sensitive file/path matching.' },
+          caseTokens: { type: 'boolean', description: 'Case-sensitive token matching.' },
           meta: { type: 'object', description: 'Metadata filters for records (key/value).' },
           metaJson: { type: 'string', description: 'JSON metadata filters for records.' }
         },

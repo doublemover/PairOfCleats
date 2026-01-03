@@ -8,6 +8,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import simpleGit from 'simple-git';
 import {
   DEFAULT_MODEL_ID,
   getCacheRuntimeConfig,
@@ -26,7 +27,7 @@ import { createSqliteBackend, getSqliteChunkCount } from './cli-sqlite.js';
 import { resolveFtsWeights } from './fts.js';
 import { getQueryEmbedding } from './embedding.js';
 import { loadQueryCache, parseJson, pruneQueryCache } from './query-cache.js';
-import { hasActiveFilters, normalizeExtFilter, parseMetaFilters } from './filters.js';
+import { hasActiveFilters, mergeExtFilters, normalizeExtFilter, normalizeLangFilter, parseMetaFilters } from './filters.js';
 import { configureOutputCaches, formatFullChunk, formatShortChunk, getOutputCacheReporter } from './output.js';
 import { parseChurnArg, parseModifiedArgs, parseQueryInput, tokenizePhrase, tokenizeQueryTerms, buildPhraseNgrams } from './query-parse.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
@@ -124,7 +125,13 @@ const fileFilters = [];
 if (argv.path) fileFilters.push(argv.path);
 if (argv.file) fileFilters.push(argv.file);
 const fileFilter = fileFilters.length ? fileFilters.flat() : null;
-const extFilter = normalizeExtFilter(argv.ext);
+const caseAll = argv.case === true;
+const caseFile = argv['case-file'] === true || caseAll;
+const caseTokens = argv['case-tokens'] === true || caseAll;
+const branchFilter = argv.branch ? String(argv.branch).trim() : null;
+const extFilterRaw = normalizeExtFilter(argv.ext);
+const langFilter = normalizeLangFilter(argv.lang);
+const extFilter = mergeExtFilters(extFilterRaw, langFilter);
 const metaFilters = parseMetaFilters(argv.meta, argv['meta-json']);
 const sqlitePaths = resolveSqlitePaths(ROOT, userConfig);
 const sqliteCodePath = sqlitePaths.codePath;
@@ -152,6 +159,14 @@ const scoreBlendSparseWeight = Number.isFinite(Number(scoreBlendConfig.sparseWei
 const scoreBlendAnnWeight = Number.isFinite(Number(scoreBlendConfig.annWeight))
   ? Number(scoreBlendConfig.annWeight)
   : 1;
+const symbolBoostConfig = userConfig.search?.symbolBoost || {};
+const symbolBoostEnabled = symbolBoostConfig.enabled !== false;
+const symbolBoostDefinitionWeight = Number.isFinite(Number(symbolBoostConfig.definitionWeight))
+  ? Number(symbolBoostConfig.definitionWeight)
+  : 1.2;
+const symbolBoostExportWeight = Number.isFinite(Number(symbolBoostConfig.exportWeight))
+  ? Number(symbolBoostConfig.exportWeight)
+  : 1.1;
 const minhashMaxDocs = Number.isFinite(Number(userConfig.search?.minhashMaxDocs))
   ? Math.max(0, Number(userConfig.search.minhashMaxDocs))
   : 5000;
@@ -231,6 +246,59 @@ let modelIdForCode = null;
 let modelIdForProse = null;
 let modelIdForRecords = null;
 
+const loadBranchFromMetrics = (mode) => {
+  try {
+    const metricsPath = path.join(metricsDir, `index-${mode}.json`);
+    if (!fsSync.existsSync(metricsPath)) return null;
+    const raw = JSON.parse(fsSync.readFileSync(metricsPath, 'utf8'));
+    return raw?.git?.branch || null;
+  } catch {
+    return null;
+  }
+};
+
+async function resolveRepoBranch() {
+  const fromMetrics = runCode ? loadBranchFromMetrics('code') : null;
+  const fromProse = !fromMetrics && runProse ? loadBranchFromMetrics('prose') : null;
+  if (fromMetrics || fromProse) return fromMetrics || fromProse;
+  try {
+    const git = simpleGit(ROOT);
+    const status = await git.status();
+    return status.current || null;
+  } catch {
+    return null;
+  }
+}
+
+const repoBranch = branchFilter ? await resolveRepoBranch() : null;
+if (branchFilter) {
+  const normalizedBranch = caseFile ? branchFilter : branchFilter.toLowerCase();
+  const normalizedRepo = repoBranch ? (caseFile ? repoBranch : repoBranch.toLowerCase()) : null;
+  const branchMatches = normalizedRepo ? normalizedRepo === normalizedBranch : true;
+  if (repoBranch && !branchMatches) {
+    const payload = {
+      backend: backendLabel,
+      prose: [],
+      code: [],
+      records: [],
+      stats: {
+        branch: repoBranch,
+        branchFilter,
+        branchMatch: false
+      }
+    };
+    if (jsonOutput) {
+      console.log(JSON.stringify(payload, null, 2));
+    } else {
+      console.log(`Branch filter ${branchFilter} did not match current branch ${repoBranch}; returning no results.`);
+    }
+    process.exit(0);
+  }
+  if (!repoBranch) {
+    console.warn('Branch filter requested but repo branch is unavailable; continuing without branch validation.');
+  }
+}
+
 /**
  * Return the active SQLite connection for a mode.
  * @param {'code'|'prose'} mode
@@ -279,17 +347,17 @@ const color = {
 
 // --- QUERY TOKENIZATION ---
 const parsedQuery = parseQueryInput(query);
-const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict, dictConfig);
+const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict, { ...dictConfig, caseSensitive: caseTokens });
 const phraseTokens = parsedQuery.phrases
-  .map((phrase) => tokenizePhrase(phrase, dict, dictConfig))
+  .map((phrase) => tokenizePhrase(phrase, dict, { ...dictConfig, caseSensitive: caseTokens }))
   .filter((tokens) => tokens.length);
 const phraseInfo = buildPhraseNgrams(phraseTokens, postingsConfig);
 const phraseNgrams = phraseInfo.ngrams;
 const phraseNgramSet = phraseNgrams.length ? new Set(phraseNgrams) : null;
 const phraseRange = { min: phraseInfo.minLen, max: phraseInfo.maxLen };
-const excludeTokens = tokenizeQueryTerms(parsedQuery.excludeTerms, dict, dictConfig);
+const excludeTokens = tokenizeQueryTerms(parsedQuery.excludeTerms, dict, { ...dictConfig, caseSensitive: caseTokens });
 const excludePhraseTokens = parsedQuery.excludePhrases
-  .map((phrase) => tokenizePhrase(phrase, dict, dictConfig))
+  .map((phrase) => tokenizePhrase(phrase, dict, { ...dictConfig, caseSensitive: caseTokens }))
   .filter((tokens) => tokens.length);
 const excludePhraseInfo = buildPhraseNgrams(excludePhraseTokens, postingsConfig);
 const excludePhraseNgrams = excludePhraseInfo.ngrams;
@@ -337,6 +405,8 @@ const filters = {
   generator: argv.generator,
   returns: argv.returns,
   file: fileFilter,
+  caseFile,
+  caseTokens,
   filePrefilter: {
     enabled: filePrefilterEnabled,
     chargramN: fileChargramN
@@ -381,6 +451,9 @@ const cacheFilters = {
   returns: argv.returns || false,
   file: fileFilter || null,
   ext: extFilter || null,
+  branch: branchFilter || null,
+  caseFile,
+  caseTokens,
   meta: metaFilters,
   chunkAuthor: chunkAuthorFilter || null,
   modifiedAfter,
@@ -463,6 +536,11 @@ const searchPipeline = createSearchPipeline({
   queryTokens,
   phraseNgramSet,
   phraseRange,
+  symbolBoost: {
+    enabled: symbolBoostEnabled,
+    definitionWeight: symbolBoostDefinitionWeight,
+    exportWeight: symbolBoostExportWeight
+  },
   filters,
   filtersActive,
   topN: argv.n,

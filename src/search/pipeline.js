@@ -21,6 +21,7 @@ export function createSearchPipeline(context) {
     queryTokens,
     phraseNgramSet,
     phraseRange,
+    symbolBoost,
     filters,
     filtersActive,
     topN,
@@ -41,9 +42,31 @@ export function createSearchPipeline(context) {
   const blendAnnWeight = Number.isFinite(Number(scoreBlend?.annWeight))
     ? Number(scoreBlend.annWeight)
     : 1;
+  const symbolBoostEnabled = symbolBoost?.enabled !== false;
+  const symbolBoostDefinitionWeight = Number.isFinite(Number(symbolBoost?.definitionWeight))
+    ? Number(symbolBoost.definitionWeight)
+    : 1.15;
+  const symbolBoostExportWeight = Number.isFinite(Number(symbolBoost?.exportWeight))
+    ? Number(symbolBoost.exportWeight)
+    : 1.1;
   const minhashLimit = Number.isFinite(Number(minhashMaxDocs)) && Number(minhashMaxDocs) > 0
     ? Number(minhashMaxDocs)
     : null;
+
+  const isDefinitionKind = (kind) => typeof kind === 'string'
+    && /Declaration|Definition|Initializer|Deinitializer/.test(kind);
+
+  const isExportedChunk = (chunk) => {
+    if (!chunk) return false;
+    if (chunk.exported === true || chunk?.meta?.exported === true) return true;
+    const kind = chunk.kind || '';
+    if (typeof kind === 'string' && kind.includes('Export')) return true;
+    const exportsList = Array.isArray(chunk.exports)
+      ? chunk.exports
+      : (Array.isArray(chunk?.meta?.exports) ? chunk.meta.exports : null);
+    if (!exportsList || !chunk.name) return false;
+    return exportsList.includes(chunk.name);
+  };
 
   /**
    * Build a candidate set from file-backed indexes (or SQLite).
@@ -275,6 +298,27 @@ export function createSearchPipeline(context) {
             score += phraseBoost;
           }
         }
+        let symbolBoost = 0;
+        let symbolFactor = 1;
+        let symbolInfo = null;
+        if (symbolBoostEnabled) {
+          const isDefinition = isDefinitionKind(chunk.kind);
+          const isExported = isExportedChunk(enrichedChunk);
+          let factor = 1;
+          if (isDefinition) factor *= symbolBoostDefinitionWeight;
+          if (isExported) factor *= symbolBoostExportWeight;
+          symbolFactor = factor;
+          if (factor !== 1) {
+            symbolBoost = score * (factor - 1);
+            score *= factor;
+          }
+          symbolInfo = {
+            definition: isDefinition,
+            export: isExported,
+            factor: symbolFactor,
+            boost: symbolBoost
+          };
+        }
         const scoreBreakdown = {
           sparse: sparseScore != null ? {
             type: sparseTypeValue,
@@ -294,6 +338,7 @@ export function createSearchPipeline(context) {
             boost: phraseBoost,
             factor: phraseFactor
           } : null,
+          symbol: symbolInfo,
           blend: blendInfo,
           selected: {
             type: scoreType,

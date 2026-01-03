@@ -308,6 +308,11 @@ const actions = [
     covers: ['api-server-stream-test']
   },
   {
+    label: 'indexer-service-test',
+    run: () => runNode('indexer-service-test', path.join(root, 'tests', 'indexer-service.js')),
+    covers: ['indexer-service', 'indexer-service-test']
+  },
+  {
     label: 'git-hooks-test',
     run: () => runNode('git-hooks-test', path.join(root, 'tests', 'git-hooks.js')),
     covers: ['git-hooks-test', 'git-hooks']
@@ -328,6 +333,36 @@ const actions = [
     covers: ['search-filters-test']
   },
   {
+    label: 'ctags-ingest-test',
+    run: () => runNode('ctags-ingest-test', path.join(root, 'tests', 'ctags-ingest.js')),
+    covers: ['ctags-ingest', 'ctags-ingest-test']
+  },
+  {
+    label: 'scip-ingest-test',
+    run: () => runNode('scip-ingest-test', path.join(root, 'tests', 'scip-ingest.js')),
+    covers: ['scip-ingest', 'scip-ingest-test']
+  },
+  {
+    label: 'lsif-ingest-test',
+    run: () => runNode('lsif-ingest-test', path.join(root, 'tests', 'lsif-ingest.js')),
+    covers: ['lsif-ingest', 'lsif-ingest-test']
+  },
+  {
+    label: 'gtags-ingest-test',
+    run: () => runNode('gtags-ingest-test', path.join(root, 'tests', 'gtags-ingest.js')),
+    covers: ['gtags-ingest', 'gtags-ingest-test']
+  },
+  {
+    label: 'structural-search-test',
+    run: () => runNode('structural-search-test', path.join(root, 'tests', 'structural-search.js')),
+    covers: ['structural-search', 'structural-search-test']
+  },
+  {
+    label: 'lang-filter-test',
+    run: () => runNode('lang-filter-test', path.join(root, 'tests', 'lang-filter.js')),
+    covers: ['lang-filter-test']
+  },
+  {
     label: 'sqlite-auto-backend-test',
     run: () => runNode('sqlite-auto-backend-test', path.join(root, 'tests', 'sqlite-auto-backend.js')),
     covers: ['sqlite-auto-backend-test']
@@ -336,6 +371,11 @@ const actions = [
     label: 'search-explain-test',
     run: () => runNode('search-explain-test', path.join(root, 'tests', 'search-explain.js')),
     covers: ['search-explain-test']
+  },
+  {
+    label: 'search-symbol-boost-test',
+    run: () => runNode('search-symbol-boost-test', path.join(root, 'tests', 'search-symbol-boost.js')),
+    covers: ['search-symbol-boost-test']
   },
   {
     label: 'vscode-extension-test',

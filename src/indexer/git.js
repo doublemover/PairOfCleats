@@ -143,6 +143,21 @@ export async function getGitMeta(file, startLine = 1, endLine = 1, options = {})
 }
 
 /**
+ * Resolve the current git branch for a repo.
+ * @param {string} repoRoot
+ * @returns {Promise<{branch:string|null,isRepo:boolean}>}
+ */
+export async function getRepoBranch(repoRoot) {
+  try {
+    const git = simpleGit({ baseDir: repoRoot });
+    const status = await git.status();
+    return { branch: status.current || null, isRepo: true };
+  } catch {
+    return { branch: null, isRepo: false };
+  }
+}
+
+/**
  * Compute churn from git numstat output.
  * @param {import('simple-git').SimpleGit} git
  * @param {string} file

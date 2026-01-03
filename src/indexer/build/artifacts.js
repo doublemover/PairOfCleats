@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getMetricsDir } from '../../../tools/dict-utils.js';
+import { getRepoBranch } from '../git.js';
 import { log } from '../../shared/progress.js';
 import { writeJsonArrayFile, writeJsonObjectFile } from '../../shared/json-stream.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
@@ -73,6 +74,13 @@ export async function writeIndexArtifacts(input) {
       churn_commits: c.churn_commits
     });
   }
+  const fileExportMap = new Map();
+  if (state.fileRelations && state.fileRelations.size) {
+    for (const [file, relations] of state.fileRelations.entries()) {
+      if (!Array.isArray(relations?.exports) || !relations.exports.length) continue;
+      fileExportMap.set(file, new Set(relations.exports));
+    }
+  }
 
   function* chunkMetaIterator(chunks) {
     for (const c of chunks) {
@@ -109,6 +117,25 @@ export async function writeIndexArtifacts(input) {
         entry.ngrams = ngramOut;
       }
       yield entry;
+    }
+  }
+  function* repoMapIterator(chunks) {
+    for (const c of chunks) {
+      if (!c?.name) continue;
+      const exportsSet = fileExportMap.get(c.file) || null;
+      const exported = exportsSet
+        ? exportsSet.has(c.name) || exportsSet.has('*') || (c.name === 'default' && exportsSet.has('default'))
+        : false;
+      yield {
+        file: c.file,
+        ext: c.ext,
+        name: c.name,
+        kind: c.kind,
+        signature: c.docmeta?.signature || null,
+        startLine: c.startLine,
+        endLine: c.endLine,
+        exported
+      };
     }
   }
   function* fileRelationsIterator(relations) {
@@ -212,6 +239,7 @@ export async function writeIndexArtifacts(input) {
     arrays: { vectors: postings.quantizedCodeVectors }
   });
   enqueueJsonArray('chunk_meta', chunkMetaIterator(state.chunks), { compressible: false });
+  enqueueJsonArray('repo_map', repoMapIterator(state.chunks), { compressible: false });
   enqueueJsonObject('minhash_signatures', { arrays: { signatures: postings.minhashSigs } });
   enqueueJsonObject('token_postings', {
     fields: {
@@ -262,6 +290,7 @@ export async function writeIndexArtifacts(input) {
     mode,
     indexDir: path.resolve(outDir),
     incremental: incrementalEnabled,
+    git: await getRepoBranch(root),
     cache: {
       hits: cacheHits,
       misses: cacheMisses,

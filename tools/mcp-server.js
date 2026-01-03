@@ -712,6 +712,11 @@ function runSearch(args = {}) {
   const asyncFilter = args.async === true;
   const generatorFilter = args.generator === true;
   const returnsFilter = args.returns === true;
+  const branchFilter = args.branch ? String(args.branch) : null;
+  const langFilter = args.lang ? String(args.lang) : null;
+  const caseAll = args.case === true;
+  const caseFile = args.caseFile === true || caseAll;
+  const caseTokens = args.caseTokens === true || caseAll;
   const fileFilters = [];
   const toList = (value) => (Array.isArray(value) ? value : (value == null ? [] : [value]));
   fileFilters.push(...toList(args.path));
@@ -765,6 +770,11 @@ function runSearch(args = {}) {
   if (asyncFilter) searchArgs.push('--async');
   if (generatorFilter) searchArgs.push('--generator');
   if (returnsFilter) searchArgs.push('--returns');
+  if (branchFilter) searchArgs.push('--branch', branchFilter);
+  if (langFilter) searchArgs.push('--lang', langFilter);
+  if (caseAll) searchArgs.push('--case');
+  if (!caseAll && caseFile) searchArgs.push('--case-file');
+  if (!caseAll && caseTokens) searchArgs.push('--case-tokens');
   for (const entry of fileFilters) {
     if (entry == null || entry === '') continue;
     searchArgs.push('--path', String(entry));

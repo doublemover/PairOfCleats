@@ -146,6 +146,15 @@
             "annWeight": { "type": "number" }
           }
         },
+        "symbolBoost": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "definitionWeight": { "type": "number", "default": 1.2 },
+            "exportWeight": { "type": "number", "default": 1.1 }
+          }
+        },
         "minhashMaxDocs": { "type": "number" },
         "queryCache": {
           "type": "object",

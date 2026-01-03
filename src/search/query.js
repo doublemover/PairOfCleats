@@ -1,4 +1,10 @@
-import { extractNgrams, extractPunctuationTokens, splitId, splitWordsWithDict } from '../shared/tokenize.js';
+import {
+  extractNgrams,
+  extractPunctuationTokens,
+  splitId,
+  splitIdPreserveCase,
+  splitWordsWithDict
+} from '../shared/tokenize.js';
 
 /**
  * Parse churn arg into a numeric threshold.
@@ -79,8 +85,10 @@ export function parseQueryInput(raw) {
 const normalizeToken = (value) => String(value || '').normalize('NFKD');
 
 const expandQueryToken = (raw, dict, options) => {
+  const caseSensitive = options?.caseSensitive === true;
   const normalized = normalizeToken(raw);
   if (!normalized) return [];
+  if (caseSensitive) return [normalized];
   if (normalized.length <= 3 || dict.has(normalized)) return [normalized];
   const expanded = splitWordsWithDict(normalized, dict, options);
   return expanded.length ? expanded : [normalized];
@@ -93,11 +101,13 @@ const expandQueryToken = (raw, dict, options) => {
  * @returns {string[]}
  */
 export function tokenizeQueryTerms(rawTerms, dict, options) {
+  const caseSensitive = options?.caseSensitive === true;
+  const splitter = caseSensitive ? splitIdPreserveCase : splitId;
   const tokens = [];
   const entries = Array.isArray(rawTerms) ? rawTerms : (rawTerms ? [rawTerms] : []);
   for (const entry of entries) {
     tokens.push(...extractPunctuationTokens(entry));
-    const parts = splitId(String(entry || '')).map(normalizeToken).filter(Boolean);
+    const parts = splitter(String(entry || '')).map(normalizeToken).filter(Boolean);
     for (const part of parts) {
       tokens.push(...expandQueryToken(part, dict, options));
     }
@@ -112,7 +122,9 @@ export function tokenizeQueryTerms(rawTerms, dict, options) {
  * @returns {string[]}
  */
 export function tokenizePhrase(phrase, dict, options) {
-  const parts = splitId(String(phrase || '')).map(normalizeToken).filter(Boolean);
+  const caseSensitive = options?.caseSensitive === true;
+  const splitter = caseSensitive ? splitIdPreserveCase : splitId;
+  const parts = splitter(String(phrase || '')).map(normalizeToken).filter(Boolean);
   const tokens = [];
   tokens.push(...extractPunctuationTokens(phrase));
   for (const part of parts) {

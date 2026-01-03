@@ -111,6 +111,8 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     generator: generatorOnly,
     returns: returnsOnly,
     file,
+    caseFile,
+    caseTokens,
     ext,
     meta: metaFilter,
     chunkAuthor,
@@ -120,6 +122,7 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     excludePhraseRange
   } = filters;
   const normalize = (value) => String(value || '').toLowerCase();
+  const normalizeFile = (value) => (caseFile ? String(value || '') : normalize(value));
   const normalizeList = (value) => {
     if (!value) return [];
     const entries = Array.isArray(value) ? value : [value];
@@ -135,18 +138,18 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     if (regexMatch) {
       const pattern = regexMatch[1];
       let flags = regexMatch[2] || '';
-      if (!flags.includes('i')) flags += 'i';
+      if (!caseFile && !flags.includes('i')) flags += 'i';
       try {
         return { type: 'regex', value: new RegExp(pattern, flags) };
       } catch {
-        return { type: 'substring', value: normalize(raw) };
+        return { type: 'substring', value: normalizeFile(raw) };
       }
     }
-    return { type: 'substring', value: normalize(raw) };
+    return { type: 'substring', value: normalizeFile(raw) };
   };
   const fileMatchers = normalizeList(file).map(parseFileMatcher).filter(Boolean);
   const filePrefilterConfig = filters.filePrefilter || {};
-  const filePrefilterEnabled = filePrefilterConfig.enabled !== false;
+  const filePrefilterEnabled = filePrefilterConfig.enabled !== false && !caseFile;
   const fileChargramN = Number.isFinite(Number(filePrefilterConfig.chargramN))
     ? Math.max(2, Math.floor(Number(filePrefilterConfig.chargramN)))
     : (filterIndex?.fileChargramN || 3);
@@ -161,8 +164,8 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
   const typeNeedles = normalizeList(type).map(normalize);
   const authorNeedles = normalizeList(author).map(normalize);
   const metaFilters = Array.isArray(metaFilter) ? metaFilter : (metaFilter ? [metaFilter] : []);
-  const excludeNeedles = normalizeList(excludeTokens).map(normalize);
-  const excludePhraseNeedles = normalizeList(excludePhrases).map(normalize);
+  const excludeNeedles = normalizeList(excludeTokens).map((value) => (caseTokens ? String(value || '') : normalize(value)));
+  const excludePhraseNeedles = normalizeList(excludePhrases).map((value) => (caseTokens ? String(value || '') : normalize(value)));
   const collectExactMatches = (map, values) => {
     const matches = new Set();
     for (const value of values) {
@@ -244,10 +247,10 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     for (const matcher of fileMatchers) {
       let needle = null;
       if (matcher.type === 'substring') {
-        needle = normalize(matcher.value);
+        needle = normalizeFile(matcher.value);
       } else if (matcher.type === 'regex') {
         const literal = extractRegexLiteral(matcher.value.source || '');
-        needle = literal ? normalize(literal) : null;
+        needle = literal ? normalizeFile(literal) : null;
       }
       if (!needle || needle.length < fileChargramN) continue;
       const grams = tri(needle, fileChargramN);
@@ -343,6 +346,7 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     }
     return fileRelations[file] || null;
   };
+  const normalizeToken = caseTokens ? (value) => String(value || '') : normalize;
 
   const indexedSets = [];
   if (filterIndex) {
@@ -375,13 +379,13 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     if (!c) return false;
     if (fileMatchers.length) {
       const fileValue = String(c.file || '');
-      const fileValueLower = normalize(fileValue);
+      const fileValueNorm = normalizeFile(fileValue);
       const matches = fileMatchers.some((matcher) => {
         if (matcher.type === 'regex') {
           matcher.value.lastIndex = 0;
           return matcher.value.test(fileValue);
         }
-        return fileValueLower.includes(matcher.value);
+        return fileValueNorm.includes(matcher.value);
       });
       if (!matches) return false;
     }
@@ -396,8 +400,8 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
       if (!ngrams && excludePhraseNeedles.length && tokens.length && excludePhraseRange?.min && excludePhraseRange?.max) {
         ngrams = extractNgrams(tokens, excludePhraseRange.min, excludePhraseRange.max);
       }
-      const tokenSet = new Set(tokens.map(normalize));
-      const ngramSet = new Set((ngrams || []).map(normalize));
+      const tokenSet = new Set(tokens.map(normalizeToken));
+      const ngramSet = new Set((ngrams || []).map(normalizeToken));
       const tokenMatch = excludeNeedles.some((needle) => tokenSet.has(needle) || ngramSet.has(needle));
       if (tokenMatch) return false;
       if (excludePhraseNeedles.some((needle) => ngramSet.has(needle))) return false;

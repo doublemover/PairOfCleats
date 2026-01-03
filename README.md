@@ -27,6 +27,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - Add `--incremental` to reuse per-file cache bundles.
 - `npm run watch-index` (FS events by default; add `--watch-poll` to enable polling)     
 - `npm run api-server` (local HTTP JSON API for status/search)
+- `npm run indexer-service` (multi-repo sync + queue; see [docs/service-mode.md](docs/service-mode.md))
 - Cache is outside the repo by default; set `cache.root` in `.pairofcleats.json` to override.
 - CLI commands auto-detect repo roots; use `--repo <path>` to override.
 - Local CLI entrypoint: `node bin/pairofcleats.js <command>` (mirrors `npm run` scripts).
@@ -59,7 +60,13 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - phrase/chargram postings (configurable via `indexing.postings.*`)
   - MinHash signatures
   - dense vectors (merged + doc/code variants; MiniLM)
+  - repo map (symbols + signatures + file paths)
   - incremental per-file cache bundles
+  - optional ctags ingest (`npm run ctags-ingest`) ([docs/ctags.md](docs/ctags.md))
+  - optional SCIP ingest (`npm run scip-ingest`) ([docs/scip.md](docs/scip.md))
+  - optional LSIF ingest (`npm run lsif-ingest`) ([docs/lsif.md](docs/lsif.md))
+  - optional GNU Global ingest (`npm run gtags-ingest`) ([docs/gtags.md](docs/gtags.md))
+- Symbol source precedence: [docs/symbol-sources.md](docs/symbol-sources.md)
 </details>
 
 <details>
@@ -70,11 +77,13 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 - Dense vectors (optional, ANN-aware when enabled)
 - Query syntax: `-term` excludes tokens, `"exact phrase"` boosts phrase matches, `-"phrase"` excludes phrases
 - File/path regex and substring filters use a chargram prefilter before exact matching.
+- Symbol-aware ranking boosts for declarations/exports (configurable via `search.symbolBoost.*`, default def=1.2, export=1.1).
 - Modes: `code`, `prose`, `both`, `records`, `all`
 - Backends:
   - `memory` (file-backed JSON)
   - `sqlite` (same scoring, shared artifacts)
   - `sqlite-fts` (SQLite-only FTS5 scoring)
+- Structural search CLI for rule packs (Semgrep/ast-grep/Comby): [docs/structural-search.md](docs/structural-search.md)
 - Common filters (ext/kind/author/visibility) use precomputed indexes for speed.
 - Filters (high-signal subset):
   - `--type`, `--signature`, `--param`, `--decorator`, `--inferred-type`, `--return-type`
@@ -84,11 +93,12 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
   - `--branches`, `--loops`, `--breaks`, `--continues`
   - `--async`, `--generator`, `--returns`
   - `--author`, `--chunk-author`, `--modified-after`, `--modified-since`, `--churn [min]` (git numstat added+deleted), `--lint`, `--calls`, `--import`, `--uses`, `--extends`
-  - `--path`/`--file` (substring or `/regex/`), `--ext` (generic file filters)
+  - `--path`/`--file` (substring or `/regex/`), `--ext`, `--lang`, `--branch`
+  - `--case`, `--case-file`, `--case-tokens` (case-sensitive matching)
   - `--meta`, `--meta-json` (records metadata filters)
 - Output:
   - human-readable (color), `--json` (full), or `--json-compact` (lean tooling payload)
-  - full JSON includes `score` (selected), `scoreType`, `sparseScore`, `annScore`, and `scoreBreakdown` (sparse/ann/phrase/selected)
+  - full JSON includes `score` (selected), `scoreType`, `sparseScore`, `annScore`, and `scoreBreakdown` (sparse/ann/phrase/symbol/selected)
   - `--explain` / `--why` prints a score breakdown in human output (selected/sparse/ANN/phrase)
 - Optional query cache (`search.queryCache.*` in `.pairofcleats.json`)
 </details>
@@ -318,6 +328,11 @@ Meta:
 - [`docs/query-cache.md`](docs/query-cache.md) - query cache behavior
 - [`docs/repometrics-dashboard.md`](docs/repometrics-dashboard.md) - repometrics output and usage
 - [`docs/setup.md`](docs/setup.md) - unified setup flow and flags
+- [`docs/structural-search.md`](docs/structural-search.md) - structural search CLI
+- [`docs/rule-packs.md`](docs/rule-packs.md) - rule pack registry
+- [`docs/gtags.md`](docs/gtags.md) - GNU Global ingest
+- [`docs/service-mode.md`](docs/service-mode.md) - multi-repo service workflow
+- [`docs/external-backends.md`](docs/external-backends.md) - backend evaluation notes
 - [`docs/triage-records.md`](docs/triage-records.md) - triage ingestion + context packs
 - [`docs/config-schema.json`](docs/config-schema.json) - config schema for `.pairofcleats.json`
 - [`docs/references/README.md`](docs/references/README.md) - OSS references and takeaways

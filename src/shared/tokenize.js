@@ -31,6 +31,20 @@ export function splitId(s) {
     .filter(Boolean);
 }
 
+/**
+ * Split an identifier into tokens while preserving case.
+ * @param {string} s
+ * @returns {string[]}
+ */
+export function splitIdPreserveCase(s) {
+  return s
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_\-]+/g, ' ')
+    .split(/[^a-zA-Z0-9]+/u)
+    .flatMap((tok) => tok.split(/(?<=.)(?=[A-Z])/))
+    .filter(Boolean);
+}
+
 export function extractPunctuationTokens(text) {
   if (!text) return [];
   const tokens = text.match(/[=<>!:+\-*/%&|^~.?]{1,4}|[()[\]{}.,;:]/g);

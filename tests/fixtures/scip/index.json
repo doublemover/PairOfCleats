@@ -1,0 +1,28 @@
+{
+  "documents": [
+    {
+      "relativePath": "src/example.js",
+      "language": "JavaScript",
+      "symbols": [
+        {
+          "symbol": "local 1",
+          "kind": "Function",
+          "displayName": "doThing",
+          "signature": "doThing()"
+        }
+      ],
+      "occurrences": [
+        {
+          "range": [1, 0, 1, 7],
+          "symbol": "local 1",
+          "symbolRoles": 1
+        },
+        {
+          "range": [3, 2, 3, 9],
+          "symbol": "local 1",
+          "symbolRoles": 2
+        }
+      ]
+    }
+  ]
+}

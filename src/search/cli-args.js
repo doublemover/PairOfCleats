@@ -13,7 +13,10 @@ const BOOLEAN_FLAGS = [
   'generator',
   'returns',
   'explain',
-  'why'
+  'why',
+  'case',
+  'case-file',
+  'case-tokens'
 ];
 
 const STRING_FLAGS = [
@@ -45,6 +48,7 @@ const STRING_FLAGS = [
   'meta-json',
   'file',
   'ext',
+  'lang',
   'chunk-author',
   'modified-after',
   'modified-since',
@@ -55,6 +59,7 @@ const STRING_FLAGS = [
   'path',
   'model',
   'repo',
+  'branch',
   'fts-profile',
   'fts-weights',
   'bm25-k1',
@@ -119,7 +124,8 @@ export function getSearchUsage() {
     '    --risk <tag> --risk-tag <tag> --risk-source <name> --risk-sink <name> --risk-category <name> --risk-flow <name>',
     '    --visibility <name> --extends <name> --async --generator --returns --lint',
     '    --churn [min] --modified-after <date> --modified-since <days> --chunk-author <name>',
-    '    --path <pattern> --file <pattern> --ext <.ext>',
+    '    --path <pattern> --file <pattern> --ext <.ext> --lang <language> --branch <name>',
+    '    --case --case-file --case-tokens',
     '    --meta <k=v> --meta-json <json>'
   ].join('\n');
 }
