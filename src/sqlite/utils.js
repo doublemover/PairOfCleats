@@ -93,6 +93,7 @@ export function loadIndex(dir, modelId) {
   if (denseVec && !denseVec.model) denseVec.model = modelId || null;
   return {
     chunkMeta,
+    fileMeta: loadOptional(dir, 'file_meta.json'),
     denseVec,
     phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
     chargrams: loadOptional(dir, 'chargram_postings.json'),

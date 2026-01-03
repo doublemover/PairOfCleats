@@ -100,3 +100,4 @@ SQLite vector extension).
 - Split DBs use per-mode chunk IDs directly (no offsets).
 - `idx_chunks_file` and `idx_file_manifest_mode_file` speed file-level updates.
 - File paths in SQLite are normalized to use `/`.
+- When `chunk_meta.json` stores `fileId` instead of `file`, `build-sqlite-index` uses `file_meta.json` to resolve file paths, extensions, and external docs, and to populate `file_manifest`.

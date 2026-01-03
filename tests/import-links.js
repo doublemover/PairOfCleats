@@ -18,6 +18,9 @@ await fsPromises.writeFile(path.join(repoRoot, 'src', 'a.js'), "import x from 'l
 await fsPromises.writeFile(path.join(repoRoot, 'src', 'b.js'), "const x = require('lib');\n");
 await fsPromises.writeFile(path.join(repoRoot, 'src', 'c.js'), "import y from 'other';\n");
 
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+
 const env = {
   ...process.env,
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,

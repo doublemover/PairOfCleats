@@ -44,18 +44,18 @@ if (buildResult.status !== 0) {
 
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-const chunkMetaPath = path.join(codeDir, 'chunk_meta.json');
-if (!fs.existsSync(chunkMetaPath)) {
-  console.error(`Missing chunk metadata: ${chunkMetaPath}`);
+const fileMetaPath = path.join(codeDir, 'file_meta.json');
+if (!fs.existsSync(fileMetaPath)) {
+  console.error(`Missing file metadata: ${fileMetaPath}`);
   process.exit(1);
 }
 
-const chunks = JSON.parse(fs.readFileSync(chunkMetaPath, 'utf8'));
+const files = JSON.parse(fs.readFileSync(fileMetaPath, 'utf8'));
 const expectedScoped = 'https://www.npmjs.com/package/@scope/pkg';
 const expectedUnscoped = 'https://www.npmjs.com/package/left-pad';
 const encodedScoped = 'https://www.npmjs.com/package/%40scope/pkg';
 
-const allDocs = chunks.flatMap((chunk) => chunk.externalDocs || []);
+const allDocs = files.flatMap((file) => file.externalDocs || []);
 if (!allDocs.includes(expectedScoped)) {
   console.error(`Missing scoped npm doc link: ${expectedScoped}`);
   process.exit(1);

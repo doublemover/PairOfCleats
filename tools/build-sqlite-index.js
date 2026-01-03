@@ -192,6 +192,13 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
   const insertFileManifest = db.prepare(
     'INSERT OR REPLACE INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
   );
+  const fileMetaById = new Map();
+  if (Array.isArray(index?.fileMeta)) {
+    for (const entry of index.fileMeta) {
+      if (!entry || !Number.isFinite(entry.id)) continue;
+      fileMetaById.set(entry.id, entry);
+    }
+  }
 
   /**
    * Ingest token postings into SQLite.
@@ -330,18 +337,36 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
 
     const rows = [];
     for (const chunk of chunkMeta) {
+      const fileMeta = Number.isFinite(chunk.fileId)
+        ? fileMetaById.get(chunk.fileId)
+        : null;
+      const resolvedFile = normalizeFilePath(chunk.file || fileMeta?.file);
+      const resolvedExt = chunk.ext || fileMeta?.ext || null;
+      const resolvedExternalDocs = chunk.externalDocs || fileMeta?.externalDocs || null;
+      const resolvedLastModified = chunk.last_modified || fileMeta?.last_modified || null;
+      const resolvedLastAuthor = chunk.last_author || fileMeta?.last_author || null;
+      const resolvedChurn = typeof chunk.churn === 'number' ? chunk.churn : (typeof fileMeta?.churn === 'number' ? fileMeta.churn : null);
+      const resolvedChurnAdded = typeof chunk.churn_added === 'number'
+        ? chunk.churn_added
+        : (typeof fileMeta?.churn_added === 'number' ? fileMeta.churn_added : null);
+      const resolvedChurnDeleted = typeof chunk.churn_deleted === 'number'
+        ? chunk.churn_deleted
+        : (typeof fileMeta?.churn_deleted === 'number' ? fileMeta.churn_deleted : null);
+      const resolvedChurnCommits = typeof chunk.churn_commits === 'number'
+        ? chunk.churn_commits
+        : (typeof fileMeta?.churn_commits === 'number' ? fileMeta.churn_commits : null);
       const id = chunk.id;
       const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
       const tokensText = tokensArray.join(' ');
       rows.push({
         id,
         mode: targetMode,
-        file: normalizeFilePath(chunk.file),
+        file: resolvedFile,
         start: chunk.start,
         end: chunk.end,
         startLine: chunk.startLine || null,
         endLine: chunk.endLine || null,
-        ext: chunk.ext || null,
+        ext: resolvedExt,
         kind: chunk.kind || null,
         name: chunk.name || null,
         headline: chunk.headline || null,
@@ -356,10 +381,13 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
         stats: chunk.stats ? JSON.stringify(chunk.stats) : null,
         complexity: chunk.complexity ? JSON.stringify(chunk.complexity) : null,
         lint: chunk.lint ? JSON.stringify(chunk.lint) : null,
-        externalDocs: chunk.externalDocs ? JSON.stringify(chunk.externalDocs) : null,
-        last_modified: chunk.last_modified || null,
-        last_author: chunk.last_author || null,
-        churn: typeof chunk.churn === 'number' ? chunk.churn : null,
+        externalDocs: resolvedExternalDocs ? JSON.stringify(resolvedExternalDocs) : null,
+        last_modified: resolvedLastModified,
+        last_author: resolvedLastAuthor,
+        churn: resolvedChurn,
+        churn_added: resolvedChurnAdded,
+        churn_deleted: resolvedChurnDeleted,
+        churn_commits: resolvedChurnCommits,
         chunk_authors: chunk.chunk_authors ? JSON.stringify(chunk.chunk_authors) : null
       });
       count++;
@@ -384,8 +412,12 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
     if (!indexData?.chunkMeta) return;
     const fileCounts = new Map();
     for (const chunk of indexData.chunkMeta) {
-      if (!chunk?.file) continue;
-      const normalizedFile = normalizeFilePath(chunk.file);
+      const fileMeta = Number.isFinite(chunk?.fileId)
+        ? fileMetaById.get(chunk.fileId)
+        : null;
+      const sourceFile = chunk?.file || fileMeta?.file;
+      if (!sourceFile) continue;
+      const normalizedFile = normalizeFilePath(sourceFile);
       fileCounts.set(normalizedFile, (fileCounts.get(normalizedFile) || 0) + 1);
     }
     const insertTx = db.transaction(() => {

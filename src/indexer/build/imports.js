@@ -41,11 +41,6 @@ const collectModuleImportsFast = async ({ text, ext }) => {
     const result = parseCjsLexer(text);
     if (result) {
       success = true;
-      if (Array.isArray(result.imports)) {
-        result.imports.forEach((imp) => {
-          if (imp) imports.add(imp);
-        });
-      }
       if (Array.isArray(result.reexports)) {
         result.reexports.forEach((imp) => {
           if (imp) imports.add(imp);
@@ -53,6 +48,12 @@ const collectModuleImportsFast = async ({ text, ext }) => {
       }
     }
   } catch {}
+  if (success) {
+    const requireRegex = /(?:^|[^.\w$])require\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g;
+    for (const match of text.matchAll(requireRegex)) {
+      if (match[1]) imports.add(match[1]);
+    }
+  }
   return success ? Array.from(imports) : null;
 };
 
