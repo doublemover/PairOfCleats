@@ -51,6 +51,11 @@ const sqliteAutoChunkThreshold = Number.isFinite(Number(sqliteAutoChunkThreshold
   ? Math.max(0, Number(sqliteAutoChunkThresholdRaw))
   : 0;
 const postingsConfig = normalizePostingsConfig(userConfig.indexing?.postings || {});
+const filePrefilterConfig = userConfig.search?.filePrefilter || {};
+const filePrefilterEnabled = filePrefilterConfig.enabled !== false;
+const fileChargramN = Number.isFinite(Number(filePrefilterConfig.chargramN))
+  ? Math.max(2, Math.floor(Number(filePrefilterConfig.chargramN)))
+  : postingsConfig.chargramMinN;
 const vectorExtension = getVectorExtensionConfig(ROOT, userConfig);
 const bm25Config = userConfig.search?.bm25 || {};
 const bm25K1 = Number.isFinite(Number(argv['bm25-k1']))
@@ -245,7 +250,8 @@ const sqliteHelpers = createSqliteHelpers({
   vectorExtension,
   vectorAnnState,
   queryVectorAnn,
-  modelIdDefault
+  modelIdDefault,
+  fileChargramN
 });
 const {
   loadIndexFromSqlite,
@@ -331,6 +337,10 @@ const filters = {
   generator: argv.generator,
   returns: argv.returns,
   file: fileFilter,
+  filePrefilter: {
+    enabled: filePrefilterEnabled,
+    chargramN: fileChargramN
+  },
   ext: extFilter,
   meta: metaFilters,
   chunkAuthor: chunkAuthorFilter,
@@ -386,7 +396,7 @@ const idxProse = runProse
     includeMinhash: annActive,
     includeChunks: !sqliteLazyChunks,
     includeFilterIndex: filtersActive
-  }) : loadIndex(proseDir, { modelIdDefault }))
+  }) : loadIndex(proseDir, { modelIdDefault, fileChargramN }))
   : { chunkMeta: [], denseVec: null, minhash: null };
 const idxCode = runCode
   ? (useSqlite ? loadIndexFromSqlite('code', {
@@ -394,10 +404,10 @@ const idxCode = runCode
     includeMinhash: annActive,
     includeChunks: !sqliteLazyChunks,
     includeFilterIndex: filtersActive
-  }) : loadIndex(codeDir, { modelIdDefault }))
+  }) : loadIndex(codeDir, { modelIdDefault, fileChargramN }))
   : { chunkMeta: [], denseVec: null, minhash: null };
 const idxRecords = runRecords
-  ? loadIndex(recordsDir, { modelIdDefault })
+  ? loadIndex(recordsDir, { modelIdDefault, fileChargramN })
   : { chunkMeta: [], denseVec: null, minhash: null };
 const resolveDenseVector = (idx, mode) => {
   if (!idx) return null;

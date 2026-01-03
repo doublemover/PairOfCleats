@@ -25,7 +25,8 @@ export function createSqliteHelpers(options) {
     vectorExtension,
     vectorAnnState,
     queryVectorAnn,
-    modelIdDefault
+    modelIdDefault,
+    fileChargramN
   } = options;
 
   const sqliteCache = {
@@ -148,7 +149,7 @@ export function createSqliteHelpers(options) {
       chunkMeta,
       denseVec,
       minhash,
-      filterIndex: includeFilterIndex ? buildFilterIndex(chunkMeta) : null,
+      filterIndex: includeFilterIndex ? buildFilterIndex(chunkMeta, { fileChargramN }) : null,
       loadChunkMetaByIds
     };
   }

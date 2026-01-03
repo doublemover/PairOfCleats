@@ -156,6 +156,14 @@
             "ttlMs": { "type": "number" }
           }
         },
+        "filePrefilter": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "chargramN": { "type": "number" }
+          }
+        },
         "bm25": {
           "type": "object",
           "additionalProperties": false,

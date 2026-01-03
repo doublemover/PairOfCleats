@@ -15,6 +15,8 @@ Open items:
 
 Correctness fixes:
 - Added a minhash parity test to ensure search and indexing signatures stay compatible.
+- Added a file/path regex prefilter using chargrams to reduce full scans for `--file`/`--path`.
+- Preserved punctuation tokens in code tokenization and query parsing to keep operator searches reliable.
 
 Open items:
 - None in this pass.

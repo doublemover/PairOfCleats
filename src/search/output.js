@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { extractNgrams } from '../shared/tokenize.js';
+import { extractNgrams, tri } from '../shared/tokenize.js';
 import {
   createCacheReporter,
   createLruCache,
@@ -145,6 +145,11 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     return { type: 'substring', value: normalize(raw) };
   };
   const fileMatchers = normalizeList(file).map(parseFileMatcher).filter(Boolean);
+  const filePrefilterConfig = filters.filePrefilter || {};
+  const filePrefilterEnabled = filePrefilterConfig.enabled !== false;
+  const fileChargramN = Number.isFinite(Number(filePrefilterConfig.chargramN))
+    ? Math.max(2, Math.floor(Number(filePrefilterConfig.chargramN)))
+    : (filterIndex?.fileChargramN || 3);
   const extNeedles = normalizeList(ext)
     .map((entry) => {
       let value = entry.toLowerCase();
@@ -198,6 +203,78 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
       if (!acc.size) break;
     }
     return acc;
+  };
+  const intersectTwoSets = (left, right) => {
+    if (!left || !right) return new Set();
+    const out = new Set();
+    for (const id of left) {
+      if (right.has(id)) out.add(id);
+    }
+    return out;
+  };
+  const extractRegexLiteral = (pattern) => {
+    let best = '';
+    let current = '';
+    let escaped = false;
+    for (const ch of pattern) {
+      if (escaped) {
+        current += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if ('^$.*+?()[]{}|'.includes(ch)) {
+        if (current.length > best.length) best = current;
+        current = '';
+        continue;
+      }
+      current += ch;
+    }
+    if (current.length > best.length) best = current;
+    return best;
+  };
+  const collectFilePrefilterMatches = () => {
+    if (!fileMatchers.length || !filterIndex || !filterIndex.fileChargrams || !filterIndex.fileChunksById) {
+      return null;
+    }
+    const fileIds = new Set();
+    for (const matcher of fileMatchers) {
+      let needle = null;
+      if (matcher.type === 'substring') {
+        needle = normalize(matcher.value);
+      } else if (matcher.type === 'regex') {
+        const literal = extractRegexLiteral(matcher.value.source || '');
+        needle = literal ? normalize(literal) : null;
+      }
+      if (!needle || needle.length < fileChargramN) continue;
+      const grams = tri(needle, fileChargramN);
+      if (!grams.length) continue;
+      let candidateFiles = null;
+      for (const gram of grams) {
+        const bucket = filterIndex.fileChargrams.get(gram);
+        if (!bucket) {
+          candidateFiles = new Set();
+          break;
+        }
+        candidateFiles = candidateFiles ? intersectTwoSets(candidateFiles, bucket) : new Set(bucket);
+        if (!candidateFiles.size) break;
+      }
+      if (!candidateFiles || !candidateFiles.size) continue;
+      for (const fileId of candidateFiles) {
+        fileIds.add(fileId);
+      }
+    }
+    if (!fileIds.size) return null;
+    const chunkIds = new Set();
+    for (const fileId of fileIds) {
+      const chunks = filterIndex.fileChunksById[fileId];
+      if (!chunks) continue;
+      for (const id of chunks) chunkIds.add(id);
+    }
+    return chunkIds;
   };
   const matchList = (list, value) => {
     if (!value) return true;
@@ -283,6 +360,10 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     }
     if (visibility && filterIndex.byVisibility) {
       indexedSets.push(collectSubstringMatches(filterIndex.byVisibility, normalize(visibility)));
+    }
+    if (fileMatchers.length && filePrefilterEnabled) {
+      const filePrefilterIds = collectFilePrefilterMatches();
+      if (filePrefilterIds) indexedSets.push(filePrefilterIds);
     }
   }
   const candidateIds = indexedSets.length ? intersectSets(indexedSets) : null;

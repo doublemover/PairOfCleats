@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { filterChunks } from '../src/search/output.js';
+import { buildFilterIndex } from '../src/search/filter-index.js';
 
 const meta = [
   {
@@ -7,37 +8,43 @@ const meta = [
     kind: 'FunctionDeclaration',
     last_author: 'Alice',
     docmeta: { signature: 'foo(bar)', params: ['bar'] },
-    codeRelations: { calls: [['foo', 'fetch']], usages: ['config'] }
+    codeRelations: { calls: [['foo', 'fetch']], usages: ['config'] },
+    file: 'src/a.js'
   },
   {
     id: 1,
     kind: 'FunctionDeclaration',
     docmeta: {},
-    codeRelations: {}
+    codeRelations: {},
+    file: 'src/b.js'
   },
   {
     id: 2,
     kind: 'ClassDeclaration',
     last_author: 'Bob',
     docmeta: { signature: 'baz()', params: ['baz'] },
-    codeRelations: { calls: [['baz', 'other']], usages: ['other'] }
+    codeRelations: { calls: [['baz', 'other']], usages: ['other'] },
+    file: 'src/c.js'
   },
   {
     id: 3,
     docmeta: {},
-    codeRelations: {}
+    codeRelations: {},
+    file: 'docs/readme.md'
   },
   {
     id: 4,
     kind: ['FunctionDeclaration', 'MethodDefinition'],
     last_author: ['Carol', 'Dana'],
     docmeta: { signature: 'qux()', params: ['qux'] },
-    codeRelations: {}
+    codeRelations: {},
+    file: 'src/nested/util.ts'
   }
 ];
+const filterIndex = buildFilterIndex(meta, { fileChargramN: 3 });
 
 const expectIds = (filters, expected, label) => {
-  const result = filterChunks(meta, filters).map((entry) => entry.id).sort();
+  const result = filterChunks(meta, filters, filterIndex).map((entry) => entry.id).sort();
   const expectedSorted = expected.slice().sort();
   const ok = result.length === expectedSorted.length
     && result.every((value, idx) => value === expectedSorted[idx]);
@@ -55,5 +62,7 @@ expectIds({ type: 'FunctionDeclaration' }, [0, 1, 4], 'type filter strict');
 expectIds({ type: 'FunctionDeclaration ClassDeclaration' }, [0, 1, 2, 4], 'type multi filter');
 expectIds({ author: 'Alice' }, [0], 'author filter strict');
 expectIds({ author: 'car' }, [4], 'author filter substring');
+expectIds({ file: 'src/b.js', filePrefilter: { enabled: true, chargramN: 3 } }, [1], 'file filter substring');
+expectIds({ file: '/util\\.ts$/i', filePrefilter: { enabled: true, chargramN: 3 } }, [4], 'file filter regex');
 
 console.log('filter strictness test passed');

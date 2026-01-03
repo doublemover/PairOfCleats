@@ -31,6 +31,12 @@ export function splitId(s) {
     .filter(Boolean);
 }
 
+export function extractPunctuationTokens(text) {
+  if (!text) return [];
+  const tokens = text.match(/[=<>!:+\-*/%&|^~.?]{1,4}|[()[\]{}.,;:]/g);
+  return tokens ? tokens.filter(Boolean) : [];
+}
+
 const DEFAULT_DICT_SEGMENTATION = {
   mode: 'auto',
   dpMaxTokenLength: 32

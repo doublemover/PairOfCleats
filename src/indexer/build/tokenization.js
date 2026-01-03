@@ -1,6 +1,6 @@
 import { SimpleMinHash } from '../minhash.js';
 import { STOP, SYN } from '../constants.js';
-import { extractNgrams, splitId, splitWordsWithDict, stem, tri } from '../../shared/tokenize.js';
+import { extractNgrams, extractPunctuationTokens, splitId, splitWordsWithDict, stem, tri } from '../../shared/tokenize.js';
 
 const normalizeRange = (value, fallback) => {
   const parsed = Number(value);
@@ -73,6 +73,9 @@ export function tokenizeChunkText(input) {
     return value;
   };
   tokens = tokens.map(normalizeToken);
+  if (mode === 'code') {
+    tokens = tokens.concat(extractPunctuationTokens(text));
+  }
 
   if (!(mode === 'prose' && ext === '.md')) {
     tokens = tokens.flatMap((t) => splitWordsWithDict(t, dictWords, dictConfig));

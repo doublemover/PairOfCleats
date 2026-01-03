@@ -1,4 +1,4 @@
-import { extractNgrams, splitId, splitWordsWithDict } from '../shared/tokenize.js';
+import { extractNgrams, extractPunctuationTokens, splitId, splitWordsWithDict } from '../shared/tokenize.js';
 
 /**
  * Parse churn arg into a numeric threshold.
@@ -96,6 +96,7 @@ export function tokenizeQueryTerms(rawTerms, dict, options) {
   const tokens = [];
   const entries = Array.isArray(rawTerms) ? rawTerms : (rawTerms ? [rawTerms] : []);
   for (const entry of entries) {
+    tokens.push(...extractPunctuationTokens(entry));
     const parts = splitId(String(entry || '')).map(normalizeToken).filter(Boolean);
     for (const part of parts) {
       tokens.push(...expandQueryToken(part, dict, options));
@@ -113,6 +114,7 @@ export function tokenizeQueryTerms(rawTerms, dict, options) {
 export function tokenizePhrase(phrase, dict, options) {
   const parts = splitId(String(phrase || '')).map(normalizeToken).filter(Boolean);
   const tokens = [];
+  tokens.push(...extractPunctuationTokens(phrase));
   for (const part of parts) {
     tokens.push(...expandQueryToken(part, dict, options));
   }

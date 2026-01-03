@@ -12,7 +12,7 @@ import { buildFilterIndex } from './filter-index.js';
  * @returns {object}
  */
 export function loadIndex(dir, options) {
-  const { modelIdDefault } = options || {};
+  const { modelIdDefault, fileChargramN } = options || {};
   const readJson = (name) => {
     const filePath = path.join(dir, name);
     if (fsSync.existsSync(filePath)) {
@@ -97,7 +97,7 @@ export function loadIndex(dir, options) {
   if (idx.chargrams?.vocab && !idx.chargrams.vocabIndex) {
     idx.chargrams.vocabIndex = new Map(idx.chargrams.vocab.map((term, i) => [term, i]));
   }
-  idx.filterIndex = buildFilterIndex(chunkMeta);
+  idx.filterIndex = buildFilterIndex(chunkMeta, { fileChargramN });
   try {
     idx.tokenIndex = readJson('token_postings.json');
   } catch {}

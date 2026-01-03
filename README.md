@@ -69,6 +69,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 - MinHash similarity fallback
 - Dense vectors (optional, ANN-aware when enabled)
 - Query syntax: `-term` excludes tokens, `"exact phrase"` boosts phrase matches, `-"phrase"` excludes phrases
+- File/path regex and substring filters use a chargram prefilter before exact matching.
 - Modes: `code`, `prose`, `both`, `records`, `all`
 - Backends:
   - `memory` (file-backed JSON)
