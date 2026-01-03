@@ -16,7 +16,7 @@ import { buildLuaChunks } from './lua.js';
 import { buildSqlChunks } from './sql.js';
 import { buildShellChunks } from './shell.js';
 import { buildCssChunks } from './css.js';
-import { chunkJson, chunkXml, chunkYaml } from '../indexer/chunking.js';
+import { chunkIniToml, chunkJson, chunkMarkdown, chunkXml, chunkYaml } from '../indexer/chunking.js';
 
 const IMPORTANT_TAGS = new Set([
   'html',
@@ -71,6 +71,10 @@ const LANGUAGE_ALIASES = new Map([
   ['yml', 'yaml'],
   ['xml', 'xml'],
   ['json', 'json'],
+  ['toml', 'toml'],
+  ['ini', 'ini'],
+  ['md', 'markdown'],
+  ['markdown', 'markdown'],
   ['html', 'html'],
   ['bash', 'shell'],
   ['sh', 'shell'],
@@ -96,6 +100,10 @@ const SCRIPT_TYPE_ALIASES = new Map([
   ['application/ld+json', 'json'],
   ['application/schema+json', 'json'],
   ['text/json', 'json'],
+  ['text/markdown', 'markdown'],
+  ['text/toml', 'toml'],
+  ['application/toml', 'toml'],
+  ['text/plain', 'text'],
   ['module', 'javascript']
 ]);
 
@@ -217,6 +225,9 @@ const EMBEDDED_CHUNKERS = new Map([
   ['json', (text) => chunkJson(text)],
   ['xml', (text) => chunkXml(text)],
   ['yaml', (text, options) => chunkYaml(text, null, { yamlChunking: options?.yamlChunking })],
+  ['toml', (text) => chunkIniToml(text)],
+  ['ini', (text) => chunkIniToml(text)],
+  ['markdown', (text) => chunkMarkdown(text)],
   ['css', (text) => buildCssChunks(text) || null],
   ['scss', (text) => buildCssChunks(text) || null],
   ['sass', (text) => buildCssChunks(text) || null],

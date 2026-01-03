@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
-import { getRuntimeConfig, loadUserConfig, resolveNodeOptions } from '../tools/dict-utils.js';
+import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveSqlitePaths } from '../tools/dict-utils.js';
 import { resolveBenchmarkProfile } from '../src/shared/bench-profile.js';
 import os from 'node:os';
 
@@ -86,13 +86,36 @@ function resolveBackends(value) {
 }
 const backends = resolveBackends(argv.backend);
 let buildIndex = argv['build-index'] || argv.build;
-const buildSqlite = argv['build-sqlite'] || argv.build;
-if (buildSqlite && !buildIndex) buildIndex = true;
+let buildSqlite = argv['build-sqlite'] || argv.build;
 const buildIncremental = argv.incremental === true;
 const stubEmbeddings = argv['stub-embeddings'] === true;
 const runtimeRoot = repoArg || root;
 const userConfig = loadUserConfig(runtimeRoot);
 const runtimeConfig = getRuntimeConfig(runtimeRoot, userConfig);
+const needsMemory = backends.includes('memory');
+const needsSqlite = backends.some((entry) => entry.startsWith('sqlite'));
+const hasIndex = (mode) => {
+  const dir = getIndexDir(runtimeRoot, mode, userConfig);
+  return fs.existsSync(path.join(dir, 'chunk_meta.json'));
+};
+const hasSqliteIndex = (mode) => {
+  const paths = resolveSqlitePaths(runtimeRoot, userConfig);
+  const target = mode === 'prose' ? paths.prosePath : paths.codePath;
+  return fs.existsSync(target);
+};
+if (needsMemory && !buildIndex && (!hasIndex('code') || !hasIndex('prose'))) {
+  buildIndex = true;
+  if (!jsonOutput) {
+    console.log('[bench] Missing file-backed index; enabling build-index.');
+  }
+}
+if (needsSqlite && !buildSqlite && (!hasSqliteIndex('code') || !hasSqliteIndex('prose'))) {
+  buildSqlite = true;
+  if (!jsonOutput) {
+    console.log('[bench] Missing sqlite index; enabling build-sqlite.');
+  }
+}
+if (buildSqlite && !buildIndex) buildIndex = true;
 const heapArgRaw = argv['heap-mb'];
 const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgRaw)) : null;
 const heapRecommendation = getRecommendedHeapMb();

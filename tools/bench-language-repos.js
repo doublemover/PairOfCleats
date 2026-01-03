@@ -77,8 +77,8 @@ const interactive = !quietMode && process.stdout.isTTY;
 
 const logLineArg = Number.parseInt(argv['log-lines'], 10);
 const logWindowSize = Number.isFinite(logLineArg)
-  ? Math.max(3, Math.min(5, logLineArg))
-  : 4;
+  ? Math.max(3, Math.min(50, logLineArg))
+  : 20;
 const logHistorySize = 50;
 const logLines = Array(logWindowSize).fill('');
 const logHistory = [];
@@ -454,6 +454,11 @@ function updateFileProgressLine() {
 function appendLog(line) {
   const cleaned = line.replace(/\r/g, '').trimEnd();
   if (!cleaned) return;
+  if (buildLineRegex.test(cleaned)) {
+    handleBuildLineProgress(cleaned);
+    handleBuildProgress(cleaned);
+    return;
+  }
   pushHistory(cleaned);
   writeLog(cleaned);
   handleBuildMode(cleaned);

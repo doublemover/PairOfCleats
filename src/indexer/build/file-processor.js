@@ -176,6 +176,18 @@ export function createFileProcessor(options) {
     };
   };
 
+  const formatError = (err) => {
+    if (!err) return 'unknown error';
+    if (typeof err === 'string') return err;
+    if (err instanceof Error && err.message) return err.message;
+    if (typeof err?.message === 'string') return err.message;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return String(err);
+    }
+  };
+
   const stripFileRelations = (codeRelations) => {
     if (!codeRelations || typeof codeRelations !== 'object') return codeRelations;
     const {
@@ -370,7 +382,7 @@ export function createFileProcessor(options) {
             });
           } catch (err) {
             if (!workerTokenizeFailed) {
-              const message = err?.message || String(err);
+              const message = formatError(err);
               log(`Worker tokenization failed; falling back to main thread. ${message}`);
               workerTokenizeFailed = true;
             }
@@ -379,7 +391,7 @@ export function createFileProcessor(options) {
                 phase: 'worker-tokenize',
                 file: relKey,
                 size: fileStat?.size || null,
-                message: err?.message || String(err),
+                message: formatError(err),
                 stack: err?.stack || null
               });
             }

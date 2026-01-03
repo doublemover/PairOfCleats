@@ -72,7 +72,7 @@ function buildChunksFromLineHeadings(text, headings) {
   return chunks;
 }
 
-function chunkMarkdown(text) {
+export function chunkMarkdown(text) {
   const matches = [...text.matchAll(/^#{1,6} .+$/gm)];
   return buildChunksFromMatches(text, matches, (raw) => raw.replace(/^#+ /, '').trim());
 }
@@ -166,7 +166,7 @@ export function chunkJson(text) {
   return chunks;
 }
 
-function chunkIniToml(text) {
+export function chunkIniToml(text) {
   const lines = text.split('\n');
   const headings = [];
   for (let i = 0; i < lines.length; ++i) {

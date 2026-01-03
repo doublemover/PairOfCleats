@@ -31,11 +31,10 @@
     "repos": {
       "large": [
         "apple/swift",
-        "apple/swift-nio"
-      ],
-      "typical": [
+        "apple/swift-nio",
         "Alamofire/Alamofire"
-      ]
+      ],
+      "typical": []
     }
   },
   "rust": {
@@ -57,11 +56,10 @@
     "repos": {
       "large": [
         "llvm/llvm-project",
-        "opencv/opencv"
-      ],
-      "typical": [
+        "opencv/opencv",
         "curl/curl"
-      ]
+      ],
+      "typical": []
     }
   },
   "go": {
@@ -83,11 +81,10 @@
     "repos": {
       "large": [
         "apache/kafka",
-        "elastic/elasticsearch"
-      ],
-      "typical": [
+        "elastic/elasticsearch",
         "spring-projects/spring-boot"
-      ]
+      ],
+      "typical": []
     }
   },
   "csharp": {
@@ -96,11 +93,10 @@
     "repos": {
       "large": [
         "dotnet/runtime",
-        "dotnet/roslyn"
-      ],
-      "typical": [
+        "dotnet/roslyn",
         "AutoMapper/AutoMapper"
-      ]
+      ],
+      "typical": []
     }
   },
   "kotlin": {

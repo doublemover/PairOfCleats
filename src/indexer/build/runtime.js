@@ -116,10 +116,10 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     1,
     Math.min(
       16,
-      Number.isFinite(configConcurrency)
-        ? configConcurrency
-        : Number.isFinite(cliConcurrency)
-          ? cliConcurrency
+      Number.isFinite(cliConcurrency)
+        ? cliConcurrency
+        : Number.isFinite(configConcurrency)
+          ? configConcurrency
           : defaultConcurrency
     )
   );
@@ -127,9 +127,11 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     1,
     Math.min(
       16,
-      Number.isFinite(Number(indexingConfig.importConcurrency))
-        ? Number(indexingConfig.importConcurrency)
-        : fileConcurrency
+      Number.isFinite(cliConcurrency)
+        ? fileConcurrency
+        : Number.isFinite(Number(indexingConfig.importConcurrency))
+          ? Number(indexingConfig.importConcurrency)
+          : fileConcurrency
     )
   );
   const ioConcurrency = Math.max(fileConcurrency, importConcurrency);

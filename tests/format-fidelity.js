@@ -78,6 +78,15 @@ if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ElementDeclaration',
 if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ConfigSection', nameIncludes: 'settings' })) {
   failures.push('Missing embedded JSON chunk for unknown.html.');
 }
+if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ConfigSection', nameIncludes: 'build' })) {
+  failures.push('Missing embedded TOML chunk for unknown.html.');
+}
+if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'ConfigSection', nameIncludes: 'server' })) {
+  failures.push('Missing embedded INI chunk for unknown.html.');
+}
+if (!findChunk(codeMeta, { file: 'src/unknown.html', kind: 'Section', nameIncludes: 'Doc Block' })) {
+  failures.push('Missing embedded Markdown chunk for unknown.html.');
+}
 if (!findChunk(codeMeta, { file: 'src/styles.css', kind: 'StyleRule', nameIncludes: '.page-header' })) {
   failures.push('Missing CSS chunk for styles.css.');
 }

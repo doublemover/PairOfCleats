@@ -174,7 +174,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
         throw err;
       }
     },
-    { collectResults: false, onResult: handleFileResult }
+    { collectResults: false, onResult: handleFileResult, retries: 2, retryDelayMs: 200 }
   );
   showProgress('Files', allEntries.length, allEntries.length);
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseBuildArgs } from './src/indexer/build/args.js';
 import { createBuildRuntime } from './src/indexer/build/runtime.js';
 import { buildIndexForMode } from './src/indexer/build/indexer.js';
@@ -13,6 +14,7 @@ import { runCommand } from './tools/cli-utils.js';
 import { shutdownPythonAstPool } from './src/lang/python.js';
 
 const { argv, modes } = parseBuildArgs(process.argv.slice(2));
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const runtime = await createBuildRuntime({
   root: rootArg || resolveRepoRoot(process.cwd()),
@@ -53,7 +55,7 @@ try {
   const shouldBuildSqlite = typeof argv.sqlite === 'boolean' ? argv.sqlite : sqliteConfigured;
   const sqliteModes = modes.filter((mode) => mode === 'code' || mode === 'prose');
   if (shouldBuildSqlite && sqliteModes.length) {
-    const sqliteArgs = [path.join('tools', 'build-sqlite-index.js'), '--repo', runtime.root];
+    const sqliteArgs = [path.join(rootDir, 'tools', 'build-sqlite-index.js'), '--repo', runtime.root];
     if (argv.incremental) sqliteArgs.push('--incremental');
     if (sqliteModes.length === 1) sqliteArgs.push('--mode', sqliteModes[0]);
     log('Building SQLite indexes...');
