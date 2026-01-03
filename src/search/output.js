@@ -123,6 +123,8 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
   } = filters;
   const normalize = (value) => String(value || '').toLowerCase();
   const normalizeFile = (value) => (caseFile ? String(value || '') : normalize(value));
+  const normalizeFilePrefilter = (value) =>
+    String(value || '').replace(/\\/g, '/').toLowerCase();
   const normalizeList = (value) => {
     if (!value) return [];
     const entries = Array.isArray(value) ? value : [value];
@@ -149,7 +151,7 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
   };
   const fileMatchers = normalizeList(file).map(parseFileMatcher).filter(Boolean);
   const filePrefilterConfig = filters.filePrefilter || {};
-  const filePrefilterEnabled = filePrefilterConfig.enabled !== false && !caseFile;
+  const filePrefilterEnabled = filePrefilterConfig.enabled !== false;
   const fileChargramN = Number.isFinite(Number(filePrefilterConfig.chargramN))
     ? Math.max(2, Math.floor(Number(filePrefilterConfig.chargramN)))
     : (filterIndex?.fileChargramN || 3);
@@ -247,10 +249,10 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     for (const matcher of fileMatchers) {
       let needle = null;
       if (matcher.type === 'substring') {
-        needle = normalizeFile(matcher.value);
+        needle = normalizeFilePrefilter(matcher.value);
       } else if (matcher.type === 'regex') {
         const literal = extractRegexLiteral(matcher.value.source || '');
-        needle = literal ? normalizeFile(literal) : null;
+        needle = literal ? normalizeFilePrefilter(literal) : null;
       }
       if (!needle || needle.length < fileChargramN) continue;
       const grams = tri(needle, fileChargramN);

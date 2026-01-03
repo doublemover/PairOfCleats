@@ -64,6 +64,17 @@ runGit(
   { GIT_AUTHOR_DATE: dateNew, GIT_COMMITTER_DATE: dateNew }
 );
 
+await fsPromises.writeFile(
+  path.join(repoRoot, 'sample.js'),
+  'const equal = (a, b) => a && b;\nfunction check(a, b) {\n  return a && b;\n}\n'
+);
+runGit(['add', '.'], 'git add sample.js');
+runGit(
+  ['commit', '-m', 'add sample.js', '--author', 'Dana <dana@example.com>', '--date', dateNew],
+  'git commit sample.js',
+  { GIT_AUTHOR_DATE: dateNew, GIT_COMMITTER_DATE: dateNew }
+);
+
 const env = {
   ...process.env,
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
@@ -86,10 +97,10 @@ const branchName = (() => {
   return result.status === 0 ? result.stdout.trim() : null;
 })();
 
-function runSearch(query, args, label) {
+function runSearch(query, args, label, mode = 'prose') {
   const result = spawnSync(
     process.execPath,
-    [searchPath, query, '--mode', 'prose', '--json', '--no-ann', '--repo', repoRoot, ...args],
+    [searchPath, query, '--mode', mode, '--json', '--no-ann', '--repo', repoRoot, ...args],
     { cwd: repoRoot, env, encoding: 'utf8' }
   );
   if (result.status !== 0) {
@@ -100,7 +111,8 @@ function runSearch(query, args, label) {
   return JSON.parse(result.stdout || '{}');
 }
 
-const extractFiles = (payload) => new Set((payload.prose || []).map((hit) => path.basename(hit.file || '')));
+const extractFiles = (payload, key = 'prose') =>
+  new Set((payload[key] || []).map((hit) => path.basename(hit.file || '')));
 
 const negativeToken = runSearch('alpha -gamma', [], 'negative token');
 const negativeTokenFiles = extractFiles(negativeToken);
@@ -180,6 +192,11 @@ if (extractFiles(caseSensitiveFile).has('CaseFile.TXT')) {
   console.error('case-sensitive file filter should not match.');
   process.exit(1);
 }
+const regexFile = runSearch('alpha', ['--file', '/casefile\\.txt/'], 'regex file filter');
+if (!extractFiles(regexFile).has('CaseFile.TXT')) {
+  console.error('regex file filter failed.');
+  process.exit(1);
+}
 const caseInsensitiveToken = runSearch('AlphaCase', [], 'case-insensitive token');
 if (!extractFiles(caseInsensitiveToken).has('CaseFile.TXT')) {
   console.error('case-insensitive token match failed.');
@@ -188,6 +205,11 @@ if (!extractFiles(caseInsensitiveToken).has('CaseFile.TXT')) {
 const caseSensitiveToken = runSearch('AlphaCase', ['--case-tokens'], 'case-sensitive token');
 if (extractFiles(caseSensitiveToken).has('CaseFile.TXT')) {
   console.error('case-sensitive token match should not match.');
+  process.exit(1);
+}
+const punctuationSearch = runSearch('&&', [], 'punctuation token', 'code');
+if (!extractFiles(punctuationSearch, 'code').has('sample.js')) {
+  console.error('punctuation token match failed.');
   process.exit(1);
 }
 

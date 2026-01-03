@@ -152,13 +152,20 @@ export function createSearchPipeline(context) {
     const searchTopN = Math.max(1, Number(topN) || 1);
     const expandedTopN = searchTopN * 3;
 
-    // Main search: BM25 token match
+    // Main search: BM25 token match (with optional SQLite FTS first pass)
     let candidates = null;
     let bmHits = [];
+    let sparseType = 'bm25';
+    let sqliteFtsUsed = false;
     if (sqliteEnabledForMode && sqliteFtsRequested) {
       bmHits = rankSqliteFts(idx, queryTokens, mode, expandedTopN, sqliteFtsNormalize);
-      candidates = bmHits.length ? new Set(bmHits.map((h) => h.idx)) : null;
-    } else {
+      sqliteFtsUsed = bmHits.length > 0;
+      if (sqliteFtsUsed) {
+        sparseType = 'fts';
+        candidates = new Set(bmHits.map((h) => h.idx));
+      }
+    }
+    if (!bmHits.length) {
       const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode) : null;
       candidates = buildCandidateSet(idx, queryTokens, mode);
       bmHits = rankBM25({
@@ -169,6 +176,8 @@ export function createSearchPipeline(context) {
         k1: bm25K1,
         b: bm25B
       });
+      sparseType = 'bm25';
+      sqliteFtsUsed = false;
     }
 
     // MinHash (embedding) ANN, if requested
@@ -210,7 +219,6 @@ export function createSearchPipeline(context) {
 
     // Combine and dedup
     const allHits = new Map();
-    const sparseType = (sqliteEnabledForMode && sqliteFtsRequested) ? 'fts' : 'bm25';
     const recordHit = (idxVal, update) => {
       const current = allHits.get(idxVal) || { bm25: null, fts: null, ann: null, annSource: null };
       allHits.set(idxVal, { ...current, ...update });
@@ -228,9 +236,9 @@ export function createSearchPipeline(context) {
     const scored = [...allHits.entries()]
       .filter(([idxVal]) => !allowedIdx || allowedIdx.has(idxVal))
       .map(([idxVal, scores]) => {
-        const sparseScore = scores.fts ?? scores.bm25 ?? null;
-        const annScore = scores.ann ?? null;
-        const sparseTypeValue = scores.fts != null ? 'fts' : (scores.bm25 != null ? 'bm25' : null);
+          const sparseScore = scores.fts ?? scores.bm25 ?? null;
+          const annScore = scores.ann ?? null;
+          const sparseTypeValue = scores.fts != null ? 'fts' : (scores.bm25 != null ? 'bm25' : null);
         let scoreType = null;
         let score = null;
         let blendInfo = null;
@@ -327,7 +335,8 @@ export function createSearchPipeline(context) {
             weights: scores.fts != null ? sqliteFtsWeights : null,
             profile: scores.fts != null ? sqliteFtsProfile : null,
             k1: scores.bm25 != null ? bm25K1 : null,
-            b: scores.bm25 != null ? bm25B : null
+            b: scores.bm25 != null ? bm25B : null,
+            ftsFallback: sqliteFtsRequested ? !sqliteFtsUsed : false
           } : null,
           ann: annScore != null ? {
             score: annScore,

@@ -47,40 +47,15 @@ Work items:
 - [ ] Review ESLint API usage (`useEslintrc` options) and update for current ESLint version with a fallback warning.
 
 
-## Phase 80: Deps Fixes - Performance Refactors (status: todo)
-Goal: Tackle structural bottlenecks that dominate large-repo indexing.
-Work items:
-- [x] Replace per-chunk git blame calls with one blame per file (line-porcelain), then derive chunk authors by line range.
-- [x] Batch embeddings per file or per N chunks and normalize merged vectors once per batch.
-- [x] Stream or switch artifact formats away from huge JSON arrays (JSONL/binary/compressed variants).
-- [x] Split file-level metadata into `file_meta.json` and reference by file id in `chunk_meta.json`.
-- [x] Add an incremental import graph cache and rebuild `allImports` from cached per-file imports.
-- [x] Use one discovery pass for code+prose and avoid redundant directory walks.
-- [x] Eliminate double stat calls by reusing discovery stats in `processFile`.
-- [x] Optimize import scanning to avoid full `text.normalize('NFKD')` on every file.
-- [x] Remove per-chunk `tokens` storage or replace with a compact representation when postings are available.
-- [x] Move large numeric arrays (postings/vectors) to binary or SQLite-backed storage for large repos.
-- [x] Compress postings (gzip streaming for large artifacts; SQLite-first storage).
+## Phase 80: Deps Fixes - Performance Refactors (status: done)
+Implemented; details moved to `COMPLETED_PHASES.md`.
+
+## Phase 82: Deps Fixes - Search Prefilter (status: done)
+Implemented; details moved to `COMPLETED_PHASES.md`.
 
 
 ## Todo Phase Detail + Questions (status: active)
 Goal: Add implementation detail for remaining todo phases and capture any open decisions.
-
-### Phase 80 details
-- Batch git blame per file with porcelain output and compute chunk authors by line range.
-- Batch embeddings per file or per N chunks; normalize once per batch.
-- Add compressed artifact variants for large arrays (gzip) and keep JSON streaming.
-- Split file-level metadata into `file_meta.json` and reference by file id in chunks.
-- Persist per-file imports in incremental bundles and rebuild `allImports` without rereading all files.
-- Avoid redundant discovery + stat passes for code/prose.
-- Drop per-chunk `tokens`/`ngrams` storage via compact modes for large repos.
-- Default SQLite storage for postings/vectors; keep file-backed artifacts for fallback and gzip-compress large arrays.
-
-### Phase 82 details
-- Add a trigram/chargram candidate generator for substring and regex queries (regex to ngram prefilter).
-- Keep punctuation as first-class tokens for code search (no stemming or stop-word removal).
-- Add a safe regex prefilter stage that always verifies exact matches.
-- Document the prefilter strategy and limits in `docs/search.md` or equivalent.
 
 ### Phase 83 details
 - Expand query language filters (repo, file/path, lang, branch, case) and ensure they are cheap.

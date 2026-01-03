@@ -992,3 +992,22 @@ Work items:
 - Added tooling allow/deny lists for installs and detection via `tooling.enabledTools` and `tooling.disabledTools`.
 - Added node-sql-parser integration for SQL table usage extraction.
 - Updated docs with tooling target list and tooling config toggles.
+
+
+### Phase 80 details
+- Batch git blame per file with porcelain output and compute chunk authors by line range.
+- Batch embeddings per file or per N chunks; normalize once per batch.
+- Add compressed artifact variants for large arrays (gzip) and keep JSON streaming.
+- Split file-level metadata into `file_meta.json` and reference by file id in chunks.
+- Persist per-file imports in incremental bundles and rebuild `allImports` without rereading all files.
+- Avoid redundant discovery + stat passes for code/prose.
+- Drop per-chunk `tokens`/`ngrams` storage via compact modes for large repos.
+- Default SQLite storage for postings/vectors; keep file-backed artifacts for fallback and gzip-compress large arrays.
+
+
+### Phase 82 details
+- Enabled file filter chargram prefiltering for substring/regex queries even when case-sensitive file matching is requested.
+- Added safe regex prefiltering that extracts literals for candidate pruning while always verifying exact matches.
+- Ensured punctuation tokens remain first-class for code search by adding FTS fallback to BM25 when needed.
+- Added coverage for regex file filters and punctuation queries.
+- Documented search prefilter behavior and limits in `docs/search.md`.
