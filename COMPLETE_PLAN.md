@@ -1008,6 +1008,7 @@ Goal: Add implementation detail for remaining todo phases and capture any open d
 - `tests/type-inference-crossfile.js` hangs during `script-coverage`; gate it and capture a minimal repro note.
 - Re-enable the test after isolating the hang (likely in build/index shutdown or worker pool teardown).
 - `tests/type-inference-lsp-enrichment.js` fails with `ERR_STREAM_DESTROYED` from `vscode-jsonrpc`; gate it and capture logs in `docs/failing-tests.md`.
+- `tests/fixture-parity.js` intermittently crashes during the languages fixture on Windows (exit code 3221226505); gate it and track details in `docs/failing-tests.md`.
 
 ### Open questions
 - None.
