@@ -81,6 +81,7 @@ export async function acquireIndexLock({
       if (stale) {
         try {
           await fs.rm(lockPath, { force: true });
+          log(`Removed stale index lock at ${lockPath}.`);
           continue;
         } catch {}
       }
@@ -89,6 +90,7 @@ export async function acquireIndexLock({
       if (pid && !isProcessAlive(pid)) {
         try {
           await fs.rm(lockPath, { force: true });
+          log(`Removed stale index lock at ${lockPath} (pid ${pid} not running).`);
           continue;
         } catch {}
       }

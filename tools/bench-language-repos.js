@@ -112,7 +112,10 @@ const buildScanRegex = /Scanning\s+(code|prose)/i;
 const statusLines = logWindowSize + 2;
 const cacheConfig = { cache: { root: cacheRoot } };
 const benchmarkProfileEnabled = argv['benchmark-profile'] !== false;
-const lockMode = normalizeLockMode(argv['lock-mode']);
+const lockMode = normalizeLockMode(
+  argv['lock-mode']
+  || ((argv.build || argv['build-index'] || argv['build-sqlite']) ? 'stale-clear' : '')
+);
 const lockWaitMs = parseMs(argv['lock-wait-ms'], 5 * 60 * 1000);
 const lockStaleMs = parseMs(argv['lock-stale-ms'], 30 * 60 * 1000);
 const backendList = resolveBackendList(argv.backend);
