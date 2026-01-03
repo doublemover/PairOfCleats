@@ -12,6 +12,7 @@ import {
   isObjc
 } from '../indexer/constants.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * C-like language chunking and relations.
@@ -298,7 +299,9 @@ function collectCLikeCallsAndUsages(text) {
  * @param {string} ext
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildCLikeChunks(text, ext) {
+export function buildCLikeChunks(text, ext, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, ext, options, languageId: null });
+  if (treeChunks && treeChunks.length) return treeChunks;
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];

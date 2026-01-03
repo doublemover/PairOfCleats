@@ -308,7 +308,9 @@ export function createFileProcessor(options) {
           ...languageContext,
           yamlChunking: languageOptions?.yamlChunking,
           javascript: languageOptions?.javascript,
-          typescript: languageOptions?.typescript
+          typescript: languageOptions?.typescript,
+          treeSitter: languageOptions?.treeSitter,
+          log: languageOptions?.log
         }
       });
       const chunkLineRanges = sc.map((chunk) => {

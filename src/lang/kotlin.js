@@ -2,6 +2,7 @@ import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
 import { collectAttributes, extractDocComment, sliceSignature } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * Kotlin language chunking and relations.
@@ -166,7 +167,9 @@ export function collectKotlinImports(text) {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildKotlinChunks(text) {
+export function buildKotlinChunks(text, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'kotlin', options });
+  if (treeChunks && treeChunks.length) return treeChunks;
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];

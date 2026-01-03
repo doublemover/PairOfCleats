@@ -36,16 +36,8 @@ Work items:
 - [ ] Add detection, install instructions, and config toggles for all new tools in `tools/tooling-utils.js` and docs.
 
 
-## Phase 76: Deps Fixes - Tree-sitter Backbone (status: todo)
-Goal: Introduce a unified tree-sitter parsing backbone with safe fallbacks.
-Work items:
-- [ ] Choose `tree-sitter` (native) vs `web-tree-sitter` (WASM) and document tradeoffs.
-- [ ] Add a centralized parser registry that loads grammars per language.
-- [ ] Implement tree-sitter chunking for Swift, Kotlin, C#, C/C++, ObjC as first targets.
-- [ ] Add tree-sitter chunking for Go/Rust/Java if grammars are stable.
-- [ ] Keep existing heuristic chunkers as fallback when tree-sitter fails or is unavailable.
-- [ ] Add fixtures and tests for tree-sitter chunk boundaries and symbol extraction.
-- [ ] Add config switches to enable/disable tree-sitter per language.
+## Phase 76: Deps Fixes - Tree-sitter Backbone (status: done)
+Implemented; details moved to `COMPLETED_PHASES.md`.
 
 
 ## Phase 77: Deps Fixes - Dependency Hygiene (status: done)
@@ -95,12 +87,6 @@ Goal: Add implementation detail for remaining todo phases and capture any open d
 - Expand tooling registry in `tools/tooling-utils.js` for new LSPs and parsers (Ruby LSP, Roslyn, Intelephense, sql parser).
 - Add detection + install instructions and config toggles per tool.
 - Update docs to reflect per-language tool preferences and fallbacks.
-
-### Phase 76 details
-- Use native `tree-sitter` bindings by default; keep WASM as an optional fallback and document tradeoffs.
-- Implement a central grammar registry and per-language fallback logic.
-- Add tree-sitter chunkers for Swift/Kotlin/C#/C/C++/ObjC first, then Go/Rust/Java.
-- Add fixtures for chunk boundary validation and failure fallback paths.
 
 ### Phase 80 details
 - Batch git blame per file with porcelain output and compute chunk authors by line range.

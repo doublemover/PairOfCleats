@@ -88,6 +88,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const javascriptFlow = normalizeFlow(indexingConfig.javascriptFlow);
   const pythonAstConfig = indexingConfig.pythonAst || {};
   const pythonAstEnabled = pythonAstConfig.enabled !== false;
+  const treeSitterConfig = indexingConfig.treeSitter || {};
+  const treeSitterEnabled = treeSitterConfig.enabled !== false;
+  const treeSitterLanguages = treeSitterConfig.languages || {};
   const sqlConfig = userConfig.sql || {};
   const defaultSqlDialects = {
     '.psql': 'postgres',
@@ -199,6 +202,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   if (!pythonAstEnabled) {
     log('Python AST metadata disabled via indexing.pythonAst.enabled.');
   }
+  if (!treeSitterEnabled) {
+    log('Tree-sitter chunking disabled via indexing.treeSitter.enabled.');
+  }
   if (typeInferenceEnabled) {
     log('Type inference metadata enabled via indexing.typeInference.');
   }
@@ -257,6 +263,10 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       parser: typescriptParser
     },
     pythonAst: pythonAstConfig,
+    treeSitter: {
+      enabled: treeSitterEnabled,
+      languages: treeSitterLanguages
+    },
     resolveSqlDialect,
     yamlChunking: {
       mode: yamlChunkingMode,

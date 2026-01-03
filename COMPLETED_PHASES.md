@@ -956,3 +956,11 @@ Work items:
 ### Phase 77 details
 - Remove unused dependencies (`minhash`, `seedrandom`, `strip-comments`, `varint`, `yaml`).
 - Keep Babel as primary JS parser with existing fallbacks for comparison.
+
+
+### Phase 76 details
+- Added a native tree-sitter registry with cached parsers and per-language config.
+- Enabled tree-sitter chunking for Swift, Kotlin, C#, C/C++/ObjC, Go, Rust, and Java.
+- Preserved heuristic chunkers as fallback when tree-sitter is unavailable or fails.
+- Added config switches for tree-sitter languages and defaults in runtime/config schema.
+- Added fixtures and a tree-sitter chunk test with graceful skip when unavailable.

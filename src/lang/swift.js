@@ -1,6 +1,7 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { collectAttributes, extractDocComment, isCommentLine, sliceSignature } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * Swift language chunking and relations.
@@ -185,7 +186,9 @@ function stripSwiftComments(text) {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildSwiftChunks(text) {
+export function buildSwiftChunks(text, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'swift', options });
+  if (treeChunks && treeChunks.length) return treeChunks;
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];

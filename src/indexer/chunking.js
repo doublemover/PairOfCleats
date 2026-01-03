@@ -336,6 +336,12 @@ function chunkYaml(text, relPath, context) {
   return [{ start: 0, end: text.length, name: 'root', kind: 'ConfigSection', meta: { format: 'yaml' } }];
 }
 
+const getTreeSitterOptions = (context) => (
+  context?.treeSitter
+    ? { treeSitter: context.treeSitter, log: context.log }
+    : {}
+);
+
 const CODE_CHUNKERS = [
   { id: 'javascript', match: (ext) => isJsLike(ext), chunk: ({ text, ext, context }) =>
     buildJsChunks(text, {
@@ -350,15 +356,15 @@ const CODE_CHUNKERS = [
     const astChunks = buildPythonChunksFromAst(text, context?.pythonAst || null);
     return (astChunks && astChunks.length) ? astChunks : buildPythonHeuristicChunks(text);
   } },
-  { id: 'swift', match: (ext) => ext === '.swift', chunk: ({ text, context }) => context?.swiftChunks || buildSwiftChunks(text) },
-  { id: 'clike', match: (ext) => isCLike(ext), chunk: ({ text, ext, context }) => context?.clikeChunks || buildCLikeChunks(text, ext) },
-  { id: 'rust', match: (ext) => isRust(ext), chunk: ({ text, context }) => context?.rustChunks || buildRustChunks(text) },
-  { id: 'go', match: (ext) => isGo(ext), chunk: ({ text, context }) => context?.goChunks || buildGoChunks(text) },
-  { id: 'java', match: (ext) => isJava(ext), chunk: ({ text, context }) => context?.javaChunks || buildJavaChunks(text) },
+  { id: 'swift', match: (ext) => ext === '.swift', chunk: ({ text, context }) => context?.swiftChunks || buildSwiftChunks(text, getTreeSitterOptions(context)) },
+  { id: 'clike', match: (ext) => isCLike(ext), chunk: ({ text, ext, context }) => context?.clikeChunks || buildCLikeChunks(text, ext, getTreeSitterOptions(context)) },
+  { id: 'rust', match: (ext) => isRust(ext), chunk: ({ text, context }) => context?.rustChunks || buildRustChunks(text, getTreeSitterOptions(context)) },
+  { id: 'go', match: (ext) => isGo(ext), chunk: ({ text, context }) => context?.goChunks || buildGoChunks(text, getTreeSitterOptions(context)) },
+  { id: 'java', match: (ext) => isJava(ext), chunk: ({ text, context }) => context?.javaChunks || buildJavaChunks(text, getTreeSitterOptions(context)) },
   { id: 'perl', match: (ext) => isPerl(ext), chunk: ({ text, context }) => context?.perlChunks || buildPerlChunks(text) },
   { id: 'shell', match: (ext) => isShell(ext), chunk: ({ text, context }) => context?.shellChunks || buildShellChunks(text) },
-  { id: 'csharp', match: (ext) => isCSharp(ext), chunk: ({ text, context }) => context?.csharpChunks || buildCSharpChunks(text) },
-  { id: 'kotlin', match: (ext) => isKotlin(ext), chunk: ({ text, context }) => context?.kotlinChunks || buildKotlinChunks(text) },
+  { id: 'csharp', match: (ext) => isCSharp(ext), chunk: ({ text, context }) => context?.csharpChunks || buildCSharpChunks(text, getTreeSitterOptions(context)) },
+  { id: 'kotlin', match: (ext) => isKotlin(ext), chunk: ({ text, context }) => context?.kotlinChunks || buildKotlinChunks(text, getTreeSitterOptions(context)) },
   { id: 'ruby', match: (ext) => isRuby(ext), chunk: ({ text, context }) => context?.rubyChunks || buildRubyChunks(text) },
   { id: 'php', match: (ext) => isPhp(ext), chunk: ({ text, context }) => context?.phpChunks || buildPhpChunks(text) },
   { id: 'lua', match: (ext) => isLua(ext), chunk: ({ text, context }) => context?.luaChunks || buildLuaChunks(text) },

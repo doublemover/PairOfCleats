@@ -207,6 +207,28 @@
             "maxRetries": { "type": "number" }
           }
         },
+        "treeSitter": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": ["boolean", "string"] },
+            "languages": {
+              "type": "object",
+              "additionalProperties": { "type": "boolean" },
+              "properties": {
+                "swift": { "type": "boolean" },
+                "kotlin": { "type": "boolean" },
+                "csharp": { "type": "boolean" },
+                "clike": { "type": "boolean" },
+                "cpp": { "type": "boolean" },
+                "objc": { "type": "boolean" },
+                "go": { "type": "boolean" },
+                "rust": { "type": "boolean" },
+                "java": { "type": "boolean" }
+              }
+            }
+          }
+        },
         "workerPool": {
           "type": "object",
           "additionalProperties": false,

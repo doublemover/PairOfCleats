@@ -114,7 +114,9 @@ const LANGUAGE_REGISTRY = [
     id: 'swift',
     match: (ext) => ext === '.swift',
     collectImports: (text) => collectSwiftImports(text).imports,
-    prepare: ({ text, mode }) => (mode === 'code' ? { swiftChunks: buildSwiftChunks(text) } : {}),
+    prepare: ({ text, mode, options }) => (mode === 'code'
+      ? { swiftChunks: buildSwiftChunks(text, options) }
+      : {}),
     buildRelations: ({ text, allImports }) => buildSwiftRelations(text, allImports),
     extractDocMeta: ({ chunk }) => extractSwiftDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeSwiftFlow(text, chunk, flowOptions(options)),
@@ -124,7 +126,9 @@ const LANGUAGE_REGISTRY = [
     id: 'clike',
     match: (ext) => isCLike(ext),
     collectImports: (text) => collectCLikeImports(text),
-    prepare: ({ text, mode, ext }) => (mode === 'code' ? { clikeChunks: buildCLikeChunks(text, ext) } : {}),
+    prepare: ({ text, mode, ext, options }) => (mode === 'code'
+      ? { clikeChunks: buildCLikeChunks(text, ext, options) }
+      : {}),
     buildRelations: ({ text, allImports, context }) => buildCLikeRelations(text, allImports, context.clikeChunks),
     extractDocMeta: ({ chunk }) => extractCLikeDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeCLikeFlow(text, chunk, flowOptions(options)),
@@ -134,7 +138,9 @@ const LANGUAGE_REGISTRY = [
     id: 'rust',
     match: (ext) => ext === '.rs',
     collectImports: (text) => collectRustImports(text),
-    prepare: ({ text, mode }) => (mode === 'code' ? { rustChunks: buildRustChunks(text) } : {}),
+    prepare: ({ text, mode, options }) => (mode === 'code'
+      ? { rustChunks: buildRustChunks(text, options) }
+      : {}),
     buildRelations: ({ text, allImports }) => buildRustRelations(text, allImports),
     extractDocMeta: ({ chunk }) => extractRustDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeRustFlow(text, chunk, flowOptions(options)),
@@ -144,7 +150,9 @@ const LANGUAGE_REGISTRY = [
     id: 'go',
     match: (ext) => isGo(ext),
     collectImports: (text) => collectGoImports(text),
-    prepare: ({ text, mode }) => (mode === 'code' ? { goChunks: buildGoChunks(text) } : {}),
+    prepare: ({ text, mode, options }) => (mode === 'code'
+      ? { goChunks: buildGoChunks(text, options) }
+      : {}),
     buildRelations: ({ text, allImports, context }) => buildGoRelations(text, allImports, context.goChunks),
     extractDocMeta: ({ chunk }) => extractGoDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeGoFlow(text, chunk, flowOptions(options)),
@@ -154,7 +162,9 @@ const LANGUAGE_REGISTRY = [
     id: 'java',
     match: (ext) => isJava(ext),
     collectImports: (text) => collectJavaImports(text),
-    prepare: ({ text, mode }) => (mode === 'code' ? { javaChunks: buildJavaChunks(text) } : {}),
+    prepare: ({ text, mode, options }) => (mode === 'code'
+      ? { javaChunks: buildJavaChunks(text, options) }
+      : {}),
     buildRelations: ({ text, allImports, context }) => buildJavaRelations(text, allImports, context.javaChunks),
     extractDocMeta: ({ chunk }) => extractJavaDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeJavaFlow(text, chunk, flowOptions(options)),
@@ -164,7 +174,9 @@ const LANGUAGE_REGISTRY = [
     id: 'csharp',
     match: (ext) => isCSharp(ext),
     collectImports: (text) => collectCSharpImports(text),
-    prepare: ({ text, mode }) => (mode === 'code' ? { csharpChunks: buildCSharpChunks(text) } : {}),
+    prepare: ({ text, mode, options }) => (mode === 'code'
+      ? { csharpChunks: buildCSharpChunks(text, options) }
+      : {}),
     buildRelations: ({ text, allImports, context }) => buildCSharpRelations(text, allImports, context.csharpChunks),
     extractDocMeta: ({ chunk }) => extractCSharpDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeCSharpFlow(text, chunk, flowOptions(options)),
@@ -174,7 +186,9 @@ const LANGUAGE_REGISTRY = [
     id: 'kotlin',
     match: (ext) => isKotlin(ext),
     collectImports: (text) => collectKotlinImports(text),
-    prepare: ({ text, mode }) => (mode === 'code' ? { kotlinChunks: buildKotlinChunks(text) } : {}),
+    prepare: ({ text, mode, options }) => (mode === 'code'
+      ? { kotlinChunks: buildKotlinChunks(text, options) }
+      : {}),
     buildRelations: ({ text, allImports, context }) => buildKotlinRelations(text, allImports, context.kotlinChunks),
     extractDocMeta: ({ chunk }) => extractKotlinDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeKotlinFlow(text, chunk, flowOptions(options)),

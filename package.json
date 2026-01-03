@@ -91,6 +91,7 @@
     "sqlite-compact-test": "node tests/sqlite-compact.js",
     "sqlite-ann-extension-test": "node tests/sqlite-ann-extension.js",
     "language-fidelity-test": "node tests/language-fidelity.js",
+    "tree-sitter-chunks-test": "node tests/tree-sitter-chunks.js",
     "prose-skip-imports-test": "node tests/prose-skip-imports.js",
     "format-fidelity-test": "node tests/format-fidelity.js",
     "repometrics-dashboard-test": "node tests/repometrics-dashboard.js",
@@ -145,8 +146,20 @@
     "simple-git": "3.30.0",
     "snowball-stemmers": "0.6.0",
     "tar-fs": "3.1.1",
+    "tree-sitter": "^0.21.0",
+    "tree-sitter-c": "^0.20.6",
+    "tree-sitter-c-sharp": "^0.20.0",
+    "tree-sitter-cpp": "^0.20.5",
+    "tree-sitter-go": "^0.20.0",
+    "tree-sitter-java": "^0.20.0",
+    "tree-sitter-kotlin": "^0.3.1",
+    "tree-sitter-objc": "^2.1.0",
+    "tree-sitter-rust": "^0.20.3",
     "vscode-jsonrpc": "8.2.1",
     "vscode-languageserver-protocol": "3.17.5",
     "yargs": "^17.7.2"
+  },
+  "optionalDependencies": {
+    "tree-sitter-swift": "^0.5.0"
   }
 }
