@@ -280,7 +280,13 @@ function getParser(languageId) {
   const language = loadLanguageModule(moduleName);
   if (!language) return null;
   const parser = new Parser();
-  parser.setLanguage(language);
+  try {
+    parser.setLanguage(language);
+  } catch (err) {
+    parserCache.set(resolvedId, null);
+    console.warn(`[tree-sitter] Failed to load ${resolvedId}: ${err?.message || err}`);
+    return null;
+  }
   parserCache.set(resolvedId, parser);
   return parser;
 }
