@@ -58,15 +58,44 @@ export async function writeIndexArtifacts(input) {
     }
   }
 
+  const fileListConfig = userConfig?.indexing || {};
+  const debugFileLists = fileListConfig.debugFileLists === true;
+  const sampleSize = Number.isFinite(Number(fileListConfig.fileListSampleSize))
+    ? Math.max(0, Math.floor(Number(fileListConfig.fileListSampleSize)))
+    : 50;
+  const sampleList = (list) => {
+    if (!Array.isArray(list) || sampleSize <= 0) return [];
+    if (list.length <= sampleSize) return list.slice();
+    return list.slice(0, sampleSize);
+  };
+  const fileListSummary = {
+    generatedAt: new Date().toISOString(),
+    scanned: {
+      count: state.scannedFilesTimes.length,
+      sample: sampleList(state.scannedFilesTimes)
+    },
+    skipped: {
+      count: state.skippedFiles.length,
+      sample: sampleList(state.skippedFiles)
+    }
+  };
   await fs.writeFile(
-    path.join(outDir, '.scannedfiles.json'),
-    JSON.stringify(state.scannedFilesTimes, null, 2)
+    path.join(outDir, '.filelists.json'),
+    JSON.stringify(fileListSummary, null, 2)
   );
-  await fs.writeFile(
-    path.join(outDir, '.skippedfiles.json'),
-    JSON.stringify(state.skippedFiles, null, 2)
-  );
-  log('→ Wrote .scannedfiles.json and .skippedfiles.json');
+  if (debugFileLists) {
+    await fs.writeFile(
+      path.join(outDir, '.scannedfiles.json'),
+      JSON.stringify(state.scannedFilesTimes, null, 2)
+    );
+    await fs.writeFile(
+      path.join(outDir, '.skippedfiles.json'),
+      JSON.stringify(state.skippedFiles, null, 2)
+    );
+    log('→ Wrote .filelists.json, .scannedfiles.json, and .skippedfiles.json');
+  } else {
+    log('→ Wrote .filelists.json (samples only).');
+  }
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
   log('Writing index files...');

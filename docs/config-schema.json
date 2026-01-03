@@ -225,6 +225,8 @@
         "gitBlame": { "type": "boolean" },
         "lint": { "type": "boolean" },
         "complexity": { "type": "boolean" },
+        "debugFileLists": { "type": "boolean" },
+        "fileListSampleSize": { "type": "number" },
         "benchmarkProfile": {
           "type": ["boolean", "object"],
           "additionalProperties": false,

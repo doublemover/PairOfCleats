@@ -1,6 +1,21 @@
 import escomplex from 'escomplex';
 import { ESLint } from 'eslint';
 
+let eslintInstance = null;
+let eslintInitFailed = false;
+
+async function getEslintInstance() {
+  if (eslintInitFailed) return null;
+  if (eslintInstance) return eslintInstance;
+  try {
+    eslintInstance = new ESLint({ useEslintrc: false });
+    return eslintInstance;
+  } catch {
+    eslintInitFailed = true;
+    return null;
+  }
+}
+
 /**
  * Compute basic cyclomatic complexity metrics for JS code.
  * @param {string} code
@@ -26,7 +41,8 @@ export async function analyzeComplexity(code) {
  */
 export async function lintChunk(text, relPath) {
   try {
-    const eslint = new ESLint({ useEslintrc: false });
+    const eslint = await getEslintInstance();
+    if (!eslint) return [];
     const results = await eslint.lintText(text, { filePath: relPath });
     return results.length ? results[0].messages : [];
   } catch {

@@ -223,6 +223,7 @@ export function createFileProcessor(options) {
         options: languageOptions
       });
       const lineIndex = buildLineIndex(text);
+      const fileLines = text.split('\n');
       const fileRelations = (mode === 'code' && lang && typeof lang.buildRelations === 'function')
         ? lang.buildRelations({
           text,
@@ -243,6 +244,13 @@ export function createFileProcessor(options) {
           javascript: languageOptions?.javascript,
           typescript: languageOptions?.typescript
         }
+      });
+      const chunkLineRanges = sc.map((chunk) => {
+        const startLine = chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
+        const endOffset = chunk.end > chunk.start ? chunk.end - 1 : chunk.start;
+        let endLine = chunk.meta?.endLine ?? offsetToLine(lineIndex, endOffset);
+        if (endLine < startLine) endLine = startLine;
+        return { startLine, endLine };
       });
       const chunks = [];
       const useWorkerForTokens = workerPool && workerPool.shouldUseForFile
@@ -288,15 +296,7 @@ export function createFileProcessor(options) {
 
         if (!seq.length) continue;
 
-        const meta = {
-          ...c.meta,
-          ext,
-          path: relKey,
-          kind: c.kind,
-          name: c.name,
-          file: relKey,
-          weight: getFieldWeight(c, rel)
-        };
+        const weight = getFieldWeight(c, rel);
 
         let codeRelations = {}, docmeta = {};
         if (mode === 'code') {
@@ -344,22 +344,24 @@ export function createFileProcessor(options) {
         let complexity = {}, lint = [];
         if (isJsLike(ext) && mode === 'code') {
           if (complexityEnabled) {
-            let cachedComplexity = complexityCache.get(rel);
+            const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
+            let cachedComplexity = complexityCache.get(cacheKey);
             if (!cachedComplexity) {
               const fullCode = text;
               const compResult = await analyzeComplexity(fullCode, rel);
-              complexityCache.set(rel, compResult);
+              complexityCache.set(cacheKey, compResult);
               cachedComplexity = compResult;
             }
             complexity = cachedComplexity || {};
           }
 
           if (lintEnabled) {
-            let cachedLint = lintCache.get(rel);
+            const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
+            let cachedLint = lintCache.get(cacheKey);
             if (!cachedLint) {
               const fullCode = text;
               const lintResult = await lintChunk(fullCode, rel);
-              lintCache.set(rel, lintResult);
+              lintCache.set(cacheKey, lintResult);
               cachedLint = lintResult;
             }
             lint = cachedLint || [];
@@ -377,13 +379,21 @@ export function createFileProcessor(options) {
         const headline = getHeadline(c, tokens);
 
         let preContext = [], postContext = [];
-        if (ci > 0) preContext = text.slice(sc[ci - 1].start, sc[ci - 1].end).split('\n').slice(-contextWin);
-        if (ci + 1 < sc.length) postContext = text.slice(sc[ci + 1].start, sc[ci + 1].end).split('\n').slice(0, contextWin);
-
-        const startLine = c.meta?.startLine || offsetToLine(lineIndex, c.start);
-        const endOffset = c.end > c.start ? c.end - 1 : c.start;
-        let endLine = c.meta?.endLine || offsetToLine(lineIndex, endOffset);
-        if (endLine < startLine) endLine = startLine;
+        const { startLine, endLine } = chunkLineRanges[ci];
+        if (contextWin > 0) {
+          if (ci > 0) {
+            const prev = chunkLineRanges[ci - 1];
+            const startIdx = Math.max(0, prev.startLine - 1);
+            const endIdx = Math.min(fileLines.length, prev.endLine);
+            preContext = fileLines.slice(startIdx, endIdx).slice(-contextWin);
+          }
+          if (ci + 1 < sc.length) {
+            const next = chunkLineRanges[ci + 1];
+            const startIdx = Math.max(0, next.startLine - 1);
+            const endIdx = Math.min(fileLines.length, next.endLine);
+            postContext = fileLines.slice(startIdx, endIdx).slice(0, contextWin);
+          }
+        }
         const gitMeta = await runIo(() => getGitMeta(relKey, startLine, endLine, {
           blame: gitBlameEnabled,
           baseDir: root
@@ -404,7 +414,6 @@ export function createFileProcessor(options) {
           seq,
           ngrams,
           chargrams,
-          meta,
           codeRelations,
           docmeta,
           stats,
@@ -417,7 +426,7 @@ export function createFileProcessor(options) {
           embed_doc,
           embed_code,
           minhashSig,
-          weight: meta.weight,
+          weight,
           ...gitMeta,
           externalDocs
         };

@@ -61,7 +61,7 @@ const collectModuleImportsFast = async ({ text, ext }) => {
  * @returns {Promise<{allImports:Record<string,string[]>,durationMs:number}>}
  */
 export async function scanImports({ files, root, mode, languageOptions, importConcurrency, queue = null }) {
-  const allImports = {};
+  const allImports = new Map();
   const start = Date.now();
   let processed = 0;
   const runner = queue
@@ -93,8 +93,8 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
           options: languageOptions
         });
       for (const mod of imports) {
-        if (!allImports[mod]) allImports[mod] = [];
-        allImports[mod].push(relKey);
+        if (!allImports.has(mod)) allImports.set(mod, new Set());
+        allImports.get(mod).add(relKey);
       }
       processed += 1;
       showProgress('Imports', processed, files.length);
@@ -103,5 +103,9 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
   );
 
   showProgress('Imports', files.length, files.length);
-  return { allImports, durationMs: Date.now() - start };
+  const dedupedImports = {};
+  for (const [mod, entries] of allImports.entries()) {
+    dedupedImports[mod] = Array.from(entries);
+  }
+  return { allImports: dedupedImports, durationMs: Date.now() - start };
 }
