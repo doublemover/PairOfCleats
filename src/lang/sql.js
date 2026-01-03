@@ -1,6 +1,18 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { extractDocComment } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+let sqlParserInstance = null;
+let sqlParserLoadFailed = false;
+
+const SQL_PARSER_DIALECTS = {
+  postgres: 'postgresql',
+  postgresql: 'postgresql',
+  mysql: 'mysql',
+  sqlite: 'sqlite'
+};
 
 /**
  * SQL language chunking and relations.
@@ -250,6 +262,69 @@ function classifySqlStatement(statement) {
   return { kind: 'Statement', name: 'statement' };
 }
 
+function getSqlParser(log) {
+  if (sqlParserInstance || sqlParserLoadFailed) return sqlParserInstance;
+  try {
+    const mod = require('node-sql-parser');
+    const Parser = mod.Parser || mod.default?.Parser || mod.default || mod;
+    sqlParserInstance = new Parser();
+  } catch (err) {
+    sqlParserLoadFailed = true;
+    if (log) log(`SQL parser unavailable; falling back to heuristic SQL handling. ${err?.message || err}`);
+  }
+  return sqlParserInstance;
+}
+
+function normalizeSqlIdentifier(raw) {
+  if (!raw) return '';
+  return String(raw).replace(/[\"`\[\]]/g, '').trim();
+}
+
+function collectSqlTablesFromAst(node, tables) {
+  if (!node) return;
+  if (Array.isArray(node)) {
+    for (const entry of node) collectSqlTablesFromAst(entry, tables);
+    return;
+  }
+  if (typeof node !== 'object') return;
+  if (typeof node.table === 'string') {
+    const cleaned = normalizeSqlIdentifier(node.table);
+    if (cleaned) tables.add(cleaned);
+  } else if (node.table && typeof node.table === 'object') {
+    if (typeof node.table.table === 'string') {
+      const cleaned = normalizeSqlIdentifier(node.table.table);
+      if (cleaned) tables.add(cleaned);
+    }
+    if (typeof node.table.name === 'string') {
+      const cleaned = normalizeSqlIdentifier(node.table.name);
+      if (cleaned) tables.add(cleaned);
+    }
+  }
+  if (Array.isArray(node.tableList)) {
+    for (const entry of node.tableList) {
+      const cleaned = normalizeSqlIdentifier(entry);
+      if (cleaned) tables.add(cleaned);
+    }
+  }
+  for (const value of Object.values(node)) {
+    collectSqlTablesFromAst(value, tables);
+  }
+}
+
+function collectSqlParserUsages(text, dialect, log) {
+  const parser = getSqlParser(log);
+  if (!parser) return [];
+  const tables = new Set();
+  const dialectKey = SQL_PARSER_DIALECTS[dialect] || null;
+  try {
+    const ast = parser.astify(text, dialectKey ? { database: dialectKey } : undefined);
+    collectSqlTablesFromAst(ast, tables);
+  } catch {
+    return [];
+  }
+  return Array.from(tables);
+}
+
 /**
  * Collect imports from SQL source (none).
  * @returns {string[]}
@@ -303,19 +378,24 @@ export function buildSqlChunks(text, options = {}) {
  * @param {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null} sqlChunks
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
  */
-export function buildSqlRelations(text, allImports, sqlChunks) {
+export function buildSqlRelations(text, allImports, sqlChunks, options = {}) {
   const exports = new Set();
+  const usages = new Set();
   if (Array.isArray(sqlChunks)) {
     for (const chunk of sqlChunks) {
       if (!chunk || !chunk.name) continue;
       if (chunk.kind && chunk.kind.endsWith('Declaration')) exports.add(chunk.name);
     }
   }
+  const parsedUsages = collectSqlParserUsages(text, options.dialect || 'generic', options.log);
+  for (const entry of parsedUsages) {
+    if (entry) usages.add(entry);
+  }
   return {
     imports: [],
     exports: Array.from(exports),
     calls: [],
-    usages: [],
+    usages: Array.from(usages),
     importLinks: []
   };
 }

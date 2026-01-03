@@ -141,6 +141,7 @@
     "fdir": "6.4.2",
     "ignore": "5.3.2",
     "lru-cache": "10.4.3",
+    "node-sql-parser": "^5.3.13",
     "p-queue": "8.0.1",
     "piscina": "^4.9.2",
     "simple-git": "3.30.0",

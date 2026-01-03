@@ -42,15 +42,21 @@ const FORMAT_FILENAMES = {
 
 const TOOL_DOCS = {
   tsserver: 'https://www.typescriptlang.org/',
+  'typescript-language-server': 'https://github.com/typescript-language-server/typescript-language-server',
   clangd: 'https://clangd.llvm.org/installation',
   'rust-analyzer': 'https://rust-analyzer.github.io/',
   gopls: 'https://pkg.go.dev/golang.org/x/tools/gopls',
   jdtls: 'https://github.com/eclipse-jdtls/eclipse.jdt.ls',
   'sourcekit-lsp': 'https://www.swift.org/download/',
   'kotlin-language-server': 'https://github.com/fwcd/kotlin-language-server',
+  'kotlin-lsp': 'https://kotlinlang.org/docs/',
   omnisharp: 'https://github.com/OmniSharp/omnisharp-roslyn',
+  'csharp-ls': 'https://github.com/razzmatazz/csharp-language-server',
+  'ruby-lsp': 'https://shopify.github.io/ruby-lsp/',
   solargraph: 'https://solargraph.org/',
   phpactor: 'https://phpactor.readthedocs.io/',
+  intelephense: 'https://github.com/bmewburn/intelephense-docs',
+  'bash-language-server': 'https://github.com/bash-lsp/bash-language-server',
   'lua-language-server': 'https://github.com/LuaLS/lua-language-server',
   sqls: 'https://github.com/lighttiger2505/sqls'
 };
@@ -176,6 +182,17 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       docs: TOOL_DOCS.tsserver
     },
     {
+      id: 'typescript-language-server',
+      label: 'TypeScript language server',
+      languages: ['typescript'],
+      detect: { cmd: 'typescript-language-server', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      install: {
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'typescript-language-server'] },
+        user: { cmd: 'npm', args: ['install', '-g', 'typescript-language-server'] }
+      },
+      docs: TOOL_DOCS['typescript-language-server']
+    },
+    {
       id: 'clangd',
       label: 'clangd',
       languages: ['c', 'cpp', 'objc'],
@@ -237,6 +254,16 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       docs: TOOL_DOCS['kotlin-language-server']
     },
     {
+      id: 'kotlin-lsp',
+      label: 'Kotlin LSP',
+      languages: ['kotlin'],
+      detect: { cmd: 'kotlin-lsp', args: ['--version'], binDirs: [] },
+      install: {
+        manual: true
+      },
+      docs: TOOL_DOCS['kotlin-lsp']
+    },
+    {
       id: 'omnisharp',
       label: 'OmniSharp',
       languages: ['csharp'],
@@ -246,6 +273,28 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
         user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'omnisharp'], requires: 'dotnet' }
       },
       docs: TOOL_DOCS.omnisharp
+    },
+    {
+      id: 'csharp-ls',
+      label: 'C# LSP (Roslyn)',
+      languages: ['csharp'],
+      detect: { cmd: 'csharp-ls', args: ['--version'], binDirs: [dotnetDir] },
+      install: {
+        cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls'], requires: 'dotnet' },
+        user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'csharp-ls'], requires: 'dotnet' }
+      },
+      docs: TOOL_DOCS['csharp-ls']
+    },
+    {
+      id: 'ruby-lsp',
+      label: 'Ruby LSP',
+      languages: ['ruby'],
+      detect: { cmd: 'ruby-lsp', args: ['--version'], binDirs: [binDir] },
+      install: {
+        cache: { cmd: 'gem', args: ['install', '-i', gemsDir, '-n', binDir, 'ruby-lsp'], requires: 'gem' },
+        user: { cmd: 'gem', args: ['install', 'ruby-lsp'], requires: 'gem' }
+      },
+      docs: TOOL_DOCS['ruby-lsp']
     },
     {
       id: 'solargraph',
@@ -270,6 +319,17 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       docs: TOOL_DOCS.phpactor
     },
     {
+      id: 'intelephense',
+      label: 'Intelephense',
+      languages: ['php'],
+      detect: { cmd: 'intelephense', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      install: {
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'intelephense'] },
+        user: { cmd: 'npm', args: ['install', '-g', 'intelephense'] }
+      },
+      docs: TOOL_DOCS.intelephense
+    },
+    {
       id: 'lua-language-server',
       label: 'lua-language-server',
       languages: ['lua'],
@@ -278,6 +338,17 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
         manual: true
       },
       docs: TOOL_DOCS['lua-language-server']
+    },
+    {
+      id: 'bash-language-server',
+      label: 'bash-language-server',
+      languages: ['shell'],
+      detect: { cmd: 'bash-language-server', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      install: {
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'bash-language-server'] },
+        user: { cmd: 'npm', args: ['install', '-g', 'bash-language-server'] }
+      },
+      docs: TOOL_DOCS['bash-language-server']
     },
     {
       id: 'sqls',
@@ -293,16 +364,33 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
   ];
 }
 
-export function resolveToolsForLanguages(languages, toolingRoot, repoRoot) {
-  const languageSet = new Set(languages);
-  const registry = getToolingRegistry(toolingRoot, repoRoot);
-  return registry.filter((tool) => tool.languages.some((lang) => languageSet.has(lang)));
+function filterToolsByConfig(tools, toolingConfig) {
+  const enabled = Array.isArray(toolingConfig?.enabledTools) ? toolingConfig.enabledTools : [];
+  const disabled = Array.isArray(toolingConfig?.disabledTools) ? toolingConfig.disabledTools : [];
+  let filtered = tools;
+  if (enabled.length) {
+    const enabledSet = new Set(enabled);
+    filtered = filtered.filter((tool) => enabledSet.has(tool.id));
+  }
+  if (disabled.length) {
+    const disabledSet = new Set(disabled);
+    filtered = filtered.filter((tool) => !disabledSet.has(tool.id));
+  }
+  return filtered;
 }
 
-export function resolveToolsById(ids, toolingRoot, repoRoot) {
+export function resolveToolsForLanguages(languages, toolingRoot, repoRoot, toolingConfig = null) {
+  const languageSet = new Set(languages);
+  const registry = getToolingRegistry(toolingRoot, repoRoot);
+  const matched = registry.filter((tool) => tool.languages.some((lang) => languageSet.has(lang)));
+  return filterToolsByConfig(matched, toolingConfig);
+}
+
+export function resolveToolsById(ids, toolingRoot, repoRoot, toolingConfig = null) {
   const idSet = new Set(ids);
   const registry = getToolingRegistry(toolingRoot, repoRoot);
-  return registry.filter((tool) => idSet.has(tool.id));
+  const matched = registry.filter((tool) => idSet.has(tool.id));
+  return filterToolsByConfig(matched, toolingConfig);
 }
 
 export function detectTool(tool) {
@@ -347,7 +435,7 @@ export async function buildToolingReport(root, languageOverride = null, options 
       return acc;
     }, {})
     : languages;
-  const tools = resolveToolsForLanguages(languageList, toolingConfig.dir, root).map((tool) => {
+  const tools = resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig).map((tool) => {
     const status = detectTool(tool);
     return {
       id: tool.id,

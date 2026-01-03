@@ -316,6 +316,8 @@
         "installScope": { "type": "string" },
         "allowGlobalFallback": { "type": "boolean" },
         "dir": { "type": "string" },
+        "enabledTools": { "type": "array", "items": { "type": "string" } },
+        "disabledTools": { "type": "array", "items": { "type": "string" } },
         "typescript": {
           "type": "object",
           "additionalProperties": false,

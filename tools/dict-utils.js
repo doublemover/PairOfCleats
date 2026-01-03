@@ -354,7 +354,7 @@ export function getToolingDir(repoRoot, userConfig = null) {
  * Resolve tooling configuration for a repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
- * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string},clangd:{requireCompilationDatabase:boolean,compileCommandsDir:string}}}
+ * @returns {{autoInstallOnDetect:boolean,autoEnableOnDetect:boolean,installScope:string,allowGlobalFallback:boolean,dir:string,enabledTools:string[],disabledTools:string[],typescript:{enabled:boolean,resolveOrder:string[],useTsconfig:boolean,tsconfigPath:string},clangd:{requireCompilationDatabase:boolean,compileCommandsDir:string}}}
  */
 export function getToolingConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
@@ -369,6 +369,17 @@ export function getToolingConfig(repoRoot, userConfig = null) {
     }
     return null;
   };
+  const normalizeToolList = (value) => {
+    if (Array.isArray(value)) {
+      return value.map((entry) => String(entry).trim().toLowerCase()).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+      return value.split(',').map((entry) => entry.trim().toLowerCase()).filter(Boolean);
+    }
+    return [];
+  };
+  const enabledTools = normalizeToolList(tooling.enabledTools);
+  const disabledTools = normalizeToolList(tooling.disabledTools);
   const resolveOrder = normalizeOrder(typescript.resolveOrder) || ['repo', 'cache', 'global'];
   return {
     autoInstallOnDetect: tooling.autoInstallOnDetect === true,
@@ -376,6 +387,8 @@ export function getToolingConfig(repoRoot, userConfig = null) {
     installScope,
     allowGlobalFallback: tooling.allowGlobalFallback !== false,
     dir: getToolingDir(repoRoot, cfg),
+    enabledTools,
+    disabledTools,
     typescript: {
       enabled: typescript.enabled !== false,
       resolveOrder,

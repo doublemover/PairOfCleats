@@ -161,6 +161,9 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
     - Verify extension: `npm run verify-extensions`
     - Detect tooling: `npm run tooling-detect`
     - Install tooling: `npm run tooling-install -- --scope cache`
+    - Tooling targets: tsserver, typescript-language-server, clangd, sourcekit-lsp, rust-analyzer,
+      gopls, jdtls, kotlin-language-server, kotlin-lsp, omnisharp, csharp-ls, ruby-lsp,
+      solargraph, phpactor, intelephense, lua-language-server, bash-language-server, sqls
     - Git hooks: `npm run git-hooks -- --install`
     - Validate config: `npm run config-validate -- --config .pairofcleats.json`
   - Build indexes:

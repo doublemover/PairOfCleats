@@ -15,25 +15,8 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
   - Do not prioritize or bring this up unless explicitly requested.
 
 
-## Phase 75: Deps Fixes - Language Tooling Alignment (status: todo)
-Goal: Align LSP and parsing tools with current best-of-breed per language.
-Work items:
-- [ ] JavaScript/TypeScript: keep compiler API; add lexer pre-pass for imports; document `typescript-language-server` as optional.
-- [ ] Flow: fold into Babel-based JS/TS parsing path; remove standalone Flow parser if redundant.
-- [ ] C/C++/ObjC: keep clangd; add detection docs and optional tree-sitter fallback for macro-heavy files.
-- [ ] Swift: keep sourcekit-lsp; document tree-sitter-swift fallback for chunking.
-- [ ] Go: keep gopls; add optional tree-sitter-go chunking path.
-- [ ] Rust: keep rust-analyzer; add optional tree-sitter-rust chunking path.
-- [ ] Java: keep jdtls; add optional tree-sitter-java chunking path.
-- [ ] Kotlin: keep kotlin-language-server; add optional Kotlin official LSP when detected.
-- [ ] C#: keep OmniSharp; add optional Roslyn LSP provider with config switch.
-- [ ] Ruby: add Ruby LSP as preferred tool, Solargraph fallback; update tooling registry and docs.
-- [ ] PHP: add php-parser for AST chunking; add optional Intelephense LSP alongside Phpactor.
-- [ ] Lua: keep LuaLS; ensure detection/install docs are current.
-- [ ] SQL: keep sqls best-effort; add `node-sql-parser` for schema/table extraction.
-- [ ] Shell: add bash-language-server detection and docs; optional tree-sitter-bash fallback.
-- [ ] Perl: evaluate tree-sitter-perl; decide on heuristic-only vs optional LSP.
-- [ ] Add detection, install instructions, and config toggles for all new tools in `tools/tooling-utils.js` and docs.
+## Phase 75: Deps Fixes - Language Tooling Alignment (status: done)
+Implemented; details moved to `COMPLETED_PHASES.md`.
 
 
 ## Phase 76: Deps Fixes - Tree-sitter Backbone (status: done)
@@ -82,11 +65,6 @@ Work items:
 
 ## Todo Phase Detail + Questions (status: active)
 Goal: Add implementation detail for remaining todo phases and capture any open decisions.
-
-### Phase 75 details
-- Expand tooling registry in `tools/tooling-utils.js` for new LSPs and parsers (Ruby LSP, Roslyn, Intelephense, sql parser).
-- Add detection + install instructions and config toggles per tool.
-- Update docs to reflect per-language tool preferences and fallbacks.
 
 ### Phase 80 details
 - Batch git blame per file with porcelain output and compute chunk authors by line range.

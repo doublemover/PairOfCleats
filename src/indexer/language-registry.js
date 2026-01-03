@@ -231,7 +231,11 @@ const LANGUAGE_REGISTRY = [
     prepare: ({ text, mode, ext, options }) => (mode === 'code'
       ? { sqlChunks: buildSqlChunks(text, { dialect: options.resolveSqlDialect(ext) }) }
       : {}),
-    buildRelations: ({ text, allImports, context }) => buildSqlRelations(text, allImports, context.sqlChunks),
+    buildRelations: ({ text, allImports, context, options, ext }) =>
+      buildSqlRelations(text, allImports, context.sqlChunks, {
+        dialect: options.resolveSqlDialect(ext),
+        log: options.log
+      }),
     extractDocMeta: ({ chunk }) => extractSqlDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeSqlFlow(text, chunk, flowOptions(options)),
     attachName: true

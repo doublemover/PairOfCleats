@@ -32,8 +32,8 @@ const report = toolOverride.length
   : await buildToolingReport(root, languageOverride, { skipScan: languageOverride.length > 0 });
 const languageList = languageOverride.length ? languageOverride : Object.keys(report.languages || {});
 const tools = toolOverride.length
-  ? resolveToolsById(toolOverride, toolingConfig.dir, root)
-  : resolveToolsForLanguages(languageList, toolingConfig.dir, root);
+  ? resolveToolsById(toolOverride, toolingConfig.dir, root, toolingConfig)
+  : resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig);
 
 const actions = [];
 const results = [];

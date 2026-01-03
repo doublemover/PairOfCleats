@@ -964,3 +964,10 @@ Work items:
 - Preserved heuristic chunkers as fallback when tree-sitter is unavailable or fails.
 - Added config switches for tree-sitter languages and defaults in runtime/config schema.
 - Added fixtures and a tree-sitter chunk test with graceful skip when unavailable.
+
+
+### Phase 75 details
+- Expanded tooling registry with TypeScript language server, Kotlin LSP, Ruby LSP, C# Roslyn LSP, Intelephense, and bash-language-server entries.
+- Added tooling allow/deny lists for installs and detection via `tooling.enabledTools` and `tooling.disabledTools`.
+- Added node-sql-parser integration for SQL table usage extraction.
+- Updated docs with tooling target list and tooling config toggles.

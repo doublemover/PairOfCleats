@@ -58,6 +58,8 @@ Planned config keys:
 - tooling.autoEnableOnDetect (default true)
 - tooling.installScope (cache | user | system)
 - tooling.allowGlobalFallback (default true)
+- tooling.enabledTools (allowlist of tool ids)
+- tooling.disabledTools (denylist of tool ids)
 - tooling.typescript.enabled (default true)
 - tooling.typescript.resolveOrder (default: repo, cache, global)
 - tooling.typescript.useTsconfig (default true)
