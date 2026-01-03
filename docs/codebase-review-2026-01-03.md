@@ -41,7 +41,7 @@ Correctness fixes:
 - Added a fast `require()` scan to the JS import pass so CJS imports contribute to `importLinks` without a full AST pass.
 
 Open items:
-- None in this pass.
+- Reviewed remaining language handlers; no additional correctness issues found in this pass.
 
 ## Shared Core Utilities
 
