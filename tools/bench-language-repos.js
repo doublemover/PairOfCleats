@@ -8,6 +8,9 @@ import { execa, execaSync } from 'execa';
 import { createCli } from '../src/shared/cli.js';
 import { fileURLToPath } from 'node:url';
 import { getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions } from './dict-utils.js';
+import { buildIgnoreMatcher } from '../src/indexer/build/ignore.js';
+import { discoverFilesForModes } from '../src/indexer/build/discover.js';
+import { toPosix } from '../src/shared/files.js';
 
 const argv = createCli({
   scriptName: 'bench-language',
@@ -96,9 +99,16 @@ const buildProgressState = {
   lastLoggedMs: 0,
   lastCount: 0,
   lastPct: 0,
-  label: ''
+  label: '',
+  mode: null,
+  lineTotals: { code: 0, prose: 0 },
+  linesProcessed: { code: 0, prose: 0 },
+  linesByFile: { code: new Map(), prose: new Map() },
+  filesSeen: { code: new Set(), prose: new Set() }
 };
 const buildProgressRegex = /^\s*(Files|Imports)\s+(\d+)\/(\d+)\s+\((\d+(?:\.\d+)?)%\)/i;
+const buildFileRegex = /^\s*Files\s+\d+\/\d+\s+\(\d+(?:\.\d+)?%\)\s+File\s+\d+\/\d+\s+(.+)$/i;
+const buildScanRegex = /Scanning\s+(code|prose)/i;
 const statusLines = logWindowSize + 2;
 const cacheConfig = { cache: { root: cacheRoot } };
 const benchmarkProfileEnabled = argv['benchmark-profile'] !== false;
@@ -415,6 +425,8 @@ function appendLog(line) {
   if (!cleaned) return;
   pushHistory(cleaned);
   writeLog(cleaned);
+  handleBuildMode(cleaned);
+  handleBuildFileLine(cleaned);
   handleBuildProgress(cleaned);
   if (interactive) {
     logLines.push(cleaned);
@@ -433,6 +445,36 @@ function resetBuildProgress(label = '') {
   buildProgressState.lastCount = 0;
   buildProgressState.lastPct = 0;
   buildProgressState.label = label;
+  buildProgressState.mode = null;
+  buildProgressState.lineTotals = { code: 0, prose: 0 };
+  buildProgressState.linesByFile = { code: new Map(), prose: new Map() };
+  buildProgressState.linesProcessed = { code: 0, prose: 0 };
+  buildProgressState.filesSeen = { code: new Set(), prose: new Set() };
+}
+
+function handleBuildMode(line) {
+  const match = buildScanRegex.exec(line);
+  if (!match) return;
+  const mode = match[1].toLowerCase();
+  if (mode === 'code' || mode === 'prose') {
+    buildProgressState.mode = mode;
+  }
+}
+
+function handleBuildFileLine(line) {
+  const match = buildFileRegex.exec(line);
+  if (!match) return;
+  const mode = buildProgressState.mode;
+  if (!mode || !buildProgressState.linesByFile[mode]) return;
+  const rawPath = match[1].trim();
+  if (!rawPath) return;
+  const rel = toPosix(rawPath);
+  const seen = buildProgressState.filesSeen[mode];
+  if (seen.has(rel)) return;
+  const lineCount = buildProgressState.linesByFile[mode].get(rel);
+  if (!Number.isFinite(lineCount)) return;
+  seen.add(rel);
+  buildProgressState.linesProcessed[mode] += lineCount;
 }
 
 function handleBuildProgress(line) {
@@ -470,7 +512,20 @@ function handleBuildProgress(line) {
   const elapsedMs = now - buildProgressState.startMs;
   const rate = elapsedMs > 0 ? count / (elapsedMs / 1000) : 0;
   const remaining = total - count;
-  const etaMs = rate > 0 && remaining > 0 ? (remaining / rate) * 1000 : 0;
+  let etaMs = rate > 0 && remaining > 0 ? (remaining / rate) * 1000 : 0;
+  let lineRate = 0;
+  if (step.toLowerCase() === 'files' && buildProgressState.mode) {
+    const mode = buildProgressState.mode;
+    const totalLines = buildProgressState.lineTotals[mode] || 0;
+    const processedLines = buildProgressState.linesProcessed[mode] || 0;
+    if (elapsedMs > 0 && processedLines > 0) {
+      lineRate = processedLines / (elapsedMs / 1000);
+    }
+    const remainingLines = totalLines - processedLines;
+    if (lineRate > 0 && remainingLines > 0) {
+      etaMs = (remainingLines / lineRate) * 1000;
+    }
+  }
   const pctDelta = pct - buildProgressState.lastPct;
   const countDelta = count - buildProgressState.lastCount;
   const shouldLog =
@@ -480,11 +535,13 @@ function handleBuildProgress(line) {
     countDelta >= 500;
   if (shouldLog) {
     const rateText = rate > 0 ? `${rate.toFixed(1)}/s` : 'n/a';
+    const lineRateText = lineRate > 0 ? `${Math.round(lineRate).toLocaleString()}/s` : null;
     const etaText = etaMs > 0 ? formatDuration(etaMs) : 'n/a';
     const labelText = label ? ` ${label}` : '';
+    const lineRateSegment = lineRateText ? ` | lines ${lineRateText}` : '';
     const message = `Indexing${labelText} ${step} ${count}/${total} (${pct.toFixed(
       1
-    )}%) | rate ${rateText} | elapsed ${formatDuration(elapsedMs)} | eta ${etaText}`;
+    )}%) | rate ${rateText}${lineRateSegment} | elapsed ${formatDuration(elapsedMs)} | eta ${etaText}`;
     updateMetrics(message);
     buildProgressState.lastLoggedMs = now;
     buildProgressState.lastCount = count;
@@ -505,6 +562,60 @@ function formatDuration(ms) {
 
 function formatGb(mb) {
   return `${(mb / 1024).toFixed(1)} GB`;
+}
+
+async function countLines(filePath) {
+  try {
+    const buf = await fsPromises.readFile(filePath);
+    if (!buf || !buf.length) return 0;
+    let count = 0;
+    for (const byte of buf) {
+      if (byte === 10) count += 1;
+    }
+    return count + 1;
+  } catch {
+    return 0;
+  }
+}
+
+function resolveMaxFileBytes(userConfig) {
+  const raw = userConfig?.indexing?.maxFileBytes;
+  const parsed = Number(raw);
+  if (raw === false || raw === 0) return null;
+  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+  return 5 * 1024 * 1024;
+}
+
+async function buildLineStats(repoPath, userConfig) {
+  const modes = ['code', 'prose'];
+  const { ignoreMatcher } = await buildIgnoreMatcher({ root: repoPath, userConfig });
+  const skippedByMode = { code: [], prose: [] };
+  const maxFileBytes = resolveMaxFileBytes(userConfig);
+  const entriesByMode = await discoverFilesForModes({
+    root: repoPath,
+    modes,
+    ignoreMatcher,
+    skippedByMode,
+    maxFileBytes
+  });
+  const linesByFile = { code: new Map(), prose: new Map() };
+  const totals = { code: 0, prose: 0 };
+  const concurrency = 8;
+  for (const mode of modes) {
+    const entries = entriesByMode[mode] || [];
+    for (let i = 0; i < entries.length; i += concurrency) {
+      const batch = entries.slice(i, i + concurrency);
+      const counts = await Promise.all(batch.map(async (entry) => {
+        const lines = await countLines(entry.abs);
+        return { rel: toPosix(entry.rel), lines };
+      }));
+      for (const item of counts) {
+        linesByFile[mode].set(item.rel, item.lines);
+        totals[mode] += item.lines;
+      }
+    }
+  }
+  return { totals, linesByFile };
 }
 
 function stripMaxOldSpaceFlag(options) {
@@ -887,6 +998,21 @@ for (const task of tasks) {
       appendLog(
         `[auto-build] missing artifacts${autoBuildIndex ? ' index' : ''}${autoBuildSqlite ? ' sqlite' : ''}; enabling build.`
       );
+    }
+  }
+
+  const shouldBuildIndex = argv.build || argv['build-index'] || autoBuildIndex;
+  if (shouldBuildIndex && !dryRun) {
+    try {
+      appendLog(`[metrics] Collecting line counts for ${repoLabel}...`);
+      const stats = await buildLineStats(repoPath, repoUserConfig);
+      buildProgressState.lineTotals = stats.totals;
+      buildProgressState.linesByFile = stats.linesByFile;
+      appendLog(
+        `[metrics] Line totals: code=${stats.totals.code.toLocaleString()} prose=${stats.totals.prose.toLocaleString()}`
+      );
+    } catch (err) {
+      appendLog(`[metrics] Line counts unavailable: ${err?.message || err}`);
     }
   }
 
