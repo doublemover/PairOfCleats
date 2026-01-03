@@ -17,7 +17,7 @@ Correctness fixes:
 - None in this pass.
 
 Open items:
-- Validate minhash parity between indexing and search on a fixture to ensure signatures are compatible (currently both use `SimpleMinHash`).
+- Validate minhash parity between indexing and search on a fixture (both currently use `SimpleMinHash`, so the risk is lower but not yet asserted).
 
 ## SQLite
 
