@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { execaSync } from 'execa';
 import { SKIP_DIRS, SKIP_FILES } from '../src/indexer/constants.js';
 import { getToolingConfig } from './dict-utils.js';
 
@@ -74,8 +74,12 @@ function findBinaryInDirs(name, dirs) {
 }
 
 function canRun(cmd, args = ['--version']) {
-  const result = spawnSync(cmd, args, { encoding: 'utf8' });
-  return result.status === 0;
+  try {
+    const result = execaSync(cmd, args, { encoding: 'utf8', stdio: 'ignore', reject: false });
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
 }
 
 async function scanRepo(root) {

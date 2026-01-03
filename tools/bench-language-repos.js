@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
-import { spawn, spawnSync } from 'node:child_process';
+import { execa, execaSync } from 'execa';
 import { createCli } from '../src/shared/cli.js';
 import { fileURLToPath } from 'node:url';
 import { getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions } from './dict-utils.js';
@@ -241,8 +241,12 @@ function loadConfig() {
 }
 
 function canRun(cmd, args) {
-  const result = spawnSync(cmd, args, { encoding: 'utf8' });
-  return result.status === 0;
+  try {
+    const result = execaSync(cmd, args, { encoding: 'utf8', reject: false });
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
 }
 
 function resolveCloneTool() {
@@ -274,18 +278,25 @@ function resolveCloneTool() {
 function ensureLongPathsSupport() {
   if (process.platform !== 'win32') return;
   if (canRun('git', ['--version'])) {
-    spawnSync('git', ['config', '--global', 'core.longpaths', 'true'], { stdio: 'ignore' });
+    try {
+      execaSync('git', ['config', '--global', 'core.longpaths', 'true'], { stdio: 'ignore', reject: false });
+    } catch {}
   }
-  const regResult = spawnSync(
-    'reg',
-    ['query', 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem', '/v', 'LongPathsEnabled'],
-    { encoding: 'utf8' }
-  );
-  if (regResult.status !== 0) {
+  let regResult;
+  try {
+    regResult = execaSync(
+      'reg',
+      ['query', 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem', '/v', 'LongPathsEnabled'],
+      { encoding: 'utf8', reject: false }
+    );
+  } catch {
+    regResult = null;
+  }
+  if (!regResult || regResult.exitCode !== 0) {
     console.warn('Warning: Unable to confirm Windows long path setting. Enable LongPathsEnabled=1 if clones fail.');
     return;
   }
-  const match = regResult.stdout.match(/LongPathsEnabled\\s+REG_DWORD\\s+0x([0-9a-f]+)/i);
+  const match = String(regResult.stdout || '').match(/LongPathsEnabled\\s+REG_DWORD\\s+0x([0-9a-f]+)/i);
   if (!match) return;
   const value = Number.parseInt(match[1], 16);
   if (value === 0) {
@@ -336,7 +347,7 @@ function killProcessTree(pid) {
   if (!Number.isFinite(pid)) return;
   try {
     if (process.platform === 'win32') {
-      spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+      execaSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', reject: false });
       return;
     }
     process.kill(pid, 'SIGTERM');
@@ -556,56 +567,60 @@ function needsSqliteArtifacts(repoCacheRoot) {
 }
 
 async function runProcess(label, cmd, args, options = {}) {
-  return await new Promise((resolve) => {
-    const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], ...options });
-    setActiveChild(child, label);
-    writeLog(`[start] ${label}`);
-    const carry = { stdout: '', stderr: '' };
-    const handleChunk = (chunk, key) => {
-      const text = carry[key] + chunk.toString('utf8');
-      const normalized = text.replace(/\r/g, '\n');
-      const parts = normalized.split('\n');
-      carry[key] = parts.pop() || '';
-      for (const line of parts) appendLog(line);
-    };
-    child.stdout.on('data', (chunk) => handleChunk(chunk, 'stdout'));
-    child.stderr.on('data', (chunk) => handleChunk(chunk, 'stderr'));
-    child.on('error', (err) => {
-      writeLog(`[error] ${label} spawn failed: ${err?.message || err}`);
-      clearActiveChild(child);
-      console.error(`Failed: ${label}`);
-      if (logHistory.length) {
-        console.error('Last log lines:');
-        logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));
-        logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));
-      }
-      logExit('failure', 1);
-      process.exit(1);
-    });
-    child.on('close', (code) => {
-      if (carry.stdout) appendLog(carry.stdout);
-      if (carry.stderr) appendLog(carry.stderr);
-      writeLog(`[finish] ${label} code=${code}`);
-      clearActiveChild(child);
-      if (code === 0) {
-        resolve({ ok: true });
-        return;
-      }
-      console.error(`Failed: ${label}`);
-      writeLog(`[error] Failed: ${label}`);
-      if (logHistory.length) {
-        console.error('Last log lines:');
-        logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));
-        logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));
-      }
-      if (logHistory.some((line) => line.toLowerCase().includes('filename too long'))) {
-        console.error('Hint: On Windows, enable long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
-        writeLog('[hint] Enable Windows long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
-      }
-      logExit('failure', code ?? 1);
-      process.exit(code ?? 1);
-    });
-  });
+  const spawnOptions = {
+    ...options,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    reject: false
+  };
+  const child = execa(cmd, args, spawnOptions);
+  setActiveChild(child, label);
+  writeLog(`[start] ${label}`);
+  const carry = { stdout: '', stderr: '' };
+  const handleChunk = (chunk, key) => {
+    const text = carry[key] + chunk.toString('utf8');
+    const normalized = text.replace(/\r/g, '\n');
+    const parts = normalized.split('\n');
+    carry[key] = parts.pop() || '';
+    for (const line of parts) appendLog(line);
+  };
+  child.stdout?.on('data', (chunk) => handleChunk(chunk, 'stdout'));
+  child.stderr?.on('data', (chunk) => handleChunk(chunk, 'stderr'));
+  try {
+    const result = await child;
+    if (carry.stdout) appendLog(carry.stdout);
+    if (carry.stderr) appendLog(carry.stderr);
+    const code = result.exitCode;
+    writeLog(`[finish] ${label} code=${code}`);
+    clearActiveChild(child);
+    if (code === 0) {
+      return { ok: true };
+    }
+    console.error(`Failed: ${label}`);
+    writeLog(`[error] Failed: ${label}`);
+    if (logHistory.length) {
+      console.error('Last log lines:');
+      logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));
+      logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));
+    }
+    if (logHistory.some((line) => line.toLowerCase().includes('filename too long'))) {
+      console.error('Hint: On Windows, enable long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
+      writeLog('[hint] Enable Windows long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
+    }
+    logExit('failure', code ?? 1);
+    process.exit(code ?? 1);
+  } catch (err) {
+    const message = err?.shortMessage || err?.message || err;
+    writeLog(`[error] ${label} spawn failed: ${message}`);
+    clearActiveChild(child);
+    console.error(`Failed: ${label}`);
+    if (logHistory.length) {
+      console.error('Last log lines:');
+      logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));
+      logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));
+    }
+    logExit('failure', err?.exitCode ?? 1);
+    process.exit(err?.exitCode ?? 1);
+  }
 }
 
 function summarizeResults(items) {

@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn, spawnSync } from 'node:child_process';
+import { execa, execaSync } from 'execa';
 import simpleGit from 'simple-git';
 import { getToolDefs } from '../src/mcp/defs.js';
 import { sendError, sendNotification, sendResult } from '../src/mcp/protocol.js';
@@ -316,13 +316,17 @@ async function configStatus(args = {}) {
  * @returns {string}
  */
 function runNodeSync(cwd, args) {
-  const result = spawnSync(process.execPath, args, { cwd, encoding: 'utf8' });
-  if (result.status !== 0) {
+  const result = execaSync(process.execPath, args, {
+    cwd,
+    encoding: 'utf8',
+    reject: false
+  });
+  if (result.exitCode !== 0) {
     const stderr = (result.stderr || '').trim();
     const stdout = (result.stdout || '').trim();
     const message = stderr || stdout || `Command failed: ${args.join(' ')}`;
     const error = new Error(message.trim());
-    error.code = result.status;
+    error.code = result.exitCode;
     error.stderr = stderr;
     error.stdout = stdout;
     throw error;
@@ -393,7 +397,11 @@ function createLineBuffer(onLine) {
  */
 function runNodeAsync(cwd, args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, args, { cwd });
+    const child = execa(process.execPath, args, {
+      cwd,
+      reject: false,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
     let stdout = '';
     let stderr = '';
     const streamOutput = options.streamOutput === true;
@@ -425,25 +433,27 @@ function runNodeAsync(cwd, args, options = {}) {
       if (streamOutput) process.stderr.write(text);
       stderrBuffer?.push(text);
     });
-    child.on('error', (err) => {
-      const error = new Error(err.message || 'Command failed');
-      error.stdout = stdout;
-      error.stderr = stderr;
-      reject(error);
-    });
-    child.on('close', (code) => {
-      stdoutBuffer?.flush();
-      stderrBuffer?.flush();
-      if (code === 0) {
-        resolve({ stdout, stderr });
-        return;
-      }
-      const error = new Error(stderr.trim() || `Command failed: ${args.join(' ')}`);
-      error.code = code;
-      error.stdout = stdout;
-      error.stderr = stderr;
-      reject(error);
-    });
+    child
+      .then((result) => {
+        stdoutBuffer?.flush();
+        stderrBuffer?.flush();
+        if (result.exitCode === 0) {
+          resolve({ stdout, stderr });
+          return;
+        }
+        const error = new Error(stderr.trim() || `Command failed: ${args.join(' ')}`);
+        error.code = result.exitCode;
+        error.stdout = stdout;
+        error.stderr = stderr;
+        reject(error);
+      })
+      .catch((err) => {
+        const error = new Error(err?.shortMessage || err?.message || 'Command failed');
+        error.code = err?.exitCode;
+        error.stdout = err?.stdout || stdout;
+        error.stderr = err?.stderr || stderr;
+        reject(error);
+      });
   });
 }
 

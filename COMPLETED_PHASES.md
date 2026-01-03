@@ -827,3 +827,14 @@ Work items:
 - [x] Add a "benchmark profile" config (or CLI flag) that disables git blame, lint, risk/type inference, and chargrams.
 - [x] Update benchmark scripts to apply the profile automatically and record which knobs were disabled.
 - [x] Document benchmark profiles and recommended settings for large repos.
+
+
+## Phase 74: Deps Fixes - CLI + Process Execution Ergonomics (status: done)
+Goal: Standardize CLI parsing and process handling using mature dependencies.
+Work items:
+- [x] Evaluate `yargs` vs `commander` and choose one for CLI help/arg consistency (document pros/cons).
+- [x] Migrate CLI entrypoints to the chosen parser, preserving existing flags and exit codes.
+- [x] Add `execa` and replace high-surface CLI wrappers (pairofcleats, triage, search-sqlite, bench-score-strategy, compare-models).
+- [x] Evaluate `tree-kill` for cross-platform process tree termination; keep `taskkill`/`SIGTERM` to avoid Windows command-injection risk.
+- [x] Replace remaining raw `spawn/spawnSync` in complex flows (bench-language, tooling-utils, MCP server, LSP detection).
+- [x] Update CLI and process-related docs after migration.

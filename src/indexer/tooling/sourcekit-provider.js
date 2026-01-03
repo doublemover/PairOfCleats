@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { execaSync } from 'execa';
 import { buildLineIndex } from '../../shared/lines.js';
 import { createLspClient, pathToFileUri } from '../../tooling/lsp/client.js';
 import { rangeToOffsets } from '../../tooling/lsp/positions.js';
@@ -57,10 +57,12 @@ const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.
 
 const canRunSourcekit = (cmd) => {
   try {
-    const result = spawnSync(cmd, ['--help'], { stdio: 'ignore', shell: shouldUseShell(cmd) });
-    if (result.error) return false;
-    if (typeof result.status === 'number') return result.status === 0;
-    return true;
+    const result = execaSync(cmd, ['--help'], {
+      stdio: 'ignore',
+      shell: shouldUseShell(cmd),
+      reject: false
+    });
+    return result.exitCode === 0;
   } catch {
     return false;
   }

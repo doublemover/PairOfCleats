@@ -116,7 +116,7 @@ Mistakes:
 - `ROADMAP.md` is stale (still lists CFG/dataflow + type inference as pending despite completion in `COMPLETE_PLAN.md`).
 
 Enhancements:
-- Add MCP server options for async build/index tasks (spawn and stream output rather than `spawnSync`).
+- MCP server now streams build/index tasks via async subprocesses; add troubleshooting guidance for progress output if needed.
 - Document MCP error payloads and include a small troubleshooting section in docs.
 
 Refactoring opportunities:
@@ -128,4 +128,4 @@ Tests/edge cases:
 - Add a docs regression test to ensure `ROADMAP.md` matches completed phases or is explicitly marked as historical.
 
 Risks/notes:
-- MCP server currently blocks on `spawnSync`, which can stall the RPC loop during long index builds.
+- MCP server now uses async subprocesses for long-running tasks; keep stdout/stderr buffers bounded to avoid memory spikes.

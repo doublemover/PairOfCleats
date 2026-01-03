@@ -92,6 +92,7 @@ curl -N http://127.0.0.1:7345/search/stream \
 Notes:
 - By default, `output` is `compact` (same as `--json-compact` in the CLI).
 - Missing indexes will return a 500 with the CLI stderr in `stderr`.
+- CLI subprocesses run via `execa` with bounded stdout/stderr buffers; stream endpoints forward stderr lines as they arrive.
 
 ## Security considerations
 - No authentication is built in; bind locally and protect with firewall rules.

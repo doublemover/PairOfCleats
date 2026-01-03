@@ -15,17 +15,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
   - Do not prioritize or bring this up unless explicitly requested.
 
 
-## Phase 74: Deps Fixes - CLI + Process Execution Ergonomics (status: partial)
-Goal: Standardize CLI parsing and process handling using mature dependencies.
-Work items:
-- [x] Evaluate `yargs` vs `commander` and choose one for CLI help/arg consistency (document pros/cons).
-- [x] Migrate CLI entrypoints to the chosen parser, preserving existing flags and exit codes.
-- [x] Add `execa` and replace high-surface CLI wrappers (pairofcleats, triage, search-sqlite, bench-score-strategy, compare-models).
-- [ ] Evaluate `tree-kill` for cross-platform process tree termination; adopt only if safe on Windows.
-- [ ] Replace remaining raw `spawn/spawnSync` in complex flows (bench-language, tooling-utils, MCP server, LSP detection) where error handling/streaming is critical.
-- [ ] Update CLI and process-related docs after migration.
-
-
 ## Phase 75: Deps Fixes - Language Tooling Alignment (status: todo)
 Goal: Align LSP and parsing tools with current best-of-breed per language.
 Work items:
@@ -172,11 +161,6 @@ Goal: Add implementation detail for remaining todo phases and capture any open d
 - Use streaming JSON writers for large artifacts in `src/indexer/build/artifacts.js`.
 - Add `piscina` worker pool for tokenization, ngrams, minhash, quantization (pure functions only).
 - Provide fallback to sync path when workers unavailable; add tests for stream correctness.
-
-### Phase 74 details
-- Adopt `yargs` for CLI parsing and migrate existing CLI tools without breaking flags.
-- Add `execa` where process spawning needs better error reporting and streaming.
-- Update CLI docs and `--help` outputs after migration.
 
 ### Phase 75 details
 - Expand tooling registry in `tools/tooling-utils.js` for new LSPs and parsers (Ruby LSP, Roslyn, Intelephense, sql parser).

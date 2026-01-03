@@ -56,3 +56,4 @@ Use the language benchmark harness to run search and performance baselines acros
 - `tests/bench.js` is the underlying runner and supports extra tuning flags (`--bm25-k1`, `--bm25-b`, `--fts-profile`, `--fts-weights`).
 - Queries are plain text, one query per line; lines starting with `#` are ignored.
 - The benchmark profile is on by default and recommended for large repos; disable it when you want full enrichment costs reflected in timings.
+- The runner uses `execa` for child processes and terminates trees via `taskkill` on Windows and `SIGTERM` elsewhere; we avoid `tree-kill` due to past Windows command-injection advisories and only pass trusted PIDs.
