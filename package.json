@@ -67,6 +67,7 @@
     "bench-score-strategy": "node tools/bench-score-strategy.js",
     "bench-compare-models": "node tools/bench-compare-models.js",
     "bench-language": "node tools/bench-language-repos.js",
+    "bench-language:matrix": "node tools/bench-language-matrix.js",
     "bench-language:build": "node tools/bench-language-repos.js --build",
     "bench-language:build-stub": "node tools/bench-language-repos.js --build --stub-embeddings",
     "bench-language:list": "node tools/bench-language-repos.js --list",

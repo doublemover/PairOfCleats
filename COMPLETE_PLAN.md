@@ -56,6 +56,15 @@ Implemented; details moved to `COMPLETED_PHASES.md`.
 ## Phase 83: Deps Fixes - Query Filters + Symbol Boosts (status: done)
 Implemented; details moved to `COMPLETED_PHASES.md`.
 
+## Phase 84: Typical Repo Benchmark Matrix (status: todo)
+Goal: Run typical-size repo benchmarks across all available configurations, capture metrics, and summarize performance.
+Work items:
+- [ ] Run typical-tier benchmarks for each available backend/configuration.
+- [ ] Capture build/search metrics, throughput, and memory stats per repo/backend.
+- [ ] Summarize results and key deltas (performance, accuracy, stability).
+- [ ] Record any errors/failures with repo/backend context and logs.
+- [ ] Add follow-up fixes or investigation notes if regressions are found.
+
 
 ## Todo Phase Detail + Questions (status: active)
 Goal: Add implementation detail for remaining todo phases and capture any open decisions.
