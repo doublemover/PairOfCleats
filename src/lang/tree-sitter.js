@@ -8,6 +8,7 @@ let treeSitterLoadError = null;
 const parserCache = new Map();
 const languageCache = new Map();
 let loggedMissing = false;
+const loggedParseFailures = new Set();
 
 const LANGUAGE_MODULES = {
   swift: 'tree-sitter-swift',
@@ -444,9 +445,28 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   } catch {
     return null;
   }
+  let rootNode = null;
+  try {
+    rootNode = tree.rootNode;
+  } catch (err) {
+    if (!loggedParseFailures.has(resolvedId) && options?.log) {
+      options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
+      loggedParseFailures.add(resolvedId);
+    }
+    return null;
+  }
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
-  const nodes = gatherChunkNodes(tree.rootNode, config);
+  let nodes = [];
+  try {
+    nodes = gatherChunkNodes(rootNode, config);
+  } catch (err) {
+    if (!loggedParseFailures.has(resolvedId) && options?.log) {
+      options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
+      loggedParseFailures.add(resolvedId);
+    }
+    return null;
+  }
   if (!nodes.length) return null;
   const chunks = [];
   for (const node of nodes) {
