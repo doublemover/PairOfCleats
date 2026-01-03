@@ -84,19 +84,33 @@ const resolveRulePath = (rulePath) => {
   return fs.existsSync(resolved) ? resolved : null;
 };
 
+const isWindows = process.platform === 'win32';
+const runCommand = (cmd, args, options = {}) => {
+  const useShell = isWindows && /\.(cmd|bat)$/i.test(cmd);
+  return spawnSync(cmd, args, { ...options, shell: useShell });
+};
+
 const resolveBinary = (engine) => {
   const candidates = {
     semgrep: ['semgrep'],
     'ast-grep': ['sg', 'ast-grep'],
     comby: ['comby']
   }[engine] || [];
-  for (const candidate of candidates) {
-    const result = spawnSync(candidate, ['--version'], { encoding: 'utf8' });
+  const expanded = isWindows
+    ? candidates.flatMap((candidate) => [
+      `${candidate}.cmd`,
+      `${candidate}.bat`,
+      `${candidate}.exe`,
+      candidate
+    ])
+    : candidates;
+  for (const candidate of expanded) {
+    const result = runCommand(candidate, ['--version'], { encoding: 'utf8' });
     if (!result.error && result.status === 0) return candidate;
-    const help = spawnSync(candidate, ['--help'], { encoding: 'utf8' });
+    const help = runCommand(candidate, ['--help'], { encoding: 'utf8' });
     if (!help.error && help.status === 0) return candidate;
   }
-  return candidates[0] || engine;
+  return (expanded[0] || candidates[0] || engine);
 };
 
 const parseJsonLines = (text) => text
@@ -229,7 +243,7 @@ const runSemgrep = (pack, rules) => {
   const args = ['--json'];
   for (const rulePath of rules) args.push('--config', rulePath);
   args.push('--quiet');
-  const result = spawnSync(cmd, args, { cwd: repoRoot, encoding: 'utf8' });
+  const result = runCommand(cmd, args, { cwd: repoRoot, encoding: 'utf8' });
   if (result.error) throw result.error;
   if (result.status !== 0 && !result.stdout) {
     throw new Error(result.stderr || 'semgrep failed');
@@ -242,7 +256,7 @@ const runAstGrep = (pack, rules) => {
   const results = [];
   for (const rulePath of rules) {
     const args = ['scan', '--json', '--rule', rulePath];
-    const result = spawnSync(cmd, args, { cwd: repoRoot, encoding: 'utf8' });
+    const result = runCommand(cmd, args, { cwd: repoRoot, encoding: 'utf8' });
     if (result.error) throw result.error;
     if (result.status !== 0 && !result.stdout) {
       throw new Error(result.stderr || 'ast-grep failed');
@@ -275,7 +289,7 @@ const runComby = (pack, rules) => {
       rule.rewrite || rule.pattern,
       repoRoot
     ];
-    const result = spawnSync(cmd, args, { cwd: repoRoot, encoding: 'utf8' });
+    const result = runCommand(cmd, args, { cwd: repoRoot, encoding: 'utf8' });
     if (result.error) throw result.error;
     if (result.status !== 0 && !result.stdout) {
       throw new Error(result.stderr || 'comby failed');

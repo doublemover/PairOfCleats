@@ -28,7 +28,15 @@ const metaPath = `${outputPath}.meta.json`;
 const toPosix = (value) => value.replace(/\\/g, '/');
 const normalizePath = (value) => {
   if (!value) return null;
-  const raw = String(value);
+  let raw = String(value);
+  const posixRaw = raw.replace(/\\/g, '/');
+  if (posixRaw === '/repo') return '';
+  if (posixRaw.startsWith('/repo/')) {
+    return posixRaw.slice('/repo/'.length);
+  }
+  if (posixRaw.startsWith('/') && /^[A-Za-z]:\//.test(posixRaw.slice(1))) {
+    raw = posixRaw.slice(1);
+  }
   const resolved = path.isAbsolute(raw) ? raw : path.resolve(repoRoot, raw);
   const rel = path.relative(repoRoot, resolved);
   return toPosix(rel || raw);
@@ -104,32 +112,34 @@ const handleEdge = (edge) => {
     }
   }
   if (label === 'item' && edge.outV != null && Array.isArray(edge.inVs)) {
-    const outVertex = vertexById.get(edge.outV);
-    const outLabel = outVertex?.label || outVertex?.type || null;
     const doc = rangeToDoc.get(edge.outV) || null;
     const docUri = doc?.uri || null;
     const file = docUri ? normalizePath(new URL(docUri).pathname) : null;
     if (!file) return;
     const range = rangeById.get(edge.outV);
     const normalized = normalizeRange(range);
-    const role = outLabel === 'definitionResult' ? 'definition'
-      : outLabel === 'referenceResult' ? 'reference'
-        : 'other';
-    if (role === 'definition') stats.definitions += 1;
-    if (role === 'reference') stats.references += 1;
-    bump(stats.languages, doc?.languageId || 'unknown');
-    recordEntry({
-      file,
-      ext: path.extname(file).toLowerCase(),
-      name: range?.tag || range?.text || null,
-      kind: range?.kind || null,
-      startLine: normalized?.startLine ?? null,
-      endLine: normalized?.endLine ?? null,
-      startChar: normalized?.startChar ?? null,
-      endChar: normalized?.endChar ?? null,
-      role,
-      language: doc?.languageId || null
-    });
+    for (const inV of edge.inVs) {
+      const inVertex = vertexById.get(inV);
+      const inLabel = inVertex?.label || inVertex?.type || null;
+      const role = inLabel === 'definitionResult' ? 'definition'
+        : inLabel === 'referenceResult' ? 'reference'
+          : 'other';
+      if (role === 'definition') stats.definitions += 1;
+      if (role === 'reference') stats.references += 1;
+      bump(stats.languages, doc?.languageId || 'unknown');
+      recordEntry({
+        file,
+        ext: path.extname(file).toLowerCase(),
+        name: range?.tag || range?.text || null,
+        kind: range?.kind || null,
+        startLine: normalized?.startLine ?? null,
+        endLine: normalized?.endLine ?? null,
+        startChar: normalized?.startChar ?? null,
+        endChar: normalized?.endChar ?? null,
+        role,
+        language: doc?.languageId || null
+      });
+    }
   }
 };
 

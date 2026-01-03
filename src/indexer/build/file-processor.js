@@ -63,6 +63,7 @@ export function createFileProcessor(options) {
     dictConfig,
     postingsConfig
   });
+  let tokenWorkerDisabled = false;
   let workerTokenizeFailed = false;
   const lintCacheConfig = cacheConfig?.lint || {};
   const complexityCacheConfig = cacheConfig?.complexity || {};
@@ -352,7 +353,9 @@ export function createFileProcessor(options) {
       const chunks = [];
       const codeTexts = [];
       const docTexts = [];
-      const useWorkerForTokens = workerPool && workerPool.shouldUseForFile
+      const useWorkerForTokens = !tokenWorkerDisabled
+        && workerPool
+        && workerPool.shouldUseForFile
         ? workerPool.shouldUseForFile(fileStat.size)
         : false;
 
@@ -383,9 +386,12 @@ export function createFileProcessor(options) {
           } catch (err) {
             if (!workerTokenizeFailed) {
               const message = formatError(err);
+              const detail = err?.stack || err?.cause || null;
               log(`Worker tokenization failed; falling back to main thread. ${message}`);
+              if (detail) log(`Worker tokenization detail: ${detail}`);
               workerTokenizeFailed = true;
             }
+            tokenWorkerDisabled = true;
             if (crashLogger?.enabled) {
               crashLogger.logError({
                 phase: 'worker-tokenize',

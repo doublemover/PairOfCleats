@@ -170,7 +170,7 @@ export function chunkJson(text) {
   return chunks;
 }
 
-export function chunkIniToml(text) {
+export function chunkIniToml(text, format = 'ini') {
   const lines = text.split('\n');
   const headings = [];
   for (let i = 0; i < lines.length; ++i) {
@@ -181,7 +181,14 @@ export function chunkIniToml(text) {
     }
   }
   const chunks = buildChunksFromLineHeadings(text, headings);
-  return chunks || [{ start: 0, end: text.length, name: 'root', kind: 'ConfigSection', meta: { format: 'ini' } }];
+  if (chunks) {
+    return chunks.map((chunk) => ({
+      ...chunk,
+      kind: 'ConfigSection',
+      meta: { ...chunk.meta, format }
+    }));
+  }
+  return [{ start: 0, end: text.length, name: 'root', kind: 'ConfigSection', meta: { format } }];
 }
 
 export function chunkXml(text) {
@@ -381,7 +388,11 @@ const CODE_CHUNKERS = [
 
 const CODE_FORMAT_CHUNKERS = [
   { id: 'json', match: (ext) => ext === '.json', chunk: ({ text }) => chunkJson(text) },
-  { id: 'ini', match: (ext) => ['.toml', '.ini', '.cfg', '.conf'].includes(ext), chunk: ({ text }) => chunkIniToml(text) },
+  {
+    id: 'ini',
+    match: (ext) => ['.toml', '.ini', '.cfg', '.conf'].includes(ext),
+    chunk: ({ text, ext }) => chunkIniToml(text, ext === '.toml' ? 'toml' : 'ini')
+  },
   { id: 'xml', match: (ext) => ext === '.xml', chunk: ({ text }) => chunkXml(text) },
   { id: 'dockerfile', match: (ext) => ext === '.dockerfile', chunk: ({ text }) => chunkDockerfile(text) },
   { id: 'makefile', match: (ext) => ext === '.makefile', chunk: ({ text }) => chunkMakefile(text) },

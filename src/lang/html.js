@@ -225,8 +225,8 @@ const EMBEDDED_CHUNKERS = new Map([
   ['json', (text) => chunkJson(text)],
   ['xml', (text) => chunkXml(text)],
   ['yaml', (text, options) => chunkYaml(text, null, { yamlChunking: options?.yamlChunking })],
-  ['toml', (text) => chunkIniToml(text)],
-  ['ini', (text) => chunkIniToml(text)],
+  ['toml', (text) => chunkIniToml(text, 'toml')],
+  ['ini', (text) => chunkIniToml(text, 'ini')],
   ['markdown', (text) => chunkMarkdown(text)],
   ['css', (text) => buildCssChunks(text) || null],
   ['scss', (text) => buildCssChunks(text) || null],
@@ -295,25 +295,27 @@ export function buildHtmlChunks(text, options = {}) {
     if (!node || typeof node.nodeName !== 'string') return;
     const tag = node.nodeName.toLowerCase();
     if (tag.startsWith('#')) return;
-    if (!IMPORTANT_TAGS.has(tag)) return;
     const loc = node.sourceCodeLocation;
     const start = loc?.startOffset;
     const end = loc?.endOffset;
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
-    const startLine = offsetToLine(lineIndex, start);
-    const endLine = offsetToLine(lineIndex, Math.max(start, end - 1));
-    chunks.push({
-      start,
-      end,
-      name: tag,
-      kind: 'ElementDeclaration',
-      meta: {
-        tag,
-        startLine,
-        endLine,
-        signature: extractTagSignature(text, start, end)
-      }
-    });
+    const hasRange = Number.isFinite(start) && Number.isFinite(end) && end > start;
+    if (IMPORTANT_TAGS.has(tag) && hasRange) {
+      const startLine = offsetToLine(lineIndex, start);
+      const endLine = offsetToLine(lineIndex, Math.max(start, end - 1));
+      chunks.push({
+        start,
+        end,
+        name: tag,
+        kind: 'ElementDeclaration',
+        meta: {
+          tag,
+          startLine,
+          endLine,
+          signature: extractTagSignature(text, start, end)
+        }
+      });
+    }
+    if (!hasRange) return;
     if (tag === 'script' || tag === 'style') {
       const innerStart = loc?.startTag?.endOffset;
       const innerEnd = loc?.endTag?.startOffset;

@@ -16,10 +16,12 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 const env = {
   ...process.env,
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  PAIROFCLEATS_WORKER_POOL: 'off'
 };
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+process.env.PAIROFCLEATS_WORKER_POOL = 'off';
 const repoArgs = ['--repo', fixtureRoot];
 
 function run(args, label) {

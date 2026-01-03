@@ -141,6 +141,18 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     indexingConfig.workerPool || {},
     { cpuLimit: cpuConcurrency }
   );
+  const workerPoolOverride = typeof process.env.PAIROFCLEATS_WORKER_POOL === 'string'
+    ? process.env.PAIROFCLEATS_WORKER_POOL.trim().toLowerCase()
+    : '';
+  if (workerPoolOverride) {
+    if (['0', 'false', 'off', 'disable', 'disabled'].includes(workerPoolOverride)) {
+      workerPoolConfig.enabled = false;
+    } else if (['1', 'true', 'on', 'enable', 'enabled'].includes(workerPoolOverride)) {
+      workerPoolConfig.enabled = true;
+    } else if (workerPoolOverride === 'auto') {
+      workerPoolConfig.enabled = 'auto';
+    }
+  }
 
   const incrementalEnabled = argv.incremental === true;
   const debugCrash = argv['debug-crash'] === true
