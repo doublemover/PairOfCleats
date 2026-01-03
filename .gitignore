@@ -4,6 +4,7 @@ index-code/
 index-prose/
 ci-artifacts/
 tests/.cache/
+tests/.logs/
 benchmarks/repos/
 benchmarks/cache/
 benchmarks/results/

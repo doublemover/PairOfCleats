@@ -3,8 +3,33 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createCli } from '../src/shared/cli.js';
 
 const root = process.cwd();
+const argv = createCli({
+  scriptName: 'script-coverage',
+  options: {
+    retries: { type: 'number', default: 2 },
+    'log-dir': { type: 'string', default: '' }
+  }
+}).parse();
+const envRetries = Number.parseInt(
+  process.env.PAIROFCLEATS_TEST_RETRIES ?? process.env.npm_config_test_retries ?? '',
+  10
+);
+const retries = Number.isFinite(argv.retries)
+  ? Math.max(0, argv.retries)
+  : Number.isFinite(envRetries)
+    ? Math.max(0, envRetries)
+    : 2;
+const logDirOverride = argv['log-dir']
+  || process.env.PAIROFCLEATS_TEST_LOG_DIR
+  || process.env.npm_config_test_log_dir
+  || '';
+const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+const failureLogRoot = logDirOverride
+  ? path.resolve(logDirOverride)
+  : path.join(root, 'tests', '.logs', timestamp);
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const scripts = pkg.scripts || {};
 const scriptNames = Object.keys(scripts);
@@ -31,6 +56,7 @@ const repoEnv = {
 
 await fsPromises.rm(baseCacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoCacheRoot, { recursive: true });
+await fsPromises.mkdir(failureLogRoot, { recursive: true });
 
 function markCovered(name, via) {
   if (!coverage.has(name)) return;
@@ -45,12 +71,48 @@ function markSkipped(name, reason) {
   coverage.set(name, { status: 'skipped', via: null, reason });
 }
 
-function run(label, cmd, args, options = {}) {
-  const result = spawnSync(cmd, args, { stdio: 'inherit', ...options });
-  if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    process.exit(result.status ?? 1);
+const sanitizeLabel = (label) => label.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 120);
+
+function writeFailureLog(label, attempt, cmd, args, options, result) {
+  const safeLabel = sanitizeLabel(label);
+  const logPath = path.join(failureLogRoot, `${safeLabel}.attempt-${attempt}.log`);
+  const lines = [
+    `label: ${label}`,
+    `attempt: ${attempt}`,
+    `command: ${[cmd, ...args].join(' ')}`,
+    `cwd: ${options.cwd || process.cwd()}`,
+    `exit: ${result.status ?? 'null'}`,
+    ''
+  ];
+  if (result.stdout) {
+    lines.push('--- stdout ---', String(result.stdout));
   }
+  if (result.stderr) {
+    lines.push('--- stderr ---', String(result.stderr));
+  }
+  fs.writeFileSync(logPath, lines.join('\n'), 'utf8');
+  return logPath;
+}
+
+function run(label, cmd, args, options = {}) {
+  const maxAttempts = retries + 1;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const result = spawnSync(cmd, args, {
+      encoding: 'utf8',
+      maxBuffer: 50 * 1024 * 1024,
+      stdio: 'pipe',
+      ...options
+    });
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    if (result.status === 0) return;
+    const logPath = writeFailureLog(label, attempt, cmd, args, options, result);
+    console.error(`Failed: ${label} (attempt ${attempt}/${maxAttempts}). Log: ${logPath}`);
+    if (attempt < maxAttempts) {
+      console.error(`Retrying: ${label}`);
+    }
+  }
+  process.exit(1);
 }
 
 function runNode(label, scriptPath, args = [], options = {}) {

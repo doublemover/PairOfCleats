@@ -7,7 +7,9 @@ const argv = createCli({
   scriptName: 'test-all',
   options: {
     'skip-bench': { type: 'boolean', default: false },
-    'skip-script-coverage': { type: 'boolean', default: false }
+    'skip-script-coverage': { type: 'boolean', default: false },
+    retries: { type: 'number', default: 2 },
+    'log-dir': { type: 'string', default: '' }
   }
 }).parse();
 
@@ -32,7 +34,15 @@ const run = (label, args) => {
 };
 
 if (!skipScriptCoverage) {
-  run('script-coverage-test', [path.join(root, 'tests', 'script-coverage.js')]);
+  const args = [path.join(root, 'tests', 'script-coverage.js')];
+  const passRetries = process.argv.some((arg) => arg === '--retries' || arg.startsWith('--retries='));
+  if (passRetries) {
+    args.push('--retries', String(argv.retries));
+  }
+  if (argv['log-dir']) {
+    args.push('--log-dir', argv['log-dir']);
+  }
+  run('script-coverage-test', args);
 }
 
 if (!skipBench) {
