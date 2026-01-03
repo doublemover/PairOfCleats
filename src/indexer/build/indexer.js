@@ -67,12 +67,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   if (mode === 'code') {
     log('Scanning for imports...');
     importResult = await scanImports({
-      files: allEntries.map((entry) => entry.abs),
+      files: allEntries,
       root: runtime.root,
       mode,
       languageOptions: runtime.languageOptions,
       importConcurrency: runtime.importConcurrency,
-      queue: runtime.queues.io
+      queue: runtime.queues.io,
+      incrementalState
     });
     timing.importsMs = importResult.durationMs;
   }

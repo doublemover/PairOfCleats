@@ -139,7 +139,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 
 - Build: `npm run build-sqlite-index`
 - Uses split DBs (`index-code.db` + `index-prose.db`) for concurrency
-- `search.js` auto-uses SQLite when `sqlite.use: true` and DBs exist, unless `search.sqliteAutoChunkThreshold` keeps small repos on file-backed indexes (default 5000; set 0 to always prefer SQLite)
+- `search.js` auto-uses SQLite when `sqlite.use` is not disabled and DBs exist, unless `search.sqliteAutoChunkThreshold` keeps small repos on file-backed indexes (default 0; set higher to keep small repos on file-backed indexes)
 - FTS5 scoring (optional): set `sqlite.scoreMode` to `fts`
 - ANN extension (optional): set `sqlite.annMode = "extension"` and install `sqlite-vec`
   - ANN is on by default when `search.annDefault` is true; use `--no-ann` or set `search.annDefault: false` to disable
@@ -167,8 +167,8 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
     - Git hooks: `npm run git-hooks -- --install`
     - Validate config: `npm run config-validate -- --config .pairofcleats.json`
   - Build indexes:
-    - File-backed: `node build_index.js` (add `--incremental` if desired)
-    - SQLite: `npm run build-sqlite-index`
+    - File-backed + SQLite (default): `node build_index.js` (add `--incremental` if desired; add `--no-sqlite` to skip SQLite)
+    - SQLite only: `npm run build-sqlite-index`
     - Validate: `npm run index-validate`
 </details>
 

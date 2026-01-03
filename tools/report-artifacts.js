@@ -134,7 +134,7 @@ if (indexIssues.length) {
 }
 
 const sqliteIssues = [];
-if (userConfig.sqlite?.use === true) {
+if (userConfig.sqlite?.use !== false) {
   if (!fs.existsSync(sqlitePaths.codePath)) sqliteIssues.push('sqlite code db missing');
   if (!fs.existsSync(sqlitePaths.prosePath)) sqliteIssues.push('sqlite prose db missing');
 }

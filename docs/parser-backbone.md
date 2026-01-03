@@ -73,7 +73,7 @@ Planned config keys:
 - indexing.gitBlame (default true)
 - indexing.pythonAst.enabled (default true)
 - indexing.pythonAst.workerCount / maxWorkers / scaleUpQueueMs / taskTimeoutMs
-- search.sqliteAutoChunkThreshold (default 5000)
+- search.sqliteAutoChunkThreshold (default 0)
 
 ## SQL dialects
 - PostgreSQL, MySQL, and SQLite grammars with dialect selection rules.

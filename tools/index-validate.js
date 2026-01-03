@@ -41,7 +41,7 @@ const report = {
   ok: true,
   root: path.resolve(root),
   modes: {},
-  sqlite: { enabled: userConfig.sqlite?.use === true },
+  sqlite: { enabled: userConfig.sqlite?.use !== false },
   issues: [],
   warnings: []
 };
@@ -64,17 +64,24 @@ for (const mode of modes) {
     missing: [],
     warnings: []
   };
-  for (const file of requiredFiles) {
+  const hasArtifact = (file) => {
     const filePath = path.join(dir, file);
-    if (!fs.existsSync(filePath)) {
+    if (fs.existsSync(filePath)) return true;
+    if (file.endsWith('.json')) {
+      const gzPath = `${filePath}.gz`;
+      if (fs.existsSync(gzPath)) return true;
+    }
+    return false;
+  };
+  for (const file of requiredFiles) {
+    if (!hasArtifact(file)) {
       modeReport.ok = false;
       modeReport.missing.push(file);
       report.issues.push(`[${mode}] missing ${file}`);
     }
   }
   for (const file of optionalFiles) {
-    const filePath = path.join(dir, file);
-    if (!fs.existsSync(filePath)) {
+    if (!hasArtifact(file)) {
       modeReport.warnings.push(file);
       report.warnings.push(`[${mode}] optional ${file} missing`);
     }

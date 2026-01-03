@@ -25,6 +25,33 @@ export async function writeIndexArtifacts(input) {
     incrementalEnabled,
     fileCounts
   } = input;
+  const indexingConfig = userConfig?.indexing || {};
+  const tokenModeRaw = indexingConfig.chunkTokenMode || 'auto';
+  const tokenMode = ['auto', 'full', 'sample', 'none'].includes(tokenModeRaw)
+    ? tokenModeRaw
+    : 'auto';
+  const tokenMaxFiles = Number.isFinite(Number(indexingConfig.chunkTokenMaxFiles))
+    ? Math.max(0, Number(indexingConfig.chunkTokenMaxFiles))
+    : 5000;
+  const tokenSampleSize = Number.isFinite(Number(indexingConfig.chunkTokenSampleSize))
+    ? Math.max(1, Math.floor(Number(indexingConfig.chunkTokenSampleSize)))
+    : 32;
+  const resolvedTokenMode = tokenMode === 'auto'
+    ? ((fileCounts?.candidates ?? 0) <= tokenMaxFiles ? 'full' : 'sample')
+    : tokenMode;
+  const compressionConfig = indexingConfig.artifactCompression || {};
+  const compressionMode = compressionConfig.mode === 'gzip' ? 'gzip' : null;
+  const compressionEnabled = compressionConfig.enabled === true && compressionMode;
+  const compressionKeepRaw = compressionConfig.keepRaw === true;
+  const compressibleArtifacts = new Set([
+    'dense_vectors_uint8',
+    'dense_vectors_doc_uint8',
+    'dense_vectors_code_uint8',
+    'minhash_signatures',
+    'token_postings',
+    'phrase_ngrams',
+    'chargram_postings'
+  ]);
 
   const fileMeta = [];
   const fileIdByPath = new Map();
@@ -49,7 +76,7 @@ export async function writeIndexArtifacts(input) {
 
   function* chunkMetaIterator(chunks) {
     for (const c of chunks) {
-      yield {
+      const entry = {
         id: c.id,
         fileId: fileIdByPath.get(c.file) ?? null,
         start: c.start,
@@ -62,8 +89,6 @@ export async function writeIndexArtifacts(input) {
         headline: c.headline,
         preContext: c.preContext,
         postContext: c.postContext,
-        tokens: c.tokens,
-        ngrams: c.ngrams,
         codeRelations: c.codeRelations,
         docmeta: c.docmeta,
         stats: c.stats,
@@ -71,6 +96,19 @@ export async function writeIndexArtifacts(input) {
         lint: c.lint,
         chunk_authors: c.chunk_authors
       };
+      if (resolvedTokenMode !== 'none') {
+        const tokens = Array.isArray(c.tokens) ? c.tokens : [];
+        const ngrams = Array.isArray(c.ngrams) ? c.ngrams : null;
+        const tokenOut = resolvedTokenMode === 'sample'
+          ? tokens.slice(0, tokenSampleSize)
+          : tokens;
+        const ngramOut = resolvedTokenMode === 'sample' && Array.isArray(ngrams)
+          ? ngrams.slice(0, tokenSampleSize)
+          : ngrams;
+        entry.tokens = tokenOut;
+        entry.ngrams = ngramOut;
+      }
+      yield entry;
     }
   }
   function* fileRelationsIterator(relations) {
@@ -127,55 +165,65 @@ export async function writeIndexArtifacts(input) {
   const denseScale = 2 / 255;
   log('Writing index files...');
   const writeStart = Date.now();
-  const writes = [
-    writeJsonObjectFile(
-      path.join(outDir, 'dense_vectors_uint8.json'),
-      {
-        fields: { model: modelId, dims: postings.dims, scale: denseScale },
-        arrays: { vectors: postings.quantizedVectors }
+  const writes = [];
+  const artifactPath = (base, compressed) => path.join(
+    outDir,
+    compressed ? `${base}.json.gz` : `${base}.json`
+  );
+  const enqueueJsonObject = (base, payload, { compressible = true } = {}) => {
+    if (compressionEnabled && compressible && compressibleArtifacts.has(base)) {
+      writes.push(writeJsonObjectFile(
+        artifactPath(base, true),
+        { ...payload, compression: compressionMode }
+      ));
+      if (compressionKeepRaw) {
+        writes.push(writeJsonObjectFile(artifactPath(base, false), payload));
       }
-    ),
-    writeJsonArrayFile(
-      path.join(outDir, 'file_meta.json'),
-      fileMeta
-    ),
-    writeJsonObjectFile(
-      path.join(outDir, 'dense_vectors_doc_uint8.json'),
-      {
-        fields: { model: modelId, dims: postings.dims, scale: denseScale },
-        arrays: { vectors: postings.quantizedDocVectors }
+      return;
+    }
+    writes.push(writeJsonObjectFile(artifactPath(base, false), payload));
+  };
+  const enqueueJsonArray = (base, items, { compressible = true } = {}) => {
+    if (compressionEnabled && compressible && compressibleArtifacts.has(base)) {
+      writes.push(writeJsonArrayFile(
+        artifactPath(base, true),
+        items,
+        { compression: compressionMode }
+      ));
+      if (compressionKeepRaw) {
+        writes.push(writeJsonArrayFile(artifactPath(base, false), items));
       }
-    ),
-    writeJsonObjectFile(
-      path.join(outDir, 'dense_vectors_code_uint8.json'),
-      {
-        fields: { model: modelId, dims: postings.dims, scale: denseScale },
-        arrays: { vectors: postings.quantizedCodeVectors }
-      }
-    ),
-    writeJsonArrayFile(
-      path.join(outDir, 'chunk_meta.json'),
-      chunkMetaIterator(state.chunks)
-    ),
-    writeJsonObjectFile(
-      path.join(outDir, 'minhash_signatures.json'),
-      { arrays: { signatures: postings.minhashSigs } }
-    ),
-    writeJsonObjectFile(
-      path.join(outDir, 'token_postings.json'),
-      {
-        fields: {
-          avgDocLen: postings.avgDocLen,
-          totalDocs: state.docLengths.length
-        },
-        arrays: {
-          vocab: postings.tokenVocab,
-          postings: postings.tokenPostingsList,
-          docLengths: state.docLengths
-        }
-      }
-    )
-  ];
+      return;
+    }
+    writes.push(writeJsonArrayFile(artifactPath(base, false), items));
+  };
+
+  enqueueJsonObject('dense_vectors_uint8', {
+    fields: { model: modelId, dims: postings.dims, scale: denseScale },
+    arrays: { vectors: postings.quantizedVectors }
+  });
+  enqueueJsonArray('file_meta', fileMeta, { compressible: false });
+  enqueueJsonObject('dense_vectors_doc_uint8', {
+    fields: { model: modelId, dims: postings.dims, scale: denseScale },
+    arrays: { vectors: postings.quantizedDocVectors }
+  });
+  enqueueJsonObject('dense_vectors_code_uint8', {
+    fields: { model: modelId, dims: postings.dims, scale: denseScale },
+    arrays: { vectors: postings.quantizedCodeVectors }
+  });
+  enqueueJsonArray('chunk_meta', chunkMetaIterator(state.chunks), { compressible: false });
+  enqueueJsonObject('minhash_signatures', { arrays: { signatures: postings.minhashSigs } });
+  enqueueJsonObject('token_postings', {
+    fields: {
+      avgDocLen: postings.avgDocLen,
+      totalDocs: state.docLengths.length
+    },
+    arrays: {
+      vocab: postings.tokenVocab,
+      postings: postings.tokenPostingsList,
+      docLengths: state.docLengths
+    }
+  });
   if (state.fileRelations && state.fileRelations.size) {
     writes.push(writeJsonArrayFile(
       path.join(outDir, 'file_relations.json'),
@@ -183,16 +231,14 @@ export async function writeIndexArtifacts(input) {
     ));
   }
   if (resolvedConfig.enablePhraseNgrams !== false) {
-    writes.push(writeJsonObjectFile(
-      path.join(outDir, 'phrase_ngrams.json'),
-      { arrays: { vocab: postings.phraseVocab, postings: postings.phrasePostings } }
-    ));
+    enqueueJsonObject('phrase_ngrams', {
+      arrays: { vocab: postings.phraseVocab, postings: postings.phrasePostings }
+    });
   }
   if (resolvedConfig.enableChargrams !== false) {
-    writes.push(writeJsonObjectFile(
-      path.join(outDir, 'chargram_postings.json'),
-      { arrays: { vocab: postings.chargramVocab, postings: postings.chargramPostings } }
-    ));
+    enqueueJsonObject('chargram_postings', {
+      arrays: { vocab: postings.chargramVocab, postings: postings.chargramPostings }
+    });
   }
   await Promise.all(writes);
   timing.writeMs = Date.now() - writeStart;
@@ -247,6 +293,18 @@ export async function writeIndexArtifacts(input) {
       model: modelId
     },
     dictionaries: dictSummary,
+    artifacts: {
+      chunkTokens: {
+        mode: resolvedTokenMode,
+        sampleSize: tokenSampleSize,
+        maxFiles: tokenMaxFiles
+      },
+      compression: {
+        enabled: Boolean(compressionEnabled),
+        mode: compressionMode,
+        keepRaw: compressionKeepRaw
+      }
+    },
     timings: timing
   };
   try {

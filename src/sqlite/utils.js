@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { gunzipSync } from 'node:zlib';
 
 /**
  * Split an array into fixed-size chunks.
@@ -52,7 +53,16 @@ export function normalizeFilePath(value) {
  * @returns {any}
  */
 export function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  if (fs.existsSync(filePath)) {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  }
+  if (filePath.endsWith('.json')) {
+    const gzPath = `${filePath}.gz`;
+    if (fs.existsSync(gzPath)) {
+      return JSON.parse(gunzipSync(fs.readFileSync(gzPath)).toString('utf8'));
+    }
+  }
+  throw new Error(`Missing JSON artifact: ${filePath}`);
 }
 
 /**
@@ -63,7 +73,9 @@ export function readJson(filePath) {
  */
 export function loadOptional(dir, name) {
   const target = path.join(dir, name);
-  if (!fs.existsSync(target)) return null;
+  if (!fs.existsSync(target) && !(name.endsWith('.json') && fs.existsSync(`${target}.gz`))) {
+    return null;
+  }
   return readJson(target);
 }
 

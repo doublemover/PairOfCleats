@@ -1,6 +1,7 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
 import { getIndexDir } from '../../tools/dict-utils.js';
 import { buildFilterIndex } from './filter-index.js';
 
@@ -12,7 +13,20 @@ import { buildFilterIndex } from './filter-index.js';
  */
 export function loadIndex(dir, options) {
   const { modelIdDefault } = options || {};
-  const readJson = (name) => JSON.parse(fsSync.readFileSync(path.join(dir, name), 'utf8'));
+  const readJson = (name) => {
+    const filePath = path.join(dir, name);
+    if (fsSync.existsSync(filePath)) {
+      return JSON.parse(fsSync.readFileSync(filePath, 'utf8'));
+    }
+    if (name.endsWith('.json')) {
+      const gzPath = `${filePath}.gz`;
+      if (fsSync.existsSync(gzPath)) {
+        const buf = fsSync.readFileSync(gzPath);
+        return JSON.parse(gunzipSync(buf).toString('utf8'));
+      }
+    }
+    throw new Error(`Missing index artifact: ${name}`);
+  };
   const loadOptional = (name) => {
     try {
       return readJson(name);
@@ -153,7 +167,12 @@ export function getIndexSignature(options) {
   } = options;
   const fileSignature = (filePath) => {
     try {
-      const stat = fsSync.statSync(filePath);
+      let statPath = filePath;
+      if (!fsSync.existsSync(statPath) && filePath.endsWith('.json')) {
+        const gzPath = `${filePath}.gz`;
+        if (fsSync.existsSync(gzPath)) statPath = gzPath;
+      }
+      const stat = fsSync.statSync(statPath);
       return `${stat.size}:${stat.mtimeMs}`;
     } catch {
       return null;

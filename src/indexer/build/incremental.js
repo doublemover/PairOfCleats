@@ -63,6 +63,29 @@ export async function readCachedBundle({ enabled, absPath, relKey, fileStat, man
 }
 
 /**
+ * Attempt to load cached imports for a file when size/mtime match.
+ * @param {{enabled:boolean,absPath:string,relKey:string,fileStat:import('node:fs').Stats,manifest:object,bundleDir:string}} input
+ * @returns {Promise<string[]|null>}
+ */
+export async function readCachedImports({ enabled, absPath, relKey, fileStat, manifest, bundleDir }) {
+  if (!enabled) return null;
+  const cachedEntry = manifest.files?.[relKey];
+  if (!cachedEntry || cachedEntry.size !== fileStat.size || cachedEntry.mtimeMs !== fileStat.mtimeMs) {
+    return null;
+  }
+  const bundleName = cachedEntry.bundle || `${sha1(relKey)}.json`;
+  const bundlePath = path.join(bundleDir, bundleName);
+  if (!fsSync.existsSync(bundlePath)) return null;
+  try {
+    const bundle = JSON.parse(await fs.readFile(bundlePath, 'utf8'));
+    const imports = bundle?.fileRelations?.imports;
+    return Array.isArray(imports) ? imports : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Write bundle and return manifest entry.
  * @param {{enabled:boolean,bundleDir:string,relKey:string,fileStat:import('node:fs').Stats,fileHash:string,fileChunks:object[],fileRelations:object|null}} input
  * @returns {Promise<object|null>}

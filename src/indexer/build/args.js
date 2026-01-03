@@ -21,6 +21,7 @@ export function parseBuildArgs(rawArgs) {
       watch: { type: 'boolean', default: false },
       'watch-poll': { type: 'number', default: 2000 },
       'watch-debounce': { type: 'number', default: 500 },
+      sqlite: { type: 'boolean' },
       model: { type: 'string' },
       repo: { type: 'string' }
     })

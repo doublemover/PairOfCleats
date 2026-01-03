@@ -208,6 +208,18 @@
           }
         },
         "embeddingBatchSize": { "type": "number" },
+        "chunkTokenMode": { "type": "string", "enum": ["auto", "full", "sample", "none"] },
+        "chunkTokenMaxFiles": { "type": "number" },
+        "chunkTokenSampleSize": { "type": "number" },
+        "artifactCompression": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "mode": { "type": "string" },
+            "keepRaw": { "type": "boolean" }
+          }
+        },
         "treeSitter": {
           "type": "object",
           "additionalProperties": false,

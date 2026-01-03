@@ -42,7 +42,7 @@ Use the language benchmark harness to run search and performance baselines acros
 - `--root <path>`: clone destination root (default `benchmarks/repos`).
 - `--cache-root <path>`: cache root for all benchmark runs (default `benchmarks/cache`).
 - `--cache-suffix <name>` / `--cache-run`: append a suffix or auto-generate a run id to isolate caches per run.
-- `--build`, `--build-index`, `--build-sqlite`: build indexes before search. `--build-sqlite` requires file-backed indexes and will auto-enable `--build-index` when missing.
+- `--build`, `--build-index`, `--build-sqlite`: build indexes before search. `--build-sqlite` requires file-backed indexes and will auto-enable `--build-index` when missing (build_index already auto-builds SQLite unless disabled).
 - `--backend <csv|all>`: control backends passed to `tests/bench.js`.
 - `--ann` / `--no-ann`: toggle ANN for dense search.
 - `--benchmark-profile` / `--no-benchmark-profile`: toggle the benchmark profile (default on) which disables expensive enrichment (git blame, lint/complexity, risk, type inference, chargrams).

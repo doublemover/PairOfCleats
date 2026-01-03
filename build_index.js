@@ -9,6 +9,7 @@ import { discoverFilesForModes } from './src/indexer/build/discover.js';
 import { watchIndex } from './src/indexer/build/watch.js';
 import { log } from './src/shared/progress.js';
 import { resolveRepoRoot } from './tools/dict-utils.js';
+import { runCommand } from './tools/cli-utils.js';
 import { shutdownPythonAstPool } from './src/lang/python.js';
 
 const { argv, modes } = parseBuildArgs(process.argv.slice(2));
@@ -47,6 +48,20 @@ try {
   for (const mode of modes) {
     const discovery = sharedDiscovery ? sharedDiscovery[mode] : null;
     await buildIndexForMode({ mode, runtime, discovery });
+  }
+  const sqliteConfigured = runtime.userConfig?.sqlite?.use !== false;
+  const shouldBuildSqlite = typeof argv.sqlite === 'boolean' ? argv.sqlite : sqliteConfigured;
+  const sqliteModes = modes.filter((mode) => mode === 'code' || mode === 'prose');
+  if (shouldBuildSqlite && sqliteModes.length) {
+    const sqliteArgs = [path.join('tools', 'build-sqlite-index.js'), '--repo', runtime.root];
+    if (argv.incremental) sqliteArgs.push('--incremental');
+    if (sqliteModes.length === 1) sqliteArgs.push('--mode', sqliteModes[0]);
+    log('Building SQLite indexes...');
+    const result = runCommand(process.execPath, sqliteArgs, { stdio: 'inherit' });
+    if (!result.ok) {
+      console.error('SQLite index build failed.');
+      process.exit(result.status ?? 1);
+    }
   }
 } finally {
   await lock.release();

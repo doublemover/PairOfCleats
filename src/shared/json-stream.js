@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { once } from 'node:events';
+import { createGzip } from 'node:zlib';
 
 const writeChunk = async (stream, chunk) => {
   if (!stream.write(chunk)) {
@@ -11,6 +12,19 @@ const waitForFinish = (stream) => new Promise((resolve, reject) => {
   stream.on('error', reject);
   stream.on('finish', resolve);
 });
+
+const createJsonWriteStream = (filePath, compression) => {
+  const fileStream = fs.createWriteStream(filePath);
+  if (compression === 'gzip') {
+    const gzip = createGzip();
+    gzip.pipe(fileStream);
+    return {
+      stream: gzip,
+      done: Promise.all([waitForFinish(gzip), waitForFinish(fileStream)]).then(() => {})
+    };
+  }
+  return { stream: fileStream, done: waitForFinish(fileStream) };
+};
 
 const writeArrayItems = async (stream, items) => {
   let first = true;
@@ -29,9 +43,8 @@ const writeArrayItems = async (stream, items) => {
  * @returns {Promise<void>}
  */
 export async function writeJsonArrayFile(filePath, items, options = {}) {
-  const { trailingNewline = true } = options;
-  const stream = fs.createWriteStream(filePath);
-  const done = waitForFinish(stream);
+  const { trailingNewline = true, compression = null } = options;
+  const { stream, done } = createJsonWriteStream(filePath, compression);
   await writeChunk(stream, '[');
   await writeArrayItems(stream, items);
   await writeChunk(stream, ']');
@@ -47,9 +60,8 @@ export async function writeJsonArrayFile(filePath, items, options = {}) {
  * @returns {Promise<void>}
  */
 export async function writeJsonObjectFile(filePath, input = {}) {
-  const { fields = {}, arrays = {}, trailingNewline = true } = input;
-  const stream = fs.createWriteStream(filePath);
-  const done = waitForFinish(stream);
+  const { fields = {}, arrays = {}, trailingNewline = true, compression = null } = input;
+  const { stream, done } = createJsonWriteStream(filePath, compression);
   await writeChunk(stream, '{');
   let first = true;
   for (const [key, value] of Object.entries(fields)) {

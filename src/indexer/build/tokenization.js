@@ -66,7 +66,13 @@ export function tokenizeChunkText(input) {
   } = context;
 
   let tokens = splitId(text);
-  tokens = tokens.map((t) => t.normalize('NFKD'));
+  const normalizeToken = (value) => {
+    for (let i = 0; i < value.length; i += 1) {
+      if (value.charCodeAt(i) > 127) return value.normalize('NFKD');
+    }
+    return value;
+  };
+  tokens = tokens.map(normalizeToken);
 
   if (!(mode === 'prose' && ext === '.md')) {
     tokens = tokens.flatMap((t) => splitWordsWithDict(t, dictWords, dictConfig));

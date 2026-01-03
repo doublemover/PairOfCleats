@@ -466,7 +466,7 @@ if (!argv['skip-index'] && !restoredArtifacts) {
 let sqliteBuilt = false;
 let sqliteOk = true;
 if (!argv['skip-sqlite']) {
-  const sqliteConfigured = userConfig.sqlite?.use === true;
+  const sqliteConfigured = userConfig.sqlite?.use !== false;
   const sqliteDefault = argv['with-sqlite'] ? true : sqliteConfigured;
   const shouldBuildSqlite = argv['with-sqlite']
     ? true

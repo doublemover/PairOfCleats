@@ -20,14 +20,14 @@ The unified setup script (`npm run setup`) guides you through installing optiona
 - Detect and optionally install tooling.
 - Restore CI artifacts when present.
 - Build file-backed indexes (optionally incremental).
-- Build SQLite indexes (optional).
+- Build SQLite indexes (default unless `--skip-sqlite`).
 - Offer to set a Node heap limit for large repos (writes `runtime.maxOldSpaceMb`).
 
 ## Flags
 
 - `--non-interactive` / `--ci`: Skip prompts and use defaults.
 - `--json`: Emit a summary report to stdout (logs go to stderr).
-- `--with-sqlite`: Default SQLite build to yes.
+- `--with-sqlite`: Force SQLite build on (default behavior).
 - `--incremental`: Use incremental indexing if available.
 - `--validate-config`: Validate `.pairofcleats.json` before running setup.
 - `--skip-validate`: Skip config validation prompts.

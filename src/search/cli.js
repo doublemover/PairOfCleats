@@ -49,7 +49,7 @@ const sqliteConfig = userConfig.sqlite || {};
 const sqliteAutoChunkThresholdRaw = userConfig.search?.sqliteAutoChunkThreshold;
 const sqliteAutoChunkThreshold = Number.isFinite(Number(sqliteAutoChunkThresholdRaw))
   ? Math.max(0, Number(sqliteAutoChunkThresholdRaw))
-  : 5000;
+  : 0;
 const postingsConfig = normalizePostingsConfig(userConfig.indexing?.postings || {});
 const vectorExtension = getVectorExtensionConfig(ROOT, userConfig);
 const bm25Config = userConfig.search?.bm25 || {};
@@ -131,7 +131,7 @@ const sqliteScoreModeConfig = sqliteConfig.scoreMode === 'fts';
 const sqliteFtsRequested = backendArg === 'sqlite-fts' || backendArg === 'fts' || (!backendArg && sqliteScoreModeConfig);
 const backendForcedSqlite = backendArg === 'sqlite' || sqliteFtsRequested;
 const backendDisabled = backendArg && !(backendArg === 'sqlite' || sqliteFtsRequested);
-const sqliteConfigured = sqliteConfig.use === true;
+const sqliteConfigured = sqliteConfig.use !== false;
 const sqliteCodeAvailable = fsSync.existsSync(sqliteCodePath);
 const sqliteProseAvailable = fsSync.existsSync(sqliteProsePath);
 const sqliteAvailable = (!needsCode || sqliteCodeAvailable) && (!needsProse || sqliteProseAvailable);
