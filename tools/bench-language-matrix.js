@@ -126,7 +126,8 @@ const appendArgs = (args, flag, value) => {
 
 const configToArgs = (config, outFile, logFile) => {
   const args = [benchScript];
-  if (argv.tier) appendArgs(args, '--tier', argv.tier);
+  const tierArg = argv.tier || 'typical';
+  appendArgs(args, '--tier', tierArg);
   appendArgs(args, '--backend', config.backend);
   appendArgs(args, '--out', outFile);
   appendArgs(args, '--log', logFile);
