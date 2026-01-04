@@ -24,27 +24,11 @@ Implemented; details moved to `COMPLETED_PHASES.md`.
 
 
 ## Phase 77: Deps Fixes - Dependency Hygiene (status: done)
-Goal: Remove unused packages and consolidate redundant parsing stacks.
-Work items:
-- [ ] Audit usage of `minhash` (npm), `varint`, `seedrandom`, `yaml`, `strip-comments`; remove if unused.
-- [ ] Consolidate JS parsing dependencies (prefer Babel) and remove redundant `acorn`/`esprima` paths if safe.
-- [ ] Update `package.json`, lockfile, and docs to reflect dependency removals.
-- [ ] Add a small dependency audit test to ensure removed packages are not referenced.
+Implemented; details moved to `COMPLETED_PHASES.md`.
 
 
 ## Phase 78: Deps Fixes - Correctness and Spec Mismatches (status: done)
-Goal: Resolve correctness bugs and spec mismatches highlighted in deps_fixes.md.
-Work items:
-- [ ] Remove dead `posts` computation in `src/indexer/build/postings.js`; add a test asserting no unused allocations.
-- [ ] Either implement a real `maxVocab` cap or remove the trimmed-vocab path to avoid misleading behavior.
-- [ ] Decide whether to use `dense_vectors_doc_uint8.json`/`dense_vectors_code_uint8.json`; wire into ranking or stop writing/loading them.
-- [ ] Fix dense vector `scale` metadata to match quantization step size (or remove field).
-- [ ] Skip `scanImports()` for prose mode and add a regression test ensuring no import scan runs.
-- [ ] Fix per-chunk relation duplication by separating file-level vs chunk-level relations (avoid copying full file relations into every chunk).
-- [ ] Rework `buildChunkRelations` to avoid O(chunks * calls) scanning (pre-index call maps per file).
-- [ ] Validate `git blame` line range off-by-one when chunk end offsets are exclusive; adjust `endLine` calculation as needed and add tests.
-- [ ] Clarify and document `importLinks` semantics; add tests that verify intended behavior.
-- [ ] Review ESLint API usage (`useEslintrc` options) and update for current ESLint version with a fallback warning.
+Implemented; details moved to `COMPLETED_PHASES.md`.
 
 
 ## Phase 80: Deps Fixes - Performance Refactors (status: done)

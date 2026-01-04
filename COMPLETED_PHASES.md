@@ -1018,3 +1018,7 @@ Work items:
 - Kept symbol-aware ranking boosts for definitions/exports with coverage in `tests/search-symbol-boost.js`.
 - Emitted compact `repo_map.json` artifacts with symbols, signatures, and file paths for navigation.
 - Added repo map coverage to fixture smoke tests.
+
+## Roadmap and Deps Fixes Cleanup (status: done)
+- Confirmed `deps_fixes.md` items are fully implemented via Phases 75-83 details.
+- Archived historical `ROADMAP.md` into completed records and removed the file.
