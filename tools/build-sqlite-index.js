@@ -87,11 +87,23 @@ if (modeArg === 'all') {
 
 
 
-const codeIndex = loadIndex(codeDir, modelConfig.id);
-const proseIndex = loadIndex(proseDir, modelConfig.id);
+const loadIndexSafe = (dir, label) => {
+  try {
+    return { index: loadIndex(dir, modelConfig.id), tooLarge: false };
+  } catch (err) {
+    if (err?.code === 'ERR_JSON_TOO_LARGE') {
+      console.warn(`[sqlite] ${label} chunk_meta too large; will prefer incremental bundles if available.`);
+      return { index: null, tooLarge: true };
+    }
+    throw err;
+  }
+};
+
+const { index: codeIndex, tooLarge: codeIndexTooLarge } = loadIndexSafe(codeDir, 'code');
+const { index: proseIndex, tooLarge: proseIndexTooLarge } = loadIndexSafe(proseDir, 'prose');
 const incrementalCode = loadIncrementalManifest(repoCacheRoot, 'code');
 const incrementalProse = loadIncrementalManifest(repoCacheRoot, 'prose');
-if (!codeIndex && !proseIndex) {
+if (!codeIndex && !proseIndex && !incrementalCode?.manifest && !incrementalProse?.manifest) {
   console.error('No index found. Build index-code/index-prose first.');
   process.exit(1);
 }
@@ -107,11 +119,11 @@ if (sqlitePaths.legacyExists) {
 
 const canIncrementalCode = incrementalRequested && incrementalCode?.manifest;
 const canIncrementalProse = incrementalRequested && incrementalProse?.manifest;
-if (modeArg === 'code' && !codeIndex && !canIncrementalCode) {
+if (modeArg === 'code' && !codeIndex && !incrementalCode?.manifest) {
   console.error('Code index missing; build index-code first.');
   process.exit(1);
 }
-if (modeArg === 'prose' && !proseIndex && !canIncrementalProse) {
+if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
   console.error('Prose index missing; build index-prose first.');
   process.exit(1);
 }
@@ -487,6 +499,261 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
   ingestFileManifest(index, mode);
   db.close();
   return count;
+}
+
+/**
+ * Build a full SQLite index from incremental bundles.
+ * @param {string} outPath
+ * @param {'code'|'prose'} mode
+ * @param {object|null} incrementalData
+ * @returns {{count:number,reason?:string}}
+ */
+function buildDatabaseFromBundles(outPath, mode, incrementalData) {
+  if (!incrementalData?.manifest) {
+    return { count: 0, reason: 'missing incremental manifest' };
+  }
+  const manifestFiles = incrementalData.manifest.files || {};
+  const manifestKeys = Object.keys(manifestFiles);
+  if (!manifestKeys.length) {
+    return { count: 0, reason: 'incremental manifest empty' };
+  }
+
+  const db = new Database(outPath);
+  try {
+    db.pragma('journal_mode = WAL');
+    db.pragma('synchronous = NORMAL');
+  } catch {}
+
+  db.exec(CREATE_TABLES_SQL);
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);
+
+  const insertChunk = db.prepare(`
+    INSERT OR REPLACE INTO chunks (
+      id, mode, file, start, end, startLine, endLine, ext, kind, name, headline,
+      preContext, postContext, weight, tokens, ngrams, codeRelations, docmeta,
+      stats, complexity, lint, externalDocs, last_modified, last_author, churn,
+      chunk_authors
+    ) VALUES (
+      @id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind, @name,
+      @headline,
+      @preContext, @postContext, @weight, @tokens, @ngrams, @codeRelations, @docmeta,
+      @stats, @complexity, @lint, @externalDocs, @last_modified, @last_author, @churn,
+      @chunk_authors
+    );
+  `);
+
+  const insertFts = db.prepare(`
+    INSERT OR REPLACE INTO chunks_fts (rowid, mode, file, name, kind, headline, tokens)
+    VALUES (@id, @mode, @file, @name, @kind, @headline, @tokensText);
+  `);
+
+  const insertTokenVocab = db.prepare(
+    'INSERT OR REPLACE INTO token_vocab (mode, token_id, token) VALUES (?, ?, ?)'
+  );
+  const insertTokenPosting = db.prepare(
+    'INSERT OR REPLACE INTO token_postings (mode, token_id, doc_id, tf) VALUES (?, ?, ?, ?)'
+  );
+  const insertDocLength = db.prepare(
+    'INSERT OR REPLACE INTO doc_lengths (mode, doc_id, len) VALUES (?, ?, ?)'
+  );
+  const insertTokenStats = db.prepare(
+    'INSERT OR REPLACE INTO token_stats (mode, avg_doc_len, total_docs) VALUES (?, ?, ?)'
+  );
+  const insertPhraseVocab = db.prepare(
+    'INSERT OR REPLACE INTO phrase_vocab (mode, phrase_id, ngram) VALUES (?, ?, ?)'
+  );
+  const insertPhrasePosting = db.prepare(
+    'INSERT OR REPLACE INTO phrase_postings (mode, phrase_id, doc_id) VALUES (?, ?, ?)'
+  );
+  const insertChargramVocab = db.prepare(
+    'INSERT OR REPLACE INTO chargram_vocab (mode, gram_id, gram) VALUES (?, ?, ?)'
+  );
+  const insertChargramPosting = db.prepare(
+    'INSERT OR REPLACE INTO chargram_postings (mode, gram_id, doc_id) VALUES (?, ?, ?)'
+  );
+  const insertMinhash = db.prepare(
+    'INSERT OR REPLACE INTO minhash_signatures (mode, doc_id, sig) VALUES (?, ?, ?)'
+  );
+  const insertDense = db.prepare(
+    'INSERT OR REPLACE INTO dense_vectors (mode, doc_id, vector) VALUES (?, ?, ?)'
+  );
+  const insertDenseMeta = db.prepare(
+    'INSERT OR REPLACE INTO dense_meta (mode, dims, scale, model) VALUES (?, ?, ?, ?)'
+  );
+  const insertFileManifest = db.prepare(
+    'INSERT OR REPLACE INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
+  );
+
+  const tokenIdMap = new Map();
+  const phraseIdMap = new Map();
+  const chargramIdMap = new Map();
+  let nextTokenId = 0;
+  let nextPhraseId = 0;
+  let nextChargramId = 0;
+  let nextDocId = 0;
+  let totalDocs = 0;
+  let totalLen = 0;
+
+  const fileCounts = new Map();
+  for (const file of manifestKeys) {
+    fileCounts.set(normalizeFilePath(file), 0);
+  }
+
+  let denseMetaSet = false;
+  let denseDims = null;
+  let vectorAnnLoaded = false;
+  let vectorAnnReady = false;
+  let vectorAnnTable = vectorExtension.table || 'vector_ann';
+  let vectorAnnColumn = vectorExtension.column || 'embedding';
+  let insertVectorAnn = null;
+  if (vectorAnnEnabled) {
+    const loadResult = loadVectorExtension(db, vectorExtension, `sqlite ${mode}`);
+    if (loadResult.ok) {
+      vectorAnnLoaded = true;
+      if (hasVectorTable(db, vectorAnnTable)) {
+        vectorAnnReady = true;
+      }
+    } else {
+      console.warn(`[sqlite] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
+    }
+  }
+
+  const insertBundle = db.transaction((bundle, fileKey) => {
+    const normalizedFile = normalizeFilePath(fileKey);
+    let chunkCount = 0;
+    for (const chunk of bundle.chunks || []) {
+      const docId = nextDocId;
+      nextDocId += 1;
+
+      const row = buildChunkRow({ ...chunk, file: chunk.file || fileKey }, mode, docId);
+      insertChunk.run(row);
+      insertFts.run(row);
+
+      const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
+      insertDocLength.run(mode, docId, tokensArray.length);
+      totalDocs += 1;
+      totalLen += tokensArray.length;
+
+      if (tokensArray.length) {
+        const freq = buildTokenFrequency(tokensArray);
+        for (const [token, tf] of freq.entries()) {
+          let tokenId = tokenIdMap.get(token);
+          if (tokenId === undefined) {
+            tokenId = nextTokenId;
+            nextTokenId += 1;
+            tokenIdMap.set(token, tokenId);
+            insertTokenVocab.run(mode, tokenId, token);
+          }
+          insertTokenPosting.run(mode, tokenId, docId, tf);
+        }
+      }
+
+      if (Array.isArray(chunk.ngrams)) {
+        const unique = new Set(chunk.ngrams);
+        for (const ng of unique) {
+          let phraseId = phraseIdMap.get(ng);
+          if (phraseId === undefined) {
+            phraseId = nextPhraseId;
+            nextPhraseId += 1;
+            phraseIdMap.set(ng, phraseId);
+            insertPhraseVocab.run(mode, phraseId, ng);
+          }
+          insertPhrasePosting.run(mode, phraseId, docId);
+        }
+      }
+
+      if (Array.isArray(chunk.chargrams)) {
+        const unique = new Set(chunk.chargrams);
+        for (const gram of unique) {
+          let gramId = chargramIdMap.get(gram);
+          if (gramId === undefined) {
+            gramId = nextChargramId;
+            nextChargramId += 1;
+            chargramIdMap.set(gram, gramId);
+            insertChargramVocab.run(mode, gramId, gram);
+          }
+          insertChargramPosting.run(mode, gramId, docId);
+        }
+      }
+
+      if (Array.isArray(chunk.minhashSig) && chunk.minhashSig.length) {
+        insertMinhash.run(mode, docId, packUint32(chunk.minhashSig));
+      }
+
+      if (Array.isArray(chunk.embedding) && chunk.embedding.length) {
+        const dims = chunk.embedding.length;
+        if (!denseMetaSet) {
+          insertDenseMeta.run(mode, dims, 1.0, modelConfig.id || null);
+          denseMetaSet = true;
+          denseDims = dims;
+        }
+        insertDense.run(mode, docId, packUint8(quantizeVec(chunk.embedding)));
+        if (vectorAnnLoaded) {
+          if (!vectorAnnReady) {
+            const created = ensureVectorTable(db, vectorExtension, dims);
+            if (created.ok) {
+              vectorAnnReady = true;
+              vectorAnnTable = created.tableName;
+              vectorAnnColumn = created.column;
+              insertVectorAnn = db.prepare(
+                `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
+              );
+            }
+          }
+          if (vectorAnnReady && insertVectorAnn) {
+            const encoded = encodeVector(chunk.embedding, vectorExtension);
+            if (encoded) insertVectorAnn.run(toVectorId(docId), encoded);
+          }
+        }
+      }
+
+      chunkCount += 1;
+    }
+
+    fileCounts.set(normalizedFile, (fileCounts.get(normalizedFile) || 0) + chunkCount);
+  });
+
+  let count = 0;
+  for (const file of manifestKeys) {
+    const entry = manifestFiles[file];
+    const bundleName = entry?.bundle;
+    if (!bundleName) {
+      console.warn(`[sqlite] Missing bundle entry for ${file}; skipping.`);
+      continue;
+    }
+    const bundlePath = path.join(incrementalData.bundleDir, bundleName);
+    if (!fsSync.existsSync(bundlePath)) {
+      console.warn(`[sqlite] Missing bundle file for ${file}; skipping.`);
+      continue;
+    }
+    const bundle = readJson(bundlePath);
+    if (!bundle || !Array.isArray(bundle.chunks)) {
+      console.warn(`[sqlite] Invalid bundle for ${file}; skipping.`);
+      continue;
+    }
+    insertBundle(bundle, file);
+    count += bundle.chunks.length;
+  }
+
+  insertTokenStats.run(mode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
+
+  const insertManifestTx = db.transaction(() => {
+    for (const [file, chunkCount] of fileCounts.entries()) {
+      const entry = manifestFiles[file] || manifestFiles[file.replace(/\\/g, '/')];
+      insertFileManifest.run(
+        mode,
+        normalizeFilePath(file),
+        entry?.hash || null,
+        Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
+        Number.isFinite(entry?.size) ? entry.size : null,
+        chunkCount
+      );
+    }
+  });
+  insertManifestTx();
+
+  db.close();
+  return { count };
 }
 
 /**
@@ -1061,6 +1328,10 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
  * @returns {{count?:number,incremental:boolean,changedFiles?:number,deletedFiles?:number,insertedChunks?:number}}
  */
 async function runMode(mode, index, targetPath, incrementalData) {
+  const hasBundles = incrementalData?.manifest?.files
+    ? Object.keys(incrementalData.manifest.files).length > 0
+    : false;
+
   if (incrementalRequested) {
     const expectedDense = index?.denseVec
       ? { model: index.denseVec.model, dims: index.denseVec.dims }
@@ -1083,6 +1354,16 @@ async function runMode(mode, index, targetPath, incrementalData) {
     }
     if (result.reason) {
       console.warn(`[sqlite] Incremental ${mode} update skipped (${result.reason}); rebuilding full index.`);
+    }
+  }
+  if (hasBundles) {
+    console.log(`[sqlite] Using incremental bundles for ${mode} full rebuild.`);
+    const bundleResult = buildDatabaseFromBundles(targetPath, mode, incrementalData);
+    if (bundleResult.count) {
+      return { count: bundleResult.count, incremental: false, changedFiles: null, deletedFiles: null, insertedChunks: bundleResult.count };
+    }
+    if (bundleResult.reason) {
+      console.warn(`[sqlite] Bundle build skipped (${bundleResult.reason}); falling back to file-backed artifacts.`);
     }
   }
   const count = buildDatabase(targetPath, index, mode, incrementalData?.manifest?.files);

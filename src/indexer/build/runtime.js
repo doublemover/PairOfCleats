@@ -18,6 +18,7 @@ import { buildIgnoreMatcher } from './ignore.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { applyBenchmarkProfile } from '../../shared/bench-profile.js';
 import { createIndexerWorkerPool, normalizeWorkerPoolConfig } from './worker-pool.js';
+import { createCrashLogger } from './crash-log.js';
 
 /**
  * Create runtime configuration for build_index.
@@ -264,6 +265,12 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   if (postingsConfig.enableChargrams === false) {
     log('Chargram postings disabled via indexing.postings.enableChargrams.');
   }
+  const workerCrashLogger = await createCrashLogger({
+    repoCacheRoot,
+    enabled: debugCrash,
+    log: null
+  });
+
   let workerPool = null;
   if (workerPoolConfig.enabled !== false) {
     workerPool = await createIndexerWorkerPool({
@@ -271,6 +278,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       dictWords,
       dictConfig,
       postingsConfig,
+      crashLogger: workerCrashLogger,
       log
     });
     if (workerPool) {

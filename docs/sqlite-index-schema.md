@@ -101,3 +101,4 @@ SQLite vector extension).
 - `idx_chunks_file` and `idx_file_manifest_mode_file` speed file-level updates.
 - File paths in SQLite are normalized to use `/`.
 - When `chunk_meta.json` stores `fileId` instead of `file`, `build-sqlite-index` uses `file_meta.json` to resolve file paths, extensions, and external docs, and to populate `file_manifest`.
+- When incremental bundles are present (manifest exists), SQLite rebuilds stream bundle files from `<cache>/repos/<repoId>/incremental/<mode>/files` instead of loading `chunk_meta.json`.

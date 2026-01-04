@@ -45,7 +45,7 @@ The unified setup script (`npm run setup`) guides you through installing optiona
 ## Notes
 
 - Defaults follow `.pairofcleats.json` where applicable.
-- SQLite builds require file-backed indexes; setup will prompt if they are missing.
+- SQLite builds use file-backed indexes by default, but will stream from incremental bundles when available.
 - `build_index.js` can be run from any working directory; it resolves SQLite build tooling from the install root.
 - After setup, run `npm run index-validate` to confirm index artifacts are healthy.
 - If you prefer a fast, no-prompts path, use `npm run bootstrap`.

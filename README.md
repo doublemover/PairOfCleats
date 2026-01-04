@@ -149,6 +149,7 @@ Active development. Current execution status lives in `COMPLETE_PLAN.md`; `ROADM
 <summary><h2>SQLite backend</h2></summary>
 
 - Build: `npm run build-sqlite-index`
+  - When incremental bundles exist, SQLite builds automatically stream from them (avoids loading huge JSON artifacts).
 - Uses split DBs (`index-code.db` + `index-prose.db`) for concurrency
 - `search.js` auto-uses SQLite when `sqlite.use` is not disabled and DBs exist, unless `search.sqliteAutoChunkThreshold` keeps small repos on file-backed indexes (default 0; set higher to keep small repos on file-backed indexes)
 - FTS5 scoring (optional): set `sqlite.scoreMode` to `fts`
@@ -287,7 +288,7 @@ Reports + MCP:
 Meta:
 - `npm run script-coverage-test`
 - `npm run docs-consistency-test`
-- `npm run bench` / `npm run bench-ann` / `npm run bench-language`
+- `npm run bench` / `npm run bench-ann` / `npm run bench-language` / `npm run bench-language:matrix`
 </details>
 
 <details>
@@ -303,6 +304,7 @@ Meta:
 - Repometrics dashboard: `npm run repometrics-dashboard`
 - Model comparison: `npm run compare-models`
 - Combined summary report: `npm run summary-report` (add `-- --json` for JSON output)
+- Language benchmarks: `npm run bench-language`, `npm run bench-language:matrix`, `npm run bench-language:build`
 - Tooling detect/install: `npm run tooling-detect`, `npm run tooling-install`
 - Git hooks (post-commit/post-merge): `npm run git-hooks -- --install`
 - CI artifacts: `node tools/ci-build-artifacts.js --out ci-artifacts`, `node tools/ci-restore-artifacts.js --from ci-artifacts`

@@ -11,7 +11,7 @@ Compare search latency and ranking differences across embedding models.
 ## Notes
 - The harness isolates per-model indexes under `<cache>/model-compare/<modelId>` by default.
 - If `cache.root` is set in `.pairofcleats.json`, caches are shared; use `--build` to rebuild per model.
-- SQLite backends require `--build-sqlite` when comparing multiple models (SQLite db paths are shared unless configured).
+- SQLite backends require `--build-sqlite` when comparing multiple models (SQLite db paths are shared unless configured). If incremental bundles exist, rebuilds stream from them instead of loading `chunk_meta.json`.
 - Models and dictionaries still use the shared cache directories unless overridden with `PAIROFCLEATS_MODELS_DIR` / `PAIROFCLEATS_DICT_DIR`.
 
 ## Options

@@ -34,6 +34,7 @@ Update SQLite indexes in-place by touching only the files that changed since the
 
 ## Fallback Behavior
 If the incremental manifest or required SQLite tables are missing, the tool falls back to a full rebuild.
+If a manifest exists, full rebuilds automatically stream from incremental bundles instead of loading `chunk_meta.json`.
 
 ## Limitations
 - Vocabulary tables keep old tokens/grams; they are not pruned on deletes.

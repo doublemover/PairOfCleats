@@ -1,6 +1,6 @@
 # Parser Backbone and Analysis Pipeline
 
-This document describes the planned unified parsing backbone, native parser usage, and the shared analysis pipeline for control-flow, dataflow, and type inference.
+This document describes the unified parsing backbone, native parser usage, and the shared analysis pipeline for control-flow, dataflow, and type inference.
 
 ## Goals
 - Prefer stable native parsers when they are available and reliable.
@@ -53,7 +53,7 @@ This document describes the planned unified parsing backbone, native parser usag
 - Optional install scope: user or system when requested.
 - When auto-install is not possible, print the canonical install guide URL.
 
-Planned config keys:
+Config keys (current; see `docs/config-schema.json` for defaults):
 - tooling.autoInstallOnDetect (default false)
 - tooling.autoEnableOnDetect (default true)
 - tooling.installScope (cache | user | system)
@@ -66,7 +66,6 @@ Planned config keys:
 - tooling.typescript.tsconfigPath (optional)
 - tooling.clangd.requireCompilationDatabase (default false; best-effort without compile_commands.json)
 - tooling.clangd.compileCommandsDir (optional)
-- indexing.cfg (default false)
 - indexing.astDataflow (default true)
 - indexing.typeInference (default false)
 - indexing.typeInferenceCrossFile (default false)

@@ -25,12 +25,13 @@ Use the language benchmark harness to run search and performance baselines acros
 - `npm run bench-language:large` / `bench-language:typical` / `bench-language:dry-run`
 - `npm run bench-language:build` (builds indexes and downloads models as needed)
 - `npm run bench-language:build-stub` (builds with stub embeddings)
+- `npm run bench-language:matrix` (run the full language/config matrix)
 - Per-language: `bench-language:javascript`, `bench-language:python`, `bench-language:swift`, `bench-language:rust`, `bench-language:clike`, `bench-language:go`, `bench-language:java`, `bench-language:csharp`, `bench-language:kotlin`, `bench-language:ruby`, `bench-language:php`, `bench-language:lua`, `bench-language:sql`, `bench-language:perl`, `bench-language:shell`
 
 ## Output
 - Per-repo reports are written under `benchmarks/results/<language>/` (JSON payload from `tests/bench.js`).
 - Summary output is printed to the console; use `--json` and/or `--out` for a machine-readable aggregate.
-- The runner shows a live progress line, a metrics line, and a small log window when stdout is a TTY. Use `--log-lines 3|4|5` to change the window height.
+- The runner shows a live progress line, a metrics line, and a scrolling log window when stdout is a TTY. Use `--log-lines <n>` (3-50, default 20) to change the window height.
 - A run log is appended to `benchmarks/results/bench-language.log` by default (override with `--log <file>`).
 - Runs now log start/finish, termination signals, and in-progress indexing counters with elapsed time, rate, and ETA, plus recent file names during indexing (expect larger logs on large repos).
 - If index artifacts are missing, the runner auto-enables build steps even if `--build` was not provided.
@@ -42,7 +43,7 @@ Use the language benchmark harness to run search and performance baselines acros
 - `--root <path>`: clone destination root (default `benchmarks/repos`).
 - `--cache-root <path>`: cache root for all benchmark runs (default `benchmarks/cache`).
 - `--cache-suffix <name>` / `--cache-run`: append a suffix or auto-generate a run id to isolate caches per run.
-- `--build`, `--build-index`, `--build-sqlite`: build indexes before search. `--build-sqlite` requires file-backed indexes and will auto-enable `--build-index` when missing (build_index already auto-builds SQLite unless disabled).
+- `--build`, `--build-index`, `--build-sqlite`: build indexes before search. `--build-sqlite` uses incremental bundles when available; otherwise it will auto-enable `--build-index` to create file-backed indexes.
 - `--backend <csv|all>`: control backends passed to `tests/bench.js`.
 - `--ann` / `--no-ann`: toggle ANN for dense search.
 - `--benchmark-profile` / `--no-benchmark-profile`: toggle the benchmark profile (default on) which disables expensive enrichment (git blame, lint/complexity, risk, type inference, chargrams).

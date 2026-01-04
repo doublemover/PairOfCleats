@@ -1,4 +1,5 @@
 import os from 'node:os';
+import util from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { log as defaultLog } from '../../shared/progress.js';
 
@@ -69,6 +70,7 @@ export async function createIndexerWorkerPool(input = {}) {
     dictWords,
     dictConfig,
     postingsConfig,
+    crashLogger = null,
     log = defaultLog
   } = input;
   if (!config || config.enabled === false) return null;
@@ -91,6 +93,36 @@ export async function createIndexerWorkerPool(input = {}) {
         postingsConfig: postingsConfig || {}
       }
     });
+    if (pool?.on && crashLogger?.enabled) {
+      const formatPoolError = (err) => ({
+        message: err?.message || String(err),
+        stack: err?.stack || null,
+        name: err?.name || null,
+        code: err?.code || null,
+        raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true })
+      });
+      pool.on('error', (err) => {
+        crashLogger.logError({ phase: 'worker-pool', ...formatPoolError(err) });
+      });
+      pool.on('workerCreate', (worker) => {
+        if (!worker) return;
+        worker.on('error', (err) => {
+          crashLogger.logError({
+            phase: 'worker-thread',
+            threadId: worker.threadId,
+            ...formatPoolError(err)
+          });
+        });
+        worker.on('exit', (code) => {
+          if (code === 0) return;
+          crashLogger.logError({
+            phase: 'worker-exit',
+            threadId: worker.threadId,
+            message: `worker exited with code ${code}`
+          });
+        });
+      });
+    }
     return {
       config,
       pool,
@@ -103,10 +135,89 @@ export async function createIndexerWorkerPool(input = {}) {
         return false;
       },
       async runTokenize(payload) {
-        return pool.run(payload, { name: 'tokenizeChunk' });
+        try {
+          return await pool.run(payload, { name: 'tokenizeChunk' });
+        } catch (err) {
+          if (crashLogger?.enabled) {
+            crashLogger.logError({
+              phase: 'worker-tokenize',
+              message: err?.message || String(err),
+              stack: err?.stack || null,
+              name: err?.name || null,
+              code: err?.code || null,
+              task: 'tokenizeChunk',
+              payloadMeta: payload
+                ? {
+                  textLength: typeof payload.text === 'string' ? payload.text.length : null,
+                  mode: payload.mode || null,
+                  ext: payload.ext || null
+                }
+                : null,
+              raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true }),
+              errors: Array.isArray(err?.errors)
+                ? err.errors.map((inner) => ({
+                  message: inner?.message || String(inner),
+                  stack: inner?.stack || null,
+                  name: inner?.name || null,
+                  code: inner?.code || null,
+                  raw: util.inspect(inner, { depth: 3, breakLength: 120, showHidden: true, getters: true })
+                }))
+                : null,
+              cause: err?.cause
+                ? {
+                  message: err.cause?.message || String(err.cause),
+                  stack: err.cause?.stack || null,
+                  name: err.cause?.name || null,
+                  code: err.cause?.code || null,
+                  raw: util.inspect(err.cause, { depth: 3, breakLength: 120, showHidden: true, getters: true })
+                }
+                : null
+            });
+          }
+          throw err;
+        }
       },
       async runQuantize(payload) {
-        return pool.run(payload, { name: 'quantizeVectors' });
+        try {
+          return await pool.run(payload, { name: 'quantizeVectors' });
+        } catch (err) {
+          if (crashLogger?.enabled) {
+            crashLogger.logError({
+              phase: 'worker-quantize',
+              message: err?.message || String(err),
+              stack: err?.stack || null,
+              name: err?.name || null,
+              code: err?.code || null,
+              task: 'quantizeVectors',
+              payloadMeta: payload
+                ? {
+                  vectorCount: Array.isArray(payload.vectors) ? payload.vectors.length : null,
+                  levels: payload.levels ?? null
+                }
+                : null,
+              raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true }),
+              errors: Array.isArray(err?.errors)
+                ? err.errors.map((inner) => ({
+                  message: inner?.message || String(inner),
+                  stack: inner?.stack || null,
+                  name: inner?.name || null,
+                  code: inner?.code || null,
+                  raw: util.inspect(inner, { depth: 3, breakLength: 120, showHidden: true, getters: true })
+                }))
+                : null,
+              cause: err?.cause
+                ? {
+                  message: err.cause?.message || String(err.cause),
+                  stack: err.cause?.stack || null,
+                  name: err.cause?.name || null,
+                  code: err.cause?.code || null,
+                  raw: util.inspect(err.cause, { depth: 3, breakLength: 120, showHidden: true, getters: true })
+                }
+                : null
+            });
+          }
+          throw err;
+        }
       },
       async destroy() {
         await pool.destroy();
