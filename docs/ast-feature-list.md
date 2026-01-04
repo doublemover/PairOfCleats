@@ -51,6 +51,8 @@ This document defines the "complete" AST metadata feature set and how each AST-b
 - `indexing.typeInference` (default: false) controls whether inferred types are collected.
 - `indexing.typeInferenceCrossFile` (default: false) controls cross-file inference and linking.
 - `indexing.pythonAst.*` controls Python AST worker behavior (enable/disable, worker counts, timeouts).
+- `indexing.kotlin.flowMaxBytes/flowMaxLines` auto-disable Kotlin flow extraction above a file size/line threshold.
+- `indexing.kotlin.relationsMaxBytes/relationsMaxLines` auto-disable Kotlin call/usage scans above a threshold.
 
 ## Per-language coverage
 

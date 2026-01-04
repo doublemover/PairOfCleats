@@ -132,6 +132,7 @@
     "gtags-ingest-test": "node tests/gtags-ingest.js",
     "structural-search-test": "node tests/structural-search.js",
     "lang-filter-test": "node tests/lang-filter.js",
+    "kotlin-perf-guard-test": "node tests/kotlin-perf-guard.js",
     "search-symbol-boost-test": "node tests/search-symbol-boost.js",
     "vscode-extension-test": "node tests/vscode-extension.js",
     "ext-filter-test": "node tests/ext-filter.js",

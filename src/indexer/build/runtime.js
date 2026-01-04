@@ -65,6 +65,17 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const yamlTopLevelMaxBytes = Number.isFinite(yamlTopLevelMaxBytesRaw)
     ? Math.max(0, Math.floor(yamlTopLevelMaxBytesRaw))
     : 200 * 1024;
+  const kotlinConfig = indexingConfig.kotlin || {};
+  const normalizeLimit = (value, fallback) => {
+    if (value === 0 || value === false) return null;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+    return fallback;
+  };
+  const kotlinFlowMaxBytes = normalizeLimit(kotlinConfig.flowMaxBytes, 200 * 1024);
+  const kotlinFlowMaxLines = normalizeLimit(kotlinConfig.flowMaxLines, 3000);
+  const kotlinRelationsMaxBytes = normalizeLimit(kotlinConfig.relationsMaxBytes, 200 * 1024);
+  const kotlinRelationsMaxLines = normalizeLimit(kotlinConfig.relationsMaxLines, 3000);
   const normalizeParser = (raw, fallback, allowed) => {
     const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
     return allowed.includes(normalized) ? normalized : fallback;
@@ -284,6 +295,12 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       parser: typescriptParser
     },
     pythonAst: pythonAstConfig,
+    kotlin: {
+      flowMaxBytes: kotlinFlowMaxBytes,
+      flowMaxLines: kotlinFlowMaxLines,
+      relationsMaxBytes: kotlinRelationsMaxBytes,
+      relationsMaxLines: kotlinRelationsMaxLines
+    },
     treeSitter: {
       enabled: treeSitterEnabled,
       languages: treeSitterLanguages

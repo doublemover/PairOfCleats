@@ -224,6 +224,16 @@
             "maxRetries": { "type": "number" }
           }
         },
+        "kotlin": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "flowMaxBytes": { "type": "number" },
+            "flowMaxLines": { "type": "number" },
+            "relationsMaxBytes": { "type": "number" },
+            "relationsMaxLines": { "type": "number" }
+          }
+        },
         "embeddingBatchSize": { "type": "number" },
         "chunkTokenMode": { "type": "string", "enum": ["auto", "full", "sample", "none"] },
         "chunkTokenMaxFiles": { "type": "number" },

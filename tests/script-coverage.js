@@ -188,6 +188,11 @@ const actions = [
     covers: ['language-fidelity-test']
   },
   {
+    label: 'kotlin-perf-guard-test',
+    run: () => runNode('kotlin-perf-guard-test', path.join(root, 'tests', 'kotlin-perf-guard.js')),
+    covers: ['kotlin-perf-guard-test']
+  },
+  {
     label: 'tree-sitter-chunks-test',
     run: () => runNode('tree-sitter-chunks-test', path.join(root, 'tests', 'tree-sitter-chunks.js')),
     covers: ['tree-sitter-chunks-test']

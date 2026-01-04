@@ -25,6 +25,36 @@ const KOTLIN_USAGE_SKIP = new Set([
   'false', 'Unit', 'Nothing', 'Any', 'Int', 'Long', 'Double', 'Float', 'Boolean',
   'String'
 ]);
+const DEFAULT_KOTLIN_LIMITS = {
+  flowMaxBytes: 200 * 1024,
+  flowMaxLines: 3000,
+  relationsMaxBytes: 200 * 1024,
+  relationsMaxLines: 3000
+};
+
+const normalizeLimit = (value, fallback) => {
+  if (value === 0 || value === false) return null;
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+  return fallback;
+};
+
+const resolveKotlinLimits = (options = {}) => {
+  const config = options.kotlin || {};
+  return {
+    flowMaxBytes: normalizeLimit(config.flowMaxBytes, DEFAULT_KOTLIN_LIMITS.flowMaxBytes),
+    flowMaxLines: normalizeLimit(config.flowMaxLines, DEFAULT_KOTLIN_LIMITS.flowMaxLines),
+    relationsMaxBytes: normalizeLimit(config.relationsMaxBytes, DEFAULT_KOTLIN_LIMITS.relationsMaxBytes),
+    relationsMaxLines: normalizeLimit(config.relationsMaxLines, DEFAULT_KOTLIN_LIMITS.relationsMaxLines)
+  };
+};
+
+const exceedsLimit = (stats, maxBytes, maxLines) => {
+  if (!stats) return false;
+  if (Number.isFinite(maxBytes) && maxBytes > 0 && stats.bytes > maxBytes) return true;
+  if (Number.isFinite(maxLines) && maxLines > 0 && stats.lines > maxLines) return true;
+  return false;
+};
 
 function extractKotlinModifiers(signature) {
   const mods = [];
@@ -161,6 +191,14 @@ export function collectKotlinImports(text) {
   return Array.from(imports);
 }
 
+export function getKotlinFileStats(text) {
+  const safeText = typeof text === 'string' ? text : '';
+  return {
+    bytes: Buffer.byteLength(safeText, 'utf8'),
+    lines: safeText ? safeText.split('\n').length : 0
+  };
+}
+
 /**
  * Build chunk metadata for Kotlin declarations.
  * Returns null when no declarations are found.
@@ -291,17 +329,21 @@ export function buildKotlinChunks(text, options = {}) {
  * @param {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null} kotlinChunks
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
  */
-export function buildKotlinRelations(text, allImports, kotlinChunks) {
+export function buildKotlinRelations(text, allImports, kotlinChunks, options = {}) {
   const imports = collectKotlinImports(text);
   const exports = new Set();
   const calls = [];
   const usages = new Set();
+  const stats = options.stats || getKotlinFileStats(text);
+  const limits = resolveKotlinLimits(options);
+  const skipRelations = exceedsLimit(stats, limits.relationsMaxBytes, limits.relationsMaxLines);
   if (Array.isArray(kotlinChunks)) {
     for (const chunk of kotlinChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
       const mods = Array.isArray(chunk.meta?.modifiers) ? chunk.meta.modifiers : [];
       if (mods.includes('public')) exports.add(chunk.name);
       if (!['MethodDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
+      if (skipRelations) continue;
       const bounds = findCLikeBodyBounds(text, chunk.start);
       const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
       const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
@@ -359,11 +401,15 @@ export function extractKotlinDocMeta(chunk) {
  * Heuristic control-flow/dataflow extraction for Kotlin chunks.
  * @param {string} text
  * @param {{start:number,end:number}} chunk
- * @param {{dataflow?:boolean,controlFlow?:boolean}} [options]
+ * @param {{dataflow?:boolean,controlFlow?:boolean,kotlin?:object,stats?:{bytes:number,lines:number}}} [options]
  * @returns {{dataflow:(object|null),controlFlow:(object|null),throws:string[],awaits:string[],yields:boolean,returnsValue:boolean}|null}
  */
 export function computeKotlinFlow(text, chunk, options = {}) {
   if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) return null;
+  const stats = options.stats || getKotlinFileStats(text);
+  const limits = resolveKotlinLimits(options);
+  const skipFlow = exceedsLimit(stats, limits.flowMaxBytes, limits.flowMaxLines);
+  if (skipFlow) return null;
   const bounds = findCLikeBodyBounds(text, chunk.start);
   const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
   const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;

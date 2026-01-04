@@ -21,7 +21,7 @@ import { buildJavaChunks, buildJavaRelations, collectJavaImports, computeJavaFlo
 import { buildCodeRelations, collectImports, extractDocMeta, parseJavaScriptAst } from '../lang/javascript.js';
 import { buildTypeScriptChunks, buildTypeScriptRelations, collectTypeScriptImports, computeTypeScriptFlow, extractTypeScriptDocMeta } from '../lang/typescript.js';
 import { buildCSharpChunks, buildCSharpRelations, collectCSharpImports, computeCSharpFlow, extractCSharpDocMeta } from '../lang/csharp.js';
-import { buildKotlinChunks, buildKotlinRelations, collectKotlinImports, computeKotlinFlow, extractKotlinDocMeta } from '../lang/kotlin.js';
+import { buildKotlinChunks, buildKotlinRelations, collectKotlinImports, computeKotlinFlow, extractKotlinDocMeta, getKotlinFileStats } from '../lang/kotlin.js';
 import { buildRubyChunks, buildRubyRelations, collectRubyImports, computeRubyFlow, extractRubyDocMeta } from '../lang/ruby.js';
 import { buildPhpChunks, buildPhpRelations, collectPhpImports, computePhpFlow, extractPhpDocMeta } from '../lang/php.js';
 import { buildHtmlChunks, buildHtmlRelations, collectHtmlImports, computeHtmlFlow, extractHtmlDocMeta, getHtmlMetadata } from '../lang/html.js';
@@ -191,11 +191,23 @@ const LANGUAGE_REGISTRY = [
     match: (ext) => isKotlin(ext),
     collectImports: (text) => collectKotlinImports(text),
     prepare: ({ text, mode, options }) => (mode === 'code'
-      ? { kotlinChunks: buildKotlinChunks(text, options) }
+      ? {
+        kotlinChunks: buildKotlinChunks(text, options),
+        kotlinStats: getKotlinFileStats(text)
+      }
       : {}),
-    buildRelations: ({ text, allImports, context }) => buildKotlinRelations(text, allImports, context.kotlinChunks),
+    buildRelations: ({ text, allImports, context, options }) => buildKotlinRelations(
+      text,
+      allImports,
+      context.kotlinChunks,
+      { stats: context.kotlinStats, kotlin: options.kotlin }
+    ),
     extractDocMeta: ({ chunk }) => extractKotlinDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computeKotlinFlow(text, chunk, flowOptions(options)),
+    flow: ({ text, chunk, options, context }) => computeKotlinFlow(text, chunk, {
+      ...flowOptions(options),
+      kotlin: options.kotlin,
+      stats: context.kotlinStats
+    }),
     attachName: true
   },
   {
