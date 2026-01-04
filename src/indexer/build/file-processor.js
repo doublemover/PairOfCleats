@@ -183,7 +183,13 @@ export function createFileProcessor(options) {
     if (err instanceof Error && err.message) return err.message;
     if (typeof err?.message === 'string') return err.message;
     try {
-      return JSON.stringify(err);
+      const json = JSON.stringify(err);
+      if (json && json !== '{}' && json !== '[]') return json;
+    } catch {
+      return String(err);
+    }
+    try {
+      return require('util').inspect(err, { depth: 2, breakLength: 120 });
     } catch {
       return String(err);
     }

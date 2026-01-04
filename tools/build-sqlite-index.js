@@ -244,6 +244,48 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
   }
 
   /**
+   * Rebuild token postings directly from chunk metadata.
+   * @param {Array<object>} chunks
+   * @param {'code'|'prose'} targetMode
+   */
+  function ingestTokenIndexFromChunks(chunks, targetMode) {
+    if (!Array.isArray(chunks) || !chunks.length) {
+      insertTokenStats.run(targetMode, 0, 0);
+      return;
+    }
+    const tokenIdMap = new Map();
+    let nextTokenId = 0;
+    let totalDocs = 0;
+    let totalLen = 0;
+    const insertTx = db.transaction(() => {
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        if (!chunk) continue;
+        const docId = Number.isFinite(chunk.id) ? chunk.id : i;
+        const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
+        const docLen = tokensArray.length;
+        totalDocs += 1;
+        totalLen += docLen;
+        insertDocLength.run(targetMode, docId, docLen);
+        if (!docLen) continue;
+        const freq = buildTokenFrequency(tokensArray);
+        for (const [token, tf] of freq.entries()) {
+          let tokenId = tokenIdMap.get(token);
+          if (tokenId === undefined) {
+            tokenId = nextTokenId;
+            nextTokenId += 1;
+            tokenIdMap.set(token, tokenId);
+            insertTokenVocab.run(targetMode, tokenId, token);
+          }
+          insertTokenPosting.run(targetMode, tokenId, docId, tf);
+        }
+      }
+    });
+    insertTx();
+    insertTokenStats.run(targetMode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
+  }
+
+  /**
    * Ingest a generic postings index (phrase/chargram).
    * @param {object} indexData
    * @param {'code'|'prose'} targetMode
@@ -394,7 +436,12 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
     }
 
     insert(rows);
-    ingestTokenIndex(indexData.tokenPostings, targetMode);
+    if (indexData.tokenPostings) {
+      ingestTokenIndex(indexData.tokenPostings, targetMode);
+    } else {
+      console.warn(`[sqlite] token_postings.json missing; rebuilding tokens for ${targetMode}.`);
+      ingestTokenIndexFromChunks(chunkMeta, targetMode);
+    }
     ingestPostingIndex(indexData.phraseNgrams, targetMode, insertPhraseVocab, insertPhrasePosting);
     ingestPostingIndex(indexData.chargrams, targetMode, insertChargramVocab, insertChargramPosting);
     ingestMinhash(indexData.minhash, targetMode);

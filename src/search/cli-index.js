@@ -5,6 +5,8 @@ import { gunzipSync } from 'node:zlib';
 import { getIndexDir } from '../../tools/dict-utils.js';
 import { buildFilterIndex } from './filter-index.js';
 
+const MAX_JSON_BYTES = 512 * 1024 * 1024 - 1024;
+
 /**
  * Load file-backed index artifacts from a directory.
  * @param {string} dir
@@ -15,14 +17,35 @@ export function loadIndex(dir, options) {
   const { modelIdDefault, fileChargramN } = options || {};
   const readJson = (name) => {
     const filePath = path.join(dir, name);
+    const readBuffer = (targetPath) => {
+      const stat = fsSync.statSync(targetPath);
+      if (stat.size > MAX_JSON_BYTES) {
+        const err = new Error(
+          `Index artifact ${name} is too large for memory backend (${stat.size} bytes).`
+        );
+        err.code = 'ERR_JSON_TOO_LARGE';
+        throw err;
+      }
+      return fsSync.readFileSync(targetPath);
+    };
+    const parseBuffer = (buffer) => {
+      if (buffer.length > MAX_JSON_BYTES) {
+        const err = new Error(
+          `Index artifact ${name} is too large for memory backend (${buffer.length} bytes).`
+        );
+        err.code = 'ERR_JSON_TOO_LARGE';
+        throw err;
+      }
+      return JSON.parse(buffer.toString('utf8'));
+    };
     if (fsSync.existsSync(filePath)) {
-      return JSON.parse(fsSync.readFileSync(filePath, 'utf8'));
+      return parseBuffer(readBuffer(filePath));
     }
     if (name.endsWith('.json')) {
       const gzPath = `${filePath}.gz`;
       if (fsSync.existsSync(gzPath)) {
-        const buf = fsSync.readFileSync(gzPath);
-        return JSON.parse(gunzipSync(buf).toString('utf8'));
+        const buf = readBuffer(gzPath);
+        return parseBuffer(gunzipSync(buf));
       }
     }
     throw new Error(`Missing index artifact: ${name}`);
@@ -30,7 +53,12 @@ export function loadIndex(dir, options) {
   const loadOptional = (name) => {
     try {
       return readJson(name);
-    } catch {
+    } catch (err) {
+      if (err?.code === 'ERR_JSON_TOO_LARGE') {
+        console.warn(
+          `[search] Skipping ${name}: ${err.message} Use sqlite backend for large repos.`
+        );
+      }
       return null;
     }
   };

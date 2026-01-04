@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { gunzipSync } from 'node:zlib';
 
+const MAX_JSON_BYTES = 512 * 1024 * 1024 - 1024;
+
 /**
  * Split an array into fixed-size chunks.
  * @param {Array<any>} items
@@ -53,13 +55,34 @@ export function normalizeFilePath(value) {
  * @returns {any}
  */
 export function readJson(filePath) {
+  const readBuffer = (targetPath) => {
+    const stat = fs.statSync(targetPath);
+    if (stat.size > MAX_JSON_BYTES) {
+      const err = new Error(
+        `JSON artifact too large to load (${stat.size} bytes): ${targetPath}`
+      );
+      err.code = 'ERR_JSON_TOO_LARGE';
+      throw err;
+    }
+    return fs.readFileSync(targetPath);
+  };
+  const parseBuffer = (buffer) => {
+    if (buffer.length > MAX_JSON_BYTES) {
+      const err = new Error(
+        `JSON artifact too large to load (${buffer.length} bytes): ${filePath}`
+      );
+      err.code = 'ERR_JSON_TOO_LARGE';
+      throw err;
+    }
+    return JSON.parse(buffer.toString('utf8'));
+  };
   if (fs.existsSync(filePath)) {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return parseBuffer(readBuffer(filePath));
   }
   if (filePath.endsWith('.json')) {
     const gzPath = `${filePath}.gz`;
     if (fs.existsSync(gzPath)) {
-      return JSON.parse(gunzipSync(fs.readFileSync(gzPath)).toString('utf8'));
+      return parseBuffer(gunzipSync(readBuffer(gzPath)));
     }
   }
   throw new Error(`Missing JSON artifact: ${filePath}`);
@@ -76,7 +99,15 @@ export function loadOptional(dir, name) {
   if (!fs.existsSync(target) && !(name.endsWith('.json') && fs.existsSync(`${target}.gz`))) {
     return null;
   }
-  return readJson(target);
+  try {
+    return readJson(target);
+  } catch (err) {
+    if (err?.code === 'ERR_JSON_TOO_LARGE') {
+      console.warn(`[sqlite] Skipping ${name}: ${err.message}`);
+      return null;
+    }
+    throw err;
+  }
 }
 
 /**

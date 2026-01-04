@@ -21,7 +21,7 @@ import { buildJavaChunks, buildJavaRelations, collectJavaImports, computeJavaFlo
 import { buildCodeRelations, collectImports, extractDocMeta, parseJavaScriptAst } from '../lang/javascript.js';
 import { buildTypeScriptChunks, buildTypeScriptRelations, collectTypeScriptImports, computeTypeScriptFlow, extractTypeScriptDocMeta } from '../lang/typescript.js';
 import { buildCSharpChunks, buildCSharpRelations, collectCSharpImports, computeCSharpFlow, extractCSharpDocMeta } from '../lang/csharp.js';
-import { buildKotlinChunks, buildKotlinRelations, collectKotlinImports, computeKotlinFlow, extractKotlinDocMeta, getKotlinFileStats } from '../lang/kotlin.js';
+import * as kotlinLang from '../lang/kotlin.js';
 import { buildRubyChunks, buildRubyRelations, collectRubyImports, computeRubyFlow, extractRubyDocMeta } from '../lang/ruby.js';
 import { buildPhpChunks, buildPhpRelations, collectPhpImports, computePhpFlow, extractPhpDocMeta } from '../lang/php.js';
 import { buildHtmlChunks, buildHtmlRelations, collectHtmlImports, computeHtmlFlow, extractHtmlDocMeta, getHtmlMetadata } from '../lang/html.js';
@@ -34,6 +34,15 @@ import { buildRustChunks, buildRustRelations, collectRustImports, computeRustFlo
 import { buildSwiftChunks, buildSwiftRelations, collectSwiftImports, computeSwiftFlow, extractSwiftDocMeta } from '../lang/swift.js';
 import { buildShellChunks, buildShellRelations, collectShellImports, computeShellFlow, extractShellDocMeta } from '../lang/shell.js';
 import { summarizeControlFlow } from '../lang/flow.js';
+
+const {
+  buildKotlinChunks,
+  buildKotlinRelations,
+  collectKotlinImports,
+  computeKotlinFlow,
+  extractKotlinDocMeta,
+  getKotlinFileStats
+} = kotlinLang;
 
 const flowOptions = (options) => ({
   dataflow: options.astDataflowEnabled,

@@ -38,7 +38,7 @@ const lockDir = path.join(repoCacheRoot, 'locks');
 await fsPromises.mkdir(lockDir, { recursive: true });
 await fsPromises.writeFile(
   path.join(lockDir, 'index.lock'),
-  JSON.stringify({ pid: 999999, startedAt: new Date().toISOString() })
+  JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() })
 );
 
 const scriptPath = path.join(root, 'tools', 'bench-language-repos.js');
