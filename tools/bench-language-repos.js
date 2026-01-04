@@ -216,37 +216,47 @@ function formatLockDetail(detail) {
 async function checkIndexLock(repoCacheRoot, repoLabel) {
   const lockPath = path.join(repoCacheRoot, 'locks', 'index.lock');
   if (!fs.existsSync(lockPath)) return { ok: true };
-  const info = await readLockInfo(lockPath);
-  const ageMs = await getLockAgeMs(lockPath, info);
-  const pid = Number.isFinite(Number(info?.pid)) ? Number(info.pid) : null;
-  const alive = pid ? isProcessAlive(pid) : null;
-  const detail = { lockPath, ageMs, pid, alive };
-  const isStale = (Number.isFinite(ageMs) && ageMs > lockStaleMs) || (pid && !alive);
+  const readDetail = async () => {
+    const info = await readLockInfo(lockPath);
+    const ageMs = await getLockAgeMs(lockPath, info);
+    const pid = Number.isFinite(Number(info?.pid)) ? Number(info.pid) : null;
+    const alive = pid ? isProcessAlive(pid) : null;
+    const detail = { lockPath, ageMs, pid, alive };
+    const isStale = (Number.isFinite(ageMs) && ageMs > lockStaleMs) || (pid && !alive);
+    return { detail, isStale };
+  };
 
-  if (lockMode === 'stale-clear' && isStale) {
+  const clearIfStale = async (detail) => {
     try {
       await fsPromises.rm(lockPath, { force: true });
       appendLog(`[lock] cleared stale lock for ${repoLabel} ${formatLockDetail(detail)}`);
-      return { ok: true, cleared: true, detail };
-    } catch {}
+      return true;
+    } catch (err) {
+      appendLog(`[lock] failed to clear stale lock for ${repoLabel}: ${err?.message || err}`);
+      return false;
+    }
+  };
+
+  const initial = await readDetail();
+  if (initial.isStale) {
+    const cleared = await clearIfStale(initial.detail);
+    if (cleared) return { ok: true, cleared: true, detail: initial.detail };
   }
 
   if (lockMode === 'wait') {
     const deadline = Date.now() + lockWaitMs;
     while (Date.now() < deadline) {
       if (!fs.existsSync(lockPath)) return { ok: true };
-      if (isStale) {
-        try {
-          await fsPromises.rm(lockPath, { force: true });
-          appendLog(`[lock] cleared stale lock for ${repoLabel} ${formatLockDetail(detail)}`);
-          return { ok: true, cleared: true, detail };
-        } catch {}
+      const current = await readDetail();
+      if (current.isStale) {
+        const cleared = await clearIfStale(current.detail);
+        if (cleared) return { ok: true, cleared: true, detail: current.detail };
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
 
-  return { ok: false, detail };
+  return { ok: false, detail: initial.detail };
 }
 
 function loadConfig() {
