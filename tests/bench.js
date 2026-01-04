@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -96,12 +97,12 @@ const needsMemory = backends.includes('memory');
 const needsSqlite = backends.some((entry) => entry.startsWith('sqlite'));
 const hasIndex = (mode) => {
   const dir = getIndexDir(runtimeRoot, mode, userConfig);
-  return fs.existsSync(path.join(dir, 'chunk_meta.json'));
+  return fsSync.existsSync(path.join(dir, 'chunk_meta.json'));
 };
 const hasSqliteIndex = (mode) => {
   const paths = resolveSqlitePaths(runtimeRoot, userConfig);
   const target = mode === 'prose' ? paths.prosePath : paths.codePath;
-  return fs.existsSync(target);
+  return fsSync.existsSync(target);
 };
 if (needsMemory && !buildIndex && (!hasIndex('code') || !hasIndex('prose'))) {
   buildIndex = true;
