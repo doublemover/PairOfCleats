@@ -1,11 +1,6 @@
-import { createRequire } from 'node:module';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { extractDocComment, sliceSignature } from './shared.js';
-
-const require = createRequire(import.meta.url);
-let TreeSitter = null;
-let CssLanguage = null;
-let loadError = null;
+import { getTreeSitterParser } from './tree-sitter.js';
 
 const RULE_NODES = new Set([
   'rule_set',
@@ -15,21 +10,6 @@ const RULE_NODES = new Set([
   'font_face_statement',
   'at_rule'
 ]);
-
-function loadParser() {
-  if (TreeSitter && CssLanguage) return { TreeSitter, CssLanguage };
-  if (loadError) return null;
-  try {
-    TreeSitter = require('tree-sitter');
-    const mod = require('tree-sitter-css');
-    CssLanguage = mod?.language || mod?.default || mod || null;
-    if (!CssLanguage) throw new Error('Missing tree-sitter-css language');
-    return { TreeSitter, CssLanguage };
-  } catch (err) {
-    loadError = err;
-    return null;
-  }
-}
 
 function extractRuleName(text, node) {
   const limit = Math.min(node.endIndex, node.startIndex + 240);
@@ -68,14 +48,8 @@ export function collectCssImports(text) {
 }
 
 export function buildCssChunks(text) {
-  const loader = loadParser();
-  if (!loader) return buildCssHeuristicChunks(text);
-  const parser = new loader.TreeSitter();
-  try {
-    parser.setLanguage(loader.CssLanguage);
-  } catch {
-    return buildCssHeuristicChunks(text);
-  }
+  const parser = getTreeSitterParser('css');
+  if (!parser) return buildCssHeuristicChunks(text);
   let tree;
   try {
     tree = parser.parse(text);

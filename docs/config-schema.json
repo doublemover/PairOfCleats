@@ -284,6 +284,7 @@
         "embeddingBatchSize": { "type": "number" },
         "chunkTokenMode": { "type": "string", "enum": ["auto", "full", "sample", "none"] },
         "chunkTokenMaxFiles": { "type": "number" },
+        "chunkTokenMaxTokens": { "type": "number" },
         "chunkTokenSampleSize": { "type": "number" },
         "artifactCompression": {
           "type": "object",

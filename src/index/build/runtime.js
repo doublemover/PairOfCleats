@@ -19,6 +19,7 @@ import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { applyBenchmarkProfile } from '../../shared/bench-profile.js';
 import { createIndexerWorkerPool, normalizeWorkerPoolConfig } from './worker-pool.js';
 import { createCrashLogger } from './crash-log.js';
+import { preloadTreeSitterLanguages, resolveEnabledTreeSitterLanguages } from '../../lang/tree-sitter.js';
 
 /**
  * Create runtime configuration for build_index.
@@ -239,6 +240,12 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   }
   if (!treeSitterEnabled) {
     log('Tree-sitter chunking disabled via indexing.treeSitter.enabled.');
+  } else {
+    const enabledTreeSitterLanguages = resolveEnabledTreeSitterLanguages({
+      enabled: treeSitterEnabled,
+      languages: treeSitterLanguages
+    });
+    await preloadTreeSitterLanguages(enabledTreeSitterLanguages, { log });
   }
   if (typeInferenceEnabled) {
     log('Type inference metadata enabled via indexing.typeInference.');

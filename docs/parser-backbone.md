@@ -18,8 +18,8 @@ This document describes the unified parsing backbone, native parser usage, and t
 ### Unified backbone
 - tree-sitter provides a consistent AST interface for new languages and formats.
 - Native parsers still run first when available to enrich or replace tree-sitter output.
-- Default choice: native tree-sitter bindings (fast parse, no WASM startup, better memory reuse).
-- Optional fallback: web-tree-sitter (WASM) when native bindings are unavailable, slower to load but easier to ship in strict environments.
+- Default choice: web-tree-sitter WASM grammars (no native build dependencies, easier to ship).
+- Optional fallback: native tree-sitter bindings when maximum throughput is required.
 
 ### ESTree interop
 - `@typescript-eslint/typescript-estree` was considered for strict ESTree output.

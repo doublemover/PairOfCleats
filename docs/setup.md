@@ -46,6 +46,7 @@ The unified setup script (`pairofcleats setup`) guides you through installing op
 ## Notes
 
 - Defaults follow `.pairofcleats.json` where applicable.
+- Tree-sitter grammars load via WASM (`web-tree-sitter` + `tree-sitter-wasms`), avoiding native build dependencies.
 - SQLite builds use file-backed indexes by default, but will stream from incremental bundles when available.
 - `build_index.js` can be run from any working directory; it resolves SQLite build tooling from the install root.
 - After setup, run `pairofcleats index-validate` to confirm index artifacts are healthy.

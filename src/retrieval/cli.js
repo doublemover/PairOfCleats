@@ -606,9 +606,15 @@ const cacheFilters = {
 };
 const sqliteLazyChunks = sqliteFtsRequested && !filtersActive;
 const sqliteContextChunks = contextExpansionEnabled ? true : !sqliteLazyChunks;
-const proseDir = runProse && !useSqlite ? requireIndexDir(ROOT, 'prose', userConfig) : null;
-const codeDir = runCode && !useSqlite ? requireIndexDir(ROOT, 'code', userConfig) : null;
-const recordsDir = runRecords ? requireIndexDir(ROOT, 'records', userConfig) : null;
+const proseDir = runProse && !useSqlite
+  ? requireIndexDir(ROOT, 'prose', userConfig, { emitOutput, exitOnError })
+  : null;
+const codeDir = runCode && !useSqlite
+  ? requireIndexDir(ROOT, 'code', userConfig, { emitOutput, exitOnError })
+  : null;
+const recordsDir = runRecords
+  ? requireIndexDir(ROOT, 'records', userConfig, { emitOutput, exitOnError })
+  : null;
 const loadIndexCached = (dir) => loadIndexWithCache(
   indexCache,
   dir,

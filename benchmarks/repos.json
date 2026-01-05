@@ -170,11 +170,10 @@
     "repos": {
       "large": [
         "bestpractical/rt",
-        "metacpan/metacpan-web"
-      ],
-      "typical": [
+        "metacpan/metacpan-web",
         "mojolicious/mojo"
-      ]
+      ],
+      "typical": []
     }
   },
   "shell": {

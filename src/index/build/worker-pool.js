@@ -83,6 +83,10 @@ export async function createIndexerWorkerPool(input = {}) {
     };
   };
   if (!config || config.enabled === false) return null;
+  if (config.enabled === 'auto' && process.platform === 'win32') {
+    log('Worker pool disabled (auto) on Windows for stability. Set indexing.workerPool.enabled=true to force.');
+    return null;
+  }
   let Piscina;
   try {
     Piscina = (await import('piscina')).default;
@@ -102,6 +106,32 @@ export async function createIndexerWorkerPool(input = {}) {
         postingsConfig: postingsConfig || {}
       }
     });
+    let disabled = false;
+    const destroyPool = async (reason) => {
+      if (disabled) return;
+      disabled = true;
+      try {
+        await pool.destroy();
+      } catch (err) {
+        log(`Worker pool shutdown failed: ${err?.message || err}`);
+      }
+      if (reason) log(`Worker pool disabled: ${reason}`);
+    };
+    const sanitizePayload = (payload) => {
+      if (!payload || typeof payload !== 'object') return payload;
+      const safe = {
+        text: typeof payload.text === 'string' ? payload.text : '',
+        mode: payload.mode,
+        ext: payload.ext
+      };
+      if (Array.isArray(payload.chargramTokens)) {
+        safe.chargramTokens = payload.chargramTokens.filter((token) => typeof token === 'string');
+      }
+      if (payload.dictConfig && typeof payload.dictConfig === 'object') {
+        safe.dictConfig = sanitizeDictConfig(payload.dictConfig);
+      }
+      return safe;
+    };
     if (pool?.on && crashLogger?.enabled) {
       const formatPoolError = (err) => ({
         message: err?.message || String(err),
@@ -145,9 +175,14 @@ export async function createIndexerWorkerPool(input = {}) {
         return false;
       },
       async runTokenize(payload) {
+        if (disabled) return null;
         try {
-          return await pool.run(payload, { name: 'tokenizeChunk' });
+          return await pool.run(sanitizePayload(payload), { name: 'tokenizeChunk' });
         } catch (err) {
+          const isCloneError = err?.name === 'DataCloneError'
+            || /could not be cloned|DataCloneError/i.test(err?.message || '');
+          const reason = isCloneError ? 'data-clone error' : 'worker failure';
+          await destroyPool(reason);
           if (crashLogger?.enabled) {
             crashLogger.logError({
               phase: 'worker-tokenize',
@@ -184,7 +219,7 @@ export async function createIndexerWorkerPool(input = {}) {
                 : null
             });
           }
-          throw err;
+          return null;
         }
       },
       async runQuantize(payload) {

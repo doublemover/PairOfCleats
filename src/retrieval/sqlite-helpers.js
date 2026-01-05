@@ -4,6 +4,7 @@ import { buildFtsBm25Expr } from './fts.js';
 import { buildFilterIndex } from './filter-index.js';
 
 const SQLITE_IN_LIMIT = 900;
+const FTS_TOKEN_SAFE = /^[\p{L}\p{N}_]+$/u;
 
 /**
  * Create SQLite helper functions for search.
@@ -411,7 +412,9 @@ export function createSqliteHelpers(options) {
   function rankSqliteFts(idx, queryTokens, mode, topN, normalizeScores = false) {
     const db = getDb(mode);
     if (!db || !queryTokens.length) return [];
-    const ftsQuery = queryTokens.join(' ');
+    const ftsTokens = queryTokens.filter((token) => FTS_TOKEN_SAFE.test(token));
+    if (!ftsTokens.length) return [];
+    const ftsQuery = ftsTokens.join(' ');
     const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights);
     const rows = db.prepare(
       `SELECT chunks_fts.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight

@@ -1,30 +1,42 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { extractDocComment, sliceSignature } from './shared.js';
 
 const require = createRequire(import.meta.url);
 let TreeSitter = null;
-let treeSitterLoadError = null;
+let TreeSitterLanguage = null;
+let treeSitterInitError = null;
+let treeSitterInitPromise = null;
+let wasmRoot = null;
+let wasmRuntimePath = null;
 const parserCache = new Map();
 const languageCache = new Map();
+const languageLoadPromises = new Map();
 const loggedMissing = new Set();
+const loggedInitFailure = new Set();
 const loggedParseFailures = new Set();
 const loggedSizeSkips = new Set();
 const loggedUnavailable = new Set();
 
-const LANGUAGE_MODULES = {
-  swift: 'tree-sitter-swift',
-  kotlin: 'tree-sitter-kotlin',
-  csharp: 'tree-sitter-c-sharp',
-  clike: 'tree-sitter-c',
-  cpp: 'tree-sitter-cpp',
-  objc: 'tree-sitter-objc',
-  go: 'tree-sitter-go',
-  rust: 'tree-sitter-rust',
-  java: 'tree-sitter-java',
-  css: 'tree-sitter-css',
-  html: 'tree-sitter-html'
+const LANGUAGE_WASM_FILES = {
+  swift: 'tree-sitter-swift.wasm',
+  kotlin: 'tree-sitter-kotlin.wasm',
+  csharp: 'tree-sitter-c_sharp.wasm',
+  clike: 'tree-sitter-c.wasm',
+  cpp: 'tree-sitter-cpp.wasm',
+  objc: 'tree-sitter-objc.wasm',
+  go: 'tree-sitter-go.wasm',
+  rust: 'tree-sitter-rust.wasm',
+  java: 'tree-sitter-java.wasm',
+  css: 'tree-sitter-css.wasm',
+  html: 'tree-sitter-html.wasm'
 };
+
+export const TREE_SITTER_LANGUAGE_IDS = Object.freeze(
+  Object.keys(LANGUAGE_WASM_FILES)
+);
 
 const COMMON_NAME_NODE_TYPES = new Set([
   'identifier',
@@ -35,6 +47,23 @@ const COMMON_NAME_NODE_TYPES = new Set([
   'simple_identifier',
   'namespace_identifier'
 ]);
+
+function findDescendantByType(root, types, maxDepth = 6) {
+  if (!root) return null;
+  const stack = [{ node: root, depth: 0 }];
+  while (stack.length) {
+    const { node, depth } = stack.pop();
+    if (!node) continue;
+    if (types.has(node.type)) return node;
+    if (depth >= maxDepth) continue;
+    if (node.namedChildren && node.namedChildren.length) {
+      for (let i = node.namedChildren.length - 1; i >= 0; i -= 1) {
+        stack.push({ node: node.namedChildren[i], depth: depth + 1 });
+      }
+    }
+  }
+  return null;
+}
 
 const LANG_CONFIG = {
   swift: {
@@ -64,7 +93,16 @@ const LANG_CONFIG = {
       deinitializer_declaration: 'Deinitializer',
       subscript_declaration: 'SubscriptDeclaration'
     },
-    docComments: { linePrefixes: ['///', '//'] }
+    docComments: { linePrefixes: ['///', '//'] },
+    resolveKind: (node, kind, text) => {
+      if (node.type !== 'class_declaration') return kind;
+      const head = text.slice(node.startIndex, Math.min(text.length, node.startIndex + 40));
+      const match = head.match(/^\s*(struct|class|extension)\b/);
+      if (!match) return kind;
+      if (match[1] === 'struct') return 'StructDeclaration';
+      if (match[1] === 'extension') return 'ExtensionDeclaration';
+      return kind;
+    }
   },
   kotlin: {
     typeNodes: new Set([
@@ -170,14 +208,18 @@ const LANG_CONFIG = {
     ]),
     memberNodes: new Set([
       'method_definition',
-      'method_declaration'
+      'method_declaration',
+      'function_definition',
+      'function_declaration'
     ]),
     kindMap: {
       class_interface: 'ClassDeclaration',
       protocol_declaration: 'ProtocolDeclaration',
       category_interface: 'CategoryDeclaration',
       method_definition: 'MethodDeclaration',
-      method_declaration: 'MethodDeclaration'
+      method_declaration: 'MethodDeclaration',
+      function_definition: 'FunctionDeclaration',
+      function_declaration: 'FunctionDeclaration'
     },
     docComments: { linePrefixes: ['///', '//'], blockStarts: ['/**'] }
   },
@@ -196,7 +238,22 @@ const LANG_CONFIG = {
       function_declaration: 'FunctionDeclaration',
       method_declaration: 'MethodDeclaration'
     },
-    docComments: { linePrefixes: ['//'], blockStarts: ['/**'] }
+    docComments: { linePrefixes: ['//'], blockStarts: ['/**'] },
+    resolveKind: (node, kind) => {
+      if (node.type !== 'type_spec' && node.type !== 'type_declaration') return kind;
+      const structNode = findDescendantByType(node, new Set(['struct_type']));
+      if (structNode) return 'StructDeclaration';
+      const ifaceNode = findDescendantByType(node, new Set(['interface_type']));
+      if (ifaceNode) return 'InterfaceDeclaration';
+      return kind;
+    },
+    resolveMemberName: (node, name) => {
+      if (node.type !== 'method_declaration') return null;
+      const receiver = node.childForFieldName('receiver');
+      const receiverType = findDescendantByType(receiver, new Set(['type_identifier']));
+      if (!receiverType) return null;
+      return { name: `${receiverType.text}.${name}` };
+    }
   },
   rust: {
     typeNodes: new Set([
@@ -209,7 +266,8 @@ const LANG_CONFIG = {
     memberNodes: new Set([
       'function_item',
       'function_definition',
-      'method_definition'
+      'method_definition',
+      'macro_definition'
     ]),
     kindMap: {
       struct_item: 'StructDeclaration',
@@ -219,9 +277,11 @@ const LANG_CONFIG = {
       mod_item: 'ModuleDeclaration',
       function_item: 'FunctionDeclaration',
       function_definition: 'FunctionDeclaration',
-      method_definition: 'MethodDeclaration'
+      method_definition: 'MethodDeclaration',
+      macro_definition: 'MacroDeclaration'
     },
-    docComments: { linePrefixes: ['///', '//'], blockStarts: ['/**'] }
+    docComments: { linePrefixes: ['///', '//'], blockStarts: ['/**'] },
+    nameFields: ['name', 'type']
   },
   java: {
     typeNodes: new Set([
@@ -260,62 +320,152 @@ const LANG_CONFIG = {
   }
 };
 
-function loadTreeSitter() {
-  if (TreeSitter || treeSitterLoadError) return TreeSitter;
-  try {
-    TreeSitter = require('tree-sitter');
-  } catch (err) {
-    treeSitterLoadError = err;
-    TreeSitter = null;
-  }
-  return TreeSitter;
-}
-
-function loadLanguageModule(moduleName) {
-  if (!moduleName) return null;
-  if (languageCache.has(moduleName)) return languageCache.get(moduleName);
-  let mod = null;
-  let error = null;
-  try {
-    mod = require(moduleName);
-  } catch (err) {
-    mod = null;
-    error = err;
-  }
-  const resolved = mod?.language || mod?.default || mod || null;
-  const entry = { language: resolved, error };
-  languageCache.set(moduleName, entry);
-  return entry;
-}
-
 function resolveLanguageId(languageId) {
   return typeof languageId === 'string' ? languageId : null;
 }
 
-function getParser(languageId) {
-  const Parser = loadTreeSitter();
-  if (!Parser) return null;
+function resolveWasmRoot() {
+  if (wasmRoot) return wasmRoot;
+  const pkgPath = require.resolve('tree-sitter-wasms/package.json');
+  wasmRoot = path.join(path.dirname(pkgPath), 'out');
+  return wasmRoot;
+}
+
+function resolveRuntimePath() {
+  if (wasmRuntimePath) return wasmRuntimePath;
+  const candidates = [
+    'web-tree-sitter/web-tree-sitter.wasm',
+    'web-tree-sitter/tree-sitter.wasm'
+  ];
+  for (const candidate of candidates) {
+    try {
+      wasmRuntimePath = require.resolve(candidate);
+      return wasmRuntimePath;
+    } catch {
+      // try next candidate
+    }
+  }
+  throw new Error('web-tree-sitter WASM runtime not found');
+}
+
+export async function initTreeSitterWasm(options = {}) {
+  if (TreeSitter || treeSitterInitError) return Boolean(TreeSitter);
+  if (treeSitterInitPromise) return treeSitterInitPromise;
+  treeSitterInitPromise = (async () => {
+    try {
+      const mod = require('web-tree-sitter');
+      TreeSitter = mod?.Parser || mod;
+      if (!TreeSitter?.init) {
+        throw new Error('web-tree-sitter Parser not available');
+      }
+      await TreeSitter.init({
+        locateFile: () => resolveRuntimePath()
+      });
+      TreeSitterLanguage = mod?.Language || TreeSitter?.Language || null;
+      if (!TreeSitterLanguage) {
+        throw new Error('web-tree-sitter Language not available');
+      }
+      return true;
+    } catch (err) {
+      treeSitterInitError = err;
+      TreeSitter = null;
+      TreeSitterLanguage = null;
+      if (options?.log) {
+        options.log(`[tree-sitter] WASM init failed: ${err?.message || err}.`);
+      }
+      return false;
+    }
+  })();
+  return treeSitterInitPromise;
+}
+
+async function loadWasmLanguage(languageId, options = {}) {
+  const resolvedId = resolveLanguageId(languageId);
+  if (!resolvedId) return { language: null, error: new Error('invalid language id') };
+  const cached = languageCache.get(resolvedId);
+  if (cached?.language || cached?.error) return cached;
+  const pending = languageLoadPromises.get(resolvedId);
+  if (pending) return pending;
+  const promise = (async () => {
+    const ok = await initTreeSitterWasm(options);
+    if (!ok) {
+      return { language: null, error: treeSitterInitError || new Error('Tree-sitter WASM init failed') };
+    }
+    const wasmFile = LANGUAGE_WASM_FILES[resolvedId];
+    if (!wasmFile) {
+      return { language: null, error: new Error(`Missing WASM file for ${resolvedId}`) };
+    }
+    try {
+      const wasmPath = path.join(resolveWasmRoot(), wasmFile);
+      const wasmBytes = await fs.readFile(wasmPath);
+      const language = await TreeSitterLanguage.load(wasmBytes);
+      const entry = { language, error: null };
+      languageCache.set(resolvedId, entry);
+      return entry;
+    } catch (err) {
+      const entry = { language: null, error: err };
+      languageCache.set(resolvedId, entry);
+      return entry;
+    } finally {
+      languageLoadPromises.delete(resolvedId);
+    }
+  })();
+  languageLoadPromises.set(resolvedId, promise);
+  return promise;
+}
+
+export async function preloadTreeSitterLanguages(languageIds = TREE_SITTER_LANGUAGE_IDS, options = {}) {
+  const ok = await initTreeSitterWasm(options);
+  if (!ok) return false;
+  const unique = Array.from(new Set(languageIds || []));
+  for (const id of unique) {
+    // Load sequentially to avoid wasm runtime contention.
+    await loadWasmLanguage(id, options);
+  }
+  return true;
+}
+
+export function resolveEnabledTreeSitterLanguages(config = {}) {
+  const options = { treeSitter: config };
+  return TREE_SITTER_LANGUAGE_IDS.filter((id) => isTreeSitterEnabled(options, id));
+}
+
+export function getTreeSitterParser(languageId, options = {}) {
+  if (!TreeSitter) {
+    const resolvedId = resolveLanguageId(languageId);
+    if (resolvedId && !loggedInitFailure.has(resolvedId) && options?.log) {
+      const reason = treeSitterInitError?.message || 'WASM runtime not initialized';
+      options.log(`[tree-sitter] WASM runtime unavailable for ${resolvedId} (${reason}).`);
+      loggedInitFailure.add(resolvedId);
+    }
+    return null;
+  }
   const resolvedId = resolveLanguageId(languageId);
   if (!resolvedId) return null;
   if (parserCache.has(resolvedId)) return parserCache.get(resolvedId);
-  const moduleName = LANGUAGE_MODULES[resolvedId];
-  const entry = loadLanguageModule(moduleName);
+  const entry = languageCache.get(resolvedId) || null;
   const language = entry?.language || null;
   if (!language) {
     if (!loggedMissing.has(resolvedId)) {
-      const reason = entry?.error?.message || 'module not available';
-      console.warn(`[tree-sitter] Missing grammar for ${resolvedId} (${reason}). Install ${moduleName} with native bindings.`);
+      const reason = entry?.error?.message || 'WASM grammar not loaded';
+      if (options?.log) {
+        options.log(`[tree-sitter] Missing WASM grammar for ${resolvedId} (${reason}).`);
+      } else {
+        console.warn(`[tree-sitter] Missing WASM grammar for ${resolvedId} (${reason}).`);
+      }
       loggedMissing.add(resolvedId);
     }
     return null;
   }
-  const parser = new Parser();
+  const parser = new TreeSitter();
   try {
     parser.setLanguage(language);
   } catch (err) {
     parserCache.set(resolvedId, null);
     if (!loggedMissing.has(resolvedId)) {
-      console.warn(`[tree-sitter] Failed to load ${resolvedId}: ${err?.message || err}. Rebuild ${moduleName} native bindings.`);
+      const message = err?.message || err;
+      const log = options?.log || console.warn;
+      log(`[tree-sitter] Failed to load ${resolvedId} WASM grammar: ${message}.`);
       loggedMissing.add(resolvedId);
     }
     return null;
@@ -407,6 +557,11 @@ function findNameNode(node, config) {
     if (child) return child;
   }
   const nameTypes = config?.nameNodeTypes || COMMON_NAME_NODE_TYPES;
+  const declarator = node.childForFieldName('declarator');
+  if (declarator) {
+    const named = findDescendantByType(declarator, nameTypes, 8);
+    if (named) return named;
+  }
   const queue = [...node.namedChildren];
   let depth = 0;
   while (queue.length && depth < 4) {
@@ -440,7 +595,9 @@ function gatherChunkNodes(root, config) {
   const stack = [root];
   while (stack.length) {
     const node = stack.pop();
-    if (!node || node.isMissing) continue;
+    if (!node) continue;
+    const missing = typeof node.isMissing === 'function' ? node.isMissing() : node.isMissing;
+    if (missing) continue;
     if (config.typeNodes.has(node.type) || config.memberNodes.has(node.type)) {
       nodes.push(node);
     }
@@ -456,7 +613,10 @@ function gatherChunkNodes(root, config) {
 function toChunk(node, text, config, lineIndex, lines) {
   const name = extractNodeName(node, text, config);
   if (!name) return null;
-  const kind = config.kindMap[node.type] || 'Declaration';
+  let kind = config.kindMap[node.type] || 'Declaration';
+  if (typeof config.resolveKind === 'function') {
+    kind = config.resolveKind(node, kind, text) || kind;
+  }
   const start = node.startIndex;
   const end = node.endIndex;
   const parentType = findNearestType(node, config);
@@ -466,6 +626,12 @@ function toChunk(node, text, config, lineIndex, lines) {
     const parentName = extractNodeName(parentType, text, config);
     if (parentName) fullName = `${parentName}.${name}`;
     if (kind === 'FunctionDeclaration') finalKind = 'MethodDeclaration';
+  }
+  if (!parentType && config.memberNodes.has(node.type)
+    && typeof config.resolveMemberName === 'function') {
+    const resolved = config.resolveMemberName(node, name, text);
+    if (resolved?.name) fullName = resolved.name;
+    if (resolved?.kind) finalKind = resolved.kind;
   }
   const startLine = offsetToLine(lineIndex, start);
   const endOffset = end > start ? end - 1 : start;
@@ -500,7 +666,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   if (!resolvedId) return null;
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
   if (exceedsTreeSitterLimits(text, options, resolvedId)) return null;
-  const parser = getParser(resolvedId);
+  const parser = getTreeSitterParser(resolvedId, options);
   if (!parser) {
     if (options?.log && !loggedUnavailable.has(resolvedId)) {
       options.log(`Tree-sitter unavailable for ${resolvedId}; falling back to heuristic chunking.`);

@@ -35,12 +35,27 @@ export async function writeIndexArtifacts(input) {
   const tokenMaxFiles = Number.isFinite(Number(indexingConfig.chunkTokenMaxFiles))
     ? Math.max(0, Number(indexingConfig.chunkTokenMaxFiles))
     : 5000;
+  const tokenMaxTotalRaw = Number(indexingConfig.chunkTokenMaxTokens);
+  const tokenMaxTotal = Number.isFinite(tokenMaxTotalRaw) && tokenMaxTotalRaw > 0
+    ? Math.floor(tokenMaxTotalRaw)
+    : 5000000;
   const tokenSampleSize = Number.isFinite(Number(indexingConfig.chunkTokenSampleSize))
     ? Math.max(1, Math.floor(Number(indexingConfig.chunkTokenSampleSize)))
     : 32;
-  const resolvedTokenMode = tokenMode === 'auto'
+  let resolvedTokenMode = tokenMode === 'auto'
     ? ((fileCounts?.candidates ?? 0) <= tokenMaxFiles ? 'full' : 'sample')
     : tokenMode;
+  if (resolvedTokenMode === 'full' && tokenMode === 'auto') {
+    let totalTokens = 0;
+    for (const chunk of state.chunks) {
+      if (Array.isArray(chunk?.tokens)) totalTokens += chunk.tokens.length;
+      if (totalTokens > tokenMaxTotal) break;
+    }
+    if (totalTokens > tokenMaxTotal) {
+      resolvedTokenMode = 'sample';
+      log(`Chunk token mode auto -> sample (token budget ${totalTokens} > ${tokenMaxTotal}).`);
+    }
+  }
   const compressionConfig = indexingConfig.artifactCompression || {};
   const compressionMode = compressionConfig.mode === 'gzip' ? 'gzip' : null;
   const compressionEnabled = compressionConfig.enabled === true && compressionMode;
@@ -342,7 +357,7 @@ export async function writeIndexArtifacts(input) {
   }
   enqueueJsonArray('repo_map', repoMapIterator(state.chunks), { compressible: false });
   if (filterIndex) {
-    enqueueJsonObject('filter_index', filterIndex, { compressible: false });
+    enqueueJsonObject('filter_index', { fields: filterIndex }, { compressible: false });
   }
   enqueueJsonObject('minhash_signatures', { arrays: { signatures: postings.minhashSigs } });
   if (tokenPostingsUseShards) {

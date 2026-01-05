@@ -160,7 +160,7 @@ export function resolveIndexDir(root, mode, userConfig) {
  * @param {object} userConfig
  * @returns {string}
  */
-export function requireIndexDir(root, mode, userConfig) {
+export function requireIndexDir(root, mode, userConfig, options = {}) {
   const dir = resolveIndexDir(root, mode, userConfig);
   const metaPath = path.join(dir, 'chunk_meta.json');
   const metaJsonlPath = path.join(dir, 'chunk_meta.jsonl');
@@ -171,8 +171,12 @@ export function requireIndexDir(root, mode, userConfig) {
     && !fsSync.existsSync(metaPartsPath)
     && !fsSync.existsSync(metaPartsDir)) {
     const suffix = mode === 'records' ? ' --mode records' : '';
-    console.error(`[search] ${mode} index not found at ${dir}. Run "pairofcleats build-index${suffix}" or "npm run build-index${suffix}".`);
-    process.exit(1);
+    const message = `[search] ${mode} index not found at ${dir}. Run "pairofcleats build-index${suffix}" or "npm run build-index${suffix}".`;
+    const emitOutput = options.emitOutput !== false;
+    const exitOnError = options.exitOnError !== false;
+    if (emitOutput) console.error(message);
+    if (exitOnError) process.exit(1);
+    throw new Error(message);
   }
   return dir;
 }

@@ -112,7 +112,7 @@ function applyProfileConfig(baseConfig, profileOverride) {
     }
   }
   const merged = mergeConfig(profileConfig, baseConfig || {});
-  if (!merged.profile) merged.profile = profileName;
+  merged.profile = profileName;
   return merged;
 }
 

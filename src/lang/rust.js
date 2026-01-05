@@ -156,7 +156,25 @@ export function collectRustImports(text) {
  */
 export function buildRustChunks(text, options = {}) {
   const treeChunks = buildTreeSitterChunks({ text, languageId: 'rust', options });
-  if (treeChunks && treeChunks.length) return treeChunks;
+  if (treeChunks && treeChunks.length) {
+    const lines = text.split('\n');
+    return treeChunks.map((chunk) => {
+      const meta = chunk.meta || {};
+      const signature = meta.signature || '';
+      const startLine = Number.isFinite(meta.startLine) ? meta.startLine : 1;
+      return {
+        ...chunk,
+        meta: {
+          ...meta,
+          signature,
+          params: extractRustParams(signature),
+          returns: extractRustReturns(signature),
+          modifiers: extractRustModifiers(signature),
+          attributes: collectRustAttributes(lines, startLine - 1, signature)
+        }
+      };
+    });
+  }
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];

@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, getRepoCacheRoot, loadUserConfig } from '../tools/dict-utils.js';
-import { loadChunkMeta } from '../src/shared/artifact-io.js';
+import { loadChunkMeta, readJsonFile } from '../src/shared/artifact-io.js';
 import { filterChunks } from '../src/retrieval/output.js';
 
 const root = process.cwd();
@@ -49,6 +49,15 @@ if (buildResult.status !== 0) {
 
 const indexDir = getIndexDir(repoRoot, 'code', userConfig);
 const chunkMeta = loadChunkMeta(indexDir);
+const fileMeta = readJsonFile(path.join(indexDir, 'file_meta.json'));
+const fileMetaById = new Map(
+  Array.isArray(fileMeta) ? fileMeta.map((entry) => [entry.id, entry]) : []
+);
+for (const chunk of chunkMeta) {
+  if (!chunk || chunk.file || chunk.fileId == null) continue;
+  const meta = fileMetaById.get(chunk.fileId);
+  if (meta?.file) chunk.file = meta.file;
+}
 const target = chunkMeta.find((chunk) => chunk.file === 'src/example.js');
 assert.ok(target, 'expected example.js chunk to exist');
 assert.ok(Array.isArray(target.docmeta?.structural), 'expected structural metadata on chunk');

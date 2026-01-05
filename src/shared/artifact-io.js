@@ -86,7 +86,11 @@ const readShardFiles = (dir, prefix) => {
 export const loadChunkMeta = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const jsonPath = path.join(dir, 'chunk_meta.json');
   if (fs.existsSync(jsonPath)) {
-    return readJsonFile(jsonPath, { maxBytes });
+    try {
+      return readJsonFile(jsonPath, { maxBytes });
+    } catch (err) {
+      if (err?.code !== 'ERR_JSON_TOO_LARGE') throw err;
+    }
   }
   const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
   if (fs.existsSync(jsonlPath)) {

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildTreeSitterChunks } from '../src/lang/tree-sitter.js';
+import { buildTreeSitterChunks, preloadTreeSitterLanguages } from '../src/lang/tree-sitter.js';
 
 const root = path.resolve('tests', 'fixtures', 'tree-sitter');
 const fixtures = [
@@ -10,10 +10,19 @@ const fixtures = [
   { id: 'clike', file: 'clike.c', ext: '.c', expect: ['Widget', 'greet'] },
   { id: 'cpp', file: 'cpp.cpp', ext: '.cpp', expect: ['Widget', 'Widget.greet'] },
   { id: 'objc', file: 'objc.m', ext: '.m', expect: ['Widget', 'greet'] },
-  { id: 'go', file: 'go.go', languageId: 'go', expect: ['Widget', 'Greet'] },
+  { id: 'go', file: 'go.go', languageId: 'go', expect: ['Widget', 'Widget.Greet'] },
   { id: 'rust', file: 'rust.rs', languageId: 'rust', expect: ['Widget', 'Widget.greet'] },
   { id: 'java', file: 'java.java', languageId: 'java', expect: ['Widget', 'Widget.greet'] }
 ];
+
+const preloadIds = fixtures
+  .map((fixture) => fixture.languageId
+    || (fixture.ext === '.c' ? 'clike' : null)
+    || (fixture.ext === '.cpp' ? 'cpp' : null)
+    || (fixture.ext === '.m' ? 'objc' : null))
+  .filter(Boolean);
+
+await preloadTreeSitterLanguages(preloadIds);
 
 const options = { treeSitter: { enabled: true }, log: () => {} };
 

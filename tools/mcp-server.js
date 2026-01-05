@@ -493,6 +493,9 @@ function runNodeAsync(cwd, args, options = {}) {
  */
 async function runToolWithProgress({ repoPath, scriptArgs, context = {}, startMessage, doneMessage }) {
   const progress = typeof context.progress === 'function' ? context.progress : null;
+  const progressLine = progress
+    ? ({ stream, line }) => progress({ message: line, stream })
+    : null;
   if (progress && startMessage) {
     progress({ message: startMessage, phase: 'start' });
   }

@@ -160,7 +160,21 @@ export function collectGoImports(text) {
  */
 export function buildGoChunks(text, options = {}) {
   const treeChunks = buildTreeSitterChunks({ text, languageId: 'go', options });
-  if (treeChunks && treeChunks.length) return treeChunks;
+  if (treeChunks && treeChunks.length) {
+    return treeChunks.map((chunk) => {
+      const meta = chunk.meta || {};
+      const signature = meta.signature || '';
+      return {
+        ...chunk,
+        meta: {
+          ...meta,
+          signature,
+          params: extractGoParams(signature),
+          returns: extractGoReturns(signature)
+        }
+      };
+    });
+  }
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];
