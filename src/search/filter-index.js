@@ -80,3 +80,60 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
 
   return index;
 }
+
+const serializeMap = (map) => {
+  const out = {};
+  if (!map || typeof map.entries !== 'function') return out;
+  for (const [key, value] of map.entries()) {
+    out[key] = Array.from(value || []);
+  }
+  return out;
+};
+
+const hydrateMap = (value) => {
+  const map = new Map();
+  if (!value || typeof value !== 'object') return map;
+  for (const [key, list] of Object.entries(value)) {
+    map.set(key, new Set(Array.isArray(list) ? list : []));
+  }
+  return map;
+};
+
+export function serializeFilterIndex(index) {
+  if (!index) return null;
+  return {
+    fileChargramN: index.fileChargramN || 3,
+    byExt: serializeMap(index.byExt),
+    byKind: serializeMap(index.byKind),
+    byAuthor: serializeMap(index.byAuthor),
+    byChunkAuthor: serializeMap(index.byChunkAuthor),
+    byVisibility: serializeMap(index.byVisibility),
+    fileById: Array.isArray(index.fileById) ? index.fileById : [],
+    fileChunksById: Array.isArray(index.fileChunksById)
+      ? index.fileChunksById.map((set) => Array.from(set || []))
+      : [],
+    fileChargrams: serializeMap(index.fileChargrams)
+  };
+}
+
+export function hydrateFilterIndex(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const fileById = Array.isArray(raw.fileById) ? raw.fileById : [];
+  const fileIdByPath = new Map(fileById.map((value, idx) => [value, idx]));
+  return {
+    fileChargramN: Number.isFinite(Number(raw.fileChargramN))
+      ? Math.max(2, Math.floor(Number(raw.fileChargramN)))
+      : 3,
+    byExt: hydrateMap(raw.byExt),
+    byKind: hydrateMap(raw.byKind),
+    byAuthor: hydrateMap(raw.byAuthor),
+    byChunkAuthor: hydrateMap(raw.byChunkAuthor),
+    byVisibility: hydrateMap(raw.byVisibility),
+    fileById,
+    fileIdByPath,
+    fileChunksById: Array.isArray(raw.fileChunksById)
+      ? raw.fileChunksById.map((list) => new Set(Array.isArray(list) ? list : []))
+      : [],
+    fileChargrams: hydrateMap(raw.fileChargrams)
+  };
+}

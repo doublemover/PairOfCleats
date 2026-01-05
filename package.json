@@ -70,6 +70,7 @@
     "index-cache-test": "node tests/index-cache.js",
     "sqlite-cache-test": "node tests/sqlite-cache.js",
     "search-rrf-test": "node tests/search-rrf.js",
+    "filter-index-artifact-test": "node tests/filter-index-artifact.js",
     "bench": "node tests/bench.js",
     "bench-ann": "node tests/bench.js --ann",
     "bench-dict-seg": "node tools/bench-dict-seg.js",

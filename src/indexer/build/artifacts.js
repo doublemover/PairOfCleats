@@ -5,6 +5,7 @@ import { getRepoBranch } from '../git.js';
 import { log } from '../../shared/progress.js';
 import { writeJsonArrayFile, writeJsonLinesFile, writeJsonObjectFile } from '../../shared/json-stream.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
+import { buildFilterIndex, serializeFilterIndex } from '../../search/filter-index.js';
 
 /**
  * Write index artifacts and metrics.
@@ -214,6 +215,11 @@ export async function writeIndexArtifacts(input) {
   }
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
+  const filePrefilterConfig = userConfig?.search?.filePrefilter || {};
+  const fileChargramN = Number.isFinite(Number(filePrefilterConfig.chargramN))
+    ? Math.max(2, Math.floor(Number(filePrefilterConfig.chargramN)))
+    : resolvedConfig.chargramMinN;
+  const filterIndex = serializeFilterIndex(buildFilterIndex(state.chunks, { fileChargramN }));
   const denseScale = 2 / 255;
   const chunkMetaCount = state.chunks.length;
   const chunkMetaFormat = chunkMetaFormatConfig
@@ -335,6 +341,9 @@ export async function writeIndexArtifacts(input) {
     enqueueJsonArray('chunk_meta', chunkMetaIterator(state.chunks), { compressible: false });
   }
   enqueueJsonArray('repo_map', repoMapIterator(state.chunks), { compressible: false });
+  if (filterIndex) {
+    enqueueJsonObject('filter_index', filterIndex, { compressible: false });
+  }
   enqueueJsonObject('minhash_signatures', { arrays: { signatures: postings.minhashSigs } });
   if (tokenPostingsUseShards) {
     const shardsDir = path.join(outDir, 'token_postings.shards');

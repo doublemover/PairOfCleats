@@ -61,7 +61,13 @@ if (postingsConfig.fielded) {
   requiredFiles.push('field_postings.json');
   requiredFiles.push('field_tokens.json');
 }
-const optionalFiles = ['minhash_signatures.json', 'file_relations.json', 'file_meta.json', 'repo_map.json'];
+const optionalFiles = [
+  'minhash_signatures.json',
+  'file_relations.json',
+  'file_meta.json',
+  'repo_map.json',
+  'filter_index.json'
+];
 if (userConfig.search?.annDefault !== false) {
   optionalFiles.push('dense_vectors_uint8.json');
   optionalFiles.push('dense_vectors_doc_uint8.json');

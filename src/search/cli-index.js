@@ -2,7 +2,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { getIndexDir } from '../../tools/dict-utils.js';
-import { buildFilterIndex } from './filter-index.js';
+import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import {
   MAX_JSON_BYTES,
   loadChunkMeta,
@@ -84,6 +84,7 @@ export function loadIndex(dir, options) {
   if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
   if (denseVecDoc && !denseVecDoc.model && modelIdDefault) denseVecDoc.model = modelIdDefault;
   if (denseVecCode && !denseVecCode.model && modelIdDefault) denseVecCode.model = modelIdDefault;
+  const filterIndexRaw = loadOptional('filter_index.json');
   const idx = {
     chunkMeta,
     fileRelations,
@@ -110,7 +111,9 @@ export function loadIndex(dir, options) {
       entry.vocabIndex = new Map(entry.vocab.map((term, i) => [term, i]));
     }
   }
-  idx.filterIndex = buildFilterIndex(chunkMeta, { fileChargramN });
+  idx.filterIndex = filterIndexRaw
+    ? (hydrateFilterIndex(filterIndexRaw) || buildFilterIndex(chunkMeta, { fileChargramN }))
+    : buildFilterIndex(chunkMeta, { fileChargramN });
   try {
     idx.tokenIndex = loadTokenPostings(dir, { maxBytes: MAX_JSON_BYTES });
   } catch {}

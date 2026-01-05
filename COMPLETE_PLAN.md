@@ -18,13 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 14: Build-Time Filter Index Artifact (status: todo)
-Goal: Avoid recomputing the path/chargram filter index at search time.
-Work items:
-- [ ] Build and persist a filter index artifact at index time.
-- [ ] Load the artifact in search to avoid recomputation.
-- [ ] Add tests for filter index parity.
-
 ## Phase 15: Command Surface Simplification (status: todo)
 Goal: Reduce and align scripts, flags, and docs.
 Work items:

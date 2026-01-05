@@ -1101,3 +1101,8 @@ Work items:
 - [x] Loaded structural matches from repo cache and attached them to chunk `docmeta.structural`.
 - [x] Added search filters `--struct-pack`, `--struct-rule`, `--struct-tag`.
 - [x] Added tests for structural match ingestion and filtering.
+
+## Phase 14: Build-Time Filter Index Artifact (status: done)
+- [x] Built and persisted `filter_index.json` during indexing using configured chargram size.
+- [x] Hydrated filter index in search to avoid rebuilding maps/sets at query time.
+- [x] Added filter index artifact test coverage and updated index validation to report it.

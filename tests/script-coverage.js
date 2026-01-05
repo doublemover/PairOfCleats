@@ -388,6 +388,11 @@ const actions = [
     covers: ['search-rrf-test']
   },
   {
+    label: 'filter-index-artifact-test',
+    run: () => runNode('filter-index-artifact-test', path.join(root, 'tests', 'filter-index-artifact.js')),
+    covers: ['filter-index-artifact-test']
+  },
+  {
     label: 'search-symbol-boost-test',
     run: () => runNode('search-symbol-boost-test', path.join(root, 'tests', 'search-symbol-boost.js')),
     covers: ['search-symbol-boost-test']

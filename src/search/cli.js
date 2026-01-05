@@ -180,7 +180,8 @@ function estimateIndexBytes(indexDir) {
     'token_postings.meta.json',
     'phrase_ngrams.json',
     'chargram_postings.json',
-    'dense_vectors_uint8.json'
+    'dense_vectors_uint8.json',
+    'filter_index.json'
   ];
   const sumFile = (targetPath) => {
     try {
