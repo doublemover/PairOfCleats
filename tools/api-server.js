@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { resolveRepoRoot } from './dict-utils.js';
+import { search, status } from '../src/core/index.js';
+import { createSqliteDbCache } from '../src/search/sqlite-cache.js';
 
 const argv = createCli({
   scriptName: 'api-server',
@@ -19,7 +19,6 @@ const argv = createCli({
   }
 }).parse();
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const host = argv.host || '127.0.0.1';
 const port = Number.isFinite(Number(argv.port)) ? Number(argv.port) : 7345;
 const defaultRepo = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
@@ -62,30 +61,6 @@ const normalizeMetaFilters = (meta) => {
 };
 
 /**
- * Run a node script asynchronously and return stdout/stderr.
- * @param {string} cwd
- * @param {string[]} args
- * @returns {Promise<{status:number,stdout:string,stderr:string}>}
- */
-const runNodeAsync = (cwd, args) => new Promise((resolve) => {
-  const child = spawn(process.execPath, args, { cwd });
-  let stdout = '';
-  let stderr = '';
-  child.stdout?.on('data', (chunk) => {
-    stdout += chunk.toString();
-  });
-  child.stderr?.on('data', (chunk) => {
-    stderr += chunk.toString();
-  });
-  child.on('error', (err) => {
-    resolve({ status: 1, stdout, stderr: err?.message || String(err) });
-  });
-  child.on('close', (code) => {
-    resolve({ status: code ?? 0, stdout, stderr });
-  });
-});
-
-/**
  * Write a JSON payload to the HTTP response.
  * @param {import('node:http').ServerResponse} res
  * @param {number} statusCode
@@ -126,29 +101,29 @@ const sendSseEvent = (res, event, payload) => {
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 };
 
-/**
- * Build a line buffer for streaming logs.
- * @param {(line:string)=>void} onLine
- * @returns {{push:(text:string)=>void,flush:()=>void}}
- */
-const createLineBuffer = (onLine) => {
-  let buffer = '';
-  return {
-    push(text) {
-      buffer += text;
-      const lines = buffer.split(/\r?\n/);
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed) onLine(trimmed);
-      }
-    },
-    flush() {
-      const trimmed = buffer.trim();
-      if (trimmed) onLine(trimmed);
-      buffer = '';
-    }
+const repoCaches = new Map();
+
+const getRepoCaches = (repoPath) => {
+  const key = repoPath || defaultRepo;
+  const existing = repoCaches.get(key);
+  if (existing) {
+    existing.lastUsed = Date.now();
+    return existing;
+  }
+  const entry = {
+    indexCache: new Map(),
+    sqliteCache: createSqliteDbCache(),
+    lastUsed: Date.now()
   };
+  repoCaches.set(key, entry);
+  return entry;
+};
+
+const closeRepoCaches = () => {
+  for (const entry of repoCaches.values()) {
+    entry.sqliteCache?.closeAll?.();
+  }
+  repoCaches.clear();
 };
 
 /**
@@ -200,16 +175,16 @@ const resolveRepo = (value) => {
  * Build CLI search arguments from a request payload.
  * @param {string} repoPath
  * @param {any} payload
- * @returns {{ok:boolean,message?:string,args?:string[]}}
+ * @returns {{ok:boolean,message?:string,args?:string[],query?:string}}
  */
-const buildSearchArgs = (repoPath, payload) => {
+const buildSearchParams = (repoPath, payload) => {
   const query = payload?.query ? String(payload.query) : '';
   if (!query) {
     return { ok: false, message: 'Missing query.' };
   }
   const output = payload?.output || argv.output;
   const useCompact = output !== 'full' && output !== 'json';
-  const searchArgs = [path.join(ROOT, 'search.js'), query, useCompact ? '--json-compact' : '--json', '--repo', repoPath];
+  const searchArgs = [useCompact ? '--json-compact' : '--json', '--repo', repoPath];
   const mode = payload?.mode ? String(payload.mode) : null;
   const backend = payload?.backend ? String(payload.backend) : null;
   const ann = payload?.ann;
@@ -327,7 +302,7 @@ const buildSearchArgs = (repoPath, payload) => {
     searchArgs.push('--meta-json', jsonValue);
   }
 
-  return { ok: true, args: searchArgs };
+  return { ok: true, args: searchArgs, query };
 };
 
 const server = http.createServer(async (req, res) => {
@@ -359,24 +334,15 @@ const server = http.createServer(async (req, res) => {
     }
     sendSseHeaders(res);
     sendSseEvent(res, 'start', { ok: true, repo: repoPath });
-    const args = [path.join(ROOT, 'tools', 'report-artifacts.js'), '--json', '--repo', repoPath];
-    const result = await runNodeAsync(repoPath, args);
-    if (result.status !== 0) {
-      sendSseEvent(res, 'error', {
-        ok: false,
-        message: 'Failed to collect status.',
-        stderr: result.stderr ? String(result.stderr).trim() : null
-      });
-      sendSseEvent(res, 'done', { ok: false });
-      res.end();
-      return;
-    }
     try {
-      const payload = JSON.parse(result.stdout || '{}');
+      const payload = await status(repoPath);
       sendSseEvent(res, 'result', { ok: true, repo: repoPath, status: payload });
       sendSseEvent(res, 'done', { ok: true });
     } catch (err) {
-      sendSseEvent(res, 'error', { ok: false, message: 'Invalid status response.', error: err?.message || String(err) });
+      sendSseEvent(res, 'error', {
+        ok: false,
+        message: err?.message || 'Failed to collect status.'
+      });
       sendSseEvent(res, 'done', { ok: false });
     }
     res.end();
@@ -391,19 +357,11 @@ const server = http.createServer(async (req, res) => {
       sendError(res, 400, err?.message || 'Invalid repo path.');
       return;
     }
-    const args = [path.join(ROOT, 'tools', 'report-artifacts.js'), '--json', '--repo', repoPath];
-    const result = await runNodeAsync(repoPath, args);
-    if (result.status !== 0) {
-      sendError(res, 500, 'Failed to collect status.', {
-        stderr: result.stderr ? String(result.stderr).trim() : null
-      });
-      return;
-    }
     try {
-      const payload = JSON.parse(result.stdout || '{}');
+      const payload = await status(repoPath);
       sendJson(res, 200, { ok: true, repo: repoPath, status: payload });
     } catch (err) {
-      sendError(res, 500, 'Invalid status response.', { error: err?.message || String(err) });
+      sendError(res, 500, 'Failed to collect status.', { error: err?.message || String(err) });
     }
     return;
   }
@@ -438,58 +396,33 @@ const server = http.createServer(async (req, res) => {
       res.end();
       return;
     }
-    const searchArgs = buildSearchArgs(repoPath, payload || {});
-    if (!searchArgs.ok) {
-      sendSseEvent(res, 'error', { ok: false, message: searchArgs.message || 'Invalid search payload.' });
+    const searchParams = buildSearchParams(repoPath, payload || {});
+    if (!searchParams.ok) {
+      sendSseEvent(res, 'error', { ok: false, message: searchParams.message || 'Invalid search payload.' });
       sendSseEvent(res, 'done', { ok: false });
       res.end();
       return;
     }
-
-    const child = spawn(process.execPath, searchArgs.args, { cwd: repoPath });
-    let stdout = '';
-    let stderr = '';
-    const stderrBuffer = createLineBuffer((line) => {
-      sendSseEvent(res, 'log', { stream: 'stderr', message: line });
-    });
-    child.stdout?.on('data', (chunk) => {
-      stdout += chunk.toString();
-    });
-    child.stderr?.on('data', (chunk) => {
-      const text = chunk.toString();
-      stderr += text;
-      stderrBuffer.push(text);
-    });
-    req.on('close', () => {
-      if (!child.killed) child.kill('SIGTERM');
-    });
-    child.on('close', (code) => {
-      stderrBuffer.flush();
-      if (code !== 0) {
-        sendSseEvent(res, 'error', {
-          ok: false,
-          message: 'Search failed.',
-          code,
-          stderr: stderr.trim() || null
-        });
-        sendSseEvent(res, 'done', { ok: false });
-        res.end();
-        return;
-      }
-      try {
-        const body = JSON.parse(stdout || '{}');
-        sendSseEvent(res, 'result', { ok: true, repo: repoPath, result: body });
-        sendSseEvent(res, 'done', { ok: true });
-      } catch (err) {
-        sendSseEvent(res, 'error', {
-          ok: false,
-          message: 'Invalid search response.',
-          error: err?.message || String(err)
-        });
-        sendSseEvent(res, 'done', { ok: false });
-      }
-      res.end();
-    });
+    const caches = getRepoCaches(repoPath);
+    try {
+      const body = await search(repoPath, {
+        args: searchParams.args,
+        query: searchParams.query,
+        emitOutput: false,
+        exitOnError: false,
+        indexCache: caches.indexCache,
+        sqliteCache: caches.sqliteCache
+      });
+      sendSseEvent(res, 'result', { ok: true, repo: repoPath, result: body });
+      sendSseEvent(res, 'done', { ok: true });
+    } catch (err) {
+      sendSseEvent(res, 'error', {
+        ok: false,
+        message: err?.message || 'Search failed.'
+      });
+      sendSseEvent(res, 'done', { ok: false });
+    }
+    res.end();
     return;
   }
 
@@ -515,23 +448,24 @@ const server = http.createServer(async (req, res) => {
       sendError(res, 400, err?.message || 'Invalid repo path.');
       return;
     }
-    const searchArgs = buildSearchArgs(repoPath, payload || {});
-    if (!searchArgs.ok) {
-      sendError(res, 400, searchArgs.message || 'Invalid search payload.');
-      return;
-    }
-    const result = await runNodeAsync(repoPath, searchArgs.args);
-    if (result.status !== 0) {
-      sendError(res, 500, 'Search failed.', {
-        stderr: result.stderr ? String(result.stderr).trim() : null
-      });
+    const searchParams = buildSearchParams(repoPath, payload || {});
+    if (!searchParams.ok) {
+      sendError(res, 400, searchParams.message || 'Invalid search payload.');
       return;
     }
     try {
-      const body = JSON.parse(result.stdout || '{}');
+      const caches = getRepoCaches(repoPath);
+      const body = await search(repoPath, {
+        args: searchParams.args,
+        query: searchParams.query,
+        emitOutput: false,
+        exitOnError: false,
+        indexCache: caches.indexCache,
+        sqliteCache: caches.sqliteCache
+      });
       sendJson(res, 200, { ok: true, repo: repoPath, result: body });
     } catch (err) {
-      sendError(res, 500, 'Invalid search response.', { error: err?.message || String(err) });
+      sendError(res, 500, 'Search failed.', { error: err?.message || String(err) });
     }
     return;
   }
@@ -554,6 +488,7 @@ server.listen({ port, host }, () => {
 const shutdown = (signal) => {
   log(`[api] ${signal} received; shutting down...`);
   server.close(() => {
+    closeRepoCaches();
     log('[api] shutdown complete.');
     process.exit(0);
   });

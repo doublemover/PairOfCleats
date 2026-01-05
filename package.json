@@ -61,6 +61,8 @@
     "fixture-eval": "node tests/fixture-eval.js",
     "query-cache-test": "node tests/query-cache.js",
     "json-stream-test": "node tests/json-stream.js",
+    "index-cache-test": "node tests/index-cache.js",
+    "sqlite-cache-test": "node tests/sqlite-cache.js",
     "bench": "node tests/bench.js",
     "bench-ann": "node tests/bench.js --ann",
     "bench-dict-seg": "node tools/bench-dict-seg.js",

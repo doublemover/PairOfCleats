@@ -7,6 +7,8 @@ import simpleGit from 'simple-git';
 import { getToolDefs } from '../src/mcp/defs.js';
 import { sendError, sendNotification, sendResult } from '../src/mcp/protocol.js';
 import { StreamMessageReader } from 'vscode-jsonrpc';
+import { buildIndex as coreBuildIndex, buildSqliteIndex as coreBuildSqliteIndex, search as coreSearch, status as coreStatus } from '../src/core/index.js';
+import { createSqliteDbCache } from '../src/search/sqlite-cache.js';
 import {
   DEFAULT_MODEL_ID,
   getCacheRoot,
@@ -28,6 +30,33 @@ const ROOT = path.resolve(__dirname, '..');
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 
 const TOOL_DEFS = getToolDefs(DEFAULT_MODEL_ID);
+
+const repoCaches = new Map();
+
+const getRepoCaches = (repoPath) => {
+  const key = repoPath || process.cwd();
+  const existing = repoCaches.get(key);
+  if (existing) {
+    existing.lastUsed = Date.now();
+    return existing;
+  }
+  const entry = {
+    indexCache: new Map(),
+    sqliteCache: createSqliteDbCache(),
+    lastUsed: Date.now()
+  };
+  repoCaches.set(key, entry);
+  return entry;
+};
+
+const clearRepoCaches = (repoPath) => {
+  if (!repoPath) return;
+  const entry = repoCaches.get(repoPath);
+  if (!entry) return;
+  entry.sqliteCache?.closeAll?.();
+  entry.indexCache?.clear?.();
+  repoCaches.delete(repoPath);
+};
 
 
 /**
@@ -464,9 +493,6 @@ function runNodeAsync(cwd, args, options = {}) {
  */
 async function runToolWithProgress({ repoPath, scriptArgs, context = {}, startMessage, doneMessage }) {
   const progress = typeof context.progress === 'function' ? context.progress : null;
-  const progressLine = progress
-    ? ({ stream, line }) => progress({ message: line, stream })
-    : null;
   if (progress && startMessage) {
     progress({ message: startMessage, phase: 'start' });
   }
@@ -627,11 +653,13 @@ async function buildIndex(args = {}, context = {}) {
         phase: 'start'
       });
     }
-    const indexArgs = [path.join(ROOT, 'build_index.js'), '--repo', repoPath];
-    if (mode && mode !== 'all') indexArgs.push('--mode', mode);
-    if (incremental) indexArgs.push('--incremental');
-    if (stubEmbeddings) indexArgs.push('--stub-embeddings');
-    await runNodeAsync(repoPath, indexArgs, { streamOutput: true, onLine: progressLine });
+    await coreBuildIndex(repoPath, {
+      mode,
+      incremental,
+      stubEmbeddings,
+      sqlite: buildSqlite,
+      emitOutput: true
+    });
   }
 
   if (buildSqlite) {
@@ -641,9 +669,10 @@ async function buildIndex(args = {}, context = {}) {
         phase: 'start'
       });
     }
-    const sqliteArgs = [path.join(ROOT, 'tools', 'build-sqlite-index.js'), '--repo', repoPath];
-    if (incremental) sqliteArgs.push('--incremental');
-    await runNodeAsync(repoPath, sqliteArgs, { streamOutput: true, onLine: progressLine });
+    await coreBuildSqliteIndex(repoPath, {
+      incremental,
+      emitOutput: true
+    });
   }
   if (progress) {
     progress({
@@ -651,6 +680,7 @@ async function buildIndex(args = {}, context = {}) {
       phase: 'done'
     });
   }
+  clearRepoCaches(repoPath);
 
   return {
     repoPath,
@@ -666,7 +696,7 @@ async function buildIndex(args = {}, context = {}) {
  * @param {object} [args]
  * @returns {object}
  */
-function runSearch(args = {}) {
+async function runSearch(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const query = String(args.query || '').trim();
   if (!query) throw new Error('Query is required.');
@@ -726,8 +756,7 @@ function runSearch(args = {}) {
   const metaJson = args.metaJson || null;
 
   const useCompact = output !== 'full' && output !== 'json';
-  const searchArgs = [path.join(ROOT, 'search.js'), query, useCompact ? '--json-compact' : '--json'];
-  searchArgs.push('--repo', repoPath);
+  const searchArgs = [useCompact ? '--json-compact' : '--json', '--repo', repoPath];
   if (mode && mode !== 'both') searchArgs.push('--mode', mode);
   if (backend) searchArgs.push('--backend', backend);
   if (ann === true) searchArgs.push('--ann');
@@ -791,8 +820,15 @@ function runSearch(args = {}) {
     searchArgs.push('--meta-json', jsonValue);
   }
 
-  const stdout = runNodeSync(repoPath, searchArgs);
-  return JSON.parse(stdout || '{}');
+  const caches = getRepoCaches(repoPath);
+  return await coreSearch(repoPath, {
+    args: searchArgs,
+    query,
+    emitOutput: false,
+    exitOnError: false,
+    indexCache: caches.indexCache,
+    sqliteCache: caches.sqliteCache
+  });
 }
 
 /**
@@ -922,21 +958,25 @@ function verifyExtensions(args = {}) {
  */
 async function buildSqliteIndex(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'build-sqlite-index.js'), '--repo', repoPath];
-  if (args.mode) scriptArgs.push('--mode', String(args.mode));
-  if (args.incremental === true) scriptArgs.push('--incremental');
-  if (args.compact === true) scriptArgs.push('--compact');
-  if (args.codeDir) scriptArgs.push('--code-dir', String(args.codeDir));
-  if (args.proseDir) scriptArgs.push('--prose-dir', String(args.proseDir));
-  if (args.out) scriptArgs.push('--out', String(args.out));
-  const stdout = await runToolWithProgress({
-    repoPath,
-    scriptArgs,
-    context,
-    startMessage: 'Building SQLite index.',
-    doneMessage: 'SQLite index build complete.'
+  const progress = typeof context.progress === 'function' ? context.progress : null;
+  if (progress) {
+    progress({ message: 'Building SQLite index.', phase: 'start' });
+  }
+  const payload = await coreBuildSqliteIndex(repoPath, {
+    mode: args.mode,
+    incremental: args.incremental === true,
+    compact: args.compact === true,
+    codeDir: args.codeDir,
+    proseDir: args.proseDir,
+    out: args.out,
+    emitOutput: true,
+    exitOnError: false
   });
-  return { repoPath, output: stdout.trim() };
+  clearRepoCaches(repoPath);
+  if (progress) {
+    progress({ message: 'SQLite index build complete.', phase: 'done' });
+  }
+  return payload;
 }
 
 /**
@@ -1030,10 +1070,9 @@ async function runBootstrap(args = {}, context = {}) {
  * @param {object} [args]
  * @returns {object}
  */
-function reportArtifacts(args = {}) {
+async function reportArtifacts(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const stdout = runNodeSync(repoPath, [path.join(ROOT, 'tools', 'report-artifacts.js'), '--json', '--repo', repoPath]);
-  return JSON.parse(stdout || '{}');
+  return coreStatus(repoPath);
 }
 
 /**
@@ -1161,7 +1200,7 @@ async function handleToolCall(name, args, context = {}) {
     case 'build_index':
       return await buildIndex(args, context);
     case 'search':
-      return runSearch(args);
+      return await runSearch(args);
     case 'download_models':
       return await downloadModels(args, context);
     case 'download_dictionaries':
@@ -1181,7 +1220,7 @@ async function handleToolCall(name, args, context = {}) {
     case 'bootstrap':
       return await runBootstrap(args, context);
     case 'report_artifacts':
-      return reportArtifacts(args);
+      return await reportArtifacts(args);
     case 'triage_ingest':
       return await triageIngest(args, context);
     case 'triage_decision':

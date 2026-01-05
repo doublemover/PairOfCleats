@@ -15,7 +15,8 @@ export async function createSqliteBackend(options) {
     sqliteFtsRequested,
     backendForcedSqlite,
     vectorExtension,
-    vectorAnnEnabled
+    vectorAnnEnabled,
+    dbCache
   } = options;
 
   let useSqlite = useSqliteInput;
@@ -64,6 +65,8 @@ export async function createSqliteBackend(options) {
     ];
 
   const openSqlite = (dbPath, label) => {
+    const cached = dbCache?.get?.(dbPath);
+    if (cached) return cached;
     const db = new Database(dbPath, { readonly: true });
     const tableRows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
     const tableNames = new Set(tableRows.map((row) => row.name));
@@ -78,6 +81,7 @@ export async function createSqliteBackend(options) {
       db.close();
       return null;
     }
+    if (dbCache?.set) dbCache.set(dbPath, db);
     return db;
   };
 
@@ -109,8 +113,8 @@ export async function createSqliteBackend(options) {
   if (needsCode) initVectorAnn(dbCode, 'code');
   if (needsProse) initVectorAnn(dbProse, 'prose');
   if ((needsCode && !dbCode) || (needsProse && !dbProse)) {
-    if (dbCode) dbCode.close();
-    if (dbProse) dbProse.close();
+    if (dbCode) dbCache?.close ? dbCache.close(sqliteCodePath) : dbCode.close();
+    if (dbProse) dbCache?.close ? dbCache.close(sqliteProsePath) : dbProse.close();
     dbCode = null;
     dbProse = null;
     useSqlite = false;

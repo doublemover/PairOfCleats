@@ -473,6 +473,16 @@ const actions = [
     covers: ['json-stream-test']
   },
   {
+    label: 'index-cache-test',
+    run: () => runNode('index-cache-test', path.join(root, 'tests', 'index-cache.js')),
+    covers: ['index-cache-test']
+  },
+  {
+    label: 'sqlite-cache-test',
+    run: () => runNode('sqlite-cache-test', path.join(root, 'tests', 'sqlite-cache.js')),
+    covers: ['sqlite-cache-test']
+  },
+  {
     label: 'worker-pool-test',
     run: () => runNode('worker-pool-test', path.join(root, 'tests', 'worker-pool.js')),
     covers: ['worker-pool-test']

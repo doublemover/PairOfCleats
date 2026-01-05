@@ -1052,3 +1052,9 @@ Work items:
 - [x] Added core API for build/search/status/sqlite index.
 - [x] Refactored CLI entrypoints to call the core API.
 - [x] Added core API documentation and tests.
+
+## Phase 6: In-Process API + MCP Servers (status: done)
+- [x] API server calls core search/status with shared caches.
+- [x] MCP server calls core build/search/status with shared caches.
+- [x] Added cache invalidation for file-backed indexes and SQLite DBs.
+- [x] Added cache tests for in-process index reuse.

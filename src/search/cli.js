@@ -37,11 +37,14 @@ import { parseChurnArg, parseModifiedArgs, parseQueryInput, tokenizePhrase, toke
 import { normalizePostingsConfig } from '../shared/postings-config.js';
 import { createSqliteHelpers } from './sqlite-helpers.js';
 import { createSearchPipeline } from './pipeline.js';
+import { loadIndexWithCache } from './index-cache.js';
 
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
   const argv = parseSearchArgs(rawArgs);
   const emitOutput = options.emitOutput !== false;
   const exitOnError = options.exitOnError !== false;
+  const indexCache = options.indexCache || null;
+  const sqliteCache = options.sqliteCache || null;
   const t0 = Date.now();
   const rootOverride = options.root ? path.resolve(options.root) : null;
   const rootArg = rootOverride || (argv.repo ? path.resolve(argv.repo) : null);
@@ -286,7 +289,8 @@ const sqliteBackend = await createSqliteBackend({
   sqliteFtsRequested,
   backendForcedSqlite,
   vectorExtension,
-  vectorAnnEnabled
+  vectorAnnEnabled,
+  dbCache: sqliteCache
 });
 useSqlite = sqliteBackend.useSqlite;
 let dbCode = sqliteBackend.dbCode;
@@ -522,13 +526,19 @@ const sqliteLazyChunks = sqliteFtsRequested && !filtersActive;
 const proseDir = runProse && !useSqlite ? requireIndexDir(ROOT, 'prose', userConfig) : null;
 const codeDir = runCode && !useSqlite ? requireIndexDir(ROOT, 'code', userConfig) : null;
 const recordsDir = runRecords ? requireIndexDir(ROOT, 'records', userConfig) : null;
+const loadIndexCached = (dir) => loadIndexWithCache(
+  indexCache,
+  dir,
+  { modelIdDefault, fileChargramN },
+  loadIndex
+);
 const idxProse = runProse
   ? (useSqlite ? loadIndexFromSqlite('prose', {
     includeDense: annActive,
     includeMinhash: annActive,
     includeChunks: !sqliteLazyChunks,
     includeFilterIndex: filtersActive
-  }) : loadIndex(proseDir, { modelIdDefault, fileChargramN }))
+  }) : loadIndexCached(proseDir))
   : { chunkMeta: [], denseVec: null, minhash: null };
 const idxCode = runCode
   ? (useSqlite ? loadIndexFromSqlite('code', {
@@ -536,10 +546,10 @@ const idxCode = runCode
     includeMinhash: annActive,
     includeChunks: !sqliteLazyChunks,
     includeFilterIndex: filtersActive
-  }) : loadIndex(codeDir, { modelIdDefault, fileChargramN }))
+  }) : loadIndexCached(codeDir))
   : { chunkMeta: [], denseVec: null, minhash: null };
 const idxRecords = runRecords
-  ? loadIndex(recordsDir, { modelIdDefault, fileChargramN })
+  ? loadIndexCached(recordsDir)
   : { chunkMeta: [], denseVec: null, minhash: null };
 const resolveDenseVector = (idx, mode) => {
   if (!idx) return null;

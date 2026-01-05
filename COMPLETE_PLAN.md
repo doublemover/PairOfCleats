@@ -18,14 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 6: In-Process API + MCP Servers (status: todo)
-Goal: Remove per-request process spawning and keep indexes loaded.
-Work items:
-- [ ] Update API server to call the core API and reuse loaded indexes/SQLite connections.
-- [ ] Update MCP server to call the core API and share long-lived resources.
-- [ ] Add lifecycle handling for repo switching and cache invalidation.
-- [ ] Add tests for in-process API/MCP behavior.
-
 ## Phase 7: Retrieval Strategy Defaults + RRF (status: todo)
 Goal: Improve hybrid ranking stability and clarify defaults.
 Work items:

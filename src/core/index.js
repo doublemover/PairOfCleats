@@ -169,7 +169,9 @@ export async function search(repoRoot, params = {}) {
   return runSearchCli(rawArgs, {
     root: rootOverride || undefined,
     emitOutput: params.emitOutput === true,
-    exitOnError: params.exitOnError === true
+    exitOnError: params.exitOnError === true,
+    indexCache: params.indexCache,
+    sqliteCache: params.sqliteCache
   });
 }
 
