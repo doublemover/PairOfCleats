@@ -18,39 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 1: Profiles + Global Defaults (status: todo)
-Goal: Make profiles the primary way to configure indexing/search across CLI, API, MCP, and service mode.
-Work items:
-- [ ] Add `profiles/lite.json`, `profiles/balanced.json`, `profiles/full.json` with `indexing` and `search` sections.
-- [ ] Add top-level `profile` key to `.pairofcleats.json` and CLI `--profile` override.
-- [ ] Apply profiles globally (CLI, API server, MCP server, indexer service, bench harnesses).
-- [ ] Document profile semantics and precedence (profile file → config → CLI override).
-- [ ] Add validation for missing/invalid profiles with actionable errors.
-
-## Phase 2: Backend Auto-Policy (status: todo)
-Goal: Centralize memory vs SQLite backend selection and make it explainable.
-Work items:
-- [ ] Implement a backend policy module (inputs: chunk count, artifact sizes, SQLite availability, profile overrides).
-- [ ] Support `auto` backend selection in search and scripts; return rationale for `--explain`.
-- [ ] Allow profile-level thresholds/overrides (e.g., chunk threshold, artifact size cap).
-- [ ] Document default thresholds and how to override.
-
-## Phase 3: Parser Hierarchy + Tooling Resolution (status: todo)
-Goal: Ensure AST > tree-sitter > heuristics hierarchy is enforced and best-available tooling is used.
-Work items:
-- [ ] Audit language handlers to enforce the preferred order for parsers.
-- [ ] Ensure TypeScript loads `typescript` from the target repo `node_modules` when available.
-- [ ] Document parser selection behavior and fallback order.
-- [ ] Add tests for parser selection and fallback paths.
-
-## Phase 4: Tokenization + Postings Guardrails (status: todo)
-Goal: Make tokenization and n-gram behavior safe at scale.
-Work items:
-- [ ] Implement `dictionary.segmentation=auto` (DP with max-length guard, fallback to greedy).
-- [ ] Make DP max length adaptive to repo size (profile-configurable).
-- [ ] Add chargram guardrails: cap long tokens and restrict chargrams to high-value fields.
-- [ ] Add tests for adaptive segmentation and chargram caps.
-
 ## Phase 5: Core Library API (status: todo)
 Goal: Expose a shared library surface for indexing and search.
 Work items:
@@ -169,3 +136,4 @@ Notes (current failures to triage):
 - [ ] bench-language:matrix sqlite/sqlite-fts backends: perl/mojolicious/mojo build failed with ERR_STRING_TOO_LONG while reading JSON for sqlite build (src/sqlite/utils.js:57, tools/build-sqlite-index.js:90).
 - [ ] bench-language:matrix sqlite-fts-auto-headline: php/composer/composer failed due to missing export getKotlinFileStats from src/lang/kotlin.js (language-registry import error).
 - [ ] bench-language:matrix sqlite-fts-auto-balanced: kotlin/Kotlin/kotlinx.coroutines crashed with exit code 3221226505 (native crash; no JS stack in log).
+

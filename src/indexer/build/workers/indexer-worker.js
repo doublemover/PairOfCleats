@@ -62,7 +62,17 @@ const withWorkerError = (fn, label) => (input) => {
 };
 
 export const tokenizeChunk = withWorkerError(
-  (input) => tokenizeChunkText({ ...input, context: tokenContext }),
+  (input) => {
+    const hasOverrides = input && (input.dictConfig || input.postingsConfig);
+    const context = hasOverrides
+      ? createTokenizationContext({
+        dictWords,
+        dictConfig: input.dictConfig || dictConfig,
+        postingsConfig: input.postingsConfig || postingsConfig
+      })
+      : tokenContext;
+    return tokenizeChunkText({ ...input, context });
+  },
   'tokenizeChunk'
 );
 

@@ -7,13 +7,21 @@
  *   phraseMinN:number,
  *   phraseMaxN:number,
  *   chargramMinN:number,
- *   chargramMaxN:number
+ *   chargramMaxN:number,
+ *   chargramMaxTokenLength:number|null,
+ *   chargramSource:string
  * }}
  */
 export function normalizePostingsConfig(input = {}) {
   const cfg = input && typeof input === 'object' ? input : {};
   const enablePhraseNgrams = cfg.enablePhraseNgrams !== false;
   const enableChargrams = cfg.enableChargrams !== false;
+  const chargramSourceRaw = typeof cfg.chargramSource === 'string'
+    ? cfg.chargramSource.trim().toLowerCase()
+    : '';
+  const chargramSource = ['full', 'fields'].includes(chargramSourceRaw)
+    ? chargramSourceRaw
+    : 'fields';
 
   const toInt = (value) => {
     const num = Number(value);
@@ -31,6 +39,15 @@ export function normalizePostingsConfig(input = {}) {
 
   const phraseRange = normalizeRange(cfg.phraseMinN, cfg.phraseMaxN, { min: 2, max: 4 });
   const chargramRange = normalizeRange(cfg.chargramMinN, cfg.chargramMaxN, { min: 3, max: 5 });
+  let chargramMaxTokenLength = 48;
+  if (cfg.chargramMaxTokenLength === 0 || cfg.chargramMaxTokenLength === false) {
+    chargramMaxTokenLength = null;
+  } else {
+    const maxTokenRaw = Number(cfg.chargramMaxTokenLength);
+    if (Number.isFinite(maxTokenRaw)) {
+      chargramMaxTokenLength = Math.max(2, Math.floor(maxTokenRaw));
+    }
+  }
 
   return {
     enablePhraseNgrams,
@@ -38,6 +55,8 @@ export function normalizePostingsConfig(input = {}) {
     phraseMinN: phraseRange.min,
     phraseMaxN: phraseRange.max,
     chargramMinN: chargramRange.min,
-    chargramMaxN: chargramRange.max
+    chargramMaxN: chargramRange.max,
+    chargramMaxTokenLength,
+    chargramSource
   };
 }

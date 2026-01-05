@@ -35,6 +35,9 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
 
   const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
   const chargramEnabled = postingsConfig?.enableChargrams !== false;
+  const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
+    ? null
+    : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
 
   state.totalTokens += seq.length;
   const ngrams = phraseEnabled
@@ -52,6 +55,7 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
       chargrams.forEach((g) => charSet.add(g));
     } else {
       seq.forEach((w) => {
+        if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) return;
         for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) {
           tri(w, n).forEach((g) => charSet.add(g));
         }

@@ -10,6 +10,11 @@ import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../src/shared/cache.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROFILES_DIR = path.resolve(__dirname, '..', 'profiles');
 const profileWarnings = new Set();
+const DEFAULT_DP_MAX_BY_FILE_COUNT = [
+  { maxFiles: 5000, dpMaxTokenLength: 32 },
+  { maxFiles: 20000, dpMaxTokenLength: 24 },
+  { maxFiles: Number.POSITIVE_INFINITY, dpMaxTokenLength: 16 }
+];
 
 export const DEFAULT_MODEL_ID = 'Xenova/all-MiniLM-L12-v2';
 export const DEFAULT_TRIAGE_PROMOTE_FIELDS = [
@@ -131,6 +136,9 @@ export function getCacheRoot() {
 export function getDictConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const dict = cfg.dictionary || {};
+  const dpMaxTokenLengthByFileCount = normalizeDpMaxTokenLengthByFileCount(
+    dict.dpMaxTokenLengthByFileCount
+  );
   return {
     dir: dict.dir || process.env.PAIROFCLEATS_DICT_DIR || path.join(getCacheRoot(), 'dictionaries'),
     languages: Array.isArray(dict.languages) ? dict.languages : ['en'],
@@ -142,7 +150,50 @@ export function getDictConfig(repoRoot, userConfig = null) {
     segmentation: typeof dict.segmentation === 'string' ? dict.segmentation : 'auto',
     dpMaxTokenLength: Number.isFinite(Number(dict.dpMaxTokenLength))
       ? Number(dict.dpMaxTokenLength)
-      : 32
+      : 32,
+    dpMaxTokenLengthByFileCount
+  };
+}
+
+function normalizeDpMaxTokenLengthByFileCount(raw) {
+  if (!Array.isArray(raw) || !raw.length) {
+    return DEFAULT_DP_MAX_BY_FILE_COUNT.map((entry) => ({ ...entry }));
+  }
+  const normalized = raw
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const maxFiles = Number(entry.maxFiles);
+      const dpMaxTokenLength = Number(entry.dpMaxTokenLength);
+      if (!Number.isFinite(maxFiles) || maxFiles <= 0) return null;
+      if (!Number.isFinite(dpMaxTokenLength) || dpMaxTokenLength <= 0) return null;
+      return {
+        maxFiles,
+        dpMaxTokenLength: Math.max(4, Math.floor(dpMaxTokenLength))
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.maxFiles - b.maxFiles);
+  return normalized.length ? normalized : DEFAULT_DP_MAX_BY_FILE_COUNT.map((entry) => ({ ...entry }));
+}
+
+export function applyAdaptiveDictConfig(dictConfig, fileCount) {
+  if (!dictConfig || typeof dictConfig !== 'object') return dictConfig || {};
+  const count = Number(fileCount);
+  if (!Number.isFinite(count) || count <= 0) return dictConfig;
+  const mode = typeof dictConfig.segmentation === 'string'
+    ? dictConfig.segmentation.trim().toLowerCase()
+    : 'auto';
+  if (mode !== 'auto' && mode !== 'dp') return dictConfig;
+  const thresholds = Array.isArray(dictConfig.dpMaxTokenLengthByFileCount)
+    && dictConfig.dpMaxTokenLengthByFileCount.length
+    ? dictConfig.dpMaxTokenLengthByFileCount
+    : DEFAULT_DP_MAX_BY_FILE_COUNT;
+  const match = thresholds.find((entry) => count <= entry.maxFiles) || thresholds[thresholds.length - 1];
+  if (!match || !Number.isFinite(match.dpMaxTokenLength)) return dictConfig;
+  if (dictConfig.dpMaxTokenLength === match.dpMaxTokenLength) return dictConfig;
+  return {
+    ...dictConfig,
+    dpMaxTokenLength: match.dpMaxTokenLength
   };
 }
 

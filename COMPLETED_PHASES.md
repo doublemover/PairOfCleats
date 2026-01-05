@@ -1022,3 +1022,28 @@ Work items:
 ## Roadmap and Deps Fixes Cleanup (status: done)
 - Confirmed `deps_fixes.md` items are fully implemented via Phases 75-83 details.
 - Archived historical `ROADMAP.md` into completed records and removed the file.
+
+## Phase 1: Profiles + Global Defaults (status: done)
+- [x] Added `profiles/lite.json`, `profiles/balanced.json`, `profiles/full.json` with indexing/search sections.
+- [x] Added top-level `profile` key support and CLI `--profile` override.
+- [x] Applied profiles across CLI, API/MCP servers, and bench tooling.
+- [x] Documented profile semantics and precedence.
+- [x] Added validation for missing/invalid profiles.
+
+## Phase 2: Backend Auto-Policy (status: done)
+- [x] Implemented backend policy module for SQLite vs memory selection.
+- [x] Supported `auto` backend selection with explain output.
+- [x] Added profile/config thresholds for auto-policy decisions.
+- [x] Documented defaults and override points.
+
+## Phase 3: Parser Hierarchy + Tooling Resolution (status: done)
+- [x] Enforced parser precedence (AST > tree-sitter > heuristics).
+- [x] Resolved TypeScript tooling from repo-local `node_modules` when available.
+- [x] Documented parser selection and fallback order.
+- [x] Added tests for parser selection and fallback paths.
+
+## Phase 4: Tokenization + Postings Guardrails (status: done)
+- [x] Applied dictionary segmentation auto (DP with max-length guard, greedy fallback).
+- [x] Added adaptive DP max length based on repo file counts (configurable).
+- [x] Added chargram guardrails (token length cap + high-signal field sources).
+- [x] Added tests for adaptive segmentation and chargram caps.

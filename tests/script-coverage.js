@@ -583,6 +583,16 @@ const actions = [
     covers: ['backend-policy-test']
   },
   {
+    label: 'dict-adaptive-test',
+    run: () => runNode('dict-adaptive-test', path.join(root, 'tests', 'dict-adaptive.js')),
+    covers: ['dict-adaptive-test']
+  },
+  {
+    label: 'chargram-guardrails-test',
+    run: () => runNode('chargram-guardrails-test', path.join(root, 'tests', 'chargram-guardrails.js')),
+    covers: ['chargram-guardrails-test']
+  },
+  {
     label: 'typescript-parser-selection-test',
     run: () => runNode('typescript-parser-selection-test', path.join(root, 'tests', 'typescript-parser-selection.js')),
     covers: ['typescript-parser-selection-test']

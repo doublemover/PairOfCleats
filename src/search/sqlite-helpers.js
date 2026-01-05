@@ -28,6 +28,9 @@ export function createSqliteHelpers(options) {
     modelIdDefault,
     fileChargramN
   } = options;
+  const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
+    ? null
+    : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
 
   const sqliteCache = {
     tokenStats: new Map(),
@@ -374,6 +377,7 @@ export function createSqliteHelpers(options) {
     if (postingsConfig.enableChargrams !== false) {
       const gramSet = new Set();
       for (const token of tokens) {
+        if (chargramMaxTokenLength && token.length > chargramMaxTokenLength) continue;
         for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; n++) {
           for (const gram of tri(token, n)) {
             gramSet.add(gram);

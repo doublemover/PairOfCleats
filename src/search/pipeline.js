@@ -52,6 +52,9 @@ export function createSearchPipeline(context) {
   const minhashLimit = Number.isFinite(Number(minhashMaxDocs)) && Number(minhashMaxDocs) > 0
     ? Number(minhashMaxDocs)
     : null;
+  const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
+    ? null
+    : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
 
   const isDefinitionKind = (kind) => typeof kind === 'string'
     && /Declaration|Definition|Initializer|Deinitializer/.test(kind);
@@ -100,6 +103,7 @@ export function createSearchPipeline(context) {
       const vocabIndex = idx.chargrams.vocabIndex
         || (idx.chargrams.vocabIndex = new Map(idx.chargrams.vocab.map((t, i) => [t, i])));
       for (const token of tokens) {
+        if (chargramMaxTokenLength && token.length > chargramMaxTokenLength) continue;
         for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; n++) {
           for (const gram of tri(token, n)) {
             const hit = vocabIndex.get(gram);

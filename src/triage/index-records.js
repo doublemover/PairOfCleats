@@ -47,7 +47,14 @@ export async function buildRecordsIndexForRepo({ runtime }) {
     const record = await loadRecordJson(recordsDir, absPath);
     const docmeta = buildDocMeta(record, triageConfig);
 
-    const tokenPayload = tokenizeRecord(text, runtime.dictWords, runtime.dictConfig, '.md', postingsConfig);
+    const tokenPayload = tokenizeRecord(
+      text,
+      runtime.dictWords,
+      runtime.dictConfig,
+      '.md',
+      postingsConfig,
+      [record?.vuln?.vulnId || record?.recordId || '', docmeta.doc || ''].filter(Boolean).join(' ')
+    );
     if (!tokenPayload.tokens.length) continue;
 
     const stats = computeTokenStats(tokenPayload.tokens);
@@ -174,7 +181,39 @@ function buildDocMeta(record, triageConfig) {
   return docmeta;
 }
 
-function tokenizeRecord(text, dictWords, dictConfig, ext, postingsConfig) {
+function tokenizeRecord(text, dictWords, dictConfig, ext, postingsConfig, chargramFieldText = '') {
+  const { tokens, seq } = buildRecordSeq(text, dictWords, dictConfig, ext);
+  const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
+  const chargramEnabled = postingsConfig?.enableChargrams !== false;
+  const chargramSource = typeof postingsConfig?.chargramSource === 'string'
+    ? postingsConfig.chargramSource.trim().toLowerCase()
+    : 'fields';
+  const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
+    ? null
+    : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
+  const ngrams = phraseEnabled ? extractNgrams(seq, postingsConfig.phraseMinN, postingsConfig.phraseMaxN) : null;
+  let chargrams = null;
+  if (chargramEnabled) {
+    const charSet = new Set();
+    const sourceTokens = chargramSource === 'fields' && chargramFieldText
+      ? buildRecordSeq(chargramFieldText, dictWords, dictConfig, ext).seq
+      : seq;
+    sourceTokens.forEach((w) => {
+      if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) return;
+      for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) tri(w, n).forEach((g) => charSet.add(g));
+    });
+    chargrams = Array.from(charSet);
+  }
+
+  return {
+    tokens,
+    seq,
+    ngrams,
+    chargrams
+  };
+}
+
+function buildRecordSeq(text, dictWords, dictConfig, ext) {
   let tokens = splitId(text);
   tokens = tokens.map((t) => t.normalize('NFKD'));
 
@@ -190,25 +229,7 @@ function tokenizeRecord(text, dictWords, dictConfig, ext, postingsConfig) {
     seq.push(w);
     if (SYN[w]) seq.push(SYN[w]);
   }
-
-  const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
-  const chargramEnabled = postingsConfig?.enableChargrams !== false;
-  const ngrams = phraseEnabled ? extractNgrams(seq, postingsConfig.phraseMinN, postingsConfig.phraseMaxN) : null;
-  let chargrams = null;
-  if (chargramEnabled) {
-    const charSet = new Set();
-    seq.forEach((w) => {
-      for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) tri(w, n).forEach((g) => charSet.add(g));
-    });
-    chargrams = Array.from(charSet);
-  }
-
-  return {
-    tokens,
-    seq,
-    ngrams,
-    chargrams
-  };
+  return { tokens, seq };
 }
 
 function computeTokenStats(tokens) {

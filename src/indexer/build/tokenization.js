@@ -21,6 +21,15 @@ export function createTokenizationContext(input) {
   const phraseMaxN = Math.max(phraseMinN, normalizeRange(postingsConfig.phraseMaxN, 4));
   const chargramMinN = normalizeRange(postingsConfig.chargramMinN, 3);
   const chargramMaxN = Math.max(chargramMinN, normalizeRange(postingsConfig.chargramMaxN, 5));
+  const chargramMaxTokenLength = postingsConfig.chargramMaxTokenLength == null
+    ? null
+    : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
+  const chargramSourceRaw = typeof postingsConfig.chargramSource === 'string'
+    ? postingsConfig.chargramSource.trim().toLowerCase()
+    : '';
+  const chargramSource = ['full', 'fields'].includes(chargramSourceRaw)
+    ? chargramSourceRaw
+    : 'fields';
   return {
     dictWords,
     dictConfig,
@@ -28,9 +37,54 @@ export function createTokenizationContext(input) {
     phraseMaxN,
     chargramMinN,
     chargramMaxN,
+    chargramMaxTokenLength,
+    chargramSource,
     phraseEnabled: postingsConfig.enablePhraseNgrams !== false,
     chargramEnabled: postingsConfig.enableChargrams !== false
   };
+}
+
+const normalizeToken = (value) => {
+  for (let i = 0; i < value.length; i += 1) {
+    if (value.charCodeAt(i) > 127) return value.normalize('NFKD');
+  }
+  return value;
+};
+
+export function buildTokenSequence({ text, mode, ext, dictWords, dictConfig }) {
+  let tokens = splitId(text);
+  tokens = tokens.map(normalizeToken);
+  if (mode === 'code') {
+    tokens = tokens.concat(extractPunctuationTokens(text));
+  }
+
+  if (!(mode === 'prose' && ext === '.md')) {
+    tokens = tokens.flatMap((t) => splitWordsWithDict(t, dictWords, dictConfig));
+  }
+
+  if (mode === 'prose') {
+    tokens = tokens.filter((w) => !STOP.has(w));
+    tokens = tokens.flatMap((w) => [w, stem(w)]);
+  }
+
+  const seq = [];
+  for (const w of tokens) {
+    seq.push(w);
+    if (SYN[w]) seq.push(SYN[w]);
+  }
+
+  return { tokens, seq };
+}
+
+export function buildChargramsFromTokens(tokens, options) {
+  const { chargramMinN, chargramMaxN, chargramMaxTokenLength } = options;
+  const charSet = new Set();
+  const maxLen = Number.isFinite(chargramMaxTokenLength) ? chargramMaxTokenLength : null;
+  tokens.forEach((w) => {
+    if (maxLen && w.length > maxLen) return;
+    for (let n = chargramMinN; n <= chargramMaxN; ++n) tri(w, n).forEach((g) => charSet.add(g));
+  });
+  return Array.from(charSet);
 }
 
 const computeTokenStats = (tokens) => {
@@ -61,45 +115,24 @@ export function tokenizeChunkText(input) {
     phraseMaxN,
     chargramMinN,
     chargramMaxN,
+    chargramMaxTokenLength,
     phraseEnabled,
     chargramEnabled
   } = context;
 
-  let tokens = splitId(text);
-  const normalizeToken = (value) => {
-    for (let i = 0; i < value.length; i += 1) {
-      if (value.charCodeAt(i) > 127) return value.normalize('NFKD');
-    }
-    return value;
-  };
-  tokens = tokens.map(normalizeToken);
-  if (mode === 'code') {
-    tokens = tokens.concat(extractPunctuationTokens(text));
-  }
-
-  if (!(mode === 'prose' && ext === '.md')) {
-    tokens = tokens.flatMap((t) => splitWordsWithDict(t, dictWords, dictConfig));
-  }
-
-  if (mode === 'prose') {
-    tokens = tokens.filter((w) => !STOP.has(w));
-    tokens = tokens.flatMap((w) => [w, stem(w)]);
-  }
-
-  const seq = [];
-  for (const w of tokens) {
-    seq.push(w);
-    if (SYN[w]) seq.push(SYN[w]);
-  }
+  const { tokens, seq } = buildTokenSequence({ text, mode, ext, dictWords, dictConfig });
 
   const ngrams = phraseEnabled ? extractNgrams(seq, phraseMinN, phraseMaxN) : null;
   let chargrams = null;
   if (chargramEnabled) {
-    const charSet = new Set();
-    seq.forEach((w) => {
-      for (let n = chargramMinN; n <= chargramMaxN; ++n) tri(w, n).forEach((g) => charSet.add(g));
+    const sourceTokens = Array.isArray(input.chargramTokens) && input.chargramTokens.length
+      ? input.chargramTokens
+      : seq;
+    chargrams = buildChargramsFromTokens(sourceTokens, {
+      chargramMinN,
+      chargramMaxN,
+      chargramMaxTokenLength
     });
-    chargrams = Array.from(charSet);
   }
 
   const mh = new SimpleMinHash();

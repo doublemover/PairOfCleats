@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getIndexDir } from '../../../tools/dict-utils.js';
+import { applyAdaptiveDictConfig, getIndexDir } from '../../../tools/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../triage/index-records.js';
 import { applyCrossFileInference } from '../type-inference-crossfile.js';
 import { runWithQueue } from '../../shared/concurrency.js';
@@ -69,6 +69,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   allEntries.sort((a, b) => a.rel.localeCompare(b.rel));
   log(`→ Found ${allEntries.length} files.`);
   timing.discoverMs = Date.now() - discoverStart;
+  runtime.dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
 
   let importResult = { allImports: {}, durationMs: 0 };
   if (mode === 'code') {

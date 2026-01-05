@@ -17,7 +17,18 @@
         "slangFiles": { "type": "array", "items": { "type": "string" } },
         "enableRepoDictionary": { "type": "boolean" },
         "segmentation": { "type": "string" },
-        "dpMaxTokenLength": { "type": "number" }
+        "dpMaxTokenLength": { "type": "number" },
+        "dpMaxTokenLengthByFileCount": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxFiles": { "type": "number" },
+              "dpMaxTokenLength": { "type": "number" }
+            }
+          }
+        }
       }
     },
     "cache": {
@@ -317,7 +328,9 @@
             "phraseMaxN": { "type": "number" },
             "enableChargrams": { "type": "boolean" },
             "chargramMinN": { "type": "number" },
-            "chargramMaxN": { "type": "number" }
+            "chargramMaxN": { "type": "number" },
+            "chargramMaxTokenLength": { "type": "number" },
+            "chargramSource": { "type": "string", "enum": ["full", "fields"] }
           }
         }
       }

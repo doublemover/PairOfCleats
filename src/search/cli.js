@@ -10,6 +10,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import simpleGit from 'simple-git';
 import {
+  applyAdaptiveDictConfig,
   DEFAULT_MODEL_ID,
   getCacheRuntimeConfig,
   getDictConfig,
@@ -157,6 +158,27 @@ function estimateIndexBytes(indexDir) {
       return total;
     }
   }, 0);
+}
+function resolveIndexedFileCount(metricsRoot) {
+  if (!metricsRoot || !fsSync.existsSync(metricsRoot)) return null;
+  const modes = [];
+  if (runCode) modes.push('code');
+  if (runProse) modes.push('prose');
+  if (!modes.length) return null;
+  const counts = [];
+  for (const mode of modes) {
+    const metricsPath = path.join(metricsRoot, `index-${mode}.json`);
+    if (!fsSync.existsSync(metricsPath)) continue;
+    try {
+      const raw = JSON.parse(fsSync.readFileSync(metricsPath, 'utf8'));
+      const count = Number(raw?.files?.candidates);
+      if (Number.isFinite(count) && count > 0) counts.push(count);
+    } catch {
+      // ignore
+    }
+  }
+  if (!counts.length) return null;
+  return Math.max(...counts);
 }
 const needsCode = runCode;
 const needsProse = runProse;
@@ -360,7 +382,8 @@ const {
 } = sqliteHelpers;
 
 
-const dictConfig = getDictConfig(ROOT, userConfig);
+const dictConfigBase = getDictConfig(ROOT, userConfig);
+const dictConfig = applyAdaptiveDictConfig(dictConfigBase, resolveIndexedFileCount(metricsDir));
 const { dict } = await loadDictionary(ROOT, dictConfig);
 
 const color = {

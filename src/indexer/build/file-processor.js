@@ -17,7 +17,7 @@ import { fileExt, toPosix } from '../../shared/files.js';
 import { log, logLine } from '../../shared/progress.js';
 import { readCachedBundle, writeIncrementalBundle } from './incremental.js';
 import { sha1 } from '../../shared/hash.js';
-import { createTokenizationContext, tokenizeChunkText } from './tokenization.js';
+import { buildTokenSequence, createTokenizationContext, tokenizeChunkText } from './tokenization.js';
 
 /**
  * Create a file processor with shared caches.
@@ -437,68 +437,6 @@ export function createFileProcessor(options) {
           }
         }
 
-        let tokenPayload = null;
-        if (useWorkerForTokens) {
-          try {
-            tokenPayload = await workerPool.runTokenize({
-              text: ctext,
-              mode,
-              ext
-            });
-          } catch (err) {
-            if (!workerTokenizeFailed) {
-              const message = formatError(err);
-              const detail = err?.stack || err?.cause || null;
-              log(`Worker tokenization failed; falling back to main thread. ${message}`);
-              if (detail) log(`Worker tokenization detail: ${detail}`);
-              workerTokenizeFailed = true;
-            }
-            tokenWorkerDisabled = true;
-        if (crashLogger?.enabled) {
-          crashLogger.logError({
-            phase: 'worker-tokenize',
-            file: relKey,
-            size: fileStat?.size || null,
-            message: formatError(err),
-            stack: err?.stack || null,
-            raw: util.inspect(err, {
-              depth: 5,
-              breakLength: 120,
-              showHidden: true,
-              getters: true
-            }),
-            ownProps: err && typeof err === 'object'
-              ? Object.getOwnPropertyNames(err)
-              : [],
-            ownSymbols: err && typeof err === 'object'
-              ? Object.getOwnPropertySymbols(err).map((sym) => sym.toString())
-              : []
-          });
-        }
-          }
-        }
-        if (!tokenPayload) {
-          tokenPayload = tokenizeChunkText({
-            text: ctext,
-            mode,
-            ext,
-            context: tokenContext
-          });
-        }
-
-        const {
-          tokens,
-          seq,
-          ngrams,
-          chargrams,
-          minhashSig,
-          stats
-        } = tokenPayload;
-
-        if (!seq.length) continue;
-
-        const weight = getFieldWeight(c, rel);
-
         let codeRelations = {}, docmeta = {};
         if (mode === 'code') {
           docmeta = lang && typeof lang.extractDocMeta === 'function'
@@ -546,6 +484,86 @@ export function createFileProcessor(options) {
             }
           }
         }
+
+        let fieldChargramTokens = null;
+        if (tokenContext.chargramSource === 'fields') {
+          const fieldText = [c.name, docmeta?.doc].filter(Boolean).join(' ');
+          if (fieldText) {
+            const fieldSeq = buildTokenSequence({
+              text: fieldText,
+              mode,
+              ext,
+              dictWords,
+              dictConfig
+            }).seq;
+            if (fieldSeq.length) fieldChargramTokens = fieldSeq;
+          }
+        }
+
+        let tokenPayload = null;
+        if (useWorkerForTokens) {
+          try {
+            tokenPayload = await workerPool.runTokenize({
+              text: ctext,
+              mode,
+              ext,
+              chargramTokens: fieldChargramTokens,
+              dictConfig
+            });
+          } catch (err) {
+            if (!workerTokenizeFailed) {
+              const message = formatError(err);
+              const detail = err?.stack || err?.cause || null;
+              log(`Worker tokenization failed; falling back to main thread. ${message}`);
+              if (detail) log(`Worker tokenization detail: ${detail}`);
+              workerTokenizeFailed = true;
+            }
+            tokenWorkerDisabled = true;
+            if (crashLogger?.enabled) {
+              crashLogger.logError({
+                phase: 'worker-tokenize',
+                file: relKey,
+                size: fileStat?.size || null,
+                message: formatError(err),
+                stack: err?.stack || null,
+                raw: util.inspect(err, {
+                  depth: 5,
+                  breakLength: 120,
+                  showHidden: true,
+                  getters: true
+                }),
+                ownProps: err && typeof err === 'object'
+                  ? Object.getOwnPropertyNames(err)
+                  : [],
+                ownSymbols: err && typeof err === 'object'
+                  ? Object.getOwnPropertySymbols(err).map((sym) => sym.toString())
+                  : []
+              });
+            }
+          }
+        }
+        if (!tokenPayload) {
+          tokenPayload = tokenizeChunkText({
+            text: ctext,
+            mode,
+            ext,
+            context: tokenContext,
+            chargramTokens: fieldChargramTokens
+          });
+        }
+
+        const {
+          tokens,
+          seq,
+          ngrams,
+          chargrams,
+          minhashSig,
+          stats
+        } = tokenPayload;
+
+        if (!seq.length) continue;
+
+        const weight = getFieldWeight(c, rel);
 
         let complexity = {}, lint = [];
         if (isJsLike(ext) && mode === 'code') {
