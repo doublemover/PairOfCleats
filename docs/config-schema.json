@@ -138,18 +138,20 @@
         "sqliteFtsNormalize": { "type": "boolean" },
         "sqliteFtsProfile": { "type": "string" },
         "denseVectorMode": { "type": "string", "enum": ["merged", "code", "doc", "auto"] },
-        "sqliteFtsWeights": {
-          "type": ["array", "object"],
-          "items": { "type": "number" },
-          "additionalProperties": false,
-          "properties": {
-            "file": { "type": "number" },
-            "name": { "type": "number" },
-            "kind": { "type": "number" },
-            "headline": { "type": "number" },
-            "tokens": { "type": "number" }
-          }
-        },
+          "sqliteFtsWeights": {
+            "type": ["array", "object"],
+            "items": { "type": "number" },
+            "additionalProperties": false,
+            "properties": {
+              "file": { "type": "number" },
+              "name": { "type": "number" },
+              "signature": { "type": "number" },
+              "kind": { "type": "number" },
+              "headline": { "type": "number" },
+              "doc": { "type": "number" },
+              "tokens": { "type": "number" }
+            }
+          },
         "scoreBlend": {
           "type": "object",
           "additionalProperties": false,
@@ -192,6 +194,16 @@
           "properties": {
             "k1": { "type": "number" },
             "b": { "type": "number" }
+          }
+        },
+        "fieldWeights": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "number" },
+            "signature": { "type": "number" },
+            "doc": { "type": "number" },
+            "body": { "type": "number" }
           }
         },
         "rrf": {
@@ -338,7 +350,8 @@
             "chargramMinN": { "type": "number" },
             "chargramMaxN": { "type": "number" },
             "chargramMaxTokenLength": { "type": "number" },
-            "chargramSource": { "type": "string", "enum": ["full", "fields"] }
+            "chargramSource": { "type": "string", "enum": ["full", "fields"] },
+            "fielded": { "type": "boolean" }
           }
         }
       }

@@ -99,6 +99,68 @@ export function rankBM25({ idx, tokens, topN, tokenIndexOverride = null, k1 = 1.
     .slice(0, topN);
 }
 
+/**
+ * Rank documents using BM25 across fielded postings.
+ * @param {object} params
+ * @param {object} params.idx
+ * @param {string[]} params.tokens
+ * @param {number} params.topN
+ * @param {object} params.fieldWeights
+ * @param {number} [params.k1]
+ * @param {number} [params.b]
+ * @returns {Array<{idx:number,score:number}>}
+ */
+export function rankBM25Fields({ idx, tokens, topN, fieldWeights, k1 = 1.2, b = 0.75 }) {
+  const fields = idx.fieldPostings?.fields;
+  if (!fields || !fieldWeights || !tokens.length) {
+    return rankBM25({ idx, tokens, topN, k1, b });
+  }
+
+  const qtf = new Map();
+  tokens.forEach((tok) => qtf.set(tok, (qtf.get(tok) || 0) + 1));
+
+  const scores = new Map();
+  for (const [field, weight] of Object.entries(fieldWeights)) {
+    const fieldWeight = Number(weight);
+    if (!Number.isFinite(fieldWeight) || fieldWeight <= 0) continue;
+    const index = fields[field];
+    if (!index || !index.vocab || !index.postings) continue;
+    if (!index.vocabIndex) {
+      index.vocabIndex = new Map(index.vocab.map((t, i) => [t, i]));
+    }
+    const docLengths = Array.isArray(index.docLengths) ? index.docLengths : [];
+    const avgDocLen = Number.isFinite(index.avgDocLen) ? index.avgDocLen : 1;
+    const totalDocs = Number.isFinite(index.totalDocs) ? index.totalDocs : docLengths.length;
+    if (!totalDocs) continue;
+
+    for (const [tok, qCount] of qtf.entries()) {
+      const tokIdx = index.vocabIndex.get(tok);
+      if (tokIdx === undefined) continue;
+      const posting = index.postings[tokIdx] || [];
+      const df = posting.length;
+      if (!df) continue;
+      const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
+
+      for (const [docId, tf] of posting) {
+        const dl = docLengths[docId] || 0;
+        const denom = tf + k1 * (1 - b + b * (dl / avgDocLen));
+        const score = idf * ((tf * (k1 + 1)) / denom) * qCount * fieldWeight;
+        scores.set(docId, (scores.get(docId) || 0) + score);
+      }
+    }
+  }
+
+  const weighted = [...scores.entries()].map(([docId, score]) => {
+    const weight = idx.chunkMeta[docId]?.weight || 1;
+    return { idx: docId, score: score * weight };
+  });
+
+  return weighted
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
+    .slice(0, topN);
+}
+
 function minhashSigForTokens(tokens) {
   const mh = new SimpleMinHash();
   tokens.forEach((t) => mh.update(t));

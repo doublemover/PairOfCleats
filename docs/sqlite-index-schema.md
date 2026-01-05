@@ -27,7 +27,7 @@ Full-text search table for BM25 queries.
 
 Columns:
 - mode (UNINDEXED)
-- file, name, kind, headline, tokens
+- file, name, signature, kind, headline, doc, tokens
 
 ### file_manifest
 Per-file metadata used for incremental SQLite updates.

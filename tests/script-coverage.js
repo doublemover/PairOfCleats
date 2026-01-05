@@ -473,6 +473,11 @@ const actions = [
     covers: ['eval-quality-test', 'eval-run']
   },
   {
+    label: 'fielded-bm25-test',
+    run: () => runNode('fielded-bm25-test', path.join(root, 'tests', 'fielded-bm25.js')),
+    covers: ['fielded-bm25-test']
+  },
+  {
     label: 'query-cache-test',
     run: () => runNode('query-cache-test', path.join(root, 'tests', 'query-cache.js')),
     covers: ['query-cache-test']

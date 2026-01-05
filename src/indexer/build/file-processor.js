@@ -565,6 +565,19 @@ export function createFileProcessor(options) {
 
         const weight = getFieldWeight(c, rel);
 
+        const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
+        const fieldedEnabled = postingsConfig?.fielded !== false;
+        const fieldTokens = fieldedEnabled ? {
+          name: c.name ? buildTokenSequence({ text: c.name, mode, ext, dictWords, dictConfig }).tokens : [],
+          signature: docmeta?.signature
+            ? buildTokenSequence({ text: docmeta.signature, mode, ext, dictWords, dictConfig }).tokens
+            : [],
+          doc: docText
+            ? buildTokenSequence({ text: docText, mode, ext, dictWords, dictConfig }).tokens
+            : [],
+          body: tokens
+        } : null;
+
         let complexity = {}, lint = [];
         if (isJsLike(ext) && mode === 'code') {
           if (complexityEnabled) {
@@ -591,8 +604,6 @@ export function createFileProcessor(options) {
             lint = cachedLint || [];
           }
         }
-
-        const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
 
         const headline = getHeadline(c, tokens);
 
@@ -647,6 +658,7 @@ export function createFileProcessor(options) {
           embed_doc: [],
           embed_code: [],
           minhashSig,
+          ...(fieldTokens ? { fieldTokens } : {}),
           weight,
           ...gitMeta,
           externalDocs

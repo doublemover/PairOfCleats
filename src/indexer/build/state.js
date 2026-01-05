@@ -12,7 +12,20 @@ export function createIndexState() {
     df: new Map(),
     chunks: [],
     tokenPostings: new Map(),
+    fieldPostings: {
+      name: new Map(),
+      signature: new Map(),
+      doc: new Map(),
+      body: new Map()
+    },
     docLengths: [],
+    fieldDocLengths: {
+      name: [],
+      signature: [],
+      doc: [],
+      body: []
+    },
+    fieldTokens: [],
     triPost: new Map(),
     phrasePost: new Map(),
     scannedFiles: [],
@@ -35,6 +48,7 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
 
   const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
   const chargramEnabled = postingsConfig?.enableChargrams !== false;
+  const fieldedEnabled = postingsConfig?.fielded !== false;
   const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
     ? null
     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
@@ -94,6 +108,30 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
 
   const uniqueTokens = new Set(tokens);
   uniqueTokens.forEach((t) => state.df.set(t, (state.df.get(t) || 0) + 1));
+  if (fieldedEnabled) {
+    const fields = chunk.fieldTokens || {};
+    const fieldNames = ['name', 'signature', 'doc', 'body'];
+    for (const field of fieldNames) {
+      const fieldTokens = Array.isArray(fields[field]) ? fields[field] : [];
+      state.fieldDocLengths[field][chunkId] = fieldTokens.length;
+      state.fieldTokens[chunkId] = state.fieldTokens[chunkId] || {};
+      state.fieldTokens[chunkId][field] = fieldTokens;
+      if (!fieldTokens.length) continue;
+      const fieldFreq = {};
+      fieldTokens.forEach((tok) => {
+        fieldFreq[tok] = (fieldFreq[tok] || 0) + 1;
+      });
+      for (const [tok, count] of Object.entries(fieldFreq)) {
+        let postings = state.fieldPostings[field].get(tok);
+        if (!postings) {
+          postings = [];
+          state.fieldPostings[field].set(tok, postings);
+        }
+        postings.push([chunkId, count]);
+      }
+    }
+  }
   chunk.id = chunkId;
+  if (chunk.fieldTokens) delete chunk.fieldTokens;
   state.chunks.push(chunk);
 }

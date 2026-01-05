@@ -1066,7 +1066,15 @@ Work items:
 - [x] Added RRF documentation and tests.
 
 ## Phase 8: IR Evaluation Harness + Quality Gates (status: done)
-- [x] Added `tools/eval/run.js` with Recall@k, MRR, and nDCG@k JSON output.
+- [x] Added `tools/eval/run.js` with Recall@k, MRR, and nDCG@k JSON output.     
 - [x] Added a labeled sample dataset with silver/gold examples.
 - [x] Added CI quality thresholds via `tests/eval-quality.js`.
 - [x] Documented evaluation workflow in `docs/eval.md`.
+
+## Phase 9: Fielded Indexing (status: done)
+- [x] Stored field-specific token streams (`name`, `signature`, `doc`, `body`) and persisted `field_tokens.json`.
+- [x] Built fielded postings artifacts (`field_postings.json`) with per-field vocab, postings, and doc length stats.
+- [x] Added fielded BM25 scoring with configurable `search.fieldWeights` and query-cache keying.
+- [x] Expanded SQLite FTS schema to include `signature` and `doc` columns and updated builds/compaction.
+- [x] Added fielded BM25 tests and script coverage entries.
+- [x] Updated search/config docs and SQLite schema documentation.

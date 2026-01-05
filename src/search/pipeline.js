@@ -1,6 +1,6 @@
 import { filterChunks } from './output.js';
 import { hasActiveFilters } from './filters.js';
-import { rankBM25, rankDenseVectors, rankMinhash } from './rankers.js';
+import { rankBM25, rankBM25Fields, rankDenseVectors, rankMinhash } from './rankers.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
 
 /**
@@ -17,6 +17,7 @@ export function createSearchPipeline(context) {
     sqliteFtsWeights,
     bm25K1,
     bm25B,
+    fieldWeights,
     postingsConfig,
     queryTokens,
     phraseNgramSet,
@@ -57,9 +58,11 @@ export function createSearchPipeline(context) {
   const minhashLimit = Number.isFinite(Number(minhashMaxDocs)) && Number(minhashMaxDocs) > 0
     ? Number(minhashMaxDocs)
     : null;
-  const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
-    ? null
-    : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
+    const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
+      ? null
+      : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
+    const fieldWeightsEnabled = fieldWeights
+      && Object.values(fieldWeights).some((value) => Number.isFinite(Number(value)) && Number(value) > 0);
 
   const isDefinitionKind = (kind) => typeof kind === 'string'
     && /Declaration|Definition|Initializer|Deinitializer/.test(kind);
@@ -164,7 +167,7 @@ export function createSearchPipeline(context) {
     // Main search: BM25 token match (with optional SQLite FTS first pass)
     let candidates = null;
     let bmHits = [];
-    let sparseType = 'bm25';
+    let sparseType = fieldWeightsEnabled ? 'bm25-fielded' : 'bm25';
     let sqliteFtsUsed = false;
     if (sqliteEnabledForMode && sqliteFtsRequested) {
       bmHits = rankSqliteFts(idx, queryTokens, mode, expandedTopN, sqliteFtsNormalize);
@@ -177,15 +180,24 @@ export function createSearchPipeline(context) {
     if (!bmHits.length) {
       const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode) : null;
       candidates = buildCandidateSet(idx, queryTokens, mode);
-      bmHits = rankBM25({
-        idx,
-        tokens: queryTokens,
-        topN: expandedTopN,
-        tokenIndexOverride,
-        k1: bm25K1,
-        b: bm25B
-      });
-      sparseType = 'bm25';
+      bmHits = fieldWeightsEnabled
+        ? rankBM25Fields({
+          idx,
+          tokens: queryTokens,
+          topN: expandedTopN,
+          fieldWeights,
+          k1: bm25K1,
+          b: bm25B
+        })
+        : rankBM25({
+          idx,
+          tokens: queryTokens,
+          topN: expandedTopN,
+          tokenIndexOverride,
+          k1: bm25K1,
+          b: bm25B
+        });
+      sparseType = fieldWeightsEnabled ? 'bm25-fielded' : 'bm25';
       sqliteFtsUsed = false;
     }
 
@@ -255,7 +267,9 @@ export function createSearchPipeline(context) {
       .map(([idxVal, scores]) => {
           const sparseScore = scores.fts ?? scores.bm25 ?? null;
           const annScore = scores.ann ?? null;
-          const sparseTypeValue = scores.fts != null ? 'fts' : (scores.bm25 != null ? 'bm25' : null);
+          const sparseTypeValue = scores.fts != null
+            ? 'fts'
+            : (scores.bm25 != null ? (fieldWeightsEnabled ? 'bm25-fielded' : 'bm25') : null);
         let scoreType = null;
         let score = null;
         let blendInfo = null;
@@ -366,6 +380,7 @@ export function createSearchPipeline(context) {
             normalized: scores.fts != null ? sqliteFtsNormalize : null,
             weights: scores.fts != null ? sqliteFtsWeights : null,
             profile: scores.fts != null ? sqliteFtsProfile : null,
+            fielded: fieldWeightsEnabled || false,
             k1: scores.bm25 != null ? bm25K1 : null,
             b: scores.bm25 != null ? bm25B : null,
             ftsFallback: sqliteFtsRequested ? !sqliteFtsUsed : false

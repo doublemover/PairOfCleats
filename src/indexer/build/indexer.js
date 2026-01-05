@@ -196,6 +196,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     df: state.df,
     tokenPostings: state.tokenPostings,
     docLengths: state.docLengths,
+    fieldPostings: state.fieldPostings,
+    fieldDocLengths: state.fieldDocLengths,
     phrasePost: state.phrasePost,
     triPost: state.triPost,
     postingsConfig: runtime.postingsConfig,

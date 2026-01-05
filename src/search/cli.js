@@ -79,6 +79,7 @@ const bm25BArg = Number.isFinite(Number(argv['bm25-b'])) ? Number(argv['bm25-b']
 const rrfConfig = userConfig.search?.rrf || {};
 const rrfEnabled = rrfConfig.enabled !== false;
 const rrfK = Number.isFinite(Number(rrfConfig.k)) ? Math.max(1, Number(rrfConfig.k)) : 60;
+const fieldWeights = resolveFieldWeights(userConfig.search?.fieldWeights);
 const sqliteFtsNormalize = userConfig.search?.sqliteFtsNormalize === true;
 const sqliteFtsProfile = (argv['fts-profile'] || process.env.PAIROFCLEATS_FTS_PROFILE || userConfig.search?.sqliteFtsProfile || 'balanced').toLowerCase();
 let sqliteFtsWeightsConfig = userConfig.search?.sqliteFtsWeights || null;
@@ -220,6 +221,18 @@ function resolveBm25Defaults(metricsRoot, modeFlags) {
   const k1 = values.reduce((sum, v) => sum + v.k1, 0) / values.length;
   const b = values.reduce((sum, v) => sum + v.b, 0) / values.length;
   return { k1, b };
+}
+
+function resolveFieldWeights(input) {
+  if (input === false) return null;
+  const defaults = { name: 2.0, signature: 1.5, doc: 1.2, body: 1.0 };
+  if (!input || typeof input !== 'object') return defaults;
+  const resolved = { ...defaults };
+  for (const key of Object.keys(defaults)) {
+    const value = Number(input[key]);
+    if (Number.isFinite(value)) resolved[key] = value;
+  }
+  return resolved;
 }
 const needsCode = runCode;
 const needsProse = runProse;
@@ -634,6 +647,7 @@ const searchPipeline = createSearchPipeline({
   sqliteFtsWeights,
   bm25K1,
   bm25B,
+  fieldWeights,
   postingsConfig,
   queryTokens,
   phraseNgramSet,
@@ -736,6 +750,7 @@ return await (async () => {
         sparseWeight: scoreBlendSparseWeight,
         annWeight: scoreBlendAnnWeight
       },
+      fieldWeights,
       denseVectorMode,
       minhashMaxDocs,
       sqliteFtsNormalize,

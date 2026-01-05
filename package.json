@@ -61,6 +61,7 @@
     "fixture-eval": "node tests/fixture-eval.js",
     "eval-run": "node tools/eval/run.js",
     "eval-quality-test": "node tests/eval-quality.js",
+    "fielded-bm25-test": "node tests/fielded-bm25.js",
     "query-cache-test": "node tests/query-cache.js",
     "json-stream-test": "node tests/json-stream.js",
     "index-cache-test": "node tests/index-cache.js",

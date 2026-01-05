@@ -19,6 +19,8 @@ export async function buildPostings(input) {
     df,
     tokenPostings,
     docLengths,
+    fieldPostings,
+    fieldDocLengths,
     phrasePost,
     triPost,
     postingsConfig,
@@ -34,6 +36,7 @@ export async function buildPostings(input) {
       b: 0.75,
       avgChunkLen: 0,
       totalDocs: 0,
+      fieldPostings: null,
       phraseVocab: [],
       phrasePostings: [],
       chargramVocab: [],
@@ -107,11 +110,34 @@ export async function buildPostings(input) {
 
   const minhashSigs = chunks.map((c) => c.minhashSig);
 
+  const buildFieldPostings = () => {
+    if (!fieldPostings || !fieldDocLengths) return null;
+    const fields = {};
+    for (const [field, postingsMap] of Object.entries(fieldPostings)) {
+      if (!postingsMap || typeof postingsMap.keys !== 'function') continue;
+      const vocab = Array.from(postingsMap.keys());
+      const postings = vocab.map((token) => postingsMap.get(token));
+      const lengths = fieldDocLengths[field] || [];
+      const avgLen = lengths.length
+        ? lengths.reduce((sum, len) => sum + len, 0) / lengths.length
+        : 0;
+      fields[field] = {
+        vocab,
+        postings,
+        docLengths: lengths,
+        avgDocLen: avgLen,
+        totalDocs: lengths.length
+      };
+    }
+    return Object.keys(fields).length ? { fields } : null;
+  };
+
   return {
     k1,
     b,
     avgChunkLen,
     totalDocs: N,
+    fieldPostings: buildFieldPostings(),
     phraseVocab,
     phrasePostings,
     chargramVocab,

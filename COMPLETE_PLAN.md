@@ -18,14 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 9: Fielded Indexing (status: todo)
-Goal: Improve relevance by separating fields and weighting them.
-Work items:
-- [ ] Store `name/signature/doc/body` token streams per chunk.
-- [ ] Build fielded postings and add `--field-weights` config.
-- [ ] Implement fielded BM25 scoring and FTS5 column weights.
-- [ ] Add tests for field weights and scoring behavior.
-
 ## Phase 10: Large-Artifact Strategy (status: todo)
 Goal: Make large repos reliable without JSON parse limits.
 Work items:

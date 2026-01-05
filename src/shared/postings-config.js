@@ -9,13 +9,15 @@
  *   chargramMinN:number,
  *   chargramMaxN:number,
  *   chargramMaxTokenLength:number|null,
- *   chargramSource:string
+ *   chargramSource:string,
+ *   fielded:boolean
  * }}
  */
 export function normalizePostingsConfig(input = {}) {
   const cfg = input && typeof input === 'object' ? input : {};
   const enablePhraseNgrams = cfg.enablePhraseNgrams !== false;
   const enableChargrams = cfg.enableChargrams !== false;
+  const fielded = cfg.fielded !== false;
   const chargramSourceRaw = typeof cfg.chargramSource === 'string'
     ? cfg.chargramSource.trim().toLowerCase()
     : '';
@@ -57,6 +59,7 @@ export function normalizePostingsConfig(input = {}) {
     chargramMinN: chargramRange.min,
     chargramMaxN: chargramRange.max,
     chargramMaxTokenLength,
-    chargramSource
+    chargramSource,
+    fielded
   };
 }

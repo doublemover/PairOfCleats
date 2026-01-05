@@ -49,6 +49,10 @@ const report = {
 const requiredFiles = ['chunk_meta.json', 'token_postings.json'];
 if (postingsConfig.enablePhraseNgrams) requiredFiles.push('phrase_ngrams.json');
 if (postingsConfig.enableChargrams) requiredFiles.push('chargram_postings.json');
+if (postingsConfig.fielded) {
+  requiredFiles.push('field_postings.json');
+  requiredFiles.push('field_tokens.json');
+}
 const optionalFiles = ['minhash_signatures.json', 'file_relations.json', 'file_meta.json', 'repo_map.json'];
 if (userConfig.search?.annDefault !== false) {
   optionalFiles.push('dense_vectors_uint8.json');

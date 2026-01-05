@@ -168,8 +168,8 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
   `);
 
   const insertFts = db.prepare(`
-    INSERT OR REPLACE INTO chunks_fts (rowid, mode, file, name, kind, headline, tokens)
-    VALUES (@id, @mode, @file, @name, @kind, @headline, @tokensText);
+    INSERT OR REPLACE INTO chunks_fts (rowid, mode, file, name, signature, kind, headline, doc, tokens)
+    VALUES (@id, @mode, @file, @name, @signature, @kind, @headline, @doc, @tokensText);
   `);
 
   const insertTokenVocab = db.prepare(
@@ -416,6 +416,10 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
       const id = chunk.id;
       const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
       const tokensText = tokensArray.join(' ');
+      const signatureText = typeof chunk.docmeta?.signature === 'string'
+        ? chunk.docmeta.signature
+        : (typeof chunk.signature === 'string' ? chunk.signature : null);
+      const docText = typeof chunk.docmeta?.doc === 'string' ? chunk.docmeta.doc : null;
       rows.push({
         id,
         mode: targetMode,
@@ -427,7 +431,9 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
         ext: resolvedExt,
         kind: chunk.kind || null,
         name: chunk.name || null,
+        signature: signatureText,
         headline: chunk.headline || null,
+        doc: docText,
         preContext: chunk.preContext ? JSON.stringify(chunk.preContext) : null,
         postContext: chunk.postContext ? JSON.stringify(chunk.postContext) : null,
         weight: typeof chunk.weight === 'number' ? chunk.weight : 1,
@@ -547,8 +553,8 @@ function buildDatabaseFromBundles(outPath, mode, incrementalData) {
   `);
 
   const insertFts = db.prepare(`
-    INSERT OR REPLACE INTO chunks_fts (rowid, mode, file, name, kind, headline, tokens)
-    VALUES (@id, @mode, @file, @name, @kind, @headline, @tokensText);
+    INSERT OR REPLACE INTO chunks_fts (rowid, mode, file, name, signature, kind, headline, doc, tokens)
+    VALUES (@id, @mode, @file, @name, @signature, @kind, @headline, @doc, @tokensText);
   `);
 
   const insertTokenVocab = db.prepare(
@@ -1094,8 +1100,8 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
   `);
 
   const insertFts = db.prepare(`
-    INSERT OR REPLACE INTO chunks_fts (rowid, mode, file, name, kind, headline, tokens)
-    VALUES (@id, @mode, @file, @name, @kind, @headline, @tokensText);
+    INSERT OR REPLACE INTO chunks_fts (rowid, mode, file, name, signature, kind, headline, doc, tokens)
+    VALUES (@id, @mode, @file, @name, @signature, @kind, @headline, @doc, @tokensText);
   `);
 
   const insertTokenVocab = db.prepare(

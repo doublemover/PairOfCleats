@@ -106,6 +106,8 @@ export function loadIndex(dir, options) {
   const denseVec = loadOptional('dense_vectors_uint8.json');
   const denseVecDoc = loadOptional('dense_vectors_doc_uint8.json');
   const denseVecCode = loadOptional('dense_vectors_code_uint8.json');
+  const fieldPostings = loadOptional('field_postings.json');
+  const fieldTokens = loadOptional('field_tokens.json');
   if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
   if (denseVecDoc && !denseVecDoc.model && modelIdDefault) denseVecDoc.model = modelIdDefault;
   if (denseVecCode && !denseVecCode.model && modelIdDefault) denseVecCode.model = modelIdDefault;
@@ -115,6 +117,8 @@ export function loadIndex(dir, options) {
     denseVec,
     denseVecDoc,
     denseVecCode,
+    fieldPostings,
+    fieldTokens,
     minhash: loadOptional('minhash_signatures.json'),
     phraseNgrams: loadOptional('phrase_ngrams.json'),
     chargrams: loadOptional('chargram_postings.json')
@@ -124,6 +128,13 @@ export function loadIndex(dir, options) {
   }
   if (idx.chargrams?.vocab && !idx.chargrams.vocabIndex) {
     idx.chargrams.vocabIndex = new Map(idx.chargrams.vocab.map((term, i) => [term, i]));
+  }
+  if (idx.fieldPostings?.fields) {
+    for (const field of Object.keys(idx.fieldPostings.fields)) {
+      const entry = idx.fieldPostings.fields[field];
+      if (!entry?.vocab || entry.vocabIndex) continue;
+      entry.vocabIndex = new Map(entry.vocab.map((term, i) => [term, i]));
+    }
   }
   idx.filterIndex = buildFilterIndex(chunkMeta, { fileChargramN });
   try {

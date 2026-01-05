@@ -50,6 +50,8 @@ export async function writeIndexArtifacts(input) {
     'dense_vectors_code_uint8',
     'minhash_signatures',
     'token_postings',
+    'field_postings',
+    'field_tokens',
     'phrase_ngrams',
     'chargram_postings'
   ]);
@@ -252,6 +254,12 @@ export async function writeIndexArtifacts(input) {
       docLengths: state.docLengths
     }
   });
+  if (postings.fieldPostings?.fields) {
+    enqueueJsonObject('field_postings', postings.fieldPostings);
+  }
+  if (Array.isArray(state.fieldTokens) && state.fieldTokens.length) {
+    enqueueJsonArray('field_tokens', state.fieldTokens);
+  }
   if (state.fileRelations && state.fileRelations.size) {
     writes.push(writeJsonArrayFile(
       path.join(outDir, 'file_relations.json'),

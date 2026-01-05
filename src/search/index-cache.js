@@ -9,6 +9,8 @@ const INDEX_FILES = [
   'dense_vectors_uint8.json',
   'dense_vectors_doc_uint8.json',
   'dense_vectors_code_uint8.json',
+  'field_postings.json',
+  'field_tokens.json',
   'minhash_signatures.json',
   'file_relations.json',
   'file_meta.json'

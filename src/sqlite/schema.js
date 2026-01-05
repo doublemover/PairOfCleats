@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export const REQUIRED_TABLES = [
   'chunks',
@@ -66,8 +66,10 @@ export const CREATE_TABLES_SQL = `
     mode UNINDEXED,
     file,
     name,
+    signature,
     kind,
     headline,
+    doc,
     tokens,
     tokenize = 'unicode61'
   );

@@ -27,11 +27,15 @@ This prefilter is advisory only: it narrows candidates but never skips the final
 
 PairOfCleats treats BM25 as the primary sparse ranker. When SQLite FTS5 is enabled it provides an alternate sparse list, but BM25 remains the reference for defaults and tuning.
 
+Fielded BM25 is enabled when field postings are available. It scores query terms against `name`, `signature`, `doc`, and `body` streams, combining them with configurable weights.
+
 When both sparse and dense lists are available, results are fused using Reciprocal Rank Fusion (RRF). RRF relies on rank positions rather than raw score scales, which makes sparse and dense lists comparable without normalization.
 
 Configuration:
 - `search.rrf.enabled` (default: true)
 - `search.rrf.k` (default: 60)
+- `search.fieldWeights` (defaults favor name/signature over body)
+- `search.sqliteFtsWeights` (file/name/signature/kind/headline/doc/tokens column weights)
 - `search.scoreBlend` can override RRF when enabled (normalized blend weights).
 
 ### Explain output
