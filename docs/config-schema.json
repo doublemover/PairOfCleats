@@ -193,6 +193,14 @@
             "k1": { "type": "number" },
             "b": { "type": "number" }
           }
+        },
+        "rrf": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "k": { "type": "number" }
+          }
         }
       }
     },

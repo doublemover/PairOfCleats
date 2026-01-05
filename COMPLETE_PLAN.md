@@ -18,15 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 7: Retrieval Strategy Defaults + RRF (status: todo)
-Goal: Improve hybrid ranking stability and clarify defaults.
-Work items:
-- [ ] Implement Reciprocal Rank Fusion (RRF) for BM25 + dense lists.
-- [ ] Keep BM25 as the reference ranker; label FTS5 as optional/alternate.
-- [ ] Ensure tuned BM25 k1/b stored at index time are default at search time.
-- [ ] Add `--explain` output for vector selection + RRF contributions.
-- [ ] Update tests and docs for score types and explain output.
-
 ## Phase 8: IR Evaluation Harness + Quality Gates (status: todo)
 Goal: Measure search quality and prevent regressions.
 Work items:

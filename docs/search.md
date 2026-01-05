@@ -22,3 +22,21 @@ This prefilter is advisory only: it narrows candidates but never skips the final
 
 - Chargram prefilter is case-insensitive; case-sensitive file filters are still enforced during the final exact match step.
 - Very short substrings (shorter than the configured chargram size) do not benefit from the prefilter.
+
+## Scoring and Fusion
+
+PairOfCleats treats BM25 as the primary sparse ranker. When SQLite FTS5 is enabled it provides an alternate sparse list, but BM25 remains the reference for defaults and tuning.
+
+When both sparse and dense lists are available, results are fused using Reciprocal Rank Fusion (RRF). RRF relies on rank positions rather than raw score scales, which makes sparse and dense lists comparable without normalization.
+
+Configuration:
+- `search.rrf.enabled` (default: true)
+- `search.rrf.k` (default: 60)
+- `search.scoreBlend` can override RRF when enabled (normalized blend weights).
+
+### Explain output
+
+Pass `--explain` to include `scoreBreakdown` in JSON responses. This includes:
+- `sparse` details (BM25 or FTS5, k1/b, normalization)
+- `ann` details (dense source)
+- `rrf` contributions (ranks and fused score), when used

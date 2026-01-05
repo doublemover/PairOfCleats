@@ -378,6 +378,11 @@ const actions = [
     covers: ['search-explain-test']
   },
   {
+    label: 'search-rrf-test',
+    run: () => runNode('search-rrf-test', path.join(root, 'tests', 'search-rrf.js')),
+    covers: ['search-rrf-test']
+  },
+  {
     label: 'search-symbol-boost-test',
     run: () => runNode('search-symbol-boost-test', path.join(root, 'tests', 'search-symbol-boost.js')),
     covers: ['search-symbol-boost-test']

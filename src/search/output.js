@@ -651,6 +651,18 @@ const formatScoreBreakdown = (scoreBreakdown, color) => {
     const line = formatExplainLine('ANN', parts, color);
     if (line) lines.push(line);
   }
+  const rrf = scoreBreakdown.rrf || null;
+  if (rrf) {
+    const parts = [];
+    if (Number.isFinite(rrf.k)) parts.push(`k=${rrf.k}`);
+    if (Number.isFinite(rrf.sparseRank)) parts.push(`sparseRank=${rrf.sparseRank}`);
+    if (Number.isFinite(rrf.annRank)) parts.push(`annRank=${rrf.annRank}`);
+    if (Number.isFinite(rrf.sparseRrf)) parts.push(`sparseScore=${rrf.sparseRrf.toFixed(4)}`);
+    if (Number.isFinite(rrf.annRrf)) parts.push(`annScore=${rrf.annRrf.toFixed(4)}`);
+    if (Number.isFinite(rrf.score)) parts.push(`score=${rrf.score.toFixed(4)}`);
+    const line = formatExplainLine('RRF', parts, color);
+    if (line) lines.push(line);
+  }
   const blend = scoreBreakdown.blend || null;
   if (blend) {
     const parts = [];

@@ -1058,3 +1058,9 @@ Work items:
 - [x] MCP server calls core build/search/status with shared caches.
 - [x] Added cache invalidation for file-backed indexes and SQLite DBs.
 - [x] Added cache tests for in-process index reuse.
+
+## Phase 7: Retrieval Strategy Defaults + RRF (status: done)
+- [x] Added RRF scoring for sparse + dense lists with explain output.
+- [x] Ensured BM25 defaults are sourced from index-time metrics when available.
+- [x] Kept FTS5 labeled as alternate sparse source in explain output.
+- [x] Added RRF documentation and tests.

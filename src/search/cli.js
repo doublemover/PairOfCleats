@@ -74,12 +74,11 @@ const fileChargramN = Number.isFinite(Number(filePrefilterConfig.chargramN))
   : postingsConfig.chargramMinN;
 const vectorExtension = getVectorExtensionConfig(ROOT, userConfig);
 const bm25Config = userConfig.search?.bm25 || {};
-const bm25K1 = Number.isFinite(Number(argv['bm25-k1']))
-  ? Number(argv['bm25-k1'])
-  : (Number.isFinite(Number(bm25Config.k1)) ? Number(bm25Config.k1) : 1.2);
-const bm25B = Number.isFinite(Number(argv['bm25-b']))
-  ? Number(argv['bm25-b'])
-  : (Number.isFinite(Number(bm25Config.b)) ? Number(bm25Config.b) : 0.75);
+const bm25K1Arg = Number.isFinite(Number(argv['bm25-k1'])) ? Number(argv['bm25-k1']) : null;
+const bm25BArg = Number.isFinite(Number(argv['bm25-b'])) ? Number(argv['bm25-b']) : null;
+const rrfConfig = userConfig.search?.rrf || {};
+const rrfEnabled = rrfConfig.enabled !== false;
+const rrfK = Number.isFinite(Number(rrfConfig.k)) ? Math.max(1, Number(rrfConfig.k)) : 60;
 const sqliteFtsNormalize = userConfig.search?.sqliteFtsNormalize === true;
 const sqliteFtsProfile = (argv['fts-profile'] || process.env.PAIROFCLEATS_FTS_PROFILE || userConfig.search?.sqliteFtsProfile || 'balanced').toLowerCase();
 let sqliteFtsWeightsConfig = userConfig.search?.sqliteFtsWeights || null;
@@ -114,6 +113,15 @@ try {
   return bail(err.message);
 }
 const { searchMode, runCode, runProse, runRecords } = searchModeInfo;
+const bm25Defaults = resolveBm25Defaults(metricsDir, { runCode, runProse });
+const bm25K1 = bm25K1Arg
+  ?? (Number.isFinite(Number(bm25Config.k1)) ? Number(bm25Config.k1) : null)
+  ?? (bm25Defaults ? bm25Defaults.k1 : null)
+  ?? 1.2;
+const bm25B = bm25BArg
+  ?? (Number.isFinite(Number(bm25Config.b)) ? Number(bm25Config.b) : null)
+  ?? (bm25Defaults ? bm25Defaults.b : null)
+  ?? 0.75;
 const branchesMin = Number.isFinite(Number(argv.branches)) ? Number(argv.branches) : null;
 const loopsMin = Number.isFinite(Number(argv.loops)) ? Number(argv.loops) : null;
 const breaksMin = Number.isFinite(Number(argv.breaks)) ? Number(argv.breaks) : null;
@@ -187,6 +195,31 @@ function resolveIndexedFileCount(metricsRoot) {
   }
   if (!counts.length) return null;
   return Math.max(...counts);
+}
+
+function resolveBm25Defaults(metricsRoot, modeFlags) {
+  if (!metricsRoot || !fsSync.existsSync(metricsRoot)) return null;
+  const targets = [];
+  if (modeFlags?.runCode) targets.push('code');
+  if (modeFlags?.runProse) targets.push('prose');
+  if (!targets.length) return null;
+  const values = [];
+  for (const mode of targets) {
+    const metricsPath = path.join(metricsRoot, `index-${mode}.json`);
+    if (!fsSync.existsSync(metricsPath)) continue;
+    try {
+      const raw = JSON.parse(fsSync.readFileSync(metricsPath, 'utf8'));
+      const k1 = Number(raw?.bm25?.k1);
+      const b = Number(raw?.bm25?.b);
+      if (Number.isFinite(k1) && Number.isFinite(b)) values.push({ k1, b });
+    } catch {
+      // ignore
+    }
+  }
+  if (!values.length) return null;
+  const k1 = values.reduce((sum, v) => sum + v.k1, 0) / values.length;
+  const b = values.reduce((sum, v) => sum + v.b, 0) / values.length;
+  return { k1, b };
 }
 const needsCode = runCode;
 const needsProse = runProse;
@@ -618,6 +651,10 @@ const searchPipeline = createSearchPipeline({
     enabled: scoreBlendEnabled,
     sparseWeight: scoreBlendSparseWeight,
     annWeight: scoreBlendAnnWeight
+  },
+  rrf: {
+    enabled: rrfEnabled,
+    k: rrfK
   },
   minhashMaxDocs,
   vectorAnnState,

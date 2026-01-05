@@ -33,7 +33,8 @@ export function createSearchPipeline(context) {
     buildCandidateSetSqlite,
     getTokenIndexForQuery,
     rankSqliteFts,
-    rankVectorAnnSqlite
+    rankVectorAnnSqlite,
+    rrf
   } = context;
   const blendEnabled = scoreBlend?.enabled === true;
   const blendSparseWeight = Number.isFinite(Number(scoreBlend?.sparseWeight))
@@ -49,6 +50,10 @@ export function createSearchPipeline(context) {
   const symbolBoostExportWeight = Number.isFinite(Number(symbolBoost?.exportWeight))
     ? Number(symbolBoost.exportWeight)
     : 1.1;
+  const rrfEnabled = rrf?.enabled !== false;
+  const rrfK = Number.isFinite(Number(rrf?.k))
+    ? Math.max(1, Number(rrf.k))
+    : 60;
   const minhashLimit = Number.isFinite(Number(minhashMaxDocs)) && Number(minhashMaxDocs) > 0
     ? Number(minhashMaxDocs)
     : null;
@@ -213,6 +218,14 @@ export function createSearchPipeline(context) {
       }
     }
 
+    const useRrf = rrfEnabled && !blendEnabled && bmHits.length && annHits.length;
+    const sparseRanks = new Map();
+    const annRanks = new Map();
+    if (useRrf) {
+      bmHits.forEach((hit, index) => sparseRanks.set(hit.idx, index + 1));
+      annHits.forEach((hit, index) => annRanks.set(hit.idx, index + 1));
+    }
+
     if (idx.loadChunkMetaByIds) {
       const idsToLoad = new Set();
       bmHits.forEach((h) => idsToLoad.add(h.idx));
@@ -246,7 +259,22 @@ export function createSearchPipeline(context) {
         let scoreType = null;
         let score = null;
         let blendInfo = null;
-        if (blendEnabled && (sparseScore != null || annScore != null)) {
+        if (useRrf) {
+          const sparseRank = sparseRanks.get(idxVal) ?? null;
+          const annRank = annRanks.get(idxVal) ?? null;
+          const sparseRrf = sparseRank ? 1 / (rrfK + sparseRank) : 0;
+          const annRrf = annRank ? 1 / (rrfK + annRank) : 0;
+          scoreType = 'rrf';
+          score = sparseRrf + annRrf;
+          blendInfo = {
+            k: rrfK,
+            sparseRank,
+            annRank,
+            sparseRrf,
+            annRrf,
+            score
+          };
+        } else if (blendEnabled && (sparseScore != null || annScore != null)) {
           const sparseMax = sparseScore != null
             ? Math.max(sparseScore, sparseMaxScore || 0)
             : 0;
@@ -346,13 +374,14 @@ export function createSearchPipeline(context) {
             score: annScore,
             source: scores.annSource || null
           } : null,
+          rrf: useRrf ? blendInfo : null,
           phrase: phraseNgramSet ? {
             matches: phraseMatches,
             boost: phraseBoost,
             factor: phraseFactor
           } : null,
           symbol: symbolInfo,
-          blend: blendInfo,
+          blend: blendEnabled && !useRrf ? blendInfo : null,
           selected: {
             type: scoreType,
             score
