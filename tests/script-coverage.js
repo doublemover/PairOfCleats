@@ -483,6 +483,11 @@ const actions = [
     covers: ['artifact-formats-test']
   },
   {
+    label: 'query-intent-test',
+    run: () => runNode('query-intent-test', path.join(root, 'tests', 'query-intent.js')),
+    covers: ['query-intent-test']
+  },
+  {
     label: 'query-cache-test',
     run: () => runNode('query-cache-test', path.join(root, 'tests', 'query-cache.js')),
     covers: ['query-cache-test']

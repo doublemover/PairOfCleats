@@ -31,6 +31,10 @@ Fielded BM25 is enabled when field postings are available. It scores query terms
 
 When both sparse and dense lists are available, results are fused using Reciprocal Rank Fusion (RRF). RRF relies on rank positions rather than raw score scales, which makes sparse and dense lists comparable without normalization.
 
+## Query intent
+
+Queries are classified as `code`, `prose`, `path`, or `mixed` based on lightweight heuristics (symbols, camel/snake case, paths, and word count). Intent is used when `search.denseVectorMode=auto` to choose doc vs code vectors, and to select default field weights. Use `--explain` to see the intent decision in the JSON payload.
+
 Configuration:
 - `search.rrf.enabled` (default: true)
 - `search.rrf.k` (default: 60)

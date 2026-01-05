@@ -34,6 +34,7 @@ import { loadQueryCache, parseJson, pruneQueryCache } from './query-cache.js';
 import { hasActiveFilters, mergeExtFilters, normalizeExtFilter, normalizeLangFilter, parseMetaFilters } from './filters.js';
 import { configureOutputCaches, formatFullChunk, formatShortChunk, getOutputCacheReporter } from './output.js';
 import { parseChurnArg, parseModifiedArgs, parseQueryInput, tokenizePhrase, tokenizeQueryTerms, buildPhraseNgrams } from './query-parse.js';
+import { classifyQuery, resolveIntentFieldWeights, resolveIntentVectorMode } from './query-intent.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
 import { createSqliteHelpers } from './sqlite-helpers.js';
 import { createSearchPipeline } from './pipeline.js';
@@ -79,7 +80,7 @@ const bm25BArg = Number.isFinite(Number(argv['bm25-b'])) ? Number(argv['bm25-b']
 const rrfConfig = userConfig.search?.rrf || {};
 const rrfEnabled = rrfConfig.enabled !== false;
 const rrfK = Number.isFinite(Number(rrfConfig.k)) ? Math.max(1, Number(rrfConfig.k)) : 60;
-const fieldWeights = resolveFieldWeights(userConfig.search?.fieldWeights);
+const fieldWeightsConfig = userConfig.search?.fieldWeights;
 const sqliteFtsNormalize = userConfig.search?.sqliteFtsNormalize === true;
 const sqliteFtsProfile = (argv['fts-profile'] || process.env.PAIROFCLEATS_FTS_PROFILE || userConfig.search?.sqliteFtsProfile || 'balanced').toLowerCase();
 let sqliteFtsWeightsConfig = userConfig.search?.sqliteFtsWeights || null;
@@ -242,17 +243,6 @@ function resolveBm25Defaults(metricsRoot, modeFlags) {
   return { k1, b };
 }
 
-function resolveFieldWeights(input) {
-  if (input === false) return null;
-  const defaults = { name: 2.0, signature: 1.5, doc: 1.2, body: 1.0 };
-  if (!input || typeof input !== 'object') return defaults;
-  const resolved = { ...defaults };
-  for (const key of Object.keys(defaults)) {
-    const value = Number(input[key]);
-    if (Number.isFinite(value)) resolved[key] = value;
-  }
-  return resolved;
-}
 const needsCode = runCode;
 const needsProse = runProse;
 const backendArg = typeof argv.backend === 'string' ? argv.backend.toLowerCase() : '';
@@ -498,6 +488,14 @@ const rx = queryTokens.length ? new RegExp(`(${queryTokens.join('|')})`, 'ig') :
 const embeddingQueryText = [...parsedQuery.includeTerms, ...parsedQuery.phrases]
   .join(' ')
   .trim() || query;
+const intentInfo = classifyQuery({
+  query,
+  tokens: queryTokens,
+  phrases: parsedQuery.phrases,
+  filters: { file: fileFilter }
+});
+const fieldWeights = resolveIntentFieldWeights(fieldWeightsConfig, intentInfo);
+const resolvedDenseVectorMode = resolveIntentVectorMode(denseVectorMode, intentInfo);
 const filters = {
   type: searchType,
   author: searchAuthor,
@@ -618,9 +616,9 @@ const idxRecords = runRecords
   : { chunkMeta: [], denseVec: null, minhash: null };
 const resolveDenseVector = (idx, mode) => {
   if (!idx) return null;
-  if (denseVectorMode === 'code') return idx.denseVecCode || idx.denseVec || null;
-  if (denseVectorMode === 'doc') return idx.denseVecDoc || idx.denseVec || null;
-  if (denseVectorMode === 'auto') {
+  if (resolvedDenseVectorMode === 'code') return idx.denseVecCode || idx.denseVec || null;
+  if (resolvedDenseVectorMode === 'doc') return idx.denseVecDoc || idx.denseVec || null;
+  if (resolvedDenseVectorMode === 'auto') {
     if (mode === 'code') return idx.denseVecCode || idx.denseVec || null;
     if (mode === 'prose') return idx.denseVecDoc || idx.denseVec || null;
   }
@@ -770,7 +768,8 @@ return await (async () => {
         annWeight: scoreBlendAnnWeight
       },
       fieldWeights,
-      denseVectorMode,
+      denseVectorMode: resolvedDenseVectorMode,
+      intent: intentInfo?.type || null,
       minhashMaxDocs,
       sqliteFtsNormalize,
       sqliteFtsProfile,
@@ -885,6 +884,13 @@ return await (async () => {
       }
     }
   };
+  if (explain) {
+    payload.stats.intent = {
+      ...intentInfo,
+      denseVectorMode: resolvedDenseVectorMode,
+      fieldWeights
+    };
+  }
 
   if (emitOutput && jsonOutput) {
     console.log(JSON.stringify(payload, null, 2));

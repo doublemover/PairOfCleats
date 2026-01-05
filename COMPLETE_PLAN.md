@@ -18,14 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 11: Query Intent Classification (status: todo)
-Goal: Improve defaults based on query shape.
-Work items:
-- [ ] Add `classifyQuery()` (code-ish vs prose-ish vs path-ish).
-- [ ] Use intent to select vector set (`denseVectorMode=auto`) and field weights.
-- [ ] Add `--explain` output for intent decisions.
-- [ ] Add tests for intent classification.
-
 ## Phase 12: Graph-Aware Context Expansion (status: todo)
 Goal: Return richer context around top hits for agent workflows.
 Work items:

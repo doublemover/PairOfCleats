@@ -1084,3 +1084,8 @@ Work items:
 - [x] Wired loaders/validators to accept mixed formats (json/jsonl/shards) with cache signatures and status checks.
 - [x] Added artifact format config in schema and documented large artifact handling.
 - [x] Added artifact format test coverage and ensured index size checks include shards.
+
+## Phase 11: Query Intent Classification (status: done)
+- [x] Added query intent classifier (code/prose/path/mixed) with explain details.
+- [x] Applied intent to `denseVectorMode=auto` selection and default field weights.
+- [x] Added query intent unit tests and documentation updates.
