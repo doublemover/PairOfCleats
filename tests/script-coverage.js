@@ -583,6 +583,11 @@ const actions = [
     covers: ['backend-policy-test']
   },
   {
+    label: 'typescript-parser-selection-test',
+    run: () => runNode('typescript-parser-selection-test', path.join(root, 'tests', 'typescript-parser-selection.js')),
+    covers: ['typescript-parser-selection-test']
+  },
+  {
     label: 'cli-test',
     run: () => runNode('cli-test', path.join(root, 'tests', 'cli.js')),
     covers: ['cli-test']

@@ -293,6 +293,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   }
 
   const languageOptions = {
+    rootDir: root,
     astDataflowEnabled,
     controlFlowEnabled,
     javascript: {

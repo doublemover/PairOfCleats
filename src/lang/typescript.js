@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { parseBabelAst } from './babel-parser.js';
 import { collectImportsFromAst } from './javascript.js';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
@@ -32,7 +33,7 @@ const TSX_SELF_CLOSING = /<([A-Za-z][A-Za-z0-9]*)\b[^>]*\/>/;
 const TSX_FRAGMENT_OPEN = /<>/;
 const TSX_FRAGMENT_CLOSE = /<\/>/;
 const nodeRequire = createRequire(import.meta.url);
-const typeScriptCache = { attempted: false, module: null };
+const typeScriptCache = new Map();
 const TS_PARSERS = new Set(['auto', 'typescript', 'babel', 'heuristic']);
 
 function resolveTypeScriptParser(options = {}) {
@@ -41,16 +42,29 @@ function resolveTypeScriptParser(options = {}) {
   return TS_PARSERS.has(normalized) ? normalized : 'auto';
 }
 
-function loadTypeScriptModule() {
-  if (typeScriptCache.attempted) return typeScriptCache.module;
-  typeScriptCache.attempted = true;
-  try {
-    const mod = nodeRequire('typescript');
-    typeScriptCache.module = mod?.default || mod;
-  } catch {
-    typeScriptCache.module = null;
+function loadTypeScriptModule(rootDir) {
+  const key = rootDir || '__default__';
+  if (typeScriptCache.has(key)) return typeScriptCache.get(key);
+  let resolved = null;
+  if (rootDir) {
+    try {
+      const requireFromRoot = createRequire(path.join(rootDir, 'package.json'));
+      const mod = requireFromRoot('typescript');
+      resolved = mod?.default || mod;
+    } catch {
+      resolved = null;
+    }
   }
-  return typeScriptCache.module;
+  if (!resolved) {
+    try {
+      const mod = nodeRequire('typescript');
+      resolved = mod?.default || mod;
+    } catch {
+      resolved = null;
+    }
+  }
+  typeScriptCache.set(key, resolved);
+  return resolved;
 }
 
 function isLikelyTsx(text, ext) {
@@ -486,7 +500,7 @@ function buildTypeScriptChunksFromBabel(text, options = {}) {
 }
 
 function buildTypeScriptChunksFromAst(text, options = {}) {
-  const ts = loadTypeScriptModule();
+  const ts = loadTypeScriptModule(options.rootDir);
   if (!ts) return null;
   const ext = options.ext || '';
   const tsx = isLikelyTsx(text, ext);

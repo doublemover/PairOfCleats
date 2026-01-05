@@ -11,7 +11,7 @@ This document describes the unified parsing backbone, native parser usage, and t
 
 ### Native parsers (preferred when stable)
 - JavaScript/Flow: Babel parser by default, with Acorn/Esprima fallbacks for comparison.
-- TypeScript: TypeScript compiler API when available; Babel parser fallback when not.
+- TypeScript: TypeScript compiler API when available (prefers the target repo `node_modules`), with Babel parser fallback when not.
 - Python: stdlib ast via a local interpreter.
 - Other languages: native parsers only when stable and easy to integrate.
 
