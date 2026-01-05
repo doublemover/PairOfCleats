@@ -1112,3 +1112,11 @@ Work items:
 - [x] Added missing CLI commands for ingest, structural search, eval harness, benchmarks, and index validation.
 - [x] Updated README and docs to reflect the simplified command surface and new command catalog.
 
+
+## Phase 16: Module Boundaries + Experimental Isolation (status: done)
+Goal: Make the system easier to reason about and extend.
+Work items:
+- [x] Restructure into `src/index/`, `src/retrieval/`, `src/storage/`, `src/integrations/`.
+- [x] Move experimental features under `src/experimental/` and gate behind `profile=full`.
+- [x] Update imports/tests/docs for new module boundaries.
+

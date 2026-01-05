@@ -18,13 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 16: Module Boundaries + Experimental Isolation (status: todo)
-Goal: Make the system easier to reason about and extend.
-Work items:
-- [ ] Restructure into `src/index/`, `src/retrieval/`, `src/storage/`, `src/integrations/`.
-- [ ] Move experimental features under `src/experimental/` and gate behind `profile=full`.
-- [ ] Update imports/tests/docs for new module boundaries.
-
 ## Phase 17: Benchmarks and Performance Methodology (status: todo)
 Goal: Standardize performance evaluation.
 Work items:
