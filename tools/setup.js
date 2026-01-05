@@ -131,6 +131,19 @@ async function updateRuntimeConfig(maxOldSpaceMb) {
   return next;
 }
 
+async function updateProfileConfig(profileName) {
+  const existing = configExists
+    ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
+    : {};
+  const next = {
+    ...existing,
+    profile: profileName
+  };
+  await fsPromises.writeFile(configPath, JSON.stringify(next, null, 2));
+  configExists = true;
+  return next;
+}
+
 function buildRuntimeEnv(config) {
   const runtimeConfig = getRuntimeConfig(root, config);
   const nodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
@@ -202,7 +215,15 @@ if (shouldValidateConfig && configExists) {
   recordStep('config', { skipped: true, present: configExists, configPath });
 }
 
+const profileName = typeof argv.profile === 'string' ? argv.profile.trim() : '';
 let userConfig = loadUserConfig(root);
+if (profileName) {
+  await updateProfileConfig(profileName);
+  userConfig = loadUserConfig(root);
+  recordStep('profile', { configured: true, profile: profileName });
+} else {
+  recordStep('profile', { configured: false });
+}
 runtimeEnv = buildRuntimeEnv(userConfig);
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const incrementalCacheRoot = path.join(repoCacheRoot, 'incremental');

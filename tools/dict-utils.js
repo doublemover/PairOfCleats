@@ -4,7 +4,12 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../src/shared/cache.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROFILES_DIR = path.resolve(__dirname, '..', 'profiles');
+const profileWarnings = new Set();
 
 export const DEFAULT_MODEL_ID = 'Xenova/all-MiniLM-L12-v2';
 export const DEFAULT_TRIAGE_PROMOTE_FIELDS = [
@@ -25,18 +30,85 @@ export const DEFAULT_TRIAGE_PROMOTE_FIELDS = [
 ];
 
 /**
- * Load repo-local configuration from .pairofcleats.json.
+ * Load repo-local configuration from .pairofcleats.json and apply profiles.
  * @param {string} repoRoot
+ * @param {{profile?:string}} [options]
  * @returns {object}
  */
-export function loadUserConfig(repoRoot) {
+export function loadUserConfig(repoRoot, options = {}) {
   try {
     const configPath = path.join(repoRoot, '.pairofcleats.json');
-    if (!fs.existsSync(configPath)) return {};
-    return JSON.parse(fs.readFileSync(configPath, 'utf8')) || {};
+    if (!fs.existsSync(configPath)) {
+      return applyProfileConfig({}, options.profile);
+    }
+    const base = JSON.parse(fs.readFileSync(configPath, 'utf8')) || {};
+    return applyProfileConfig(base, options.profile);
   } catch {
     return {};
   }
+}
+
+function isPlainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function mergeConfig(base, overrides) {
+  if (!isPlainObject(base)) return overrides;
+  if (!isPlainObject(overrides)) return base;
+  const next = { ...base };
+  for (const [key, value] of Object.entries(overrides)) {
+    if (isPlainObject(value) && isPlainObject(next[key])) {
+      next[key] = mergeConfig(next[key], value);
+    } else {
+      next[key] = value;
+    }
+  }
+  return next;
+}
+
+function loadProfileConfig(profileName) {
+  if (!profileName) return { config: {}, path: null, error: null };
+  const profileFile = `${profileName}.json`;
+  const profilePath = path.join(PROFILES_DIR, profileFile);
+  if (!fs.existsSync(profilePath)) {
+    return {
+      config: {},
+      path: profilePath,
+      error: `Profile not found: ${profilePath}`
+    };
+  }
+  try {
+    const config = JSON.parse(fs.readFileSync(profilePath, 'utf8')) || {};
+    if (isPlainObject(config)) delete config.profile;
+    return { config, path: profilePath, error: null };
+  } catch (error) {
+    return {
+      config: {},
+      path: profilePath,
+      error: `Failed to parse profile ${profilePath}: ${error?.message || error}`
+    };
+  }
+}
+
+function applyProfileConfig(baseConfig, profileOverride) {
+  const overrideName = typeof profileOverride === 'string' ? profileOverride.trim() : '';
+  const envProfile = typeof process.env.PAIROFCLEATS_PROFILE === 'string'
+    ? process.env.PAIROFCLEATS_PROFILE.trim()
+    : '';
+  const configProfile = typeof baseConfig?.profile === 'string' ? baseConfig.profile.trim() : '';
+  const profileName = overrideName || envProfile || configProfile;
+  if (!profileName) return baseConfig || {};
+  const { config: profileConfig, path: profilePath, error } = loadProfileConfig(profileName);
+  if (error) {
+    const key = `${profileName}:${profilePath}`;
+    if (!profileWarnings.has(key)) {
+      profileWarnings.add(key);
+      console.error(`[config] ${error}`);
+    }
+  }
+  const merged = mergeConfig(profileConfig, baseConfig || {});
+  if (!merged.profile) merged.profile = profileName;
+  return merged;
 }
 
 /**

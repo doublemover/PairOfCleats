@@ -63,7 +63,8 @@ const STRING_FLAGS = [
   'fts-profile',
   'fts-weights',
   'bm25-k1',
-  'bm25-b'
+  'bm25-b',
+  'profile'
 ];
 
 const ALIASES = { n: 'top', c: 'context', t: 'type', why: 'explain' };
@@ -85,7 +86,7 @@ export function parseSearchArgs(rawArgs) {
   for (const flag of STRING_FLAGS) {
     options[flag] = { type: 'string' };
   }
-  return yargs(rawArgs)
+  const argv = yargs(rawArgs)
     .parserConfiguration({
       'camel-case-expansion': false,
       'dot-notation': false
@@ -95,6 +96,10 @@ export function parseSearchArgs(rawArgs) {
     .help()
     .alias('h', 'help')
     .parse();
+  if (argv.profile) {
+    process.env.PAIROFCLEATS_PROFILE = String(argv.profile).trim();
+  }
+  return argv;
 }
 
 /**
@@ -115,6 +120,7 @@ export function getSearchUsage() {
     '  --model <id>',
     '  --fts-profile <name> | --fts-weights <json|csv>',
     '  --bm25-k1 <num> | --bm25-b <num>',
+    '  --profile <name>',
     '  --headline | --matched | --explain | --why',
     '  Filters:',
     '    --type <kind> --author <name> --import <module> --calls <name> --uses <name>',

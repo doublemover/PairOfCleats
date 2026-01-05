@@ -1,0 +1,19 @@
+{
+  "indexing": {
+    "gitBlame": false,
+    "lint": false,
+    "complexity": false,
+    "riskAnalysis": true,
+    "riskAnalysisCrossFile": true,
+    "typeInference": false,
+    "typeInferenceCrossFile": false,
+    "postings": {
+      "enableChargrams": true,
+      "enablePhraseNgrams": true
+    }
+  },
+  "search": {
+    "annDefault": true,
+    "denseVectorMode": "auto"
+  }
+}

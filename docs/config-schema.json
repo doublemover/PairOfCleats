@@ -4,6 +4,7 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "profile": { "type": "string" },
     "dictionary": {
       "type": "object",
       "additionalProperties": false,

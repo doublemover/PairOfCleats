@@ -111,6 +111,7 @@
     "docs-consistency-test": "node tests/docs-consistency.js",
     "summary-report-test": "node tests/summary-report.js",
     "config-validate-test": "node tests/config-validate.js",
+    "profile-config-test": "node tests/profile-config.js",
     "cli-test": "node tests/cli.js",
     "type-inference-crossfile-test": "node tests/type-inference-crossfile.js",
     "type-inference-lsp-enrichment-test": "node tests/type-inference-lsp-enrichment.js",

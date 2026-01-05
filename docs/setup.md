@@ -27,6 +27,7 @@ The unified setup script (`npm run setup`) guides you through installing optiona
 
 - `--non-interactive` / `--ci`: Skip prompts and use defaults.
 - `--json`: Emit a summary report to stdout (logs go to stderr).
+- `--profile <name>`: Select a profile from `profiles/*.json` and record it in `.pairofcleats.json`.
 - `--with-sqlite`: Force SQLite build on (default behavior).
 - `--incremental`: Use incremental indexing if available.
 - `--validate-config`: Validate `.pairofcleats.json` before running setup.

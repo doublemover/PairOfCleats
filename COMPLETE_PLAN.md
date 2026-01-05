@@ -9,48 +9,160 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - todo: not implemented
 - in-progress: actively being implemented
 
+## Validation requirements (apply to every phase)
+- [ ] Add or update targeted tests for new behavior.
+- [ ] Update relevant docs and config schema entries.
+- [ ] Run the smallest relevant test suite for the changes (and note skips).
 
 ## Deferred / Do Not Surface (status: deferred)
-- [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.     
+- [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-
-## Phase 75: Deps Fixes - Language Tooling Alignment (status: done)
-Implemented; details moved to `COMPLETED_PHASES.md`.
-
-
-## Phase 76: Deps Fixes - Tree-sitter Backbone (status: done)
-Implemented; details moved to `COMPLETED_PHASES.md`.
-
-
-## Phase 77: Deps Fixes - Dependency Hygiene (status: done)
-Implemented; details moved to `COMPLETED_PHASES.md`.
-
-
-## Phase 78: Deps Fixes - Correctness and Spec Mismatches (status: done)
-Implemented; details moved to `COMPLETED_PHASES.md`.
-
-
-## Phase 80: Deps Fixes - Performance Refactors (status: done)
-Implemented; details moved to `COMPLETED_PHASES.md`.
-
-## Phase 82: Deps Fixes - Search Prefilter (status: done)
-Implemented; details moved to `COMPLETED_PHASES.md`.
-
-## Phase 83: Deps Fixes - Query Filters + Symbol Boosts (status: done)
-Implemented; details moved to `COMPLETED_PHASES.md`.
-
-## Phase 84: Typical Repo Benchmark Matrix (status: todo)
-Goal: Run typical-size repo benchmarks across all available configurations, capture metrics, and summarize performance.
+## Phase 1: Profiles + Global Defaults (status: todo)
+Goal: Make profiles the primary way to configure indexing/search across CLI, API, MCP, and service mode.
 Work items:
-- [ ] Run typical-tier benchmarks for each available backend/configuration.
+- [ ] Add `profiles/lite.json`, `profiles/balanced.json`, `profiles/full.json` with `indexing` and `search` sections.
+- [ ] Add top-level `profile` key to `.pairofcleats.json` and CLI `--profile` override.
+- [ ] Apply profiles globally (CLI, API server, MCP server, indexer service, bench harnesses).
+- [ ] Document profile semantics and precedence (profile file → config → CLI override).
+- [ ] Add validation for missing/invalid profiles with actionable errors.
+
+## Phase 2: Backend Auto-Policy (status: todo)
+Goal: Centralize memory vs SQLite backend selection and make it explainable.
+Work items:
+- [ ] Implement a backend policy module (inputs: chunk count, artifact sizes, SQLite availability, profile overrides).
+- [ ] Support `auto` backend selection in search and scripts; return rationale for `--explain`.
+- [ ] Allow profile-level thresholds/overrides (e.g., chunk threshold, artifact size cap).
+- [ ] Document default thresholds and how to override.
+
+## Phase 3: Parser Hierarchy + Tooling Resolution (status: todo)
+Goal: Ensure AST > tree-sitter > heuristics hierarchy is enforced and best-available tooling is used.
+Work items:
+- [ ] Audit language handlers to enforce the preferred order for parsers.
+- [ ] Ensure TypeScript loads `typescript` from the target repo `node_modules` when available.
+- [ ] Document parser selection behavior and fallback order.
+- [ ] Add tests for parser selection and fallback paths.
+
+## Phase 4: Tokenization + Postings Guardrails (status: todo)
+Goal: Make tokenization and n-gram behavior safe at scale.
+Work items:
+- [ ] Implement `dictionary.segmentation=auto` (DP with max-length guard, fallback to greedy).
+- [ ] Make DP max length adaptive to repo size (profile-configurable).
+- [ ] Add chargram guardrails: cap long tokens and restrict chargrams to high-value fields.
+- [ ] Add tests for adaptive segmentation and chargram caps.
+
+## Phase 5: Core Library API (status: todo)
+Goal: Expose a shared library surface for indexing and search.
+Work items:
+- [ ] Add `buildIndex(repoRoot, options)`, `search(repoRoot, params)`, `buildSqliteIndex(repoRoot, options)`, `status(repoRoot)`.
+- [ ] Refactor CLI tools to call the core API.
+- [ ] Add unit tests for the core API surface.
+
+## Phase 6: In-Process API + MCP Servers (status: todo)
+Goal: Remove per-request process spawning and keep indexes loaded.
+Work items:
+- [ ] Update API server to call the core API and reuse loaded indexes/SQLite connections.
+- [ ] Update MCP server to call the core API and share long-lived resources.
+- [ ] Add lifecycle handling for repo switching and cache invalidation.
+- [ ] Add tests for in-process API/MCP behavior.
+
+## Phase 7: Retrieval Strategy Defaults + RRF (status: todo)
+Goal: Improve hybrid ranking stability and clarify defaults.
+Work items:
+- [ ] Implement Reciprocal Rank Fusion (RRF) for BM25 + dense lists.
+- [ ] Keep BM25 as the reference ranker; label FTS5 as optional/alternate.
+- [ ] Ensure tuned BM25 k1/b stored at index time are default at search time.
+- [ ] Add `--explain` output for vector selection + RRF contributions.
+- [ ] Update tests and docs for score types and explain output.
+
+## Phase 8: IR Evaluation Harness + Quality Gates (status: todo)
+Goal: Measure search quality and prevent regressions.
+Work items:
+- [ ] Add `tools/eval/run.js` (Recall@k, MRR, nDCG@k) with JSON output.
+- [ ] Create a labeled query set (silver labels + small gold subset).
+- [ ] Add CI thresholds for quality regressions.
+- [ ] Add documentation for evaluation workflow.
+
+## Phase 9: Fielded Indexing (status: todo)
+Goal: Improve relevance by separating fields and weighting them.
+Work items:
+- [ ] Store `name/signature/doc/body` token streams per chunk.
+- [ ] Build fielded postings and add `--field-weights` config.
+- [ ] Implement fielded BM25 scoring and FTS5 column weights.
+- [ ] Add tests for field weights and scoring behavior.
+
+## Phase 10: Large-Artifact Strategy (status: todo)
+Goal: Make large repos reliable without JSON parse limits.
+Work items:
+- [ ] Add JSONL/sharding for large artifacts (chunk_meta, postings).
+- [ ] Add SQLite-first path for large repos (skip huge JSON artifacts).
+- [ ] Implement auto-selection based on size thresholds and profile overrides.
+- [ ] Add migration and validation logic for mixed formats.
+
+## Phase 11: Query Intent Classification (status: todo)
+Goal: Improve defaults based on query shape.
+Work items:
+- [ ] Add `classifyQuery()` (code-ish vs prose-ish vs path-ish).
+- [ ] Use intent to select vector set (`denseVectorMode=auto`) and field weights.
+- [ ] Add `--explain` output for intent decisions.
+- [ ] Add tests for intent classification.
+
+## Phase 12: Graph-Aware Context Expansion (status: todo)
+Goal: Return richer context around top hits for agent workflows.
+Work items:
+- [ ] Add a context expansion step using call/import relations and repo map.
+- [ ] Return primary hits plus labeled context hits.
+- [ ] Add filters/limits to control expansion size.
+- [ ] Add tests for context expansion behavior.
+
+## Phase 13: Structural Search Integration (status: todo)
+Goal: Persist structural matches as index metadata and expose filters.
+Work items:
+- [ ] Refactor `tools/structural-search.js` into importable modules.
+- [ ] Store structural matches in chunk metadata.
+- [ ] Add filters: `--struct-pack`, `--struct-rule`, `--struct-tag`.
+- [ ] Add tests for structural match ingestion and filtering.
+
+## Phase 14: Build-Time Filter Index Artifact (status: todo)
+Goal: Avoid recomputing the path/chargram filter index at search time.
+Work items:
+- [ ] Build and persist a filter index artifact at index time.
+- [ ] Load the artifact in search to avoid recomputation.
+- [ ] Add tests for filter index parity.
+
+## Phase 15: Command Surface Simplification (status: todo)
+Goal: Reduce and align scripts, flags, and docs.
+Work items:
+- [ ] Audit scripts and flags for duplication; consolidate to a minimal set.
+- [ ] Introduce consistent grouping/naming for CLI commands.
+- [ ] Update README and docs to match the simplified surface.
+
+## Phase 16: Module Boundaries + Experimental Isolation (status: todo)
+Goal: Make the system easier to reason about and extend.
+Work items:
+- [ ] Restructure into `src/index/`, `src/retrieval/`, `src/storage/`, `src/integrations/`.
+- [ ] Move experimental features under `src/experimental/` and gate behind `profile=full`.
+- [ ] Update imports/tests/docs for new module boundaries.
+
+## Phase 17: Benchmarks and Performance Methodology (status: todo)
+Goal: Standardize performance evaluation.
+Work items:
+- [ ] Add microbench suite under `tools/bench/micro/` with p50/p95 reporting.
+- [ ] Add component benchmarks (index build without embeddings, dense-only, sparse-only, hybrid).
+- [ ] Add warm/cold run definitions and reporting.
+- [ ] Document benchmark methodology and expected runtime.
+
+## Phase 18: Typical Repo Benchmark Matrix (status: todo)
+Goal: Run typical-size repo benchmarks across configurations and summarize performance.
+Work items:
+- [ ] Run typical-tier benchmarks for each backend/configuration.
 - [ ] Capture build/search metrics, throughput, and memory stats per repo/backend.
 - [ ] Summarize results and key deltas (performance, accuracy, stability).
-- [ ] Record any errors/failures with repo/backend context and logs.
+- [ ] Record errors/failures with repo/backend context and logs.
 - [ ] Add follow-up fixes or investigation notes if regressions are found.
 Notes (current failures to triage):
 - [ ] csharp/AutoMapper/AutoMapper: build-index failed (bench-language.log, exit code 134).
-- [ ] rust/BurntSushi/ripgrep: one run crashed (bench-language.log, exit code 3221225477) despite later success; check for non-deterministic crash.
+- [ ] rust/BurntSushi/ripgrep: one run crashed (bench-language.log, exit code 3221225477) despite later success.
 - [ ] kotlin/Kotlin/kotlinx.coroutines: build-index crashed (bench-language.log, exit code 3221225477).
 - [ ] bench-language:matrix run 2026-01-04T01-08-37-988Z: all sqlite/sqlite-fts/memory configs failed (matrix.json exit code 1 or 3221226505); inspect per-config logs under benchmarks/results/matrix/2026-01-04T01-08-37-988Z/logs.
 - [ ] bench-language:matrix memory backends (auto/on/off): perl/mojolicious/mojo search failed with ERR_STRING_TOO_LONG while loading JSON (src/search/cli-index.js:19).
