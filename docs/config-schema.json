@@ -123,6 +123,7 @@
       "properties": {
         "annDefault": { "type": "boolean" },
         "sqliteAutoChunkThreshold": { "type": "number" },
+        "sqliteAutoArtifactBytes": { "type": "number" },
         "sqliteFtsNormalize": { "type": "boolean" },
         "sqliteFtsProfile": { "type": "string" },
         "denseVectorMode": { "type": "string", "enum": ["merged", "code", "doc", "auto"] },

@@ -13,12 +13,14 @@ import {
   DEFAULT_MODEL_ID,
   getCacheRuntimeConfig,
   getDictConfig,
+  getIndexDir,
   getMetricsDir,
   getModelConfig,
   loadUserConfig,
   resolveRepoRoot,
   resolveSqlitePaths
 } from '../../tools/dict-utils.js';
+import { resolveBackendPolicy } from '../storage/backend-policy.js';
 import { getVectorExtensionConfig, queryVectorAnn } from '../../tools/vector-extension.js';
 import { getSearchUsage, parseSearchArgs, resolveSearchMode } from './cli-args.js';
 import { loadDictionary } from './cli-dictionary.js';
@@ -136,13 +138,30 @@ const metaFilters = parseMetaFilters(argv.meta, argv['meta-json']);
 const sqlitePaths = resolveSqlitePaths(ROOT, userConfig);
 const sqliteCodePath = sqlitePaths.codePath;
 const sqliteProsePath = sqlitePaths.prosePath;
+
+function estimateIndexBytes(indexDir) {
+  if (!indexDir || !fsSync.existsSync(indexDir)) return 0;
+  const targets = [
+    'chunk_meta.json',
+    'token_postings.json',
+    'phrase_ngrams.json',
+    'chargram_postings.json',
+    'dense_vectors_uint8.json'
+  ];
+  return targets.reduce((total, name) => {
+    const target = path.join(indexDir, name);
+    try {
+      const stat = fsSync.statSync(target);
+      return total + stat.size;
+    } catch {
+      return total;
+    }
+  }, 0);
+}
 const needsCode = runCode;
 const needsProse = runProse;
 const backendArg = typeof argv.backend === 'string' ? argv.backend.toLowerCase() : '';
 const sqliteScoreModeConfig = sqliteConfig.scoreMode === 'fts';
-const sqliteFtsRequested = backendArg === 'sqlite-fts' || backendArg === 'fts' || (!backendArg && sqliteScoreModeConfig);
-const backendForcedSqlite = backendArg === 'sqlite' || sqliteFtsRequested;
-const backendDisabled = backendArg && !(backendArg === 'sqlite' || sqliteFtsRequested);
 const sqliteConfigured = sqliteConfig.use !== false;
 const sqliteCodeAvailable = fsSync.existsSync(sqliteCodePath);
 const sqliteProseAvailable = fsSync.existsSync(sqliteProsePath);
@@ -186,42 +205,52 @@ const denseVectorMode = typeof userConfig.search?.denseVectorMode === 'string'
   ? userConfig.search.denseVectorMode.toLowerCase()
   : 'merged';
 
+const sqliteAutoArtifactBytesRaw = userConfig.search?.sqliteAutoArtifactBytes;
+const sqliteAutoArtifactBytes = Number.isFinite(Number(sqliteAutoArtifactBytesRaw))
+  ? Math.max(0, Number(sqliteAutoArtifactBytesRaw))
+  : 0;
 const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
-
-if (backendForcedSqlite && !sqliteAvailable) {
+const needsSqlite = runCode || runProse;
+let chunkCounts = [];
+let artifactBytes = [];
+if (needsSqlite && (!backendArg || backendArg === 'auto')) {
+  if (sqliteAutoChunkThreshold > 0) {
+    if (needsCode) chunkCounts.push(await getSqliteChunkCount(sqliteCodePath, 'code'));
+    if (needsProse) chunkCounts.push(await getSqliteChunkCount(sqliteProsePath, 'prose'));
+  }
+  if (sqliteAutoArtifactBytes > 0) {
+    if (needsCode) artifactBytes.push(estimateIndexBytes(getIndexDir(ROOT, 'code', userConfig)));
+    if (needsProse) artifactBytes.push(estimateIndexBytes(getIndexDir(ROOT, 'prose', userConfig)));
+  }
+}
+const backendPolicy = resolveBackendPolicy({
+  backendArg,
+  sqliteScoreModeConfig,
+  sqliteConfigured,
+  sqliteAvailable,
+  sqliteAutoChunkThreshold,
+  sqliteAutoArtifactBytes,
+  needsSqlite,
+  chunkCounts,
+  artifactBytes
+});
+if (backendPolicy.error) {
   const missing = [];
   if (needsCode && !sqliteCodeAvailable) missing.push(`code=${sqliteCodePath}`);
   if (needsProse && !sqliteProseAvailable) missing.push(`prose=${sqliteProsePath}`);
   const suffix = missing.length ? missing.join(', ') : 'missing sqlite index';
-  console.error(`SQLite backend requested but index not found (${suffix}).`);
+  console.error(`${backendPolicy.error} (${suffix}).`);
   process.exit(1);
 }
-
-const needsSqlite = runCode || runProse;
-if (!needsSqlite && backendForcedSqlite) {
+if (!needsSqlite && backendPolicy.backendForcedSqlite) {
   console.warn('SQLite backend requested, but records-only mode selected; using file-backed records index.');
 }
-let autoUseSqlite = true;
-if (
-  needsSqlite
-  && !backendForcedSqlite
-  && !backendDisabled
-  && sqliteConfigured
-  && sqliteAvailable
-  && sqliteAutoChunkThreshold > 0
-) {
-  const counts = [];
-  if (needsCode) counts.push(await getSqliteChunkCount(sqliteCodePath, 'code'));
-  if (needsProse) counts.push(await getSqliteChunkCount(sqliteProsePath, 'prose'));
-  const knownCounts = counts.filter((count) => Number.isFinite(count));
-  if (knownCounts.length) {
-    const maxCount = Math.max(...knownCounts);
-    autoUseSqlite = maxCount >= sqliteAutoChunkThreshold;
-  }
+if (backendPolicy.backendDisabled) {
+  console.warn(`Unknown backend "${backendArg}". Falling back to memory.`);
 }
-let useSqlite = needsSqlite
-  && (backendForcedSqlite || (!backendDisabled && sqliteConfigured && autoUseSqlite))
-  && sqliteAvailable;
+let useSqlite = backendPolicy.useSqlite;
+const sqliteFtsRequested = backendPolicy.sqliteFtsRequested;
+const backendForcedSqlite = backendPolicy.backendForcedSqlite;
 const sqliteBackend = await createSqliteBackend({
   useSqlite,
   needsCode,
@@ -238,10 +267,10 @@ let dbCode = sqliteBackend.dbCode;
 let dbProse = sqliteBackend.dbProse;
 const vectorAnnState = sqliteBackend.vectorAnnState;
 const vectorAnnUsed = sqliteBackend.vectorAnnUsed;
-
 const backendLabel = useSqlite
   ? (sqliteFtsRequested ? 'sqlite-fts' : 'sqlite')
   : 'memory';
+const backendPolicyInfo = { ...backendPolicy, backendLabel };
 let modelIdForCode = null;
 let modelIdForProse = null;
 let modelIdForRecords = null;
@@ -284,7 +313,8 @@ if (branchFilter) {
       stats: {
         branch: repoBranch,
         branchFilter,
-        branchMatch: false
+        branchMatch: false,
+        backendPolicy: backendPolicyInfo
       }
     };
     if (jsonOutput) {
@@ -719,6 +749,7 @@ function compactHit(hit, includeExplain = false) {
         annActive,
         annMode: vectorExtension.annMode,
         annBackend,
+        backendPolicy: backendPolicyInfo,
         annExtension: vectorAnnEnabled ? {
           provider: vectorExtension.provider,
           table: vectorExtension.table,
@@ -883,6 +914,10 @@ function compactHit(hit, includeExplain = false) {
         runRecords ? `records chunks=${idxRecords.chunkMeta.length}` : null,
         `(${cacheTag})`
       ].filter(Boolean);
+      if (explain && backendPolicyInfo?.reason) {
+        statsParts.push(`backend=${backendLabel}`);
+        statsParts.push(`policy=${backendPolicyInfo.reason}`);
+      }
       console.log(color.gray(`Stats: ${statsParts.join(', ')}`));
     }
   }

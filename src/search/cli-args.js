@@ -113,7 +113,7 @@ export function getSearchUsage() {
     'Options:',
     '  --repo <path>',
     '  --mode code|prose|both|records|all',
-    '  --backend memory|sqlite|sqlite-fts',
+    '  --backend auto|memory|sqlite|sqlite-fts',
     '  --top N, --context N',
     '  --json | --json-compact | --human | --stats',
     '  --ann | --no-ann',

@@ -578,6 +578,11 @@ const actions = [
     covers: ['profile-config-test']
   },
   {
+    label: 'backend-policy-test',
+    run: () => runNode('backend-policy-test', path.join(root, 'tests', 'backend-policy.js')),
+    covers: ['backend-policy-test']
+  },
+  {
     label: 'cli-test',
     run: () => runNode('cli-test', path.join(root, 'tests', 'cli.js')),
     covers: ['cli-test']
