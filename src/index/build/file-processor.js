@@ -65,6 +65,21 @@ export function createFileProcessor(options) {
     dictConfig,
     postingsConfig
   });
+  const getWorkerDictOverride = () => {
+    if (!workerPool?.dictConfig || !dictConfig) return null;
+    const base = workerPool.dictConfig;
+    const nextSegmentation = typeof dictConfig.segmentation === 'string'
+      ? dictConfig.segmentation
+      : base.segmentation;
+    const nextMaxToken = Number.isFinite(Number(dictConfig.dpMaxTokenLength))
+      ? Number(dictConfig.dpMaxTokenLength)
+      : base.dpMaxTokenLength;
+    if (base.segmentation === nextSegmentation && base.dpMaxTokenLength === nextMaxToken) {
+      return null;
+    }
+    return { segmentation: nextSegmentation, dpMaxTokenLength: nextMaxToken };
+  };
+  const workerDictOverride = getWorkerDictOverride();
   let tokenWorkerDisabled = false;
   let workerTokenizeFailed = false;
   const lintCacheConfig = cacheConfig?.lint || {};
@@ -560,7 +575,7 @@ export function createFileProcessor(options) {
               mode,
               ext,
               chargramTokens: fieldChargramTokens,
-              dictConfig
+              ...(workerDictOverride ? { dictConfig: workerDictOverride } : {})
             });
           } catch (err) {
             if (!workerTokenizeFailed) {

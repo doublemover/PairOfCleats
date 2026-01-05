@@ -73,6 +73,15 @@ export async function createIndexerWorkerPool(input = {}) {
     crashLogger = null,
     log = defaultLog
   } = input;
+  const sanitizeDictConfig = (raw) => {
+    const cfg = raw && typeof raw === 'object' ? raw : {};
+    return {
+      segmentation: typeof cfg.segmentation === 'string' ? cfg.segmentation : 'auto',
+      dpMaxTokenLength: Number.isFinite(Number(cfg.dpMaxTokenLength))
+        ? Number(cfg.dpMaxTokenLength)
+        : 32
+    };
+  };
   if (!config || config.enabled === false) return null;
   let Piscina;
   try {
@@ -89,7 +98,7 @@ export async function createIndexerWorkerPool(input = {}) {
       taskTimeout: config.taskTimeoutMs,
       workerData: {
         dictWords: Array.isArray(dictWords) ? dictWords : Array.from(dictWords || []),
-        dictConfig: dictConfig || {},
+        dictConfig: sanitizeDictConfig(dictConfig),
         postingsConfig: postingsConfig || {}
       }
     });
@@ -126,6 +135,7 @@ export async function createIndexerWorkerPool(input = {}) {
     return {
       config,
       pool,
+      dictConfig: sanitizeDictConfig(dictConfig),
       shouldUseForFile(sizeBytes) {
         if (config.enabled === true) return true;
         if (config.enabled === 'auto') {
