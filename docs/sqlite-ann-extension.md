@@ -20,12 +20,12 @@ If `vectorExtension.path` is set, it overrides the `dir` + `filename` layout.
 
 Use the helper:
 ```
-npm run download-extensions -- --url vec0.dll=https://example.com/vec0.dll
+pairofcleats download-extensions --url vec0.dll=https://example.com/vec0.dll
 ```
 
 Verify the extension install (presence-only):
 ```
-npm run verify-extensions -- --no-load
+pairofcleats verify-extensions --no-load
 ```
 
 ## Configuration
@@ -55,14 +55,14 @@ metric settings).
 
 ## Build
 ```
-npm run build-sqlite-index
+pairofcleats build-sqlite-index
 ```
 When the extension loads successfully, the build creates `dense_vectors_ann` and
 stores float32 embeddings for ANN queries.
 
 ## Search
 ```
-node .\\search.js --backend sqlite "query"
+pairofcleats search --backend sqlite "query"
 ```
 If the extension or table is missing, `search.js` warns and uses the JS ANN
 implementation instead.
@@ -70,7 +70,7 @@ implementation instead.
 ## Notes
 - Extensions are stored outside the repo under the cache root.
 - Environment overrides: `PAIROFCLEATS_EXTENSIONS_DIR`, `PAIROFCLEATS_VECTOR_EXTENSION`.
-- `clean-artifacts` keeps extensions; `npm run uninstall` removes them.
+- `clean-artifacts` keeps extensions; `pairofcleats uninstall` removes them.
 - The extension table is optional and not required for SQLite to work.
 - `dense_vectors_ann` stores float32 embeddings, which increases SQLite size.
 - `dense_vectors_ann` uses `rowid` = `doc_id` for lookups.

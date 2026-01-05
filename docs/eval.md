@@ -5,7 +5,7 @@
 ## Usage
 
 ```bash
-node tools/eval/run.js --repo /path/to/repo --dataset /path/to/queries.json --backend sqlite --top 10
+pairofcleats eval-run --repo /path/to/repo --dataset /path/to/queries.json --backend sqlite --top 10
 ```
 
 Options:

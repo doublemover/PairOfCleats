@@ -28,8 +28,8 @@ Rule file formats
 
 Usage
 ```bash
-node tools/structural-search.js --pack semgrep-security
-node tools/structural-search.js --pack comby-docs --format json
+pairofcleats structural-search --pack semgrep-security
+pairofcleats structural-search --pack comby-docs --format json
 ```
 
 Best practices

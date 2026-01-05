@@ -18,13 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 15: Command Surface Simplification (status: todo)
-Goal: Reduce and align scripts, flags, and docs.
-Work items:
-- [ ] Audit scripts and flags for duplication; consolidate to a minimal set.
-- [ ] Introduce consistent grouping/naming for CLI commands.
-- [ ] Update README and docs to match the simplified surface.
-
 ## Phase 16: Module Boundaries + Experimental Isolation (status: todo)
 Goal: Make the system easier to reason about and extend.
 Work items:

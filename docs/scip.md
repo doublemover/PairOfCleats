@@ -5,13 +5,13 @@ Use the SCIP ingestion tool to import symbol occurrences from a SCIP JSON or JSO
 ## Ingest JSON/JSONL
 
 ```bash
-node tools/scip-ingest.js --repo . --input scip.jsonl
+pairofcleats scip-ingest --repo . --input scip.jsonl
 ```
 
 ## Run the SCIP CLI directly
 
 ```bash
-node tools/scip-ingest.js --repo . --run --input index.scip
+pairofcleats scip-ingest --repo . --run --input index.scip
 ```
 
 ## Outputs

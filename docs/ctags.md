@@ -6,13 +6,13 @@ Use the ctags ingestion tool to stream JSONL symbol output into a cache-backed a
 
 ```bash
 ctags --output-format=json --tag-relative=yes --recurse=yes . > ctags.jsonl
-node tools/ctags-ingest.js --repo . --input ctags.jsonl
+pairofcleats ctags-ingest --repo . --input ctags.jsonl
 ```
 
 ## Run ctags directly
 
 ```bash
-node tools/ctags-ingest.js --repo . --run
+pairofcleats ctags-ingest --repo . --run
 ```
 
 ## Interactive mode (stdin)
@@ -22,7 +22,7 @@ If you run ctags in interactive mode yourself, pipe JSONL output into stdin:
 ```bash
 ctags --_interactive --output-format=json
 # In another shell, feed the output into the ingest tool:
-node tools/ctags-ingest.js --repo . --input - --interactive
+pairofcleats ctags-ingest --repo . --input - --interactive
 ```
 
 ## Outputs

@@ -21,6 +21,7 @@ const COMMANDS = new Map([
   ['clean-artifacts', { script: 'tools/clean-artifacts.js', extraArgs: [] }],
   ['report-artifacts', { script: 'tools/report-artifacts.js', extraArgs: [] }],
   ['status', { script: 'tools/report-artifacts.js', extraArgs: [] }],
+  ['index-validate', { script: 'tools/index-validate.js', extraArgs: [] }],
   ['download-dicts', { script: 'tools/download-dicts.js', extraArgs: [] }],
   ['download-models', { script: 'tools/download-models.js', extraArgs: [] }],
   ['download-extensions', { script: 'tools/download-extensions.js', extraArgs: [] }],
@@ -29,11 +30,20 @@ const COMMANDS = new Map([
   ['tooling-detect', { script: 'tools/tooling-detect.js', extraArgs: [] }],
   ['tooling-install', { script: 'tools/tooling-install.js', extraArgs: [] }],
   ['git-hooks', { script: 'tools/git-hooks.js', extraArgs: [] }],
+  ['ctags-ingest', { script: 'tools/ctags-ingest.js', extraArgs: [] }],
+  ['scip-ingest', { script: 'tools/scip-ingest.js', extraArgs: [] }],
+  ['lsif-ingest', { script: 'tools/lsif-ingest.js', extraArgs: [] }],
+  ['gtags-ingest', { script: 'tools/gtags-ingest.js', extraArgs: [] }],
+  ['structural-search', { script: 'tools/structural-search.js', extraArgs: [] }],
+  ['bench-language', { script: 'tools/bench-language-repos.js', extraArgs: [] }],
+  ['bench-language-matrix', { script: 'tools/bench-language-matrix.js', extraArgs: [] }],
   ['repometrics-dashboard', { script: 'tools/repometrics-dashboard.js', extraArgs: [] }],
   ['compare-models', { script: 'tools/compare-models.js', extraArgs: [] }],
   ['summary-report', { script: 'tools/combined-summary.js', extraArgs: [] }],
+  ['eval-run', { script: 'tools/eval/run.js', extraArgs: [] }],
   ['api-server', { script: 'tools/api-server.js', extraArgs: [] }],
   ['server', { script: 'tools/api-server.js', extraArgs: [] }],
+  ['indexer-service', { script: 'tools/indexer-service.js', extraArgs: [] }],
   ['uninstall', { script: 'tools/uninstall.js', extraArgs: [] }],
   ['mcp-server', { script: 'tools/mcp-server.js', extraArgs: [] }],
   ['mcp', { script: 'tools/mcp-server.js', extraArgs: [] }],
@@ -158,6 +168,7 @@ Core:
   watch-index             Watch and rebuild indexes incrementally
   search                  Query indexed data
   status                  Report current artifacts/status
+  index-validate           Validate index artifacts
   bootstrap               Fast bootstrap flow
   setup                   Guided setup flow
   build-sqlite-index       Build SQLite indexes
@@ -176,13 +187,22 @@ Assets + tooling:
   tooling-detect           Detect optional language tooling
   tooling-install          Install optional language tooling
   git-hooks                Install git hooks
+  ctags-ingest             Ingest ctags symbol dumps
+  scip-ingest              Ingest SCIP symbol dumps
+  lsif-ingest              Ingest LSIF dumps
+  gtags-ingest             Ingest GNU Global dumps
+  structural-search        Run structural rule packs
+  bench-language           Run language benchmark suite
+  bench-language-matrix    Run language/config benchmark matrix
 
 Reports + services:
   repometrics-dashboard    Summarize repometrics
   compare-models           Compare search models
   summary-report           Generate summary report
-  server                  Run local HTTP JSON API
-  api-server              Alias for server
+  eval-run                 Run retrieval evaluation harness
+  server                   Run local HTTP JSON API
+  api-server               Alias for server
+  indexer-service          Run multi-repo indexer service
   mcp-server               Run MCP server
   mcp                      Alias for mcp-server
 

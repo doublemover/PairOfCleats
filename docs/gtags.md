@@ -7,10 +7,10 @@ into JSONL for downstream indexing or analysis.
 CLI
 ```bash
 # Run global -x inside the repo
-node tools/gtags-ingest.js --repo /path/to/repo --run
+pairofcleats gtags-ingest --repo /path/to/repo --run
 
 # Ingest from a file
-node tools/gtags-ingest.js --repo /path/to/repo --input gtags.txt --out gtags.jsonl
+pairofcleats gtags-ingest --repo /path/to/repo --input gtags.txt --out gtags.jsonl
 ```
 
 Output

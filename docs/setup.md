@@ -1,15 +1,15 @@
 # Unified Setup
 
-The unified setup script (`npm run setup`) guides you through installing optional dependencies and building indexes in one flow. It is interactive by default and supports a non-interactive CI mode.
+The unified setup script (`pairofcleats setup`) guides you through installing optional dependencies and building indexes in one flow. It is interactive by default and supports a non-interactive CI mode.
 
 ## Usage
 
 - Interactive (recommended):
-  - `npm run setup`
+  - `pairofcleats setup`
 - Non-interactive (CI):
-  - `npm run setup -- --non-interactive`
+- `pairofcleats setup --non-interactive`
 - Non-interactive with JSON summary:
-  - `npm run setup -- --non-interactive --json`
+- `pairofcleats setup --non-interactive --json`
 
 ## What it can do
 
@@ -48,5 +48,5 @@ The unified setup script (`npm run setup`) guides you through installing optiona
 - Defaults follow `.pairofcleats.json` where applicable.
 - SQLite builds use file-backed indexes by default, but will stream from incremental bundles when available.
 - `build_index.js` can be run from any working directory; it resolves SQLite build tooling from the install root.
-- After setup, run `npm run index-validate` to confirm index artifacts are healthy.
-- If you prefer a fast, no-prompts path, use `npm run bootstrap`.
+- After setup, run `pairofcleats index-validate` to confirm index artifacts are healthy.
+- If you prefer a fast, no-prompts path, use `pairofcleats bootstrap`.

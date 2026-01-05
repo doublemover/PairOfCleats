@@ -28,9 +28,9 @@ Update SQLite indexes in-place by touching only the files that changed since the
 - This leaves gaps when files are deleted; a full rebuild compacts IDs.
 
 ## Usage
-- Build incremental cache: `node build_index.js --incremental`.
-- Update SQLite in place: `node tools/build-sqlite-index.js --incremental`.
-- `npm run bootstrap -- --incremental --with-sqlite` runs both.
+- Build incremental cache: `pairofcleats build-index --incremental`.
+- Update SQLite in place: `pairofcleats build-sqlite-index --incremental`.
+- `pairofcleats bootstrap --incremental --with-sqlite` runs both.
 
 ## Fallback Behavior
 If the incremental manifest or required SQLite tables are missing, the tool falls back to a full rebuild.

@@ -10,15 +10,15 @@ Use the language benchmark harness to run search and performance baselines acros
 
 ## Quick usage
 - List targets:
-  - `npm run bench-language:list`
+  - `pairofcleats bench-language --list`
 - Run only JavaScript repos (clone if missing, build indexes, write per-repo JSON):
-  - `npm run bench-language:javascript -- --build`
+  - `pairofcleats bench-language --language javascript --build`
 - Run everything with builds (avoids npm CLI warnings for `--build`):
-  - `npm run bench-language:build`
+  - `pairofcleats bench-language --build`
 - Run only typical repos, skip cloning:
-  - `npm run bench-language:typical -- --no-clone`
+  - `pairofcleats bench-language --tier typical --no-clone`
 - Write an aggregate summary for Grafana:
-  - `npm run bench-language:python -- --build --out docs/benchmarks-python.json --json`
+  - `pairofcleats bench-language --language python --build --out docs/benchmarks-python.json --json`
 
 ## Convenience scripts
 - `npm run bench-language:list` / `bench-language:list-json`

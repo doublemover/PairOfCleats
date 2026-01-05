@@ -31,23 +31,23 @@ Example:
 Commands
 ```bash
 # Sync repos (clone or pull)
-node tools/indexer-service.js sync --config /path/to/config.json
+pairofcleats indexer-service sync --config /path/to/config.json
 
 # Enqueue a repo for indexing
-node tools/indexer-service.js enqueue --repo /path/to/repo --mode code
+pairofcleats indexer-service enqueue --repo /path/to/repo --mode code
 
 # Process the queue once, or keep watching
-node tools/indexer-service.js work --concurrency 2
-node tools/indexer-service.js work --watch --interval 5000
+pairofcleats indexer-service work --concurrency 2
+pairofcleats indexer-service work --watch --interval 5000
 
 # Queue status
-node tools/indexer-service.js status
+pairofcleats indexer-service status
 ```
 
 Query serving
 Use the API server to serve queries once indexes are built:
 ```bash
-node tools/indexer-service.js serve --repo /path/to/repo
+pairofcleats indexer-service serve --repo /path/to/repo
 ```
 
 Notes

@@ -7,8 +7,7 @@ agent orchestration), not for exposing publicly. There is no auth layer; bind to
 `127.0.0.1` or a private interface.
 
 ## Startup
-- `node bin/pairofcleats.js server`
-- `npm run api-server`
+- `pairofcleats server`
 
 Options:
 - `--host <addr>`: bind address (default `127.0.0.1`)
@@ -30,7 +29,7 @@ Response:
 
 ### `GET /status`
 Reports artifact sizes and cache health using the same logic as
-`npm run report-artifacts`.
+`pairofcleats report-artifacts`.
 
 Query params:
 - `repo`: optional repo path override

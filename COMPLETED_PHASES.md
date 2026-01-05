@@ -1106,3 +1106,8 @@ Work items:
 - [x] Built and persisted `filter_index.json` during indexing using configured chargram size.
 - [x] Hydrated filter index in search to avoid rebuilding maps/sets at query time.
 - [x] Added filter index artifact test coverage and updated index validation to report it.
+
+## Phase 15: Command Surface Simplification (status: done)
+- [x] Promoted `pairofcleats` CLI as the primary command surface, with npm scripts as wrappers.
+- [x] Added missing CLI commands for ingest, structural search, eval harness, benchmarks, and index validation.
+- [x] Updated README and docs to reflect the simplified command surface and new command catalog.

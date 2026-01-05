@@ -3,7 +3,7 @@
 PairOfCleats ships an MCP server that exposes indexing, search, and maintenance tools over JSON-RPC.
 
 ## Run
-- `npm run mcp-server`
+- `pairofcleats mcp-server`
 
 ## Tools
 - `index_status`
