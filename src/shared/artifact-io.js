@@ -4,14 +4,25 @@ import { gunzipSync } from 'node:zlib';
 
 export const MAX_JSON_BYTES = 512 * 1024 * 1024 - 1024;
 
+const toJsonTooLargeError = (filePath, size) => {
+  const err = new Error(
+    `JSON artifact too large to load (${size} bytes): ${filePath}`
+  );
+  err.code = 'ERR_JSON_TOO_LARGE';
+  return err;
+};
+
+const shouldTreatAsTooLarge = (err) => {
+  if (!err) return false;
+  if (err.code === 'ERR_STRING_TOO_LONG') return true;
+  const message = typeof err.message === 'string' ? err.message : '';
+  return message.includes('Invalid string length');
+};
+
 const readBuffer = (targetPath, maxBytes) => {
   const stat = fs.statSync(targetPath);
   if (stat.size > maxBytes) {
-    const err = new Error(
-      `JSON artifact too large to load (${stat.size} bytes): ${targetPath}`
-    );
-    err.code = 'ERR_JSON_TOO_LARGE';
-    throw err;
+    throw toJsonTooLargeError(targetPath, stat.size);
   }
   return fs.readFileSync(targetPath);
 };
@@ -19,13 +30,16 @@ const readBuffer = (targetPath, maxBytes) => {
 export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const parseBuffer = (buffer) => {
     if (buffer.length > maxBytes) {
-      const err = new Error(
-        `JSON artifact too large to load (${buffer.length} bytes): ${filePath}`
-      );
-      err.code = 'ERR_JSON_TOO_LARGE';
+      throw toJsonTooLargeError(filePath, buffer.length);
+    }
+    try {
+      return JSON.parse(buffer.toString('utf8'));
+    } catch (err) {
+      if (shouldTreatAsTooLarge(err)) {
+        throw toJsonTooLargeError(filePath, buffer.length);
+      }
       throw err;
     }
-    return JSON.parse(buffer.toString('utf8'));
   };
   if (fs.existsSync(filePath)) {
     return parseBuffer(readBuffer(filePath, maxBytes));
@@ -42,13 +56,17 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
 export const readJsonLinesArraySync = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const stat = fs.statSync(filePath);
   if (stat.size > maxBytes) {
-    const err = new Error(
-      `JSONL artifact too large to load (${stat.size} bytes): ${filePath}`
-    );
-    err.code = 'ERR_JSON_TOO_LARGE';
+    throw toJsonTooLargeError(filePath, stat.size);
+  }
+  let raw = '';
+  try {
+    raw = fs.readFileSync(filePath, 'utf8');
+  } catch (err) {
+    if (shouldTreatAsTooLarge(err)) {
+      throw toJsonTooLargeError(filePath, stat.size);
+    }
     throw err;
   }
-  const raw = fs.readFileSync(filePath, 'utf8');
   if (!raw.trim()) return [];
   return raw
     .split(/\r?\n/)
