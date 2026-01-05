@@ -1,11 +1,14 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { gunzipSync } from 'node:zlib';
 import { getIndexDir } from '../../tools/dict-utils.js';
 import { buildFilterIndex } from './filter-index.js';
-
-const MAX_JSON_BYTES = 512 * 1024 * 1024 - 1024;
+import {
+  MAX_JSON_BYTES,
+  loadChunkMeta,
+  loadTokenPostings,
+  readJsonFile
+} from '../shared/artifact-io.js';
 
 /**
  * Load file-backed index artifacts from a directory.
@@ -17,38 +20,7 @@ export function loadIndex(dir, options) {
   const { modelIdDefault, fileChargramN } = options || {};
   const readJson = (name) => {
     const filePath = path.join(dir, name);
-    const readBuffer = (targetPath) => {
-      const stat = fsSync.statSync(targetPath);
-      if (stat.size > MAX_JSON_BYTES) {
-        const err = new Error(
-          `Index artifact ${name} is too large for memory backend (${stat.size} bytes).`
-        );
-        err.code = 'ERR_JSON_TOO_LARGE';
-        throw err;
-      }
-      return fsSync.readFileSync(targetPath);
-    };
-    const parseBuffer = (buffer) => {
-      if (buffer.length > MAX_JSON_BYTES) {
-        const err = new Error(
-          `Index artifact ${name} is too large for memory backend (${buffer.length} bytes).`
-        );
-        err.code = 'ERR_JSON_TOO_LARGE';
-        throw err;
-      }
-      return JSON.parse(buffer.toString('utf8'));
-    };
-    if (fsSync.existsSync(filePath)) {
-      return parseBuffer(readBuffer(filePath));
-    }
-    if (name.endsWith('.json')) {
-      const gzPath = `${filePath}.gz`;
-      if (fsSync.existsSync(gzPath)) {
-        const buf = readBuffer(gzPath);
-        return parseBuffer(gunzipSync(buf));
-      }
-    }
-    throw new Error(`Missing index artifact: ${name}`);
+    return readJsonFile(filePath, { maxBytes: MAX_JSON_BYTES });
   };
   const loadOptional = (name) => {
     try {
@@ -62,7 +34,7 @@ export function loadIndex(dir, options) {
       return null;
     }
   };
-  const chunkMeta = readJson('chunk_meta.json');
+  const chunkMeta = loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES });
   const fileMetaRaw = loadOptional('file_meta.json');
   let fileMetaById = null;
   if (Array.isArray(fileMetaRaw)) {
@@ -138,7 +110,7 @@ export function loadIndex(dir, options) {
   }
   idx.filterIndex = buildFilterIndex(chunkMeta, { fileChargramN });
   try {
-    idx.tokenIndex = readJson('token_postings.json');
+    idx.tokenIndex = loadTokenPostings(dir, { maxBytes: MAX_JSON_BYTES });
   } catch {}
   return idx;
 }
@@ -153,10 +125,26 @@ export function loadIndex(dir, options) {
 export function resolveIndexDir(root, mode, userConfig) {
   const cached = getIndexDir(root, mode, userConfig);
   const cachedMeta = path.join(cached, 'chunk_meta.json');
-  if (fsSync.existsSync(cachedMeta)) return cached;
+  const cachedMetaJsonl = path.join(cached, 'chunk_meta.jsonl');
+  const cachedMetaParts = path.join(cached, 'chunk_meta.meta.json');
+  const cachedPartsDir = path.join(cached, 'chunk_meta.parts');
+  if (fsSync.existsSync(cachedMeta)
+    || fsSync.existsSync(cachedMetaJsonl)
+    || fsSync.existsSync(cachedMetaParts)
+    || fsSync.existsSync(cachedPartsDir)) {
+    return cached;
+  }
   const local = path.join(root, `index-${mode}`);
   const localMeta = path.join(local, 'chunk_meta.json');
-  if (fsSync.existsSync(localMeta)) return local;
+  const localMetaJsonl = path.join(local, 'chunk_meta.jsonl');
+  const localMetaParts = path.join(local, 'chunk_meta.meta.json');
+  const localPartsDir = path.join(local, 'chunk_meta.parts');
+  if (fsSync.existsSync(localMeta)
+    || fsSync.existsSync(localMetaJsonl)
+    || fsSync.existsSync(localMetaParts)
+    || fsSync.existsSync(localPartsDir)) {
+    return local;
+  }
   return cached;
 }
 
@@ -170,7 +158,13 @@ export function resolveIndexDir(root, mode, userConfig) {
 export function requireIndexDir(root, mode, userConfig) {
   const dir = resolveIndexDir(root, mode, userConfig);
   const metaPath = path.join(dir, 'chunk_meta.json');
-  if (!fsSync.existsSync(metaPath)) {
+  const metaJsonlPath = path.join(dir, 'chunk_meta.jsonl');
+  const metaPartsPath = path.join(dir, 'chunk_meta.meta.json');
+  const metaPartsDir = path.join(dir, 'chunk_meta.parts');
+  if (!fsSync.existsSync(metaPath)
+    && !fsSync.existsSync(metaJsonlPath)
+    && !fsSync.existsSync(metaPartsPath)
+    && !fsSync.existsSync(metaPartsDir)) {
     const suffix = mode === 'records' ? ' --mode records' : '';
     console.error(`[search] ${mode} index not found at ${dir}. Run "pairofcleats build-index${suffix}" or "npm run build-index${suffix}".`);
     process.exit(1);

@@ -18,14 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 10: Large-Artifact Strategy (status: todo)
-Goal: Make large repos reliable without JSON parse limits.
-Work items:
-- [ ] Add JSONL/sharding for large artifacts (chunk_meta, postings).
-- [ ] Add SQLite-first path for large repos (skip huge JSON artifacts).
-- [ ] Implement auto-selection based on size thresholds and profile overrides.
-- [ ] Add migration and validation logic for mixed formats.
-
 ## Phase 11: Query Intent Classification (status: todo)
 Goal: Improve defaults based on query shape.
 Work items:

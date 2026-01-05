@@ -1,8 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { gunzipSync } from 'node:zlib';
-
-const MAX_JSON_BYTES = 512 * 1024 * 1024 - 1024;
+import {
+  MAX_JSON_BYTES,
+  loadChunkMeta,
+  loadTokenPostings,
+  readJsonFile
+} from '../shared/artifact-io.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -55,37 +58,7 @@ export function normalizeFilePath(value) {
  * @returns {any}
  */
 export function readJson(filePath) {
-  const readBuffer = (targetPath) => {
-    const stat = fs.statSync(targetPath);
-    if (stat.size > MAX_JSON_BYTES) {
-      const err = new Error(
-        `JSON artifact too large to load (${stat.size} bytes): ${targetPath}`
-      );
-      err.code = 'ERR_JSON_TOO_LARGE';
-      throw err;
-    }
-    return fs.readFileSync(targetPath);
-  };
-  const parseBuffer = (buffer) => {
-    if (buffer.length > MAX_JSON_BYTES) {
-      const err = new Error(
-        `JSON artifact too large to load (${buffer.length} bytes): ${filePath}`
-      );
-      err.code = 'ERR_JSON_TOO_LARGE';
-      throw err;
-    }
-    return JSON.parse(buffer.toString('utf8'));
-  };
-  if (fs.existsSync(filePath)) {
-    return parseBuffer(readBuffer(filePath));
-  }
-  if (filePath.endsWith('.json')) {
-    const gzPath = `${filePath}.gz`;
-    if (fs.existsSync(gzPath)) {
-      return parseBuffer(gunzipSync(readBuffer(gzPath)));
-    }
-  }
-  throw new Error(`Missing JSON artifact: ${filePath}`);
+  return readJsonFile(filePath, { maxBytes: MAX_JSON_BYTES });
 }
 
 /**
@@ -118,8 +91,14 @@ export function loadOptional(dir, name) {
  */
 export function loadIndex(dir, modelId) {
   const chunkMetaPath = path.join(dir, 'chunk_meta.json');
-  if (!fs.existsSync(chunkMetaPath)) return null;
-  const chunkMeta = readJson(chunkMetaPath);
+  const chunkMetaJsonlPath = path.join(dir, 'chunk_meta.jsonl');
+  const chunkMetaMetaPath = path.join(dir, 'chunk_meta.meta.json');
+  if (!fs.existsSync(chunkMetaPath)
+    && !fs.existsSync(chunkMetaJsonlPath)
+    && !fs.existsSync(chunkMetaMetaPath)) {
+    return null;
+  }
+  const chunkMeta = loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES });
   const denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
   if (denseVec && !denseVec.model) denseVec.model = modelId || null;
   return {
@@ -129,6 +108,14 @@ export function loadIndex(dir, modelId) {
     phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
     chargrams: loadOptional(dir, 'chargram_postings.json'),
     minhash: loadOptional(dir, 'minhash_signatures.json'),
-    tokenPostings: loadOptional(dir, 'token_postings.json')
+    tokenPostings: (() => {
+      const direct = loadOptional(dir, 'token_postings.json');
+      if (direct) return direct;
+      try {
+        return loadTokenPostings(dir, { maxBytes: MAX_JSON_BYTES });
+      } catch {
+        return null;
+      }
+    })()
   };
 }

@@ -280,6 +280,19 @@
             "keepRaw": { "type": "boolean" }
           }
         },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": { "type": "string" },
+            "chunkMetaFormat": { "type": "string" },
+            "chunkMetaJsonlThreshold": { "type": "number" },
+            "chunkMetaShardSize": { "type": "number" },
+            "tokenPostingsFormat": { "type": "string" },
+            "tokenPostingsShardSize": { "type": "number" },
+            "tokenPostingsShardThreshold": { "type": "number" }
+          }
+        },
         "treeSitter": {
           "type": "object",
           "additionalProperties": false,

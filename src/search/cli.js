@@ -161,20 +161,39 @@ function estimateIndexBytes(indexDir) {
   if (!indexDir || !fsSync.existsSync(indexDir)) return 0;
   const targets = [
     'chunk_meta.json',
+    'chunk_meta.jsonl',
+    'chunk_meta.meta.json',
     'token_postings.json',
+    'token_postings.meta.json',
     'phrase_ngrams.json',
     'chargram_postings.json',
     'dense_vectors_uint8.json'
   ];
-  return targets.reduce((total, name) => {
-    const target = path.join(indexDir, name);
+  const sumFile = (targetPath) => {
     try {
-      const stat = fsSync.statSync(target);
-      return total + stat.size;
+      const stat = fsSync.statSync(targetPath);
+      return stat.size;
     } catch {
-      return total;
+      return 0;
     }
-  }, 0);
+  };
+  let total = 0;
+  for (const name of targets) {
+    total += sumFile(path.join(indexDir, name));
+  }
+  const chunkMetaPartsDir = path.join(indexDir, 'chunk_meta.parts');
+  if (fsSync.existsSync(chunkMetaPartsDir)) {
+    for (const entry of fsSync.readdirSync(chunkMetaPartsDir)) {
+      total += sumFile(path.join(chunkMetaPartsDir, entry));
+    }
+  }
+  const tokenPostingsShardsDir = path.join(indexDir, 'token_postings.shards');
+  if (fsSync.existsSync(tokenPostingsShardsDir)) {
+    for (const entry of fsSync.readdirSync(tokenPostingsShardsDir)) {
+      total += sumFile(path.join(tokenPostingsShardsDir, entry));
+    }
+  }
+  return total;
 }
 function resolveIndexedFileCount(metricsRoot) {
   if (!metricsRoot || !fsSync.existsSync(metricsRoot)) return null;

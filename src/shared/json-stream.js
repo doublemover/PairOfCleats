@@ -36,7 +36,25 @@ const writeArrayItems = async (stream, items) => {
 };
 
 /**
- * Stream a JSON array to disk without holding the full string in memory.
+ * Stream JSON lines to disk (one JSON object per line).
+ * @param {string} filePath
+ * @param {Iterable<any>} items
+ * @param {{trailingNewline?:boolean,compression?:string|null}} [options]
+ * @returns {Promise<void>}
+ */
+export async function writeJsonLinesFile(filePath, items, options = {}) {
+  const { compression = null } = options;
+  const { stream, done } = createJsonWriteStream(filePath, compression);
+  for (const item of items) {
+    const json = JSON.stringify(item === undefined ? null : item);
+    await writeChunk(stream, `${json}\n`);
+  }
+  stream.end();
+  await done;
+}
+
+/**
+ * Stream a JSON array to disk without holding the full string in memory.       
  * @param {string} filePath
  * @param {Iterable<any>} items
  * @param {{trailingNewline?:boolean}} [options]

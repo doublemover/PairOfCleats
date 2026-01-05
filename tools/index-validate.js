@@ -29,10 +29,18 @@ const parseModes = (raw) => {
 const resolveIndexDir = (mode) => {
   const cached = getIndexDir(root, mode, userConfig);
   const cachedMeta = path.join(cached, 'chunk_meta.json');
-  if (fs.existsSync(cachedMeta)) return cached;
+  const cachedMetaJsonl = path.join(cached, 'chunk_meta.jsonl');
+  const cachedMetaParts = path.join(cached, 'chunk_meta.meta.json');
+  if (fs.existsSync(cachedMeta) || fs.existsSync(cachedMetaJsonl) || fs.existsSync(cachedMetaParts)) {
+    return cached;
+  }
   const local = path.join(root, `index-${mode}`);
   const localMeta = path.join(local, 'chunk_meta.json');
-  if (fs.existsSync(localMeta)) return local;
+  const localMetaJsonl = path.join(local, 'chunk_meta.jsonl');
+  const localMetaParts = path.join(local, 'chunk_meta.meta.json');
+  if (fs.existsSync(localMeta) || fs.existsSync(localMetaJsonl) || fs.existsSync(localMetaParts)) {
+    return local;
+  }
   return cached;
 };
 
@@ -46,7 +54,7 @@ const report = {
   warnings: []
 };
 
-const requiredFiles = ['chunk_meta.json', 'token_postings.json'];
+const requiredFiles = ['chunk_meta', 'token_postings'];
 if (postingsConfig.enablePhraseNgrams) requiredFiles.push('phrase_ngrams.json');
 if (postingsConfig.enableChargrams) requiredFiles.push('chargram_postings.json');
 if (postingsConfig.fielded) {
@@ -69,6 +77,19 @@ for (const mode of modes) {
     warnings: []
   };
   const hasArtifact = (file) => {
+    if (file === 'chunk_meta') {
+      const json = path.join(dir, 'chunk_meta.json');
+      const jsonl = path.join(dir, 'chunk_meta.jsonl');
+      const meta = path.join(dir, 'chunk_meta.meta.json');
+      const partsDir = path.join(dir, 'chunk_meta.parts');
+      return fs.existsSync(json) || fs.existsSync(jsonl) || fs.existsSync(meta) || fs.existsSync(partsDir);
+    }
+    if (file === 'token_postings') {
+      const json = path.join(dir, 'token_postings.json');
+      const meta = path.join(dir, 'token_postings.meta.json');
+      const shardsDir = path.join(dir, 'token_postings.shards');
+      return fs.existsSync(json) || fs.existsSync(meta) || fs.existsSync(shardsDir);
+    }
     const filePath = path.join(dir, file);
     if (fs.existsSync(filePath)) return true;
     if (file.endsWith('.json')) {

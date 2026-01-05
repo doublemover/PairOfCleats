@@ -478,6 +478,11 @@ const actions = [
     covers: ['fielded-bm25-test']
   },
   {
+    label: 'artifact-formats-test',
+    run: () => runNode('artifact-formats-test', path.join(root, 'tests', 'artifact-formats.js')),
+    covers: ['artifact-formats-test']
+  },
+  {
     label: 'query-cache-test',
     run: () => runNode('query-cache-test', path.join(root, 'tests', 'query-cache.js')),
     covers: ['query-cache-test']

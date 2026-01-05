@@ -1078,3 +1078,9 @@ Work items:
 - [x] Expanded SQLite FTS schema to include `signature` and `doc` columns and updated builds/compaction.
 - [x] Added fielded BM25 tests and script coverage entries.
 - [x] Updated search/config docs and SQLite schema documentation.
+
+## Phase 10: Large-Artifact Strategy (status: done)
+- [x] Added JSONL chunk metadata and sharded token postings formats for large artifacts.
+- [x] Wired loaders/validators to accept mixed formats (json/jsonl/shards) with cache signatures and status checks.
+- [x] Added artifact format config in schema and documented large artifact handling.
+- [x] Added artifact format test coverage and ensured index size checks include shards.
