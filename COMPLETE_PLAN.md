@@ -18,13 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 5: Core Library API (status: todo)
-Goal: Expose a shared library surface for indexing and search.
-Work items:
-- [ ] Add `buildIndex(repoRoot, options)`, `search(repoRoot, params)`, `buildSqliteIndex(repoRoot, options)`, `status(repoRoot)`.
-- [ ] Refactor CLI tools to call the core API.
-- [ ] Add unit tests for the core API surface.
-
 ## Phase 6: In-Process API + MCP Servers (status: todo)
 Goal: Remove per-request process spawning and keep indexes loaded.
 Work items:
@@ -136,4 +129,5 @@ Notes (current failures to triage):
 - [ ] bench-language:matrix sqlite/sqlite-fts backends: perl/mojolicious/mojo build failed with ERR_STRING_TOO_LONG while reading JSON for sqlite build (src/sqlite/utils.js:57, tools/build-sqlite-index.js:90).
 - [ ] bench-language:matrix sqlite-fts-auto-headline: php/composer/composer failed due to missing export getKotlinFileStats from src/lang/kotlin.js (language-registry import error).
 - [ ] bench-language:matrix sqlite-fts-auto-balanced: kotlin/Kotlin/kotlinx.coroutines crashed with exit code 3221226505 (native crash; no JS stack in log).
+
 

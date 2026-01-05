@@ -593,6 +593,11 @@ const actions = [
     covers: ['chargram-guardrails-test']
   },
   {
+    label: 'core-api-test',
+    run: () => runNode('core-api-test', path.join(root, 'tests', 'core-api.js')),
+    covers: ['core-api-test']
+  },
+  {
     label: 'typescript-parser-selection-test',
     run: () => runNode('typescript-parser-selection-test', path.join(root, 'tests', 'typescript-parser-selection.js')),
     covers: ['typescript-parser-selection-test']

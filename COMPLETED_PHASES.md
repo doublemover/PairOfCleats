@@ -1047,3 +1047,8 @@ Work items:
 - [x] Added adaptive DP max length based on repo file counts (configurable).
 - [x] Added chargram guardrails (token length cap + high-signal field sources).
 - [x] Added tests for adaptive segmentation and chargram caps.
+
+## Phase 5: Core Library API (status: done)
+- [x] Added core API for build/search/status/sqlite index.
+- [x] Refactored CLI entrypoints to call the core API.
+- [x] Added core API documentation and tests.

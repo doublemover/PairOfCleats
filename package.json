@@ -115,6 +115,7 @@
     "backend-policy-test": "node tests/backend-policy.js",
     "dict-adaptive-test": "node tests/dict-adaptive.js",
     "chargram-guardrails-test": "node tests/chargram-guardrails.js",
+    "core-api-test": "node tests/core-api.js",
     "typescript-parser-selection-test": "node tests/typescript-parser-selection.js",
     "cli-test": "node tests/cli.js",
     "type-inference-crossfile-test": "node tests/type-inference-crossfile.js",

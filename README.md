@@ -66,6 +66,7 @@ PairOfCleats combines the strengths:
 - Cache is outside the repo by default; set `cache.root` in `.pairofcleats.json` to override.
 - CLI commands auto-detect repo roots; use `--repo <path>` to override.
 - Local CLI entrypoint: `node bin/pairofcleats.js <command>` (mirrors `npm run` scripts).
+- Core library API: [docs/core-api.md](docs/core-api.md)
 
 ### Install
 ```bash

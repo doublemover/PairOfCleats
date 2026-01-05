@@ -8,6 +8,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import simpleGit from 'simple-git';
 import {
   applyAdaptiveDictConfig,
@@ -37,13 +38,21 @@ import { normalizePostingsConfig } from '../shared/postings-config.js';
 import { createSqliteHelpers } from './sqlite-helpers.js';
 import { createSearchPipeline } from './pipeline.js';
 
-const rawArgs = process.argv.slice(2);
-const argv = parseSearchArgs(rawArgs);
-const t0 = Date.now();
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
-const ROOT = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(ROOT);
-const cacheConfig = getCacheRuntimeConfig(ROOT, userConfig);
+export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
+  const argv = parseSearchArgs(rawArgs);
+  const emitOutput = options.emitOutput !== false;
+  const exitOnError = options.exitOnError !== false;
+  const t0 = Date.now();
+  const rootOverride = options.root ? path.resolve(options.root) : null;
+  const rootArg = rootOverride || (argv.repo ? path.resolve(argv.repo) : null);
+  const ROOT = rootArg || resolveRepoRoot(process.cwd());
+  const userConfig = loadUserConfig(ROOT);
+  const bail = (message, code = 1) => {
+    if (emitOutput && message) console.error(message);
+    if (exitOnError) process.exit(code);
+    throw new Error(message || 'Search failed.');
+  };
+  const cacheConfig = getCacheRuntimeConfig(ROOT, userConfig);
 const verboseCache = process.env.PAIROFCLEATS_VERBOSE === '1';
 const cacheLog = verboseCache ? (msg) => process.stderr.write(`\n${msg}\n`) : null;
 configureOutputCaches({ cacheConfig, verbose: verboseCache, log: cacheLog });
@@ -88,8 +97,7 @@ const metricsDir = getMetricsDir(ROOT, userConfig);
 const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
 const query = argv._.join(' ').trim();
 if (!query) {
-  console.error(getSearchUsage());
-  process.exit(1);
+  return bail(getSearchUsage());
 }
 const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
 const searchType = argv.type || null;
@@ -100,8 +108,7 @@ let searchModeInfo;
 try {
   searchModeInfo = resolveSearchMode(argv.mode);
 } catch (err) {
-  console.error(err.message);
-  process.exit(1);
+  return bail(err.message);
 }
 const { searchMode, runCode, runProse, runRecords } = searchModeInfo;
 const branchesMin = Number.isFinite(Number(argv.branches)) ? Number(argv.branches) : null;
@@ -112,15 +119,13 @@ let churnMin = null;
 try {
   churnMin = parseChurnArg(argv.churn);
 } catch (err) {
-  console.error(err.message);
-  process.exit(1);
+  return bail(err.message);
 }
 let modifiedArgs;
 try {
   modifiedArgs = parseModifiedArgs(argv['modified-after'], argv['modified-since']);
 } catch (err) {
-  console.error(err.message);
-  process.exit(1);
+  return bail(err.message);
 }
 const modifiedAfter = modifiedArgs.modifiedAfter;
 const modifiedSinceDays = modifiedArgs.modifiedSinceDays;
@@ -261,8 +266,7 @@ if (backendPolicy.error) {
   if (needsCode && !sqliteCodeAvailable) missing.push(`code=${sqliteCodePath}`);
   if (needsProse && !sqliteProseAvailable) missing.push(`prose=${sqliteProsePath}`);
   const suffix = missing.length ? missing.join(', ') : 'missing sqlite index';
-  console.error(`${backendPolicy.error} (${suffix}).`);
-  process.exit(1);
+  return bail(`${backendPolicy.error} (${suffix}).`);
 }
 if (!needsSqlite && backendPolicy.backendForcedSqlite) {
   console.warn('SQLite backend requested, but records-only mode selected; using file-backed records index.');
@@ -339,12 +343,14 @@ if (branchFilter) {
         backendPolicy: backendPolicyInfo
       }
     };
-    if (jsonOutput) {
-      console.log(JSON.stringify(payload, null, 2));
-    } else {
-      console.log(`Branch filter ${branchFilter} did not match current branch ${repoBranch}; returning no results.`);
+    if (emitOutput) {
+      if (jsonOutput) {
+        console.log(JSON.stringify(payload, null, 2));
+      } else {
+        console.log(`Branch filter ${branchFilter} did not match current branch ${repoBranch}; returning no results.`);
+      }
     }
-    process.exit(0);
+    return payload;
   }
   if (!repoBranch) {
     console.warn('Branch filter requested but repo branch is unavailable; continuing without branch validation.');
@@ -651,7 +657,7 @@ function compactHit(hit, includeExplain = false) {
 
 
 // --- MAIN ---
-(async () => {
+return await (async () => {
   let cacheHit = false;
   let cacheKey = null;
   let cacheSignature = null;
@@ -757,53 +763,53 @@ function compactHit(hit, includeExplain = false) {
     ? 'sqlite-extension'
     : 'js';
 
-  // Output
-  if (jsonOutput) {
-    // Full JSON
-    const memory = process.memoryUsage();
-    console.log(JSON.stringify({
-      backend: backendLabel,
-      prose: jsonCompact ? proseHits.map((hit) => compactHit(hit, explain)) : proseHits,
-      code: jsonCompact ? codeHits.map((hit) => compactHit(hit, explain)) : codeHits,
-      records: jsonCompact ? recordHits.map((hit) => compactHit(hit, explain)) : recordHits,
-      stats: {
-        elapsedMs: Date.now() - t0,
-        annEnabled,
-        annActive,
-        annMode: vectorExtension.annMode,
-        annBackend,
-        backendPolicy: backendPolicyInfo,
-        annExtension: vectorAnnEnabled ? {
-          provider: vectorExtension.provider,
-          table: vectorExtension.table,
-          available: {
-            code: vectorAnnState.code.available,
-            prose: vectorAnnState.prose.available,
-            records: vectorAnnState.records.available
-          }
-        } : null,
-        models: {
-          code: modelIdForCode,
-          prose: modelIdForProse,
-          records: modelIdForRecords
-        },
-        cache: {
-          enabled: queryCacheEnabled,
-          hit: cacheHit,
-          key: cacheKey
-        },
-        memory: {
-          rss: memory.rss,
-          heapTotal: memory.heapTotal,
-          heapUsed: memory.heapUsed,
-          external: memory.external,
-          arrayBuffers: memory.arrayBuffers
+  const memory = process.memoryUsage();
+  const payload = {
+    backend: backendLabel,
+    prose: jsonCompact ? proseHits.map((hit) => compactHit(hit, explain)) : proseHits,
+    code: jsonCompact ? codeHits.map((hit) => compactHit(hit, explain)) : codeHits,
+    records: jsonCompact ? recordHits.map((hit) => compactHit(hit, explain)) : recordHits,
+    stats: {
+      elapsedMs: Date.now() - t0,
+      annEnabled,
+      annActive,
+      annMode: vectorExtension.annMode,
+      annBackend,
+      backendPolicy: backendPolicyInfo,
+      annExtension: vectorAnnEnabled ? {
+        provider: vectorExtension.provider,
+        table: vectorExtension.table,
+        available: {
+          code: vectorAnnState.code.available,
+          prose: vectorAnnState.prose.available,
+          records: vectorAnnState.records.available
         }
+      } : null,
+      models: {
+        code: modelIdForCode,
+        prose: modelIdForProse,
+        records: modelIdForRecords
+      },
+      cache: {
+        enabled: queryCacheEnabled,
+        hit: cacheHit,
+        key: cacheKey
+      },
+      memory: {
+        rss: memory.rss,
+        heapTotal: memory.heapTotal,
+        heapUsed: memory.heapUsed,
+        external: memory.external,
+        arrayBuffers: memory.arrayBuffers
       }
-    }, null, 2));
+    }
+  };
+
+  if (emitOutput && jsonOutput) {
+    console.log(JSON.stringify(payload, null, 2));
   }
 
-  if (!jsonOutput) {
+  if (emitOutput && !jsonOutput) {
     let showProse = runProse ? argv.n : 0;
     let showCode = runCode ? argv.n : 0;
     let showRecords = runRecords ? argv.n : 0;
@@ -946,7 +952,7 @@ function compactHit(hit, includeExplain = false) {
   }
 
   const outputCacheReporter = getOutputCacheReporter();
-  if (verboseCache && outputCacheReporter) {
+  if (emitOutput && verboseCache && outputCacheReporter) {
     outputCacheReporter.report();
   }
 
@@ -1020,4 +1026,13 @@ function compactHit(hit, includeExplain = false) {
       await fs.writeFile(queryCachePath, JSON.stringify(cacheData, null, 2));
     } catch {}
   }
+  return payload;
 })();
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  runSearchCli().catch((err) => {
+    console.error(err?.message || err);
+    process.exit(1);
+  });
+}

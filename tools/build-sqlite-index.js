@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
 import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
@@ -12,28 +13,35 @@ import { loadIncrementalManifest } from '../src/sqlite/incremental.js';
 import { chunkArray, hasRequiredTables, loadIndex, normalizeFilePath, readJson } from '../src/sqlite/utils.js';
 import { dequantizeUint8ToFloat32, packUint32, packUint8, quantizeVec, toVectorId } from '../src/sqlite/vector.js';
 
-let Database;
+let Database = null;
 try {
   ({ default: Database } = await import('better-sqlite3'));
-} catch (err) {
-  console.error('better-sqlite3 is required. Run npm install first.');
-  process.exit(1);
-}
+} catch {}
 
-const argv = createCli({
-  scriptName: 'build-sqlite-index',
-  options: {
-    'code-dir': { type: 'string' },
-    'prose-dir': { type: 'string' },
-    out: { type: 'string' },
-    mode: { type: 'string', default: 'all' },
-    repo: { type: 'string' },
-    incremental: { type: 'boolean', default: false },
-    compact: { type: 'boolean', default: false }
-  }
-}).parse();
+export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), options = {}) {
+  const emitOutput = options.emitOutput !== false;
+  const exitOnError = options.exitOnError !== false;
+  const argv = createCli({
+    scriptName: 'build-sqlite-index',
+    argv: ['node', 'build-sqlite-index.js', ...rawArgs],
+    options: {
+      'code-dir': { type: 'string' },
+      'prose-dir': { type: 'string' },
+      out: { type: 'string' },
+      mode: { type: 'string', default: 'all' },
+      repo: { type: 'string' },
+      incremental: { type: 'boolean', default: false },
+      compact: { type: 'boolean', default: false }
+    }
+  }).parse();
+  const bail = (message, code = 1) => {
+    if (emitOutput && message) console.error(message);
+    if (exitOnError) process.exit(code);
+    throw new Error(message || 'SQLite index build failed.');
+  };
+  if (!Database) return bail('better-sqlite3 is required. Run npm install first.');
 
-const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+const rootArg = options.root ? path.resolve(options.root) : (argv.repo ? path.resolve(argv.repo) : null);
 const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
 const modelConfig = getModelConfig(root, userConfig);
@@ -56,8 +64,7 @@ const incrementalRequested = argv.incremental === true;
 
 const modeArg = (argv.mode || 'all').toLowerCase();
 if (!['all', 'code', 'prose'].includes(modeArg)) {
-  console.error('Invalid mode. Use --mode all|code|prose');
-  process.exit(1);
+  return bail('Invalid mode. Use --mode all|code|prose');
 }
 
 const outArg = argv.out ? path.resolve(argv.out) : null;
@@ -104,8 +111,7 @@ const { index: proseIndex, tooLarge: proseIndexTooLarge } = loadIndexSafe(proseD
 const incrementalCode = loadIncrementalManifest(repoCacheRoot, 'code');
 const incrementalProse = loadIncrementalManifest(repoCacheRoot, 'prose');
 if (!codeIndex && !proseIndex && !incrementalCode?.manifest && !incrementalProse?.manifest) {
-  console.error('No index found. Build index-code/index-prose first.');
-  process.exit(1);
+  return bail('No index found. Build index-code/index-prose first.');
 }
 
 if (sqlitePaths.legacyExists) {
@@ -120,12 +126,10 @@ if (sqlitePaths.legacyExists) {
 const canIncrementalCode = incrementalRequested && incrementalCode?.manifest;
 const canIncrementalProse = incrementalRequested && incrementalProse?.manifest;
 if (modeArg === 'code' && !codeIndex && !incrementalCode?.manifest) {
-  console.error('Code index missing; build index-code first.');
-  process.exit(1);
+  return bail('Code index missing; build index-code first.');
 }
 if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
-  console.error('Prose index missing; build index-prose first.');
-  process.exit(1);
+  return bail('Prose index missing; build index-prose first.');
 }
 
 
@@ -1395,4 +1399,22 @@ if (modeArg === 'all') {
   } else {
     console.log(`SQLite ${modeArg} index built at ${outPath}. ${modeArg}=${result?.count || 0}`);
   }
+}
+
+return {
+  mode: modeArg,
+  results,
+  paths: {
+    code: codeOutPath,
+    prose: proseOutPath,
+    out: outPath
+  }
+};
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  runBuildSqliteIndex().catch((err) => {
+    console.error(err?.message || err);
+    process.exit(1);
+  });
 }
