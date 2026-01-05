@@ -1,6 +1,6 @@
 # Language benchmarks
 
-Use the language benchmark harness to run search and performance baselines across large and typical repos. It reads `benchmarks/repos.json` for repo lists and `benchmarks/queries/*.txt` for per-language queries.
+Use the language benchmark harness to run search and performance baselines across large and typical repos. It reads `benchmarks/repos.json` for repo lists and `benchmarks/queries/*.txt` for per-language queries. For microbench definitions and warm/cold timing conventions, see `docs/benchmarks.md`.
 
 ## Requirements
 - GitHub CLI (`gh`) or `git` for cloning (authenticated if needed).

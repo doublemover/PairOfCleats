@@ -691,6 +691,7 @@ markSkipped('bench-ann', 'benchmarks are long-running');
 markSkipped('bench-dict-seg', 'benchmarks are long-running');
 markSkipped('bench-score-strategy', 'benchmarks are long-running');
 markSkipped('bench-compare-models', 'benchmarks are long-running');
+markSkipped('bench-micro', 'benchmarks are long-running');
 markSkipped('compare-models', 'benchmark/perf evaluation');
 markSkipped('type-inference-crossfile-test', 'temporarily gated (hangs in script-coverage)');
 markSkipped('type-inference-lsp-enrichment-test', 'temporarily gated (ERR_STREAM_DESTROYED)');

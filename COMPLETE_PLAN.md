@@ -18,14 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 17: Benchmarks and Performance Methodology (status: todo)
-Goal: Standardize performance evaluation.
-Work items:
-- [ ] Add microbench suite under `tools/bench/micro/` with p50/p95 reporting.
-- [ ] Add component benchmarks (index build without embeddings, dense-only, sparse-only, hybrid).
-- [ ] Add warm/cold run definitions and reporting.
-- [ ] Document benchmark methodology and expected runtime.
-
 ## Phase 18: Typical Repo Benchmark Matrix (status: todo)
 Goal: Run typical-size repo benchmarks across configurations and summarize performance.
 Work items:

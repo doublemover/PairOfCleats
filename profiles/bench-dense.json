@@ -1,0 +1,10 @@
+{
+  "search": {
+    "annDefault": true,
+    "scoreBlend": {
+      "enabled": true,
+      "sparseWeight": 0,
+      "annWeight": 1
+    }
+  }
+}

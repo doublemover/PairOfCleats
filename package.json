@@ -76,6 +76,7 @@
     "bench-dict-seg": "node tools/bench-dict-seg.js",
     "bench-score-strategy": "node tools/bench-score-strategy.js",
     "bench-compare-models": "node tools/bench-compare-models.js",
+    "bench-micro": "node tools/bench/micro/run.js",
     "bench-language": "node tools/bench-language-repos.js",
     "bench-language:matrix": "node tools/bench-language-matrix.js",
     "bench-language:build": "node tools/bench-language-repos.js --build",

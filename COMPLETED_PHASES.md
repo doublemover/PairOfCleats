@@ -1120,3 +1120,12 @@ Work items:
 - [x] Move experimental features under `src/experimental/` and gate behind `profile=full`.
 - [x] Update imports/tests/docs for new module boundaries.
 
+
+## Phase 17: Benchmarks and Performance Methodology (status: done)
+Goal: Standardize performance evaluation.
+Work items:
+- [x] Add microbench suite under `tools/bench/micro/` with p50/p95 reporting.
+- [x] Add component benchmarks (index build without embeddings, dense-only, sparse-only, hybrid).
+- [x] Add warm/cold run definitions and reporting.
+- [x] Document benchmark methodology and expected runtime.
+

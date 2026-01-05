@@ -35,6 +35,7 @@ const COMMANDS = new Map([
   ['lsif-ingest', { script: 'tools/lsif-ingest.js', extraArgs: [] }],
   ['gtags-ingest', { script: 'tools/gtags-ingest.js', extraArgs: [] }],
   ['structural-search', { script: 'tools/structural-search.js', extraArgs: [] }],
+  ['bench-micro', { script: 'tools/bench/micro/run.js', extraArgs: [] }],
   ['bench-language', { script: 'tools/bench-language-repos.js', extraArgs: [] }],
   ['bench-language-matrix', { script: 'tools/bench-language-matrix.js', extraArgs: [] }],
   ['repometrics-dashboard', { script: 'tools/repometrics-dashboard.js', extraArgs: [] }],
@@ -192,6 +193,7 @@ Assets + tooling:
   lsif-ingest              Ingest LSIF dumps
   gtags-ingest             Ingest GNU Global dumps
   structural-search        Run structural rule packs
+  bench-micro              Run microbench suite
   bench-language           Run language benchmark suite
   bench-language-matrix    Run language/config benchmark matrix
 

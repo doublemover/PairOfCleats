@@ -46,6 +46,7 @@ Experimental commands require `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
 - `pairofcleats eval-run`
 
 ## Benchmarks
+- `pairofcleats bench-micro`
 - `pairofcleats bench-language`
 - `pairofcleats bench-language-matrix`
 
