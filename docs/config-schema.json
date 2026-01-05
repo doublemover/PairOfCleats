@@ -206,6 +206,20 @@
             "body": { "type": "number" }
           }
         },
+        "contextExpansion": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "maxPerHit": { "type": "number" },
+            "maxTotal": { "type": "number" },
+            "includeCalls": { "type": "boolean" },
+            "includeImports": { "type": "boolean" },
+            "includeExports": { "type": "boolean" },
+            "includeUsages": { "type": "boolean" },
+            "respectFilters": { "type": "boolean" }
+          }
+        },
         "rrf": {
           "type": "object",
           "additionalProperties": false,

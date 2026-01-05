@@ -18,14 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 12: Graph-Aware Context Expansion (status: todo)
-Goal: Return richer context around top hits for agent workflows.
-Work items:
-- [ ] Add a context expansion step using call/import relations and repo map.
-- [ ] Return primary hits plus labeled context hits.
-- [ ] Add filters/limits to control expansion size.
-- [ ] Add tests for context expansion behavior.
-
 ## Phase 13: Structural Search Integration (status: todo)
 Goal: Persist structural matches as index metadata and expose filters.
 Work items:

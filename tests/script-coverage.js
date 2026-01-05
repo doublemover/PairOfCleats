@@ -488,6 +488,11 @@ const actions = [
     covers: ['query-intent-test']
   },
   {
+    label: 'context-expansion-test',
+    run: () => runNode('context-expansion-test', path.join(root, 'tests', 'context-expansion.js')),
+    covers: ['context-expansion-test']
+  },
+  {
     label: 'query-cache-test',
     run: () => runNode('query-cache-test', path.join(root, 'tests', 'query-cache.js')),
     covers: ['query-cache-test']

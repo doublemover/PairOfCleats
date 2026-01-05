@@ -66,6 +66,7 @@ export function loadIndex(dir, options) {
     }
   }
   const fileRelationsRaw = loadOptional('file_relations.json');
+  const repoMap = loadOptional('repo_map.json');
   let fileRelations = null;
   if (Array.isArray(fileRelationsRaw)) {
     const map = new Map();
@@ -86,6 +87,7 @@ export function loadIndex(dir, options) {
   const idx = {
     chunkMeta,
     fileRelations,
+    repoMap,
     denseVec,
     denseVecDoc,
     denseVecCode,

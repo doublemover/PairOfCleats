@@ -32,10 +32,11 @@ import { resolveFtsWeights } from './fts.js';
 import { getQueryEmbedding } from './embedding.js';
 import { loadQueryCache, parseJson, pruneQueryCache } from './query-cache.js';
 import { hasActiveFilters, mergeExtFilters, normalizeExtFilter, normalizeLangFilter, parseMetaFilters } from './filters.js';
-import { configureOutputCaches, formatFullChunk, formatShortChunk, getOutputCacheReporter } from './output.js';
+import { configureOutputCaches, filterChunks, formatFullChunk, formatShortChunk, getOutputCacheReporter } from './output.js';
 import { parseChurnArg, parseModifiedArgs, parseQueryInput, tokenizePhrase, tokenizeQueryTerms, buildPhraseNgrams } from './query-parse.js';
 import { classifyQuery, resolveIntentFieldWeights, resolveIntentVectorMode } from './query-intent.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
+import { expandContext } from './context-expansion.js';
 import { createSqliteHelpers } from './sqlite-helpers.js';
 import { createSearchPipeline } from './pipeline.js';
 import { loadIndexWithCache } from './index-cache.js';
@@ -81,6 +82,17 @@ const rrfConfig = userConfig.search?.rrf || {};
 const rrfEnabled = rrfConfig.enabled !== false;
 const rrfK = Number.isFinite(Number(rrfConfig.k)) ? Math.max(1, Number(rrfConfig.k)) : 60;
 const fieldWeightsConfig = userConfig.search?.fieldWeights;
+const contextExpansionConfig = userConfig.search?.contextExpansion || {};
+const contextExpansionEnabled = contextExpansionConfig.enabled === true;
+const contextExpansionOptions = {
+  maxPerHit: contextExpansionConfig.maxPerHit,
+  maxTotal: contextExpansionConfig.maxTotal,
+  includeCalls: contextExpansionConfig.includeCalls,
+  includeImports: contextExpansionConfig.includeImports,
+  includeExports: contextExpansionConfig.includeExports,
+  includeUsages: contextExpansionConfig.includeUsages
+};
+const contextExpansionRespectFilters = contextExpansionConfig.respectFilters !== false;
 const sqliteFtsNormalize = userConfig.search?.sqliteFtsNormalize === true;
 const sqliteFtsProfile = (argv['fts-profile'] || process.env.PAIROFCLEATS_FTS_PROFILE || userConfig.search?.sqliteFtsProfile || 'balanced').toLowerCase();
 let sqliteFtsWeightsConfig = userConfig.search?.sqliteFtsWeights || null;
@@ -586,6 +598,7 @@ const cacheFilters = {
   modifiedSinceDays
 };
 const sqliteLazyChunks = sqliteFtsRequested && !filtersActive;
+const sqliteContextChunks = contextExpansionEnabled ? true : !sqliteLazyChunks;
 const proseDir = runProse && !useSqlite ? requireIndexDir(ROOT, 'prose', userConfig) : null;
 const codeDir = runCode && !useSqlite ? requireIndexDir(ROOT, 'code', userConfig) : null;
 const recordsDir = runRecords ? requireIndexDir(ROOT, 'records', userConfig) : null;
@@ -599,7 +612,7 @@ const idxProse = runProse
   ? (useSqlite ? loadIndexFromSqlite('prose', {
     includeDense: annActive,
     includeMinhash: annActive,
-    includeChunks: !sqliteLazyChunks,
+    includeChunks: sqliteContextChunks,
     includeFilterIndex: filtersActive
   }) : loadIndexCached(proseDir))
   : { chunkMeta: [], denseVec: null, minhash: null };
@@ -607,7 +620,7 @@ const idxCode = runCode
   ? (useSqlite ? loadIndexFromSqlite('code', {
     includeDense: annActive,
     includeMinhash: annActive,
-    includeChunks: !sqliteLazyChunks,
+    includeChunks: sqliteContextChunks,
     includeFilterIndex: filtersActive
   }) : loadIndexCached(codeDir))
   : { chunkMeta: [], denseVec: null, minhash: null };
@@ -641,16 +654,33 @@ const loadFileRelations = (mode) => {
     return null;
   }
 };
+const loadRepoMap = (mode) => {
+  try {
+    const dir = resolveIndexDir(ROOT, mode, userConfig);
+    const mapPath = path.join(dir, 'repo_map.json');
+    if (!fsSync.existsSync(mapPath)) return null;
+    const raw = JSON.parse(fsSync.readFileSync(mapPath, 'utf8'));
+    return Array.isArray(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+};
 if (runCode) {
   idxCode.denseVec = resolveDenseVector(idxCode, 'code');
   if (useSqlite && !idxCode.fileRelations) {
     idxCode.fileRelations = loadFileRelations('code');
+  }
+  if (useSqlite && !idxCode.repoMap) {
+    idxCode.repoMap = loadRepoMap('code');
   }
 }
 if (runProse) {
   idxProse.denseVec = resolveDenseVector(idxProse, 'prose');
   if (useSqlite && !idxProse.fileRelations) {
     idxProse.fileRelations = loadFileRelations('prose');
+  }
+  if (useSqlite && !idxProse.repoMap) {
+    idxProse.repoMap = loadRepoMap('prose');
   }
 }
 modelIdForCode = runCode ? (idxCode?.denseVec?.model || modelIdDefault) : null;
@@ -722,7 +752,8 @@ function compactHit(hit, includeExplain = false) {
     'sparseType',
     'annScore',
     'annSource',
-    'annType'
+    'annType',
+    'context'
   ];
   for (const field of fields) {
     if (hit[field] !== undefined) compact[field] = hit[field];
@@ -778,6 +809,16 @@ return await (async () => {
         code: modelIdForCode,
         prose: modelIdForProse,
         records: modelIdForRecords
+      },
+      contextExpansion: {
+        enabled: contextExpansionEnabled,
+        maxPerHit: contextExpansionOptions.maxPerHit || null,
+        maxTotal: contextExpansionOptions.maxTotal || null,
+        includeCalls: contextExpansionOptions.includeCalls !== false,
+        includeImports: contextExpansionOptions.includeImports !== false,
+        includeExports: contextExpansionOptions.includeExports === true,
+        includeUsages: contextExpansionOptions.includeUsages === true,
+        respectFilters: contextExpansionRespectFilters
       },
       filters: cacheFilters
     });
@@ -839,6 +880,39 @@ return await (async () => {
   const recordHits = cacheHit && cachedPayload
     ? (cachedPayload.records || [])
     : (runRecords ? searchPipeline(idxRecords, 'records', queryEmbeddingRecords) : []);
+  const contextExpansionStats = {
+    enabled: contextExpansionEnabled,
+    code: 0,
+    prose: 0,
+    records: 0
+  };
+  const expandModeHits = (mode, idx, hits) => {
+    if (!contextExpansionEnabled || !hits.length || !idx?.chunkMeta?.length) {
+      return { hits, contextHits: [] };
+    }
+    const allowedIds = contextExpansionRespectFilters && filtersActive
+      ? new Set(
+        filterChunks(idx.chunkMeta, filters, idx.filterIndex, idx.fileRelations)
+          .map((chunk) => chunk.id)
+      )
+      : null;
+    const contextHits = expandContext({
+      hits,
+      chunkMeta: idx.chunkMeta,
+      fileRelations: idx.fileRelations,
+      repoMap: idx.repoMap,
+      options: contextExpansionOptions,
+      allowedIds
+    });
+    contextExpansionStats[mode] = contextHits.length;
+    return { hits: hits.concat(contextHits), contextHits };
+  };
+  const proseExpanded = runProse ? expandModeHits('prose', idxProse, proseHits) : { hits: proseHits, contextHits: [] };
+  const codeExpanded = runCode ? expandModeHits('code', idxCode, codeHits) : { hits: codeHits, contextHits: [] };
+  const recordExpanded = runRecords ? expandModeHits('records', idxRecords, recordHits) : { hits: recordHits, contextHits: [] };
+  const proseHitsFinal = proseExpanded.hits;
+  const codeHitsFinal = codeExpanded.hits;
+  const recordHitsFinal = recordExpanded.hits;
   const annBackend = vectorAnnEnabled && (vectorAnnUsed.code || vectorAnnUsed.prose)
     ? 'sqlite-extension'
     : 'js';
@@ -846,9 +920,9 @@ return await (async () => {
   const memory = process.memoryUsage();
   const payload = {
     backend: backendLabel,
-    prose: jsonCompact ? proseHits.map((hit) => compactHit(hit, explain)) : proseHits,
-    code: jsonCompact ? codeHits.map((hit) => compactHit(hit, explain)) : codeHits,
-    records: jsonCompact ? recordHits.map((hit) => compactHit(hit, explain)) : recordHits,
+    prose: jsonCompact ? proseHitsFinal.map((hit) => compactHit(hit, explain)) : proseHitsFinal,
+    code: jsonCompact ? codeHitsFinal.map((hit) => compactHit(hit, explain)) : codeHitsFinal,
+    records: jsonCompact ? recordHitsFinal.map((hit) => compactHit(hit, explain)) : recordHitsFinal,
     stats: {
       elapsedMs: Date.now() - t0,
       annEnabled,
@@ -890,6 +964,7 @@ return await (async () => {
       denseVectorMode: resolvedDenseVectorMode,
       fieldWeights
     };
+    payload.stats.contextExpansion = contextExpansionStats;
   }
 
   if (emitOutput && jsonOutput) {
@@ -909,12 +984,17 @@ return await (async () => {
       showProse += showCode;
     }
   }
+  if (contextExpansionEnabled) {
+    showProse += proseExpanded.contextHits.length;
+    showCode += codeExpanded.contextHits.length;
+    showRecords += recordExpanded.contextHits.length;
+  }
 
   // Human output, enhanced formatting and summaries
   if (runProse) {
     console.log(color.bold(`\n===== 📖 Markdown Results (${backendLabel}) =====`));
     const summaryState = { lastCount: 0 };
-    proseHits.slice(0, showProse).forEach((h, i) => {
+    proseHitsFinal.slice(0, showProse).forEach((h, i) => {
       if (i < 2) {
         process.stdout.write(formatFullChunk({
           chunk: h,
@@ -951,7 +1031,7 @@ return await (async () => {
   if (runCode) {
     console.log(color.bold(`===== 🔨 Code Results (${backendLabel}) =====`));
     const summaryState = { lastCount: 0 };
-    codeHits.slice(0, showCode).forEach((h, i) => {
+    codeHitsFinal.slice(0, showCode).forEach((h, i) => {
       if (i < 1) {
         process.stdout.write(formatFullChunk({
           chunk: h,
@@ -987,7 +1067,7 @@ return await (async () => {
 
   if (runRecords) {
     console.log(color.bold(`===== 🧾 Records Results (${backendLabel}) =====`));
-    recordHits.slice(0, showRecords).forEach((h, i) => {
+    recordHitsFinal.slice(0, showRecords).forEach((h, i) => {
       if (i < 2) {
         process.stdout.write(formatFullChunk({
           chunk: h,

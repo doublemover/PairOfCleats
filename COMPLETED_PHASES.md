@@ -1089,3 +1089,9 @@ Work items:
 - [x] Added query intent classifier (code/prose/path/mixed) with explain details.
 - [x] Applied intent to `denseVectorMode=auto` selection and default field weights.
 - [x] Added query intent unit tests and documentation updates.
+
+## Phase 12: Graph-Aware Context Expansion (status: done)
+- [x] Added context expansion pipeline using call/import/usage relations plus repo map lookup.
+- [x] Appended labeled context hits (`scoreType: "context"`, `context.sourceId`, `context.reason`) to result lists.
+- [x] Added config knobs for limits and relation toggles (`search.contextExpansion.*`).
+- [x] Added context expansion tests and documentation updates.

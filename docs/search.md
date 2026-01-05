@@ -35,11 +35,16 @@ When both sparse and dense lists are available, results are fused using Reciproc
 
 Queries are classified as `code`, `prose`, `path`, or `mixed` based on lightweight heuristics (symbols, camel/snake case, paths, and word count). Intent is used when `search.denseVectorMode=auto` to choose doc vs code vectors, and to select default field weights. Use `--explain` to see the intent decision in the JSON payload.
 
+## Context expansion
+
+When enabled, the search pipeline can append related chunks (calls/imports/usages) after primary hits. Context hits are labeled with a `context` object (`sourceId`, `reason`) and have `scoreType: "context"`. Use `search.contextExpansion.*` to control limits and relation types, and `respectFilters` to keep expansions inside the active filters.
+
 Configuration:
 - `search.rrf.enabled` (default: true)
 - `search.rrf.k` (default: 60)
 - `search.fieldWeights` (defaults favor name/signature over body)
 - `search.sqliteFtsWeights` (file/name/signature/kind/headline/doc/tokens column weights)
+- `search.contextExpansion` (limits and relation toggles)
 - `search.scoreBlend` can override RRF when enabled (normalized blend weights).
 
 ### Explain output
