@@ -88,6 +88,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - KDoc and annotations are captured in metadata.
 - Imports are captured from import statements.
 - Calls/usages are captured for function bodies when possible.
+- Flow/relations auto-disable above `indexing.kotlin.flowMax*`/`relationsMax*` thresholds.
 
 ## Ruby
 - module/class declarations are chunked.

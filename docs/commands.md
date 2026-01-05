@@ -49,6 +49,10 @@ Experimental commands require `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
 - `pairofcleats bench-micro`
 - `pairofcleats bench-language`
 - `pairofcleats bench-language-matrix`
+- `pairofcleats bench-language-build`
+- `pairofcleats bench-language-build-stub`
+- `pairofcleats bench-language-typical`
+- `pairofcleats bench-language-large`
 
 ## Maintenance
 - `pairofcleats cache-gc`

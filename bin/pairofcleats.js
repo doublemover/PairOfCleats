@@ -38,6 +38,10 @@ const COMMANDS = new Map([
   ['bench-micro', { script: 'tools/bench/micro/run.js', extraArgs: [] }],
   ['bench-language', { script: 'tools/bench-language-repos.js', extraArgs: [] }],
   ['bench-language-matrix', { script: 'tools/bench-language-matrix.js', extraArgs: [] }],
+  ['bench-language-build', { script: 'tools/bench-language-repos.js', extraArgs: ['--build'] }],
+  ['bench-language-build-stub', { script: 'tools/bench-language-repos.js', extraArgs: ['--build', '--stub-embeddings'] }],
+  ['bench-language-typical', { script: 'tools/bench-language-repos.js', extraArgs: ['--tier', 'typical'] }],
+  ['bench-language-large', { script: 'tools/bench-language-repos.js', extraArgs: ['--tier', 'large'] }],
   ['repometrics-dashboard', { script: 'tools/repometrics-dashboard.js', extraArgs: [] }],
   ['compare-models', { script: 'tools/compare-models.js', extraArgs: [] }],
   ['summary-report', { script: 'tools/combined-summary.js', extraArgs: [] }],
@@ -196,6 +200,10 @@ Assets + tooling:
   bench-micro              Run microbench suite
   bench-language           Run language benchmark suite
   bench-language-matrix    Run language/config benchmark matrix
+  bench-language-build     Bench language repos (build indexes)
+  bench-language-build-stub Bench language repos with stub embeddings
+  bench-language-typical   Bench typical-tier repos only
+  bench-language-large     Bench large-tier repos only
 
 Reports + services:
   repometrics-dashboard    Summarize repometrics
