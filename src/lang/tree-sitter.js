@@ -9,6 +9,8 @@ const parserCache = new Map();
 const languageCache = new Map();
 const loggedMissing = new Set();
 const loggedParseFailures = new Set();
+const loggedSizeSkips = new Set();
+const loggedUnavailable = new Set();
 
 const LANGUAGE_MODULES = {
   swift: 'tree-sitter-swift',
@@ -343,6 +345,44 @@ function isTreeSitterEnabled(options, languageId) {
   return true;
 }
 
+function countLines(text) {
+  if (!text) return 0;
+  let count = 1;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.charCodeAt(i) === 10) count += 1;
+  }
+  return count;
+}
+
+function exceedsTreeSitterLimits(text, options, resolvedId) {
+  const config = options?.treeSitter || {};
+  const maxBytes = config.maxBytes;
+  const maxLines = config.maxLines;
+  if (typeof maxBytes === 'number' && maxBytes > 0) {
+    const bytes = Buffer.byteLength(text, 'utf8');
+    if (bytes > maxBytes) {
+      const key = `${resolvedId}:bytes`;
+      if (!loggedSizeSkips.has(key) && options?.log) {
+        options.log(`Tree-sitter disabled for ${resolvedId}; file exceeds maxBytes (${bytes} > ${maxBytes}).`);
+        loggedSizeSkips.add(key);
+      }
+      return true;
+    }
+  }
+  if (typeof maxLines === 'number' && maxLines > 0) {
+    const lines = countLines(text);
+    if (lines > maxLines) {
+      const key = `${resolvedId}:lines`;
+      if (!loggedSizeSkips.has(key) && options?.log) {
+        options.log(`Tree-sitter disabled for ${resolvedId}; file exceeds maxLines (${lines} > ${maxLines}).`);
+        loggedSizeSkips.add(key);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 function extractSignature(text, start, end) {
   const limit = Math.min(end, start + 2000);
   const slice = text.slice(start, limit);
@@ -459,11 +499,12 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   const resolvedId = resolveLanguageForExt(languageId, ext);
   if (!resolvedId) return null;
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
+  if (exceedsTreeSitterLimits(text, options, resolvedId)) return null;
   const parser = getParser(resolvedId);
   if (!parser) {
-    if (!loggedMissing && options?.log) {
+    if (options?.log && !loggedUnavailable.has(resolvedId)) {
       options.log(`Tree-sitter unavailable for ${resolvedId}; falling back to heuristic chunking.`);
-      loggedMissing = true;
+      loggedUnavailable.add(resolvedId);
     }
     return null;
   }

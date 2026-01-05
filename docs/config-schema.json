@@ -312,6 +312,8 @@
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": ["boolean", "string"] },
+            "maxBytes": { "type": "number" },
+            "maxLines": { "type": "number" },
             "languages": {
               "type": "object",
               "additionalProperties": { "type": "boolean" },

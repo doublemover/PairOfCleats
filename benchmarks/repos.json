@@ -105,10 +105,10 @@
     "repos": {
       "large": [
         "JetBrains/kotlin",
-        "ktorio/ktor"
+        "ktorio/ktor",
+        "Kotlin/kotlinx.coroutines"
       ],
       "typical": [
-        "Kotlin/kotlinx.coroutines"
       ]
     }
   },
@@ -131,10 +131,10 @@
     "repos": {
       "large": [
         "laravel/framework",
-        "symfony/symfony"
+        "symfony/symfony",
+        "composer/composer"
       ],
       "typical": [
-        "composer/composer"
       ]
     }
   },

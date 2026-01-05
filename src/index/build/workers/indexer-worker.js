@@ -15,7 +15,10 @@ const tokenContext = createTokenizationContext({
 const normalizeEmptyMessage = (value) => {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
-  if (!trimmed || trimmed === '{}' || trimmed === '[object Object]') return null;
+  if (!trimmed) return null;
+  if (trimmed === '{}' || trimmed === '[object Object]') return null;
+  if (/^Error:?\s*\{\}$/i.test(trimmed)) return null;
+  if (/^Error:?\s*\[object Object\]$/i.test(trimmed)) return null;
   return value;
 };
 

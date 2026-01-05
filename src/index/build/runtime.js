@@ -107,6 +107,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const treeSitterConfig = indexingConfig.treeSitter || {};
   const treeSitterEnabled = treeSitterConfig.enabled !== false;
   const treeSitterLanguages = treeSitterConfig.languages || {};
+  const treeSitterMaxBytes = normalizeLimit(treeSitterConfig.maxBytes, 512 * 1024);
+  const treeSitterMaxLines = normalizeLimit(treeSitterConfig.maxLines, 10000);
   const sqlConfig = userConfig.sql || {};
   const defaultSqlDialects = {
     '.psql': 'postgres',
@@ -312,7 +314,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     },
     treeSitter: {
       enabled: treeSitterEnabled,
-      languages: treeSitterLanguages
+      languages: treeSitterLanguages,
+      maxBytes: treeSitterMaxBytes,
+      maxLines: treeSitterMaxLines
     },
     resolveSqlDialect,
     yamlChunking: {

@@ -30,6 +30,9 @@ Notes (current failures to triage):
 - [ ] csharp/AutoMapper/AutoMapper: build-index failed (bench-language.log, exit code 134).
 - [ ] rust/BurntSushi/ripgrep: one run crashed (bench-language.log, exit code 3221225477) despite later success.
 - [ ] kotlin/Kotlin/kotlinx.coroutines: build-index crashed (bench-language.log, exit code 3221225477).
+- [ ] perl/mojolicious/mojo: sqlite build failed with ERR_JSON_TOO_LARGE loading chunk_meta.json (~3.41 GB); SQLite index build failed in bench log.
+- [ ] Worker-tokenize crash logs with empty `{}` / `[object Object]` messages in bench cache (csharp/AutoMapper, kotlin/kotlinx.coroutines, perl/mojolicious); verify new error-normalization reduces noise and capture actionable details.
+- [ ] Bench runs ended via SIGINT (code 130) due to cancellation; rerun required for missing metrics once failures are fixed.
 - [ ] bench-language:matrix run 2026-01-04T01-08-37-988Z: all sqlite/sqlite-fts/memory configs failed (matrix.json exit code 1 or 3221226505); inspect per-config logs under benchmarks/results/matrix/2026-01-04T01-08-37-988Z/logs.
 - [ ] bench-language:matrix memory backends (auto/on/off): perl/mojolicious/mojo search failed with ERR_STRING_TOO_LONG while loading JSON (artifact-io now converts ERR_STRING_TOO_LONG to ERR_JSON_TOO_LARGE; re-run to confirm).
 - [ ] bench-language:matrix sqlite/sqlite-fts backends: perl/mojolicious/mojo build failed with ERR_STRING_TOO_LONG while reading JSON for sqlite build (artifact-io now converts ERR_STRING_TOO_LONG to ERR_JSON_TOO_LARGE; re-run to confirm).

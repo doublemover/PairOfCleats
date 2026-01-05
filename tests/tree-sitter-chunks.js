@@ -31,6 +31,28 @@ if (!firstChunks || !firstChunks.length) {
   process.exit(0);
 }
 
+const limitedByBytes = buildTreeSitterChunks({
+  text: firstText,
+  languageId: first.languageId,
+  ext: first.ext,
+  options: { treeSitter: { enabled: true, maxBytes: 1 }, log: () => {} }
+});
+
+if (limitedByBytes !== null) {
+  throw new Error('expected tree-sitter to skip oversized file by maxBytes');
+}
+
+const limitedByLines = buildTreeSitterChunks({
+  text: firstText,
+  languageId: first.languageId,
+  ext: first.ext,
+  options: { treeSitter: { enabled: true, maxLines: 1 }, log: () => {} }
+});
+
+if (limitedByLines !== null) {
+  throw new Error('expected tree-sitter to skip oversized file by maxLines');
+}
+
 const toNameSet = (chunks) => new Set(chunks.map((c) => c.name));
 const assertHas = (set, expected, label) => {
   for (const name of expected) {
