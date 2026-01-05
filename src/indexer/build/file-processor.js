@@ -43,6 +43,7 @@ export function createFileProcessor(options) {
     gitBlameEnabled,
     lintEnabled: lintEnabledRaw,
     complexityEnabled: complexityEnabledRaw,
+    structuralMatches,
     cacheConfig,
     cacheReporter,
     queues,
@@ -265,6 +266,42 @@ export function createFileProcessor(options) {
     return rest;
   };
 
+  const getStructuralMatchesForChunk = (matches, startLine, endLine, totalLines) => {
+    if (!matches || !matches.length) return null;
+    const start = Number.isFinite(startLine) ? startLine : 1;
+    const end = Number.isFinite(endLine) ? endLine : start;
+    const fileEnd = Number.isFinite(totalLines) && totalLines > 0 ? totalLines : end;
+    const selected = [];
+    for (const match of matches) {
+      const matchStart = Number.isFinite(match.startLine) ? match.startLine : 1;
+      const matchEnd = Number.isFinite(match.endLine) ? match.endLine : fileEnd;
+      if (matchEnd < start || matchStart > end) continue;
+      selected.push(match);
+    }
+    return selected.length ? selected : null;
+  };
+
+  const applyStructuralMatchesToChunks = (chunks, matches) => {
+    if (!matches || !matches.length || !Array.isArray(chunks)) return chunks;
+    const totalLines = chunks.reduce((max, chunk) => {
+      const endLine = Number(chunk?.endLine) || 0;
+      return endLine > max ? endLine : max;
+    }, 0) || 1;
+    for (const chunk of chunks) {
+      if (!chunk) continue;
+      const structural = getStructuralMatchesForChunk(
+        matches,
+        chunk.startLine,
+        chunk.endLine,
+        totalLines
+      );
+      if (!structural) continue;
+      const docmeta = chunk.docmeta && typeof chunk.docmeta === 'object' ? chunk.docmeta : {};
+      chunk.docmeta = { ...docmeta, structural };
+    }
+    return chunks;
+  };
+
   /**
    * Process a file: read, chunk, analyze, and produce chunk payloads.
    * @param {string} abs
@@ -280,6 +317,7 @@ export function createFileProcessor(options) {
     const rel = typeof fileEntry === 'object' && fileEntry.rel
       ? fileEntry.rel.split('/').join(path.sep)
       : path.relative(root, abs);
+    const fileStructural = structuralMatches?.get(relKey) || null;
     if (seenFiles) seenFiles.add(relKey);
     const ext = resolveExt(abs);
     let fileStat;
@@ -335,6 +373,7 @@ export function createFileProcessor(options) {
         }
         return updatedChunk;
       });
+      applyStructuralMatchesToChunks(updatedChunks, fileStructural);
       const fileDurationMs = Date.now() - fileStart;
       return {
         abs,
@@ -485,6 +524,19 @@ export function createFileProcessor(options) {
           }
         }
 
+        const { startLine, endLine } = chunkLineRanges[ci];
+        if (fileStructural) {
+          const structural = getStructuralMatchesForChunk(
+            fileStructural,
+            startLine,
+            endLine,
+            totalLines
+          );
+          if (structural) {
+            docmeta = { ...docmeta, structural };
+          }
+        }
+
         let fieldChargramTokens = null;
         if (tokenContext.chargramSource === 'fields') {
           const fieldText = [c.name, docmeta?.doc].filter(Boolean).join(' ');
@@ -608,7 +660,6 @@ export function createFileProcessor(options) {
         const headline = getHeadline(c, tokens);
 
         let preContext = [], postContext = [];
-        const { startLine, endLine } = chunkLineRanges[ci];
         if (contextWin > 0) {
           if (ci > 0) {
             const prev = chunkLineRanges[ci - 1];

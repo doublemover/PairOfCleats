@@ -1095,3 +1095,9 @@ Work items:
 - [x] Appended labeled context hits (`scoreType: "context"`, `context.sourceId`, `context.reason`) to result lists.
 - [x] Added config knobs for limits and relation toggles (`search.contextExpansion.*`).
 - [x] Added context expansion tests and documentation updates.
+
+## Phase 13: Structural Search Integration (status: done)
+- [x] Refactored structural search CLI into reusable modules under `src/structural/`.
+- [x] Loaded structural matches from repo cache and attached them to chunk `docmeta.structural`.
+- [x] Added search filters `--struct-pack`, `--struct-rule`, `--struct-tag`.
+- [x] Added tests for structural match ingestion and filtering.

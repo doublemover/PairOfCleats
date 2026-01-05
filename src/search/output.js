@@ -99,6 +99,9 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     riskSink,
     riskCategory,
     riskFlow,
+    structPack,
+    structRule,
+    structTag,
     awaits,
     branches,
     loops,
@@ -168,6 +171,9 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
   const metaFilters = Array.isArray(metaFilter) ? metaFilter : (metaFilter ? [metaFilter] : []);
   const excludeNeedles = normalizeList(excludeTokens).map((value) => (caseTokens ? String(value || '') : normalize(value)));
   const excludePhraseNeedles = normalizeList(excludePhrases).map((value) => (caseTokens ? String(value || '') : normalize(value)));
+  const structPackNeedles = normalizeList(structPack).map(normalize);
+  const structRuleNeedles = normalizeList(structRule).map(normalize);
+  const structTagNeedles = normalizeList(structTag).map(normalize);
   const collectExactMatches = (map, values) => {
     const matches = new Set();
     for (const value of values) {
@@ -308,6 +314,32 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     collect(inferred.returns);
     if (!types.length) return false;
     return types.some((entry) => normalize(entry).includes(needle));
+  };
+  const matchStructural = (chunk) => {
+    if (!structPackNeedles.length && !structRuleNeedles.length && !structTagNeedles.length) {
+      return true;
+    }
+    const structural = chunk?.docmeta?.structural;
+    if (!Array.isArray(structural) || !structural.length) return false;
+    return structural.some((entry) => {
+      if (structPackNeedles.length) {
+        const packValue = normalize(entry?.pack || '');
+        if (!structPackNeedles.some((needle) => packValue.includes(needle))) return false;
+      }
+      if (structRuleNeedles.length) {
+        const ruleValue = normalize(entry?.ruleId || '');
+        if (!structRuleNeedles.some((needle) => ruleValue.includes(needle))) return false;
+      }
+      if (structTagNeedles.length) {
+        const tags = Array.isArray(entry?.tags) ? entry.tags : [];
+        if (!tags.some((tag) =>
+          structTagNeedles.some((needle) => normalize(tag).includes(needle))
+        )) {
+          return false;
+        }
+      }
+      return true;
+    });
   };
   const truthy = (value) => value === true;
   const resolveMetaField = (record, key) => {
@@ -502,6 +534,7 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
         : null;
       if (!matchList(flows, riskFlow)) return false;
     }
+    if (!matchStructural(c)) return false;
     if (branches != null) {
       const count = c.docmeta?.controlFlow?.branches;
       if (!Number.isFinite(count) || count < branches) return false;

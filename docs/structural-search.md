@@ -17,6 +17,11 @@ node tools/structural-search.js --pack astgrep-js-safety --format json
 node tools/structural-search.js --engine semgrep --rule rules/semgrep/security.yml
 ```
 
+Indexing integration
+- Write results to the repo cache at `structural/structural.jsonl` (or `.json`), then run `build_index.js`.
+- Matches are attached to chunk metadata under `docmeta.structural`.
+- Search filters can target these with `--struct-pack`, `--struct-rule`, and `--struct-tag`.
+
 Output format (JSONL default)
 ```json
 {

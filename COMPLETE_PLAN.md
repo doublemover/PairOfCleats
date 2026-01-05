@@ -18,14 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 13: Structural Search Integration (status: todo)
-Goal: Persist structural matches as index metadata and expose filters.
-Work items:
-- [ ] Refactor `tools/structural-search.js` into importable modules.
-- [ ] Store structural matches in chunk metadata.
-- [ ] Add filters: `--struct-pack`, `--struct-rule`, `--struct-tag`.
-- [ ] Add tests for structural match ingestion and filtering.
-
 ## Phase 14: Build-Time Filter Index Artifact (status: todo)
 Goal: Avoid recomputing the path/chargram filter index at search time.
 Work items:

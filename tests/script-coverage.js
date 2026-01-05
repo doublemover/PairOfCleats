@@ -363,6 +363,11 @@ const actions = [
     covers: ['structural-search', 'structural-search-test']
   },
   {
+    label: 'structural-filters-test',
+    run: () => runNode('structural-filters-test', path.join(root, 'tests', 'structural-filters.js')),
+    covers: ['structural-filters-test']
+  },
+  {
     label: 'lang-filter-test',
     run: () => runNode('lang-filter-test', path.join(root, 'tests', 'lang-filter.js')),
     covers: ['lang-filter-test']

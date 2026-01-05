@@ -17,6 +17,7 @@ import { loadIncrementalState, pruneIncrementalManifest, updateBundlesWithChunks
 import { buildPostings } from './postings.js';
 import { createIndexState, appendChunk } from './state.js';
 import { configureGitMetaCache } from '../git.js';
+import { loadStructuralMatches } from '../structural.js';
 
 /**
  * Build indexes for a given mode.
@@ -101,6 +102,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   log(`Indexing concurrency: files=${runtime.fileConcurrency}, imports=${runtime.importConcurrency}, io=${runtime.ioConcurrency}, cpu=${runtime.cpuConcurrency}`);
   const showFileProgress = process.env.PAIROFCLEATS_PROGRESS_FILES === '1';
 
+  const structuralMatches = loadStructuralMatches({
+    repoRoot: runtime.root,
+    repoCacheRoot: runtime.repoCacheRoot,
+    log
+  });
   const { processFile } = createFileProcessor({
     root: runtime.root,
     mode,
@@ -120,6 +126,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     gitBlameEnabled: runtime.gitBlameEnabled,
     lintEnabled: runtime.lintEnabled,
     complexityEnabled: runtime.complexityEnabled,
+    structuralMatches,
     cacheConfig: runtime.cacheConfig,
     cacheReporter,
     queues: runtime.queues,

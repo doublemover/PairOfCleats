@@ -39,6 +39,13 @@ Queries are classified as `code`, `prose`, `path`, or `mixed` based on lightweig
 
 When enabled, the search pipeline can append related chunks (calls/imports/usages) after primary hits. Context hits are labeled with a `context` object (`sourceId`, `reason`) and have `scoreType: "context"`. Use `search.contextExpansion.*` to control limits and relation types, and `respectFilters` to keep expansions inside the active filters.
 
+## Structural filters
+
+When structural matches are ingested (see `docs/structural-search.md`), you can filter results by:
+- `--struct-pack <id>`
+- `--struct-rule <id>`
+- `--struct-tag <tag>`
+
 Configuration:
 - `search.rrf.enabled` (default: true)
 - `search.rrf.k` (default: 60)
