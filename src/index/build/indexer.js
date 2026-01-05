@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { applyAdaptiveDictConfig, getIndexDir } from '../../../tools/dict-utils.js';
-import { buildRecordsIndexForRepo } from '../../triage/index-records.js';
+import { buildRecordsIndexForRepo } from '../../integrations/triage/index-records.js';
 import { applyCrossFileInference } from '../type-inference-crossfile.js';
 import { runWithQueue } from '../../shared/concurrency.js';
 import { createCacheReporter } from '../../shared/cache.js';

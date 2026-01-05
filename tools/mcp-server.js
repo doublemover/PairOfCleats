@@ -4,11 +4,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa, execaSync } from 'execa';
 import simpleGit from 'simple-git';
-import { getToolDefs } from '../src/mcp/defs.js';
-import { sendError, sendNotification, sendResult } from '../src/mcp/protocol.js';
+import { getToolDefs } from '../src/integrations/mcp/defs.js';
+import { sendError, sendNotification, sendResult } from '../src/integrations/mcp/protocol.js';
 import { StreamMessageReader } from 'vscode-jsonrpc';
-import { buildIndex as coreBuildIndex, buildSqliteIndex as coreBuildSqliteIndex, search as coreSearch, status as coreStatus } from '../src/core/index.js';
-import { createSqliteDbCache } from '../src/search/sqlite-cache.js';
+import { buildIndex as coreBuildIndex, buildSqliteIndex as coreBuildSqliteIndex, search as coreSearch, status as coreStatus } from '../src/integrations/core/index.js';
+import { createSqliteDbCache } from '../src/retrieval/sqlite-cache.js';
 import {
   DEFAULT_MODEL_ID,
   getCacheRoot,

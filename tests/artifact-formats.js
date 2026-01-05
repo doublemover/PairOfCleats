@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { loadIndex } from '../src/search/cli-index.js';
+import { loadIndex } from '../src/retrieval/cli-index.js';
 
 const root = process.cwd();
 const cacheRoot = path.join(root, 'tests', '.cache', 'artifact-formats');

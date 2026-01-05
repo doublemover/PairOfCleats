@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { collectSourcekitTypes } from '../src/indexer/tooling/sourcekit-provider.js';
+import { collectSourcekitTypes } from '../src/index/tooling/sourcekit-provider.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'sourcekit-provider-no-sourcekit');

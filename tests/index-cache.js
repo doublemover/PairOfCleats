@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { loadIndexWithCache } from '../src/search/index-cache.js';
+import { loadIndexWithCache } from '../src/retrieval/index-cache.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-index-cache-'));
 const indexDir = path.join(tempRoot, 'index');

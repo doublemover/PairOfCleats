@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
-import { getStatus } from '../src/core/status.js';
+import { getStatus } from '../src/integrations/core/status.js';
 
 const argv = createCli({
   scriptName: 'report-artifacts',

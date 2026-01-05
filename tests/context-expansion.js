@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { expandContext } from '../src/search/context-expansion.js';
+import { expandContext } from '../src/retrieval/context-expansion.js';
 
 const chunkMeta = [
   { id: 0, file: 'src/a.js', name: 'alpha', codeRelations: { calls: [['alpha', 'beta']] } },

@@ -2,11 +2,11 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { getToolingConfig } from '../../tools/dict-utils.js';
-import { collectLspTypes } from '../tooling/providers/lsp.js';
+import { collectLspTypes } from '../integrations/tooling/providers/lsp.js';
 import { collectClangdTypes, CLIKE_EXTS } from './tooling/clangd-provider.js';
 import { collectSourcekitTypes, SWIFT_EXTS } from './tooling/sourcekit-provider.js';
 import { collectTypeScriptTypes } from './tooling/typescript-provider.js';
-import { mergeToolingMaps, uniqueTypes } from '../tooling/providers/shared.js';
+import { mergeToolingMaps, uniqueTypes } from '../integrations/tooling/providers/shared.js';
 
 const FLOW_SOURCE = 'flow';
 const TOOLING_SOURCE = 'tooling';

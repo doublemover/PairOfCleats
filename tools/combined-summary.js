@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
 import { fileURLToPath } from 'node:url';
-import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/compare/config.js';
+import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/experimental/compare/config.js';
 import { DEFAULT_MODEL_ID, getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
@@ -24,13 +24,18 @@ const argv = createCli({
     top: { type: 'number', default: 5 },
     limit: { type: 'number', default: 0 },
     mode: { type: 'string' },
-    repo: { type: 'string' }
+    repo: { type: 'string' },
+    profile: { type: 'string' }
   }
 }).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(root);
+const userConfig = loadUserConfig(root, { profile: argv.profile });
+if (userConfig.profile !== 'full') {
+  console.error('summary-report is experimental. Run with profile=full or set PAIROFCLEATS_PROFILE=full.');
+  process.exit(1);
+}
 const runtimeConfig = getRuntimeConfig(root, userConfig);
 const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
 const baseEnv = resolvedNodeOptions

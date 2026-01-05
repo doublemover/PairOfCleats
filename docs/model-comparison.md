@@ -6,6 +6,8 @@ Compare search latency and ranking differences across embedding models.
 ## Usage
 - `pairofcleats compare-models --models Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2 --build`
 - `pairofcleats compare-models --models Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2 --backend sqlite --build --build-sqlite`
+
+Note: model comparison is gated behind `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
 - JSON output: add `--json` or `--out path/to/report.json`
 
 ## Notes

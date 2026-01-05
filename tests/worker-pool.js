@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { normalizePostingsConfig } from '../src/shared/postings-config.js';
-import { quantizeVec } from '../src/indexer/embedding.js';
-import { createTokenizationContext, tokenizeChunkText } from '../src/indexer/build/tokenization.js';
-import { createIndexerWorkerPool, normalizeWorkerPoolConfig } from '../src/indexer/build/worker-pool.js';
+import { quantizeVec } from '../src/index/embedding.js';
+import { createTokenizationContext, tokenizeChunkText } from '../src/index/build/tokenization.js';
+import { createIndexerWorkerPool, normalizeWorkerPoolConfig } from '../src/index/build/worker-pool.js';
 
 const postingsConfig = normalizePostingsConfig({
   enablePhraseNgrams: true,

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { classifyQuery, resolveIntentFieldWeights, resolveIntentVectorMode } from '../src/search/query-intent.js';
+import { classifyQuery, resolveIntentFieldWeights, resolveIntentVectorMode } from '../src/retrieval/query-intent.js';
 
 const cases = [
   { query: 'src/utils/file.ts', tokens: ['src/utils/file.ts'], phrases: [], expect: 'path' },

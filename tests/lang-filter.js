@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mergeExtFilters, normalizeLangFilter } from '../src/search/filters.js';
+import { mergeExtFilters, normalizeLangFilter } from '../src/retrieval/filters.js';
 
 const js = normalizeLangFilter('js');
 assert.ok(js && js.includes('.js'), 'expected js to include .js');

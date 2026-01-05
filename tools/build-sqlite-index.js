@@ -7,11 +7,11 @@ import { createCli } from '../src/shared/cli.js';
 import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
 import { compactDatabase } from './compact-sqlite-index.js';
-import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/sqlite/schema.js';
-import { buildChunkRow, buildTokenFrequency, prepareVectorAnnTable } from '../src/sqlite/build-helpers.js';
-import { loadIncrementalManifest } from '../src/sqlite/incremental.js';
-import { chunkArray, hasRequiredTables, loadIndex, normalizeFilePath, readJson } from '../src/sqlite/utils.js';
-import { dequantizeUint8ToFloat32, packUint32, packUint8, quantizeVec, toVectorId } from '../src/sqlite/vector.js';
+import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
+import { buildChunkRow, buildTokenFrequency, prepareVectorAnnTable } from '../src/storage/sqlite/build-helpers.js';
+import { loadIncrementalManifest } from '../src/storage/sqlite/incremental.js';
+import { chunkArray, hasRequiredTables, loadIndex, normalizeFilePath, readJson } from '../src/storage/sqlite/utils.js';
+import { dequantizeUint8ToFloat32, packUint32, packUint8, quantizeVec, toVectorId } from '../src/storage/sqlite/vector.js';
 
 let Database = null;
 try {

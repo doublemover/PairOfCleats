@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { buildIndex, search, status } from '../src/core/index.js';
+import { buildIndex, search, status } from '../src/integrations/core/index.js';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();

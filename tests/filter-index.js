@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { buildFilterIndex } from '../src/search/filter-index.js';
-import { filterChunks } from '../src/search/output.js';
+import { buildFilterIndex } from '../src/retrieval/filter-index.js';
+import { filterChunks } from '../src/retrieval/output.js';
 
 const meta = [
   {

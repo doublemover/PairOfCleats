@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createDebouncedScheduler } from '../src/indexer/build/watch.js';
+import { createDebouncedScheduler } from '../src/index/build/watch.js';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

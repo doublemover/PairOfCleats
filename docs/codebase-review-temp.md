@@ -5,11 +5,11 @@ This document captures mistakes, enhancement ideas, and refactoring opportunitie
 ## Phase 1: Indexing Core (build_index + indexer/shared)
 
 Mistakes:
-- `src/indexer/build/file-processor.js` sets `meta.weightt` but later uses `meta.weight`; `chunkPayload.weight` becomes `undefined`, so `bm * c.weight` yields `NaN` and weights never apply.
-- `src/indexer/build/postings.js` logs "Using real model embeddings" even when stub embeddings are active, which is misleading for users.
+- `src/index/build/file-processor.js` sets `meta.weightt` but later uses `meta.weight`; `chunkPayload.weight` becomes `undefined`, so `bm * c.weight` yields `NaN` and weights never apply.
+- `src/index/build/postings.js` logs "Using real model embeddings" even when stub embeddings are active, which is misleading for users.
 
 Enhancements:
-- Avoid O(n^2) token frequency recomputation in `src/indexer/build/postings.js` by storing per-chunk token counts when chunking.
+- Avoid O(n^2) token frequency recomputation in `src/index/build/postings.js` by storing per-chunk token counts when chunking.
 - Add a config option to skip per-chunk `git blame` (or downgrade to file-level blame) to reduce indexing latency on large repos.
 - Remove or repurpose unused `state.wordFreq` and `postings.sparse` to reduce memory footprint if they are not used downstream.
 
@@ -49,7 +49,7 @@ Risks/notes:
 ## Phase 3: Search + Scoring
 
 Mistakes:
-- MinHash mismatch: indexing uses `src/indexer/minhash.js` (SimpleMinHash) while search uses the `minhash` package (`src/search/rankers.js`), so signatures are likely incompatible and similarity scores unreliable.
+- MinHash mismatch: indexing uses `src/index/minhash.js` (SimpleMinHash) while search uses the `minhash` package (`src/retrieval/rankers.js`), so signatures are likely incompatible and similarity scores unreliable.
 - `sparse_postings_varint.bin` is produced but never read by search, which suggests dead artifacts or missing integration.
 
 Enhancements:
@@ -129,3 +129,4 @@ Tests/edge cases:
 
 Risks/notes:
 - MCP server now uses async subprocesses for long-running tasks; keep stdout/stderr buffers bounded to avoid memory spikes.
+

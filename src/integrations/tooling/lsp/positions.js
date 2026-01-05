@@ -1,4 +1,4 @@
-import { lineColToOffset } from '../../shared/lines.js';
+import { lineColToOffset } from '../../../shared/lines.js';
 
 /**
  * Convert a 0-based LSP position to a character offset.

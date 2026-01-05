@@ -16,7 +16,7 @@ import {
   SHELL_EXTS,
   SQL_EXTS,
   TS_EXTS
-} from '../indexer/constants.js';
+} from '../index/constants.js';
 
 const PY_EXTS = new Set(['.py']);
 const SWIFT_EXTS = new Set(['.swift']);

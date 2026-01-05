@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
 import { getIndexDir, getMetricsDir, loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
-import { rankMinhash } from '../src/search/rankers.js';
+import { rankMinhash } from '../src/retrieval/rankers.js';
 
 const root = process.cwd();
 const fixturesRoot = path.join(root, 'tests', 'fixtures');

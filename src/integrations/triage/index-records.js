@@ -1,14 +1,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getIndexDir, getTriageConfig } from '../../tools/dict-utils.js';
-import { SimpleMinHash } from '../indexer/minhash.js';
-import { getHeadline } from '../indexer/headline.js';
-import { STOP, SYN } from '../indexer/constants.js';
-import { createIndexState, appendChunk } from '../indexer/build/state.js';
-import { buildPostings } from '../indexer/build/postings.js';
-import { writeIndexArtifacts } from '../indexer/build/artifacts.js';
-import { extractNgrams, splitId, splitWordsWithDict, stem, tri } from '../shared/tokenize.js';
-import { log, showProgress } from '../shared/progress.js';
+import { getIndexDir, getTriageConfig } from '../../../tools/dict-utils.js';
+import { SimpleMinHash } from '../../index/minhash.js';
+import { getHeadline } from '../../index/headline.js';
+import { STOP, SYN } from '../../index/constants.js';
+import { createIndexState, appendChunk } from '../../index/build/state.js';
+import { buildPostings } from '../../index/build/postings.js';
+import { writeIndexArtifacts } from '../../index/build/artifacts.js';
+import { extractNgrams, splitId, splitWordsWithDict, stem, tri } from '../../shared/tokenize.js';
+import { log, showProgress } from '../../shared/progress.js';
 import { promoteRecordFields } from './record-utils.js';
 
 /**

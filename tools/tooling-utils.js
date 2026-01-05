@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { execaSync } from 'execa';
-import { SKIP_DIRS, SKIP_FILES } from '../src/indexer/constants.js';
+import { SKIP_DIRS, SKIP_FILES } from '../src/index/constants.js';
 import { getToolingConfig } from './dict-utils.js';
 
 const LANGUAGE_EXTENSIONS = {

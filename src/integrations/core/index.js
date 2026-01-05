@@ -1,15 +1,15 @@
 import path from 'node:path';
-import { parseBuildArgs } from '../indexer/build/args.js';
-import { buildIndexForMode } from '../indexer/build/indexer.js';
-import { acquireIndexLock } from '../indexer/build/lock.js';
-import { discoverFilesForModes } from '../indexer/build/discover.js';
-import { createBuildRuntime } from '../indexer/build/runtime.js';
-import { watchIndex } from '../indexer/build/watch.js';
-import { log as defaultLog } from '../shared/progress.js';
-import { shutdownPythonAstPool } from '../lang/python.js';
-import { resolveRepoRoot } from '../../tools/dict-utils.js';
-import { runBuildSqliteIndex } from '../../tools/build-sqlite-index.js';
-import { runSearchCli } from '../search/cli.js';
+import { parseBuildArgs } from '../../index/build/args.js';
+import { buildIndexForMode } from '../../index/build/indexer.js';
+import { acquireIndexLock } from '../../index/build/lock.js';
+import { discoverFilesForModes } from '../../index/build/discover.js';
+import { createBuildRuntime } from '../../index/build/runtime.js';
+import { watchIndex } from '../../index/build/watch.js';
+import { log as defaultLog } from '../../shared/progress.js';
+import { shutdownPythonAstPool } from '../../lang/python.js';
+import { resolveRepoRoot } from '../../../tools/dict-utils.js';
+import { runBuildSqliteIndex } from '../../../tools/build-sqlite-index.js';
+import { runSearchCli } from '../../retrieval/cli.js';
 import { getStatus } from './status.js';
 
 const buildRawArgs = (options = {}) => {

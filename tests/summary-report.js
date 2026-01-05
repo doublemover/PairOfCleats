@@ -18,7 +18,8 @@ await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 const env = {
   ...process.env,
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  PAIROFCLEATS_PROFILE: 'full'
 };
 
 const result = spawnSync(

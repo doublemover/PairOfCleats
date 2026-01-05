@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { createSqliteDbCache } from '../src/search/sqlite-cache.js';
+import { createSqliteDbCache } from '../src/retrieval/sqlite-cache.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-sqlite-cache-'));
 const dbPath = path.join(tempRoot, 'index.db');

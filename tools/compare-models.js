@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import { execaSync } from 'execa';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
-import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/compare/config.js';
+import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/experimental/compare/config.js';
 import {
   DEFAULT_MODEL_ID,
   getCacheRoot,
@@ -40,6 +40,7 @@ const argv = createCli({
     mode: { type: 'string' },
     'cache-root': { type: 'string' },
     repo: { type: 'string' },
+    profile: { type: 'string' },
     top: { type: 'number', default: 5 },
     limit: { type: 'number', default: 0 }
   },
@@ -49,7 +50,11 @@ const argv = createCli({
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const userConfig = loadUserConfig(root);
+const userConfig = loadUserConfig(root, { profile: argv.profile });
+if (userConfig.profile !== 'full') {
+  console.error('compare-models is experimental. Run with profile=full or set PAIROFCLEATS_PROFILE=full.');
+  process.exit(1);
+}
 const runtimeConfig = getRuntimeConfig(root, userConfig);
 const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
 const baseEnv = resolvedNodeOptions

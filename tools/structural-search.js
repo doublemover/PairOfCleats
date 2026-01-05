@@ -3,10 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
-import { loadRegistry, resolvePacks } from '../src/structural/registry.js';
-import { runStructuralSearch } from '../src/structural/runner.js';
-import { writeJson, writeJsonl } from '../src/structural/io.js';
-import { resolveRepoRoot } from './dict-utils.js';
+import { loadRegistry, resolvePacks } from '../src/experimental/structural/registry.js';
+import { runStructuralSearch } from '../src/experimental/structural/runner.js';
+import { writeJson, writeJsonl } from '../src/experimental/structural/io.js';
+import { loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = createCli({
   scriptName: 'structural-search',
@@ -19,12 +19,18 @@ const argv = createCli({
     format: { type: 'string', default: 'jsonl' },
     out: { type: 'string' },
     json: { type: 'boolean', default: false },
+    profile: { type: 'string' },
     'list-packs': { type: 'boolean', default: false }
   }
 }).parse();
 
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+const userConfig = loadUserConfig(repoRoot, { profile: argv.profile });
+if (userConfig.profile !== 'full') {
+  console.error('structural-search is experimental. Run with profile=full or set PAIROFCLEATS_PROFILE=full.');
+  process.exit(1);
+}
 const registryPath = argv.registry
   ? path.resolve(argv.registry)
   : path.resolve(scriptRoot, '..', 'rules', 'registry.json');

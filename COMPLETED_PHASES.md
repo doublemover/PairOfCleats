@@ -465,8 +465,8 @@ Work items:
 Goal: Ingest findings into normalized records and render human/indexable views.
 Work items:
 - [x] Implement `tools/triage/ingest.js` with Dependabot, AWS Inspector, and generic adapters.
-- [x] Add normalization modules in `src/triage/normalize/` with parse warnings and metadata routing.
-- [x] Add `src/triage/render.js` to render canonical markdown views.
+- [x] Add normalization modules in `src/integrations/triage/normalize/` with parse warnings and metadata routing.
+- [x] Add `src/integrations/triage/render.js` to render canonical markdown views.
 - [x] Implement `tools/triage/decision.js` to create decision records linked to findings.
 
 
@@ -474,7 +474,7 @@ Work items:
 Goal: Build a dedicated records index with prose-style tokenization and optional incremental caching.
 Work items:
 - [x] Allow `--mode records` in build args and route to a new records indexer.
-- [x] Add `src/triage/index-records.js` to build `index-records` from record markdown + JSON.
+- [x] Add `src/integrations/triage/index-records.js` to build `index-records` from record markdown + JSON.
 - [x] Store promoted fields in `docmeta.record` and keep artifacts small.
 
 
@@ -482,7 +482,7 @@ Work items:
 Goal: Enable records search with metadata-first filtering and JSON output support.
 Work items:
 - [x] Extend `search.js` to include `--mode records` and optional `--meta`/`--meta-json`.
-- [x] Add record output section and JSON `records` payloads in `src/search/output.js`.
+- [x] Add record output section and JSON `records` payloads in `src/retrieval/output.js`.
 - [x] Add generic file/ext filters if not already present and apply them to records.
 
 
@@ -539,7 +539,7 @@ Work items:
 ## Phase 47: Audit Fixes - P0/P1 (status: done)
 Goal: Close audit-listed correctness and UX issues.
 Work items:
-- [x] Fix invalid regex in `src/search/filters.js` and add ext filter test.
+- [x] Fix invalid regex in `src/retrieval/filters.js` and add ext filter test.
 - [x] Make search filters strict when metadata is missing (`signature`, `param`, `calls`, `uses`).
 - [x] Update CLI usage/help text to include all supported flags.
 - [x] Add friendly "index missing" error with next-step hint.
@@ -587,7 +587,7 @@ Work items:
 
 
 ## Phase 53: Search CLI Modularization (status: done)
-Goal: Break `src/search/cli.js` into focused modules for maintainability without changing behavior.
+Goal: Break `src/retrieval/cli.js` into focused modules for maintainability without changing behavior.
 Work items:
 - [x] Extract argument parsing + mode validation into a dedicated helper.
 - [x] Move index loading/signature + query cache key helpers into shared CLI utilities.
@@ -780,10 +780,10 @@ Goal: Replace custom JSON-RPC framing with vetted libraries and standardize LSP 
 Work items:
 - [x] Add `vscode-jsonrpc` and update `src/shared/jsonrpc.js` to wrap StreamMessageReader/Writer instead of custom framing logic.
 - [x] Replace JSON-RPC usage in `tools/mcp-server.js` with `vscode-jsonrpc` StreamMessageReader/Writer plumbing.
-- [x] Update `src/tooling/lsp/client.js` to use `vscode-jsonrpc` streams and built-in request/notification plumbing.
+- [x] Update `src/integrations/tooling/lsp/client.js` to use `vscode-jsonrpc` streams and built-in request/notification plumbing.
 - [x] Delete or archive any now-unused framing helpers and adjust imports where needed.
 - [x] Add regression tests for JSON-RPC framing (split frames, large payloads) in MCP + LSP stub fixtures.
-- [x] Add optional `vscode-languageserver-protocol` and wire constants/types into `src/tooling/lsp/symbols.js` and `src/tooling/lsp/positions.js`.
+- [x] Add optional `vscode-languageserver-protocol` and wire constants/types into `src/integrations/tooling/lsp/symbols.js` and `src/integrations/tooling/lsp/positions.js`.
 - [x] Document JSON-RPC/LSP dependency usage in MCP/LSP docs and troubleshooting notes.
 
 
@@ -791,7 +791,7 @@ Work items:
 Goal: Introduce best-in-class concurrency and cache primitives to reduce memory spikes and improve throughput.
 Work items:
 - [x] Add `p-queue` and replace `src/shared/concurrency.js` with a queue-backed API (IO queue + CPU queue).
-- [x] Route file discovery, chunking, lint/complexity, embedding, and imports to use queue backpressure (update `src/indexer/build/indexer.js`, `src/indexer/build/imports.js`, `src/indexer/build/file-processor.js`).
+- [x] Route file discovery, chunking, lint/complexity, embedding, and imports to use queue backpressure (update `src/index/build/indexer.js`, `src/index/build/imports.js`, `src/index/build/file-processor.js`).
 - [x] Add `lru-cache` and replace ad-hoc Map caches: `complexityCache`, `lintCache`, `fileTextCache`, `summaryCache`, and `gitMetaCache`.
 - [x] Add config knobs for cache size/TTL in `.pairofcleats.json` and `docs/config-schema.json`.
 - [x] Add cache eviction tests to cover max size and TTL expiry behavior.
@@ -801,18 +801,18 @@ Work items:
 ## Phase 71: Deps Fixes - File Discovery + Watcher Modernization (status: done)
 Goal: Speed up file enumeration and reduce redundant IO in indexing and watch mode.
 Work items:
-- [x] Add `fdir` and refactor `src/indexer/build/discover.js` to use it for non-git repos.
+- [x] Add `fdir` and refactor `src/index/build/discover.js` to use it for non-git repos.
 - [x] Add a `git ls-files -z` fast path for git repos; keep a fallback for non-git trees.
 - [x] Reuse a single discovery pass for code + prose modes (avoid double traversal in `build_index.js`).
 - [x] Avoid double `stat()` calls by returning `{ abs, rel, stat }` from discovery and reusing in `file-processor`.
-- [x] Replace polling watch mode in `src/indexer/build/watch.js` with `chokidar` (respect ignore patterns and debounce config).
+- [x] Replace polling watch mode in `src/index/build/watch.js` with `chokidar` (respect ignore patterns and debounce config).
 - [x] Add tests/fixtures for discovery reuse, git ls-files path, and watcher debounce behavior.
 
 
 ## Phase 72: Deps Fixes - JS/TS/Flow Parsing + Import Scanning (status: done)
 Goal: Unify JS/TS/Flow parsing and speed up import graph extraction.
 Work items:
-- [x] Add `es-module-lexer` and `cjs-module-lexer` to accelerate import scanning in `src/indexer/build/imports.js`.
+- [x] Add `es-module-lexer` and `cjs-module-lexer` to accelerate import scanning in `src/index/build/imports.js`.
 - [x] Use lexer output to build `allImports` without full AST parsing for JS/TS files.
 - [x] Add `@babel/parser` and consolidate JS/TS/Flow parsing to a single codepath (replace `acorn`/`esprima` fallbacks).
 - [x] Update `src/lang/javascript.js` and `src/lang/typescript.js` to share a unified Babel-based parser (Flow syntax handled via JS parser).
@@ -823,7 +823,7 @@ Work items:
 ## Phase 73: Deps Fixes - Streaming Artifacts + Worker Pool (status: done)
 Goal: Reduce peak memory during artifact writing and move CPU-heavy tasks off the main thread.
 Work items:
-- [x] Add shared streaming JSON writers (`src/shared/json-stream.js`) and stream large artifact writes in `src/indexer/build/artifacts.js`.
+- [x] Add shared streaming JSON writers (`src/shared/json-stream.js`) and stream large artifact writes in `src/index/build/artifacts.js`.
 - [x] Convert large arrays/maps (vectors, postings, ngrams, minhash) to streaming writers to avoid full `JSON.stringify`.
 - [x] Add `piscina` and implement worker pool tasks for tokenization, ngrams, minhash, and quantization.
 - [x] Add a worker protocol with fallback to sync paths when workers are unavailable.
@@ -864,31 +864,31 @@ Work items:
 
 ### Phase 57 details
 - Update `src/shared/tokenize.js` `splitWordsWithDict` so no-match spans emit the remaining substring (or a bounded unknown span), not single characters.
-- Ensure query parsing uses identical segmentation in `src/search/query.js` (`tokenizeQueryTerms`, `tokenizePhrase`).
+- Ensure query parsing uses identical segmentation in `src/retrieval/query.js` (`tokenizeQueryTerms`, `tokenizePhrase`).
 - Add a dict segmentation benchmark harness (e.g., `tools/bench-dict-seg.js`) to compare greedy vs DP segmentation on a fixed sample set; report token counts and coverage.
 - Tests: extend `tests/tokenize-dictionary.js` to cover unknown spans and query tokenization.
 
 
 ### Phase 58 details
-- Compute blame ranges using line numbers derived before `getGitMeta` in `src/indexer/build/file-processor.js`.
+- Compute blame ranges using line numbers derived before `getGitMeta` in `src/index/build/file-processor.js`.
 - Treat chunk end offsets as exclusive when deriving `endLine` (use `end - 1` with empty-chunk guard).
 - Tests: add a fixture with a multi-line file and assert `chunk_authors` matches expected lines.
 
 
 ### Phase 59 details
-- Default YAML to a single root chunk in `src/indexer/chunking.js` unless config enables top-level splitting.
+- Default YAML to a single root chunk in `src/index/chunking.js` unless config enables top-level splitting.
 - Add `indexing.yamlChunkStrategy` (values: `root` | `top-level`) and document in `docs/config-schema.json`.
 - Implement top-level splitting with line/indent scanning (no `indexOf`).
 - Tests: `tests/chunking-yaml.js` + `tests/format-fidelity.js` for boundary checks.
 
 
 ### Phase 60 details
-- Update `buildExternalDocs` (in `src/indexer/build/file-processor.js`) to preserve `@` and `encodeURIComponent` scoped package paths.
+- Update `buildExternalDocs` (in `src/index/build/file-processor.js`) to preserve `@` and `encodeURIComponent` scoped package paths.
 - Add a regression test for scoped npm modules (fixture in `tests/fixtures/external-docs` + new test file).
 
 
 ### Phase 61 details
-- Prefer sparse scores by default in `src/search/pipeline.js` when BM25/FTS hits exist; ANN is fallback.
+- Prefer sparse scores by default in `src/retrieval/pipeline.js` when BM25/FTS hits exist; ANN is fallback.
 - Keep normalized blend mode behind `search.scoreBlend` config; document weights and normalization.
 - Add a scoring comparison harness (e.g., `tools/bench-score-strategy.js`) that runs the same query set with `sparse`, `ann-fallback`, and `blend`.
 - Tests: update `tests/search-explain.js` to reflect scoreType changes and blend breakdown.
@@ -913,7 +913,7 @@ Work items:
 
 ### Phase 69 details
 - Add `vscode-jsonrpc` and replace custom framing in `src/shared/jsonrpc.js` + `tools/mcp-server.js`.
-- Update `src/tooling/lsp/client.js` to use `MessageReader/Writer` and request/notification helpers.
+- Update `src/integrations/tooling/lsp/client.js` to use `MessageReader/Writer` and request/notification helpers.
 - Add `vscode-languageserver-protocol` for symbol/position constants and type safety.
 - Add regression tests for split frames and large payload handling.
 
@@ -934,13 +934,13 @@ Work items:
 
 
 ### Phase 72 details
-- Add `es-module-lexer` + `cjs-module-lexer` in `src/indexer/build/imports.js` to avoid full AST parse for imports.
+- Add `es-module-lexer` + `cjs-module-lexer` in `src/index/build/imports.js` to avoid full AST parse for imports.
 - Consolidate JS/TS/Flow parsing in `src/lang/javascript.js`, `src/lang/typescript.js`, `src/lang/flow.js` using `@babel/parser`, keeping `acorn`/`esprima` fallbacks behind config for comparison.
 - Add fixtures for JSX/TSX/Flow syntax and ensure import extraction is correct.
 
 
 ### Phase 73 details
-- Use streaming JSON writers for large artifacts in `src/indexer/build/artifacts.js`.
+- Use streaming JSON writers for large artifacts in `src/index/build/artifacts.js`.
 - Add `piscina` worker pool for tokenization, ngrams, minhash, quantization (pure functions only).
 - Provide fallback to sync path when workers unavailable; add tests for stream correctness.
 
@@ -962,7 +962,7 @@ Work items:
 
 
 ### Phase 78 details
-- Remove dead `posts` allocation in `src/indexer/build/postings.js`.
+- Remove dead `posts` allocation in `src/index/build/postings.js`.
 - Remove the trimmed-vocab path to avoid misleading `maxVocab` behavior.
 - Keep doc/code dense vector artifacts and make selection configurable via `search.denseVectorMode`.
 - Fix dense vector `scale` metadata to match quantization step and use it in ranking.
@@ -1097,7 +1097,7 @@ Work items:
 - [x] Added context expansion tests and documentation updates.
 
 ## Phase 13: Structural Search Integration (status: done)
-- [x] Refactored structural search CLI into reusable modules under `src/structural/`.
+- [x] Refactored structural search CLI into reusable modules under `src/experimental/structural/`.
 - [x] Loaded structural matches from repo cache and attached them to chunk `docmeta.structural`.
 - [x] Added search filters `--struct-pack`, `--struct-rule`, `--struct-tag`.
 - [x] Added tests for structural match ingestion and filtering.
@@ -1111,3 +1111,4 @@ Work items:
 - [x] Promoted `pairofcleats` CLI as the primary command surface, with npm scripts as wrappers.
 - [x] Added missing CLI commands for ingest, structural search, eval harness, benchmarks, and index validation.
 - [x] Updated README and docs to reflect the simplified command surface and new command catalog.
+

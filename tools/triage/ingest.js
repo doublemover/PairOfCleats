@@ -5,10 +5,10 @@ import { execaSync } from 'execa';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { getRuntimeConfig, getTriageConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot } from '../dict-utils.js';
-import { normalizeDependabot } from '../../src/triage/normalize/dependabot.js';
-import { normalizeAwsInspector } from '../../src/triage/normalize/aws-inspector.js';
-import { normalizeGeneric } from '../../src/triage/normalize/generic.js';
-import { renderRecordMarkdown } from '../../src/triage/render.js';
+import { normalizeDependabot } from '../../src/integrations/triage/normalize/dependabot.js';
+import { normalizeAwsInspector } from '../../src/integrations/triage/normalize/aws-inspector.js';
+import { normalizeGeneric } from '../../src/integrations/triage/normalize/generic.js';
+import { renderRecordMarkdown } from '../../src/integrations/triage/render.js';
 
 const argv = createCli({
   scriptName: 'triage-ingest',

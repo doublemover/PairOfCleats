@@ -1,4 +1,4 @@
-import { SimpleMinHash } from '../indexer/minhash.js';
+import { SimpleMinHash } from '../index/minhash.js';
 
 /**
  * Legacy BM25-like scoring using chunk metadata fields directly.

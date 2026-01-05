@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { getGitMeta } from '../src/indexer/git.js';
+import { getGitMeta } from '../src/index/git.js';
 
 const root = process.cwd();
 const target = path.join(root, 'README.md');

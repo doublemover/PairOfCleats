@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { acquireIndexLock } from '../src/indexer/build/lock.js';
+import { acquireIndexLock } from '../src/index/build/lock.js';
 
 const root = process.cwd();
 const baseDir = path.join(root, 'tests', '.cache', 'index-lock');

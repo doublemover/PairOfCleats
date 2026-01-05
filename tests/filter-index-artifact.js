@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 import { readJsonFile } from '../src/shared/artifact-io.js';
-import { loadIndex } from '../src/search/cli-index.js';
+import { loadIndex } from '../src/retrieval/cli-index.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'filter-index-artifact');

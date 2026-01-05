@@ -16,7 +16,7 @@ import { buildLuaChunks } from './lua.js';
 import { buildSqlChunks } from './sql.js';
 import { buildShellChunks } from './shell.js';
 import { buildCssChunks } from './css.js';
-import { chunkIniToml, chunkJson, chunkMarkdown, chunkXml, chunkYaml } from '../indexer/chunking.js';
+import { chunkIniToml, chunkJson, chunkMarkdown, chunkXml, chunkYaml } from '../index/chunking.js';
 
 const IMPORTANT_TAGS = new Set([
   'html',

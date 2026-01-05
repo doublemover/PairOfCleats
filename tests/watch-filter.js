@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import ignore from 'ignore';
-import { isIndexablePath } from '../src/indexer/build/watch.js';
+import { isIndexablePath } from '../src/index/build/watch.js';
 
 const root = path.join(process.cwd(), 'tests', 'fixtures', 'sample');
 const ignoreMatcher = ignore().add(['ignored/']);

@@ -1,7 +1,7 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createToolingEntry, uniqueTypes } from '../../tooling/providers/shared.js';
+import { createToolingEntry, uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 
 const DEFAULT_CONFIG_FILES = ['tsconfig.json'];
 

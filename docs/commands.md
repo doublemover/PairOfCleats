@@ -4,6 +4,8 @@ PairOfCleats uses the `pairofcleats` CLI as the primary interface. `npm run <scr
 wrappers remain available for CI and convenience, but the documentation below
 uses the CLI names for consistency.
 
+Experimental commands require `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
+
 ## Core
 - `pairofcleats setup` (guided install/config flow)
 - `pairofcleats bootstrap` (fast bootstrap, no prompts)

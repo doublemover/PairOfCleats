@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { collectTypeScriptTypes } from '../src/indexer/tooling/typescript-provider.js';
+import { collectTypeScriptTypes } from '../src/index/tooling/typescript-provider.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'typescript-provider-no-ts');

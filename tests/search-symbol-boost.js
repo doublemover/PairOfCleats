@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createSearchPipeline } from '../src/search/pipeline.js';
+import { createSearchPipeline } from '../src/retrieval/pipeline.js';
 
 const idx = {
   chunkMeta: [

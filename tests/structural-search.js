@@ -27,7 +27,8 @@ for (const binName of ['semgrep', 'sg', 'comby']) {
 
 const env = {
   ...process.env,
-  PATH: `${binRoot}${path.delimiter}${process.env.PATH || ''}`
+  PATH: `${binRoot}${path.delimiter}${process.env.PATH || ''}`,
+  PAIROFCLEATS_PROFILE: 'full'
 };
 
 const result = spawnSync(

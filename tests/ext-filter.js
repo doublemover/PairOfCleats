@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { normalizeExtFilter } from '../src/search/filters.js';
+import { normalizeExtFilter } from '../src/retrieval/filters.js';
 
 const result = normalizeExtFilter(['*.js', 'JS', '.Md']);
 const expected = ['.js', '.md'];

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { buildLineIndex } from '../../shared/lines.js';
+import { buildLineIndex } from '../../../shared/lines.js';
 import { createLspClient, languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { rangeToOffsets } from '../lsp/positions.js';
 import { flattenSymbols } from '../lsp/symbols.js';

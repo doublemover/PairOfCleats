@@ -3,13 +3,13 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { execaSync } from 'execa';
 import { buildLineIndex } from '../../shared/lines.js';
-import { createLspClient, languageIdForFileExt, pathToFileUri } from '../../tooling/lsp/client.js';
-import { rangeToOffsets } from '../../tooling/lsp/positions.js';
-import { flattenSymbols } from '../../tooling/lsp/symbols.js';
-import { createToolingEntry, uniqueTypes } from '../../tooling/providers/shared.js';
-import { parseClikeSignature } from './signature-parse/clike.js';
+import { createLspClient, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
+import { rangeToOffsets } from '../../integrations/tooling/lsp/positions.js';
+import { flattenSymbols } from '../../integrations/tooling/lsp/symbols.js';
+import { createToolingEntry, uniqueTypes } from '../../integrations/tooling/providers/shared.js';
+import { parseSwiftSignature } from './signature-parse/swift.js';
 
-export const CLIKE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'];
+export const SWIFT_EXTS = ['.swift'];
 
 const leafName = (value) => {
   if (!value) return null;
@@ -28,37 +28,6 @@ const normalizeHoverContents = (contents) => {
     if (typeof contents.language === 'string' && typeof contents.value === 'string') return contents.value;
   }
   return '';
-};
-
-const parseObjcSignature = (detail) => {
-  if (!detail || !detail.includes(':')) return null;
-  const signature = detail.trim();
-  const returnMatch = signature.match(/\(([^)]+)\)\s*[^:]+/);
-  const returnType = returnMatch ? returnMatch[1].trim() : null;
-  const paramTypes = {};
-  const paramNames = [];
-  const paramRe = /:\s*\(([^)]+)\)\s*([A-Za-z_][\w]*)/g;
-  let match;
-  while ((match = paramRe.exec(signature)) !== null) {
-    const type = match[1]?.trim();
-    const name = match[2]?.trim();
-    if (!type || !name) continue;
-    paramNames.push(name);
-    paramTypes[name] = type;
-  }
-  if (!returnType && !paramNames.length) return null;
-  return { signature, returnType, paramTypes, paramNames };
-};
-
-const parseSignature = (detail, languageId, symbolName) => {
-  if (!detail || typeof detail !== 'string') return null;
-  const trimmed = detail.trim();
-  if (!trimmed) return null;
-  if (languageId === 'objective-c' || languageId === 'objective-cpp') {
-    const objc = parseObjcSignature(trimmed);
-    if (objc) return objc;
-  }
-  return parseClikeSignature(trimmed, symbolName);
 };
 
 const findChunkForOffsets = (chunks, offsets, symbolName) => {
@@ -86,9 +55,9 @@ const findChunkForOffsets = (chunks, offsets, symbolName) => {
 
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
 
-const canRunClangd = (cmd) => {
+const canRunSourcekit = (cmd) => {
   try {
-    const result = execaSync(cmd, ['--version'], {
+    const result = execaSync(cmd, ['--help'], {
       stdio: 'ignore',
       shell: shouldUseShell(cmd),
       reject: false
@@ -113,11 +82,11 @@ const resolveCommand = (cmd) => {
   return cmd;
 };
 
-export async function collectClangdTypes({
+export async function collectSourcekitTypes({
   rootDir,
   chunksByFile,
   log = () => {},
-  cmd = 'clangd',
+  cmd = 'sourcekit-lsp',
   args = [],
   timeoutMs = 15000
 }) {
@@ -126,8 +95,8 @@ export async function collectClangdTypes({
   const files = Array.from(chunksByFile.keys());
   if (!files.length) return { typesByChunk: new Map(), enriched: 0 };
 
-  if (!canRunClangd(resolvedCmd)) {
-    log('[index] clangd not detected; skipping tooling-based types.');
+  if (!canRunSourcekit(resolvedCmd)) {
+    log('[index] sourcekit-lsp not detected; skipping tooling-based types.');
     return { typesByChunk: new Map(), enriched: 0 };
   }
 
@@ -139,7 +108,7 @@ export async function collectClangdTypes({
       capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } }
     });
   } catch (err) {
-    log(`[index] clangd initialize failed: ${err?.message || err}`);
+    log(`[index] sourcekit-lsp initialize failed: ${err?.message || err}`);
     client.kill();
     return { typesByChunk: new Map(), enriched: 0 };
   }
@@ -155,11 +124,10 @@ export async function collectClangdTypes({
       continue;
     }
     const uri = pathToFileUri(absPath);
-    const languageId = languageIdForFileExt(path.extname(file));
     client.notify('textDocument/didOpen', {
       textDocument: {
         uri,
-        languageId,
+        languageId: 'swift',
         version: 1,
         text
       }
@@ -169,7 +137,7 @@ export async function collectClangdTypes({
     try {
       symbols = await client.request('textDocument/documentSymbol', { textDocument: { uri } }, { timeoutMs });
     } catch (err) {
-      log(`[index] clangd documentSymbol failed (${file}): ${err?.message || err}`);
+      log(`[index] sourcekit-lsp documentSymbol failed (${file}): ${err?.message || err}`);
       client.notify('textDocument/didClose', { textDocument: { uri } });
       continue;
     }
@@ -187,7 +155,7 @@ export async function collectClangdTypes({
       const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range);
       const target = findChunkForOffsets(fileChunks, offsets, symbol.name);
       if (!target) continue;
-      let info = parseSignature(symbol.detail, languageId, symbol.name);
+      let info = parseSwiftSignature(symbol.detail);
       if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) {
         try {
           const hover = await client.request('textDocument/hover', {
@@ -195,7 +163,7 @@ export async function collectClangdTypes({
             position: symbol.selectionRange?.start || symbol.range?.start
           }, { timeoutMs: 8000 });
           const hoverText = normalizeHoverContents(hover?.contents);
-          const hoverInfo = parseSignature(hoverText, languageId, symbol.name);
+          const hoverInfo = parseSwiftSignature(hoverText);
           if (hoverInfo) info = hoverInfo;
         } catch {}
       }

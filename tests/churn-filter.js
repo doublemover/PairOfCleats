@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getGitMeta } from '../src/indexer/git.js';
+import { getGitMeta } from '../src/index/git.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'churn-filter');

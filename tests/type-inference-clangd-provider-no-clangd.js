@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { collectClangdTypes } from '../src/indexer/tooling/clangd-provider.js';
+import { collectClangdTypes } from '../src/index/tooling/clangd-provider.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'clangd-provider-no-clangd');

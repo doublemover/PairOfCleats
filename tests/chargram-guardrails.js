@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createTokenizationContext, tokenizeChunkText } from '../src/indexer/build/tokenization.js';
+import { createTokenizationContext, tokenizeChunkText } from '../src/index/build/tokenization.js';
 import { tri } from '../src/shared/tokenize.js';
 
 const context = createTokenizationContext({

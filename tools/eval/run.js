@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { search as coreSearch } from '../../src/core/index.js';
-import { createSqliteDbCache } from '../../src/search/sqlite-cache.js';
+import { search as coreSearch } from '../../src/integrations/core/index.js';
+import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
 
 const argv = createCli({
   scriptName: 'eval-run',

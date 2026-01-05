@@ -4,8 +4,8 @@ import http from 'node:http';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
 import { resolveRepoRoot } from './dict-utils.js';
-import { search, status } from '../src/core/index.js';
-import { createSqliteDbCache } from '../src/search/sqlite-cache.js';
+import { search, status } from '../src/integrations/core/index.js';
+import { createSqliteDbCache } from '../src/retrieval/sqlite-cache.js';
 
 const argv = createCli({
   scriptName: 'api-server',

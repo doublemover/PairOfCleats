@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { smartChunk } from '../src/indexer/chunking.js';
+import { smartChunk } from '../src/index/chunking.js';
 
 const text = "alpha: 1\nbeta: 2\n";
 const defaultChunks = smartChunk({

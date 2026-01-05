@@ -1,6 +1,6 @@
 # Core API
 
-PairOfCleats exposes a lightweight programmatic API for build/search/status. Import from `src/core/index.js` in repo-local tooling.
+PairOfCleats exposes a lightweight programmatic API for build/search/status. Import from `src/integrations/core/index.js` in repo-local tooling.
 
 ## Functions
 - `buildIndex(repoRoot, options)`
@@ -19,9 +19,10 @@ PairOfCleats exposes a lightweight programmatic API for build/search/status. Imp
 ## Example
 
 ```js
-import { buildIndex, search, status } from '../src/core/index.js';
+import { buildIndex, search, status } from '../src/integrations/core/index.js';
 
 await buildIndex(process.cwd(), { mode: 'code', sqlite: false, stubEmbeddings: true });
 const results = await search(process.cwd(), { query: 'function', mode: 'code', json: true });
 const report = await status(process.cwd());
 ```
+

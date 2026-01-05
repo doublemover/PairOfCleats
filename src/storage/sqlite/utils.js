@@ -5,7 +5,7 @@ import {
   loadChunkMeta,
   loadTokenPostings,
   readJsonFile
-} from '../shared/artifact-io.js';
+} from '../../shared/artifact-io.js';
 
 /**
  * Split an array into fixed-size chunks.

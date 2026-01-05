@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
-import { SCHEMA_VERSION } from '../src/sqlite/schema.js';
+import { SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');

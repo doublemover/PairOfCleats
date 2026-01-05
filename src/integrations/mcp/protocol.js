@@ -1,4 +1,4 @@
-import { writeFramedJsonRpc } from '../shared/jsonrpc.js';
+import { writeFramedJsonRpc } from '../../shared/jsonrpc.js';
 
 /**
  * Send a JSON-RPC payload with Content-Length framing.

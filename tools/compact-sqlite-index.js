@@ -6,9 +6,9 @@ import { pathToFileURL } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
 import { loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
-import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/sqlite/schema.js';
-import { hasRequiredTables, normalizeFilePath } from '../src/sqlite/utils.js';
-import { dequantizeUint8ToFloat32, toVectorId } from '../src/sqlite/vector.js';
+import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
+import { hasRequiredTables, normalizeFilePath } from '../src/storage/sqlite/utils.js';
+import { dequantizeUint8ToFloat32, toVectorId } from '../src/storage/sqlite/vector.js';
 
 let Database;
 try {

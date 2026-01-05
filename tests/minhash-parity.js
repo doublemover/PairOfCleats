@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { SimpleMinHash } from '../src/indexer/minhash.js';
-import { rankMinhash } from '../src/search/rankers.js';
+import { SimpleMinHash } from '../src/index/minhash.js';
+import { rankMinhash } from '../src/retrieval/rankers.js';
 
 const tokens = ['alpha', 'beta', 'gamma', 'delta'];
 const mh = new SimpleMinHash();

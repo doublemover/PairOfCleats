@@ -8,8 +8,8 @@ import { execa, execaSync } from 'execa';
 import { createCli } from '../src/shared/cli.js';
 import { fileURLToPath } from 'node:url';
 import { getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions } from './dict-utils.js';
-import { buildIgnoreMatcher } from '../src/indexer/build/ignore.js';
-import { discoverFilesForModes } from '../src/indexer/build/discover.js';
+import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
+import { discoverFilesForModes } from '../src/index/build/discover.js';
 import { toPosix } from '../src/shared/files.js';
 
 const argv = createCli({

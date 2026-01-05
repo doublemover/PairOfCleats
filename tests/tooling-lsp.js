@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { PassThrough } from 'node:stream';
 import { buildLineIndex } from '../src/shared/lines.js';
 import { createFramedJsonRpcParser, writeFramedJsonRpc } from '../src/shared/jsonrpc.js';
-import { flattenSymbols } from '../src/tooling/lsp/symbols.js';
-import { rangeToOffsets } from '../src/tooling/lsp/positions.js';
+import { flattenSymbols } from '../src/integrations/tooling/lsp/symbols.js';
+import { rangeToOffsets } from '../src/integrations/tooling/lsp/positions.js';
 
 const messages = [];
 const errors = [];

@@ -10,7 +10,7 @@ import {
   OBJC_TYPE_MAP,
   isCLike,
   isObjc
-} from '../indexer/constants.js';
+} from '../index/constants.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 

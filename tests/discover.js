@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { discoverFiles, discoverFilesForModes } from '../src/indexer/build/discover.js';
-import { buildIgnoreMatcher } from '../src/indexer/build/ignore.js';
+import { discoverFiles, discoverFilesForModes } from '../src/index/build/discover.js';
+import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'discover');

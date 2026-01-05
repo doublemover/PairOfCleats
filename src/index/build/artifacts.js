@@ -5,7 +5,7 @@ import { getRepoBranch } from '../git.js';
 import { log } from '../../shared/progress.js';
 import { writeJsonArrayFile, writeJsonLinesFile, writeJsonObjectFile } from '../../shared/json-stream.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
-import { buildFilterIndex, serializeFilterIndex } from '../../search/filter-index.js';
+import { buildFilterIndex, serializeFilterIndex } from '../../retrieval/filter-index.js';
 
 /**
  * Write index artifacts and metrics.
