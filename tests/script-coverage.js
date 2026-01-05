@@ -468,6 +468,11 @@ const actions = [
     covers: ['fixture-eval']
   },
   {
+    label: 'eval-quality-test',
+    run: () => runNode('eval-quality-test', path.join(root, 'tests', 'eval-quality.js')),
+    covers: ['eval-quality-test', 'eval-run']
+  },
+  {
     label: 'query-cache-test',
     run: () => runNode('query-cache-test', path.join(root, 'tests', 'query-cache.js')),
     covers: ['query-cache-test']

@@ -18,14 +18,6 @@ Completed phases live in `COMPLETED_PHASES.md` at the repo root. When a phase is
 - [ ] Evaluate FTS5 vs BM25 parity on larger benchmarks and retune weights.
   - Do not prioritize or bring this up unless explicitly requested.
 
-## Phase 8: IR Evaluation Harness + Quality Gates (status: todo)
-Goal: Measure search quality and prevent regressions.
-Work items:
-- [ ] Add `tools/eval/run.js` (Recall@k, MRR, nDCG@k) with JSON output.
-- [ ] Create a labeled query set (silver labels + small gold subset).
-- [ ] Add CI thresholds for quality regressions.
-- [ ] Add documentation for evaluation workflow.
-
 ## Phase 9: Fielded Indexing (status: todo)
 Goal: Improve relevance by separating fields and weighting them.
 Work items:

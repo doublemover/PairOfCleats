@@ -1,0 +1,19 @@
+[
+  {
+    "query": "greet",
+    "mode": "code",
+    "relevant": [{ "file": "src/index.js", "name": "greet" }],
+    "gold": [{ "file": "src/index.js", "name": "greet" }]
+  },
+  {
+    "query": "clamp",
+    "mode": "code",
+    "relevant": [{ "file": "src/util.js", "name": "clamp" }]
+  },
+  {
+    "query": "guide",
+    "mode": "prose",
+    "relevant": [{ "file": "docs/guide.md", "name": "Guide" }],
+    "gold": [{ "file": "docs/guide.md", "name": "Guide" }]
+  }
+]

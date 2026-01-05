@@ -1064,3 +1064,9 @@ Work items:
 - [x] Ensured BM25 defaults are sourced from index-time metrics when available.
 - [x] Kept FTS5 labeled as alternate sparse source in explain output.
 - [x] Added RRF documentation and tests.
+
+## Phase 8: IR Evaluation Harness + Quality Gates (status: done)
+- [x] Added `tools/eval/run.js` with Recall@k, MRR, and nDCG@k JSON output.
+- [x] Added a labeled sample dataset with silver/gold examples.
+- [x] Added CI quality thresholds via `tests/eval-quality.js`.
+- [x] Documented evaluation workflow in `docs/eval.md`.
