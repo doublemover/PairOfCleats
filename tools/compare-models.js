@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { execaSync } from 'execa';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
+import { getEnvConfig } from '../src/shared/env.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/experimental/compare/config.js';
 import {
   DEFAULT_MODEL_ID,
@@ -55,6 +56,7 @@ if (userConfig.profile !== 'full') {
   console.error('compare-models is experimental. Run with profile=full or set PAIROFCLEATS_PROFILE=full.');
   process.exit(1);
 }
+const envConfig = getEnvConfig();
 const runtimeConfig = getRuntimeConfig(root, userConfig);
 const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
 const baseEnv = resolvedNodeOptions
@@ -65,14 +67,14 @@ const configCacheRoot = typeof userConfig.cache?.root === 'string' && userConfig
   : null;
 const cacheRootBase = argv['cache-root']
   ? path.resolve(argv['cache-root'])
-  : (process.env.PAIROFCLEATS_CACHE_ROOT
-    ? path.resolve(process.env.PAIROFCLEATS_CACHE_ROOT)
+  : (envConfig.cacheRoot
+    ? path.resolve(envConfig.cacheRoot)
     : getCacheRoot());
 const repoId = getRepoId(root);
 const modelConfig = getModelConfig(root, userConfig);
 const dictConfig = getDictConfig(root, userConfig);
-const sharedModelsDir = process.env.PAIROFCLEATS_MODELS_DIR || modelConfig.dir;
-const sharedDictDir = process.env.PAIROFCLEATS_DICT_DIR || dictConfig.dir;
+const sharedModelsDir = envConfig.modelsDir || modelConfig.dir;
+const sharedDictDir = envConfig.dictDir || dictConfig.dir;
 
 const configCompareModels = Array.isArray(userConfig.models?.compare)
   ? userConfig.models.compare

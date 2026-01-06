@@ -1,8 +1,9 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { resolveSqlitePaths } from '../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
 
 let Database = null;
 try {
@@ -22,9 +23,20 @@ await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'const alpha = 1;\n');
+await fsPromises.writeFile(path.join(repoRoot, 'beta.js'), 'const beta = 2;\n');
 await fsPromises.writeFile(
   path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify({ indexing: { treeSitter: { enabled: false } } }, null, 2)
+  JSON.stringify({
+    indexing: {
+      treeSitter: { enabled: false },
+      artifacts: {
+        chunkMetaFormat: 'jsonl',
+        chunkMetaShardSize: 1,
+        tokenPostingsFormat: 'sharded',
+        tokenPostingsShardSize: 1
+      }
+    }
+  }, null, 2)
 );
 
 const env = {
@@ -42,10 +54,27 @@ const runNode = (label, args) => {
 };
 
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
-runNode('build_sqlite_index', [path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot]);
+runNode('build_index_stage4', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage4', '--repo', repoRoot]);
 
 const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+const userConfig = loadUserConfig(repoRoot);
+const indexDir = getIndexDir(repoRoot, 'code', userConfig);
+const chunkMetaPartsDir = path.join(indexDir, 'chunk_meta.parts');
+const tokenPostingsShardsDir = path.join(indexDir, 'token_postings.shards');
+if (!fs.existsSync(chunkMetaPartsDir)) {
+  console.error(`Expected chunk_meta.parts to exist at ${chunkMetaPartsDir}`);
+  process.exit(1);
+}
+if (!fs.existsSync(tokenPostingsShardsDir)) {
+  console.error(`Expected token_postings.shards to exist at ${tokenPostingsShardsDir}`);
+  process.exit(1);
+}
+const chunkMetaJson = path.join(indexDir, 'chunk_meta.json');
+if (fs.existsSync(chunkMetaJson)) {
+  console.error(`Expected chunk_meta.json to be absent at ${chunkMetaJson}`);
+  process.exit(1);
+}
 const sqlitePaths = resolveSqlitePaths(repoRoot, {});
 if (previousCacheRoot === undefined) {
   delete process.env.PAIROFCLEATS_CACHE_ROOT;

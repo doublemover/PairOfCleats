@@ -22,7 +22,7 @@ Example:
       "indexModes": "both"
     }
   ],
-  "queue": { "maxQueued": 20 },
+  "queue": { "maxQueued": 20, "maxRetries": 2 },
   "worker": { "concurrency": 2 },
   "sync": { "policy": "pull", "intervalMs": 300000 }
 }
@@ -46,6 +46,10 @@ pairofcleats indexer-service status
 # Embedding queue (service mode)
 pairofcleats indexer-service enqueue --queue embeddings --repo /path/to/repo --mode code
 pairofcleats indexer-service work --queue embeddings --concurrency 1
+
+# Stage/mode-specific queues (optional)
+pairofcleats indexer-service enqueue --queue auto --stage stage2 --mode code --repo /path/to/repo
+pairofcleats indexer-service work --queue auto --stage stage2 --mode code --concurrency 1
 ```
 
 Query serving
@@ -57,6 +61,8 @@ pairofcleats indexer-service serve --repo /path/to/repo
 Notes
 - The queue is persisted in the cache root under `service/queue/queue.json`.
 - Embedding jobs are stored in `service/queue/queue-embeddings.json`.
+- Use `queue.maxRetries` to requeue failed jobs automatically; attempts are tracked per job.
 - If `indexing.twoStage.background` is enabled, stage2 enrichment jobs are queued by default (set `indexing.twoStage.queue: false` to disable).
+- Stage3 runs the embedding pass (`--stage stage3`), and stage4 builds SQLite/ANN (`--stage stage4`).
 - Use `syncPolicy: "fetch"` for Sourcebot-style fetch-only workflows.
 - Each job runs `build_index.js` for the configured repo/mode.

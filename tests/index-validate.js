@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -37,6 +38,22 @@ if (buildResult.status !== 0) {
   console.error('Failed to build fixture index for index-validate test.');
   if (buildResult.stderr) console.error(buildResult.stderr.trim());
   process.exit(buildResult.status ?? 1);
+}
+const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+const userConfig = loadUserConfig(fixtureRoot);
+const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
+if (previousCacheRoot === undefined) {
+  delete process.env.PAIROFCLEATS_CACHE_ROOT;
+} else {
+  process.env.PAIROFCLEATS_CACHE_ROOT = previousCacheRoot;
+}
+const piecesPath = path.join(codeDir, 'pieces', 'manifest.json');
+try {
+  await fsPromises.access(piecesPath);
+} catch {
+  console.error('Expected pieces manifest to exist after build.');
+  process.exit(1);
 }
 
 const okResult = spawnSync(

@@ -32,7 +32,7 @@ export async function discoverFilesForModes({ root, modes, ignoreMatcher, skippe
   return output;
 }
 
-async function discoverEntries({ root, ignoreMatcher, maxFileBytes = null, fileCaps = null }) {
+export async function discoverEntries({ root, ignoreMatcher, maxFileBytes = null, fileCaps = null }) {
   const maxBytes = Number.isFinite(Number(maxFileBytes)) && Number(maxFileBytes) > 0
     ? Number(maxFileBytes)
     : null;

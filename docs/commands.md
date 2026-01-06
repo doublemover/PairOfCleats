@@ -1,65 +1,79 @@
 # Command Surface
 
 PairOfCleats uses the `pairofcleats` CLI as the primary interface. `npm run <script>`
-wrappers remain available for CI and convenience, but the documentation below
-uses the CLI names for consistency.
+wrappers remain available for CI or local convenience, but the list is intentionally
+small. If the binary is not on your PATH, use `node bin/pairofcleats.js`.
 
 Experimental commands require `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
 
 ## Core
-- `pairofcleats setup` (guided install/config flow)
-- `pairofcleats bootstrap` (fast bootstrap, no prompts)
-- `pairofcleats build-index`
-- `pairofcleats watch-index`
-- `pairofcleats build-embeddings`
+- `pairofcleats setup`
+- `pairofcleats bootstrap`
 - `pairofcleats search`
-- `pairofcleats status`
-- `pairofcleats index-validate`
+- `pairofcleats index build`
+- `pairofcleats index watch`
+- `pairofcleats index validate`
+- `pairofcleats embeddings build`
+- `pairofcleats generate-repo-dict`
+- `pairofcleats git-hooks`
 
 ## SQLite
-- `pairofcleats build-sqlite-index`
-- `pairofcleats compact-sqlite-index`
-- `pairofcleats search-sqlite`
+- `pairofcleats sqlite build`
+- `pairofcleats sqlite compact`
+- `pairofcleats sqlite search` (defaults to `sqlite-fts` when `--backend` is omitted)
 
-## Tooling + assets
-- `pairofcleats download-dicts`
-- `pairofcleats download-models`
-- `pairofcleats download-extensions`
-- `pairofcleats verify-extensions`
-- `pairofcleats generate-repo-dict`
-- `pairofcleats tooling-detect`
-- `pairofcleats tooling-install`
+## Assets
+- `pairofcleats assets dicts`
+- `pairofcleats assets models`
+- `pairofcleats assets extensions`
+- `pairofcleats assets extensions-verify`
 
-## Symbol ingests + structural
-- `pairofcleats ctags-ingest`
-- `pairofcleats scip-ingest`
-- `pairofcleats lsif-ingest`
-- `pairofcleats gtags-ingest`
-- `pairofcleats structural-search`
+## Tooling
+- `pairofcleats tooling detect`
+- `pairofcleats tooling install`
 
-## Services + reports
-- `pairofcleats server`
-- `pairofcleats indexer-service`
-- `pairofcleats mcp-server`
-- `pairofcleats repometrics-dashboard`
-- `pairofcleats compare-models`
-- `pairofcleats summary-report`
-- `pairofcleats eval-run`
+## Ingest
+- `pairofcleats ingest ctags`
+- `pairofcleats ingest scip`
+- `pairofcleats ingest lsif`
+- `pairofcleats ingest gtags`
+
+## Structural
+- `pairofcleats structural search`
+
+## Cache
+- `pairofcleats cache gc`
+- `pairofcleats cache clean`
+- `pairofcleats cache report`
+
+## Reports
+- `pairofcleats report repometrics`
+- `pairofcleats report compare-models`
+- `pairofcleats report summary`
+- `pairofcleats report eval`
+
+## Services
+- `pairofcleats service api`
+- `pairofcleats service indexer`
+- `pairofcleats service mcp`
+
+## Config + triage
+- `pairofcleats config validate`
+- `pairofcleats config dump`
+- `pairofcleats triage ingest`
+- `pairofcleats triage decision`
+- `pairofcleats triage context-pack`
 
 ## Benchmarks
-- `pairofcleats bench-micro`
-- `pairofcleats bench-language`
-- `pairofcleats bench-language-matrix`
-- `pairofcleats bench-language-build`
-- `pairofcleats bench-language-build-stub`
-- `pairofcleats bench-language-typical`
-- `pairofcleats bench-language-large`
+- `pairofcleats bench micro`
+- `pairofcleats bench language`
+- `pairofcleats bench matrix`
 
-## Maintenance
-- `pairofcleats cache-gc`
-- `pairofcleats clean-artifacts`
-- `pairofcleats report-artifacts`
-- `pairofcleats uninstall`
+## Migration notes
+- Legacy aliases (for example, `pairofcleats build-index` or `pairofcleats search-sqlite`)
+  are still accepted. Run `pairofcleats help` to see the full alias mapping.
+- Language-specific bench scripts were removed; use `pairofcleats bench language --language <lang>`
+  and `--tier <typical|large>` instead.
 
 ## Tests
 - `npm run test-all` / `npm run test-all-no-bench`

@@ -60,6 +60,30 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
 }
 
 /**
+ * Resolve worker pool configuration with environment overrides.
+ * @param {object} raw
+ * @param {{workerPool?:string}|null} envConfig
+ * @param {{cpuLimit?:number}} [options]
+ * @returns {object}
+ */
+export function resolveWorkerPoolConfig(raw = {}, envConfig = null, options = {}) {
+  const config = normalizeWorkerPoolConfig(raw, options);
+  const override = typeof envConfig?.workerPool === 'string'
+    ? envConfig.workerPool.trim().toLowerCase()
+    : '';
+  if (override) {
+    if (['0', 'false', 'off', 'disable', 'disabled'].includes(override)) {
+      config.enabled = false;
+    } else if (['1', 'true', 'on', 'enable', 'enabled'].includes(override)) {
+      config.enabled = true;
+    } else if (override === 'auto') {
+      config.enabled = 'auto';
+    }
+  }
+  return config;
+}
+
+/**
  * Create a worker pool for CPU-bound tokenization/quantization work.
  * @param {object} input
  * @returns {object|null}

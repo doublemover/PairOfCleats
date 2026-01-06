@@ -1,12 +1,14 @@
 import fs from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseBuildArgs } from '../../index/build/args.js';
 import { buildIndexForMode } from '../../index/build/indexer.js';
 import { acquireIndexLock } from '../../index/build/lock.js';
-import { discoverFilesForModes } from '../../index/build/discover.js';
+import { preprocessFiles, writePreprocessStats } from '../../index/build/preprocess.js';
 import { createBuildRuntime } from '../../index/build/runtime.js';
 import { watchIndex } from '../../index/build/watch.js';
+import { getEnvConfig } from '../../shared/env.js';
 import { log as defaultLog } from '../../shared/progress.js';
 import { shutdownPythonAstPool } from '../../lang/python.js';
 import { getCacheRoot, getRepoCacheRoot, loadUserConfig, resolveRepoRoot } from '../../../tools/dict-utils.js';
@@ -14,6 +16,11 @@ import { ensureQueueDir, enqueueJob } from '../../../tools/service/queue.js';
 import { runBuildSqliteIndex } from '../../../tools/build-sqlite-index.js';
 import { runSearchCli } from '../../retrieval/cli.js';
 import { getStatus } from './status.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const toolRoot = path.resolve(__dirname, '..', '..', '..');
+const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build-embeddings.js');
 
 const buildRawArgs = (options = {}) => {
   const args = [];
@@ -68,6 +75,8 @@ const normalizeStage = (raw) => {
     if (!value) return null;
     if (value === '1' || value === 'stage1' || value === 'sparse') return 'stage1';
     if (value === '2' || value === 'stage2' || value === 'enrich' || value === 'full') return 'stage2';
+    if (value === '3' || value === 'stage3' || value === 'embeddings' || value === 'embed') return 'stage3';
+    if (value === '4' || value === 'stage4' || value === 'sqlite' || value === 'ann') return 'stage4';
   return null;
 };
 
@@ -105,6 +114,54 @@ const buildStage2Args = ({ root, argv, rawArgv }) => {
   return args;
 };
 
+const resolveEmbeddingRuntime = ({ argv, userConfig, envConfig }) => {
+  const embeddingsConfig = userConfig?.indexing?.embeddings || {};
+  const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
+    ? embeddingsConfig.mode.trim().toLowerCase()
+    : 'auto';
+  const baseStubEmbeddings = argv['stub-embeddings'] === true
+    || envConfig.embeddings === 'stub';
+  const normalizedEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(embeddingModeRaw)
+    ? embeddingModeRaw
+    : 'auto';
+  const resolvedEmbeddingMode = normalizedEmbeddingMode === 'auto'
+    ? (baseStubEmbeddings ? 'stub' : 'inline')
+    : normalizedEmbeddingMode;
+  const embeddingService = embeddingsConfig.enabled !== false
+    && resolvedEmbeddingMode === 'service';
+  const embeddingEnabled = embeddingsConfig.enabled !== false
+    && resolvedEmbeddingMode !== 'off';
+  const queueDir = typeof embeddingsConfig.queue?.dir === 'string'
+    ? embeddingsConfig.queue.dir.trim()
+    : '';
+  const queueMaxRaw = Number(embeddingsConfig.queue?.maxQueued);
+  const queueMaxQueued = Number.isFinite(queueMaxRaw)
+    ? Math.max(0, Math.floor(queueMaxRaw))
+    : null;
+  return {
+    embeddingEnabled,
+    embeddingService,
+    useStubEmbeddings: resolvedEmbeddingMode === 'stub' || baseStubEmbeddings,
+    resolvedEmbeddingMode,
+    queueDir,
+    queueMaxQueued
+  };
+};
+
+const runEmbeddingsTool = (args, extraEnv = null) => new Promise((resolve, reject) => {
+  const child = spawn(process.execPath, args, {
+    stdio: 'inherit',
+    env: extraEnv ? { ...process.env, ...extraEnv } : process.env
+  });
+  child.on('close', (code) => {
+    if (code === 0) {
+      resolve();
+    } else {
+      reject(new Error(`build-embeddings exited with code ${code ?? 'unknown'}`));
+    }
+  });
+});
+
 /**
  * Build file-backed indexes for a repo.
  * @param {string} repoRoot
@@ -131,9 +188,85 @@ export async function buildIndex(repoRoot, options = {}) {
   }
 
   const userConfig = loadUserConfig(root);
+  const envConfig = getEnvConfig();
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const twoStageConfig = userConfig?.indexing?.twoStage || {};
   const twoStageEnabled = twoStageConfig.enabled === true;
+  const embeddingRuntime = resolveEmbeddingRuntime({ argv, userConfig, envConfig });
+  const buildEmbedModes = modes.filter((modeItem) => modeItem === 'code' || modeItem === 'prose');
+  const runEmbeddingsStage = async () => {
+    if (!embeddingRuntime.embeddingEnabled) {
+      log('Embeddings disabled; skipping stage3.');
+      return { modes: buildEmbedModes, embeddings: { skipped: true }, repo: root, stage: 'stage3' };
+    }
+    const lock = await acquireIndexLock({ repoCacheRoot, log });
+    if (!lock) throw new Error('Index lock unavailable.');
+    try {
+      if (embeddingRuntime.embeddingService) {
+        const queueDir = embeddingRuntime.queueDir
+          ? path.resolve(embeddingRuntime.queueDir)
+          : path.join(getCacheRoot(), 'service', 'queue');
+        await ensureQueueDir(queueDir);
+        const jobs = [];
+        for (const modeItem of buildEmbedModes) {
+          const jobId = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+          const result = await enqueueJob(
+            queueDir,
+            {
+              id: jobId,
+              createdAt: new Date().toISOString(),
+              repo: root,
+              mode: modeItem,
+              reason: 'stage3',
+              stage: 'stage3'
+            },
+            embeddingRuntime.queueMaxQueued,
+            'embeddings'
+          );
+          if (!result.ok) {
+            log(`[embeddings] Queue full or unavailable; skipped enqueue (${modeItem}).`);
+            continue;
+          }
+          log(`[embeddings] Queued embedding job ${jobId} (${modeItem}).`);
+          jobs.push(result.job || { id: jobId, mode: modeItem });
+        }
+        return { modes: buildEmbedModes, embeddings: { queued: true, jobs }, repo: root, stage: 'stage3' };
+      }
+      for (const modeItem of buildEmbedModes) {
+        const args = [buildEmbeddingsPath, '--repo', root, '--mode', modeItem];
+        if (Number.isFinite(Number(argv.dims))) {
+          args.push('--dims', String(argv.dims));
+        }
+        if (embeddingRuntime.useStubEmbeddings) args.push('--stub-embeddings');
+        await runEmbeddingsTool(args);
+      }
+      return { modes: buildEmbedModes, embeddings: { queued: false, inline: true }, repo: root, stage: 'stage3' };
+    } finally {
+      await lock.release();
+    }
+  };
+  const runSqliteStage = async () => {
+    const sqliteConfigured = userConfig?.sqlite?.use !== false;
+    const shouldBuildSqlite = typeof argv.sqlite === 'boolean' ? argv.sqlite : sqliteConfigured;
+    if (!shouldBuildSqlite) {
+      log('SQLite disabled; skipping stage4.');
+      return { modes: buildEmbedModes, sqlite: { skipped: true }, repo: root, stage: 'stage4' };
+    }
+    const lock = await acquireIndexLock({ repoCacheRoot, log });
+    if (!lock) throw new Error('Index lock unavailable.');
+    try {
+      if (!buildEmbedModes.length) return { modes: buildEmbedModes, sqlite: null, repo: root, stage: 'stage4' };
+      const sqliteResult = await buildSqliteIndex(root, {
+        mode: buildEmbedModes.length === 1 ? buildEmbedModes[0] : 'all',
+        incremental: argv.incremental === true,
+        emitOutput: options.emitOutput !== false,
+        exitOnError: false
+      });
+      return { modes: buildEmbedModes, sqlite: sqliteResult, repo: root, stage: 'stage4' };
+    } finally {
+      await lock.release();
+    }
+  };
   const runStage = async (stage, { allowSqlite = true } = {}) => {
     const stageArgv = stage ? { ...argv, stage } : argv;
     const runtime = await createBuildRuntime({ root, argv: stageArgv, rawArgv });
@@ -142,20 +275,28 @@ export async function buildIndex(repoRoot, options = {}) {
     let sqliteResult = null;
     try {
       let sharedDiscovery = null;
-      if (modes.includes('code') && modes.includes('prose')) {
-        const skippedByMode = { code: [], prose: [] };
-        const entriesByMode = await runtime.queues.io.add(() => discoverFilesForModes({
+      const preprocessModes = modes.filter((modeItem) => modeItem === 'code' || modeItem === 'prose');
+      if (preprocessModes.length) {
+        const preprocess = await preprocessFiles({
           root: runtime.root,
-          modes: ['code', 'prose'],
+          modes: preprocessModes,
           ignoreMatcher: runtime.ignoreMatcher,
-          skippedByMode,
           maxFileBytes: runtime.maxFileBytes,
-          fileCaps: runtime.fileCaps
-        }));
-        sharedDiscovery = {
-          code: { entries: entriesByMode.code, skippedFiles: skippedByMode.code },
-          prose: { entries: entriesByMode.prose, skippedFiles: skippedByMode.prose }
-        };
+          fileCaps: runtime.fileCaps,
+          fileScan: runtime.fileScan,
+          lineCounts: runtime.shards?.enabled === true,
+          concurrency: runtime.ioConcurrency,
+          log
+        });
+        await writePreprocessStats(runtime.repoCacheRoot, preprocess.stats);
+        sharedDiscovery = {};
+        for (const modeItem of preprocessModes) {
+          sharedDiscovery[modeItem] = {
+            entries: preprocess.entriesByMode[modeItem] || [],
+            skippedFiles: preprocess.skippedByMode[modeItem] || [],
+            lineCounts: preprocess.lineCountsByMode[modeItem] || new Map()
+          };
+        }
       }
       for (const modeItem of modes) {
         const discovery = sharedDiscovery ? sharedDiscovery[modeItem] : null;
@@ -203,6 +344,13 @@ export async function buildIndex(repoRoot, options = {}) {
     }
     return { modes, sqlite: sqliteResult, repo: runtime.root, stage };
   };
+
+  if (explicitStage === 'stage3') {
+    return runEmbeddingsStage();
+  }
+  if (explicitStage === 'stage4') {
+    return runSqliteStage();
+  }
 
   if (explicitStage || !twoStageEnabled) {
     return runStage(explicitStage, { allowSqlite: true });

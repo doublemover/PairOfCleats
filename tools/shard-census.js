@@ -9,8 +9,7 @@ import { loadUserConfig } from './dict-utils.js';
 import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
 import { discoverFilesForModes } from '../src/index/build/discover.js';
 import { planShards } from '../src/index/build/shards.js';
-import { runWithConcurrency } from '../src/shared/concurrency.js';
-import { toPosix } from '../src/shared/files.js';
+import { countLinesForEntries } from '../src/shared/file-stats.js';
 
 const argv = createCli({
   scriptName: 'shard-census',
@@ -108,20 +107,6 @@ const resolveShardConfig = (indexingConfig) => {
   };
 };
 
-const countLines = async (filePath) => {
-  try {
-    const buf = await fsPromises.readFile(filePath);
-    if (!buf || !buf.length) return 0;
-    let count = 0;
-    for (const byte of buf) {
-      if (byte === 10) count += 1;
-    }
-    return count + 1;
-  } catch {
-    return 0;
-  }
-};
-
 const loadBenchConfig = async () => {
   const raw = await fsPromises.readFile(benchConfigPath, 'utf8');
   return JSON.parse(raw);
@@ -191,27 +176,16 @@ const censusRepo = async (repoPath, label) => {
       console.log(`Mode ${mode}: no files`);
       continue;
     }
-    const lineCounts = new Map();
-    await runWithConcurrency(
-      entries,
-      concurrency,
-      async (entry) => {
-        const lines = await countLines(entry.abs);
-        lineCounts.set(toPosix(entry.rel), lines);
-      },
-      { collectResults: false }
-    );
+    const lineCounts = await countLinesForEntries(entries, { concurrency });
     const shards = planShards(entries, {
       mode,
       maxShards: shardConfig.maxShards,
       minFiles: shardConfig.minFiles,
-      dirDepth: shardConfig.dirDepth
+      dirDepth: shardConfig.dirDepth,
+      lineCounts
     });
     const shardStats = shards.map((shard) => {
-      let lines = 0;
-      for (const entry of shard.entries) {
-        lines += lineCounts.get(toPosix(entry.rel)) || 0;
-      }
+      const lines = Number.isFinite(shard.lineCount) ? shard.lineCount : 0;
       return {
         id: shard.id,
         label: shard.label || shard.id,

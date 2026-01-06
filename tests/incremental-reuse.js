@@ -1,0 +1,54 @@
+#!/usr/bin/env node
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { shouldReuseIncrementalIndex } from '../src/index/build/incremental.js';
+
+const root = process.cwd();
+const tempRoot = path.join(root, 'tests', '.cache', 'incremental-reuse');
+const outDir = path.join(tempRoot, 'index');
+
+await fs.rm(tempRoot, { recursive: true, force: true });
+await fs.mkdir(path.join(outDir, 'pieces'), { recursive: true });
+
+const indexState = { stage: 'stage2' };
+const pieceManifest = { version: 2, pieces: [{ name: 'chunk_meta', path: 'chunk_meta.json' }] };
+await fs.writeFile(path.join(outDir, 'index_state.json'), JSON.stringify(indexState));
+await fs.writeFile(path.join(outDir, 'pieces', 'manifest.json'), JSON.stringify(pieceManifest));
+
+const entries = [
+  { rel: 'src/a.js', stat: { size: 10, mtimeMs: 123 } },
+  { rel: 'src/b.js', stat: { size: 20, mtimeMs: 456 } }
+];
+
+const manifest = {
+  files: {
+    'src/a.js': { size: 10, mtimeMs: 123 },
+    'src/b.js': { size: 20, mtimeMs: 456 }
+  }
+};
+
+const reuse = await shouldReuseIncrementalIndex({
+  outDir,
+  entries,
+  manifest,
+  stage: 'stage1'
+});
+
+if (!reuse) {
+  console.error('incremental reuse test failed: expected reuse');
+  process.exit(1);
+}
+
+const noReuse = await shouldReuseIncrementalIndex({
+  outDir,
+  entries: [{ rel: 'src/a.js', stat: { size: 11, mtimeMs: 123 } }],
+  manifest,
+  stage: 'stage2'
+});
+
+if (noReuse) {
+  console.error('incremental reuse test failed: expected mismatch');
+  process.exit(1);
+}
+
+console.log('incremental reuse test passed');

@@ -4,50 +4,39 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import { createCli } from '../src/shared/cli.js';
+import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../src/shared/cli-options.js';
 
 const argv = createCli({
   scriptName: 'bench-language-matrix',
-  options: {
-    tier: { type: 'string', default: 'typical' },
-    backend: { type: 'string' },
-    backends: { type: 'string' },
-    'ann-modes': { type: 'string' },
-    'fts-profiles': { type: 'string' },
-    build: { type: 'boolean', default: false },
-    'build-index': { type: 'boolean', default: false },
-    'build-sqlite': { type: 'boolean', default: false },
-    incremental: { type: 'boolean', default: false },
-    threads: { type: 'number' },
-    'heap-mb': { type: 'number' },
-    config: { type: 'string' },
-    root: { type: 'string' },
-    'cache-root': { type: 'string' },
-    'cache-suffix': { type: 'string' },
-    results: { type: 'string' },
-    'log-dir': { type: 'string' },
-    'out-dir': { type: 'string' },
-    language: { type: 'string' },
-    languages: { type: 'string' },
-    repos: { type: 'string' },
-    only: { type: 'string' },
-    queries: { type: 'string' },
-    top: { type: 'number' },
-    limit: { type: 'number' },
-    'bm25-k1': { type: 'number' },
-    'bm25-b': { type: 'number' },
-    'fts-weights': { type: 'string' },
-    'benchmark-profile': { type: 'boolean', default: true },
-    'stub-embeddings': { type: 'boolean', default: false },
-    'index-profile': { type: 'string' },
-    'no-index-profile': { type: 'boolean', default: false },
-    'real-embeddings': { type: 'boolean', default: false },
-    'dry-run': { type: 'boolean', default: false },
-    'fail-fast': { type: 'boolean', default: false },
-    'lock-mode': { type: 'string' },
-    'lock-wait-ms': { type: 'number' },
-    'lock-stale-ms': { type: 'number' }
-  }
+  options: mergeCliOptions(
+    BENCH_OPTIONS,
+    {
+      tier: { type: 'string', default: 'typical' },
+      backend: { type: 'string' },
+      backends: { type: 'string' },
+      'ann-modes': { type: 'string' },
+      'fts-profiles': { type: 'string' },
+      config: { type: 'string' },
+      root: { type: 'string' },
+      'cache-root': { type: 'string' },
+      'cache-suffix': { type: 'string' },
+      results: { type: 'string' },
+      'log-dir': { type: 'string' },
+      'out-dir': { type: 'string' },
+      language: { type: 'string' },
+      languages: { type: 'string' },
+      repos: { type: 'string' },
+      only: { type: 'string' },
+      'fts-weights': { type: 'string' },
+      'dry-run': { type: 'boolean', default: false },
+      'fail-fast': { type: 'boolean', default: false },
+      'lock-mode': { type: 'string' },
+      'lock-wait-ms': { type: 'number' },
+      'lock-stale-ms': { type: 'number' }
+    }
+  )
 }).parse();
+validateBenchArgs(argv);
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const benchScript = path.join(scriptRoot, 'tools', 'bench-language-repos.js');
@@ -170,7 +159,7 @@ const configToArgs = (config, outFile, logFile) => {
   appendArgs(args, '--lock-wait-ms', argv['lock-wait-ms']);
   appendArgs(args, '--lock-stale-ms', argv['lock-stale-ms']);
 
-  if (argv['benchmark-profile'] === false) args.push('--no-benchmark-profile');
+  if (argv['no-index-profile']) args.push('--no-index-profile');
   return args;
 };
 

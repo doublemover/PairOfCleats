@@ -28,14 +28,23 @@ Update SQLite indexes in-place by touching only the files that changed since the
 - This leaves gaps when files are deleted; a full rebuild compacts IDs.
 
 ## Usage
-- Build incremental cache: `pairofcleats build-index --incremental`.
+- Build incremental cache: `pairofcleats index build --incremental`.
 - Update SQLite in place: `pairofcleats build-sqlite-index --incremental`.
 - `pairofcleats bootstrap --incremental --with-sqlite` runs both.
+- `--validate <off|smoke|full>` controls post-build SQLite validation (default: `smoke`).
 
 ## Fallback Behavior
 If the incremental manifest or required SQLite tables are missing, the tool falls back to a full rebuild.
 If a manifest exists, full rebuilds automatically stream from incremental bundles instead of loading `chunk_meta.json`.
+Full rebuilds also trigger when:
+- The manifest is empty or has conflicting paths (same file with different separators).
+- `file_manifest` is empty while chunks exist (legacy DBs without per-file metadata).
+- Change ratio exceeds 35% of tracked files (changed + deleted).
+- Vocab growth exceeds maintenance limits for token/phrase/chargram tables.
+- Dense vector metadata (model or dims) mismatches the incoming bundles.
+- Bundle files are missing or invalid.
 
 ## Limitations
 - Vocabulary tables keep old tokens/grams; they are not pruned on deletes.
 - Doc ID gaps grow with frequent updates; rebuild to compact if needed.
+- Large vocab growth or churn triggers a full rebuild to keep tables bounded.

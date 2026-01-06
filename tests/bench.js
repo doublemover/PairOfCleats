@@ -4,41 +4,19 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
+import { BENCH_OPTIONS, validateBenchArgs } from '../src/shared/cli-options.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveSqlitePaths } from '../tools/dict-utils.js';
 import { resolveBenchmarkProfile } from '../src/shared/bench-profile.js';
+import { getEnvConfig } from '../src/shared/env.js';
 import os from 'node:os';
 
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
   scriptName: 'bench',
-  options: {
-    ann: { type: 'boolean' },
-    'no-ann': { type: 'boolean' },
-    json: { type: 'boolean', default: false },
-    'write-report': { type: 'boolean', default: false },
-    build: { type: 'boolean', default: false },
-    'build-index': { type: 'boolean', default: false },
-    'build-sqlite': { type: 'boolean', default: false },
-    incremental: { type: 'boolean', default: false },
-    'stub-embeddings': { type: 'boolean', default: false },
-    'benchmark-profile': { type: 'boolean', default: false },
-    'index-profile': { type: 'string' },
-    'real-embeddings': { type: 'boolean', default: false },
-    queries: { type: 'string' },
-    backend: { type: 'string' },
-    out: { type: 'string' },
-    'bm25-k1': { type: 'number' },
-    'bm25-b': { type: 'number' },
-    'fts-profile': { type: 'string' },
-    'fts-weights': { type: 'string' },
-    repo: { type: 'string' },
-    top: { type: 'number', default: 5 },
-    limit: { type: 'number', default: 0 },
-    'heap-mb': { type: 'number' },
-    threads: { type: 'number' }
-  },
+  options: BENCH_OPTIONS,
   aliases: { n: 'top', q: 'queries' }
 }).parse();
+validateBenchArgs(argv);
 
 const root = process.cwd();
 const repoArg = argv.repo ? path.resolve(argv.repo) : null;
@@ -92,17 +70,32 @@ const backends = resolveBackends(argv.backend);
 let buildIndex = argv['build-index'] || argv.build;
 let buildSqlite = argv['build-sqlite'] || argv.build;
 const buildIncremental = argv.incremental === true || buildSqlite;
-const indexProfileRaw = typeof argv['index-profile'] === 'string'
+const envConfig = getEnvConfig();
+const indexProfileArg = typeof argv['index-profile'] === 'string'
   ? argv['index-profile'].trim()
   : '';
-if (indexProfileRaw) {
-  process.env.PAIROFCLEATS_PROFILE = indexProfileRaw;
+const noIndexProfile = rawArgs.includes('--no-index-profile');
+const originalEnvProfile = process.env.PAIROFCLEATS_PROFILE;
+let indexProfileRaw = indexProfileArg;
+if (!indexProfileRaw && !noIndexProfile && !envConfig.profile) {
+  indexProfileRaw = 'bench-index';
+}
+const suppressEnvProfile = noIndexProfile && !indexProfileRaw;
+if (suppressEnvProfile) {
+  delete process.env.PAIROFCLEATS_PROFILE;
 }
 const runtimeRoot = repoArg || root;
 const userConfig = loadUserConfig(
   runtimeRoot,
   indexProfileRaw ? { profile: indexProfileRaw } : {}
 );
+if (suppressEnvProfile) {
+  if (originalEnvProfile === undefined) {
+    delete process.env.PAIROFCLEATS_PROFILE;
+  } else {
+    process.env.PAIROFCLEATS_PROFILE = originalEnvProfile;
+  }
+}
 const runtimeConfig = getRuntimeConfig(runtimeRoot, userConfig);
 const needsMemory = backends.includes('memory');
 const needsSqlite = backends.some((entry) => entry.startsWith('sqlite'));
@@ -138,7 +131,7 @@ if (Number.isFinite(heapArg) && heapArg > 0) {
   heapOverride = heapArg;
 } else if (
   !Number.isFinite(runtimeConfig.maxOldSpaceMb)
-  && !process.env.PAIROFCLEATS_MAX_OLD_SPACE_MB
+  && !envConfig.maxOldSpaceMb
   && !hasHeapFlag
 ) {
   heapOverride = heapRecommendation.recommendedMb;
@@ -147,18 +140,18 @@ const runtimeConfigForRun = heapOverride
   ? { ...runtimeConfig, maxOldSpaceMb: heapOverride }
   : runtimeConfig;
 const resolvedNodeOptions = resolveNodeOptions(runtimeConfigForRun, baseNodeOptions);
-const benchmarkProfileArgPresent = rawArgs.includes('--benchmark-profile') || rawArgs.includes('--no-benchmark-profile');
-const benchmarkProfileEnvValue = benchmarkProfileArgPresent
-  ? (argv['benchmark-profile'] === true ? '1' : '0')
-  : (process.env.PAIROFCLEATS_BENCH_PROFILE || null);
-const envStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
+const envStubEmbeddings = envConfig.embeddings === 'stub';
 const realEmbeddings = argv['real-embeddings'] === true;
-const benchmarkProfile = resolveBenchmarkProfile(userConfig.indexing || {}, benchmarkProfileEnvValue);
+const benchmarkProfile = resolveBenchmarkProfile(userConfig.profile);
 const stubEmbeddings = argv['stub-embeddings'] === true
   || (!realEmbeddings && (envStubEmbeddings || benchmarkProfile.enabled));
 const baseEnv = resolvedNodeOptions
   ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
   : { ...process.env };
+const profileArgPresent = rawArgs.includes('--profile') || rawArgs.includes('--index-profile');
+if (noIndexProfile && !profileArgPresent && baseEnv.PAIROFCLEATS_PROFILE) {
+  delete baseEnv.PAIROFCLEATS_PROFILE;
+}
 if (realEmbeddings && baseEnv.PAIROFCLEATS_EMBEDDINGS) {
   delete baseEnv.PAIROFCLEATS_EMBEDDINGS;
 }
@@ -171,12 +164,9 @@ if (heapOverride) {
     );
   }
 }
-const benchEnv = benchmarkProfileEnvValue != null
-  ? { ...baseEnv, PAIROFCLEATS_BENCH_PROFILE: String(benchmarkProfileEnvValue) }
-  : baseEnv;
 const benchEnvWithProfile = indexProfileRaw
-  ? { ...benchEnv, PAIROFCLEATS_PROFILE: indexProfileRaw }
-  : benchEnv;
+  ? { ...baseEnv, PAIROFCLEATS_PROFILE: indexProfileRaw }
+  : baseEnv;
 
 function runSearch(query, backend) {
   const args = [

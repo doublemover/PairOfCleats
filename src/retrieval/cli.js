@@ -22,6 +22,7 @@ import {
   resolveRepoRoot,
   resolveSqlitePaths
 } from '../../tools/dict-utils.js';
+import { getEnvConfig } from '../shared/env.js';
 import { resolveBackendPolicy } from '../storage/backend-policy.js';
 import { getVectorExtensionConfig, queryVectorAnn } from '../../tools/vector-extension.js';
 import { getSearchUsage, parseSearchArgs, resolveSearchMode } from './cli-args.js';
@@ -58,9 +59,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     throw new Error(message || 'Search failed.');
   };
   const cacheConfig = getCacheRuntimeConfig(ROOT, userConfig);
-const verboseCache = process.env.PAIROFCLEATS_VERBOSE === '1';
-const cacheLog = verboseCache ? (msg) => process.stderr.write(`\n${msg}\n`) : null;
-configureOutputCaches({ cacheConfig, verbose: verboseCache, log: cacheLog });
+  const envConfig = getEnvConfig();
+  const verboseCache = envConfig.verbose === true;
+  const cacheLog = verboseCache ? (msg) => process.stderr.write(`\n${msg}\n`) : null;
+  configureOutputCaches({ cacheConfig, verbose: verboseCache, log: cacheLog });
 const modelConfig = getModelConfig(ROOT, userConfig);
 const modelIdDefault = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
 const sqliteConfig = userConfig.sqlite || {};
@@ -94,7 +96,7 @@ const contextExpansionOptions = {
 };
 const contextExpansionRespectFilters = contextExpansionConfig.respectFilters !== false;
 const sqliteFtsNormalize = userConfig.search?.sqliteFtsNormalize === true;
-const sqliteFtsProfile = (argv['fts-profile'] || process.env.PAIROFCLEATS_FTS_PROFILE || userConfig.search?.sqliteFtsProfile || 'balanced').toLowerCase();
+const sqliteFtsProfile = (argv['fts-profile'] || envConfig.ftsProfile || userConfig.search?.sqliteFtsProfile || 'balanced').toLowerCase();
 let sqliteFtsWeightsConfig = userConfig.search?.sqliteFtsWeights || null;
 if (argv['fts-weights']) {
   const parsed = parseJson(argv['fts-weights'], null);
@@ -110,7 +112,7 @@ if (argv['fts-weights']) {
   }
 }
 const metricsDir = getMetricsDir(ROOT, userConfig);
-const useStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
+const useStubEmbeddings = envConfig.embeddings === 'stub';
 const query = argv._.join(' ').trim();
 if (!query) {
   return bail(getSearchUsage());

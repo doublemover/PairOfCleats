@@ -49,7 +49,9 @@ export function createTokenizationBuffers() {
     tokens: [],
     seq: [],
     scratch: [],
-    scratch2: []
+    scratch2: [],
+    chargramSet: new Set(),
+    minhash: new SimpleMinHash()
   };
 }
 
@@ -114,28 +116,44 @@ export function buildTokenSequence({ text, mode, ext, dictWords, dictConfig, buf
   };
 }
 
-export function buildChargramsFromTokens(tokens, options) {
+export function buildChargramsFromTokens(tokens, options, buffers = null) {
   const { chargramMinN, chargramMaxN, chargramMaxTokenLength } = options;
-  const charSet = new Set();
+  const charSet = buffers?.chargramSet || new Set();
+  if (buffers?.chargramSet) {
+    charSet.clear();
+  }
   const maxLen = Number.isFinite(chargramMaxTokenLength) ? chargramMaxTokenLength : null;
-  tokens.forEach((w) => {
-    if (maxLen && w.length > maxLen) return;
-    for (let n = chargramMinN; n <= chargramMaxN; ++n) tri(w, n).forEach((g) => charSet.add(g));
-  });
-  return Array.from(charSet);
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    if (maxLen && token.length > maxLen) continue;
+    for (let n = chargramMinN; n <= chargramMaxN; ++n) {
+      tri(token, n).forEach((g) => charSet.add(g));
+    }
+  }
+  const out = Array.from(charSet);
+  if (buffers?.chargramSet) {
+    charSet.clear();
+  }
+  return out;
 }
 
 const computeTokenStats = (tokens) => {
-  const freq = {};
-  tokens.forEach((t) => {
-    freq[t] = (freq[t] || 0) + 1;
-  });
-  const unique = Object.keys(freq).length;
+  const freq = Object.create(null);
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i];
+    freq[token] = (freq[token] || 0) + 1;
+  }
   const counts = Object.values(freq);
-  const sum = counts.reduce((a, b) => a + b, 0);
-  const entropy = sum
-    ? -counts.reduce((e, c) => e + (c / sum) * Math.log2(c / sum), 0)
-    : 0;
+  const unique = counts.length;
+  let sum = 0;
+  for (let i = 0; i < counts.length; i += 1) sum += counts[i];
+  let entropy = 0;
+  if (sum) {
+    for (let i = 0; i < counts.length; i += 1) {
+      const ratio = counts[i] / sum;
+      entropy -= ratio * Math.log2(ratio);
+    }
+  }
   return { unique, entropy, sum };
 };
 
@@ -177,18 +195,21 @@ export function tokenizeChunkText(input) {
       chargramMinN,
       chargramMaxN,
       chargramMaxTokenLength
-    });
+    }, buffers);
   }
 
-  const mh = new SimpleMinHash();
-  tokens.forEach((t) => mh.update(t));
+  const mh = buffers?.minhash || new SimpleMinHash();
+  if (buffers?.minhash) mh.reset();
+  for (let i = 0; i < tokens.length; i += 1) {
+    mh.update(tokens[i]);
+  }
 
   return {
     tokens,
     seq,
     ngrams,
     chargrams,
-    minhashSig: mh.hashValues,
+    minhashSig: buffers?.minhash ? mh.hashValues.slice() : mh.hashValues,
     stats: computeTokenStats(tokens)
   };
 }

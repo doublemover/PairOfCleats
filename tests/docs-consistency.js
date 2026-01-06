@@ -8,12 +8,13 @@ const planPath = path.join(root, 'COMPLETE_PLAN.md');
 const readmePath = path.join(root, 'README.md');
 
 const failures = [];
-const roadmap = fs.existsSync(roadmapPath) ? fs.readFileSync(roadmapPath, 'utf8') : '';
+const roadmapExists = fs.existsSync(roadmapPath);
+const roadmap = roadmapExists ? fs.readFileSync(roadmapPath, 'utf8') : '';
 const plan = fs.existsSync(planPath) ? fs.readFileSync(planPath, 'utf8') : '';
 const readme = fs.existsSync(readmePath) ? fs.readFileSync(readmePath, 'utf8') : '';
 
 if (!plan) failures.push('COMPLETE_PLAN.md missing or empty.');
-if (!roadmap) failures.push('ROADMAP.md missing or empty.');
+if (roadmapExists && !roadmap) failures.push('ROADMAP.md exists but is empty.');
 if (roadmap && !roadmap.toLowerCase().includes('historical')) {
   failures.push('ROADMAP.md should be marked as historical.');
 }

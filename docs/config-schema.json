@@ -345,15 +345,19 @@
           "kotlin": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "flowMaxBytes": { "type": "number" },
-              "flowMaxLines": { "type": "number" },
-              "relationsMaxBytes": { "type": "number" },
-              "relationsMaxLines": { "type": "number" }
-            }
-          },
-          "embeddingBatchSize": { "type": "number" },
-          "embeddings": {
+          "properties": {
+            "flowMaxBytes": { "type": "number" },
+            "flowMaxLines": { "type": "number" },
+            "relationsMaxBytes": { "type": "number" },
+            "relationsMaxLines": { "type": "number" }
+          }
+        },
+        "embeddingBatchSize": { "type": "number" },
+        "embeddingBatchMultipliers": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "embeddings": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
@@ -388,7 +392,9 @@
               "background": { "type": "boolean" },
               "queue": { "type": "boolean" },
               "stage1": { "type": "object", "additionalProperties": true },
-              "stage2": { "type": "object", "additionalProperties": true }
+              "stage2": { "type": "object", "additionalProperties": true },
+              "stage3": { "type": "object", "additionalProperties": true },
+              "stage4": { "type": "object", "additionalProperties": true }
             }
           },
           "shards": {
@@ -473,19 +479,6 @@
         "complexity": { "type": "boolean" },
         "debugFileLists": { "type": "boolean" },
         "fileListSampleSize": { "type": "number" },
-        "benchmarkProfile": {
-          "type": ["boolean", "object"],
-          "additionalProperties": false,
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "disableGitBlame": { "type": "boolean" },
-            "disableLint": { "type": "boolean" },
-            "disableComplexity": { "type": "boolean" },
-            "disableChargrams": { "type": "boolean" },
-            "disableRisk": { "type": "boolean" },
-            "disableTypeInference": { "type": "boolean" }
-          }
-        },
         "yamlChunking": { "type": "string", "enum": ["auto", "root", "top-level"] },
         "yamlTopLevelMaxBytes": { "type": "number" },
         "debugCrash": { "type": "boolean" },

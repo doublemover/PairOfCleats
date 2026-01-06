@@ -16,54 +16,35 @@ const PROFILE_FLAG_ORDER = [
   { key: 'disableTypeInference', label: 'typeInference' }
 ];
 
-const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
-const FALSE_VALUES = new Set(['0', 'false', 'no', 'off']);
+const BENCH_PROFILE_KEYS = new Set(['bench', 'bench-index', 'bench-hybrid', 'bench-dense']);
 
-function parseBool(value) {
-  if (value == null) return null;
-  const normalized = String(value).trim().toLowerCase();
-  if (TRUE_VALUES.has(normalized)) return true;
-  if (FALSE_VALUES.has(normalized)) return false;
-  return null;
+function resolveProfileFlags() {
+  return { ...DEFAULT_PROFILE_FLAGS };
 }
 
-function resolveProfileFlags(rawProfile) {
-  const flags = { ...DEFAULT_PROFILE_FLAGS };
-  if (!rawProfile || typeof rawProfile !== 'object' || Array.isArray(rawProfile)) {
-    return flags;
-  }
-  for (const key of Object.keys(DEFAULT_PROFILE_FLAGS)) {
-    if (typeof rawProfile[key] === 'boolean') {
-      flags[key] = rawProfile[key];
-    }
-  }
-  return flags;
-}
+const normalizeProfileName = (value) => {
+  if (!value) return '';
+  return String(value).trim().toLowerCase();
+};
 
-export function resolveBenchmarkProfile(indexingConfig = {}, envValue) {
-  const rawProfile = indexingConfig.benchmarkProfile;
-  const envOverride = parseBool(envValue);
-  let enabled = false;
-  if (typeof envOverride === 'boolean') {
-    enabled = envOverride;
-  } else if (typeof rawProfile === 'boolean') {
-    enabled = rawProfile;
-  } else if (rawProfile && typeof rawProfile === 'object' && !Array.isArray(rawProfile)) {
-    enabled = rawProfile.enabled === true;
-  }
-  const flags = resolveProfileFlags(rawProfile);
+const isBenchProfileName = (value) => {
+  const normalized = normalizeProfileName(value);
+  if (!normalized) return false;
+  if (BENCH_PROFILE_KEYS.has(normalized)) return true;
+  return normalized.startsWith('bench-');
+};
+
+export function resolveBenchmarkProfile(profileName = '') {
+  const enabled = isBenchProfileName(profileName);
+  const flags = resolveProfileFlags();
   const disabled = enabled
     ? PROFILE_FLAG_ORDER.filter((entry) => flags[entry.key]).map((entry) => entry.label)
     : [];
-  return {
-    enabled,
-    flags,
-    disabled
-  };
+  return { enabled, flags, disabled };
 }
 
-export function applyBenchmarkProfile(indexingConfig = {}, envValue) {
-  const profile = resolveBenchmarkProfile(indexingConfig, envValue);
+export function applyBenchmarkProfile(indexingConfig = {}, profileName = '') {
+  const profile = resolveBenchmarkProfile(profileName);
   if (!profile.enabled) {
     return { indexingConfig, profile };
   }

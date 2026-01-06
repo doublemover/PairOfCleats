@@ -13,15 +13,17 @@ export async function loadIncrementalState({
   mode,
   enabled,
   tokenizationKey = null,
+  cacheSignature = null,
   log = null
 }) {
   const incrementalDir = path.join(repoCacheRoot, 'incremental', mode);
   const bundleDir = path.join(incrementalDir, 'files');
   const manifestPath = path.join(incrementalDir, 'manifest.json');
   let manifest = {
-    version: 3,
+    version: 4,
     mode,
     tokenizationKey: tokenizationKey || null,
+    cacheSignature: cacheSignature || null,
     files: {},
     shards: null
   };
@@ -32,15 +34,23 @@ export async function loadIncrementalState({
         const loadedKey = typeof loaded.tokenizationKey === 'string'
           ? loaded.tokenizationKey
           : null;
-        if (tokenizationKey && loadedKey !== tokenizationKey) {
+        const loadedSignature = typeof loaded.cacheSignature === 'string'
+          ? loaded.cacheSignature
+          : null;
+        const signatureMismatch = cacheSignature
+          ? cacheSignature !== loadedSignature
+          : false;
+        if (signatureMismatch || (tokenizationKey && loadedKey !== tokenizationKey)) {
           if (typeof log === 'function') {
-            log(`[incremental] ${mode} cache reset: tokenization config changed.`);
+            const reason = signatureMismatch ? 'signature changed' : 'tokenization config changed';
+            log(`[incremental] ${mode} cache reset: ${reason}.`);
           }
         } else {
           manifest = {
             version: loaded.version || 1,
             mode,
             tokenizationKey: loadedKey || tokenizationKey || null,
+            cacheSignature: loadedSignature || cacheSignature || null,
             files: loaded.files || {},
             shards: loaded.shards || null
           };
@@ -52,6 +62,59 @@ export async function loadIncrementalState({
     await fs.mkdir(bundleDir, { recursive: true });
   }
   return { enabled, incrementalDir, bundleDir, manifestPath, manifest };
+}
+
+const STAGE_ORDER = {
+  stage1: 1,
+  stage2: 2,
+  stage3: 3,
+  stage4: 4
+};
+
+const stageSatisfied = (requested, existing) => {
+  if (!requested) return true;
+  const target = STAGE_ORDER[requested] || 0;
+  const current = STAGE_ORDER[existing] || 0;
+  return current >= target;
+};
+
+export async function shouldReuseIncrementalIndex({
+  outDir,
+  entries,
+  manifest,
+  stage
+}) {
+  if (!outDir || !manifest || !Array.isArray(entries) || entries.length === 0) {
+    return false;
+  }
+  const manifestFiles = manifest.files || {};
+  const indexStatePath = path.join(outDir, 'index_state.json');
+  const piecesPath = path.join(outDir, 'pieces', 'manifest.json');
+  if (!fsSync.existsSync(indexStatePath) || !fsSync.existsSync(piecesPath)) {
+    return false;
+  }
+  let indexState = null;
+  let pieceManifest = null;
+  try {
+    indexState = JSON.parse(await fs.readFile(indexStatePath, 'utf8'));
+    pieceManifest = JSON.parse(await fs.readFile(piecesPath, 'utf8'));
+  } catch {
+    return false;
+  }
+  if (!stageSatisfied(stage, indexState?.stage || null)) return false;
+  if (!Array.isArray(pieceManifest?.pieces) || pieceManifest.pieces.length === 0) {
+    return false;
+  }
+  for (const entry of entries) {
+    const relKey = entry?.rel;
+    if (!relKey) return false;
+    const cached = manifestFiles[relKey];
+    if (!cached || !entry.stat) return false;
+    if (cached.size !== entry.stat.size || cached.mtimeMs !== entry.stat.mtimeMs) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -98,7 +161,20 @@ export async function readCachedImports({ enabled, absPath, relKey, fileStat, ma
   if (!enabled) return null;
   const cachedEntry = manifest.files?.[relKey];
   if (!cachedEntry || cachedEntry.size !== fileStat.size || cachedEntry.mtimeMs !== fileStat.mtimeMs) {
-    return null;
+    if (!cachedEntry || !cachedEntry.hash) return null;
+    const bundleName = cachedEntry.bundle || `${sha1(relKey)}.json`;
+    const bundlePath = path.join(bundleDir, bundleName);
+    if (!fsSync.existsSync(bundlePath)) return null;
+    try {
+      const text = await fs.readFile(absPath, 'utf8');
+      const fileHash = sha1(text);
+      if (fileHash !== cachedEntry.hash) return null;
+      const bundle = JSON.parse(await fs.readFile(bundlePath, 'utf8'));
+      const imports = bundle?.fileRelations?.imports;
+      return Array.isArray(imports) ? imports : null;
+    } catch {
+      return null;
+    }
   }
   const bundleName = cachedEntry.bundle || `${sha1(relKey)}.json`;
   const bundlePath = path.join(bundleDir, bundleName);

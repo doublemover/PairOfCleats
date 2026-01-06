@@ -75,7 +75,7 @@ These render in the record markdown and are included in context packs. You can p
 
 ## Build records index
 ```
-pairofcleats build-index --mode records --incremental
+pairofcleats index build --mode records --incremental
 ```
 
 ## Search records
@@ -99,7 +99,7 @@ The context pack includes:
 - `history` (related decisions)
 - `repoEvidence` (code/prose search hits)
 
-Context packs assume code/prose indexes exist (`pairofcleats build-index`) and the records index is built (`pairofcleats build-index --mode records`).
+Context packs assume code/prose indexes exist (`pairofcleats index build`) and the records index is built (`pairofcleats index build --mode records`).
 
 ## MCP tools
 - `triage_ingest` (wraps ingest)

@@ -158,6 +158,11 @@ const actions = [
     covers: ['sqlite-incremental-test']
   },
   {
+    label: 'artifact-size-guardrails-test',
+    run: () => runNode('artifact-size-guardrails-test', path.join(root, 'tests', 'artifact-size-guardrails.js')),
+    covers: ['artifact-size-guardrails-test']
+  },
+  {
     label: 'incremental-manifest-test',
     run: () => runNode('incremental-manifest-test', path.join(root, 'tests', 'incremental-manifest.js')),
     covers: ['incremental-manifest-test']
@@ -318,6 +323,16 @@ const actions = [
     covers: ['indexer-service', 'indexer-service-test']
   },
   {
+    label: 'piece-assembly-test',
+    run: () => runNode('piece-assembly-test', path.join(root, 'tests', 'piece-assembly.js')),
+    covers: ['piece-assembly-test']
+  },
+  {
+    label: 'compact-pieces-test',
+    run: () => runNode('compact-pieces-test', path.join(root, 'tests', 'compact-pieces.js')),
+    covers: ['compact-pieces-test']
+  },
+  {
     label: 'git-hooks-test',
     run: () => runNode('git-hooks-test', path.join(root, 'tests', 'git-hooks.js')),
     covers: ['git-hooks-test', 'git-hooks']
@@ -463,8 +478,63 @@ const actions = [
     covers: []
   },
   {
+    label: 'postings-quantize-test',
+    run: () => runNode('postings-quantize-test', path.join(root, 'tests', 'postings-quantize.js')),
+    covers: []
+  },
+  {
+    label: 'embedding-batch-multipliers-test',
+    run: () => runNode('embedding-batch-multipliers-test', path.join(root, 'tests', 'embedding-batch-multipliers.js')),
+    covers: []
+  },
+  {
+    label: 'typescript-imports-only-test',
+    run: () => runNode('typescript-imports-only-test', path.join(root, 'tests', 'typescript-imports-only.js')),
+    covers: []
+  },
+  {
+    label: 'import-priority-test',
+    run: () => runNode('import-priority-test', path.join(root, 'tests', 'import-priority.js')),
+    covers: []
+  },
+  {
+    label: 'ignore-overrides-test',
+    run: () => runNode('ignore-overrides-test', path.join(root, 'tests', 'ignore-overrides.js')),
+    covers: []
+  },
+  {
+    label: 'incremental-cache-signature-test',
+    run: () => runNode('incremental-cache-signature-test', path.join(root, 'tests', 'incremental-cache-signature.js')),
+    covers: []
+  },
+  {
+    label: 'incremental-reuse-test',
+    run: () => runNode('incremental-reuse-test', path.join(root, 'tests', 'incremental-reuse.js')),
+    covers: []
+  },
+  {
+    label: 'thread-limits-test',
+    run: () => runNode('thread-limits-test', path.join(root, 'tests', 'thread-limits.js')),
+    covers: []
+  },
+  {
+    label: 'bench-progress-format-test',
+    run: () => runNode('bench-progress-format-test', path.join(root, 'tests', 'bench-progress-format.js')),
+    covers: []
+  },
+  {
     label: 'shard-merge-test',
     run: () => runNode('shard-merge-test', path.join(root, 'tests', 'shard-merge.js')),
+    covers: []
+  },
+  {
+    label: 'shard-plan-test',
+    run: () => runNode('shard-plan-test', path.join(root, 'tests', 'shard-plan.js')),
+    covers: []
+  },
+  {
+    label: 'preprocess-files-test',
+    run: () => runNode('preprocess-files-test', path.join(root, 'tests', 'preprocess-files.js')),
     covers: []
   },
   {
@@ -603,11 +673,6 @@ const actions = [
     covers: ['search']
   },
   {
-    label: 'search-sqlite',
-    run: () => runNode('search-sqlite', path.join(root, 'tools', 'search-sqlite.js'), ['message', '--json', '--no-ann', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
-    covers: ['search-sqlite']
-  },
-  {
     label: 'report-artifacts',
     run: () => runNode('report-artifacts', path.join(root, 'tools', 'report-artifacts.js'), ['--json', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['report-artifacts']
@@ -673,9 +738,24 @@ const actions = [
     covers: ['config-validate', 'config-validate-test']
   },
   {
+    label: 'config-dump-test',
+    run: () => runNode('config-dump-test', path.join(root, 'tests', 'config-dump.js')),
+    covers: ['config-dump-test']
+  },
+  {
+    label: 'config-deprecations-test',
+    run: () => runNode('config-deprecations-test', path.join(root, 'tests', 'config-deprecations.js')),
+    covers: ['config-deprecations-test']
+  },
+  {
     label: 'profile-config-test',
     run: () => runNode('profile-config-test', path.join(root, 'tests', 'profile-config.js')),
     covers: ['profile-config-test']
+  },
+  {
+    label: 'bench-profile-test',
+    run: () => runNode('bench-profile-test', path.join(root, 'tests', 'bench-profile.js')),
+    covers: ['bench-profile-test']
   },
   {
     label: 'backend-policy-test',
@@ -717,14 +797,9 @@ await fsPromises.writeFile(mergeBase, 'alpha\nbeta\n');
 await fsPromises.writeFile(mergeTarget, 'beta\ngamma\n');
 
 actions.push({
-  label: 'merge-history',
-  run: () => runNode('merge-history', path.join(root, 'tools', 'mergeSearchHistory.js'), [mergeBase, mergeTarget]),
-  covers: ['merge-history']
-});
-actions.push({
-  label: 'merge-no-results',
-  run: () => runNode('merge-no-results', path.join(root, 'tools', 'mergeNoResultQueries.js'), [mergeBase, mergeTarget]),
-  covers: ['merge-no-results']
+  label: 'merge-append',
+  run: () => runNode('merge-append', path.join(root, 'tools', 'mergeAppendOnly.js'), [mergeBase, mergeTarget]),
+  covers: ['merge-append']
 });
 
 for (const action of actions) {
@@ -740,7 +815,6 @@ markSkipped('bench', 'benchmarks are long-running');
 markSkipped('bench-ann', 'benchmarks are long-running');
 markSkipped('bench-dict-seg', 'benchmarks are long-running');
 markSkipped('bench-score-strategy', 'benchmarks are long-running');
-markSkipped('bench-compare-models', 'benchmarks are long-running');
 markSkipped('bench-micro', 'benchmarks are long-running');
 markSkipped('compare-models', 'benchmark/perf evaluation');
 markSkipped('type-inference-crossfile-test', 'temporarily gated (hangs in script-coverage)');

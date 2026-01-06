@@ -296,8 +296,9 @@ function extractVisibility(modifiers) {
  * @returns {string[]}
  */
 export function collectTypeScriptImports(text, options = {}) {
+  const importsOnly = options?.importsOnly === true || options?.typescript?.importsOnly === true;
   const parser = resolveTypeScriptParser(options);
-  if (parser === 'babel' || parser === 'auto') {
+  if (!importsOnly && (parser === 'babel' || parser === 'auto')) {
     const ast = parseBabelAst(text, { ext: options.ext || '', mode: 'typescript' });
     if (ast) return collectImportsFromAst(ast);
   }

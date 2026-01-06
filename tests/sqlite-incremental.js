@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
+import { getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
 import { SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
 
 const root = process.cwd();
@@ -51,7 +51,19 @@ function runCapture(args, label) {
 }
 
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index');
-run([path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot], 'build sqlite index');
+const initialSqlite = runCapture(
+  [path.join(root, 'tools', 'build-sqlite-index.js'), '--repo', repoRoot],
+  'build sqlite index'
+);
+const initialOutput = `${initialSqlite.stdout || ''}\n${initialSqlite.stderr || ''}`;
+if (!initialOutput.includes('Validation (smoke) ok for code')) {
+  console.error('Expected sqlite smoke validation for code build.');
+  process.exit(1);
+}
+if (!initialOutput.includes('Validation (smoke) ok for prose')) {
+  console.error('Expected sqlite smoke validation for prose build.');
+  process.exit(1);
+}
 
 const userConfig = loadUserConfig(repoRoot);
 const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
@@ -113,6 +125,33 @@ if (searchResult.status !== 0) {
 const payload = JSON.parse(searchResult.stdout || '{}');
 if (!payload.code?.length && !payload.prose?.length) {
   console.error('Incremental sqlite update produced no search results.');
+  process.exit(1);
+}
+
+const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+const manifestPath = path.join(repoCacheRoot, 'incremental', 'code', 'manifest.json');
+let manifest = null;
+try {
+  manifest = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
+} catch {
+  console.error('Failed to load incremental manifest for normalization test.');
+  process.exit(1);
+}
+if (!manifest?.files?.['src/index.js']) {
+  console.error('Expected manifest entry for src/index.js.');
+  process.exit(1);
+}
+manifest.files['src\\index.js'] = manifest.files['src/index.js'];
+delete manifest.files['src/index.js'];
+await fsPromises.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+
+const normalizedResult = runCapture(
+  [path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--repo', repoRoot],
+  'build sqlite index (normalized manifest)'
+);
+const normalizedOutput = `${normalizedResult.stdout || ''}\n${normalizedResult.stderr || ''}`;
+if (!normalizedOutput.includes('SQLite indexes updated')) {
+  console.error('Expected incremental sqlite update with normalized manifest.');
   process.exit(1);
 }
 

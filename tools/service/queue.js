@@ -40,6 +40,19 @@ const normalizeQueueName = (value) => {
   return raw.replace(/[^a-z0-9_-]+/g, '-');
 };
 
+export function resolveQueueName(queueName, job = null) {
+  const normalized = normalizeQueueName(queueName);
+  if (normalized && normalized !== 'auto') return normalized;
+  if (normalized === 'auto') {
+    const base = job?.reason === 'embeddings' ? 'embeddings' : 'index';
+    const parts = [];
+    if (job?.stage) parts.push(String(job.stage).toLowerCase());
+    if (job?.mode && job.mode !== 'both') parts.push(String(job.mode).toLowerCase());
+    return parts.length ? `${base}-${parts.join('-')}` : base;
+  }
+  return normalized;
+}
+
 export function getQueuePaths(dirPath, queueName = null) {
   const normalized = normalizeQueueName(queueName);
   const suffix = normalized ? `-${normalized}` : '';
@@ -64,13 +77,17 @@ export async function saveQueue(dirPath, queue, queueName = null) {
 
 export async function enqueueJob(dirPath, job, maxQueued = null, queueName = null) {
   await ensureQueueDir(dirPath);
-  const { lockPath } = getQueuePaths(dirPath, queueName);
+  const resolvedQueueName = resolveQueueName(queueName, job);
+  const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
-    const queue = await loadQueue(dirPath, queueName);
+    const queue = await loadQueue(dirPath, resolvedQueueName);
     const queued = queue.jobs.filter((entry) => entry.status === 'queued');
     if (Number.isFinite(maxQueued) && queued.length >= maxQueued) {
       return { ok: false, message: 'Queue is full.' };
     }
+    const maxRetries = Number.isFinite(Number(job.maxRetries)) && Number(job.maxRetries) >= 0
+      ? Math.floor(Number(job.maxRetries))
+      : null;
     const next = {
       id: job.id,
       createdAt: job.createdAt,
@@ -79,10 +96,12 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
       mode: job.mode,
       reason: job.reason || null,
       stage: job.stage || null,
-      args: Array.isArray(job.args) && job.args.length ? job.args : null
+      args: Array.isArray(job.args) && job.args.length ? job.args : null,
+      attempts: 0,
+      maxRetries
     };
     queue.jobs.push(next);
-    await saveQueue(dirPath, queue, queueName);
+    await saveQueue(dirPath, queue, resolvedQueueName);
     return { ok: true, job: next };
   });
 }
@@ -109,6 +128,12 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
     job.status = status;
     job.finishedAt = new Date().toISOString();
     job.result = result || null;
+    if (Number.isFinite(result?.attempts)) {
+      job.attempts = Math.max(0, Math.floor(result.attempts));
+    }
+    if (result?.error) {
+      job.lastError = result.error;
+    }
     await saveQueue(dirPath, queue, queueName);
     return job;
   });
@@ -117,15 +142,16 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
 export async function queueSummary(dirPath, queueName = null) {
   const { queuePath } = getQueuePaths(dirPath, queueName);
   if (!fsSync.existsSync(queuePath)) {
-    return { total: 0, queued: 0, running: 0, done: 0, failed: 0 };
+    return { total: 0, queued: 0, running: 0, done: 0, failed: 0, retries: 0 };
   }
   const queue = await loadQueue(dirPath, queueName);
-  const summary = { total: queue.jobs.length, queued: 0, running: 0, done: 0, failed: 0 };
+  const summary = { total: queue.jobs.length, queued: 0, running: 0, done: 0, failed: 0, retries: 0 };
   for (const job of queue.jobs) {
     if (job.status === 'queued') summary.queued += 1;
     else if (job.status === 'running') summary.running += 1;
     else if (job.status === 'done') summary.done += 1;
     else if (job.status === 'failed') summary.failed += 1;
+    if (Number.isFinite(job.attempts) && job.attempts > 0) summary.retries += 1;
   }
   return summary;
 }

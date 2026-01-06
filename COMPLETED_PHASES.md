@@ -197,7 +197,49 @@ Work items:
 
 
 ## Phase 13: Language Fidelity Review + Enhancements (status: done)
-Goal: Evaluate current fidelity of each supported language and enhance parsing.
+Goal: Evaluate current fidelity of each supported language and enhance parsing. 
+
+## Phase 27: Config Surface Inventory + Audit (status: done)
+Goal: Catalog every config knob, env override, and CLI flag to identify redundancies.
+Work items:
+- [x] Build a config/flag inventory from `docs/config-schema.json`, `.pairofcleats.json`, `src/shared/cli.js`, and `tools/*`.
+- [x] Flag overlapping or unused settings and map to owning modules.
+- [x] Identify safe defaults and required knobs for core workflows.
+
+## Phase 28: Config De-duplication + Deprecation Map (status: done)
+Goal: Remove duplicate config paths while preserving behavior via migration.
+Work items:
+- [x] Collapse overlapping keys (e.g., per-tool vs global) into a single authority.
+- [x] Add deprecation notices and compatibility shims with warnings.
+- [x] Update docs to show the reduced surface.
+
+## Phase 29: Profile System Overhaul (status: done)
+Goal: Make profiles the main surface for tuning and keep raw config minimal.
+Work items:
+- [x] Define new profile tiers and map to features (lite/balanced/full/bench).
+- [x] Remove ad-hoc benchmark toggles where profiles cover the same behavior.
+- [x] Standardize profile application order and precedence.
+
+## Phase 30: Env Override Consolidation (status: done)
+Goal: Reduce environment variable sprawl and ensure deterministic behavior.
+Work items:
+- [x] Consolidate env flags into a single prefix namespace with documented precedence.
+- [x] Remove legacy env flags that are redundant with CLI or profiles.
+- [x] Add a diagnostic dump of effective config for debugging.
+
+## Phase 31: Public CLI Re-architecture (status: done)
+Goal: Redesign the public CLI into a single cohesive command tree.
+Work items:
+- [x] Define a minimal command surface (core, sqlite, bench, service, tooling).
+- [x] Merge one-off scripts into subcommands or internal helpers.
+- [x] Provide compatibility aliases for legacy commands with warnings.
+
+## Phase 32: CLI Argument Parsing Unification (status: done)
+Goal: Centralize parsing and validation to remove duplicate logic.
+Work items:
+- [x] Move command definitions into shared modules under `src/shared/cli.js`.
+- [x] Remove per-script arg parsing duplication across `tools/*`.
+- [x] Add schema-backed validation for critical flags.
 Work items:
 - [x] Build a per-language evaluation checklist (chunking, metadata, relations).
 - [x] Expand fixtures per language and add targeted regression tests.
@@ -1129,3 +1171,245 @@ Work items:
 - [x] Add warm/cold run definitions and reporting.
 - [x] Document benchmark methodology and expected runtime.
 
+## Phase 33: Script Consolidation Pass (status: done)
+- [x] Removed redundant wrappers (`tools/mergeSearchHistory.js`, `tools/mergeNoResultQueries.js`, `tools/search-sqlite.js`, `tools/bench-compare-models.js`).
+- [x] Standardized merge tooling on `tools/mergeAppendOnly.js` and updated shell merge drivers.
+- [x] Trimmed npm scripts to remove redundant wrappers and added `merge-append`.
+- [x] Updated script coverage to cover the consolidated entrypoints.
+
+## Phase 34: Bench Harness Consolidation (status: done)
+- [x] Removed bench-language npm script variants and kept the core runners (`bench-language`, `bench-language:matrix`).
+- [x] Dropped CLI bench-language wrapper commands for build/typical/large presets.
+- [x] Kept `tests/bench.js` as the benchmark runner invoked by the language harness.
+- [x] Validated bench args in `tools/bench-language-matrix.js`.
+
+## Phase 35: Config/CLI Docs Alignment (status: done)
+- [x] Updated `docs/commands.md` and `README.md` to the new CLI tree with migration notes.
+- [x] Updated benchmark docs to use `pairofcleats bench` subcommands.
+- [x] Updated triage and SQLite incremental docs to use `pairofcleats index build`.
+
+## Phase 36: Remove Dead/Legacy Options (status: done)
+- [x] Removed `--benchmark-profile`/`--no-benchmark-profile` and `PAIROFCLEATS_BENCH_PROFILE` in favor of `bench-index` profiles.
+- [x] Dropped `indexing.benchmarkProfile` from the config schema and inventory.
+- [x] Updated benchmark tooling to default to `bench-index` and honor `--no-index-profile`.
+- [x] Added coverage updates for benchmark profile behavior.
+
+## Phase 37: Config Access + Control Refinement (status: done)
+- [x] Centralized config merge helpers in `src/shared/config.js` and reused them in `tools/dict-utils.js` and `src/index/build/runtime.js`.
+- [x] Added bench CLI conflict validation for mutually exclusive overrides.
+
+## Phase 38: Benchmark Output Tagging + Update Model (status: done)
+- [x] Added tag-aware log window updates so repeated `[tag]` lines replace in-place.
+- [x] Kept log files/history intact while reducing interactive scrollback noise.
+
+## Phase 39: Benchmark Progress Line Format (status: done)
+- [x] Switched file progress output to `[shard ...]` prefixes with stable separators.
+- [x] Added a shared formatter and tests to validate the new progress format.
+
+## Phase 40: Benchmark Scrollback Noise Reduction (status: done)
+- [x] Added debounced log-window updates to reduce high-frequency progress churn.
+- [x] Added per-line tag tracking for in-place updates without log spam.
+- [x] Documented the updated benchmark output behavior.
+
+## Phase 41: Shard Policy: Min Files + Huge File Exception (status: done)
+- [x] Enforced subdir min-files with a huge-file exception for tiny groups.
+- [x] Switched shard size calculations to line counts when available.
+- [x] Added shard planning coverage for subdir merges and huge file handling.
+
+## Phase 42: Huge File Definition via Shard Census (status: done)
+- [x] Defined huge files as >= 0.5 * 10th-largest shard (by lines).
+- [x] Wired the rule into shard planning with line-count input.
+- [x] Documented the heuristic in benchmark/sharding notes.
+
+## Phase 43: Shard Census-Guided Splitting (status: done)
+- [x] Split oversized shards based on the shard census line spread.
+- [x] Kept shard IDs stable across splits by labeling with part indices.
+- [x] Updated shard-census to use shared line counting and pass line totals.
+
+## Phase 44: Shard Planner Heuristics Rebalance (status: done)
+- [x] Reduced over-sharding by merging tiny subdir shards into parents.
+- [x] Preserved large shards for parallelism with line-aware splits.
+- [x] Added regression coverage for rebalanced shard planning.
+
+## Phase 45: Shard Split-by-Size Algorithm (status: done)
+- [x] Implemented deterministic split-by-lines using cumulative thresholds.
+- [x] Preserved directory affinity with stable split labels and IDs.
+- [x] Added tests for split sizing and repeatability.
+
+## Phase 46: Shard Plan Output + Diagnostics (status: done)
+- [x] Added verbose shard plan summaries (top shards + split stats).
+- [x] Surfaced shard line counts in manifest summaries for diagnostics.
+- [x] Documented diagnostics usage in benchmark notes.
+
+## Phase 47: Index Build Stage 0 (Preprocess) (status: done)
+- [x] Centralized discovery with minified/binary scanning and line-count collection.
+- [x] Persisted preprocess stats to `preprocess.json` under the repo cache root.
+- [x] Added validation for preprocess outputs and coverage for preprocessing behavior.
+
+## Phase 48: Index Build Stage 1 (Sparse Pass) (status: done)
+- [x] Skipped import/relations work during `stage1` to keep sparse builds lightweight.
+- [x] Preserved searchable sparse artifacts by leaving tokenization/postings in stage1.
+- [x] Extended two-stage tests to assert stage1 relation artifacts are deferred.
+
+## Phase 49: Index Build Stage 2 (Relations Pass) (status: done)
+- [x] Deferred import/relations work to stage2 and validated artifacts only appear after enrichment.
+- [x] Extended import caching to fall back to file-hash validation for unchanged files.
+- [x] Preserved incremental bundle updates for relations via existing artifact writes.
+
+## Phase 50: Index Build Stage 3 (Embeddings Pass) (status: done)
+- [x] Added `stage3` normalization with an explicit embeddings pass in `build_index` (inline or service queue).
+- [x] Reused the embeddings cache keyed by file hash via `tools/build-embeddings.js`.
+- [x] Added stage3 coverage to confirm embeddings readiness and dense vector artifacts.
+
+## Phase 51: Index Build Stage 4 (SQLite/ANN Pass) (status: done)
+- [x] Added `stage4` normalization with a dedicated SQLite/ANN pass through `build_index`.
+- [x] Reused the existing WAL + batch SQLite build pipeline for staged artifacts.
+- [x] Updated SQLite build test coverage to exercise the stage4 pass.
+
+## Phase 52: Bundle Format v2 (Piece-Based) (status: done)
+- [x] Defined piece categories for chunks, postings, relations, embeddings, and stats.
+- [x] Wrote piece manifests at stage completion and refreshed embeddings pieces during stage3.
+- [x] Added checksummed `pieces/manifest.json` outputs and validation coverage.
+
+## Phase 53: Piece Assembly + Merge (status: done)
+- [x] Added a piece assembly pipeline to merge chunk/postings artifacts with doc_id offsets.
+- [x] Shipped `tools/assemble-pieces.js` and coverage for assembling multi-index piece sets.
+- [x] Added count integrity checks in index validation (chunks vs docLengths/embeddings/minhash/field tokens).
+
+## Phase 54: SQLite Build from Pieces (status: done)
+- [x] Streamed chunk metadata from jsonl parts and sharded pieces during SQLite builds.
+- [x] Added sharded token_postings ingestion with docLengths + stats from meta.
+- [x] Extended sqlite build test to force piece artifacts and validate piece-only indexes.
+
+## Phase 55: Memory Index from Pieces (status: done)
+- [x] Prefer chunk_meta parts and token_postings shards over monolithic JSON loads.
+- [x] Added piece-level caching for jsonl parts and shard reads in artifact loading.
+- [x] Extended artifact format tests to confirm piece preference over legacy JSON.
+
+## Phase 56: Piece-Level Compaction + Cleanup (status: done)
+- [x] Added `tools/compact-pieces.js` to consolidate chunk_meta parts and token_postings shards.
+- [x] Update piece manifests with refreshed checksums and a compaction audit log.
+- [x] Added compact pieces coverage for shard consolidation behavior.
+
+## Phase 57: Worker Pool Unification (status: done)
+Goal: Centralize worker pool config for shards, tokenization, and bundle parsing.
+Work items:
+- [x] Provide a single worker pool config source and shared thread limits.
+- [x] Respect Windows thread limits and override rules in sqlite bundle parsing.
+- [x] Add diagnostics for thread allocation.
+
+## Phase 58: I/O Batching + Fsync Policy (status: done)
+Goal: Reduce disk overhead in all stages.
+Work items:
+- [x] Batch artifact writes with bounded concurrency.
+- [x] Ensure crash safety via atomic file writes for index artifacts.
+- [x] Apply atomic write handling for compaction and embeddings outputs.
+
+## Phase 59: Tokenization + Minhash Optimization (status: done)
+Goal: Reduce CPU and GC overhead in hot loops.
+Work items:
+- [x] Reuse minhash and chargram buffers during tokenization.
+- [x] Reduce allocation hot spots in token stats and chargram loops.
+- [x] Add buffering regression tests.
+
+## Phase 60: Posting Build Optimization (status: done)
+Goal: Reduce memory and time for postings construction.
+Work items:
+- [x] Quantize embeddings in batches without staging full arrays.
+- [x] Keep postings output unchanged while lowering peak memory.
+- [x] Add postings quantization test coverage.
+
+## Phase 61: Embedding Batch Tuning by Language (status: done)
+Goal: Maximize throughput per language while keeping memory stable.
+Work items:
+- [x] Add per-language embedding batch multipliers.
+- [x] Wire batch multipliers into embedding batching.
+- [x] Update schema/docs and add tests.
+
+## Phase 62: TypeScript Fast Path (Imports-Only) (status: done)
+Goal: Skip expensive parsing where possible and prioritize imports.
+Work items:
+- [x] Skip Babel parsing when imports-only is enabled.
+- [x] Use heuristic chunking for imports-only TypeScript.
+- [x] Add imports-only tests.
+
+## Phase 63: Import Priority Reordering (status: done)
+Goal: Process most import-heavy files first.
+Work items:
+- [x] Sort import scans by cached import counts then size.
+- [x] Add deterministic ordering helper and tests.
+
+## Phase 64: Generated Artifact Skip List (status: done)
+Goal: Avoid known build outputs at the source.
+Work items:
+- [x] Expand default ignore list for generated dirs and bundles.
+- [x] Document allow/deny overrides via extraIgnore negation.
+- [x] Add ignore override test coverage.
+
+## Phase 65: Build Progress Instrumentation (status: done)
+Goal: Provide stable, parseable progress for all stages.
+Work items:
+- [x] Clear progress lines before logging to avoid merged output.
+- [x] Include shard tags and line counts in file progress lines.
+- [x] Align bench parsing with updated file progress format.
+
+## Phase 66: Benchmark Output Consistency (status: done)
+Goal: Align bench output with new stage/queue behaviors.
+Work items:
+- [x] Keep shard/file progress formatting stable.
+- [x] Add bench progress formatting test coverage.
+
+## Phase 67: Cache Signature Accuracy (status: done)
+Goal: Ensure cache reuse is safe and deterministic.
+Work items:
+- [x] Add cache signatures to incremental manifests and validation.
+- [x] Invalidate cache on parser/toolchain config changes.
+- [x] Add cache signature invalidation tests.
+
+## Phase 68: Index Rebuild Detection (status: done)
+Goal: Reduce full rebuilds when partials are valid.
+Work items:
+- [x] Detect stage completeness and reuse when unchanged.
+- [x] Require pieces + index_state before reuse.
+- [x] Add reuse validation test coverage.
+
+## Phase 69: Service Mode Queue Refinement (status: done)
+Goal: Make stage queues reliable and performant.
+Work items:
+- [x] Add queue retries/attempt tracking and failure summaries.
+- [x] Support stage/mode queue naming with auto resolution.
+- [x] Emit worker metrics per batch.
+
+## Phase 70: Windows Worker Stability (status: done)
+Goal: Maximize parallelism on Windows without crashes.
+Work items:
+- [x] Validate CPU*2 concurrency behavior.
+- [x] Add thread limit test coverage.
+
+## Phase 71: SQLite Incremental Upgrade Path (status: done)
+Goal: Keep incremental updates fast and reliable.
+Work items:
+- [x] Normalize manifest paths and guard against empty/conflicting manifests.
+- [x] Add change-ratio and vocab-growth heuristics to trigger full rebuilds.
+- [x] Document new rebuild conditions and extend incremental tests.
+
+## Phase 72: SQLite Build Validation (status: done)
+Goal: Ensure SQLite rebuild correctness.
+Work items:
+- [x] Add post-build integrity checks with smoke/full validation modes.
+- [x] Compare chunk/doc/embedding counts between sources and SQLite.
+- [x] Wire smoke validation into incremental tests and CLI docs.
+
+## Phase 73: Shard Merge Efficiency (status: done)
+Goal: Reduce merge overhead when combining shard outputs.
+Work items:
+- [x] Stream shard merges by loading and merging one shard at a time.
+- [x] Reuse per-shard postings arrays to avoid extra vocab allocations.
+- [x] Extend piece assembly tests with docId range validation.
+
+## Phase 74: Artifact Size Guardrails (status: done)
+Goal: Prevent oversize artifacts from breaking loads.
+Work items:
+- [x] Enforce MAX_JSON_BYTES estimates for chunk_meta and token_postings outputs.
+- [x] Auto-switch to jsonl/sharded formats when estimates exceed limits.
+- [x] Add size guardrails test and env override documentation.

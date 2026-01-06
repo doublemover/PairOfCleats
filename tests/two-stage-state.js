@@ -18,7 +18,12 @@ await fsPromises.writeFile(
   path.join(repoRoot, '.pairofcleats.json'),
   JSON.stringify({
     indexing: {
-      twoStage: { enabled: true },
+      twoStage: {
+        enabled: true,
+        stage2: {
+          embeddings: { enabled: false, mode: 'off' }
+        }
+      },
       treeSitter: { enabled: false }
     }
   }, null, 2)
@@ -54,6 +59,11 @@ if (stateStage1.stage !== 'stage1' || stateStage1.enrichment?.pending !== true) 
   console.error('Expected stage1 index_state to show pending enrichment');
   process.exit(1);
 }
+const relationsPath = path.join(codeDir, 'file_relations.json');
+if (fs.existsSync(relationsPath)) {
+  console.error('Did not expect file_relations.json after stage1');
+  process.exit(1);
+}
 
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const enrichmentPath = path.join(repoCacheRoot, 'enrichment_state.json');
@@ -70,9 +80,26 @@ if (stateStage2.stage !== 'stage2' || stateStage2.enrichment?.pending === true) 
   console.error('Expected stage2 index_state to clear pending enrichment');
   process.exit(1);
 }
+if (!fs.existsSync(relationsPath)) {
+  console.error('Expected file_relations.json after stage2');
+  process.exit(1);
+}
 const enrichmentStage2 = JSON.parse(await fsPromises.readFile(enrichmentPath, 'utf8'));
 if (enrichmentStage2.status !== 'done') {
   console.error('Expected enrichment_state done after stage2');
+  process.exit(1);
+}
+
+runBuild('stage3', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage3', '--repo', repoRoot]);
+
+const stateStage3 = JSON.parse(await fsPromises.readFile(statePath, 'utf8'));
+if (stateStage3.embeddings?.ready !== true) {
+  console.error('Expected stage3 to mark embeddings ready');
+  process.exit(1);
+}
+const densePath = path.join(codeDir, 'dense_vectors_uint8.json');
+if (!fs.existsSync(densePath)) {
+  console.error('Expected dense_vectors_uint8.json after stage3');
   process.exit(1);
 }
 

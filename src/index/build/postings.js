@@ -70,38 +70,50 @@ export async function buildPostings(input) {
     log(`Using ${embedLabel} embeddings for dense vectors (${modelId})...`);
     dims = Array.isArray(chunks[0]?.embedding) ? chunks[0].embedding.length : 384;
     const zeroVec = new Array(dims).fill(0);
-    const embeddingVectors = chunks.map((c) =>
-      Array.isArray(c.embedding) ? c.embedding : zeroVec
+    const selectEmbedding = (chunk) => (
+      Array.isArray(chunk?.embedding) && chunk.embedding.length ? chunk.embedding : zeroVec
     );
-    const quantizeVectors = async (vectors) => {
+    const selectDocEmbedding = (chunk) => {
+      if (Array.isArray(chunk?.embed_doc) && chunk.embed_doc.length) return chunk.embed_doc;
+      if (Array.isArray(chunk?.embedding) && chunk.embedding.length) return chunk.embedding;
+      return zeroVec;
+    };
+    const selectCodeEmbedding = (chunk) => {
+      if (Array.isArray(chunk?.embed_code) && chunk.embed_code.length) return chunk.embed_code;
+      if (Array.isArray(chunk?.embedding) && chunk.embedding.length) return chunk.embedding;
+      return zeroVec;
+    };
+    const quantizeVectors = async (selector) => {
+      const out = new Array(chunks.length);
       if (!workerPool) {
-        return vectors.map((vec) => quantizeVec(vec));
+        for (let i = 0; i < chunks.length; i += 1) {
+          out[i] = quantizeVec(selector(chunks[i]));
+        }
+        return out;
       }
       const batchSize = workerPool.config?.quantizeBatchSize || 128;
-      const batches = [];
-      for (let i = 0; i < vectors.length; i += batchSize) {
-        batches.push(vectors.slice(i, i + batchSize));
-      }
-      const results = [];
-      for (const batch of batches) {
+      for (let i = 0; i < chunks.length; i += batchSize) {
+        const end = Math.min(i + batchSize, chunks.length);
+        const batch = [];
+        for (let j = i; j < end; j += 1) {
+          batch.push(selector(chunks[j]));
+        }
         try {
           const chunk = await workerPool.runQuantize({ vectors: batch });
-          results.push(...chunk);
+          for (let j = 0; j < chunk.length; j += 1) {
+            out[i + j] = chunk[j];
+          }
         } catch {
-          results.push(...batch.map((vec) => quantizeVec(vec)));
+          for (let j = 0; j < batch.length; j += 1) {
+            out[i + j] = quantizeVec(batch[j]);
+          }
         }
       }
-      return results;
+      return out;
     };
-    quantizedVectors = await quantizeVectors(embeddingVectors);
-    const embeddingDocVectors = chunks.map((c) =>
-      Array.isArray(c.embed_doc) ? c.embed_doc : (Array.isArray(c.embedding) ? c.embedding : zeroVec)
-    );
-    const embeddingCodeVectors = chunks.map((c) =>
-      Array.isArray(c.embed_code) ? c.embed_code : (Array.isArray(c.embedding) ? c.embedding : zeroVec)
-    );
-    quantizedDocVectors = await quantizeVectors(embeddingDocVectors);
-    quantizedCodeVectors = await quantizeVectors(embeddingCodeVectors);
+    quantizedVectors = await quantizeVectors(selectEmbedding);
+    quantizedDocVectors = await quantizeVectors(selectDocEmbedding);
+    quantizedCodeVectors = await quantizeVectors(selectCodeEmbedding);
   } else {
     log('Embeddings disabled; skipping dense vector build.');
   }

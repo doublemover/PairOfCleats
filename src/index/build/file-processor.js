@@ -9,15 +9,18 @@ import { inferTypeMetadata } from '../type-inference.js';
 import { getHeadline } from '../headline.js';
 import { getChunkAuthorsFromLines, getGitMetaForFile } from '../git.js';
 import { getFieldWeight } from '../field-weighting.js';
-import { CSS_EXTS, HTML_EXTS, isGo, isJsLike, isSpecialCodeFile, JS_EXTS } from '../constants.js';
+import { isGo, isJsLike, isSpecialCodeFile } from '../constants.js';
 import { normalizeVec } from '../embedding.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { createLruCache, estimateJsonBytes } from '../../shared/cache.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 import { log, logLine } from '../../shared/progress.js';
+import { getEnvConfig } from '../../shared/env.js';
+import { createFileScanner, isMinifiedName, readFileSample } from './file-scan.js';
 import { readCachedBundle, writeIncrementalBundle } from './incremental.js';
 import { sha1 } from '../../shared/hash.js';
 import { buildTokenSequence, createTokenizationBuffers, createTokenizationContext, tokenizeChunkText } from './tokenization.js';
+import { resolveEmbeddingBatchSize } from './embedding-batch.js';
 
 /**
  * Create a file processor with shared caches.
@@ -39,6 +42,7 @@ export function createFileProcessor(options) {
     getChunkEmbeddings,
     typeInferenceEnabled,
     riskAnalysisEnabled,
+    relationsEnabled: relationsEnabledRaw,
     seenFiles,
     gitBlameEnabled,
     lintEnabled: lintEnabledRaw,
@@ -59,6 +63,7 @@ export function createFileProcessor(options) {
   } = options;
   const lintEnabled = lintEnabledRaw !== false;
   const complexityEnabled = complexityEnabledRaw !== false;
+  const relationsEnabled = relationsEnabledRaw !== false;
   const { astDataflowEnabled, controlFlowEnabled } = languageOptions;
   const ioQueue = queues?.io || null;
   const cpuQueue = queues?.cpu || null;
@@ -66,39 +71,13 @@ export function createFileProcessor(options) {
   const runIo = ioQueue ? (fn) => ioQueue.add(fn) : (fn) => fn();
   const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn) : (fn) => fn();
   const runEmbedding = embeddingQueue ? (fn) => embeddingQueue.add(fn) : (fn) => fn();
-  const showLineProgress = process.env.PAIROFCLEATS_PROGRESS_LINES === '1';
+  const showLineProgress = getEnvConfig().progressLines === true;
   const tokenContext = createTokenizationContext({
     dictWords,
     dictConfig,
     postingsConfig
   });
-  const minifiedNameRegex = /(?:\.min\.[^/]+$)|(?:-min\.[^/]+$)/i;
-  const minifiedSampleExts = new Set([...JS_EXTS, ...CSS_EXTS, ...HTML_EXTS]);
-  const normalizePositive = (value, fallback) => {
-    if (value === null) return null;
-    if (value === false || value === 0) return null;
-    if (value === undefined) return fallback;
-    const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-    return fallback;
-  };
-  const normalizeRatio = (value, fallback) => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return fallback;
-    return Math.min(1, Math.max(0, parsed));
-  };
-  const fileScanConfig = fileScan && typeof fileScan === 'object' ? fileScan : {};
-  const minifiedConfig = fileScanConfig.minified || {};
-  const binaryConfig = fileScanConfig.binary || {};
-  const sampleSizeBytes = normalizePositive(fileScanConfig.sampleBytes, 8192);
-  const minifiedSampleMinBytes = normalizePositive(minifiedConfig.sampleMinBytes, 4096);
-  const binarySampleMinBytes = normalizePositive(binaryConfig.sampleMinBytes, 65536);
-  const minifiedMinChars = normalizePositive(minifiedConfig.minChars, 1024);
-  const minifiedSingleLineChars = normalizePositive(minifiedConfig.singleLineChars, 4096);
-  const minifiedAvgLineThreshold = normalizePositive(minifiedConfig.avgLineThreshold, 300);
-  const minifiedMaxLineThreshold = normalizePositive(minifiedConfig.maxLineThreshold, 600);
-  const minifiedMaxWhitespaceRatio = normalizeRatio(minifiedConfig.maxWhitespaceRatio, 0.2);
-  const binaryMaxNonTextRatio = normalizeRatio(binaryConfig.maxNonTextRatio, 0.3);
+  const fileScanner = createFileScanner(fileScan);
   const recordSkip = (filePath, reason, extra = {}) => {
     if (!skippedFiles) return;
     skippedFiles.push({ file: filePath, reason, ...extra });
@@ -117,65 +96,6 @@ export function createFileProcessor(options) {
       maxBytes: pickMinLimit(defaultCaps.maxBytes, extCaps?.maxBytes, langCaps?.maxBytes),
       maxLines: pickMinLimit(defaultCaps.maxLines, extCaps?.maxLines, langCaps?.maxLines)
     };
-  };
-  const resolveEmbeddingBatchSize = (baseSize, languageId) => {
-    const multiplier = languageOptions?.typescript?.embeddingBatchMultiplier;
-    if (languageId === 'typescript' && Number.isFinite(multiplier) && multiplier > 0) {
-      const resolvedBase = Number.isFinite(baseSize) ? baseSize : 0;
-      if (!resolvedBase) return baseSize;
-      return Math.max(1, Math.floor(resolvedBase * multiplier));
-    }
-    return baseSize;
-  };
-  const readFileSample = async (absPath) => {
-    if (!sampleSizeBytes) return null;
-    const handle = await fs.open(absPath, 'r');
-    try {
-      const buffer = Buffer.alloc(sampleSizeBytes);
-      const { bytesRead } = await handle.read(buffer, 0, sampleSizeBytes, 0);
-      return bytesRead > 0 ? buffer.subarray(0, bytesRead) : null;
-    } finally {
-      await handle.close();
-    }
-  };
-  const isLikelyBinary = (buffer) => {
-    if (!buffer || !buffer.length) return false;
-    let nonText = 0;
-    for (const byte of buffer) {
-      if (byte === 0) return true;
-      if (byte < 9 || (byte > 13 && byte < 32) || byte === 127) nonText += 1;
-    }
-    return nonText / buffer.length > binaryMaxNonTextRatio;
-  };
-  const isLikelyMinifiedText = (text) => {
-    if (!text || text.length < (minifiedMinChars || 0)) return false;
-    let lines = 1;
-    let whitespace = 0;
-    let maxLine = 0;
-    let currentLine = 0;
-    for (let i = 0; i < text.length; i += 1) {
-      const code = text.charCodeAt(i);
-      if (code === 10) {
-        lines += 1;
-        if (currentLine > maxLine) maxLine = currentLine;
-        currentLine = 0;
-        continue;
-      }
-      currentLine += 1;
-      if (code === 9 || code === 11 || code === 12 || code === 13 || code === 32) {
-        whitespace += 1;
-      }
-    }
-    if (currentLine > maxLine) maxLine = currentLine;
-    const avgLine = text.length / lines;
-    const whitespaceRatio = whitespace / text.length;
-    if (minifiedSingleLineChars && text.length >= minifiedSingleLineChars && lines <= 1) {
-      return true;
-    }
-    if (!minifiedAvgLineThreshold || !minifiedMaxLineThreshold) return false;
-    return avgLine > minifiedAvgLineThreshold
-      && maxLine > minifiedMaxLineThreshold
-      && whitespaceRatio < minifiedMaxWhitespaceRatio;
   };
   const getWorkerDictOverride = () => {
     if (!workerPool?.dictConfig || !dictConfig) return null;
@@ -464,31 +384,32 @@ export function createFileProcessor(options) {
       recordSkip(abs, 'oversize', { bytes: fileStat.size, maxBytes: capsByExt.maxBytes });
       return null;
     }
+    const scanState = typeof fileEntry === 'object' ? fileEntry.scan : null;
+    if (scanState?.skip) {
+      const { reason, ...extra } = scanState.skip;
+      recordSkip(abs, reason || 'oversize', extra);
+      return null;
+    }
     const baseName = path.basename(abs);
-    if (minifiedNameRegex.test(baseName.toLowerCase())) {
+    if (isMinifiedName(baseName)) {
       recordSkip(abs, 'minified', { method: 'name' });
       return null;
     }
-    let sampleBuffer = null;
-    const shouldSampleBinary = binarySampleMinBytes && fileStat.size >= binarySampleMinBytes;
-    const shouldSampleMinified = minifiedSampleMinBytes
-      && fileStat.size >= minifiedSampleMinBytes
-      && minifiedSampleExts.has(ext);
-    if (sampleSizeBytes && (shouldSampleBinary || shouldSampleMinified)) {
-      try {
-        sampleBuffer = await runIo(() => readFileSample(abs));
-      } catch {
-        sampleBuffer = null;
-      }
-    }
-    if (sampleBuffer && isLikelyBinary(sampleBuffer)) {
-      recordSkip(abs, 'binary', { bytes: fileStat.size });
+    const knownLines = Number(fileEntry?.lines);
+    if (capsByExt.maxLines && Number.isFinite(knownLines) && knownLines > capsByExt.maxLines) {
+      recordSkip(abs, 'oversize', { lines: knownLines, maxLines: capsByExt.maxLines });
       return null;
     }
-    if (sampleBuffer && minifiedSampleExts.has(ext)) {
-      const sampleText = sampleBuffer.toString('utf8');
-      if (isLikelyMinifiedText(sampleText)) {
-        recordSkip(abs, 'minified', { method: 'content' });
+    if (!scanState?.checkedBinary || !scanState?.checkedMinified) {
+      const scanResult = await runIo(() => fileScanner.scanFile({
+        absPath: abs,
+        stat: fileStat,
+        ext,
+        readSample: readFileSample
+      }));
+      if (scanResult?.skip) {
+        const { reason, ...extra } = scanResult.skip;
+        recordSkip(abs, reason || 'oversize', extra);
         return null;
       }
     }
@@ -593,7 +514,7 @@ export function createFileProcessor(options) {
       }
       let lastLineLogged = 0;
       let lastLineLogMs = 0;
-      const rawRelations = (mode === 'code' && lang && typeof lang.buildRelations === 'function')
+      const rawRelations = (mode === 'code' && relationsEnabled && lang && typeof lang.buildRelations === 'function')
         ? lang.buildRelations({
           text,
           relPath: relKey,
@@ -602,8 +523,8 @@ export function createFileProcessor(options) {
           options: languageOptions
         })
         : null;
-      const fileRelations = buildFileRelations(rawRelations);
-      const callIndex = buildCallIndex(rawRelations);
+      const fileRelations = relationsEnabled ? buildFileRelations(rawRelations) : null;
+      const callIndex = relationsEnabled ? buildCallIndex(rawRelations) : null;
       const gitMeta = await runIo(() => getGitMetaForFile(relKey, {
         blame: gitBlameEnabled,
         baseDir: root
@@ -672,7 +593,7 @@ export function createFileProcessor(options) {
               options: languageOptions
             })
             : {};
-          if (fileRelations) {
+          if (relationsEnabled && fileRelations) {
             codeRelations = buildChunkRelations({
               lang,
               chunk: c,
@@ -876,7 +797,9 @@ export function createFileProcessor(options) {
           ...(chunkAuthors.length ? { chunk_authors: chunkAuthors } : {})
         };
 
-        const externalDocs = buildExternalDocs(ext, fileRelations?.imports);
+        const externalDocs = relationsEnabled
+          ? buildExternalDocs(ext, fileRelations?.imports)
+          : [];
 
         const chunkPayload = {
           file: relKey,
@@ -931,7 +854,11 @@ export function createFileProcessor(options) {
 
         const runBatched = async (texts) => {
           if (!texts.length) return [];
-          const effectiveBatchSize = resolveEmbeddingBatchSize(embeddingBatchSize, fileLanguageId);
+          const effectiveBatchSize = resolveEmbeddingBatchSize(
+            embeddingBatchSize,
+            fileLanguageId,
+            languageOptions?.embeddingBatchMultipliers
+          );
           const batchSize = Number.isFinite(effectiveBatchSize) ? effectiveBatchSize : 0;
           if (!batchSize || texts.length <= batchSize) {
             return embedBatch(texts);

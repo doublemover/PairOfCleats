@@ -8,7 +8,7 @@
 #   $3 = path/to/theirs_searchHistory
 #
 # It then merges the contents of “theirs” into “ours” (via union, no duplicates)
-# using mergeSearchHistory.js.  The result is written back to “ours” ($2).
+# using mergeAppendOnly.js.  The result is written back to “ours” ($2).
 #
 # Usage (Git will call this with):
 #   tools/merge-history.sh <base> <ours> <theirs>
@@ -34,7 +34,7 @@ if [ ! -f "$THEIRS_FILE" ]; then
 fi
 
 # We want to produce a union of “ours” + “theirs” (no duplicate lines).
-# mergeSearchHistory.js expects two args: (baseFile, targetFile).  We can
+# mergeAppendOnly.js expects two args: (baseFile, targetFile).  We can
 # simply pass “theirs” as the “baseFile” and “ours” as the “targetFile”,
 # so that any lines in “theirs” not already in “ours” get appended.
 
@@ -42,7 +42,7 @@ fi
 # complex logic.  But for “append‐only” history, this union is usually enough.)
 
 # Invoke the Node script:
-node "$(dirname "$0")/tools/mergeSearchHistory.js" "$THEIRS_FILE" "$OURS_FILE"
+node "$(dirname "$0")/tools/mergeAppendOnly.js" "$THEIRS_FILE" "$OURS_FILE"
 
 # At this point, “ours” has been updated in place to include every unique line
 # from both “ours” and “theirs.”  Exit successfully.

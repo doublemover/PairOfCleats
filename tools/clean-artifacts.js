@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
+import { getEnvConfig } from '../src/shared/env.js';
 import { getCacheRoot, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { isInside, isRootPath } from './path-utils.js';
 
@@ -18,7 +19,8 @@ const argv = createCli({
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
-const cacheRoot = (userConfig.cache && userConfig.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+const envConfig = getEnvConfig();
+const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const defaultSqliteDir = path.join(repoCacheRoot, 'index-sqlite');
 const legacyRepoSqliteDir = path.join(root, 'index-sqlite');

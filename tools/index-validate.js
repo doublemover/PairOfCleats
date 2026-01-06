@@ -4,6 +4,8 @@ import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
 import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { normalizePostingsConfig } from '../src/shared/postings-config.js';
+import { loadChunkMeta, loadTokenPostings, readJsonFile } from '../src/shared/artifact-io.js';
+import { sha1File } from '../src/shared/hash.js';
 
 const argv = createCli({
   scriptName: 'index-validate',
@@ -82,6 +84,57 @@ for (const mode of modes) {
     missing: [],
     warnings: []
   };
+  const manifestPath = path.join(dir, 'pieces', 'manifest.json');
+  if (!fs.existsSync(manifestPath)) {
+    const warning = 'pieces/manifest.json missing';
+    modeReport.warnings.push(warning);
+    report.warnings.push(`[${mode}] ${warning}`);
+  } else {
+    try {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      if (!manifest || !Array.isArray(manifest.pieces)) {
+        const issue = 'pieces/manifest.json invalid';
+        modeReport.ok = false;
+        modeReport.missing.push(issue);
+        report.issues.push(`[${mode}] ${issue}`);
+      } else {
+        for (const piece of manifest.pieces) {
+          const relPath = piece?.path;
+          if (!relPath) continue;
+          const absPath = path.join(dir, relPath.split('/').join(path.sep));
+          if (!fs.existsSync(absPath)) {
+            const issue = `piece missing: ${relPath}`;
+            modeReport.ok = false;
+            modeReport.missing.push(issue);
+            report.issues.push(`[${mode}] ${issue}`);
+            continue;
+          }
+          const checksum = typeof piece?.checksum === 'string' ? piece.checksum : '';
+          if (checksum) {
+            const [algo, expected] = checksum.split(':');
+            if (algo !== 'sha1' || !expected) {
+              const warning = `piece checksum invalid: ${relPath}`;
+              modeReport.warnings.push(warning);
+              report.warnings.push(`[${mode}] ${warning}`);
+              continue;
+            }
+            const actual = await sha1File(absPath);
+            if (actual !== expected) {
+              const issue = `piece checksum mismatch: ${relPath}`;
+              modeReport.ok = false;
+              modeReport.missing.push(issue);
+              report.issues.push(`[${mode}] ${issue}`);
+            }
+          }
+        }
+      }
+    } catch {
+      const issue = 'pieces/manifest.json invalid';
+      modeReport.ok = false;
+      modeReport.missing.push(issue);
+      report.issues.push(`[${mode}] ${issue}`);
+    }
+  }
   const hasArtifact = (file) => {
     if (file === 'chunk_meta') {
       const json = path.join(dir, 'chunk_meta.json');
@@ -116,6 +169,57 @@ for (const mode of modes) {
       modeReport.warnings.push(file);
       report.warnings.push(`[${mode}] optional ${file} missing`);
     }
+  }
+  try {
+    const chunkMeta = loadChunkMeta(dir);
+    const tokenIndex = loadTokenPostings(dir);
+    const docLengths = Array.isArray(tokenIndex?.docLengths) ? tokenIndex.docLengths : [];
+    if (docLengths.length && chunkMeta.length !== docLengths.length) {
+      const issue = `docLengths mismatch (${docLengths.length} !== ${chunkMeta.length})`;
+      modeReport.ok = false;
+      modeReport.missing.push(issue);
+      report.issues.push(`[${mode}] ${issue}`);
+    }
+    const densePath = path.join(dir, 'dense_vectors_uint8.json');
+    if (fs.existsSync(densePath) || fs.existsSync(`${densePath}.gz`)) {
+      const denseVec = readJsonFile(densePath);
+      const vectors = Array.isArray(denseVec?.vectors)
+        ? denseVec.vectors
+        : (Array.isArray(denseVec?.arrays?.vectors) ? denseVec.arrays.vectors : []);
+      if (vectors.length && vectors.length !== chunkMeta.length) {
+        const issue = `dense_vectors mismatch (${vectors.length} !== ${chunkMeta.length})`;
+        modeReport.ok = false;
+        modeReport.missing.push(issue);
+        report.issues.push(`[${mode}] ${issue}`);
+      }
+    }
+    const minhashPath = path.join(dir, 'minhash_signatures.json');
+    if (fs.existsSync(minhashPath) || fs.existsSync(`${minhashPath}.gz`)) {
+      const minhash = readJsonFile(minhashPath);
+      const signatures = Array.isArray(minhash?.signatures)
+        ? minhash.signatures
+        : (Array.isArray(minhash?.arrays?.signatures) ? minhash.arrays.signatures : []);
+      if (signatures.length && signatures.length !== chunkMeta.length) {
+        const issue = `minhash mismatch (${signatures.length} !== ${chunkMeta.length})`;
+        modeReport.ok = false;
+        modeReport.missing.push(issue);
+        report.issues.push(`[${mode}] ${issue}`);
+      }
+    }
+    const fieldTokensPath = path.join(dir, 'field_tokens.json');
+    if (fs.existsSync(fieldTokensPath) || fs.existsSync(`${fieldTokensPath}.gz`)) {
+      const fieldTokens = readJsonFile(fieldTokensPath);
+      if (Array.isArray(fieldTokens) && fieldTokens.length !== chunkMeta.length) {
+        const issue = `field_tokens mismatch (${fieldTokens.length} !== ${chunkMeta.length})`;
+        modeReport.ok = false;
+        modeReport.missing.push(issue);
+        report.issues.push(`[${mode}] ${issue}`);
+      }
+    }
+  } catch (err) {
+    const warning = `count validation skipped (${err?.code || err?.message || 'error'})`;
+    modeReport.warnings.push(warning);
+    report.warnings.push(`[${mode}] ${warning}`);
   }
   report.modes[mode] = modeReport;
 }

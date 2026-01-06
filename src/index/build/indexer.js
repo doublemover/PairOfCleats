@@ -8,13 +8,15 @@ import { createTaskQueues, runWithConcurrency, runWithQueue } from '../../shared
 import { createCacheReporter } from '../../shared/cache.js';
 import { log, logLine, showProgress } from '../../shared/progress.js';
 import { toPosix } from '../../shared/files.js';
+import { getEnvConfig } from '../../shared/env.js';
+import { countLinesForEntries } from '../../shared/file-stats.js';
 import { writeIndexArtifacts } from './artifacts.js';
 import { estimateContextWindow } from './context-window.js';
 import { discoverFiles } from './discover.js';
 import { createCrashLogger } from './crash-log.js';
 import { createFileProcessor } from './file-processor.js';
 import { scanImports } from './imports.js';
-import { loadIncrementalState, pruneIncrementalManifest, updateBundlesWithChunks } from './incremental.js';
+import { loadIncrementalState, pruneIncrementalManifest, shouldReuseIncrementalIndex, updateBundlesWithChunks } from './incremental.js';
 import { buildPostings } from './postings.js';
 import { createIndexState, appendChunk, mergeIndexState } from './state.js';
 import { configureGitMetaCache } from '../git.js';
@@ -29,6 +31,50 @@ const buildTokenizationKey = (runtime, mode) => {
     dictConfig: runtime.dictConfig || {},
     postingsConfig: runtime.postingsConfig || {},
     dictSignature: runtime.dictSignature || null
+  };
+  return sha1(JSON.stringify(payload));
+};
+
+const buildIncrementalSignature = (runtime, mode, tokenizationKey) => {
+  const languageOptions = runtime.languageOptions || {};
+  const payload = {
+    mode,
+    tokenizationKey,
+    features: {
+      astDataflowEnabled: runtime.astDataflowEnabled,
+      controlFlowEnabled: runtime.controlFlowEnabled,
+      lintEnabled: runtime.lintEnabled,
+      complexityEnabled: runtime.complexityEnabled,
+      riskAnalysisEnabled: runtime.riskAnalysisEnabled,
+      riskAnalysisCrossFileEnabled: runtime.riskAnalysisCrossFileEnabled,
+      typeInferenceEnabled: runtime.typeInferenceEnabled,
+      typeInferenceCrossFileEnabled: runtime.typeInferenceCrossFileEnabled,
+      gitBlameEnabled: runtime.gitBlameEnabled
+    },
+    parsers: {
+      javascript: languageOptions.javascript?.parser || null,
+      javascriptFlow: languageOptions.javascript?.flow || null,
+      typescript: languageOptions.typescript?.parser || null,
+      typescriptImportsOnly: languageOptions.typescript?.importsOnly === true
+    },
+    treeSitter: languageOptions.treeSitter
+      ? {
+        enabled: languageOptions.treeSitter.enabled !== false,
+        languages: languageOptions.treeSitter.languages || {},
+        maxBytes: languageOptions.treeSitter.maxBytes ?? null,
+        maxLines: languageOptions.treeSitter.maxLines ?? null
+      }
+      : { enabled: false },
+    yamlChunking: languageOptions.yamlChunking || null,
+    kotlin: languageOptions.kotlin || null,
+    embeddings: {
+      enabled: runtime.embeddingEnabled || runtime.embeddingService,
+      mode: runtime.embeddingMode,
+      service: runtime.embeddingService === true,
+      batchSize: runtime.embeddingBatchSize
+    },
+    fileCaps: runtime.fileCaps,
+    fileScan: runtime.fileScan
   };
   return sha1(JSON.stringify(payload));
 };
@@ -111,17 +157,34 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   timing.discoverMs = Date.now() - discoverStart;
   runtime.dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
   const tokenizationKey = buildTokenizationKey(runtime, mode);
+  const cacheSignature = buildIncrementalSignature(runtime, mode, tokenizationKey);
   const incrementalState = await loadIncrementalState({
     repoCacheRoot: runtime.repoCacheRoot,
     mode,
     enabled: runtime.incrementalEnabled,
     tokenizationKey,
+    cacheSignature,
     log
   });
   configureGitMetaCache(runtime.cacheConfig?.gitMeta, cacheReporter);
 
+  if (incrementalState?.enabled) {
+    const reuse = await shouldReuseIncrementalIndex({
+      outDir,
+      entries: allEntries,
+      manifest: incrementalState.manifest,
+      stage: runtime.stage
+    });
+    if (reuse) {
+      log(`→ Reusing ${mode} index artifacts (no changes).`);
+      cacheReporter.report();
+      return;
+    }
+  }
+
+  const relationsEnabled = runtime.stage !== 'stage1';
   let importResult = { allImports: {}, durationMs: 0 };
-  if (mode === 'code') {
+  if (mode === 'code' && relationsEnabled) {
     log('Scanning for imports...');
     crashLogger.updatePhase('imports');
     importResult = await scanImports({
@@ -138,6 +201,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       const { modules, edges, files } = importResult.stats;
       log(`→ Imports: modules=${modules}, edges=${edges}, files=${files}`);
     }
+  } else if (mode === 'code') {
+    log('Skipping import scan for sparse stage.');
   }
 
   const contextWin = await estimateContextWindow({
@@ -152,7 +217,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   crashLogger.updatePhase('processing');
   const processStart = Date.now();
   log(`Indexing concurrency: files=${runtime.fileConcurrency}, imports=${runtime.importConcurrency}, io=${runtime.ioConcurrency}, cpu=${runtime.cpuConcurrency}`);
-  const showFileProgress = process.env.PAIROFCLEATS_PROGRESS_FILES === '1';
+  const envConfig = getEnvConfig();
+  const showFileProgress = envConfig.progressFiles === true;
 
   const structuralMatches = loadStructuralMatches({
     repoRoot: runtime.root,
@@ -234,6 +300,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       useCpuQueue: false,
       workerPool: runtimeRef.workerPool,
       crashLogger,
+      relationsEnabled,
       skippedFiles: stateRef.skippedFiles,
       fileCaps: runtimeRef.fileCaps,
       fileScan: runtimeRef.fileScan
@@ -244,8 +311,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       async (entry, fileIndex) => {
         if (showFileProgress) {
           const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
-          const prefix = shardLabel ? `[${shardLabel}] ` : '';
-          logLine(`${prefix}File ${progress.count + 1}/${progress.total} ${rel}`);
+          const shardText = shardLabel ? `shard ${shardLabel}` : 'shard';
+          const shardPrefix = `[${shardText}]`;
+          const countText = `${progress.count + 1}/${progress.total}`;
+          const lineText = Number.isFinite(entry.lines) ? `lines ${entry.lines}` : null;
+          const parts = [shardPrefix, countText, lineText, rel].filter(Boolean);
+          logLine(parts.join(' '));
         }
         crashLogger.updateFile({
           phase: 'processing',
@@ -278,12 +349,27 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       }
     );
   };
+  const discoveryLineCounts = discovery?.lineCounts instanceof Map ? discovery.lineCounts : null;
+  let lineCounts = discoveryLineCounts;
+  if (runtime.shards?.enabled && !lineCounts) {
+    const hasEntryLines = allEntries.some((entry) => Number.isFinite(entry?.lines) && entry.lines > 0);
+    if (!hasEntryLines) {
+      const lineStart = Date.now();
+      const lineConcurrency = Math.max(1, Math.min(32, runtime.cpuConcurrency * 2));
+      if (envConfig.verbose === true) {
+        log(`→ Shard planning: counting lines (${lineConcurrency} workers)...`);
+      }
+      lineCounts = await countLinesForEntries(allEntries, { concurrency: lineConcurrency });
+      timing.lineCountsMs = Date.now() - lineStart;
+    }
+  }
   const shardPlan = runtime.shards?.enabled
     ? planShards(allEntries, {
       mode,
       maxShards: runtime.shards.maxShards,
       minFiles: runtime.shards.minFiles,
-      dirDepth: runtime.shards.dirDepth
+      dirDepth: runtime.shards.dirDepth,
+      lineCounts
     })
     : null;
   const shardSummary = shardPlan
@@ -292,7 +378,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       label: shard.label || shard.id,
       dir: shard.dir,
       lang: shard.lang,
-      fileCount: shard.entries.length
+      fileCount: shard.entries.length,
+      lineCount: shard.lineCount || 0
     }))
     : [];
   if (incrementalState?.manifest) {
@@ -303,6 +390,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   }
   if (shardPlan && shardPlan.length > 1) {
     const shardExecutionPlan = [...shardPlan].sort((a, b) => {
+      const lineDelta = (b.lineCount || 0) - (a.lineCount || 0);
+      if (lineDelta !== 0) return lineDelta;
       const sizeDelta = b.entries.length - a.entries.length;
       if (sizeDelta !== 0) return sizeDelta;
       return (a.label || a.id).localeCompare(b.label || b.id);
@@ -311,17 +400,24 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
     );
     const totalFiles = shardPlan.reduce((sum, shard) => sum + shard.entries.length, 0);
-    const shardLineCounts = new Map();
-    let totalLines = 0;
-    for (const shard of shardPlan) {
-      let shardLines = 0;
-      for (const entry of shard.entries) {
-        const lineCount = Number(entry?.lines ?? entry?.lineCount ?? entry?.stat?.lines);
-        if (Number.isFinite(lineCount) && lineCount > 0) shardLines += lineCount;
+    const totalLines = shardPlan.reduce((sum, shard) => sum + (shard.lineCount || 0), 0);
+    if (envConfig.verbose === true) {
+      const top = shardExecutionPlan.slice(0, Math.min(10, shardExecutionPlan.length));
+      log(`→ Shard plan: ${shardPlan.length} shards, ${totalFiles.toLocaleString()} files, ${totalLines.toLocaleString()} lines.`);
+      for (const shard of top) {
+        const lineCount = shard.lineCount || 0;
+        log(`[shards] ${shard.label || shard.id} | files ${shard.entries.length.toLocaleString()} | lines ${lineCount.toLocaleString()}`);
       }
-      if (shardLines > 0) {
-        shardLineCounts.set(shard.id, shardLines);
-        totalLines += shardLines;
+      const splitGroups = new Map();
+      for (const shard of shardPlan) {
+        if (!shard.splitFrom) continue;
+        const group = splitGroups.get(shard.splitFrom) || { count: 0, lines: 0 };
+        group.count += 1;
+        group.lines += shard.lineCount || 0;
+        splitGroups.set(shard.splitFrom, group);
+      }
+      for (const [label, group] of splitGroups) {
+        log(`[shards] split ${label} -> ${group.count} parts (${group.lines.toLocaleString()} lines)`);
       }
     }
     const buildShardWorkPlan = () => {
@@ -330,7 +426,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       for (const shard of shardExecutionPlan) {
         const fileCount = shard.entries.length;
         const fileShare = totalFiles > 0 ? fileCount / totalFiles : 0;
-        const lineCount = shardLineCounts.get(shard.id) || 0;
+        const lineCount = shard.lineCount || 0;
         const lineShare = totalLines > 0 ? lineCount / totalLines : 0;
         const share = Math.max(fileShare, lineShare);
         let parts = 1;
@@ -428,7 +524,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   showProgress('Files', progress.total, progress.total);
 
   timing.processMs = Date.now() - processStart;
-  if (process.env.PAIROFCLEATS_VERBOSE === '1' && tokenizationStats.chunks) {
+  if (envConfig.verbose === true && tokenizationStats.chunks) {
     const avgTokens = (tokenizationStats.tokens / tokenizationStats.chunks).toFixed(1);
     const avgChargrams = (tokenizationStats.chargrams / tokenizationStats.chunks).toFixed(1);
     log(`[tokenization] ${mode}: chunks=${tokenizationStats.chunks}, tokens=${tokenizationStats.tokens}, avgTokens=${avgTokens}, avgChargrams=${avgChargrams}`);

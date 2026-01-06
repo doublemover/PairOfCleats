@@ -4,10 +4,11 @@ import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
+import { getEnvConfig } from '../src/shared/env.js';
 import { createEmbedder, normalizeVec, quantizeVec } from '../src/index/embedding.js';
 import { MAX_JSON_BYTES, loadChunkMeta, readJsonFile } from '../src/shared/artifact-io.js';
 import { writeJsonObjectFile } from '../src/shared/json-stream.js';
-import { sha1 } from '../src/shared/hash.js';
+import { sha1, sha1File } from '../src/shared/hash.js';
 import {
   getIndexDir,
   getModelConfig,
@@ -45,13 +46,14 @@ const argv = createCli({
 
 const root = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
+const envConfig = getEnvConfig();
 const indexingConfig = userConfig.indexing || {};
 const embeddingsConfig = indexingConfig.embeddings || {};
 const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
   ? embeddingsConfig.mode.trim().toLowerCase()
   : 'auto';
 const baseStubEmbeddings = argv['stub-embeddings'] === true
-  || process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
+  || envConfig.embeddings === 'stub';
 const normalizedEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(embeddingModeRaw)
   ? embeddingModeRaw
   : 'auto';
@@ -191,6 +193,54 @@ const updateSqliteDense = ({ mode, vectors, dims, scale }) => {
   } finally {
     db.close();
   }
+};
+
+const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims }) => {
+  const piecesDir = path.join(indexDir, 'pieces');
+  const manifestPath = path.join(piecesDir, 'manifest.json');
+  let existing = {};
+  if (fsSync.existsSync(manifestPath)) {
+    try {
+      existing = readJsonFile(manifestPath, { maxBytes: MAX_JSON_BYTES }) || {};
+    } catch {
+      existing = {};
+    }
+  }
+  const priorPieces = Array.isArray(existing.pieces) ? existing.pieces : [];
+  const retained = priorPieces.filter((entry) => entry?.type !== 'embeddings');
+  const embeddingPieces = [
+    { type: 'embeddings', name: 'dense_vectors', format: 'json', path: 'dense_vectors_uint8.json', count: totalChunks, dims },
+    { type: 'embeddings', name: 'dense_vectors_doc', format: 'json', path: 'dense_vectors_doc_uint8.json', count: totalChunks, dims },
+    { type: 'embeddings', name: 'dense_vectors_code', format: 'json', path: 'dense_vectors_code_uint8.json', count: totalChunks, dims }
+  ];
+  const enriched = [];
+  for (const entry of embeddingPieces) {
+    const absPath = path.join(indexDir, entry.path);
+    if (!fsSync.existsSync(absPath)) continue;
+    let bytes = null;
+    let checksum = null;
+    try {
+      const stat = await fs.stat(absPath);
+      bytes = stat.size;
+      checksum = await sha1File(absPath);
+    } catch {}
+    enriched.push({
+      ...entry,
+      bytes,
+      checksum: checksum ? `sha1:${checksum}` : null
+    });
+  }
+  const now = new Date().toISOString();
+  const manifest = {
+    version: existing.version || 2,
+    generatedAt: existing.generatedAt || now,
+    updatedAt: now,
+    mode,
+    stage: existing.stage || 'stage3',
+    pieces: [...retained, ...enriched]
+  };
+  await fs.mkdir(piecesDir, { recursive: true });
+  await writeJsonObjectFile(manifestPath, { fields: manifest, atomic: true });
 };
 
 const runBatched = async (texts) => {
@@ -522,15 +572,18 @@ for (const mode of modes) {
   const denseScale = 2 / 255;
   await writeJsonObjectFile(path.join(indexDir, 'dense_vectors_uint8.json'), {
     fields: { model: modelId, dims: finalDims, scale: denseScale },
-    arrays: { vectors: mergedVectors }
+    arrays: { vectors: mergedVectors },
+    atomic: true
   });
   await writeJsonObjectFile(path.join(indexDir, 'dense_vectors_doc_uint8.json'), {
     fields: { model: modelId, dims: finalDims, scale: denseScale },
-    arrays: { vectors: docVectors }
+    arrays: { vectors: docVectors },
+    atomic: true
   });
   await writeJsonObjectFile(path.join(indexDir, 'dense_vectors_code_uint8.json'), {
     fields: { model: modelId, dims: finalDims, scale: denseScale },
-    arrays: { vectors: codeVectors }
+    arrays: { vectors: codeVectors },
+    atomic: true
   });
 
   const statePath = path.join(indexDir, 'index_state.json');
@@ -565,6 +618,12 @@ for (const mode of modes) {
     await fs.writeFile(statePath, JSON.stringify(indexState, null, 2));
   } catch {
     // Ignore index state write failures.
+  }
+
+  try {
+    await updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims });
+  } catch {
+    // Ignore piece manifest write failures.
   }
 
   updateSqliteDense({

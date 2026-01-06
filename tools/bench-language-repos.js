@@ -6,60 +6,45 @@ import os from 'node:os';
 import readline from 'node:readline';
 import { execa, execaSync } from 'execa';
 import { createCli } from '../src/shared/cli.js';
+import { getEnvConfig } from '../src/shared/env.js';
+import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../src/shared/cli-options.js';
 import { fileURLToPath } from 'node:url';
 import { getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions } from './dict-utils.js';
 import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
 import { discoverFilesForModes } from '../src/index/build/discover.js';
 import { toPosix } from '../src/shared/files.js';
+import { formatShardFileProgress } from '../src/shared/bench-progress.js';
+import { countLinesForEntries } from '../src/shared/file-stats.js';
 
 const argv = createCli({
   scriptName: 'bench-language',
-  options: {
-    json: { type: 'boolean', default: false },
-    list: { type: 'boolean', default: false },
-    clone: { type: 'boolean', default: true },
-    'no-clone': { type: 'boolean', default: false },
-    build: { type: 'boolean', default: false },
-    'build-index': { type: 'boolean', default: false },
-    'build-sqlite': { type: 'boolean', default: false },
-    incremental: { type: 'boolean', default: false },
-    'benchmark-profile': { type: 'boolean', default: true },
-    'index-profile': { type: 'string' },
-    'no-index-profile': { type: 'boolean', default: false },
-    'real-embeddings': { type: 'boolean', default: false },
-    ann: { type: 'boolean' },
-    'no-ann': { type: 'boolean' },
-    'stub-embeddings': { type: 'boolean', default: false },
-    'dry-run': { type: 'boolean', default: false },
-    'cache-run': { type: 'boolean', default: false },
-    config: { type: 'string' },
-    root: { type: 'string' },
-    'cache-root': { type: 'string' },
-    'cache-suffix': { type: 'string' },
-    results: { type: 'string' },
-    log: { type: 'string' },
-    language: { type: 'string' },
-    languages: { type: 'string' },
-    tier: { type: 'string' },
-    repos: { type: 'string' },
-    only: { type: 'string' },
-    queries: { type: 'string' },
-    backend: { type: 'string' },
-    out: { type: 'string' },
-    top: { type: 'number' },
-    limit: { type: 'number' },
-    'bm25-k1': { type: 'number' },
-    'bm25-b': { type: 'number' },
-    'fts-profile': { type: 'string' },
-    'fts-weights': { type: 'string' },
-    'log-lines': { type: 'number' },
-    'heap-mb': { type: 'number' },
-    threads: { type: 'number' },
-    'lock-mode': { type: 'string' },
-    'lock-wait-ms': { type: 'number' },
-    'lock-stale-ms': { type: 'number' }
-  }
+  options: mergeCliOptions(
+    BENCH_OPTIONS,
+    {
+      list: { type: 'boolean', default: false },
+      clone: { type: 'boolean', default: true },
+      'no-clone': { type: 'boolean', default: false },
+      'dry-run': { type: 'boolean', default: false },
+      'cache-run': { type: 'boolean', default: false },
+      config: { type: 'string' },
+      root: { type: 'string' },
+      'cache-root': { type: 'string' },
+      'cache-suffix': { type: 'string' },
+      results: { type: 'string' },
+      log: { type: 'string' },
+      language: { type: 'string' },
+      languages: { type: 'string' },
+      tier: { type: 'string' },
+      repos: { type: 'string' },
+      only: { type: 'string' },
+      'log-lines': { type: 'number' },
+      'lock-mode': { type: 'string' },
+      'lock-wait-ms': { type: 'number' },
+      'lock-stale-ms': { type: 'number' }
+    }
+  )
 }).parse();
+validateBenchArgs(argv);
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const configPath = path.resolve(argv.config || path.join(scriptRoot, 'benchmarks', 'repos.json'));
@@ -85,7 +70,10 @@ const logWindowSize = Number.isFinite(logLineArg)
   : 20;
 const logHistorySize = 50;
 const logLines = Array(logWindowSize).fill('');
+const logLineTags = Array(logWindowSize).fill('');
 const logHistory = [];
+const logUpdateByTag = new Map();
+const logUpdateDebounceMs = 250;
 let metricsLine = '';
 let progressLine = '';
 let fileProgressLine = '';
@@ -126,8 +114,8 @@ const buildProgressState = {
   importStats: null
 };
 const buildProgressRegex = /^\s*(Files|Imports)\s+(\d+)\/(\d+)\s+\((\d+(?:\.\d+)?)%\)/i;
-const buildCombinedFileRegex = /^\s*Files\s+(\d+)\/(\d+)\s+\((\d+(?:\.\d+)?)%\)\s+(?:\[(.+?)\]\s+)?File\s+(\d+)\/(\d+)\s+(.+)$/i;
-const buildFileOnlyRegex = /^\s*(?:\[(.+?)\]\s+)?File\s+(\d+)\/(\d+)\s+(.+)$/i;
+const buildCombinedFileRegex = /^\s*Files\s+(\d+)\/(\d+)\s+\((\d+(?:\.\d+)?)%\)\s+(?:\[(.+?)\]\s+)?(?:File\s+)?(\d+)\/(\d+)(?:\s+lines\s+[0-9,\.]+)?\s+(.+)$/i;
+const buildFileOnlyRegex = /^\s*(?:\[(.+?)\]\s+)?(?:File\s+)?(\d+)\/(\d+)(?:\s+lines\s+[0-9,\.]+)?\s+(.+)$/i;
 const buildShardRegex = /^\s*(?:\u2192|->)\s+Shard\s+(\d+)\/(\d+):\s+([^[\r\n]+?)(?:\s+\[[^\]]+\])?\s+\((\d+)\s+files\)/i;
 const buildImportStatsRegex = /^\s*\u2192\s*Imports:\s+modules=(\d+),\s*edges=(\d+),\s*files=(\d+)/i;
 const buildScanRegex = /Scanning\s+(code|prose)/i;
@@ -137,13 +125,13 @@ const cacheConfig = { cache: { root: cacheRoot } };
 const shardByLabel = new Map();
 const activeShards = new Map();
 const activeShardWindowMs = 5000;
-const benchmarkProfileEnabled = argv['benchmark-profile'] !== false;
 const indexProfileRaw = typeof argv['index-profile'] === 'string'
   ? argv['index-profile'].trim()
   : '';
 const indexProfile = argv['no-index-profile'] === true
   ? ''
-  : (indexProfileRaw || (benchmarkProfileEnabled ? 'bench-index' : ''));
+  : (indexProfileRaw || 'bench-index');
+const suppressProfileEnv = argv['no-index-profile'] === true;
 const lockMode = normalizeLockMode(
   argv['lock-mode']
   || ((argv.build || argv['build-index'] || argv['build-sqlite']) ? 'stale-clear' : '')
@@ -156,6 +144,7 @@ const heapArgRaw = argv['heap-mb'];
 const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgRaw)) : null;
 const heapRecommendation = getRecommendedHeapMb();
 let heapLogged = false;
+const envConfig = getEnvConfig();
 
 function parseList(value) {
   if (!value) return [];
@@ -428,6 +417,59 @@ function truncateDisplay(line) {
   return `${line.slice(0, Math.max(0, width - 1))}…`;
 }
 
+const logTagRegex = /^\s*\[([^\]]+)\]\s*/;
+
+function extractLogTag(line) {
+  if (!line) return '';
+  const match = logTagRegex.exec(line);
+  return match ? match[1].trim().toLowerCase() : '';
+}
+
+function resolveLogTag(line, tagOverride) {
+  if (tagOverride) return String(tagOverride).trim().toLowerCase();
+  return extractLogTag(line);
+}
+
+function shouldUpdateLogWindowLine(line, tag) {
+  if (!tag) return true;
+  const now = Date.now();
+  const last = logUpdateByTag.get(tag);
+  if (last) {
+    if (last.line === line) return false;
+    if (now - last.at < logUpdateDebounceMs) return false;
+  }
+  logUpdateByTag.set(tag, { line, at: now });
+  return true;
+}
+
+function upsertLogWindowLine(line, tagOverride) {
+  const tag = resolveLogTag(line, tagOverride);
+  if (!tag) return false;
+  for (let i = logLines.length - 1; i >= 0; i -= 1) {
+    const existingTag = logLineTags[i] || extractLogTag(logLines[i]);
+    if (existingTag && existingTag === tag) {
+      logLines[i] = line;
+      logLineTags[i] = tag;
+      return true;
+    }
+  }
+  return false;
+}
+
+function pushLogWindowLine(line, options = {}) {
+  if (!interactive) return;
+  const tag = resolveLogTag(line, options.tag);
+  if (!shouldUpdateLogWindowLine(line, tag)) return;
+  const replaced = tag ? upsertLogWindowLine(line, tag) : false;
+  if (!replaced) {
+    logLines.push(line);
+    logLineTags.push(tag || '');
+    if (logLines.length > logWindowSize) logLines.shift();
+    if (logLineTags.length > logWindowSize) logLineTags.shift();
+  }
+  renderStatus();
+}
+
 const ansi = {
   reset: '\x1b[0m',
   fgDim: '\x1b[90m',
@@ -457,7 +499,9 @@ function formatLogLine(line) {
   if (/^\s*(?:→|->)\s*Shard\s+/i.test(content)) {
     return styleText(content, ansi.fgBright);
   }
-  if (/^\s*Files\s+\d+\/\d+/i.test(content) || /^\s*File\s+\d+\/\d+/i.test(content)) {
+  if (/^\s*\[shard\s+/i.test(content)
+    || /^\s*Files\s+\d+\/\d+/i.test(content)
+    || /^\s*File\s+\d+\/\d+/i.test(content)) {
     return styleText(content, ansi.fgDim);
   }
   return content;
@@ -608,10 +652,10 @@ function updateFileProgressLine() {
   const shardIndex = buildProgressState.currentShardIndex;
   const shardTotal = buildProgressState.currentShardTotal;
   const shardLabel = (Number.isFinite(shardIndex) && Number.isFinite(shardTotal))
-    ? `s${shardIndex}/${shardTotal}`
+    ? `${shardIndex}/${shardTotal}`
     : '';
-  const shardSegment = shardLabel ? ` ${shardLabel}` : '';
-  fileProgressLine = `File${shardSegment}: ${file}${lineSegment}`;
+  const shardSegment = shardLabel ? `[shard ${shardLabel}] ` : '[shard] ';
+  fileProgressLine = `${shardSegment}${file}${lineSegment}`;
   renderStatus();
 }
 
@@ -638,6 +682,11 @@ function handleImportStatsLine(line) {
   return true;
 }
 
+function normalizeShardLabel(raw) {
+  if (!raw) return '';
+  return raw.trim().replace(/^shard\s+/i, '').trim();
+}
+
 function parseFileProgressLine(line) {
   const combined = buildCombinedFileRegex.exec(line);
   if (combined) {
@@ -645,7 +694,7 @@ function parseFileProgressLine(line) {
       count: Number.parseInt(combined[1], 10),
       total: Number.parseInt(combined[2], 10),
       pct: Number.parseFloat(combined[3]),
-      shardLabel: combined[4] ? combined[4].trim() : '',
+      shardLabel: normalizeShardLabel(combined[4]),
       fileIndex: Number.parseInt(combined[5], 10),
       fileTotal: Number.parseInt(combined[6], 10),
       file: combined[7] ? combined[7].trim() : ''
@@ -657,38 +706,13 @@ function parseFileProgressLine(line) {
     count: null,
     total: null,
     pct: null,
-    shardLabel: solo[1] ? solo[1].trim() : '',
+    shardLabel: normalizeShardLabel(solo[1]),
     fileIndex: Number.parseInt(solo[2], 10),
     fileTotal: Number.parseInt(solo[3], 10),
     file: solo[4] ? solo[4].trim() : ''
   };
 }
 
-function formatFileProgressLine(entry) {
-  const count = Number.isFinite(entry.fileIndex) ? entry.fileIndex : entry.count;
-  const total = Number.isFinite(entry.fileTotal) ? entry.fileTotal : entry.total;
-  const pct = Number.isFinite(entry.pct)
-    ? entry.pct
-    : (Number.isFinite(count) && Number.isFinite(total) && total > 0)
-      ? (count / total) * 100
-      : null;
-  const pctText = Number.isFinite(pct) ? `${pct.toFixed(1)}%` : null;
-  const shardLabel = entry.shardLabel;
-  const shardInfo = shardLabel ? shardByLabel.get(shardLabel) : null;
-  const shardText = shardInfo ? `${shardInfo.index}/${shardInfo.total}` : null;
-  const lineTotal = buildProgressState.currentLineTotal;
-  const lineText = Number.isFinite(lineTotal) && lineTotal > 0
-    ? `lines ${lineTotal.toLocaleString()}`
-    : null;
-  const parts = [
-    Number.isFinite(count) && Number.isFinite(total) ? `Files ${count}/${total}` : null,
-    pctText ? `(${pctText})` : null,
-    shardText ? `| shard ${shardText}` : null,
-    lineText ? `| ${lineText}` : null,
-    entry.file ? `| ${entry.file}` : null
-  ].filter(Boolean);
-  return parts.join(' ');
-}
 
 function formatProgressLine(line) {
   const match = buildProgressRegex.exec(line);
@@ -699,7 +723,11 @@ function formatProgressLine(line) {
   const pct = Number.parseFloat(match[4]);
   if (!Number.isFinite(count) || !Number.isFinite(total)) return null;
   const pctText = Number.isFinite(pct) ? `${pct.toFixed(1)}%` : null;
-  return `${step} ${count}/${total}${pctText ? ` (${pctText})` : ''}`;
+  const lineText = `${step} ${count}/${total}${pctText ? ` (${pctText})` : ''}`;
+  return {
+    line: lineText,
+    tag: `progress:${step.toLowerCase()}`
+  };
 }
 
 function appendLog(line) {
@@ -720,13 +748,14 @@ function appendLog(line) {
     handleBuildFileLine(fileProgress);
     handleBuildLineProgress(cleaned);
     handleBuildProgress(cleaned);
-    const formatted = formatFileProgressLine(fileProgress);
+    const formatted = formatShardFileProgress(fileProgress, {
+      shardByLabel,
+      lineTotal: buildProgressState.currentLineTotal
+    });
     if (formatted) {
       writeLog(formatted);
       if (interactive) {
-        logLines.push(formatted);
-        if (logLines.length > logWindowSize) logLines.shift();
-        renderStatus();
+        pushLogWindowLine(formatted);
       } else if (!quietMode) {
         console.log(formatted);
       }
@@ -735,17 +764,16 @@ function appendLog(line) {
   }
   const formattedProgress = formatProgressLine(cleaned);
   if (formattedProgress) {
+    const { line, tag } = formattedProgress;
     pushHistory(cleaned);
     handleBuildMode(cleaned);
     handleBuildLineProgress(cleaned);
     handleBuildProgress(cleaned);
-    writeLog(formattedProgress);
+    writeLog(line);
     if (interactive) {
-      logLines.push(formattedProgress);
-      if (logLines.length > logWindowSize) logLines.shift();
-      renderStatus();
+      pushLogWindowLine(line, { tag });
     } else if (!quietMode) {
-      console.log(formattedProgress);
+      console.log(line);
     }
     return;
   }
@@ -753,9 +781,7 @@ function appendLog(line) {
   writeLog(cleaned);
   if (handleShardLine(cleaned)) {
     if (interactive) {
-      logLines.push(cleaned);
-      if (logLines.length > logWindowSize) logLines.shift();
-      renderStatus();
+      pushLogWindowLine(cleaned);
     } else if (!quietMode) {
       console.log(cleaned);
     }
@@ -766,9 +792,7 @@ function appendLog(line) {
   handleBuildLineProgress(cleaned);
   handleBuildProgress(cleaned);
   if (interactive) {
-    logLines.push(cleaned);
-    if (logLines.length > logWindowSize) logLines.shift();
-    renderStatus();
+    pushLogWindowLine(cleaned);
   } else if (!quietMode) {
     console.log(cleaned);
   }
@@ -795,6 +819,7 @@ function resetBuildProgress(label = '') {
   buildProgressState.currentShardTotal = null;
   buildProgressState.importStats = null;
   activeShards.clear();
+  logUpdateByTag.clear();
   updateFileProgressLine();
 }
 
@@ -979,20 +1004,6 @@ function formatLoc(value) {
   return `${Math.floor(value)}`;
 }
 
-async function countLines(filePath) {
-  try {
-    const buf = await fsPromises.readFile(filePath);
-    if (!buf || !buf.length) return 0;
-    let count = 0;
-    for (const byte of buf) {
-      if (byte === 10) count += 1;
-    }
-    return count + 1;
-  } catch {
-    return 0;
-  }
-}
-
 function resolveMaxFileBytes(userConfig) {
   const raw = userConfig?.indexing?.maxFileBytes;
   const parsed = Number(raw);
@@ -1015,19 +1026,14 @@ async function buildLineStats(repoPath, userConfig) {
   });
   const linesByFile = { code: new Map(), prose: new Map() };
   const totals = { code: 0, prose: 0 };
-  const concurrency = 8;
+  const concurrency = Math.max(1, Math.min(32, os.cpus().length * 2));
   for (const mode of modes) {
     const entries = entriesByMode[mode] || [];
-    for (let i = 0; i < entries.length; i += concurrency) {
-      const batch = entries.slice(i, i + concurrency);
-      const counts = await Promise.all(batch.map(async (entry) => {
-        const lines = await countLines(entry.abs);
-        return { rel: toPosix(entry.rel), lines };
-      }));
-      for (const item of counts) {
-        linesByFile[mode].set(item.rel, item.lines);
-        totals[mode] += item.lines;
-      }
+    if (!entries.length) continue;
+    const lineCounts = await countLinesForEntries(entries, { concurrency });
+    for (const [rel, lines] of lineCounts) {
+      linesByFile[mode].set(rel, lines);
+      totals[mode] += lines;
     }
   }
   return { totals, linesByFile };
@@ -1377,7 +1383,7 @@ for (const task of tasks) {
     }
   } else if (
     !Number.isFinite(repoRuntimeConfig.maxOldSpaceMb)
-    && !process.env.PAIROFCLEATS_MAX_OLD_SPACE_MB
+    && !envConfig.maxOldSpaceMb
     && !hasHeapFlag
   ) {
     heapOverride = heapRecommendation.recommendedMb;
@@ -1396,6 +1402,9 @@ for (const task of tasks) {
   const repoEnvBase = repoNodeOptions
     ? { ...baseEnv, NODE_OPTIONS: repoNodeOptions }
     : { ...baseEnv };
+  if (suppressProfileEnv && repoEnvBase.PAIROFCLEATS_PROFILE) {
+    delete repoEnvBase.PAIROFCLEATS_PROFILE;
+  }
   if (heapOverride) {
     repoEnvBase.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapOverride);
   }
@@ -1497,11 +1506,7 @@ for (const task of tasks) {
   if (argv['fts-profile']) benchArgs.push('--fts-profile', String(argv['fts-profile']));
   if (argv['fts-weights']) benchArgs.push('--fts-weights', String(argv['fts-weights']));
   if (argv.threads) benchArgs.push('--threads', String(argv.threads));
-  if (benchmarkProfileEnabled) {
-    benchArgs.push('--benchmark-profile');
-  } else {
-    benchArgs.push('--no-benchmark-profile');
-  }
+  if (argv['no-index-profile']) benchArgs.push('--no-index-profile');
 
   updateProgress(`Progress: ${completed}/${tasks.length} | bench ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
 
@@ -1514,7 +1519,6 @@ for (const task of tasks) {
       env: {
         ...repoEnvBase,
         PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-        PAIROFCLEATS_BENCH_PROFILE: benchmarkProfileEnabled ? '1' : '0',
         PAIROFCLEATS_PROGRESS_FILES: '1',
         PAIROFCLEATS_PROGRESS_LINES: '1',
         ...(Number.isFinite(Number(argv.threads)) && Number(argv.threads) > 0

@@ -1,7 +1,71 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getCacheRoot, getDictConfig, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { getCacheRoot, getDictConfig, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { getEnvConfig } from '../../shared/env.js';
+
+const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
+
+const readJsonWithLimit = async (targetPath, maxBytes = MAX_STATUS_JSON_BYTES) => {
+  try {
+    const stat = await fsPromises.stat(targetPath);
+    if (!stat.isFile()) return null;
+    if (Number.isFinite(maxBytes) && stat.size > maxBytes) {
+      return { data: null, bytes: stat.size, truncated: true };
+    }
+    const data = JSON.parse(await fsPromises.readFile(targetPath, 'utf8'));
+    return { data, bytes: stat.size, truncated: false };
+  } catch {
+    return null;
+  }
+};
+
+const summarizeShardPlan = (plan) => {
+  if (!Array.isArray(plan) || !plan.length) return null;
+  let totalFiles = 0;
+  let totalLines = 0;
+  let maxFiles = 0;
+  let maxLines = 0;
+  let maxShard = null;
+  for (const shard of plan) {
+    const files = Number(shard?.fileCount) || 0;
+    const lines = Number(shard?.lineCount) || 0;
+    totalFiles += files;
+    totalLines += lines;
+    if (files > maxFiles || lines > maxLines) {
+      maxFiles = Math.max(maxFiles, files);
+      maxLines = Math.max(maxLines, lines);
+      maxShard = shard || null;
+    }
+  }
+  const sample = [...plan]
+    .sort((a, b) => (Number(b?.lineCount) || 0) - (Number(a?.lineCount) || 0))
+    .slice(0, Math.min(5, plan.length))
+    .map((shard) => ({
+      id: shard.id || null,
+      label: shard.label || shard.id || null,
+      lang: shard.lang || null,
+      dir: shard.dir || null,
+      files: Number(shard.fileCount) || 0,
+      lines: Number(shard.lineCount) || 0
+    }));
+  return {
+    count: plan.length,
+    totalFiles,
+    totalLines,
+    maxFiles,
+    maxLines,
+    largest: maxShard
+      ? {
+        id: maxShard.id || null,
+        label: maxShard.label || maxShard.id || null,
+        files: Number(maxShard.fileCount) || 0,
+        lines: Number(maxShard.lineCount) || 0
+      }
+      : null,
+    sample
+  };
+};
 
 /**
  * Recursively compute the size of a file or directory.
@@ -46,8 +110,9 @@ export async function getStatus(input = {}) {
   const root = input.repoRoot ? path.resolve(input.repoRoot) : resolveRepoRoot(process.cwd());
   const includeAll = input.includeAll === true;
   const userConfig = loadUserConfig(root);
+  const envConfig = getEnvConfig();
   const cacheRoot = (userConfig.cache && userConfig.cache.root)
-    || process.env.PAIROFCLEATS_CACHE_ROOT
+    || envConfig.cacheRoot
     || getCacheRoot();
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const dictConfig = getDictConfig(root, userConfig);

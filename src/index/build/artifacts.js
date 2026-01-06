@@ -3,7 +3,10 @@ import path from 'node:path';
 import { getMetricsDir } from '../../../tools/dict-utils.js';
 import { getRepoBranch } from '../git.js';
 import { log } from '../../shared/progress.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io.js';
 import { writeJsonArrayFile, writeJsonLinesFile, writeJsonObjectFile } from '../../shared/json-stream.js';
+import { runWithConcurrency } from '../../shared/concurrency.js';
+import { sha1File } from '../../shared/hash.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { buildFilterIndex, serializeFilterIndex } from '../../retrieval/filter-index.js';
 
@@ -71,13 +74,13 @@ export async function writeIndexArtifacts(input) {
   const chunkMetaJsonlThreshold = Number.isFinite(Number(artifactConfig.chunkMetaJsonlThreshold))
     ? Math.max(0, Math.floor(Number(artifactConfig.chunkMetaJsonlThreshold)))
     : 200000;
-  const chunkMetaShardSize = Number.isFinite(Number(artifactConfig.chunkMetaShardSize))
+  let chunkMetaShardSize = Number.isFinite(Number(artifactConfig.chunkMetaShardSize))
     ? Math.max(0, Math.floor(Number(artifactConfig.chunkMetaShardSize)))
     : 100000;
   const tokenPostingsFormatConfig = typeof artifactConfig.tokenPostingsFormat === 'string'
     ? artifactConfig.tokenPostingsFormat.toLowerCase()
     : null;
-  const tokenPostingsShardSize = Number.isFinite(Number(artifactConfig.tokenPostingsShardSize))
+  let tokenPostingsShardSize = Number.isFinite(Number(artifactConfig.tokenPostingsShardSize))
     ? Math.max(1000, Math.floor(Number(artifactConfig.tokenPostingsShardSize)))
     : 50000;
   const tokenPostingsShardThreshold = Number.isFinite(Number(artifactConfig.tokenPostingsShardThreshold))
@@ -212,18 +215,18 @@ export async function writeIndexArtifacts(input) {
       sample: sampleList(state.skippedFiles)
     }
   };
-  await fs.writeFile(
-    path.join(outDir, '.filelists.json'),
-    JSON.stringify(fileListSummary, null, 2)
-  );
+  const fileListPath = path.join(outDir, '.filelists.json');
+  await writeJsonObjectFile(fileListPath, { fields: fileListSummary, atomic: true });
   if (debugFileLists) {
-    await fs.writeFile(
+    await writeJsonArrayFile(
       path.join(outDir, '.scannedfiles.json'),
-      JSON.stringify(state.scannedFilesTimes, null, 2)
+      state.scannedFilesTimes,
+      { atomic: true }
     );
-    await fs.writeFile(
+    await writeJsonArrayFile(
       path.join(outDir, '.skippedfiles.json'),
-      JSON.stringify(state.skippedFiles, null, 2)
+      state.skippedFiles,
+      { atomic: true }
     );
     log('→ Wrote .filelists.json, .scannedfiles.json, and .skippedfiles.json');
   } else {
@@ -237,19 +240,83 @@ export async function writeIndexArtifacts(input) {
     : resolvedConfig.chargramMinN;
   const filterIndex = serializeFilterIndex(buildFilterIndex(state.chunks, { fileChargramN }));
   const denseScale = 2 / 255;
+  const maxJsonBytes = MAX_JSON_BYTES;
+  const maxJsonBytesSoft = maxJsonBytes * 0.9;
+  const shardTargetBytes = maxJsonBytes * 0.75;
   const chunkMetaCount = state.chunks.length;
   const chunkMetaFormat = chunkMetaFormatConfig
     || (artifactMode === 'jsonl' ? 'jsonl' : (artifactMode === 'json' ? 'json' : 'auto'));
-  const chunkMetaUseJsonl = chunkMetaFormat === 'jsonl'
+  let chunkMetaUseJsonl = chunkMetaFormat === 'jsonl'
     || (chunkMetaFormat === 'auto' && chunkMetaCount >= chunkMetaJsonlThreshold);
-  const chunkMetaUseShards = chunkMetaUseJsonl
+  let chunkMetaUseShards = chunkMetaUseJsonl
     && chunkMetaShardSize > 0
     && chunkMetaCount > chunkMetaShardSize;
+  if (chunkMetaCount > 0) {
+    const sampleSize = Math.min(chunkMetaCount, 200);
+    let sampledBytes = 0;
+    let sampled = 0;
+    for (const entry of chunkMetaIterator(state.chunks, 0, sampleSize)) {
+      sampledBytes += Buffer.byteLength(JSON.stringify(entry), 'utf8') + 1;
+      sampled += 1;
+    }
+    if (sampled) {
+      const avgBytes = sampledBytes / sampled;
+      const estimatedBytes = avgBytes * chunkMetaCount;
+      if (estimatedBytes > maxJsonBytesSoft) {
+        chunkMetaUseJsonl = true;
+        const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / avgBytes));
+        if (chunkMetaShardSize > 0) {
+          chunkMetaShardSize = Math.min(chunkMetaShardSize, targetShardSize);
+        } else {
+          chunkMetaShardSize = targetShardSize;
+        }
+        chunkMetaUseShards = chunkMetaCount > chunkMetaShardSize;
+        const chunkMetaMode = chunkMetaUseShards ? 'jsonl-sharded' : 'jsonl';
+        log(
+          `Chunk metadata is large (~${Math.round(estimatedBytes / (1024 * 1024))}MB); ` +
+          `using ${chunkMetaMode} to stay under ${Math.round(maxJsonBytes / (1024 * 1024))}MB.`
+        );
+      }
+    }
+  }
   const tokenPostingsFormat = tokenPostingsFormatConfig
     || (artifactMode === 'sharded' ? 'sharded' : (artifactMode === 'json' ? 'json' : 'auto'));
-  const tokenPostingsUseShards = tokenPostingsFormat === 'sharded'
+  let tokenPostingsUseShards = tokenPostingsFormat === 'sharded'
     || (tokenPostingsFormat === 'auto'
       && postings.tokenVocab.length >= tokenPostingsShardThreshold);
+  const estimatePostingsBytes = (vocab, postingsList, sampleLimit = 200) => {
+    const total = Array.isArray(vocab) ? vocab.length : 0;
+    if (!total) return null;
+    const sampleSize = Math.min(total, sampleLimit);
+    let sampledBytes = 0;
+    for (let i = 0; i < sampleSize; i += 1) {
+      const token = vocab[i];
+      const posting = postingsList?.[i] || [];
+      sampledBytes += Buffer.byteLength(JSON.stringify(token), 'utf8') + 1;
+      sampledBytes += Buffer.byteLength(JSON.stringify(posting), 'utf8') + 1;
+    }
+    if (!sampledBytes) return null;
+    const avgBytes = sampledBytes / sampleSize;
+    return { avgBytes, estimatedBytes: avgBytes * total };
+  };
+  const tokenPostingsEstimate = estimatePostingsBytes(
+    postings.tokenVocab,
+    postings.tokenPostingsList
+  );
+  if (tokenPostingsEstimate) {
+    if (tokenPostingsEstimate.estimatedBytes > maxJsonBytesSoft) {
+      tokenPostingsUseShards = true;
+      const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));
+      tokenPostingsShardSize = Math.min(tokenPostingsShardSize, targetShardSize);
+      log(
+        `Token postings are large (~${Math.round(tokenPostingsEstimate.estimatedBytes / (1024 * 1024))}MB); ` +
+        `using sharded output to stay under ${Math.round(maxJsonBytes / (1024 * 1024))}MB.`
+      );
+    } else if (tokenPostingsUseShards) {
+      const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));
+      tokenPostingsShardSize = Math.min(tokenPostingsShardSize, targetShardSize);
+    }
+  }
   const removeArtifact = async (targetPath) => {
     try {
       await fs.rm(targetPath, { recursive: true, force: true });
@@ -274,42 +341,115 @@ export async function writeIndexArtifacts(input) {
     await removeArtifact(path.join(outDir, 'token_postings.meta.json'));
     await removeArtifact(path.join(outDir, 'token_postings.shards'));
   }
-  log('Writing index files...');
   const writeStart = Date.now();
   const writes = [];
+  let totalWrites = 0;
+  let completedWrites = 0;
+  let lastWriteLog = 0;
+  let lastWriteLabel = '';
+  const writeLogIntervalMs = 1000;
+  const formatArtifactLabel = (filePath) => path.relative(outDir, filePath).split(path.sep).join('/');
+  const pieceEntries = [];
+  const addPieceFile = (entry, filePath) => {
+    pieceEntries.push({ ...entry, path: formatArtifactLabel(filePath) });
+  };
+  addPieceFile({ type: 'stats', name: 'filelists', format: 'json' }, path.join(outDir, '.filelists.json'));
+  const logWriteProgress = (label) => {
+    completedWrites += 1;
+    if (label) lastWriteLabel = label;
+    const now = Date.now();
+    if (completedWrites === totalWrites || completedWrites === 1 || (now - lastWriteLog) >= writeLogIntervalMs) {
+      lastWriteLog = now;
+      const percent = totalWrites > 0
+        ? (completedWrites / totalWrites * 100).toFixed(1)
+        : '100.0';
+      const suffix = lastWriteLabel ? ` | ${lastWriteLabel}` : '';
+      log(`Writing index files ${completedWrites}/${totalWrites} (${percent}%)${suffix}`);
+    }
+  };
+  const enqueueWrite = (label, job) => {
+    writes.push({ label, job });
+  };
   if (indexState && typeof indexState === 'object') {
-    writes.push(writeJsonObjectFile(path.join(outDir, 'index_state.json'), indexState));
+    const indexStatePath = path.join(outDir, 'index_state.json');
+    enqueueWrite(
+      formatArtifactLabel(indexStatePath),
+      () => writeJsonObjectFile(indexStatePath, { fields: indexState, atomic: true })
+    );
+    addPieceFile({ type: 'stats', name: 'index_state', format: 'json' }, indexStatePath);
   }
   const artifactPath = (base, compressed) => path.join(
     outDir,
     compressed ? `${base}.json.gz` : `${base}.json`
   );
-  const enqueueJsonObject = (base, payload, { compressible = true } = {}) => {
+  const enqueueJsonObject = (base, payload, { compressible = true, piece = null } = {}) => {
     if (compressionEnabled && compressible && compressibleArtifacts.has(base)) {
-      writes.push(writeJsonObjectFile(
-        artifactPath(base, true),
-        { ...payload, compression: compressionMode }
-      ));
+      const gzPath = artifactPath(base, true);
+      enqueueWrite(
+        formatArtifactLabel(gzPath),
+        () => writeJsonObjectFile(gzPath, {
+          ...payload,
+          compression: compressionMode,
+          atomic: true
+        })
+      );
+      if (piece) {
+        addPieceFile({ ...piece, format: 'json', compression: compressionMode }, gzPath);
+      }
       if (compressionKeepRaw) {
-        writes.push(writeJsonObjectFile(artifactPath(base, false), payload));
+        const rawPath = artifactPath(base, false);
+        enqueueWrite(
+          formatArtifactLabel(rawPath),
+          () => writeJsonObjectFile(rawPath, { ...payload, atomic: true })
+        );
+        if (piece) {
+          addPieceFile({ ...piece, format: 'json' }, rawPath);
+        }
       }
       return;
     }
-    writes.push(writeJsonObjectFile(artifactPath(base, false), payload));
+    const rawPath = artifactPath(base, false);
+    enqueueWrite(
+      formatArtifactLabel(rawPath),
+      () => writeJsonObjectFile(rawPath, { ...payload, atomic: true })
+    );
+    if (piece) {
+      addPieceFile({ ...piece, format: 'json' }, rawPath);
+    }
   };
-  const enqueueJsonArray = (base, items, { compressible = true } = {}) => {
+  const enqueueJsonArray = (base, items, { compressible = true, piece = null } = {}) => {
     if (compressionEnabled && compressible && compressibleArtifacts.has(base)) {
-      writes.push(writeJsonArrayFile(
-        artifactPath(base, true),
-        items,
-        { compression: compressionMode }
-      ));
+      const gzPath = artifactPath(base, true);
+      enqueueWrite(
+        formatArtifactLabel(gzPath),
+        () => writeJsonArrayFile(gzPath, items, {
+          compression: compressionMode,
+          atomic: true
+        })
+      );
+      if (piece) {
+        addPieceFile({ ...piece, format: 'json', compression: compressionMode }, gzPath);
+      }
       if (compressionKeepRaw) {
-        writes.push(writeJsonArrayFile(artifactPath(base, false), items));
+        const rawPath = artifactPath(base, false);
+        enqueueWrite(
+          formatArtifactLabel(rawPath),
+          () => writeJsonArrayFile(rawPath, items, { atomic: true })
+        );
+        if (piece) {
+          addPieceFile({ ...piece, format: 'json' }, rawPath);
+        }
       }
       return;
     }
-    writes.push(writeJsonArrayFile(artifactPath(base, false), items));
+    const rawPath = artifactPath(base, false);
+    enqueueWrite(
+      formatArtifactLabel(rawPath),
+      () => writeJsonArrayFile(rawPath, items, { atomic: true })
+    );
+    if (piece) {
+      addPieceFile({ ...piece, format: 'json' }, rawPath);
+    }
   };
 
   const denseVectorsEnabled = postings.dims > 0 && postings.quantizedVectors.length;
@@ -325,17 +465,41 @@ export async function writeIndexArtifacts(input) {
     enqueueJsonObject('dense_vectors_uint8', {
       fields: { model: modelId, dims: postings.dims, scale: denseScale },
       arrays: { vectors: postings.quantizedVectors }
+    }, {
+      piece: {
+        type: 'embeddings',
+        name: 'dense_vectors',
+        count: postings.quantizedVectors.length,
+        dims: postings.dims
+      }
     });
   }
-  enqueueJsonArray('file_meta', fileMeta, { compressible: false });
+  enqueueJsonArray('file_meta', fileMeta, {
+    compressible: false,
+    piece: { type: 'chunks', name: 'file_meta', count: fileMeta.length }
+  });
   if (denseVectorsEnabled) {
     enqueueJsonObject('dense_vectors_doc_uint8', {
       fields: { model: modelId, dims: postings.dims, scale: denseScale },
       arrays: { vectors: postings.quantizedDocVectors }
+    }, {
+      piece: {
+        type: 'embeddings',
+        name: 'dense_vectors_doc',
+        count: postings.quantizedDocVectors.length,
+        dims: postings.dims
+      }
     });
     enqueueJsonObject('dense_vectors_code_uint8', {
       fields: { model: modelId, dims: postings.dims, scale: denseScale },
       arrays: { vectors: postings.quantizedCodeVectors }
+    }, {
+      piece: {
+        type: 'embeddings',
+        name: 'dense_vectors_code',
+        count: postings.quantizedCodeVectors.length,
+        dims: postings.dims
+      }
     });
   }
   if (chunkMetaUseJsonl) {
@@ -346,37 +510,76 @@ export async function writeIndexArtifacts(input) {
       let partIndex = 0;
       for (let i = 0; i < state.chunks.length; i += chunkMetaShardSize) {
         const end = Math.min(i + chunkMetaShardSize, state.chunks.length);
+        const partCount = end - i;
         const partName = `chunk_meta.part-${String(partIndex).padStart(5, '0')}.jsonl`;
         const partPath = path.join(partsDir, partName);
         parts.push(path.join('chunk_meta.parts', partName));
-        writes.push(writeJsonLinesFile(partPath, chunkMetaIterator(state.chunks, i, end)));
+        enqueueWrite(
+          formatArtifactLabel(partPath),
+          () => writeJsonLinesFile(
+            partPath,
+            chunkMetaIterator(state.chunks, i, end),
+            { atomic: true }
+          )
+        );
+        addPieceFile({
+          type: 'chunks',
+          name: 'chunk_meta',
+          format: 'jsonl',
+          count: partCount
+        }, partPath);
         partIndex += 1;
       }
-      writes.push(writeJsonObjectFile(
-        path.join(outDir, 'chunk_meta.meta.json'),
-        {
+      const metaPath = path.join(outDir, 'chunk_meta.meta.json');
+      enqueueWrite(
+        formatArtifactLabel(metaPath),
+        () => writeJsonObjectFile(metaPath, {
           fields: {
             format: 'jsonl',
             shardSize: chunkMetaShardSize,
             totalChunks: chunkMetaCount,
             parts
-          }
-        }
-      ));
+          },
+          atomic: true
+        })
+      );
+      addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
     } else {
-      writes.push(writeJsonLinesFile(
-        path.join(outDir, 'chunk_meta.jsonl'),
-        chunkMetaIterator(state.chunks)
-      ));
+      const jsonlPath = path.join(outDir, 'chunk_meta.jsonl');
+      enqueueWrite(
+        formatArtifactLabel(jsonlPath),
+        () => writeJsonLinesFile(jsonlPath, chunkMetaIterator(state.chunks), { atomic: true })
+      );
+      addPieceFile({
+        type: 'chunks',
+        name: 'chunk_meta',
+        format: 'jsonl',
+        count: chunkMetaCount
+      }, jsonlPath);
     }
   } else {
-    enqueueJsonArray('chunk_meta', chunkMetaIterator(state.chunks), { compressible: false });
+    enqueueJsonArray('chunk_meta', chunkMetaIterator(state.chunks), {
+      compressible: false,
+      piece: { type: 'chunks', name: 'chunk_meta', count: chunkMetaCount }
+    });
   }
-  enqueueJsonArray('repo_map', repoMapIterator(state.chunks), { compressible: false });
+  enqueueJsonArray('repo_map', repoMapIterator(state.chunks), {
+    compressible: false,
+    piece: { type: 'chunks', name: 'repo_map' }
+  });
   if (filterIndex) {
-    enqueueJsonObject('filter_index', { fields: filterIndex }, { compressible: false });
+    enqueueJsonObject('filter_index', { fields: filterIndex }, {
+      compressible: false,
+      piece: { type: 'chunks', name: 'filter_index' }
+    });
   }
-  enqueueJsonObject('minhash_signatures', { arrays: { signatures: postings.minhashSigs } });
+  enqueueJsonObject('minhash_signatures', { arrays: { signatures: postings.minhashSigs } }, {
+    piece: {
+      type: 'postings',
+      name: 'minhash_signatures',
+      count: postings.minhashSigs.length
+    }
+  });
   if (tokenPostingsUseShards) {
     const shardsDir = path.join(outDir, 'token_postings.shards');
     await fs.mkdir(shardsDir, { recursive: true });
@@ -384,20 +587,32 @@ export async function writeIndexArtifacts(input) {
     let shardIndex = 0;
     for (let i = 0; i < postings.tokenVocab.length; i += tokenPostingsShardSize) {
       const end = Math.min(i + tokenPostingsShardSize, postings.tokenVocab.length);
+      const partCount = end - i;
       const partName = `token_postings.part-${String(shardIndex).padStart(5, '0')}.json`;
       const partPath = path.join(shardsDir, partName);
       parts.push(path.join('token_postings.shards', partName));
-      writes.push(writeJsonObjectFile(partPath, {
-        arrays: {
-          vocab: postings.tokenVocab.slice(i, end),
-          postings: postings.tokenPostingsList.slice(i, end)
-        }
-      }));
+      enqueueWrite(
+        formatArtifactLabel(partPath),
+        () => writeJsonObjectFile(partPath, {
+          arrays: {
+            vocab: postings.tokenVocab.slice(i, end),
+            postings: postings.tokenPostingsList.slice(i, end)
+          },
+          atomic: true
+        })
+      );
+      addPieceFile({
+        type: 'postings',
+        name: 'token_postings',
+        format: 'json',
+        count: partCount
+      }, partPath);
       shardIndex += 1;
     }
-    writes.push(writeJsonObjectFile(
-      path.join(outDir, 'token_postings.meta.json'),
-      {
+    const metaPath = path.join(outDir, 'token_postings.meta.json');
+    enqueueWrite(
+      formatArtifactLabel(metaPath),
+      () => writeJsonObjectFile(metaPath, {
         fields: {
           avgDocLen: postings.avgDocLen,
           totalDocs: state.docLengths.length,
@@ -408,9 +623,11 @@ export async function writeIndexArtifacts(input) {
         },
         arrays: {
           docLengths: state.docLengths
-        }
-      }
-    ));
+        },
+        atomic: true
+      })
+    );
+    addPieceFile({ type: 'postings', name: 'token_postings_meta', format: 'json' }, metaPath);
   } else {
     enqueueJsonObject('token_postings', {
       fields: {
@@ -422,36 +639,112 @@ export async function writeIndexArtifacts(input) {
         postings: postings.tokenPostingsList,
         docLengths: state.docLengths
       }
+    }, {
+      piece: { type: 'postings', name: 'token_postings', count: postings.tokenVocab.length }
     });
   }
   if (postings.fieldPostings?.fields) {
-    enqueueJsonObject('field_postings', postings.fieldPostings);
+    enqueueJsonObject('field_postings', postings.fieldPostings, {
+      piece: { type: 'postings', name: 'field_postings' }
+    });
   }
   if (Array.isArray(state.fieldTokens) && state.fieldTokens.length) {
-    enqueueJsonArray('field_tokens', state.fieldTokens);
+    enqueueJsonArray('field_tokens', state.fieldTokens, {
+      piece: { type: 'postings', name: 'field_tokens', count: state.fieldTokens.length }
+    });
   }
   if (state.fileRelations && state.fileRelations.size) {
-    writes.push(writeJsonArrayFile(
-      path.join(outDir, 'file_relations.json'),
-      fileRelationsIterator(state.fileRelations)
-    ));
+    const relationsPath = path.join(outDir, 'file_relations.json');
+    enqueueWrite(
+      formatArtifactLabel(relationsPath),
+      () => writeJsonArrayFile(
+        relationsPath,
+        fileRelationsIterator(state.fileRelations),
+        { atomic: true }
+      )
+    );
+    addPieceFile({
+      type: 'relations',
+      name: 'file_relations',
+      format: 'json',
+      count: state.fileRelations.size
+    }, relationsPath);
   }
   if (resolvedConfig.enablePhraseNgrams !== false) {
     enqueueJsonObject('phrase_ngrams', {
       arrays: { vocab: postings.phraseVocab, postings: postings.phrasePostings }
+    }, {
+      piece: { type: 'postings', name: 'phrase_ngrams', count: postings.phraseVocab.length }
     });
   }
   if (resolvedConfig.enableChargrams !== false) {
     enqueueJsonObject('chargram_postings', {
       arrays: { vocab: postings.chargramVocab, postings: postings.chargramPostings }
+    }, {
+      piece: { type: 'postings', name: 'chargram_postings', count: postings.chargramVocab.length }
     });
   }
-  await Promise.all(writes);
+  totalWrites = writes.length;
+  if (totalWrites) {
+    const artifactLabel = totalWrites === 1 ? 'artifact' : 'artifacts';
+    log(`Writing index files (${totalWrites} ${artifactLabel})...`);
+    const writeConcurrency = Math.max(1, Math.min(4, totalWrites));
+    await runWithConcurrency(
+      writes,
+      writeConcurrency,
+      async ({ label, job }) => {
+        try {
+          await job();
+        } finally {
+          logWriteProgress(label);
+        }
+      },
+      { collectResults: false }
+    );
+  } else {
+    log('Writing index files (0 artifacts)...');
+  }
   timing.writeMs = Date.now() - writeStart;
   timing.totalMs = Date.now() - timing.start;
   log(
     `📦  ${mode.padEnd(5)}: ${state.chunks.length.toLocaleString()} chunks, ${postings.tokenVocab.length.toLocaleString()} tokens, dims=${postings.dims}`
   );
+
+  if (pieceEntries.length) {
+    const piecesDir = path.join(outDir, 'pieces');
+    await fs.mkdir(piecesDir, { recursive: true });
+    const manifestPath = path.join(piecesDir, 'manifest.json');
+    const normalizedEntries = await runWithConcurrency(
+      pieceEntries,
+      Math.min(4, pieceEntries.length),
+      async (entry) => {
+        const absPath = path.join(outDir, entry.path.split('/').join(path.sep));
+        let bytes = null;
+        let checksum = null;
+        try {
+          const stat = await fs.stat(absPath);
+          bytes = stat.size;
+          checksum = await sha1File(absPath);
+        } catch {}
+        return {
+          ...entry,
+          bytes,
+          checksum: checksum ? `sha1:${checksum}` : null
+        };
+      }
+    );
+    await writeJsonObjectFile(manifestPath, {
+      fields: {
+        version: 2,
+        generatedAt: new Date().toISOString(),
+        mode,
+        stage: indexState?.stage || null,
+        pieces: normalizedEntries
+      },
+      atomic: true
+    });
+    log(`→ Wrote pieces manifest (${normalizedEntries.length} entries).`);
+  }
 
   const cacheHits = state.scannedFilesTimes.filter((entry) => entry.cached).length;
   const cacheMisses = state.scannedFilesTimes.length - cacheHits;
@@ -522,9 +815,9 @@ export async function writeIndexArtifacts(input) {
   try {
     const metricsDir = getMetricsDir(root, userConfig);
     await fs.mkdir(metricsDir, { recursive: true });
-    await fs.writeFile(
+    await writeJsonObjectFile(
       path.join(metricsDir, `index-${mode}.json`),
-      JSON.stringify(metrics, null, 2)
+      { fields: metrics, atomic: true }
     );
   } catch {}
 }

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from './dict-utils.js';
+import { getEnvConfig } from '../src/shared/env.js';
 
 const DEFAULT_PROVIDER = 'sqlite-vec';
 const DEFAULT_MODULE = 'vec0';
@@ -59,6 +60,7 @@ export function getPlatformKey(platform = process.platform, arch = process.arch)
  */
 export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides = {}) {
   const cfg = userConfig || loadUserConfig(repoRoot);
+  const envConfig = getEnvConfig();
   const sqlite = cfg.sqlite || {};
   const vectorCfg = sqlite.vectorExtension || {};
   const provider = overrides.provider || vectorCfg.provider || DEFAULT_PROVIDER;
@@ -82,7 +84,7 @@ export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides 
   const dir = overrides.dir
     ? resolvePath(repoRoot, overrides.dir)
     : resolvePath(repoRoot, vectorCfg.dir)
-      || process.env.PAIROFCLEATS_EXTENSIONS_DIR
+      || envConfig.extensionsDir
       || getExtensionsDir(repoRoot, cfg);
   const filename = overrides.filename
     || vectorCfg.filename
@@ -91,8 +93,8 @@ export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides 
   const pathOverride = overrides.path
     ? resolvePath(repoRoot, overrides.path)
     : resolvePath(repoRoot, vectorCfg.path)
-      || (process.env.PAIROFCLEATS_VECTOR_EXTENSION
-        ? resolvePath(repoRoot, process.env.PAIROFCLEATS_VECTOR_EXTENSION)
+      || (envConfig.vectorExtension
+        ? resolvePath(repoRoot, envConfig.vectorExtension)
         : null);
 
   const url = overrides.url || vectorCfg.url || providerDefaults.url || null;

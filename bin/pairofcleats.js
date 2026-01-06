@@ -16,7 +16,6 @@ const COMMANDS = new Map([
   ['setup', { script: 'tools/setup.js', extraArgs: [] }],
   ['build-sqlite-index', { script: 'tools/build-sqlite-index.js', extraArgs: [] }],
   ['compact-sqlite-index', { script: 'tools/compact-sqlite-index.js', extraArgs: [] }],
-  ['search-sqlite', { script: 'tools/search-sqlite.js', extraArgs: [] }],
   ['build-embeddings', { script: 'tools/build-embeddings.js', extraArgs: [] }],
   ['cache-gc', { script: 'tools/cache-gc.js', extraArgs: [] }],
   ['clean-artifacts', { script: 'tools/clean-artifacts.js', extraArgs: [] }],
@@ -39,10 +38,6 @@ const COMMANDS = new Map([
   ['bench-micro', { script: 'tools/bench/micro/run.js', extraArgs: [] }],
   ['bench-language', { script: 'tools/bench-language-repos.js', extraArgs: [] }],
   ['bench-language-matrix', { script: 'tools/bench-language-matrix.js', extraArgs: [] }],
-  ['bench-language-build', { script: 'tools/bench-language-repos.js', extraArgs: ['--build'] }],
-  ['bench-language-build-stub', { script: 'tools/bench-language-repos.js', extraArgs: ['--build', '--stub-embeddings'] }],
-  ['bench-language-typical', { script: 'tools/bench-language-repos.js', extraArgs: ['--tier', 'typical'] }],
-  ['bench-language-large', { script: 'tools/bench-language-repos.js', extraArgs: ['--tier', 'large'] }],
   ['repometrics-dashboard', { script: 'tools/repometrics-dashboard.js', extraArgs: [] }],
   ['compare-models', { script: 'tools/compare-models.js', extraArgs: [] }],
   ['summary-report', { script: 'tools/combined-summary.js', extraArgs: [] }],
@@ -54,10 +49,54 @@ const COMMANDS = new Map([
   ['mcp-server', { script: 'tools/mcp-server.js', extraArgs: [] }],
   ['mcp', { script: 'tools/mcp-server.js', extraArgs: [] }],
   ['config-validate', { script: 'tools/validate-config.js', extraArgs: [] }],
+  ['config-dump', { script: 'tools/config-dump.js', extraArgs: [] }],
   ['triage-ingest', { script: 'tools/triage/ingest.js', extraArgs: [] }],
   ['triage-decision', { script: 'tools/triage/decision.js', extraArgs: [] }],
   ['triage-context-pack', { script: 'tools/triage/context-pack.js', extraArgs: [] }]
 ]);
+const LEGACY_ALIASES = new Map([
+  ['build-index', 'index build'],
+  ['index', 'index build'],
+  ['watch-index', 'index watch'],
+  ['index-validate', 'index validate'],
+  ['build-embeddings', 'embeddings build'],
+  ['build-sqlite-index', 'sqlite build'],
+  ['compact-sqlite-index', 'sqlite compact'],
+  ['search-sqlite', 'sqlite search'],
+  ['bench-micro', 'bench micro'],
+  ['bench-language', 'bench language'],
+  ['bench-language-matrix', 'bench matrix'],
+  ['download-dicts', 'assets dicts'],
+  ['download-models', 'assets models'],
+  ['download-extensions', 'assets extensions'],
+  ['verify-extensions', 'assets extensions-verify'],
+  ['tooling-detect', 'tooling detect'],
+  ['tooling-install', 'tooling install'],
+  ['ctags-ingest', 'ingest ctags'],
+  ['scip-ingest', 'ingest scip'],
+  ['lsif-ingest', 'ingest lsif'],
+  ['gtags-ingest', 'ingest gtags'],
+  ['structural-search', 'structural search'],
+  ['repometrics-dashboard', 'report repometrics'],
+  ['compare-models', 'report compare-models'],
+  ['summary-report', 'report summary'],
+  ['eval-run', 'report eval'],
+  ['cache-gc', 'cache gc'],
+  ['clean-artifacts', 'cache clean'],
+  ['report-artifacts', 'cache report'],
+  ['status', 'cache report'],
+  ['api-server', 'service api'],
+  ['server', 'service api'],
+  ['indexer-service', 'service indexer'],
+  ['mcp-server', 'service mcp'],
+  ['mcp', 'service mcp'],
+  ['config-validate', 'config validate'],
+  ['config-dump', 'config dump'],
+  ['triage-ingest', 'triage ingest'],
+  ['triage-decision', 'triage decision'],
+  ['triage-context-pack', 'triage context-pack']
+]);
+const legacyWarnings = new Set();
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -83,6 +122,218 @@ if (!resolved) {
 runScript(resolved.script, resolved.extraArgs, resolved.args);
 
 function resolveCommand(primary, rest) {
+  if (primary === 'index') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      return { script: 'build_index.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'build') {
+      return { script: 'build_index.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'watch') {
+      return { script: 'build_index.js', extraArgs: ['--watch'], args: rest };
+    }
+    if (sub === 'validate') {
+      return { script: 'tools/index-validate.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown index subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
+  if (primary === 'sqlite') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('sqlite requires a subcommand: build|compact|search');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'build') {
+      return { script: 'tools/build-sqlite-index.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'compact') {
+      return { script: 'tools/compact-sqlite-index.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'search') {
+      return resolveSqliteSearch(rest);
+    }
+    console.error(`Unknown sqlite subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
+  if (primary === 'bench') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('bench requires a subcommand: micro|language|matrix');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'micro') {
+      return { script: 'tools/bench/micro/run.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'language') {
+      return { script: 'tools/bench-language-repos.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'matrix') {
+      return { script: 'tools/bench-language-matrix.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown bench subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
+  if (primary === 'assets') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('assets requires a subcommand: dicts|models|extensions|extensions-verify');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'dicts') {
+      return { script: 'tools/download-dicts.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'models') {
+      return { script: 'tools/download-models.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'extensions') {
+      return { script: 'tools/download-extensions.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'extensions-verify') {
+      return { script: 'tools/verify-extensions.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown assets subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
+  if (primary === 'tooling') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('tooling requires a subcommand: detect|install');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'detect') {
+      return { script: 'tools/tooling-detect.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'install') {
+      return { script: 'tools/tooling-install.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown tooling subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
+  if (primary === 'ingest') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('ingest requires a subcommand: ctags|scip|lsif|gtags');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'ctags') {
+      return { script: 'tools/ctags-ingest.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'scip') {
+      return { script: 'tools/scip-ingest.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'lsif') {
+      return { script: 'tools/lsif-ingest.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'gtags') {
+      return { script: 'tools/gtags-ingest.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown ingest subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
+  if (primary === 'structural') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('structural requires a subcommand: search');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'search') {
+      return { script: 'tools/structural-search.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown structural subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
+  if (primary === 'service') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('service requires a subcommand: api|indexer|mcp');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'api') {
+      return { script: 'tools/api-server.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'indexer') {
+      return { script: 'tools/indexer-service.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'mcp') {
+      return { script: 'tools/mcp-server.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown service subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
+  if (primary === 'report') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('report requires a subcommand: repometrics|compare-models|summary|eval');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'repometrics') {
+      return { script: 'tools/repometrics-dashboard.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'compare-models') {
+      return { script: 'tools/compare-models.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'summary') {
+      return { script: 'tools/combined-summary.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'eval') {
+      return { script: 'tools/eval/run.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown report subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
+  if (primary === 'cache') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('cache requires a subcommand: gc|clean|report');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'gc') {
+      return { script: 'tools/cache-gc.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'clean') {
+      return { script: 'tools/clean-artifacts.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'report') {
+      return { script: 'tools/report-artifacts.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown cache subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
+  if (primary === 'embeddings') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('embeddings requires a subcommand: build');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'build') {
+      return { script: 'tools/build-embeddings.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown embeddings subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
   if (primary === 'config') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
@@ -91,6 +342,9 @@ function resolveCommand(primary, rest) {
     }
     if (sub === 'validate') {
       return { script: 'tools/validate-config.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'dump') {
+      return { script: 'tools/config-dump.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown config subcommand: ${sub}`);
     printConfigHelp();
@@ -115,11 +369,24 @@ function resolveCommand(primary, rest) {
     printTriageHelp();
     process.exit(1);
   }
+  if (primary === 'search-sqlite') {
+    const replacement = LEGACY_ALIASES.get(primary);
+    if (replacement) warnLegacy(primary, replacement);
+    return resolveSqliteSearch(rest);
+  }
   if (COMMANDS.has(primary)) {
     const entry = COMMANDS.get(primary);
+    const replacement = LEGACY_ALIASES.get(primary);
+    if (replacement) warnLegacy(primary, replacement);
     return { script: entry.script, extraArgs: entry.extraArgs || [], args: rest };
   }
   return null;
+}
+
+function resolveSqliteSearch(args) {
+  const hasBackend = args.some((arg) => arg === '--backend' || arg.startsWith('--backend='));
+  const extraArgs = hasBackend ? [] : ['--backend', 'sqlite-fts'];
+  return { script: 'search.js', extraArgs, args };
 }
 
 function runScript(scriptPath, extraArgs, restArgs) {
@@ -140,6 +407,13 @@ function runScript(scriptPath, extraArgs, restArgs) {
     reject: false
   });
   process.exit(result.exitCode ?? 1);
+}
+
+function warnLegacy(command, replacement) {
+  const message = `[cli] "${command}" is deprecated. Use "pairofcleats ${replacement}".`;
+  if (legacyWarnings.has(message)) return;
+  legacyWarnings.add(message);
+  console.error(message);
 }
 
 function extractRepoArg(args) {
@@ -169,63 +443,105 @@ function printHelp() {
   console.log(`Usage: pairofcleats <command> [args]
 
 Core:
-  build-index             Build file-backed indexes
-  index                   Alias for build-index
-  watch-index             Watch and rebuild indexes incrementally
+  index build             Build file-backed indexes
+  index watch             Watch and rebuild indexes incrementally
+  index validate          Validate index artifacts
   search                  Query indexed data
-  status                  Report current artifacts/status
-  index-validate           Validate index artifacts
+  embeddings build        Build embedding vectors from chunk metadata
   bootstrap               Fast bootstrap flow
   setup                   Guided setup flow
-  build-sqlite-index       Build SQLite indexes
-  compact-sqlite-index     Compact SQLite indexes
-  search-sqlite            SQLite-specific search helper
-  build-embeddings         Build embedding vectors from chunk metadata
-  cache-gc                Garbage collect cache by age/size
-  clean-artifacts          Remove repo artifacts (keep shared caches)
-  report-artifacts         Report artifact sizes
 
-Assets + tooling:
-  download-dicts           Download dictionary files
-  download-models          Download embedding models
-  download-extensions      Download SQLite ANN extensions
-  verify-extensions        Verify ANN extension availability
-  generate-repo-dict        Build repo-specific dictionary
-  tooling-detect           Detect optional language tooling
-  tooling-install          Install optional language tooling
+SQLite:
+  sqlite build            Build SQLite indexes
+  sqlite compact          Compact SQLite indexes
+  sqlite search           SQLite-specific search helper
+
+Bench:
+  bench micro             Run microbench suite
+  bench language          Run language benchmark suite
+  bench matrix            Run language/config benchmark matrix
+
+Assets:
+  assets dicts            Download dictionary files
+  assets models           Download embedding models
+  assets extensions       Download SQLite ANN extensions
+  assets extensions-verify Verify ANN extension availability
+
+Tooling:
+  tooling detect          Detect optional language tooling
+  tooling install         Install optional language tooling
+
+Ingest:
+  ingest ctags            Ingest ctags symbol dumps
+  ingest scip             Ingest SCIP symbol dumps
+  ingest lsif             Ingest LSIF dumps
+  ingest gtags            Ingest GNU Global dumps
+
+Structural:
+  structural search       Run structural rule packs
+
+Cache:
+  cache gc                Garbage collect cache by age/size
+  cache clean             Remove repo artifacts (keep shared caches)
+  cache report            Report artifact sizes
+
+Reports:
+  report repometrics      Summarize repometrics
+  report compare-models   Compare search models
+  report summary          Generate summary report
+  report eval             Run retrieval evaluation harness
+
+Services:
+  service api             Run local HTTP JSON API
+  service indexer         Run multi-repo indexer service
+  service mcp             Run MCP server
+
+Other:
+  generate-repo-dict       Build repo-specific dictionary
   git-hooks                Install git hooks
-  ctags-ingest             Ingest ctags symbol dumps
-  scip-ingest              Ingest SCIP symbol dumps
-  lsif-ingest              Ingest LSIF dumps
-  gtags-ingest             Ingest GNU Global dumps
-  structural-search        Run structural rule packs
-  bench-micro              Run microbench suite
-  bench-language           Run language benchmark suite
-  bench-language-matrix    Run language/config benchmark matrix
-  bench-language-build     Bench language repos (build indexes)
-  bench-language-build-stub Bench language repos with stub embeddings
-  bench-language-typical   Bench typical-tier repos only
-  bench-language-large     Bench large-tier repos only
-
-Reports + services:
-  repometrics-dashboard    Summarize repometrics
-  compare-models           Compare search models
-  summary-report           Generate summary report
-  eval-run                 Run retrieval evaluation harness
-  server                   Run local HTTP JSON API
-  api-server               Alias for server
-  indexer-service          Run multi-repo indexer service
-  mcp-server               Run MCP server
-  mcp                      Alias for mcp-server
 
 Config + triage:
   config validate          Validate .pairofcleats.json
+  config dump              Show effective config + derived paths
   triage ingest            Ingest triage records
   triage decision          Create triage decisions
   triage context-pack      Generate context packs
 
 Aliases:
+  build-index              Same as index build
+  watch-index              Same as index watch
+  build-sqlite-index        Same as sqlite build
+  compact-sqlite-index      Same as sqlite compact
+  search-sqlite             Same as sqlite search
+  bench-micro              Same as bench micro
+  bench-language           Same as bench language
+  bench-language-matrix    Same as bench matrix
+  download-dicts           Same as assets dicts
+  download-models          Same as assets models
+  download-extensions      Same as assets extensions
+  verify-extensions        Same as assets extensions-verify
+  tooling-detect           Same as tooling detect
+  tooling-install          Same as tooling install
+  ctags-ingest             Same as ingest ctags
+  scip-ingest              Same as ingest scip
+  lsif-ingest              Same as ingest lsif
+  gtags-ingest             Same as ingest gtags
+  structural-search        Same as structural search
+  cache-gc                Same as cache gc
+  clean-artifacts          Same as cache clean
+  report-artifacts         Same as cache report
+  status                  Same as cache report
+  repometrics-dashboard    Same as report repometrics
+  compare-models           Same as report compare-models
+  summary-report           Same as report summary
+  eval-run                 Same as report eval
+  api-server               Same as service api
+  server                   Same as service api
+  indexer-service          Same as service indexer
+  mcp-server               Same as service mcp
+  mcp                      Same as service mcp
   config-validate          Same as config validate
+  config-dump              Same as config dump
   triage-ingest            Same as triage ingest
   triage-decision          Same as triage decision
   triage-context-pack      Same as triage context-pack`);
@@ -235,7 +551,8 @@ function printConfigHelp() {
   console.log(`Usage: pairofcleats config <subcommand> [args]
 
 Subcommands:
-  validate                 Validate .pairofcleats.json (see docs/config-schema.json)`);
+  validate                 Validate .pairofcleats.json (see docs/config-schema.json)
+  dump                     Show effective config + derived paths`);
 }
 
 function printTriageHelp() {

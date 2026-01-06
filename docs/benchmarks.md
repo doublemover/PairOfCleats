@@ -9,14 +9,14 @@ This project has two layers of benchmarking:
 Run the microbench suite with:
 
 ```
-pairofcleats bench-micro
+pairofcleats bench micro
 ```
 
 By default it targets `tests/fixtures/sample` with stub embeddings and runs the
 index build plus three search modes.
 
 ### Components
-- Index build (no embeddings): build-index with `--stub-embeddings` (defaults to code mode).
+- Index build (no embeddings): `pairofcleats index build --stub-embeddings` (defaults to code mode).
 - Search sparse-only: `--no-ann`.
 - Search dense-only: `--ann` plus blend weights that fully weight ANN.
 - Search hybrid: `--ann` plus balanced blend weights.

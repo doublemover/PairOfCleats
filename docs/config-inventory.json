@@ -1,0 +1,3008 @@
+{
+  "generatedAt": "2026-01-06T06:35:46.494Z",
+  "configSchema": {
+    "path": "docs/config-schema.json",
+    "totalKeys": 282,
+    "topLevel": [
+      {
+        "key": "cache",
+        "count": 22
+      },
+      {
+        "key": "dictionary",
+        "count": 14
+      },
+      {
+        "key": "extensions",
+        "count": 2
+      },
+      {
+        "key": "extraIgnore",
+        "count": 1
+      },
+      {
+        "key": "ignoreFiles",
+        "count": 1
+      },
+      {
+        "key": "indexing",
+        "count": 129
+      },
+      {
+        "key": "models",
+        "count": 4
+      },
+      {
+        "key": "profile",
+        "count": 1
+      },
+      {
+        "key": "runtime",
+        "count": 3
+      },
+      {
+        "key": "search",
+        "count": 51
+      },
+      {
+        "key": "sql",
+        "count": 3
+      },
+      {
+        "key": "sqlite",
+        "count": 25
+      },
+      {
+        "key": "tooling",
+        "count": 16
+      },
+      {
+        "key": "triage",
+        "count": 7
+      },
+      {
+        "key": "useDefaultSkips",
+        "count": 1
+      },
+      {
+        "key": "useGitignore",
+        "count": 1
+      },
+      {
+        "key": "usePairofcleatsIgnore",
+        "count": 1
+      }
+    ]
+  },
+  "configKeys": [
+    {
+      "path": "cache",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "cache.gc",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "cache.gc.maxAgeDays",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "cache.gc.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "cache.gc.maxGb",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "cache.root",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.complexity",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.complexity.maxMb",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.complexity.ttlMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.fileText",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.fileText.maxMb",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.fileText.ttlMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.gitMeta",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.gitMeta.maxMb",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.gitMeta.ttlMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.lint",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.lint.maxMb",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.lint.ttlMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.summary",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.summary.maxMb",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "cache.runtime.summary.ttlMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "dictionary",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLength",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLengthByFileCount",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLengthByFileCount[]",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLengthByFileCount[].dpMaxTokenLength",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLengthByFileCount[].maxFiles",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "dictionary.enableRepoDictionary",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "dictionary.files",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "dictionary.includeSlang",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "dictionary.languages",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "dictionary.segmentation",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "dictionary.slangDirs",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "dictionary.slangFiles",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "extensions",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "extensions.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "extraIgnore",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "ignoreFiles",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifactCompression",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifactCompression.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifactCompression.keepRaw",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifactCompression.mode",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.chunkMetaFormat",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.chunkMetaJsonlThreshold",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.chunkMetaShardSize",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.mode",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.tokenPostingsFormat",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.tokenPostingsShardSize",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.artifacts.tokenPostingsShardThreshold",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.astDataflow",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.chunkTokenMaxFiles",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.chunkTokenMaxTokens",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.chunkTokenMode",
+      "type": "string",
+      "enum": [
+        "auto",
+        "full",
+        "sample",
+        "none"
+      ]
+    },
+    {
+      "path": "indexing.chunkTokenSampleSize",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.complexity",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.concurrency",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.controlFlow",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.debugCrash",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.debugFileLists",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddingBatchSize",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddingBatchMultipliers",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.cache",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.cache.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.concurrency",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.mode",
+      "type": "string",
+      "enum": [
+        "auto",
+        "inline",
+        "service",
+        "stub",
+        "off"
+      ]
+    },
+    {
+      "path": "indexing.embeddings.queue",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.queue.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.queue.maxQueued",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byExt",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byExt.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byExt.*.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byExt.*.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage.*.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage.*.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.default",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.default.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.default.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileListSampleSize",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileScan",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileScan.binary",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileScan.binary.maxNonTextRatio",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileScan.binary.sampleMinBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileScan.minified",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileScan.minified.avgLineThreshold",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileScan.minified.maxLineThreshold",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileScan.minified.maxWhitespaceRatio",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileScan.minified.minChars",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileScan.minified.sampleMinBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileScan.minified.singleLineChars",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileScan.sampleBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.gitBlame",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.importConcurrency",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.javascriptFlow",
+      "type": "string|boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.javascriptParser",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.kotlin",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.kotlin.flowMaxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.kotlin.flowMaxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.kotlin.relationsMaxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.kotlin.relationsMaxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.lint",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.maxFileBytes",
+      "type": "number|boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramMaxN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramMaxTokenLength",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramMinN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.chargramSource",
+      "type": "string",
+      "enum": [
+        "full",
+        "fields"
+      ]
+    },
+    {
+      "path": "indexing.postings.enableChargrams",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.enablePhraseNgrams",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.fielded",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.phraseMaxN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.postings.phraseMinN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst.maxRetries",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst.maxWorkers",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst.scaleUpQueueMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst.taskTimeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst.workerCount",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskAnalysis",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskAnalysisCrossFile",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.shards",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.shards.dirDepth",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.shards.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.shards.maxShards",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.shards.maxWorkers",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.shards.minFiles",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.enabled",
+      "type": "boolean|string",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.clike",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.cpp",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.csharp",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.go",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.java",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.kotlin",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.objc",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.rust",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.swift",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.twoStage",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.twoStage.background",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.twoStage.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.twoStage.queue",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.twoStage.stage1",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.twoStage.stage2",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.twoStage.stage3",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.twoStage.stage4",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.typeInference",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.typeInferenceCrossFile",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.typescript",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.typescript.embeddingBatchMultiplier",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.typescript.importsOnly",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.typescriptParser",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.workerPool",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.workerPool.enabled",
+      "type": "boolean|string",
+      "enum": null
+    },
+    {
+      "path": "indexing.workerPool.idleTimeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.workerPool.maxFileBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.workerPool.maxWorkers",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.workerPool.quantizeBatchSize",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.workerPool.taskTimeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.yamlChunking",
+      "type": "string",
+      "enum": [
+        "auto",
+        "root",
+        "top-level"
+      ]
+    },
+    {
+      "path": "indexing.yamlTopLevelMaxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "models",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "models.compare",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "models.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "models.id",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "profile",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "runtime",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "runtime.maxOldSpaceMb",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "runtime.nodeOptions",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "search",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.annDefault",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.bm25",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.bm25.b",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.bm25.k1",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.contextExpansion",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.contextExpansion.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.contextExpansion.includeCalls",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.contextExpansion.includeExports",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.contextExpansion.includeImports",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.contextExpansion.includeUsages",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.contextExpansion.maxPerHit",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.contextExpansion.maxTotal",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.contextExpansion.respectFilters",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.denseVectorMode",
+      "type": "string",
+      "enum": [
+        "merged",
+        "code",
+        "doc",
+        "auto"
+      ]
+    },
+    {
+      "path": "search.fieldWeights",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.fieldWeights.body",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.fieldWeights.doc",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.fieldWeights.name",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.fieldWeights.signature",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.filePrefilter",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.filePrefilter.chargramN",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.filePrefilter.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.minhashMaxDocs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.queryCache",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.queryCache.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.queryCache.maxEntries",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.queryCache.ttlMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.rrf",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.rrf.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.rrf.k",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.scoreBlend",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.scoreBlend.annWeight",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.scoreBlend.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.scoreBlend.sparseWeight",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteAutoArtifactBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteAutoChunkThreshold",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteFtsNormalize",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteFtsProfile",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteFtsWeights",
+      "type": "array|object",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteFtsWeights.doc",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteFtsWeights.file",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteFtsWeights.headline",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteFtsWeights.kind",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteFtsWeights.name",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteFtsWeights.signature",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteFtsWeights.tokens",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.symbolBoost",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.symbolBoost.definitionWeight",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.symbolBoost.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "search.symbolBoost.exportWeight",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "sql",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "sql.dialect",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sql.dialectByExt",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "sqlite",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "sqlite.annMode",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.codeDbPath",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.compactOnIncremental",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "sqlite.dbDir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.dbPath",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.proseDbPath",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.scoreMode",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.use",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.annMode",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.arch",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.column",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.downloads",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.encoding",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.filename",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.module",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.options",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.path",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.platform",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.provider",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.table",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.url",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.allowGlobalFallback",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.autoEnableOnDetect",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.autoInstallOnDetect",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.clangd",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.clangd.compileCommandsDir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.clangd.requireCompilationDatabase",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.disabledTools",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "tooling.enabledTools",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "tooling.installScope",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.resolveOrder",
+      "type": "array|string",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.tsconfigPath",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.typescript.useTsconfig",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "triage",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "triage.contextPack",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "triage.contextPack.maxEvidencePerQuery",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "triage.contextPack.maxHistory",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "triage.promoteFields",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "triage.recordsDir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "triage.storeRawPayload",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "useDefaultSkips",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "useGitignore",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "usePairofcleatsIgnore",
+      "type": "boolean",
+      "enum": null
+    }
+  ],
+  "envVars": [
+    {
+      "name": "PAIROFCLEATS_BUNDLE_THREADS",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_CACHE_ROOT",
+      "files": [
+        "src/shared/env.js",
+        "tests/api-server-stream.js",
+        "tests/api-server.js",
+        "tests/build-embeddings-cache.js",
+        "tests/cache-gc.js",
+        "tests/churn-filter.js",
+        "tests/clean-artifacts.js",
+        "tests/core-api.js",
+        "tests/embedding-batch-autotune.js",
+        "tests/eval-quality.js",
+        "tests/external-docs.js",
+        "tests/fielded-bm25.js",
+        "tests/file-line-guard.js",
+        "tests/file-size-guard.js",
+        "tests/fixture-empty.js",
+        "tests/fixture-eval.js",
+        "tests/fixture-parity.js",
+        "tests/fixture-smoke.js",
+        "tests/format-fidelity.js",
+        "tests/git-blame-range.js",
+        "tests/import-links.js",
+        "tests/incremental-manifest.js",
+        "tests/incremental-tokenization-cache.js",
+        "tests/index-validate.js",
+        "tests/language-fidelity.js",
+        "tests/mcp-server.js",
+        "tests/prose-skip-imports.js",
+        "tests/query-cache.js",
+        "tests/repo-root.js",
+        "tests/repometrics-dashboard.js",
+        "tests/script-coverage.js",
+        "tests/search-explain.js",
+        "tests/search-filters.js",
+        "tests/search-missing-index.js",
+        "tests/search-rrf.js",
+        "tests/setup.js",
+        "tests/shard-merge.js",
+        "tests/skip-minified-binary.js",
+        "tests/sqlite-ann-extension.js",
+        "tests/sqlite-auto-backend.js",
+        "tests/sqlite-build-indexes.js",
+        "tests/sqlite-compact.js",
+        "tests/sqlite-incremental.js",
+        "tests/summary-report.js",
+        "tests/triage-records.js",
+        "tests/two-stage-state.js",
+        "tests/type-inference-crossfile-go.js",
+        "tests/type-inference-crossfile.js",
+        "tests/type-inference-lsp-enrichment.js",
+        "tests/unicode-offset.js",
+        "tests/uninstall.js",
+        "tools/bench-language-repos.js",
+        "tools/bench-score-strategy.js",
+        "tools/compare-models.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_DEBUG_CRASH",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_DICT_DIR",
+      "files": [
+        "src/shared/env.js",
+        "tests/uninstall.js",
+        "tools/compare-models.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_EMBEDDINGS",
+      "files": [
+        "src/shared/env.js",
+        "tests/api-server-stream.js",
+        "tests/api-server.js",
+        "tests/bench.js",
+        "tests/build-embeddings-cache.js",
+        "tests/churn-filter.js",
+        "tests/core-api.js",
+        "tests/eval-quality.js",
+        "tests/external-docs.js",
+        "tests/fielded-bm25.js",
+        "tests/file-line-guard.js",
+        "tests/file-size-guard.js",
+        "tests/fixture-empty.js",
+        "tests/fixture-eval.js",
+        "tests/fixture-parity.js",
+        "tests/fixture-smoke.js",
+        "tests/format-fidelity.js",
+        "tests/git-blame-range.js",
+        "tests/import-links.js",
+        "tests/incremental-manifest.js",
+        "tests/incremental-tokenization-cache.js",
+        "tests/index-validate.js",
+        "tests/language-fidelity.js",
+        "tests/prose-skip-imports.js",
+        "tests/query-cache.js",
+        "tests/repo-root.js",
+        "tests/script-coverage.js",
+        "tests/search-explain.js",
+        "tests/search-filters.js",
+        "tests/search-missing-index.js",
+        "tests/search-rrf.js",
+        "tests/shard-merge.js",
+        "tests/skip-minified-binary.js",
+        "tests/sqlite-ann-extension.js",
+        "tests/sqlite-auto-backend.js",
+        "tests/sqlite-build-indexes.js",
+        "tests/sqlite-compact.js",
+        "tests/sqlite-incremental.js",
+        "tests/summary-report.js",
+        "tests/triage-records.js",
+        "tests/two-stage-state.js",
+        "tests/type-inference-crossfile-go.js",
+        "tests/type-inference-crossfile.js",
+        "tests/type-inference-lsp-enrichment.js",
+        "tests/unicode-offset.js",
+        "tools/bench-score-strategy.js",
+        "tools/compare-models.js",
+        "tools/mcp-server.js",
+        "tools/triage/context-pack.js",
+        "tools/triage/ingest.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_EXTENSIONS_DIR",
+      "files": [
+        "src/shared/env.js",
+        "tests/uninstall.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_FILE_CACHE_MAX",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_FTS_PROFILE",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_HOME",
+      "files": [
+        "src/shared/env.js",
+        "tests/mcp-server.js",
+        "tests/uninstall.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MAX_OLD_SPACE_MB",
+      "files": [
+        "src/shared/env.js",
+        "tests/bench.js",
+        "tools/bench-language-repos.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MODEL",
+      "files": [
+        "src/shared/env.js",
+        "tools/compare-models.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MODELS_DIR",
+      "files": [
+        "src/shared/env.js",
+        "tests/uninstall.js",
+        "tools/compare-models.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_NODE_OPTIONS",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_PROFILE",
+      "files": [
+        "src/retrieval/cli-args.js",
+        "src/shared/cli.js",
+        "src/shared/env.js",
+        "tests/bench.js",
+        "tests/profile-config.js",
+        "tests/structural-search.js",
+        "tests/summary-report.js",
+        "tools/bench-language-repos.js",
+        "tools/bench/micro/search.js",
+        "tools/combined-summary.js",
+        "tools/compare-models.js",
+        "tools/structural-search.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_PROGRESS_FILES",
+      "files": [
+        "src/shared/env.js",
+        "tools/bench-language-repos.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_PROGRESS_LINES",
+      "files": [
+        "src/shared/env.js",
+        "tools/bench-language-repos.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SKIP_BENCH",
+      "files": [
+        "tests/all.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
+      "files": [
+        "tests/all.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_STAGE",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SUMMARY_CACHE_MAX",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_LOG_DIR",
+      "files": [
+        "tests/script-coverage.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_RETRIES",
+      "files": [
+        "tests/script-coverage.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_THREADS",
+      "files": [
+        "src/shared/env.js",
+        "tests/bench.js",
+        "tools/bench-language-repos.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TOOLING_DIR",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TOOLING_INSTALL_SCOPE",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_VECTOR_EXTENSION",
+      "files": [
+        "src/shared/env.js",
+        "tests/sqlite-ann-extension.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_VERBOSE",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_WORKER_POOL",
+      "files": [
+        "src/shared/env.js",
+        "tests/language-fidelity.js"
+      ]
+    }
+  ],
+  "cliFlags": {
+    "totalFlags": 201,
+    "byFile": [
+      {
+        "file": "src/integrations/mcp/defs.js",
+        "flags": [
+          "type"
+        ]
+      },
+      {
+        "file": "src/retrieval/cli-args.js",
+        "flags": [
+          "alias",
+          "ann",
+          "async",
+          "awaits",
+          "backend",
+          "bm25-b",
+          "bm25-k1",
+          "branch",
+          "branches",
+          "breaks",
+          "calls",
+          "case",
+          "case-file",
+          "case-tokens",
+          "chunk-author",
+          "churn",
+          "continues",
+          "decorator",
+          "explain",
+          "ext",
+          "extends",
+          "file",
+          "fts-profile",
+          "fts-weights",
+          "generator",
+          "headline",
+          "human",
+          "inferred-type",
+          "json",
+          "json-compact",
+          "lang",
+          "lint",
+          "loops",
+          "matched",
+          "meta",
+          "meta-json",
+          "mode",
+          "model",
+          "modified-after",
+          "modified-since",
+          "mutates",
+          "param",
+          "path",
+          "profile",
+          "reads",
+          "repo",
+          "return-type",
+          "returns",
+          "risk",
+          "risk-category",
+          "risk-flow",
+          "risk-sink",
+          "risk-source",
+          "risk-tag",
+          "signature",
+          "stats",
+          "struct-pack",
+          "struct-rule",
+          "struct-tag",
+          "throws",
+          "uses",
+          "visibility",
+          "why",
+          "writes"
+        ]
+      },
+      {
+        "file": "src/shared/cli.js",
+        "flags": [
+          "profile"
+        ]
+      },
+      {
+        "file": "tests/all.js",
+        "flags": [
+          "log-dir",
+          "retries",
+          "skip-bench",
+          "skip-script-coverage"
+        ]
+      },
+      {
+        "file": "tests/context-expansion.js",
+        "flags": [
+          "includeCalls",
+          "includeImports",
+          "includeUsages",
+          "maxPerHit",
+          "maxTotal"
+        ]
+      },
+      {
+        "file": "tests/fixture-eval.js",
+        "flags": [
+          "backend",
+          "json",
+          "out",
+          "top",
+          "write-report"
+        ]
+      },
+      {
+        "file": "tests/fixture-smoke.js",
+        "flags": [
+          "all",
+          "fixture"
+        ]
+      },
+      {
+        "file": "tests/parity.js",
+        "flags": [
+          "ann",
+          "enforce",
+          "limit",
+          "out",
+          "queries",
+          "search",
+          "sqlite-backend",
+          "top",
+          "write-report"
+        ]
+      },
+      {
+        "file": "tests/script-coverage.js",
+        "flags": [
+          "log-dir",
+          "retries"
+        ]
+      },
+      {
+        "file": "tests/smoke.js",
+        "flags": [
+          "require-dicts",
+          "require-index",
+          "require-sqlite"
+        ]
+      },
+      {
+        "file": "tests/tree-sitter-chunks.js",
+        "flags": [
+          "log",
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "tools/api-server.js",
+        "flags": [
+          "host",
+          "json",
+          "output",
+          "port",
+          "quiet",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/bench-dict-seg.js",
+        "flags": [
+          "dict",
+          "dp-max",
+          "json",
+          "out",
+          "sample",
+          "tokens"
+        ]
+      },
+      {
+        "file": "tools/bench-score-strategy.js",
+        "flags": [
+          "backend",
+          "build",
+          "build-index",
+          "in-place",
+          "json",
+          "limit",
+          "out",
+          "queries",
+          "repo",
+          "stub-embeddings",
+          "top"
+        ]
+      },
+      {
+        "file": "tools/bootstrap.js",
+        "flags": [
+          "incremental",
+          "repo",
+          "skip-artifacts",
+          "skip-dicts",
+          "skip-index",
+          "skip-install",
+          "skip-tooling",
+          "validate-config",
+          "with-sqlite"
+        ]
+      },
+      {
+        "file": "tools/build-embeddings.js",
+        "flags": [
+          "batch",
+          "dims",
+          "mode",
+          "repo",
+          "stub-embeddings"
+        ]
+      },
+      {
+        "file": "tools/build-sqlite-index.js",
+        "flags": [
+          "code-dir",
+          "compact",
+          "incremental",
+          "mode",
+          "out",
+          "prose-dir",
+          "repo",
+          "validate"
+        ]
+      },
+      {
+        "file": "tools/cache-gc.js",
+        "flags": [
+          "dry-run",
+          "json",
+          "max-age-days",
+          "max-bytes",
+          "max-gb",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/ci-build-artifacts.js",
+        "flags": [
+          "incremental",
+          "out",
+          "repo",
+          "skip-build",
+          "skip-sqlite"
+        ]
+      },
+      {
+        "file": "tools/ci-restore-artifacts.js",
+        "flags": [
+          "force",
+          "from",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/clean-artifacts.js",
+        "flags": [
+          "all",
+          "dry-run",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/combined-summary.js",
+        "flags": [
+          "ann",
+          "baseline",
+          "build",
+          "incremental",
+          "json",
+          "limit",
+          "mode",
+          "models",
+          "no-ann",
+          "out",
+          "profile",
+          "queries",
+          "repo",
+          "top"
+        ]
+      },
+      {
+        "file": "tools/compact-sqlite-index.js",
+        "flags": [
+          "dry-run",
+          "keep-backup",
+          "mode",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/compare-models.js",
+        "flags": [
+          "ann",
+          "backend",
+          "baseline",
+          "build",
+          "build-index",
+          "build-sqlite",
+          "cache-root",
+          "incremental",
+          "json",
+          "limit",
+          "mode",
+          "models",
+          "no-ann",
+          "out",
+          "profile",
+          "queries",
+          "repo",
+          "stub-embeddings",
+          "top"
+        ]
+      },
+      {
+        "file": "tools/config-dump.js",
+        "flags": [
+          "json",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/config-inventory.js",
+        "flags": [
+          "profile"
+        ]
+      },
+      {
+        "file": "tools/ctags-ingest.js",
+        "flags": [
+          "args",
+          "ctags",
+          "fields",
+          "input",
+          "interactive",
+          "json",
+          "out",
+          "repo",
+          "run"
+        ]
+      },
+      {
+        "file": "tools/download-dicts.js",
+        "flags": [
+          "dir",
+          "force",
+          "lang",
+          "repo",
+          "update",
+          "url"
+        ]
+      },
+      {
+        "file": "tools/download-extensions.js",
+        "flags": [
+          "arch",
+          "dir",
+          "force",
+          "out",
+          "platform",
+          "provider",
+          "repo",
+          "update",
+          "url"
+        ]
+      },
+      {
+        "file": "tools/download-models.js",
+        "flags": [
+          "cache-dir",
+          "model",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/eval/run.js",
+        "flags": [
+          "ann",
+          "backend",
+          "dataset",
+          "out",
+          "pretty",
+          "repo",
+          "top"
+        ]
+      },
+      {
+        "file": "tools/generate-repo-dict.js",
+        "flags": [
+          "extensions",
+          "include-prose",
+          "min-count",
+          "out",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/git-hooks.js",
+        "flags": [
+          "hooks",
+          "install",
+          "repo",
+          "status",
+          "uninstall"
+        ]
+      },
+      {
+        "file": "tools/gtags-ingest.js",
+        "flags": [
+          "args",
+          "global",
+          "input",
+          "json",
+          "out",
+          "repo",
+          "run"
+        ]
+      },
+      {
+        "file": "tools/index-validate.js",
+        "flags": [
+          "json",
+          "mode",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/indexer-service.js",
+        "flags": [
+          "command",
+          "concurrency",
+          "config",
+          "interval",
+          "mode",
+          "queue",
+          "reason",
+          "repo",
+          "stage",
+          "watch"
+        ]
+      },
+      {
+        "file": "tools/lsif-ingest.js",
+        "flags": [
+          "input",
+          "json",
+          "out",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/parity-matrix.js",
+        "flags": [
+          "ann-modes",
+          "backend",
+          "backends",
+          "dry-run",
+          "fail-fast",
+          "limit",
+          "out-dir",
+          "queries",
+          "queries-dir",
+          "results",
+          "search",
+          "top"
+        ]
+      },
+      {
+        "file": "tools/repometrics-dashboard.js",
+        "flags": [
+          "json",
+          "out",
+          "repo",
+          "top"
+        ]
+      },
+      {
+        "file": "tools/report-artifacts.js",
+        "flags": [
+          "all",
+          "json",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/scip-ingest.js",
+        "flags": [
+          "args",
+          "input",
+          "json",
+          "out",
+          "repo",
+          "run",
+          "scip"
+        ]
+      },
+      {
+        "file": "tools/setup.js",
+        "flags": [
+          "heap-mb",
+          "incremental",
+          "json",
+          "non-interactive",
+          "repo",
+          "root",
+          "skip-artifacts",
+          "skip-dicts",
+          "skip-extensions",
+          "skip-index",
+          "skip-install",
+          "skip-models",
+          "skip-sqlite",
+          "skip-tooling",
+          "skip-validate",
+          "tooling-scope",
+          "validate-config",
+          "with-sqlite"
+        ]
+      },
+      {
+        "file": "tools/shard-census.js",
+        "flags": [
+          "bench",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/structural-search.js",
+        "flags": [
+          "engine",
+          "format",
+          "json",
+          "list-packs",
+          "out",
+          "pack",
+          "profile",
+          "registry",
+          "repo",
+          "rule"
+        ]
+      },
+      {
+        "file": "tools/tooling-detect.js",
+        "flags": [
+          "json",
+          "languages",
+          "repo",
+          "root"
+        ]
+      },
+      {
+        "file": "tools/tooling-install.js",
+        "flags": [
+          "dry-run",
+          "json",
+          "languages",
+          "no-fallback",
+          "repo",
+          "root",
+          "scope",
+          "tools"
+        ]
+      },
+      {
+        "file": "tools/triage/context-pack.js",
+        "flags": [
+          "ann",
+          "out",
+          "record",
+          "repo",
+          "stub-embeddings"
+        ]
+      },
+      {
+        "file": "tools/triage/decision.js",
+        "flags": [
+          "code",
+          "evidence",
+          "expires",
+          "finding",
+          "justification",
+          "meta",
+          "record",
+          "repo",
+          "reviewer",
+          "status"
+        ]
+      },
+      {
+        "file": "tools/triage/ingest.js",
+        "flags": [
+          "build-index",
+          "in",
+          "incremental",
+          "meta",
+          "repo",
+          "source",
+          "stub-embeddings"
+        ]
+      },
+      {
+        "file": "tools/uninstall.js",
+        "flags": [
+          "dry-run",
+          "repo",
+          "yes"
+        ]
+      },
+      {
+        "file": "tools/validate-config.js",
+        "flags": [
+          "config",
+          "json",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/verify-extensions.js",
+        "flags": [
+          "ann-mode",
+          "arch",
+          "column",
+          "dir",
+          "encoding",
+          "json",
+          "load",
+          "module",
+          "options",
+          "path",
+          "platform",
+          "provider",
+          "repo",
+          "table"
+        ]
+      }
+    ],
+    "duplicated": [
+      {
+        "flag": "repo",
+        "count": 39,
+        "files": [
+          "src/retrieval/cli-args.js",
+          "tools/api-server.js",
+          "tools/bench-score-strategy.js",
+          "tools/bootstrap.js",
+          "tools/build-embeddings.js",
+          "tools/build-sqlite-index.js",
+          "tools/cache-gc.js",
+          "tools/ci-build-artifacts.js",
+          "tools/ci-restore-artifacts.js",
+          "tools/clean-artifacts.js",
+          "tools/combined-summary.js",
+          "tools/compact-sqlite-index.js",
+          "tools/compare-models.js",
+          "tools/config-dump.js",
+          "tools/ctags-ingest.js",
+          "tools/download-dicts.js",
+          "tools/download-extensions.js",
+          "tools/download-models.js",
+          "tools/eval/run.js",
+          "tools/generate-repo-dict.js",
+          "tools/git-hooks.js",
+          "tools/gtags-ingest.js",
+          "tools/index-validate.js",
+          "tools/indexer-service.js",
+          "tools/lsif-ingest.js",
+          "tools/repometrics-dashboard.js",
+          "tools/report-artifacts.js",
+          "tools/scip-ingest.js",
+          "tools/setup.js",
+          "tools/shard-census.js",
+          "tools/structural-search.js",
+          "tools/tooling-detect.js",
+          "tools/tooling-install.js",
+          "tools/triage/context-pack.js",
+          "tools/triage/decision.js",
+          "tools/triage/ingest.js",
+          "tools/uninstall.js",
+          "tools/validate-config.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "json",
+        "count": 22,
+        "files": [
+          "src/retrieval/cli-args.js",
+          "tests/fixture-eval.js",
+          "tools/api-server.js",
+          "tools/bench-dict-seg.js",
+          "tools/bench-score-strategy.js",
+          "tools/cache-gc.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/config-dump.js",
+          "tools/ctags-ingest.js",
+          "tools/gtags-ingest.js",
+          "tools/index-validate.js",
+          "tools/lsif-ingest.js",
+          "tools/repometrics-dashboard.js",
+          "tools/report-artifacts.js",
+          "tools/scip-ingest.js",
+          "tools/setup.js",
+          "tools/structural-search.js",
+          "tools/tooling-detect.js",
+          "tools/tooling-install.js",
+          "tools/validate-config.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "out",
+        "count": 18,
+        "files": [
+          "tests/fixture-eval.js",
+          "tests/parity.js",
+          "tools/bench-dict-seg.js",
+          "tools/bench-score-strategy.js",
+          "tools/build-sqlite-index.js",
+          "tools/ci-build-artifacts.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/ctags-ingest.js",
+          "tools/download-extensions.js",
+          "tools/eval/run.js",
+          "tools/generate-repo-dict.js",
+          "tools/gtags-ingest.js",
+          "tools/lsif-ingest.js",
+          "tools/repometrics-dashboard.js",
+          "tools/scip-ingest.js",
+          "tools/structural-search.js",
+          "tools/triage/context-pack.js"
+        ]
+      },
+      {
+        "flag": "mode",
+        "count": 8,
+        "files": [
+          "src/retrieval/cli-args.js",
+          "tools/build-embeddings.js",
+          "tools/build-sqlite-index.js",
+          "tools/combined-summary.js",
+          "tools/compact-sqlite-index.js",
+          "tools/compare-models.js",
+          "tools/index-validate.js",
+          "tools/indexer-service.js"
+        ]
+      },
+      {
+        "flag": "top",
+        "count": 8,
+        "files": [
+          "tests/fixture-eval.js",
+          "tests/parity.js",
+          "tools/bench-score-strategy.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/eval/run.js",
+          "tools/parity-matrix.js",
+          "tools/repometrics-dashboard.js"
+        ]
+      },
+      {
+        "flag": "incremental",
+        "count": 7,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/build-sqlite-index.js",
+          "tools/ci-build-artifacts.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/setup.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "ann",
+        "count": 6,
+        "files": [
+          "src/retrieval/cli-args.js",
+          "tests/parity.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/eval/run.js",
+          "tools/triage/context-pack.js"
+        ]
+      },
+      {
+        "flag": "backend",
+        "count": 6,
+        "files": [
+          "src/retrieval/cli-args.js",
+          "tests/fixture-eval.js",
+          "tools/bench-score-strategy.js",
+          "tools/compare-models.js",
+          "tools/eval/run.js",
+          "tools/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "dry-run",
+        "count": 6,
+        "files": [
+          "tools/cache-gc.js",
+          "tools/clean-artifacts.js",
+          "tools/compact-sqlite-index.js",
+          "tools/parity-matrix.js",
+          "tools/tooling-install.js",
+          "tools/uninstall.js"
+        ]
+      },
+      {
+        "flag": "profile",
+        "count": 6,
+        "files": [
+          "src/retrieval/cli-args.js",
+          "src/shared/cli.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/config-inventory.js",
+          "tools/structural-search.js"
+        ]
+      },
+      {
+        "flag": "limit",
+        "count": 5,
+        "files": [
+          "tests/parity.js",
+          "tools/bench-score-strategy.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "queries",
+        "count": 5,
+        "files": [
+          "tests/parity.js",
+          "tools/bench-score-strategy.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "stub-embeddings",
+        "count": 5,
+        "files": [
+          "tools/bench-score-strategy.js",
+          "tools/build-embeddings.js",
+          "tools/compare-models.js",
+          "tools/triage/context-pack.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "input",
+        "count": 4,
+        "files": [
+          "tools/ctags-ingest.js",
+          "tools/gtags-ingest.js",
+          "tools/lsif-ingest.js",
+          "tools/scip-ingest.js"
+        ]
+      },
+      {
+        "flag": "all",
+        "count": 3,
+        "files": [
+          "tests/fixture-smoke.js",
+          "tools/clean-artifacts.js",
+          "tools/report-artifacts.js"
+        ]
+      },
+      {
+        "flag": "args",
+        "count": 3,
+        "files": [
+          "tools/ctags-ingest.js",
+          "tools/gtags-ingest.js",
+          "tools/scip-ingest.js"
+        ]
+      },
+      {
+        "flag": "build",
+        "count": 3,
+        "files": [
+          "tools/bench-score-strategy.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js"
+        ]
+      },
+      {
+        "flag": "build-index",
+        "count": 3,
+        "files": [
+          "tools/bench-score-strategy.js",
+          "tools/compare-models.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "dir",
+        "count": 3,
+        "files": [
+          "tools/download-dicts.js",
+          "tools/download-extensions.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "force",
+        "count": 3,
+        "files": [
+          "tools/ci-restore-artifacts.js",
+          "tools/download-dicts.js",
+          "tools/download-extensions.js"
+        ]
+      },
+      {
+        "flag": "meta",
+        "count": 3,
+        "files": [
+          "src/retrieval/cli-args.js",
+          "tools/triage/decision.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "root",
+        "count": 3,
+        "files": [
+          "tools/setup.js",
+          "tools/tooling-detect.js",
+          "tools/tooling-install.js"
+        ]
+      },
+      {
+        "flag": "run",
+        "count": 3,
+        "files": [
+          "tools/ctags-ingest.js",
+          "tools/gtags-ingest.js",
+          "tools/scip-ingest.js"
+        ]
+      },
+      {
+        "flag": "arch",
+        "count": 2,
+        "files": [
+          "tools/download-extensions.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "baseline",
+        "count": 2,
+        "files": [
+          "tools/combined-summary.js",
+          "tools/compare-models.js"
+        ]
+      },
+      {
+        "flag": "config",
+        "count": 2,
+        "files": [
+          "tools/indexer-service.js",
+          "tools/validate-config.js"
+        ]
+      },
+      {
+        "flag": "lang",
+        "count": 2,
+        "files": [
+          "src/retrieval/cli-args.js",
+          "tools/download-dicts.js"
+        ]
+      },
+      {
+        "flag": "languages",
+        "count": 2,
+        "files": [
+          "tools/tooling-detect.js",
+          "tools/tooling-install.js"
+        ]
+      },
+      {
+        "flag": "log-dir",
+        "count": 2,
+        "files": [
+          "tests/all.js",
+          "tests/script-coverage.js"
+        ]
+      },
+      {
+        "flag": "model",
+        "count": 2,
+        "files": [
+          "src/retrieval/cli-args.js",
+          "tools/download-models.js"
+        ]
+      },
+      {
+        "flag": "models",
+        "count": 2,
+        "files": [
+          "tools/combined-summary.js",
+          "tools/compare-models.js"
+        ]
+      },
+      {
+        "flag": "no-ann",
+        "count": 2,
+        "files": [
+          "tools/combined-summary.js",
+          "tools/compare-models.js"
+        ]
+      },
+      {
+        "flag": "path",
+        "count": 2,
+        "files": [
+          "src/retrieval/cli-args.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "platform",
+        "count": 2,
+        "files": [
+          "tools/download-extensions.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "provider",
+        "count": 2,
+        "files": [
+          "tools/download-extensions.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "record",
+        "count": 2,
+        "files": [
+          "tools/triage/context-pack.js",
+          "tools/triage/decision.js"
+        ]
+      },
+      {
+        "flag": "retries",
+        "count": 2,
+        "files": [
+          "tests/all.js",
+          "tests/script-coverage.js"
+        ]
+      },
+      {
+        "flag": "search",
+        "count": 2,
+        "files": [
+          "tests/parity.js",
+          "tools/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "skip-artifacts",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "skip-dicts",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "skip-index",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "skip-install",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "skip-sqlite",
+        "count": 2,
+        "files": [
+          "tools/ci-build-artifacts.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "skip-tooling",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "status",
+        "count": 2,
+        "files": [
+          "tools/git-hooks.js",
+          "tools/triage/decision.js"
+        ]
+      },
+      {
+        "flag": "update",
+        "count": 2,
+        "files": [
+          "tools/download-dicts.js",
+          "tools/download-extensions.js"
+        ]
+      },
+      {
+        "flag": "url",
+        "count": 2,
+        "files": [
+          "tools/download-dicts.js",
+          "tools/download-extensions.js"
+        ]
+      },
+      {
+        "flag": "validate-config",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "with-sqlite",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "write-report",
+        "count": 2,
+        "files": [
+          "tests/fixture-eval.js",
+          "tests/parity.js"
+        ]
+      }
+    ],
+    "dynamicOptionFiles": [
+      "src/index/build/args.js",
+      "src/index/build/context-window.js",
+      "src/index/build/file-processor.js",
+      "src/index/build/imports.js",
+      "src/index/tooling/typescript-provider.js",
+      "src/retrieval/cli.js",
+      "tests/bench.js",
+      "tools/bench-language-matrix.js",
+      "tools/bench-language-repos.js"
+    ]
+  }
+}

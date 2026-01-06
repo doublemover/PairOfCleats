@@ -127,4 +127,46 @@ Work items:
 Notes:
 - Keep indexing unblocked; embeddings should not slow core build throughput.
 
+## Phase 75: Repo-Level Diagnostics (status: todo)
+Goal: Expose quick health and performance indicators.
+Work items:
+- [ ] Emit index stats summary at build end.
+- [ ] Add a `pairofcleats status --json` report.
+- [ ] Include shard, cache, and stage status.
+
+## Phase 76: Test Suite Rationalization (status: todo)
+Goal: Reduce test sprawl while keeping coverage.
+Work items:
+- [ ] Consolidate overlapping tests into suites.
+- [ ] Remove redundant fixtures.
+- [ ] Add stage-based integration tests.
+
+## Phase 77: Performance Baseline Suite (status: todo)
+Goal: Establish a stable perf regression workflow.
+Work items:
+- [ ] Add “perf smoke” benchmarks for indexing and sqlite rebuild.
+- [ ] Track time/throughput for key repos.
+- [ ] Add thresholds for regressions.
+
+## Phase 78: Migration + Rollout Plan (status: todo)
+Goal: Ship changes safely with clear rollback.
+Work items:
+- [ ] Add a migration guide for CLI/config changes.
+- [ ] Provide a fallback path for legacy artifacts.
+- [ ] Stage rollout in opt-in mode first.
+
+## Phase 79: Legacy Cleanup Pass (status: todo)
+Goal: Remove legacy code after migration stability.
+Work items:
+- [ ] Delete deprecated CLI commands and flags.
+- [ ] Remove unused artifact formats.
+- [ ] Update docs and tests to match.
+
+## Phase 80: Final Consolidation + Audit (status: todo)
+Goal: Verify functionality is preserved with less code and higher performance.
+Work items:
+- [ ] Run full validation (tests + benchmarks).
+- [ ] Confirm perf goals and shard policy targets.
+- [ ] Document final architecture and maintenance rules.
+
 

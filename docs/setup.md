@@ -47,7 +47,12 @@ The unified setup script (`pairofcleats setup`) guides you through installing op
 
 - Defaults follow `.pairofcleats.json` where applicable.
 - Tree-sitter grammars load via WASM (`web-tree-sitter` + `tree-sitter-wasms`), avoiding native build dependencies.
-- SQLite builds use file-backed indexes by default, but will stream from incremental bundles when available.
+- SQLite builds use file-backed indexes by default, and will stream from piece artifacts or incremental bundles when available.
 - `build_index.js` can be run from any working directory; it resolves SQLite build tooling from the install root.
+- Index builds write `preprocess.json` under the repo cache root with scan and skip statistics.
+- Default ignore patterns can be overridden by adding negated entries (e.g. `!dist/allow.js`) in `extraIgnore`.
+- Index builds write `pieces/manifest.json` in each index directory to list artifact pieces and checksums.
+- Use `node tools/assemble-pieces.js --input <indexDir> --out <dest>` to merge piece outputs into a single index directory.
+- Use `node tools/compact-pieces.js --repo <repo>` to compact chunk_meta parts and token_postings shards.
 - After setup, run `pairofcleats index-validate` to confirm index artifacts are healthy.
 - If you prefer a fast, no-prompts path, use `pairofcleats bootstrap`.

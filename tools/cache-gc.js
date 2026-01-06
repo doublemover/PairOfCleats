@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
+import { getEnvConfig } from '../src/shared/env.js';
 import { getCacheRoot, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { isRootPath } from './path-utils.js';
 
@@ -21,7 +22,8 @@ const argv = createCli({
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
-const cacheRoot = (userConfig.cache && userConfig.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+const envConfig = getEnvConfig();
+const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
 const gcConfig = userConfig.cache?.gc || {};
 
 const parseNumber = (value) => {

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
 import { resolveRepoRoot, getCacheRoot } from './dict-utils.js';
 import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './service/config.js';
-import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary } from './service/queue.js';
+import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary, resolveQueueName } from './service/queue.js';
 import { ensureRepo, resolveRepoPath } from './service/repos.js';
 
 const argv = createCli({
@@ -36,6 +36,11 @@ const queueDir = config.queueDir
   ? path.resolve(config.queueDir)
   : path.join(getCacheRoot(), 'service', 'queue');
 const queueName = argv.queue || 'index';
+const resolvedQueueName = resolveQueueName(queueName, {
+  reason: queueName === 'embeddings' ? 'embeddings' : null,
+  stage: argv.stage || null,
+  mode: argv.mode || null
+});
 
 const resolveRepoEntry = (repoArg) => {
   if (!repoArg) return null;
@@ -105,7 +110,8 @@ const handleEnqueue = async () => {
     repo: resolveRepoPath(target, baseDir) || target.path,
     mode,
     reason: argv.reason || null,
-    stage: argv.stage || null
+    stage: argv.stage || null,
+    maxRetries: queueConfig.maxRetries ?? null
   }, queueConfig.maxQueued ?? null, queueName);
   if (!result.ok) {
     console.error(result.message || 'Failed to enqueue job.');
@@ -115,13 +121,14 @@ const handleEnqueue = async () => {
 };
 
 const handleStatus = async () => {
-  const summary = await queueSummary(queueDir, queueName);
-  console.log(JSON.stringify({ ok: true, queue: summary, name: queueName }, null, 2));
+  const summary = await queueSummary(queueDir, resolvedQueueName);
+  console.log(JSON.stringify({ ok: true, queue: summary, name: resolvedQueueName }, null, 2));
 };
 
-const processQueueOnce = async () => {
-  const job = await claimNextJob(queueDir, queueName);
+const processQueueOnce = async (metrics) => {
+  const job = await claimNextJob(queueDir, resolvedQueueName);
   if (!job) return false;
+  metrics.processed += 1;
   const embedWorkerConfig = config.embeddings?.worker || {};
   const memoryMb = Number.isFinite(Number(embedWorkerConfig.maxMemoryMb))
     ? Math.max(128, Math.floor(Number(embedWorkerConfig.maxMemoryMb)))
@@ -129,11 +136,35 @@ const processQueueOnce = async () => {
   const extraEnv = memoryMb
     ? { NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --max-old-space-size=${memoryMb}`.trim() }
     : {};
+  const queueConfig = queueName === 'embeddings'
+    ? (config.embeddings?.queue || {})
+    : (config.queue || {});
   const exitCode = queueName === 'embeddings'
     ? await runBuildEmbeddings(job.repo, job.mode, extraEnv)
     : await runBuildIndex(job.repo, job.mode, job.stage, job.args);
   const status = exitCode === 0 ? 'done' : 'failed';
-  await completeJob(queueDir, job.id, status, { exitCode }, queueName);
+  const attempts = Number.isFinite(job.attempts) ? job.attempts : 0;
+  const maxRetries = Number.isFinite(job.maxRetries)
+    ? job.maxRetries
+    : (Number.isFinite(queueConfig.maxRetries) ? queueConfig.maxRetries : 0);
+  if (status === 'failed' && maxRetries > attempts) {
+    const nextAttempts = attempts + 1;
+    metrics.retried += 1;
+    await completeJob(
+      queueDir,
+      job.id,
+      'queued',
+      { exitCode, retry: true, attempts: nextAttempts, error: `exit ${exitCode}` },
+      resolvedQueueName
+    );
+    return true;
+  }
+  if (status === 'done') {
+    metrics.succeeded += 1;
+  } else {
+    metrics.failed += 1;
+  }
+  await completeJob(queueDir, job.id, status, { exitCode, error: `exit ${exitCode}` }, resolvedQueueName);
   return true;
 };
 
@@ -149,13 +180,22 @@ const handleWork = async () => {
     ? Math.max(100, Number(argv.interval))
     : (config.sync?.intervalMs || 5000);
   const runBatch = async () => {
+    const metrics = { processed: 0, succeeded: 0, failed: 0, retried: 0 };
     const workers = Array.from({ length: concurrency }, async () => {
       let worked = true;
       while (worked) {
-        worked = await processQueueOnce();
+        worked = await processQueueOnce(metrics);
       }
     });
     await Promise.all(workers);
+    if (metrics.processed) {
+      console.log(JSON.stringify({
+        ok: true,
+        queue: resolvedQueueName,
+        metrics,
+        at: new Date().toISOString()
+      }, null, 2));
+    }
   };
   await runBatch();
   if (argv.watch) {
@@ -184,6 +224,6 @@ if (command === 'sync') {
 } else if (command === 'serve') {
   await handleServe();
 } else {
-  console.error('Usage: indexer-service <sync|enqueue|work|status|serve> [--queue index|embeddings] [--stage stage1|stage2]');
+  console.error('Usage: indexer-service <sync|enqueue|work|status|serve> [--queue index|embeddings] [--stage stage1|stage2|stage3|stage4]');
   process.exit(1);
 }

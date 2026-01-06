@@ -57,6 +57,21 @@ const collectModuleImportsFast = async ({ text, ext }) => {
   return success ? Array.from(imports) : null;
 };
 
+export function sortImportScanItems(items, cachedImportCounts) {
+  const haveCounts = cachedImportCounts instanceof Map && cachedImportCounts.size > 0;
+  items.sort((a, b) => {
+    if (haveCounts) {
+      const aCount = cachedImportCounts.get(a.relKey) || 0;
+      const bCount = cachedImportCounts.get(b.relKey) || 0;
+      if (bCount !== aCount) return bCount - aCount;
+    }
+    const aSize = a.stat?.size || 0;
+    const bSize = b.stat?.size || 0;
+    if (bSize !== aSize) return bSize - aSize;
+    return a.index - b.index;
+  });
+}
+
 /**
  * Scan files for imports to build cross-link map.
  * @param {{files:Array<string|{abs:string,rel?:string,stat?:import('node:fs').Stats}>,root:string,mode:'code'|'prose',languageOptions:object,importConcurrency:number,queue?:object,incrementalState?:object}} input
@@ -106,24 +121,7 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
       },
       { collectResults: false }
     );
-    const haveCounts = cachedImportCounts.size > 0;
-    items.sort((a, b) => {
-      const aSize = a.stat?.size || 0;
-      const bSize = b.stat?.size || 0;
-      if (bSize !== aSize) return bSize - aSize;
-      if (haveCounts) {
-        const aCount = cachedImportCounts.get(a.relKey);
-        const bCount = cachedImportCounts.get(b.relKey);
-        const aHas = Number.isFinite(aCount);
-        const bHas = Number.isFinite(bCount);
-        if (aHas || bHas) {
-          if (!aHas) return 1;
-          if (!bHas) return -1;
-          if (bCount !== aCount) return bCount - aCount;
-        }
-      }
-      return a.index - b.index;
-    });
+    sortImportScanItems(items, cachedImportCounts);
   }
 
   await runner(

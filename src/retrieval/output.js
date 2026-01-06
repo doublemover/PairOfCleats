@@ -8,6 +8,7 @@ import {
   DEFAULT_CACHE_TTL_MS,
   estimateStringBytes
 } from '../shared/cache.js';
+import { getEnvConfig } from '../shared/env.js';
 
 const resolveEntryLimit = (raw) => {
   const parsed = Number(raw);
@@ -31,9 +32,10 @@ let summaryCache = createLruCache({
 });
 
 export function configureOutputCaches({ cacheConfig = null, verbose = false, log = null } = {}) {
+  const envConfig = getEnvConfig();
   const entryLimits = {
-    fileText: resolveEntryLimit(process.env.PAIROFCLEATS_FILE_CACHE_MAX),
-    summary: resolveEntryLimit(process.env.PAIROFCLEATS_SUMMARY_CACHE_MAX)
+    fileText: resolveEntryLimit(envConfig.fileCacheMax),
+    summary: resolveEntryLimit(envConfig.summaryCacheMax)
   };
   outputCacheReporter = createCacheReporter({ enabled: verbose, log });
   const fileTextConfig = cacheConfig?.fileText || {};

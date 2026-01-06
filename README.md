@@ -13,9 +13,9 @@ Build an offline index of a repo, then retrieve the most relevant *chunks* using
 
 PairOfCleats builds a **hybrid semantic index** for a repository (**code + configs + docs**, and optionally **triage records**) and exposes:
 
-- a CLI (`npm run search`, `npm run build-index`)
-- an HTTP API server (`npm run api-server`)
-- an MCP server for agent/tool integration (`npm run mcp-server`)
+- a CLI (`pairofcleats search`, `pairofcleats index build`)
+- an HTTP API server (`pairofcleats service api`)
+- an MCP server for agent/tool integration (`pairofcleats service mcp`)
 
 It’s optimized for agent workflows:
 - **artifacts are stored outside the repo by default** (cache-backed)
@@ -51,21 +51,22 @@ PairOfCleats combines the strengths:
 ---
 
 ## Quick start
-- `npm run setup`
+- `pairofcleats setup`
   - Guided prompts for install, dictionaries, models, extensions, tooling, and indexes.
   - Add `--non-interactive` for CI or automated runs.
   - Add `--profile lite|balanced|full` to select a profile.
   - Add `--with-sqlite` to build SQLite indexes.
   - Add `--incremental` to reuse per-file cache bundles.
-- `npm run bootstrap` (fast, no prompts)
+- `pairofcleats bootstrap` (fast, no prompts)
   - Add `--with-sqlite` to build SQLite indexes.
   - Add `--incremental` to reuse per-file cache bundles.
-- `npm run watch-index` (FS events by default; add `--watch-poll` to enable polling)
-- `npm run api-server` (local HTTP JSON API for status/search)
-- `npm run indexer-service` (multi-repo sync + queue; see [docs/service-mode.md](docs/service-mode.md))
+- `pairofcleats index watch` (FS events by default; add `--watch-poll` to enable polling)
+- `pairofcleats service api` (local HTTP JSON API for status/search)
+- `pairofcleats service indexer` (multi-repo sync + queue; see [docs/service-mode.md](docs/service-mode.md))
 - Cache is outside the repo by default; set `cache.root` in `.pairofcleats.json` to override.
 - CLI commands auto-detect repo roots; use `--repo <path>` to override.
-- Local CLI entrypoint: `node bin/pairofcleats.js <command>` (mirrors `npm run` scripts).
+- Local CLI entrypoint: `node bin/pairofcleats.js <command>`.
+- `npm run <script>` wrappers remain available for CI/automation.
 - Core library API: [docs/core-api.md](docs/core-api.md)
 
 ### Install
@@ -75,26 +76,26 @@ npm install
 
 ### Guided setup (recommended)
 ```bash
-npm run setup
+pairofcleats setup
 ```
 
 ### Bootstrap (no prompts)
 ```bash
-npm run bootstrap
+pairofcleats bootstrap
 ```
 
 ### Build index
 ```bash
-npm run build-index
+pairofcleats index build
 # Add --incremental to reuse per-file cache bundles
 # Add --no-sqlite to skip SQLite builds
 ```
 
 ### Search
 ```bash
-npm run search -- "how do we validate JWT tokens?"
-npm run search -- "UserRepository findByEmail" --mode code
-npm run search -- "rate limit exceeded" --mode prose
+pairofcleats search -- "how do we validate JWT tokens?"
+pairofcleats search -- "UserRepository findByEmail" --mode code
+pairofcleats search -- "rate limit exceeded" --mode prose
 ```
 
 ---
@@ -240,11 +241,11 @@ For large repos, SQLite is usually the best experience.
 
 Build SQLite indexes:
 ```bash
-npm run build-sqlite-index
+pairofcleats sqlite build
 ```
 Search with SQLite:
 ```bash
-npm run search -- "query" --backend sqlite
+pairofcleats search -- "query" --backend sqlite
 ```
 
 ---

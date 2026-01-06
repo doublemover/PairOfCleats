@@ -14,40 +14,30 @@ import {
 import { createEmbedder } from '../embedding.js';
 import { log } from '../../shared/progress.js';
 import { createTaskQueues } from '../../shared/concurrency.js';
+import { getEnvConfig } from '../../shared/env.js';
+import { resolveThreadLimits } from '../../shared/threads.js';
 import { buildIgnoreMatcher } from './ignore.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { applyBenchmarkProfile } from '../../shared/bench-profile.js';
-import { createIndexerWorkerPool, normalizeWorkerPoolConfig } from './worker-pool.js';
+import { createIndexerWorkerPool, resolveWorkerPoolConfig } from './worker-pool.js';
 import { createCrashLogger } from './crash-log.js';
+import { normalizeEmbeddingBatchMultipliers } from './embedding-batch.js';
 import { preloadTreeSitterLanguages, resolveEnabledTreeSitterLanguages } from '../../lang/tree-sitter.js';
 import { sha1 } from '../../shared/hash.js';
-
-const isPlainObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
-
-const mergeConfig = (base, overrides) => {
-  if (!isPlainObject(base)) return overrides;
-  if (!isPlainObject(overrides)) return base;
-  const next = { ...base };
-  for (const [key, value] of Object.entries(overrides)) {
-    if (isPlainObject(value) && isPlainObject(next[key])) {
-      next[key] = mergeConfig(next[key], value);
-    } else {
-      next[key] = value;
-    }
-  }
-  return next;
-};
+import { isPlainObject, mergeConfig } from '../../shared/config.js';
 
 const normalizeStage = (raw) => {
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
   if (!value) return null;
   if (value === '1' || value === 'stage1' || value === 'sparse') return 'stage1';
   if (value === '2' || value === 'stage2' || value === 'enrich' || value === 'full') return 'stage2';
+  if (value === '3' || value === 'stage3' || value === 'embeddings' || value === 'embed') return 'stage3';
+  if (value === '4' || value === 'stage4' || value === 'sqlite' || value === 'ann') return 'stage4';
   return null;
 };
 
 const buildStageOverrides = (twoStageConfig, stage) => {
-  if (stage !== 'stage1' && stage !== 'stage2') return null;
+  if (!['stage1', 'stage2', 'stage3', 'stage4'].includes(stage)) return null;
   if (!isPlainObject(twoStageConfig)) return null;
   const defaults = stage === 'stage1'
     ? {
@@ -60,10 +50,35 @@ const buildStageOverrides = (twoStageConfig, stage) => {
       typeInference: false,
       typeInferenceCrossFile: false
     }
-    : {};
+    : stage === 'stage3'
+      ? {
+        treeSitter: { enabled: false },
+        lint: false,
+        complexity: false,
+        riskAnalysis: false,
+        riskAnalysisCrossFile: false,
+        typeInference: false,
+        typeInferenceCrossFile: false
+      }
+      : stage === 'stage4'
+        ? {
+          embeddings: { enabled: false, mode: 'off' },
+          treeSitter: { enabled: false },
+          lint: false,
+          complexity: false,
+          riskAnalysis: false,
+          riskAnalysisCrossFile: false,
+          typeInference: false,
+          typeInferenceCrossFile: false
+        }
+        : {};
   const stageOverrides = stage === 'stage1'
     ? (isPlainObject(twoStageConfig.stage1) ? twoStageConfig.stage1 : {})
-    : (isPlainObject(twoStageConfig.stage2) ? twoStageConfig.stage2 : {});
+    : stage === 'stage2'
+      ? (isPlainObject(twoStageConfig.stage2) ? twoStageConfig.stage2 : {})
+      : stage === 'stage3'
+        ? (isPlainObject(twoStageConfig.stage3) ? twoStageConfig.stage3 : {})
+        : (isPlainObject(twoStageConfig.stage4) ? twoStageConfig.stage4 : {});
   return mergeConfig(defaults, stageOverrides);
 };
 
@@ -74,12 +89,13 @@ const buildStageOverrides = (twoStageConfig, stage) => {
  */
 export async function createBuildRuntime({ root, argv, rawArgv }) {
   const userConfig = loadUserConfig(root);
+  const envConfig = getEnvConfig();
   const rawIndexingConfig = userConfig.indexing || {};
   let { indexingConfig, profile: benchmarkProfile } = applyBenchmarkProfile(
     rawIndexingConfig,
-    process.env.PAIROFCLEATS_BENCH_PROFILE
+    userConfig.profile
   );
-  const stage = normalizeStage(argv.stage || process.env.PAIROFCLEATS_STAGE);
+  const stage = normalizeStage(argv.stage || envConfig.stage);
   const twoStageConfig = indexingConfig.twoStage || {};
   const stageOverrides = buildStageOverrides(twoStageConfig, stage);
   if (stageOverrides) {
@@ -203,6 +219,10 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     && typescriptEmbeddingBatchRaw > 0
     ? typescriptEmbeddingBatchRaw
     : null;
+  const embeddingBatchMultipliers = normalizeEmbeddingBatchMultipliers(
+    indexingConfig.embeddingBatchMultipliers || {},
+    typescriptEmbeddingBatchMultiplier ? { typescript: typescriptEmbeddingBatchMultiplier } : {}
+  );
   const javascriptFlow = normalizeFlow(indexingConfig.javascriptFlow);
   const pythonAstConfig = indexingConfig.pythonAst || {};
   const pythonAstEnabled = pythonAstConfig.enabled !== false;
@@ -282,50 +302,26 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const twoStageBackground = twoStageConfig.background === true;
   const twoStageQueue = twoStageConfig.queue !== false && twoStageBackground;
 
-  const threadsArgPresent = rawArgv.some((arg) => arg === '--threads' || arg.startsWith('--threads='));
   const configConcurrency = Number(indexingConfig.concurrency);
-  const cpuCount = os.cpus().length;
-  const defaultThreads = Math.max(1, cpuCount * 4);
-  const rawCliThreads = Number(argv.threads);
-  const envThreadsRaw = process.env.PAIROFCLEATS_THREADS;
-  const envThreads = Number(envThreadsRaw);
-  const envThreadsProvided = Number.isFinite(envThreads) && envThreads > 0;
-  const cliThreadsProvided = threadsArgPresent
-    || (Number.isFinite(rawCliThreads) && rawCliThreads !== defaultThreads);
-  const cliConcurrency = envThreadsProvided
-    ? envThreads
-    : (cliThreadsProvided ? rawCliThreads : null);
-  const baseConcurrencyCap = defaultThreads;
-  const maxConcurrencyCap = Number.isFinite(cliConcurrency)
-    ? Math.max(baseConcurrencyCap, Math.floor(cliConcurrency))
-    : Number.isFinite(configConcurrency)
-      ? Math.max(baseConcurrencyCap, Math.floor(configConcurrency))
-      : baseConcurrencyCap;
-  const defaultConcurrency = Math.max(1, Math.min(cpuCount, maxConcurrencyCap));
-  const fileConcurrency = Math.max(
-    1,
-    Math.min(
-      maxConcurrencyCap,
-      Number.isFinite(cliConcurrency)
-        ? cliConcurrency
-        : Number.isFinite(configConcurrency)
-          ? configConcurrency
-          : defaultConcurrency
-    )
-  );
-  const importConcurrency = Math.max(
-    1,
-    Math.min(
-      maxConcurrencyCap,
-      Number.isFinite(cliConcurrency)
-        ? fileConcurrency
-        : Number.isFinite(Number(indexingConfig.importConcurrency))
-          ? Number(indexingConfig.importConcurrency)
-          : fileConcurrency
-    )
-  );
-  const ioConcurrency = Math.max(fileConcurrency, importConcurrency)*2;
-  const cpuConcurrency = Math.max(1, Math.min(maxConcurrencyCap, fileConcurrency))*2;
+  const importConcurrencyConfig = Number(indexingConfig.importConcurrency);
+  const threadLimits = resolveThreadLimits({
+    argv,
+    rawArgv,
+    envConfig,
+    configConcurrency,
+    importConcurrencyConfig
+  });
+  const {
+    cpuCount,
+    maxConcurrencyCap,
+    fileConcurrency,
+    importConcurrency,
+    ioConcurrency,
+    cpuConcurrency
+  } = threadLimits;
+  if (envConfig.verbose) {
+    log(`Thread limits (${threadLimits.source}): cpu=${cpuCount}, cap=${maxConcurrencyCap}, files=${fileConcurrency}, imports=${importConcurrency}, io=${ioConcurrency}, cpuWork=${cpuConcurrency}.`);
+  }
   const embeddingConcurrencyRaw = Number(embeddingsConfig.concurrency);
   let embeddingConcurrency = Number.isFinite(embeddingConcurrencyRaw) && embeddingConcurrencyRaw > 0
     ? Math.floor(embeddingConcurrencyRaw)
@@ -338,29 +334,18 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   }
   embeddingConcurrency = Math.max(1, Math.min(embeddingConcurrency, cpuConcurrency));
   const queues = createTaskQueues({ ioConcurrency, cpuConcurrency, embeddingConcurrency });
-  const workerPoolConfig = normalizeWorkerPoolConfig(
+  const workerPoolConfig = resolveWorkerPoolConfig(
     indexingConfig.workerPool || {},
+    envConfig,
     { cpuLimit: cpuConcurrency }
   );
-  const workerPoolOverride = typeof process.env.PAIROFCLEATS_WORKER_POOL === 'string'
-    ? process.env.PAIROFCLEATS_WORKER_POOL.trim().toLowerCase()
-    : '';
-  if (workerPoolOverride) {
-    if (['0', 'false', 'off', 'disable', 'disabled'].includes(workerPoolOverride)) {
-      workerPoolConfig.enabled = false;
-    } else if (['1', 'true', 'on', 'enable', 'enabled'].includes(workerPoolOverride)) {
-      workerPoolConfig.enabled = true;
-    } else if (workerPoolOverride === 'auto') {
-      workerPoolConfig.enabled = 'auto';
-    }
-  }
 
   const incrementalEnabled = argv.incremental === true;
   const debugCrash = argv['debug-crash'] === true
-    || process.env.PAIROFCLEATS_DEBUG_CRASH === '1'
+    || envConfig.debugCrash === true
     || indexingConfig.debugCrash === true;
   const baseStubEmbeddings = argv['stub-embeddings'] === true
-    || process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
+    || envConfig.embeddings === 'stub';
   const normalizedEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(embeddingModeRaw)
     ? embeddingModeRaw
     : 'auto';
@@ -425,7 +410,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const { ignoreMatcher, config: ignoreConfig, ignoreFiles } = await buildIgnoreMatcher({ root, userConfig });
 
   const cacheConfig = getCacheRuntimeConfig(root, userConfig);
-  const verboseCache = process.env.PAIROFCLEATS_VERBOSE === '1';
+  const verboseCache = envConfig.verbose === true;
 
   if (dictSummary.files) {
     log(`Wordlists enabled: ${dictSummary.files} file(s), ${dictSummary.words.toLocaleString()} words for identifier splitting.`);
@@ -436,6 +421,10 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     log('Two-stage indexing: stage1 (sparse) overrides enabled.');
   } else if (stage === 'stage2') {
     log('Two-stage indexing: stage2 (enrichment) running.');
+  } else if (stage === 'stage3') {
+    log('Indexing stage3 (embeddings pass) running.');
+  } else if (stage === 'stage4') {
+    log('Indexing stage4 (sqlite/ann pass) running.');
   }
   if (!embeddingEnabled) {
     const label = embeddingService ? 'service queue' : 'disabled';
@@ -541,9 +530,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     },
     typescript: {
       parser: typescriptParser,
-      importsOnly: typescriptImportsOnly,
-      embeddingBatchMultiplier: typescriptEmbeddingBatchMultiplier
+      importsOnly: typescriptImportsOnly
     },
+    embeddingBatchMultipliers,
     pythonAst: pythonAstConfig,
     kotlin: {
       flowMaxBytes: kotlinFlowMaxBytes,

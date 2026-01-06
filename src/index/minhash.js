@@ -11,6 +11,10 @@ export class SimpleMinHash {
     this.hashValues = Array(numHashes).fill(Infinity);
   }
 
+  reset() {
+    this.hashValues.fill(Infinity);
+  }
+
   /**
    * Hash a token with a given seed.
    * @param {string} str

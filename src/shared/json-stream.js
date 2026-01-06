@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import { once } from 'node:events';
 import { createGzip } from 'node:zlib';
 
@@ -13,17 +14,63 @@ const waitForFinish = (stream) => new Promise((resolve, reject) => {
   stream.on('finish', resolve);
 });
 
-const createJsonWriteStream = (filePath, compression) => {
-  const fileStream = fs.createWriteStream(filePath);
+const createTempPath = (filePath) => (
+  `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
+);
+
+const replaceFile = async (tempPath, finalPath) => {
+  try {
+    await fsPromises.rename(tempPath, finalPath);
+    return;
+  } catch (err) {
+    if (err?.code !== 'EEXIST' && err?.code !== 'EPERM' && err?.code !== 'ENOTEMPTY') {
+      throw err;
+    }
+  }
+  try {
+    await fsPromises.rm(finalPath, { force: true });
+  } catch {}
+  await fsPromises.rename(tempPath, finalPath);
+};
+
+const createJsonWriteStream = (filePath, options = {}) => {
+  const { compression = null, atomic = false } = options;
+  const targetPath = atomic ? createTempPath(filePath) : filePath;
+  const fileStream = fs.createWriteStream(targetPath);
   if (compression === 'gzip') {
     const gzip = createGzip();
     gzip.pipe(fileStream);
     return {
       stream: gzip,
-      done: Promise.all([waitForFinish(gzip), waitForFinish(fileStream)]).then(() => {})
+      done: Promise.all([waitForFinish(gzip), waitForFinish(fileStream)])
+        .then(async () => {
+          if (atomic) {
+            await replaceFile(targetPath, filePath);
+          }
+        })
+        .catch(async (err) => {
+          if (atomic) {
+            try { await fsPromises.rm(targetPath, { force: true }); } catch {}
+          }
+          throw err;
+        })
     };
   }
-  return { stream: fileStream, done: waitForFinish(fileStream) };
+  return {
+    stream: fileStream,
+    done: waitForFinish(fileStream)
+      .then(async () => {
+        if (atomic) {
+          await replaceFile(targetPath, filePath);
+        }
+      })
+      .catch(async (err) => {
+        if (atomic) {
+          try { await fsPromises.rm(targetPath, { force: true }); } catch {}
+        }
+        throw err;
+      })
+  };
 };
 
 const writeArrayItems = async (stream, items) => {
@@ -43,8 +90,8 @@ const writeArrayItems = async (stream, items) => {
  * @returns {Promise<void>}
  */
 export async function writeJsonLinesFile(filePath, items, options = {}) {
-  const { compression = null } = options;
-  const { stream, done } = createJsonWriteStream(filePath, compression);
+  const { compression = null, atomic = false } = options;
+  const { stream, done } = createJsonWriteStream(filePath, { compression, atomic });
   for (const item of items) {
     const json = JSON.stringify(item === undefined ? null : item);
     await writeChunk(stream, `${json}\n`);
@@ -61,8 +108,8 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
  * @returns {Promise<void>}
  */
 export async function writeJsonArrayFile(filePath, items, options = {}) {
-  const { trailingNewline = true, compression = null } = options;
-  const { stream, done } = createJsonWriteStream(filePath, compression);
+  const { trailingNewline = true, compression = null, atomic = false } = options;
+  const { stream, done } = createJsonWriteStream(filePath, { compression, atomic });
   await writeChunk(stream, '[');
   await writeArrayItems(stream, items);
   await writeChunk(stream, ']');
@@ -78,8 +125,14 @@ export async function writeJsonArrayFile(filePath, items, options = {}) {
  * @returns {Promise<void>}
  */
 export async function writeJsonObjectFile(filePath, input = {}) {
-  const { fields = {}, arrays = {}, trailingNewline = true, compression = null } = input;
-  const { stream, done } = createJsonWriteStream(filePath, compression);
+  const {
+    fields = {},
+    arrays = {},
+    trailingNewline = true,
+    compression = null,
+    atomic = false
+  } = input;
+  const { stream, done } = createJsonWriteStream(filePath, { compression, atomic });
   await writeChunk(stream, '{');
   let first = true;
   for (const [key, value] of Object.entries(fields)) {

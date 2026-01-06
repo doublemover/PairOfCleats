@@ -23,6 +23,7 @@ import {
   resolveRepoRoot,
   resolveSqlitePaths
 } from './dict-utils.js';
+import { getEnvConfig } from '../src/shared/env.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -176,7 +177,8 @@ async function getGitInfo(repoPath) {
 async function indexStatus(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const userConfig = loadUserConfig(repoPath);
-  const cacheRoot = (userConfig.cache && userConfig.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+  const envConfig = getEnvConfig();
+  const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
   const repoId = getRepoId(repoPath);
   const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
   const dictConfig = getDictConfig(repoPath, userConfig);
@@ -255,7 +257,8 @@ async function indexStatus(args = {}) {
 async function configStatus(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const userConfig = loadUserConfig(repoPath);
-  const cacheRoot = (userConfig.cache && userConfig.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+  const envConfig = getEnvConfig();
+  const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
   const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
   const dictConfig = getDictConfig(repoPath, userConfig);
   const dictionaryPaths = await getDictionaryPaths(repoPath, dictConfig);

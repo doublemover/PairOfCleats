@@ -10,28 +10,25 @@ Use the language benchmark harness to run search and performance baselines acros
 
 ## Quick usage
 - List targets:
-  - `pairofcleats bench-language --list`
+  - `pairofcleats bench language --list`
 - Run only JavaScript repos (clone if missing, build indexes, write per-repo JSON):
-  - `pairofcleats bench-language --language javascript --build`
-- Run everything with builds (avoids npm CLI warnings for `--build`):
-  - `pairofcleats bench-language --build`
+  - `pairofcleats bench language --language javascript --build`
+- Run everything with builds:
+  - `pairofcleats bench language --build`
 - Run only typical repos, skip cloning:
-  - `pairofcleats bench-language --tier typical --no-clone`
+  - `pairofcleats bench language --tier typical --no-clone`
 - Write an aggregate summary for Grafana:
-  - `pairofcleats bench-language --language python --build --out docs/benchmarks-python.json --json`
+  - `pairofcleats bench language --language python --build --out docs/benchmarks-python.json --json`
 
-## Convenience scripts
-- `npm run bench-language:list` / `bench-language:list-json`
-- `npm run bench-language:large` / `bench-language:typical` / `bench-language:dry-run`
-- `npm run bench-language:build` (builds indexes and downloads models as needed)
-- `npm run bench-language:build-stub` (builds with stub embeddings)
-- `npm run bench-language:matrix` (run the full language/config matrix)
-- Per-language: `bench-language:javascript`, `bench-language:python`, `bench-language:swift`, `bench-language:rust`, `bench-language:clike`, `bench-language:go`, `bench-language:java`, `bench-language:csharp`, `bench-language:kotlin`, `bench-language:ruby`, `bench-language:php`, `bench-language:lua`, `bench-language:sql`, `bench-language:perl`, `bench-language:shell`
+## Convenience note
+The old `bench-language:*` npm scripts were removed; use `pairofcleats bench language` with flags instead.
+The matrix runner is now `pairofcleats bench matrix`.
 
 ## Output
 - Per-repo reports are written under `benchmarks/results/<language>/` (JSON payload from `tests/bench.js`).
 - Summary output is printed to the console; use `--json` and/or `--out` for a machine-readable aggregate.
 - The runner shows a live progress line, a metrics line, and a scrolling log window when stdout is a TTY. Use `--log-lines <n>` (3-50, default 20) to change the window height.
+- The log window coalesces tagged updates (debounced) to reduce noise; file progress lines use `[shard <index>/<total>]` prefixes with file counts and line totals.
 - A run log is appended to `benchmarks/results/bench-language.log` by default (override with `--log <file>`).
 - Runs now log start/finish, termination signals, and in-progress indexing counters with elapsed time, rate, and ETA, plus recent file names during indexing (expect larger logs on large repos).
 - If index artifacts are missing, the runner auto-enables build steps even if `--build` was not provided.
@@ -46,8 +43,7 @@ Use the language benchmark harness to run search and performance baselines acros
 - `--build`, `--build-index`, `--build-sqlite`: build indexes before search. `--build-sqlite` uses incremental bundles when available; otherwise it will auto-enable `--build-index` to create file-backed indexes.
 - `--backend <csv|all>`: control backends passed to `tests/bench.js`.
 - `--ann` / `--no-ann`: toggle ANN for dense search.
-- `--benchmark-profile` / `--no-benchmark-profile`: toggle the benchmark profile (default on) which disables expensive enrichment (git blame, lint/complexity, risk, type inference, chargrams).
-- `--index-profile <name>` / `--no-index-profile`: apply a configuration profile for indexing during benchmarks (default `bench-index` when the benchmark profile is enabled).
+- `--index-profile <name>` / `--no-index-profile`: apply a configuration profile for indexing during benchmarks (default `bench-index`).
 - `--lock-mode <fail-fast|wait|stale-clear>`: handle existing index locks (default `fail-fast`).
 - `--lock-wait-ms <ms>` / `--lock-stale-ms <ms>`: tune wait and stale thresholds when lock mode is `wait`/`stale-clear`.
 - `--stub-embeddings`: run without model downloads.
@@ -59,6 +55,8 @@ Use the language benchmark harness to run search and performance baselines acros
 - `tests/bench.js` is the underlying runner and supports extra tuning flags (`--bm25-k1`, `--bm25-b`, `--fts-profile`, `--fts-weights`).
 - Queries are plain text, one query per line; lines starting with `#` are ignored.
 - The benchmark profile is on by default and recommended for large repos; disable it when you want full enrichment costs reflected in timings.
-- When the benchmark profile is enabled, the harness defaults to stub embeddings unless `--real-embeddings` is provided.
-- The default `bench-index` profile (`profiles/bench-index.json`) enables sharded indexing, two-stage builds, and the embedding service; queues are drained during benchmark runs when enabled.
+- When the benchmark profile (or `bench-index` profile) is enabled, the harness defaults to stub embeddings unless `--real-embeddings` is provided.
+- The default `bench-index` profile (`profiles/bench-index.json`) enables sharded indexing, two-stage builds, and the embedding service while disabling expensive enrichment for benchmark runs.
 - The runner uses `execa` for child processes and terminates trees via `taskkill` on Windows and `SIGTERM` elsewhere; we avoid `tree-kill` due to past Windows command-injection advisories and only pass trusted PIDs.
+- Set `PAIROFCLEATS_VERBOSE=1` to emit shard plan diagnostics (top shard sizes and split summaries) during builds.
+- Shard planning uses line counts: subdirs with <3 files merge unless a file is at least half the size of the 10th largest shard (by lines), and oversized shards are split by line totals for balance.

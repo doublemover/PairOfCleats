@@ -361,8 +361,11 @@ const CODE_CHUNKERS = [
       javascript: context?.javascript,
       flowMode: context?.javascript?.flow
     }) },
-  { id: 'typescript', match: (ext) => isTypeScript(ext), chunk: ({ text, ext, relPath, context }) =>
-    context?.tsChunks || buildTypeScriptChunks(text, { ext, relPath, parser: context?.typescript?.parser }) },
+  { id: 'typescript', match: (ext) => isTypeScript(ext), chunk: ({ text, ext, relPath, context }) => {
+    if (context?.tsChunks) return context.tsChunks;
+    const parser = context?.typescript?.importsOnly ? 'heuristic' : context?.typescript?.parser;
+    return buildTypeScriptChunks(text, { ext, relPath, parser });
+  } },
   { id: 'html', match: (ext) => isHtml(ext), chunk: ({ text, context }) =>
     context?.htmlChunks || buildHtmlChunks(text, getTreeSitterOptions(context)) },
   { id: 'css', match: (ext) => isCss(ext), chunk: ({ text, context }) =>

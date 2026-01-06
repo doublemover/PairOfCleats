@@ -1,17 +1,4 @@
 {
-  "javascript": {
-    "label": "JavaScript / TypeScript",
-    "queries": "benchmarks/queries/javascript.txt",
-    "repos": {
-      "large": [
-        "microsoft/vscode",
-        "vercel/next.js"
-      ],
-      "typical": [
-        "expressjs/express"
-      ]
-    }
-  },
   "python": {
     "label": "Python",
     "queries": "benchmarks/queries/python.txt",
@@ -186,6 +173,19 @@
       ],
       "typical": [
         "bash-it/bash-it"
+      ]
+    }
+  },
+  "javascript": {
+    "label": "JavaScript / TypeScript",
+    "queries": "benchmarks/queries/javascript.txt",
+    "repos": {
+      "large": [
+        "vercel/next.js",
+        "microsoft/vscode"
+      ],
+      "typical": [
+        "expressjs/express"
       ]
     }
   }

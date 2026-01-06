@@ -17,6 +17,10 @@ await fs.writeFile(
   path.join(cacheRoot, 'chunk_meta.jsonl'),
   `${chunkMetaLines.map((row) => JSON.stringify(row)).join('\n')}\n`
 );
+await fs.writeFile(
+  path.join(cacheRoot, 'chunk_meta.json'),
+  JSON.stringify([{ id: 99, file: 'src/legacy.js', start: 0, end: 1, ext: '.js' }], null, 2)
+);
 
 const shardsDir = path.join(cacheRoot, 'token_postings.shards');
 await fs.mkdir(shardsDir, { recursive: true });
@@ -50,6 +54,10 @@ const meta = {
 await fs.writeFile(
   path.join(cacheRoot, 'token_postings.meta.json'),
   JSON.stringify(meta, null, 2)
+);
+await fs.writeFile(
+  path.join(cacheRoot, 'token_postings.json'),
+  JSON.stringify({ vocab: ['legacy'], postings: [[[0, 1]]], docLengths: [1], avgDocLen: 1, totalDocs: 1 }, null, 2)
 );
 
 const idx = loadIndex(cacheRoot, { modelIdDefault: null, fileChargramN: 3 });

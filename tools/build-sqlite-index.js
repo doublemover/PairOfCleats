@@ -2,15 +2,19 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import Piscina from 'piscina';
 import { createCli } from '../src/shared/cli.js';
+import { getEnvConfig } from '../src/shared/env.js';
+import { resolveThreadLimits } from '../src/shared/threads.js';
 import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
 import { compactDatabase } from './compact-sqlite-index.js';
 import { CREATE_INDEXES_SQL, CREATE_TABLES_BASE_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnTable } from '../src/storage/sqlite/build-helpers.js';
 import { loadIncrementalManifest } from '../src/storage/sqlite/incremental.js';
-import { chunkArray, hasRequiredTables, loadIndex, normalizeFilePath, readJson } from '../src/storage/sqlite/utils.js';
+import { chunkArray, hasRequiredTables, loadIndex, loadOptional, normalizeFilePath, readJson } from '../src/storage/sqlite/utils.js';
 import { dequantizeUint8ToFloat32, packUint32, packUint8, quantizeVec, toVectorId } from '../src/storage/sqlite/vector.js';
 
 let Database = null;
@@ -31,6 +35,106 @@ const restoreBuildPragmas = (db) => {
   try { db.pragma('temp_store = DEFAULT'); } catch {}
 };
 
+const MAX_INCREMENTAL_CHANGE_RATIO = 0.35;
+const VOCAB_GROWTH_LIMITS = {
+  token_vocab: { ratio: 0.4, absolute: 200000 },
+  phrase_vocab: { ratio: 0.5, absolute: 150000 },
+  chargram_vocab: { ratio: 1.0, absolute: 250000 }
+};
+
+const normalizeValidateMode = (value) => {
+  if (value === false || value == null) return 'off';
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized || normalized === 'true') return 'smoke';
+  if (['off', 'false', '0', 'no'].includes(normalized)) return 'off';
+  if (['full', 'integrity'].includes(normalized)) return 'full';
+  return 'smoke';
+};
+
+const listShardFiles = (dir, prefix) => {
+  if (!fsSync.existsSync(dir)) return [];
+  return fsSync
+    .readdirSync(dir)
+    .filter((name) => name.startsWith(prefix) && (name.endsWith('.json') || name.endsWith('.jsonl')))
+    .sort()
+    .map((name) => path.join(dir, name));
+};
+
+const resolveChunkMetaSources = (dir) => {
+  const metaPath = path.join(dir, 'chunk_meta.meta.json');
+  const partsDir = path.join(dir, 'chunk_meta.parts');
+  if (fsSync.existsSync(metaPath) || fsSync.existsSync(partsDir)) {
+    let parts = [];
+    if (fsSync.existsSync(metaPath)) {
+      try {
+        const meta = readJson(metaPath);
+        if (Array.isArray(meta?.parts) && meta.parts.length) {
+          parts = meta.parts.map((name) => path.join(dir, name));
+        }
+      } catch {}
+    }
+    if (!parts.length) {
+      parts = listShardFiles(partsDir, 'chunk_meta.part-');
+    }
+    return parts.length ? { format: 'jsonl', paths: parts } : null;
+  }
+  const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
+  if (fsSync.existsSync(jsonlPath)) {
+    return { format: 'jsonl', paths: [jsonlPath] };
+  }
+  const jsonPath = path.join(dir, 'chunk_meta.json');
+  if (fsSync.existsSync(jsonPath)) {
+    return { format: 'json', paths: [jsonPath] };
+  }
+  return null;
+};
+
+const resolveTokenPostingsSources = (dir) => {
+  const metaPath = path.join(dir, 'token_postings.meta.json');
+  const shardsDir = path.join(dir, 'token_postings.shards');
+  if (!fsSync.existsSync(metaPath) && !fsSync.existsSync(shardsDir)) return null;
+  let parts = [];
+  if (fsSync.existsSync(metaPath)) {
+    try {
+      const meta = readJson(metaPath);
+      if (Array.isArray(meta?.parts) && meta.parts.length) {
+        parts = meta.parts.map((name) => path.join(dir, name));
+      }
+    } catch {}
+  }
+  if (!parts.length) {
+    parts = listShardFiles(shardsDir, 'token_postings.part-');
+  }
+  return parts.length ? { metaPath, parts } : null;
+};
+
+const readJsonLinesFile = async (filePath, onEntry) => {
+  const stream = fsSync.createReadStream(filePath, { encoding: 'utf8' });
+  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  for await (const line of rl) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    onEntry(JSON.parse(trimmed));
+  }
+};
+
+const loadIndexPieces = (dir, modelId) => {
+  const sources = resolveChunkMetaSources(dir);
+  if (!sources) return null;
+  const denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
+  if (denseVec && !denseVec.model) denseVec.model = modelId || null;
+  return {
+    chunkMeta: null,
+    dir,
+    fileMeta: loadOptional(dir, 'file_meta.json'),
+    denseVec,
+    phraseNgrams: loadOptional(dir, 'phrase_ngrams.json'),
+    chargrams: loadOptional(dir, 'chargram_postings.json'),
+    minhash: loadOptional(dir, 'minhash_signatures.json'),
+    tokenPostings: null
+  };
+};
+
 export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), options = {}) {
   const emitOutput = options.emitOutput !== false;
   const exitOnError = options.exitOnError !== false;
@@ -44,7 +148,8 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
       mode: { type: 'string', default: 'all' },
       repo: { type: 'string' },
       incremental: { type: 'boolean', default: false },
-      compact: { type: 'boolean', default: false }
+      compact: { type: 'boolean', default: false },
+      validate: { type: 'string', default: 'smoke' }
     }
   }).parse();
   const bail = (message, code = 1) => {
@@ -56,7 +161,24 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
 
 const rootArg = options.root ? path.resolve(options.root) : (argv.repo ? path.resolve(argv.repo) : null);
 const root = rootArg || resolveRepoRoot(process.cwd());
+const envConfig = getEnvConfig();
 const userConfig = loadUserConfig(root);
+const validateMode = normalizeValidateMode(argv.validate);
+const threadLimits = resolveThreadLimits({
+  argv,
+  rawArgv: rawArgs,
+  envConfig,
+  configConcurrency: userConfig?.indexing?.concurrency,
+  importConcurrencyConfig: userConfig?.indexing?.importConcurrency
+});
+if (emitOutput && envConfig.verbose === true) {
+  console.log(
+    `[sqlite] Thread limits (${threadLimits.source}): ` +
+    `cpu=${threadLimits.cpuCount}, cap=${threadLimits.maxConcurrencyCap}, ` +
+    `files=${threadLimits.fileConcurrency}, imports=${threadLimits.importConcurrency}, ` +
+    `io=${threadLimits.ioConcurrency}, cpuWork=${threadLimits.cpuConcurrency}.`
+  );
+}
 const modelConfig = getModelConfig(root, userConfig);
 const vectorExtension = getVectorExtensionConfig(root, userConfig);
 const vectorAnnEnabled = vectorExtension.enabled;
@@ -109,21 +231,24 @@ if (modeArg === 'all') {
 
 const loadIndexSafe = (dir, label) => {
   try {
-    return { index: loadIndex(dir, modelConfig.id), tooLarge: false };
+    const index = loadIndex(dir, modelConfig.id);
+    if (index) return { index, tooLarge: false, pieces: null };
+    return { index: null, tooLarge: false, pieces: loadIndexPieces(dir, modelConfig.id) };
   } catch (err) {
     if (err?.code === 'ERR_JSON_TOO_LARGE') {
-      console.warn(`[sqlite] ${label} chunk_meta too large; will prefer incremental bundles if available.`);
-      return { index: null, tooLarge: true };
+      console.warn(`[sqlite] ${label} chunk_meta too large; will use pieces if available.`);
+      return { index: null, tooLarge: true, pieces: loadIndexPieces(dir, modelConfig.id) };
     }
     throw err;
   }
 };
 
-const { index: codeIndex, tooLarge: codeIndexTooLarge } = loadIndexSafe(codeDir, 'code');
-const { index: proseIndex, tooLarge: proseIndexTooLarge } = loadIndexSafe(proseDir, 'prose');
+const { index: codeIndex, pieces: codePieces } = loadIndexSafe(codeDir, 'code');
+const { index: proseIndex, pieces: prosePieces } = loadIndexSafe(proseDir, 'prose');
 const incrementalCode = loadIncrementalManifest(repoCacheRoot, 'code');
 const incrementalProse = loadIncrementalManifest(repoCacheRoot, 'prose');
-if (!codeIndex && !proseIndex && !incrementalCode?.manifest && !incrementalProse?.manifest) {
+if (!codeIndex && !codePieces && !proseIndex && !prosePieces
+  && !incrementalCode?.manifest && !incrementalProse?.manifest) {
   return bail('No index found. Build index-code/index-prose first.');
 }
 
@@ -138,10 +263,10 @@ if (sqlitePaths.legacyExists) {
 
 const canIncrementalCode = incrementalRequested && incrementalCode?.manifest;
 const canIncrementalProse = incrementalRequested && incrementalProse?.manifest;
-if (modeArg === 'code' && !codeIndex && !incrementalCode?.manifest) {
+if (modeArg === 'code' && !codeIndex && !codePieces && !incrementalCode?.manifest) {
   return bail('Code index missing; build index-code first.');
 }
-if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
+if (modeArg === 'prose' && !proseIndex && !prosePieces && !incrementalProse?.manifest) {
   return bail('Prose index missing; build index-prose first.');
 }
 
@@ -154,8 +279,15 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
  * @param {object|null} manifestFiles
  * @returns {number}
  */
-  function buildDatabase(outPath, index, mode, manifestFiles) {
+  async function buildDatabase(outPath, index, indexDir, mode, manifestFiles) {
     if (!index) return 0;
+    const manifestLookup = normalizeManifestFiles(manifestFiles || {});
+    if (emitOutput && manifestLookup.conflicts.length) {
+      console.warn(`[sqlite] Manifest path conflicts for ${mode}; using normalized entries.`);
+    }
+    const manifestByNormalized = manifestLookup.map;
+    const validationStats = { chunks: 0, dense: 0, minhash: 0 };
+
     const db = new Database(outPath);
     applyBuildPragmas(db);
 
@@ -221,14 +353,6 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
   const insertFileManifest = db.prepare(
     'INSERT OR REPLACE INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
   );
-  const fileMetaById = new Map();
-  if (Array.isArray(index?.fileMeta)) {
-    for (const entry of index.fileMeta) {
-      if (!entry || !Number.isFinite(entry.id)) continue;
-      fileMetaById.set(entry.id, entry);
-    }
-  }
-
   /**
    * Ingest token postings into SQLite.
    * @param {object} tokenIndex
@@ -270,6 +394,70 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
     insertLengthsTx();
 
     insertTokenStats.run(targetMode, avgDocLen, totalDocs);
+  }
+
+  /**
+   * Ingest token postings from sharded pieces when available.
+   * @param {'code'|'prose'} targetMode
+   * @param {string} indexDir
+   * @returns {boolean}
+   */
+  function ingestTokenIndexFromPieces(targetMode, indexDir) {
+    const directPath = path.join(indexDir, 'token_postings.json');
+    const directPathGz = `${directPath}.gz`;
+    const sources = resolveTokenPostingsSources(indexDir);
+    if (!sources && !fsSync.existsSync(directPath) && !fsSync.existsSync(directPathGz)) {
+      return false;
+    }
+    if (!sources) {
+      const tokenIndex = readJson(directPath);
+      ingestTokenIndex(tokenIndex, targetMode);
+      return true;
+    }
+    const meta = fsSync.existsSync(sources.metaPath) ? readJson(sources.metaPath) : {};
+    const docLengths = Array.isArray(meta?.docLengths)
+      ? meta.docLengths
+      : (Array.isArray(meta?.arrays?.docLengths) ? meta.arrays.docLengths : []);
+    const totalDocs = Number.isFinite(meta?.totalDocs) ? meta.totalDocs : docLengths.length;
+    const avgDocLen = Number.isFinite(meta?.avgDocLen)
+      ? meta.avgDocLen
+      : (Number.isFinite(meta?.fields?.avgDocLen) ? meta.fields.avgDocLen : (
+        docLengths.length
+          ? docLengths.reduce((sum, len) => sum + (Number.isFinite(len) ? len : 0), 0) / docLengths.length
+          : 0
+      ));
+    const insertLengthsTx = db.transaction(() => {
+      for (let docId = 0; docId < docLengths.length; docId++) {
+        insertDocLength.run(targetMode, docId, docLengths[docId]);
+      }
+    });
+    insertLengthsTx();
+    insertTokenStats.run(targetMode, avgDocLen, totalDocs);
+    let tokenId = 0;
+    for (const shardPath of sources.parts) {
+      const shard = readJson(shardPath);
+      const vocab = Array.isArray(shard?.vocab) ? shard.vocab : (Array.isArray(shard?.arrays?.vocab) ? shard.arrays.vocab : []);
+      const postings = Array.isArray(shard?.postings) ? shard.postings : (Array.isArray(shard?.arrays?.postings) ? shard.arrays.postings : []);
+      const insertVocabTx = db.transaction(() => {
+        for (let i = 0; i < vocab.length; i++) {
+          insertTokenVocab.run(targetMode, tokenId + i, vocab[i]);
+        }
+      });
+      insertVocabTx();
+      const insertPostingsTx = db.transaction(() => {
+        for (let i = 0; i < postings.length; i++) {
+          const posting = postings[i] || [];
+          const postingTokenId = tokenId + i;
+          for (const entry of posting) {
+            if (!entry) continue;
+            insertTokenPosting.run(targetMode, postingTokenId, entry[0], entry[1]);
+          }
+        }
+      });
+      insertPostingsTx();
+      tokenId += vocab.length;
+    }
+    return true;
   }
 
   /**
@@ -356,6 +544,7 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
         const sig = minhash.signatures[docId];
         if (!sig) continue;
         insertMinhash.run(targetMode, docId, packUint32(sig));
+        validationStats.minhash += 1;
       }
     });
     insertTx();
@@ -379,6 +568,7 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
         const vec = dense.vectors[docId];
         if (!vec) continue;
         insertDense.run(targetMode, docId, packUint8(vec));
+        validationStats.dense += 1;
         if (vectorAnn?.insert) {
           const floatVec = dequantizeUint8ToFloat32(vec);
           const encoded = encodeVector(floatVec, vectorExtension);
@@ -389,125 +579,197 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
     insertTx();
   }
 
+  const buildChunkRowWithMeta = (chunk, targetMode, fileMetaById) => {
+    const fileMeta = Number.isFinite(chunk.fileId)
+      ? fileMetaById.get(chunk.fileId)
+      : null;
+    const resolvedFile = normalizeFilePath(chunk.file || fileMeta?.file);
+    const resolvedExt = chunk.ext || fileMeta?.ext || null;
+    const resolvedExternalDocs = chunk.externalDocs || fileMeta?.externalDocs || null;
+    const resolvedLastModified = chunk.last_modified || fileMeta?.last_modified || null;
+    const resolvedLastAuthor = chunk.last_author || fileMeta?.last_author || null;
+    const resolvedChurn = typeof chunk.churn === 'number'
+      ? chunk.churn
+      : (typeof fileMeta?.churn === 'number' ? fileMeta.churn : null);
+    const resolvedChurnAdded = typeof chunk.churn_added === 'number'
+      ? chunk.churn_added
+      : (typeof fileMeta?.churn_added === 'number' ? fileMeta.churn_added : null);
+    const resolvedChurnDeleted = typeof chunk.churn_deleted === 'number'
+      ? chunk.churn_deleted
+      : (typeof fileMeta?.churn_deleted === 'number' ? fileMeta.churn_deleted : null);
+    const resolvedChurnCommits = typeof chunk.churn_commits === 'number'
+      ? chunk.churn_commits
+      : (typeof fileMeta?.churn_commits === 'number' ? fileMeta.churn_commits : null);
+    const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
+    const tokensText = tokensArray.join(' ');
+    const signatureText = typeof chunk.docmeta?.signature === 'string'
+      ? chunk.docmeta.signature
+      : (typeof chunk.signature === 'string' ? chunk.signature : null);
+    const docText = typeof chunk.docmeta?.doc === 'string' ? chunk.docmeta.doc : null;
+    return {
+      id: Number.isFinite(chunk.id) ? chunk.id : null,
+      mode: targetMode,
+      file: resolvedFile,
+      start: chunk.start,
+      end: chunk.end,
+      startLine: chunk.startLine || null,
+      endLine: chunk.endLine || null,
+      ext: resolvedExt,
+      kind: chunk.kind || null,
+      name: chunk.name || null,
+      signature: signatureText,
+      headline: chunk.headline || null,
+      doc: docText,
+      preContext: chunk.preContext ? JSON.stringify(chunk.preContext) : null,
+      postContext: chunk.postContext ? JSON.stringify(chunk.postContext) : null,
+      weight: typeof chunk.weight === 'number' ? chunk.weight : 1,
+      tokens: tokensArray.length ? JSON.stringify(tokensArray) : null,
+      tokensText,
+      ngrams: chunk.ngrams ? JSON.stringify(chunk.ngrams) : null,
+      codeRelations: chunk.codeRelations ? JSON.stringify(chunk.codeRelations) : null,
+      docmeta: chunk.docmeta ? JSON.stringify(chunk.docmeta) : null,
+      stats: chunk.stats ? JSON.stringify(chunk.stats) : null,
+      complexity: chunk.complexity ? JSON.stringify(chunk.complexity) : null,
+      lint: chunk.lint ? JSON.stringify(chunk.lint) : null,
+      externalDocs: resolvedExternalDocs ? JSON.stringify(resolvedExternalDocs) : null,
+      last_modified: resolvedLastModified,
+      last_author: resolvedLastAuthor,
+      churn: resolvedChurn,
+      churn_added: resolvedChurnAdded,
+      churn_deleted: resolvedChurnDeleted,
+      churn_commits: resolvedChurnCommits,
+      chunk_authors: chunk.chunk_authors ? JSON.stringify(chunk.chunk_authors) : null
+    };
+  };
+
+  const ingestChunkMetaPieces = async (targetMode, indexDir, fileMetaById) => {
+    const sources = resolveChunkMetaSources(indexDir);
+    if (!sources) return { count: 0, fileCounts: new Map() };
+    const fileCounts = new Map();
+    const rows = [];
+    const insert = db.transaction((batch) => {
+      for (const row of batch) {
+        insertChunk.run(row);
+        insertFts.run(row);
+      }
+    });
+    const flush = () => {
+      if (!rows.length) return;
+      insert(rows);
+      rows.length = 0;
+    };
+    let count = 0;
+    const handleChunk = (chunk) => {
+      if (!chunk) return;
+      if (!Number.isFinite(chunk.id)) {
+        chunk.id = count;
+      }
+      const row = buildChunkRowWithMeta(chunk, targetMode, fileMetaById);
+      if (row.file) {
+        fileCounts.set(row.file, (fileCounts.get(row.file) || 0) + 1);
+      }
+      rows.push(row);
+      count += 1;
+      if (rows.length >= 500) flush();
+    };
+    if (sources.format === 'json') {
+      const data = readJson(sources.paths[0]);
+      if (Array.isArray(data)) {
+        for (const chunk of data) handleChunk(chunk);
+      }
+    } else {
+      for (const chunkPath of sources.paths) {
+        await readJsonLinesFile(chunkPath, handleChunk);
+      }
+    }
+    flush();
+    return { count, fileCounts };
+  };
+
   /**
    * Ingest all index components for a mode.
    * @param {object} indexData
    * @param {'code'|'prose'} targetMode
    */
-  function ingestIndex(indexData, targetMode) {
-    if (!indexData) return 0;
-    const { chunkMeta } = indexData;
-    let count = 0;
-
-    const insert = db.transaction((rows) => {
-      for (const row of rows) {
-        insertChunk.run(row);
-        insertFts.run(row);
+  async function ingestIndex(indexData, targetMode, indexDir) {
+    if (!indexData && !indexDir) return 0;
+    const fileMetaById = new Map();
+    if (Array.isArray(indexData?.fileMeta)) {
+      for (const entry of indexData.fileMeta) {
+        if (!entry || !Number.isFinite(entry.id)) continue;
+        fileMetaById.set(entry.id, entry);
       }
-    });
-
-    const rows = [];
-    for (const chunk of chunkMeta) {
-      const fileMeta = Number.isFinite(chunk.fileId)
-        ? fileMetaById.get(chunk.fileId)
-        : null;
-      const resolvedFile = normalizeFilePath(chunk.file || fileMeta?.file);
-      const resolvedExt = chunk.ext || fileMeta?.ext || null;
-      const resolvedExternalDocs = chunk.externalDocs || fileMeta?.externalDocs || null;
-      const resolvedLastModified = chunk.last_modified || fileMeta?.last_modified || null;
-      const resolvedLastAuthor = chunk.last_author || fileMeta?.last_author || null;
-      const resolvedChurn = typeof chunk.churn === 'number' ? chunk.churn : (typeof fileMeta?.churn === 'number' ? fileMeta.churn : null);
-      const resolvedChurnAdded = typeof chunk.churn_added === 'number'
-        ? chunk.churn_added
-        : (typeof fileMeta?.churn_added === 'number' ? fileMeta.churn_added : null);
-      const resolvedChurnDeleted = typeof chunk.churn_deleted === 'number'
-        ? chunk.churn_deleted
-        : (typeof fileMeta?.churn_deleted === 'number' ? fileMeta.churn_deleted : null);
-      const resolvedChurnCommits = typeof chunk.churn_commits === 'number'
-        ? chunk.churn_commits
-        : (typeof fileMeta?.churn_commits === 'number' ? fileMeta.churn_commits : null);
-      const id = chunk.id;
-      const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
-      const tokensText = tokensArray.join(' ');
-      const signatureText = typeof chunk.docmeta?.signature === 'string'
-        ? chunk.docmeta.signature
-        : (typeof chunk.signature === 'string' ? chunk.signature : null);
-      const docText = typeof chunk.docmeta?.doc === 'string' ? chunk.docmeta.doc : null;
-      rows.push({
-        id,
-        mode: targetMode,
-        file: resolvedFile,
-        start: chunk.start,
-        end: chunk.end,
-        startLine: chunk.startLine || null,
-        endLine: chunk.endLine || null,
-        ext: resolvedExt,
-        kind: chunk.kind || null,
-        name: chunk.name || null,
-        signature: signatureText,
-        headline: chunk.headline || null,
-        doc: docText,
-        preContext: chunk.preContext ? JSON.stringify(chunk.preContext) : null,
-        postContext: chunk.postContext ? JSON.stringify(chunk.postContext) : null,
-        weight: typeof chunk.weight === 'number' ? chunk.weight : 1,
-        tokens: tokensArray.length ? JSON.stringify(tokensArray) : null,
-        tokensText,
-        ngrams: chunk.ngrams ? JSON.stringify(chunk.ngrams) : null,
-        codeRelations: chunk.codeRelations ? JSON.stringify(chunk.codeRelations) : null,
-        docmeta: chunk.docmeta ? JSON.stringify(chunk.docmeta) : null,
-        stats: chunk.stats ? JSON.stringify(chunk.stats) : null,
-        complexity: chunk.complexity ? JSON.stringify(chunk.complexity) : null,
-        lint: chunk.lint ? JSON.stringify(chunk.lint) : null,
-        externalDocs: resolvedExternalDocs ? JSON.stringify(resolvedExternalDocs) : null,
-        last_modified: resolvedLastModified,
-        last_author: resolvedLastAuthor,
-        churn: resolvedChurn,
-        churn_added: resolvedChurnAdded,
-        churn_deleted: resolvedChurnDeleted,
-        churn_commits: resolvedChurnCommits,
-        chunk_authors: chunk.chunk_authors ? JSON.stringify(chunk.chunk_authors) : null
+    }
+    let count = 0;
+    let fileCounts = new Map();
+    if (Array.isArray(indexData?.chunkMeta)) {
+      const insert = db.transaction((rows) => {
+        for (const row of rows) {
+          insertChunk.run(row);
+          insertFts.run(row);
+        }
       });
-      count++;
+      const rows = [];
+      for (let i = 0; i < indexData.chunkMeta.length; i++) {
+        const chunk = indexData.chunkMeta[i];
+        if (!chunk) continue;
+        if (!Number.isFinite(chunk.id)) {
+          chunk.id = i;
+        }
+        const row = buildChunkRowWithMeta(chunk, targetMode, fileMetaById);
+        rows.push(row);
+        if (row.file) {
+          fileCounts.set(row.file, (fileCounts.get(row.file) || 0) + 1);
+        }
+        count += 1;
+      }
+      insert(rows);
+    } else if (indexDir) {
+      const result = await ingestChunkMetaPieces(targetMode, indexDir, fileMetaById);
+      count = result.count;
+      fileCounts = result.fileCounts;
     }
 
-    insert(rows);
-    if (indexData.tokenPostings) {
+    let tokenIngested = false;
+    if (indexData?.tokenPostings) {
       ingestTokenIndex(indexData.tokenPostings, targetMode);
-    } else {
-      console.warn(`[sqlite] token_postings.json missing; rebuilding tokens for ${targetMode}.`);
-      ingestTokenIndexFromChunks(chunkMeta, targetMode);
+      tokenIngested = true;
     }
-    ingestPostingIndex(indexData.phraseNgrams, targetMode, insertPhraseVocab, insertPhrasePosting);
-    ingestPostingIndex(indexData.chargrams, targetMode, insertChargramVocab, insertChargramPosting);
-    ingestMinhash(indexData.minhash, targetMode);
-    ingestDense(indexData.denseVec, targetMode);
+    if (!tokenIngested && indexDir) {
+      tokenIngested = ingestTokenIndexFromPieces(targetMode, indexDir);
+    }
+    if (!tokenIngested) {
+      console.warn(`[sqlite] token_postings missing; rebuilding tokens for ${targetMode}.`);
+      if (Array.isArray(indexData?.chunkMeta)) {
+        ingestTokenIndexFromChunks(indexData.chunkMeta, targetMode);
+      } else {
+        console.warn(`[sqlite] chunk_meta unavailable for token rebuild (${targetMode}).`);
+      }
+    }
+
+    ingestPostingIndex(indexData?.phraseNgrams, targetMode, insertPhraseVocab, insertPhrasePosting);
+    ingestPostingIndex(indexData?.chargrams, targetMode, insertChargramVocab, insertChargramPosting);
+    ingestMinhash(indexData?.minhash, targetMode);
+    ingestDense(indexData?.denseVec, targetMode);
+    ingestFileManifest(fileCounts, targetMode);
 
     return count;
   }
 
   /**
    * Ingest file manifest metadata if available.
-   * @param {object} indexData
+   * @param {Map<string,number>} fileCounts
    * @param {'code'|'prose'} targetMode
    */
-  function ingestFileManifest(indexData, targetMode) {
-    if (!indexData?.chunkMeta) return;
-    const fileCounts = new Map();
-    for (const chunk of indexData.chunkMeta) {
-      const fileMeta = Number.isFinite(chunk?.fileId)
-        ? fileMetaById.get(chunk.fileId)
-        : null;
-      const sourceFile = chunk?.file || fileMeta?.file;
-      if (!sourceFile) continue;
-      const normalizedFile = normalizeFilePath(sourceFile);
-      fileCounts.set(normalizedFile, (fileCounts.get(normalizedFile) || 0) + 1);
-    }
+  function ingestFileManifest(fileCounts, targetMode) {
+    if (!fileCounts || !fileCounts.size) return;
     const insertTx = db.transaction(() => {
       for (const [file, count] of fileCounts.entries()) {
-        const entry = manifestFiles && manifestFiles[file] ? manifestFiles[file] : null;
+        const normalizedFile = normalizeFilePath(file);
+        const entry = manifestByNormalized.get(normalizedFile)?.entry || null;
         insertFileManifest.run(
           targetMode,
-          file,
+          normalizedFile,
           entry?.hash || null,
           Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
           Number.isFinite(entry?.size) ? entry.size : null,
@@ -518,9 +780,14 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
     insertTx();
   }
 
-      count = ingestIndex(index, mode);
-      ingestFileManifest(index, mode);
+      count = await ingestIndex(index, mode, indexDir);
+      validationStats.chunks = count;
       db.exec(CREATE_INDEXES_SQL);
+      validateSqliteDatabase(db, mode, {
+        validateMode,
+        expected: validationStats,
+        emitOutput
+      });
       succeeded = true;
     } finally {
       restoreBuildPragmas(db);
@@ -541,14 +808,42 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
  * @param {object|null} incrementalData
  * @returns {{count:number,reason?:string}}
  */
-  function buildDatabaseFromBundles(outPath, mode, incrementalData) {
+  async function buildDatabaseFromBundles(outPath, mode, incrementalData) {
     if (!incrementalData?.manifest) {
       return { count: 0, reason: 'missing incremental manifest' };
     }
   const manifestFiles = incrementalData.manifest.files || {};
-  const manifestKeys = Object.keys(manifestFiles);
-  if (!manifestKeys.length) {
+  const manifestLookup = normalizeManifestFiles(manifestFiles);
+  const manifestEntries = manifestLookup.entries;
+  if (!manifestEntries.length) {
     return { count: 0, reason: 'incremental manifest empty' };
+  }
+  if (emitOutput && manifestLookup.conflicts.length) {
+    console.warn(`[sqlite] Manifest path conflicts for ${mode}; using normalized entries.`);
+  }
+  const totalFiles = manifestEntries.length;
+  let processedFiles = 0;
+  let lastProgressLog = 0;
+  const progressIntervalMs = 1000;
+  const envBundleThreads = Number(envConfig.bundleThreads);
+  const bundleThreads = Number.isFinite(envBundleThreads) && envBundleThreads > 0
+    ? Math.floor(envBundleThreads)
+    : Math.max(1, Math.floor(threadLimits.fileConcurrency));
+  const useBundleWorkers = bundleThreads > 1;
+  const logBundleProgress = (file, force = false) => {
+    if (!emitOutput) return;
+    const now = Date.now();
+    if (!force && now - lastProgressLog < progressIntervalMs) return;
+    lastProgressLog = now;
+    const percent = ((processedFiles / totalFiles) * 100).toFixed(1);
+    const suffix = file ? ` | ${file}` : '';
+    console.log(`[sqlite] bundles ${processedFiles}/${totalFiles} (${percent}%)${suffix}`);
+  };
+  if (emitOutput) {
+    console.log(`[sqlite] Using incremental bundles for ${mode} (${totalFiles} files).`);
+    if (useBundleWorkers) {
+      console.log(`[sqlite] Bundle parser workers: ${bundleThreads}.`);
+    }
   }
 
     const db = new Database(outPath);
@@ -624,10 +919,11 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
   let nextDocId = 0;
   let totalDocs = 0;
   let totalLen = 0;
+  const validationStats = { chunks: 0, dense: 0, minhash: 0 };
 
   const fileCounts = new Map();
-  for (const file of manifestKeys) {
-    fileCounts.set(normalizeFilePath(file), 0);
+  for (const record of manifestEntries) {
+    fileCounts.set(record.normalized, 0);
   }
 
   let denseMetaSet = false;
@@ -709,6 +1005,7 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
 
       if (Array.isArray(chunk.minhashSig) && chunk.minhashSig.length) {
         insertMinhash.run(mode, docId, packUint32(chunk.minhashSig));
+        validationStats.minhash += 1;
       }
 
       if (Array.isArray(chunk.embedding) && chunk.embedding.length) {
@@ -719,6 +1016,7 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
           denseDims = dims;
         }
         insertDense.run(mode, docId, packUint8(quantizeVec(chunk.embedding)));
+        validationStats.dense += 1;
         if (vectorAnnLoaded) {
           if (!vectorAnnReady) {
             const created = ensureVectorTable(db, vectorExtension, dims);
@@ -745,35 +1043,77 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
   });
 
   let count = 0;
-  for (const file of manifestKeys) {
-    const entry = manifestFiles[file];
-    const bundleName = entry?.bundle;
-    if (!bundleName) {
-      console.warn(`[sqlite] Missing bundle entry for ${file}; skipping.`);
-      continue;
+  let pool = null;
+  if (useBundleWorkers) {
+    pool = new Piscina({
+      filename: fileURLToPath(new URL('./workers/bundle-reader.js', import.meta.url)),
+      maxThreads: bundleThreads
+    });
+  }
+  const batchSize = useBundleWorkers
+    ? Math.max(1, Math.min(totalFiles, Math.max(1, bundleThreads * 2)))
+    : 1;
+  try {
+    for (let i = 0; i < manifestEntries.length; i += batchSize) {
+      const batch = manifestEntries.slice(i, i + batchSize);
+      const tasks = batch.map(async (record) => {
+        const file = record.file;
+        const entry = record.entry;
+        const bundleName = entry?.bundle;
+        if (!bundleName) {
+          return { file, ok: false, reason: 'missing bundle entry' };
+        }
+        const bundlePath = path.join(incrementalData.bundleDir, bundleName);
+        if (!fsSync.existsSync(bundlePath)) {
+          return { file, ok: false, reason: 'bundle file missing' };
+        }
+        try {
+          if (pool) {
+            const result = await pool.run({ bundlePath });
+            if (!result?.ok) {
+              return { file, ok: false, reason: result?.reason || 'invalid bundle' };
+            }
+            return { file, ok: true, bundle: result.bundle };
+          }
+          const bundle = readJson(bundlePath);
+          if (!bundle || !Array.isArray(bundle.chunks)) {
+            return { file, ok: false, reason: 'invalid bundle' };
+          }
+          return { file, ok: true, bundle };
+        } catch (err) {
+          return { file, ok: false, reason: err?.message || String(err) };
+        }
+      });
+      const results = await Promise.all(tasks);
+      for (const result of results) {
+        if (!result.ok) {
+          console.warn(`[sqlite] ${result.reason} for ${result.file}; skipping.`);
+          processedFiles += 1;
+          logBundleProgress(result.file, processedFiles === totalFiles);
+          continue;
+        }
+        insertBundle(result.bundle, result.file);
+        count += result.bundle.chunks.length;
+        processedFiles += 1;
+        logBundleProgress(result.file, processedFiles === totalFiles);
+      }
     }
-    const bundlePath = path.join(incrementalData.bundleDir, bundleName);
-    if (!fsSync.existsSync(bundlePath)) {
-      console.warn(`[sqlite] Missing bundle file for ${file}; skipping.`);
-      continue;
+  } finally {
+    if (pool) {
+      await pool.destroy();
     }
-    const bundle = readJson(bundlePath);
-    if (!bundle || !Array.isArray(bundle.chunks)) {
-      console.warn(`[sqlite] Invalid bundle for ${file}; skipping.`);
-      continue;
-    }
-    insertBundle(bundle, file);
-    count += bundle.chunks.length;
   }
 
+  validationStats.chunks = count;
   insertTokenStats.run(mode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
 
   const insertManifestTx = db.transaction(() => {
     for (const [file, chunkCount] of fileCounts.entries()) {
-      const entry = manifestFiles[file] || manifestFiles[file.replace(/\\/g, '/')];
+      const normalizedFile = normalizeFilePath(file);
+      const entry = manifestLookup.map.get(normalizedFile)?.entry || null;
       insertFileManifest.run(
         mode,
-        normalizeFilePath(file),
+        normalizedFile,
         entry?.hash || null,
         Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
         Number.isFinite(entry?.size) ? entry.size : null,
@@ -783,9 +1123,14 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
   });
   insertManifestTx();
 
-    return { count };
       db.exec(CREATE_INDEXES_SQL);
+      validateSqliteDatabase(db, mode, {
+        validateMode,
+        expected: validationStats,
+        emitOutput
+      });
       succeeded = true;
+      return { count };
     } finally {
       restoreBuildPragmas(db);
       db.close();
@@ -812,6 +1157,78 @@ function getSchemaVersion(db) {
 }
 
 /**
+ * Validate a SQLite index after build/update.
+ * @param {import('better-sqlite3').Database} db
+ * @param {'code'|'prose'} mode
+ * @param {{validateMode?:string,expected?:{chunks?:number,dense?:number,minhash?:number},emitOutput?:boolean}} options
+ */
+function validateSqliteDatabase(db, mode, options = {}) {
+  const validateMode = options.validateMode || 'off';
+  if (validateMode === 'off') return;
+
+  const errors = [];
+  if (!hasRequiredTables(db, REQUIRED_TABLES)) {
+    errors.push('missing required tables');
+  }
+
+  const pragmaName = validateMode === 'full' ? 'integrity_check' : 'quick_check';
+  try {
+    const rows = db.prepare(`PRAGMA ${pragmaName}`).all();
+    const messages = [];
+    for (const row of rows) {
+      for (const value of Object.values(row)) {
+        if (value !== 'ok') messages.push(value);
+      }
+    }
+    if (messages.length) {
+      errors.push(`${pragmaName} failed: ${messages.join('; ')}`);
+    }
+  } catch (err) {
+    errors.push(`${pragmaName} failed: ${err?.message || err}`);
+  }
+
+  const expected = options.expected || {};
+  const expectedChunks = Number.isFinite(expected.chunks) ? expected.chunks : null;
+  if (expectedChunks !== null) {
+    const chunkCount = db.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode = ?').get(mode)?.total ?? 0;
+    if (chunkCount !== expectedChunks) {
+      errors.push(`chunks=${chunkCount} expected=${expectedChunks}`);
+    }
+    const ftsCount = db.prepare('SELECT COUNT(*) AS total FROM chunks_fts WHERE mode = ?').get(mode)?.total ?? 0;
+    if (ftsCount !== expectedChunks) {
+      errors.push(`chunks_fts=${ftsCount} expected=${expectedChunks}`);
+    }
+    const lengthCount = db.prepare('SELECT COUNT(*) AS total FROM doc_lengths WHERE mode = ?').get(mode)?.total ?? 0;
+    if (lengthCount !== expectedChunks) {
+      errors.push(`doc_lengths=${lengthCount} expected=${expectedChunks}`);
+    }
+  }
+
+  const expectedDense = Number.isFinite(expected.dense) ? expected.dense : null;
+  if (expectedDense !== null) {
+    const denseCount = db.prepare('SELECT COUNT(*) AS total FROM dense_vectors WHERE mode = ?').get(mode)?.total ?? 0;
+    if (denseCount !== expectedDense) {
+      errors.push(`dense_vectors=${denseCount} expected=${expectedDense}`);
+    }
+  }
+
+  const expectedMinhash = Number.isFinite(expected.minhash) ? expected.minhash : null;
+  if (expectedMinhash !== null) {
+    const minhashCount = db.prepare('SELECT COUNT(*) AS total FROM minhash_signatures WHERE mode = ?').get(mode)?.total ?? 0;
+    if (minhashCount !== expectedMinhash) {
+      errors.push(`minhash_signatures=${minhashCount} expected=${expectedMinhash}`);
+    }
+  }
+
+  if (errors.length) {
+    throw new Error(`[sqlite] Validation (${validateMode}) failed for ${mode}: ${errors.join(', ')}`);
+  }
+  if (options.emitOutput) {
+    console.log(`[sqlite] Validation (${validateMode}) ok for ${mode}.`);
+  }
+}
+
+/**
  * Load file manifest entries from SQLite.
  * @param {import('better-sqlite3').Database} db
  * @param {'code'|'prose'} mode
@@ -821,7 +1238,7 @@ function getFileManifest(db, mode) {
   const rows = db.prepare('SELECT file, hash, mtimeMs, size FROM file_manifest WHERE mode = ?').all(mode);
   const map = new Map();
   for (const row of rows) {
-    map.set(row.file, row);
+    map.set(normalizeFilePath(row.file), row);
   }
   return map;
 }
@@ -845,22 +1262,57 @@ function isManifestMatch(entry, dbEntry) {
 }
 
 /**
- * Diff file manifests into added/changed/deleted sets.
+ * Normalize manifest entries for consistent lookups.
  * @param {object} manifestFiles
- * @param {object} dbFiles
- * @returns {{added:string[],changed:string[],deleted:string[]}}
+ * @returns {{entries:Array<{file:string,normalized:string,entry:object}>,map:Map<string,{file:string,normalized:string,entry:object}>,conflicts:string[]}}
  */
-function diffFileManifests(manifestFiles, dbFiles) {
+function normalizeManifestFiles(manifestFiles) {
+  const entries = [];
+  const map = new Map();
+  const conflicts = [];
+  for (const [file, entry] of Object.entries(manifestFiles || {})) {
+    const normalized = normalizeFilePath(file);
+    const record = { file, normalized, entry };
+    const existing = map.get(normalized);
+    if (!existing) {
+      map.set(normalized, record);
+      continue;
+    }
+    if (isManifestMatch(entry, existing.entry)) {
+      if (!existing.entry?.hash && entry?.hash) {
+        map.set(normalized, record);
+      }
+      continue;
+    }
+    const score = (candidate) => (candidate?.hash ? 3 : 0)
+      + (Number.isFinite(candidate?.mtimeMs) ? 1 : 0)
+      + (Number.isFinite(candidate?.size) ? 1 : 0);
+    if (score(entry) > score(existing.entry)) {
+      map.set(normalized, record);
+    }
+    conflicts.push(normalized);
+  }
+  entries.push(...map.values());
+  return { entries, map, conflicts };
+}
+
+/**
+ * Diff file manifests into added/changed/deleted sets.
+ * @param {Array<{file:string,normalized:string,entry:object}>} manifestEntries
+ * @param {object} dbFiles
+ * @returns {{changed:Array<{file:string,normalized:string,entry:object}>,deleted:string[]}}
+ */
+function diffFileManifests(manifestEntries, dbFiles) {
   const changed = [];
   const deleted = [];
-  const manifestKeys = Object.keys(manifestFiles || {});
-  const manifestSet = new Set(manifestKeys);
+  const manifestSet = new Set();
 
-  for (const file of manifestKeys) {
-    const entry = manifestFiles[file];
-    const dbEntry = dbFiles.get(file);
-    if (!isManifestMatch(entry, dbEntry)) {
-      changed.push(file);
+  for (const record of manifestEntries || []) {
+    if (!record?.normalized) continue;
+    manifestSet.add(record.normalized);
+    const dbEntry = dbFiles.get(record.normalized);
+    if (!isManifestMatch(record.entry, dbEntry)) {
+      changed.push(record);
     }
   }
 
@@ -881,6 +1333,11 @@ function diffFileManifests(manifestFiles, dbFiles) {
  * @param {string[]} values
  * @returns {Array<{id:number,value:string}>}
  */
+function getVocabCount(db, mode, table) {
+  const row = db.prepare(`SELECT COUNT(*) AS total FROM ${table} WHERE mode = ?`).get(mode) || {};
+  return Number.isFinite(row.total) ? row.total : 0;
+}
+
 function fetchVocabRows(db, mode, table, idColumn, valueColumn, values) {
   const unique = Array.from(new Set(values.filter(Boolean)));
   if (!unique.length) return [];
@@ -906,13 +1363,34 @@ function fetchVocabRows(db, mode, table, idColumn, valueColumn, values) {
  * @param {import('better-sqlite3').Statement} insertStmt
  * @returns {Map<string,number>}
  */
-function ensureVocabIds(db, mode, table, idColumn, valueColumn, values, insertStmt) {
+function ensureVocabIds(db, mode, table, idColumn, valueColumn, values, insertStmt, options = {}) {
   const unique = Array.from(new Set(values.filter(Boolean)));
-  if (!unique.length) return new Map();
+  const totalBefore = getVocabCount(db, mode, table);
+  if (!unique.length) {
+    return { map: new Map(), inserted: 0, total: totalBefore, skip: false };
+  }
   const existing = fetchVocabRows(db, mode, table, idColumn, valueColumn, unique);
   const map = new Map(existing.map((row) => [row.value, row.id]));
   const missing = unique.filter((value) => !map.has(value));
-  if (!missing.length) return map;
+  if (!missing.length) {
+    return { map, inserted: 0, total: totalBefore, skip: false };
+  }
+
+  const limits = options?.limits || null;
+  if (limits && totalBefore > 0) {
+    const ratio = missing.length / totalBefore;
+    const ratioLimit = Number.isFinite(limits.ratio) ? limits.ratio : null;
+    const absLimit = Number.isFinite(limits.absolute) ? limits.absolute : null;
+    if ((ratioLimit !== null && ratio > ratioLimit) || (absLimit !== null && missing.length > absLimit)) {
+      return {
+        map,
+        inserted: 0,
+        total: totalBefore,
+        skip: true,
+        reason: `${table} growth ${missing.length}/${totalBefore}`
+      };
+    }
+  }
 
   missing.sort();
   const maxRow = db.prepare(`SELECT MAX(${idColumn}) AS maxId FROM ${table} WHERE mode = ?`).get(mode);
@@ -926,7 +1404,7 @@ function ensureVocabIds(db, mode, table, idColumn, valueColumn, values, insertSt
   });
   insertTx();
 
-  return map;
+  return { map, inserted: missing.length, total: totalBefore + missing.length, skip: false };
 }
 
 /**
@@ -1059,39 +1537,71 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
   }
 
   const manifestFiles = incrementalData.manifest.files || {};
+  const manifestLookup = normalizeManifestFiles(manifestFiles);
+  if (!manifestLookup.entries.length) {
+    db.close();
+    return { used: false, reason: 'incremental manifest empty' };
+  }
+  if (manifestLookup.conflicts.length) {
+    db.close();
+    return { used: false, reason: 'manifest path conflicts' };
+  }
+
   const dbFiles = getFileManifest(db, mode);
-  const { changed, deleted } = diffFileManifests(manifestFiles, dbFiles);
+  if (!dbFiles.size) {
+    const chunkRow = db.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode = ?').get(mode) || {};
+    if (Number.isFinite(chunkRow.total) && chunkRow.total > 0) {
+      db.close();
+      return { used: false, reason: 'file manifest empty' };
+    }
+  }
+
+  const { changed, deleted } = diffFileManifests(manifestLookup.entries, dbFiles);
+  const totalFiles = manifestLookup.entries.length;
+  if (totalFiles) {
+    const changeRatio = (changed.length + deleted.length) / totalFiles;
+    if (changeRatio > MAX_INCREMENTAL_CHANGE_RATIO) {
+      db.close();
+      return {
+        used: false,
+        reason: `change ratio ${changeRatio.toFixed(2)} exceeds ${MAX_INCREMENTAL_CHANGE_RATIO}`
+      };
+    }
+  }
   if (!changed.length && !deleted.length) {
     db.close();
     return { used: true, changedFiles: 0, deletedFiles: 0, insertedChunks: 0 };
   }
 
   const bundles = new Map();
-  for (const file of changed) {
-    const entry = manifestFiles[file];
+  for (const record of changed) {
+    const fileKey = record.file;
+    const normalizedFile = record.normalized;
+    const entry = record.entry;
     const bundleName = entry?.bundle;
     if (!bundleName) {
       db.close();
-      return { used: false, reason: `missing bundle for ${file}` };
+      return { used: false, reason: `missing bundle for ${fileKey}` };
     }
     const bundlePath = path.join(incrementalData.bundleDir, bundleName);
     if (!fsSync.existsSync(bundlePath)) {
       db.close();
-      return { used: false, reason: `bundle missing for ${file}` };
+      return { used: false, reason: `bundle missing for ${fileKey}` };
     }
     const bundle = readJson(bundlePath);
     if (!bundle || !Array.isArray(bundle.chunks)) {
       db.close();
-      return { used: false, reason: `invalid bundle for ${file}` };
+      return { used: false, reason: `invalid bundle for ${fileKey}` };
     }
-    bundles.set(file, bundle);
+    bundles.set(normalizedFile, { bundle, entry, fileKey, normalizedFile });
   }
 
   const tokenValues = [];
   const phraseValues = [];
   const chargramValues = [];
   const incomingDimsSet = new Set();
-  for (const bundle of bundles.values()) {
+  for (const bundleEntry of bundles.values()) {
+    const bundle = bundleEntry.bundle;
     for (const chunk of bundle.chunks || []) {
       const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
       if (tokensArray.length) tokenValues.push(...tokensArray);
@@ -1172,9 +1682,52 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
     'INSERT OR REPLACE INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
   );
 
-  const tokenIdMap = ensureVocabIds(db, mode, 'token_vocab', 'token_id', 'token', tokenValues, insertTokenVocab);
-  const phraseIdMap = ensureVocabIds(db, mode, 'phrase_vocab', 'phrase_id', 'ngram', phraseValues, insertPhraseVocab);
-  const chargramIdMap = ensureVocabIds(db, mode, 'chargram_vocab', 'gram_id', 'gram', chargramValues, insertChargramVocab);
+  const tokenVocab = ensureVocabIds(
+    db,
+    mode,
+    'token_vocab',
+    'token_id',
+    'token',
+    tokenValues,
+    insertTokenVocab,
+    { limits: VOCAB_GROWTH_LIMITS.token_vocab }
+  );
+  if (tokenVocab.skip) {
+    db.close();
+    return { used: false, reason: tokenVocab.reason || 'token vocab growth too large' };
+  }
+  const phraseVocab = ensureVocabIds(
+    db,
+    mode,
+    'phrase_vocab',
+    'phrase_id',
+    'ngram',
+    phraseValues,
+    insertPhraseVocab,
+    { limits: VOCAB_GROWTH_LIMITS.phrase_vocab }
+  );
+  if (phraseVocab.skip) {
+    db.close();
+    return { used: false, reason: phraseVocab.reason || 'phrase vocab growth too large' };
+  }
+  const chargramVocab = ensureVocabIds(
+    db,
+    mode,
+    'chargram_vocab',
+    'gram_id',
+    'gram',
+    chargramValues,
+    insertChargramVocab,
+    { limits: VOCAB_GROWTH_LIMITS.chargram_vocab }
+  );
+  if (chargramVocab.skip) {
+    db.close();
+    return { used: false, reason: chargramVocab.reason || 'chargram vocab growth too large' };
+  }
+
+  const tokenIdMap = tokenVocab.map;
+  const phraseIdMap = phraseVocab.map;
+  const chargramIdMap = chargramVocab.map;
 
   const existingIdsByFile = new Map();
   const freeDocIds = [];
@@ -1182,15 +1735,15 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
     const normalizedFile = normalizeFilePath(file);
     const docRows = db.prepare('SELECT id FROM chunks WHERE mode = ? AND file = ? ORDER BY id').all(mode, normalizedFile);
     const ids = docRows.map((row) => row.id).filter((id) => Number.isFinite(id));
-    existingIdsByFile.set(file, { normalizedFile, ids });
+    existingIdsByFile.set(normalizedFile, { normalizedFile, ids });
     return ids;
   };
   for (const file of deleted) {
     const ids = loadDocIds(file);
     if (ids.length) freeDocIds.push(...ids);
   }
-  for (const file of changed) {
-    loadDocIds(file);
+  for (const record of changed) {
+    loadDocIds(record.normalized);
   }
 
   const maxRow = db.prepare('SELECT MAX(id) AS maxId FROM chunks WHERE mode = ?').get(mode);
@@ -1236,24 +1789,25 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
 
   const applyChanges = db.transaction(() => {
     for (const file of deleted) {
-      const entry = existingIdsByFile.get(file);
-      const normalizedFile = entry?.normalizedFile || normalizeFilePath(file);
+      const normalizedFile = normalizeFilePath(file);
+      const entry = existingIdsByFile.get(normalizedFile);
       const docIds = entry?.ids || [];
       deleteDocIds(db, mode, docIds, vectorDeleteTargets);
       db.prepare('DELETE FROM file_manifest WHERE mode = ? AND file = ?').run(mode, normalizedFile);
     }
 
-    for (const file of changed) {
-      const entry = existingIdsByFile.get(file);
-      const normalizedFile = entry?.normalizedFile || normalizeFilePath(file);
+    for (const record of changed) {
+      const normalizedFile = record.normalized;
+      const entry = existingIdsByFile.get(normalizedFile);
       const reuseIds = entry?.ids || [];
       const docIds = reuseIds;
       let reuseIndex = 0;
       deleteDocIds(db, mode, docIds, vectorDeleteTargets);
 
-      const bundle = bundles.get(file);
+      const bundleEntry = bundles.get(normalizedFile);
+      const bundle = bundleEntry?.bundle;
       let chunkCount = 0;
-      for (const chunk of bundle.chunks || []) {
+      for (const chunk of bundle?.chunks || []) {
         let docId;
         if (reuseIndex < reuseIds.length) {
           docId = reuseIds[reuseIndex];
@@ -1264,7 +1818,11 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
           docId = nextDocId;
           nextDocId += 1;
         }
-        const row = buildChunkRow(chunk, mode, docId);
+        const row = buildChunkRow(
+          { ...chunk, file: chunk.file || normalizedFile },
+          mode,
+          docId
+        );
         insertChunk.run(row);
         insertFts.run(row);
 
@@ -1336,7 +1894,7 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
         freeDocIds.push(...reuseIds.slice(reuseIndex));
       }
 
-      const manifestEntry = manifestFiles[file] || {};
+      const manifestEntry = record.entry || bundleEntry?.entry || {};
       insertFileManifest.run(
         mode,
         normalizedFile,
@@ -1351,6 +1909,7 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
   });
 
   applyChanges();
+  validateSqliteDatabase(db, mode, { validateMode, emitOutput });
   db.close();
   return {
     used: true,
@@ -1368,7 +1927,7 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
  * @param {object|null} incrementalData
  * @returns {{count?:number,incremental:boolean,changedFiles?:number,deletedFiles?:number,insertedChunks?:number}}
  */
-async function runMode(mode, index, targetPath, incrementalData) {
+async function runMode(mode, index, indexDir, targetPath, incrementalData) {
   const hasBundles = incrementalData?.manifest?.files
     ? Object.keys(incrementalData.manifest.files).length > 0
     : false;
@@ -1399,7 +1958,7 @@ async function runMode(mode, index, targetPath, incrementalData) {
   }
   if (hasBundles) {
     console.log(`[sqlite] Using incremental bundles for ${mode} full rebuild.`);
-    const bundleResult = buildDatabaseFromBundles(targetPath, mode, incrementalData);
+    const bundleResult = await buildDatabaseFromBundles(targetPath, mode, incrementalData);
     if (bundleResult.count) {
       return { count: bundleResult.count, incremental: false, changedFiles: null, deletedFiles: null, insertedChunks: bundleResult.count };
     }
@@ -1407,18 +1966,20 @@ async function runMode(mode, index, targetPath, incrementalData) {
       console.warn(`[sqlite] Bundle build skipped (${bundleResult.reason}); falling back to file-backed artifacts.`);
     }
   }
-  const count = buildDatabase(targetPath, index, mode, incrementalData?.manifest?.files);
+  const count = await buildDatabase(targetPath, index, indexDir, mode, incrementalData?.manifest?.files);
   return { count, incremental: false, changedFiles: null, deletedFiles: null, insertedChunks: count };
 }
 
 const results = {};
 if (modeArg === 'all' || modeArg === 'code') {
   const targetPath = modeArg === 'all' ? codeOutPath : outPath;
-  results.code = await runMode('code', codeIndex, targetPath, incrementalCode);
+  const codeInput = codeIndex || codePieces;
+  results.code = await runMode('code', codeInput, codeDir, targetPath, incrementalCode);
 }
 if (modeArg === 'all' || modeArg === 'prose') {
   const targetPath = modeArg === 'all' ? proseOutPath : outPath;
-  results.prose = await runMode('prose', proseIndex, targetPath, incrementalProse);
+  const proseInput = proseIndex || prosePieces;
+  results.prose = await runMode('prose', proseInput, proseDir, targetPath, incrementalProse);
 }
 
 if (modeArg === 'all') {

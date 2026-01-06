@@ -6,10 +6,13 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../src/shared/cache.js';
+import { isPlainObject, mergeConfig } from '../src/shared/config.js';
+import { getEnvConfig } from '../src/shared/env.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROFILES_DIR = path.resolve(__dirname, '..', 'profiles');
 const profileWarnings = new Set();
+const deprecationWarnings = new Set();
 const DEFAULT_DP_MAX_BY_FILE_COUNT = [
   { maxFiles: 5000, dpMaxTokenLength: 32 },
   { maxFiles: 20000, dpMaxTokenLength: 24 },
@@ -44,32 +47,82 @@ export function loadUserConfig(repoRoot, options = {}) {
   try {
     const configPath = path.join(repoRoot, '.pairofcleats.json');
     if (!fs.existsSync(configPath)) {
-      return applyProfileConfig({}, options.profile);
+      return normalizeUserConfig(applyProfileConfig({}, options.profile), repoRoot);
     }
     const base = JSON.parse(fs.readFileSync(configPath, 'utf8')) || {};
-    return applyProfileConfig(base, options.profile);
+    return normalizeUserConfig(applyProfileConfig(base, options.profile), repoRoot);
   } catch {
     return {};
   }
 }
 
-function isPlainObject(value) {
-  return value && typeof value === 'object' && !Array.isArray(value);
+
+function warnDeprecatedConfig(key, replacement, detail = '') {
+  const note = replacement ? `Use ${replacement} instead.` : 'Remove this key.';
+  const message = `[config] Deprecated ${key}. ${note}${detail ? ` ${detail}` : ''}`;
+  if (deprecationWarnings.has(message)) return;
+  deprecationWarnings.add(message);
+  console.error(message);
 }
 
-function mergeConfig(base, overrides) {
-  if (!isPlainObject(base)) return overrides;
-  if (!isPlainObject(overrides)) return base;
-  const next = { ...base };
-  for (const [key, value] of Object.entries(overrides)) {
-    if (isPlainObject(value) && isPlainObject(next[key])) {
-      next[key] = mergeConfig(next[key], value);
-    } else {
-      next[key] = value;
+function normalizeUserConfig(baseConfig, repoRoot) {
+  if (!isPlainObject(baseConfig)) return baseConfig || {};
+
+  const cfg = baseConfig;
+  const sqlite = isPlainObject(cfg.sqlite) ? cfg.sqlite : null;
+  if (sqlite?.dbPath) {
+    warnDeprecatedConfig('sqlite.dbPath', 'sqlite.dbDir or sqlite.codeDbPath/sqlite.proseDbPath', 'Single DB paths are legacy.');
+    if (!sqlite.dbDir && !sqlite.codeDbPath && !sqlite.proseDbPath) {
+      const resolved = path.isAbsolute(sqlite.dbPath)
+        ? sqlite.dbPath
+        : path.join(repoRoot, sqlite.dbPath);
+      sqlite.dbDir = path.dirname(resolved);
     }
   }
-  return next;
+  if (sqlite?.annMode) {
+    warnDeprecatedConfig('sqlite.annMode', 'sqlite.vectorExtension.annMode');
+    if (!sqlite.vectorExtension || !isPlainObject(sqlite.vectorExtension)) {
+      sqlite.vectorExtension = {};
+    }
+    if (!sqlite.vectorExtension.annMode) {
+      sqlite.vectorExtension.annMode = sqlite.annMode;
+    }
+  }
+
+  const indexing = isPlainObject(cfg.indexing) ? cfg.indexing : null;
+  const fileCaps = indexing && isPlainObject(indexing.fileCaps) ? indexing.fileCaps : null;
+  if (fileCaps?.defaults && !fileCaps.default) {
+    warnDeprecatedConfig('indexing.fileCaps.defaults', 'indexing.fileCaps.default');
+    fileCaps.default = fileCaps.defaults;
+  }
+  if (fileCaps?.byExtension && !fileCaps.byExt) {
+    warnDeprecatedConfig('indexing.fileCaps.byExtension', 'indexing.fileCaps.byExt');
+    fileCaps.byExt = fileCaps.byExtension;
+  }
+  if (fileCaps?.byLang && !fileCaps.byLanguage) {
+    warnDeprecatedConfig('indexing.fileCaps.byLang', 'indexing.fileCaps.byLanguage');
+    fileCaps.byLanguage = fileCaps.byLang;
+  }
+
+  const cache = isPlainObject(cfg.cache) ? cfg.cache : null;
+  const runtime = cache && isPlainObject(cache.runtime) ? cache.runtime : null;
+  if (runtime) {
+    for (const entry of Object.values(runtime)) {
+      if (!isPlainObject(entry)) continue;
+      if (entry.maxMB != null && entry.maxMb == null) {
+        warnDeprecatedConfig('cache.runtime.*.maxMB', 'cache.runtime.*.maxMb');
+        entry.maxMb = entry.maxMB;
+      }
+      if (entry.ttlMS != null && entry.ttlMs == null) {
+        warnDeprecatedConfig('cache.runtime.*.ttlMS', 'cache.runtime.*.ttlMs');
+        entry.ttlMs = entry.ttlMS;
+      }
+    }
+  }
+
+  return cfg;
 }
+
 
 function loadProfileConfig(profileName) {
   if (!profileName) return { config: {}, path: null, error: null };
@@ -97,9 +150,7 @@ function loadProfileConfig(profileName) {
 
 function applyProfileConfig(baseConfig, profileOverride) {
   const overrideName = typeof profileOverride === 'string' ? profileOverride.trim() : '';
-  const envProfile = typeof process.env.PAIROFCLEATS_PROFILE === 'string'
-    ? process.env.PAIROFCLEATS_PROFILE.trim()
-    : '';
+  const envProfile = getEnvConfig().profile || '';
   const configProfile = typeof baseConfig?.profile === 'string' ? baseConfig.profile.trim() : '';
   const profileName = overrideName || envProfile || configProfile;
   if (!profileName) return baseConfig || {};
@@ -121,7 +172,8 @@ function applyProfileConfig(baseConfig, profileOverride) {
  * @returns {string}
  */
 export function getCacheRoot() {
-  if (process.env.PAIROFCLEATS_HOME) return process.env.PAIROFCLEATS_HOME;
+  const envConfig = getEnvConfig();
+  if (envConfig.home) return envConfig.home;
   if (process.env.LOCALAPPDATA) return path.join(process.env.LOCALAPPDATA, 'PairOfCleats');
   if (process.env.XDG_CACHE_HOME) return path.join(process.env.XDG_CACHE_HOME, 'pairofcleats');
   return path.join(os.homedir(), '.cache', 'pairofcleats');
@@ -136,11 +188,12 @@ export function getCacheRoot() {
 export function getDictConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const dict = cfg.dictionary || {};
+  const envConfig = getEnvConfig();
   const dpMaxTokenLengthByFileCount = normalizeDpMaxTokenLengthByFileCount(
     dict.dpMaxTokenLengthByFileCount
   );
   return {
-    dir: dict.dir || process.env.PAIROFCLEATS_DICT_DIR || path.join(getCacheRoot(), 'dictionaries'),
+    dir: dict.dir || envConfig.dictDir || path.join(getCacheRoot(), 'dictionaries'),
     languages: Array.isArray(dict.languages) ? dict.languages : ['en'],
     files: Array.isArray(dict.files) ? dict.files : [],
     includeSlang: dict.includeSlang !== false,
@@ -254,7 +307,8 @@ function findConfigRoot(startPath) {
  */
 export function getRepoCacheRoot(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const cacheRoot = (cfg.cache && cfg.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+  const envConfig = getEnvConfig();
+  const cacheRoot = (cfg.cache && cfg.cache.root) || envConfig.cacheRoot || getCacheRoot();
   const repoId = getRepoId(repoRoot);
   return path.join(cacheRoot, 'repos', repoId);
 }
@@ -268,7 +322,8 @@ export function getRepoCacheRoot(repoRoot, userConfig = null) {
 export function getModelConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const models = cfg.models || {};
-  const id = process.env.PAIROFCLEATS_MODEL || models.id || DEFAULT_MODEL_ID;
+  const envConfig = getEnvConfig();
+  const id = envConfig.model || models.id || DEFAULT_MODEL_ID;
   return {
     id,
     dir: getModelsDir(repoRoot, cfg)
@@ -284,12 +339,13 @@ export function getModelConfig(repoRoot, userConfig = null) {
 export function getRuntimeConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const runtime = cfg.runtime || {};
-  const rawMaxOldSpace = runtime.maxOldSpaceMb ?? process.env.PAIROFCLEATS_MAX_OLD_SPACE_MB;
+  const envConfig = getEnvConfig();
+  const rawMaxOldSpace = runtime.maxOldSpaceMb ?? envConfig.maxOldSpaceMb;
   const parsedMaxOldSpace = Number(rawMaxOldSpace);
   const maxOldSpaceMb = Number.isFinite(parsedMaxOldSpace) && parsedMaxOldSpace > 0
     ? parsedMaxOldSpace
     : null;
-  const nodeOptionsRaw = runtime.nodeOptions ?? process.env.PAIROFCLEATS_NODE_OPTIONS;
+  const nodeOptionsRaw = runtime.nodeOptions ?? envConfig.nodeOptions;
   const nodeOptions = typeof nodeOptionsRaw === 'string' ? nodeOptionsRaw.trim() : '';
   return { maxOldSpaceMb, nodeOptions };
 }
@@ -455,9 +511,10 @@ export function resolveSqlitePaths(repoRoot, userConfig = null) {
  */
 export function getModelsDir(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const cacheRoot = (cfg.cache && cfg.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+  const envConfig = getEnvConfig();
+  const cacheRoot = (cfg.cache && cfg.cache.root) || envConfig.cacheRoot || getCacheRoot();
   const models = cfg.models || {};
-  return models.dir || process.env.PAIROFCLEATS_MODELS_DIR || path.join(cacheRoot, 'models');
+  return models.dir || envConfig.modelsDir || path.join(cacheRoot, 'models');
 }
 
 /**
@@ -468,9 +525,10 @@ export function getModelsDir(repoRoot, userConfig = null) {
  */
 export function getToolingDir(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const cacheRoot = (cfg.cache && cfg.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+  const envConfig = getEnvConfig();
+  const cacheRoot = (cfg.cache && cfg.cache.root) || envConfig.cacheRoot || getCacheRoot();
   const tooling = cfg.tooling || {};
-  return tooling.dir || process.env.PAIROFCLEATS_TOOLING_DIR || path.join(cacheRoot, 'tooling');
+  return tooling.dir || envConfig.toolingDir || path.join(cacheRoot, 'tooling');
 }
 
 /**
@@ -484,7 +542,8 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const tooling = cfg.tooling || {};
   const typescript = tooling.typescript || {};
   const clangd = tooling.clangd || {};
-  const installScope = (tooling.installScope || process.env.PAIROFCLEATS_TOOLING_INSTALL_SCOPE || 'cache').toLowerCase();
+  const envConfig = getEnvConfig();
+  const installScope = (tooling.installScope || envConfig.toolingInstallScope || 'cache').toLowerCase();
   const normalizeOrder = (value) => {
     if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
     if (typeof value === 'string') {
@@ -533,12 +592,13 @@ export function getToolingConfig(repoRoot, userConfig = null) {
  */
 export function getExtensionsDir(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const cacheRoot = (cfg.cache && cfg.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+  const envConfig = getEnvConfig();
+  const cacheRoot = (cfg.cache && cfg.cache.root) || envConfig.cacheRoot || getCacheRoot();
   const extensions = cfg.extensions || {};
   const sqliteVector = cfg.sqlite?.vectorExtension || {};
   return extensions.dir
     || sqliteVector.dir
-    || process.env.PAIROFCLEATS_EXTENSIONS_DIR
+    || envConfig.extensionsDir
     || path.join(cacheRoot, 'extensions');
 }
 
