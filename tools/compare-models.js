@@ -4,7 +4,6 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execaSync } from 'execa';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/experimental/compare/config.js';
@@ -18,7 +17,8 @@ import {
   loadUserConfig,
   resolveNodeOptions,
   resolveRepoRoot,
-  resolveSqlitePaths
+  resolveSqlitePaths,
+  resolveToolRoot
 } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
@@ -50,7 +50,7 @@ const argv = createCli({
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
-const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scriptRoot = resolveToolRoot();
 const userConfig = loadUserConfig(root, { profile: argv.profile });
 if (userConfig.profile !== 'full') {
   console.error('compare-models is experimental. Run with profile=full or set PAIROFCLEATS_PROFILE=full.');
@@ -174,7 +174,38 @@ function buildEnv(modelId, modelCacheRoot) {
  * @returns {boolean}
  */
 function indexExists(modelCacheRoot, mode) {
-  const metaPath = path.join(modelCacheRoot, 'repos', repoId, `index-${mode}`, 'chunk_meta.json');
+  const repoCacheRoot = path.join(modelCacheRoot, 'repos', repoId);
+  let indexRoot = repoCacheRoot;
+  const currentPath = path.join(repoCacheRoot, 'builds', 'current.json');
+  if (fs.existsSync(currentPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
+      const resolveRoot = (value) => {
+        if (!value) return null;
+        return path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+      };
+      const buildId = typeof data.buildId === 'string' ? data.buildId : null;
+      const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
+      const buildRoot = buildRootRaw
+        ? resolveRoot(buildRootRaw)
+        : (buildId ? path.join(repoCacheRoot, 'builds', buildId) : null);
+      let modeRoot = null;
+      if (data.buildRoots && typeof data.buildRoots === 'object' && !Array.isArray(data.buildRoots)) {
+        const raw = data.buildRoots[mode];
+        if (typeof raw === 'string') {
+          modeRoot = resolveRoot(raw);
+        }
+      } else if (buildRoot && Array.isArray(data.modes) && data.modes.includes(mode)) {
+        modeRoot = buildRoot;
+      }
+      if (modeRoot && fs.existsSync(modeRoot)) {
+        indexRoot = modeRoot;
+      } else if (buildRoot && fs.existsSync(buildRoot)) {
+        indexRoot = buildRoot;
+      }
+    } catch {}
+  }
+  const metaPath = path.join(indexRoot, `index-${mode}`, 'chunk_meta.json');
   return fs.existsSync(metaPath);
 }
 

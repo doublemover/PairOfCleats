@@ -8,9 +8,24 @@ const root = process.cwd();
 const repoRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const triageFixtureRoot = path.join(root, 'tests', 'fixtures', 'triage');
 const cacheRoot = path.join(root, 'tests', '.cache', 'triage-records');
+const testLogRoot = process.env.PAIROFCLEATS_TEST_LOG_DIR
+  || process.env.npm_config_test_log_dir
+  || '';
+const resolvedTestLogRoot = testLogRoot ? path.resolve(testLogRoot) : '';
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+
+async function writeTestLog(name, payload) {
+  if (!resolvedTestLogRoot) return;
+  const outPath = path.join(resolvedTestLogRoot, name);
+  try {
+    await fsPromises.mkdir(resolvedTestLogRoot, { recursive: true });
+    await fsPromises.writeFile(outPath, JSON.stringify(payload, null, 2));
+  } catch (err) {
+    console.warn(`Failed to write test log ${outPath}: ${err?.message || err}`);
+  }
+}
 
 const env = {
   ...process.env,
@@ -123,6 +138,8 @@ const recordSearch = runJson('search-records', [
   '--repo', repoRoot
 ], { cwd: repoRoot, env });
 
+await writeTestLog('triage-record-search.json', recordSearch);
+
 if (!Array.isArray(recordSearch.records) || recordSearch.records.length === 0) {
   console.error('Record search returned no results.');
   process.exit(1);
@@ -150,6 +167,10 @@ if (!fs.existsSync(contextOut)) {
 }
 
 const pack = JSON.parse(await fsPromises.readFile(contextOut, 'utf8'));
+await writeTestLog('triage-context-pack.json', pack);
+await writeTestLog('triage-context-pack-evidence.json', pack.repoEvidence || {});
+await writeTestLog('triage-context-pack-history.json', { history: pack.history || [] });
+
 if (!pack.recordId || !pack.finding || !pack.repoEvidence) {
   console.error('Context pack missing required fields.');
   process.exit(1);

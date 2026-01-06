@@ -2,6 +2,36 @@ import { extractNgrams, tri } from '../../shared/tokenize.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
+const TOKEN_RETENTION_MODES = new Set(['full', 'sample', 'none']);
+
+export function normalizeTokenRetention(raw = {}) {
+  if (!raw || typeof raw !== 'object') {
+    return { mode: 'full', sampleSize: 32 };
+  }
+  const modeRaw = typeof raw.mode === 'string' ? raw.mode.trim().toLowerCase() : 'full';
+  const mode = TOKEN_RETENTION_MODES.has(modeRaw) ? modeRaw : 'full';
+  const sampleSize = Number.isFinite(Number(raw.sampleSize))
+    ? Math.max(1, Math.floor(Number(raw.sampleSize)))
+    : 32;
+  return { mode, sampleSize };
+}
+
+export function applyTokenRetention(chunk, retention) {
+  if (!chunk || !retention || retention.mode === 'full') return;
+  if (retention.mode === 'none') {
+    if (chunk.tokens) delete chunk.tokens;
+    if (chunk.ngrams) delete chunk.ngrams;
+    return;
+  }
+  if (retention.mode === 'sample') {
+    if (Array.isArray(chunk.tokens) && chunk.tokens.length > retention.sampleSize) {
+      chunk.tokens = chunk.tokens.slice(0, retention.sampleSize);
+    }
+    if (Array.isArray(chunk.ngrams) && chunk.ngrams.length > retention.sampleSize) {
+      chunk.ngrams = chunk.ngrams.slice(0, retention.sampleSize);
+    }
+  }
+}
 
 /**
  * Create the mutable state for index building.
@@ -16,6 +46,7 @@ export function createIndexState() {
       name: new Map(),
       signature: new Map(),
       doc: new Map(),
+      comment: new Map(),
       body: new Map()
     },
     docLengths: [],
@@ -23,6 +54,7 @@ export function createIndexState() {
       name: [],
       signature: [],
       doc: [],
+      comment: [],
       body: []
     },
     fieldTokens: [],
@@ -41,7 +73,12 @@ export function createIndexState() {
  * @param {object} state
  * @param {object} chunk
  */
-export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONFIG) {
+export function appendChunk(
+  state,
+  chunk,
+  postingsConfig = DEFAULT_POSTINGS_CONFIG,
+  tokenRetention = null
+) {
   const tokens = Array.isArray(chunk.tokens) ? chunk.tokens : [];
   const seq = Array.isArray(chunk.seq) && chunk.seq.length ? chunk.seq : tokens;
   if (!seq.length) return;
@@ -77,14 +114,14 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
     }
   }
 
-  const freq = {};
+  const freq = new Map();
   tokens.forEach((t) => {
-    freq[t] = (freq[t] || 0) + 1;
+    freq.set(t, (freq.get(t) || 0) + 1);
   });
   const chunkId = state.chunks.length;
 
   state.docLengths[chunkId] = tokens.length;
-  for (const [tok, count] of Object.entries(freq)) {
+  for (const [tok, count] of freq.entries()) {
     let postings = state.tokenPostings.get(tok);
     if (!postings) {
       postings = [];
@@ -110,18 +147,18 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
   uniqueTokens.forEach((t) => state.df.set(t, (state.df.get(t) || 0) + 1));
   if (fieldedEnabled) {
     const fields = chunk.fieldTokens || {};
-    const fieldNames = ['name', 'signature', 'doc', 'body'];
+    const fieldNames = ['name', 'signature', 'doc', 'comment', 'body'];
     for (const field of fieldNames) {
       const fieldTokens = Array.isArray(fields[field]) ? fields[field] : [];
       state.fieldDocLengths[field][chunkId] = fieldTokens.length;
       state.fieldTokens[chunkId] = state.fieldTokens[chunkId] || {};
       state.fieldTokens[chunkId][field] = fieldTokens;
       if (!fieldTokens.length) continue;
-      const fieldFreq = {};
+      const fieldFreq = new Map();
       fieldTokens.forEach((tok) => {
-        fieldFreq[tok] = (fieldFreq[tok] || 0) + 1;
+        fieldFreq.set(tok, (fieldFreq.get(tok) || 0) + 1);
       });
-      for (const [tok, count] of Object.entries(fieldFreq)) {
+      for (const [tok, count] of fieldFreq.entries()) {
         let postings = state.fieldPostings[field].get(tok);
         if (!postings) {
           postings = [];
@@ -132,6 +169,17 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
     }
   }
   chunk.id = chunkId;
+  chunk.tokenCount = tokens.length;
+  const commentMeta = chunk.docmeta?.comments;
+  if (Array.isArray(commentMeta)) {
+    for (const entry of commentMeta) {
+      if (!entry || entry.anchorChunkId != null) continue;
+      entry.anchorChunkId = chunkId;
+    }
+  }
+  applyTokenRetention(chunk, tokenRetention);
+  if (chunk.seq) delete chunk.seq;
+  if (chunk.chargrams) delete chunk.chargrams;
   if (chunk.fieldTokens) delete chunk.fieldTokens;
   state.chunks.push(chunk);
 }

@@ -15,7 +15,8 @@ import {
   getToolingConfig,
   loadUserConfig,
   resolveNodeOptions,
-  resolveRepoRoot
+  resolveRepoRoot,
+  resolveToolRoot
 } from './dict-utils.js';
 import { runCommand as runCommandBase } from './cli-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
@@ -47,6 +48,7 @@ const argv = createCli({
 
 const explicitRoot = argv.root || argv.repo;
 const root = explicitRoot ? path.resolve(explicitRoot) : resolveRepoRoot(process.cwd());
+const toolRoot = resolveToolRoot();
 const jsonOutput = argv.json === true;
 const nonInteractive = argv['non-interactive'] === true;
 const rl = nonInteractive ? null : readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -197,7 +199,7 @@ if (!argv['skip-validate'] && configExists && !shouldValidateConfig && !nonInter
 if (argv['skip-validate']) shouldValidateConfig = false;
 
 if (shouldValidateConfig && configExists) {
-  const args = [path.join(root, 'tools', 'validate-config.js'), '--config', configPath];
+  const args = [path.join(toolRoot, 'tools', 'validate-config.js'), '--config', configPath];
   if (jsonOutput) args.push('--json');
   const result = runCommand(process.execPath, args);
   recordStep('config', { skipped: false, ok: result.ok, configPath });
@@ -295,7 +297,7 @@ if (argv['skip-dicts']) {
   if (!hasDicts || needsEnglish) {
     const shouldDownload = await promptYesNo('Download English dictionary wordlist?', true);
     if (shouldDownload) {
-      const result = runCommand(process.execPath, [path.join(root, 'tools', 'download-dicts.js'), '--lang', 'en']);
+      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download-dicts.js'), '--lang', 'en']);
       if (!result.ok) {
         warn('Dictionary download failed.');
         recordError('dictionaries', result, 'download failed');
@@ -326,7 +328,7 @@ if (argv['skip-models']) {
     const shouldDownload = await promptYesNo(`Download embedding model ${modelConfig.id}?`, true);
     if (shouldDownload) {
       const result = runCommand(process.execPath, [
-        path.join(root, 'tools', 'download-models.js'),
+        path.join(toolRoot, 'tools', 'download-models.js'),
         '--model',
         modelConfig.id,
         '--cache-dir',
@@ -358,7 +360,7 @@ if (argv['skip-extensions']) {
     if (!hasExtension) {
       const shouldDownload = await promptYesNo('Download SQLite ANN extension?', true);
       if (shouldDownload) {
-        const result = runCommand(process.execPath, [path.join(root, 'tools', 'download-extensions.js')]);
+        const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download-extensions.js')]);
         if (!result.ok) {
           warn('Extension download failed.');
           recordError('extensions', result, 'download failed');
@@ -391,7 +393,7 @@ if (argv['skip-tooling']) {
   let toolingInstalled = false;
   const detectResult = runCommand(
     process.execPath,
-    [path.join(root, 'tools', 'tooling-detect.js'), '--root', root, '--json'],
+    [path.join(toolRoot, 'tools', 'tooling-detect.js'), '--root', root, '--json'],
     { encoding: 'utf8', stdio: 'pipe' }
   );
   if (detectResult.status === 0 && detectResult.stdout) {
@@ -408,7 +410,7 @@ if (argv['skip-tooling']) {
         if (shouldInstall) {
           const scopeDefault = argv['tooling-scope'] || toolingConfig.installScope || 'cache';
           const scope = await promptChoice('Install tooling scope', ['cache', 'global'], scopeDefault);
-          const installArgs = [path.join(root, 'tools', 'tooling-install.js'), '--root', root, '--scope', scope];
+          const installArgs = [path.join(toolRoot, 'tools', 'tooling-install.js'), '--root', root, '--scope', scope];
           if (!toolingConfig.allowGlobalFallback) installArgs.push('--no-fallback');
           const result = runCommand(process.execPath, installArgs);
           if (!result.ok) {
@@ -443,7 +445,7 @@ if (!argv['skip-artifacts']) {
   if (fs.existsSync(manifestPath)) {
     const shouldRestore = await promptYesNo('Restore CI artifacts from ci-artifacts?', true);
     if (shouldRestore) {
-      const result = runCommand(process.execPath, [path.join(root, 'tools', 'ci-restore-artifacts.js'), '--from', artifactsDir]);
+      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'ci-restore-artifacts.js'), '--from', artifactsDir]);
       restoredArtifacts = result.ok;
       if (!result.ok) {
         warn('CI artifact restore failed.');
@@ -459,8 +461,17 @@ recordStep('artifacts', {
 
 const codeIndexDir = getIndexDir(root, 'code', userConfig);
 const proseIndexDir = getIndexDir(root, 'prose', userConfig);
-const codeIndexPresent = fs.existsSync(path.join(codeIndexDir, 'chunk_meta.json'));
-const proseIndexPresent = fs.existsSync(path.join(proseIndexDir, 'chunk_meta.json'));
+const hasChunkMeta = (indexDir) => {
+  const jsonPath = path.join(indexDir, 'chunk_meta.json');
+  const jsonlPath = path.join(indexDir, 'chunk_meta.jsonl');
+  const metaPath = path.join(indexDir, 'chunk_meta.meta.json');
+  const partsDir = path.join(indexDir, 'chunk_meta.parts');
+  return fs.existsSync(jsonPath)
+    || fs.existsSync(jsonlPath)
+    || (fs.existsSync(metaPath) && fs.existsSync(partsDir));
+};
+const codeIndexPresent = hasChunkMeta(codeIndexDir);
+const proseIndexPresent = hasChunkMeta(proseIndexDir);
 let indexReady = restoredArtifacts || codeIndexPresent || proseIndexPresent;
 let indexBuilt = false;
 let indexBuildOk = true;
@@ -471,7 +482,7 @@ if (!argv['skip-index'] && !restoredArtifacts) {
     !indexReady
   );
   if (shouldBuild) {
-    const args = [path.join(root, 'build_index.js')];
+    const args = [path.join(toolRoot, 'build_index.js')];
     if (useIncremental) args.push('--incremental');
     const result = runCommand(process.execPath, args);
     if (!result.ok) {
@@ -496,7 +507,7 @@ if (!argv['skip-sqlite']) {
     if (!indexReady) {
       const shouldBuildIndex = await promptYesNo('SQLite build requires file-backed indexes. Build index now?', true);
       if (shouldBuildIndex && !argv['skip-index']) {
-        const args = [path.join(root, 'build_index.js')];
+        const args = [path.join(toolRoot, 'build_index.js')];
         if (useIncremental) args.push('--incremental');
         const result = runCommand(process.execPath, args);
         if (!result.ok) {
@@ -509,7 +520,7 @@ if (!argv['skip-sqlite']) {
       }
     }
     if (indexReady) {
-      const sqliteArgs = [path.join(root, 'tools', 'build-sqlite-index.js')];
+      const sqliteArgs = [path.join(toolRoot, 'tools', 'build-sqlite-index.js')];
       if (useIncremental) sqliteArgs.push('--incremental');
       const result = runCommand(process.execPath, sqliteArgs);
       sqliteBuilt = true;

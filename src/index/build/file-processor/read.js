@@ -1,0 +1,42 @@
+import path from 'node:path';
+import { resolveSpecialCodeExt } from '../../constants.js';
+import { fileExt } from '../../../shared/files.js';
+
+export const pickMinLimit = (...values) => {
+  const candidates = values.filter((value) => Number.isFinite(value) && value > 0);
+  return candidates.length ? Math.min(...candidates) : null;
+};
+
+export const resolveFileCaps = (fileCaps, ext, languageId = null) => {
+  const extKey = typeof ext === 'string' ? ext.toLowerCase() : '';
+  const languageKey = typeof languageId === 'string' ? languageId.toLowerCase() : '';
+  const defaultCaps = fileCaps?.default || {};
+  const extCaps = extKey ? fileCaps?.byExt?.[extKey] : null;
+  const langCaps = languageKey ? fileCaps?.byLanguage?.[languageKey] : null;
+  return {
+    maxBytes: pickMinLimit(defaultCaps.maxBytes, extCaps?.maxBytes, langCaps?.maxBytes),
+    maxLines: pickMinLimit(defaultCaps.maxLines, extCaps?.maxLines, langCaps?.maxLines)
+  };
+};
+
+export const truncateByBytes = (value, maxBytes) => {
+  const text = typeof value === 'string' ? value : '';
+  const limit = Number.isFinite(Number(maxBytes)) ? Number(maxBytes) : 0;
+  if (!limit || Buffer.byteLength(text, 'utf8') <= limit) {
+    return { text, truncated: false, bytes: Buffer.byteLength(text, 'utf8') };
+  }
+  const buffer = Buffer.from(text, 'utf8');
+  const sliced = buffer.toString('utf8', 0, limit);
+  return {
+    text: sliced,
+    truncated: true,
+    bytes: Buffer.byteLength(sliced, 'utf8')
+  };
+};
+
+export const resolveExt = (absPath) => {
+  const baseName = path.basename(absPath);
+  const specialExt = resolveSpecialCodeExt(baseName);
+  if (specialExt) return specialExt;
+  return fileExt(absPath);
+};

@@ -33,6 +33,27 @@ assert.equal(
   'expected special code filename to be indexable for code mode'
 );
 
+const dockerfileVariantPath = path.join(root, 'Dockerfile.dev');
+assert.equal(
+  isIndexablePath({ absPath: dockerfileVariantPath, root, ignoreMatcher, modes: ['code'] }),
+  true,
+  'expected dockerfile variants to be indexable for code mode'
+);
+
+const makefileVariantPath = path.join(root, 'Makefile.in');
+assert.equal(
+  isIndexablePath({ absPath: makefileVariantPath, root, ignoreMatcher, modes: ['code'] }),
+  true,
+  'expected makefile variants to be indexable for code mode'
+);
+
+const gnuMakefilePath = path.join(root, 'GNUmakefile');
+assert.equal(
+  isIndexablePath({ absPath: gnuMakefilePath, root, ignoreMatcher, modes: ['code'] }),
+  true,
+  'expected GNUmakefile to be indexable for code mode'
+);
+
 const ignoredPath = path.join(root, 'ignored', 'app.js');
 assert.equal(
   isIndexablePath({ absPath: ignoredPath, root, ignoreMatcher, modes: ['code'] }),

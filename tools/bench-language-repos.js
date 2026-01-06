@@ -8,10 +8,10 @@ import { execa, execaSync } from 'execa';
 import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../src/shared/cli-options.js';
-import { fileURLToPath } from 'node:url';
-import { getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions } from './dict-utils.js';
+import { getIndexDir, getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveSqlitePaths, resolveToolRoot } from './dict-utils.js';
 import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
 import { discoverFilesForModes } from '../src/index/build/discover.js';
+import { readTextFile } from '../src/shared/encoding.js';
 import { toPosix } from '../src/shared/files.js';
 import { formatShardFileProgress } from '../src/shared/bench-progress.js';
 import { countLinesForEntries } from '../src/shared/file-stats.js';
@@ -46,7 +46,7 @@ const argv = createCli({
 }).parse();
 validateBenchArgs(argv);
 
-const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scriptRoot = resolveToolRoot();
 const configPath = path.resolve(argv.config || path.join(scriptRoot, 'benchmarks', 'repos.json'));
 const reposRoot = path.resolve(argv.root || path.join(scriptRoot, 'benchmarks', 'repos'));
 const cacheRootBase = path.resolve(argv['cache-root'] || path.join(scriptRoot, 'benchmarks', 'cache'));
@@ -55,7 +55,10 @@ const cacheRun = argv['cache-run'] === true;
 const cacheSuffix = cacheSuffixRaw || (cacheRun ? buildRunSuffix() : '');
 const cacheRoot = cacheSuffix ? path.resolve(cacheRootBase, cacheSuffix) : cacheRootBase;
 const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));
-const logPath = path.resolve(argv.log || path.join(resultsRoot, 'bench-language.log'));
+const logRoot = path.join(resultsRoot, 'logs', 'bench-language');
+const logPath = argv.log
+  ? path.resolve(argv.log)
+  : path.join(logRoot, `${buildRunSuffix()}.log`);
 const baseEnv = { ...process.env };
 
 const cloneEnabled = argv['no-clone'] ? false : argv.clone !== false;
@@ -125,12 +128,20 @@ const cacheConfig = { cache: { root: cacheRoot } };
 const shardByLabel = new Map();
 const activeShards = new Map();
 const activeShardWindowMs = 5000;
+const isBenchProfile = (value) => {
+  if (!value) return false;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized === 'bench' || normalized.startsWith('bench-');
+};
 const indexProfileRaw = typeof argv['index-profile'] === 'string'
   ? argv['index-profile'].trim()
   : '';
-const indexProfile = argv['no-index-profile'] === true
-  ? ''
-  : (indexProfileRaw || 'bench-index');
+const defaultHeavyProfile = 'full';
+const resolvedProfile = indexProfileRaw && !isBenchProfile(indexProfileRaw)
+  ? indexProfileRaw
+  : defaultHeavyProfile;
+const indexProfile = argv['no-index-profile'] === true ? '' : resolvedProfile;
 const suppressProfileEnv = argv['no-index-profile'] === true;
 const lockMode = normalizeLockMode(
   argv['lock-mode']
@@ -300,7 +311,17 @@ function resolveCloneTool() {
   if (preferGit) {
     return {
       label: 'git',
-      buildArgs: (repo, repoPath) => ['-c', 'core.longpaths=true', 'clone', `https://github.com/${repo}.git`, repoPath]
+      buildArgs: (repo, repoPath) => [
+        '-c',
+        'core.longpaths=true',
+        '-c',
+        'checkout.workers=0',
+        '-c',
+        'checkout.thresholdForParallelism=0',
+        'clone',
+        `https://github.com/${repo}.git`,
+        repoPath
+      ]
     };
   }
   if (ghAvailable) {
@@ -312,7 +333,15 @@ function resolveCloneTool() {
   if (gitAvailable) {
     return {
       label: 'git',
-      buildArgs: (repo, repoPath) => ['clone', `https://github.com/${repo}.git`, repoPath]
+      buildArgs: (repo, repoPath) => [
+        '-c',
+        'checkout.workers=0',
+        '-c',
+        'checkout.thresholdForParallelism=0',
+        'clone',
+        `https://github.com/${repo}.git`,
+        repoPath
+      ]
     };
   }
   console.error('GitHub CLI (gh) or git is required to clone benchmark repos.');
@@ -355,6 +384,7 @@ function resolveRepoDir(repo, language) {
 
 function initLog() {
   if (logStream) return;
+  fs.mkdirSync(path.dirname(logPath), { recursive: true });
   logStream = fs.createWriteStream(logPath, { flags: 'a' });
   logStream.write(`\n=== Bench run ${new Date().toISOString()} ===\n`);
   logStream.write(`Config: ${configPath}\n`);
@@ -371,6 +401,7 @@ function writeLog(line) {
 
 function writeLogSync(line) {
   try {
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
     fs.appendFileSync(logPath, `${line}\n`);
   } catch {}
 }
@@ -684,7 +715,9 @@ function handleImportStatsLine(line) {
 
 function normalizeShardLabel(raw) {
   if (!raw) return '';
-  return raw.trim().replace(/^shard\s+/i, '').trim();
+  const trimmed = raw.trim();
+  if (!trimmed || /^shard$/i.test(trimmed)) return '';
+  return trimmed.replace(/^shard\s+/i, '').trim();
 }
 
 function parseFileProgressLine(line) {
@@ -1004,6 +1037,19 @@ function formatLoc(value) {
   return `${Math.floor(value)}`;
 }
 
+async function validateEncodingFixtures() {
+  const fixturePath = path.join(scriptRoot, 'tests', 'fixtures', 'encoding', 'latin1.js');
+  if (!fs.existsSync(fixturePath)) return;
+  try {
+    const { text, usedFallback } = await readTextFile(fixturePath);
+    if (!text.includes('café') || !usedFallback) {
+      console.warn(`[bench] Encoding fixture did not decode as expected: ${fixturePath}`);
+    }
+  } catch (err) {
+    console.warn(`[bench] Encoding fixture read failed: ${err?.message || err}`);
+  }
+}
+
 function resolveMaxFileBytes(userConfig) {
   const raw = userConfig?.indexing?.maxFileBytes;
   const parsed = Number(raw);
@@ -1068,6 +1114,9 @@ function formatMetricSummary(summary) {
     const hitText = Number.isFinite(hitRate) ? `${(hitRate * 100).toFixed(1)}%` : 'n/a';
     parts.push(`${backend} ${latencyText} hit ${hitText}`);
   }
+  if (summary.embeddingProvider) {
+    parts.push(`embed ${summary.embeddingProvider}`);
+  }
   return parts.length ? `Metrics: ${parts.join(' | ')}` : 'Metrics: pending';
 }
 
@@ -1086,16 +1135,23 @@ function resolveRepoCache(repoPath) {
   return getRepoCacheRoot(repoPath, cacheConfig);
 }
 
-function needsIndexArtifacts(repoCacheRoot) {
-  const codeMeta = path.join(repoCacheRoot, 'index-code', 'chunk_meta.json');
-  const proseMeta = path.join(repoCacheRoot, 'index-prose', 'chunk_meta.json');
-  return !fs.existsSync(codeMeta) || !fs.existsSync(proseMeta);
+function needsIndexArtifacts(repoRoot) {
+  const userConfig = loadUserConfig(repoRoot);
+  const codeDir = getIndexDir(repoRoot, 'code', userConfig);
+  const proseDir = getIndexDir(repoRoot, 'prose', userConfig);
+  const hasChunkMeta = (dir) => (
+    fs.existsSync(path.join(dir, 'chunk_meta.json'))
+    || fs.existsSync(path.join(dir, 'chunk_meta.jsonl'))
+    || fs.existsSync(path.join(dir, 'chunk_meta.meta.json'))
+    || fs.existsSync(path.join(dir, 'chunk_meta.parts'))
+  );
+  return !hasChunkMeta(codeDir) || !hasChunkMeta(proseDir);
 }
 
-function needsSqliteArtifacts(repoCacheRoot) {
-  const codeDb = path.join(repoCacheRoot, 'index-sqlite', 'index-code.db');
-  const proseDb = path.join(repoCacheRoot, 'index-sqlite', 'index-prose.db');
-  return !fs.existsSync(codeDb) || !fs.existsSync(proseDb);
+function needsSqliteArtifacts(repoRoot) {
+  const userConfig = loadUserConfig(repoRoot);
+  const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
+  return !fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath);
 }
 
 async function runProcess(label, cmd, args, options = {}) {
@@ -1110,7 +1166,7 @@ async function runProcess(label, cmd, args, options = {}) {
   const carry = { stdout: '', stderr: '' };
   const handleChunk = (chunk, key) => {
     const text = carry[key] + chunk.toString('utf8');
-    const normalized = text.replace(/\r/g, '\n');
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const parts = normalized.split('\n');
     carry[key] = parts.pop() || '';
     for (const line of parts) appendLog(line);
@@ -1128,7 +1184,9 @@ async function runProcess(label, cmd, args, options = {}) {
       return { ok: true };
     }
     console.error(`Failed: ${label}`);
+    console.error(`Log: ${logPath}`);
     writeLog(`[error] Failed: ${label}`);
+    writeLog(`[error] Log: ${logPath}`);
     if (logHistory.length) {
       console.error('Last log lines:');
       logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));
@@ -1145,6 +1203,7 @@ async function runProcess(label, cmd, args, options = {}) {
     writeLog(`[error] ${label} spawn failed: ${message}`);
     clearActiveChild(child);
     console.error(`Failed: ${label}`);
+    console.error(`Log: ${logPath}`);
     if (logHistory.length) {
       console.error('Last log lines:');
       logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));
@@ -1231,6 +1290,7 @@ function printSummary(label, summary, count) {
 }
 
 const config = loadConfig();
+await validateEncodingFixtures();
 const languageFilter = parseList(argv.languages || argv.language).map((entry) => entry.toLowerCase());
 let tierFilter = parseList(argv.tier).map((entry) => entry.toLowerCase());
 const repoFilter = parseList(argv.only || argv.repos).map((entry) => entry.toLowerCase());
@@ -1417,8 +1477,8 @@ for (const task of tasks) {
   await fsPromises.mkdir(outDir, { recursive: true });
 
   const repoCacheRoot = resolveRepoCache(repoPath);
-  const missingIndex = needsIndexArtifacts(repoCacheRoot);
-  const missingSqlite = wantsSqlite && needsSqliteArtifacts(repoCacheRoot);
+  const missingIndex = needsIndexArtifacts(repoPath);
+  const missingSqlite = wantsSqlite && needsSqliteArtifacts(repoPath);
   let autoBuildIndex = false;
   let autoBuildSqlite = false;
   const buildIndexRequested = argv.build || argv['build-index'];
@@ -1487,7 +1547,7 @@ for (const task of tasks) {
     outFile
   ];
   if (indexProfile) benchArgs.push('--index-profile', indexProfile);
-  if (argv['real-embeddings']) benchArgs.push('--real-embeddings');
+  benchArgs.push('--real-embeddings');
   if (argv.build) {
     benchArgs.push('--build');
   } else {
@@ -1495,7 +1555,9 @@ for (const task of tasks) {
     if (argv['build-sqlite'] || autoBuildSqlite) benchArgs.push('--build-sqlite');
   }
   if (argv.incremental) benchArgs.push('--incremental');
-  if (argv['stub-embeddings']) benchArgs.push('--stub-embeddings');
+  if (argv['stub-embeddings']) {
+    appendLog('[bench] Stub embeddings requested; ignored for heavy language benchmarks.');
+  }
   if (argv.ann) benchArgs.push('--ann');
   if (argv['no-ann']) benchArgs.push('--no-ann');
   if (argv.backend) benchArgs.push('--backend', String(argv.backend));

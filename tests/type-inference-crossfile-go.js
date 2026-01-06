@@ -8,6 +8,19 @@ import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'type-inference-crossfile-go');
 const repoRoot = path.join(tempRoot, 'repo');
+const hasPython = () => {
+  const candidates = ['python', 'python3'];
+  for (const candidate of candidates) {
+    try {
+      const result = spawnSync(candidate, ['-c', 'import sys; sys.stdout.write("ok")'], {
+        encoding: 'utf8'
+      });
+      if (result.status === 0 && String(result.stdout || '').trim() === 'ok') return true;
+    } catch {}
+  }
+  return false;
+};
+const pythonAvailable = hasPython();
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
@@ -98,6 +111,27 @@ public class JavaWidgetBuilder {
 `
 );
 
+if (pythonAvailable) {
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'src', 'py_widget.py'),
+    `class PyWidget:
+    def __init__(self):
+        self.id = 1
+
+def make_py_widget() -> PyWidget:
+    return PyWidget()
+`
+  );
+
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'src', 'py_builder.py'),
+    `from py_widget import make_py_widget, PyWidget
+
+def build_py_widget() -> PyWidget:
+    return make_py_widget()
+`
+  );
+}
 const env = {
   ...process.env,
   PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
@@ -179,4 +213,22 @@ if (!inferredJava.some((entry) => entry.type === 'JavaWidget' && entry.source ==
   process.exit(1);
 }
 
-console.log('Cross-file inference tests passed (Go/Rust/Java).');
+if (pythonAvailable) {
+  const buildPy = chunkMeta.find((chunk) =>
+    resolveChunkFile(chunk) === 'src/py_builder.py' &&
+    chunk.name === 'build_py_widget'
+  );
+  if (!buildPy) {
+    console.error('Missing build_py_widget chunk in py_builder.py.');
+    process.exit(1);
+  }
+  const inferredPy = buildPy.docmeta?.inferredTypes?.returns || [];
+  if (!inferredPy.some((entry) => entry.type === 'PyWidget' && entry.source === 'flow')) {
+    console.error('Python cross-file inference missing return type PyWidget for build_py_widget.');
+    process.exit(1);
+  }
+} else {
+  console.log('Skipping Python cross-file inference (python not available).');
+}
+
+console.log('Cross-file inference tests passed (Go/Rust/Java/Python).');

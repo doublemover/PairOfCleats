@@ -1,6 +1,6 @@
 # Codebase Review (Temporary)
 
-This document captures mistakes, enhancement ideas, and refactoring opportunities by phase. It will be used to update `COMPLETE_PLAN.md` and then removed.
+This document captures mistakes, enhancement ideas, and refactoring opportunities by phase. It will be used to update `NEW_ROADMAP.md` and then removed.
 
 ## Phase 1: Indexing Core (build_index + indexer/shared)
 
@@ -58,7 +58,7 @@ Enhancements:
 - Offer a config flag to fully disable MinHash ranking when the signature pipeline is not in use.
 
 Refactoring opportunities:
-- Extract common search argument parsing and output formatting between `search.js` and `tools/search-sqlite.js` to avoid drift.
+- Extract common search argument parsing and output formatting between `search.js` and `search.js --backend sqlite` to avoid drift.
 - Centralize candidate selection/merging logic so both backends share identical score normalization paths.
 
 Tests/edge cases:
@@ -113,7 +113,7 @@ Risks/notes:
 ## Phase 6: MCP + Tests + Docs
 
 Mistakes:
-- `ROADMAP.md` is stale (still lists CFG/dataflow + type inference as pending despite completion in `COMPLETE_PLAN.md`).
+- `ROADMAP.md` is stale (still lists CFG/dataflow + type inference as pending despite completion in `NEW_ROADMAP.md`).
 
 Enhancements:
 - MCP server now streams build/index tasks via async subprocesses; add troubleshooting guidance for progress output if needed.

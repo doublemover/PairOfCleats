@@ -66,7 +66,7 @@ if (!initialOutput.includes('Validation (smoke) ok for prose')) {
 }
 
 const userConfig = loadUserConfig(repoRoot);
-const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
+let sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
 
 let Database;
 try {
@@ -94,6 +94,7 @@ await fsPromises.writeFile(targetFile, updated);
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index (incremental)');
 run([path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--repo', repoRoot], 'build sqlite index (incremental)');
 
+sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
 const dbAfter = new Database(sqlitePaths.codePath, { readonly: true });
 const afterRow = dbAfter
   .prepare('SELECT hash, chunk_count FROM file_manifest WHERE mode = ? AND file = ?')

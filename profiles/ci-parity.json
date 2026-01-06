@@ -1,0 +1,9 @@
+{
+  "indexing": {
+    "treeSitter": { "enabled": false },
+    "pythonAst": { "enabled": false }
+  },
+  "tooling": {
+    "autoEnableOnDetect": false
+  }
+}

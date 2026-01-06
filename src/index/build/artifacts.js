@@ -1,12 +1,13 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
-import { getMetricsDir } from '../../../tools/dict-utils.js';
-import { getRepoBranch } from '../git.js';
+import { getEffectiveConfigHash, getMetricsDir, getToolVersion } from '../../../tools/dict-utils.js';
+import { getRepoProvenance } from '../git.js';
 import { log } from '../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io.js';
 import { writeJsonArrayFile, writeJsonLinesFile, writeJsonObjectFile } from '../../shared/json-stream.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
-import { sha1File } from '../../shared/hash.js';
+import { checksumFile } from '../../shared/hash.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { buildFilterIndex, serializeFilterIndex } from '../../retrieval/filter-index.js';
 
@@ -29,7 +30,9 @@ export async function writeIndexArtifacts(input) {
     userConfig,
     incrementalEnabled,
     fileCounts,
-    indexState
+    perfProfile,
+    indexState,
+    graphRelations
   } = input;
   const indexingConfig = userConfig?.indexing || {};
   const tokenModeRaw = indexingConfig.chunkTokenMode || 'auto';
@@ -52,7 +55,10 @@ export async function writeIndexArtifacts(input) {
   if (resolvedTokenMode === 'full' && tokenMode === 'auto') {
     let totalTokens = 0;
     for (const chunk of state.chunks) {
-      if (Array.isArray(chunk?.tokens)) totalTokens += chunk.tokens.length;
+      const count = Number.isFinite(chunk?.tokenCount)
+        ? chunk.tokenCount
+        : (Array.isArray(chunk?.tokens) ? chunk.tokens.length : 0);
+      totalTokens += count;
       if (totalTokens > tokenMaxTotal) break;
     }
     if (totalTokens > tokenMaxTotal) {
@@ -97,6 +103,17 @@ export async function writeIndexArtifacts(input) {
     'phrase_ngrams',
     'chargram_postings'
   ]);
+  const formatBytes = (bytes) => {
+    const value = Number(bytes);
+    if (!Number.isFinite(value) || value <= 0) return '0B';
+    if (value < 1024) return `${Math.round(value)}B`;
+    const kb = value / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)}KB`;
+    const mb = kb / 1024;
+    if (mb < 1024) return `${mb.toFixed(1)}MB`;
+    const gb = mb / 1024;
+    return `${gb.toFixed(1)}GB`;
+  };
 
   const fileMeta = [];
   const fileIdByPath = new Map();
@@ -142,8 +159,10 @@ export async function writeIndexArtifacts(input) {
         headline: c.headline,
         preContext: c.preContext,
         postContext: c.postContext,
+        segment: c.segment || null,
         codeRelations: c.codeRelations,
         docmeta: c.docmeta,
+        metaV2: c.metaV2,
         stats: c.stats,
         complexity: c.complexity,
         lint: c.lint,
@@ -238,7 +257,10 @@ export async function writeIndexArtifacts(input) {
   const fileChargramN = Number.isFinite(Number(filePrefilterConfig.chargramN))
     ? Math.max(2, Math.floor(Number(filePrefilterConfig.chargramN)))
     : resolvedConfig.chargramMinN;
-  const filterIndex = serializeFilterIndex(buildFilterIndex(state.chunks, { fileChargramN }));
+  const filterIndex = serializeFilterIndex(buildFilterIndex(state.chunks, {
+    fileChargramN,
+    includeBitmaps: false
+  }));
   const denseScale = 2 / 255;
   const maxJsonBytes = MAX_JSON_BYTES;
   const maxJsonBytesSoft = maxJsonBytes * 0.9;
@@ -273,8 +295,8 @@ export async function writeIndexArtifacts(input) {
         chunkMetaUseShards = chunkMetaCount > chunkMetaShardSize;
         const chunkMetaMode = chunkMetaUseShards ? 'jsonl-sharded' : 'jsonl';
         log(
-          `Chunk metadata is large (~${Math.round(estimatedBytes / (1024 * 1024))}MB); ` +
-          `using ${chunkMetaMode} to stay under ${Math.round(maxJsonBytes / (1024 * 1024))}MB.`
+          `Chunk metadata estimate ~${formatBytes(estimatedBytes)}; ` +
+          `using ${chunkMetaMode} to stay under ${formatBytes(maxJsonBytes)}.`
         );
       }
     }
@@ -309,8 +331,8 @@ export async function writeIndexArtifacts(input) {
       const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));
       tokenPostingsShardSize = Math.min(tokenPostingsShardSize, targetShardSize);
       log(
-        `Token postings are large (~${Math.round(tokenPostingsEstimate.estimatedBytes / (1024 * 1024))}MB); ` +
-        `using sharded output to stay under ${Math.round(maxJsonBytes / (1024 * 1024))}MB.`
+        `Token postings estimate ~${formatBytes(tokenPostingsEstimate.estimatedBytes)}; ` +
+        `using sharded output to stay under ${formatBytes(maxJsonBytes)}.`
       );
     } else if (tokenPostingsUseShards) {
       const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));
@@ -648,7 +670,7 @@ export async function writeIndexArtifacts(input) {
       piece: { type: 'postings', name: 'field_postings' }
     });
   }
-  if (Array.isArray(state.fieldTokens) && state.fieldTokens.length) {
+  if (resolvedConfig.fielded !== false && Array.isArray(state.fieldTokens)) {
     enqueueJsonArray('field_tokens', state.fieldTokens, {
       piece: { type: 'postings', name: 'field_tokens', count: state.fieldTokens.length }
     });
@@ -669,6 +691,12 @@ export async function writeIndexArtifacts(input) {
       format: 'json',
       count: state.fileRelations.size
     }, relationsPath);
+  }
+  if (graphRelations && typeof graphRelations === 'object') {
+    enqueueJsonObject('graph_relations', { fields: graphRelations }, {
+      compressible: false,
+      piece: { type: 'relations', name: 'graph_relations' }
+    });
   }
   if (resolvedConfig.enablePhraseNgrams !== false) {
     enqueueJsonObject('phrase_ngrams', {
@@ -721,15 +749,18 @@ export async function writeIndexArtifacts(input) {
         const absPath = path.join(outDir, entry.path.split('/').join(path.sep));
         let bytes = null;
         let checksum = null;
+        let checksumAlgo = null;
         try {
           const stat = await fs.stat(absPath);
           bytes = stat.size;
-          checksum = await sha1File(absPath);
+          const result = await checksumFile(absPath);
+          checksum = result?.value || null;
+          checksumAlgo = result?.algo || null;
         } catch {}
         return {
           ...entry,
           bytes,
-          checksum: checksum ? `sha1:${checksum}` : null
+          checksum: checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null
         };
       }
     );
@@ -755,13 +786,29 @@ export async function writeIndexArtifacts(input) {
     acc[reason] = (acc[reason] || 0) + 1;
     return acc;
   }, {});
+  const toolVersion = getToolVersion();
+  const effectiveConfigHash = getEffectiveConfigHash(root, userConfig);
+  const repoProvenance = await getRepoProvenance(root);
   const metrics = {
     generatedAt: new Date().toISOString(),
+    tool: {
+      version: toolVersion,
+      node: process.version,
+      os: {
+        platform: os.platform(),
+        release: os.release(),
+        arch: os.arch()
+      },
+      configHash: effectiveConfigHash
+    },
+    repo: {
+      provenance: repoProvenance
+    },
     repoRoot: path.resolve(root),
     mode,
     indexDir: path.resolve(outDir),
     incremental: incrementalEnabled,
-    git: await getRepoBranch(root),
+    git: { branch: repoProvenance.branch, isRepo: repoProvenance.isRepo },
     cache: {
       hits: cacheHits,
       misses: cacheMisses,
@@ -819,5 +866,11 @@ export async function writeIndexArtifacts(input) {
       path.join(metricsDir, `index-${mode}.json`),
       { fields: metrics, atomic: true }
     );
+    if (perfProfile) {
+      await writeJsonObjectFile(
+        path.join(metricsDir, `perf-profile-${mode}.json`),
+        { fields: perfProfile, atomic: true }
+      );
+    }
   } catch {}
 }

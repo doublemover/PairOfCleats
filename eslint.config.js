@@ -7,9 +7,11 @@ export default [
       'benchmarks/repos/**',
       'benchmarks/cache/**',
       'benchmarks/results/**',
+      'tests/.cache/**',
       '**/.git/**',
       '**/docs/phase3-parity-report.json',
-      'tests/fixtures/languages/src/javascript_flow.js'
+      'tests/fixtures/languages/src/javascript_flow.js',
+      'tests/fixtures/encoding/latin1.js'
     ]
   },
   {

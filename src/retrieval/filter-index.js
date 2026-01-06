@@ -1,4 +1,5 @@
 import { tri } from '../shared/tokenize.js';
+import { buildBitmapIndex } from './bitmap.js';
 
 /**
  * Build lookup maps for common search filters.
@@ -10,6 +11,7 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
   const fileChargramN = Number.isFinite(Number(options.fileChargramN))
     ? Math.max(2, Math.floor(Number(options.fileChargramN)))
     : 3;
+  const includeBitmaps = options.includeBitmaps !== false;
   const index = {
     byExt: new Map(),
     byKind: new Map(),
@@ -75,9 +77,12 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     const visibility = chunk.docmeta?.visibility || chunk.docmeta?.modifiers?.visibility || null;
     add(index.byVisibility, visibility, id);
     const chunkAuthors = Array.isArray(chunk.chunk_authors) ? chunk.chunk_authors : [];
-    for (const author of chunkAuthors) add(index.byChunkAuthor, author, id);
+    for (const author of chunkAuthors) add(index.byChunkAuthor, author, id);    
   }
 
+  if (includeBitmaps) {
+    index.bitmap = buildBitmapIndex(index);
+  }
   return index;
 }
 
@@ -119,8 +124,8 @@ export function serializeFilterIndex(index) {
 export function hydrateFilterIndex(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const fileById = Array.isArray(raw.fileById) ? raw.fileById : [];
-  const fileIdByPath = new Map(fileById.map((value, idx) => [value, idx]));
-  return {
+  const fileIdByPath = new Map(fileById.map((value, idx) => [value, idx]));     
+  const index = {
     fileChargramN: Number.isFinite(Number(raw.fileChargramN))
       ? Math.max(2, Math.floor(Number(raw.fileChargramN)))
       : 3,
@@ -136,4 +141,6 @@ export function hydrateFilterIndex(raw) {
       : [],
     fileChargrams: hydrateMap(raw.fileChargrams)
   };
+  index.bitmap = buildBitmapIndex(index);
+  return index;
 }

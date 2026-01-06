@@ -13,6 +13,8 @@ export function parseBuildArgs(rawArgs) {
     options: INDEX_BUILD_OPTIONS
   }).parse();
   validateBuildArgs(argv);
-  const modes = argv.mode === 'all' ? ['prose', 'code'] : [argv.mode];
+  const modes = argv.mode === 'all'
+    ? ['prose', 'code', 'extracted-prose']
+    : [argv.mode];
   return { argv, modes };
 }

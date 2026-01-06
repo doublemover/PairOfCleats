@@ -3,12 +3,14 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { getIndexDir } from '../../tools/dict-utils.js';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
+import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import {
   MAX_JSON_BYTES,
   loadChunkMeta,
   loadTokenPostings,
   readJsonFile
 } from '../shared/artifact-io.js';
+import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../shared/hnsw.js';
 
 /**
  * Load file-backed index artifacts from a directory.
@@ -17,7 +19,13 @@ import {
  * @returns {object}
  */
 export function loadIndex(dir, options) {
-  const { modelIdDefault, fileChargramN } = options || {};
+  const {
+    modelIdDefault,
+    fileChargramN,
+    includeHnsw = true,
+    hnswConfig: rawHnswConfig
+  } = options || {};
+  const hnswConfig = normalizeHnswConfig(rawHnswConfig || {});
   const readJson = (name) => {
     const filePath = path.join(dir, name);
     return readJsonFile(filePath, { maxBytes: MAX_JSON_BYTES });
@@ -76,10 +84,27 @@ export function loadIndex(dir, options) {
     }
     fileRelations = map;
   }
-  const denseVec = loadOptional('dense_vectors_uint8.json');
-  const denseVecDoc = loadOptional('dense_vectors_doc_uint8.json');
-  const denseVecCode = loadOptional('dense_vectors_code_uint8.json');
   const indexState = loadOptional('index_state.json');
+  const embeddingsState = indexState?.embeddings || null;
+  const embeddingsReady = embeddingsState?.ready !== false && embeddingsState?.pending !== true;
+  const denseVec = embeddingsReady ? loadOptional('dense_vectors_uint8.json') : null;
+  const denseVecDoc = embeddingsReady ? loadOptional('dense_vectors_doc_uint8.json') : null;
+  const denseVecCode = embeddingsReady ? loadOptional('dense_vectors_code_uint8.json') : null;
+  const hnswMeta = embeddingsReady && includeHnsw && hnswConfig.enabled
+    ? loadOptional('dense_vectors_hnsw.meta.json')
+    : null;
+  let hnswIndex = null;
+  let hnswAvailable = false;
+  if (hnswMeta && includeHnsw && hnswConfig.enabled) {
+    const { indexPath } = resolveHnswPaths(dir);
+    const mergedConfig = {
+      ...hnswConfig,
+      space: hnswMeta.space || hnswConfig.space,
+      efSearch: hnswMeta.efSearch || hnswConfig.efSearch
+    };
+    hnswIndex = loadHnswIndex({ indexPath, dims: hnswMeta.dims, config: mergedConfig });
+    hnswAvailable = Boolean(hnswIndex);
+  }
   const fieldPostings = loadOptional('field_postings.json');
   const fieldTokens = loadOptional('field_tokens.json');
   if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
@@ -93,6 +118,12 @@ export function loadIndex(dir, options) {
     denseVec,
     denseVecDoc,
     denseVecCode,
+    hnsw: hnswMeta ? {
+      available: hnswAvailable,
+      index: hnswIndex,
+      meta: hnswMeta,
+      space: hnswMeta.space || hnswConfig.space
+    } : { available: false, index: null, meta: null, space: hnswConfig.space },
     state: indexState,
     fieldPostings,
     fieldTokens,
@@ -125,7 +156,7 @@ export function loadIndex(dir, options) {
 /**
  * Resolve the index directory (cache-first, local fallback).
  * @param {string} root
- * @param {'code'|'prose'|'records'} mode
+ * @param {'code'|'prose'|'records'|'extracted-prose'} mode
  * @param {object} userConfig
  * @returns {string}
  */
@@ -158,7 +189,7 @@ export function resolveIndexDir(root, mode, userConfig) {
 /**
  * Ensure a file-backed index exists for a mode.
  * @param {string} root
- * @param {'code'|'prose'|'records'} mode
+ * @param {'code'|'prose'|'records'|'extracted-prose'} mode
  * @param {object} userConfig
  * @returns {string}
  */
@@ -172,13 +203,15 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
     && !fsSync.existsSync(metaJsonlPath)
     && !fsSync.existsSync(metaPartsPath)
     && !fsSync.existsSync(metaPartsDir)) {
-    const suffix = mode === 'records' ? ' --mode records' : '';
-    const message = `[search] ${mode} index not found at ${dir}. Run "pairofcleats build-index${suffix}" or "npm run build-index${suffix}".`;
+    const suffix = (mode === 'records' || mode === 'extracted-prose')
+      ? ` --mode ${mode}`
+      : '';
+    const message = `[search] ${mode} index not found at ${dir}. Run "pairofcleats index build${suffix}" or "npm run build-index${suffix}".`;
     const emitOutput = options.emitOutput !== false;
     const exitOnError = options.exitOnError !== false;
     if (emitOutput) console.error(message);
     if (exitOnError) process.exit(1);
-    throw new Error(message);
+    throw createError(ERROR_CODES.NO_INDEX, message);
   }
   return dir;
 }
@@ -206,6 +239,7 @@ export function getIndexSignature(options) {
     sqliteCodePath,
     sqliteProsePath,
     runRecords,
+    runExtractedProse,
     root,
     userConfig
   } = options;
@@ -223,6 +257,14 @@ export function getIndexSignature(options) {
     }
   };
 
+  const extractedProseDir = runExtractedProse
+    ? resolveIndexDir(root, 'extracted-prose', userConfig)
+    : null;
+  const extractedProseMeta = extractedProseDir ? path.join(extractedProseDir, 'chunk_meta.json') : null;
+  const extractedProseDense = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_uint8.json') : null;
+  const extractedProseHnswMeta = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_hnsw.meta.json') : null;
+  const extractedProseHnswIndex = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_hnsw.bin') : null;
+
   if (useSqlite) {
     const codeDir = resolveIndexDir(root, 'code', userConfig);
     const proseDir = resolveIndexDir(root, 'prose', userConfig);
@@ -237,6 +279,10 @@ export function getIndexSignature(options) {
       prose: fileSignature(sqliteProsePath),
       codeRelations: fileSignature(codeRelations),
       proseRelations: fileSignature(proseRelations),
+      extractedProse: extractedProseMeta ? fileSignature(extractedProseMeta) : null,
+      extractedProseDense: extractedProseDense ? fileSignature(extractedProseDense) : null,
+      extractedProseHnswMeta: extractedProseHnswMeta ? fileSignature(extractedProseHnswMeta) : null,
+      extractedProseHnswIndex: extractedProseHnswIndex ? fileSignature(extractedProseHnswIndex) : null,
       records: recordMeta ? fileSignature(recordMeta) : null,
       recordsDense: recordDense ? fileSignature(recordDense) : null
     };
@@ -248,20 +294,36 @@ export function getIndexSignature(options) {
   const proseMeta = path.join(proseDir, 'chunk_meta.json');
   const codeDense = path.join(codeDir, 'dense_vectors_uint8.json');
   const proseDense = path.join(proseDir, 'dense_vectors_uint8.json');
+  const codeHnswMeta = path.join(codeDir, 'dense_vectors_hnsw.meta.json');
+  const codeHnswIndex = path.join(codeDir, 'dense_vectors_hnsw.bin');
+  const proseHnswMeta = path.join(proseDir, 'dense_vectors_hnsw.meta.json');
+  const proseHnswIndex = path.join(proseDir, 'dense_vectors_hnsw.bin');
   const codeRelations = path.join(codeDir, 'file_relations.json');
   const proseRelations = path.join(proseDir, 'file_relations.json');
   const recordDir = runRecords ? resolveIndexDir(root, 'records', userConfig) : null;
   const recordMeta = recordDir ? path.join(recordDir, 'chunk_meta.json') : null;
   const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
+  const recordHnswMeta = recordDir ? path.join(recordDir, 'dense_vectors_hnsw.meta.json') : null;
+  const recordHnswIndex = recordDir ? path.join(recordDir, 'dense_vectors_hnsw.bin') : null;
   return {
     backend: backendLabel,
     code: fileSignature(codeMeta),
     prose: fileSignature(proseMeta),
     codeDense: fileSignature(codeDense),
     proseDense: fileSignature(proseDense),
+    codeHnswMeta: fileSignature(codeHnswMeta),
+    codeHnswIndex: fileSignature(codeHnswIndex),
+    proseHnswMeta: fileSignature(proseHnswMeta),
+    proseHnswIndex: fileSignature(proseHnswIndex),
     codeRelations: fileSignature(codeRelations),
     proseRelations: fileSignature(proseRelations),
+    extractedProse: extractedProseMeta ? fileSignature(extractedProseMeta) : null,
+    extractedProseDense: extractedProseDense ? fileSignature(extractedProseDense) : null,
+    extractedProseHnswMeta: extractedProseHnswMeta ? fileSignature(extractedProseHnswMeta) : null,
+    extractedProseHnswIndex: extractedProseHnswIndex ? fileSignature(extractedProseHnswIndex) : null,
     records: recordMeta ? fileSignature(recordMeta) : null,
-    recordsDense: recordDense ? fileSignature(recordDense) : null
+    recordsDense: recordDense ? fileSignature(recordDense) : null,
+    recordsHnswMeta: recordHnswMeta ? fileSignature(recordHnswMeta) : null,
+    recordsHnswIndex: recordHnswIndex ? fileSignature(recordHnswIndex) : null
   };
 }

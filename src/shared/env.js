@@ -45,7 +45,9 @@ export function getEnvConfig(env = process.env) {
     progressFiles: parseBool(env.PAIROFCLEATS_PROGRESS_FILES),
     progressLines: parseBool(env.PAIROFCLEATS_PROGRESS_LINES),
     fileCacheMax: parseNumber(env.PAIROFCLEATS_FILE_CACHE_MAX),
-    summaryCacheMax: parseNumber(env.PAIROFCLEATS_SUMMARY_CACHE_MAX)
+    summaryCacheMax: parseNumber(env.PAIROFCLEATS_SUMMARY_CACHE_MAX),
+    logFormat: normalizeString(env.PAIROFCLEATS_LOG_FORMAT),
+    logLevel: normalizeString(env.PAIROFCLEATS_LOG_LEVEL)
   };
 }
 

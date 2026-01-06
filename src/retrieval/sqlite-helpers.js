@@ -55,16 +55,38 @@ export function createSqliteHelpers(options) {
    * @returns {object}
    */
   function mapChunkRow(row) {
+    const start = Number.isFinite(row.start) ? row.start : null;
+    const end = Number.isFinite(row.end) ? row.end : null;
+    const startLine = Number.isFinite(row.startLine) ? row.startLine : null;
+    const endLine = Number.isFinite(row.endLine) ? row.endLine : null;
+    const metaV2 = row.chunk_id
+      ? {
+        chunkId: row.chunk_id,
+        file: row.file || null,
+        segment: null,
+        range: {
+          start,
+          end,
+          startLine,
+          endLine
+        },
+        lang: null,
+        ext: row.ext || null,
+        kind: row.kind || null,
+        name: row.name || null
+      }
+      : null;
     return {
       id: row.id,
       file: row.file,
-      start: row.start,
-      end: row.end,
-      startLine: row.startLine,
-      endLine: row.endLine,
+      start,
+      end,
+      startLine,
+      endLine,
       ext: row.ext,
       kind: row.kind,
       name: row.name,
+      metaV2,
       weight: typeof row.weight === 'number' ? row.weight : 1,
       headline: row.headline,
       preContext: parseJson(row.preContext, []),
@@ -407,22 +429,33 @@ export function createSqliteHelpers(options) {
    * @param {'code'|'prose'} mode
    * @param {number} topN
    * @param {boolean} [normalizeScores]
+   * @param {Set<number>|null} [allowedIds]
    * @returns {Array<{idx:number,score:number}>}
    */
-  function rankSqliteFts(idx, queryTokens, mode, topN, normalizeScores = false) {
+  function rankSqliteFts(idx, queryTokens, mode, topN, normalizeScores = false, allowedIds = null) {
     const db = getDb(mode);
     if (!db || !queryTokens.length) return [];
+    if (allowedIds && allowedIds.size === 0) return [];
     const ftsTokens = queryTokens.filter((token) => FTS_TOKEN_SAFE.test(token));
     if (!ftsTokens.length) return [];
     const ftsQuery = ftsTokens.join(' ');
     const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights);
+    const allowedList = allowedIds && allowedIds.size ? Array.from(allowedIds) : null;
+    const canPushdown = !!(allowedList && allowedList.length <= SQLITE_IN_LIMIT);
+    const allowedClause = canPushdown
+      ? ` AND chunks_fts.rowid IN (${allowedList.map(() => '?').join(',')})`
+      : '';
+    const params = canPushdown
+      ? [ftsQuery, mode, ...allowedList, topN]
+      : [ftsQuery, mode, topN];
     const rows = db.prepare(
       `SELECT chunks_fts.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
        FROM chunks_fts
        JOIN chunks ON chunks.id = chunks_fts.rowid
        WHERE chunks_fts MATCH ? AND chunks.mode = ?
+       ${allowedClause}
        ORDER BY score ASC, chunks_fts.rowid ASC LIMIT ?`
-    ).all(ftsQuery, mode, topN);
+    ).all(...params);
     const rawScores = rows.map((row) => -row.score);
     let min = 0;
     let max = 0;
@@ -443,7 +476,13 @@ export function createSqliteHelpers(options) {
         : raw;
       hits.push({ idx: row.id, score: normalized * weight });
     }
-    return hits;
+    let filteredHits = hits;
+    if (allowedIds && allowedIds.size && !canPushdown) {
+      filteredHits = filteredHits.filter((hit) => allowedIds.has(hit.idx));
+    }
+    return filteredHits
+      .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
+      .slice(0, topN);
   }
 
   /**

@@ -394,7 +394,9 @@ export async function assembleIndexPieces({
     if (chunk?.file) uniqueFiles.add(chunk.file);
   }
   const timing = { start: Date.now() };
-  const filterIndex = serializeFilterIndex(buildFilterIndex(state.chunks));
+  const filterIndex = serializeFilterIndex(buildFilterIndex(state.chunks, {
+    includeBitmaps: false
+  }));
   state.fileRelations = state.fileRelations || new Map();
   state.scannedFilesTimes = [];
   state.scannedFiles = [];

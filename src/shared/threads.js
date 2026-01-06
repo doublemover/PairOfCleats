@@ -15,7 +15,8 @@ export function resolveThreadLimits(input = {}) {
     defaultMultiplier = 4
   } = input;
   const cpuCount = os.cpus().length;
-  const defaultThreads = Math.max(1, cpuCount * defaultMultiplier);
+  const defaultFileConcurrency = Math.max(1, Math.min(cpuCount, 16));
+  const defaultThreads = Math.max(1, defaultFileConcurrency * defaultMultiplier);
   const rawCliThreads = Number(argv.threads);
   const envThreads = Number(envConfig.threads);
   const threadsArgPresent = Array.isArray(rawArgv)
@@ -26,23 +27,14 @@ export function resolveThreadLimits(input = {}) {
   const cliConcurrency = envThreadsProvided
     ? envThreads
     : (cliThreadsProvided ? rawCliThreads : null);
-  const maxConcurrencyCap = Number.isFinite(cliConcurrency)
-    ? Math.max(defaultThreads, Math.floor(cliConcurrency))
+  const requestedConcurrency = Number.isFinite(cliConcurrency)
+    ? Math.floor(cliConcurrency)
     : Number.isFinite(configConcurrency)
-      ? Math.max(defaultThreads, Math.floor(configConcurrency))
-      : defaultThreads;
-  const defaultConcurrency = Math.max(1, Math.min(cpuCount, maxConcurrencyCap));
-  const fileConcurrency = Math.max(
-    1,
-    Math.min(
-      maxConcurrencyCap,
-      Number.isFinite(cliConcurrency)
-        ? cliConcurrency
-        : Number.isFinite(configConcurrency)
-          ? configConcurrency
-          : defaultConcurrency
-    )
-  );
+      ? Math.floor(configConcurrency)
+      : defaultFileConcurrency;
+  const cappedConcurrency = Math.max(1, Math.min(cpuCount, requestedConcurrency));
+  const maxConcurrencyCap = Math.max(defaultFileConcurrency, cappedConcurrency);
+  const fileConcurrency = Math.max(1, Math.min(maxConcurrencyCap, cappedConcurrency));
   const importConcurrency = Math.max(
     1,
     Math.min(
@@ -54,8 +46,10 @@ export function resolveThreadLimits(input = {}) {
           : fileConcurrency
     )
   );
-  const ioConcurrency = Math.max(fileConcurrency, importConcurrency) * 2;
-  const cpuConcurrency = Math.max(1, Math.min(maxConcurrencyCap, fileConcurrency)) * 2;
+  const ioCap = process.platform === 'win32' ? 32 : 64;
+  const ioBase = Math.max(fileConcurrency, importConcurrency);
+  const ioConcurrency = Math.max(1, Math.min(ioCap, ioBase * 4));
+  const cpuConcurrency = Math.max(1, Math.min(maxConcurrencyCap, fileConcurrency));
   const source = envThreadsProvided
     ? 'env'
     : cliThreadsProvided

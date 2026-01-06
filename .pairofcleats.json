@@ -1,137 +1,41 @@
 {
-  "dictionary": {
-    "languages": [
-      "en"
-    ],
-    "includeSlang": true,
-    "enableRepoDictionary": false,
-    "dir": "",
-    "files": [],
-    "slangDirs": [],
-    "slangFiles": []
-  },
-  "cache": {
-    "root": "",
-    "runtime": {
-      "fileText": { "maxMb": 128, "ttlMs": 0 },
-      "summary": { "maxMb": 32, "ttlMs": 0 },
-      "lint": { "maxMb": 32, "ttlMs": 0 },
-      "complexity": { "maxMb": 32, "ttlMs": 0 },
-      "gitMeta": { "maxMb": 16, "ttlMs": 0 }
-    }
-  },
   "sqlite": {
-    "use": true,
-    "dbDir": "",
-    "annMode": "extension",
-    "compactOnIncremental": false,
-    "vectorExtension": {
-      "provider": "sqlite-vec",
-      "dir": "",
-      "path": "",
-      "table": "dense_vectors_ann",
-      "column": "embedding",
-      "encoding": "float32",
-      "options": ""
-    }
+    "use": true
   },
   "search": {
     "annDefault": true,
-    "sqliteAutoChunkThreshold": 5000,
-    "sqliteFtsNormalize": false,
-    "queryCache": {
-      "enabled": false,
-      "maxEntries": 200,
-      "ttlMs": 0
-    }
-  },
-  "triage": {
-    "recordsDir": "",
-    "storeRawPayload": false,
-    "promoteFields": [
-      "recordType",
-      "source",
-      "recordId",
-      "service",
-      "env",
-      "team",
-      "owner",
-      "vulnId",
-      "cve",
-      "packageName",
-      "packageEcosystem",
-      "severity",
-      "status",
-      "assetId"
-    ],
-    "contextPack": {
-      "maxHistory": 5,
-      "maxEvidencePerQuery": 5
-    }
+    "denseVectorMode": "merged"
   },
   "indexing": {
-    "astDataflow": true,
-    "controlFlow": true,
-    "javascriptParser": "babel",
-    "javascriptFlow": "auto",
-    "typescriptParser": "babel",
-    "typescript": {
-      "importsOnly": false,
-      "embeddingBatchMultiplier": 2
-    },
-    "pythonAst": {
-      "enabled": true,
-      "workerCount": 32,
-      "maxWorkers": 32,
-      "scaleUpQueueMs": 500,
-      "taskTimeoutMs": 30000,
-      "maxRetries": 2
-    },
-    "workerPool": {
-      "enabled": "auto",
-      "maxFileBytes": 524288,
-      "idleTimeoutMs": 30000,
-      "taskTimeoutMs": 60000,
-      "quantizeBatchSize": 256
-    },
-    "shards": {
-      "enabled": true,
-      "dirDepth": 0
-    },
-    "riskAnalysis": true,
-    "riskAnalysisCrossFile": true,
-    "typeInference": true,
-    "typeInferenceCrossFile": true,
     "postings": {
       "enablePhraseNgrams": true,
       "phraseMinN": 2,
       "phraseMaxN": 4,
       "enableChargrams": true,
       "chargramMinN": 3,
-      "chargramMaxN": 5
+      "chargramMaxN": 5,
+      "chargramSource": "fields",
+      "chargramMaxTokenLength": 48,
+      "fielded": true
+    },
+    "importScan": "post",
+    "astDataflow": true,
+    "controlFlow": true,
+    "riskAnalysis": true,
+    "riskAnalysisCrossFile": true,
+    "typeInference": false,
+    "typeInferenceCrossFile": false,
+    "gitBlame": true,
+    "lint": true,
+    "complexity": true,
+    "pythonAst": {
+      "enabled": true
+    },
+    "treeSitter": {
+      "enabled": true
     }
-  },
-  "sql": {
-    "dialect": "",
-    "dialectByExt": {
-      ".psql": "postgres",
-      ".pgsql": "postgres",
-      ".mysql": "mysql",
-      ".sqlite": "sqlite"
-    }
-  },
-  "models": {
-    "id": "Xenova/all-MiniLM-L12-v2",
-    "dir": ""
   },
   "runtime": {
-    "maxOldSpaceMb": 98304,
-    "nodeOptions": ""
-  },
-  "tooling": {
-    "autoInstallOnDetect": false,
-    "installScope": "cache",
-    "allowGlobalFallback": true,
-    "dir": ""
+    "maxOldSpaceMb": 98048
   }
 }

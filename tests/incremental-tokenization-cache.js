@@ -76,7 +76,9 @@ if (!cachedEntry || cachedEntry.cached !== true) {
 await writeConfig(true);
 runBuild('config change rebuild');
 
-const fileListsAfter = JSON.parse(await fsPromises.readFile(fileListsPath, 'utf8'));
+const userConfigAfter = loadUserConfig(repoRoot);
+const codeDirAfter = getIndexDir(repoRoot, 'code', userConfigAfter);
+const fileListsAfter = JSON.parse(await fsPromises.readFile(path.join(codeDirAfter, '.filelists.json'), 'utf8'));
 const scannedAfter = fileListsAfter?.scanned?.sample;
 const rebuildEntry = Array.isArray(scannedAfter)
   ? scannedAfter.find((entry) => entry?.file && entry.file.endsWith('src.js'))

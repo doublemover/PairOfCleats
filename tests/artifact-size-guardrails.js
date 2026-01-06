@@ -27,6 +27,9 @@ for (let i = 0; i < 3; i += 1) {
 await fsPromises.writeFile(
   path.join(repoRoot, '.pairofcleats.json'),
   JSON.stringify({
+    sqlite: {
+      use: false
+    },
     indexing: {
       fileScan: {
         minified: { sampleMinBytes: 20000 }
@@ -41,22 +44,25 @@ await fsPromises.writeFile(
   }, null, 2)
 );
 
-const env = {
+const baseEnv = {
   ...process.env,
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_MAX_JSON_BYTES: '2048'
+  PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
 
-const result = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
-);
-if (result.status !== 0) {
-  console.error('Failed: build_index (artifact guardrails)');
-  process.exit(result.status ?? 1);
-}
+const runBuild = (label, envOverrides) => {
+  const result = spawnSync(
+    process.execPath,
+    [path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
+    { cwd: repoRoot, env: { ...baseEnv, ...envOverrides }, stdio: 'inherit' }
+  );
+  if (result.status !== 0) {
+    console.error(`Failed: build_index (${label})`);
+    process.exit(result.status ?? 1);
+  }
+};
+
+runBuild('artifact guardrails (small max)', { PAIROFCLEATS_MAX_JSON_BYTES: '2048' });
 
 const userConfig = loadUserConfig(repoRoot);
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
@@ -81,6 +87,31 @@ if (!fs.existsSync(tokenMetaPath) || !fs.existsSync(tokenShardsDir)) {
 }
 if (fs.existsSync(path.join(indexDir, 'token_postings.json'))) {
   console.error('Expected token_postings.json to be suppressed when sharding.');
+  process.exit(1);
+}
+
+runBuild('artifact guardrails (large max)', { PAIROFCLEATS_MAX_JSON_BYTES: '52428800' });
+
+const nextIndexDir = getIndexDir(repoRoot, 'code', userConfig);
+const nextChunkMetaMeta = path.join(nextIndexDir, 'chunk_meta.meta.json');
+const nextChunkMetaParts = path.join(nextIndexDir, 'chunk_meta.parts');
+if (fs.existsSync(nextChunkMetaMeta) || fs.existsSync(nextChunkMetaParts)) {
+  console.error('Expected chunk_meta to remain unsharded when max JSON bytes is large.');
+  process.exit(1);
+}
+if (!fs.existsSync(path.join(nextIndexDir, 'chunk_meta.json'))) {
+  console.error('Expected chunk_meta.json when max JSON bytes is large.');
+  process.exit(1);
+}
+
+const nextTokenMetaPath = path.join(nextIndexDir, 'token_postings.meta.json');
+const nextTokenShardsDir = path.join(nextIndexDir, 'token_postings.shards');
+if (fs.existsSync(nextTokenMetaPath) || fs.existsSync(nextTokenShardsDir)) {
+  console.error('Expected token_postings to remain unsharded when max JSON bytes is large.');
+  process.exit(1);
+}
+if (!fs.existsSync(path.join(nextIndexDir, 'token_postings.json'))) {
+  console.error('Expected token_postings.json when max JSON bytes is large.');
   process.exit(1);
 }
 

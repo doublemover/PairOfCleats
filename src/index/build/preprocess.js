@@ -76,6 +76,8 @@ export async function preprocessFiles({
   ignoreMatcher,
   maxFileBytes = null,
   fileCaps = null,
+  maxDepth = null,
+  maxFiles = null,
   fileScan = null,
   lineCounts = false,
   concurrency = 8,
@@ -85,7 +87,9 @@ export async function preprocessFiles({
     root,
     ignoreMatcher,
     maxFileBytes,
-    fileCaps
+    fileCaps,
+    maxDepth,
+    maxFiles
   });
   const fileScanner = createFileScanner(fileScan);
   const scanSkips = [];

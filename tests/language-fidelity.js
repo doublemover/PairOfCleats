@@ -75,6 +75,69 @@ const fileMetaPath = path.join(codeDir, 'file_meta.json');
 const fileMeta = fs.existsSync(fileMetaPath)
   ? JSON.parse(fs.readFileSync(fileMetaPath, 'utf8'))
   : [];
+const failures = [];
+const extractPostings = (payload) => {
+  if (!payload || typeof payload !== 'object') return [];
+  if (Array.isArray(payload.postings)) return payload.postings;
+  if (Array.isArray(payload.arrays?.postings)) return payload.arrays.postings;
+  return [];
+};
+const validateTokenPostings = (payload, label) => {
+  const postings = extractPostings(payload);
+  let badEntry = null;
+  for (let i = 0; i < postings.length; i += 1) {
+    const list = postings[i];
+    if (!Array.isArray(list)) continue;
+    for (let j = 0; j < list.length; j += 1) {
+      const entry = list[j];
+      if (!Array.isArray(entry)) continue;
+      const count = entry[1];
+      if (!Number.isInteger(count)) {
+        badEntry = { i, j, count };
+        break;
+      }
+    }
+    if (badEntry) break;
+  }
+  if (badEntry) {
+    const labelSuffix = label ? ` (${label})` : '';
+    failures.push(`Token postings contain non-integer counts${labelSuffix} at ${badEntry.i}/${badEntry.j}: ${badEntry.count}`);
+  }
+};
+const tokenPostingsPath = path.join(codeDir, 'token_postings.json');
+const tokenPostingsMetaPath = path.join(codeDir, 'token_postings.meta.json');
+if (fs.existsSync(tokenPostingsPath)) {
+  try {
+    const tokenPostings = JSON.parse(fs.readFileSync(tokenPostingsPath, 'utf8'));
+    validateTokenPostings(tokenPostings, 'token_postings.json');
+  } catch {
+    failures.push('Token postings check failed: invalid JSON payload.');
+  }
+} else if (fs.existsSync(tokenPostingsMetaPath)) {
+  try {
+    const tokenMeta = JSON.parse(fs.readFileSync(tokenPostingsMetaPath, 'utf8'));
+    const parts = Array.isArray(tokenMeta?.fields?.parts) ? tokenMeta.fields.parts : [];
+    if (!parts.length) {
+      failures.push('Token postings check failed: sharded metadata missing parts list.');
+    } else {
+      for (const part of parts) {
+        const partPath = path.join(codeDir, part);
+        if (!fs.existsSync(partPath)) {
+          failures.push(`Token postings shard missing: ${partPath}`);
+          continue;
+        }
+        try {
+          const shard = JSON.parse(fs.readFileSync(partPath, 'utf8'));
+          validateTokenPostings(shard, part);
+        } catch {
+          failures.push(`Token postings shard check failed: invalid JSON payload in ${part}.`);
+        }
+      }
+    }
+  } catch {
+    failures.push('Token postings check failed: invalid sharded metadata payload.');
+  }
+}
 const fileById = new Map(
   (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
 );
@@ -104,8 +167,6 @@ function findChunk(match) {
     return true;
   });
 }
-
-const failures = [];
 
 const branchSearch = runSearch(
   [searchPath, 'load', '--json', '--mode', 'code', '--branches', '1', '--no-ann'],
@@ -194,6 +255,30 @@ if (asyncPayload) {
   const asyncHits = asyncPayload.code || [];
   if (!asyncHits.length) {
     failures.push('Search async filter failed: no results for load.');
+  }
+}
+
+const fileRegexSearch = runSearch(
+  [searchPath, 'buildAliases', '--json', '--mode', 'code', '--file', '/javascript_advanced\\.js$/', '--no-ann'],
+  'search (file regex filter)'
+);
+let fileRegexPayload = null;
+try {
+  fileRegexPayload = JSON.parse(fileRegexSearch);
+} catch {
+  failures.push('Search file regex filter failed: invalid JSON output.');
+}
+if (fileRegexPayload) {
+  const fileRegexHits = fileRegexPayload.code || [];
+  if (!fileRegexHits.length) {
+    failures.push('Search file regex filter failed: no results for javascript_advanced.js.');
+  } else {
+    const matches = fileRegexHits.every((hit) =>
+      String(hit.file || '').includes('javascript_advanced.js')
+    );
+    if (!matches) {
+      failures.push('Search file regex filter failed: returned non-matching files.');
+    }
   }
 }
 
@@ -619,6 +704,10 @@ const rubyMethod = findChunk({ file: 'src/ruby_advanced.rb', kind: 'MethodDeclar
 if (!rubyMethod) {
   failures.push('Missing Ruby method chunk (Widget.render).');
 }
+const gemfileChunk = findChunk({ file: 'src/Gemfile', kind: 'MethodDeclaration', nameIncludes: 'build_widget' });
+if (!gemfileChunk) {
+  failures.push('Missing Gemfile Ruby chunk (build_widget).');
+}
 
 const phpMethod = findChunk({ file: 'src/php_advanced.php', kind: 'MethodDeclaration', nameIncludes: 'Widget.render' });
 if (!phpMethod) {
@@ -661,6 +750,101 @@ if (!sqliteTable) {
   failures.push('Missing SQLite SQL table chunk (sqlite_widgets).');
 } else if (sqliteTable.docmeta?.dialect !== 'sqlite') {
   failures.push('SQLite dialect metadata missing for sqlite_widgets.');
+}
+
+const dockerChunk = findChunk({ file: 'src/Dockerfile', nameIncludes: 'FROM' });
+if (!dockerChunk) {
+  failures.push('Missing Dockerfile chunk (FROM).');
+}
+
+const makeChunk = findChunk({ file: 'src/Makefile', nameIncludes: 'build' });
+if (!makeChunk) {
+  failures.push('Missing Makefile chunk (build).');
+}
+
+const protoChunk = findChunk({ file: 'src/schema.proto', nameIncludes: 'Widget' });
+if (!protoChunk) {
+  failures.push('Missing Protobuf chunk (Widget).');
+}
+
+const graphqlChunk = findChunk({ file: 'src/schema.graphql', nameIncludes: 'Widget' });
+if (!graphqlChunk) {
+  failures.push('Missing GraphQL chunk (Widget).');
+}
+
+const cmakeChunk = findChunk({ file: 'src/CMakeLists.txt', nameIncludes: 'add_executable' });
+if (!cmakeChunk) {
+  failures.push('Missing CMake chunk (add_executable).');
+}
+
+const bazelChunk = findChunk({ file: 'src/BUILD', nameIncludes: 'widget_lib' });
+if (!bazelChunk) {
+  failures.push('Missing Bazel chunk (widget_lib).');
+}
+
+const workspaceChunk = findChunk({ file: 'src/WORKSPACE', nameIncludes: 'workspace' });
+if (!workspaceChunk) {
+  failures.push('Missing Bazel WORKSPACE chunk (workspace).');
+}
+
+const starlarkChunk = findChunk({ file: 'src/defs.bzl', nameIncludes: 'widget_rule' });
+if (!starlarkChunk) {
+  failures.push('Missing Starlark chunk (widget_rule).');
+}
+
+const nixChunk = findChunk({ file: 'src/default.nix', nameIncludes: 'widget' });
+if (!nixChunk) {
+  failures.push('Missing Nix chunk (widget).');
+}
+
+const dartChunk = findChunk({ file: 'src/widget.dart', nameIncludes: 'Widget' });
+if (!dartChunk) {
+  failures.push('Missing Dart chunk (Widget).');
+}
+
+const scalaChunk = findChunk({ file: 'src/Widget.scala', nameIncludes: 'WidgetFactory' });
+if (!scalaChunk) {
+  failures.push('Missing Scala chunk (WidgetFactory).');
+}
+
+const groovyChunk = findChunk({ file: 'src/Widget.groovy', nameIncludes: 'buildWidget' });
+if (!groovyChunk) {
+  failures.push('Missing Groovy chunk (buildWidget).');
+}
+
+const rChunk = findChunk({ file: 'src/widget.r', nameIncludes: 'build_widget' });
+if (!rChunk) {
+  failures.push('Missing R chunk (build_widget).');
+}
+
+const juliaChunk = findChunk({ file: 'src/widget.jl', nameIncludes: 'build_widget' });
+if (!juliaChunk) {
+  failures.push('Missing Julia chunk (build_widget).');
+}
+
+const handlebarsChunk = findChunk({ file: 'src/widget.hbs', nameIncludes: 'widgets' });
+if (!handlebarsChunk) {
+  failures.push('Missing Handlebars chunk (widgets).');
+}
+
+const mustacheChunk = findChunk({ file: 'src/widget.mustache', nameIncludes: 'widget' });
+if (!mustacheChunk) {
+  failures.push('Missing Mustache chunk (widget).');
+}
+
+const jinjaChunk = findChunk({ file: 'src/widget.jinja2', nameIncludes: 'content' });
+if (!jinjaChunk) {
+  failures.push('Missing Jinja chunk (content).');
+}
+
+const djangoChunk = findChunk({ file: 'src/widget.djhtml', nameIncludes: 'body' });
+if (!djangoChunk) {
+  failures.push('Missing Django template chunk (body).');
+}
+
+const razorChunk = findChunk({ file: 'src/widget.razor', nameIncludes: 'page' });
+if (!razorChunk) {
+  failures.push('Missing Razor chunk (page).');
 }
 
 if (failures.length) {

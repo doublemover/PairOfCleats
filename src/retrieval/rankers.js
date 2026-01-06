@@ -5,11 +5,13 @@ import { SimpleMinHash } from '../index/minhash.js';
  * @param {object} idx
  * @param {string[]} tokens
  * @param {number} topN
+ * @param {Set<number>|null} [allowedIdx]
  * @returns {Array<{idx:number,score:number}>}
  */
-export function rankBM25Legacy(idx, tokens, topN) {
+export function rankBM25Legacy(idx, tokens, topN, allowedIdx = null) {
+  if (allowedIdx && allowedIdx.size === 0) return [];
   const scores = new Map();
-  const ids = idx.chunkMeta.map((_, i) => i);
+  const ids = allowedIdx ? Array.from(allowedIdx) : idx.chunkMeta.map((_, i) => i);
   ids.forEach((i) => {
     const chunk = idx.chunkMeta[i];
     if (!chunk) return;
@@ -56,13 +58,25 @@ export function getTokenIndex(idx) {
  * @param {string[]} params.tokens
  * @param {number} params.topN
  * @param {object|null} [params.tokenIndexOverride]
+ * @param {Set<number>|null} [params.allowedIdx]
  * @param {number} [params.k1]
  * @param {number} [params.b]
  * @returns {Array<{idx:number,score:number}>}
  */
-export function rankBM25({ idx, tokens, topN, tokenIndexOverride = null, k1 = 1.2, b = 0.75 }) {
+export function rankBM25({
+  idx,
+  tokens,
+  topN,
+  tokenIndexOverride = null,
+  allowedIdx = null,
+  k1 = 1.2,
+  b = 0.75
+}) {
   const tokenIndex = tokenIndexOverride || getTokenIndex(idx);
-  if (!tokenIndex || !tokenIndex.vocab || !tokenIndex.postings) return rankBM25Legacy(idx, tokens, topN);
+  if (!tokenIndex || !tokenIndex.vocab || !tokenIndex.postings) {
+    return rankBM25Legacy(idx, tokens, topN, allowedIdx);
+  }
+  if (allowedIdx && allowedIdx.size === 0) return [];
 
   const scores = new Map();
   const docLengths = tokenIndex.docLengths;
@@ -81,6 +95,7 @@ export function rankBM25({ idx, tokens, topN, tokenIndexOverride = null, k1 = 1.
     const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
 
     for (const [docId, tf] of posting) {
+      if (allowedIdx && !allowedIdx.has(docId)) continue;
       const dl = docLengths[docId] || 0;
       const denom = tf + k1 * (1 - b + b * (dl / avgDocLen));
       const score = idf * ((tf * (k1 + 1)) / denom) * qCount;
@@ -106,15 +121,25 @@ export function rankBM25({ idx, tokens, topN, tokenIndexOverride = null, k1 = 1.
  * @param {string[]} params.tokens
  * @param {number} params.topN
  * @param {object} params.fieldWeights
+ * @param {Set<number>|null} [params.allowedIdx]
  * @param {number} [params.k1]
  * @param {number} [params.b]
  * @returns {Array<{idx:number,score:number}>}
  */
-export function rankBM25Fields({ idx, tokens, topN, fieldWeights, k1 = 1.2, b = 0.75 }) {
+export function rankBM25Fields({
+  idx,
+  tokens,
+  topN,
+  fieldWeights,
+  allowedIdx = null,
+  k1 = 1.2,
+  b = 0.75
+}) {
   const fields = idx.fieldPostings?.fields;
   if (!fields || !fieldWeights || !tokens.length) {
-    return rankBM25({ idx, tokens, topN, k1, b });
+    return rankBM25({ idx, tokens, topN, k1, b, allowedIdx });
   }
+  if (allowedIdx && allowedIdx.size === 0) return [];
 
   const qtf = new Map();
   tokens.forEach((tok) => qtf.set(tok, (qtf.get(tok) || 0) + 1));
@@ -142,6 +167,7 @@ export function rankBM25Fields({ idx, tokens, topN, fieldWeights, k1 = 1.2, b = 
       const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
 
       for (const [docId, tf] of posting) {
+        if (allowedIdx && !allowedIdx.has(docId)) continue;
         const dl = docLengths[docId] || 0;
         const denom = tf + k1 * (1 - b + b * (dl / avgDocLen));
         const score = idf * ((tf * (k1 + 1)) / denom) * qCount * fieldWeight;

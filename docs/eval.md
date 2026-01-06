@@ -5,13 +5,13 @@
 ## Usage
 
 ```bash
-pairofcleats eval-run --repo /path/to/repo --dataset /path/to/queries.json --backend sqlite --top 10
+pairofcleats report eval --repo /path/to/repo --dataset /path/to/queries.json --backend sqlite --top 10
 ```
 
 Options:
 - `--repo`: repo root (defaults to current working directory)
 - `--dataset`: JSON file with queries (defaults to `tests/fixtures/sample/eval.json`)
-- `--backend`: `auto|memory|sqlite|sqlite-fts`
+- `--backend`: `auto|memory|sqlite|sqlite-fts|lmdb`
 - `--top` (`-n`): top N results to evaluate (default: 10)
 - `--ann` / `--no-ann`: include dense ANN in the run
 - `--out`: write JSON report to a file

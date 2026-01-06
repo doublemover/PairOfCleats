@@ -2,9 +2,8 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { execaSync } from 'execa';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
-import { getRuntimeConfig, getTriageConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot } from '../dict-utils.js';
+import { getRuntimeConfig, getTriageConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveToolRoot } from '../dict-utils.js';
 import { normalizeDependabot } from '../../src/integrations/triage/normalize/dependabot.js';
 import { normalizeAwsInspector } from '../../src/integrations/triage/normalize/aws-inspector.js';
 import { normalizeGeneric } from '../../src/integrations/triage/normalize/generic.js';
@@ -90,7 +89,7 @@ for (let index = 0; index < rawEntries.length; index += 1) {
 }
 
 if (argv['build-index']) {
-  const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const scriptRoot = resolveToolRoot();
   const args = [path.join(scriptRoot, 'build_index.js'), '--mode', 'records', '--repo', repoRoot];
   if (argv.incremental) args.push('--incremental');
   if (argv['stub-embeddings']) args.push('--stub-embeddings');

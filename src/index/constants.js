@@ -124,7 +124,21 @@ export const SKIP_FILES = new Set([
   'AGENTS.md'
 ]);
 
-export const EXTS_PROSE = new Set(['.md', '.txt', '.rst', '.adoc', '.asciidoc']);
+export const MANIFEST_FILES = new Set([
+  'package.json',
+  'requirements.txt'
+]);
+
+export const LOCK_FILES = new Set([
+  'package-lock.json',
+  'pnpm-lock.yaml',
+  'yarn.lock',
+  'composer.lock',
+  'pipfile.lock',
+  'npm-shrinkwrap.json'
+]);
+
+export const EXTS_PROSE = new Set(['.md', '.mdx', '.txt', '.rst', '.adoc', '.asciidoc']);
 
 export const JS_EXTS = new Set(['.js', '.mjs', '.cjs', '.jsx']);
 export const TS_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts']);
@@ -143,16 +157,53 @@ export const LUA_EXTS = new Set(['.lua']);
 export const SQL_EXTS = new Set(['.sql', '.psql', '.pgsql', '.mysql', '.sqlite']);
 export const PERL_EXTS = new Set(['.pl', '.pm']);
 export const SHELL_EXTS = new Set(['.sh', '.bash', '.zsh', '.ksh']);
+export const CMAKE_EXTS = new Set(['.cmake']);
+export const STARLARK_EXTS = new Set(['.bzl', '.bazel', '.star']);
+export const NIX_EXTS = new Set(['.nix']);
+export const DART_EXTS = new Set(['.dart']);
+export const SCALA_EXTS = new Set(['.scala', '.sc']);
+export const GROOVY_EXTS = new Set(['.groovy', '.gradle', '.gvy']);
+export const R_EXTS = new Set(['.r']);
+export const JULIA_EXTS = new Set(['.jl']);
+export const HANDLEBARS_EXTS = new Set(['.hbs', '.handlebars']);
+export const MUSTACHE_EXTS = new Set(['.mustache']);
+export const JINJA_EXTS = new Set(['.jinja', '.jinja2', '.j2', '.django', '.djhtml']);
+export const RAZOR_EXTS = new Set(['.razor', '.cshtml']);
 
 export const EXTS_CODE = new Set([
   '.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx', '.mts', '.cts', '.yml', '.yaml', '.sh',
   '.html', '.htm', '.css', '.py', '.swift', '.rs', '.c', '.cc', '.cpp', '.h', '.hpp', '.hh',
   '.m', '.mm', '.go', '.java', '.cs', '.kt', '.kts', '.rb', '.php', '.phtml',
   '.lua', '.sql', '.psql', '.pgsql', '.mysql', '.sqlite', '.pl', '.pm', '.bash',
-  '.zsh', '.ksh', '.json', '.toml', '.ini', '.xml', '.cfg', '.conf'
+  '.zsh', '.ksh', '.json', '.toml', '.ini', '.xml', '.cfg', '.conf', '.vue',
+  '.svelte', '.astro', '.proto', '.graphql', '.gql', '.cmake', '.dockerfile', '.makefile', '.bzl', '.bazel',
+  '.star', '.nix', '.dart', '.scala', '.sc', '.groovy', '.gradle', '.gvy', '.r',
+  '.jl', '.hbs', '.handlebars', '.mustache', '.jinja', '.jinja2', '.j2',
+  '.django', '.djhtml', '.razor', '.cshtml'
 ]);
 
-export const CODE_FILENAMES = new Set(['dockerfile', 'makefile']);
+export const CODE_FILENAMES = new Set([
+  'dockerfile',
+  'makefile',
+  'gnumakefile',
+  'cmakelists.txt',
+  'build',
+  'workspace'
+]);
+
+const SPECIAL_CODE_EXTS = new Map([
+  ['dockerfile', '.dockerfile'],
+  ['makefile', '.makefile'],
+  ['gnumakefile', '.makefile'],
+  ['cmakelists.txt', '.cmake'],
+  ['build', '.bazel'],
+  ['workspace', '.bazel']
+]);
+
+const SPECIAL_CODE_PREFIXES = new Map([
+  ['dockerfile', '.dockerfile'],
+  ['makefile', '.makefile']
+]);
 
 export const STOP = new Set([
   'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves',
@@ -334,4 +385,22 @@ export const isShell = (ext) => SHELL_EXTS.has(ext);
  * @param {string} name
  * @returns {boolean}
  */
-export const isSpecialCodeFile = (name) => CODE_FILENAMES.has(String(name || '').toLowerCase());
+export const isSpecialCodeFile = (name) => !!resolveSpecialCodeExt(name);
+
+export const isManifestFile = (name) => MANIFEST_FILES.has(String(name || '').toLowerCase());
+
+export const isLockFile = (name) => LOCK_FILES.has(String(name || '').toLowerCase());
+
+/**
+ * Resolve the extension for special code filenames.
+ * @param {string} name
+ * @returns {string|null}
+ */
+export const resolveSpecialCodeExt = (name) => {
+  const key = String(name || '').toLowerCase();
+  if (SPECIAL_CODE_EXTS.has(key)) return SPECIAL_CODE_EXTS.get(key);
+  for (const [prefix, ext] of SPECIAL_CODE_PREFIXES.entries()) {
+    if (key === prefix || key.startsWith(`${prefix}.`)) return ext;
+  }
+  return null;
+};

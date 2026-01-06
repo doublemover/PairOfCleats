@@ -71,7 +71,9 @@ if (!cachedEntry || cachedEntry.cached !== true) {
 await writeConfig(true);
 runBuild('config signature rebuild');
 
-const fileListsAfter = JSON.parse(await fsPromises.readFile(fileListsPath, 'utf8'));
+const userConfigAfter = loadUserConfig(repoRoot);
+const codeDirAfter = getIndexDir(repoRoot, 'code', userConfigAfter);
+const fileListsAfter = JSON.parse(await fsPromises.readFile(path.join(codeDirAfter, '.filelists.json'), 'utf8'));
 const rebuildEntry = fileListsAfter?.scanned?.sample?.find((entry) => entry?.file?.endsWith('src.js'));
 if (!rebuildEntry || rebuildEntry.cached === true) {
   console.error('Expected cache invalidation after config signature change');

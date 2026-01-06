@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
+import { createError, ERROR_CODES } from '../src/shared/error-codes.js';
 import { getDictConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = createCli({
@@ -16,6 +18,7 @@ const argv = createCli({
     lang: { type: 'string' },
     dir: { type: 'string' },
     url: { type: 'string', array: true },
+    sha256: { type: 'string', array: true },
     repo: { type: 'string' }
   }
 }).parse();
@@ -38,6 +41,80 @@ try {
   manifest = {};
 }
 
+const normalizeHash = (value) => {
+  if (!value) return null;
+  const trimmed = String(value).trim().toLowerCase();
+  if (!trimmed) return null;
+  const normalized = trimmed.startsWith('sha256:') ? trimmed.slice(7) : trimmed;
+  if (!/^[a-f0-9]{64}$/.test(normalized)) return null;
+  return normalized;
+};
+
+const parseHashes = (input) => {
+  if (!input) return {};
+  const items = Array.isArray(input) ? input : [input];
+  const out = {};
+  for (const item of items) {
+    const eq = String(item || '').indexOf('=');
+    if (eq <= 0 || eq >= item.length - 1) continue;
+    const name = item.slice(0, eq);
+    const hash = normalizeHash(item.slice(eq + 1));
+    if (name && hash) out[name] = hash;
+  }
+  return out;
+};
+
+const resolveDownloadPolicy = (cfg) => {
+  const policy = cfg?.security?.downloads || {};
+  const allowlist = policy.allowlist && typeof policy.allowlist === 'object'
+    ? policy.allowlist
+    : {};
+  return {
+    requireHash: policy.requireHash === true,
+    warnUnsigned: policy.warnUnsigned !== false,
+    allowlist
+  };
+};
+
+const resolveExpectedHash = (source, policy, overrides) => {
+  const explicit = normalizeHash(source?.sha256 || source?.hash);
+  if (explicit) return explicit;
+  const allowlist = policy?.allowlist || {};
+  const fallback = overrides?.[source?.name]
+    || overrides?.[source?.url]
+    || overrides?.[source?.file]
+    || allowlist[source?.name]
+    || allowlist[source?.url]
+    || allowlist[source?.file];
+  return normalizeHash(fallback);
+};
+
+const verifyDownloadHash = (source, buffer, expectedHash, policy) => {
+  if (!expectedHash) {
+    if (policy?.requireHash) {
+      throw createError(
+        ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
+        `Download verification requires a sha256 hash (${source?.name || source?.url || 'unknown source'}).`
+      );
+    }
+    if (policy?.warnUnsigned) {
+      console.warn(`[download] Skipping hash verification for ${source?.name || source?.url || 'unknown source'}.`);
+    }
+    return null;
+  }
+  const actual = crypto.createHash('sha256').update(buffer).digest('hex');
+  if (actual !== expectedHash) {
+    throw createError(
+      ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
+      `Download verification failed for ${source?.name || source?.url || 'unknown source'}.`
+    );
+  }
+  return actual;
+};
+
+const hashOverrides = parseHashes(argv.sha256);
+const downloadPolicy = resolveDownloadPolicy(userConfig);
+
 const SOURCES = {
   en: {
     name: 'en',
@@ -51,7 +128,7 @@ const SOURCES = {
  * @param {string|string[]|null} input
  * @returns {Array<{name:string,url:string,file:string}>}
  */
-function parseUrls(input) {
+function parseUrls(input, hashes = null) {
   if (!input) return [];
   const items = Array.isArray(input) ? input : [input];
   const sources = [];
@@ -60,7 +137,8 @@ function parseUrls(input) {
     if (eq <= 0 || eq >= item.length - 1) continue;
     const name = item.slice(0, eq);
     const url = item.slice(eq + 1);
-    sources.push({ name, url, file: `${name}.txt` });
+    const sha256 = hashes && hashes[name] ? hashes[name] : null;
+    sources.push({ name, url, file: `${name}.txt`, sha256 });
   }
   return sources;
 }
@@ -130,12 +208,17 @@ async function downloadSource(source) {
     throw new Error(`Failed to download ${source.url}: ${response.statusCode}`);
   }
 
+  const expectedHash = resolveExpectedHash(source, downloadPolicy, hashOverrides);
+  const actualHash = verifyDownloadHash(source, response.body, expectedHash, downloadPolicy);
+
   const text = response.body.toString('utf8');
   await fs.writeFile(outputPath, text.endsWith('\n') ? text : `${text}\n`);
 
   manifest[source.name] = {
     url: source.url,
     file: source.file,
+    sha256: actualHash || expectedHash || null,
+    verified: Boolean(expectedHash),
     etag: response.headers.etag || null,
     lastModified: response.headers['last-modified'] || null,
     downloadedAt: new Date().toISOString()
@@ -154,7 +237,7 @@ for (const lang of langs) {
   if (src) sources.push(src);
 }
 
-const urlSources = parseUrls(argv.url);
+const urlSources = parseUrls(argv.url, hashOverrides);
 sources.push(...urlSources);
 
 if (!sources.length) {

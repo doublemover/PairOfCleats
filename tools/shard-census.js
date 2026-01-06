@@ -3,12 +3,11 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
-import { loadUserConfig } from './dict-utils.js';
+import { loadUserConfig, resolveToolRoot } from './dict-utils.js';
 import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
 import { discoverFilesForModes } from '../src/index/build/discover.js';
-import { planShards } from '../src/index/build/shards.js';
+import { planShardBatches, planShards } from '../src/index/build/shards.js';
 import { countLinesForEntries } from '../src/shared/file-stats.js';
 
 const argv = createCli({
@@ -20,7 +19,7 @@ const argv = createCli({
   }
 }).parse();
 
-const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scriptRoot = resolveToolRoot();
 const benchConfigPath = path.join(scriptRoot, 'benchmarks', 'repos.json');
 const benchReposRoot = path.join(scriptRoot, 'benchmarks', 'repos');
 
@@ -91,9 +90,9 @@ const resolveMaxFileBytes = (indexingConfig) => {
 const resolveFileCaps = (indexingConfig) => {
   const fileCapsConfig = indexingConfig?.fileCaps || {};
   return {
-    default: normalizeCapEntry(fileCapsConfig.default || fileCapsConfig.defaults || {}),
-    byExt: normalizeCapsByExt(fileCapsConfig.byExt || fileCapsConfig.byExtension),
-    byLanguage: normalizeCapsByLanguage(fileCapsConfig.byLanguage || fileCapsConfig.byLang)
+    default: normalizeCapEntry(fileCapsConfig.default || {}),
+    byExt: normalizeCapsByExt(fileCapsConfig.byExt || {}),
+    byLanguage: normalizeCapsByLanguage(fileCapsConfig.byLanguage || {})
   };
 };
 
@@ -103,7 +102,8 @@ const resolveShardConfig = (indexingConfig) => {
     enabled: shardsConfig.enabled === true,
     maxShards: normalizeLimit(shardsConfig.maxShards, null),
     minFiles: normalizeLimit(shardsConfig.minFiles, null),
-    dirDepth: normalizeDepth(shardsConfig.dirDepth, 3)
+    dirDepth: normalizeDepth(shardsConfig.dirDepth, 3),
+    maxWorkers: normalizeLimit(shardsConfig.maxWorkers, null)
   };
 };
 
@@ -207,6 +207,21 @@ const censusRepo = async (repoPath, label) => {
       console.log(
         `- ${shard.label} | files ${formatNumber(shard.files)} | lines ${formatNumber(shard.lines)}`
       );
+    }
+    if (shardConfig.maxWorkers) {
+      const shardBatches = planShardBatches(shards, shardConfig.maxWorkers, {
+        resolveWeight: (shard) => shard.costMs || shard.lineCount || shard.entries.length || 0
+      });
+      if (shardBatches.length) {
+        console.log(`Batch plan (${shardBatches.length} workers):`);
+        shardBatches.forEach((batch, index) => {
+          const batchFiles = batch.reduce((sum, shard) => sum + shard.entries.length, 0);
+          const batchLines = batch.reduce((sum, shard) => sum + (shard.lineCount || 0), 0);
+          console.log(
+            `- batch ${index + 1} | shards ${batch.length} | files ${formatNumber(batchFiles)} | lines ${formatNumber(batchLines)}`
+          );
+        });
+      }
     }
   }
 };

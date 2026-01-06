@@ -103,9 +103,9 @@ if (!fixtures.length) {
 }
 
 for (const fixtureName of fixtures) {
-  currentFixtureRoot = path.join(fixturesRoot, fixtureName);
-  if (!fs.existsSync(currentFixtureRoot)) {
-    console.error(`Fixture not found: ${currentFixtureRoot}`);
+  const fixtureSourceRoot = path.join(fixturesRoot, fixtureName);
+  if (!fs.existsSync(fixtureSourceRoot)) {
+    console.error(`Fixture not found: ${fixtureSourceRoot}`);
     process.exit(1);
   }
   console.log(`\nFixture smoke: ${fixtureName}`);
@@ -120,6 +120,21 @@ for (const fixtureName of fixtures) {
     PAIROFCLEATS_EMBEDDINGS: 'stub'
   };
   process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+  currentFixtureRoot = fixtureSourceRoot;
+  const generatorPath = path.join(fixtureSourceRoot, 'generate.js');
+  if (fs.existsSync(generatorPath)) {
+    const generatedRoot = path.join(root, 'tests', '.cache', 'fixtures', fixtureName);
+    const result = spawnSync(
+      process.execPath,
+      [generatorPath, '--out', generatedRoot],
+      { cwd: fixtureSourceRoot, env: currentEnv, stdio: 'inherit' }
+    );
+    if (result.status !== 0) {
+      console.error(`Fixture generator failed: ${fixtureName}`);
+      process.exit(result.status ?? 1);
+    }
+    currentFixtureRoot = generatedRoot;
+  }
   const repoArgs = ['--repo', currentFixtureRoot];
 
   run([path.join(root, 'build_index.js'), '--stub-embeddings', ...repoArgs], `build index (${fixtureName})`);
@@ -175,7 +190,10 @@ for (const fixtureName of fixtures) {
   assertMinhashConsistency('code', path.join(codeDir, 'chunk_meta.json'), path.join(codeDir, 'minhash_signatures.json'));
   assertMinhashConsistency('prose', path.join(proseDir, 'chunk_meta.json'), path.join(proseDir, 'minhash_signatures.json'));
 
-  const queries = loadQueries(currentFixtureRoot);
+  const queriesRoot = fs.existsSync(path.join(currentFixtureRoot, 'queries.txt'))
+    ? currentFixtureRoot
+    : fixtureSourceRoot;
+  const queries = loadQueries(queriesRoot);
   const backends = ['memory', 'sqlite-fts'];
   for (const query of queries) {
     for (const backend of backends) {
@@ -363,6 +381,56 @@ for (const fixtureName of fixtures) {
     }
     if (!decorators.includes('available')) {
       console.error('Swift check failed: missing attribute metadata.');
+      process.exit(1);
+    }
+  }
+
+  if (fixtureName === 'sample') {
+    const typeScoped = spawnSync(
+      process.execPath,
+      [path.join(root, 'search.js'), 'sayHello', '--mode', 'code', '--json', '--backend', 'memory', '--no-ann', '--type', 'MethodDeclaration', ...repoArgs],
+      { cwd: currentFixtureRoot, env: currentEnv, encoding: 'utf8' }
+    );
+    if (typeScoped.status !== 0) {
+      console.error('Fixture type filter failed: search error.');
+      process.exit(typeScoped.status ?? 1);
+    }
+    const typePayload = JSON.parse(typeScoped.stdout || '{}');
+    const typeHits = typePayload.code || [];
+    if (!typeHits.some((hit) => hit.file === 'src/sample.swift' && String(hit.name || '').includes('sayHello'))) {
+      console.error('Fixture type filter returned no sayHello() hits.');
+      process.exit(1);
+    }
+
+    const signatureScoped = spawnSync(
+      process.execPath,
+      [path.join(root, 'search.js'), 'sayHello', '--mode', 'code', '--json', '--backend', 'memory', '--no-ann', '--signature', 'func sayHello', ...repoArgs],
+      { cwd: currentFixtureRoot, env: currentEnv, encoding: 'utf8' }
+    );
+    if (signatureScoped.status !== 0) {
+      console.error('Fixture signature filter failed: search error.');
+      process.exit(signatureScoped.status ?? 1);
+    }
+    const signaturePayload = JSON.parse(signatureScoped.stdout || '{}');
+    const signatureHits = signaturePayload.code || [];
+    if (!signatureHits.some((hit) => hit.file === 'src/sample.swift' && String(hit.name || '').includes('sayHello'))) {
+      console.error('Fixture signature filter returned no sayHello() hits.');
+      process.exit(1);
+    }
+
+    const decoratorScoped = spawnSync(
+      process.execPath,
+      [path.join(root, 'search.js'), 'sayHello', '--mode', 'code', '--json', '--backend', 'memory', '--no-ann', '--decorator', 'available', ...repoArgs],
+      { cwd: currentFixtureRoot, env: currentEnv, encoding: 'utf8' }
+    );
+    if (decoratorScoped.status !== 0) {
+      console.error('Fixture decorator filter failed: search error.');
+      process.exit(decoratorScoped.status ?? 1);
+    }
+    const decoratorPayload = JSON.parse(decoratorScoped.stdout || '{}');
+    const decoratorHits = decoratorPayload.code || [];
+    if (!decoratorHits.some((hit) => hit.file === 'src/sample.swift' && String(hit.name || '').includes('sayHello'))) {
+      console.error('Fixture decorator filter returned no sayHello() hits.');
       process.exit(1);
     }
   }

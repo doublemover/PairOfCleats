@@ -11,6 +11,7 @@ const tempRoot = path.join(root, 'tests', '.cache', 'discover');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 await fs.mkdir(path.join(tempRoot, 'docs'), { recursive: true });
+await fs.mkdir(path.join(tempRoot, 'src', 'deep', 'nested'), { recursive: true });
 
 const gitCheck = spawnSync('git', ['--version'], { encoding: 'utf8' });
 if (gitCheck.status !== 0) {
@@ -30,7 +31,10 @@ runGit(['config', 'user.email', 'tests@example.com']);
 runGit(['config', 'user.name', 'Tests']);
 
 await fs.writeFile(path.join(tempRoot, 'src', 'app.js'), 'console.log("hi")\n');
+await fs.writeFile(path.join(tempRoot, 'src', 'deep', 'nested', 'too-deep.js'), 'console.log("deep")\n');
 await fs.writeFile(path.join(tempRoot, 'docs', 'readme.md'), '# Hello\n');
+await fs.writeFile(path.join(tempRoot, 'Dockerfile.dev'), 'FROM node:20\n');
+await fs.writeFile(path.join(tempRoot, 'Makefile.in'), 'build:\n\t@echo ok\n');
 runGit(['add', '.']);
 runGit(['commit', '-m', 'init']);
 
@@ -48,8 +52,34 @@ const codeEntries = await discoverFiles({
 });
 const codeRel = codeEntries.map((entry) => entry.rel);
 assert.ok(codeRel.includes('src/app.js'), 'tracked code file missing');
+assert.ok(codeRel.includes('Dockerfile.dev'), 'Dockerfile variant missing');
+assert.ok(codeRel.includes('Makefile.in'), 'Makefile variant missing');
 assert.ok(!codeRel.includes('src/untracked.js'), 'untracked file should not be discovered');
 assert.ok(codeEntries[0].stat && typeof codeEntries[0].stat.size === 'number', 'stat missing');
+
+const depthSkipped = [];
+const depthLimited = await discoverFiles({
+  root: tempRoot,
+  mode: 'code',
+  ignoreMatcher,
+  skippedFiles: depthSkipped,
+  maxFileBytes: null,
+  maxDepth: 1
+});
+assert.ok(!depthLimited.some((entry) => entry.rel.includes('deep/nested')), 'maxDepth should skip deep files');
+assert.ok(depthSkipped.some((entry) => entry.reason === 'max-depth'), 'maxDepth skip reason missing');
+
+const countSkipped = [];
+const countLimited = await discoverFiles({
+  root: tempRoot,
+  mode: 'code',
+  ignoreMatcher,
+  skippedFiles: countSkipped,
+  maxFileBytes: null,
+  maxFiles: 1
+});
+assert.ok(countLimited.length <= 1, 'maxFiles should cap entries');
+assert.ok(countSkipped.some((entry) => entry.reason === 'max-files'), 'maxFiles skip reason missing');
 
 const skippedByMode = { code: [], prose: [] };
 const byMode = await discoverFilesForModes({

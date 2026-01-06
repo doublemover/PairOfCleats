@@ -2,6 +2,13 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { sha1 } from '../../shared/hash.js';
+import {
+  normalizeBundleFormat,
+  readBundleFile,
+  resolveBundleFilename,
+  resolveBundleFormatFromName,
+  writeBundleFile
+} from '../../shared/bundle-io.js';
 
 /**
  * Initialize incremental cache state for a mode.
@@ -14,16 +21,22 @@ export async function loadIncrementalState({
   enabled,
   tokenizationKey = null,
   cacheSignature = null,
+  bundleFormat = null,
   log = null
 }) {
   const incrementalDir = path.join(repoCacheRoot, 'incremental', mode);
   const bundleDir = path.join(incrementalDir, 'files');
   const manifestPath = path.join(incrementalDir, 'manifest.json');
+  const requestedBundleFormat = typeof bundleFormat === 'string'
+    ? normalizeBundleFormat(bundleFormat)
+    : null;
+  const defaultBundleFormat = requestedBundleFormat || 'json';
   let manifest = {
-    version: 4,
+    version: 5,
     mode,
     tokenizationKey: tokenizationKey || null,
     cacheSignature: cacheSignature || null,
+    bundleFormat: defaultBundleFormat,
     files: {},
     shards: null
   };
@@ -37,6 +50,8 @@ export async function loadIncrementalState({
         const loadedSignature = typeof loaded.cacheSignature === 'string'
           ? loaded.cacheSignature
           : null;
+        const loadedBundleFormat = normalizeBundleFormat(loaded.bundleFormat);
+        const effectiveBundleFormat = requestedBundleFormat || loadedBundleFormat || defaultBundleFormat;
         const signatureMismatch = cacheSignature
           ? cacheSignature !== loadedSignature
           : false;
@@ -51,9 +66,13 @@ export async function loadIncrementalState({
             mode,
             tokenizationKey: loadedKey || tokenizationKey || null,
             cacheSignature: loadedSignature || cacheSignature || null,
+            bundleFormat: effectiveBundleFormat,
             files: loaded.files || {},
             shards: loaded.shards || null
           };
+          if (requestedBundleFormat && loadedBundleFormat !== requestedBundleFormat && typeof log === 'function') {
+            log(`[incremental] ${mode} bundle format updated: ${loadedBundleFormat} -> ${requestedBundleFormat}.`);
+          }
         }
       }
     } catch {}
@@ -61,7 +80,7 @@ export async function loadIncrementalState({
   if (enabled) {
     await fs.mkdir(bundleDir, { recursive: true });
   }
-  return { enabled, incrementalDir, bundleDir, manifestPath, manifest };
+  return { enabled, incrementalDir, bundleDir, manifestPath, manifest, bundleFormat: manifest.bundleFormat };
 }
 
 const STAGE_ORDER = {
@@ -105,6 +124,15 @@ export async function shouldReuseIncrementalIndex({
   if (!Array.isArray(pieceManifest?.pieces) || pieceManifest.pieces.length === 0) {
     return false;
   }
+  const entryKeys = new Set();
+  for (const entry of entries) {
+    if (entry?.rel) entryKeys.add(entry.rel);
+  }
+  for (const relKey of Object.keys(manifestFiles)) {
+    if (!entryKeys.has(relKey)) {
+      return false;
+    }
+  }
   for (const entry of entries) {
     const relKey = entry?.rel;
     if (!relKey) return false;
@@ -120,36 +148,51 @@ export async function shouldReuseIncrementalIndex({
 /**
  * Attempt to load a cached bundle for a file.
  * @param {{enabled:boolean,absPath:string,relKey:string,fileStat:import('node:fs').Stats,manifest:object,bundleDir:string}} input
- * @returns {Promise<{cachedBundle:object|null,fileHash:string|null,text:string|null}>}
+ * @returns {Promise<{cachedBundle:object|null,fileHash:string|null,buffer:Buffer|null}>}
  */
-export async function readCachedBundle({ enabled, absPath, relKey, fileStat, manifest, bundleDir }) {
+export async function readCachedBundle({
+  enabled,
+  absPath,
+  relKey,
+  fileStat,
+  manifest,
+  bundleDir,
+  bundleFormat = null
+}) {
   let cachedBundle = null;
-  let text = null;
   let fileHash = null;
-  if (!enabled) return { cachedBundle, fileHash, text };
+  let buffer = null;
+  if (!enabled) return { cachedBundle, fileHash, buffer };
 
-  const cacheKey = sha1(relKey);
-  const bundlePath = path.join(bundleDir, `${cacheKey}.json`);
+  const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
   const cachedEntry = manifest.files[relKey];
+  const bundleName = cachedEntry?.bundle || resolveBundleFilename(relKey, resolvedBundleFormat);
+  const bundlePath = path.join(bundleDir, bundleName);
   if (cachedEntry && cachedEntry.size === fileStat.size && cachedEntry.mtimeMs === fileStat.mtimeMs && fsSync.existsSync(bundlePath)) {
     try {
-      cachedBundle = JSON.parse(await fs.readFile(bundlePath, 'utf8'));
+      const result = await readBundleFile(bundlePath, {
+        format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+      });
+      cachedBundle = result.ok ? result.bundle : null;
     } catch {
       cachedBundle = null;
     }
   } else if (cachedEntry && cachedEntry.hash && fsSync.existsSync(bundlePath)) {
     try {
-      text = await fs.readFile(absPath, 'utf8');
-      fileHash = sha1(text);
+      buffer = await fs.readFile(absPath);
+      fileHash = sha1(buffer);
       if (fileHash === cachedEntry.hash) {
-        cachedBundle = JSON.parse(await fs.readFile(bundlePath, 'utf8'));
+        const result = await readBundleFile(bundlePath, {
+          format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+        });
+        cachedBundle = result.ok ? result.bundle : null;
       }
     } catch {
       cachedBundle = null;
     }
   }
 
-  return { cachedBundle, fileHash, text };
+  return { cachedBundle, fileHash, buffer };
 }
 
 /**
@@ -157,30 +200,47 @@ export async function readCachedBundle({ enabled, absPath, relKey, fileStat, man
  * @param {{enabled:boolean,absPath:string,relKey:string,fileStat:import('node:fs').Stats,manifest:object,bundleDir:string}} input
  * @returns {Promise<string[]|null>}
  */
-export async function readCachedImports({ enabled, absPath, relKey, fileStat, manifest, bundleDir }) {
+export async function readCachedImports({
+  enabled,
+  absPath,
+  relKey,
+  fileStat,
+  manifest,
+  bundleDir,
+  bundleFormat = null
+}) {
   if (!enabled) return null;
+  const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
   const cachedEntry = manifest.files?.[relKey];
   if (!cachedEntry || cachedEntry.size !== fileStat.size || cachedEntry.mtimeMs !== fileStat.mtimeMs) {
     if (!cachedEntry || !cachedEntry.hash) return null;
-    const bundleName = cachedEntry.bundle || `${sha1(relKey)}.json`;
+    const bundleName = cachedEntry.bundle || resolveBundleFilename(relKey, resolvedBundleFormat);
     const bundlePath = path.join(bundleDir, bundleName);
     if (!fsSync.existsSync(bundlePath)) return null;
     try {
-      const text = await fs.readFile(absPath, 'utf8');
-      const fileHash = sha1(text);
+      const buffer = await fs.readFile(absPath);
+      const fileHash = sha1(buffer);
       if (fileHash !== cachedEntry.hash) return null;
-      const bundle = JSON.parse(await fs.readFile(bundlePath, 'utf8'));
+      const result = await readBundleFile(bundlePath, {
+        format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+      });
+      if (!result.ok) return null;
+      const bundle = result.bundle;
       const imports = bundle?.fileRelations?.imports;
       return Array.isArray(imports) ? imports : null;
     } catch {
       return null;
     }
   }
-  const bundleName = cachedEntry.bundle || `${sha1(relKey)}.json`;
+  const bundleName = cachedEntry.bundle || resolveBundleFilename(relKey, resolvedBundleFormat);
   const bundlePath = path.join(bundleDir, bundleName);
   if (!fsSync.existsSync(bundlePath)) return null;
   try {
-    const bundle = JSON.parse(await fs.readFile(bundlePath, 'utf8'));
+    const result = await readBundleFile(bundlePath, {
+      format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+    });
+    if (!result.ok) return null;
+    const bundle = result.bundle;
     const imports = bundle?.fileRelations?.imports;
     return Array.isArray(imports) ? imports : null;
   } catch {
@@ -193,10 +253,20 @@ export async function readCachedImports({ enabled, absPath, relKey, fileStat, ma
  * @param {{enabled:boolean,bundleDir:string,relKey:string,fileStat:import('node:fs').Stats,fileHash:string,fileChunks:object[],fileRelations:object|null}} input
  * @returns {Promise<object|null>}
  */
-export async function writeIncrementalBundle({ enabled, bundleDir, relKey, fileStat, fileHash, fileChunks, fileRelations }) {
+export async function writeIncrementalBundle({
+  enabled,
+  bundleDir,
+  relKey,
+  fileStat,
+  fileHash,
+  fileChunks,
+  fileRelations,
+  bundleFormat = null
+}) {
   if (!enabled) return null;
-  const cacheKey = sha1(relKey);
-  const bundlePath = path.join(bundleDir, `${cacheKey}.json`);
+  const resolvedBundleFormat = normalizeBundleFormat(bundleFormat);
+  const bundleName = resolveBundleFilename(relKey, resolvedBundleFormat);
+  const bundlePath = path.join(bundleDir, bundleName);
   const bundle = {
     file: relKey,
     hash: fileHash,
@@ -206,12 +276,23 @@ export async function writeIncrementalBundle({ enabled, bundleDir, relKey, fileS
     fileRelations
   };
   try {
-    await fs.writeFile(bundlePath, JSON.stringify(bundle) + '\n');
+    const writeResult = await writeBundleFile({
+      bundlePath,
+      bundle,
+      format: resolvedBundleFormat
+    });
+    const checksum = writeResult.checksum;
+    const checksumAlgo = writeResult.checksumAlgo;
+    const bundleChecksum = checksum && checksumAlgo
+      ? `${checksumAlgo}:${checksum}`
+      : (checksum || null);
     return {
       hash: fileHash,
       mtimeMs: fileStat.mtimeMs,
       size: fileStat.size,
-      bundle: path.basename(bundlePath)
+      bundle: path.basename(bundlePath),
+      bundleFormat: resolvedBundleFormat,
+      bundleChecksum
     };
   } catch {
     return null;
@@ -246,7 +327,15 @@ export async function pruneIncrementalManifest({ enabled, manifest, manifestPath
  * Update incremental bundles after cross-file inference.
  * @param {{enabled:boolean,manifest:object,bundleDir:string,chunks:object[],fileRelations:Map<string,object>|object|null,log:(msg:string)=>void}} input
  */
-export async function updateBundlesWithChunks({ enabled, manifest, bundleDir, chunks, fileRelations, log }) {
+export async function updateBundlesWithChunks({
+  enabled,
+  manifest,
+  bundleDir,
+  chunks,
+  fileRelations,
+  bundleFormat = null,
+  log
+}) {
   if (!enabled) return;
   const chunkMap = new Map();
   for (const chunk of chunks) {
@@ -256,8 +345,9 @@ export async function updateBundlesWithChunks({ enabled, manifest, bundleDir, ch
     chunkMap.set(chunk.file, list);
   }
   let bundleUpdates = 0;
+  const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
   for (const [file, entry] of Object.entries(manifest.files || {})) {
-    const bundleName = entry?.bundle;
+    const bundleName = entry?.bundle || resolveBundleFilename(file, resolvedBundleFormat);
     const fileChunks = chunkMap.get(file);
     if (!bundleName || !fileChunks) continue;
     let relations = null;
@@ -276,7 +366,11 @@ export async function updateBundlesWithChunks({ enabled, manifest, bundleDir, ch
       fileRelations: relations
     };
     try {
-      await fs.writeFile(bundlePath, JSON.stringify(bundle) + '\n');
+      await writeBundleFile({
+        bundlePath,
+        bundle,
+        format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
+      });
       bundleUpdates += 1;
     } catch {}
   }

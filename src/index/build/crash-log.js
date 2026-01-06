@@ -1,5 +1,8 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
+import { getRecentLogEvents } from '../../shared/progress.js';
+import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.js';
 
 const formatTimestamp = () => new Date().toISOString();
 
@@ -23,6 +26,9 @@ export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
   const logsDir = path.join(repoCacheRoot, 'logs');
   const statePath = path.join(logsDir, 'index-crash-state.json');
   const logPath = path.join(logsDir, 'index-crash.log');
+  const eventsPath = path.join(logsDir, 'index-crash-events.json');
+  let currentPhase = null;
+  let currentFile = null;
   try {
     await fs.mkdir(logsDir, { recursive: true });
   } catch {}
@@ -41,21 +47,55 @@ export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
       await fs.appendFile(logPath, line);
     } catch {}
   };
+  const writeStateSync = (state) => {
+    const payload = { ts: formatTimestamp(), ...state };
+    try {
+      fsSync.writeFileSync(statePath, JSON.stringify(payload, null, 2));
+    } catch {}
+  };
+  const appendLineSync = (message, extra) => {
+    const suffix = extra ? ` ${safeStringify(extra)}` : '';
+    const line = `[${formatTimestamp()}] ${message}${suffix}\n`;
+    try {
+      fsSync.appendFileSync(logPath, line);
+    } catch {}
+  };
 
   if (log) log(`Crash logging enabled: ${logPath}`);
 
   return {
     enabled: true,
     updatePhase(phase) {
-      void writeState({ phase });
-      void appendLine(`phase ${phase}`);
+      currentPhase = phase || null;
+      void writeState({ phase }).catch(() => {});
+      void appendLine(`phase ${phase}`).catch(() => {});
     },
     updateFile(entry) {
-      void writeState({ phase: entry?.phase || 'file', file: entry || null });
+      currentFile = entry || null;
+      void writeState({ phase: entry?.phase || 'file', file: entry || null }).catch(() => {});
     },
     logError(error) {
-      void appendLine('error', error || {});
-      void writeState({ phase: 'error', error: error || null });
+      const baseEvent = normalizeFailureEvent({
+        phase: error?.phase || currentPhase,
+        file: error?.file || currentFile?.file || null,
+        stage: error?.stage || null,
+        ...error
+      });
+      const validation = validateFailureEvent(baseEvent);
+      const event = validation.ok
+        ? baseEvent
+        : { ...baseEvent, validationErrors: validation.errors };
+      const recentEvents = getRecentLogEvents();
+      appendLineSync('error', event || {});
+      writeStateSync({ phase: 'error', error: event || null });
+      if (recentEvents.length) {
+        try {
+          fsSync.writeFileSync(
+            eventsPath,
+            JSON.stringify({ ts: formatTimestamp(), events: recentEvents }, null, 2)
+          );
+        } catch {}
+      }
     }
   };
 }

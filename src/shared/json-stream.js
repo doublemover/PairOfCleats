@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import { once } from 'node:events';
-import { createGzip } from 'node:zlib';
+import { Transform } from 'node:stream';
+import { Gzip } from 'fflate';
 
 const writeChunk = async (stream, chunk) => {
   if (!stream.write(chunk)) {
@@ -18,19 +19,85 @@ const createTempPath = (filePath) => (
   `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
 );
 
+const createFflateGzipStream = (options = {}) => {
+  const level = Number.isFinite(Number(options.level)) ? Math.floor(Number(options.level)) : 6;
+  const gzip = new Gzip({ level });
+  const stream = new Transform({
+    transform(chunk, encoding, callback) {
+      try {
+        const buffer = typeof chunk === 'string' ? Buffer.from(chunk, encoding) : Buffer.from(chunk);
+        gzip.push(buffer, false);
+        callback();
+      } catch (err) {
+        callback(err);
+      }
+    },
+    flush(callback) {
+      try {
+        gzip.push(new Uint8Array(0), true);
+        callback();
+      } catch (err) {
+        callback(err);
+      }
+    }
+  });
+  gzip.ondata = (chunk) => {
+    if (chunk && chunk.length) {
+      stream.push(Buffer.from(chunk));
+    }
+  };
+  return stream;
+};
+
+const getBakPath = (filePath) => `${filePath}.bak`;
+
 const replaceFile = async (tempPath, finalPath) => {
-  try {
-    await fsPromises.rename(tempPath, finalPath);
-    return;
-  } catch (err) {
-    if (err?.code !== 'EEXIST' && err?.code !== 'EPERM' && err?.code !== 'ENOTEMPTY') {
-      throw err;
+  const bakPath = getBakPath(finalPath);
+  const finalExists = fs.existsSync(finalPath);
+  let backupAvailable = fs.existsSync(bakPath);
+  const copyFallback = async () => {
+    try {
+      await fsPromises.copyFile(tempPath, finalPath);
+      await fsPromises.rm(tempPath, { force: true });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (finalExists && !backupAvailable) {
+    try {
+      await fsPromises.rename(finalPath, bakPath);
+      backupAvailable = true;
+    } catch (err) {
+      if (err?.code !== 'ENOENT') {
+        backupAvailable = fs.existsSync(bakPath);
+      }
     }
   }
   try {
-    await fsPromises.rm(finalPath, { force: true });
-  } catch {}
-  await fsPromises.rename(tempPath, finalPath);
+    await fsPromises.rename(tempPath, finalPath);
+  } catch (err) {
+    if (err?.code !== 'EEXIST'
+      && err?.code !== 'EPERM'
+      && err?.code !== 'ENOTEMPTY'
+      && err?.code !== 'EACCES'
+      && err?.code !== 'EXDEV') {
+      throw err;
+    }
+    if (!backupAvailable) {
+      if (await copyFallback()) return;
+      throw err;
+    }
+    try {
+      await fsPromises.rm(finalPath, { force: true });
+    } catch {}
+    try {
+      await fsPromises.rename(tempPath, finalPath);
+    } catch (renameErr) {
+      if (await copyFallback()) return;
+      throw renameErr;
+    }
+  }
 };
 
 const createJsonWriteStream = (filePath, options = {}) => {
@@ -38,7 +105,7 @@ const createJsonWriteStream = (filePath, options = {}) => {
   const targetPath = atomic ? createTempPath(filePath) : filePath;
   const fileStream = fs.createWriteStream(targetPath);
   if (compression === 'gzip') {
-    const gzip = createGzip();
+    const gzip = createFflateGzipStream();
     gzip.pipe(fileStream);
     return {
       stream: gzip,

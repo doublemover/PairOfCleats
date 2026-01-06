@@ -15,7 +15,19 @@ import {
   isHtml,
   isCss,
   isLua,
-  isSql
+  isSql,
+  CMAKE_EXTS,
+  STARLARK_EXTS,
+  NIX_EXTS,
+  DART_EXTS,
+  SCALA_EXTS,
+  GROOVY_EXTS,
+  R_EXTS,
+  JULIA_EXTS,
+  HANDLEBARS_EXTS,
+  MUSTACHE_EXTS,
+  JINJA_EXTS,
+  RAZOR_EXTS
 } from './constants.js';
 import { buildJsChunks } from '../lang/javascript.js';
 import { buildTypeScriptChunks } from '../lang/typescript.js';
@@ -35,7 +47,8 @@ import { buildGoChunks } from '../lang/go.js';
 import { buildJavaChunks } from '../lang/java.js';
 import { buildPerlChunks } from '../lang/perl.js';
 import { buildShellChunks } from '../lang/shell.js';
-import { buildLineIndex } from '../shared/lines.js';
+import { buildLineIndex, offsetToLine } from '../shared/lines.js';
+import { buildTreeSitterChunks } from '../lang/tree-sitter.js';
 
 function buildChunksFromMatches(text, matches, titleTransform) {
   const chunks = [];
@@ -76,7 +89,52 @@ function buildChunksFromLineHeadings(text, headings) {
   return chunks;
 }
 
-export function chunkMarkdown(text) {
+function applyFormatMeta(chunks, format, kind) {
+  if (!chunks) return null;
+  return chunks.map((chunk) => ({
+    ...chunk,
+    kind: kind || chunk.kind,
+    meta: format ? { ...(chunk.meta || {}), format } : chunk.meta
+  }));
+}
+
+function chunkByLineRegex(text, matcher, options = {}) {
+  const lines = text.split('\n');
+  const headings = [];
+  const skipLine = typeof options.skipLine === 'function' ? options.skipLine : null;
+  const titleFor = typeof options.title === 'function' ? options.title : null;
+  for (let i = 0; i < lines.length; ++i) {
+    const line = lines[i];
+    if (skipLine && skipLine(line)) continue;
+    const match = line.match(matcher);
+    if (!match) continue;
+    const title = titleFor ? titleFor(match, line) : (match[1] || '').trim();
+    if (!title) continue;
+    headings.push({ line: i, title });
+  }
+  const chunks = buildChunksFromLineHeadings(text, headings);
+  if (chunks && chunks.length) {
+    return applyFormatMeta(chunks, options.format || null, options.kind || null);
+  }
+  return [{
+    start: 0,
+    end: text.length,
+    name: options.defaultName || 'section',
+    kind: options.kind || 'Section',
+    meta: options.format ? { format: options.format } : {}
+  }];
+}
+
+export function chunkMarkdown(text, ext, context) {
+  if (context?.treeSitter?.configChunking === true) {
+    const treeChunks = buildTreeSitterChunks({
+      text,
+      languageId: 'markdown',
+      ext: ext || '.md',
+      options: getTreeSitterOptions(context)
+    });
+    if (treeChunks && treeChunks.length) return treeChunks;
+  }
   const matches = [...text.matchAll(/^#{1,6} .+$/gm)];
   return buildChunksFromMatches(text, matches, (raw) => raw.replace(/^#+ /, '').trim());
 }
@@ -123,7 +181,16 @@ function parseJsonString(text, start) {
   return null;
 }
 
-export function chunkJson(text) {
+export function chunkJson(text, context) {
+  if (context?.treeSitter?.configChunking === true) {
+    const treeChunks = buildTreeSitterChunks({
+      text,
+      languageId: 'json',
+      ext: '.json',
+      options: getTreeSitterOptions(context)
+    });
+    if (treeChunks && treeChunks.length) return treeChunks;
+  }
   let parsed;
   try {
     parsed = JSON.parse(text);
@@ -170,7 +237,16 @@ export function chunkJson(text) {
   return chunks;
 }
 
-export function chunkIniToml(text, format = 'ini') {
+export function chunkIniToml(text, format = 'ini', context) {
+  if (format === 'toml' && context?.treeSitter?.configChunking === true) {
+    const treeChunks = buildTreeSitterChunks({
+      text,
+      languageId: 'toml',
+      ext: '.toml',
+      options: getTreeSitterOptions(context)
+    });
+    if (treeChunks && treeChunks.length) return treeChunks;
+  }
   const lines = text.split('\n');
   const headings = [];
   for (let i = 0; i < lines.length; ++i) {
@@ -273,6 +349,253 @@ function chunkMakefile(text) {
   return chunks || [{ start: 0, end: text.length, name: 'Makefile', kind: 'ConfigSection', meta: { format: 'makefile' } }];
 }
 
+function chunkProto(text) {
+  const lines = text.split('\n');
+  const headings = [];
+  const rx = /^\s*(message|enum|service|extend|oneof)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  for (let i = 0; i < lines.length; ++i) {
+    const match = lines[i].match(rx);
+    if (match) {
+      const kind = match[1];
+      const name = match[2];
+      headings.push({ line: i, title: `${kind} ${name}`.trim() });
+    }
+  }
+  const chunks = buildChunksFromLineHeadings(text, headings);
+  return chunks || [{ start: 0, end: text.length, name: 'proto', kind: 'Section', meta: { format: 'proto' } }];
+}
+
+function chunkGraphql(text) {
+  const lines = text.split('\n');
+  const headings = [];
+  const rx = /^\s*(schema|type|interface|enum|union|input|scalar|directive|fragment)\b\s*([A-Za-z_][A-Za-z0-9_]*)?/;
+  for (let i = 0; i < lines.length; ++i) {
+    const match = lines[i].match(rx);
+    if (match) {
+      const kind = match[1];
+      const name = match[2] || '';
+      const title = name ? `${kind} ${name}` : kind;
+      headings.push({ line: i, title });
+    }
+  }
+  const chunks = buildChunksFromLineHeadings(text, headings);
+  return chunks || [{ start: 0, end: text.length, name: 'graphql', kind: 'Section', meta: { format: 'graphql' } }];
+}
+
+function chunkCmake(text) {
+  return chunkByLineRegex(text, /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/, {
+    format: 'cmake',
+    kind: 'ConfigSection',
+    defaultName: 'cmake',
+    skipLine: (line) => line.trim().startsWith('#')
+  });
+}
+
+function chunkStarlark(text) {
+  const lines = text.split('\n');
+  const headings = [];
+  const defRx = /^\s*(def|class)\s+([A-Za-z_][A-Za-z0-9_]*)\b/;
+  const callRx = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
+  for (let i = 0; i < lines.length; ++i) {
+    const line = lines[i];
+    if (line.trim().startsWith('#')) continue;
+    const defMatch = line.match(defRx);
+    if (defMatch) {
+      headings.push({ line: i, title: `${defMatch[1]} ${defMatch[2]}` });
+      continue;
+    }
+    const callMatch = line.match(callRx);
+    if (callMatch) headings.push({ line: i, title: callMatch[1] });
+  }
+  const chunks = buildChunksFromLineHeadings(text, headings);
+  if (chunks && chunks.length) return applyFormatMeta(chunks, 'starlark', 'Section');
+  return [{
+    start: 0,
+    end: text.length,
+    name: 'starlark',
+    kind: 'Section',
+    meta: { format: 'starlark' }
+  }];
+}
+
+function chunkNix(text) {
+  const skipLine = (line) => {
+    const trimmed = line.trim();
+    return !trimmed || trimmed.startsWith('#') || trimmed === 'in' || trimmed === 'let';
+  };
+  return chunkByLineRegex(text, /^\s*([A-Za-z0-9_.-]+)\s*=/, {
+    format: 'nix',
+    kind: 'Section',
+    defaultName: 'nix',
+    skipLine
+  });
+}
+
+function chunkDart(text) {
+  const lines = text.split('\n');
+  const headings = [];
+  const typeRx = /^\s*(class|mixin|enum|extension|typedef)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  const funcRx = /^\s*(?:[A-Za-z_][A-Za-z0-9_<>]*\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
+  const skipNames = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'new']);
+  for (let i = 0; i < lines.length; ++i) {
+    const line = lines[i];
+    if (line.trim().startsWith('//')) continue;
+    const typeMatch = line.match(typeRx);
+    if (typeMatch) {
+      headings.push({ line: i, title: typeMatch[2] });
+      continue;
+    }
+    const funcMatch = line.match(funcRx);
+    if (funcMatch && !skipNames.has(funcMatch[1])) {
+      headings.push({ line: i, title: funcMatch[1] });
+    }
+  }
+  const chunks = buildChunksFromLineHeadings(text, headings);
+  if (chunks && chunks.length) return applyFormatMeta(chunks, 'dart', 'Section');
+  return [{
+    start: 0,
+    end: text.length,
+    name: 'dart',
+    kind: 'Section',
+    meta: { format: 'dart' }
+  }];
+}
+
+function chunkScala(text) {
+  const lines = text.split('\n');
+  const headings = [];
+  const typeRx = /^\s*(?:case\s+class|class|object|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  const defRx = /^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  for (let i = 0; i < lines.length; ++i) {
+    const line = lines[i];
+    if (line.trim().startsWith('//')) continue;
+    const typeMatch = line.match(typeRx);
+    if (typeMatch) {
+      headings.push({ line: i, title: typeMatch[1] });
+      continue;
+    }
+    const defMatch = line.match(defRx);
+    if (defMatch) headings.push({ line: i, title: defMatch[1] });
+  }
+  const chunks = buildChunksFromLineHeadings(text, headings);
+  if (chunks && chunks.length) return applyFormatMeta(chunks, 'scala', 'Section');
+  return [{
+    start: 0,
+    end: text.length,
+    name: 'scala',
+    kind: 'Section',
+    meta: { format: 'scala' }
+  }];
+}
+
+function chunkGroovy(text) {
+  const lines = text.split('\n');
+  const headings = [];
+  const typeRx = /^\s*(class|interface|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  const defRx = /^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  for (let i = 0; i < lines.length; ++i) {
+    const line = lines[i];
+    if (line.trim().startsWith('//')) continue;
+    const typeMatch = line.match(typeRx);
+    if (typeMatch) {
+      headings.push({ line: i, title: typeMatch[2] });
+      continue;
+    }
+    const defMatch = line.match(defRx);
+    if (defMatch) headings.push({ line: i, title: defMatch[1] });
+  }
+  const chunks = buildChunksFromLineHeadings(text, headings);
+  if (chunks && chunks.length) return applyFormatMeta(chunks, 'groovy', 'Section');
+  return [{
+    start: 0,
+    end: text.length,
+    name: 'groovy',
+    kind: 'Section',
+    meta: { format: 'groovy' }
+  }];
+}
+
+function chunkR(text) {
+  return chunkByLineRegex(text, /^\s*([A-Za-z.][A-Za-z0-9_.]*)\s*(?:<-|=)\s*function\b/, {
+    format: 'r',
+    kind: 'Section',
+    defaultName: 'r'
+  });
+}
+
+function chunkJulia(text) {
+  const lines = text.split('\n');
+  const headings = [];
+  const rx = /^\s*(module|function|macro)\s+([A-Za-z_][A-Za-z0-9_!.]*)/;
+  for (let i = 0; i < lines.length; ++i) {
+    const line = lines[i];
+    if (line.trim().startsWith('#')) continue;
+    const match = line.match(rx);
+    if (match) {
+      headings.push({ line: i, title: match[2] });
+    }
+  }
+  const chunks = buildChunksFromLineHeadings(text, headings);
+  if (chunks && chunks.length) return applyFormatMeta(chunks, 'julia', 'Section');
+  return [{
+    start: 0,
+    end: text.length,
+    name: 'julia',
+    kind: 'Section',
+    meta: { format: 'julia' }
+  }];
+}
+
+function chunkHandlebars(text) {
+  return chunkByLineRegex(text, /{{[#^]\s*([A-Za-z0-9_.-]+)\b/, {
+    format: 'handlebars',
+    kind: 'Section',
+    defaultName: 'handlebars'
+  });
+}
+
+function chunkMustache(text) {
+  return chunkByLineRegex(text, /{{[#^]\s*([A-Za-z0-9_.-]+)\b/, {
+    format: 'mustache',
+    kind: 'Section',
+    defaultName: 'mustache'
+  });
+}
+
+function chunkJinja(text) {
+  return chunkByLineRegex(text, /{%\s*(block|macro|for|if|set|include|extends)\s+([^%]+)%}/, {
+    format: 'jinja',
+    kind: 'Section',
+    defaultName: 'jinja',
+    title: (match) => {
+      const name = String(match[2] || '').trim().split(/\s+/)[0];
+      return name ? `${match[1]} ${name}` : match[1];
+    }
+  });
+}
+
+function chunkRazor(text) {
+  const lines = text.split('\n');
+  const headings = [];
+  const rx = /^\s*@\s*(page|model|inherits|functions|code|section)\b\s*([A-Za-z_][A-Za-z0-9_]*)?/i;
+  for (let i = 0; i < lines.length; ++i) {
+    const line = lines[i];
+    const match = line.match(rx);
+    if (!match) continue;
+    const name = match[2] ? `${match[1]} ${match[2]}` : match[1];
+    headings.push({ line: i, title: name });
+  }
+  const chunks = buildChunksFromLineHeadings(text, headings);
+  if (chunks && chunks.length) return applyFormatMeta(chunks, 'razor', 'Section');
+  return [{
+    start: 0,
+    end: text.length,
+    name: 'razor',
+    kind: 'Section',
+    meta: { format: 'razor' }
+  }];
+}
+
 function chunkGitHubActions(text) {
   const lines = text.split('\n');
   const headings = [];
@@ -330,8 +653,10 @@ function resolveYamlChunkMode(text, context) {
   const mode = ['auto', 'root', 'top-level'].includes(modeRaw) ? modeRaw : 'root';
   const maxBytesRaw = Number(config.maxBytes);
   const maxBytes = Number.isFinite(maxBytesRaw) ? Math.max(0, Math.floor(maxBytesRaw)) : 200 * 1024;
+  const textBytes = Buffer.byteLength(text, 'utf8');
+  if (mode === 'top-level' && textBytes > maxBytes) return 'root';
   if (mode === 'auto') {
-    return text.length <= maxBytes ? 'top-level' : 'root';
+    return textBytes <= maxBytes ? 'top-level' : 'root';
   }
   return mode;
 }
@@ -339,6 +664,15 @@ function resolveYamlChunkMode(text, context) {
 export function chunkYaml(text, relPath, context) {
   const isWorkflow = relPath ? relPath.replace(/\\\\/g, '/').includes('.github/workflows/') : false;
   if (isWorkflow) return chunkGitHubActions(text);
+  if (context?.treeSitter?.configChunking === true) {
+    const treeChunks = buildTreeSitterChunks({
+      text,
+      languageId: 'yaml',
+      ext: '.yaml',
+      options: getTreeSitterOptions(context)
+    });
+    if (treeChunks && treeChunks.length) return treeChunks;
+  }
   const mode = resolveYamlChunkMode(text, context);
   if (mode === 'top-level') {
     const chunks = chunkYamlTopLevel(text);
@@ -354,17 +688,27 @@ const getTreeSitterOptions = (context) => (
 );
 
 const CODE_CHUNKERS = [
-  { id: 'javascript', match: (ext) => isJsLike(ext), chunk: ({ text, ext, context }) =>
-    buildJsChunks(text, {
+  { id: 'javascript', match: (ext) => isJsLike(ext), chunk: ({ text, ext, context }) => {
+    if (context?.jsChunks) return context.jsChunks;
+    return buildJsChunks(text, {
       ext,
       ast: context?.jsAst,
       javascript: context?.javascript,
-      flowMode: context?.javascript?.flow
-    }) },
+      flowMode: context?.javascript?.flow,
+      treeSitter: context?.treeSitter,
+      log: context?.log
+    });
+  } },
   { id: 'typescript', match: (ext) => isTypeScript(ext), chunk: ({ text, ext, relPath, context }) => {
     if (context?.tsChunks) return context.tsChunks;
     const parser = context?.typescript?.importsOnly ? 'heuristic' : context?.typescript?.parser;
-    return buildTypeScriptChunks(text, { ext, relPath, parser });
+    return buildTypeScriptChunks(text, {
+      ext,
+      relPath,
+      parser,
+      treeSitter: context?.treeSitter,
+      log: context?.log
+    });
   } },
   { id: 'html', match: (ext) => isHtml(ext), chunk: ({ text, context }) =>
     context?.htmlChunks || buildHtmlChunks(text, getTreeSitterOptions(context)) },
@@ -372,7 +716,11 @@ const CODE_CHUNKERS = [
     context?.cssChunks || buildCssChunks(text) },
   { id: 'python', match: (ext) => ext === '.py', chunk: ({ text, context }) => {
     const astChunks = buildPythonChunksFromAst(text, context?.pythonAst || null);
-    return (astChunks && astChunks.length) ? astChunks : buildPythonHeuristicChunks(text);
+    if (astChunks && astChunks.length) return astChunks;
+    if (context?.pythonTreeChunks && context.pythonTreeChunks.length) {
+      return context.pythonTreeChunks;
+    }
+    return buildPythonHeuristicChunks(text);
   } },
   { id: 'swift', match: (ext) => ext === '.swift', chunk: ({ text, context }) => context?.swiftChunks || buildSwiftChunks(text, getTreeSitterOptions(context)) },
   { id: 'clike', match: (ext) => isCLike(ext), chunk: ({ text, ext, context }) => context?.clikeChunks || buildCLikeChunks(text, ext, getTreeSitterOptions(context)) },
@@ -386,27 +734,153 @@ const CODE_CHUNKERS = [
   { id: 'ruby', match: (ext) => isRuby(ext), chunk: ({ text, context }) => context?.rubyChunks || buildRubyChunks(text) },
   { id: 'php', match: (ext) => isPhp(ext), chunk: ({ text, context }) => context?.phpChunks || buildPhpChunks(text) },
   { id: 'lua', match: (ext) => isLua(ext), chunk: ({ text, context }) => context?.luaChunks || buildLuaChunks(text) },
-  { id: 'sql', match: (ext) => isSql(ext), chunk: ({ text, context }) => context?.sqlChunks || buildSqlChunks(text) }
+  { id: 'sql', match: (ext) => isSql(ext), chunk: ({ text, context }) => context?.sqlChunks || buildSqlChunks(text) },
+  { id: 'cmake', match: (ext) => CMAKE_EXTS.has(ext), chunk: ({ text }) => chunkCmake(text) },
+  { id: 'starlark', match: (ext) => STARLARK_EXTS.has(ext), chunk: ({ text }) => chunkStarlark(text) },
+  { id: 'nix', match: (ext) => NIX_EXTS.has(ext), chunk: ({ text }) => chunkNix(text) },
+  { id: 'dart', match: (ext) => DART_EXTS.has(ext), chunk: ({ text }) => chunkDart(text) },
+  { id: 'scala', match: (ext) => SCALA_EXTS.has(ext), chunk: ({ text }) => chunkScala(text) },
+  { id: 'groovy', match: (ext) => GROOVY_EXTS.has(ext), chunk: ({ text }) => chunkGroovy(text) },
+  { id: 'r', match: (ext) => R_EXTS.has(ext), chunk: ({ text }) => chunkR(text) },
+  { id: 'julia', match: (ext) => JULIA_EXTS.has(ext), chunk: ({ text }) => chunkJulia(text) },
+  { id: 'handlebars', match: (ext) => HANDLEBARS_EXTS.has(ext), chunk: ({ text }) => chunkHandlebars(text) },
+  { id: 'mustache', match: (ext) => MUSTACHE_EXTS.has(ext), chunk: ({ text }) => chunkMustache(text) },
+  { id: 'jinja', match: (ext) => JINJA_EXTS.has(ext), chunk: ({ text }) => chunkJinja(text) },
+  { id: 'razor', match: (ext) => RAZOR_EXTS.has(ext), chunk: ({ text }) => chunkRazor(text) }
 ];
 
 const CODE_FORMAT_CHUNKERS = [
-  { id: 'json', match: (ext) => ext === '.json', chunk: ({ text }) => chunkJson(text) },
+  { id: 'json', match: (ext) => ext === '.json', chunk: ({ text, context }) => chunkJson(text, context) },
   {
     id: 'ini',
     match: (ext) => ['.toml', '.ini', '.cfg', '.conf'].includes(ext),
-    chunk: ({ text, ext }) => chunkIniToml(text, ext === '.toml' ? 'toml' : 'ini')
+    chunk: ({ text, ext, context }) => chunkIniToml(text, ext === '.toml' ? 'toml' : 'ini', context)
   },
   { id: 'xml', match: (ext) => ext === '.xml', chunk: ({ text }) => chunkXml(text) },
   { id: 'dockerfile', match: (ext) => ext === '.dockerfile', chunk: ({ text }) => chunkDockerfile(text) },
   { id: 'makefile', match: (ext) => ext === '.makefile', chunk: ({ text }) => chunkMakefile(text) },
+  { id: 'protobuf', match: (ext) => ext === '.proto', chunk: ({ text }) => chunkProto(text) },
+  { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql', chunk: ({ text }) => chunkGraphql(text) },
   { id: 'yaml', match: (ext) => ext === '.yaml' || ext === '.yml', chunk: ({ text, relPath, context }) => chunkYaml(text, relPath, context) }
 ];
 
 const PROSE_CHUNKERS = [
-  { id: 'markdown', match: (ext) => ext === '.md', chunk: ({ text }) => chunkMarkdown(text) },
+  { id: 'markdown', match: (ext) => ext === '.md' || ext === '.mdx', chunk: ({ text, ext, context }) => chunkMarkdown(text, ext, context) },
   { id: 'rst', match: (ext) => ext === '.rst', chunk: ({ text }) => chunkRst(text) },
   { id: 'asciidoc', match: (ext) => ext === '.adoc' || ext === '.asciidoc', chunk: ({ text }) => chunkAsciiDoc(text) }
 ];
+
+const normalizeChunkLimit = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  const limit = Math.max(0, Math.floor(num));
+  return limit > 0 ? limit : null;
+};
+
+const resolveChunkingLimits = (context) => {
+  const raw = context?.chunking && typeof context.chunking === 'object'
+    ? context.chunking
+    : {};
+  return {
+    maxBytes: normalizeChunkLimit(raw.maxBytes),
+    maxLines: normalizeChunkLimit(raw.maxLines)
+  };
+};
+
+const buildChunkWithRange = (chunk, start, end, lineIndex) => {
+  const next = { ...chunk, start, end };
+  if (lineIndex) {
+    const meta = chunk.meta && typeof chunk.meta === 'object' ? { ...chunk.meta } : {};
+    const startLine = offsetToLine(lineIndex, start);
+    const endOffset = end > start ? end - 1 : start;
+    const endLine = offsetToLine(lineIndex, endOffset);
+    meta.startLine = startLine;
+    meta.endLine = endLine;
+    next.meta = meta;
+  }
+  return next;
+};
+
+const splitChunkByLines = (chunk, text, lineIndex, maxLines) => {
+  if (!lineIndex || !maxLines) return [chunk];
+  const start = Number.isFinite(chunk.start) ? chunk.start : 0;
+  const end = Number.isFinite(chunk.end) ? chunk.end : start;
+  if (end <= start) return [chunk];
+  const startLineIdx = offsetToLine(lineIndex, start) - 1;
+  const endOffset = end > start ? end - 1 : start;
+  const endLineIdx = offsetToLine(lineIndex, endOffset) - 1;
+  const totalLines = endLineIdx - startLineIdx + 1;
+  if (totalLines <= maxLines) return [chunk];
+  const output = [];
+  let currentStart = start;
+  let lineCount = 0;
+  for (let lineIdx = startLineIdx; lineIdx <= endLineIdx; lineIdx += 1) {
+    if (lineCount >= maxLines) {
+      const splitAt = lineIndex[lineIdx] ?? end;
+      if (splitAt > currentStart) {
+        output.push(buildChunkWithRange(chunk, currentStart, splitAt, lineIndex));
+      }
+      currentStart = splitAt;
+      lineCount = 0;
+    }
+    lineCount += 1;
+  }
+  if (currentStart < end) {
+    output.push(buildChunkWithRange(chunk, currentStart, end, lineIndex));
+  }
+  return output.length ? output : [chunk];
+};
+
+const resolveByteBoundary = (text, start, end, maxBytes) => {
+  let lo = start;
+  let hi = end;
+  let best = start;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const bytes = Buffer.byteLength(text.slice(start, mid), 'utf8');
+    if (bytes <= maxBytes) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return best;
+};
+
+const splitChunkByBytes = (chunk, text, lineIndex, maxBytes) => {
+  if (!maxBytes) return [chunk];
+  const start = Number.isFinite(chunk.start) ? chunk.start : 0;
+  const end = Number.isFinite(chunk.end) ? chunk.end : start;
+  if (end <= start) return [chunk];
+  const bytes = Buffer.byteLength(text.slice(start, end), 'utf8');
+  if (bytes <= maxBytes) return [chunk];
+  const output = [];
+  let cursor = start;
+  while (cursor < end) {
+    const next = resolveByteBoundary(text, cursor, end, maxBytes);
+    const safeNext = next > cursor ? next : Math.min(cursor + 1, end);
+    output.push(buildChunkWithRange(chunk, cursor, safeNext, lineIndex));
+    if (safeNext <= cursor) break;
+    cursor = safeNext;
+  }
+  return output.length ? output : [chunk];
+};
+
+const applyChunkingLimits = (chunks, text, context) => {
+  if (!Array.isArray(chunks) || !chunks.length) return chunks;
+  const { maxBytes, maxLines } = resolveChunkingLimits(context);
+  if (!maxBytes && !maxLines) return chunks;
+  const lineIndex = buildLineIndex(text);
+  let output = chunks;
+  if (maxLines) {
+    output = output.flatMap((chunk) => splitChunkByLines(chunk, text, lineIndex, maxLines));
+  }
+  if (maxBytes) {
+    output = output.flatMap((chunk) => splitChunkByBytes(chunk, text, lineIndex, maxBytes));
+  }
+  return output;
+};
 
 const resolveChunker = (chunkers, ext, relPath) => (
   chunkers.find((entry) => entry.match(ext, relPath)) || null
@@ -434,23 +908,27 @@ export function smartChunk({
     const chunker = resolveChunker(PROSE_CHUNKERS, ext, relPath);
     if (chunker) {
       const chunks = chunker.chunk({ text, ext, relPath, context });
-      if (chunks && chunks.length) return chunks;
+      if (chunks && chunks.length) return applyChunkingLimits(chunks, text, context);
     }
   }
   if (mode === 'code') {
     const codeChunker = resolveChunker(CODE_CHUNKERS, ext, relPath);
     if (codeChunker) {
       const chunks = codeChunker.chunk({ text, ext, relPath, context });
-      if (chunks && chunks.length) return chunks;
+      if (chunks && chunks.length) return applyChunkingLimits(chunks, text, context);
     }
     const formatChunker = resolveChunker(CODE_FORMAT_CHUNKERS, ext, relPath);
     if (formatChunker) {
       const chunks = formatChunker.chunk({ text, ext, relPath, context });
-      if (chunks && chunks.length) return chunks;
+      if (chunks && chunks.length) return applyChunkingLimits(chunks, text, context);
     }
   }
   if (mode === 'prose' && EXTS_PROSE.has(ext)) {
-    return [{ start: 0, end: text.length, name: 'root', kind: 'Section', meta: {} }];
+    return applyChunkingLimits(
+      [{ start: 0, end: text.length, name: 'root', kind: 'Section', meta: {} }],
+      text,
+      context
+    );
   }
   const fallbackChunkSize = 800;
   const out = [];
@@ -463,5 +941,5 @@ export function smartChunk({
       meta: {}
     });
   }
-  return out;
+  return applyChunkingLimits(out, text, context);
 }

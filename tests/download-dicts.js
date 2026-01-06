@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
+import crypto from 'node:crypto';
 import http from 'node:http';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -17,6 +18,9 @@ if (!fs.existsSync(sourceFile)) {
   console.error(`Missing fixture: ${sourceFile}`);
   process.exit(1);
 }
+const sourceHash = crypto.createHash('sha256')
+  .update(await fsPromises.readFile(sourceFile))
+  .digest('hex');
 
 const server = http.createServer((req, res) => {
   const filePath = sourceFile;
@@ -60,6 +64,8 @@ const result = await run(
     path.join(root, 'tools', 'download-dicts.js'),
     '--url',
     `test=${url}`,
+    '--sha256',
+    `test=${sourceHash}`,
     '--lang',
     'test',
     '--dir',
@@ -96,6 +102,10 @@ if (!fs.existsSync(manifestPath)) {
 const manifest = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
 if (!manifest.test || manifest.test.url !== url || manifest.test.file !== 'test.txt') {
   console.error('download-dicts test failed: manifest entry mismatch.');
+  process.exit(1);
+}
+if (manifest.test.sha256 !== sourceHash || manifest.test.verified !== true) {
+  console.error('download-dicts test failed: hash verification missing.');
   process.exit(1);
 }
 

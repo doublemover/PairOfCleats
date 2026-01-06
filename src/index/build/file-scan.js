@@ -1,5 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileTypeFromBuffer } from 'file-type';
+import * as istextorbinary from 'istextorbinary';
 import { CSS_EXTS, HTML_EXTS, JS_EXTS } from '../constants.js';
 
 const MINIFIED_NAME_REGEX = /(?:\.min\.[^/]+$)|(?:-min\.[^/]+$)/i;
@@ -38,6 +40,51 @@ const isLikelyBinary = (buffer, maxNonTextRatio) => {
   return nonText / buffer.length > maxNonTextRatio;
 };
 
+const resolveTextOrBinary = async (absPath, buffer) => {
+  const syncFn = istextorbinary?.isBinarySync;
+  if (typeof syncFn === 'function') {
+    try {
+      return syncFn(absPath, buffer);
+    } catch {
+      return null;
+    }
+  }
+  const asyncFn = istextorbinary?.isBinary;
+  if (typeof asyncFn !== 'function') return null;
+  try {
+    const result = asyncFn(absPath, buffer);
+    if (typeof result === 'boolean') return result;
+    if (result && typeof result.then === 'function') {
+      return await result;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
+
+export const detectBinary = async ({ absPath, buffer, maxNonTextRatio }) => {
+  if (!buffer || !buffer.length) return null;
+  try {
+    const type = await fileTypeFromBuffer(buffer);
+    if (type?.mime) {
+      const mime = String(type.mime).toLowerCase();
+      if (!mime.startsWith('text/')) {
+        return { reason: 'binary', method: 'file-type', mime, ext: type.ext || null };
+      }
+    }
+  } catch {}
+  const binaryResult = await resolveTextOrBinary(absPath, buffer);
+  if (binaryResult === true) {
+    return { reason: 'binary', method: 'istextorbinary' };
+  }
+  if (binaryResult === false) return null;
+  if (isLikelyBinary(buffer, maxNonTextRatio)) {
+    return { reason: 'binary', method: 'heuristic' };
+  }
+  return null;
+};
+
 const isLikelyMinifiedText = (text, config) => {
   if (!text || text.length < (config.minChars || 0)) return false;
   let lines = 1;
@@ -70,9 +117,10 @@ const isLikelyMinifiedText = (text, config) => {
 };
 
 export function createFileScanner(fileScanConfig = {}) {
-  const sampleSizeBytes = normalizeLimit(fileScanConfig.sampleBytes, 8192);
-  const minifiedConfig = fileScanConfig.minified || {};
-  const binaryConfig = fileScanConfig.binary || {};
+  const config = fileScanConfig && typeof fileScanConfig === 'object' ? fileScanConfig : {};
+  const sampleSizeBytes = normalizeLimit(config.sampleBytes, 8192);
+  const minifiedConfig = config.minified || {};
+  const binaryConfig = config.binary || {};
   const minified = {
     sampleMinBytes: normalizeLimit(minifiedConfig.sampleMinBytes, 4096),
     minChars: normalizeLimit(minifiedConfig.minChars, 1024),
@@ -89,6 +137,9 @@ export function createFileScanner(fileScanConfig = {}) {
       ? Number(binaryConfig.maxNonTextRatio)
       : 0.3
   };
+  const fileTypeSampleBytes = sampleSizeBytes
+    ? Math.min(sampleSizeBytes, 4100)
+    : 0;
   const shouldSampleBinary = (size) => binary.sampleMinBytes && size >= binary.sampleMinBytes;
   const shouldSampleMinified = (size, ext) => minified.sampleMinBytes
     && size >= minified.sampleMinBytes
@@ -102,21 +153,26 @@ export function createFileScanner(fileScanConfig = {}) {
       checkedMinified: false,
       skip: null
     };
-    if (!sampleSizeBytes || (!wantsBinary && !wantsMinified)) return result;
+    if (!sampleSizeBytes || (!wantsBinary && !wantsMinified && !fileTypeSampleBytes)) return result;
+    const sampleBytes = Math.max(fileTypeSampleBytes, wantsBinary || wantsMinified ? sampleSizeBytes : 0);
     let sampleBuffer = null;
     try {
-      sampleBuffer = await readSample(absPath, sampleSizeBytes);
+      sampleBuffer = await readSample(absPath, sampleBytes);
     } catch {
       sampleBuffer = null;
     }
     if (!sampleBuffer) return result;
-    if (wantsBinary) {
+    const binarySkip = await detectBinary({
+      absPath,
+      buffer: sampleBuffer,
+      maxNonTextRatio: binary.maxNonTextRatio
+    });
+    if (binarySkip) {
       result.checkedBinary = true;
-      if (isLikelyBinary(sampleBuffer, binary.maxNonTextRatio)) {
-        result.skip = { reason: 'binary', bytes: size };
-        return result;
-      }
+      result.skip = { ...binarySkip, bytes: size };
+      return result;
     }
+    if (wantsBinary) result.checkedBinary = true;
     if (wantsMinified) {
       result.checkedMinified = true;
       const sampleText = sampleBuffer.toString('utf8');

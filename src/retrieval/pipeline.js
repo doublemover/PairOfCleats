@@ -2,11 +2,14 @@ import { filterChunks } from './output.js';
 import { hasActiveFilters } from './filters.js';
 import { rankBM25, rankBM25Fields, rankDenseVectors, rankMinhash } from './rankers.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
+import { rankHnswIndex } from '../shared/hnsw.js';
+
+const SQLITE_IN_LIMIT = 900;
 
 /**
  * Create a search pipeline runner bound to a shared context.
  * @param {object} context
- * @returns {(idx:object, mode:'code'|'prose'|'records', queryEmbedding:number[]|null)=>Array<object>}
+ * @returns {(idx:object, mode:'code'|'prose'|'records'|'extracted-prose', queryEmbedding:number[]|null)=>Array<object>}
  */
 export function createSearchPipeline(context) {
   const {
@@ -31,6 +34,8 @@ export function createSearchPipeline(context) {
     minhashMaxDocs,
     vectorAnnState,
     vectorAnnUsed,
+    hnswAnnState,
+    hnswAnnUsed,
     buildCandidateSetSqlite,
     getTokenIndexForQuery,
     rankSqliteFts,
@@ -83,7 +88,7 @@ export function createSearchPipeline(context) {
    * Build a candidate set from file-backed indexes (or SQLite).
    * @param {object} idx
    * @param {string[]} tokens
-   * @param {'code'|'prose'|'records'} mode
+   * @param {'code'|'prose'|'records'|'extracted-prose'} mode
    * @returns {Set<number>|null}
    */
   function buildCandidateSet(idx, tokens, mode) {
@@ -144,10 +149,10 @@ export function createSearchPipeline(context) {
   /**
    * Execute the full search pipeline for a mode.
    * @param {object} idx
-   * @param {'code'|'prose'|'records'} mode
-   * @param {number[]|null} queryEmbedding
-   * @returns {Array<object>}
-   */
+    * @param {'code'|'prose'|'records'|'extracted-prose'} mode
+    * @param {number[]|null} queryEmbedding
+    * @returns {Array<object>}
+    */
   return function runSearch(idx, mode, queryEmbedding) {
     const meta = idx.chunkMeta;
     const sqliteEnabledForMode = useSqlite && (mode === 'code' || mode === 'prose');
@@ -160,6 +165,19 @@ export function createSearchPipeline(context) {
       ? filterChunks(meta, filters, idx.filterIndex, idx.fileRelations)
       : meta;
     const allowedIdx = filtersEnabled ? new Set(filteredMeta.map((c) => c.id)) : null;
+    if (filtersEnabled && (!allowedIdx || allowedIdx.size === 0)) {
+      return [];
+    }
+
+    const intersectCandidateSet = (candidateSet, allowedSet) => {
+      if (!allowedSet) return candidateSet;
+      if (!candidateSet) return allowedSet;
+      const filtered = new Set();
+      for (const id of candidateSet) {
+        if (allowedSet.has(id)) filtered.add(id);
+      }
+      return filtered;
+    };
 
     const searchTopN = Math.max(1, Number(topN) || 1);
     const expandedTopN = searchTopN * 3;
@@ -169,8 +187,20 @@ export function createSearchPipeline(context) {
     let bmHits = [];
     let sparseType = fieldWeightsEnabled ? 'bm25-fielded' : 'bm25';
     let sqliteFtsUsed = false;
-    if (sqliteEnabledForMode && sqliteFtsRequested) {
-      bmHits = rankSqliteFts(idx, queryTokens, mode, expandedTopN, sqliteFtsNormalize);
+    const sqliteFtsAllowed = allowedIdx && allowedIdx.size ? allowedIdx : null;
+    const sqliteFtsCanPushdown = !!(sqliteFtsAllowed && sqliteFtsAllowed.size <= SQLITE_IN_LIMIT);
+    const sqliteFtsEligible = sqliteEnabledForMode
+      && sqliteFtsRequested
+      && (!filtersEnabled || sqliteFtsCanPushdown);
+    if (sqliteFtsEligible) {
+      bmHits = rankSqliteFts(
+        idx,
+        queryTokens,
+        mode,
+        expandedTopN,
+        sqliteFtsNormalize,
+        sqliteFtsCanPushdown ? sqliteFtsAllowed : null
+      );
       sqliteFtsUsed = bmHits.length > 0;
       if (sqliteFtsUsed) {
         sparseType = 'fts';
@@ -186,6 +216,7 @@ export function createSearchPipeline(context) {
           tokens: queryTokens,
           topN: expandedTopN,
           fieldWeights,
+          allowedIdx,
           k1: bm25K1,
           b: bm25B
         })
@@ -194,6 +225,7 @@ export function createSearchPipeline(context) {
           tokens: queryTokens,
           topN: expandedTopN,
           tokenIndexOverride,
+          allowedIdx,
           k1: bm25K1,
           b: bm25B
         });
@@ -204,27 +236,56 @@ export function createSearchPipeline(context) {
     // MinHash (embedding) ANN, if requested
     let annHits = [];
     let annSource = null;
+    const annCandidates = intersectCandidateSet(candidates, allowedIdx);
+    const annFallback = candidates && allowedIdx ? allowedIdx : null;
+    const annCandidatesEmpty = annCandidates && annCandidates.size === 0;
     if (annEnabled) {
       if (queryEmbedding && vectorAnnState?.[mode]?.available) {
-        annHits = rankVectorAnnSqlite(mode, queryEmbedding, expandedTopN, candidates);
-        if (!annHits.length && candidates && candidates.size) {
-          annHits = rankVectorAnnSqlite(mode, queryEmbedding, expandedTopN, null);
+        if (!annCandidatesEmpty) {
+          annHits = rankVectorAnnSqlite(mode, queryEmbedding, expandedTopN, annCandidates);
+        }
+        if (!annHits.length && annFallback) {
+          annHits = rankVectorAnnSqlite(mode, queryEmbedding, expandedTopN, annFallback);
         }
         if (annHits.length) {
           vectorAnnUsed[mode] = true;
           annSource = 'sqlite-vector';
         }
       }
+      if (!annHits.length && queryEmbedding && (idx.hnsw?.available || hnswAnnState?.[mode]?.available)) {
+        if (!annCandidatesEmpty) {
+          annHits = rankHnswIndex(idx.hnsw || {}, queryEmbedding, expandedTopN, annCandidates);
+        }
+        if (!annHits.length && annFallback) {
+          annHits = rankHnswIndex(idx.hnsw || {}, queryEmbedding, expandedTopN, annFallback);
+        }
+        if (annHits.length) {
+          if (hnswAnnUsed && mode in hnswAnnUsed) hnswAnnUsed[mode] = true;
+          annSource = 'hnsw';
+        }
+      }
       if (!annHits.length && queryEmbedding && idx.denseVec?.vectors?.length) {
-        annHits = rankDenseVectors(idx, queryEmbedding, expandedTopN, candidates);
+        if (!annCandidatesEmpty) {
+          annHits = rankDenseVectors(idx, queryEmbedding, expandedTopN, annCandidates);
+        }
+        if (!annHits.length && annFallback) {
+          annHits = rankDenseVectors(idx, queryEmbedding, expandedTopN, annFallback);
+        }
         if (annHits.length) annSource = 'dense';
       }
       if (!annHits.length) {
-        const minhashCandidates = candidates || (bmHits.length ? new Set(bmHits.map((h) => h.idx)) : null);
+        const minhashBase = candidates || (bmHits.length ? new Set(bmHits.map((h) => h.idx)) : null);
+        const minhashCandidates = intersectCandidateSet(minhashBase, allowedIdx);
+        const minhashFallback = minhashBase && allowedIdx ? allowedIdx : null;
+        const minhashCandidatesEmpty = minhashCandidates && minhashCandidates.size === 0;
         const minhashTotal = minhashCandidates ? minhashCandidates.size : (idx.minhash?.signatures?.length || 0);
         const allowMinhash = minhashTotal > 0 && (!minhashLimit || minhashTotal <= minhashLimit);
-        if (allowMinhash) {
+        if (allowMinhash && !minhashCandidatesEmpty) {
           annHits = rankMinhash(idx, queryTokens, expandedTopN, minhashCandidates);
+          if (annHits.length) annSource = 'minhash';
+        }
+        if (!annHits.length && allowMinhash && minhashFallback) {
+          annHits = rankMinhash(idx, queryTokens, expandedTopN, minhashFallback);
           if (annHits.length) annSource = 'minhash';
         }
       }

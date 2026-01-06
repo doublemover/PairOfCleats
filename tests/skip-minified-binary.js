@@ -27,11 +27,14 @@ await fsPromises.writeFile(
 );
 
 const minifiedPath = path.join(repoRoot, 'app.min.js');
-const binaryPath = path.join(repoRoot, 'binary.js');
+const binaryPath = path.join(repoRoot, 'binary.png');
 const normalPath = path.join(repoRoot, 'normal.js');
 await fsPromises.writeFile(minifiedPath, 'function minified(){return 42;}');
 await fsPromises.writeFile(normalPath, 'function ok() { return 1; }\n');
-await fsPromises.writeFile(binaryPath, Buffer.alloc(70000, 0));
+await fsPromises.copyFile(
+  path.join(root, 'tests', 'fixtures', 'binary', 'sample.png'),
+  binaryPath
+);
 
 const env = {
   ...process.env,
@@ -68,7 +71,7 @@ if (!minifiedSkip || minifiedSkip.reason !== 'minified') {
   console.error('Expected minified skip entry for app.min.js');
   process.exit(1);
 }
-const binarySkip = skippedSample.find((entry) => entry?.file && entry.file.endsWith('binary.js'));
+const binarySkip = skippedSample.find((entry) => entry?.file && entry.file.endsWith('binary.png'));
 if (!binarySkip || binarySkip.reason !== 'binary') {
   console.error('Expected binary skip entry for binary.js');
   process.exit(1);

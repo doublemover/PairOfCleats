@@ -1,8 +1,8 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { smartChunk } from '../chunking.js';
 import { buildLanguageContext } from '../language-registry.js';
-import { isSpecialCodeFile } from '../constants.js';
+import { resolveSpecialCodeExt } from '../constants.js';
+import { readTextFile } from '../../shared/encoding.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 
 /**
@@ -14,14 +14,12 @@ export async function estimateContextWindow({ files, root, mode, languageOptions
   const sampleChunkLens = [];
   for (let i = 0; i < Math.min(20, files.length); ++i) {
     try {
-      const text = await fs.readFile(files[i], 'utf8');
+      const { text } = await readTextFile(files[i]);
       const relSample = path.relative(root, files[i]);
       const relSampleKey = toPosix(relSample);
       const baseName = path.basename(files[i]);
       const rawExt = fileExt(files[i]);
-      const ext = rawExt || (isSpecialCodeFile(baseName)
-        ? (baseName.toLowerCase() === 'dockerfile' ? '.dockerfile' : '.makefile')
-        : rawExt);
+      const ext = resolveSpecialCodeExt(baseName) || rawExt;
       const { context: sampleContext } = await buildLanguageContext({
         ext,
         relPath: relSampleKey,
@@ -34,7 +32,10 @@ export async function estimateContextWindow({ files, root, mode, languageOptions
         ext,
         relPath: relSampleKey,
         mode,
-        context: sampleContext
+        context: {
+          ...sampleContext,
+          chunking: languageOptions?.chunking || null
+        }
       });
       sampleChunkLens.push(...chunks0.map(c =>
         text.slice(c.start, c.end).split('\n').length

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { applyAdaptiveDictConfig, getCacheRoot, getIndexDir } from '../../../tools/dict-utils.js';
+import { applyAdaptiveDictConfig, getCacheRoot, getIndexDir, getMetricsDir } from '../../../tools/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../integrations/triage/index-records.js';
 import { applyCrossFileInference } from '../type-inference-crossfile.js';
 import { createTaskQueues, runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
@@ -15,22 +15,38 @@ import { estimateContextWindow } from './context-window.js';
 import { discoverFiles } from './discover.js';
 import { createCrashLogger } from './crash-log.js';
 import { createFileProcessor } from './file-processor.js';
-import { scanImports } from './imports.js';
+import { buildImportLinksFromRelations, scanImports } from './imports.js';
 import { loadIncrementalState, pruneIncrementalManifest, shouldReuseIncrementalIndex, updateBundlesWithChunks } from './incremental.js';
 import { buildPostings } from './postings.js';
-import { createIndexState, appendChunk, mergeIndexState } from './state.js';
+import {
+  applyTokenRetention,
+  appendChunk,
+  createIndexState,
+  normalizeTokenRetention
+} from './state.js';
 import { configureGitMetaCache } from '../git.js';
 import { loadStructuralMatches } from '../structural.js';
 import { sha1 } from '../../shared/hash.js';
-import { planShards } from './shards.js';
-import { ensureQueueDir, enqueueJob } from '../../../tools/service/queue.js';
+import { planShardBatches, planShards } from './shards.js';
+import { buildRelationGraphs } from './graphs.js';
+import { ensureQueueDir, enqueueJob } from '../../../tools/service/queue.js';   
+import { createBuildCheckpoint } from './build-state.js';
+import { createPerfProfile, finalizePerfProfile, loadPerfProfile, recordFileMetric } from './perf-profile.js';
 
 const buildTokenizationKey = (runtime, mode) => {
+  const commentsConfig = runtime.commentsConfig || {};
   const payload = {
     mode,
     dictConfig: runtime.dictConfig || {},
     postingsConfig: runtime.postingsConfig || {},
-    dictSignature: runtime.dictSignature || null
+    dictSignature: runtime.dictSignature || null,
+    segmentsConfig: runtime.segmentsConfig || {},
+    commentsConfig: {
+      ...commentsConfig,
+      licensePattern: commentsConfig.licensePattern?.source || null,
+      generatedPattern: commentsConfig.generatedPattern?.source || null,
+      linterPattern: commentsConfig.linterPattern?.source || null
+    }
   };
   return sha1(JSON.stringify(payload));
 };
@@ -51,6 +67,8 @@ const buildIncrementalSignature = (runtime, mode, tokenizationKey) => {
       typeInferenceCrossFileEnabled: runtime.typeInferenceCrossFileEnabled,
       gitBlameEnabled: runtime.gitBlameEnabled
     },
+    riskRules: runtime.indexingConfig?.riskRules || null,
+    riskCaps: runtime.indexingConfig?.riskCaps || null,
     parsers: {
       javascript: languageOptions.javascript?.parser || null,
       javascriptFlow: languageOptions.javascript?.flow || null,
@@ -61,10 +79,14 @@ const buildIncrementalSignature = (runtime, mode, tokenizationKey) => {
       ? {
         enabled: languageOptions.treeSitter.enabled !== false,
         languages: languageOptions.treeSitter.languages || {},
+        configChunking: languageOptions.treeSitter.configChunking === true,
         maxBytes: languageOptions.treeSitter.maxBytes ?? null,
-        maxLines: languageOptions.treeSitter.maxLines ?? null
+        maxLines: languageOptions.treeSitter.maxLines ?? null,
+        maxParseMs: languageOptions.treeSitter.maxParseMs ?? null,
+        byLanguage: languageOptions.treeSitter.byLanguage || {}
       }
       : { enabled: false },
+    importScan: runtime.indexingConfig?.importScan ?? null,
     yamlChunking: languageOptions.yamlChunking || null,
     kotlin: languageOptions.kotlin || null,
     embeddings: {
@@ -74,7 +96,8 @@ const buildIncrementalSignature = (runtime, mode, tokenizationKey) => {
       batchSize: runtime.embeddingBatchSize
     },
     fileCaps: runtime.fileCaps,
-    fileScan: runtime.fileScan
+    fileScan: runtime.fileScan,
+    incrementalBundleFormat: runtime.incrementalBundleFormat || null
   };
   return sha1(JSON.stringify(payload));
 };
@@ -111,7 +134,7 @@ const enqueueEmbeddingJob = async ({ runtime, mode }) => {
 
 /**
  * Build indexes for a given mode.
- * @param {{mode:'code'|'prose'|'records',runtime:object,discovery?:{entries:Array,skippedFiles:Array}}} input
+ * @param {{mode:'code'|'prose'|'records'|'extracted-prose',runtime:object,discovery?:{entries:Array,skippedFiles:Array}}} input
  */
 export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   if (mode === 'records') {
@@ -123,15 +146,42 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     enabled: runtime.debugCrash,
     log
   });
-  const outDir = getIndexDir(runtime.root, mode, runtime.userConfig);
+  const outDir = getIndexDir(runtime.root, mode, runtime.userConfig, { indexRoot: runtime.buildRoot });
   await fs.mkdir(outDir, { recursive: true });
   log(`\n📄  Scanning ${mode} …`);
   const timing = { start: Date.now() };
+  const metricsDir = getMetricsDir(runtime.root, runtime.userConfig);
+  const perfFeatures = {
+    stage: runtime.stage || null,
+    embeddings: runtime.embeddingEnabled || runtime.embeddingService,
+    treeSitter: runtime.languageOptions?.treeSitter?.enabled !== false,
+    relations: runtime.stage !== 'stage1',
+    tooling: runtime.toolingEnabled,
+    typeInference: runtime.typeInferenceEnabled,
+    riskAnalysis: runtime.riskAnalysisEnabled
+  };
+  const perfProfile = createPerfProfile({
+    configHash: runtime.configHash,
+    mode,
+    buildId: runtime.buildId,
+    features: perfFeatures
+  });
+  const priorPerfProfile = await loadPerfProfile({
+    metricsDir,
+    mode,
+    configHash: runtime.configHash,
+    log
+  });
+  const shardPerfProfile = priorPerfProfile?.totals?.durationMs
+    ? priorPerfProfile
+    : null;
   crashLogger.updatePhase(`scan:${mode}`);
 
   const state = createIndexState();
   if (discovery && Array.isArray(discovery.skippedFiles)) {
-    state.skippedFiles.push(...discovery.skippedFiles);
+    for (const file of discovery.skippedFiles) {
+      state.skippedFiles.push(file);
+    }
   }
   const cacheReporter = createCacheReporter({ enabled: runtime.verboseCache, log });
   const seenFiles = new Set();
@@ -149,10 +199,15 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       ignoreMatcher: runtime.ignoreMatcher,
       skippedFiles: state.skippedFiles,
       maxFileBytes: runtime.maxFileBytes,
-      fileCaps: runtime.fileCaps
+      fileCaps: runtime.fileCaps,
+      maxDepth: runtime.guardrails?.maxDepth ?? null,
+      maxFiles: runtime.guardrails?.maxFiles ?? null
     }));
   }
   allEntries.sort((a, b) => a.rel.localeCompare(b.rel));
+  allEntries.forEach((entry, index) => {
+    entry.orderIndex = index;
+  });
   log(`→ Found ${allEntries.length} files.`);
   timing.discoverMs = Date.now() - discoverStart;
   runtime.dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
@@ -164,6 +219,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     enabled: runtime.incrementalEnabled,
     tokenizationKey,
     cacheSignature,
+    bundleFormat: runtime.incrementalBundleFormat,
     log
   });
   configureGitMetaCache(runtime.cacheConfig?.gitMeta, cacheReporter);
@@ -183,8 +239,14 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   }
 
   const relationsEnabled = runtime.stage !== 'stage1';
-  let importResult = { allImports: {}, durationMs: 0 };
-  if (mode === 'code' && relationsEnabled) {
+  const importScanRaw = runtime.indexingConfig?.importScan;
+  const importScanMode = typeof importScanRaw === 'string'
+    ? importScanRaw.trim().toLowerCase()
+    : (importScanRaw === false ? 'off' : 'post');
+  const enableImportLinks = importScanMode !== 'off';
+  const usePreScan = importScanMode === 'pre' || importScanMode === 'prescan';
+  let importResult = { allImports: {}, durationMs: 0, stats: null };
+  if (mode === 'code' && relationsEnabled && enableImportLinks && usePreScan) {
     log('Scanning for imports...');
     crashLogger.updatePhase('imports');
     importResult = await scanImports({
@@ -201,6 +263,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       const { modules, edges, files } = importResult.stats;
       log(`→ Imports: modules=${modules}, edges=${edges}, files=${files}`);
     }
+  } else if (mode === 'code' && relationsEnabled && enableImportLinks) {
+    log('Skipping import pre-scan; will enrich import links from relations.');
+  } else if (mode === 'code' && relationsEnabled) {
+    log('Import link enrichment disabled via indexing.importScan.');
   } else if (mode === 'code') {
     log('Skipping import scan for sparse stage.');
   }
@@ -232,18 +298,57 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     ngrams: 0,
     chargrams: 0
   };
-  const progress = {
-    total: allEntries.length,
-    count: 0,
-    tick() {
-      this.count += 1;
-      showProgress('Files', this.count, this.total);
+  let checkpoint = null;
+  let progress = null;
+  const indexingConfig = runtime.userConfig?.indexing || {};
+  const tokenModeRaw = indexingConfig.chunkTokenMode || 'auto';
+  const tokenMode = ['auto', 'full', 'sample', 'none'].includes(tokenModeRaw)
+    ? tokenModeRaw
+    : 'auto';
+  const tokenMaxFiles = Number.isFinite(Number(indexingConfig.chunkTokenMaxFiles))
+    ? Math.max(0, Number(indexingConfig.chunkTokenMaxFiles))
+    : 5000;
+  const tokenMaxTotalRaw = Number(indexingConfig.chunkTokenMaxTokens);
+  const tokenMaxTotal = Number.isFinite(tokenMaxTotalRaw) && tokenMaxTotalRaw > 0
+    ? Math.floor(tokenMaxTotalRaw)
+    : 5000000;
+  const tokenSampleSize = Number.isFinite(Number(indexingConfig.chunkTokenSampleSize))
+    ? Math.max(1, Math.floor(Number(indexingConfig.chunkTokenSampleSize)))
+    : 32;
+  let resolvedTokenMode = tokenMode === 'auto'
+    ? (allEntries.length <= tokenMaxFiles ? 'full' : 'sample')
+    : tokenMode;
+  const tokenRetention = normalizeTokenRetention({
+    mode: resolvedTokenMode,
+    sampleSize: tokenSampleSize
+  });
+  const tokenRetentionAuto = tokenMode === 'auto';
+  let tokenTotal = 0;
+  const applyRetentionToState = (target) => {
+    if (!target?.chunks) return;
+    for (const chunk of target.chunks) {
+      applyTokenRetention(chunk, tokenRetention);
     }
   };
   const handleFileResult = (result, stateRef, shardMeta = null) => {
     if (!result) return;
+    if (result.fileMetrics) {
+      recordFileMetric(perfProfile, result.fileMetrics);
+    }
     for (const chunk of result.chunks) {
-      appendChunk(stateRef, { ...chunk }, runtime.postingsConfig);
+      const seqLen = Array.isArray(chunk.seq) && chunk.seq.length
+        ? chunk.seq.length
+        : (Array.isArray(chunk.tokens) ? chunk.tokens.length : 0);
+      tokenTotal += seqLen;
+      appendChunk(stateRef, { ...chunk }, runtime.postingsConfig, tokenRetention);
+    }
+    if (tokenRetentionAuto && tokenRetention.mode === 'full'
+      && tokenMaxTotal
+      && tokenTotal > tokenMaxTotal) {
+      tokenRetention.mode = 'sample';
+      applyRetentionToState(state);
+      if (stateRef !== state) applyRetentionToState(stateRef);
+      log(`Chunk token mode auto -> sample (token budget ${tokenTotal} > ${tokenMaxTotal}).`);
     }
     stateRef.scannedFilesTimes.push({ file: result.abs, duration_ms: result.durationMs, cached: result.cached });
     stateRef.scannedFiles.push(result.abs);
@@ -255,11 +360,66 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       stateRef.fileRelations.set(result.relKey, result.fileRelations);
     }
   };
+  const orderedAppender = (() => {
+    const pending = new Map();
+    let nextIndex = 0;
+    let flushing = null;
+    const flush = async () => {
+      while (pending.has(nextIndex)) {
+        const entry = pending.get(nextIndex);
+        pending.delete(nextIndex);
+        if (entry?.result) {
+          handleFileResult(entry.result, state, entry.shardMeta);
+        }
+        nextIndex += 1;
+      }
+    };
+    const scheduleFlush = async () => {
+      if (flushing) return flushing;
+      flushing = (async () => {
+        try {
+          await flush();
+        } finally {
+          flushing = null;
+        }
+      })();
+      return flushing;
+    };
+    return {
+      enqueue(orderIndex, result, shardMeta) {
+        const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
+        pending.set(index, { result, shardMeta });
+        return scheduleFlush();
+      }
+    };
+  })();
+  const resolveCheckpointBatchSize = (totalFiles, shardPlan) => {
+    if (!Number.isFinite(totalFiles) || totalFiles <= 0) return 10;
+    const minBatch = 10;
+    const maxBatch = 250;
+    if (Array.isArray(shardPlan) && shardPlan.length) {
+      const perShard = Math.max(1, Math.ceil(totalFiles / shardPlan.length));
+      const target = Math.ceil(perShard / 10);
+      return Math.max(minBatch, Math.min(maxBatch, target));
+    }
+    const target = Math.ceil(totalFiles / 200);
+    return Math.max(minBatch, Math.min(maxBatch, target));
+  };
   const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurrency, embeddingConcurrency }) => {
     const ioConcurrency = Math.max(fileConcurrency, importConcurrency);
     const cpuLimit = Math.max(1, os.cpus().length * 2);
-    const cpuConcurrency = Math.max(1, Math.min(cpuLimit, fileConcurrency));
-    const queues = createTaskQueues({ ioConcurrency, cpuConcurrency, embeddingConcurrency });
+    const cpuConcurrency = Math.max(1, Math.min(cpuLimit, fileConcurrency));    
+    const maxFilePending = Math.min(10000, fileConcurrency * 1000);
+    const maxIoPending = Math.min(10000, ioConcurrency * 1000);
+    const maxEmbeddingPending = Math.min(64, embeddingConcurrency * 8);
+    const queues = createTaskQueues({
+      ioConcurrency,
+      cpuConcurrency,
+      embeddingConcurrency,
+      ioPendingLimit: maxIoPending,
+      cpuPendingLimit: maxFilePending,
+      embeddingPendingLimit: maxEmbeddingPending
+    });
     return {
       ...baseRuntime,
       fileConcurrency,
@@ -279,6 +439,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       dictWords: runtimeRef.dictWords,
       languageOptions: runtimeRef.languageOptions,
       postingsConfig: runtimeRef.postingsConfig,
+      segmentsConfig: runtimeRef.segmentsConfig,
+      commentsConfig: runtimeRef.commentsConfig,
       allImports: importResult.allImports,
       contextWin,
       incrementalState,
@@ -288,6 +450,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       embeddingEnabled: runtimeRef.embeddingEnabled,
       typeInferenceEnabled: runtimeRef.typeInferenceEnabled,
       riskAnalysisEnabled: runtimeRef.riskAnalysisEnabled,
+      riskConfig: runtimeRef.riskConfig,
+      toolInfo: runtimeRef.toolInfo,
       seenFiles,
       gitBlameEnabled: runtimeRef.gitBlameEnabled,
       lintEnabled: runtimeRef.lintEnabled,
@@ -321,10 +485,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
         crashLogger.updateFile({
           phase: 'processing',
           mode,
+          stage: runtimeRef.stage,
           fileIndex,
           total: progress.total,
           file: entry.rel,
-          size: entry.stat?.size || null
+          size: entry.stat?.size || null,
+          shardId: shardMeta?.id || null
         });
         try {
           const result = await processFile(entry, fileIndex);
@@ -334,7 +500,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
           crashLogger.logError({
             phase: 'processing',
             mode,
+            stage: runtimeRef.stage,
             file: entry.rel,
+            shardId: shardMeta?.id || null,
             message: err?.message || String(err),
             stack: err?.stack || null
           });
@@ -343,7 +511,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       },
       {
         collectResults: false,
-        onResult: (result) => handleFileResult(result, stateRef, shardMeta),
+        onResult: (result, index) => {
+          const entry = entries[index];
+          const orderIndex = Number.isFinite(entry?.orderIndex) ? entry.orderIndex : index;
+          return orderedAppender.enqueue(orderIndex, result, shardMeta);
+        },
         retries: 2,
         retryDelayMs: 200
       }
@@ -363,13 +535,24 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       timing.lineCountsMs = Date.now() - lineStart;
     }
   }
+  const shardFeatureWeights = {
+    relations: relationsEnabled ? 0.15 : 0,
+    flow: (runtime.astDataflowEnabled || runtime.controlFlowEnabled) ? 0.1 : 0,
+    treeSitter: runtime.languageOptions?.treeSitter?.enabled !== false ? 0.1 : 0,
+    tooling: runtime.toolingEnabled ? 0.1 : 0,
+    embeddings: runtime.embeddingEnabled ? 0.2 : 0
+  };
   const shardPlan = runtime.shards?.enabled
     ? planShards(allEntries, {
       mode,
       maxShards: runtime.shards.maxShards,
       minFiles: runtime.shards.minFiles,
       dirDepth: runtime.shards.dirDepth,
-      lineCounts
+      lineCounts,
+      perfProfile: shardPerfProfile,
+      featureWeights: shardFeatureWeights,
+      maxShardBytes: runtime.shards.maxShardBytes,
+      maxShardLines: runtime.shards.maxShardLines
     })
     : null;
   const shardSummary = shardPlan
@@ -379,7 +562,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       dir: shard.dir,
       lang: shard.lang,
       fileCount: shard.entries.length,
-      lineCount: shard.lineCount || 0
+      lineCount: shard.lineCount || 0,
+      byteCount: shard.byteCount || 0,
+      costMs: shard.costMs || 0
     }))
     : [];
   if (incrementalState?.manifest) {
@@ -388,8 +573,26 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       ? { enabled: true, updatedAt, plan: shardSummary }
       : { enabled: false, updatedAt };
   }
+  const checkpointBatchSize = resolveCheckpointBatchSize(allEntries.length, shardPlan);
+  checkpoint = createBuildCheckpoint({
+    buildRoot: runtime.buildRoot,
+    mode,
+    totalFiles: allEntries.length,
+    batchSize: checkpointBatchSize
+  });
+  progress = {
+    total: allEntries.length,
+    count: 0,
+    tick() {
+      this.count += 1;
+      showProgress('Files', this.count, this.total);
+      checkpoint.tick();
+    }
+  };
   if (shardPlan && shardPlan.length > 1) {
     const shardExecutionPlan = [...shardPlan].sort((a, b) => {
+      const costDelta = (b.costMs || 0) - (a.costMs || 0);
+      if (costDelta !== 0) return costDelta;
       const lineDelta = (b.lineCount || 0) - (a.lineCount || 0);
       if (lineDelta !== 0) return lineDelta;
       const sizeDelta = b.entries.length - a.entries.length;
@@ -401,23 +604,32 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     );
     const totalFiles = shardPlan.reduce((sum, shard) => sum + shard.entries.length, 0);
     const totalLines = shardPlan.reduce((sum, shard) => sum + (shard.lineCount || 0), 0);
+    const totalBytes = shardPlan.reduce((sum, shard) => sum + (shard.byteCount || 0), 0);
+    const totalCost = shardPlan.reduce((sum, shard) => sum + (shard.costMs || 0), 0);
     if (envConfig.verbose === true) {
       const top = shardExecutionPlan.slice(0, Math.min(10, shardExecutionPlan.length));
-      log(`→ Shard plan: ${shardPlan.length} shards, ${totalFiles.toLocaleString()} files, ${totalLines.toLocaleString()} lines.`);
+      const costLabel = totalCost ? `, est ${Math.round(totalCost).toLocaleString()}ms` : '';
+      log(`→ Shard plan: ${shardPlan.length} shards, ${totalFiles.toLocaleString()} files, ${totalLines.toLocaleString()} lines${costLabel}.`);
       for (const shard of top) {
         const lineCount = shard.lineCount || 0;
-        log(`[shards] ${shard.label || shard.id} | files ${shard.entries.length.toLocaleString()} | lines ${lineCount.toLocaleString()}`);
+        const byteCount = shard.byteCount || 0;
+        const costMs = shard.costMs || 0;
+        const costText = costMs ? ` | est ${Math.round(costMs).toLocaleString()}ms` : '';
+        log(`[shards] ${shard.label || shard.id} | files ${shard.entries.length.toLocaleString()} | lines ${lineCount.toLocaleString()} | bytes ${byteCount.toLocaleString()}${costText}`);
       }
       const splitGroups = new Map();
       for (const shard of shardPlan) {
         if (!shard.splitFrom) continue;
-        const group = splitGroups.get(shard.splitFrom) || { count: 0, lines: 0 };
+        const group = splitGroups.get(shard.splitFrom) || { count: 0, lines: 0, bytes: 0, cost: 0 };
         group.count += 1;
         group.lines += shard.lineCount || 0;
+        group.bytes += shard.byteCount || 0;
+        group.cost += shard.costMs || 0;
         splitGroups.set(shard.splitFrom, group);
       }
       for (const [label, group] of splitGroups) {
-        log(`[shards] split ${label} -> ${group.count} parts (${group.lines.toLocaleString()} lines)`);
+        const costText = group.cost ? `, est ${Math.round(group.cost).toLocaleString()}ms` : '';
+        log(`[shards] split ${label} -> ${group.count} parts (${group.lines.toLocaleString()} lines, ${group.bytes.toLocaleString()} bytes${costText})`);
       }
     }
     const buildShardWorkPlan = () => {
@@ -425,10 +637,15 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       const totalShards = shardExecutionPlan.length;
       for (const shard of shardExecutionPlan) {
         const fileCount = shard.entries.length;
+        const costPerFile = shard.costMs && fileCount ? shard.costMs / fileCount : 0;
         const fileShare = totalFiles > 0 ? fileCount / totalFiles : 0;
         const lineCount = shard.lineCount || 0;
         const lineShare = totalLines > 0 ? lineCount / totalLines : 0;
-        const share = Math.max(fileShare, lineShare);
+        const byteCount = shard.byteCount || 0;
+        const byteShare = totalBytes > 0 ? byteCount / totalBytes : 0;
+        const costMs = shard.costMs || 0;
+        const costShare = totalCost > 0 ? costMs / totalCost : 0;
+        const share = Math.max(fileShare, lineShare, byteShare, costShare);
         let parts = 1;
         if (share > 0.05) parts = share > 0.1 ? 4 : 2;
         parts = Math.min(parts, Math.max(1, fileCount));
@@ -438,6 +655,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
             entries: shard.entries,
             partIndex: 1,
             partTotal: 1,
+            predictedCostMs: costPerFile ? costPerFile * fileCount : costMs,
             shardIndex: shardIndexById.get(shard.id) || 1,
             shardTotal: totalShards
           });
@@ -448,11 +666,13 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
           const start = i * perPart;
           const end = Math.min(start + perPart, fileCount);
           if (start >= end) continue;
+          const partCount = end - start;
           work.push({
             shard,
             entries: shard.entries.slice(start, end),
             partIndex: i + 1,
             partTotal: parts,
+            predictedCostMs: costPerFile ? costPerFile * partCount : costMs / parts,
             shardIndex: shardIndexById.get(shard.id) || 1,
             shardTotal: totalShards
           });
@@ -469,6 +689,15 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       ? Math.max(1, Math.floor(runtime.shards.maxWorkers))
       : defaultShardConcurrency;
     shardConcurrency = Math.min(shardConcurrency, runtime.fileConcurrency);
+    let shardBatches = planShardBatches(shardWorkPlan, shardConcurrency, {
+      resolveWeight: (workItem) => Number.isFinite(workItem.predictedCostMs)
+        ? workItem.predictedCostMs
+        : (workItem.shard.costMs || workItem.shard.lineCount || workItem.entries.length || 0)
+    });
+    if (!shardBatches.length && shardWorkPlan.length) {
+      shardBatches = [shardWorkPlan.slice()];
+    }
+    shardConcurrency = Math.max(1, shardBatches.length);
     const perShardFileConcurrency = Math.max(
       1,
       Math.min(2, Math.floor(runtime.fileConcurrency / shardConcurrency))
@@ -482,10 +711,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       Math.min(perShardFileConcurrency, Math.floor(baseEmbedConcurrency / shardConcurrency))
     );
     log(`→ Sharding enabled: ${shardPlan.length} shards (concurrency=${shardConcurrency}, per-shard files=${perShardFileConcurrency}).`);
-    await runWithConcurrency(
-      shardWorkPlan,
-      shardConcurrency,
-      async (workItem) => {
+    const runShardWorker = async (batch) => {
+      for (const workItem of batch) {
         const {
           shard,
           entries,
@@ -506,22 +733,48 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
           shardBracket = shardBracket ? `${shardBracket} ${partLabel}` : partLabel;
         }
         const shardDisplay = shardLabel + (shardBracket ? ` [${shardBracket}]` : '');
-        log(`→ Shard ${shardIndex}/${shardTotal}: ${shardDisplay} (${entries.length} files)`);
-        const shardState = createIndexState();
+        log(
+          `→ Shard ${shardIndex}/${shardTotal}: ${shardDisplay} (${entries.length} files)`,
+          {
+            shardId: shard.id,
+            shardIndex,
+            shardTotal,
+            partIndex,
+            partTotal,
+            fileCount: entries.length
+          }
+        );
         await processEntries({
           entries,
           runtime: shardRuntime,
           shardMeta: shard,
-          stateRef: shardState
+          stateRef: state
         });
-        mergeIndexState(state, shardState);
-      },
-      { collectResults: false }
+      }
+    };
+    await Promise.all(
+      shardBatches.map((batch) => runShardWorker(batch))
     );
   } else {
     await processEntries({ entries: allEntries, runtime, stateRef: state });
   }
   showProgress('Files', progress.total, progress.total);
+  checkpoint.finish();
+
+  if (mode === 'code' && relationsEnabled && enableImportLinks && !usePreScan) {
+    const importStart = Date.now();
+    const importLinks = buildImportLinksFromRelations(state.fileRelations);
+    importResult = {
+      allImports: importLinks.allImports || {},
+      stats: importLinks.stats || null,
+      durationMs: Date.now() - importStart
+    };
+    timing.importsMs = importResult.durationMs;
+    if (importResult?.stats) {
+      const { modules, edges, files } = importResult.stats;
+      log(`→ Imports: modules=${modules}, edges=${edges}, files=${files}`);
+    }
+  }
 
   timing.processMs = Date.now() - processStart;
   if (envConfig.verbose === true && tokenizationStats.chunks) {
@@ -554,10 +807,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     useStubEmbeddings: runtime.useStubEmbeddings,
     log,
     workerPool: runtime.workerPool,
+    quantizePool: runtime.quantizePool,
     embeddingsEnabled: runtime.embeddingEnabled
   });
 
   const crossFileEnabled = runtime.typeInferenceCrossFileEnabled || runtime.riskAnalysisCrossFileEnabled;
+  let graphRelations = null;
   if (mode === 'code' && crossFileEnabled) {
     crashLogger.updatePhase('cross-file');
     const crossFileStats = await applyCrossFileInference({
@@ -578,12 +833,20 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       enabled: runtime.incrementalEnabled,
       manifest: incrementalState.manifest,
       bundleDir: incrementalState.bundleDir,
+      bundleFormat: incrementalState.bundleFormat,
       chunks: state.chunks,
       fileRelations: state.fileRelations,
       log
     });
   }
+  if (mode === 'code' && relationsEnabled) {
+    graphRelations = buildRelationGraphs({
+      chunks: state.chunks,
+      fileRelations: state.fileRelations
+    });
+  }
 
+  const finalizedPerfProfile = finalizePerfProfile(perfProfile);
   await writeIndexArtifacts({
     outDir,
     mode,
@@ -598,6 +861,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     userConfig: runtime.userConfig,
     incrementalEnabled: runtime.incrementalEnabled,
     fileCounts: { candidates: allEntries.length },
+    perfProfile: finalizedPerfProfile,
+    graphRelations,
     indexState: {
       generatedAt: new Date().toISOString(),
       mode,

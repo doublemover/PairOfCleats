@@ -2,6 +2,47 @@ import os from 'node:os';
 import util from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { log as defaultLog } from '../../shared/progress.js';
+import {
+  incWorkerRetries,
+  observeWorkerTaskDuration,
+  setWorkerActiveTasks,
+  setWorkerQueueDepth
+} from '../../shared/metrics.js';
+
+const summarizeError = (err, options = {}) => {
+  const {
+    maxLen = 240,
+    fullDepth = false
+  } = options;
+  if (!err) return '';
+  const asString = (value) => (typeof value === 'string' ? value.trim() : '');
+  let detail = asString(err?.message)
+    || asString(err?.code)
+    || asString(err?.name)
+    || asString(typeof err === 'string' ? err : '');
+  if (!detail || detail === '[object Object]' || detail === '{}') {
+    detail = util.inspect(err, {
+      depth: fullDepth ? null : 2,
+      breakLength: 120,
+      maxArrayLength: fullDepth ? null : 6,
+      maxStringLength: fullDepth ? null : 200,
+      showHidden: true,
+      getters: true
+    });
+    if (detail === '{}' || detail === '[object Object]') {
+      try {
+        detail = JSON.stringify(err, Object.getOwnPropertyNames(err), 2);
+      } catch (jsonErr) {
+        detail = detail || `unserializable error: ${asString(jsonErr?.message)}`;
+      }
+    }
+  }
+  detail = detail.replace(/\s+/g, ' ').trim();
+  if (maxLen > 3 && detail.length > maxLen) {
+    detail = `${detail.slice(0, maxLen - 3)}...`;
+  }
+  return detail;
+};
 
 const normalizeEnabled = (raw) => {
   if (raw === true || raw === false) return raw;
@@ -23,10 +64,21 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const cpuLimit = Number.isFinite(options.cpuLimit)
     ? Math.max(1, Math.floor(options.cpuLimit))
     : Math.max(1, os.cpus().length * 4);
-  const maxWorkersRaw = Number(raw.maxWorkers);
-  const maxWorkers = Number.isFinite(maxWorkersRaw) && maxWorkersRaw > 0
-    ? Math.max(1, Math.floor(maxWorkersRaw))
+  const defaultMaxWorkers = Number.isFinite(options.defaultMaxWorkers)
+    ? Math.max(1, Math.floor(options.defaultMaxWorkers))
     : Math.max(1, cpuLimit);
+  const hardMaxWorkers = Number.isFinite(options.hardMaxWorkers)
+    ? Math.max(1, Math.floor(options.hardMaxWorkers))
+    : null;
+  const maxWorkersRaw = Number(raw.maxWorkers);
+  const allowOverCap = raw.allowOverCap === true || options.allowOverCap === true;
+  const requestedMax = Number.isFinite(maxWorkersRaw) && maxWorkersRaw > 0
+    ? Math.max(1, Math.floor(maxWorkersRaw))
+    : defaultMaxWorkers;
+  const cappedMax = (!allowOverCap && Number.isFinite(hardMaxWorkers))
+    ? Math.min(requestedMax, hardMaxWorkers)
+    : requestedMax;
+  const maxWorkers = Math.max(1, cappedMax);
   const maxFileBytesRaw = raw.maxFileBytes;
   let maxFileBytes = 512 * 1024;
   if (maxFileBytesRaw === false || maxFileBytesRaw === 0) {
@@ -49,13 +101,20 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const quantizeBatchSize = Number.isFinite(quantizeBatchRaw) && quantizeBatchRaw > 0
     ? Math.floor(quantizeBatchRaw)
     : 128;
+  const splitByTask = raw.splitByTask === true || raw.splitTasks === true;
+  const quantizeMaxWorkersRaw = Number(raw.quantizeMaxWorkers);
+  const quantizeMaxWorkers = Number.isFinite(quantizeMaxWorkersRaw) && quantizeMaxWorkersRaw > 0
+    ? Math.max(1, Math.floor(quantizeMaxWorkersRaw))
+    : null;
   return {
     enabled,
     maxWorkers,
     maxFileBytes,
     idleTimeoutMs,
     taskTimeoutMs,
-    quantizeBatchSize
+    quantizeBatchSize,
+    splitByTask,
+    quantizeMaxWorkers
   };
 }
 
@@ -95,8 +154,12 @@ export async function createIndexerWorkerPool(input = {}) {
     dictConfig,
     postingsConfig,
     crashLogger = null,
-    log = defaultLog
+    log = defaultLog,
+    poolName = 'tokenize'
   } = input;
+  const poolLabel = typeof poolName === 'string' && poolName.trim()
+    ? poolName.trim().toLowerCase()
+    : 'tokenize';
   const sanitizeDictConfig = (raw) => {
     const cfg = raw && typeof raw === 'object' ? raw : {};
     return {
@@ -115,11 +178,12 @@ export async function createIndexerWorkerPool(input = {}) {
     return null;
   }
   const maxRestartAttempts = 3;
-  const restartBaseDelayMs = 1000;
+  const restartBaseDelayMs = 5000;
   const restartMaxDelayMs = 10000;
   try {
     let pool = null;
     let disabled = false;
+    let permanentlyDisabled = false;
     let restartAttempts = 0;
     let restartAtMs = 0;
     let restarting = null;
@@ -130,25 +194,45 @@ export async function createIndexerWorkerPool(input = {}) {
       maxThreads: config.maxWorkers,
       idleTimeout: config.idleTimeoutMs,
       taskTimeout: config.taskTimeoutMs,
+      recordTiming: true,
       workerData: {
         dictWords: Array.isArray(dictWords) ? dictWords : Array.from(dictWords || []),
         dictConfig: sanitizeDictConfig(dictConfig),
         postingsConfig: postingsConfig || {}
       }
     });
+    const updatePoolMetrics = () => {
+      if (!pool) return;
+      setWorkerQueueDepth({ pool: poolLabel, value: pool.queueSize });
+      setWorkerActiveTasks({ pool: poolLabel, value: activeTasks });
+    };
     const shutdownPool = async () => {
       if (!pool) return;
       try {
         await pool.destroy();
       } catch (err) {
-        log(`Worker pool shutdown failed: ${err?.message || err}`);
+        const detail = summarizeError(err);
+        log(`Worker pool shutdown failed: ${detail || 'unknown error'}`);
       }
       pool = null;
     };
+    const disablePermanently = async (reason) => {
+      if (permanentlyDisabled) return;
+      permanentlyDisabled = true;
+      disabled = true;
+      pendingRestart = false;
+      restartAttempts = maxRestartAttempts + 1;
+      if (reason) log(`Worker pool disabled permanently: ${reason}`);
+      if (activeTasks === 0) {
+        await shutdownPool();
+      }
+    };
     const scheduleRestart = async (reason) => {
-      if (!pool && disabled && restartAttempts > maxRestartAttempts) return;    
+      if (permanentlyDisabled) return;
+      if (!pool && disabled && restartAttempts > maxRestartAttempts) return;
       disabled = true;
       restartAttempts += 1;
+      incWorkerRetries({ pool: poolLabel });
       if (restartAttempts > maxRestartAttempts) {
         pendingRestart = false;
         if (reason) log(`Worker pool disabled: ${reason}`);
@@ -166,12 +250,14 @@ export async function createIndexerWorkerPool(input = {}) {
       if (reason) log(`Worker pool disabled: ${reason} (retry in ${delayMs}ms).`);
     };
     const maybeRestart = async () => {
+      if (permanentlyDisabled) return false;
       if (!pendingRestart || !disabled) return false;
       if (activeTasks > 0) return false;
       if (Date.now() < restartAtMs) return false;
       return ensurePool();
     };
     const ensurePool = async () => {
+      if (permanentlyDisabled) return false;
       if (pool && !disabled) return true;
       if (restartAttempts > maxRestartAttempts) return false;
       if (!pendingRestart) return false;
@@ -189,7 +275,8 @@ export async function createIndexerWorkerPool(input = {}) {
             pendingRestart = false;
             log('Worker pool restarted.');
           } catch (err) {
-            await scheduleRestart(`restart failed: ${err?.message || err}`);    
+            const detail = summarizeError(err);
+            await scheduleRestart(`restart failed: ${detail || 'unknown error'}`);
           } finally {
             restarting = null;
           }
@@ -202,8 +289,8 @@ export async function createIndexerWorkerPool(input = {}) {
       if (!payload || typeof payload !== 'object') return payload;
       const safe = {
         text: typeof payload.text === 'string' ? payload.text : '',
-        mode: payload.mode,
-        ext: payload.ext
+        mode: typeof payload.mode === 'string' ? payload.mode : 'code',
+        ext: typeof payload.ext === 'string' ? payload.ext : ''
       };
       if (Array.isArray(payload.chargramTokens)) {
         safe.chargramTokens = payload.chargramTokens.filter((token) => typeof token === 'string');
@@ -214,9 +301,50 @@ export async function createIndexerWorkerPool(input = {}) {
       return safe;
     };
     const attachPoolListeners = (poolInstance) => {
-      if (!poolInstance?.on || !crashLogger?.enabled) return;
+      if (!poolInstance?.on) return;
+      poolInstance.on('message', (message) => {
+        if (!message || typeof message !== 'object') return;
+        if (message.type === 'worker-task') {
+          observeWorkerTaskDuration({
+            pool: poolLabel,
+            task: message.task,
+            worker: message.threadId,
+            status: message.status,
+            seconds: Number(message.durationMs) / 1000
+          });
+          return;
+        }
+        if (message.type === 'worker-crash') {
+          const detail = message.message || message.raw || 'unknown worker error';
+          const cloneIssue = message.cloneIssue
+            ? `non-cloneable ${message.cloneIssue.type}${message.cloneIssue.name ? ` (${message.cloneIssue.name})` : ''} at ${message.cloneIssue.path}`
+            : null;
+          const taskHint = message.task ? ` task=${message.task}` : '';
+          const stageHint = message.stage ? ` stage=${message.stage}` : '';
+          const suffix = [cloneIssue, `${taskHint}${stageHint}`.trim()].filter(Boolean).join(' | ');
+          log(`Worker crash reported: ${detail}${suffix ? ` | ${suffix}` : ''}`);
+          if (crashLogger?.enabled) {
+            crashLogger.logError({
+              phase: 'worker-thread',
+              message: message.message || 'worker crash',
+              stack: message.stack || null,
+              name: message.name || null,
+              code: null,
+              task: message.label || null,
+              cloneIssue: message.cloneIssue || null,
+              cloneStage: message.stage || null,
+              payloadMeta: {
+                threadId: message.threadId ?? null
+              },
+              raw: message.raw || null,
+              cause: message.cause || null
+            });
+          }
+        }
+      });
+      if (!crashLogger?.enabled) return;
       const formatPoolError = (err) => ({
-        message: err?.message || String(err),
+        message: summarizeError(err, { fullDepth: true, maxLen: 0 }) || err?.message || String(err),
         stack: err?.stack || null,
         name: err?.name || null,
         code: err?.code || null,
@@ -227,18 +355,27 @@ export async function createIndexerWorkerPool(input = {}) {
       });
       poolInstance.on('workerCreate', (worker) => {
         if (!worker) return;
-        worker.on('error', (err) => {
+        const target = typeof worker.on === 'function'
+          ? worker
+          : (worker?.worker && typeof worker.worker.on === 'function'
+            ? worker.worker
+            : null);
+        if (!target) return;
+        target.on('error', (err) => {
+          const detail = summarizeError(err, { fullDepth: true, maxLen: 0 }) || err?.message || String(err);
+          log(`Worker thread error: ${detail}`);
           crashLogger.logError({
             phase: 'worker-thread',
-            threadId: worker.threadId,
+            threadId: worker.threadId ?? worker.id ?? worker.worker?.threadId,
             ...formatPoolError(err)
           });
         });
-        worker.on('exit', (code) => {
+        target.on('exit', (code) => {
           if (code === 0) return;
+          log(`Worker thread exited with code ${code}.`);
           crashLogger.logError({
             phase: 'worker-exit',
-            threadId: worker.threadId,
+            threadId: worker.threadId ?? worker.id ?? worker.worker?.threadId,
             message: `worker exited with code ${code}`
           });
         });
@@ -246,6 +383,7 @@ export async function createIndexerWorkerPool(input = {}) {
     };
     pool = createPool();
     attachPoolListeners(pool);
+    updatePoolMetrics();
     return {
       config,
       get pool() {
@@ -253,7 +391,7 @@ export async function createIndexerWorkerPool(input = {}) {
       },
       dictConfig: sanitizeDictConfig(dictConfig),
       shouldUseForFile(sizeBytes) {
-        if (disabled) return false;
+        if (disabled || permanentlyDisabled) return false;
         if (config.enabled === true) return true;
         if (config.enabled === 'auto') {
           if (config.maxFileBytes == null) return true;
@@ -263,29 +401,37 @@ export async function createIndexerWorkerPool(input = {}) {
       },
       async runTokenize(payload) {
         activeTasks += 1;
+        updatePoolMetrics();
         try {
           if (disabled && !(await ensurePool())) return null;
-          return await pool.run(sanitizePayload(payload), { name: 'tokenizeChunk' });
+          const result = await pool.run(sanitizePayload(payload), { name: 'tokenizeChunk' });
+          updatePoolMetrics();
+          return result;
         } catch (err) {
           const isCloneError = err?.name === 'DataCloneError'
             || /could not be cloned|DataCloneError/i.test(err?.message || '');
-          const detail = String(err?.message || err?.code || err?.name || err || '')
-            .replace(/\s+/g, ' ')
-            .trim();
+          const detail = summarizeError(err, { fullDepth: true, maxLen: 0 });
+          const opaqueFailure = !detail || detail === '{}' || detail === '[object Object]';
           const reason = isCloneError
-            ? 'data-clone error'
+            ? (detail ? `data-clone error: ${detail}` : 'data-clone error')
             : (detail ? `worker failure: ${detail}` : 'worker failure');
-          await scheduleRestart(reason);
+          if (opaqueFailure) {
+            await disablePermanently(reason || 'worker failure');
+          } else {
+            await scheduleRestart(reason);
+          }
           if (crashLogger?.enabled) {
             crashLogger.logError({
               phase: 'worker-tokenize',
-              message: err?.message || String(err),
+              message: detail || err?.message || String(err),
               stack: err?.stack || null,
               name: err?.name || null,
               code: err?.code || null,
               task: 'tokenizeChunk',
               payloadMeta: payload
                 ? {
+                  file: typeof payload.file === 'string' ? payload.file : null,
+                  size: Number.isFinite(payload.size) ? payload.size : null,
                   textLength: typeof payload.text === 'string' ? payload.text.length : null,
                   mode: payload.mode || null,
                   ext: payload.ext || null
@@ -315,6 +461,7 @@ export async function createIndexerWorkerPool(input = {}) {
           return null;
         } finally {
           activeTasks = Math.max(0, activeTasks - 1);
+          updatePoolMetrics();
           if (activeTasks === 0) {
             await maybeRestart();
           }
@@ -322,11 +469,32 @@ export async function createIndexerWorkerPool(input = {}) {
       },
       async runQuantize(payload) {
         activeTasks += 1;
+        updatePoolMetrics();
         try {
           if (disabled && !(await ensurePool())) {
-            throw new Error('worker pool unavailable');
+            if (crashLogger?.enabled) {
+              crashLogger.logError({
+                phase: 'worker-quantize',
+                message: 'worker pool unavailable',
+                stack: null,
+                name: 'Error',
+                code: null,
+                task: 'quantizeVectors',
+                payloadMeta: payload
+                  ? {
+                    vectorCount: Array.isArray(payload.vectors)
+                      ? payload.vectors.length
+                      : null,
+                    levels: payload.levels ?? null
+                  }
+                  : null
+              });
+            }
+            return null;
           }
-          return await pool.run(payload, { name: 'quantizeVectors' });
+          const result = await pool.run(payload, { name: 'quantizeVectors' });
+          updatePoolMetrics();
+          return result;
         } catch (err) {
           if (crashLogger?.enabled) {
             crashLogger.logError({
@@ -363,9 +531,10 @@ export async function createIndexerWorkerPool(input = {}) {
                 : null
             });
           }
-          throw err;
+          return null;
         } finally {
           activeTasks = Math.max(0, activeTasks - 1);
+          updatePoolMetrics();
           if (activeTasks === 0) {
             await maybeRestart();
           }
@@ -381,4 +550,40 @@ export async function createIndexerWorkerPool(input = {}) {
     log(`Worker pool unavailable: ${err?.message || err}`);
     return null;
   }
+}
+
+export async function createIndexerWorkerPools(input = {}) {
+  const baseConfig = input.config;
+  if (!baseConfig || baseConfig.enabled === false) {
+    return { tokenizePool: null, quantizePool: null, destroy: async () => {} };
+  }
+  if (!baseConfig.splitByTask) {
+    const pool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
+    const destroy = async () => {
+      if (pool?.destroy) await pool.destroy();
+    };
+    return { tokenizePool: pool, quantizePool: pool, destroy };
+  }
+  const quantizeMaxWorkers = Number.isFinite(baseConfig.quantizeMaxWorkers)
+    ? Math.max(1, Math.floor(baseConfig.quantizeMaxWorkers))
+    : Math.max(1, Math.floor(baseConfig.maxWorkers / 2));
+  const tokenizePool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
+  const quantizePool = await createIndexerWorkerPool({
+    ...input,
+    config: { ...baseConfig, maxWorkers: quantizeMaxWorkers },
+    poolName: 'quantize'
+  });
+  const finalTokenizePool = tokenizePool || quantizePool;
+  const finalQuantizePool = quantizePool || tokenizePool;
+  const destroy = async () => {
+    if (finalTokenizePool?.destroy) await finalTokenizePool.destroy();
+    if (finalQuantizePool?.destroy && finalQuantizePool !== finalTokenizePool) {
+      await finalQuantizePool.destroy();
+    }
+  };
+  return {
+    tokenizePool: finalTokenizePool,
+    quantizePool: finalQuantizePool,
+    destroy
+  };
 }

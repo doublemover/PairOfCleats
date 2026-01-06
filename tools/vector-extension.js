@@ -2,12 +2,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from './dict-utils.js';
 import { getEnvConfig } from '../src/shared/env.js';
+import { incFallback } from '../src/shared/metrics.js';
 
 const DEFAULT_PROVIDER = 'sqlite-vec';
 const DEFAULT_MODULE = 'vec0';
 const DEFAULT_TABLE = 'dense_vectors_ann';
 const DEFAULT_COLUMN = 'embedding';
 const DEFAULT_ENCODING = 'float32';
+const SQLITE_IN_LIMIT = 900;
+const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const OPTION_RE = /^([A-Za-z_][A-Za-z0-9_]*)(?:\s*=\s*([A-Za-z0-9_.-]+))?$/;
 
 const PROVIDERS = {
   'sqlite-vec': {
@@ -17,6 +21,61 @@ const PROVIDERS = {
     encoding: DEFAULT_ENCODING
   }
 };
+
+const warningCache = new Set();
+
+function warnOnce(key, message) {
+  if (warningCache.has(key)) return;
+  warningCache.add(key);
+  console.warn(message);
+}
+
+function isSafeIdentifier(value) {
+  return IDENTIFIER_RE.test(String(value || ''));
+}
+
+function normalizeOptionValue(value) {
+  return String(value || '').replace(/\\/g, '/').trim();
+}
+
+function parseVectorOptions(raw) {
+  if (!raw) return { ok: true, options: '' };
+  const trimmed = normalizeOptionValue(raw);
+  if (!trimmed) return { ok: true, options: '' };
+  const parts = trimmed.split(',').map((part) => part.trim()).filter(Boolean);
+  const normalized = [];
+  for (const part of parts) {
+    const match = OPTION_RE.exec(part);
+    if (!match) {
+      return { ok: false, reason: 'invalid vector extension options' };
+    }
+    const key = match[1];
+    const value = match[2];
+    normalized.push(value ? `${key}=${value}` : key);
+  }
+  return { ok: true, options: normalized.join(', ') };
+}
+
+function sanitizeVectorExtensionConfig(config) {
+  const issues = [];
+  if (!isSafeIdentifier(config.module)) issues.push('module');
+  if (!isSafeIdentifier(config.table)) issues.push('table');
+  if (!isSafeIdentifier(config.column)) issues.push('column');
+  const parsedOptions = parseVectorOptions(config.options);
+  if (!parsedOptions.ok) issues.push('options');
+
+  const sanitized = {
+    ...config,
+    options: parsedOptions.ok ? parsedOptions.options : '',
+    disabledReason: null
+  };
+  if (sanitized.enabled && issues.length) {
+    sanitized.enabled = false;
+    sanitized.disabledReason = `invalid vector extension config (${issues.join(', ')})`;
+    warnOnce('vector-extension-invalid', `[sqlite] Vector extension disabled: ${sanitized.disabledReason}`);
+  }
+  return sanitized;
+}
 
 /**
  * Resolve a path relative to the repo root.
@@ -66,7 +125,7 @@ export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides 
   const provider = overrides.provider || vectorCfg.provider || DEFAULT_PROVIDER;
   const providerDefaults = PROVIDERS[provider] || {};
 
-  const annModeRaw = overrides.annMode || vectorCfg.annMode || sqlite.annMode || 'js';
+  const annModeRaw = overrides.annMode || vectorCfg.annMode || 'js';
   const annMode = String(annModeRaw).toLowerCase();
   const enabled = overrides.enabled === true
     || vectorCfg.enabled === true
@@ -100,7 +159,7 @@ export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides 
   const url = overrides.url || vectorCfg.url || providerDefaults.url || null;
   const downloads = overrides.downloads || vectorCfg.downloads || providerDefaults.downloads || null;
 
-  return {
+  return sanitizeVectorExtensionConfig({
     annMode,
     enabled,
     provider,
@@ -117,7 +176,7 @@ export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides 
     platform,
     arch,
     platformKey
-  };
+  });
 }
 
 /**
@@ -143,7 +202,7 @@ const loadCache = new WeakMap();
  */
 export function loadVectorExtension(db, config, label = 'sqlite') {
   if (!db || !config?.enabled) {
-    return { ok: false, reason: 'disabled' };
+    return { ok: false, reason: config?.disabledReason || 'disabled' };
   }
   if (loadCache.has(db)) return loadCache.get(db);
   const extPath = resolveVectorExtensionPath(config);
@@ -193,10 +252,19 @@ export function ensureVectorTable(db, config, dims) {
   if (!db || !config?.module || !config?.table) {
     return { ok: false, reason: 'missing config' };
   }
+  if (!config.enabled) {
+    return { ok: false, reason: config.disabledReason || 'disabled' };
+  }
+  if (!isSafeIdentifier(config.module) || !isSafeIdentifier(config.table)) {
+    return { ok: false, reason: 'invalid vector extension config' };
+  }
   if (!Number.isFinite(dims) || dims <= 0) {
     return { ok: false, reason: 'invalid dims' };
   }
   const column = config.column || DEFAULT_COLUMN;
+  if (!isSafeIdentifier(column)) {
+    return { ok: false, reason: 'invalid vector extension config' };
+  }
   const options = config.options ? `, ${config.options}` : '';
   try {
     try {
@@ -240,28 +308,47 @@ export function encodeVector(vector, config) {
  * @returns {Array<{idx:number,sim:number}>}
  */
 export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
-  if (!db || !embedding) return [];
+  if (!db || !embedding || !config?.enabled) return [];
   const table = config?.table || DEFAULT_TABLE;
   const column = config?.column || DEFAULT_COLUMN;
+  if (!isSafeIdentifier(table) || !isSafeIdentifier(column)) {
+    warnOnce('vector-extension-unsafe', '[sqlite] Vector extension disabled: invalid identifiers');
+    return [];
+  }
   const limit = Math.max(1, Number(topN) || 1);
-  const queryLimit = candidateSet && candidateSet.size ? limit * 5 : limit;
+  const candidateSize = candidateSet?.size || 0;
+  const canPushdown = candidateSize > 0 && candidateSize <= SQLITE_IN_LIMIT;
+  const candidates = canPushdown ? Array.from(candidateSet) : null;
+  const queryLimit = canPushdown ? limit : (candidateSize ? limit * 5 : limit);
   const encoded = encodeVector(embedding, config);
   if (!encoded) return [];
   try {
+    const candidateClause = canPushdown
+      ? ` AND rowid IN (${candidates.map(() => '?').join(',')})`
+      : '';
+    const params = canPushdown
+      ? [encoded, ...candidates, queryLimit]
+      : [encoded, queryLimit];
+    if (candidateSize && !canPushdown) {
+      warnOnce('vector-extension-candidates', '[sqlite] Vector extension candidate set too large; using best-effort fallback.');
+      incFallback({ surface: 'search', reason: 'vector-candidates' });
+    }
     const stmt = db.prepare(
-      `SELECT rowid, distance FROM ${table} WHERE ${column} MATCH ? ORDER BY distance LIMIT ?`
+      `SELECT rowid, distance FROM ${table} WHERE ${column} MATCH ?${candidateClause} ORDER BY distance LIMIT ?`
     );
-    const rows = stmt.all(encoded, queryLimit);
+    const rows = stmt.all(...params);
     let hits = rows.map((row) => {
       const rowId = Number(row.rowid ?? row.id);
       const raw = row.distance ?? row.score ?? row.similarity ?? row.sim ?? 0;
       const sim = row.distance !== undefined ? -raw : raw;
       return { idx: rowId, sim };
     });
-    if (candidateSet && candidateSet.size) {
+    if (candidateSet && candidateSet.size && !canPushdown) {
       hits = hits.filter((hit) => candidateSet.has(hit.idx));
     }
-    return hits.slice(0, limit);
+    return hits
+      .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx))
+      .slice(0, limit);
   } catch {
     return [];
   }

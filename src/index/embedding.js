@@ -1,5 +1,6 @@
 import { pipeline, env } from '@xenova/transformers';
 import { stubEmbedding } from '../shared/embedding.js';
+import { createOnnxEmbedder, normalizeEmbeddingProvider } from '../shared/onnx-embeddings.js';
 
 /**
  * Quantize a float vector into uint8 bins for compact storage.
@@ -36,11 +37,30 @@ export function normalizeVec(vec) {
  * @param {string} options.modelsDir
  * @returns {{getChunkEmbedding:(text:string)=>Promise<number[]>,getChunkEmbeddings:(texts:string[])=>Promise<number[][]>,embedderPromise:Promise<any>|null}}
  */
-export function createEmbedder({ useStubEmbeddings, modelId, dims, modelsDir }) {
+export function createEmbedder({
+  rootDir,
+  useStubEmbeddings,
+  modelId,
+  dims,
+  modelsDir,
+  provider,
+  onnx
+}) {
   if (modelsDir) {
     env.cacheDir = modelsDir;
   }
-  const embedderPromise = useStubEmbeddings ? null : pipeline('feature-extraction', modelId);
+  const resolvedProvider = normalizeEmbeddingProvider(provider);
+  const onnxEmbedder = !useStubEmbeddings && resolvedProvider === 'onnx'
+    ? createOnnxEmbedder({
+      rootDir,
+      modelId,
+      modelsDir,
+      onnxConfig: onnx
+    })
+    : null;
+  const embedderPromise = useStubEmbeddings
+    ? null
+    : (onnxEmbedder ? onnxEmbedder.embedderPromise : pipeline('feature-extraction', modelId));
 
   const normalizeBatchOutput = (output, count) => {
     if (!output) return Array.from({ length: count }, () => []);
@@ -67,6 +87,9 @@ export function createEmbedder({ useStubEmbeddings, modelId, dims, modelsDir }) 
       const safeDims = Math.max(1, Number(dims) || 384);
       return stubEmbedding(text, safeDims);
     }
+    if (resolvedProvider === 'onnx') {
+      return onnxEmbedder.getEmbedding(text);
+    }
     const embedder = await embedderPromise;
     const output = await embedder(text, { pooling: 'mean', normalize: true });
     return Array.from(output.data);
@@ -78,6 +101,9 @@ export function createEmbedder({ useStubEmbeddings, modelId, dims, modelsDir }) 
     if (useStubEmbeddings) {
       const safeDims = Math.max(1, Number(dims) || 384);
       return list.map((text) => stubEmbedding(text, safeDims));
+    }
+    if (resolvedProvider === 'onnx') {
+      return onnxEmbedder.getEmbeddings(list);
     }
     const embedder = await embedderPromise;
     const output = await embedder(list, { pooling: 'mean', normalize: true });

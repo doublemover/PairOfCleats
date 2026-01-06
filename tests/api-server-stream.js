@@ -115,6 +115,46 @@ const readSse = async (method, requestPath, body) => await new Promise((resolve,
   req.end();
 });
 
+const abortStream = async (method, requestPath, body) => await new Promise((resolve, reject) => {
+  const payload = body ? JSON.stringify(body) : null;
+  const req = http.request(
+    {
+      host: serverInfo.host,
+      port: serverInfo.port,
+      path: requestPath,
+      method,
+      headers: payload
+        ? {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload)
+          }
+        : {}
+    },
+    (res) => {
+      const timeout = setTimeout(() => {
+        req.destroy();
+        resolve();
+      }, 1000);
+      res.once('data', () => {
+        clearTimeout(timeout);
+        req.destroy();
+        resolve();
+      });
+      res.on('error', (err) => {
+        clearTimeout(timeout);
+        if (err?.code === 'ECONNRESET') return resolve();
+        reject(err);
+      });
+    }
+  );
+  req.on('error', (err) => {
+    if (err?.code === 'ECONNRESET') return resolve();
+    reject(err);
+  });
+  if (payload) req.write(payload);
+  req.end();
+});
+
 let serverInfo = null;
 try {
   const line = await readStartup();
@@ -134,6 +174,13 @@ try {
   const hits = searchResult?.data?.result?.code || [];
   if (!hits.length) {
     throw new Error('search stream returned no results');
+  }
+
+  await abortStream('POST', '/search/stream', { query: 'return', mode: 'code' });
+  const followUp = await readSse('GET', '/status/stream');
+  const followResult = followUp.find((evt) => evt.event === 'result');
+  if (!followResult?.data?.status?.repo?.root) {
+    throw new Error('stream abort should not break subsequent requests');
   }
 } catch (err) {
   console.error(err?.message || err);

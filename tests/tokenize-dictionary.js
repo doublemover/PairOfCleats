@@ -15,4 +15,10 @@ if (autoSegments.join('|') !== 'ab|cd') {
   process.exit(1);
 }
 
+const ahoSegments = splitWordsWithDict('alphabeta', dict, { segmentation: 'aho' });
+if (ahoSegments.join('|') !== 'alpha|beta') {
+  console.error(`Unexpected Aho split: ${ahoSegments.join('|')}`);
+  process.exit(1);
+}
+
 console.log('dictionary tokenization test passed');

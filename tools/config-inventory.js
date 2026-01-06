@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { fdir } from 'fdir';
+import { resolveToolRoot } from './dict-utils.js';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const root = resolveToolRoot();
 const schemaPath = path.join(root, 'docs', 'config-schema.json');
 const outputJsonPath = path.join(root, 'docs', 'config-inventory.json');
 const outputMdPath = path.join(root, 'docs', 'config-inventory.md');

@@ -7,6 +7,8 @@ const INDEX_FILES = [
   'dense_vectors_uint8.json',
   'dense_vectors_doc_uint8.json',
   'dense_vectors_code_uint8.json',
+  'dense_vectors_hnsw.meta.json',
+  'dense_vectors_hnsw.bin',
   'field_postings.json',
   'field_tokens.json',
   'minhash_signatures.json',
@@ -91,7 +93,8 @@ export function buildIndexSignature(dir) {
 
 export function loadIndexWithCache(cache, dir, options, loader) {
   if (!cache) return loader(dir, options);
-  const cacheKey = `${dir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}`;
+  const hnswKey = options?.includeHnsw ? JSON.stringify(options?.hnswConfig || {}) : 'no-hnsw';
+  const cacheKey = `${dir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}`;
   const signature = buildIndexSignature(dir);
   const cached = cache.get(cacheKey);
   if (cached && cached.signature === signature) {

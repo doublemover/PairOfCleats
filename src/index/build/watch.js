@@ -4,25 +4,45 @@ import chokidar from 'chokidar';
 import { acquireIndexLock } from './lock.js';
 import { discoverFiles } from './discover.js';
 import { buildIndexForMode } from './indexer.js';
-import { EXTS_CODE, EXTS_PROSE, isSpecialCodeFile } from '../constants.js';
+import {
+  EXTS_CODE,
+  EXTS_PROSE,
+  isLockFile,
+  isManifestFile,
+  isSpecialCodeFile,
+  resolveSpecialCodeExt
+} from '../constants.js';
 import { log } from '../../shared/progress.js';
+import {
+  incWatchBurst,
+  incWatchDebounce,
+  incWatchEvent,
+  observeWatchBuildDuration,
+  setWatchBacklog
+} from '../../shared/metrics.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export function createDebouncedScheduler({ debounceMs, onRun }) {
+export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCancel, onFire }) {
   let timer = null;
   const schedule = () => {
-    if (timer) clearTimeout(timer);
+    if (timer) {
+      clearTimeout(timer);
+      if (onCancel) onCancel();
+    }
     timer = setTimeout(() => {
       timer = null;
+      if (onFire) onFire();
       onRun();
     }, debounceMs);
+    if (onSchedule) onSchedule();
   };
   const cancel = () => {
     if (!timer) return;
     clearTimeout(timer);
     timer = null;
+    if (onCancel) onCancel();
   };
   return { schedule, cancel };
 }
@@ -31,19 +51,30 @@ export function isIndexablePath({ absPath, root, ignoreMatcher, modes }) {
   const relPosix = toPosix(path.relative(root, absPath));
   if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
   if (ignoreMatcher?.ignores(relPosix)) return false;
-  const ext = fileExt(absPath);
   const baseName = path.basename(absPath);
-  const isSpecial = isSpecialCodeFile(baseName);
+  const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
+  const isManifest = isManifestFile(baseName);
+  const isLock = isLockFile(baseName);
+  const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock;
   const allowCode = modes.includes('code') && (EXTS_CODE.has(ext) || isSpecial);
   const allowProse = modes.includes('prose') && EXTS_PROSE.has(ext);
   return allowCode || allowProse;
 }
 
-const scanFiles = async ({ root, modes, ignoreMatcher, maxFileBytes, fileCaps }) => {
+const scanFiles = async ({ root, modes, ignoreMatcher, maxFileBytes, fileCaps, maxDepth, maxFiles }) => {
   const files = new Set();
   const skippedFiles = [];
   for (const mode of modes) {
-    const modeFiles = await discoverFiles({ root, mode, ignoreMatcher, skippedFiles, maxFileBytes, fileCaps });
+    const modeFiles = await discoverFiles({
+      root,
+      mode,
+      ignoreMatcher,
+      skippedFiles,
+      maxFileBytes,
+      fileCaps,
+      maxDepth,
+      maxFiles
+    });
     modeFiles.forEach((entry) => files.add(entry.abs || entry));
   }
   return Array.from(files);
@@ -66,7 +97,8 @@ const resolveMaxBytesForExt = (ext, maxFileBytes, fileCaps) => {
 };
 
 const isWithinMaxBytes = async (absPath, maxFileBytes, fileCaps) => {
-  const ext = fileExt(absPath);
+  const baseName = path.basename(absPath);
+  const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
   const resolvedMax = resolveMaxBytesForExt(ext, maxFileBytes, fileCaps);
   if (!Number.isFinite(Number(resolvedMax)) || Number(resolvedMax) <= 0) {
     return true;
@@ -98,6 +130,9 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
   const ignoreMatcher = runtime.ignoreMatcher;
   const maxFileBytes = runtime.maxFileBytes;
   const fileCaps = runtime.fileCaps;
+  const guardrails = runtime.guardrails || {};
+  const maxDepth = guardrails.maxDepth ?? null;
+  const maxFiles = guardrails.maxFiles ?? null;
   runtime.incrementalEnabled = true;
   runtime.argv.incremental = true;
 
@@ -107,6 +142,12 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
   let shutdownSignal = null;
   let resolveExit = null;
   const trackedFiles = new Set();
+  const pendingPaths = new Set();
+  const burstWindowMs = 1000;
+  const burstThreshold = 25;
+  let burstStart = 0;
+  let burstCount = 0;
+  let burstMax = 0;
   let scheduler;
 
   const stop = () => {
@@ -142,19 +183,38 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
     }
     if (shouldExit) return;
     running = true;
-    const lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
+    const startTime = process.hrtime.bigint();
+    let status = 'ok';
+    let lock = null;
+    lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
     if (!lock) {
+      status = 'unknown';
       running = false;
+      pending = true;
+      if (!shouldExit) scheduleBuild();
       return;
+    }
+    const batchSize = pendingPaths.size;
+    if (batchSize > 0) {
+      pendingPaths.clear();
+      setWatchBacklog(0);
+      log(`[watch] Rebuilding index for ${batchSize} change(s)...`);
     }
     try {
       for (const mode of modes) {
         await buildIndexForMode({ mode, runtime });
       }
       log('[watch] Index update complete.');
+    } catch (err) {
+      status = 'error';
+      log(`[watch] Index update failed: ${err?.message || err}`);
     } finally {
       await lock.release();
       running = false;
+      observeWatchBuildDuration({
+        status,
+        seconds: Number(process.hrtime.bigint() - startTime) / 1e9
+      });
     }
     if (pending) {
       pending = false;
@@ -162,10 +222,18 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
     }
   };
 
-  scheduler = createDebouncedScheduler({ debounceMs, onRun: runBuild });
+  scheduler = createDebouncedScheduler({
+    debounceMs,
+    onRun: runBuild,
+    onSchedule: () => incWatchDebounce('scheduled'),
+    onCancel: () => incWatchDebounce('canceled'),
+    onFire: () => incWatchDebounce('fired')
+  });
 
   const recordAddOrChange = async (absPath) => {
     if (!isIndexablePath({ absPath, root, ignoreMatcher, modes })) return;
+    pendingPaths.add(absPath);
+    setWatchBacklog(pendingPaths.size);
     const withinMax = await isWithinMaxBytes(absPath, maxFileBytes, fileCaps);
     if (!withinMax) {
       if (trackedFiles.delete(absPath)) scheduleBuild();
@@ -177,10 +245,12 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
 
   const recordRemove = (absPath) => {
     if (!isIndexablePath({ absPath, root, ignoreMatcher, modes })) return;
+    pendingPaths.add(absPath);
+    setWatchBacklog(pendingPaths.size);
     if (trackedFiles.delete(absPath)) scheduleBuild();
   };
 
-  const initialFiles = await scanFiles({ root, modes, ignoreMatcher, maxFileBytes, fileCaps });
+  const initialFiles = await scanFiles({ root, modes, ignoreMatcher, maxFileBytes, fileCaps, maxDepth, maxFiles });
   initialFiles.forEach((file) => trackedFiles.add(file));
   const pollingEnabled = Number.isFinite(Number(pollMs)) && Number(pollMs) > 0;
   const pollLabel = pollingEnabled ? ` polling ${Number(pollMs)}ms` : ' fs events';
@@ -198,16 +268,37 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
       : false
   });
 
+  const recordBurst = () => {
+    const now = Date.now();
+    if (!burstStart || now - burstStart > burstWindowMs) {
+      burstStart = now;
+      burstCount = 0;
+    }
+    burstCount += 1;
+    burstMax = Math.max(burstMax, burstCount);
+    if (burstCount === burstThreshold) {
+      incWatchBurst();
+      log(`[watch] Burst detected: ${burstCount} events in ${burstWindowMs}ms (max ${burstMax}).`);
+    }
+  };
+
   watcher.on('add', (filePath) => {
+    incWatchEvent('add');
+    recordBurst();
     void recordAddOrChange(filePath);
   });
   watcher.on('change', (filePath) => {
+    incWatchEvent('change');
+    recordBurst();
     void recordAddOrChange(filePath);
   });
   watcher.on('unlink', (filePath) => {
+    incWatchEvent('unlink');
+    recordBurst();
     recordRemove(filePath);
   });
   watcher.on('error', (err) => {
+    incWatchEvent('error');
     log(`[watch] Watcher error: ${err?.message || err}`);
   });
 

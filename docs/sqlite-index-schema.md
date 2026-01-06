@@ -9,6 +9,7 @@ Stores the full per-chunk metadata used by `search.js`.
 
 Columns:
 - id (INTEGER PRIMARY KEY)
+- chunk_id (TEXT, stable `metaV2.chunkId`)
 - mode (TEXT)
 - file (TEXT)
 - start, end (INTEGER)

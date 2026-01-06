@@ -15,6 +15,16 @@ const toJsonTooLargeError = (filePath, size) => {
   return err;
 };
 
+const getBakPath = (filePath) => `${filePath}.bak`;
+
+const cleanupBak = (filePath) => {
+  const bakPath = getBakPath(filePath);
+  if (!fs.existsSync(bakPath)) return;
+  try {
+    fs.rmSync(bakPath, { force: true });
+  } catch {}
+};
+
 const PIECE_CACHE_LIMIT = 8;
 const pieceCache = new Map();
 
@@ -64,26 +74,58 @@ const readBuffer = (targetPath, maxBytes) => {
 };
 
 export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
-  const parseBuffer = (buffer) => {
+  const parseBuffer = (buffer, sourcePath) => {
     if (buffer.length > maxBytes) {
-      throw toJsonTooLargeError(filePath, buffer.length);
+      throw toJsonTooLargeError(sourcePath, buffer.length);
     }
     try {
       return JSON.parse(buffer.toString('utf8'));
     } catch (err) {
       if (shouldTreatAsTooLarge(err)) {
-        throw toJsonTooLargeError(filePath, buffer.length);
+        throw toJsonTooLargeError(sourcePath, buffer.length);
       }
       throw err;
     }
   };
+  const tryRead = (targetPath, options = {}) => {
+    const { gzip = false, cleanup = false } = options;
+    const buffer = readBuffer(targetPath, maxBytes);
+    const parsed = parseBuffer(gzip ? gunzipSync(buffer) : buffer, targetPath);
+    if (cleanup) cleanupBak(targetPath);
+    return parsed;
+  };
+  const bakPath = getBakPath(filePath);
   if (fs.existsSync(filePath)) {
-    return parseBuffer(readBuffer(filePath, maxBytes));
+    try {
+      return tryRead(filePath, { cleanup: true });
+    } catch (err) {
+      if (fs.existsSync(bakPath)) {
+        return tryRead(bakPath);
+      }
+      throw err;
+    }
   }
   if (filePath.endsWith('.json')) {
     const gzPath = `${filePath}.gz`;
+    const gzBakPath = getBakPath(gzPath);
     if (fs.existsSync(gzPath)) {
-      return parseBuffer(gunzipSync(readBuffer(gzPath, maxBytes)));
+      try {
+        return tryRead(gzPath, { gzip: true, cleanup: true });
+      } catch (err) {
+        if (fs.existsSync(gzBakPath)) {
+          return tryRead(gzBakPath, { gzip: true });
+        }
+        throw err;
+      }
+    }
+  }
+  if (fs.existsSync(bakPath)) {
+    return tryRead(bakPath);
+  }
+  if (filePath.endsWith('.json')) {
+    const gzBakPath = getBakPath(`${filePath}.gz`);
+    if (fs.existsSync(gzBakPath)) {
+      return tryRead(gzBakPath, { gzip: true });
     }
   }
   throw new Error(`Missing JSON artifact: ${filePath}`);
@@ -100,26 +142,44 @@ const readJsonFileCached = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
 export const readJsonLinesArraySync = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const cached = readCache(filePath);
   if (cached) return cached;
-  const stat = fs.statSync(filePath);
-  if (stat.size > maxBytes) {
-    throw toJsonTooLargeError(filePath, stat.size);
-  }
-  let raw = '';
-  try {
-    raw = fs.readFileSync(filePath, 'utf8');
-  } catch (err) {
-    if (shouldTreatAsTooLarge(err)) {
-      throw toJsonTooLargeError(filePath, stat.size);
+  const tryRead = (targetPath, cleanup = false) => {
+    const stat = fs.statSync(targetPath);
+    if (stat.size > maxBytes) {
+      throw toJsonTooLargeError(targetPath, stat.size);
     }
-    throw err;
+    let raw = '';
+    try {
+      raw = fs.readFileSync(targetPath, 'utf8');
+    } catch (err) {
+      if (shouldTreatAsTooLarge(err)) {
+        throw toJsonTooLargeError(targetPath, stat.size);
+      }
+      throw err;
+    }
+    if (!raw.trim()) return [];
+    const parsed = raw
+      .split(/\r?\n/)
+      .filter((line) => line.trim().length > 0)
+      .map((line) => JSON.parse(line));
+    if (cleanup) cleanupBak(targetPath);
+    writeCache(targetPath, parsed);
+    return parsed;
+  };
+  const bakPath = getBakPath(filePath);
+  if (fs.existsSync(filePath)) {
+    try {
+      return tryRead(filePath, true);
+    } catch (err) {
+      if (fs.existsSync(bakPath)) {
+        return tryRead(bakPath);
+      }
+      throw err;
+    }
   }
-  if (!raw.trim()) return [];
-  const parsed = raw
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0)
-    .map((line) => JSON.parse(line));
-  writeCache(filePath, parsed);
-  return parsed;
+  if (fs.existsSync(bakPath)) {
+    return tryRead(bakPath);
+  }
+  throw new Error(`Missing JSONL artifact: ${filePath}`);
 };
 
 const readShardFiles = (dir, prefix) => {
@@ -131,11 +191,13 @@ const readShardFiles = (dir, prefix) => {
     .map((name) => path.join(dir, name));
 };
 
+const existsOrBak = (filePath) => fs.existsSync(filePath) || fs.existsSync(getBakPath(filePath));
+
 export const loadChunkMeta = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const metaPath = path.join(dir, 'chunk_meta.meta.json');
   const partsDir = path.join(dir, 'chunk_meta.parts');
-  if (fs.existsSync(metaPath) || fs.existsSync(partsDir)) {
-    const meta = fs.existsSync(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
+  if (existsOrBak(metaPath) || fs.existsSync(partsDir)) {
+    const meta = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
     const parts = Array.isArray(meta?.parts) && meta.parts.length
       ? meta.parts.map((name) => path.join(dir, name))
       : readShardFiles(partsDir, 'chunk_meta.part-');
@@ -145,11 +207,11 @@ export const loadChunkMeta = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
     return parts.flatMap((partPath) => readJsonLinesArraySync(partPath, { maxBytes }));
   }
   const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
-  if (fs.existsSync(jsonlPath)) {
+  if (existsOrBak(jsonlPath)) {
     return readJsonLinesArraySync(jsonlPath, { maxBytes });
   }
   const jsonPath = path.join(dir, 'chunk_meta.json');
-  if (fs.existsSync(jsonPath)) {
+  if (existsOrBak(jsonPath)) {
     return readJsonFile(jsonPath, { maxBytes });
   }
   throw new Error(`Missing index artifact: chunk_meta.json`);
@@ -158,8 +220,8 @@ export const loadChunkMeta = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
 export const loadTokenPostings = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const metaPath = path.join(dir, 'token_postings.meta.json');
   const shardsDir = path.join(dir, 'token_postings.shards');
-  if (fs.existsSync(metaPath) || fs.existsSync(shardsDir)) {
-    const meta = fs.existsSync(metaPath) ? readJsonFile(metaPath, { maxBytes }) : {};
+  if (existsOrBak(metaPath) || fs.existsSync(shardsDir)) {
+    const meta = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : {};
     const shards = Array.isArray(meta?.parts) && meta.parts.length
       ? meta.parts.map((name) => path.join(dir, name))
       : readShardFiles(shardsDir, 'token_postings.part-');
@@ -186,7 +248,7 @@ export const loadTokenPostings = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
     };
   }
   const jsonPath = path.join(dir, 'token_postings.json');
-  if (fs.existsSync(jsonPath)) {
+  if (existsOrBak(jsonPath)) {
     return readJsonFile(jsonPath, { maxBytes });
   }
   throw new Error(`Missing index artifact: token_postings.json`);

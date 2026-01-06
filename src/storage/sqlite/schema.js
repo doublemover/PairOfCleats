@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export const REQUIRED_TABLES = [
   'chunks',
@@ -35,6 +35,7 @@ export const CREATE_TABLES_BASE_SQL = `
 
   CREATE TABLE chunks (
     id INTEGER PRIMARY KEY,
+    chunk_id TEXT,
     mode TEXT,
     file TEXT,
     start INTEGER,

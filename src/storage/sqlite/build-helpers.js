@@ -9,12 +9,14 @@ import { normalizeFilePath } from './utils.js';
  */
 export function buildChunkRow(chunk, mode, id) {
   const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
+  const chunkId = chunk?.metaV2?.chunkId || chunk?.chunkId || null;
   const signature = typeof chunk.docmeta?.signature === 'string'
     ? chunk.docmeta.signature
     : (typeof chunk.signature === 'string' ? chunk.signature : null);
   const doc = typeof chunk.docmeta?.doc === 'string' ? chunk.docmeta.doc : null;
   return {
     id,
+    chunk_id: chunkId,
     mode,
     file: normalizeFilePath(chunk.file),
     start: chunk.start,

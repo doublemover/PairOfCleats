@@ -1,13 +1,13 @@
 # Minimal API Server
 
 ## Overview
-The API server is a lightweight local HTTP JSON wrapper around the existing CLI
-search/status commands. It is intended for local developer tooling (or local
-agent orchestration), not for exposing publicly. There is no auth layer; bind to
-`127.0.0.1` or a private interface.
+The API server is a lightweight local HTTP JSON wrapper around the search/status
+pipeline with CLI-compatible payloads. It is intended for local developer
+tooling (or local agent orchestration), not for exposing publicly. There is no
+auth layer; bind to `127.0.0.1` or a private interface.
 
 ## Startup
-- `pairofcleats server`
+- `pairofcleats service api`
 
 Options:
 - `--host <addr>`: bind address (default `127.0.0.1`)
@@ -29,7 +29,7 @@ Response:
 
 ### `GET /status`
 Reports artifact sizes and cache health using the same logic as
-`pairofcleats report-artifacts`.
+`pairofcleats cache report`.
 
 Query params:
 - `repo`: optional repo path override
@@ -39,21 +39,30 @@ Response:
 {
   "ok": true,
   "repo": "/path/to/repo",
-  "status": { "...": "see report-artifacts output" }
+  "status": { "...": "see cache report output" }
 }
 ```
 
 ### `GET /status/stream`
-Streams status as Server-Sent Events (SSE). Each event includes JSON `data`.
+Streams status as Server-Sent Events (SSE). Each event includes JSON `data`.    
 
 Events:
 - `start` `{ ok, repo }`
 - `result` `{ ok, repo, status }`
-- `error` `{ ok: false, message, stderr? }`
+- `error` `{ ok: false, code, message }`
 - `done` `{ ok }`
 
+### `GET /metrics`
+Returns Prometheus metrics for the API server.
+
+Response:
+```text
+# HELP ...
+# TYPE ...
+```
+
 ### `POST /search`
-Executes `search.js` with the provided payload and returns JSON output.
+Executes the search pipeline with the provided payload and returns JSON output.
 
 Payload fields:
 - `query` (required)
@@ -70,15 +79,20 @@ Response:
 }
 ```
 
+Errors:
+- `400 INVALID_REQUEST` for schema or repo validation failures.
+- `409 NO_INDEX` when indexes are missing.
+- `500 INTERNAL` for unexpected failures.
+Error payloads include `{ ok: false, code, message }` plus optional `errors` (validation) or `error` (internal detail).
+
 ### `POST /search/stream`
-Runs a search and streams progress/results as SSE events. The request payload
+Runs a search and streams progress/results as SSE events. The request payload   
 matches `/search`.
 
 Events:
 - `start` `{ ok: true }`
-- `log` `{ stream: "stderr", message }` (stderr lines, if any)
 - `result` `{ ok: true, repo, result }`
-- `error` `{ ok: false, message, code?, stderr? }`
+- `error` `{ ok: false, code, message }`
 - `done` `{ ok }`
 
 Example:
@@ -89,9 +103,8 @@ curl -N http://127.0.0.1:7345/search/stream \
 ```
 
 Notes:
-- By default, `output` is `compact` (same as `--json-compact` in the CLI).
-- Missing indexes will return a 500 with the CLI stderr in `stderr`.
-- CLI subprocesses run via `execa` with bounded stdout/stderr buffers; stream endpoints forward stderr lines as they arrive.
+- By default, `output` is `compact` (same as `--json-compact` in the CLI).      
+- Missing indexes return `409 NO_INDEX` with a JSON error payload.
 
 ## Security considerations
 - No authentication is built in; bind locally and protect with firewall rules.

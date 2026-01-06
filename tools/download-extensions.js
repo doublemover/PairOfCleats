@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
 import { pipeline } from 'node:stream/promises';
 import { URL } from 'node:url';
 import { createGunzip } from 'node:zlib';
-import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
+import { createError, ERROR_CODES } from '../src/shared/error-codes.js';
 import { loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
@@ -20,6 +21,7 @@ const argv = createCli({
     provider: { type: 'string' },
     dir: { type: 'string' },
     url: { type: 'string' },
+    sha256: { type: 'string', array: true },
     out: { type: 'string' },
     platform: { type: 'string' },
     arch: { type: 'string' },
@@ -50,6 +52,105 @@ try {
   manifest = {};
 }
 
+const FILE_MODE = 0o644;
+const DIR_MODE = 0o755;
+const DEFAULT_ARCHIVE_LIMITS = {
+  maxBytes: 200 * 1024 * 1024,
+  maxEntryBytes: 50 * 1024 * 1024,
+  maxEntries: 2048
+};
+
+const normalizeLimit = (value, fallback) => {
+  if (value === 0 || value === false) return null;
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+  return fallback;
+};
+
+const normalizeHash = (value) => {
+  if (!value) return null;
+  const trimmed = String(value).trim().toLowerCase();
+  if (!trimmed) return null;
+  const normalized = trimmed.startsWith('sha256:') ? trimmed.slice(7) : trimmed;
+  if (!/^[a-f0-9]{64}$/.test(normalized)) return null;
+  return normalized;
+};
+
+const parseHashes = (input) => {
+  if (!input) return {};
+  const items = Array.isArray(input) ? input : [input];
+  const out = {};
+  for (const item of items) {
+    const eq = String(item || '').indexOf('=');
+    if (eq <= 0 || eq >= item.length - 1) continue;
+    const name = item.slice(0, eq);
+    const hash = normalizeHash(item.slice(eq + 1));
+    if (name && hash) out[name] = hash;
+  }
+  return out;
+};
+
+const resolveDownloadPolicy = (cfg) => {
+  const policy = cfg?.security?.downloads || {};
+  const allowlist = policy.allowlist && typeof policy.allowlist === 'object'
+    ? policy.allowlist
+    : {};
+  return {
+    requireHash: policy.requireHash === true,
+    warnUnsigned: policy.warnUnsigned !== false,
+    allowlist
+  };
+};
+
+const resolveArchiveLimits = (cfg) => {
+  const archives = cfg?.security?.archives || {};
+  return {
+    maxBytes: normalizeLimit(archives.maxBytes, DEFAULT_ARCHIVE_LIMITS.maxBytes),
+    maxEntryBytes: normalizeLimit(archives.maxEntryBytes, DEFAULT_ARCHIVE_LIMITS.maxEntryBytes),
+    maxEntries: normalizeLimit(archives.maxEntries, DEFAULT_ARCHIVE_LIMITS.maxEntries)
+  };
+};
+
+const resolveExpectedHash = (source, policy, overrides) => {
+  const explicit = normalizeHash(source?.sha256 || source?.hash);
+  if (explicit) return explicit;
+  const allowlist = policy?.allowlist || {};
+  const fallback = overrides?.[source?.name]
+    || overrides?.[source?.url]
+    || overrides?.[source?.file]
+    || allowlist[source?.name]
+    || allowlist[source?.url]
+    || allowlist[source?.file];
+  return normalizeHash(fallback);
+};
+
+const verifyDownloadHash = (source, buffer, expectedHash, policy) => {
+  if (!expectedHash) {
+    if (policy?.requireHash) {
+      throw createError(
+        ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
+        `Download verification requires a sha256 hash (${source?.name || source?.url || 'unknown source'}).`
+      );
+    }
+    if (policy?.warnUnsigned) {
+      console.warn(`[download] Skipping hash verification for ${source?.name || source?.url || 'unknown source'}.`);
+    }
+    return null;
+  }
+  const actual = crypto.createHash('sha256').update(buffer).digest('hex');
+  if (actual !== expectedHash) {
+    throw createError(
+      ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
+      `Download verification failed for ${source?.name || source?.url || 'unknown source'}.`
+    );
+  }
+  return actual;
+};
+
+const hashOverrides = parseHashes(argv.sha256);
+const downloadPolicy = resolveDownloadPolicy(userConfig);
+const archiveLimits = resolveArchiveLimits(userConfig);
+
 /**
  * Identify the archive type from a filename or URL.
  * @param {string|undefined|null} value
@@ -73,51 +174,145 @@ function getArchiveTypeForSource(source) {
   return getArchiveType(source.file) || getArchiveType(source.url);
 }
 
-/**
- * Run a command and return true if it succeeded.
- * @param {string} cmd
- * @param {string[]} args
- * @returns {boolean}
- */
-function runCommand(cmd, args) {
-  const result = spawnSync(cmd, args, { stdio: 'inherit' });
-  return result.status === 0;
+function normalizeArchiveEntry(entryName) {
+  return String(entryName || '')
+    .replace(/\\/g, '/')
+    .replace(/^(\.\/)+/, '')
+    .replace(/^\/+/, '')
+    .trim();
 }
 
-async function extractZipNode(archivePath, destDir) {
-  try {
-    const mod = await import('adm-zip');
-    const AdmZip = mod.default || mod;
-    const zip = new AdmZip(archivePath);
-    zip.extractAllTo(destDir, true);
-    return true;
-  } catch {
-    return false;
+function isArchivePathSafe(rootDir, entryName) {
+  const normalized = normalizeArchiveEntry(entryName);
+  if (!normalized) return false;
+  if (normalized === '.' || normalized === '..') return false;
+  if (normalized.startsWith('../') || normalized.includes('/../')) return false;
+  if (/^[A-Za-z]:/.test(normalized)) return false;
+  if (path.posix.isAbsolute(normalized) || path.win32.isAbsolute(normalized)) return false;
+  const root = path.resolve(rootDir);
+  const resolved = path.resolve(root, normalized);
+  const rootPrefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+  if (process.platform === 'win32') {
+    return resolved.toLowerCase().startsWith(rootPrefix.toLowerCase());
   }
+  return resolved.startsWith(rootPrefix);
 }
 
-async function extractTarNode(archivePath, destDir, gzip) {
-  try {
-    const mod = await import('tar-fs');
-    const tarFs = mod.default || mod;
-    await fs.mkdir(destDir, { recursive: true });
-    const extract = tarFs.extract(destDir);
-    const source = fsSync.createReadStream(archivePath);
-    if (gzip) {
-      await pipeline(source, createGunzip(), extract);
-    } else {
-      await pipeline(source, extract);
+function resolveArchivePath(rootDir, entryName) {
+  if (!isArchivePathSafe(rootDir, entryName)) return null;
+  const normalized = normalizeArchiveEntry(entryName);
+  return path.resolve(rootDir, normalized);
+}
+
+function isZipSymlink(entry) {
+  const attr = entry?.header?.attr;
+  if (typeof attr !== 'number') return false;
+  const mode = attr >>> 16;
+  return (mode & 0o170000) === 0o120000;
+}
+
+function createArchiveLimiter(limits) {
+  const maxEntries = Number.isFinite(limits?.maxEntries) ? limits.maxEntries : null;
+  const maxEntryBytes = Number.isFinite(limits?.maxEntryBytes) ? limits.maxEntryBytes : null;
+  const maxBytes = Number.isFinite(limits?.maxBytes) ? limits.maxBytes : null;
+  let entries = 0;
+  let totalBytes = 0;
+  const checkTotals = () => {
+    if (maxBytes && totalBytes > maxBytes) {
+      throw createError(ERROR_CODES.ARCHIVE_TOO_LARGE, `Archive exceeds max size (${totalBytes} > ${maxBytes}).`);
     }
-    return true;
-  } catch {
-    return false;
-  }
+  };
+  const checkEntry = (name, size) => {
+    entries += 1;
+    if (maxEntries && entries > maxEntries) {
+      throw createError(ERROR_CODES.ARCHIVE_TOO_LARGE, `Archive exceeds entry limit (${entries} > ${maxEntries}).`);
+    }
+    const entryBytes = Number.isFinite(size) && size > 0 ? size : 0;
+    if (maxEntryBytes && entryBytes > maxEntryBytes) {
+      throw createError(ERROR_CODES.ARCHIVE_TOO_LARGE, `Archive entry too large (${name}).`);
+    }
+    totalBytes += entryBytes;
+    checkTotals();
+    return entryBytes;
+  };
+  const addBytes = (delta) => {
+    if (!Number.isFinite(delta) || delta <= 0) return;
+    totalBytes += delta;
+    checkTotals();
+  };
+  return { checkEntry, addBytes };
 }
 
-async function extractArchiveNode(archivePath, destDir, type) {
-  if (type === 'zip') return extractZipNode(archivePath, destDir);
+
+async function extractZipNode(archivePath, destDir, limits) {
+  const mod = await import('adm-zip');
+  const AdmZip = mod.default || mod;
+  const zip = new AdmZip(archivePath);
+  const entries = zip.getEntries();
+  const limiter = createArchiveLimiter(limits);
+  await fs.mkdir(destDir, { recursive: true });
+  for (const entry of entries) {
+    if (isZipSymlink(entry)) {
+      throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe zip entry (symlink): ${entry.entryName}`);
+    }
+    const targetPath = resolveArchivePath(destDir, entry.entryName);
+    if (!targetPath) {
+      throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe zip entry: ${entry.entryName}`);
+    }
+    const declaredSize = Number(entry?.header?.size);
+    const counted = limiter.checkEntry(entry.entryName, Number.isFinite(declaredSize) ? declaredSize : 0);
+    if (entry.isDirectory) {
+      await fs.mkdir(targetPath, { recursive: true });
+      try { await fs.chmod(targetPath, DIR_MODE); } catch {}
+      continue;
+    }
+    const data = entry.getData();
+    if (limits?.maxEntryBytes && data.length > limits.maxEntryBytes) {
+      throw createError(ERROR_CODES.ARCHIVE_TOO_LARGE, `archive entry too large (${entry.entryName}).`);
+    }
+    if (data.length > counted) {
+      limiter.addBytes(data.length - counted);
+    }
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.writeFile(targetPath, data, { mode: FILE_MODE });
+    try { await fs.chmod(targetPath, FILE_MODE); } catch {}
+  }
+  return true;
+}
+
+async function extractTarNode(archivePath, destDir, gzip, limits) {
+  const mod = await import('tar-fs');
+  const tarFs = mod.default || mod;
+  const limiter = createArchiveLimiter(limits);
+  await fs.mkdir(destDir, { recursive: true });
+  const extract = tarFs.extract(destDir, {
+    map: (header) => {
+      if (header?.type === 'symlink' || header?.type === 'link') {
+        throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe tar entry (symlink): ${header?.name || ''}`);
+      }
+      if (!isArchivePathSafe(destDir, header?.name)) {
+        throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe tar entry: ${header?.name || ''}`);
+      }
+      const normalized = normalizeArchiveEntry(header.name);
+      header.name = normalized;
+      limiter.checkEntry(normalized, Number(header?.size) || 0);
+      header.mode = header.type === 'directory' ? DIR_MODE : FILE_MODE;
+      return header;
+    }
+  });
+  const source = fsSync.createReadStream(archivePath);
+  if (gzip) {
+    await pipeline(source, createGunzip(), extract);
+  } else {
+    await pipeline(source, extract);
+  }
+  return true;
+}
+
+async function extractArchiveNode(archivePath, destDir, type, limits) {
+  if (type === 'zip') return extractZipNode(archivePath, destDir, limits);
   const gzip = type === 'tar.gz';
-  return extractTarNode(archivePath, destDir, gzip);
+  return extractTarNode(archivePath, destDir, gzip, limits);
 }
 
 /**
@@ -127,22 +322,8 @@ async function extractArchiveNode(archivePath, destDir, type) {
  * @param {string} type
  * @returns {boolean}
  */
-async function extractArchive(archivePath, destDir, type) {
-  if (type === 'zip') {
-    if (runCommand('unzip', ['-o', archivePath, '-d', destDir])) return true;
-    if (runCommand('tar', ['-xf', archivePath, '-C', destDir])) return true;
-    if (process.platform === 'win32') {
-      const script = `Expand-Archive -LiteralPath "${archivePath}" -DestinationPath "${destDir}" -Force`;
-      if (runCommand('powershell', ['-NoProfile', '-Command', script])) return true;
-      if (runCommand('pwsh', ['-NoProfile', '-Command', script])) return true;
-    }
-    return extractArchiveNode(archivePath, destDir, type);
-  }
-  const tarArgs = type === 'tar.gz'
-    ? ['-xzf', archivePath, '-C', destDir]
-    : ['-xf', archivePath, '-C', destDir];
-  if (runCommand('tar', tarArgs)) return true;
-  return extractArchiveNode(archivePath, destDir, type);
+async function extractArchive(archivePath, destDir, type, limits) {
+  return extractArchiveNode(archivePath, destDir, type, limits);
 }
 
 /**
@@ -182,7 +363,7 @@ async function findFile(rootDir, targetName, suffix) {
  * @param {string} suffix
  * @returns {Array<{name:string,url:string,file:string}>}
  */
-function parseUrls(input, suffix) {
+function parseUrls(input, suffix, hashes = null) {
   if (!input) return [];
   const items = Array.isArray(input) ? input : [input];
   const sources = [];
@@ -192,7 +373,8 @@ function parseUrls(input, suffix) {
     const name = item.slice(0, eq);
     const url = item.slice(eq + 1);
     const fileName = name.includes('.') ? name : `${name}${suffix}`;
-    sources.push({ name, url, file: fileName });
+    const sha256 = hashes && hashes[name] ? hashes[name] : null;
+    sources.push({ name, url, file: fileName, sha256 });
   }
   return sources;
 }
@@ -211,7 +393,8 @@ function resolveSourceFromConfig(cfg) {
     return {
       name: cfg.provider,
       url: byPlatform.url,
-      file: byPlatform.file || cfg.filename
+      file: byPlatform.file || cfg.filename,
+      sha256: byPlatform.sha256 || byPlatform.hash || null
     };
   }
   if (typeof byPlatform === 'string') {
@@ -259,7 +442,7 @@ function requestUrl(url, headers = {}, redirects = 0) {
 }
 
 const suffix = getBinarySuffix(config.platform);
-const sources = parseUrls(argv.url, suffix);
+const sources = parseUrls(argv.url, suffix, hashOverrides);
 if (!sources.length) {
   const fallback = resolveSourceFromConfig(config);
   if (fallback?.url) sources.push(fallback);
@@ -330,17 +513,19 @@ async function downloadSource(source, index) {
   if (response.statusCode !== 200) {
     throw new Error(`Failed to download ${source.url}: ${response.statusCode}`);
   }
+  const expectedHash = resolveExpectedHash(source, downloadPolicy, hashOverrides);
+  const actualHash = verifyDownloadHash(source, response.body, expectedHash, downloadPolicy);
 
   if (archiveType) {
     await fs.mkdir(tempRoot, { recursive: true });
   }
-  await fs.writeFile(downloadPath, response.body);
+  await fs.writeFile(downloadPath, response.body, { mode: FILE_MODE });
 
   let extractedFrom = null;
   if (archiveType) {
     const extractDir = path.join(tempRoot, `extract-${Date.now()}`);
     await fs.mkdir(extractDir, { recursive: true });
-    const ok = await extractArchive(downloadPath, extractDir, archiveType);
+    const ok = await extractArchive(downloadPath, extractDir, archiveType, archiveLimits);
     if (!ok) {
       throw new Error(`Failed to extract ${downloadPath} (${archiveType})`);
     }
@@ -349,6 +534,7 @@ async function downloadSource(source, index) {
       throw new Error(`No extension binary found in ${downloadPath}`);
     }
     await fs.copyFile(extractedPath, outputPath);
+    try { await fs.chmod(outputPath, FILE_MODE); } catch {}
     extractedFrom = path.relative(extensionDir, extractedPath);
     await fs.rm(extractDir, { recursive: true, force: true });
     await fs.rm(downloadPath, { force: true });
@@ -364,6 +550,8 @@ async function downloadSource(source, index) {
     provider: config.provider,
     platform: config.platform,
     arch: config.arch,
+    sha256: actualHash || expectedHash || null,
+    verified: Boolean(expectedHash),
     etag: response.headers.etag || null,
     lastModified: response.headers['last-modified'] || null,
     downloadedAt: new Date().toISOString()

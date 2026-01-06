@@ -7,7 +7,7 @@ import { createCli } from '../src/shared/cli.js';
 import { loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
 import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
-import { hasRequiredTables, normalizeFilePath } from '../src/storage/sqlite/utils.js';
+import { hasRequiredTables, normalizeFilePath, replaceSqliteDatabase } from '../src/storage/sqlite/utils.js';
 import { dequantizeUint8ToFloat32, toVectorId } from '../src/storage/sqlite/vector.js';
 
 let Database;
@@ -111,15 +111,15 @@ export async function compactDatabase(input) {
 
   const insertChunk = outDb.prepare(`
     INSERT OR REPLACE INTO chunks (
-      id, mode, file, start, end, startLine, endLine, ext, kind, name, headline,
-      preContext, postContext, weight, tokens, ngrams, codeRelations, docmeta,
-      stats, complexity, lint, externalDocs, last_modified, last_author, churn,
-      chunk_authors
+      id, chunk_id, mode, file, start, end, startLine, endLine, ext, kind, name,
+      headline, preContext, postContext, weight, tokens, ngrams, codeRelations,
+      docmeta, stats, complexity, lint, externalDocs, last_modified, last_author,
+      churn, chunk_authors
     ) VALUES (
-      @id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind, @name, @headline,
-      @preContext, @postContext, @weight, @tokens, @ngrams, @codeRelations, @docmeta,
-      @stats, @complexity, @lint, @externalDocs, @last_modified, @last_author, @churn,
-      @chunk_authors
+      @id, @chunk_id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind,
+      @name, @headline, @preContext, @postContext, @weight, @tokens, @ngrams,
+      @codeRelations, @docmeta, @stats, @complexity, @lint, @externalDocs,
+      @last_modified, @last_author, @churn, @chunk_authors
     );
   `);
 
@@ -401,13 +401,7 @@ export async function compactDatabase(input) {
   if (!keepBackup && fs.existsSync(backupPath)) {
     await fsPromises.rm(backupPath, { force: true });
   }
-
-  await fsPromises.rename(dbPath, backupPath);
-  await fsPromises.rename(tempPath, dbPath);
-
-  if (!keepBackup) {
-    await fsPromises.rm(backupPath, { force: true });
-  }
+  await replaceSqliteDatabase(tempPath, dbPath, { keepBackup, backupPath });
 
   return { skipped: false };
 }

@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
+import { applyCrossFileInference } from '../src/index/type-inference-crossfile.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'type-inference-crossfile');
@@ -11,11 +12,223 @@ const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+const graphsFixtureRoot = path.join(root, 'tests', 'fixtures', 'graphs', 'simple');
+const graphsTargetRoot = path.join(repoRoot, 'src', 'graphs');
+await fsPromises.mkdir(graphsTargetRoot, { recursive: true });
+await fsPromises.copyFile(
+  path.join(graphsFixtureRoot, 'producer.js'),
+  path.join(graphsTargetRoot, 'producer.js')
+);
+await fsPromises.copyFile(
+  path.join(graphsFixtureRoot, 'consumer.js'),
+  path.join(graphsTargetRoot, 'consumer.js')
+);
+
+const statsRoot = path.join(tempRoot, 'stats');
+await fsPromises.mkdir(statsRoot, { recursive: true });
+
+const writeScenarioFile = async (rootDir, relPath, contents) => {
+  const absPath = path.join(rootDir, relPath);
+  await fsPromises.mkdir(path.dirname(absPath), { recursive: true });
+  await fsPromises.writeFile(absPath, contents);
+  return absPath;
+};
+
+const runStatsScenario = async (name, { files, chunks, expect }) => {
+  const scenarioRoot = path.join(statsRoot, name);
+  await fsPromises.rm(scenarioRoot, { recursive: true, force: true });
+  await fsPromises.mkdir(scenarioRoot, { recursive: true });
+  for (const [relPath, contents] of Object.entries(files)) {
+    await writeScenarioFile(scenarioRoot, relPath, contents);
+  }
+  const stats = await applyCrossFileInference({
+    rootDir: scenarioRoot,
+    chunks,
+    enabled: true,
+    log: () => {},
+    useTooling: false,
+    enableTypeInference: true,
+    enableRiskCorrelation: true,
+    fileRelations: null
+  });
+  const entries = [
+    ['linkedCalls', stats.linkedCalls, expect.linkedCalls],
+    ['linkedUsages', stats.linkedUsages, expect.linkedUsages],
+    ['inferredReturns', stats.inferredReturns, expect.inferredReturns],
+    ['riskFlows', stats.riskFlows, expect.riskFlows]
+  ];
+  for (const [label, actual, expected] of entries) {
+    if (actual !== expected) {
+      console.error(
+        `Cross-file inference stats mismatch (${name}): ${label}=${actual}, expected ${expected}.`
+      );
+      process.exit(1);
+    }
+  }
+};
+
+const zeroContent = 'export function noop() { const x = 1; }\n';
+await runStatsScenario('zero', {
+  files: {
+    'src/zero.js': zeroContent
+  },
+  chunks: [
+    {
+      file: 'src/zero.js',
+      name: 'noop',
+      kind: 'function',
+      start: 0,
+      end: zeroContent.length,
+      docmeta: { returnsValue: false },
+      codeRelations: {}
+    }
+  ],
+  expect: {
+    linkedCalls: 0,
+    linkedUsages: 0,
+    inferredReturns: 0,
+    riskFlows: 0
+  }
+});
+
+const creatorContent = [
+  'export function makeWidget() { return {}; }',
+  'export class Widget {}',
+  ''
+].join('\n');
+const oneConsumerContent = 'export function buildWidget() { return makeWidget(); }\n';
+await runStatsScenario('one-each', {
+  files: {
+    'src/creator.js': creatorContent,
+    'src/consumer.js': oneConsumerContent
+  },
+  chunks: [
+    {
+      file: 'src/consumer.js',
+      name: 'buildWidget',
+      kind: 'function',
+      start: 0,
+      end: oneConsumerContent.length,
+      docmeta: {
+        returnsValue: true,
+        risk: { sources: [{ name: 'source', ruleId: 'rule-source', confidence: 0.8 }] }
+      },
+      codeRelations: {
+        calls: [['buildWidget', 'makeWidget']],
+        usages: ['Widget']
+      }
+    },
+    {
+      file: 'src/creator.js',
+      name: 'makeWidget',
+      kind: 'function',
+      start: 0,
+      end: creatorContent.length,
+      docmeta: {
+        returnType: 'Widget',
+        returnsValue: false,
+        risk: {
+          sinks: [{ name: 'sink', ruleId: 'rule-sink', category: 'test', severity: 'high', tags: ['taint'] }]
+        }
+      },
+      codeRelations: {}
+    },
+    {
+      file: 'src/creator.js',
+      name: 'Widget',
+      kind: 'class',
+      start: 0,
+      end: creatorContent.length,
+      docmeta: {},
+      codeRelations: {}
+    }
+  ],
+  expect: {
+    linkedCalls: 1,
+    linkedUsages: 1,
+    inferredReturns: 1,
+    riskFlows: 1
+  }
+});
+
+const secondConsumerContent = 'export function buildWidgetTwo() { return makeWidget(); }\n';
+await runStatsScenario('couple-each', {
+  files: {
+    'src/creator.js': creatorContent,
+    'src/consumer-one.js': oneConsumerContent,
+    'src/consumer-two.js': secondConsumerContent
+  },
+  chunks: [
+    {
+      file: 'src/consumer-one.js',
+      name: 'buildWidget',
+      kind: 'function',
+      start: 0,
+      end: oneConsumerContent.length,
+      docmeta: {
+        returnsValue: true,
+        risk: { sources: [{ name: 'source', ruleId: 'rule-source', confidence: 0.8 }] }
+      },
+      codeRelations: {
+        calls: [['buildWidget', 'makeWidget']],
+        usages: ['Widget']
+      }
+    },
+    {
+      file: 'src/consumer-two.js',
+      name: 'buildWidgetTwo',
+      kind: 'function',
+      start: 0,
+      end: secondConsumerContent.length,
+      docmeta: {
+        returnsValue: true,
+        risk: { sources: [{ name: 'source', ruleId: 'rule-source', confidence: 0.8 }] }
+      },
+      codeRelations: {
+        calls: [['buildWidgetTwo', 'makeWidget']],
+        usages: ['Widget']
+      }
+    },
+    {
+      file: 'src/creator.js',
+      name: 'makeWidget',
+      kind: 'function',
+      start: 0,
+      end: creatorContent.length,
+      docmeta: {
+        returnType: 'Widget',
+        returnsValue: false,
+        risk: {
+          sinks: [{ name: 'sink', ruleId: 'rule-sink', category: 'test', severity: 'high', tags: ['taint'] }]
+        }
+      },
+      codeRelations: {}
+    },
+    {
+      file: 'src/creator.js',
+      name: 'Widget',
+      kind: 'class',
+      start: 0,
+      end: creatorContent.length,
+      docmeta: {},
+      codeRelations: {}
+    }
+  ],
+  expect: {
+    linkedCalls: 2,
+    linkedUsages: 2,
+    inferredReturns: 2,
+    riskFlows: 2
+  }
+});
 
 const config = {
   indexing: {
     typeInference: true,
     typeInferenceCrossFile: true
+  },
+  tooling: {
+    autoEnableOnDetect: false
   },
   sqlite: { use: false }
 };
@@ -63,9 +276,19 @@ process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
 const result = spawnSync(process.execPath, [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], {
   cwd: repoRoot,
   env,
+  timeout: Number.isFinite(Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
+    ? Math.max(1000, Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
+    : 120000,
+  killSignal: 'SIGTERM',
   stdio: 'inherit'
 });
 if (result.status !== 0) {
+  if (result.signal) {
+    console.error(`Cross-file inference test failed: build_index terminated by ${result.signal}.`);
+  }
+  if (result.error) {
+    console.error(`Cross-file inference test failed: ${result.error.message || result.error}.`);
+  }
   console.error('Cross-file inference test failed: build_index failed.');
   process.exit(result.status ?? 1);
 }
@@ -124,6 +347,27 @@ if (!callSummary?.returnTypes?.includes('Widget')) {
 const usageLinks = buildWidget.codeRelations?.usageLinks || [];
 if (!usageLinks.some((link) => link.target === 'Widget' && link.file === 'src/creator.js')) {
   console.error('Cross-file inference missing usage link to Widget.');
+  process.exit(1);
+}
+
+const graphPath = path.join(codeDir, 'graph_relations.json');
+if (!fs.existsSync(graphPath)) {
+  console.error(`Missing graph relations at ${graphPath}`);
+  process.exit(1);
+}
+const graphRelations = JSON.parse(fs.readFileSync(graphPath, 'utf8'));
+const findNode = (graph, id) => (graph?.nodes || []).find((node) => node.id === id);
+const graphConsumer = 'src/graphs/consumer.js::buildGraphWidget';
+const graphProducerFn = 'src/graphs/producer.js::createGraphWidget';
+const graphProducerType = 'src/graphs/producer.js::GraphWidget';
+const callNode = findNode(graphRelations.callGraph, graphConsumer);
+if (!callNode || !Array.isArray(callNode.out) || !callNode.out.includes(graphProducerFn)) {
+  console.error('Graph relations missing call link for fixture consumer.');
+  process.exit(1);
+}
+const usageNode = findNode(graphRelations.usageGraph, graphConsumer);
+if (!usageNode || !Array.isArray(usageNode.out) || !usageNode.out.includes(graphProducerType)) {
+  console.error('Graph relations missing usage link for fixture consumer.');
   process.exit(1);
 }
 

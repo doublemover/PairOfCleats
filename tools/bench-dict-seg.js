@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
@@ -10,6 +11,7 @@ const argv = createCli({
     json: { type: 'boolean', default: false },
     dict: { type: 'string' },
     tokens: { type: 'string' },
+    fixture: { type: 'string' },
     out: { type: 'string' },
     sample: { type: 'number' },
     'dp-max': { type: 'number' }
@@ -17,8 +19,19 @@ const argv = createCli({
 }).parse();
 
 const root = process.cwd();
-const dictPath = path.resolve(argv.dict || path.join(root, 'tests', 'fixtures', 'dicts', 'words.txt'));
-const tokensPath = argv.tokens ? path.resolve(argv.tokens) : null;
+const fixtureArg = typeof argv.fixture === 'string' ? argv.fixture.trim() : '';
+const fixtureDir = fixtureArg
+  ? (path.isAbsolute(fixtureArg)
+    ? path.resolve(fixtureArg)
+    : path.join(root, 'tests', 'fixtures', fixtureArg))
+  : null;
+const dictPath = fixtureDir
+  ? path.join(fixtureDir, 'words.txt')
+  : path.resolve(argv.dict || path.join(root, 'tests', 'fixtures', 'dicts', 'words.txt'));
+const tokensPath = fixtureDir
+  ? path.join(fixtureDir, 'tokens.txt')
+  : (argv.tokens ? path.resolve(argv.tokens) : null);
+const fixtureLabel = fixtureDir ? path.basename(fixtureDir) : 'default';
 const sampleLimit = Number.isFinite(Number(argv.sample))
   ? Math.max(10, Number(argv.sample))
   : 300;
@@ -63,12 +76,16 @@ function buildTokenSamples(words, limit) {
 
 async function loadTokens(words) {
   if (tokensPath) {
-    const raw = await fs.readFile(tokensPath, 'utf8');
-    return raw
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .slice(0, sampleLimit);
+    try {
+      const raw = await fs.readFile(tokensPath, 'utf8');
+      return raw
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, sampleLimit);
+    } catch {
+      // Fall back to generated samples when fixture tokens are missing.
+    }
   }
   return buildTokenSamples(words, sampleLimit);
 }
@@ -132,16 +149,20 @@ const dictWords = new Set(
 const tokens = await loadTokens(Array.from(dictWords));
 const greedy = measure(tokens, dictWords, 'greedy');
 const dp = measure(tokens, dictWords, 'dp');
+const aho = measure(tokens, dictWords, 'aho');
 
 const summary = {
   generatedAt: new Date().toISOString(),
   dictPath,
+  tokensPath: tokensPath && fsSync.existsSync(tokensPath) ? tokensPath : null,
+  fixture: fixtureLabel,
   dictWords: dictWords.size,
   tokens: tokens.length,
   dpMaxTokenLength,
   strategies: {
     greedy,
-    dp
+    dp,
+    aho
   }
 };
 

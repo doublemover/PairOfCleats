@@ -40,6 +40,7 @@ export const BENCH_OPTIONS = {
   top: { type: 'number', default: 5 },
   limit: { type: 'number', default: 0 },
   'heap-mb': { type: 'number' },
+  'query-concurrency': { type: 'number' },
   threads: { type: 'number' }
 };
 
@@ -88,6 +89,7 @@ const BENCH_SCHEMA = {
     'bm25-b': { type: 'number' },
     'fts-profile': { type: 'string' },
     'fts-weights': { type: 'string' },
+    'query-concurrency': { type: 'number' },
     threads: { type: 'number' },
     'heap-mb': { type: 'number' }
   }

@@ -8,10 +8,12 @@ import { spawn, spawnSync } from 'node:child_process';
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const cacheRoot = path.join(root, 'tests', '.cache', 'api-server');
+const emptyRepo = path.join(cacheRoot, 'empty');
 const serverPath = path.join(root, 'tools', 'api-server.js');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+await fsPromises.mkdir(emptyRepo, { recursive: true });
 
 const env = {
   ...process.env,
@@ -119,8 +121,24 @@ try {
   }
 
   const invalid = await requestJson('POST', '/search', {});
-  if (invalid.status !== 400 || invalid.body?.ok !== false) {
+  if (invalid.status !== 400 || invalid.body?.ok !== false || invalid.body?.code !== 'INVALID_REQUEST') {
     throw new Error('api-server should reject missing query');
+  }
+
+  const unknownField = await requestJson('POST', '/search', {
+    query: 'return',
+    extraField: true
+  });
+  if (unknownField.status !== 400 || unknownField.body?.code !== 'INVALID_REQUEST') {
+    throw new Error('api-server should reject unknown fields');
+  }
+
+  const noIndex = await requestJson('POST', '/search', {
+    repoPath: emptyRepo,
+    query: 'return'
+  });
+  if (noIndex.status !== 409 || noIndex.body?.code !== 'NO_INDEX') {
+    throw new Error('api-server should return NO_INDEX when indexes are missing');
   }
 } catch (err) {
   console.error(err?.message || err);

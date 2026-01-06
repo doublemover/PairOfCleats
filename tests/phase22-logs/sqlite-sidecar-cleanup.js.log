@@ -1,0 +1,112 @@
+
+Wordlists enabled: 1 file(s), 370,105 words for identifier splitting.
+
+Embeddings: stub mode enabled (no model downloads).
+
+Embedding batch size: 128
+
+Embedding concurrency: 2
+
+Queue concurrency: io=32, cpu=16.
+
+Worker pool enabled (auto, maxThreads=8).
+
+Worker pool auto threshold: maxFileBytes=524288.
+
+Build environment snapshot.
+
+ΓåÆ Preprocess: 12 files across 2 mode(s).
+
+Crash logging enabled: C:\Users\sneak\Development\PairOfCleats_CODEX\tests\.cache\sqlite-sidecar-cleanup\cache\repos\repo-56bfa09e244f\logs\index-crash.log
+
+
+≡ƒôä  Scanning prose ΓÇª
+
+Discovering files...
+
+ΓåÆ Reusing shared discovery results.
+
+ΓåÆ Found 3 files.
+
+Auto-selected context window: 3 lines
+
+Processing and indexing files...
+
+Indexing concurrency: files=16, imports=16, io=32, cpu=16
+Files 1/3 (33.3%)
+Files 2/3 (66.7%)
+Files 3/3 (100.0%)
+Files 3/3 (100.0%)
+
+   ΓåÆ Indexed 3 chunks, total tokens: 86
+
+Using stub embeddings for dense vectors (Xenova/all-MiniLM-L12-v2)...
+
+ΓåÆ Wrote .filelists.json (samples only).
+
+Writing index files (14 artifacts)...
+
+Writing index files 1/14 (7.1%) | index_state.json
+
+Writing index files 14/14 (100.0%) | phrase_ngrams.json
+
+≡ƒôª  prose: 3 chunks, 50 tokens, dims=384
+
+ΓåÆ Wrote pieces manifest (15 entries).
+
+Crash logging enabled: C:\Users\sneak\Development\PairOfCleats_CODEX\tests\.cache\sqlite-sidecar-cleanup\cache\repos\repo-56bfa09e244f\logs\index-crash.log
+
+
+≡ƒôä  Scanning code ΓÇª
+
+Discovering files...
+
+ΓåÆ Reusing shared discovery results.
+
+ΓåÆ Found 9 files.
+
+Skipping import pre-scan; will enrich import links from relations.
+
+Auto-selected context window: 3 lines
+
+Processing and indexing files...
+
+Indexing concurrency: files=16, imports=16, io=32, cpu=16
+Files 1/9 (11.1%)
+Files 2/9 (22.2%)
+Files 3/9 (33.3%)
+Files 4/9 (44.4%)
+Files 5/9 (55.6%)
+Files 6/9 (66.7%)
+Files 7/9 (77.8%)
+Files 8/9 (88.9%)
+Files 9/9 (100.0%)
+Files 9/9 (100.0%)
+
+ΓåÆ Imports: modules=5, edges=5, files=5
+
+   ΓåÆ Indexed 25 chunks, total tokens: 884
+
+Using stub embeddings for dense vectors (Xenova/all-MiniLM-L12-v2)...
+
+Cross-file inference: callLinks=0, usageLinks=13, returns=0, riskFlows=0
+
+ΓåÆ Wrote .filelists.json (samples only).
+
+Writing index files (16 artifacts)...
+
+Writing index files 1/16 (6.3%) | index_state.json
+
+Writing index files 16/16 (100.0%) | phrase_ngrams.json
+
+≡ƒôª  code : 25 chunks, 108 tokens, dims=384
+
+ΓåÆ Wrote pieces manifest (17 entries).
+[sqlite] Validation (smoke) ok for code.
+[sqlite] Validation (smoke) ok for prose.
+SQLite indexes built at code=C:\Users\sneak\Development\PairOfCleats_CODEX\tests\.cache\sqlite-sidecar-cleanup\cache\repos\repo-56bfa09e244f\builds\20260111T090918Z_33901eb_ca1ffef2\index-sqlite\index-code.db prose=C:\Users\sneak\Development\PairOfCleats_CODEX\tests\.cache\sqlite-sidecar-cleanup\cache\repos\repo-56bfa09e244f\builds\20260111T090918Z_33901eb_ca1ffef2\index-sqlite\index-prose.db. code=25 prose=3
+[sqlite] Validation (smoke) ok for code.
+SQLite code index built at C:\Users\sneak\Development\PairOfCleats_CODEX\tests\.cache\sqlite-sidecar-cleanup\cache\repos\repo-56bfa09e244f\builds\20260111T090918Z_33901eb_ca1ffef2\index-sqlite\index-code.db. code=25
+[sqlite] Validation (smoke) ok for code.
+SQLite code index built at C:\Users\sneak\Development\PairOfCleats_CODEX\tests\.cache\sqlite-sidecar-cleanup\cache\repos\repo-56bfa09e244f\builds\20260111T090918Z_33901eb_ca1ffef2\index-sqlite\index-code.db. code=25
+sqlite sidecar cleanup test passed

@@ -1,10 +1,10 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { init as initEsModuleLexer, parse as parseEsModuleLexer } from 'es-module-lexer';
 import { init as initCjsLexer, parse as parseCjsLexer } from 'cjs-module-lexer';
 import { collectLanguageImports } from '../language-registry.js';
 import { isJsLike, isTypeScript } from '../constants.js';
 import { runWithConcurrency, runWithQueue } from '../../shared/concurrency.js';
+import { readTextFile } from '../../shared/encoding.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 import { showProgress } from '../../shared/progress.js';
 import { readCachedImports } from './incremental.js';
@@ -110,7 +110,8 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
           relKey: item.relKey,
           fileStat: item.stat,
           manifest: incrementalState.manifest,
-          bundleDir: incrementalState.bundleDir
+          bundleDir: incrementalState.bundleDir,
+          bundleFormat: incrementalState.bundleFormat
         });
         if (Array.isArray(cachedImports)) {
           if (cachedImports.length > 0) {
@@ -148,7 +149,8 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
           relKey,
           fileStat: item.stat,
           manifest: incrementalState.manifest,
-          bundleDir: incrementalState.bundleDir
+          bundleDir: incrementalState.bundleDir,
+          bundleFormat: incrementalState.bundleFormat
         });
         if (Array.isArray(cachedImportsFallback)) {
           for (const mod of cachedImportsFallback) {
@@ -163,7 +165,7 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
       }
       let text;
       try {
-        text = await fs.readFile(item.absPath, 'utf8');
+        ({ text } = await readTextFile(item.absPath));
       } catch {
         processed += 1;
         showProgress('Imports', processed, items.length);
@@ -207,6 +209,47 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
       edges: edgeCount,
       files: filesWithImports,
       scanned: processed
+    }
+  };
+}
+
+export function buildImportLinksFromRelations(fileRelations) {
+  if (!fileRelations || typeof fileRelations.entries !== 'function') {
+    return { allImports: {}, stats: { modules: 0, edges: 0, files: 0, scanned: 0 } };
+  }
+  const moduleMap = new Map();
+  let filesWithImports = 0;
+  let scanned = 0;
+  for (const [file, relations] of fileRelations.entries()) {
+    scanned += 1;
+    const imports = Array.isArray(relations?.imports) ? relations.imports : [];
+    if (imports.length) filesWithImports += 1;
+    for (const mod of imports) {
+      if (!moduleMap.has(mod)) moduleMap.set(mod, new Set());
+      moduleMap.get(mod).add(file);
+    }
+  }
+  const dedupedImports = {};
+  let edgeCount = 0;
+  for (const [mod, files] of moduleMap.entries()) {
+    dedupedImports[mod] = Array.from(files);
+    edgeCount += files.size;
+  }
+  for (const [file, relations] of fileRelations.entries()) {
+    const imports = Array.isArray(relations?.imports) ? relations.imports : [];
+    const importLinks = imports
+      .map((imp) => dedupedImports[imp])
+      .filter(Boolean)
+      .flat();
+    fileRelations.set(file, { ...relations, importLinks });
+  }
+  return {
+    allImports: dedupedImports,
+    stats: {
+      modules: moduleMap.size,
+      edges: edgeCount,
+      files: filesWithImports,
+      scanned
     }
   };
 }

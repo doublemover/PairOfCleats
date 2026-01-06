@@ -2,13 +2,15 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
 import { BENCH_OPTIONS, validateBenchArgs } from '../src/shared/cli-options.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveSqlitePaths } from '../tools/dict-utils.js';
-import { resolveBenchmarkProfile } from '../src/shared/bench-profile.js';
 import { getEnvConfig } from '../src/shared/env.js';
+import { runWithConcurrency } from '../src/shared/concurrency.js';
 import os from 'node:os';
+import { createSafeRegex, normalizeSafeRegexConfig } from '../src/shared/safe-regex.js';
+import { build as buildHistogram } from 'hdr-histogram-js';
 
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
@@ -17,6 +19,27 @@ const argv = createCli({
   aliases: { n: 'top', q: 'queries' }
 }).parse();
 validateBenchArgs(argv);
+
+const safeRegexConfig = normalizeSafeRegexConfig({
+  maxPatternLength: 64,
+  maxInputLength: 64,
+  timeoutMs: 10,
+  flags: 'i'
+});
+const safeRegex = createSafeRegex('a+b', '', safeRegexConfig);
+if (!safeRegex || !safeRegex.test('Aaab')) {
+  console.error('Safe regex self-check failed.');
+  process.exit(1);
+}
+const rejected = createSafeRegex('a'.repeat(128), '', safeRegexConfig);
+if (rejected) {
+  console.error('Safe regex maxPatternLength guard failed.');
+  process.exit(1);
+}
+if (safeRegex.test('a'.repeat(100))) {
+  console.error('Safe regex maxInputLength guard failed.');
+  process.exit(1);
+}
 
 const root = process.cwd();
 const repoArg = argv.repo ? path.resolve(argv.repo) : null;
@@ -76,10 +99,7 @@ const indexProfileArg = typeof argv['index-profile'] === 'string'
   : '';
 const noIndexProfile = rawArgs.includes('--no-index-profile');
 const originalEnvProfile = process.env.PAIROFCLEATS_PROFILE;
-let indexProfileRaw = indexProfileArg;
-if (!indexProfileRaw && !noIndexProfile && !envConfig.profile) {
-  indexProfileRaw = 'bench-index';
-}
+const indexProfileRaw = indexProfileArg;
 const suppressEnvProfile = noIndexProfile && !indexProfileRaw;
 if (suppressEnvProfile) {
   delete process.env.PAIROFCLEATS_PROFILE;
@@ -97,6 +117,7 @@ if (suppressEnvProfile) {
   }
 }
 const runtimeConfig = getRuntimeConfig(runtimeRoot, userConfig);
+const embeddingProvider = userConfig.indexing?.embeddings?.provider || 'xenova';
 const needsMemory = backends.includes('memory');
 const needsSqlite = backends.some((entry) => entry.startsWith('sqlite'));
 const hasIndex = (mode) => {
@@ -142,9 +163,8 @@ const runtimeConfigForRun = heapOverride
 const resolvedNodeOptions = resolveNodeOptions(runtimeConfigForRun, baseNodeOptions);
 const envStubEmbeddings = envConfig.embeddings === 'stub';
 const realEmbeddings = argv['real-embeddings'] === true;
-const benchmarkProfile = resolveBenchmarkProfile(userConfig.profile);
 const stubEmbeddings = argv['stub-embeddings'] === true
-  || (!realEmbeddings && (envStubEmbeddings || benchmarkProfile.enabled));
+  || (!realEmbeddings && envStubEmbeddings);
 const baseEnv = resolvedNodeOptions
   ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
   : { ...process.env };
@@ -167,6 +187,15 @@ if (heapOverride) {
 const benchEnvWithProfile = indexProfileRaw
   ? { ...baseEnv, PAIROFCLEATS_PROFILE: indexProfileRaw }
   : baseEnv;
+
+function logBench(message) {
+  if (!message) return;
+  if (jsonOutput) {
+    process.stderr.write(`${message}\n`);
+  } else {
+    console.log(message);
+  }
+}
 
 function runSearch(query, backend) {
   const args = [
@@ -192,13 +221,36 @@ function runSearch(query, backend) {
   } else {
     delete env.PAIROFCLEATS_EMBEDDINGS;
   }
-  const result = spawnSync(process.execPath, args, { encoding: 'utf8', env });
-  if (result.status !== 0) {
-    console.error(`Search failed for backend=${backend} query="${query}"`);
-    if (result.stderr) console.error(result.stderr.trim());
-    process.exit(result.status ?? 1);
-  }
-  return JSON.parse(result.stdout || '{}');
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    child.on('error', (err) => {
+      console.error(`Search failed to start for backend=${backend} query="${query}"`);
+      if (err?.message) console.error(err.message);
+      process.exit(1);
+    });
+    child.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`Search failed for backend=${backend} query="${query}"`);
+        if (stderr) console.error(stderr.trim());
+        process.exit(code ?? 1);
+      }
+      try {
+        resolve(JSON.parse(stdout || '{}'));
+      } catch (err) {
+        console.error(`Search response parse failed for backend=${backend} query="${query}"`);
+        if (stderr) console.error(stderr.trim());
+        process.exit(1);
+      }
+    });
+  });
 }
 
 function mean(values) {
@@ -206,21 +258,30 @@ function mean(values) {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-function percentile(sortedValues, pct) {
-  if (!sortedValues.length) return 0;
-  const idx = Math.min(sortedValues.length - 1, Math.max(0, Math.floor((pct / 100) * (sortedValues.length - 1))));
-  return sortedValues[idx];
+function buildPercentileHistogram(values, scale) {
+  if (!values.length) return null;
+  const scaled = values.map((value) => Math.max(1, Math.round(value * scale)));
+  const maxValue = Math.max(...scaled, 1);
+  const histogram = buildHistogram({
+    lowestDiscernibleValue: 1,
+    highestTrackableValue: maxValue,
+    numberOfSignificantValueDigits: 3
+  });
+  scaled.forEach((value) => histogram.recordValue(value));
+  return histogram;
 }
 
-function buildStats(values) {
-  if (!values.length) return { mean: 0, p50: 0, p95: 0, min: 0, max: 0 };
-  const sorted = [...values].sort((a, b) => a - b);
+function buildStats(values, { scale = 1 } = {}) {
+  if (!values.length) return { mean: 0, p50: 0, p95: 0, p99: 0, min: 0, max: 0 };
+  const histogram = buildPercentileHistogram(values, scale);
+  const pct = (value) => (histogram ? histogram.getValueAtPercentile(value) / scale : 0);
   return {
     mean: mean(values),
-    p50: percentile(sorted, 50),
-    p95: percentile(sorted, 95),
-    min: sorted[0],
-    max: sorted[sorted.length - 1]
+    p50: pct(50),
+    p95: pct(95),
+    p99: pct(99),
+    min: Math.min(...values),
+    max: Math.max(...values)
   };
 }
 
@@ -234,6 +295,22 @@ function stripMaxOldSpaceFlag(options) {
 
 function formatGb(mb) {
   return `${(mb / 1024).toFixed(1)} GB`;
+}
+
+function formatDuration(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+function formatRate(value, unit) {
+  if (!Number.isFinite(value)) return 'n/a';
+  const rounded = value >= 100 ? value.toFixed(0) : value >= 10 ? value.toFixed(1) : value.toFixed(2);
+  return `${rounded} ${unit}/s`;
 }
 
 function getRecommendedHeapMb() {
@@ -310,6 +387,7 @@ if (buildIndex || buildSqlite) {
     buildMs.index = runBuild(args, 'build index', buildEnv);
     if (useStageQueue) {
       runServiceQueue('index', buildEnv);
+      logBench('[bench] Stage2 enrichment complete; continuing with benchmark queries.');
     }
   }
   if (buildSqlite) {
@@ -323,88 +401,242 @@ if (buildIndex || buildSqlite) {
   }
 }
 
-const latency = {};
-const memoryRss = {};
-const hitCounts = {};
-const resultCounts = {};
-for (const backend of backends) {
-  latency[backend] = [];
-  memoryRss[backend] = [];
-  hitCounts[backend] = 0;
-  resultCounts[backend] = [];
+const queryTasks = [];
+let queryIndex = 0;
+for (const query of selectedQueries) {
+  queryIndex += 1;
+  for (const backend of backends) {
+    queryTasks.push({ query, backend, queryIndex });
+  }
 }
 
-for (const query of selectedQueries) {
+const queryConcurrencyRaw = Number(argv['query-concurrency']);
+const queryConcurrencyList = Number.isFinite(queryConcurrencyRaw) && queryConcurrencyRaw > 0
+  ? [Math.floor(queryConcurrencyRaw)]
+  : [20, 5, 1];
+
+const runQueries = async (requestedConcurrency) => {
+  const latency = {};
+  const memoryRss = {};
+  const hitCounts = {};
+  const resultCounts = {};
   for (const backend of backends) {
-    const payload = runSearch(query, backend);
-    latency[backend].push(payload.stats?.elapsedMs || 0);
+    latency[backend] = [];
+    memoryRss[backend] = [];
+    hitCounts[backend] = 0;
+    resultCounts[backend] = [];
+  }
+
+  const totalSearches = selectedQueries.length * backends.length;
+  const queryProgress = {
+    count: 0,
+    startMs: Date.now(),
+    lastLogMs: 0,
+    lastPct: 0
+  };
+  const logQueryProgress = (force = false) => {
+    if (!totalSearches) return;
+    const now = Date.now();
+    const pct = (queryProgress.count / totalSearches) * 100;
+    const elapsedMs = now - queryProgress.startMs;
+    const rate = elapsedMs > 0 ? queryProgress.count / (elapsedMs / 1000) : 0;
+    const remaining = totalSearches - queryProgress.count;
+    const etaMs = rate > 0 && remaining > 0 ? (remaining / rate) * 1000 : 0;
+    const shouldLog = force
+      || queryProgress.count === totalSearches
+      || now - queryProgress.lastLogMs >= 10000
+      || pct - queryProgress.lastPct >= 5;
+    if (!shouldLog) return;
+    const elapsedText = formatDuration(elapsedMs);
+    const etaText = etaMs > 0 ? formatDuration(etaMs) : 'n/a';
+    logBench(
+      `[bench] Queries ${queryProgress.count}/${totalSearches} (${pct.toFixed(1)}%) | ` +
+      `concurrency ${requestedConcurrency} | elapsed ${elapsedText} | eta ${etaText}`
+    );
+    queryProgress.lastLogMs = now;
+    queryProgress.lastPct = pct;
+  };
+
+  logBench(
+    `[bench] Running ${selectedQueries.length} queries across ${backends.length} backends ` +
+    `(${totalSearches} searches) with concurrency ${requestedConcurrency}.`
+  );
+  logQueryProgress(true);
+
+  const loggedQueries = new Set();
+  const runQueryTask = async (task) => {
+    if (!loggedQueries.has(task.queryIndex)) {
+      loggedQueries.add(task.queryIndex);
+      logBench(
+        `[bench] (concurrency ${requestedConcurrency}) Query ` +
+        `${task.queryIndex}/${selectedQueries.length}: ${task.query}`
+      );
+    }
+    const payload = await runSearch(task.query, task.backend);
+    queryProgress.count += 1;
+    logQueryProgress();
+    const elapsedMs = Number(payload.stats?.elapsedMs);
+    if (!Number.isFinite(elapsedMs)) {
+      console.error(`[bench] Missing timing stats for backend=${task.backend} query="${task.query}"`);
+      process.exit(1);
+    }
+    latency[task.backend].push(elapsedMs);
     const codeHits = Array.isArray(payload.code) ? payload.code.length : 0;
     const proseHits = Array.isArray(payload.prose) ? payload.prose.length : 0;
     const totalHits = codeHits + proseHits;
-    resultCounts[backend].push(totalHits);
-    if (totalHits > 0) hitCounts[backend] += 1;
+    resultCounts[task.backend].push(totalHits);
+    if (totalHits > 0) hitCounts[task.backend] += 1;
     const rss = payload.stats?.memory?.rss;
-    if (Number.isFinite(rss)) memoryRss[backend].push(rss);
+    if (Number.isFinite(rss)) memoryRss[task.backend].push(rss);
+  };
+  if (queryTasks.length) {
+    await runWithConcurrency(
+      queryTasks,
+      Math.max(1, Math.min(requestedConcurrency, queryTasks.length)),
+      runQueryTask
+    );
   }
+  logQueryProgress(true);
+
+  const latencyStats = Object.fromEntries(backends.map((b) => [b, buildStats(latency[b], { scale: 1000 })]));
+  const memoryStats = Object.fromEntries(backends.map((b) => [b, buildStats(memoryRss[b], { scale: 1 })]));
+  const hitRate = Object.fromEntries(backends.map((b) => [
+    b,
+    selectedQueries.length ? hitCounts[b] / selectedQueries.length : 0
+  ]));
+  const resultCountAvg = Object.fromEntries(backends.map((b) => [b, mean(resultCounts[b])]));
+
+  const summary = {
+    queries: selectedQueries.length,
+    topN,
+    annEnabled,
+    embeddingProvider,
+    backends,
+    queryConcurrency: requestedConcurrency,
+    latencyMsAvg: Object.fromEntries(backends.map((b) => [b, latencyStats[b].mean])),
+    latencyMs: latencyStats,
+    hitRate,
+    resultCountAvg,
+    memoryRss: memoryStats,
+    buildMs: Object.keys(buildMs).length ? buildMs : null
+  };
+
+  return { summary };
+};
+
+const runs = [];
+for (const concurrency of queryConcurrencyList) {
+  runs.push(await runQueries(concurrency));
 }
 
 const reportArgs = [reportPath, '--json'];
 if (repoArg) reportArgs.push('--repo', repoArg);
 const reportResult = spawnSync(process.execPath, reportArgs, { encoding: 'utf8' });
 const artifactReport = reportResult.status === 0 ? JSON.parse(reportResult.stdout || '{}') : {};
+const corruption = artifactReport?.corruption || null;
+if (corruption && corruption.ok === false) {
+  const issues = Array.isArray(corruption.issues) && corruption.issues.length
+    ? corruption.issues.join('; ')
+    : 'unknown issues';
+  console.error(`[bench] Artifact corruption check failed: ${issues}`);
+  process.exit(1);
+}
 
-const latencyStats = Object.fromEntries(backends.map((b) => [b, buildStats(latency[b])]));
-const memoryStats = Object.fromEntries(backends.map((b) => [b, buildStats(memoryRss[b])]));
-const hitRate = Object.fromEntries(backends.map((b) => [
-  b,
-  selectedQueries.length ? hitCounts[b] / selectedQueries.length : 0
-]));
-const resultCountAvg = Object.fromEntries(backends.map((b) => [b, mean(resultCounts[b])]));
-const summary = {
-  queries: selectedQueries.length,
-  topN,
-  annEnabled,
-  benchmarkProfile: {
-    enabled: benchmarkProfile.enabled,
-    disabled: benchmarkProfile.disabled
-  },
-  backends,
-  latencyMsAvg: Object.fromEntries(backends.map((b) => [b, latencyStats[b].mean])),
-  latencyMs: latencyStats,
-  hitRate,
-  resultCountAvg,
-  memoryRss: memoryStats,
-  buildMs: Object.keys(buildMs).length ? buildMs : null
-};
+const summaries = runs.map((run) => run.summary).filter(Boolean);
+const concurrencyStats = {};
+for (const runSummary of summaries) {
+  const concurrency = runSummary?.queryConcurrency;
+  if (concurrency === 20 || concurrency === 5) {
+    concurrencyStats[String(concurrency)] = {
+      latencyMsAvg: runSummary.latencyMsAvg,
+      latencyMs: runSummary.latencyMs,
+      hitRate: runSummary.hitRate,
+      resultCountAvg: runSummary.resultCountAvg,
+      memoryRss: runSummary.memoryRss
+    };
+  }
+}
+const summary = summaries[0]
+  ? {
+    ...summaries[0],
+    ...(Object.keys(concurrencyStats).length ? { concurrencyStats } : {})
+  }
+  : null;
 
 const output = {
   generatedAt: new Date().toISOString(),
   repo: { root: repoArg || root },
   summary,
+  runs: summaries,
   artifacts: artifactReport
 };
 
 if (argv.json) {
   console.log(JSON.stringify(output, null, 2));
 } else {
-  console.log('Benchmark summary');
-  console.log(`- Queries: ${summary.queries}`);
-  console.log(`- TopN: ${summary.topN}`);
-  console.log(`- Ann: ${summary.annEnabled}`);
-  for (const backend of backends) {
-    const stats = latencyStats[backend];
-    console.log(`- ${backend} avg ms: ${stats.mean.toFixed(1)} (p95 ${stats.p95.toFixed(1)})`);
-    console.log(`- ${backend} hit rate: ${(hitRate[backend] * 100).toFixed(1)}% (avg hits ${resultCountAvg[backend].toFixed(1)})`);
-    const mem = memoryStats[backend];
-    if (mem && mem.mean) {
-      console.log(`- ${backend} rss avg mb: ${(mem.mean / (1024 * 1024)).toFixed(1)} (p95 ${(mem.p95 / (1024 * 1024)).toFixed(1)})`);
+  for (const runSummary of summaries) {
+    if (!runSummary) continue;
+    const concurrencyLabel = Number.isFinite(runSummary.queryConcurrency)
+      ? ` (concurrency ${runSummary.queryConcurrency})`
+      : '';
+    console.log(`Benchmark summary${concurrencyLabel}`);
+    console.log(`- Queries: ${runSummary.queries}`);
+    console.log(`- TopN: ${runSummary.topN}`);
+    console.log(`- Ann: ${runSummary.annEnabled}`);
+    for (const backend of runSummary.backends || backends) {
+      const stats = runSummary.latencyMs?.[backend];
+      if (stats) {
+        console.log(`- ${backend} avg ms: ${stats.mean.toFixed(1)} (p95 ${stats.p95.toFixed(1)}, p99 ${stats.p99.toFixed(1)})`);
+      }
+      const hitRate = runSummary.hitRate?.[backend];
+      const resultCount = runSummary.resultCountAvg?.[backend];
+      if (Number.isFinite(hitRate) && Number.isFinite(resultCount)) {
+        console.log(`- ${backend} hit rate: ${(hitRate * 100).toFixed(1)}% (avg hits ${resultCount.toFixed(1)})`);
+      }
+      const mem = runSummary.memoryRss?.[backend];
+      if (mem && mem.mean) {
+        console.log(`- ${backend} rss avg mb: ${(mem.mean / (1024 * 1024)).toFixed(1)} (p95 ${(mem.p95 / (1024 * 1024)).toFixed(1)}, p99 ${(mem.p99 / (1024 * 1024)).toFixed(1)})`);
+      }
     }
-  }
-  if (buildMs.index) {
-    console.log(`- build index ms: ${buildMs.index.toFixed(0)}`);
-  }
-  if (buildMs.sqlite) {
-    console.log(`- build sqlite ms: ${buildMs.sqlite.toFixed(0)}`);
+    if (runSummary.buildMs?.index) {
+      console.log(`- build index ms: ${runSummary.buildMs.index.toFixed(0)}`);
+    }
+    if (runSummary.buildMs?.sqlite) {
+      console.log(`- build sqlite ms: ${runSummary.buildMs.sqlite.toFixed(0)}`);
+    }
+    const throughput = artifactReport?.throughput || null;
+    if (throughput?.code) {
+      const codeThroughput = throughput.code;
+      console.log(
+        `- throughput code: ${formatRate(codeThroughput.chunksPerSec, 'chunks')}, ` +
+        `${formatRate(codeThroughput.tokensPerSec, 'tokens')}, ` +
+        `${formatRate(codeThroughput.bytesPerSec, 'bytes')}`
+      );
+    }
+    if (throughput?.prose) {
+      const proseThroughput = throughput.prose;
+      console.log(
+        `- throughput prose: ${formatRate(proseThroughput.chunksPerSec, 'chunks')}, ` +
+        `${formatRate(proseThroughput.tokensPerSec, 'tokens')}, ` +
+        `${formatRate(proseThroughput.bytesPerSec, 'bytes')}`
+      );
+    }
+    if (throughput?.lmdb?.code) {
+      const lmdbCode = throughput.lmdb.code;
+      console.log(
+        `- throughput lmdb code: ${formatRate(lmdbCode.chunksPerSec, 'chunks')}, ` +
+        `${formatRate(lmdbCode.tokensPerSec, 'tokens')}, ` +
+        `${formatRate(lmdbCode.bytesPerSec, 'bytes')}`
+      );
+    }
+    if (throughput?.lmdb?.prose) {
+      const lmdbProse = throughput.lmdb.prose;
+      console.log(
+        `- throughput lmdb prose: ${formatRate(lmdbProse.chunksPerSec, 'chunks')}, ` +
+        `${formatRate(lmdbProse.tokensPerSec, 'tokens')}, ` +
+        `${formatRate(lmdbProse.bytesPerSec, 'bytes')}`
+      );
+    }
   }
 }
 

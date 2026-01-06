@@ -1,26 +1,32 @@
 import fs from 'node:fs/promises';
-import path from 'node:path';
 import util from 'node:util';
+import path from 'node:path';
 import { analyzeComplexity, lintChunk } from '../analysis.js';
-import { smartChunk } from '../chunking.js';
+import { chunkSegments, detectFrontmatter, discoverSegments, normalizeSegmentsConfig } from '../segments.js';
+import { extractComments, normalizeCommentConfig } from '../comments.js';
 import { buildChunkRelations, buildLanguageContext } from '../language-registry.js';
 import { detectRiskSignals } from '../risk.js';
+import { buildMetaV2 } from '../metadata-v2.js';
 import { inferTypeMetadata } from '../type-inference.js';
 import { getHeadline } from '../headline.js';
 import { getChunkAuthorsFromLines, getGitMetaForFile } from '../git.js';
 import { getFieldWeight } from '../field-weighting.js';
-import { isGo, isJsLike, isSpecialCodeFile } from '../constants.js';
-import { normalizeVec } from '../embedding.js';
+import { isJsLike } from '../constants.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { createLruCache, estimateJsonBytes } from '../../shared/cache.js';
-import { fileExt, toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/files.js';
 import { log, logLine } from '../../shared/progress.js';
 import { getEnvConfig } from '../../shared/env.js';
-import { createFileScanner, isMinifiedName, readFileSample } from './file-scan.js';
-import { readCachedBundle, writeIncrementalBundle } from './incremental.js';
+import { readTextFileWithHash } from '../../shared/encoding.js';
+import { createFileScanner, detectBinary, isMinifiedName, readFileSample } from './file-scan.js';
 import { sha1 } from '../../shared/hash.js';
 import { buildTokenSequence, createTokenizationBuffers, createTokenizationContext, tokenizeChunkText } from './tokenization.js';
-import { resolveEmbeddingBatchSize } from './embedding-batch.js';
+import { applyStructuralMatchesToChunks, assignCommentsToChunks, getStructuralMatchesForChunk } from './file-processor/chunk.js';
+import { attachEmbeddings } from './file-processor/embeddings.js';
+import { loadCachedBundleForFile, writeBundleForFile } from './file-processor/incremental.js';
+import { buildExternalDocs, formatError, mergeFlowMeta } from './file-processor/meta.js';
+import { buildCallIndex, buildFileRelations, stripFileRelations } from './file-processor/relations.js';
+import { resolveExt, resolveFileCaps, truncateByBytes } from './file-processor/read.js';
 
 /**
  * Create a file processor with shared caches.
@@ -35,6 +41,8 @@ export function createFileProcessor(options) {
     dictWords,
     languageOptions,
     postingsConfig,
+    segmentsConfig,
+    commentsConfig,
     allImports,
     contextWin,
     incrementalState,
@@ -42,6 +50,7 @@ export function createFileProcessor(options) {
     getChunkEmbeddings,
     typeInferenceEnabled,
     riskAnalysisEnabled,
+    riskConfig,
     relationsEnabled: relationsEnabledRaw,
     seenFiles,
     gitBlameEnabled,
@@ -59,6 +68,7 @@ export function createFileProcessor(options) {
     fileScan = null,
     skippedFiles = null,
     embeddingEnabled = true,
+    toolInfo = null,
     tokenizationStats = null
   } = options;
   const lintEnabled = lintEnabledRaw !== false;
@@ -77,25 +87,12 @@ export function createFileProcessor(options) {
     dictConfig,
     postingsConfig
   });
+  const normalizedSegmentsConfig = normalizeSegmentsConfig(segmentsConfig);
+  const normalizedCommentsConfig = normalizeCommentConfig(commentsConfig);
   const fileScanner = createFileScanner(fileScan);
   const recordSkip = (filePath, reason, extra = {}) => {
     if (!skippedFiles) return;
     skippedFiles.push({ file: filePath, reason, ...extra });
-  };
-  const pickMinLimit = (...values) => {
-    const candidates = values.filter((value) => Number.isFinite(value) && value > 0);
-    return candidates.length ? Math.min(...candidates) : null;
-  };
-  const resolveFileCaps = (ext, languageId = null) => {
-    const extKey = typeof ext === 'string' ? ext.toLowerCase() : '';
-    const languageKey = typeof languageId === 'string' ? languageId.toLowerCase() : '';
-    const defaultCaps = fileCaps?.default || {};
-    const extCaps = extKey ? fileCaps?.byExt?.[extKey] : null;
-    const langCaps = languageKey ? fileCaps?.byLanguage?.[languageKey] : null;
-    return {
-      maxBytes: pickMinLimit(defaultCaps.maxBytes, extCaps?.maxBytes, langCaps?.maxBytes),
-      maxLines: pickMinLimit(defaultCaps.maxLines, extCaps?.maxLines, langCaps?.maxLines)
-    };
   };
   const getWorkerDictOverride = () => {
     if (!workerPool?.dictConfig || !dictConfig) return null;
@@ -131,226 +128,7 @@ export function createFileProcessor(options) {
     reporter: cacheReporter
   });
 
-  const resolveExt = (absPath) => {
-    const baseName = path.basename(absPath);
-    const rawExt = fileExt(absPath);
-    return rawExt || (isSpecialCodeFile(baseName)
-      ? (baseName.toLowerCase() === 'dockerfile' ? '.dockerfile' : '.makefile')
-      : rawExt);
-  };
 
-  const mergeFlowMeta = (docmeta, flowMeta) => {
-    if (!flowMeta) return docmeta;
-    const output = docmeta && typeof docmeta === 'object' ? docmeta : {};
-    if (controlFlowEnabled && flowMeta.controlFlow && output.controlFlow == null) {
-      output.controlFlow = flowMeta.controlFlow;
-    }
-    if (astDataflowEnabled) {
-      if (flowMeta.dataflow && output.dataflow == null) output.dataflow = flowMeta.dataflow;
-      if (flowMeta.throws && output.throws === undefined) output.throws = flowMeta.throws;
-      if (flowMeta.awaits && output.awaits === undefined) output.awaits = flowMeta.awaits;
-      if (typeof flowMeta.yields === 'boolean' && output.yields === undefined) output.yields = flowMeta.yields;
-      if (typeof flowMeta.returnsValue === 'boolean') {
-        const shouldOverride = output.returnsValue === undefined || (output.returnsValue === false && flowMeta.returnsValue);
-        if (shouldOverride) {
-          output.returnsValue = flowMeta.returnsValue;
-        }
-      }
-    }
-    return output;
-  };
-
-  const buildExternalDocs = (ext, imports) => {
-    const externalDocs = [];
-    if (!imports || !imports.length) return externalDocs;
-    const isPython = ext === '.py';
-    const isNode = isJsLike(ext);
-    const isGoLang = isGo(ext);
-    for (const mod of imports) {
-      if (mod.startsWith('.')) continue;
-      if (isPython) {
-        const base = mod.split('.')[0];
-        if (base) externalDocs.push(`https://pypi.org/project/${base}`);
-      } else if (isNode) {
-        const encoded = mod
-          .split('/')
-          .map((segment) => encodeURIComponent(segment).replace(/%40/g, '@'))
-          .join('/');
-        externalDocs.push(`https://www.npmjs.com/package/${encoded}`);
-      } else if (isGoLang) {
-        externalDocs.push(`https://pkg.go.dev/${mod}`);
-      }
-    }
-    return externalDocs;
-  };
-
-  const buildCallIndex = (relations) => {
-    if (!relations) return null;
-    const callsByCaller = new Map();
-    if (Array.isArray(relations.calls)) {
-      for (const entry of relations.calls) {
-        if (!entry || entry.length < 2) continue;
-        const caller = entry[0];
-        if (!caller) continue;
-        const list = callsByCaller.get(caller) || [];
-        list.push(entry);
-        callsByCaller.set(caller, list);
-      }
-    }
-    const callDetailsByCaller = new Map();
-    if (Array.isArray(relations.callDetails)) {
-      for (const detail of relations.callDetails) {
-        const caller = detail?.caller;
-        if (!caller) continue;
-        const list = callDetailsByCaller.get(caller) || [];
-        list.push(detail);
-        callDetailsByCaller.set(caller, list);
-      }
-    }
-    return { callsByCaller, callDetailsByCaller };
-  };
-
-  const buildFileRelations = (relations) => {
-    if (!relations) return null;
-    return {
-      imports: Array.isArray(relations.imports) ? relations.imports : [],
-      exports: Array.isArray(relations.exports) ? relations.exports : [],
-      usages: Array.isArray(relations.usages) ? relations.usages : [],
-      importLinks: Array.isArray(relations.importLinks) ? relations.importLinks : [],
-      functionMeta: relations.functionMeta && typeof relations.functionMeta === 'object'
-        ? relations.functionMeta
-        : {},
-      classMeta: relations.classMeta && typeof relations.classMeta === 'object'
-        ? relations.classMeta
-        : {}
-    };
-  };
-
-  const normalizeEmptyMessage = (value) => {
-    if (typeof value !== 'string') return value;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    if (trimmed === '{}' || trimmed === '[object Object]') return null;
-    if (/^Error:?\s*\{\}$/i.test(trimmed)) return null;
-    if (/^Error:?\s*\[object Object\]$/i.test(trimmed)) return null;
-    return value;
-  };
-
-  const describeObject = (value) => {
-    if (!value || typeof value !== 'object') return '';
-    const ctor = value.constructor && value.constructor.name
-      ? value.constructor.name
-      : 'Object';
-    const keys = Object.keys(value);
-    if (keys.length) {
-      return `${ctor} keys: ${keys.slice(0, 6).join(', ')}${keys.length > 6 ? '…' : ''}`;
-    }
-    const ownProps = Object.getOwnPropertyNames(value);
-    const ownSymbols = Object.getOwnPropertySymbols(value);
-    const propList = [...ownProps, ...ownSymbols.map((sym) => sym.toString())];
-    if (propList.length) {
-      return `${ctor} props: ${propList.slice(0, 6).join(', ')}${propList.length > 6 ? '…' : ''}`;
-    }
-    return `${ctor} (no enumerable keys)`;
-  };
-
-  const formatError = (err) => {
-    if (!err) return 'unknown error';
-    if (typeof err === 'string') {
-      const normalized = normalizeEmptyMessage(err);
-      return normalized || 'unhelpful error string';
-    }
-    if (err instanceof Error) {
-      const name = err.name || 'Error';
-      const message = normalizeEmptyMessage(err.message) || '';
-      return message ? `${name}: ${message}` : name;
-    }
-    if (typeof err?.message === 'string') {
-      const normalized = normalizeEmptyMessage(err.message);
-      if (normalized) return normalized;
-    }
-    if (Array.isArray(err?.errors) && err.errors.length) {
-      const inner = err.errors
-        .map((innerErr) => formatError(innerErr))
-        .filter(Boolean)
-        .join(' | ');
-      if (inner) return `AggregateError: ${inner}`;
-    }
-    if (typeof err?.code === 'string') return `Error code: ${err.code}`;
-    try {
-      const json = JSON.stringify(err);
-      const normalized = normalizeEmptyMessage(json);
-      if (normalized && normalized !== '[]') return normalized;
-    } catch {
-      // Fall through to util.inspect.
-    }
-    try {
-      const inspected = util.inspect(err, {
-        depth: 3,
-        breakLength: 120,
-        showHidden: true,
-        getters: true
-      });
-      const normalized = normalizeEmptyMessage(inspected);
-      if (normalized) return normalized;
-      const summary = describeObject(err);
-      if (summary) return `unhelpful error object: ${summary}`;
-    } catch {
-      // ignore
-    }
-    const summary = describeObject(err);
-    return summary || String(err);
-  };
-
-  const stripFileRelations = (codeRelations) => {
-    if (!codeRelations || typeof codeRelations !== 'object') return codeRelations;
-    const {
-      imports,
-      exports,
-      usages,
-      importLinks,
-      functionMeta,
-      classMeta,
-      ...rest
-    } = codeRelations;
-    return rest;
-  };
-
-  const getStructuralMatchesForChunk = (matches, startLine, endLine, totalLines) => {
-    if (!matches || !matches.length) return null;
-    const start = Number.isFinite(startLine) ? startLine : 1;
-    const end = Number.isFinite(endLine) ? endLine : start;
-    const fileEnd = Number.isFinite(totalLines) && totalLines > 0 ? totalLines : end;
-    const selected = [];
-    for (const match of matches) {
-      const matchStart = Number.isFinite(match.startLine) ? match.startLine : 1;
-      const matchEnd = Number.isFinite(match.endLine) ? match.endLine : fileEnd;
-      if (matchEnd < start || matchStart > end) continue;
-      selected.push(match);
-    }
-    return selected.length ? selected : null;
-  };
-
-  const applyStructuralMatchesToChunks = (chunks, matches) => {
-    if (!matches || !matches.length || !Array.isArray(chunks)) return chunks;
-    const totalLines = chunks.reduce((max, chunk) => {
-      const endLine = Number(chunk?.endLine) || 0;
-      return endLine > max ? endLine : max;
-    }, 0) || 1;
-    for (const chunk of chunks) {
-      if (!chunk) continue;
-      const structural = getStructuralMatchesForChunk(
-        matches,
-        chunk.startLine,
-        chunk.endLine,
-        totalLines
-      );
-      if (!structural) continue;
-      const docmeta = chunk.docmeta && typeof chunk.docmeta === 'object' ? chunk.docmeta : {};
-      chunk.docmeta = { ...docmeta, structural };
-    }
-    return chunks;
-  };
 
   /**
    * Process a file: read, chunk, analyze, and produce chunk payloads.
@@ -359,8 +137,14 @@ export function createFileProcessor(options) {
    * @returns {Promise<object|null>}
    */
   async function processFile(fileEntry, fileIndex) {
-    const abs = typeof fileEntry === 'string' ? fileEntry : fileEntry.abs;
+    const abs = typeof fileEntry === 'string' ? fileEntry : fileEntry.abs;      
     const fileStart = Date.now();
+    const fileTimings = {
+      parseMs: 0,
+      tokenizeMs: 0,
+      enrichMs: 0,
+      embeddingMs: 0
+    };
     const relKey = typeof fileEntry === 'object' && fileEntry.rel
       ? fileEntry.rel
       : toPosix(path.relative(root, abs));
@@ -371,6 +155,7 @@ export function createFileProcessor(options) {
     if (seenFiles) seenFiles.add(relKey);
     const ext = resolveExt(abs);
     let fileLanguageId = null;
+    let fileLineCount = 0;
     let fileStat;
     try {
       fileStat = typeof fileEntry === 'object' && fileEntry.stat
@@ -379,7 +164,7 @@ export function createFileProcessor(options) {
     } catch {
       return null;
     }
-    const capsByExt = resolveFileCaps(ext);
+    const capsByExt = resolveFileCaps(fileCaps, ext);
     if (capsByExt.maxBytes && fileStat.size > capsByExt.maxBytes) {
       recordSkip(abs, 'oversize', { bytes: fileStat.size, maxBytes: capsByExt.maxBytes });
       return null;
@@ -417,20 +202,20 @@ export function createFileProcessor(options) {
     let cachedBundle = null;
     let text = null;
     let fileHash = null;
-    const cachedResult = await runIo(() => readCachedBundle({
-      enabled: incrementalState.enabled,
+    let fileBuffer = null;
+    const cachedResult = await loadCachedBundleForFile({
+      runIo,
+      incrementalState,
       absPath: abs,
       relKey,
-      fileStat,
-      manifest: incrementalState.manifest,
-      bundleDir: incrementalState.bundleDir
-    }));
+      fileStat
+    });
     cachedBundle = cachedResult.cachedBundle;
-    text = cachedResult.text;
     fileHash = cachedResult.fileHash;
+    fileBuffer = cachedResult.buffer;
 
     if (cachedBundle && Array.isArray(cachedBundle.chunks)) {
-      const cachedCaps = resolveFileCaps(ext);
+      const cachedCaps = resolveFileCaps(fileCaps, ext);
       if (cachedCaps.maxLines) {
         const maxLine = cachedBundle.chunks.reduce((max, chunk) => {
           const endLine = Number(chunk?.endLine) || 0;
@@ -467,10 +252,23 @@ export function createFileProcessor(options) {
         if (updatedChunk.codeRelations) {
           updatedChunk.codeRelations = stripFileRelations(updatedChunk.codeRelations);
         }
+        if (!updatedChunk.metaV2?.chunkId) {
+          updatedChunk.metaV2 = buildMetaV2({
+            chunk: updatedChunk,
+            docmeta: updatedChunk.docmeta,
+            toolInfo
+          });
+        }
         return updatedChunk;
       });
       applyStructuralMatchesToChunks(updatedChunks, fileStructural);
       const fileDurationMs = Date.now() - fileStart;
+      const cachedLanguage = updatedChunks.find((chunk) => chunk?.lang)?.lang
+        || null;
+      const cachedLines = updatedChunks.reduce((max, chunk) => {
+        const endLine = Number(chunk?.endLine) || 0;
+        return endLine > max ? endLine : max;
+      }, 0);
       return {
         abs,
         relKey,
@@ -479,32 +277,68 @@ export function createFileProcessor(options) {
         durationMs: fileDurationMs,
         chunks: updatedChunks,
         manifestEntry,
-        fileRelations
+        fileRelations,
+        fileMetrics: {
+          languageId: fileLanguageId || cachedLanguage || null,
+          bytes: fileStat.size,
+          lines: cachedLines || (Number.isFinite(knownLines) ? knownLines : 0),
+          durationMs: fileDurationMs,
+          parseMs: 0,
+          tokenizeMs: 0,
+          enrichMs: 0,
+          embeddingMs: 0,
+          cached: true
+        }
       };
     }
 
-    if (!text) {
+    if (!fileBuffer) {
       try {
-        text = await runIo(() => fs.readFile(abs, 'utf8'));
-      } catch {
+        fileBuffer = await runIo(() => fs.readFile(abs));
+      } catch (err) {
+        recordSkip(abs, 'read-failure', {
+          code: err?.code || null,
+          message: err?.message || String(err)
+        });
         return null;
       }
     }
-    if (!fileHash) fileHash = await runCpu(() => sha1(text));
+    if (fileBuffer && fileBuffer.length) {
+      const binarySkip = await detectBinary({
+        absPath: abs,
+        buffer: fileBuffer,
+        maxNonTextRatio: fileScanner.binary?.maxNonTextRatio ?? 0.3
+      });
+      if (binarySkip) {
+        const { reason, ...extra } = binarySkip;
+        recordSkip(abs, reason || 'binary', extra);
+        return null;
+      }
+    }
+    if (!text || !fileHash) {
+      const decoded = await readTextFileWithHash(abs, { buffer: fileBuffer });
+      if (!text) text = decoded.text;
+      if (!fileHash) fileHash = decoded.hash;
+    }
 
     const { chunks: fileChunks, fileRelations, skip } = await runCpu(async () => {
+      const languageContextOptions = languageOptions && typeof languageOptions === 'object'
+        ? { ...languageOptions, relationsEnabled }
+        : { relationsEnabled };
       const { lang, context: languageContext } = await buildLanguageContext({
         ext,
         relPath: relKey,
         mode,
         text,
-        options: languageOptions
+        options: languageContextOptions
       });
       fileLanguageId = lang?.id || null;
+      const tokenMode = mode === 'extracted-prose' ? 'prose' : mode;
       const lineIndex = buildLineIndex(text);
       const totalLines = lineIndex.length || 1;
+      fileLineCount = totalLines;
       const fileLines = contextWin > 0 ? text.split('\n') : null;
-      const capsByLanguage = resolveFileCaps(ext, lang?.id);
+      const capsByLanguage = resolveFileCaps(fileCaps, ext, lang?.id);
       if (capsByLanguage.maxLines && totalLines > capsByLanguage.maxLines) {
         return {
           chunks: [],
@@ -535,20 +369,98 @@ export function createFileProcessor(options) {
       const fileGitMeta = gitMeta && typeof gitMeta === 'object'
         ? Object.fromEntries(Object.entries(gitMeta).filter(([key]) => key !== 'lineAuthors'))
         : {};
-      const sc = smartChunk({
+      const commentsEnabled = (mode === 'code' || mode === 'extracted-prose')
+        && normalizedCommentsConfig.extract !== 'off';
+      const parseStart = Date.now();
+      const commentData = commentsEnabled
+        ? extractComments({
+          text,
+          ext,
+          languageId: lang?.id || null,
+          lineIndex,
+          config: normalizedCommentsConfig
+        })
+        : { comments: [], configSegments: [] };
+      const commentEntries = [];
+      const commentSegments = [];
+      if (commentsEnabled && Array.isArray(commentData.comments)) {
+        for (const comment of commentData.comments) {
+          const commentTokens = buildTokenSequence({
+            text: comment.text,
+            mode: 'prose',
+            ext,
+            dictWords,
+            dictConfig
+          }).tokens;
+          if (commentTokens.length < normalizedCommentsConfig.minTokens) continue;
+          const entry = { ...comment, tokens: commentTokens };
+          commentEntries.push(entry);
+          if (comment.type !== 'license' || normalizedCommentsConfig.includeLicense) {
+            commentSegments.push({
+              type: 'comment',
+              languageId: lang?.id || null,
+              start: comment.start,
+              end: comment.end,
+              parentSegmentId: null,
+              embeddingContext: 'prose',
+              meta: {
+                commentType: comment.type,
+                commentStyle: comment.style
+              }
+            });
+          }
+        }
+      }
+      const extraSegments = [];
+      if (commentSegments.length) extraSegments.push(...commentSegments);
+      if (Array.isArray(commentData.configSegments) && commentData.configSegments.length) {
+        extraSegments.push(...commentData.configSegments);
+      }
+      if (mode === 'extracted-prose' && (ext === '.md' || ext === '.mdx')) {
+        const frontmatter = detectFrontmatter(text);
+        if (frontmatter) {
+          extraSegments.push({
+            type: 'prose',
+            languageId: 'markdown',
+            start: frontmatter.start,
+            end: frontmatter.end,
+            parentSegmentId: null,
+            embeddingContext: 'prose',
+            meta: { frontmatter: true }
+          });
+        }
+      }
+      const resolvedSegmentsConfig = mode === 'extracted-prose'
+        ? { ...normalizedSegmentsConfig, onlyExtras: true }
+        : normalizedSegmentsConfig;
+      const segments = discoverSegments({
         text,
         ext,
         relPath: relKey,
         mode,
+        languageId: lang?.id || null,
+        context: languageContext,
+        segmentsConfig: resolvedSegmentsConfig,
+        extraSegments
+      });
+      const sc = chunkSegments({
+        text,
+        ext,
+        relPath: relKey,
+        mode,
+        segments,
+        lineIndex,
         context: {
           ...languageContext,
           yamlChunking: languageOptions?.yamlChunking,
+          chunking: languageOptions?.chunking,
           javascript: languageOptions?.javascript,
           typescript: languageOptions?.typescript,
           treeSitter: languageOptions?.treeSitter,
           log: languageOptions?.log
         }
       });
+      fileTimings.parseMs += Date.now() - parseStart;
       const chunkLineRanges = sc.map((chunk) => {
         const startLine = chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
         const endOffset = chunk.end > chunk.start ? chunk.end - 1 : chunk.start;
@@ -556,11 +468,13 @@ export function createFileProcessor(options) {
         if (endLine < startLine) endLine = startLine;
         return { startLine, endLine };
       });
+      const commentAssignments = assignCommentsToChunks(commentEntries, sc);
       const chunks = [];
       const tokenBuffers = createTokenizationBuffers();
       const codeTexts = embeddingEnabled ? [] : null;
       const docTexts = embeddingEnabled ? [] : null;
-      const useWorkerForTokens = !tokenWorkerDisabled
+      const useWorkerForTokens = tokenMode === 'code'
+        && !tokenWorkerDisabled
         && workerPool
         && workerPool.shouldUseForFile
         ? workerPool.shouldUseForFile(fileStat.size)
@@ -584,6 +498,7 @@ export function createFileProcessor(options) {
 
         let codeRelations = {}, docmeta = {};
         if (mode === 'code') {
+          const relationStart = Date.now();
           docmeta = lang && typeof lang.extractDocMeta === 'function'
             ? lang.extractDocMeta({
               text,
@@ -610,9 +525,11 @@ export function createFileProcessor(options) {
             })
             : null;
           if (flowMeta) {
-            docmeta = mergeFlowMeta(docmeta, flowMeta);
+          docmeta = mergeFlowMeta(docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled });
           }
+          fileTimings.parseMs += Date.now() - relationStart;
           if (typeInferenceEnabled) {
+            const enrichStart = Date.now();
             const inferredTypes = inferTypeMetadata({
               docmeta,
               chunkText: ctext,
@@ -621,12 +538,20 @@ export function createFileProcessor(options) {
             if (inferredTypes) {
               docmeta = { ...docmeta, inferredTypes };
             }
+            fileTimings.enrichMs += Date.now() - enrichStart;
           }
           if (riskAnalysisEnabled) {
-            const risk = detectRiskSignals({ text: ctext });
+            const enrichStart = Date.now();
+            const risk = detectRiskSignals({
+              text: ctext,
+              chunk: c,
+              config: riskConfig,
+              languageId: lang?.id || null
+            });
             if (risk) {
               docmeta = { ...docmeta, risk };
             }
+            fileTimings.enrichMs += Date.now() - enrichStart;
           }
         }
 
@@ -643,13 +568,69 @@ export function createFileProcessor(options) {
           }
         }
 
+        let commentFieldTokens = [];
+        if (commentAssignments.size) {
+          const assigned = commentAssignments.get(ci) || [];
+          if (assigned.length) {
+            const chunkStart = c.start;
+            const sorted = assigned.slice().sort((a, b) => (
+              Math.abs(a.start - chunkStart) - Math.abs(b.start - chunkStart)
+            ));
+            const maxPerChunk = normalizedCommentsConfig.maxPerChunk;
+            const maxBytes = normalizedCommentsConfig.maxBytesPerChunk;
+            let totalBytes = 0;
+            const metaComments = [];
+            for (const comment of sorted) {
+              if (maxPerChunk && metaComments.length >= maxPerChunk) break;
+              const remaining = maxBytes ? Math.max(0, maxBytes - totalBytes) : 0;
+              if (maxBytes && remaining <= 0) break;
+              const clipped = maxBytes ? truncateByBytes(comment.text, remaining) : {
+                text: comment.text,
+                truncated: false,
+                bytes: Buffer.byteLength(comment.text, 'utf8')
+              };
+              if (!clipped.text) continue;
+              totalBytes += clipped.bytes;
+              const includeInTokens = comment.type === 'inline'
+                || comment.type === 'block'
+                || (comment.type === 'license' && normalizedCommentsConfig.includeLicense);
+              if (includeInTokens) {
+                const tokens = buildTokenSequence({
+                  text: clipped.text,
+                  mode: 'prose',
+                  ext,
+                  dictWords,
+                  dictConfig
+                }).tokens;
+                if (tokens.length) commentFieldTokens = commentFieldTokens.concat(tokens);
+              }
+              metaComments.push({
+                type: comment.type,
+                style: comment.style,
+                languageId: comment.languageId || null,
+                start: comment.start,
+                end: comment.end,
+                startLine: comment.startLine,
+                endLine: comment.endLine,
+                text: clipped.text,
+                truncated: clipped.truncated || false,
+                indexed: includeInTokens,
+                anchorChunkId: null
+              });
+            }
+            if (metaComments.length) {
+              docmeta = { ...docmeta, comments: metaComments };
+            }
+          }
+        }
+
         let fieldChargramTokens = null;
         if (tokenContext.chargramSource === 'fields') {
           const fieldText = [c.name, docmeta?.doc].filter(Boolean).join(' ');
           if (fieldText) {
             const fieldSeq = buildTokenSequence({
               text: fieldText,
-              mode,
+              mode: tokenMode,
               ext,
               dictWords,
               dictConfig
@@ -661,13 +642,17 @@ export function createFileProcessor(options) {
         let tokenPayload = null;
         if (useWorkerForTokens) {
           try {
+            const tokenStart = Date.now();
             tokenPayload = await workerPool.runTokenize({
               text: ctext,
-              mode,
+              mode: tokenMode,
               ext,
+              file: relKey,
+              size: fileStat.size,
               chargramTokens: fieldChargramTokens,
               ...(workerDictOverride ? { dictConfig: workerDictOverride } : {})
             });
+            fileTimings.tokenizeMs += Date.now() - tokenStart;
           } catch (err) {
             if (!workerTokenizeFailed) {
               const message = formatError(err);
@@ -682,6 +667,7 @@ export function createFileProcessor(options) {
                 phase: 'worker-tokenize',
                 file: relKey,
                 size: fileStat?.size || null,
+                languageId: fileLanguageId || lang?.id || null,
                 message: formatError(err),
                 stack: err?.stack || null,
                 raw: util.inspect(err, {
@@ -701,14 +687,16 @@ export function createFileProcessor(options) {
           }
         }
         if (!tokenPayload) {
+          const tokenStart = Date.now();
           tokenPayload = tokenizeChunkText({
             text: ctext,
-            mode,
+            mode: tokenMode,
             ext,
             context: tokenContext,
             chargramTokens: fieldChargramTokens,
             buffers: tokenBuffers
           });
+          fileTimings.tokenizeMs += Date.now() - tokenStart;
         }
 
         const {
@@ -735,13 +723,14 @@ export function createFileProcessor(options) {
         const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
         const fieldedEnabled = postingsConfig?.fielded !== false;
         const fieldTokens = fieldedEnabled ? {
-          name: c.name ? buildTokenSequence({ text: c.name, mode, ext, dictWords, dictConfig }).tokens : [],
+          name: c.name ? buildTokenSequence({ text: c.name, mode: tokenMode, ext, dictWords, dictConfig }).tokens : [],
           signature: docmeta?.signature
-            ? buildTokenSequence({ text: docmeta.signature, mode, ext, dictWords, dictConfig }).tokens
+            ? buildTokenSequence({ text: docmeta.signature, mode: tokenMode, ext, dictWords, dictConfig }).tokens
             : [],
           doc: docText
-            ? buildTokenSequence({ text: docText, mode, ext, dictWords, dictConfig }).tokens
+            ? buildTokenSequence({ text: docText, mode: tokenMode, ext, dictWords, dictConfig }).tokens
             : [],
+          comment: commentFieldTokens,
           body: tokens
         } : null;
 
@@ -751,10 +740,12 @@ export function createFileProcessor(options) {
             const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
             let cachedComplexity = complexityCache.get(cacheKey);
             if (!cachedComplexity) {
+              const enrichStart = Date.now();
               const fullCode = text;
-              const compResult = await analyzeComplexity(fullCode, rel);
+              const compResult = await analyzeComplexity(fullCode, rel);        
               complexityCache.set(cacheKey, compResult);
               cachedComplexity = compResult;
+              fileTimings.enrichMs += Date.now() - enrichStart;
             }
             complexity = cachedComplexity || {};
           }
@@ -763,10 +754,12 @@ export function createFileProcessor(options) {
             const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
             let cachedLint = lintCache.get(cacheKey);
             if (!cachedLint) {
+              const enrichStart = Date.now();
               const fullCode = text;
               const lintResult = await lintChunk(fullCode, rel);
               lintCache.set(cacheKey, lintResult);
               cachedLint = lintResult;
+              fileTimings.enrichMs += Date.now() - enrichStart;
             }
             lint = cachedLint || [];
           }
@@ -804,6 +797,8 @@ export function createFileProcessor(options) {
         const chunkPayload = {
           file: relKey,
           ext,
+          lang: fileLanguageId || lang?.id || null,
+          segment: c.segment || null,
           start: c.start,
           end: c.end,
           startLine,
@@ -831,6 +826,11 @@ export function createFileProcessor(options) {
           ...gitMeta,
           externalDocs
         };
+        chunkPayload.metaV2 = buildMetaV2({
+          chunk: chunkPayload,
+          docmeta,
+          toolInfo
+        });
 
         chunks.push(chunkPayload);
         if (embeddingEnabled && codeTexts && docTexts) {
@@ -839,87 +839,19 @@ export function createFileProcessor(options) {
         }
       }
 
-      if (embeddingEnabled) {
-        const embedBatch = async (texts) => {
-          if (!texts.length) return [];
-          if (typeof getChunkEmbeddings === 'function') {
-            return getChunkEmbeddings(texts);
-          }
-          const out = [];
-          for (const text of texts) {
-            out.push(await getChunkEmbedding(text));
-          }
-          return out;
-        };
-
-        const runBatched = async (texts) => {
-          if (!texts.length) return [];
-          const effectiveBatchSize = resolveEmbeddingBatchSize(
-            embeddingBatchSize,
-            fileLanguageId,
-            languageOptions?.embeddingBatchMultipliers
-          );
-          const batchSize = Number.isFinite(effectiveBatchSize) ? effectiveBatchSize : 0;
-          if (!batchSize || texts.length <= batchSize) {
-            return embedBatch(texts);
-          }
-          const out = [];
-          for (let i = 0; i < texts.length; i += batchSize) {
-            const slice = texts.slice(i, i + batchSize);
-            const batch = await embedBatch(slice);
-            out.push(...batch);
-          }
-          return out;
-        };
-
-        let codeVectors = await runEmbedding(() => runBatched(codeTexts || []));
-        if (!Array.isArray(codeVectors) || codeVectors.length !== chunks.length) {
-          codeVectors = await runEmbedding(async () => {
-            const out = [];
-            for (const text of codeTexts || []) {
-              out.push(await getChunkEmbedding(text));
-            }
-            return out;
-          });
-        }
-
-        const docVectors = new Array(chunks.length).fill(null);
-        const docIndexes = [];
-        const docPayloads = [];
-        for (let i = 0; i < (docTexts || []).length; i += 1) {
-          if (docTexts[i]) {
-            docIndexes.push(i);
-            docPayloads.push(docTexts[i]);
-          }
-        }
-        if (docPayloads.length) {
-          const embeddedDocs = await runEmbedding(() => runBatched(docPayloads));
-          for (let i = 0; i < docIndexes.length; i += 1) {
-            docVectors[docIndexes[i]] = embeddedDocs[i] || null;
-          }
-        }
-
-        const dims = Array.isArray(codeVectors[0]) ? codeVectors[0].length : 0;
-        for (let i = 0; i < chunks.length; i += 1) {
-          const chunk = chunks[i];
-          const embedCode = Array.isArray(codeVectors[i]) ? codeVectors[i] : [];
-          const embedDoc = Array.isArray(docVectors[i])
-            ? docVectors[i]
-            : (dims ? Array.from({ length: dims }, () => 0) : []);
-          const merged = embedCode.length
-            ? embedCode.map((v, idx) => (v + (embedDoc[idx] ?? 0)) / 2)
-            : embedDoc;
-          chunk.embed_code = embedCode;
-          chunk.embed_doc = embedDoc;
-          chunk.embedding = normalizeVec(merged);
-        }
-      } else {
-        for (const chunk of chunks) {
-          chunk.embed_code = [];
-          chunk.embed_doc = [];
-          chunk.embedding = [];
-        }
-      }
+      const embeddingResult = await attachEmbeddings({
+        chunks,
+        codeTexts,
+        docTexts,
+        embeddingEnabled,
+        getChunkEmbedding,
+        getChunkEmbeddings,
+        runEmbedding,
+        embeddingBatchSize,
+        fileLanguageId,
+        languageOptions
+      });
+      fileTimings.embeddingMs += embeddingResult.embeddingMs;
 
       return { chunks, fileRelations, skip: null };
     });
@@ -929,17 +861,28 @@ export function createFileProcessor(options) {
       return null;
     }
 
-    const manifestEntry = await runIo(() => writeIncrementalBundle({
-      enabled: incrementalState.enabled,
-      bundleDir: incrementalState.bundleDir,
+    const manifestEntry = await writeBundleForFile({
+      runIo,
+      incrementalState,
       relKey,
       fileStat,
       fileHash,
       fileChunks,
       fileRelations
-    }));
+    });
 
     const fileDurationMs = Date.now() - fileStart;
+    const fileMetrics = {
+      languageId: fileLanguageId || null,
+      bytes: fileStat.size,
+      lines: fileLineCount,
+      durationMs: fileDurationMs,
+      parseMs: fileTimings.parseMs,
+      tokenizeMs: fileTimings.tokenizeMs,
+      enrichMs: fileTimings.enrichMs,
+      embeddingMs: fileTimings.embeddingMs,
+      cached: false
+    };
     return {
       abs,
       relKey,
@@ -948,7 +891,8 @@ export function createFileProcessor(options) {
       durationMs: fileDurationMs,
       chunks: fileChunks,
       fileRelations,
-      manifestEntry
+      manifestEntry,
+      fileMetrics
     };
   }
 

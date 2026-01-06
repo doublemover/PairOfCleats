@@ -6,7 +6,7 @@ import { buildLineIndex } from '../../shared/lines.js';
 import { createLspClient, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { rangeToOffsets } from '../../integrations/tooling/lsp/positions.js';
 import { flattenSymbols } from '../../integrations/tooling/lsp/symbols.js';
-import { createToolingEntry, uniqueTypes } from '../../integrations/tooling/providers/shared.js';
+import { createToolingEntry, createToolingGuard, uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { parseSwiftSignature } from './signature-parse/swift.js';
 
 export const SWIFT_EXTS = ['.swift'];
@@ -88,7 +88,9 @@ export async function collectSourcekitTypes({
   log = () => {},
   cmd = 'sourcekit-lsp',
   args = [],
-  timeoutMs = 15000
+  timeoutMs = 15000,
+  retries = 2,
+  breakerThreshold = 3
 }) {
   const resolvedCmd = resolveCommand(cmd);
   const useShell = shouldUseShell(resolvedCmd);
@@ -101,12 +103,20 @@ export async function collectSourcekitTypes({
   }
 
   const client = createLspClient({ cmd: resolvedCmd, args, cwd: rootDir, log, shell: useShell });
+  const guard = createToolingGuard({
+    name: 'sourcekit-lsp',
+    timeoutMs,
+    retries,
+    breakerThreshold,
+    log
+  });
   const rootUri = pathToFileUri(rootDir);
   try {
-    await client.initialize({
+    await guard.run(({ timeoutMs: guardTimeout }) => client.initialize({
       rootUri,
-      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } }
-    });
+      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+      timeoutMs: guardTimeout
+    }), { label: 'initialize' });
   } catch (err) {
     log(`[index] sourcekit-lsp initialize failed: ${err?.message || err}`);
     client.kill();
@@ -135,10 +145,18 @@ export async function collectSourcekitTypes({
 
     let symbols = null;
     try {
-      symbols = await client.request('textDocument/documentSymbol', { textDocument: { uri } }, { timeoutMs });
+      symbols = await guard.run(
+        ({ timeoutMs: guardTimeout }) => client.request(
+          'textDocument/documentSymbol',
+          { textDocument: { uri } },
+          { timeoutMs: guardTimeout }
+        ),
+        { label: 'documentSymbol' }
+      );
     } catch (err) {
       log(`[index] sourcekit-lsp documentSymbol failed (${file}): ${err?.message || err}`);
       client.notify('textDocument/didClose', { textDocument: { uri } });
+      if (guard.isOpen()) break;
       continue;
     }
 
@@ -158,10 +176,13 @@ export async function collectSourcekitTypes({
       let info = parseSwiftSignature(symbol.detail);
       if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) {
         try {
-          const hover = await client.request('textDocument/hover', {
-            textDocument: { uri },
-            position: symbol.selectionRange?.start || symbol.range?.start
-          }, { timeoutMs: 8000 });
+          const hover = await guard.run(
+            ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
+              textDocument: { uri },
+              position: symbol.selectionRange?.start || symbol.range?.start
+            }, { timeoutMs: guardTimeout }),
+            { label: 'hover', timeoutOverride: 8000 }
+          );
           const hoverText = normalizeHoverContents(hover?.contents);
           const hoverInfo = parseSwiftSignature(hoverText);
           if (hoverInfo) info = hoverInfo;

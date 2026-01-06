@@ -34,6 +34,13 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const scripts = pkg.scripts || {};
 const scriptNames = Object.keys(scripts);
 const coverage = new Map(scriptNames.map((name) => [name, { status: 'pending', via: null, reason: null }]));
+const tierBRequired = new Set(
+  ['build-index', 'build-sqlite-index', 'build-lmdb-index', 'compact-sqlite-index']
+    .filter((name) => coverage.has(name))
+);
+const tierBCoverage = new Map(
+  Array.from(tierBRequired, (name) => [name, { status: 'pending', via: null, reason: null }])
+);
 
 if (coverage.has('script-coverage-test')) {
   coverage.set('script-coverage-test', { status: 'covered', via: 'self', reason: null });
@@ -71,6 +78,14 @@ function markSkipped(name, reason) {
   coverage.set(name, { status: 'skipped', via: null, reason });
 }
 
+function markTierBCovered(name, via) {
+  if (!tierBCoverage.has(name)) return;
+  const entry = tierBCoverage.get(name);
+  if (entry.status === 'pending') {
+    tierBCoverage.set(name, { status: 'covered', via, reason: null });
+  }
+}
+
 const sanitizeLabel = (label) => label.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 120);
 
 function writeFailureLog(label, attempt, cmd, args, options, result) {
@@ -96,15 +111,29 @@ function writeFailureLog(label, attempt, cmd, args, options, result) {
 
 function run(label, cmd, args, options = {}) {
   const maxAttempts = retries + 1;
+  const normalizeOutput = (value) => {
+    if (!value) return '';
+    let text = String(value);
+    text = text.replace(/\r\n/g, '\n');
+    text = text.replace(/\n{3,}/g, '\n\n');
+    text = text.replace(/^\n+/, '\n');
+    return text;
+  };
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const { env: optionEnv, ...spawnOptions } = options;
+    const env = { ...process.env, ...optionEnv };
+    if (!env.PAIROFCLEATS_TEST_LOG_DIR) {
+      env.PAIROFCLEATS_TEST_LOG_DIR = failureLogRoot;
+    }
     const result = spawnSync(cmd, args, {
       encoding: 'utf8',
       maxBuffer: 50 * 1024 * 1024,
       stdio: 'pipe',
-      ...options
+      env,
+      ...spawnOptions
     });
-    if (result.stdout) process.stdout.write(result.stdout);
-    if (result.stderr) process.stderr.write(result.stderr);
+    if (result.stdout) process.stdout.write(normalizeOutput(result.stdout));
+    if (result.stderr) process.stderr.write(normalizeOutput(result.stderr));
     if (result.status === 0) return;
     const logPath = writeFailureLog(label, attempt, cmd, args, options, result);
     console.error(`Failed: ${label} (attempt ${attempt}/${maxAttempts}). Log: ${logPath}`);
@@ -133,6 +162,11 @@ const actions = [
     covers: ['download-extensions', 'verify-extensions', 'download-extensions-test']
   },
   {
+    label: 'vector-extension-sanitize-test',
+    run: () => runNode('vector-extension-sanitize-test', path.join(root, 'tests', 'vector-extension-sanitize.js')),
+    covers: ['vector-extension-sanitize-test']
+  },
+  {
     label: 'tooling-detect-test',
     run: () => runNode('tooling-detect-test', path.join(root, 'tests', 'tooling-detect.js')),
     covers: ['tooling-detect', 'tooling-detect-test']
@@ -158,6 +192,16 @@ const actions = [
     covers: ['sqlite-incremental-test']
   },
   {
+    label: 'sqlite-bundle-missing-test',
+    run: () => runNode('sqlite-bundle-missing-test', path.join(root, 'tests', 'sqlite-bundle-missing.js')),
+    covers: ['sqlite-bundle-missing-test']
+  },
+  {
+    label: 'sqlite-index-state-fail-closed-test',
+    run: () => runNode('sqlite-index-state-fail-closed-test', path.join(root, 'tests', 'sqlite-index-state-fail-closed.js')),
+    covers: ['sqlite-index-state-fail-closed-test']
+  },
+  {
     label: 'artifact-size-guardrails-test',
     run: () => runNode('artifact-size-guardrails-test', path.join(root, 'tests', 'artifact-size-guardrails.js')),
     covers: ['artifact-size-guardrails-test']
@@ -175,12 +219,33 @@ const actions = [
   {
     label: 'sqlite-compact-test',
     run: () => runNode('sqlite-compact-test', path.join(root, 'tests', 'sqlite-compact.js')),
-    covers: ['sqlite-compact-test', 'compact-sqlite-index']
+    covers: ['sqlite-compact-test', 'compact-sqlite-index'],
+    coversTierB: ['compact-sqlite-index']
+  },
+  {
+    label: 'sqlite-sidecar-cleanup-test',
+    run: () => runNode('sqlite-sidecar-cleanup-test', path.join(root, 'tests', 'sqlite-sidecar-cleanup.js')),
+    covers: ['sqlite-sidecar-cleanup-test']
   },
   {
     label: 'sqlite-ann-extension-test',
     run: () => runNode('sqlite-ann-extension-test', path.join(root, 'tests', 'sqlite-ann-extension.js')),
     covers: ['sqlite-ann-extension-test']
+  },
+  {
+    label: 'sqlite-vec-candidate-set-test',
+    run: () => runNode('sqlite-vec-candidate-set-test', path.join(root, 'tests', 'sqlite-vec-candidate-set.js')),
+    covers: ['sqlite-vec-candidate-set-test']
+  },
+  {
+    label: 'hnsw-ann-test',
+    run: () => runNode('hnsw-ann-test', path.join(root, 'tests', 'hnsw-ann.js')),
+    covers: ['hnsw-ann-test']
+  },
+  {
+    label: 'hnsw-atomic-test',
+    run: () => runNode('hnsw-atomic-test', path.join(root, 'tests', 'hnsw-atomic.js')),
+    covers: ['hnsw-atomic-test']
   },
   {
     label: 'minhash-parity-test',
@@ -191,6 +256,26 @@ const actions = [
     label: 'language-fidelity-test',
     run: () => runNode('language-fidelity-test', path.join(root, 'tests', 'language-fidelity.js')),
     covers: ['language-fidelity-test']
+  },
+  {
+    label: 'metadata-v2-test',
+    run: () => runNode('metadata-v2-test', path.join(root, 'tests', 'metadata-v2.js')),
+    covers: ['metadata-v2-test']
+  },
+  {
+    label: 'chunking-limits-test',
+    run: () => runNode('chunking-limits-test', path.join(root, 'tests', 'chunking-limits.js')),
+    covers: ['chunking-limits-test']
+  },
+  {
+    label: 'graph-chunk-id-test',
+    run: () => runNode('graph-chunk-id-test', path.join(root, 'tests', 'graph-chunk-id.js')),
+    covers: ['graph-chunk-id-test']
+  },
+  {
+    label: 'sqlite-chunk-id-test',
+    run: () => runNode('sqlite-chunk-id-test', path.join(root, 'tests', 'sqlite-chunk-id.js')),
+    covers: ['sqlite-chunk-id-test']
   },
   {
     label: 'kotlin-perf-guard-test',
@@ -206,6 +291,16 @@ const actions = [
     label: 'type-inference-crossfile-go',
     run: () => runNode('type-inference-crossfile-go', path.join(root, 'tests', 'type-inference-crossfile-go.js')),
     covers: []
+  },
+  {
+    label: 'type-inference-crossfile-test',
+    run: () => runNode('type-inference-crossfile-test', path.join(root, 'tests', 'type-inference-crossfile.js')),
+    covers: ['type-inference-crossfile-test']
+  },
+  {
+    label: 'type-inference-lsp-enrichment-test',
+    run: () => runNode('type-inference-lsp-enrichment-test', path.join(root, 'tests', 'type-inference-lsp-enrichment.js')),
+    covers: ['type-inference-lsp-enrichment-test']
   },
   {
     label: 'type-inference-typescript-provider-no-ts',
@@ -238,9 +333,19 @@ const actions = [
     covers: []
   },
   {
+    label: 'segment-pipeline-test',
+    run: () => runNode('segment-pipeline-test', path.join(root, 'tests', 'segment-pipeline.js')),
+    covers: []
+  },
+  {
     label: 'prose-skip-imports-test',
     run: () => runNode('prose-skip-imports-test', path.join(root, 'tests', 'prose-skip-imports.js')),
     covers: ['prose-skip-imports-test']
+  },
+  {
+    label: 'extracted-prose-test',
+    run: () => runNode('extracted-prose-test', path.join(root, 'tests', 'extracted-prose.js')),
+    covers: []
   },
   {
     label: 'tokenize-dictionary-test',
@@ -268,6 +373,11 @@ const actions = [
     covers: []
   },
   {
+    label: 'lsp-shutdown-test',
+    run: () => runNode('lsp-shutdown-test', path.join(root, 'tests', 'lsp-shutdown.js')),
+    covers: ['lsp-shutdown-test']
+  },
+  {
     label: 'bench-language-repos-test',
     run: () => runNode('bench-language-repos-test', path.join(root, 'tests', 'bench-language-repos.js')),
     covers: ['bench-language-test']
@@ -283,11 +393,6 @@ const actions = [
     covers: ['summary-report-test', 'summary-report']
   },
   {
-    label: 'docs-consistency-test',
-    run: () => runNode('docs-consistency-test', path.join(root, 'tests', 'docs-consistency.js')),
-    covers: ['docs-consistency-test']
-  },
-  {
     label: 'repometrics-dashboard-test',
     run: () => runNode('repometrics-dashboard-test', path.join(root, 'tests', 'repometrics-dashboard.js')),
     covers: ['repometrics-dashboard-test', 'repometrics-dashboard']
@@ -298,6 +403,11 @@ const actions = [
     covers: ['index-validate-test', 'index-validate']
   },
   {
+    label: 'embeddings-validate-test',
+    run: () => runNode('embeddings-validate-test', path.join(root, 'tests', 'embeddings-validate.js')),
+    covers: ['embeddings-validate-test']
+  },
+  {
     label: 'triage-test',
     run: () => runNode('triage-test', path.join(root, 'tests', 'triage-records.js')),
     covers: ['triage-test']
@@ -306,6 +416,16 @@ const actions = [
     label: 'mcp-server-test',
     run: () => runNode('mcp-server-test', path.join(root, 'tests', 'mcp-server.js')),
     covers: ['mcp-server-test', 'mcp-server']
+  },
+  {
+    label: 'mcp-schema-test',
+    run: () => runNode('mcp-schema-test', path.join(root, 'tests', 'mcp-schema.js')),
+    covers: ['mcp-schema-test']
+  },
+  {
+    label: 'mcp-robustness-test',
+    run: () => runNode('mcp-robustness-test', path.join(root, 'tests', 'mcp-robustness.js')),
+    covers: ['mcp-robustness-test']
   },
   {
     label: 'api-server-test',
@@ -393,6 +513,11 @@ const actions = [
     covers: ['sqlite-auto-backend-test']
   },
   {
+    label: 'sqlite-missing-dep-test',
+    run: () => runNode('sqlite-missing-dep-test', path.join(root, 'tests', 'sqlite-missing-dep.js')),
+    covers: ['sqlite-missing-dep-test']
+  },
+  {
     label: 'search-explain-test',
     run: () => runNode('search-explain-test', path.join(root, 'tests', 'search-explain.js')),
     covers: ['search-explain-test']
@@ -401,6 +526,36 @@ const actions = [
     label: 'search-rrf-test',
     run: () => runNode('search-rrf-test', path.join(root, 'tests', 'search-rrf.js')),
     covers: ['search-rrf-test']
+  },
+  {
+    label: 'artifact-bak-recovery-test',
+    run: () => runNode('artifact-bak-recovery-test', path.join(root, 'tests', 'artifact-bak-recovery.js')),
+    covers: ['artifact-bak-recovery-test']
+  },
+  {
+    label: 'encoding-hash-test',
+    run: () => runNode('encoding-hash-test', path.join(root, 'tests', 'encoding-hash.js')),
+    covers: ['encoding-hash-test']
+  },
+  {
+    label: 'embeddings-cache-identity-test',
+    run: () => runNode('embeddings-cache-identity-test', path.join(root, 'tests', 'embeddings-cache-identity.js')),
+    covers: ['embeddings-cache-identity-test']
+  },
+  {
+    label: 'embeddings-dims-mismatch-test',
+    run: () => runNode('embeddings-dims-mismatch-test', path.join(root, 'tests', 'embeddings-dims-mismatch.js')),
+    covers: ['embeddings-dims-mismatch-test']
+  },
+  {
+    label: 'search-topn-filters-test',
+    run: () => runNode('search-topn-filters-test', path.join(root, 'tests', 'search-topn-filters.js')),
+    covers: ['search-topn-filters-test']
+  },
+  {
+    label: 'search-determinism-test',
+    run: () => runNode('search-determinism-test', path.join(root, 'tests', 'search-determinism.js')),
+    covers: ['search-determinism-test']
   },
   {
     label: 'filter-index-artifact-test',
@@ -443,6 +598,26 @@ const actions = [
     covers: ['search-help-test']
   },
   {
+    label: 'search-removed-flags-test',
+    run: () => runNode('search-removed-flags-test', path.join(root, 'tests', 'search-removed-flags.js')),
+    covers: []
+  },
+  {
+    label: 'search-missing-flag-values-test',
+    run: () => runNode('search-missing-flag-values-test', path.join(root, 'tests', 'search-missing-flag-values.js')),
+    covers: []
+  },
+  {
+    label: 'search-windows-path-filter-test',
+    run: () => runNode('search-windows-path-filter-test', path.join(root, 'tests', 'search-windows-path-filter.js')),
+    covers: []
+  },
+  {
+    label: 'search-explain-symbol-test',
+    run: () => runNode('search-explain-symbol-test', path.join(root, 'tests', 'search-explain-symbol.js')),
+    covers: []
+  },
+  {
     label: 'unicode-offset-test',
     run: () => runNode('unicode-offset-test', path.join(root, 'tests', 'unicode-offset.js')),
     covers: []
@@ -450,6 +625,11 @@ const actions = [
   {
     label: 'repo-root-test',
     run: () => runNode('repo-root-test', path.join(root, 'tests', 'repo-root.js')),
+    covers: []
+  },
+  {
+    label: 'tool-root-test',
+    run: () => runNode('tool-root-test', path.join(root, 'tests', 'tool-root.js')),
     covers: []
   },
   {
@@ -465,6 +645,16 @@ const actions = [
   {
     label: 'skip-minified-binary-test',
     run: () => runNode('skip-minified-binary-test', path.join(root, 'tests', 'skip-minified-binary.js')),
+    covers: []
+  },
+  {
+    label: 'read-failure-skip-test',
+    run: () => runNode('read-failure-skip-test', path.join(root, 'tests', 'read-failure-skip.js')),
+    covers: []
+  },
+  {
+    label: 'encoding-fallback-test',
+    run: () => runNode('encoding-fallback-test', path.join(root, 'tests', 'encoding-fallback.js')),
     covers: []
   },
   {
@@ -558,6 +748,12 @@ const actions = [
     covers: []
   },
   {
+    label: 'lmdb-backend-test',
+    run: () => runNode('lmdb-backend-test', path.join(root, 'tests', 'lmdb-backend.js')),
+    covers: ['build-lmdb-index', 'lmdb-backend-test'],
+    coversTierB: ['build-lmdb-index']
+  },
+  {
     label: 'two-stage-state-test',
     run: () => runNode('two-stage-state-test', path.join(root, 'tests', 'two-stage-state.js')),
     covers: []
@@ -585,7 +781,13 @@ const actions = [
   {
     label: 'fixture-smoke',
     run: () => runNode('fixture-smoke', path.join(root, 'tests', 'fixture-smoke.js')),
-    covers: ['fixture-smoke', 'build-index', 'build-sqlite-index', 'search']
+    covers: ['fixture-smoke', 'build-index', 'build-sqlite-index', 'search'],
+    coversTierB: ['build-index', 'build-sqlite-index']
+  },
+  {
+    label: 'fixture-parity',
+    run: () => runNode('fixture-parity', path.join(root, 'tests', 'fixture-parity.js'), ['--fixtures', 'sample']),
+    covers: ['fixture-parity']
   },
   {
     label: 'fixture-empty',
@@ -648,9 +850,19 @@ const actions = [
     covers: ['worker-pool-test']
   },
   {
+    label: 'worker-pool-windows-test',
+    run: () => runNode('worker-pool-windows-test', path.join(root, 'tests', 'worker-pool-windows.js')),
+    covers: ['worker-pool-windows-test']
+  },
+  {
     label: 'repo-build-index',
     run: () => runNode('build-index', path.join(root, 'build_index.js'), ['--stub-embeddings', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['build-index']
+  },
+  {
+    label: 'build-index-all-test',
+    run: () => runNode('build-index-all-test', path.join(root, 'tests', 'build-index-all.js')),
+    covers: ['build-index-all-test']
   },
   {
     label: 'repo-build-sqlite-index',
@@ -733,6 +945,11 @@ const actions = [
     covers: ['setup', 'setup-test']
   },
   {
+    label: 'setup-index-detection-test',
+    run: () => runNode('setup-index-detection-test', path.join(root, 'tests', 'setup-index-detection.js')),
+    covers: ['setup-index-detection-test']
+  },
+  {
     label: 'config-validate-test',
     run: () => runNode('config-validate-test', path.join(root, 'tests', 'config-validate.js')),
     covers: ['config-validate', 'config-validate-test']
@@ -743,19 +960,9 @@ const actions = [
     covers: ['config-dump-test']
   },
   {
-    label: 'config-deprecations-test',
-    run: () => runNode('config-deprecations-test', path.join(root, 'tests', 'config-deprecations.js')),
-    covers: ['config-deprecations-test']
-  },
-  {
     label: 'profile-config-test',
     run: () => runNode('profile-config-test', path.join(root, 'tests', 'profile-config.js')),
     covers: ['profile-config-test']
-  },
-  {
-    label: 'bench-profile-test',
-    run: () => runNode('bench-profile-test', path.join(root, 'tests', 'bench-profile.js')),
-    covers: ['bench-profile-test']
   },
   {
     label: 'backend-policy-test',
@@ -808,6 +1015,11 @@ for (const action of actions) {
   for (const name of action.covers) {
     markCovered(name, action.label);
   }
+  if (Array.isArray(action.coversTierB)) {
+    for (const name of action.coversTierB) {
+      markTierBCovered(name, action.label);
+    }
+  }
 }
 
 markSkipped('download-models', 'requires network model download');
@@ -817,10 +1029,13 @@ markSkipped('bench-dict-seg', 'benchmarks are long-running');
 markSkipped('bench-score-strategy', 'benchmarks are long-running');
 markSkipped('bench-micro', 'benchmarks are long-running');
 markSkipped('compare-models', 'benchmark/perf evaluation');
-markSkipped('type-inference-crossfile-test', 'temporarily gated (hangs in script-coverage)');
-markSkipped('type-inference-lsp-enrichment-test', 'temporarily gated (ERR_STREAM_DESTROYED)');
-markSkipped('fixture-parity', 'temporarily gated (flaky build-index crash in languages fixture)');
 markSkipped('bench-language', 'benchmarks are long-running');
+markSkipped('smoke:section1', 'smoke lanes are run manually');
+markSkipped('smoke:retrieval', 'smoke lanes are run manually');
+markSkipped('smoke:services', 'smoke lanes are run manually');
+markSkipped('smoke:workers', 'smoke lanes are run manually');
+markSkipped('smoke:embeddings', 'smoke lanes are run manually');
+markSkipped('smoke:sqlite', 'smoke lanes are run manually');
 markSkipped('watch-index', 'watch mode runs until interrupted');
 markSkipped('format', 'modifies working tree');
 markSkipped('lint', 'requires npm install and project lint config');
@@ -886,12 +1101,25 @@ for (const [name, entry] of coverage.entries()) {
   if (entry.status === 'covered') covered.push({ name, via: entry.via });
 }
 
-if (missing.length) {
-  console.error(`Missing coverage for: ${missing.join(', ')}`);
+const missingTierB = [];
+const coveredTierB = [];
+for (const [name, entry] of tierBCoverage.entries()) {
+  if (entry.status === 'pending') missingTierB.push(name);
+  if (entry.status === 'covered') coveredTierB.push({ name, via: entry.via });
+}
+
+if (missing.length || missingTierB.length) {
+  if (missing.length) {
+    console.error(`Missing coverage for: ${missing.join(', ')}`);
+  }
+  if (missingTierB.length) {
+    console.error(`Missing Tier B coverage for: ${missingTierB.join(', ')}`);
+  }
   process.exit(1);
 }
 
 console.log(`script coverage: ${covered.length} covered, ${skipped.length} skipped`);
+console.log(`tier B coverage: ${coveredTierB.length} covered, ${missingTierB.length} missing`);
 if (skipped.length) {
   for (const entry of skipped) {
     console.log(`- skipped ${entry.name}: ${entry.reason}`);

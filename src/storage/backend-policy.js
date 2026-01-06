@@ -3,6 +3,8 @@ export function resolveBackendPolicy({
   sqliteScoreModeConfig = false,
   sqliteConfigured = true,
   sqliteAvailable = false,
+  lmdbConfigured = true,
+  lmdbAvailable = false,
   sqliteAutoChunkThreshold = 0,
   sqliteAutoArtifactBytes = 0,
   needsSqlite = true,
@@ -15,10 +17,12 @@ export function resolveBackendPolicy({
     || normalized === 'fts'
     || (backendAuto && sqliteScoreModeConfig === true);
   const backendForcedSqlite = normalized === 'sqlite' || sqliteFtsRequested;
+  const backendForcedLmdb = normalized === 'lmdb';
   const backendForcedMemory = normalized === 'memory';
   const backendDisabled = normalized
     && !backendAuto
     && !backendForcedSqlite
+    && !backendForcedLmdb
     && !backendForcedMemory;
 
   const counts = Array.isArray(chunkCounts)
@@ -37,15 +41,19 @@ export function resolveBackendPolicy({
     sqliteAutoChunkThreshold,
     sqliteAutoArtifactBytes,
     maxChunkCount,
-    totalArtifactBytes
+    totalArtifactBytes,
+    lmdbAvailable,
+    lmdbConfigured
   };
 
   if (backendDisabled) {
     return {
       useSqlite: false,
+      useLmdb: false,
       backendLabel: 'memory',
       sqliteFtsRequested: false,
       backendForcedSqlite: false,
+      backendForcedLmdb: false,
       backendForcedMemory: false,
       backendDisabled: true,
       reason: 'unknown backend requested',
@@ -56,9 +64,11 @@ export function resolveBackendPolicy({
   if (!needsSqlite) {
     return {
       useSqlite: false,
+      useLmdb: false,
       backendLabel: 'memory',
       sqliteFtsRequested: false,
       backendForcedSqlite: false,
+      backendForcedLmdb,
       backendForcedMemory,
       backendDisabled: false,
       reason: 'no sqlite needed for selected mode',
@@ -66,12 +76,45 @@ export function resolveBackendPolicy({
     };
   }
 
+  if (backendForcedLmdb && !lmdbAvailable) {
+    return {
+      useSqlite: false,
+      useLmdb: false,
+      backendLabel: 'lmdb',
+      sqliteFtsRequested: false,
+      backendForcedSqlite: false,
+      backendForcedLmdb,
+      backendForcedMemory,
+      backendDisabled: false,
+      reason: 'lmdb indexes missing',
+      error: 'LMDB backend requested but index not found',
+      policy
+    };
+  }
+
+  if (backendForcedLmdb) {
+    return {
+      useSqlite: false,
+      useLmdb: true,
+      backendLabel: 'lmdb',
+      sqliteFtsRequested: false,
+      backendForcedSqlite: false,
+      backendForcedLmdb,
+      backendForcedMemory,
+      backendDisabled: false,
+      reason: 'lmdb backend forced by flag',
+      policy
+    };
+  }
+
   if (backendForcedSqlite && !sqliteAvailable) {
     return {
       useSqlite: false,
+      useLmdb: false,
       backendLabel: sqliteFtsRequested ? 'sqlite-fts' : 'sqlite',
       sqliteFtsRequested,
       backendForcedSqlite,
+      backendForcedLmdb,
       backendForcedMemory,
       backendDisabled: false,
       reason: 'sqlite indexes missing',
@@ -83,9 +126,11 @@ export function resolveBackendPolicy({
   if (backendForcedSqlite) {
     return {
       useSqlite: true,
+      useLmdb: false,
       backendLabel: sqliteFtsRequested ? 'sqlite-fts' : 'sqlite',
       sqliteFtsRequested,
       backendForcedSqlite,
+      backendForcedLmdb,
       backendForcedMemory,
       backendDisabled: false,
       reason: 'sqlite backend forced by flag',
@@ -96,9 +141,11 @@ export function resolveBackendPolicy({
   if (backendForcedMemory) {
     return {
       useSqlite: false,
+      useLmdb: false,
       backendLabel: 'memory',
       sqliteFtsRequested: false,
       backendForcedSqlite: false,
+      backendForcedLmdb,
       backendForcedMemory: true,
       backendDisabled: false,
       reason: 'memory backend forced by flag',
@@ -107,11 +154,27 @@ export function resolveBackendPolicy({
   }
 
   if (!sqliteConfigured || !sqliteAvailable) {
+    if (lmdbConfigured && lmdbAvailable) {
+      return {
+        useSqlite: false,
+        useLmdb: true,
+        backendLabel: 'lmdb',
+        sqliteFtsRequested: false,
+        backendForcedSqlite: false,
+        backendForcedLmdb: false,
+        backendForcedMemory: false,
+        backendDisabled: false,
+        reason: sqliteConfigured ? 'sqlite indexes unavailable; using lmdb' : 'sqlite disabled; using lmdb',
+        policy
+      };
+    }
     return {
       useSqlite: false,
+      useLmdb: false,
       backendLabel: 'memory',
       sqliteFtsRequested: false,
       backendForcedSqlite: false,
+      backendForcedLmdb,
       backendForcedMemory: false,
       backendDisabled: false,
       reason: sqliteConfigured ? 'sqlite indexes unavailable' : 'sqlite disabled',
@@ -142,9 +205,11 @@ export function resolveBackendPolicy({
 
   return {
     useSqlite: autoUseSqlite,
+    useLmdb: false,
     backendLabel: autoUseSqlite ? (sqliteFtsRequested ? 'sqlite-fts' : 'sqlite') : 'memory',
     sqliteFtsRequested,
     backendForcedSqlite: false,
+    backendForcedLmdb: false,
     backendForcedMemory: false,
     backendDisabled: false,
     reason: autoReason,

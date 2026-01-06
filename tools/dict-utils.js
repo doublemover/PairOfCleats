@@ -8,11 +8,13 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../src/shared/cache.js';
 import { isPlainObject, mergeConfig } from '../src/shared/config.js';
 import { getEnvConfig } from '../src/shared/env.js';
+import { stableStringify } from '../src/shared/stable-json.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROFILES_DIR = path.resolve(__dirname, '..', 'profiles');
+const TOOL_ROOT = path.resolve(__dirname, '..');
+const PROFILES_DIR = path.resolve(TOOL_ROOT, 'profiles');
 const profileWarnings = new Set();
-const deprecationWarnings = new Set();
+let toolVersionCache = null;
 const DEFAULT_DP_MAX_BY_FILE_COUNT = [
   { maxFiles: 5000, dpMaxTokenLength: 32 },
   { maxFiles: 20000, dpMaxTokenLength: 24 },
@@ -47,80 +49,58 @@ export function loadUserConfig(repoRoot, options = {}) {
   try {
     const configPath = path.join(repoRoot, '.pairofcleats.json');
     if (!fs.existsSync(configPath)) {
-      return normalizeUserConfig(applyProfileConfig({}, options.profile), repoRoot);
+      return normalizeUserConfig(applyProfileConfig({}, options.profile));
     }
     const base = JSON.parse(fs.readFileSync(configPath, 'utf8')) || {};
-    return normalizeUserConfig(applyProfileConfig(base, options.profile), repoRoot);
+    return normalizeUserConfig(applyProfileConfig(base, options.profile));
   } catch {
     return {};
   }
 }
 
-
-function warnDeprecatedConfig(key, replacement, detail = '') {
-  const note = replacement ? `Use ${replacement} instead.` : 'Remove this key.';
-  const message = `[config] Deprecated ${key}. ${note}${detail ? ` ${detail}` : ''}`;
-  if (deprecationWarnings.has(message)) return;
-  deprecationWarnings.add(message);
-  console.error(message);
+/**
+ * Resolve the installation root for PairOfCleats tooling.
+ * @returns {string}
+ */
+export function resolveToolRoot() {
+  return TOOL_ROOT;
 }
 
-function normalizeUserConfig(baseConfig, repoRoot) {
+/**
+ * Resolve the current tool version from package.json.
+ * @returns {string|null}
+ */
+export function getToolVersion() {
+  if (toolVersionCache !== null) return toolVersionCache;
+  try {
+    const pkgPath = path.join(TOOL_ROOT, 'package.json');
+    const parsed = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    toolVersionCache = typeof parsed?.version === 'string' ? parsed.version : null;
+  } catch {
+    toolVersionCache = null;
+  }
+  return toolVersionCache;
+}
+
+/**
+ * Compute a stable hash of the effective config inputs for a repo.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @returns {string}
+ */
+export function getEffectiveConfigHash(repoRoot, userConfig = null) {
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  const env = getEnvConfig();
+  const payload = { config: cfg, env };
+  const json = stableStringify(payload);
+  return crypto.createHash('sha1').update(json).digest('hex');
+}
+
+
+function normalizeUserConfig(baseConfig) {
   if (!isPlainObject(baseConfig)) return baseConfig || {};
 
-  const cfg = baseConfig;
-  const sqlite = isPlainObject(cfg.sqlite) ? cfg.sqlite : null;
-  if (sqlite?.dbPath) {
-    warnDeprecatedConfig('sqlite.dbPath', 'sqlite.dbDir or sqlite.codeDbPath/sqlite.proseDbPath', 'Single DB paths are legacy.');
-    if (!sqlite.dbDir && !sqlite.codeDbPath && !sqlite.proseDbPath) {
-      const resolved = path.isAbsolute(sqlite.dbPath)
-        ? sqlite.dbPath
-        : path.join(repoRoot, sqlite.dbPath);
-      sqlite.dbDir = path.dirname(resolved);
-    }
-  }
-  if (sqlite?.annMode) {
-    warnDeprecatedConfig('sqlite.annMode', 'sqlite.vectorExtension.annMode');
-    if (!sqlite.vectorExtension || !isPlainObject(sqlite.vectorExtension)) {
-      sqlite.vectorExtension = {};
-    }
-    if (!sqlite.vectorExtension.annMode) {
-      sqlite.vectorExtension.annMode = sqlite.annMode;
-    }
-  }
-
-  const indexing = isPlainObject(cfg.indexing) ? cfg.indexing : null;
-  const fileCaps = indexing && isPlainObject(indexing.fileCaps) ? indexing.fileCaps : null;
-  if (fileCaps?.defaults && !fileCaps.default) {
-    warnDeprecatedConfig('indexing.fileCaps.defaults', 'indexing.fileCaps.default');
-    fileCaps.default = fileCaps.defaults;
-  }
-  if (fileCaps?.byExtension && !fileCaps.byExt) {
-    warnDeprecatedConfig('indexing.fileCaps.byExtension', 'indexing.fileCaps.byExt');
-    fileCaps.byExt = fileCaps.byExtension;
-  }
-  if (fileCaps?.byLang && !fileCaps.byLanguage) {
-    warnDeprecatedConfig('indexing.fileCaps.byLang', 'indexing.fileCaps.byLanguage');
-    fileCaps.byLanguage = fileCaps.byLang;
-  }
-
-  const cache = isPlainObject(cfg.cache) ? cfg.cache : null;
-  const runtime = cache && isPlainObject(cache.runtime) ? cache.runtime : null;
-  if (runtime) {
-    for (const entry of Object.values(runtime)) {
-      if (!isPlainObject(entry)) continue;
-      if (entry.maxMB != null && entry.maxMb == null) {
-        warnDeprecatedConfig('cache.runtime.*.maxMB', 'cache.runtime.*.maxMb');
-        entry.maxMb = entry.maxMB;
-      }
-      if (entry.ttlMS != null && entry.ttlMs == null) {
-        warnDeprecatedConfig('cache.runtime.*.ttlMS', 'cache.runtime.*.ttlMs');
-        entry.ttlMs = entry.ttlMS;
-      }
-    }
-  }
-
-  return cfg;
+  return baseConfig;
 }
 
 
@@ -257,8 +237,20 @@ export function applyAdaptiveDictConfig(dictConfig, fileCount) {
  */
 export function getRepoId(repoRoot) {
   const resolved = path.resolve(repoRoot);
-  return crypto.createHash('sha1').update(resolved).digest('hex');
+  const base = path.basename(resolved);
+  const normalized = String(base || 'repo')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const prefix = (normalized || 'repo').slice(0, 24);
+  const hash = crypto.createHash('sha1').update(resolved).digest('hex').slice(0, 12);
+  return `${prefix}-${hash}`;
 }
+
+const getLegacyRepoId = (repoRoot) => {
+  const resolved = path.resolve(repoRoot);
+  return crypto.createHash('sha1').update(resolved).digest('hex');
+};
 
 /**
  * Resolve the repo root from a starting directory.
@@ -310,7 +302,117 @@ export function getRepoCacheRoot(repoRoot, userConfig = null) {
   const envConfig = getEnvConfig();
   const cacheRoot = (cfg.cache && cfg.cache.root) || envConfig.cacheRoot || getCacheRoot();
   const repoId = getRepoId(repoRoot);
-  return path.join(cacheRoot, 'repos', repoId);
+  const repoCacheRoot = path.join(cacheRoot, 'repos', repoId);
+  const legacyRoot = path.join(cacheRoot, 'repos', getLegacyRepoId(repoRoot));
+  if (fs.existsSync(legacyRoot) && !fs.existsSync(repoCacheRoot)) return legacyRoot;
+  return repoCacheRoot;
+}
+
+/**
+ * Resolve the builds root directory for a repo.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @returns {string}
+ */
+export function getBuildsRoot(repoRoot, userConfig = null) {
+  return path.join(getRepoCacheRoot(repoRoot, userConfig), 'builds');
+}
+
+/**
+ * Resolve current build metadata for a repo, if present.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @returns {{buildId:string,buildRoot:string,path:string,data:object}|null}
+ */
+export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
+  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+  const buildsRoot = path.join(repoCacheRoot, 'builds');
+  const currentPath = path.join(buildsRoot, 'current.json');
+  if (!fs.existsSync(currentPath)) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
+    const buildId = typeof data.buildId === 'string' ? data.buildId : null;
+    const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
+    const resolveRoot = (value) => {
+      if (!value) return null;
+      return path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+    };
+    const buildRoot = buildRootRaw
+      ? resolveRoot(buildRootRaw)
+      : (buildId ? path.join(buildsRoot, buildId) : null);
+    const buildRoots = {};
+    if (data.buildRoots && typeof data.buildRoots === 'object' && !Array.isArray(data.buildRoots)) {
+      for (const [mode, value] of Object.entries(data.buildRoots)) {
+        if (typeof value !== 'string') continue;
+        const resolved = resolveRoot(value);
+        if (resolved) buildRoots[mode] = resolved;
+      }
+    } else if (buildRoot && Array.isArray(data.modes)) {
+      for (const mode of data.modes) {
+        if (typeof mode !== 'string') continue;
+        buildRoots[mode] = buildRoot;
+      }
+    }
+    const preferredMode = typeof options.mode === 'string' ? options.mode : null;
+    const preferredRoot = preferredMode ? buildRoots[preferredMode] : null;
+    const activeRoot = preferredRoot || buildRoot || Object.values(buildRoots)[0] || null;
+    if (!buildId || !activeRoot || !fs.existsSync(activeRoot)) return null;
+    return { buildId, buildRoot: buildRoot || activeRoot, activeRoot, path: currentPath, data, buildRoots };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve the active index root for a repo (current build or legacy path).
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @param {{indexRoot?:string|null}} [options]
+ * @returns {string}
+ */
+export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
+  if (options?.indexRoot) return path.resolve(options.indexRoot);
+  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+  const buildsRoot = path.join(repoCacheRoot, 'builds');
+  const currentPath = path.join(buildsRoot, 'current.json');
+  if (fs.existsSync(currentPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
+      const resolveRoot = (value) => {
+        if (!value) return null;
+        return path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+      };
+      const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
+      const buildId = typeof data.buildId === 'string' ? data.buildId : null;
+      const buildRoot = buildRootRaw
+        ? resolveRoot(buildRootRaw)
+        : (buildId ? path.join(buildsRoot, buildId) : null);
+      const buildRoots = {};
+      if (data.buildRoots && typeof data.buildRoots === 'object' && !Array.isArray(data.buildRoots)) {
+        for (const [mode, value] of Object.entries(data.buildRoots)) {
+          if (typeof value !== 'string') continue;
+          buildRoots[mode] = resolveRoot(value);
+        }
+      } else if (buildRoot && Array.isArray(data.modes)) {
+        for (const mode of data.modes) {
+          if (typeof mode !== 'string') continue;
+          buildRoots[mode] = buildRoot;
+        }
+      }
+      const preferredMode = typeof options.mode === 'string' ? options.mode : null;
+      const ensureExists = (value) => (value && fs.existsSync(value) ? value : null);
+      let resolved = preferredMode ? ensureExists(buildRoots[preferredMode]) : null;
+      if (!resolved && !preferredMode) {
+        for (const mode of ['code', 'prose', 'records']) {
+          resolved = ensureExists(buildRoots[mode]);
+          if (resolved) break;
+        }
+      }
+      if (!resolved) resolved = ensureExists(buildRoot);
+      if (resolved) return resolved;
+    } catch {}
+  }
+  return getRepoCacheRoot(repoRoot, userConfig);
 }
 
 /**
@@ -361,8 +463,8 @@ export function getCacheRuntimeConfig(repoRoot, userConfig = null) {
   const runtimeCache = cfg.cache?.runtime || {};
   const resolveEntry = (key) => {
     const entry = runtimeCache[key] || {};
-    const maxMbRaw = entry.maxMb ?? entry.maxMB;
-    const ttlMsRaw = entry.ttlMs ?? entry.ttlMS;
+    const maxMbRaw = entry.maxMb;
+    const ttlMsRaw = entry.ttlMs;
     const maxMb = Number.isFinite(Number(maxMbRaw))
       ? Math.max(0, Number(maxMbRaw))
       : (DEFAULT_CACHE_MB[key] || 0);
@@ -406,8 +508,9 @@ export function resolveNodeOptions(runtimeConfig, baseOptions = process.env.NODE
  * @param {object|null} userConfig
  * @returns {string}
  */
-export function getIndexDir(repoRoot, mode, userConfig = null) {
-  return path.join(getRepoCacheRoot(repoRoot, userConfig), `index-${mode}`);
+export function getIndexDir(repoRoot, mode, userConfig = null, options = {}) {
+  const base = resolveIndexRoot(repoRoot, userConfig, { ...options, mode });
+  return path.join(base, `index-${mode}`);
 }
 
 /**
@@ -476,17 +579,39 @@ export function getRepoDictPath(repoRoot, dictConfig = null) {
 }
 
 /**
+ * Resolve LMDB database paths for the repo.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @returns {{codePath:string,prosePath:string,dbDir:string}}
+ */
+export function resolveLmdbPaths(repoRoot, userConfig = null, options = {}) {
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  const lmdb = cfg.lmdb || {};
+  const indexRoot = resolveIndexRoot(repoRoot, cfg, options);
+  const defaultDir = path.join(indexRoot, 'index-lmdb');
+  const dbDir = lmdb.dbDir ? resolvePath(repoRoot, lmdb.dbDir) : defaultDir;
+  const codePath = lmdb.codeDbPath
+    ? resolvePath(repoRoot, lmdb.codeDbPath)
+    : path.join(dbDir, 'index-code');
+  const prosePath = lmdb.proseDbPath
+    ? resolvePath(repoRoot, lmdb.proseDbPath)
+    : path.join(dbDir, 'index-prose');
+  return { codePath, prosePath, dbDir };
+}
+
+/**
  * Resolve SQLite database paths for the repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
  * @returns {{codePath:string,prosePath:string,dbDir:string,legacyPath:string,legacyExists:boolean}}
  */
-export function resolveSqlitePaths(repoRoot, userConfig = null) {
+export function resolveSqlitePaths(repoRoot, userConfig = null, options = {}) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const sqlite = cfg.sqlite || {};
   const repoCacheRoot = getRepoCacheRoot(repoRoot, cfg);
-  const defaultDir = path.join(repoCacheRoot, 'index-sqlite');
-  const legacyPath = sqlite.dbPath ? resolvePath(repoRoot, sqlite.dbPath) : path.join(defaultDir, 'index.db');
+  const indexRoot = resolveIndexRoot(repoRoot, cfg, options);
+  const defaultDir = path.join(indexRoot, 'index-sqlite');
+  const legacyPath = path.join(repoCacheRoot, 'index-sqlite', 'index.db');
   const dbDir = sqlite.dbDir ? resolvePath(repoRoot, sqlite.dbDir) : defaultDir;
   const codePath = sqlite.codeDbPath
     ? resolvePath(repoRoot, sqlite.codeDbPath)
@@ -543,6 +668,10 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const typescript = tooling.typescript || {};
   const clangd = tooling.clangd || {};
   const envConfig = getEnvConfig();
+  const timeoutMs = Number(tooling.timeoutMs ?? envConfig.toolingTimeoutMs);
+  const maxRetries = Number(tooling.maxRetries ?? envConfig.toolingMaxRetries);
+  const breakerThreshold = Number(tooling.circuitBreakerThreshold ?? envConfig.toolingCircuitBreaker);
+  const logDir = typeof tooling.logDir === 'string' ? tooling.logDir : '';
   const installScope = (tooling.installScope || envConfig.toolingInstallScope || 'cache').toLowerCase();
   const normalizeOrder = (value) => {
     if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
@@ -566,6 +695,10 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   return {
     autoInstallOnDetect: tooling.autoInstallOnDetect === true,
     autoEnableOnDetect: tooling.autoEnableOnDetect !== false,
+    timeoutMs: Number.isFinite(timeoutMs) ? Math.max(1000, Math.floor(timeoutMs)) : null,
+    maxRetries: Number.isFinite(maxRetries) ? Math.max(0, Math.floor(maxRetries)) : null,
+    circuitBreakerThreshold: Number.isFinite(breakerThreshold) ? Math.max(1, Math.floor(breakerThreshold)) : null,
+    logDir: logDir.trim(),
     installScope,
     allowGlobalFallback: tooling.allowGlobalFallback !== false,
     dir: getToolingDir(repoRoot, cfg),
@@ -679,6 +812,8 @@ export async function getDictionaryPaths(repoRoot, dictConfig = null) {
   if (config.enableRepoDictionary) {
     const repoDict = getRepoDictPath(repoRoot, config);
     if (fs.existsSync(repoDict)) paths.push(repoDict);
+    const legacyRepoDict = path.join(config.dir, 'repos', `${getLegacyRepoId(repoRoot)}.txt`);
+    if (fs.existsSync(legacyRepoDict)) paths.push(legacyRepoDict);
   }
 
   if (!paths.length) {

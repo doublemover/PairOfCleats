@@ -5,6 +5,58 @@
   "additionalProperties": false,
   "properties": {
     "profile": { "type": "string" },
+    "logging": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": { "type": "string", "enum": ["text", "json", "pretty"] },
+        "level": { "type": "string" },
+        "ringMax": { "type": "number" },
+        "ringMaxBytes": { "type": "number" },
+        "redact": {
+          "oneOf": [
+            { "type": "array", "items": { "type": "string" } },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "paths": { "type": "array", "items": { "type": "string" } },
+                "censor": { "type": "string" },
+                "remove": { "type": "boolean" }
+              }
+            },
+            { "type": "boolean" }
+          ]
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "downloads": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requireHash": { "type": "boolean" },
+            "warnUnsigned": { "type": "boolean" },
+            "allowlist": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        },
+        "archives": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxBytes": { "type": "number" },
+            "maxEntryBytes": { "type": "number" },
+            "maxEntries": { "type": "number" }
+          }
+        }
+      }
+    },
     "dictionary": {
       "type": "object",
       "additionalProperties": false,
@@ -99,11 +151,9 @@
       "properties": {
         "use": { "type": "boolean" },
         "dbDir": { "type": "string" },
-        "dbPath": { "type": "string" },
         "codeDbPath": { "type": "string" },
         "proseDbPath": { "type": "string" },
         "scoreMode": { "type": "string" },
-        "annMode": { "type": "string" },
         "compactOnIncremental": { "type": "boolean" },
         "vectorExtension": {
           "type": "object",
@@ -126,6 +176,16 @@
             "arch": { "type": "string" }
           }
         }
+      }
+    },
+    "lmdb": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "use": { "type": "boolean" },
+        "dbDir": { "type": "string" },
+        "codeDbPath": { "type": "string" },
+        "proseDbPath": { "type": "string" }
       }
     },
     "search": {
@@ -203,6 +263,7 @@
             "name": { "type": "number" },
             "signature": { "type": "number" },
             "doc": { "type": "number" },
+            "comment": { "type": "number" },
             "body": { "type": "number" }
           }
         },
@@ -253,7 +314,19 @@
       "properties": {
         "concurrency": { "type": "number" },
         "importConcurrency": { "type": "number" },
+        "importScan": { "type": ["string", "boolean"] },
         "maxFileBytes": { "type": ["number", "boolean"] },
+        "untrusted": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "maxFileBytes": { "type": "number" },
+            "maxLines": { "type": "number" },
+            "maxFiles": { "type": "number" },
+            "maxDepth": { "type": "number" }
+          }
+        },
         "fileCaps": {
           "type": "object",
           "additionalProperties": false,
@@ -317,6 +390,35 @@
             }
           }
         },
+        "segments": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "inlineCodeSpans": { "type": "boolean" },
+            "inlineCodeMinChars": { "type": "number" },
+            "inlineCodeMaxSpans": { "type": "number" },
+            "inlineCodeMaxBytes": { "type": "number" }
+          }
+        },
+        "comments": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "extract": { "type": "string", "enum": ["off", "doc", "all"] },
+            "includeLicense": { "type": "boolean" },
+            "minDocChars": { "type": "number" },
+            "minInlineChars": { "type": "number" },
+            "minTokens": { "type": "number" },
+            "maxPerChunk": { "type": "number" },
+            "maxBytesPerChunk": { "type": "number" },
+            "headerMaxLines": { "type": "number" },
+            "licensePattern": { "type": "string" },
+            "generatedPattern": { "type": "string" },
+            "linterPattern": { "type": "string" },
+            "skipGenerated": { "type": "boolean" },
+            "skipLinter": { "type": "boolean" }
+          }
+        },
         "astDataflow": { "type": "boolean" },
         "controlFlow": { "type": "boolean" },
         "javascriptParser": { "type": "string" },
@@ -337,9 +439,14 @@
             "enabled": { "type": "boolean" },
             "workerCount": { "type": "number" },
             "maxWorkers": { "type": "number" },
+            "allowOverCap": { "type": "boolean" },
             "scaleUpQueueMs": { "type": "number" },
             "taskTimeoutMs": { "type": "number" },
-            "maxRetries": { "type": "number" }
+            "maxRetries": { "type": "number" },
+            "maxQueued": { "type": "number" },
+            "crashLoopMax": { "type": "number" },
+            "crashWindowMs": { "type": "number" },
+            "crashBackoffMs": { "type": "number" }
           }
         },
           "kotlin": {
@@ -358,32 +465,69 @@
           "additionalProperties": { "type": "number" }
         },
         "embeddings": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "enabled": { "type": "boolean" },
-              "concurrency": { "type": "number" },
-              "mode": {
-                "type": "string",
-                "enum": ["auto", "inline", "service", "stub", "off"]
-              },
-              "queue": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "dir": { "type": "string" },
-                  "maxQueued": { "type": "number" }
-                }
-              },
-              "cache": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "dir": { "type": "string" }
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "concurrency": { "type": "number" },
+            "provider": {
+              "type": "string",
+              "enum": ["xenova", "onnx"]
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["auto", "inline", "service", "stub", "off"]
+            },
+            "onnx": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "modelPath": { "type": "string" },
+                "tokenizerId": { "type": "string" },
+                "executionProviders": {
+                  "oneOf": [
+                    { "type": "array", "items": { "type": "string" } },
+                    { "type": "string" }
+                  ]
+                },
+                "intraOpNumThreads": { "type": "number" },
+                "interOpNumThreads": { "type": "number" },
+                "graphOptimizationLevel": {
+                  "type": "string",
+                  "enum": ["disabled", "basic", "extended", "all"]
                 }
               }
+            },
+            "queue": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "dir": { "type": "string" },
+                "maxQueued": { "type": "number" }
+              }
+            },
+            "cache": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "dir": { "type": "string" }
+              }
+            },
+            "hnsw": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "space": { "type": "string", "enum": ["cosine", "ip", "l2"] },
+                "m": { "type": "number" },
+                "efConstruction": { "type": "number" },
+                "efSearch": { "type": "number" },
+                "randomSeed": { "type": "number" },
+                "allowReplaceDeleted": { "type": "boolean" }
+              }
             }
-          },
+          }
+        },
           "twoStage": {
             "type": "object",
             "additionalProperties": false,
@@ -405,13 +549,23 @@
               "maxWorkers": { "type": "number" },
               "maxShards": { "type": "number" },
               "minFiles": { "type": "number" },
-              "dirDepth": { "type": "number" }
+              "dirDepth": { "type": "number" },
+              "maxShardBytes": { "type": "number" },
+              "maxShardLines": { "type": "number" }
             }
           },
           "chunkTokenMode": { "type": "string", "enum": ["auto", "full", "sample", "none"] },
         "chunkTokenMaxFiles": { "type": "number" },
         "chunkTokenMaxTokens": { "type": "number" },
         "chunkTokenSampleSize": { "type": "number" },
+          "chunking": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxBytes": { "type": "number" },
+              "maxLines": { "type": "number" }
+            }
+          },
         "artifactCompression": {
           "type": "object",
           "additionalProperties": false,
@@ -419,6 +573,13 @@
             "enabled": { "type": "boolean" },
             "mode": { "type": "string" },
             "keepRaw": { "type": "boolean" }
+          }
+        },
+        "incrementalBundles": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "format": { "type": "string", "enum": ["json", "msgpack"] }
           }
         },
         "artifacts": {
@@ -439,12 +600,37 @@
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": ["boolean", "string"] },
+            "configChunking": { "type": "boolean" },
             "maxBytes": { "type": "number" },
             "maxLines": { "type": "number" },
+            "maxParseMs": { "type": "number" },
+            "preload": { "type": ["string", "boolean"] },
+            "preloadConcurrency": { "type": "number" },
+            "byLanguage": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "maxBytes": { "type": "number" },
+                  "maxLines": { "type": "number" },
+                  "maxParseMs": { "type": "number" }
+                }
+              }
+            },
             "languages": {
               "type": "object",
               "additionalProperties": { "type": "boolean" },
               "properties": {
+                "javascript": { "type": "boolean" },
+                "typescript": { "type": "boolean" },
+                "tsx": { "type": "boolean" },
+                "jsx": { "type": "boolean" },
+                "python": { "type": "boolean" },
+                "json": { "type": "boolean" },
+                "yaml": { "type": "boolean" },
+                "toml": { "type": "boolean" },
+                "markdown": { "type": "boolean" },
                 "swift": { "type": "boolean" },
                 "kotlin": { "type": "boolean" },
                 "csharp": { "type": "boolean" },
@@ -453,7 +639,19 @@
                 "objc": { "type": "boolean" },
                 "go": { "type": "boolean" },
                 "rust": { "type": "boolean" },
-                "java": { "type": "boolean" }
+                "java": { "type": "boolean" },
+                "css": { "type": "boolean" },
+                "html": { "type": "boolean" }
+              }
+            },
+            "worker": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "maxWorkers": { "type": "number" },
+                "idleTimeoutMs": { "type": "number" },
+                "taskTimeoutMs": { "type": "number" }
               }
             }
           }
@@ -464,14 +662,39 @@
           "properties": {
             "enabled": { "type": ["boolean", "string"] },
             "maxWorkers": { "type": "number" },
+            "allowOverCap": { "type": "boolean" },
             "maxFileBytes": { "type": "number" },
             "idleTimeoutMs": { "type": "number" },
             "taskTimeoutMs": { "type": "number" },
-            "quantizeBatchSize": { "type": "number" }
+            "quantizeBatchSize": { "type": "number" },
+            "splitByTask": { "type": "boolean" },
+            "splitTasks": { "type": "boolean" },
+            "quantizeMaxWorkers": { "type": "number" }
           }
         },
         "riskAnalysis": { "type": "boolean" },
         "riskAnalysisCrossFile": { "type": "boolean" },
+        "riskRules": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "includeDefaults": { "type": "boolean" },
+            "rulesPath": { "type": "string" },
+            "rules": { "type": "object", "additionalProperties": true }
+          }
+        },
+        "riskCaps": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxBytes": { "type": "number" },
+            "maxLines": { "type": "number" },
+            "maxNodes": { "type": "number" },
+            "maxEdges": { "type": "number" },
+            "maxMs": { "type": "number" },
+            "maxFlows": { "type": "number" }
+          }
+        },
         "typeInference": { "type": "boolean" },
         "typeInferenceCrossFile": { "type": "boolean" },
         "gitBlame": { "type": "boolean" },
@@ -533,6 +756,10 @@
       "properties": {
         "autoInstallOnDetect": { "type": "boolean" },
         "autoEnableOnDetect": { "type": "boolean" },
+        "timeoutMs": { "type": "number" },
+        "maxRetries": { "type": "number" },
+        "circuitBreakerThreshold": { "type": "number" },
+        "logDir": { "type": "string" },
         "installScope": { "type": "string" },
         "allowGlobalFallback": { "type": "boolean" },
         "dir": { "type": "string" },
@@ -555,6 +782,18 @@
             "requireCompilationDatabase": { "type": "boolean" },
             "compileCommandsDir": { "type": "string" }
           }
+        }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "queueMax": { "type": "number" },
+        "toolTimeoutMs": { "type": "number" },
+        "toolTimeouts": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
         }
       }
     },

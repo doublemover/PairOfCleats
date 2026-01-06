@@ -5,7 +5,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { createCli } from '../src/shared/cli.js';
 import { writeJsonLinesFile, writeJsonObjectFile } from '../src/shared/json-stream.js';
-import { sha1File } from '../src/shared/hash.js';
+import { checksumFile } from '../src/shared/hash.js';
 import { getIndexDir, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = createCli({
@@ -260,7 +260,9 @@ const updateManifest = async (indexDir, updates) => {
       const relPath = update.parts[i];
       const absPath = path.join(indexDir, relPath.split('/').join(path.sep));
       const stat = await fs.stat(absPath);
-      const checksum = await sha1File(absPath);
+      const result = await checksumFile(absPath);
+      const checksum = result?.value || null;
+      const checksumAlgo = result?.algo || null;
       newPieces.push({
         type: update.type,
         name: update.name,
@@ -268,14 +270,16 @@ const updateManifest = async (indexDir, updates) => {
         count: update.counts[i],
         path: relPath,
         bytes: stat.size,
-        checksum: `sha1:${checksum}`
+        checksum: checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null
       });
     }
     const metaRel = update.type === 'chunks' ? 'chunk_meta.meta.json' : 'token_postings.meta.json';
     const metaAbs = path.join(indexDir, metaRel);
     if (fsSync.existsSync(metaAbs)) {
       const stat = await fs.stat(metaAbs);
-      const checksum = await sha1File(metaAbs);
+      const result = await checksumFile(metaAbs);
+      const checksum = result?.value || null;
+      const checksumAlgo = result?.algo || null;
       newPieces.push({
         type: update.type,
         name: update.metaName,
@@ -283,7 +287,7 @@ const updateManifest = async (indexDir, updates) => {
         count: null,
         path: metaRel,
         bytes: stat.size,
-        checksum: `sha1:${checksum}`
+        checksum: checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null
       });
     }
   }

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getRepoCacheRoot } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'build-embeddings-cache');
@@ -39,7 +40,8 @@ const runNode = (label, args) => {
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
 runNode('build_embeddings', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
-const cacheDir = path.join(cacheRoot, 'embeddings', 'code', 'files');
+const repoCacheRoot = getRepoCacheRoot(repoRoot, { cache: { root: cacheRoot } });
+const cacheDir = path.join(repoCacheRoot, 'embeddings', 'code', 'files');
 const cacheFiles = fs.existsSync(cacheDir)
   ? fs.readdirSync(cacheDir).filter((name) => name.endsWith('.json'))
   : [];

@@ -3,10 +3,8 @@ import yargs from 'yargs/yargs';
 const BOOLEAN_FLAGS = [
   'json',
   'json-compact',
-  'human',
   'stats',
   'ann',
-  'headline',
   'lint',
   'matched',
   'async',
@@ -20,6 +18,9 @@ const BOOLEAN_FLAGS = [
 ];
 
 const STRING_FLAGS = [
+  'type',
+  'author',
+  'import',
   'calls',
   'uses',
   'signature',
@@ -79,6 +80,21 @@ const DEFAULTS = { n: 5, context: 3 };
  * @returns {object}
  */
 export function parseSearchArgs(rawArgs) {
+  const removedFlags = [
+    { flag: '--human', replacement: '--json | --json-compact' },
+    { flag: '--headline', replacement: '--matched' }
+  ];
+  const removed = removedFlags.filter((entry) =>
+    rawArgs.some((arg) => arg === entry.flag || arg.startsWith(`${entry.flag}=`))
+  );
+  if (removed.length) {
+    const details = removed
+      .map((entry) => `${entry.flag} was removed (use ${entry.replacement}).`)
+      .join(' ');
+    const error = new Error(details);
+    error.code = 'REMOVED_FLAG';
+    throw error;
+  }
   const options = {
     n: { type: 'number', default: DEFAULTS.n },
     context: { type: 'number', default: DEFAULTS.context }
@@ -115,16 +131,16 @@ export function getSearchUsage() {
     '',
     'Options:',
     '  --repo <path>',
-    '  --mode code|prose|both|records|all',
-    '  --backend auto|memory|sqlite|sqlite-fts',
+    '  --mode code|prose|both|records|all|extracted-prose',
+    '  --backend auto|memory|sqlite|sqlite-fts|lmdb',
     '  --top N, --context N',
-    '  --json | --json-compact | --human | --stats',
+    '  --json | --json-compact | --stats',
     '  --ann | --no-ann',
     '  --model <id>',
     '  --fts-profile <name> | --fts-weights <json|csv>',
     '  --bm25-k1 <num> | --bm25-b <num>',
     '  --profile <name>',
-    '  --headline | --matched | --explain | --why',
+    '  --matched | --explain | --why',
     '  Filters:',
     '    --type <kind> --author <name> --import <module> --calls <name> --uses <name>',
     '    --signature <text> --param <name> --decorator <name> --inferred-type <type> --return-type <type>',
@@ -143,18 +159,19 @@ export function getSearchUsage() {
 /**
  * Resolve the requested search mode and derived flags.
  * @param {string|undefined} modeRaw
- * @returns {{searchMode:string,runCode:boolean,runProse:boolean,runRecords:boolean}}
+ * @returns {{searchMode:string,runCode:boolean,runProse:boolean,runRecords:boolean,runExtractedProse:boolean}}
  */
 export function resolveSearchMode(modeRaw) {
   const searchMode = String(modeRaw || 'both').toLowerCase();
-  const allowedModes = new Set(['code', 'prose', 'both', 'records', 'all']);
+  const allowedModes = new Set(['code', 'prose', 'both', 'records', 'all', 'extracted-prose']);
   if (!allowedModes.has(searchMode)) {
-    const error = new Error(`Invalid --mode ${searchMode}. Use code|prose|both|records|all.`);
+    const error = new Error(`Invalid --mode ${searchMode}. Use code|prose|both|records|all|extracted-prose.`);
     error.code = 'INVALID_MODE';
     throw error;
   }
   const runCode = searchMode === 'code' || searchMode === 'both' || searchMode === 'all';
   const runProse = searchMode === 'prose' || searchMode === 'both' || searchMode === 'all';
   const runRecords = searchMode === 'records' || searchMode === 'all';
-  return { searchMode, runCode, runProse, runRecords };
+  const runExtractedProse = searchMode === 'extracted-prose' || searchMode === 'all';
+  return { searchMode, runCode, runProse, runRecords, runExtractedProse };
 }

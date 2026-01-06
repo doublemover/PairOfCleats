@@ -48,8 +48,16 @@ runBuild('stage1', [path.join(root, 'build_index.js'), '--stub-embeddings', '--s
 
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(repoRoot);
-const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-const statePath = path.join(codeDir, 'index_state.json');
+const resolveStagePaths = () => {
+  const codeDir = getIndexDir(repoRoot, 'code', userConfig);
+  return {
+    codeDir,
+    statePath: path.join(codeDir, 'index_state.json'),
+    relationsPath: path.join(codeDir, 'file_relations.json'),
+    densePath: path.join(codeDir, 'dense_vectors_uint8.json')
+  };
+};
+let { codeDir, statePath, relationsPath, densePath } = resolveStagePaths();
 if (!fs.existsSync(statePath)) {
   console.error('Missing index_state.json after stage1');
   process.exit(1);
@@ -59,7 +67,6 @@ if (stateStage1.stage !== 'stage1' || stateStage1.enrichment?.pending !== true) 
   console.error('Expected stage1 index_state to show pending enrichment');
   process.exit(1);
 }
-const relationsPath = path.join(codeDir, 'file_relations.json');
 if (fs.existsSync(relationsPath)) {
   console.error('Did not expect file_relations.json after stage1');
   process.exit(1);
@@ -75,6 +82,7 @@ if (enrichmentStage1.status !== 'pending') {
 
 runBuild('stage2', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--repo', repoRoot]);
 
+({ codeDir, statePath, relationsPath, densePath } = resolveStagePaths());
 const stateStage2 = JSON.parse(await fsPromises.readFile(statePath, 'utf8'));
 if (stateStage2.stage !== 'stage2' || stateStage2.enrichment?.pending === true) {
   console.error('Expected stage2 index_state to clear pending enrichment');
@@ -92,12 +100,12 @@ if (enrichmentStage2.status !== 'done') {
 
 runBuild('stage3', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage3', '--repo', repoRoot]);
 
+({ codeDir, statePath, relationsPath, densePath } = resolveStagePaths());
 const stateStage3 = JSON.parse(await fsPromises.readFile(statePath, 'utf8'));
 if (stateStage3.embeddings?.ready !== true) {
   console.error('Expected stage3 to mark embeddings ready');
   process.exit(1);
 }
-const densePath = path.join(codeDir, 'dense_vectors_uint8.json');
 if (!fs.existsSync(densePath)) {
   console.error('Expected dense_vectors_uint8.json after stage3');
   process.exit(1);

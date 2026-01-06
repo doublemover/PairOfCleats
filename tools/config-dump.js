@@ -10,6 +10,7 @@ import {
   getRuntimeConfig,
   getToolingConfig,
   loadUserConfig,
+  resolveLmdbPaths,
   resolveRepoRoot,
   resolveSqlitePaths
 } from './dict-utils.js';
@@ -40,6 +41,7 @@ const payload = {
     cacheRuntime: getCacheRuntimeConfig(repoRoot, userConfig),
     model: getModelConfig(repoRoot, userConfig),
     tooling: getToolingConfig(repoRoot, userConfig),
+    lmdb: resolveLmdbPaths(repoRoot, userConfig),
     sqlite: resolveSqlitePaths(repoRoot, userConfig)
   }
 };
@@ -55,6 +57,8 @@ console.log(`- profile: ${payload.profile || 'none'}`);
 console.log(`- cache root: ${payload.derived.cacheRoot}`);
 console.log(`- repo cache: ${payload.derived.repoCacheRoot}`);
 console.log(`- model: ${payload.derived.model.id}`);
+console.log(`- lmdb code: ${payload.derived.lmdb.codePath}`);
+console.log(`- lmdb prose: ${payload.derived.lmdb.prosePath}`);
 console.log(`- sqlite code: ${payload.derived.sqlite.codePath}`);
 console.log(`- sqlite prose: ${payload.derived.sqlite.prosePath}`);
 console.log(`- env overrides: ${Object.entries(envConfig).filter(([, value]) => value !== '' && value != null).map(([key]) => key).join(', ') || 'none'}`);

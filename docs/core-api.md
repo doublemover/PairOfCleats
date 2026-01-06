@@ -13,7 +13,7 @@ PairOfCleats exposes a lightweight programmatic API for build/search/status. Imp
   - Runs search and returns a JSON payload (same shape as `search.js --json`).
   - Params: `query`, `mode`, `backend`, `ann`, `json`, `jsonCompact`, `explain`, plus `args` for raw CLI flags.
 - `status(repoRoot, options)`
-  - Returns artifact sizes and health hints (same as `report-artifacts --json`).
+- Returns artifact sizes and health hints (same as `cache report --json`).
   - Options: `all` to include all cached repos.
 
 ## Example

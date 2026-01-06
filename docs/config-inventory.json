@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-01-06T06:35:46.494Z",
+  "generatedAt": "2026-01-11T06:52:59.949Z",
   "configSchema": {
     "path": "docs/config-schema.json",
-    "totalKeys": 282,
+    "totalKeys": 406,
     "topLevel": [
       {
         "key": "cache",
@@ -26,7 +26,19 @@
       },
       {
         "key": "indexing",
-        "count": 129
+        "count": 226
+      },
+      {
+        "key": "lmdb",
+        "count": 5
+      },
+      {
+        "key": "logging",
+        "count": 6
+      },
+      {
+        "key": "mcp",
+        "count": 4
       },
       {
         "key": "models",
@@ -42,7 +54,11 @@
       },
       {
         "key": "search",
-        "count": 51
+        "count": 52
+      },
+      {
+        "key": "security",
+        "count": 9
       },
       {
         "key": "sql",
@@ -50,11 +66,11 @@
       },
       {
         "key": "sqlite",
-        "count": 25
+        "count": 23
       },
       {
         "key": "tooling",
-        "count": 16
+        "count": 20
       },
       {
         "key": "triage",
@@ -346,6 +362,21 @@
       "enum": null
     },
     {
+      "path": "indexing.chunking",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.chunking.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.chunking.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "indexing.chunkTokenMaxFiles",
       "type": "number",
       "enum": null
@@ -368,6 +399,80 @@
     {
       "path": "indexing.chunkTokenSampleSize",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments.extract",
+      "type": "string",
+      "enum": [
+        "off",
+        "doc",
+        "all"
+      ]
+    },
+    {
+      "path": "indexing.comments.generatedPattern",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments.headerMaxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments.includeLicense",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments.licensePattern",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments.linterPattern",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments.maxBytesPerChunk",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments.maxPerChunk",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments.minDocChars",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments.minInlineChars",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments.minTokens",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments.skipGenerated",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.comments.skipLinter",
+      "type": "boolean",
       "enum": null
     },
     {
@@ -396,13 +501,13 @@
       "enum": null
     },
     {
-      "path": "indexing.embeddingBatchSize",
-      "type": "number",
+      "path": "indexing.embeddingBatchMultipliers",
+      "type": "object",
       "enum": null
     },
     {
-      "path": "indexing.embeddingBatchMultipliers",
-      "type": "object",
+      "path": "indexing.embeddingBatchSize",
+      "type": "number",
       "enum": null
     },
     {
@@ -431,6 +536,50 @@
       "enum": null
     },
     {
+      "path": "indexing.embeddings.hnsw",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.hnsw.allowReplaceDeleted",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.hnsw.efConstruction",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.hnsw.efSearch",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.hnsw.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.hnsw.m",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.hnsw.randomSeed",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.hnsw.space",
+      "type": "string",
+      "enum": [
+        "cosine",
+        "ip",
+        "l2"
+      ]
+    },
+    {
       "path": "indexing.embeddings.mode",
       "type": "string",
       "enum": [
@@ -439,6 +588,54 @@
         "service",
         "stub",
         "off"
+      ]
+    },
+    {
+      "path": "indexing.embeddings.onnx",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.onnx.executionProviders",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.onnx.graphOptimizationLevel",
+      "type": "string",
+      "enum": [
+        "disabled",
+        "basic",
+        "extended",
+        "all"
+      ]
+    },
+    {
+      "path": "indexing.embeddings.onnx.interOpNumThreads",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.onnx.intraOpNumThreads",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.onnx.modelPath",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.onnx.tokenizerId",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.provider",
+      "type": "string",
+      "enum": [
+        "xenova",
+        "onnx"
       ]
     },
     {
@@ -592,6 +789,24 @@
       "enum": null
     },
     {
+      "path": "indexing.importScan",
+      "type": "string|boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.incrementalBundles",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.incrementalBundles.format",
+      "type": "string",
+      "enum": [
+        "json",
+        "msgpack"
+      ]
+    },
+    {
       "path": "indexing.javascriptFlow",
       "type": "string|boolean",
       "enum": null
@@ -695,8 +910,33 @@
       "enum": null
     },
     {
+      "path": "indexing.pythonAst.allowOverCap",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst.crashBackoffMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst.crashLoopMax",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst.crashWindowMs",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "indexing.pythonAst.enabled",
       "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst.maxQueued",
+      "type": "number",
       "enum": null
     },
     {
@@ -735,6 +975,86 @@
       "enum": null
     },
     {
+      "path": "indexing.riskCaps",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskCaps.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskCaps.maxEdges",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskCaps.maxFlows",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskCaps.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskCaps.maxMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskCaps.maxNodes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskRules",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskRules.includeDefaults",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskRules.rules",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskRules.rulesPath",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.segments",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.segments.inlineCodeMaxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.segments.inlineCodeMaxSpans",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.segments.inlineCodeMinChars",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.segments.inlineCodeSpans",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "indexing.shards",
       "type": "object",
       "enum": null
@@ -747,6 +1067,16 @@
     {
       "path": "indexing.shards.enabled",
       "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.shards.maxShardBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.shards.maxShardLines",
+      "type": "number",
       "enum": null
     },
     {
@@ -767,6 +1097,36 @@
     {
       "path": "indexing.treeSitter",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.byLanguage",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.byLanguage.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.byLanguage.*.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.byLanguage.*.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.byLanguage.*.maxParseMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.configChunking",
+      "type": "boolean",
       "enum": null
     },
     {
@@ -795,7 +1155,17 @@
       "enum": null
     },
     {
+      "path": "indexing.treeSitter.languages.css",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "indexing.treeSitter.languages.go",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.html",
       "type": "boolean",
       "enum": null
     },
@@ -805,12 +1175,37 @@
       "enum": null
     },
     {
+      "path": "indexing.treeSitter.languages.javascript",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.json",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.jsx",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "indexing.treeSitter.languages.kotlin",
       "type": "boolean",
       "enum": null
     },
     {
+      "path": "indexing.treeSitter.languages.markdown",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "indexing.treeSitter.languages.objc",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.python",
       "type": "boolean",
       "enum": null
     },
@@ -825,12 +1220,72 @@
       "enum": null
     },
     {
+      "path": "indexing.treeSitter.languages.toml",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.tsx",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.typescript",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.languages.yaml",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "indexing.treeSitter.maxBytes",
       "type": "number",
       "enum": null
     },
     {
       "path": "indexing.treeSitter.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.maxParseMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.preload",
+      "type": "string|boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.preloadConcurrency",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.worker",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.worker.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.worker.idleTimeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.worker.maxWorkers",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.treeSitter.worker.taskTimeoutMs",
       "type": "number",
       "enum": null
     },
@@ -905,8 +1360,43 @@
       "enum": null
     },
     {
+      "path": "indexing.untrusted",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.untrusted.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.untrusted.maxDepth",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.untrusted.maxFileBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.untrusted.maxFiles",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.untrusted.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "indexing.workerPool",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.workerPool.allowOverCap",
+      "type": "boolean",
       "enum": null
     },
     {
@@ -935,6 +1425,21 @@
       "enum": null
     },
     {
+      "path": "indexing.workerPool.quantizeMaxWorkers",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.workerPool.splitByTask",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.workerPool.splitTasks",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "indexing.workerPool.taskTimeoutMs",
       "type": "number",
       "enum": null
@@ -951,6 +1456,85 @@
     {
       "path": "indexing.yamlTopLevelMaxBytes",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "lmdb",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "lmdb.codeDbPath",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "lmdb.dbDir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "lmdb.proseDbPath",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "lmdb.use",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "logging",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "logging.format",
+      "type": "string",
+      "enum": [
+        "text",
+        "json",
+        "pretty"
+      ]
+    },
+    {
+      "path": "logging.level",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "logging.redact",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "logging.ringMax",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "logging.ringMaxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "mcp",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "mcp.queueMax",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "mcp.toolTimeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "mcp.toolTimeouts",
+      "type": "object",
       "enum": null
     },
     {
@@ -1080,6 +1664,11 @@
     },
     {
       "path": "search.fieldWeights.body",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.fieldWeights.comment",
       "type": "number",
       "enum": null
     },
@@ -1254,6 +1843,51 @@
       "enum": null
     },
     {
+      "path": "security",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "security.archives",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "security.archives.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "security.archives.maxEntries",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "security.archives.maxEntryBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "security.downloads",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "security.downloads.allowlist",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "security.downloads.requireHash",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "security.downloads.warnUnsigned",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "sql",
       "type": "object",
       "enum": null
@@ -1274,11 +1908,6 @@
       "enum": null
     },
     {
-      "path": "sqlite.annMode",
-      "type": "string",
-      "enum": null
-    },
-    {
       "path": "sqlite.codeDbPath",
       "type": "string",
       "enum": null
@@ -1290,11 +1919,6 @@
     },
     {
       "path": "sqlite.dbDir",
-      "type": "string",
-      "enum": null
-    },
-    {
-      "path": "sqlite.dbPath",
       "type": "string",
       "enum": null
     },
@@ -1414,6 +2038,11 @@
       "enum": null
     },
     {
+      "path": "tooling.circuitBreakerThreshold",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "tooling.clangd",
       "type": "object",
       "enum": null
@@ -1446,6 +2075,21 @@
     {
       "path": "tooling.installScope",
       "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.logDir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.maxRetries",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.timeoutMs",
+      "type": "number",
       "enum": null
     },
     {
@@ -1526,6 +2170,12 @@
   ],
   "envVars": [
     {
+      "name": "PAIROFCLEATS_BREAKING",
+      "files": [
+        "tools/release-check.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_BUNDLE_THREADS",
       "files": [
         "src/shared/env.js"
@@ -1537,14 +2187,22 @@
         "src/shared/env.js",
         "tests/api-server-stream.js",
         "tests/api-server.js",
+        "tests/artifact-size-guardrails.js",
         "tests/build-embeddings-cache.js",
+        "tests/build-index-all.js",
         "tests/cache-gc.js",
         "tests/churn-filter.js",
         "tests/clean-artifacts.js",
+        "tests/compact-pieces.js",
         "tests/core-api.js",
         "tests/embedding-batch-autotune.js",
+        "tests/embeddings-cache-identity.js",
+        "tests/embeddings-dims-mismatch.js",
+        "tests/embeddings-validate.js",
+        "tests/encoding-fallback.js",
         "tests/eval-quality.js",
         "tests/external-docs.js",
+        "tests/extracted-prose.js",
         "tests/fielded-bm25.js",
         "tests/file-line-guard.js",
         "tests/file-size-guard.js",
@@ -1554,30 +2212,49 @@
         "tests/fixture-smoke.js",
         "tests/format-fidelity.js",
         "tests/git-blame-range.js",
+        "tests/hnsw-ann.js",
+        "tests/hnsw-atomic.js",
         "tests/import-links.js",
+        "tests/incremental-cache-signature.js",
         "tests/incremental-manifest.js",
         "tests/incremental-tokenization-cache.js",
         "tests/index-validate.js",
         "tests/language-fidelity.js",
+        "tests/lmdb-backend.js",
+        "tests/mcp-robustness.js",
+        "tests/mcp-schema.js",
         "tests/mcp-server.js",
+        "tests/piece-assembly.js",
         "tests/prose-skip-imports.js",
         "tests/query-cache.js",
         "tests/repo-root.js",
         "tests/repometrics-dashboard.js",
         "tests/script-coverage.js",
+        "tests/search-determinism.js",
+        "tests/search-explain-symbol.js",
         "tests/search-explain.js",
         "tests/search-filters.js",
         "tests/search-missing-index.js",
         "tests/search-rrf.js",
+        "tests/search-topn-filters.js",
+        "tests/search-windows-path-filter.js",
+        "tests/setup-index-detection.js",
         "tests/setup.js",
         "tests/shard-merge.js",
         "tests/skip-minified-binary.js",
+        "tests/smoke-retrieval.js",
         "tests/sqlite-ann-extension.js",
+        "tests/sqlite-ann-fallback.js",
         "tests/sqlite-auto-backend.js",
         "tests/sqlite-build-indexes.js",
+        "tests/sqlite-bundle-missing.js",
         "tests/sqlite-compact.js",
         "tests/sqlite-incremental.js",
+        "tests/sqlite-index-state-fail-closed.js",
+        "tests/sqlite-missing-dep.js",
+        "tests/sqlite-sidecar-cleanup.js",
         "tests/summary-report.js",
+        "tests/tool-root.js",
         "tests/triage-records.js",
         "tests/two-stage-state.js",
         "tests/type-inference-crossfile-go.js",
@@ -1610,12 +2287,20 @@
         "src/shared/env.js",
         "tests/api-server-stream.js",
         "tests/api-server.js",
+        "tests/artifact-size-guardrails.js",
         "tests/bench.js",
         "tests/build-embeddings-cache.js",
+        "tests/build-index-all.js",
         "tests/churn-filter.js",
+        "tests/compact-pieces.js",
         "tests/core-api.js",
+        "tests/embeddings-cache-identity.js",
+        "tests/embeddings-dims-mismatch.js",
+        "tests/embeddings-validate.js",
+        "tests/encoding-fallback.js",
         "tests/eval-quality.js",
         "tests/external-docs.js",
+        "tests/extracted-prose.js",
         "tests/fielded-bm25.js",
         "tests/file-line-guard.js",
         "tests/file-size-guard.js",
@@ -1625,27 +2310,43 @@
         "tests/fixture-smoke.js",
         "tests/format-fidelity.js",
         "tests/git-blame-range.js",
+        "tests/hnsw-ann.js",
+        "tests/hnsw-atomic.js",
         "tests/import-links.js",
+        "tests/incremental-cache-signature.js",
         "tests/incremental-manifest.js",
         "tests/incremental-tokenization-cache.js",
         "tests/index-validate.js",
         "tests/language-fidelity.js",
+        "tests/lmdb-backend.js",
+        "tests/piece-assembly.js",
         "tests/prose-skip-imports.js",
         "tests/query-cache.js",
         "tests/repo-root.js",
         "tests/script-coverage.js",
+        "tests/search-determinism.js",
+        "tests/search-explain-symbol.js",
         "tests/search-explain.js",
         "tests/search-filters.js",
         "tests/search-missing-index.js",
         "tests/search-rrf.js",
+        "tests/search-topn-filters.js",
+        "tests/search-windows-path-filter.js",
         "tests/shard-merge.js",
         "tests/skip-minified-binary.js",
+        "tests/smoke-retrieval.js",
         "tests/sqlite-ann-extension.js",
+        "tests/sqlite-ann-fallback.js",
         "tests/sqlite-auto-backend.js",
         "tests/sqlite-build-indexes.js",
+        "tests/sqlite-bundle-missing.js",
         "tests/sqlite-compact.js",
         "tests/sqlite-incremental.js",
+        "tests/sqlite-index-state-fail-closed.js",
+        "tests/sqlite-missing-dep.js",
+        "tests/sqlite-sidecar-cleanup.js",
         "tests/summary-report.js",
+        "tests/tool-root.js",
         "tests/triage-records.js",
         "tests/two-stage-state.js",
         "tests/type-inference-crossfile-go.js",
@@ -1653,8 +2354,9 @@
         "tests/type-inference-lsp-enrichment.js",
         "tests/unicode-offset.js",
         "tools/bench-score-strategy.js",
+        "tools/bench/micro/tinybench.js",
         "tools/compare-models.js",
-        "tools/mcp-server.js",
+        "tools/mcp/transport.js",
         "tools/triage/context-pack.js",
         "tools/triage/ingest.js"
       ]
@@ -1682,8 +2384,29 @@
       "name": "PAIROFCLEATS_HOME",
       "files": [
         "src/shared/env.js",
+        "tests/mcp-robustness.js",
+        "tests/mcp-schema.js",
         "tests/mcp-server.js",
         "tests/uninstall.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_LOG_FORMAT",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_LOG_LEVEL",
+      "files": [
+        "src/shared/env.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MAX_JSON_BYTES",
+      "files": [
+        "src/shared/artifact-io.js",
+        "tests/artifact-size-guardrails.js"
       ]
     },
     {
@@ -1692,6 +2415,20 @@
         "src/shared/env.js",
         "tests/bench.js",
         "tools/bench-language-repos.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MCP_QUEUE_MAX",
+      "files": [
+        "tests/mcp-robustness.js",
+        "tools/mcp-server.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS",
+      "files": [
+        "tests/mcp-robustness.js",
+        "tools/mcp-server.js"
       ]
     },
     {
@@ -1722,6 +2459,7 @@
         "src/shared/cli.js",
         "src/shared/env.js",
         "tests/bench.js",
+        "tests/fixture-parity.js",
         "tests/profile-config.js",
         "tests/structural-search.js",
         "tests/summary-report.js",
@@ -1747,6 +2485,12 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_RESET_FORCE",
+      "files": [
+        "tools/reset-config.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_SKIP_BENCH",
       "files": [
         "tests/all.js"
@@ -1756,6 +2500,13 @@
       "name": "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "files": [
         "tests/all.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SQLITE_DISABLED",
+      "files": [
+        "src/retrieval/cli-sqlite.js",
+        "tests/sqlite-missing-dep.js"
       ]
     },
     {
@@ -1773,13 +2524,20 @@
     {
       "name": "PAIROFCLEATS_TEST_LOG_DIR",
       "files": [
-        "tests/script-coverage.js"
+        "tests/script-coverage.js",
+        "tests/triage-records.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TEST_RETRIES",
       "files": [
         "tests/script-coverage.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_TIMEOUT_MS",
+      "files": [
+        "tests/type-inference-crossfile.js"
       ]
     },
     {
@@ -1818,13 +2576,17 @@
     {
       "name": "PAIROFCLEATS_WORKER_POOL",
       "files": [
+        "src/index/build/failure-taxonomy.js",
         "src/shared/env.js",
-        "tests/language-fidelity.js"
+        "tests/encoding-fallback.js",
+        "tests/language-fidelity.js",
+        "tests/search-explain-symbol.js",
+        "tests/search-windows-path-filter.js"
       ]
     }
   ],
   "cliFlags": {
-    "totalFlags": 201,
+    "totalFlags": 220,
     "byFile": [
       {
         "file": "src/integrations/mcp/defs.js",
@@ -1833,11 +2595,26 @@
         ]
       },
       {
+        "file": "src/lang/javascript.js",
+        "flags": [
+          "log",
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "src/lang/typescript/chunks.js",
+        "flags": [
+          "log",
+          "treeSitter"
+        ]
+      },
+      {
         "file": "src/retrieval/cli-args.js",
         "flags": [
           "alias",
           "ann",
           "async",
+          "author",
           "awaits",
           "backend",
           "bm25-b",
@@ -1860,8 +2637,7 @@
           "fts-profile",
           "fts-weights",
           "generator",
-          "headline",
-          "human",
+          "import",
           "inferred-type",
           "json",
           "json-compact",
@@ -1895,6 +2671,7 @@
           "struct-rule",
           "struct-tag",
           "throws",
+          "type",
           "uses",
           "visibility",
           "why",
@@ -1905,6 +2682,13 @@
         "file": "src/shared/cli.js",
         "flags": [
           "profile"
+        ]
+      },
+      {
+        "file": "src/shared/progress.js",
+        "flags": [
+          "colorize",
+          "translateTime"
         ]
       },
       {
@@ -1937,6 +2721,15 @@
         ]
       },
       {
+        "file": "tests/fixture-parity.js",
+        "flags": [
+          "all",
+          "fixture",
+          "fixtures",
+          "timeout-ms"
+        ]
+      },
+      {
         "file": "tests/fixture-smoke.js",
         "flags": [
           "all",
@@ -1944,11 +2737,25 @@
         ]
       },
       {
+        "file": "tests/fixtures/medium/generate.js",
+        "flags": [
+          "clean",
+          "count",
+          "out",
+          "seed"
+        ]
+      },
+      {
         "file": "tests/parity.js",
         "flags": [
           "ann",
           "enforce",
+          "enforce-fts",
           "limit",
+          "max-delta",
+          "min-overlap",
+          "min-overlap-single",
+          "min-rank-corr",
           "out",
           "queries",
           "search",
@@ -1991,14 +2798,39 @@
         ]
       },
       {
+        "file": "tools/assemble-pieces.js",
+        "flags": [
+          "force",
+          "input",
+          "inputs",
+          "mode",
+          "out",
+          "repo",
+          "stage"
+        ]
+      },
+      {
         "file": "tools/bench-dict-seg.js",
         "flags": [
           "dict",
           "dp-max",
+          "fixture",
           "json",
           "out",
           "sample",
           "tokens"
+        ]
+      },
+      {
+        "file": "tools/bench-query-generator.js",
+        "flags": [
+          "count",
+          "index-root",
+          "json",
+          "mode",
+          "out",
+          "repo",
+          "seed"
         ]
       },
       {
@@ -2036,9 +2868,18 @@
         "flags": [
           "batch",
           "dims",
+          "index-root",
           "mode",
           "repo",
           "stub-embeddings"
+        ]
+      },
+      {
+        "file": "tools/build-lmdb-index.js",
+        "flags": [
+          "index-root",
+          "mode",
+          "repo"
         ]
       },
       {
@@ -2047,6 +2888,7 @@
           "code-dir",
           "compact",
           "incremental",
+          "index-root",
           "mode",
           "out",
           "prose-dir",
@@ -2108,6 +2950,16 @@
           "queries",
           "repo",
           "top"
+        ]
+      },
+      {
+        "file": "tools/compact-pieces.js",
+        "flags": [
+          "chunk-meta-size",
+          "dry-run",
+          "mode",
+          "repo",
+          "token-postings-size"
         ]
       },
       {
@@ -2177,6 +3029,7 @@
           "force",
           "lang",
           "repo",
+          "sha256",
           "update",
           "url"
         ]
@@ -2191,6 +3044,7 @@
           "platform",
           "provider",
           "repo",
+          "sha256",
           "update",
           "url"
         ]
@@ -2250,6 +3104,7 @@
       {
         "file": "tools/index-validate.js",
         "flags": [
+          "index-root",
           "json",
           "mode",
           "repo"
@@ -2309,6 +3164,16 @@
         "file": "tools/report-artifacts.js",
         "flags": [
           "all",
+          "json",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/reset-config.js",
+        "flags": [
+          "backup",
+          "config",
+          "force",
           "json",
           "repo"
         ]
@@ -2468,19 +3333,23 @@
     "duplicated": [
       {
         "flag": "repo",
-        "count": 39,
+        "count": 44,
         "files": [
           "src/retrieval/cli-args.js",
           "tools/api-server.js",
+          "tools/assemble-pieces.js",
+          "tools/bench-query-generator.js",
           "tools/bench-score-strategy.js",
           "tools/bootstrap.js",
           "tools/build-embeddings.js",
+          "tools/build-lmdb-index.js",
           "tools/build-sqlite-index.js",
           "tools/cache-gc.js",
           "tools/ci-build-artifacts.js",
           "tools/ci-restore-artifacts.js",
           "tools/clean-artifacts.js",
           "tools/combined-summary.js",
+          "tools/compact-pieces.js",
           "tools/compact-sqlite-index.js",
           "tools/compare-models.js",
           "tools/config-dump.js",
@@ -2497,6 +3366,7 @@
           "tools/lsif-ingest.js",
           "tools/repometrics-dashboard.js",
           "tools/report-artifacts.js",
+          "tools/reset-config.js",
           "tools/scip-ingest.js",
           "tools/setup.js",
           "tools/shard-census.js",
@@ -2513,12 +3383,13 @@
       },
       {
         "flag": "json",
-        "count": 22,
+        "count": 24,
         "files": [
           "src/retrieval/cli-args.js",
           "tests/fixture-eval.js",
           "tools/api-server.js",
           "tools/bench-dict-seg.js",
+          "tools/bench-query-generator.js",
           "tools/bench-score-strategy.js",
           "tools/cache-gc.js",
           "tools/combined-summary.js",
@@ -2530,6 +3401,7 @@
           "tools/lsif-ingest.js",
           "tools/repometrics-dashboard.js",
           "tools/report-artifacts.js",
+          "tools/reset-config.js",
           "tools/scip-ingest.js",
           "tools/setup.js",
           "tools/structural-search.js",
@@ -2541,11 +3413,14 @@
       },
       {
         "flag": "out",
-        "count": 18,
+        "count": 21,
         "files": [
           "tests/fixture-eval.js",
+          "tests/fixtures/medium/generate.js",
           "tests/parity.js",
+          "tools/assemble-pieces.js",
           "tools/bench-dict-seg.js",
+          "tools/bench-query-generator.js",
           "tools/bench-score-strategy.js",
           "tools/build-sqlite-index.js",
           "tools/ci-build-artifacts.js",
@@ -2565,12 +3440,16 @@
       },
       {
         "flag": "mode",
-        "count": 8,
+        "count": 12,
         "files": [
           "src/retrieval/cli-args.js",
+          "tools/assemble-pieces.js",
+          "tools/bench-query-generator.js",
           "tools/build-embeddings.js",
+          "tools/build-lmdb-index.js",
           "tools/build-sqlite-index.js",
           "tools/combined-summary.js",
+          "tools/compact-pieces.js",
           "tools/compact-sqlite-index.js",
           "tools/compare-models.js",
           "tools/index-validate.js",
@@ -2589,6 +3468,19 @@
           "tools/eval/run.js",
           "tools/parity-matrix.js",
           "tools/repometrics-dashboard.js"
+        ]
+      },
+      {
+        "flag": "dry-run",
+        "count": 7,
+        "files": [
+          "tools/cache-gc.js",
+          "tools/clean-artifacts.js",
+          "tools/compact-pieces.js",
+          "tools/compact-sqlite-index.js",
+          "tools/parity-matrix.js",
+          "tools/tooling-install.js",
+          "tools/uninstall.js"
         ]
       },
       {
@@ -2629,18 +3521,6 @@
         ]
       },
       {
-        "flag": "dry-run",
-        "count": 6,
-        "files": [
-          "tools/cache-gc.js",
-          "tools/clean-artifacts.js",
-          "tools/compact-sqlite-index.js",
-          "tools/parity-matrix.js",
-          "tools/tooling-install.js",
-          "tools/uninstall.js"
-        ]
-      },
-      {
         "flag": "profile",
         "count": 6,
         "files": [
@@ -2650,6 +3530,39 @@
           "tools/compare-models.js",
           "tools/config-inventory.js",
           "tools/structural-search.js"
+        ]
+      },
+      {
+        "flag": "force",
+        "count": 5,
+        "files": [
+          "tools/assemble-pieces.js",
+          "tools/ci-restore-artifacts.js",
+          "tools/download-dicts.js",
+          "tools/download-extensions.js",
+          "tools/reset-config.js"
+        ]
+      },
+      {
+        "flag": "index-root",
+        "count": 5,
+        "files": [
+          "tools/bench-query-generator.js",
+          "tools/build-embeddings.js",
+          "tools/build-lmdb-index.js",
+          "tools/build-sqlite-index.js",
+          "tools/index-validate.js"
+        ]
+      },
+      {
+        "flag": "input",
+        "count": 5,
+        "files": [
+          "tools/assemble-pieces.js",
+          "tools/ctags-ingest.js",
+          "tools/gtags-ingest.js",
+          "tools/lsif-ingest.js",
+          "tools/scip-ingest.js"
         ]
       },
       {
@@ -2686,19 +3599,10 @@
         ]
       },
       {
-        "flag": "input",
+        "flag": "all",
         "count": 4,
         "files": [
-          "tools/ctags-ingest.js",
-          "tools/gtags-ingest.js",
-          "tools/lsif-ingest.js",
-          "tools/scip-ingest.js"
-        ]
-      },
-      {
-        "flag": "all",
-        "count": 3,
-        "files": [
+          "tests/fixture-parity.js",
           "tests/fixture-smoke.js",
           "tools/clean-artifacts.js",
           "tools/report-artifacts.js"
@@ -2732,6 +3636,15 @@
         ]
       },
       {
+        "flag": "config",
+        "count": 3,
+        "files": [
+          "tools/indexer-service.js",
+          "tools/reset-config.js",
+          "tools/validate-config.js"
+        ]
+      },
+      {
         "flag": "dir",
         "count": 3,
         "files": [
@@ -2741,12 +3654,21 @@
         ]
       },
       {
-        "flag": "force",
+        "flag": "fixture",
         "count": 3,
         "files": [
-          "tools/ci-restore-artifacts.js",
-          "tools/download-dicts.js",
-          "tools/download-extensions.js"
+          "tests/fixture-parity.js",
+          "tests/fixture-smoke.js",
+          "tools/bench-dict-seg.js"
+        ]
+      },
+      {
+        "flag": "log",
+        "count": 3,
+        "files": [
+          "src/lang/javascript.js",
+          "src/lang/typescript/chunks.js",
+          "tests/tree-sitter-chunks.js"
         ]
       },
       {
@@ -2777,6 +3699,15 @@
         ]
       },
       {
+        "flag": "treeSitter",
+        "count": 3,
+        "files": [
+          "src/lang/javascript.js",
+          "src/lang/typescript/chunks.js",
+          "tests/tree-sitter-chunks.js"
+        ]
+      },
+      {
         "flag": "arch",
         "count": 2,
         "files": [
@@ -2793,11 +3724,11 @@
         ]
       },
       {
-        "flag": "config",
+        "flag": "count",
         "count": 2,
         "files": [
-          "tools/indexer-service.js",
-          "tools/validate-config.js"
+          "tests/fixtures/medium/generate.js",
+          "tools/bench-query-generator.js"
         ]
       },
       {
@@ -2897,6 +3828,22 @@
         ]
       },
       {
+        "flag": "seed",
+        "count": 2,
+        "files": [
+          "tests/fixtures/medium/generate.js",
+          "tools/bench-query-generator.js"
+        ]
+      },
+      {
+        "flag": "sha256",
+        "count": 2,
+        "files": [
+          "tools/download-dicts.js",
+          "tools/download-extensions.js"
+        ]
+      },
+      {
         "flag": "skip-artifacts",
         "count": 2,
         "files": [
@@ -2945,11 +3892,27 @@
         ]
       },
       {
+        "flag": "stage",
+        "count": 2,
+        "files": [
+          "tools/assemble-pieces.js",
+          "tools/indexer-service.js"
+        ]
+      },
+      {
         "flag": "status",
         "count": 2,
         "files": [
           "tools/git-hooks.js",
           "tools/triage/decision.js"
+        ]
+      },
+      {
+        "flag": "type",
+        "count": 2,
+        "files": [
+          "src/integrations/mcp/defs.js",
+          "src/retrieval/cli-args.js"
         ]
       },
       {
@@ -2998,11 +3961,14 @@
       "src/index/build/context-window.js",
       "src/index/build/file-processor.js",
       "src/index/build/imports.js",
+      "src/index/chunking.js",
       "src/index/tooling/typescript-provider.js",
+      "src/lang/workers/tree-sitter-worker.js",
       "src/retrieval/cli.js",
       "tests/bench.js",
       "tools/bench-language-matrix.js",
-      "tools/bench-language-repos.js"
+      "tools/bench-language-repos.js",
+      "tools/vector-extension.js"
     ]
   }
 }

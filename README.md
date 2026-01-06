@@ -109,6 +109,7 @@ pairofcleats search -- "rate limit exceeded" --mode prose
 Modes:
 - `--mode code` (code-focused)
 - `--mode prose` (docs/readmes/comments)
+- `--mode extracted-prose` (comment-prose only; requires extracted-prose index)
 - `--mode both` (default in many workflows)
 
 Use `--explain` (or `--why`) to see score breakdowns.
@@ -255,7 +256,8 @@ pairofcleats search -- "query" --backend sqlite
 By default, caches and indexes live **outside the repo**:
 
 - cache root: OS-specific (or `PAIROFCLEATS_HOME` / `PAIROFCLEATS_CACHE_ROOT`)
-- per-repo artifacts: `<cache>/repos/<repoId>/index-code`, `index-prose`, etc.
+- per-repo artifacts: `<cache>/repos/<repoId>/builds/<buildId>/index-code`, `index-prose`, etc.
+- current pointer: `<cache>/repos/<repoId>/builds/current.json` (active build root)
 
 Override cache location via `.pairofcleats.json`:
 ```json
@@ -326,7 +328,7 @@ flowchart TB
 
 ## Status
 
-Active development. See `COMPLETE_PLAN.md` for current execution status.
+Active development. See `NEW_ROADMAP.md` for current execution status.
 
 ---
 

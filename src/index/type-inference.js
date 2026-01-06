@@ -37,6 +37,38 @@ const JS_TYPES = {
 };
 
 const normalizeText = (value) => String(value || '').trim();
+const unique = (values) => Array.from(new Set((values || []).filter(Boolean)));
+
+const normalizeTypeName = (value, languageId) => {
+  const normalized = normalizeText(value);
+  if (!normalized) return '';
+  if (languageId === 'typescript' || languageId === 'tsx') {
+    return normalized;
+  }
+  const lowered = normalized.toLowerCase();
+  if (languageId === 'python') {
+    const pyMap = {
+      integer: 'int',
+      bool: 'bool',
+      boolean: 'bool',
+      string: 'str',
+      array: 'list',
+      object: 'dict'
+    };
+    return pyMap[lowered] || normalized;
+  }
+  const jsMap = {
+    integer: 'number',
+    float: 'number',
+    bool: 'boolean',
+    string: 'string',
+    array: 'array',
+    object: 'object',
+    dict: 'object',
+    list: 'array'
+  };
+  return jsMap[lowered] || normalized;
+};
 
 const splitTopLevel = (value, delimiter) => {
   const parts = [];
@@ -51,6 +83,32 @@ const splitTopLevel = (value, delimiter) => {
       parts.push(current.trim());
       current = '';
       continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+};
+
+const splitLiteralTopLevel = (value) => {
+  const parts = [];
+  if (!value) return parts;
+  let current = '';
+  let depth = 0;
+  let inSingle = false;
+  let inDouble = false;
+  for (let i = 0; i < value.length; i += 1) {
+    const ch = value[i];
+    if (ch === "'" && !inDouble) inSingle = !inSingle;
+    if (ch === '"' && !inSingle) inDouble = !inDouble;
+    if (!inSingle && !inDouble) {
+      if (ch === '{' || ch === '[' || ch === '(') depth += 1;
+      if (ch === '}' || ch === ']' || ch === ')') depth = Math.max(0, depth - 1);
+      if (ch === ',' && depth === 0) {
+        if (current.trim()) parts.push(current.trim());
+        current = '';
+        continue;
+      }
     }
     current += ch;
   }
@@ -99,12 +157,12 @@ const expandUnionTypes = (value, languageId) => {
 };
 
 const expandTypeCandidates = (raw, languageId) => {
-  const initial = normalizeText(raw);
+  const initial = normalizeTypeName(raw, languageId);
   if (!initial) return [];
   const seen = new Set();
   const queue = [initial];
   while (queue.length) {
-    const current = normalizeText(queue.shift());
+    const current = normalizeTypeName(queue.shift(), languageId);
     if (!current || seen.has(current)) continue;
     seen.add(current);
     const stripped = stripOptionalSuffix(current);
@@ -146,34 +204,94 @@ const mapPrimitive = (kind, languageId) => {
   return JS_TYPES[kind] || kind;
 };
 
+const stripQuotes = (value) => {
+  if (!value) return value;
+  const trimmed = value.trim();
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"'))
+    || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+};
+
+const extractObjectKeys = (value, limit) => {
+  const keys = [];
+  if (!value || !value.trim().startsWith('{')) return keys;
+  const keyRx = /([A-Za-z_$][\w$]*|"(?:[^"\\]|\\.)+"|'(?:[^'\\]|\\.)+')\s*:/g;
+  let match;
+  while ((match = keyRx.exec(value)) !== null) {
+    const key = stripQuotes(match[1]);
+    if (key) keys.push(key);
+    if (keys.length >= limit) break;
+  }
+  return keys;
+};
+
+const extractArrayElements = (value, limit, languageId) => {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('[')) return null;
+  const closeIndex = trimmed.lastIndexOf(']');
+  if (closeIndex <= 0) return null;
+  const inner = trimmed.slice(1, closeIndex);
+  const parts = splitLiteralTopLevel(inner).slice(0, limit);
+  const elements = [];
+  for (const part of parts) {
+    const entry = inferLiteralType(part, languageId);
+    if (entry?.type) elements.push(entry.type);
+  }
+  return unique(elements);
+};
+
 const inferLiteralType = (raw, languageId) => {
   const value = normalizeDefaultValue(raw);
   if (!value) return null;
   const lowered = value.toLowerCase();
   if (languageId === 'python') {
-    if (lowered === 'none') return PYTHON_TYPES.null;
-    if (lowered === 'true' || lowered === 'false') return PYTHON_TYPES.boolean;
-    if (/^-?\d+\.\d+$/.test(value)) return PYTHON_TYPES.float;
-    if (/^-?\d+$/.test(value)) return PYTHON_TYPES.number;
-    if (value.startsWith('[')) return PYTHON_TYPES.array;
-    if (value.startsWith('{')) return PYTHON_TYPES.object;
-    if (value.startsWith('(')) return PYTHON_TYPES.tuple;
-    if (lowered.startsWith('set(')) return PYTHON_TYPES.set;
-    if (lowered.startsWith('dict(')) return PYTHON_TYPES.object;
-    if (lowered.startsWith('list(')) return PYTHON_TYPES.array;
+    if (lowered === 'none') return { type: PYTHON_TYPES.null };
+    if (lowered === 'true' || lowered === 'false') return { type: PYTHON_TYPES.boolean };
+    if (/^-?\d+\.\d+$/.test(value)) return { type: PYTHON_TYPES.float };
+    if (/^-?\d+$/.test(value)) return { type: PYTHON_TYPES.number };
+    if (value.startsWith('[')) {
+      return {
+        type: PYTHON_TYPES.array,
+        elements: extractArrayElements(value, 25, languageId)
+      };
+    }
+    if (value.startsWith('{')) {
+      const keys = extractObjectKeys(value, 20);
+      return {
+        type: PYTHON_TYPES.object,
+        shape: keys.length ? { kind: 'object', keys } : null
+      };
+    }
+    if (value.startsWith('(')) return { type: PYTHON_TYPES.tuple };
+    if (lowered.startsWith('set(')) return { type: PYTHON_TYPES.set };
+    if (lowered.startsWith('dict(')) return { type: PYTHON_TYPES.object };
+    if (lowered.startsWith('list(')) return { type: PYTHON_TYPES.array };
   } else {
-    if (lowered === 'null') return JS_TYPES.null;
-    if (lowered === 'undefined') return JS_TYPES.undefined;
-    if (lowered === 'true' || lowered === 'false') return JS_TYPES.boolean;
-    if (/^-?\d+(\.\d+)?$/.test(value)) return JS_TYPES.number;
-    if (value.startsWith('[')) return JS_TYPES.array;
-    if (value.startsWith('{')) return JS_TYPES.object;
+    if (lowered === 'null') return { type: JS_TYPES.null };
+    if (lowered === 'undefined') return { type: JS_TYPES.undefined };
+    if (lowered === 'true' || lowered === 'false') return { type: JS_TYPES.boolean };
+    if (/^-?\d+(\.\d+)?$/.test(value)) return { type: JS_TYPES.number };
+    if (value.startsWith('[')) {
+      return {
+        type: JS_TYPES.array,
+        elements: extractArrayElements(value, 25, languageId)
+      };
+    }
+    if (value.startsWith('{')) {
+      const keys = extractObjectKeys(value, 20);
+      return {
+        type: JS_TYPES.object,
+        shape: keys.length ? { kind: 'object', keys } : null
+      };
+    }
   }
   if (value.startsWith('"') || value.startsWith("'") || value.startsWith('`')) {
-    return mapPrimitive('string', languageId);
+    return { type: mapPrimitive('string', languageId) };
   }
   const newMatch = value.match(/^new\s+([A-Za-z_][\w.]*)/);
-  if (newMatch) return newMatch[1];
+  if (newMatch) return { type: normalizeTypeName(newMatch[1], languageId) };
   return null;
 };
 
@@ -201,12 +319,22 @@ const addReturnTypes = (list, entry, languageId) => {
   return hasData;
 };
 
+const mergeTypeEntry = (existing, entry) => {
+  if (!existing || !entry) return;
+  existing.confidence = Math.max(existing.confidence || 0, entry.confidence || 0);
+  if (entry.shape && !existing.shape) existing.shape = entry.shape;
+  if (Array.isArray(entry.elements) && entry.elements.length) {
+    existing.elements = unique([...(existing.elements || []), ...entry.elements]);
+  }
+  if (entry.evidence && !existing.evidence) existing.evidence = entry.evidence;
+};
+
 const addEntry = (bucket, key, entry) => {
   if (!bucket || !key || !entry?.type) return false;
-  const list = bucket[key] || [];
+  const list = Array.isArray(bucket[key]) ? bucket[key] : [];
   const existing = list.find((item) => item.type === entry.type && item.source === entry.source);
   if (existing) {
-    existing.confidence = Math.max(existing.confidence, entry.confidence || 0);
+    mergeTypeEntry(existing, entry);
     bucket[key] = list;
     return true;
   }
@@ -215,18 +343,19 @@ const addEntry = (bucket, key, entry) => {
 };
 
 const addListEntry = (list, entry) => {
-  if (!Array.isArray(list) || !entry?.type) return false;
-  const existing = list.find((item) => item.type === entry.type && item.source === entry.source);
+  if (!entry?.type) return false;
+  const target = Array.isArray(list) ? list : [];
+  const existing = target.find((item) => item.type === entry.type && item.source === entry.source);
   if (existing) {
-    existing.confidence = Math.max(existing.confidence, entry.confidence || 0);
+    mergeTypeEntry(existing, entry);
     return true;
   }
-  list.push(entry);
+  target.push(entry);
   return true;
 };
 
 const inferAssignments = (chunkText, languageId, knownTypes) => {
-  const locals = {};
+  const locals = Object.create(null);
   const aliases = new Set();
   if (!chunkText) return { locals, aliases: [] };
   const lines = chunkText.split(/\r?\n/);
@@ -246,7 +375,7 @@ const inferAssignments = (chunkText, languageId, knownTypes) => {
     const inferred = inferLiteralType(value, languageId);
     if (!inferred) continue;
     addEntry(locals, name, {
-      type: inferred,
+      ...inferred,
       source: TYPE_SOURCES.literal,
       confidence: CONFIDENCE.literal
     });
@@ -290,19 +419,50 @@ const inferAssignments = (chunkText, languageId, knownTypes) => {
   return { locals, aliases: Array.from(aliases) };
 };
 
+const inferConditionalTypes = (chunkText, languageId) => {
+  const results = [];
+  if (!chunkText) return results;
+  const lines = chunkText.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#')) continue;
+    let match = trimmed.match(/typeof\s+([A-Za-z_$][\w$]*)\s*===?\s*['"]([A-Za-z]+)['"]/);
+    if (match) {
+      results.push({ name: match[1], type: normalizeTypeName(match[2], languageId) });
+      continue;
+    }
+    match = trimmed.match(/([A-Za-z_$][\w$]*)\s+instanceof\s+([A-Za-z_$][\w$.]*)/);
+    if (match) {
+      results.push({ name: match[1], type: normalizeTypeName(match[2], languageId) });
+      continue;
+    }
+    match = trimmed.match(/Array\.isArray\s*\(\s*([A-Za-z_$][\w$]*)\s*\)/);
+    if (match) {
+      results.push({ name: match[1], type: mapPrimitive('array', languageId) });
+      continue;
+    }
+    match = trimmed.match(/([A-Za-z_$][\w$]*)\s*===?\s*null/);
+    if (match) {
+      results.push({ name: match[1], type: mapPrimitive('null', languageId) });
+      continue;
+    }
+  }
+  return results.filter((entry) => entry.name && entry.type);
+};
+
 export function inferTypeMetadata({ docmeta, chunkText, languageId }) {
   if (!docmeta || typeof docmeta !== 'object') return null;
   const inferred = {
-    params: {},
+    params: Object.create(null),
     returns: [],
-    fields: {},
-    locals: {}
+    fields: Object.create(null),
+    locals: Object.create(null)
   };
   let hasData = false;
 
   const paramTypes = docmeta.paramTypes || {};
   for (const [name, type] of Object.entries(paramTypes)) {
-    const normalized = normalizeText(type);
+    const normalized = normalizeTypeName(type, languageId);
     if (!normalized) continue;
     hasData = addTypes(inferred.params, name, {
       type: normalized,
@@ -316,13 +476,13 @@ export function inferTypeMetadata({ docmeta, chunkText, languageId }) {
     const inferredType = inferLiteralType(value, languageId);
     if (!inferredType) continue;
     hasData = addTypes(inferred.params, name, {
-      type: inferredType,
+      ...inferredType,
       source: TYPE_SOURCES.default,
       confidence: CONFIDENCE.default
     }, languageId) || hasData;
   }
 
-  const returnType = normalizeText(docmeta.returnType);
+  const returnType = normalizeTypeName(docmeta.returnType, languageId);
   if (returnType) {
     hasData = addReturnTypes(inferred.returns, {
       type: returnType,
@@ -336,7 +496,7 @@ export function inferTypeMetadata({ docmeta, chunkText, languageId }) {
       if (!field || !field.name) continue;
       if (field.type) {
         hasData = addTypes(inferred.fields, field.name, {
-          type: normalizeText(field.type),
+          type: normalizeTypeName(field.type, languageId),
           source: TYPE_SOURCES.annotation,
           confidence: CONFIDENCE.annotation
         }, languageId) || hasData;
@@ -345,7 +505,7 @@ export function inferTypeMetadata({ docmeta, chunkText, languageId }) {
         const inferredType = inferLiteralType(field.default, languageId);
         if (inferredType) {
           hasData = addTypes(inferred.fields, field.name, {
-            type: inferredType,
+            ...inferredType,
             source: TYPE_SOURCES.default,
             confidence: CONFIDENCE.default
           }, languageId) || hasData;
@@ -377,6 +537,18 @@ export function inferTypeMetadata({ docmeta, chunkText, languageId }) {
     for (const entry of entries) {
       hasData = addEntry(inferred.locals, name, entry) || hasData;
     }
+  }
+
+  const paramNameSet = new Set(Array.isArray(docmeta.params) ? docmeta.params : []);
+  const conditionalTypes = inferConditionalTypes(chunkText, languageId);
+  for (const entry of conditionalTypes) {
+    if (!entry?.name || !entry?.type) continue;
+    const target = paramNameSet.has(entry.name) ? inferred.params : inferred.locals;
+    hasData = addEntry(target, entry.name, {
+      type: entry.type,
+      source: TYPE_SOURCES.flow,
+      confidence: CONFIDENCE.flow
+    }) || hasData;
   }
   if (!hasData) return null;
   if (!Object.keys(inferred.params).length) delete inferred.params;

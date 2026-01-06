@@ -15,6 +15,10 @@ await fsPromises.mkdir(repoRoot, { recursive: true });
 
 const filePath = path.join(repoRoot, 'sample.js');
 await fsPromises.writeFile(filePath, 'export function hello() { return 1; }\n');
+await fsPromises.writeFile(
+  path.join(repoRoot, '.pairofcleats.json'),
+  JSON.stringify({ sqlite: { use: false } }, null, 2)
+);
 
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const env = {
@@ -32,7 +36,7 @@ const run = (args, label) => {
   }
 };
 
-run([buildIndexPath, '--incremental', '--stub-embeddings', '--repo', repoRoot], 'initial build');
+run([buildIndexPath, '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'initial build');
 
 const userConfig = loadUserConfig(repoRoot);
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
@@ -52,7 +56,7 @@ if (!entryBefore) {
 const newTime = new Date(Date.now() + 5000);
 fs.utimesSync(filePath, newTime, newTime);
 
-run([buildIndexPath, '--incremental', '--stub-embeddings', '--repo', repoRoot], 'second build');
+run([buildIndexPath, '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'second build');
 
 const manifestAfter = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const entryAfter = manifestAfter.files?.['sample.js'];

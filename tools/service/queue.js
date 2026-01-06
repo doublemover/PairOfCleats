@@ -34,6 +34,14 @@ export async function ensureQueueDir(dirPath) {
   await fs.mkdir(dirPath, { recursive: true });
 }
 
+const ensureJobDirs = async (dirPath) => {
+  const logsDir = path.join(dirPath, 'logs');
+  const reportsDir = path.join(dirPath, 'reports');
+  await fs.mkdir(logsDir, { recursive: true });
+  await fs.mkdir(reportsDir, { recursive: true });
+  return { logsDir, reportsDir };
+};
+
 const normalizeQueueName = (value) => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
   if (!raw || raw === 'index') return null;
@@ -77,6 +85,7 @@ export async function saveQueue(dirPath, queue, queueName = null) {
 
 export async function enqueueJob(dirPath, job, maxQueued = null, queueName = null) {
   await ensureQueueDir(dirPath);
+  const { logsDir, reportsDir } = await ensureJobDirs(dirPath);
   const resolvedQueueName = resolveQueueName(queueName, job);
   const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
@@ -98,7 +107,11 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
       stage: job.stage || null,
       args: Array.isArray(job.args) && job.args.length ? job.args : null,
       attempts: 0,
-      maxRetries
+      maxRetries,
+      nextEligibleAt: null,
+      lastHeartbeatAt: null,
+      logPath: path.join(logsDir, `${job.id}.log`),
+      reportPath: path.join(reportsDir, `${job.id}.json`)
     };
     queue.jobs.push(next);
     await saveQueue(dirPath, queue, resolvedQueueName);
@@ -109,11 +122,21 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
 export async function claimNextJob(dirPath, queueName = null) {
   const { lockPath } = getQueuePaths(dirPath, queueName);
   return withLock(lockPath, async () => {
+    const { logsDir, reportsDir } = await ensureJobDirs(dirPath);
     const queue = await loadQueue(dirPath, queueName);
-    const job = queue.jobs.find((entry) => entry.status === 'queued');
+    const now = Date.now();
+    const job = queue.jobs.find((entry) => {
+      if (entry.status !== 'queued') return false;
+      if (!entry.nextEligibleAt) return true;
+      const eligibleAt = Date.parse(entry.nextEligibleAt);
+      return Number.isNaN(eligibleAt) || eligibleAt <= now;
+    });
     if (!job) return null;
+    if (!job.logPath) job.logPath = path.join(logsDir, `${job.id}.log`);
+    if (!job.reportPath) job.reportPath = path.join(reportsDir, `${job.id}.json`);
     job.status = 'running';
     job.startedAt = new Date().toISOString();
+    job.lastHeartbeatAt = job.startedAt;
     await saveQueue(dirPath, queue, queueName);
     return job;
   });
@@ -122,6 +145,7 @@ export async function claimNextJob(dirPath, queueName = null) {
 export async function completeJob(dirPath, jobId, status, result, queueName = null) {
   const { lockPath } = getQueuePaths(dirPath, queueName);
   return withLock(lockPath, async () => {
+    const { reportsDir } = await ensureJobDirs(dirPath);
     const queue = await loadQueue(dirPath, queueName);
     const job = queue.jobs.find((entry) => entry.id === jobId);
     if (!job) return null;
@@ -134,8 +158,89 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
     if (result?.error) {
       job.lastError = result.error;
     }
+    job.lastHeartbeatAt = null;
+    await saveQueue(dirPath, queue, queueName);
+    const reportPath = job.reportPath || path.join(reportsDir, `${job.id}.json`);
+    try {
+      await fs.writeFile(reportPath, JSON.stringify({
+        updatedAt: new Date().toISOString(),
+        status: job.status,
+        job
+      }, null, 2));
+    } catch {}
+    return job;
+  });
+}
+
+export async function touchJobHeartbeat(dirPath, jobId, queueName = null) {
+  const { lockPath } = getQueuePaths(dirPath, queueName);
+  return withLock(lockPath, async () => {
+    const queue = await loadQueue(dirPath, queueName);
+    const job = queue.jobs.find((entry) => entry.id === jobId);
+    if (!job) return null;
+    if (job.status !== 'running') return job;
+    job.lastHeartbeatAt = new Date().toISOString();
     await saveQueue(dirPath, queue, queueName);
     return job;
+  });
+}
+
+const resolveStaleThresholdMs = (job, queueName) => {
+  const stage = typeof job?.stage === 'string' ? job.stage.toLowerCase() : '';
+  if (queueName === 'embeddings' || job?.reason === 'embeddings' || stage === 'stage3') {
+    return 15 * 60 * 1000;
+  }
+  if (stage === 'stage2') return 10 * 60 * 1000;
+  return null;
+};
+
+const resolveRetryDelayMs = (attempts) => {
+  if (attempts <= 0) return 0;
+  if (attempts === 1) return 2 * 60 * 1000;
+  return 10 * 60 * 1000;
+};
+
+export async function requeueStaleJobs(dirPath, queueName = null, options = {}) {
+  const { lockPath } = getQueuePaths(dirPath, queueName);
+  return withLock(lockPath, async () => {
+    const queue = await loadQueue(dirPath, queueName);
+    const now = Date.now();
+    const stale = [];
+    for (const job of queue.jobs) {
+      if (job.status !== 'running') continue;
+      const threshold = resolveStaleThresholdMs(job, queueName);
+      if (!threshold) continue;
+      const heartbeatAt = Date.parse(job.lastHeartbeatAt || job.startedAt || '');
+      if (Number.isNaN(heartbeatAt)) continue;
+      if (now - heartbeatAt <= threshold) continue;
+      stale.push(job);
+    }
+    if (!stale.length) return { stale: 0, retried: 0, failed: 0 };
+    let retried = 0;
+    let failed = 0;
+    for (const job of stale) {
+      const attempts = Number.isFinite(job.attempts) ? job.attempts : 0;
+      const maxRetries = Number.isFinite(job.maxRetries)
+        ? job.maxRetries
+        : (Number.isFinite(options.maxRetries) ? options.maxRetries : 2);
+      const nextAttempts = attempts + 1;
+      if (nextAttempts <= maxRetries) {
+        retried += 1;
+        job.status = 'queued';
+        job.attempts = nextAttempts;
+        job.lastError = 'stale job heartbeat';
+        const delayMs = resolveRetryDelayMs(nextAttempts);
+        job.nextEligibleAt = new Date(now + delayMs).toISOString();
+      } else {
+        failed += 1;
+        job.status = 'failed';
+        job.finishedAt = new Date().toISOString();
+        job.result = { error: 'stale job heartbeat', attempts: nextAttempts };
+      }
+      job.lastHeartbeatAt = null;
+    }
+    await saveQueue(dirPath, queue, queueName);
+    return { stale: stale.length, retried, failed };
   });
 }
 

@@ -17,9 +17,9 @@ await fs.writeFile(
   path.join(cacheRoot, 'src', 'minified.js'),
   'const x=' + 'a'.repeat(200)
 );
-await fs.writeFile(
-  path.join(cacheRoot, 'src', 'binary.js'),
-  Buffer.from([0, 1, 2, 3, 0, 5, 6, 0])
+await fs.copyFile(
+  path.join(root, 'tests', 'fixtures', 'binary', 'sample.png'),
+  path.join(cacheRoot, 'src', 'binary.png')
 );
 await fs.writeFile(path.join(cacheRoot, 'docs', 'readme.md'), '# title\n');
 

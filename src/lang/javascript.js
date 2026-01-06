@@ -1,6 +1,7 @@
 import * as acorn from 'acorn';
 import * as esprima from 'esprima';
 import { parseBabelAst } from './babel-parser.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * JavaScript/TypeScript-like chunking and relations.
@@ -161,6 +162,15 @@ function formatParam(node) {
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
 export function buildJsChunks(text, options = {}) {
+  if (options.treeSitter) {
+    const treeChunks = buildTreeSitterChunks({
+      text,
+      languageId: null,
+      ext: options.ext,
+      options: { treeSitter: options.treeSitter, log: options.log }
+    });
+    if (treeChunks && treeChunks.length) return treeChunks;
+  }
   const chunks = [];
   const addChunk = (node, name, kind) => {
     if (!node) return;
@@ -697,6 +707,10 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
       const arg = node.arguments?.[0];
       const value = arg && (arg.value ?? null);
       if (typeof value === 'string') imports.add(value);
+    }
+    if (node.type === 'CallExpression' && node.callee?.type === 'Identifier' && node.callee.name === 'require') {
+      const arg = node.arguments?.[0];
+      if (arg && typeof arg.value === 'string') imports.add(arg.value);
     }
 
     if (node.type === 'ExportAllDeclaration') {

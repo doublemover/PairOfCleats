@@ -39,3 +39,46 @@ export const mergeToolingMaps = (base, incoming) => {
   }
   return base;
 };
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const createToolingGuard = ({
+  name,
+  timeoutMs = 15000,
+  retries = 2,
+  breakerThreshold = 3,
+  log = () => {}
+} = {}) => {
+  let consecutiveFailures = 0;
+  const isOpen = () => consecutiveFailures >= breakerThreshold;
+  const reset = () => {
+    consecutiveFailures = 0;
+  };
+  const recordFailure = (err, label) => {
+    consecutiveFailures += 1;
+    if (label) log(`[tooling] ${name} ${label} failed (${consecutiveFailures}/${breakerThreshold}): ${err?.message || err}`);
+    if (isOpen()) log(`[tooling] ${name} circuit breaker tripped.`);
+  };
+  const run = async (fn, { label, timeoutOverride } = {}) => {
+    if (isOpen()) throw new Error(`${name} tooling disabled (circuit breaker).`);
+    let attempt = 0;
+    while (attempt <= retries) {
+      try {
+        const result = await fn({ timeoutMs: timeoutOverride || timeoutMs });
+        reset();
+        return result;
+      } catch (err) {
+        recordFailure(err, label);
+        attempt += 1;
+        if (isOpen() || attempt > retries) throw err;
+        const delay = attempt === 1 ? 250 : 1000;
+        await wait(delay);
+      }
+    }
+    return null;
+  };
+  return {
+    isOpen,
+    run
+  };
+};

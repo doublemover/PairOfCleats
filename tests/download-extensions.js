@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
+import crypto from 'node:crypto';
 import http from 'node:http';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
@@ -37,6 +38,11 @@ function runDownload(args) {
   });
 }
 
+async function hashFile(filePath) {
+  const buffer = await fsPromises.readFile(filePath);
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const address = server.address();
 const port = typeof address === 'object' && address ? address.port : 0;
@@ -45,15 +51,22 @@ const cases = [
   { label: 'zip', archive: 'vec0.zip', expectedArchive: 'zip' },
   { label: 'tar', archive: 'vec0.tar', expectedArchive: 'tar' }
 ];
+const maliciousCases = [
+  { label: 'zip-slip', archive: 'vec0-slip.zip', escapeName: 'pwned-zip.txt' },
+  { label: 'tar-slip', archive: 'vec0-slip.tar', escapeName: 'pwned-tar.txt' }
+];
 
 const failures = [];
 for (const entry of cases) {
   const extensionDir = path.join(tempRoot, entry.label);
   const url = `http://127.0.0.1:${port}/${entry.archive}`;
+  const archiveHash = await hashFile(path.join(fixturesRoot, entry.archive));
   const status = await runDownload([
     path.join(root, 'tools', 'download-extensions.js'),
     '--url',
     `vec0=${url}`,
+    '--sha256',
+    `vec0=${archiveHash}`,
     '--dir',
     extensionDir,
     '--provider',
@@ -98,6 +111,9 @@ for (const entry of cases) {
   if (!record.extractedFrom) {
     failures.push(`${entry.label} manifest extractedFrom missing`);
   }
+  if (record.sha256 !== archiveHash || record.verified !== true) {
+    failures.push(`${entry.label} manifest hash verification missing`);
+  }
 
   const verify = spawnSync(
     process.execPath,
@@ -123,6 +139,38 @@ for (const entry of cases) {
   const verifyPayload = JSON.parse(verify.stdout || '{}');
   if (!verifyPayload.exists) {
     failures.push(`${entry.label} verify-extensions missing path`);
+  }
+}
+
+for (const entry of maliciousCases) {
+  const extensionDir = path.join(tempRoot, entry.label);
+  const url = `http://127.0.0.1:${port}/${entry.archive}`;
+  const archiveHash = await hashFile(path.join(fixturesRoot, entry.archive));
+  const escapePath = path.join(tempRoot, entry.escapeName);
+  await fsPromises.rm(escapePath, { force: true });
+  await runDownload([
+    path.join(root, 'tools', 'download-extensions.js'),
+    '--url',
+    `vec0=${url}`,
+    '--sha256',
+    `vec0=${archiveHash}`,
+    '--dir',
+    extensionDir,
+    '--provider',
+    'sqlite-vec',
+    '--platform',
+    'win32',
+    '--arch',
+    'x64',
+    '--force'
+  ]);
+  const expectedPath = path.join(extensionDir, 'sqlite-vec', 'win32-x64', 'vec0.dll');
+  if (fs.existsSync(escapePath)) {
+    failures.push(`${entry.label} wrote outside extraction root`);
+    continue;
+  }
+  if (fs.existsSync(expectedPath)) {
+    failures.push(`${entry.label} unexpectedly extracted binary`);
   }
 }
 

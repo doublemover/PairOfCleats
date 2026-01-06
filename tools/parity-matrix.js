@@ -2,9 +2,9 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import { createCli } from '../src/shared/cli.js';
+import { resolveToolRoot } from './dict-utils.js';
 
 const argv = createCli({
   scriptName: 'parity-matrix',
@@ -24,7 +24,7 @@ const argv = createCli({
   }
 }).parse();
 
-const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scriptRoot = resolveToolRoot();
 const parityScript = path.join(scriptRoot, 'tests', 'parity.js');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 const resultsRoot = path.resolve(

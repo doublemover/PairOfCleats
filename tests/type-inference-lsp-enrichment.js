@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getRepoId } from '../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'lsp-enrichment');
@@ -17,8 +17,10 @@ await fsPromises.mkdir(srcDir, { recursive: true });
 
 const cppSource = 'int add(int a, int b) { return a + b; }\n';
 const swiftSource = 'func greet(name: String, count: Int) -> String { return "hi" }\n';
+const pythonSource = 'def greet(name: str) -> str:\n    return "hi"\n';
 await fsPromises.writeFile(path.join(srcDir, 'sample.cpp'), cppSource);
 await fsPromises.writeFile(path.join(srcDir, 'sample.swift'), swiftSource);
+await fsPromises.writeFile(path.join(srcDir, 'sample.py'), pythonSource);
 
 const config = {
   indexing: {
@@ -37,7 +39,7 @@ await fsPromises.writeFile(
   JSON.stringify(config, null, 2)
 );
 
-for (const binName of ['clangd', 'sourcekit-lsp']) {
+for (const binName of ['clangd', 'sourcekit-lsp', 'pyright-langserver']) {
   try {
     await fsPromises.chmod(path.join(binRoot, binName), 0o755);
   } catch {}
@@ -49,6 +51,8 @@ const env = {
   PAIROFCLEATS_EMBEDDINGS: 'stub',
   PATH: `${binRoot}${path.delimiter}${process.env.PATH || ''}`
 };
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const buildResult = spawnSync(
   process.execPath,
@@ -62,8 +66,8 @@ if (buildResult.status !== 0) {
   process.exit(buildResult.status ?? 1);
 }
 
-const repoId = getRepoId(repoRoot);
-const indexDir = path.join(cacheRoot, 'repos', repoId, 'index-code');
+const userConfig = loadUserConfig(repoRoot);
+const indexDir = getIndexDir(repoRoot, 'code', userConfig);
 const metaPath = path.join(indexDir, 'chunk_meta.json');
 if (!fs.existsSync(metaPath)) {
   console.error('LSP enrichment test failed: chunk_meta.json missing.');
@@ -82,6 +86,7 @@ const resolveChunkFile = (chunk) => chunk?.file || fileById.get(chunk?.fileId) |
 
 const cppChunk = chunks.find((chunk) => resolveChunkFile(chunk) === 'src/sample.cpp' && chunk.name === 'add');
 const swiftChunk = chunks.find((chunk) => resolveChunkFile(chunk) === 'src/sample.swift' && chunk.name === 'greet');
+const pythonChunk = chunks.find((chunk) => resolveChunkFile(chunk) === 'src/sample.py' && chunk.name === 'greet');
 
 const hasToolingReturn = (chunk, type) => {
   const returns = chunk?.docmeta?.inferredTypes?.returns || [];
@@ -101,6 +106,10 @@ if (!swiftChunk) {
   console.error('LSP enrichment test failed: missing Swift chunk.');
   process.exit(1);
 }
+if (!pythonChunk) {
+  console.error('LSP enrichment test failed: missing Python chunk.');
+  process.exit(1);
+}
 
 if (!hasToolingReturn(cppChunk, 'int')) {
   console.error('LSP enrichment test failed: missing tooling return type for C++.');
@@ -116,6 +125,19 @@ if (!hasToolingReturn(swiftChunk, 'String')) {
 }
 if (!hasToolingParam(swiftChunk, 'name', 'String') || !hasToolingParam(swiftChunk, 'count', 'Int')) {
   console.error('LSP enrichment test failed: missing tooling param types for Swift.');
+  process.exit(1);
+}
+if (!hasToolingReturn(pythonChunk, 'str')) {
+  console.error('LSP enrichment test failed: missing tooling return type for Python.');
+  process.exit(1);
+}
+if (!hasToolingParam(pythonChunk, 'name', 'str')) {
+  console.error('LSP enrichment test failed: missing tooling param types for Python.');
+  process.exit(1);
+}
+const pyDiagnostics = pythonChunk.docmeta?.tooling?.diagnostics || [];
+if (!pyDiagnostics.some((diag) => diag?.source === 'pyright')) {
+  console.error('LSP enrichment test failed: missing pyright diagnostics for Python.');
   process.exit(1);
 }
 

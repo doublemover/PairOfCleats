@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import {
   MAX_JSON_BYTES,
@@ -69,7 +70,10 @@ export function readJson(filePath) {
  */
 export function loadOptional(dir, name) {
   const target = path.join(dir, name);
-  if (!fs.existsSync(target) && !(name.endsWith('.json') && fs.existsSync(`${target}.gz`))) {
+  const hasTarget = fs.existsSync(target) || fs.existsSync(`${target}.bak`);
+  const hasGz = name.endsWith('.json')
+    && (fs.existsSync(`${target}.gz`) || fs.existsSync(`${target}.gz.bak`));
+  if (!hasTarget && !hasGz) {
     return null;
   }
   try {
@@ -118,4 +122,63 @@ export function loadIndex(dir, modelId) {
       }
     })()
   };
+}
+
+const SQLITE_SIDECARS = ['-wal', '-shm'];
+
+async function removeSqliteSidecars(basePath) {
+  await Promise.all(SQLITE_SIDECARS.map(async (suffix) => {
+    try {
+      await fsPromises.rm(`${basePath}${suffix}`, { force: true });
+    } catch {}
+  }));
+}
+
+/**
+ * Atomically replace a sqlite database, cleaning up WAL/SHM sidecars.
+ * @param {string} tempDbPath
+ * @param {string} finalDbPath
+ * @param {{keepBackup?:boolean,backupPath?:string}} [options]
+ */
+export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {}) {
+  const keepBackup = options.keepBackup === true;
+  const backupPath = options.backupPath || `${finalDbPath}.bak`;
+  const finalExists = fs.existsSync(finalDbPath);
+
+  await removeSqliteSidecars(finalDbPath);
+  await removeSqliteSidecars(tempDbPath);
+
+  let backupAvailable = fs.existsSync(backupPath);
+  if (finalExists && !backupAvailable) {
+    try {
+      await fsPromises.rename(finalDbPath, backupPath);
+      backupAvailable = true;
+    } catch (err) {
+      if (err?.code !== 'ENOENT') {
+        backupAvailable = fs.existsSync(backupPath);
+      }
+    }
+  }
+
+  try {
+    await fsPromises.rename(tempDbPath, finalDbPath);
+  } catch (err) {
+    if (err?.code !== 'EEXIST' && err?.code !== 'EPERM' && err?.code !== 'ENOTEMPTY') {
+      throw err;
+    }
+    if (!backupAvailable) {
+      throw err;
+    }
+    try {
+      await fsPromises.rm(finalDbPath, { force: true });
+    } catch {}
+    await fsPromises.rename(tempDbPath, finalDbPath);
+  }
+
+  if (!keepBackup) {
+    try {
+      await fsPromises.rm(backupPath, { force: true });
+    } catch {}
+  }
+  await removeSqliteSidecars(backupPath);
 }

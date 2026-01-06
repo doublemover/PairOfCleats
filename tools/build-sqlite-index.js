@@ -8,13 +8,17 @@ import Piscina from 'piscina';
 import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { resolveThreadLimits } from '../src/shared/threads.js';
-import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
+import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../src/index/build/build-state.js';
+import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveIndexRoot, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
 import { compactDatabase } from './compact-sqlite-index.js';
 import { CREATE_INDEXES_SQL, CREATE_TABLES_BASE_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnTable } from '../src/storage/sqlite/build-helpers.js';
 import { loadIncrementalManifest } from '../src/storage/sqlite/incremental.js';
-import { chunkArray, hasRequiredTables, loadIndex, loadOptional, normalizeFilePath, readJson } from '../src/storage/sqlite/utils.js';
+import { chunkArray, hasRequiredTables, loadIndex, loadOptional, normalizeFilePath, readJson, replaceSqliteDatabase } from '../src/storage/sqlite/utils.js';
+import { readBundleFile } from '../src/shared/bundle-io.js';
+import { writeJsonObjectFile } from '../src/shared/json-stream.js';
+import { checksumFile } from '../src/shared/hash.js';
 import { dequantizeUint8ToFloat32, packUint32, packUint8, quantizeVec, toVectorId } from '../src/storage/sqlite/vector.js';
 
 let Database = null;
@@ -28,6 +32,91 @@ const applyBuildPragmas = (db) => {
   try { db.pragma('temp_store = MEMORY'); } catch {}
   try { db.pragma('cache_size = -200000'); } catch {}
   try { db.pragma('mmap_size = 268435456'); } catch {}
+};
+
+const createTempPath = (filePath) => {
+  const suffix = `.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  const tempPath = `${filePath}${suffix}`;
+  if (process.platform !== 'win32' || tempPath.length <= 240) {
+    return tempPath;
+  }
+  const dir = path.dirname(filePath);
+  const ext = path.extname(filePath) || '.db';
+  const shortName = `.tmp-${Math.random().toString(16).slice(2, 10)}${ext}`;
+  return path.join(dir, shortName);
+};
+
+
+const updateSqliteState = async (indexDir, patch) => {
+  if (!indexDir) return;
+  const statePath = path.join(indexDir, 'index_state.json');
+  let state = {};
+  if (fsSync.existsSync(statePath)) {
+    try {
+      state = readJson(statePath) || {};
+    } catch {
+      state = {};
+    }
+  }
+  const now = new Date().toISOString();
+  state.generatedAt = state.generatedAt || now;
+  state.updatedAt = now;
+  state.sqlite = {
+    ...(state.sqlite || {}),
+    ...patch,
+    updatedAt: now
+  };
+  try {
+    await writeJsonObjectFile(statePath, { fields: state, atomic: true });
+  } catch {
+    // Ignore index state write failures.
+  }
+  await updateIndexStateManifest(indexDir);
+};
+
+const updateIndexStateManifest = async (indexDir) => {
+  const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
+  if (!fsSync.existsSync(manifestPath)) return;
+  let manifest = null;
+  try {
+    manifest = readJson(manifestPath) || null;
+  } catch {
+    return;
+  }
+  if (!manifest || !Array.isArray(manifest.pieces)) return;
+  const statePath = path.join(indexDir, 'index_state.json');
+  if (!fsSync.existsSync(statePath)) return;
+  let bytes = null;
+  let checksum = null;
+  let checksumAlgo = null;
+  try {
+    const stat = await fs.stat(statePath);
+    bytes = stat.size;
+    const result = await checksumFile(statePath);
+    checksum = result?.value || null;
+    checksumAlgo = result?.algo || null;
+  } catch {}
+  if (!bytes || !checksum) return;
+  const pieces = manifest.pieces.map((piece) => {
+    if (piece?.name !== 'index_state' || piece?.path !== 'index_state.json') {
+      return piece;
+    }
+    return {
+      ...piece,
+      bytes,
+      checksum: checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : piece.checksum
+    };
+  });
+  const next = {
+    ...manifest,
+    updatedAt: new Date().toISOString(),
+    pieces
+  };
+  try {
+    await writeJsonObjectFile(manifestPath, { fields: next, atomic: true });
+  } catch {
+    // Ignore manifest write failures.
+  }
 };
 
 const restoreBuildPragmas = (db) => {
@@ -149,7 +238,8 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
       repo: { type: 'string' },
       incremental: { type: 'boolean', default: false },
       compact: { type: 'boolean', default: false },
-      validate: { type: 'string', default: 'smoke' }
+      validate: { type: 'string', default: 'smoke' },
+      'index-root': { type: 'string' }
     }
   }).parse();
   const bail = (message, code = 1) => {
@@ -164,6 +254,12 @@ const root = rootArg || resolveRepoRoot(process.cwd());
 const envConfig = getEnvConfig();
 const userConfig = loadUserConfig(root);
 const validateMode = normalizeValidateMode(argv.validate);
+const indexRoot = argv['index-root']
+  ? path.resolve(argv['index-root'])
+  : resolveIndexRoot(root, userConfig);
+const buildStatePath = resolveBuildStatePath(indexRoot);
+const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
+const stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage4') : () => {};
 const threadLimits = resolveThreadLimits({
   argv,
   rawArgv: rawArgs,
@@ -192,19 +288,34 @@ const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const compactFlag = argv.compact;
 const compactOnIncremental = compactFlag === true
   || (compactFlag !== false && userConfig?.sqlite?.compactOnIncremental === true);
-const codeDir = argv['code-dir'] ? path.resolve(argv['code-dir']) : getIndexDir(root, 'code', userConfig);
-const proseDir = argv['prose-dir'] ? path.resolve(argv['prose-dir']) : getIndexDir(root, 'prose', userConfig);
-const sqlitePaths = resolveSqlitePaths(root, userConfig);
-const incrementalRequested = argv.incremental === true;
+const codeDir = argv['code-dir']
+  ? path.resolve(argv['code-dir'])
+  : getIndexDir(root, 'code', userConfig, { indexRoot });
+const proseDir = argv['prose-dir']
+  ? path.resolve(argv['prose-dir'])
+  : getIndexDir(root, 'prose', userConfig, { indexRoot });
+const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
+  const incrementalRequested = argv.incremental === true;
 
-const modeArg = (argv.mode || 'all').toLowerCase();
-if (!['all', 'code', 'prose'].includes(modeArg)) {
-  return bail('Invalid mode. Use --mode all|code|prose');
-}
+  const modeArg = (argv.mode || 'all').toLowerCase();
+  if (!['all', 'code', 'prose'].includes(modeArg)) {
+    return bail('Invalid mode. Use --mode all|code|prose');
+  }
+  const sqliteStateTargets = [];
+  if (modeArg === 'all' || modeArg === 'code') sqliteStateTargets.push(codeDir);
+  if (modeArg === 'all' || modeArg === 'prose') sqliteStateTargets.push(proseDir);
+  if (hasBuildState) {
+    await markBuildPhase(indexRoot, 'stage4', 'running');
+  }
+  await Promise.all(sqliteStateTargets.map((dir) => updateSqliteState(dir, {
+    enabled: true,
+    ready: false,
+    pending: true
+  })));
 
-const outArg = argv.out ? path.resolve(argv.out) : null;
-let outPath = null;
-let codeOutPath = sqlitePaths.codePath;
+  const outArg = argv.out ? path.resolve(argv.out) : null;
+  let outPath = null;
+  let codeOutPath = sqlitePaths.codePath;
 let proseOutPath = sqlitePaths.prosePath;
 if (outArg) {
   if (modeArg === 'all') {
@@ -220,12 +331,12 @@ if (!outPath && modeArg !== 'all') {
   outPath = modeArg === 'code' ? codeOutPath : proseOutPath;
 }
 
-if (modeArg === 'all') {
-  await fs.mkdir(path.dirname(codeOutPath), { recursive: true });
-  await fs.mkdir(path.dirname(proseOutPath), { recursive: true });
-} else if (outPath) {
-  await fs.mkdir(path.dirname(outPath), { recursive: true });
-}
+  if (modeArg === 'all') {
+    await fs.mkdir(path.dirname(codeOutPath), { recursive: true });
+    await fs.mkdir(path.dirname(proseOutPath), { recursive: true });
+  } else if (outPath) {
+    await fs.mkdir(path.dirname(outPath), { recursive: true });
+  }
 
 
 
@@ -300,15 +411,15 @@ if (modeArg === 'prose' && !proseIndex && !prosePieces && !incrementalProse?.man
 
   const insertChunk = db.prepare(`
     INSERT OR REPLACE INTO chunks (
-      id, mode, file, start, end, startLine, endLine, ext, kind, name, headline,
-      preContext, postContext, weight, tokens, ngrams, codeRelations, docmeta,
-      stats, complexity, lint, externalDocs, last_modified, last_author, churn,
-      chunk_authors
+      id, chunk_id, mode, file, start, end, startLine, endLine, ext, kind, name,
+      headline, preContext, postContext, weight, tokens, ngrams, codeRelations,
+      docmeta, stats, complexity, lint, externalDocs, last_modified, last_author,
+      churn, chunk_authors
     ) VALUES (
-      @id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind, @name, @headline,
-      @preContext, @postContext, @weight, @tokens, @ngrams, @codeRelations, @docmeta,
-      @stats, @complexity, @lint, @externalDocs, @last_modified, @last_author, @churn,
-      @chunk_authors
+      @id, @chunk_id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind,
+      @name, @headline, @preContext, @postContext, @weight, @tokens, @ngrams,
+      @codeRelations, @docmeta, @stats, @complexity, @lint, @externalDocs,
+      @last_modified, @last_author, @churn, @chunk_authors
     );
   `);
 
@@ -606,8 +717,10 @@ if (modeArg === 'prose' && !proseIndex && !prosePieces && !incrementalProse?.man
       ? chunk.docmeta.signature
       : (typeof chunk.signature === 'string' ? chunk.signature : null);
     const docText = typeof chunk.docmeta?.doc === 'string' ? chunk.docmeta.doc : null;
+    const stableChunkId = chunk?.metaV2?.chunkId || chunk?.chunkId || null;
     return {
       id: Number.isFinite(chunk.id) ? chunk.id : null,
+      chunk_id: stableChunkId,
       mode: targetMode,
       file: resolvedFile,
       start: chunk.start,
@@ -855,16 +968,15 @@ if (modeArg === 'prose' && !proseIndex && !prosePieces && !incrementalProse?.man
 
   const insertChunk = db.prepare(`
     INSERT OR REPLACE INTO chunks (
-      id, mode, file, start, end, startLine, endLine, ext, kind, name, headline,
-      preContext, postContext, weight, tokens, ngrams, codeRelations, docmeta,
-      stats, complexity, lint, externalDocs, last_modified, last_author, churn,
-      chunk_authors
+      id, chunk_id, mode, file, start, end, startLine, endLine, ext, kind, name,
+      headline, preContext, postContext, weight, tokens, ngrams, codeRelations,
+      docmeta, stats, complexity, lint, externalDocs, last_modified, last_author,
+      churn, chunk_authors
     ) VALUES (
-      @id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind, @name,
-      @headline,
-      @preContext, @postContext, @weight, @tokens, @ngrams, @codeRelations, @docmeta,
-      @stats, @complexity, @lint, @externalDocs, @last_modified, @last_author, @churn,
-      @chunk_authors
+      @id, @chunk_id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind,
+      @name, @headline, @preContext, @postContext, @weight, @tokens, @ngrams,
+      @codeRelations, @docmeta, @stats, @complexity, @lint, @externalDocs,
+      @last_modified, @last_author, @churn, @chunk_authors
     );
   `);
 
@@ -1044,6 +1156,7 @@ if (modeArg === 'prose' && !proseIndex && !prosePieces && !incrementalProse?.man
 
   let count = 0;
   let pool = null;
+  let bundleFailure = null;
   if (useBundleWorkers) {
     pool = new Piscina({
       filename: fileURLToPath(new URL('./workers/bundle-reader.js', import.meta.url)),
@@ -1075,33 +1188,40 @@ if (modeArg === 'prose' && !proseIndex && !prosePieces && !incrementalProse?.man
             }
             return { file, ok: true, bundle: result.bundle };
           }
-          const bundle = readJson(bundlePath);
-          if (!bundle || !Array.isArray(bundle.chunks)) {
-            return { file, ok: false, reason: 'invalid bundle' };
+          const result = await readBundleFile(bundlePath);
+          if (!result.ok) {
+            return { file, ok: false, reason: result.reason || 'invalid bundle' };
           }
-          return { file, ok: true, bundle };
+          return { file, ok: true, bundle: result.bundle };
         } catch (err) {
           return { file, ok: false, reason: err?.message || String(err) };
         }
       });
       const results = await Promise.all(tasks);
+      const failure = results.find((result) => !result.ok);
+      if (failure) {
+        bundleFailure = `${failure.reason} for ${failure.file}`;
+        break;
+      }
       for (const result of results) {
-        if (!result.ok) {
-          console.warn(`[sqlite] ${result.reason} for ${result.file}; skipping.`);
-          processedFiles += 1;
-          logBundleProgress(result.file, processedFiles === totalFiles);
-          continue;
-        }
         insertBundle(result.bundle, result.file);
         count += result.bundle.chunks.length;
         processedFiles += 1;
         logBundleProgress(result.file, processedFiles === totalFiles);
       }
+      if (bundleFailure) break;
     }
   } finally {
     if (pool) {
       await pool.destroy();
     }
+  }
+
+  if (bundleFailure) {
+    if (emitOutput) {
+      console.warn(`[sqlite] Bundle build failed for ${mode}: ${bundleFailure}.`);
+    }
+    return { count: 0, reason: bundleFailure };
   }
 
   validationStats.chunks = count;
@@ -1466,6 +1586,13 @@ function updateTokenStats(db, mode, insertTokenStats) {
   );
 }
 
+class IncrementalSkipError extends Error {
+  constructor(reason) {
+    super(reason);
+    this.reason = reason;
+  }
+}
+
 /**
  * Apply incremental updates to a SQLite index using cached bundles.
  * @param {string} outPath
@@ -1474,7 +1601,7 @@ function updateTokenStats(db, mode, insertTokenStats) {
  * @param {{expectedDense?:{model?:string|null,dims?:number|null}}} [options]
  * @returns {{used:boolean,reason?:string,changedFiles?:number,deletedFiles?:number,insertedChunks?:number}}
  */
-function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {}) {
+async function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {}) {
   if (!incrementalData?.manifest) {
     return { used: false, reason: 'missing incremental manifest' };
   }
@@ -1588,12 +1715,12 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
       db.close();
       return { used: false, reason: `bundle missing for ${fileKey}` };
     }
-    const bundle = readJson(bundlePath);
-    if (!bundle || !Array.isArray(bundle.chunks)) {
+    const result = await readBundleFile(bundlePath);
+    if (!result.ok) {
       db.close();
       return { used: false, reason: `invalid bundle for ${fileKey}` };
     }
-    bundles.set(normalizedFile, { bundle, entry, fileKey, normalizedFile });
+    bundles.set(normalizedFile, { bundle: result.bundle, entry, fileKey, normalizedFile });
   }
 
   const tokenValues = [];
@@ -1628,15 +1755,15 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
 
   const insertChunk = db.prepare(`
     INSERT OR REPLACE INTO chunks (
-      id, mode, file, start, end, startLine, endLine, ext, kind, name, headline,
-      preContext, postContext, weight, tokens, ngrams, codeRelations, docmeta,
-      stats, complexity, lint, externalDocs, last_modified, last_author, churn,
-      chunk_authors
+      id, chunk_id, mode, file, start, end, startLine, endLine, ext, kind, name,
+      headline, preContext, postContext, weight, tokens, ngrams, codeRelations,
+      docmeta, stats, complexity, lint, externalDocs, last_modified, last_author,
+      churn, chunk_authors
     ) VALUES (
-      @id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind, @name, @headline,
-      @preContext, @postContext, @weight, @tokens, @ngrams, @codeRelations, @docmeta,
-      @stats, @complexity, @lint, @externalDocs, @last_modified, @last_author, @churn,
-      @chunk_authors
+      @id, @chunk_id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind,
+      @name, @headline, @preContext, @postContext, @weight, @tokens, @ngrams,
+      @codeRelations, @docmeta, @stats, @complexity, @lint, @externalDocs,
+      @last_modified, @last_author, @churn, @chunk_authors
     );
   `);
 
@@ -1681,53 +1808,6 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
   const insertFileManifest = db.prepare(
     'INSERT OR REPLACE INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
   );
-
-  const tokenVocab = ensureVocabIds(
-    db,
-    mode,
-    'token_vocab',
-    'token_id',
-    'token',
-    tokenValues,
-    insertTokenVocab,
-    { limits: VOCAB_GROWTH_LIMITS.token_vocab }
-  );
-  if (tokenVocab.skip) {
-    db.close();
-    return { used: false, reason: tokenVocab.reason || 'token vocab growth too large' };
-  }
-  const phraseVocab = ensureVocabIds(
-    db,
-    mode,
-    'phrase_vocab',
-    'phrase_id',
-    'ngram',
-    phraseValues,
-    insertPhraseVocab,
-    { limits: VOCAB_GROWTH_LIMITS.phrase_vocab }
-  );
-  if (phraseVocab.skip) {
-    db.close();
-    return { used: false, reason: phraseVocab.reason || 'phrase vocab growth too large' };
-  }
-  const chargramVocab = ensureVocabIds(
-    db,
-    mode,
-    'chargram_vocab',
-    'gram_id',
-    'gram',
-    chargramValues,
-    insertChargramVocab,
-    { limits: VOCAB_GROWTH_LIMITS.chargram_vocab }
-  );
-  if (chargramVocab.skip) {
-    db.close();
-    return { used: false, reason: chargramVocab.reason || 'chargram vocab growth too large' };
-  }
-
-  const tokenIdMap = tokenVocab.map;
-  const phraseIdMap = phraseVocab.map;
-  const chargramIdMap = chargramVocab.map;
 
   const existingIdsByFile = new Map();
   const freeDocIds = [];
@@ -1788,6 +1868,50 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
     : [];
 
   const applyChanges = db.transaction(() => {
+    const tokenVocab = ensureVocabIds(
+      db,
+      mode,
+      'token_vocab',
+      'token_id',
+      'token',
+      tokenValues,
+      insertTokenVocab,
+      { limits: VOCAB_GROWTH_LIMITS.token_vocab }
+    );
+    if (tokenVocab.skip) {
+      throw new IncrementalSkipError(tokenVocab.reason || 'token vocab growth too large');
+    }
+    const phraseVocab = ensureVocabIds(
+      db,
+      mode,
+      'phrase_vocab',
+      'phrase_id',
+      'ngram',
+      phraseValues,
+      insertPhraseVocab,
+      { limits: VOCAB_GROWTH_LIMITS.phrase_vocab }
+    );
+    if (phraseVocab.skip) {
+      throw new IncrementalSkipError(phraseVocab.reason || 'phrase vocab growth too large');
+    }
+    const chargramVocab = ensureVocabIds(
+      db,
+      mode,
+      'chargram_vocab',
+      'gram_id',
+      'gram',
+      chargramValues,
+      insertChargramVocab,
+      { limits: VOCAB_GROWTH_LIMITS.chargram_vocab }
+    );
+    if (chargramVocab.skip) {
+      throw new IncrementalSkipError(chargramVocab.reason || 'chargram vocab growth too large');
+    }
+
+    const tokenIdMap = tokenVocab.map;
+    const phraseIdMap = phraseVocab.map;
+    const chargramIdMap = chargramVocab.map;
+
     for (const file of deleted) {
       const normalizedFile = normalizeFilePath(file);
       const entry = existingIdsByFile.get(normalizedFile);
@@ -1906,10 +2030,18 @@ function incrementalUpdateDatabase(outPath, mode, incrementalData, options = {})
     }
 
     updateTokenStats(db, mode, insertTokenStats);
+    validateSqliteDatabase(db, mode, { validateMode, emitOutput });
   });
 
-  applyChanges();
-  validateSqliteDatabase(db, mode, { validateMode, emitOutput });
+  try {
+    applyChanges();
+  } catch (err) {
+    db.close();
+    if (err instanceof IncrementalSkipError) {
+      return { used: false, reason: err.reason };
+    }
+    throw err;
+  }
   db.close();
   return {
     used: true,
@@ -1936,7 +2068,7 @@ async function runMode(mode, index, indexDir, targetPath, incrementalData) {
     const expectedDense = index?.denseVec
       ? { model: index.denseVec.model, dims: index.denseVec.dims }
       : null;
-    const result = incrementalUpdateDatabase(targetPath, mode, incrementalData, {
+    const result = await incrementalUpdateDatabase(targetPath, mode, incrementalData, {
       expectedDense
     });
     if (result.used) {
@@ -1958,7 +2090,19 @@ async function runMode(mode, index, indexDir, targetPath, incrementalData) {
   }
   if (hasBundles) {
     console.log(`[sqlite] Using incremental bundles for ${mode} full rebuild.`);
-    const bundleResult = await buildDatabaseFromBundles(targetPath, mode, incrementalData);
+    const tempPath = createTempPath(targetPath);
+    let bundleResult = { count: 0 };
+    try {
+      bundleResult = await buildDatabaseFromBundles(tempPath, mode, incrementalData);
+      if (bundleResult.count) {
+        await replaceSqliteDatabase(tempPath, targetPath, { keepBackup: true });
+      } else {
+        await fs.rm(tempPath, { force: true });
+      }
+    } catch (err) {
+      try { await fs.rm(tempPath, { force: true }); } catch {}
+      throw err;
+    }
     if (bundleResult.count) {
       return { count: bundleResult.count, incremental: false, changedFiles: null, deletedFiles: null, insertedChunks: bundleResult.count };
     }
@@ -1966,7 +2110,15 @@ async function runMode(mode, index, indexDir, targetPath, incrementalData) {
       console.warn(`[sqlite] Bundle build skipped (${bundleResult.reason}); falling back to file-backed artifacts.`);
     }
   }
-  const count = await buildDatabase(targetPath, index, indexDir, mode, incrementalData?.manifest?.files);
+  const tempPath = createTempPath(targetPath);
+  let count = 0;
+  try {
+    count = await buildDatabase(tempPath, index, indexDir, mode, incrementalData?.manifest?.files);
+    await replaceSqliteDatabase(tempPath, targetPath, { keepBackup: true });
+  } catch (err) {
+    try { await fs.rm(tempPath, { force: true }); } catch {}
+    throw err;
+  }
   return { count, incremental: false, changedFiles: null, deletedFiles: null, insertedChunks: count };
 }
 
@@ -1990,19 +2142,29 @@ if (modeArg === 'all') {
   } else {
     console.log(`SQLite indexes built at code=${codeOutPath} prose=${proseOutPath}. code=${codeResult.count || 0} prose=${proseResult.count || 0}`);
   }
-} else {
-  const result = modeArg === 'code' ? results.code : results.prose;
-  if (result?.incremental) {
-    console.log(`SQLite ${modeArg} index updated at ${outPath}. +${result.insertedChunks || 0} chunks`);
   } else {
-    console.log(`SQLite ${modeArg} index built at ${outPath}. ${modeArg}=${result?.count || 0}`);
+    const result = modeArg === 'code' ? results.code : results.prose;
+    if (result?.incremental) {
+      console.log(`SQLite ${modeArg} index updated at ${outPath}. +${result.insertedChunks || 0} chunks`);
+    } else {
+      console.log(`SQLite ${modeArg} index built at ${outPath}. ${modeArg}=${result?.count || 0}`);
+    }
   }
-}
 
-return {
-  mode: modeArg,
-  results,
-  paths: {
+  await Promise.all(sqliteStateTargets.map((dir) => updateSqliteState(dir, {
+    enabled: true,
+    ready: true,
+    pending: false
+  })));
+  if (hasBuildState) {
+    await markBuildPhase(indexRoot, 'stage4', 'done');
+  }
+  stopHeartbeat();
+
+  return {
+    mode: modeArg,
+    results,
+    paths: {
     code: codeOutPath,
     prose: proseOutPath,
     out: outPath

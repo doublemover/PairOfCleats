@@ -3,7 +3,7 @@
 ## CLI contract for editor tooling
 The editor integration shells out to the CLI and expects `--json-compact` output.
 The JSON payload contains the following top-level keys:
-- `backend`: the selected backend (`memory`, `sqlite`, `sqlite-fts`).
+- `backend`: the selected backend (`memory`, `sqlite`, `sqlite-fts`, `lmdb`).
 - `code`, `prose`, `records`: arrays of result hits (may be empty).
 - `stats`: search timing and cache metadata.
 

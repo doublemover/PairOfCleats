@@ -2,101 +2,18 @@
 import { execaSync } from 'execa';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot } from '../tools/dict-utils.js';
+import { getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveToolRoot } from '../tools/dict-utils.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = resolveToolRoot();
 
 const COMMANDS = new Map([
-  ['build-index', { script: 'build_index.js', extraArgs: [] }],
-  ['index', { script: 'build_index.js', extraArgs: [] }],
-  ['watch-index', { script: 'build_index.js', extraArgs: ['--watch'] }],
   ['search', { script: 'search.js', extraArgs: [] }],
   ['bootstrap', { script: 'tools/bootstrap.js', extraArgs: [] }],
   ['setup', { script: 'tools/setup.js', extraArgs: [] }],
-  ['build-sqlite-index', { script: 'tools/build-sqlite-index.js', extraArgs: [] }],
-  ['compact-sqlite-index', { script: 'tools/compact-sqlite-index.js', extraArgs: [] }],
-  ['build-embeddings', { script: 'tools/build-embeddings.js', extraArgs: [] }],
-  ['cache-gc', { script: 'tools/cache-gc.js', extraArgs: [] }],
-  ['clean-artifacts', { script: 'tools/clean-artifacts.js', extraArgs: [] }],
-  ['report-artifacts', { script: 'tools/report-artifacts.js', extraArgs: [] }],
-  ['status', { script: 'tools/report-artifacts.js', extraArgs: [] }],
-  ['index-validate', { script: 'tools/index-validate.js', extraArgs: [] }],
-  ['download-dicts', { script: 'tools/download-dicts.js', extraArgs: [] }],
-  ['download-models', { script: 'tools/download-models.js', extraArgs: [] }],
-  ['download-extensions', { script: 'tools/download-extensions.js', extraArgs: [] }],
-  ['verify-extensions', { script: 'tools/verify-extensions.js', extraArgs: [] }],
   ['generate-repo-dict', { script: 'tools/generate-repo-dict.js', extraArgs: [] }],
-  ['tooling-detect', { script: 'tools/tooling-detect.js', extraArgs: [] }],
-  ['tooling-install', { script: 'tools/tooling-install.js', extraArgs: [] }],
   ['git-hooks', { script: 'tools/git-hooks.js', extraArgs: [] }],
-  ['ctags-ingest', { script: 'tools/ctags-ingest.js', extraArgs: [] }],
-  ['scip-ingest', { script: 'tools/scip-ingest.js', extraArgs: [] }],
-  ['lsif-ingest', { script: 'tools/lsif-ingest.js', extraArgs: [] }],
-  ['gtags-ingest', { script: 'tools/gtags-ingest.js', extraArgs: [] }],
-  ['structural-search', { script: 'tools/structural-search.js', extraArgs: [] }],
-  ['bench-micro', { script: 'tools/bench/micro/run.js', extraArgs: [] }],
-  ['bench-language', { script: 'tools/bench-language-repos.js', extraArgs: [] }],
-  ['bench-language-matrix', { script: 'tools/bench-language-matrix.js', extraArgs: [] }],
-  ['repometrics-dashboard', { script: 'tools/repometrics-dashboard.js', extraArgs: [] }],
-  ['compare-models', { script: 'tools/compare-models.js', extraArgs: [] }],
-  ['summary-report', { script: 'tools/combined-summary.js', extraArgs: [] }],
-  ['eval-run', { script: 'tools/eval/run.js', extraArgs: [] }],
-  ['api-server', { script: 'tools/api-server.js', extraArgs: [] }],
-  ['server', { script: 'tools/api-server.js', extraArgs: [] }],
-  ['indexer-service', { script: 'tools/indexer-service.js', extraArgs: [] }],
-  ['uninstall', { script: 'tools/uninstall.js', extraArgs: [] }],
-  ['mcp-server', { script: 'tools/mcp-server.js', extraArgs: [] }],
-  ['mcp', { script: 'tools/mcp-server.js', extraArgs: [] }],
-  ['config-validate', { script: 'tools/validate-config.js', extraArgs: [] }],
-  ['config-dump', { script: 'tools/config-dump.js', extraArgs: [] }],
-  ['triage-ingest', { script: 'tools/triage/ingest.js', extraArgs: [] }],
-  ['triage-decision', { script: 'tools/triage/decision.js', extraArgs: [] }],
-  ['triage-context-pack', { script: 'tools/triage/context-pack.js', extraArgs: [] }]
+  ['uninstall', { script: 'tools/uninstall.js', extraArgs: [] }]
 ]);
-const LEGACY_ALIASES = new Map([
-  ['build-index', 'index build'],
-  ['index', 'index build'],
-  ['watch-index', 'index watch'],
-  ['index-validate', 'index validate'],
-  ['build-embeddings', 'embeddings build'],
-  ['build-sqlite-index', 'sqlite build'],
-  ['compact-sqlite-index', 'sqlite compact'],
-  ['search-sqlite', 'sqlite search'],
-  ['bench-micro', 'bench micro'],
-  ['bench-language', 'bench language'],
-  ['bench-language-matrix', 'bench matrix'],
-  ['download-dicts', 'assets dicts'],
-  ['download-models', 'assets models'],
-  ['download-extensions', 'assets extensions'],
-  ['verify-extensions', 'assets extensions-verify'],
-  ['tooling-detect', 'tooling detect'],
-  ['tooling-install', 'tooling install'],
-  ['ctags-ingest', 'ingest ctags'],
-  ['scip-ingest', 'ingest scip'],
-  ['lsif-ingest', 'ingest lsif'],
-  ['gtags-ingest', 'ingest gtags'],
-  ['structural-search', 'structural search'],
-  ['repometrics-dashboard', 'report repometrics'],
-  ['compare-models', 'report compare-models'],
-  ['summary-report', 'report summary'],
-  ['eval-run', 'report eval'],
-  ['cache-gc', 'cache gc'],
-  ['clean-artifacts', 'cache clean'],
-  ['report-artifacts', 'cache report'],
-  ['status', 'cache report'],
-  ['api-server', 'service api'],
-  ['server', 'service api'],
-  ['indexer-service', 'service indexer'],
-  ['mcp-server', 'service mcp'],
-  ['mcp', 'service mcp'],
-  ['config-validate', 'config validate'],
-  ['config-dump', 'config dump'],
-  ['triage-ingest', 'triage ingest'],
-  ['triage-decision', 'triage decision'],
-  ['triage-context-pack', 'triage context-pack']
-]);
-const legacyWarnings = new Set();
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -157,6 +74,20 @@ function resolveCommand(primary, rest) {
       return resolveSqliteSearch(rest);
     }
     console.error(`Unknown sqlite subcommand: ${sub}`);
+    printHelp();
+    process.exit(1);
+  }
+  if (primary === 'lmdb') {
+    const sub = rest.shift();
+    if (!sub || isHelpCommand(sub)) {
+      console.error('lmdb requires a subcommand: build');
+      printHelp();
+      process.exit(1);
+    }
+    if (sub === 'build') {
+      return { script: 'tools/build-lmdb-index.js', extraArgs: [], args: rest };
+    }
+    console.error(`Unknown lmdb subcommand: ${sub}`);
     printHelp();
     process.exit(1);
   }
@@ -346,6 +277,9 @@ function resolveCommand(primary, rest) {
     if (sub === 'dump') {
       return { script: 'tools/config-dump.js', extraArgs: [], args: rest };
     }
+    if (sub === 'reset') {
+      return { script: 'tools/reset-config.js', extraArgs: [], args: rest };
+    }
     console.error(`Unknown config subcommand: ${sub}`);
     printConfigHelp();
     process.exit(1);
@@ -369,15 +303,8 @@ function resolveCommand(primary, rest) {
     printTriageHelp();
     process.exit(1);
   }
-  if (primary === 'search-sqlite') {
-    const replacement = LEGACY_ALIASES.get(primary);
-    if (replacement) warnLegacy(primary, replacement);
-    return resolveSqliteSearch(rest);
-  }
   if (COMMANDS.has(primary)) {
     const entry = COMMANDS.get(primary);
-    const replacement = LEGACY_ALIASES.get(primary);
-    if (replacement) warnLegacy(primary, replacement);
     return { script: entry.script, extraArgs: entry.extraArgs || [], args: rest };
   }
   return null;
@@ -409,13 +336,6 @@ function runScript(scriptPath, extraArgs, restArgs) {
   process.exit(result.exitCode ?? 1);
 }
 
-function warnLegacy(command, replacement) {
-  const message = `[cli] "${command}" is deprecated. Use "pairofcleats ${replacement}".`;
-  if (legacyWarnings.has(message)) return;
-  legacyWarnings.add(message);
-  console.error(message);
-}
-
 function extractRepoArg(args) {
   const idx = args.indexOf('--repo');
   if (idx >= 0 && args[idx + 1]) return args[idx + 1];
@@ -443,10 +363,10 @@ function printHelp() {
   console.log(`Usage: pairofcleats <command> [args]
 
 Core:
-  index build             Build file-backed indexes
+  index build [--mode code|prose|records|extracted-prose|all]  Build file-backed indexes
   index watch             Watch and rebuild indexes incrementally
   index validate          Validate index artifacts
-  search                  Query indexed data
+  search [--mode code|prose|both|records|all|extracted-prose]   Query indexed data
   embeddings build        Build embedding vectors from chunk metadata
   bootstrap               Fast bootstrap flow
   setup                   Guided setup flow
@@ -455,6 +375,9 @@ SQLite:
   sqlite build            Build SQLite indexes
   sqlite compact          Compact SQLite indexes
   sqlite search           SQLite-specific search helper
+
+LMDB:
+  lmdb build              Build LMDB indexes
 
 Bench:
   bench micro             Run microbench suite
@@ -503,48 +426,11 @@ Other:
 Config + triage:
   config validate          Validate .pairofcleats.json
   config dump              Show effective config + derived paths
+  config reset             Reset .pairofcleats.json to defaults
   triage ingest            Ingest triage records
   triage decision          Create triage decisions
   triage context-pack      Generate context packs
-
-Aliases:
-  build-index              Same as index build
-  watch-index              Same as index watch
-  build-sqlite-index        Same as sqlite build
-  compact-sqlite-index      Same as sqlite compact
-  search-sqlite             Same as sqlite search
-  bench-micro              Same as bench micro
-  bench-language           Same as bench language
-  bench-language-matrix    Same as bench matrix
-  download-dicts           Same as assets dicts
-  download-models          Same as assets models
-  download-extensions      Same as assets extensions
-  verify-extensions        Same as assets extensions-verify
-  tooling-detect           Same as tooling detect
-  tooling-install          Same as tooling install
-  ctags-ingest             Same as ingest ctags
-  scip-ingest              Same as ingest scip
-  lsif-ingest              Same as ingest lsif
-  gtags-ingest             Same as ingest gtags
-  structural-search        Same as structural search
-  cache-gc                Same as cache gc
-  clean-artifacts          Same as cache clean
-  report-artifacts         Same as cache report
-  status                  Same as cache report
-  repometrics-dashboard    Same as report repometrics
-  compare-models           Same as report compare-models
-  summary-report           Same as report summary
-  eval-run                 Same as report eval
-  api-server               Same as service api
-  server                   Same as service api
-  indexer-service          Same as service indexer
-  mcp-server               Same as service mcp
-  mcp                      Same as service mcp
-  config-validate          Same as config validate
-  config-dump              Same as config dump
-  triage-ingest            Same as triage ingest
-  triage-decision          Same as triage decision
-  triage-context-pack      Same as triage context-pack`);
+`);
 }
 
 function printConfigHelp() {
@@ -552,7 +438,8 @@ function printConfigHelp() {
 
 Subcommands:
   validate                 Validate .pairofcleats.json (see docs/config-schema.json)
-  dump                     Show effective config + derived paths`);
+  dump                     Show effective config + derived paths
+  reset                    Reset .pairofcleats.json to defaults`);
 }
 
 function printTriageHelp() {

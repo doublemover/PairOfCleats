@@ -56,7 +56,11 @@ Configuration:
 
 ### Explain output
 
-Pass `--explain` to include `scoreBreakdown` in JSON responses. This includes:
+Pass `--explain` to include `scoreBreakdown` in JSON responses. This includes:  
 - `sparse` details (BM25 or FTS5, k1/b, normalization)
 - `ann` details (dense source)
 - `rrf` contributions (ranks and fused score), when used
+- `blend` details when normalized blending is enabled
+- `symbol` boost metadata for definitions/exports
+- `phrase` metadata when phrase/chargram boosts are active
+- `selected` final score type + value

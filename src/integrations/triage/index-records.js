@@ -19,7 +19,7 @@ import { promoteRecordFields } from './record-utils.js';
 export async function buildRecordsIndexForRepo({ runtime }) {
   const triageConfig = getTriageConfig(runtime.root, runtime.userConfig);
   const recordsDir = triageConfig.recordsDir;
-  const outDir = getIndexDir(runtime.root, 'records', runtime.userConfig);
+  const outDir = getIndexDir(runtime.root, 'records', runtime.userConfig, { indexRoot: runtime.buildRoot });
   const postingsConfig = runtime.postingsConfig;
   await fs.mkdir(outDir, { recursive: true });
 
@@ -46,6 +46,7 @@ export async function buildRecordsIndexForRepo({ runtime }) {
 
     const record = await loadRecordJson(recordsDir, absPath);
     const docmeta = buildDocMeta(record, triageConfig);
+    const recordName = record?.vuln?.vulnId || record?.recordId || path.basename(relPath, '.md');
 
     const tokenPayload = tokenizeRecord(
       text,
@@ -53,11 +54,18 @@ export async function buildRecordsIndexForRepo({ runtime }) {
       runtime.dictConfig,
       '.md',
       postingsConfig,
-      [record?.vuln?.vulnId || record?.recordId || '', docmeta.doc || ''].filter(Boolean).join(' ')
+      [recordName, docmeta.doc || ''].filter(Boolean).join(' ')
     );
     if (!tokenPayload.tokens.length) continue;
 
     const stats = computeTokenStats(tokenPayload.tokens);
+    const fieldTokens = postingsConfig?.fielded !== false ? {
+      name: recordName ? buildRecordSeq(recordName, runtime.dictWords, runtime.dictConfig, '.md').tokens : [],
+      signature: [],
+      doc: docmeta.doc ? buildRecordSeq(docmeta.doc, runtime.dictWords, runtime.dictConfig, '.md').tokens : [],
+      comment: [],
+      body: tokenPayload.tokens
+    } : null;
     const embedText = docmeta.doc || text;
     const embedding = await runtime.getChunkEmbedding(embedText);
 
@@ -76,7 +84,7 @@ export async function buildRecordsIndexForRepo({ runtime }) {
       startLine,
       endLine,
       kind: 'Record',
-      name: record?.vuln?.vulnId || record?.recordId || path.basename(relPath, '.md'),
+      name: recordName,
       tokens: tokenPayload.tokens,
       seq: tokenPayload.seq,
       ngrams: tokenPayload.ngrams,
@@ -92,7 +100,8 @@ export async function buildRecordsIndexForRepo({ runtime }) {
       embedding,
       minhashSig: mh.hashValues,
       weight: 1,
-      externalDocs: []
+      externalDocs: [],
+      ...(fieldTokens ? { fieldTokens } : {})
     };
 
     appendChunk(state, chunkPayload, postingsConfig);
@@ -114,6 +123,8 @@ export async function buildRecordsIndexForRepo({ runtime }) {
     df: state.df,
     tokenPostings: state.tokenPostings,
     docLengths: state.docLengths,
+    fieldPostings: state.fieldPostings,
+    fieldDocLengths: state.fieldDocLengths,
     phrasePost: state.phrasePost,
     triPost: state.triPost,
     postingsConfig,

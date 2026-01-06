@@ -1,8 +1,14 @@
 import { quantizeVec } from '../embedding.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
+const resolveTokenCount = (chunk) => (
+  Number.isFinite(chunk?.tokenCount)
+    ? chunk.tokenCount
+    : (Array.isArray(chunk?.tokens) ? chunk.tokens.length : 0)
+);
+
 const tuneBM25Params = (chunks) => {
-  const avgLen = chunks.reduce((s, c) => s + c.tokens.length, 0) / chunks.length;
+  const avgLen = chunks.reduce((s, c) => s + resolveTokenCount(c), 0) / chunks.length;
   const b = avgLen > 800 ? 0.6 : 0.8;
   const k1 = avgLen > 800 ? 1.2 : 1.7;
   return { k1, b };
@@ -28,8 +34,39 @@ export async function buildPostings(input) {
     useStubEmbeddings,
     log,
     workerPool,
+    quantizePool,
     embeddingsEnabled = true
   } = input;
+
+  const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
+  const fieldedEnabled = resolvedConfig.fielded !== false;
+  const buildEmptyFieldPostings = () => {
+    if (!fieldedEnabled) return null;
+    const fields = {};
+    const fieldNames = new Set();
+    if (fieldPostings && typeof fieldPostings === 'object') {
+      Object.keys(fieldPostings).forEach((field) => fieldNames.add(field));
+    }
+    if (fieldDocLengths && typeof fieldDocLengths === 'object') {
+      Object.keys(fieldDocLengths).forEach((field) => fieldNames.add(field));
+    }
+    if (!fieldNames.size) {
+      ['name', 'signature', 'doc', 'comment', 'body'].forEach((field) => fieldNames.add(field));
+    }
+    for (const field of fieldNames) {
+      const lengths = Array.isArray(fieldDocLengths?.[field])
+        ? fieldDocLengths[field]
+        : [];
+      fields[field] = {
+        vocab: [],
+        postings: [],
+        docLengths: lengths,
+        avgDocLen: 0,
+        totalDocs: lengths.length
+      };
+    }
+    return { fields };
+  };
 
   if (!Array.isArray(chunks) || chunks.length === 0) {
     return {
@@ -37,7 +74,7 @@ export async function buildPostings(input) {
       b: 0.75,
       avgChunkLen: 0,
       totalDocs: 0,
-      fieldPostings: null,
+      fieldPostings: buildEmptyFieldPostings(),
       phraseVocab: [],
       phrasePostings: [],
       chargramVocab: [],
@@ -53,13 +90,12 @@ export async function buildPostings(input) {
     };
   }
 
-  const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
   const phraseEnabled = resolvedConfig.enablePhraseNgrams !== false;
   const chargramEnabled = resolvedConfig.enableChargrams !== false;
 
   const { k1, b } = tuneBM25Params(chunks);
   const N = chunks.length;
-  const avgChunkLen = chunks.reduce((sum, c) => sum + c.tokens.length, 0) / Math.max(N, 1);
+  const avgChunkLen = chunks.reduce((sum, c) => sum + resolveTokenCount(c), 0) / Math.max(N, 1);
 
   let dims = 0;
   let quantizedVectors = [];
@@ -83,15 +119,24 @@ export async function buildPostings(input) {
       if (Array.isArray(chunk?.embedding) && chunk.embedding.length) return chunk.embedding;
       return zeroVec;
     };
+    const quantizeWorker = quantizePool || workerPool;
+    let quantizeWarned = false;
+    const warnQuantizeFallback = () => {
+      if (quantizeWarned) return;
+      if (typeof log === 'function') {
+        log('Quantize worker unavailable; falling back to inline quantization.');
+      }
+      quantizeWarned = true;
+    };
     const quantizeVectors = async (selector) => {
       const out = new Array(chunks.length);
-      if (!workerPool) {
+      if (!quantizeWorker) {
         for (let i = 0; i < chunks.length; i += 1) {
           out[i] = quantizeVec(selector(chunks[i]));
         }
         return out;
       }
-      const batchSize = workerPool.config?.quantizeBatchSize || 128;
+      const batchSize = quantizeWorker.config?.quantizeBatchSize || 128;
       for (let i = 0; i < chunks.length; i += batchSize) {
         const end = Math.min(i + batchSize, chunks.length);
         const batch = [];
@@ -99,11 +144,19 @@ export async function buildPostings(input) {
           batch.push(selector(chunks[j]));
         }
         try {
-          const chunk = await workerPool.runQuantize({ vectors: batch });
-          for (let j = 0; j < chunk.length; j += 1) {
-            out[i + j] = chunk[j];
+          const chunk = await quantizeWorker.runQuantize({ vectors: batch });
+          if (Array.isArray(chunk) && chunk.length === batch.length) {
+            for (let j = 0; j < chunk.length; j += 1) {
+              out[i + j] = chunk[j];
+            }
+          } else {
+            warnQuantizeFallback();
+            for (let j = 0; j < batch.length; j += 1) {
+              out[i + j] = quantizeVec(batch[j]);
+            }
           }
         } catch {
+          warnQuantizeFallback();
           for (let j = 0; j < batch.length; j += 1) {
             out[i + j] = quantizeVec(batch[j]);
           }

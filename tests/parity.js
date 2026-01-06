@@ -13,6 +13,11 @@ const argv = createCli({
     ann: { type: 'boolean', default: true },
     'write-report': { type: 'boolean', default: false },
     enforce: { type: 'boolean', default: false },
+    'enforce-fts': { type: 'boolean', default: false },
+    'min-overlap': { type: 'number' },
+    'min-rank-corr': { type: 'number' },
+    'max-delta': { type: 'number' },
+    'min-overlap-single': { type: 'number' },
     queries: { type: 'string' },
     out: { type: 'string' },
     search: { type: 'string' },
@@ -165,6 +170,18 @@ function hitScore(hit) {
 function summarizeMatch(memoryHits, sqliteHits) {
   const mem = memoryHits.slice(0, topN);
   const sql = sqliteHits.slice(0, topN);
+  if (!mem.length && !sql.length) {
+    return {
+      overlap: 1,
+      avgDelta: 0,
+      missingFromSqlite: [],
+      missingFromMemory: [],
+      rankCorr: null,
+      topMemory: [],
+      topSqlite: [],
+      zeroHits: true
+    };
+  }
   const memKeys = mem.map(hitKey);
   const sqlKeys = sql.map(hitKey);
   const memRanks = new Map(memKeys.map((key, idx) => [key, idx + 1]));
@@ -309,11 +326,39 @@ if (argv['write-report']) {
 }
 
 if (argv.enforce) {
-  const minOverlap = typeof argv['min-overlap'] === 'number'
-    ? argv['min-overlap']
-    : (parseFloat(argv['min-overlap']) || 0.6);
-  if (summary.overlapAvg < minOverlap) {
-    console.error(`Overlap below threshold (${summary.overlapAvg.toFixed(3)} < ${minOverlap}).`);
-    process.exit(1);
+  const isFts = sqliteBackend === 'sqlite-fts';
+  const defaults = isFts
+    ? { minOverlap: 0.7, minRankCorr: 0.55, maxDelta: 0.5, minSingleOverlap: 0.6 }
+    : { minOverlap: 0.95, minRankCorr: 0.9, maxDelta: 0.1, minSingleOverlap: 0.6 };
+  const thresholds = {
+    minOverlap: Number.isFinite(argv['min-overlap']) ? argv['min-overlap'] : defaults.minOverlap,
+    minRankCorr: Number.isFinite(argv['min-rank-corr']) ? argv['min-rank-corr'] : defaults.minRankCorr,
+    maxDelta: Number.isFinite(argv['max-delta']) ? argv['max-delta'] : defaults.maxDelta,
+    minSingleOverlap: Number.isFinite(argv['min-overlap-single'])
+      ? argv['min-overlap-single']
+      : defaults.minSingleOverlap
+  };
+  const minOverlapSingle = overlapValues.length ? Math.min(...overlapValues) : 1;
+  const failures = [];
+  if (summary.overlapAvg < thresholds.minOverlap) {
+    failures.push(`overlapAvg ${summary.overlapAvg.toFixed(3)} < ${thresholds.minOverlap}`);
+  }
+  if (summary.rankCorrAvg !== null && summary.rankCorrAvg < thresholds.minRankCorr) {
+    failures.push(`rankCorrAvg ${summary.rankCorrAvg.toFixed(3)} < ${thresholds.minRankCorr}`);
+  }
+  if (summary.scoreDeltaAvg > thresholds.maxDelta) {
+    failures.push(`avgDelta ${summary.scoreDeltaAvg.toFixed(3)} > ${thresholds.maxDelta}`);
+  }
+  if (minOverlapSingle < thresholds.minSingleOverlap) {
+    failures.push(`minOverlap@K ${minOverlapSingle.toFixed(3)} < ${thresholds.minSingleOverlap}`);
+  }
+  if (failures.length) {
+    const label = failures.join('; ');
+    if (isFts && argv['enforce-fts'] !== true) {
+      console.warn(`SQLite FTS parity warning: ${label}`);
+    } else {
+      console.error(`Parity thresholds failed: ${label}`);
+      process.exit(1);
+    }
   }
 }

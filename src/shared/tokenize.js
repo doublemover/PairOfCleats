@@ -1,3 +1,4 @@
+import AhoCorasick from 'aho-corasick';
 import Snowball from 'snowball-stemmers';
 
 const stemmer = Snowball.newStemmer('english');
@@ -56,7 +57,7 @@ const DEFAULT_DICT_SEGMENTATION = {
   dpMaxTokenLength: 32
 };
 
-const VALID_DICT_SEGMENT_MODES = new Set(['auto', 'greedy', 'dp']);
+const VALID_DICT_SEGMENT_MODES = new Set(['auto', 'greedy', 'dp', 'aho']);
 
 const normalizeDictSegmentation = (options = {}) => {
   const modeRaw = typeof options.segmentation === 'string'
@@ -82,6 +83,48 @@ const getDictMaxLen = (dict) => {
   }
   dict.__maxTokenLength = maxLen;
   return maxLen;
+};
+
+const buildDictAhoMatcher = (dict) => {
+  const matcher = new AhoCorasick();
+  const words = [];
+  for (const word of dict) {
+    if (typeof word !== 'string' || !word) continue;
+    words.push(word);
+    matcher.add(word, word);
+  }
+  if (!words.length) return null;
+  matcher.build_fail();
+  return { matcher, words };
+};
+
+const getDictAhoMatcher = (dict) => {
+  if (!dict || dict.size === 0) return null;
+  const cached = dict.__ahoMatcher;
+  if (cached && cached.size === dict.size) return cached.matcher;
+  const built = buildDictAhoMatcher(dict);
+  if (!built) return null;
+  dict.__ahoMatcher = {
+    matcher: built.matcher,
+    size: dict.size,
+    words: built.words
+  };
+  return built.matcher;
+};
+
+const buildAhoMatches = (token, dict) => {
+  const matcher = getDictAhoMatcher(dict);
+  if (!matcher || !token) return null;
+  const matchesByStart = Array.from({ length: token.length }, () => []);
+  matcher.search(token, (value, _data, offset) => {
+    if (!value) return;
+    const start = Number(offset);
+    if (!Number.isFinite(start) || start < 0) return;
+    const end = start + value.length;
+    if (end > token.length) return;
+    matchesByStart[start].push({ word: value, end });
+  });
+  return matchesByStart;
 };
 
 const findLongestMatch = (token, start, dict, maxLen) => {
@@ -125,7 +168,7 @@ const pickBetterSegment = (current, candidate) => {
   return current;
 };
 
-const splitWordsWithDictDp = (token, dict, maxLen) => {
+const splitWordsWithDictDp = (token, dict, maxLen, matchesByStart = null) => {
   const n = token.length;
   const best = new Array(n + 1).fill(null);
   best[n] = { matchChars: 0, segments: 0, next: n, token: '', isDict: false };
@@ -141,19 +184,36 @@ const splitWordsWithDictDp = (token, dict, maxLen) => {
         isDict: false
       });
     }
-    const endLimit = Math.min(n, i + maxLen);
-    for (let end = endLimit; end > i; end--) {
-      const word = token.slice(i, end);
-      if (!dict.has(word)) continue;
-      const nextScore = best[end];
-      if (!nextScore) continue;
-      bestChoice = pickBetterSegment(bestChoice, {
-        matchChars: nextScore.matchChars + word.length,
-        segments: nextScore.segments + 1,
-        next: end,
-        token: word,
-        isDict: true
-      });
+    if (matchesByStart) {
+      const matches = matchesByStart[i];
+      if (matches && matches.length) {
+        for (const match of matches) {
+          const nextScore = best[match.end];
+          if (!nextScore) continue;
+          bestChoice = pickBetterSegment(bestChoice, {
+            matchChars: nextScore.matchChars + match.word.length,
+            segments: nextScore.segments + 1,
+            next: match.end,
+            token: match.word,
+            isDict: true
+          });
+        }
+      }
+    } else {
+      const endLimit = Math.min(n, i + maxLen);
+      for (let end = endLimit; end > i; end--) {
+        const word = token.slice(i, end);
+        if (!dict.has(word)) continue;
+        const nextScore = best[end];
+        if (!nextScore) continue;
+        bestChoice = pickBetterSegment(bestChoice, {
+          matchChars: nextScore.matchChars + word.length,
+          segments: nextScore.segments + 1,
+          next: end,
+          token: word,
+          isDict: true
+        });
+      }
     }
     best[i] = bestChoice;
   }
@@ -200,12 +260,16 @@ export function splitWordsWithDict(token, dict, options = {}) {
   if (!maxLen) return [token];
   const greedy = splitWordsWithDictGreedy(token, dict, maxLen);
   if (mode === 'greedy') return greedy;
-  if (mode === 'dp') {
-    if (token.length > dpMaxTokenLength) return greedy;
-    return splitWordsWithDictDp(token, dict, maxLen);
+  const shouldUseDp = token.length <= dpMaxTokenLength;
+  const matchesByStart = shouldUseDp && ['auto', 'dp', 'aho'].includes(mode)
+    ? buildAhoMatches(token, dict)
+    : null;
+  if (mode === 'dp' || mode === 'aho') {
+    if (!shouldUseDp) return greedy;
+    return splitWordsWithDictDp(token, dict, maxLen, matchesByStart);
   }
-  if (token.length <= dpMaxTokenLength) {
-    const dp = splitWordsWithDictDp(token, dict, maxLen);
+  if (shouldUseDp) {
+    const dp = splitWordsWithDictDp(token, dict, maxLen, matchesByStart);
     if (scoreSegments(dp, dict) > scoreSegments(greedy, dict)) return dp;
   }
   return greedy;

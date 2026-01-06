@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
 import { createCli } from '../src/shared/cli.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../src/shared/cli-options.js';
+import { resolveToolRoot } from './dict-utils.js';
 
 const argv = createCli({
   scriptName: 'bench-language-matrix',
@@ -38,7 +38,7 @@ const argv = createCli({
 }).parse();
 validateBenchArgs(argv);
 
-const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scriptRoot = resolveToolRoot();
 const benchScript = path.join(scriptRoot, 'tools', 'bench-language-repos.js');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));

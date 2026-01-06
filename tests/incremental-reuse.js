@@ -39,6 +39,25 @@ if (!reuse) {
   process.exit(1);
 }
 
+const extraManifest = {
+  files: {
+    ...manifest.files,
+    'src/c.js': { size: 30, mtimeMs: 789 }
+  }
+};
+
+const noReuseDeleted = await shouldReuseIncrementalIndex({
+  outDir,
+  entries,
+  manifest: extraManifest,
+  stage: 'stage1'
+});
+
+if (noReuseDeleted) {
+  console.error('incremental reuse test failed: expected deletion mismatch');
+  process.exit(1);
+}
+
 const noReuse = await shouldReuseIncrementalIndex({
   outDir,
   entries: [{ rel: 'src/a.js', stat: { size: 11, mtimeMs: 123 } }],

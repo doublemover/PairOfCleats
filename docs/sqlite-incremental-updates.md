@@ -5,7 +5,7 @@ Update SQLite indexes in-place by touching only the files that changed since the
 
 ## Inputs
 - Per-file incremental cache from `build_index.js --incremental`.
-- Existing SQLite DBs at `<cache>/repos/<repoId>/index-sqlite/index-code.db` and `<cache>/repos/<repoId>/index-sqlite/index-prose.db` (unless overridden).
+- Existing SQLite DBs at the current build root, e.g. `<cache>/repos/<repoId>/builds/<buildId>/index-sqlite/index-code.db` and `index-prose.db` (resolved via `builds/current.json`, unless overridden).
 
 ## Schema Additions
 - `file_manifest` table tracks per-file hashes and sizes used for change detection.
@@ -29,13 +29,15 @@ Update SQLite indexes in-place by touching only the files that changed since the
 
 ## Usage
 - Build incremental cache: `pairofcleats index build --incremental`.
-- Update SQLite in place: `pairofcleats build-sqlite-index --incremental`.
+- Update SQLite in place: `pairofcleats sqlite build --incremental`.
+- Override target build root: `pairofcleats sqlite build --incremental --index-root <path>`.
 - `pairofcleats bootstrap --incremental --with-sqlite` runs both.
 - `--validate <off|smoke|full>` controls post-build SQLite validation (default: `smoke`).
 
 ## Fallback Behavior
 If the incremental manifest or required SQLite tables are missing, the tool falls back to a full rebuild.
 If a manifest exists, full rebuilds automatically stream from incremental bundles instead of loading `chunk_meta.json`.
+If bundle streaming fails (missing bundle, invalid payload, dims mismatch), the rebuild logs a warning and falls back to file-backed artifacts. If file-backed artifacts are missing or invalid, the rebuild fails.
 Full rebuilds also trigger when:
 - The manifest is empty or has conflicting paths (same file with different separators).
 - `file_manifest` is empty while chunks exist (legacy DBs without per-file metadata).

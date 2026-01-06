@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getCacheRoot, getDictConfig, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { getCacheRoot, getDictConfig, getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveLmdbPaths, resolveRepoRoot, resolveSqlitePaths } from '../../../tools/dict-utils.js';
 import { getEnvConfig } from '../../shared/env.js';
 
 const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
@@ -118,10 +118,13 @@ export async function getStatus(input = {}) {
   const dictConfig = getDictConfig(root, userConfig);
   const dictDir = dictConfig.dir;
   const sqlitePaths = resolveSqlitePaths(root, userConfig);
+  const lmdbPaths = resolveLmdbPaths(root, userConfig);
 
+  const indexCodeDir = getIndexDir(root, 'code', userConfig);
+  const indexProseDir = getIndexDir(root, 'prose', userConfig);
   const repoArtifacts = {
-    indexCode: path.join(repoCacheRoot, 'index-code'),
-    indexProse: path.join(repoCacheRoot, 'index-prose'),
+    indexCode: indexCodeDir,
+    indexProse: indexProseDir,
     repometrics: path.join(repoCacheRoot, 'repometrics'),
     incremental: path.join(repoCacheRoot, 'incremental')
   };
@@ -134,6 +137,8 @@ export async function getStatus(input = {}) {
 
   const sqliteStats = {};
   let sqliteOutsideCacheSize = 0;
+  const lmdbStats = {};
+  let lmdbOutsideCacheSize = 0;
   const sqliteTargets = [
     { label: 'code', path: sqlitePaths.codePath },
     { label: 'prose', path: sqlitePaths.prosePath }
@@ -146,43 +151,55 @@ export async function getStatus(input = {}) {
       sqliteOutsideCacheSize += size;
     }
   }
+  const lmdbTargets = [
+    { label: 'code', path: lmdbPaths.codePath },
+    { label: 'prose', path: lmdbPaths.prosePath }
+  ];
+  for (const target of lmdbTargets) {
+    const exists = fs.existsSync(path.join(target.path, 'data.mdb'));
+    const size = exists ? await sizeOfPath(target.path) : 0;
+    lmdbStats[target.label] = exists ? { path: target.path, bytes: size } : null;
+    if (exists && !isInside(path.resolve(cacheRoot), target.path)) {
+      lmdbOutsideCacheSize += size;
+    }
+  }
 
   const cacheRootSize = await sizeOfPath(cacheRoot);
   const dictSize = await sizeOfPath(dictDir);
-  const overallSize = cacheRootSize + sqliteOutsideCacheSize;
+  const overallSize = cacheRootSize + sqliteOutsideCacheSize + lmdbOutsideCacheSize;
 
   const health = { issues: [], hints: [] };
   const indexIssues = [];
-  if (!fs.existsSync(repoArtifacts.indexCode)) {
+  if (!fs.existsSync(indexCodeDir)) {
     indexIssues.push('index-code directory missing');
   } else {
-    const codeChunkMeta = fs.existsSync(path.join(repoArtifacts.indexCode, 'chunk_meta.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexCode, 'chunk_meta.jsonl'))
-      || fs.existsSync(path.join(repoArtifacts.indexCode, 'chunk_meta.meta.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexCode, 'chunk_meta.parts'));
+    const codeChunkMeta = fs.existsSync(path.join(indexCodeDir, 'chunk_meta.json'))
+      || fs.existsSync(path.join(indexCodeDir, 'chunk_meta.jsonl'))
+      || fs.existsSync(path.join(indexCodeDir, 'chunk_meta.meta.json'))
+      || fs.existsSync(path.join(indexCodeDir, 'chunk_meta.parts'));
     if (!codeChunkMeta) {
       indexIssues.push('index-code chunk_meta.json missing');
     }
-    const codeTokenPostings = fs.existsSync(path.join(repoArtifacts.indexCode, 'token_postings.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexCode, 'token_postings.meta.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexCode, 'token_postings.shards'));
+    const codeTokenPostings = fs.existsSync(path.join(indexCodeDir, 'token_postings.json'))
+      || fs.existsSync(path.join(indexCodeDir, 'token_postings.meta.json'))
+      || fs.existsSync(path.join(indexCodeDir, 'token_postings.shards'));
     if (!codeTokenPostings) {
       indexIssues.push('index-code token_postings.json missing');
     }
   }
-  if (!fs.existsSync(repoArtifacts.indexProse)) {
+  if (!fs.existsSync(indexProseDir)) {
     indexIssues.push('index-prose directory missing');
   } else {
-    const proseChunkMeta = fs.existsSync(path.join(repoArtifacts.indexProse, 'chunk_meta.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexProse, 'chunk_meta.jsonl'))
-      || fs.existsSync(path.join(repoArtifacts.indexProse, 'chunk_meta.meta.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexProse, 'chunk_meta.parts'));
+    const proseChunkMeta = fs.existsSync(path.join(indexProseDir, 'chunk_meta.json'))
+      || fs.existsSync(path.join(indexProseDir, 'chunk_meta.jsonl'))
+      || fs.existsSync(path.join(indexProseDir, 'chunk_meta.meta.json'))
+      || fs.existsSync(path.join(indexProseDir, 'chunk_meta.parts'));
     if (!proseChunkMeta) {
       indexIssues.push('index-prose chunk_meta.json missing');
     }
-    const proseTokenPostings = fs.existsSync(path.join(repoArtifacts.indexProse, 'token_postings.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexProse, 'token_postings.meta.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexProse, 'token_postings.shards'));
+    const proseTokenPostings = fs.existsSync(path.join(indexProseDir, 'token_postings.json'))
+      || fs.existsSync(path.join(indexProseDir, 'token_postings.meta.json'))
+      || fs.existsSync(path.join(indexProseDir, 'token_postings.shards'));
     if (!proseTokenPostings) {
       indexIssues.push('index-prose token_postings.json missing');
     }
@@ -202,6 +219,20 @@ export async function getStatus(input = {}) {
     health.hints.push('Run `npm run build-sqlite-index` to rebuild SQLite indexes.');
   }
 
+  const lmdbIssues = [];
+  if (userConfig.lmdb?.use !== false) {
+    if (!fs.existsSync(path.join(lmdbPaths.codePath, 'data.mdb'))) {
+      lmdbIssues.push('lmdb code db missing');
+    }
+    if (!fs.existsSync(path.join(lmdbPaths.prosePath, 'data.mdb'))) {
+      lmdbIssues.push('lmdb prose db missing');
+    }
+  }
+  if (lmdbIssues.length) {
+    health.issues.push(...lmdbIssues);
+    health.hints.push('Run `npm run build-lmdb-index` to rebuild LMDB indexes.');
+  }
+
   const payload = {
     repo: {
       root: path.resolve(repoCacheRoot),
@@ -211,6 +242,10 @@ export async function getStatus(input = {}) {
         code: sqliteStats.code,
         prose: sqliteStats.prose,
         legacy: sqlitePaths.legacyExists ? { path: sqlitePaths.legacyPath } : null
+      },
+      lmdb: {
+        code: lmdbStats.code,
+        prose: lmdbStats.prose
       }
     },
     health,
@@ -219,6 +254,7 @@ export async function getStatus(input = {}) {
       cacheBytes: cacheRootSize,
       dictionaryBytes: dictSize,
       sqliteOutsideCacheBytes: sqliteOutsideCacheSize,
+      lmdbOutsideCacheBytes: lmdbOutsideCacheSize,
       totalBytes: overallSize
     }
   };

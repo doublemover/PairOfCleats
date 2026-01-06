@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { StreamMessageReader, StreamMessageWriter } from 'vscode-jsonrpc';
+import { StreamMessageReader } from 'vscode-jsonrpc';
+import { closeJsonRpcWriter, getJsonRpcWriter } from '../../../shared/jsonrpc.js';
 
 /**
  * Convert a local path to a file:// URI.
@@ -35,7 +36,9 @@ export function languageIdForFileExt(ext) {
     '.hh': 'cpp',
     '.mm': 'objective-cpp',
     '.m': 'objective-c',
-    '.swift': 'swift'
+    '.swift': 'swift',
+    '.py': 'python',
+    '.pyi': 'python'
   };
   return map[normalized] || 'plaintext';
 }
@@ -60,12 +63,22 @@ export function createLspClient(options) {
   let proc = null;
   let reader = null;
   let writer = null;
+  let writerClosed = false;
   let nextId = 1;
   const pending = new Map();
 
   const send = (payload) => {
-    if (!writer) return;
-    writer.write(payload);
+    if (!writer || writerClosed) return;
+    const pendingWrite = writer.write(payload);
+    if (pendingWrite && typeof pendingWrite.catch === 'function') {
+      pendingWrite.catch((err) => {
+        if (err?.code === 'ERR_STREAM_DESTROYED') {
+          writerClosed = true;
+          return;
+        }
+        log(`[lsp] write error: ${err?.message || err}`);
+      });
+    }
   };
 
   const handleResponse = (message) => {
@@ -122,7 +135,14 @@ export function createLspClient(options) {
     if (proc) return proc;
     proc = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, env, shell });
     reader = new StreamMessageReader(proc.stdout);
-    writer = new StreamMessageWriter(proc.stdin);
+    writer = getJsonRpcWriter(proc.stdin);
+    writerClosed = false;
+    const markWriterClosed = () => {
+      writerClosed = true;
+      if (proc?.stdin) closeJsonRpcWriter(proc.stdin);
+    };
+    proc.stdin?.on('close', markWriterClosed);
+    proc.stdin?.on('error', markWriterClosed);
     reader.onError((err) => log(`[lsp] parse error: ${err.message}`));
     reader.onClose(() => log('[lsp] reader closed'));
     reader.listen(handleMessage);
@@ -131,6 +151,7 @@ export function createLspClient(options) {
       if (text) log(`[lsp] ${text}`);
     });
     proc.on('error', (err) => {
+      const currentProc = proc;
       for (const entry of pending.values()) {
         if (entry.timeout) clearTimeout(entry.timeout);
         entry.reject(err);
@@ -139,8 +160,11 @@ export function createLspClient(options) {
       proc = null;
       reader = null;
       writer = null;
+      writerClosed = true;
+      if (currentProc?.stdin) closeJsonRpcWriter(currentProc.stdin);
     });
     proc.on('exit', (code, signal) => {
+      const currentProc = proc;
       for (const entry of pending.values()) {
         if (entry.timeout) clearTimeout(entry.timeout);
         entry.reject(new Error(`LSP exited (${code ?? 'null'}, ${signal ?? 'null'}).`));
@@ -149,6 +173,8 @@ export function createLspClient(options) {
       proc = null;
       reader = null;
       writer = null;
+      writerClosed = true;
+      if (currentProc?.stdin) closeJsonRpcWriter(currentProc.stdin);
     });
     return proc;
   };
@@ -191,13 +217,17 @@ export function createLspClient(options) {
     try {
       await request('shutdown', null, { timeoutMs: 5000 });
     } catch {}
-    notify('exit', null);
+    if (!writerClosed) {
+      notify('exit', null);
+    }
   };
 
   const kill = () => {
     if (!proc) return;
+    if (proc.stdin) closeJsonRpcWriter(proc.stdin);
     proc.kill();
     proc = null;
+    writerClosed = true;
   };
 
   return {

@@ -39,8 +39,45 @@ export async function buildIgnoreMatcher({ root, userConfig }) {
       ignoreMatcher.add(contents);
     } catch {}
   }
+  const expandExtraIgnore = (patterns) => {
+    const expanded = [];
+    const seen = new Set();
+    const reignored = new Set();
+    const hasGlob = (value) => /[*?\[\]{}]/.test(value);
+    const addPattern = (value) => {
+      if (!value || seen.has(value)) return;
+      seen.add(value);
+      expanded.push(value);
+    };
+    for (const raw of patterns) {
+      const pattern = typeof raw === 'string' ? raw.trim() : '';
+      if (!pattern) continue;
+      if (!pattern.startsWith('!')) {
+        addPattern(pattern);
+        continue;
+      }
+      const negated = pattern.slice(1).trim();
+      const rel = negated.startsWith('/') ? negated.slice(1) : negated;
+      const parts = rel.split('/').filter(Boolean);
+      if (parts.length > 1) {
+        let current = '';
+        for (let i = 0; i < parts.length - 1; i += 1) {
+          const part = parts[i];
+          if (!part || hasGlob(part)) break;
+          current = current ? `${current}/${part}` : part;
+          addPattern(`!${current}/`);
+          if (!reignored.has(current) && ignoreMatcher.ignores(`${current}/`)) {
+            addPattern(`${current}/**`);
+            reignored.add(current);
+          }
+        }
+      }
+      addPattern(pattern);
+    }
+    return expanded;
+  };
   if (config.extraIgnore.length) {
-    ignoreMatcher.add(config.extraIgnore);
+    ignoreMatcher.add(expandExtraIgnore(config.extraIgnore));
   }
 
   return { ignoreMatcher, config, ignoreFiles };

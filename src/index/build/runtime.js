@@ -6,25 +6,35 @@ import {
   getCacheRuntimeConfig,
   getDictionaryPaths,
   getDictConfig,
+  getEffectiveConfigHash,
   getModelConfig,
+  getBuildsRoot,
   getRepoCacheRoot,
+  getToolVersion,
   getToolingConfig,
-  loadUserConfig
+  loadUserConfig,
+  resolveIndexRoot
 } from '../../../tools/dict-utils.js';
 import { createEmbedder } from '../embedding.js';
-import { log } from '../../shared/progress.js';
+import { normalizeEmbeddingProvider, normalizeOnnxConfig } from '../../shared/onnx-embeddings.js';
+import { normalizeBundleFormat } from '../../shared/bundle-io.js';
+import { normalizeCommentConfig } from '../comments.js';
+import { normalizeSegmentsConfig } from '../segments.js';
+import { configureLogger, log, updateLogContext } from '../../shared/progress.js';
 import { createTaskQueues } from '../../shared/concurrency.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { resolveThreadLimits } from '../../shared/threads.js';
 import { buildIgnoreMatcher } from './ignore.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
-import { applyBenchmarkProfile } from '../../shared/bench-profile.js';
-import { createIndexerWorkerPool, resolveWorkerPoolConfig } from './worker-pool.js';
+import { createIndexerWorkerPools, resolveWorkerPoolConfig } from './worker-pool.js';
 import { createCrashLogger } from './crash-log.js';
 import { normalizeEmbeddingBatchMultipliers } from './embedding-batch.js';
 import { preloadTreeSitterLanguages, resolveEnabledTreeSitterLanguages } from '../../lang/tree-sitter.js';
 import { sha1 } from '../../shared/hash.js';
+import { stableStringify } from '../../shared/stable-json.js';
 import { isPlainObject, mergeConfig } from '../../shared/config.js';
+import { getRepoProvenance } from '../git.js';
+import { normalizeRiskConfig } from '../risk.js';
 
 const normalizeStage = (raw) => {
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
@@ -35,6 +45,10 @@ const normalizeStage = (raw) => {
   if (value === '4' || value === 'stage4' || value === 'sqlite' || value === 'ann') return 'stage4';
   return null;
 };
+
+const formatBuildTimestamp = (date) => (
+  date.toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/[-:]/g, '')
+);
 
 const buildStageOverrides = (twoStageConfig, stage) => {
   if (!['stage1', 'stage2', 'stage3', 'stage4'].includes(stage)) return null;
@@ -82,6 +96,29 @@ const buildStageOverrides = (twoStageConfig, stage) => {
   return mergeConfig(defaults, stageOverrides);
 };
 
+const normalizeContentConfig = (config) => {
+  if (!config || typeof config !== 'object') return config || {};
+  const cloned = JSON.parse(JSON.stringify(config));
+  if (cloned.indexing && typeof cloned.indexing === 'object') {
+    delete cloned.indexing.shards;
+    delete cloned.indexing.fileListSampleSize;
+    delete cloned.indexing.concurrency;
+    delete cloned.indexing.importConcurrency;
+    delete cloned.indexing.workerPool;
+    delete cloned.indexing.debugCrash;
+  }
+  return cloned;
+};
+
+const buildContentConfigHash = (config, envConfig) => {
+  const normalizedEnv = { ...envConfig, cacheRoot: '' };
+  const payload = {
+    config: normalizeContentConfig(config),
+    env: normalizedEnv
+  };
+  return sha1(stableStringify(payload));
+};
+
 /**
  * Create runtime configuration for build_index.
  * @param {{root:string,argv:object,rawArgv:string[]}} input
@@ -91,10 +128,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const userConfig = loadUserConfig(root);
   const envConfig = getEnvConfig();
   const rawIndexingConfig = userConfig.indexing || {};
-  let { indexingConfig, profile: benchmarkProfile } = applyBenchmarkProfile(
-    rawIndexingConfig,
-    userConfig.profile
-  );
+  let indexingConfig = rawIndexingConfig;
   const stage = normalizeStage(argv.stage || envConfig.stage);
   const twoStageConfig = indexingConfig.twoStage || {};
   const stageOverrides = buildStageOverrides(twoStageConfig, stage);
@@ -102,6 +136,45 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const currentIndexRoot = resolveIndexRoot(root, userConfig);
+  const configHash = getEffectiveConfigHash(root, userConfig);
+  const contentConfigHash = buildContentConfigHash(userConfig, envConfig);
+  const repoProvenance = await getRepoProvenance(root);
+  const toolVersion = getToolVersion();
+  const gitShortSha = repoProvenance?.commit ? repoProvenance.commit.slice(0, 7) : 'nogit';
+  const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
+  const buildId = `${formatBuildTimestamp(new Date())}_${gitShortSha}_${configHash8}`;
+  const buildRoot = path.join(getBuildsRoot(root, userConfig), buildId);
+  const loggingConfig = userConfig.logging || {};
+  const logFormatRaw = envConfig.logFormat || loggingConfig.format || 'text';
+  const logFormat = ['text', 'json', 'pretty'].includes(logFormatRaw)
+    ? logFormatRaw
+    : 'text';
+  const logLevelRaw = envConfig.logLevel || loggingConfig.level || 'info';
+  const logLevel = typeof logLevelRaw === 'string' && logLevelRaw.trim()
+    ? logLevelRaw.trim().toLowerCase()
+    : 'info';
+  const ringMax = Number.isFinite(Number(loggingConfig.ringMax))
+    ? Math.max(1, Math.floor(Number(loggingConfig.ringMax)))
+    : 200;
+  const ringMaxBytes = Number.isFinite(Number(loggingConfig.ringMaxBytes))
+    ? Math.max(1024, Math.floor(Number(loggingConfig.ringMaxBytes)))
+    : 2 * 1024 * 1024;
+  configureLogger({
+    enabled: logFormat !== 'text',
+    pretty: logFormat === 'pretty',
+    level: logLevel,
+    ringMax,
+    ringMaxBytes,
+    redact: loggingConfig.redact,
+    context: {
+      runId: buildId,
+      buildId,
+      stage: stage || null,
+      configHash: configHash || null,
+      repoRoot: root
+    }
+  });
   const toolingConfig = getToolingConfig(root, userConfig);
   const toolingEnabled = toolingConfig.autoEnableOnDetect !== false;
   const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});
@@ -122,6 +195,12 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const riskAnalysisEnabled = indexingConfig.riskAnalysis !== false;
   const riskAnalysisCrossFileEnabled = riskAnalysisEnabled
     && indexingConfig.riskAnalysisCrossFile !== false;
+  const riskConfig = normalizeRiskConfig({
+    enabled: riskAnalysisEnabled,
+    rules: indexingConfig.riskRules,
+    caps: indexingConfig.riskCaps,
+    regex: indexingConfig.riskRegex || indexingConfig.riskRules?.regex
+  }, { rootDir: root });
   const gitBlameEnabled = indexingConfig.gitBlame !== false;
   const lintEnabled = indexingConfig.lint !== false;
   const complexityEnabled = indexingConfig.complexity !== false;
@@ -141,6 +220,10 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     const parsed = Number(value);
     if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
     return fallback;
+  };
+  const pickMinLimit = (...values) => {
+    const candidates = values.filter((value) => Number.isFinite(value) && value > 0);
+    return candidates.length ? Math.min(...candidates) : null;
   };
   const normalizeDepth = (value, fallback) => {
     if (value === 0) return 0;
@@ -188,10 +271,29 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     }
     return output;
   };
+  const normalizeOptionalLimit = (value) => {
+    if (value === 0 || value === false) return null;
+    if (value === undefined || value === null) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+  };
+  const normalizeTreeSitterByLanguage = (raw) => {
+    const input = raw && typeof raw === 'object' ? raw : {};
+    const output = {};
+    for (const [key, value] of Object.entries(input)) {
+      const entry = value && typeof value === 'object' ? value : {};
+      const maxBytes = normalizeCapValue(entry.maxBytes);
+      const maxLines = normalizeCapValue(entry.maxLines);
+      const maxParseMs = normalizeOptionalLimit(entry.maxParseMs);
+      if (maxBytes == null && maxLines == null && maxParseMs == null) continue;
+      output[key.toLowerCase()] = { maxBytes, maxLines, maxParseMs };
+    }
+    return output;
+  };
   const kotlinFlowMaxBytes = normalizeLimit(kotlinConfig.flowMaxBytes, 200 * 1024);
   const kotlinFlowMaxLines = normalizeLimit(kotlinConfig.flowMaxLines, 3000);
   const kotlinRelationsMaxBytes = normalizeLimit(kotlinConfig.relationsMaxBytes, 200 * 1024);
-  const kotlinRelationsMaxLines = normalizeLimit(kotlinConfig.relationsMaxLines, 3000);
+  const kotlinRelationsMaxLines = normalizeLimit(kotlinConfig.relationsMaxLines, 2000);
   const normalizeParser = (raw, fallback, allowed) => {
     const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
     return allowed.includes(normalized) ? normalized : fallback;
@@ -226,16 +328,25 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const javascriptFlow = normalizeFlow(indexingConfig.javascriptFlow);
   const pythonAstConfig = indexingConfig.pythonAst || {};
   const pythonAstEnabled = pythonAstConfig.enabled !== false;
+  const segmentsConfig = normalizeSegmentsConfig(indexingConfig.segments || {});
+  const commentsConfig = normalizeCommentConfig(indexingConfig.comments || {});
+  const chunkingConfig = indexingConfig.chunking || {};
+  const chunking = {
+    maxBytes: normalizeLimit(chunkingConfig.maxBytes, null),
+    maxLines: normalizeLimit(chunkingConfig.maxLines, null)
+  };
   const embeddingBatchRaw = Number(indexingConfig.embeddingBatchSize);
   let embeddingBatchSize = Number.isFinite(embeddingBatchRaw)
     ? Math.max(0, Math.floor(embeddingBatchRaw))
     : 0;
   if (!embeddingBatchSize) {
     const totalGb = os.totalmem() / (1024 ** 3);
-    const autoBatch = Math.floor(totalGb * 32);
-    embeddingBatchSize = Math.min(128, Math.max(32, autoBatch));
+    const autoBatch = Math.floor(totalGb * 16);
+    embeddingBatchSize = Math.min(128, Math.max(16, autoBatch));
   }
   const embeddingsConfig = indexingConfig.embeddings || {};
+  const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider);
+  const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const embeddingQueueConfig = embeddingsConfig.queue || {};
   const embeddingCacheConfig = embeddingsConfig.cache || {};
   const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
@@ -253,10 +364,48 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     : '';
   const fileCapsConfig = indexingConfig.fileCaps || {};
   const fileCaps = {
-    default: normalizeCapEntry(fileCapsConfig.default || fileCapsConfig.defaults || {}),
-    byExt: normalizeCapsByExt(fileCapsConfig.byExt || fileCapsConfig.byExtension),
-    byLanguage: normalizeCapsByLanguage(fileCapsConfig.byLanguage || fileCapsConfig.byLang)
+    default: normalizeCapEntry(fileCapsConfig.default || {}),
+    byExt: normalizeCapsByExt(fileCapsConfig.byExt || {}),
+    byLanguage: normalizeCapsByLanguage(fileCapsConfig.byLanguage || {})
   };
+  const untrustedConfig = indexingConfig.untrusted || {};
+  const untrustedEnabled = untrustedConfig.enabled === true;
+  const untrustedDefaults = {
+    maxFileBytes: 1024 * 1024,
+    maxLines: 10000,
+    maxFiles: 100000,
+    maxDepth: 25
+  };
+  const untrustedMaxFileBytes = normalizeLimit(untrustedConfig.maxFileBytes, untrustedDefaults.maxFileBytes);
+  const untrustedMaxLines = normalizeLimit(untrustedConfig.maxLines, untrustedDefaults.maxLines);
+  const untrustedMaxFiles = normalizeLimit(untrustedConfig.maxFiles, untrustedDefaults.maxFiles);
+  const untrustedMaxDepth = normalizeDepth(untrustedConfig.maxDepth, untrustedDefaults.maxDepth);
+  let guardrails = {
+    enabled: false,
+    maxFiles: null,
+    maxDepth: null,
+    maxFileBytes: null,
+    maxLines: null
+  };
+  if (untrustedEnabled) {
+    guardrails = {
+      enabled: true,
+      maxFiles: untrustedMaxFiles,
+      maxDepth: untrustedMaxDepth,
+      maxFileBytes: untrustedMaxFileBytes,
+      maxLines: untrustedMaxLines
+    };
+    const nextMaxFileBytes = pickMinLimit(maxFileBytes, untrustedMaxFileBytes);
+    if (nextMaxFileBytes != null) {
+      maxFileBytes = nextMaxFileBytes;
+    }
+    if (untrustedMaxFileBytes) {
+      fileCaps.default.maxBytes = pickMinLimit(fileCaps.default.maxBytes, untrustedMaxFileBytes);
+    }
+    if (untrustedMaxLines) {
+      fileCaps.default.maxLines = pickMinLimit(fileCaps.default.maxLines, untrustedMaxLines);
+    }
+  }
   const fileScanConfig = indexingConfig.fileScan || {};
   const minifiedScanConfig = fileScanConfig.minified || {};
   const binaryScanConfig = fileScanConfig.binary || {};
@@ -277,15 +426,32 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   };
   const shardsConfig = indexingConfig.shards || {};
   const shardsEnabled = shardsConfig.enabled === true;
-  const shardsMaxWorkers = normalizeLimit(shardsConfig.maxWorkers, null);
+  const shardsMaxWorkers = normalizeLimit(shardsConfig.maxWorkers, null);       
   const shardsMaxShards = normalizeLimit(shardsConfig.maxShards, null);
   const shardsMinFiles = normalizeLimit(shardsConfig.minFiles, null);
-  const shardsDirDepth = normalizeDepth(shardsConfig.dirDepth, 3);
+  const shardsDirDepth = normalizeDepth(shardsConfig.dirDepth, 0);
+  const shardsMaxShardBytes = normalizeLimit(
+    shardsConfig.maxShardBytes,
+    64 * 1024 * 1024
+  );
+  const shardsMaxShardLines = normalizeLimit(shardsConfig.maxShardLines, 200000);
   const treeSitterConfig = indexingConfig.treeSitter || {};
   const treeSitterEnabled = treeSitterConfig.enabled !== false;
   const treeSitterLanguages = treeSitterConfig.languages || {};
   const treeSitterMaxBytes = normalizeLimit(treeSitterConfig.maxBytes, 512 * 1024);
   const treeSitterMaxLines = normalizeLimit(treeSitterConfig.maxLines, 10000);
+  const treeSitterMaxParseMs = normalizeLimit(treeSitterConfig.maxParseMs, 1000);
+  const treeSitterByLanguage = normalizeTreeSitterByLanguage(
+    treeSitterConfig.byLanguage || {}
+  );
+  const treeSitterConfigChunking = treeSitterConfig.configChunking === true;
+  const treeSitterPreloadRaw = typeof treeSitterConfig.preload === 'string'
+    ? treeSitterConfig.preload.trim().toLowerCase()
+    : (treeSitterConfig.preload === true ? 'parallel' : '');
+  const treeSitterPreload = treeSitterPreloadRaw === 'parallel' ? 'parallel' : 'serial';
+  const treeSitterPreloadConcurrency = normalizeOptionalLimit(
+    treeSitterConfig.preloadConcurrency
+  );
   const sqlConfig = userConfig.sql || {};
   const defaultSqlDialects = {
     '.psql': 'postgres',
@@ -333,14 +499,38 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     embeddingConcurrency = Math.max(1, defaultEmbedding);
   }
   embeddingConcurrency = Math.max(1, Math.min(embeddingConcurrency, cpuConcurrency));
-  const queues = createTaskQueues({ ioConcurrency, cpuConcurrency, embeddingConcurrency });
+  const maxFilePending = Math.min(10000, fileConcurrency * 1000);
+  const maxIoPending = Math.min(10000, Math.max(ioConcurrency, fileConcurrency) * 1000);
+  const maxEmbeddingPending = Math.min(64, embeddingConcurrency * 8);
+  const queues = createTaskQueues({
+    ioConcurrency,
+    cpuConcurrency,
+    embeddingConcurrency,
+    ioPendingLimit: maxIoPending,
+    cpuPendingLimit: maxFilePending,
+    embeddingPendingLimit: maxEmbeddingPending
+  });
+  const pythonAstRuntimeConfig = {
+    ...pythonAstConfig,
+    defaultMaxWorkers: Math.min(4, fileConcurrency),
+    hardMaxWorkers: 8
+  };
+  const workerPoolDefaultMax = Math.min(8, fileConcurrency);
   const workerPoolConfig = resolveWorkerPoolConfig(
     indexingConfig.workerPool || {},
     envConfig,
-    { cpuLimit: cpuConcurrency }
+    {
+      cpuLimit: cpuConcurrency,
+      defaultMaxWorkers: workerPoolDefaultMax,
+      hardMaxWorkers: 16
+    }
   );
 
   const incrementalEnabled = argv.incremental === true;
+  const incrementalBundlesConfig = indexingConfig.incrementalBundles || {};
+  const incrementalBundleFormat = typeof incrementalBundlesConfig.format === 'string'
+    ? normalizeBundleFormat(incrementalBundlesConfig.format)
+    : null;
   const debugCrash = argv['debug-crash'] === true
     || envConfig.debugCrash === true
     || indexingConfig.debugCrash === true;
@@ -398,10 +588,13 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   let getChunkEmbeddings = async () => [];
   if (embeddingEnabled) {
     const embedder = createEmbedder({
+      rootDir: root,
       useStubEmbeddings,
       modelId,
       dims: argv.dims,
-      modelsDir
+      modelsDir,
+      provider: embeddingProvider,
+      onnx: embeddingOnnx
     });
     getChunkEmbedding = embedder.getChunkEmbedding;
     getChunkEmbeddings = embedder.getChunkEmbeddings;
@@ -432,7 +625,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   } else if (useStubEmbeddings) {
     log('Embeddings: stub mode enabled (no model downloads).');
   } else {
-    log(`Embeddings: model ${modelId}`);
+    const providerLabel = embeddingProvider === 'onnx' ? 'onnxruntime' : 'xenova';
+    log(`Embeddings: model ${modelId} (${providerLabel}).`);
   }
   if (embeddingEnabled) {
     log(`Embedding batch size: ${embeddingBatchSize}`);
@@ -440,12 +634,6 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   }
   if (incrementalEnabled) {
     log(`Incremental cache enabled (root: ${path.join(repoCacheRoot, 'incremental')}).`);
-  }
-  if (benchmarkProfile.enabled) {
-    const disabled = benchmarkProfile.disabled.length
-      ? benchmarkProfile.disabled.join(', ')
-      : 'none';
-    log(`Benchmark profile enabled: disabled ${disabled}.`);
   }
   log(`Queue concurrency: io=${ioConcurrency}, cpu=${cpuConcurrency}.`);
   if (!astDataflowEnabled) {
@@ -464,7 +652,11 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       enabled: treeSitterEnabled,
       languages: treeSitterLanguages
     });
-    await preloadTreeSitterLanguages(enabledTreeSitterLanguages, { log });
+    await preloadTreeSitterLanguages(enabledTreeSitterLanguages, {
+      log,
+      parallel: treeSitterPreload === 'parallel',
+      concurrency: treeSitterPreloadConcurrency
+    });
   }
   if (typeInferenceEnabled) {
     log('Type inference metadata enabled via indexing.typeInference.');
@@ -499,9 +691,15 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     log: null
   });
 
+  try {
+    await fs.mkdir(buildRoot, { recursive: true });
+  } catch {}
+
+  let workerPools = { tokenizePool: null, quantizePool: null, destroy: async () => {} };
   let workerPool = null;
+  let quantizePool = null;
   if (workerPoolConfig.enabled !== false) {
-    workerPool = await createIndexerWorkerPool({
+    workerPools = await createIndexerWorkerPools({
       config: workerPoolConfig,
       dictWords,
       dictConfig,
@@ -509,9 +707,14 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       crashLogger: workerCrashLogger,
       log
     });
+    workerPool = workerPools.tokenizePool;
+    quantizePool = workerPools.quantizePool;
     if (workerPool) {
       const modeLabel = workerPoolConfig.enabled === 'auto' ? 'auto' : 'on';
-      log(`Worker pool enabled (${modeLabel}, maxThreads=${workerPoolConfig.maxWorkers}).`);
+      const splitLabel = workerPoolConfig.splitByTask
+        ? `, split tasks (quantizeMax=${workerPoolConfig.quantizeMaxWorkers || Math.max(1, Math.floor(workerPoolConfig.maxWorkers / 2))})`
+        : '';
+      log(`Worker pool enabled (${modeLabel}, maxThreads=${workerPoolConfig.maxWorkers}${splitLabel}).`);
       if (workerPoolConfig.enabled === 'auto') {
         log(`Worker pool auto threshold: maxFileBytes=${workerPoolConfig.maxFileBytes}.`);
       }
@@ -519,6 +722,25 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       log('Worker pool disabled (fallback to main thread).');
     }
   }
+
+  log('Build environment snapshot.', {
+    event: 'build.env',
+    node: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    cpuCount,
+    memoryMb: Math.round(os.totalmem() / (1024 * 1024)),
+    configHash,
+    stage: stage || null,
+    features: {
+      embeddings: embeddingEnabled || embeddingService,
+      treeSitter: treeSitterEnabled,
+      relations: stage !== 'stage1',
+      tooling: toolingEnabled,
+      typeInference: typeInferenceEnabled,
+      riskAnalysis: riskAnalysisEnabled
+    }
+  });
 
   const languageOptions = {
     rootDir: root,
@@ -533,7 +755,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       importsOnly: typescriptImportsOnly
     },
     embeddingBatchMultipliers,
-    pythonAst: pythonAstConfig,
+    chunking,
+    pythonAst: pythonAstRuntimeConfig,
     kotlin: {
       flowMaxBytes: kotlinFlowMaxBytes,
       flowMaxLines: kotlinFlowMaxLines,
@@ -543,8 +766,14 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     treeSitter: {
       enabled: treeSitterEnabled,
       languages: treeSitterLanguages,
+      configChunking: treeSitterConfigChunking,
       maxBytes: treeSitterMaxBytes,
-      maxLines: treeSitterMaxLines
+      maxLines: treeSitterMaxLines,
+      maxParseMs: treeSitterMaxParseMs,
+      byLanguage: treeSitterByLanguage,
+      preload: treeSitterPreload,
+      preloadConcurrency: treeSitterPreloadConcurrency,
+      worker: treeSitterConfig.worker || null
     },
     resolveSqlDialect,
     yamlChunking: {
@@ -560,22 +789,36 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     rawArgv,
     userConfig,
     repoCacheRoot,
+    buildId,
+    buildRoot,
+    currentIndexRoot,
+    configHash,
+    repoProvenance,
+    toolInfo: {
+      tool: 'pairofcleats',
+      version: toolVersion,
+      configHash: contentConfigHash || null
+    },
     toolingConfig,
     toolingEnabled,
     indexingConfig,
-    benchmarkProfile,
     postingsConfig,
+    segmentsConfig,
+    commentsConfig,
     astDataflowEnabled,
     controlFlowEnabled,
     typeInferenceEnabled,
     typeInferenceCrossFileEnabled,
     riskAnalysisEnabled,
     riskAnalysisCrossFileEnabled,
+    riskConfig,
     embeddingBatchSize,
     embeddingConcurrency,
     embeddingEnabled,
     embeddingMode: resolvedEmbeddingMode,
     embeddingService,
+    embeddingProvider,
+    embeddingOnnx,
     embeddingQueue: {
       dir: embeddingQueueDir || null,
       maxQueued: embeddingQueueMaxQueued
@@ -584,13 +827,16 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       dir: embeddingCacheDir || null
     },
     fileCaps,
+    guardrails,
     fileScan,
     shards: {
       enabled: shardsEnabled,
       maxWorkers: shardsMaxWorkers,
       maxShards: shardsMaxShards,
       minFiles: shardsMinFiles,
-      dirDepth: shardsDirDepth
+      dirDepth: shardsDirDepth,
+      maxShardBytes: shardsMaxShardBytes,
+      maxShardLines: shardsMaxShardLines
     },
     twoStage: {
       enabled: twoStageEnabled,
@@ -609,13 +855,16 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     cpuConcurrency,
     queues,
     incrementalEnabled,
+    incrementalBundleFormat,
     debugCrash,
     useStubEmbeddings,
     modelConfig,
     modelId,
     modelsDir,
     workerPoolConfig,
+    workerPools,
     workerPool,
+    quantizePool,
     dictConfig,
     dictionaryPaths,
     dictWords,

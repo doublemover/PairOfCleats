@@ -1,10 +1,29 @@
 import fs from 'node:fs';
 import { stubEmbedding } from '../shared/embedding.js';
+import { createOnnxEmbedder, normalizeEmbeddingProvider } from '../shared/onnx-embeddings.js';
 
 const embedderCache = new Map();
 
-async function getEmbedder(modelId, modelDir) {
-  if (embedderCache.has(modelId)) return embedderCache.get(modelId);
+async function getEmbedder({ provider, modelId, modelDir, rootDir, onnxConfig }) {
+  const resolvedProvider = normalizeEmbeddingProvider(provider);
+  const cacheKey = JSON.stringify({
+    provider: resolvedProvider,
+    modelId,
+    modelDir,
+    onnxConfig: onnxConfig || null,
+    rootDir
+  });
+  if (embedderCache.has(cacheKey)) return embedderCache.get(cacheKey);
+  if (resolvedProvider === 'onnx') {
+    const embedder = createOnnxEmbedder({
+      rootDir,
+      modelId,
+      modelsDir: modelDir,
+      onnxConfig
+    });
+    embedderCache.set(cacheKey, embedder);
+    return embedder;
+  }
   const { pipeline, env } = await import('@xenova/transformers');
   if (modelDir) {
     try {
@@ -13,7 +32,7 @@ async function getEmbedder(modelId, modelDir) {
     env.cacheDir = modelDir;
   }
   const embedder = await pipeline('feature-extraction', modelId);
-  embedderCache.set(modelId, embedder);
+  embedderCache.set(cacheKey, embedder);
   return embedder;
 }
 
@@ -28,12 +47,31 @@ async function getEmbedder(modelId, modelDir) {
  * @param {boolean} options.useStub
  * @returns {Promise<number[]|null>}
  */
-export async function getQueryEmbedding({ text, modelId, dims, modelDir, useStub }) {
+export async function getQueryEmbedding({
+  text,
+  modelId,
+  dims,
+  modelDir,
+  useStub,
+  provider,
+  onnxConfig,
+  rootDir
+}) {
   if (useStub) {
     return stubEmbedding(text, dims);
   }
   try {
-    const embedder = await getEmbedder(modelId, modelDir);
+    const resolvedProvider = normalizeEmbeddingProvider(provider);
+    const embedder = await getEmbedder({
+      provider: resolvedProvider,
+      modelId,
+      modelDir,
+      rootDir,
+      onnxConfig
+    });
+    if (resolvedProvider === 'onnx') {
+      return await embedder.getEmbedding(text);
+    }
     const output = await embedder(text, { pooling: 'mean', normalize: true });
     return Array.from(output.data);
   } catch {

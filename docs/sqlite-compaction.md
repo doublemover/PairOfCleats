@@ -10,10 +10,10 @@ Rebuild a SQLite index in-place to remove doc_id gaps, prune unused vocab entrie
 - Writes a fresh DB file, swaps it in, and vacuums it.
 
 ## Usage
-- `pairofcleats compact-sqlite-index`
-- `pairofcleats compact-sqlite-index --mode code|prose`
-- `pairofcleats compact-sqlite-index --dry-run`
-- `pairofcleats compact-sqlite-index --keep-backup`
+- `pairofcleats sqlite compact`
+- `pairofcleats sqlite compact --mode code|prose`
+- `pairofcleats sqlite compact --dry-run`
+- `pairofcleats sqlite compact --keep-backup`
 
 ## Notes
 - Uses a temp DB file and swaps it in when complete.

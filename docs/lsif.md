@@ -5,7 +5,7 @@ Use the LSIF ingestion tool to import offline code intelligence graphs.
 ## Ingest JSONL
 
 ```bash
-pairofcleats lsif-ingest --repo . --input dump.lsif
+pairofcleats ingest lsif --repo . --input dump.lsif
 ```
 
 ## Outputs

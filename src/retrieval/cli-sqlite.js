@@ -1,5 +1,7 @@
 import { hasVectorTable, loadVectorExtension, resolveVectorExtensionPath } from '../../tools/vector-extension.js';
 
+import { parseEnvBool } from '../shared/env.js';
+
 /**
  * Initialize SQLite connections for search.
  * @param {object} options
@@ -16,7 +18,8 @@ export async function createSqliteBackend(options) {
     backendForcedSqlite,
     vectorExtension,
     vectorAnnEnabled,
-    dbCache
+    dbCache,
+    sqliteStates
   } = options;
 
   let useSqlite = useSqliteInput;
@@ -33,12 +36,47 @@ export async function createSqliteBackend(options) {
     return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed };
   }
 
+  const isSqliteReady = (mode) => {
+    const state = sqliteStates?.[mode] || null;
+    const sqliteState = state?.sqlite || null;
+    if (!sqliteState) return true;
+    return sqliteState.ready !== false && sqliteState.pending !== true;
+  };
+  const pendingModes = [];
+  if (needsCode && !isSqliteReady('code')) pendingModes.push('code');
+  if (needsProse && !isSqliteReady('prose')) pendingModes.push('prose');
+  if (pendingModes.length) {
+    const message = `SQLite ${pendingModes.join(', ')} index marked pending; falling back to file-backed indexes.`;
+    if (backendForcedSqlite) {
+      throw new Error(message);
+    }
+    console.warn(message);
+    useSqlite = false;
+    return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed };
+  }
+
+  const sqliteDisabled = parseEnvBool(process.env.PAIROFCLEATS_SQLITE_DISABLED) === true;
+  if (sqliteDisabled) {
+    const message = 'better-sqlite3 is required for the SQLite backend. Run npm install first.';
+    if (backendForcedSqlite) {
+      throw new Error(message);
+    }
+    console.warn(message);
+    useSqlite = false;
+    return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed };
+  }
+
   let Database;
   try {
     ({ default: Database } = await import('better-sqlite3'));
   } catch (err) {
-    console.error('better-sqlite3 is required for the SQLite backend. Run npm install first.');
-    process.exit(1);
+    const message = 'better-sqlite3 is required for the SQLite backend. Run npm install first.';
+    if (backendForcedSqlite) {
+      throw new Error(message);
+    }
+    console.warn(message);
+    useSqlite = false;
+    return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed };
   }
 
   const requiredTables = sqliteFtsRequested
@@ -74,8 +112,7 @@ export async function createSqliteBackend(options) {
     if (missing.length) {
       const message = `SQLite index ${label} is missing required tables (${missing.join(', ')}). Rebuild with npm run build-sqlite-index.`;
       if (backendForcedSqlite) {
-        console.error(message);
-        process.exit(1);
+        throw new Error(message);
       }
       console.warn(`${message} Falling back to file-backed indexes.`);
       db.close();
@@ -130,6 +167,9 @@ export async function createSqliteBackend(options) {
  * @returns {Promise<number|null>}
  */
 export async function getSqliteChunkCount(dbPath, mode) {
+  if (parseEnvBool(process.env.PAIROFCLEATS_SQLITE_DISABLED) === true) {
+    return null;
+  }
   let Database;
   try {
     ({ default: Database } = await import('better-sqlite3'));

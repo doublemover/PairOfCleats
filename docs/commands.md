@@ -22,6 +22,9 @@ Experimental commands require `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
 - `pairofcleats sqlite compact`
 - `pairofcleats sqlite search` (defaults to `sqlite-fts` when `--backend` is omitted)
 
+## LMDB
+- `pairofcleats lmdb build`
+
 ## Assets
 - `pairofcleats assets dicts`
 - `pairofcleats assets models`
@@ -60,6 +63,7 @@ Experimental commands require `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
 ## Config + triage
 - `pairofcleats config validate`
 - `pairofcleats config dump`
+- `pairofcleats config reset`
 - `pairofcleats triage ingest`
 - `pairofcleats triage decision`
 - `pairofcleats triage context-pack`
@@ -70,8 +74,6 @@ Experimental commands require `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
 - `pairofcleats bench matrix`
 
 ## Migration notes
-- Legacy aliases (for example, `pairofcleats build-index` or `pairofcleats search-sqlite`)
-  are still accepted. Run `pairofcleats help` to see the full alias mapping.
 - Language-specific bench scripts were removed; use `pairofcleats bench language --language <lang>`
   and `--tier <typical|large>` instead.
 
