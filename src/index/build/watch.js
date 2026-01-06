@@ -39,23 +39,41 @@ export function isIndexablePath({ absPath, root, ignoreMatcher, modes }) {
   return allowCode || allowProse;
 }
 
-const scanFiles = async ({ root, modes, ignoreMatcher, maxFileBytes }) => {
+const scanFiles = async ({ root, modes, ignoreMatcher, maxFileBytes, fileCaps }) => {
   const files = new Set();
   const skippedFiles = [];
   for (const mode of modes) {
-    const modeFiles = await discoverFiles({ root, mode, ignoreMatcher, skippedFiles, maxFileBytes });
+    const modeFiles = await discoverFiles({ root, mode, ignoreMatcher, skippedFiles, maxFileBytes, fileCaps });
     modeFiles.forEach((entry) => files.add(entry.abs || entry));
   }
   return Array.from(files);
 };
 
-const isWithinMaxBytes = async (absPath, maxFileBytes) => {
+const resolveMaxBytesForExt = (ext, maxFileBytes, fileCaps) => {
+  const extKey = ext ? ext.toLowerCase() : '';
+  const defaultCap = fileCaps?.default?.maxBytes;
+  const extCap = extKey ? fileCaps?.byExt?.[extKey]?.maxBytes : null;
+  const capValue = Number.isFinite(Number(extCap ?? defaultCap))
+    ? Number(extCap ?? defaultCap)
+    : null;
   if (!Number.isFinite(Number(maxFileBytes)) || Number(maxFileBytes) <= 0) {
+    return capValue;
+  }
+  if (!Number.isFinite(capValue) || capValue <= 0) {
+    return Number(maxFileBytes);
+  }
+  return Math.min(Number(maxFileBytes), capValue);
+};
+
+const isWithinMaxBytes = async (absPath, maxFileBytes, fileCaps) => {
+  const ext = fileExt(absPath);
+  const resolvedMax = resolveMaxBytesForExt(ext, maxFileBytes, fileCaps);
+  if (!Number.isFinite(Number(resolvedMax)) || Number(resolvedMax) <= 0) {
     return true;
   }
   try {
     const stat = await fs.stat(absPath);
-    return stat.size <= maxFileBytes;
+    return stat.size <= Number(resolvedMax);
   } catch {
     return false;
   }
@@ -79,6 +97,7 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
   const root = runtime.root;
   const ignoreMatcher = runtime.ignoreMatcher;
   const maxFileBytes = runtime.maxFileBytes;
+  const fileCaps = runtime.fileCaps;
   runtime.incrementalEnabled = true;
   runtime.argv.incremental = true;
 
@@ -147,7 +166,7 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
 
   const recordAddOrChange = async (absPath) => {
     if (!isIndexablePath({ absPath, root, ignoreMatcher, modes })) return;
-    const withinMax = await isWithinMaxBytes(absPath, maxFileBytes);
+    const withinMax = await isWithinMaxBytes(absPath, maxFileBytes, fileCaps);
     if (!withinMax) {
       if (trackedFiles.delete(absPath)) scheduleBuild();
       return;
@@ -161,7 +180,7 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
     if (trackedFiles.delete(absPath)) scheduleBuild();
   };
 
-  const initialFiles = await scanFiles({ root, modes, ignoreMatcher, maxFileBytes });
+  const initialFiles = await scanFiles({ root, modes, ignoreMatcher, maxFileBytes, fileCaps });
   initialFiles.forEach((file) => trackedFiles.add(file));
   const pollingEnabled = Number.isFinite(Number(pollMs)) && Number(pollMs) > 0;
   const pollLabel = pollingEnabled ? ` polling ${Number(pollMs)}ms` : ' fs events';

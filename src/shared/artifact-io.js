@@ -83,13 +83,18 @@ const readShardFiles = (dir, prefix) => {
     .map((name) => path.join(dir, name));
 };
 
-export const loadChunkMeta = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
+export const loadChunkMeta = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {     
   const jsonPath = path.join(dir, 'chunk_meta.json');
+  let tooLargeError = null;
   if (fs.existsSync(jsonPath)) {
     try {
       return readJsonFile(jsonPath, { maxBytes });
     } catch (err) {
-      if (err?.code !== 'ERR_JSON_TOO_LARGE') throw err;
+      if (err?.code === 'ERR_JSON_TOO_LARGE') {
+        tooLargeError = err;
+      } else {
+        throw err;
+      }
     }
   }
   const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
@@ -108,6 +113,7 @@ export const loadChunkMeta = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
     }
     return parts.flatMap((partPath) => readJsonLinesArraySync(partPath, { maxBytes }));
   }
+  if (tooLargeError) throw tooLargeError;
   throw new Error(`Missing index artifact: chunk_meta.json`);
 };
 

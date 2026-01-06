@@ -60,49 +60,115 @@ const collectModuleImportsFast = async ({ text, ext }) => {
 /**
  * Scan files for imports to build cross-link map.
  * @param {{files:Array<string|{abs:string,rel?:string,stat?:import('node:fs').Stats}>,root:string,mode:'code'|'prose',languageOptions:object,importConcurrency:number,queue?:object,incrementalState?:object}} input
- * @returns {Promise<{allImports:Record<string,string[]>,durationMs:number}>}
+ * @returns {Promise<{allImports:Record<string,string[]>,durationMs:number,stats:{modules:number,edges:number,files:number,scanned:number}}>}
  */
 export async function scanImports({ files, root, mode, languageOptions, importConcurrency, queue = null, incrementalState = null }) {
   const allImports = new Map();
   const start = Date.now();
   let processed = 0;
+  let filesWithImports = 0;
+  const items = files.map((entry, index) => {
+    const absPath = typeof entry === 'string' ? entry : entry.abs;
+    const rel = typeof entry === 'object' && entry.rel ? entry.rel : path.relative(root, absPath);
+    return {
+      entry,
+      absPath,
+      relKey: toPosix(rel),
+      stat: typeof entry === 'object' ? entry.stat : null,
+      index
+    };
+  });
   const runner = queue
     ? (items, worker, options) => runWithQueue(queue, items, worker, options)
     : (items, worker, options) => runWithConcurrency(items, importConcurrency, worker, options);
 
-  await runner(
-    files,
-    async (entry) => {
-      const absPath = typeof entry === 'string' ? entry : entry.abs;
-      const rel = typeof entry === 'object' && entry.rel ? entry.rel : path.relative(root, absPath);
-      const relKey = toPosix(rel);
-      const ext = fileExt(rel);
-      const fileStat = typeof entry === 'object' ? entry.stat : null;
-      if (incrementalState?.enabled && fileStat) {
+  const cachedImportsByFile = new Map();
+  const cachedImportCounts = new Map();
+  if (incrementalState?.enabled) {
+    await runner(
+      items,
+      async (item) => {
+        if (!item.stat) return;
         const cachedImports = await readCachedImports({
           enabled: true,
-          absPath,
-          relKey,
-          fileStat,
+          absPath: item.absPath,
+          relKey: item.relKey,
+          fileStat: item.stat,
           manifest: incrementalState.manifest,
           bundleDir: incrementalState.bundleDir
         });
         if (Array.isArray(cachedImports)) {
-          for (const mod of cachedImports) {
+          if (cachedImports.length > 0) {
+            cachedImportCounts.set(item.relKey, cachedImports.length);
+          }
+          cachedImportsByFile.set(item.relKey, cachedImports);
+        }
+      },
+      { collectResults: false }
+    );
+    const haveCounts = cachedImportCounts.size > 0;
+    items.sort((a, b) => {
+      const aSize = a.stat?.size || 0;
+      const bSize = b.stat?.size || 0;
+      if (bSize !== aSize) return bSize - aSize;
+      if (haveCounts) {
+        const aCount = cachedImportCounts.get(a.relKey);
+        const bCount = cachedImportCounts.get(b.relKey);
+        const aHas = Number.isFinite(aCount);
+        const bHas = Number.isFinite(bCount);
+        if (aHas || bHas) {
+          if (!aHas) return 1;
+          if (!bHas) return -1;
+          if (bCount !== aCount) return bCount - aCount;
+        }
+      }
+      return a.index - b.index;
+    });
+  }
+
+  await runner(
+    items,
+    async (item) => {
+      const relKey = item.relKey;
+      const ext = fileExt(relKey);
+      const cachedImports = cachedImportsByFile.get(relKey);
+      if (Array.isArray(cachedImports)) {
+        cachedImportsByFile.delete(relKey);
+        for (const mod of cachedImports) {
+          if (!allImports.has(mod)) allImports.set(mod, new Set());
+          allImports.get(mod).add(relKey);
+        }
+        if (cachedImports.length > 0) filesWithImports += 1;
+        processed += 1;
+        showProgress('Imports', processed, items.length);
+        return;
+      }
+      if (incrementalState?.enabled && item.stat) {
+        const cachedImportsFallback = await readCachedImports({
+          enabled: true,
+          absPath: item.absPath,
+          relKey,
+          fileStat: item.stat,
+          manifest: incrementalState.manifest,
+          bundleDir: incrementalState.bundleDir
+        });
+        if (Array.isArray(cachedImportsFallback)) {
+          for (const mod of cachedImportsFallback) {
             if (!allImports.has(mod)) allImports.set(mod, new Set());
             allImports.get(mod).add(relKey);
           }
+          if (cachedImportsFallback.length > 0) filesWithImports += 1;
           processed += 1;
-          showProgress('Imports', processed, files.length);
+          showProgress('Imports', processed, items.length);
           return;
         }
       }
       let text;
       try {
-        text = await fs.readFile(absPath, 'utf8');
+        text = await fs.readFile(item.absPath, 'utf8');
       } catch {
         processed += 1;
-        showProgress('Imports', processed, files.length);
+        showProgress('Imports', processed, items.length);
         return;
       }
       const fastImports = await collectModuleImportsFast({ text, ext });
@@ -115,20 +181,34 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
           mode,
           options: languageOptions
         });
+      if (imports.length > 0) filesWithImports += 1;
       for (const mod of imports) {
         if (!allImports.has(mod)) allImports.set(mod, new Set());
         allImports.get(mod).add(relKey);
       }
       processed += 1;
-      showProgress('Imports', processed, files.length);
+      showProgress('Imports', processed, items.length);
     },
     { collectResults: false }
   );
 
-  showProgress('Imports', files.length, files.length);
+  showProgress('Imports', items.length, items.length);
   const dedupedImports = {};
   for (const [mod, entries] of allImports.entries()) {
     dedupedImports[mod] = Array.from(entries);
   }
-  return { allImports: dedupedImports, durationMs: Date.now() - start };
+  let edgeCount = 0;
+  for (const entries of allImports.values()) {
+    edgeCount += entries.size;
+  }
+  return {
+    allImports: dedupedImports,
+    durationMs: Date.now() - start,
+    stats: {
+      modules: allImports.size,
+      edges: edgeCount,
+      files: filesWithImports,
+      scanned: processed
+    }
+  };
 }

@@ -47,9 +47,11 @@ Use the language benchmark harness to run search and performance baselines acros
 - `--backend <csv|all>`: control backends passed to `tests/bench.js`.
 - `--ann` / `--no-ann`: toggle ANN for dense search.
 - `--benchmark-profile` / `--no-benchmark-profile`: toggle the benchmark profile (default on) which disables expensive enrichment (git blame, lint/complexity, risk, type inference, chargrams).
+- `--index-profile <name>` / `--no-index-profile`: apply a configuration profile for indexing during benchmarks (default `bench-index` when the benchmark profile is enabled).
 - `--lock-mode <fail-fast|wait|stale-clear>`: handle existing index locks (default `fail-fast`).
 - `--lock-wait-ms <ms>` / `--lock-stale-ms <ms>`: tune wait and stale thresholds when lock mode is `wait`/`stale-clear`.
 - `--stub-embeddings`: run without model downloads.
+- `--real-embeddings`: force real embeddings even when the benchmark profile is enabled.
 - `--log <file>`: write run logs to a specific file (default `benchmarks/results/bench-language.log`).
 - `--out <file>`: write aggregate JSON summary.
 
@@ -57,4 +59,6 @@ Use the language benchmark harness to run search and performance baselines acros
 - `tests/bench.js` is the underlying runner and supports extra tuning flags (`--bm25-k1`, `--bm25-b`, `--fts-profile`, `--fts-weights`).
 - Queries are plain text, one query per line; lines starting with `#` are ignored.
 - The benchmark profile is on by default and recommended for large repos; disable it when you want full enrichment costs reflected in timings.
+- When the benchmark profile is enabled, the harness defaults to stub embeddings unless `--real-embeddings` is provided.
+- The default `bench-index` profile (`profiles/bench-index.json`) enables sharded indexing, two-stage builds, and the embedding service; queues are drained during benchmark runs when enabled.
 - The runner uses `execa` for child processes and terminates trees via `taskkill` on Windows and `SIGTERM` elsewhere; we avoid `tree-kill` due to past Windows command-injection advisories and only pass trusted PIDs.

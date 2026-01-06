@@ -7,7 +7,7 @@ import { createCli } from '../src/shared/cli.js';
 import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
 import { compactDatabase } from './compact-sqlite-index.js';
-import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
+import { CREATE_INDEXES_SQL, CREATE_TABLES_BASE_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnTable } from '../src/storage/sqlite/build-helpers.js';
 import { loadIncrementalManifest } from '../src/storage/sqlite/incremental.js';
 import { chunkArray, hasRequiredTables, loadIndex, normalizeFilePath, readJson } from '../src/storage/sqlite/utils.js';
@@ -17,6 +17,19 @@ let Database = null;
 try {
   ({ default: Database } = await import('better-sqlite3'));
 } catch {}
+
+const applyBuildPragmas = (db) => {
+  try { db.pragma('journal_mode = WAL'); } catch {}
+  try { db.pragma('synchronous = OFF'); } catch {}
+  try { db.pragma('temp_store = MEMORY'); } catch {}
+  try { db.pragma('cache_size = -200000'); } catch {}
+  try { db.pragma('mmap_size = 268435456'); } catch {}
+};
+
+const restoreBuildPragmas = (db) => {
+  try { db.pragma('synchronous = NORMAL'); } catch {}
+  try { db.pragma('temp_store = DEFAULT'); } catch {}
+};
 
 export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), options = {}) {
   const emitOutput = options.emitOutput !== false;
@@ -141,17 +154,17 @@ if (modeArg === 'prose' && !proseIndex && !incrementalProse?.manifest) {
  * @param {object|null} manifestFiles
  * @returns {number}
  */
-function buildDatabase(outPath, index, mode, manifestFiles) {
-  if (!index) return 0;
-  const db = new Database(outPath);
-  try {
-    db.pragma('journal_mode = WAL');
-    db.pragma('synchronous = NORMAL');
-  } catch {}
+  function buildDatabase(outPath, index, mode, manifestFiles) {
+    if (!index) return 0;
+    const db = new Database(outPath);
+    applyBuildPragmas(db);
 
-  db.exec(CREATE_TABLES_SQL);
-  db.pragma(`user_version = ${SCHEMA_VERSION}`);
-  const vectorAnn = prepareVectorAnnTable({ db, indexData: index, mode, vectorConfig });
+    let count = 0;
+    let succeeded = false;
+    try {
+      db.exec(CREATE_TABLES_BASE_SQL);
+      db.pragma(`user_version = ${SCHEMA_VERSION}`);
+      const vectorAnn = prepareVectorAnnTable({ db, indexData: index, mode, vectorConfig });
 
   const insertChunk = db.prepare(`
     INSERT OR REPLACE INTO chunks (
@@ -505,11 +518,21 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
     insertTx();
   }
 
-  const count = ingestIndex(index, mode);
-  ingestFileManifest(index, mode);
-  db.close();
-  return count;
-}
+      count = ingestIndex(index, mode);
+      ingestFileManifest(index, mode);
+      db.exec(CREATE_INDEXES_SQL);
+      succeeded = true;
+    } finally {
+      restoreBuildPragmas(db);
+      db.close();
+      if (!succeeded) {
+        try {
+          fsSync.rmSync(outPath, { force: true });
+        } catch {}
+      }
+    }
+    return count;
+  }
 
 /**
  * Build a full SQLite index from incremental bundles.
@@ -518,24 +541,22 @@ function buildDatabase(outPath, index, mode, manifestFiles) {
  * @param {object|null} incrementalData
  * @returns {{count:number,reason?:string}}
  */
-function buildDatabaseFromBundles(outPath, mode, incrementalData) {
-  if (!incrementalData?.manifest) {
-    return { count: 0, reason: 'missing incremental manifest' };
-  }
+  function buildDatabaseFromBundles(outPath, mode, incrementalData) {
+    if (!incrementalData?.manifest) {
+      return { count: 0, reason: 'missing incremental manifest' };
+    }
   const manifestFiles = incrementalData.manifest.files || {};
   const manifestKeys = Object.keys(manifestFiles);
   if (!manifestKeys.length) {
     return { count: 0, reason: 'incremental manifest empty' };
   }
 
-  const db = new Database(outPath);
-  try {
-    db.pragma('journal_mode = WAL');
-    db.pragma('synchronous = NORMAL');
-  } catch {}
-
-  db.exec(CREATE_TABLES_SQL);
-  db.pragma(`user_version = ${SCHEMA_VERSION}`);
+    const db = new Database(outPath);
+    applyBuildPragmas(db);
+    db.exec(CREATE_TABLES_BASE_SQL);
+    db.pragma(`user_version = ${SCHEMA_VERSION}`);
+    let succeeded = false;
+    try {
 
   const insertChunk = db.prepare(`
     INSERT OR REPLACE INTO chunks (
@@ -762,9 +783,19 @@ function buildDatabaseFromBundles(outPath, mode, incrementalData) {
   });
   insertManifestTx();
 
-  db.close();
-  return { count };
-}
+    return { count };
+      db.exec(CREATE_INDEXES_SQL);
+      succeeded = true;
+    } finally {
+      restoreBuildPragmas(db);
+      db.close();
+      if (!succeeded) {
+        try {
+          fsSync.rmSync(outPath, { force: true });
+        } catch {}
+      }
+    }
+  }
 
 /**
  * Read the SQLite schema version.

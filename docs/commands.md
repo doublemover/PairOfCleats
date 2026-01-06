@@ -11,6 +11,7 @@ Experimental commands require `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
 - `pairofcleats bootstrap` (fast bootstrap, no prompts)
 - `pairofcleats build-index`
 - `pairofcleats watch-index`
+- `pairofcleats build-embeddings`
 - `pairofcleats search`
 - `pairofcleats status`
 - `pairofcleats index-validate`

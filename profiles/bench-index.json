@@ -1,0 +1,23 @@
+{
+  "indexing": {
+    "typescriptParser": "babel",
+    "typescript": {
+      "importsOnly": true,
+      "embeddingBatchMultiplier": 4
+    },
+    "shards": {
+      "enabled": true,
+      "minFiles": 1,
+      "dirDepth": 0
+    },
+    "twoStage": {
+      "enabled": true,
+      "background": true,
+      "queue": true
+    },
+    "embeddings": {
+      "enabled": true,
+      "mode": "service"
+    }
+  }
+}

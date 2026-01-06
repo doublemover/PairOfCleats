@@ -254,11 +254,82 @@
         "concurrency": { "type": "number" },
         "importConcurrency": { "type": "number" },
         "maxFileBytes": { "type": ["number", "boolean"] },
+        "fileCaps": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "default": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxBytes": { "type": "number" },
+                "maxLines": { "type": "number" }
+              }
+            },
+            "byExt": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "maxBytes": { "type": "number" },
+                  "maxLines": { "type": "number" }
+                }
+              }
+            },
+            "byLanguage": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "maxBytes": { "type": "number" },
+                  "maxLines": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "fileScan": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sampleBytes": { "type": "number" },
+            "minified": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "sampleMinBytes": { "type": "number" },
+                "minChars": { "type": "number" },
+                "singleLineChars": { "type": "number" },
+                "avgLineThreshold": { "type": "number" },
+                "maxLineThreshold": { "type": "number" },
+                "maxWhitespaceRatio": { "type": "number" }
+              }
+            },
+            "binary": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "sampleMinBytes": { "type": "number" },
+                "maxNonTextRatio": { "type": "number" }
+              }
+            }
+          }
+        },
         "astDataflow": { "type": "boolean" },
         "controlFlow": { "type": "boolean" },
         "javascriptParser": { "type": "string" },
         "javascriptFlow": { "type": ["string", "boolean"] },
         "typescriptParser": { "type": "string" },
+        "typescript": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "importsOnly": { "type": "boolean" },
+            "embeddingBatchMultiplier": { "type": "number" }
+          }
+        },
         "pythonAst": {
           "type": "object",
           "additionalProperties": false,
@@ -271,18 +342,67 @@
             "maxRetries": { "type": "number" }
           }
         },
-        "kotlin": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "flowMaxBytes": { "type": "number" },
-            "flowMaxLines": { "type": "number" },
-            "relationsMaxBytes": { "type": "number" },
-            "relationsMaxLines": { "type": "number" }
-          }
-        },
-        "embeddingBatchSize": { "type": "number" },
-        "chunkTokenMode": { "type": "string", "enum": ["auto", "full", "sample", "none"] },
+          "kotlin": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "flowMaxBytes": { "type": "number" },
+              "flowMaxLines": { "type": "number" },
+              "relationsMaxBytes": { "type": "number" },
+              "relationsMaxLines": { "type": "number" }
+            }
+          },
+          "embeddingBatchSize": { "type": "number" },
+          "embeddings": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "concurrency": { "type": "number" },
+              "mode": {
+                "type": "string",
+                "enum": ["auto", "inline", "service", "stub", "off"]
+              },
+              "queue": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "dir": { "type": "string" },
+                  "maxQueued": { "type": "number" }
+                }
+              },
+              "cache": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "dir": { "type": "string" }
+                }
+              }
+            }
+          },
+          "twoStage": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "background": { "type": "boolean" },
+              "queue": { "type": "boolean" },
+              "stage1": { "type": "object", "additionalProperties": true },
+              "stage2": { "type": "object", "additionalProperties": true }
+            }
+          },
+          "shards": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "maxWorkers": { "type": "number" },
+              "maxShards": { "type": "number" },
+              "minFiles": { "type": "number" },
+              "dirDepth": { "type": "number" }
+            }
+          },
+          "chunkTokenMode": { "type": "string", "enum": ["auto", "full", "sample", "none"] },
         "chunkTokenMaxFiles": { "type": "number" },
         "chunkTokenMaxTokens": { "type": "number" },
         "chunkTokenSampleSize": { "type": "number" },

@@ -455,8 +455,11 @@ function buildTypeScriptChunksFromBabel(text, options = {}) {
       const signature = buildSignature(start, stmt.body?.start ?? -1);
       addChunk(stmt, qualify(prefix, name), 'NamespaceDeclaration',
         buildMetaBase(start, stmt.end ?? start, signature));
-      if (stmt.body?.body) {
-        stmt.body.body.forEach((child) => handleStatement(child, qualify(prefix, name)));
+      const moduleBody = stmt.body?.body;
+      if (Array.isArray(moduleBody)) {
+        moduleBody.forEach((child) => handleStatement(child, qualify(prefix, name)));
+      } else if (stmt.body) {
+        handleStatement(stmt.body, qualify(prefix, name));
       }
       return;
     }

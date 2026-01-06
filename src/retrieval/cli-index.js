@@ -79,6 +79,7 @@ export function loadIndex(dir, options) {
   const denseVec = loadOptional('dense_vectors_uint8.json');
   const denseVecDoc = loadOptional('dense_vectors_doc_uint8.json');
   const denseVecCode = loadOptional('dense_vectors_code_uint8.json');
+  const indexState = loadOptional('index_state.json');
   const fieldPostings = loadOptional('field_postings.json');
   const fieldTokens = loadOptional('field_tokens.json');
   if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
@@ -92,6 +93,7 @@ export function loadIndex(dir, options) {
     denseVec,
     denseVecDoc,
     denseVecCode,
+    state: indexState,
     fieldPostings,
     fieldTokens,
     minhash: loadOptional('minhash_signatures.json'),

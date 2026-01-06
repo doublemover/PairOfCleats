@@ -17,6 +17,15 @@ export function loadServiceConfig(configPath) {
       worker: {
         concurrency: 1
       },
+      embeddings: {
+        queue: {
+          maxQueued: 10
+        },
+        worker: {
+          concurrency: 1,
+          maxMemoryMb: 4096
+        }
+      },
       sync: {
         policy: 'pull',
         intervalMs: 5 * 60 * 1000

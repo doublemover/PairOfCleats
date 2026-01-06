@@ -96,13 +96,32 @@ const LANGUAGE_REGISTRY = [
     id: 'typescript',
     match: (ext) => isTypeScript(ext),
     collectImports: (text, options) => collectTypeScriptImports(text, options),
-    prepare: ({ text, mode, ext, relPath, options }) => (mode === 'code'
-      ? { tsChunks: buildTypeScriptChunks(text, { ext, relPath, parser: options?.typescript?.parser }) }
-      : {}),
-    buildRelations: ({ text, allImports, context, options, ext }) =>
-      buildTypeScriptRelations(text, allImports, context.tsChunks, { ...options, ext }),
+    prepare: ({ text, mode, ext, relPath, options }) => {
+      if (mode !== 'code') return {};
+      if (options?.typescript?.importsOnly === true) return {};
+      return { tsChunks: buildTypeScriptChunks(text, { ext, relPath, parser: options?.typescript?.parser }) };
+    },
+    buildRelations: ({ text, allImports, context, options, ext }) => {
+      if (options?.typescript?.importsOnly === true) {
+        const imports = collectTypeScriptImports(text, { ...options, ext });
+        const importLinks = imports
+          .map((entry) => allImports[entry])
+          .filter((entry) => !!entry)
+          .flat();
+        return {
+          imports,
+          exports: [],
+          calls: [],
+          usages: [],
+          importLinks
+        };
+      }
+      return buildTypeScriptRelations(text, allImports, context.tsChunks, { ...options, ext });
+    },
     extractDocMeta: ({ chunk }) => extractTypeScriptDocMeta(chunk),
-    flow: ({ text, chunk, options }) => computeTypeScriptFlow(text, chunk, flowOptions(options)),
+    flow: ({ text, chunk, options }) => (options?.typescript?.importsOnly === true
+      ? null
+      : computeTypeScriptFlow(text, chunk, flowOptions(options))),
     attachName: true
   },
   {

@@ -24,6 +24,9 @@ const argv = createCli({
     'build-sqlite': { type: 'boolean', default: false },
     incremental: { type: 'boolean', default: false },
     'benchmark-profile': { type: 'boolean', default: true },
+    'index-profile': { type: 'string' },
+    'no-index-profile': { type: 'boolean', default: false },
+    'real-embeddings': { type: 'boolean', default: false },
     ann: { type: 'boolean' },
     'no-ann': { type: 'boolean' },
     'stub-embeddings': { type: 'boolean', default: false },
@@ -74,6 +77,7 @@ const cloneEnabled = argv['no-clone'] ? false : argv.clone !== false;
 const dryRun = argv['dry-run'] === true;
 const quietMode = argv.json === true;
 const interactive = !quietMode && process.stdout.isTTY;
+const colorEnabled = interactive && !process.env.NO_COLOR;
 
 const logLineArg = Number.parseInt(argv['log-lines'], 10);
 const logWindowSize = Number.isFinite(logLineArg)
@@ -85,6 +89,12 @@ const logHistory = [];
 let metricsLine = '';
 let progressLine = '';
 let fileProgressLine = '';
+let progressLineBase = '';
+let progressLinePrefix = '';
+let progressLineSuffix = '';
+let progressElapsedStartMs = null;
+let lastProgressRefreshMs = 0;
+const progressRefreshMs = 1000;
 let statusRendered = false;
 let cloneTool = null;
 let logStream = null;
@@ -109,15 +119,31 @@ const buildProgressState = {
   filesSeen: { code: new Set(), prose: new Set() },
   currentFile: null,
   currentLine: 0,
-  currentLineTotal: 0
+  currentLineTotal: 0,
+  currentShard: null,
+  currentShardIndex: null,
+  currentShardTotal: null,
+  importStats: null
 };
 const buildProgressRegex = /^\s*(Files|Imports)\s+(\d+)\/(\d+)\s+\((\d+(?:\.\d+)?)%\)/i;
-const buildFileRegex = /^\s*Files\s+\d+\/\d+\s+\(\d+(?:\.\d+)?%\)\s+File\s+\d+\/\d+\s+(.+)$/i;
+const buildCombinedFileRegex = /^\s*Files\s+(\d+)\/(\d+)\s+\((\d+(?:\.\d+)?)%\)\s+(?:\[(.+?)\]\s+)?File\s+(\d+)\/(\d+)\s+(.+)$/i;
+const buildFileOnlyRegex = /^\s*(?:\[(.+?)\]\s+)?File\s+(\d+)\/(\d+)\s+(.+)$/i;
+const buildShardRegex = /^\s*(?:\u2192|->)\s+Shard\s+(\d+)\/(\d+):\s+([^[\r\n]+?)(?:\s+\[[^\]]+\])?\s+\((\d+)\s+files\)/i;
+const buildImportStatsRegex = /^\s*\u2192\s*Imports:\s+modules=(\d+),\s*edges=(\d+),\s*files=(\d+)/i;
 const buildScanRegex = /Scanning\s+(code|prose)/i;
 const buildLineRegex = /^\s*Line\s+(\d+)\s*\/\s*(\d+)/i;
 const statusLines = logWindowSize + 3;
 const cacheConfig = { cache: { root: cacheRoot } };
+const shardByLabel = new Map();
+const activeShards = new Map();
+const activeShardWindowMs = 5000;
 const benchmarkProfileEnabled = argv['benchmark-profile'] !== false;
+const indexProfileRaw = typeof argv['index-profile'] === 'string'
+  ? argv['index-profile'].trim()
+  : '';
+const indexProfile = argv['no-index-profile'] === true
+  ? ''
+  : (indexProfileRaw || (benchmarkProfileEnabled ? 'bench-index' : ''));
 const lockMode = normalizeLockMode(
   argv['lock-mode']
   || ((argv.build || argv['build-index'] || argv['build-sqlite']) ? 'stale-clear' : '')
@@ -402,6 +428,41 @@ function truncateDisplay(line) {
   return `${line.slice(0, Math.max(0, width - 1))}…`;
 }
 
+const ansi = {
+  reset: '\x1b[0m',
+  fgDim: '\x1b[90m',
+  fgLight: '\x1b[37m',
+  fgBright: '\x1b[97m',
+  bgBlack: '\x1b[40m'
+};
+
+function styleText(text, prefix) {
+  if (!colorEnabled || !text) return text;
+  return `${prefix}${text}${ansi.reset}`;
+}
+
+function formatBarLine(line, width) {
+  const content = line || '';
+  const truncated = content.length > width
+    ? `${content.slice(0, Math.max(0, width - 1))}…`
+    : content;
+  if (!colorEnabled) return truncated;
+  const padded = truncated.padEnd(width, ' ');
+  return `${ansi.bgBlack}${ansi.fgLight}${padded}${ansi.reset}`;
+}
+
+function formatLogLine(line) {
+  const content = line || '';
+  if (!colorEnabled) return content;
+  if (/^\s*(?:→|->)\s*Shard\s+/i.test(content)) {
+    return styleText(content, ansi.fgBright);
+  }
+  if (/^\s*Files\s+\d+\/\d+/i.test(content) || /^\s*File\s+\d+\/\d+/i.test(content)) {
+    return styleText(content, ansi.fgDim);
+  }
+  return content;
+}
+
 function renderStatus() {
   if (!interactive) return;
   if (!statusRendered) {
@@ -410,29 +471,116 @@ function renderStatus() {
   }
   readline.moveCursor(process.stdout, 0, -statusLines);
   const lines = [...logLines];
+  const width = Number.isFinite(process.stdout.columns) ? process.stdout.columns : 120;
   while (lines.length < logWindowSize) lines.push('');
   lines.push(metricsLine);
   lines.push(fileProgressLine);
   lines.push(progressLine);
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const isBar = i >= logWindowSize;
     readline.clearLine(process.stdout, 0);
-    process.stdout.write(truncateDisplay(line || ''));
+    const output = isBar
+      ? formatBarLine(line || '', width)
+      : formatLogLine(truncateDisplay(line || ''));
+    process.stdout.write(output);
     process.stdout.write('\n');
   }
 }
 
 let lastProgressMessage = '';
-function updateProgress(message) {
-  progressLine = message;
+function parseDurationText(text) {
+  if (!text) return null;
+  const hours = /(\d+)\s*h/i.exec(text);
+  const minutes = /(\d+)\s*m/i.exec(text);
+  const seconds = /(\d+)\s*s/i.exec(text);
+  const totalSeconds = (hours ? Number(hours[1]) * 3600 : 0)
+    + (minutes ? Number(minutes[1]) * 60 : 0)
+    + (seconds ? Number(seconds[1]) : 0);
+  return Number.isFinite(totalSeconds) ? totalSeconds * 1000 : null;
+}
+
+function setProgressBase(message) {
+  progressLineBase = message || '';
+  progressLinePrefix = '';
+  progressLineSuffix = '';
+  progressElapsedStartMs = null;
+  if (!message) return;
+  const match = message.match(/^(.*\| elapsed )([^|]+)(.*)$/);
+  if (!match) return;
+  const parsedMs = parseDurationText(match[2].trim());
+  if (!Number.isFinite(parsedMs)) return;
+  progressLinePrefix = match[1];
+  progressLineSuffix = match[3] || '';
+  progressElapsedStartMs = Date.now() - parsedMs;
+}
+
+function getActiveShardList(now = Date.now()) {
+  const active = [];
+  for (const [index, lastSeen] of activeShards.entries()) {
+    if (now - lastSeen <= activeShardWindowMs) {
+      active.push(index);
+    } else {
+      activeShards.delete(index);
+    }
+  }
+  active.sort((a, b) => a - b);
+  return active;
+}
+
+function formatImportStats(stats) {
+  if (!stats) return '';
+  const parts = [];
+  if (Number.isFinite(stats.modules)) parts.push(`${stats.modules} mods`);
+  if (Number.isFinite(stats.edges)) parts.push(`${stats.edges} edges`);
+  if (Number.isFinite(stats.files)) parts.push(`${stats.files} files`);
+  if (!parts.length) return '';
+  return `imports ${parts.join(', ')}`;
+}
+
+function buildProgressLineExtras(now = Date.now()) {
+  const segments = [];
+  const shardList = getActiveShardList(now);
+  if (shardList.length) {
+    segments.push(`shards ${shardList.join(',')}`);
+  }
+  if (buildProgressState.step?.toLowerCase() === 'imports') {
+    const importText = formatImportStats(buildProgressState.importStats);
+    if (importText) segments.push(importText);
+  }
+  return segments.length ? ` | ${segments.join(' | ')}` : '';
+}
+
+function buildProgressLineBase(now = Date.now()) {
+  if (progressLinePrefix && Number.isFinite(progressElapsedStartMs)) {
+    return `${progressLinePrefix}${formatDuration(now - progressElapsedStartMs)}${progressLineSuffix}`;
+  }
+  return progressLineBase;
+}
+
+function renderProgressLine({ now = Date.now(), log = false, force = false } = {}) {
+  const baseLine = buildProgressLineBase(now);
+  const extra = buildProgressLineExtras(now);
+  let line = baseLine || '';
+  if (extra) {
+    line = baseLine ? `${baseLine}${extra}` : extra.replace(/^\s*\|\s*/, '');
+  }
+  if (!force && line === progressLine) return;
+  progressLine = line;
   renderStatus();
-  if (message && message !== lastProgressLogged) {
-    writeLog(`[progress] ${message}`);
-    lastProgressLogged = message;
+  if (log && line && line !== lastProgressLogged) {
+    writeLog(`[progress] ${line}`);
+    lastProgressLogged = line;
   }
-  if (!interactive && !quietMode && message !== lastProgressMessage) {
-    console.log(message);
-    lastProgressMessage = message;
+  if (log && !interactive && !quietMode && line !== lastProgressMessage) {
+    console.log(line);
+    lastProgressMessage = line;
   }
+}
+
+function updateProgress(message) {
+  setProgressBase(message);
+  renderProgressLine({ log: true, force: true });
 }
 
 function updateMetrics(message) {
@@ -457,20 +605,162 @@ function updateFileProgressLine() {
     return;
   }
   const lineSegment = total > 0 ? ` [${current}/${total}]` : '';
-  fileProgressLine = `File: ${file}${lineSegment}`;
+  const shardIndex = buildProgressState.currentShardIndex;
+  const shardTotal = buildProgressState.currentShardTotal;
+  const shardLabel = (Number.isFinite(shardIndex) && Number.isFinite(shardTotal))
+    ? `s${shardIndex}/${shardTotal}`
+    : '';
+  const shardSegment = shardLabel ? ` ${shardLabel}` : '';
+  fileProgressLine = `File${shardSegment}: ${file}${lineSegment}`;
   renderStatus();
+}
+
+function handleShardLine(line) {
+  const match = buildShardRegex.exec(line);
+  if (!match) return false;
+  const index = Number.parseInt(match[1], 10);
+  const total = Number.parseInt(match[2], 10);
+  const rawLabel = match[3] ? match[3].trim() : '';
+  if (rawLabel && Number.isFinite(index) && Number.isFinite(total)) {
+    shardByLabel.set(rawLabel, { index, total });
+  }
+  return true;
+}
+
+function handleImportStatsLine(line) {
+  const match = buildImportStatsRegex.exec(line);
+  if (!match) return false;
+  buildProgressState.importStats = {
+    modules: Number.parseInt(match[1], 10),
+    edges: Number.parseInt(match[2], 10),
+    files: Number.parseInt(match[3], 10)
+  };
+  return true;
+}
+
+function parseFileProgressLine(line) {
+  const combined = buildCombinedFileRegex.exec(line);
+  if (combined) {
+    return {
+      count: Number.parseInt(combined[1], 10),
+      total: Number.parseInt(combined[2], 10),
+      pct: Number.parseFloat(combined[3]),
+      shardLabel: combined[4] ? combined[4].trim() : '',
+      fileIndex: Number.parseInt(combined[5], 10),
+      fileTotal: Number.parseInt(combined[6], 10),
+      file: combined[7] ? combined[7].trim() : ''
+    };
+  }
+  const solo = buildFileOnlyRegex.exec(line);
+  if (!solo) return null;
+  return {
+    count: null,
+    total: null,
+    pct: null,
+    shardLabel: solo[1] ? solo[1].trim() : '',
+    fileIndex: Number.parseInt(solo[2], 10),
+    fileTotal: Number.parseInt(solo[3], 10),
+    file: solo[4] ? solo[4].trim() : ''
+  };
+}
+
+function formatFileProgressLine(entry) {
+  const count = Number.isFinite(entry.fileIndex) ? entry.fileIndex : entry.count;
+  const total = Number.isFinite(entry.fileTotal) ? entry.fileTotal : entry.total;
+  const pct = Number.isFinite(entry.pct)
+    ? entry.pct
+    : (Number.isFinite(count) && Number.isFinite(total) && total > 0)
+      ? (count / total) * 100
+      : null;
+  const pctText = Number.isFinite(pct) ? `${pct.toFixed(1)}%` : null;
+  const shardLabel = entry.shardLabel;
+  const shardInfo = shardLabel ? shardByLabel.get(shardLabel) : null;
+  const shardText = shardInfo ? `${shardInfo.index}/${shardInfo.total}` : null;
+  const lineTotal = buildProgressState.currentLineTotal;
+  const lineText = Number.isFinite(lineTotal) && lineTotal > 0
+    ? `lines ${lineTotal.toLocaleString()}`
+    : null;
+  const parts = [
+    Number.isFinite(count) && Number.isFinite(total) ? `Files ${count}/${total}` : null,
+    pctText ? `(${pctText})` : null,
+    shardText ? `| shard ${shardText}` : null,
+    lineText ? `| ${lineText}` : null,
+    entry.file ? `| ${entry.file}` : null
+  ].filter(Boolean);
+  return parts.join(' ');
+}
+
+function formatProgressLine(line) {
+  const match = buildProgressRegex.exec(line);
+  if (!match) return null;
+  const step = match[1];
+  const count = Number.parseInt(match[2], 10);
+  const total = Number.parseInt(match[3], 10);
+  const pct = Number.parseFloat(match[4]);
+  if (!Number.isFinite(count) || !Number.isFinite(total)) return null;
+  const pctText = Number.isFinite(pct) ? `${pct.toFixed(1)}%` : null;
+  return `${step} ${count}/${total}${pctText ? ` (${pctText})` : ''}`;
 }
 
 function appendLog(line) {
   const cleaned = line.replace(/\r/g, '').trimEnd();
   if (!cleaned) return;
+  if (handleImportStatsLine(cleaned)) {
+    refreshProgressLine(Date.now(), true);
+  }
   if (buildLineRegex.test(cleaned)) {
     handleBuildLineProgress(cleaned);
     handleBuildProgress(cleaned);
     return;
   }
+  const fileProgress = parseFileProgressLine(cleaned);
+  if (fileProgress && fileProgress.file) {
+    pushHistory(cleaned);
+    handleBuildMode(cleaned);
+    handleBuildFileLine(fileProgress);
+    handleBuildLineProgress(cleaned);
+    handleBuildProgress(cleaned);
+    const formatted = formatFileProgressLine(fileProgress);
+    if (formatted) {
+      writeLog(formatted);
+      if (interactive) {
+        logLines.push(formatted);
+        if (logLines.length > logWindowSize) logLines.shift();
+        renderStatus();
+      } else if (!quietMode) {
+        console.log(formatted);
+      }
+    }
+    return;
+  }
+  const formattedProgress = formatProgressLine(cleaned);
+  if (formattedProgress) {
+    pushHistory(cleaned);
+    handleBuildMode(cleaned);
+    handleBuildLineProgress(cleaned);
+    handleBuildProgress(cleaned);
+    writeLog(formattedProgress);
+    if (interactive) {
+      logLines.push(formattedProgress);
+      if (logLines.length > logWindowSize) logLines.shift();
+      renderStatus();
+    } else if (!quietMode) {
+      console.log(formattedProgress);
+    }
+    return;
+  }
   pushHistory(cleaned);
   writeLog(cleaned);
+  if (handleShardLine(cleaned)) {
+    if (interactive) {
+      logLines.push(cleaned);
+      if (logLines.length > logWindowSize) logLines.shift();
+      renderStatus();
+    } else if (!quietMode) {
+      console.log(cleaned);
+    }
+    return;
+  }
   handleBuildMode(cleaned);
   handleBuildFileLine(cleaned);
   handleBuildLineProgress(cleaned);
@@ -500,6 +790,11 @@ function resetBuildProgress(label = '') {
   buildProgressState.currentFile = null;
   buildProgressState.currentLine = 0;
   buildProgressState.currentLineTotal = 0;
+  buildProgressState.currentShard = null;
+  buildProgressState.currentShardIndex = null;
+  buildProgressState.currentShardTotal = null;
+  buildProgressState.importStats = null;
+  activeShards.clear();
   updateFileProgressLine();
 }
 
@@ -512,17 +807,36 @@ function handleBuildMode(line) {
   }
 }
 
-function handleBuildFileLine(line) {
-  const match = buildFileRegex.exec(line);
-  if (!match) return;
-  const mode = buildProgressState.mode;
-  if (!mode || !buildProgressState.linesByFile[mode]) return;
-  const rawPath = match[1].trim();
+function resolveModeForFile(rel) {
+  if (!rel) return null;
+  if (buildProgressState.linesByFile.code?.has(rel)) return 'code';
+  if (buildProgressState.linesByFile.prose?.has(rel)) return 'prose';
+  return null;
+}
+
+function handleBuildFileLine(lineOrEntry) {
+  const entry = typeof lineOrEntry === 'string' ? parseFileProgressLine(lineOrEntry) : lineOrEntry;
+  if (!entry || !entry.file) return;
+  const rawPath = entry.file.trim();
   if (!rawPath) return;
   const rel = toPosix(rawPath);
+  const inferredMode = resolveModeForFile(rel);
+  if (inferredMode && inferredMode !== buildProgressState.mode) {
+    buildProgressState.mode = inferredMode;
+  }
+  const mode = buildProgressState.mode;
+  if (!mode || !buildProgressState.linesByFile[mode]) return;
   buildProgressState.currentFile = rel;
   buildProgressState.currentLineTotal = buildProgressState.linesByFile[mode].get(rel) || 0;
   buildProgressState.currentLine = 0;
+  const shardLabel = entry.shardLabel;
+  const shardInfo = shardLabel ? shardByLabel.get(shardLabel) : null;
+  buildProgressState.currentShard = shardLabel || null;
+  buildProgressState.currentShardIndex = shardInfo?.index ?? null;
+  buildProgressState.currentShardTotal = shardInfo?.total ?? null;
+  if (Number.isFinite(buildProgressState.currentShardIndex)) {
+    activeShards.set(buildProgressState.currentShardIndex, Date.now());
+  }
   updateFileProgressLine();
   const seen = buildProgressState.filesSeen[mode];
   if (seen.has(rel)) return;
@@ -582,6 +896,12 @@ function handleBuildProgress(line) {
   let lineRate = 0;
   let remainingLines = 0;
   let totalLines = 0;
+  if (step.toLowerCase() === 'files' && !buildProgressState.mode) {
+    const fallbackMode = resolveModeForFile(buildProgressState.currentFile);
+    if (fallbackMode) {
+      buildProgressState.mode = fallbackMode;
+    }
+  }
   if (step.toLowerCase() === 'files' && buildProgressState.mode) {
     const mode = buildProgressState.mode;
     totalLines = buildProgressState.lineTotals[mode] || 0;
@@ -627,7 +947,15 @@ function handleBuildProgress(line) {
     buildProgressState.lastCount = count;
     buildProgressState.lastPct = pct;
   }
+  refreshProgressLine(now);
   return true;
+}
+
+function refreshProgressLine(now = Date.now(), force = false) {
+  if (!interactive) return;
+  if (!force && now - lastProgressRefreshMs < progressRefreshMs) return;
+  lastProgressRefreshMs = now;
+  renderProgressLine({ now, force });
 }
 
 function formatDuration(ms) {
@@ -1030,7 +1358,10 @@ for (const task of tasks) {
     }
   }
 
-  const repoUserConfig = loadUserConfig(repoPath);
+  const repoUserConfig = loadUserConfig(
+    repoPath,
+    indexProfile ? { profile: indexProfile } : {}
+  );
   const repoRuntimeConfig = getRuntimeConfig(repoPath, repoUserConfig);
   let baseNodeOptions = baseEnv.NODE_OPTIONS || '';
   if (Number.isFinite(heapArg) && heapArg > 0) {
@@ -1067,6 +1398,9 @@ for (const task of tasks) {
     : { ...baseEnv };
   if (heapOverride) {
     repoEnvBase.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapOverride);
+  }
+  if (indexProfile) {
+    repoEnvBase.PAIROFCLEATS_PROFILE = indexProfile;
   }
 
   const outDir = path.join(resultsRoot, task.language);
@@ -1143,6 +1477,8 @@ for (const task of tasks) {
     '--out',
     outFile
   ];
+  if (indexProfile) benchArgs.push('--index-profile', indexProfile);
+  if (argv['real-embeddings']) benchArgs.push('--real-embeddings');
   if (argv.build) {
     benchArgs.push('--build');
   } else {
@@ -1180,7 +1516,10 @@ for (const task of tasks) {
         PAIROFCLEATS_CACHE_ROOT: cacheRoot,
         PAIROFCLEATS_BENCH_PROFILE: benchmarkProfileEnabled ? '1' : '0',
         PAIROFCLEATS_PROGRESS_FILES: '1',
-        PAIROFCLEATS_PROGRESS_LINES: '1'
+        PAIROFCLEATS_PROGRESS_LINES: '1',
+        ...(Number.isFinite(Number(argv.threads)) && Number(argv.threads) > 0
+          ? { PAIROFCLEATS_THREADS: String(argv.threads) }
+          : {})
       }
     });
     try {

@@ -17,6 +17,7 @@ const COMMANDS = new Map([
   ['build-sqlite-index', { script: 'tools/build-sqlite-index.js', extraArgs: [] }],
   ['compact-sqlite-index', { script: 'tools/compact-sqlite-index.js', extraArgs: [] }],
   ['search-sqlite', { script: 'tools/search-sqlite.js', extraArgs: [] }],
+  ['build-embeddings', { script: 'tools/build-embeddings.js', extraArgs: [] }],
   ['cache-gc', { script: 'tools/cache-gc.js', extraArgs: [] }],
   ['clean-artifacts', { script: 'tools/clean-artifacts.js', extraArgs: [] }],
   ['report-artifacts', { script: 'tools/report-artifacts.js', extraArgs: [] }],
@@ -179,6 +180,7 @@ Core:
   build-sqlite-index       Build SQLite indexes
   compact-sqlite-index     Compact SQLite indexes
   search-sqlite            SQLite-specific search helper
+  build-embeddings         Build embedding vectors from chunk metadata
   cache-gc                Garbage collect cache by age/size
   clean-artifacts          Remove repo artifacts (keep shared caches)
   report-artifacts         Report artifact sizes

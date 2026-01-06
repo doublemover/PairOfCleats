@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import ignore from 'ignore';
-import { SKIP_DIRS, SKIP_FILES } from '../constants.js';
+import { SKIP_DIRS, SKIP_FILES, SKIP_GLOBS } from '../constants.js';
 
 /**
  * Build ignore matcher for indexing.
@@ -21,7 +21,8 @@ export async function buildIgnoreMatcher({ root, userConfig }) {
   if (config.useDefaultSkips) {
     const defaultIgnorePatterns = [
       ...Array.from(SKIP_DIRS, (dir) => `${dir}/`),
-      ...Array.from(SKIP_FILES)
+      ...Array.from(SKIP_FILES),
+      ...Array.from(SKIP_GLOBS)
     ];
     ignoreMatcher.add(defaultIgnorePatterns);
   }

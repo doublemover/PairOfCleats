@@ -102,6 +102,7 @@
     "bench-language:sql": "node tools/bench-language-repos.js --language sql",
     "bench-language:perl": "node tools/bench-language-repos.js --language perl",
     "bench-language:shell": "node tools/bench-language-repos.js --language shell",
+    "shard-census": "node tools/shard-census.js",
     "bench-language-test": "node tests/bench-language-repos.js",
     "bench-language-lock-test": "node tests/bench-language-lock.js",
     "uninstall-test": "node tests/uninstall.js",

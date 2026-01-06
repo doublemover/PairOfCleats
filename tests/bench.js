@@ -22,6 +22,8 @@ const argv = createCli({
     incremental: { type: 'boolean', default: false },
     'stub-embeddings': { type: 'boolean', default: false },
     'benchmark-profile': { type: 'boolean', default: false },
+    'index-profile': { type: 'string' },
+    'real-embeddings': { type: 'boolean', default: false },
     queries: { type: 'string' },
     backend: { type: 'string' },
     out: { type: 'string' },
@@ -44,6 +46,7 @@ const searchPath = path.join(root, 'search.js');
 const reportPath = path.join(root, 'tools', 'report-artifacts.js');
 const buildIndexPath = path.join(root, 'build_index.js');
 const buildSqlitePath = path.join(root, 'tools', 'build-sqlite-index.js');
+const indexerServicePath = path.join(root, 'tools', 'indexer-service.js');
 
 const defaultQueriesPath = path.join(root, 'tests', 'parity-queries.txt');
 const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
@@ -88,10 +91,18 @@ function resolveBackends(value) {
 const backends = resolveBackends(argv.backend);
 let buildIndex = argv['build-index'] || argv.build;
 let buildSqlite = argv['build-sqlite'] || argv.build;
-const buildIncremental = argv.incremental === true;
-const stubEmbeddings = argv['stub-embeddings'] === true;
+const buildIncremental = argv.incremental === true || buildSqlite;
+const indexProfileRaw = typeof argv['index-profile'] === 'string'
+  ? argv['index-profile'].trim()
+  : '';
+if (indexProfileRaw) {
+  process.env.PAIROFCLEATS_PROFILE = indexProfileRaw;
+}
 const runtimeRoot = repoArg || root;
-const userConfig = loadUserConfig(runtimeRoot);
+const userConfig = loadUserConfig(
+  runtimeRoot,
+  indexProfileRaw ? { profile: indexProfileRaw } : {}
+);
 const runtimeConfig = getRuntimeConfig(runtimeRoot, userConfig);
 const needsMemory = backends.includes('memory');
 const needsSqlite = backends.some((entry) => entry.startsWith('sqlite'));
@@ -140,10 +151,17 @@ const benchmarkProfileArgPresent = rawArgs.includes('--benchmark-profile') || ra
 const benchmarkProfileEnvValue = benchmarkProfileArgPresent
   ? (argv['benchmark-profile'] === true ? '1' : '0')
   : (process.env.PAIROFCLEATS_BENCH_PROFILE || null);
+const envStubEmbeddings = process.env.PAIROFCLEATS_EMBEDDINGS === 'stub';
+const realEmbeddings = argv['real-embeddings'] === true;
 const benchmarkProfile = resolveBenchmarkProfile(userConfig.indexing || {}, benchmarkProfileEnvValue);
+const stubEmbeddings = argv['stub-embeddings'] === true
+  || (!realEmbeddings && (envStubEmbeddings || benchmarkProfile.enabled));
 const baseEnv = resolvedNodeOptions
   ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
   : { ...process.env };
+if (realEmbeddings && baseEnv.PAIROFCLEATS_EMBEDDINGS) {
+  delete baseEnv.PAIROFCLEATS_EMBEDDINGS;
+}
 if (heapOverride) {
   baseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapOverride);
   if (!jsonOutput) {
@@ -156,6 +174,9 @@ if (heapOverride) {
 const benchEnv = benchmarkProfileEnvValue != null
   ? { ...baseEnv, PAIROFCLEATS_BENCH_PROFILE: String(benchmarkProfileEnvValue) }
   : baseEnv;
+const benchEnvWithProfile = indexProfileRaw
+  ? { ...benchEnv, PAIROFCLEATS_PROFILE: indexProfileRaw }
+  : benchEnv;
 
 function runSearch(query, backend) {
   const args = [
@@ -175,9 +196,12 @@ function runSearch(query, backend) {
   if (bm25BArg) args.push('--bm25-b', String(bm25BArg));
   if (ftsProfileArg) args.push('--fts-profile', String(ftsProfileArg));
   if (ftsWeightsArg) args.push('--fts-weights', String(ftsWeightsArg));
-  const env = stubEmbeddings
-    ? { ...benchEnv, PAIROFCLEATS_EMBEDDINGS: 'stub' }
-    : benchEnv;
+  const env = { ...benchEnvWithProfile };
+  if (stubEmbeddings) {
+    env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+  } else {
+    delete env.PAIROFCLEATS_EMBEDDINGS;
+  }
   const result = spawnSync(process.execPath, args, { encoding: 'utf8', env });
   if (result.status !== 0) {
     console.error(`Search failed for backend=${backend} query="${query}"`);
@@ -250,23 +274,62 @@ function runBuild(args, label, env) {
   return Date.now() - start;
 }
 
+function runServiceQueue(queueName, env) {
+  const args = [indexerServicePath, 'work', '--queue', queueName, '--concurrency', '1'];
+  const result = spawnSync(process.execPath, args, {
+    env,
+    encoding: 'utf8',
+    stdio: jsonOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit'
+  });
+  if (jsonOutput) {
+    if (result.stdout) process.stderr.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+  }
+  if (result.status !== 0) {
+    console.error(`Service queue failed: ${queueName}`);
+    process.exit(result.status ?? 1);
+  }
+}
+
 const buildMs = {};
 if (buildIndex || buildSqlite) {
-  const buildEnv = { ...benchEnv };
-  if (stubEmbeddings) buildEnv.PAIROFCLEATS_EMBEDDINGS = 'stub';
-if (buildIndex) {
-  const args = [buildIndexPath];
-  if (repoArg) args.push('--repo', repoArg);
-  if (stubEmbeddings) args.push('--stub-embeddings');
-  if (buildIncremental) args.push('--incremental');
-  if (argv.threads) args.push('--threads', String(argv.threads));
-  buildMs.index = runBuild(args, 'build index', buildEnv);
-}
+  const buildEnv = { ...benchEnvWithProfile };
+  if (Number.isFinite(Number(argv.threads)) && Number(argv.threads) > 0) {
+    buildEnv.PAIROFCLEATS_THREADS = String(argv.threads);
+  }
+  if (stubEmbeddings) {
+    buildEnv.PAIROFCLEATS_EMBEDDINGS = 'stub';
+  } else {
+    delete buildEnv.PAIROFCLEATS_EMBEDDINGS;
+  }
+  const twoStageConfig = userConfig.indexing?.twoStage || {};
+  const useStageQueue = twoStageConfig.enabled === true
+    && twoStageConfig.background === true
+    && twoStageConfig.queue !== false;
+  const embeddingMode = typeof userConfig.indexing?.embeddings?.mode === 'string'
+    ? userConfig.indexing.embeddings.mode.trim().toLowerCase()
+    : '';
+  const embeddingsEnabled = userConfig.indexing?.embeddings?.enabled !== false;
+  const useEmbeddingService = embeddingsEnabled && embeddingMode === 'service';
+  if (buildIndex) {
+    const args = [buildIndexPath];
+    if (repoArg) args.push('--repo', repoArg);
+    if (stubEmbeddings) args.push('--stub-embeddings');
+    if (buildIncremental) args.push('--incremental');
+    if (argv.threads) args.push('--threads', String(argv.threads));
+    buildMs.index = runBuild(args, 'build index', buildEnv);
+    if (useStageQueue) {
+      runServiceQueue('index', buildEnv);
+    }
+  }
   if (buildSqlite) {
     const args = [buildSqlitePath];
     if (repoArg) args.push('--repo', repoArg);
     if (buildIncremental) args.push('--incremental');
     buildMs.sqlite = runBuild(args, 'build sqlite', buildEnv);
+  }
+  if (buildIndex && useEmbeddingService) {
+    runServiceQueue('embeddings', buildEnv);
   }
 }
 

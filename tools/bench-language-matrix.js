@@ -38,6 +38,9 @@ const argv = createCli({
     'fts-weights': { type: 'string' },
     'benchmark-profile': { type: 'boolean', default: true },
     'stub-embeddings': { type: 'boolean', default: false },
+    'index-profile': { type: 'string' },
+    'no-index-profile': { type: 'boolean', default: false },
+    'real-embeddings': { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },
     'fail-fast': { type: 'boolean', default: false },
     'lock-mode': { type: 'string' },
@@ -141,6 +144,7 @@ const configToArgs = (config, outFile, logFile) => {
   if (argv['build-sqlite']) args.push('--build-sqlite');
   if (argv.incremental) args.push('--incremental');
   if (argv['stub-embeddings']) args.push('--stub-embeddings');
+  if (argv['real-embeddings']) args.push('--real-embeddings');
   if (argv['dry-run']) args.push('--dry-run');
 
   appendArgs(args, '--config', argv.config);
@@ -148,6 +152,8 @@ const configToArgs = (config, outFile, logFile) => {
   appendArgs(args, '--cache-root', argv['cache-root']);
   appendArgs(args, '--cache-suffix', argv['cache-suffix']);
   appendArgs(args, '--results', argv.results);
+  appendArgs(args, '--index-profile', argv['index-profile']);
+  if (argv['no-index-profile']) args.push('--no-index-profile');
   appendArgs(args, '--language', argv.language);
   appendArgs(args, '--languages', argv.languages);
   appendArgs(args, '--repos', argv.repos);

@@ -22,11 +22,11 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const enabled = normalizeEnabled(raw.enabled);
   const cpuLimit = Number.isFinite(options.cpuLimit)
     ? Math.max(1, Math.floor(options.cpuLimit))
-    : os.cpus().length;
+    : Math.max(1, os.cpus().length * 4);
   const maxWorkersRaw = Number(raw.maxWorkers);
   const maxWorkers = Number.isFinite(maxWorkersRaw) && maxWorkersRaw > 0
     ? Math.max(1, Math.floor(maxWorkersRaw))
-    : Math.max(1, Math.min(2, cpuLimit));
+    : Math.max(1, cpuLimit);
   const maxFileBytesRaw = raw.maxFileBytes;
   let maxFileBytes = 512 * 1024;
   if (maxFileBytesRaw === false || maxFileBytesRaw === 0) {
@@ -83,10 +83,6 @@ export async function createIndexerWorkerPool(input = {}) {
     };
   };
   if (!config || config.enabled === false) return null;
-  if (config.enabled === 'auto' && process.platform === 'win32') {
-    log('Worker pool disabled (auto) on Windows for stability. Set indexing.workerPool.enabled=true to force.');
-    return null;
-  }
   let Piscina;
   try {
     Piscina = (await import('piscina')).default;
@@ -94,8 +90,18 @@ export async function createIndexerWorkerPool(input = {}) {
     log(`Worker pool unavailable (piscina missing): ${err?.message || err}`);
     return null;
   }
+  const maxRestartAttempts = 3;
+  const restartBaseDelayMs = 1000;
+  const restartMaxDelayMs = 10000;
   try {
-    const pool = new Piscina({
+    let pool = null;
+    let disabled = false;
+    let restartAttempts = 0;
+    let restartAtMs = 0;
+    let restarting = null;
+    let activeTasks = 0;
+    let pendingRestart = false;
+    const createPool = () => new Piscina({
       filename: fileURLToPath(new URL('./workers/indexer-worker.js', import.meta.url)),
       maxThreads: config.maxWorkers,
       idleTimeout: config.idleTimeoutMs,
@@ -106,16 +112,67 @@ export async function createIndexerWorkerPool(input = {}) {
         postingsConfig: postingsConfig || {}
       }
     });
-    let disabled = false;
-    const destroyPool = async (reason) => {
-      if (disabled) return;
-      disabled = true;
+    const shutdownPool = async () => {
+      if (!pool) return;
       try {
         await pool.destroy();
       } catch (err) {
         log(`Worker pool shutdown failed: ${err?.message || err}`);
       }
-      if (reason) log(`Worker pool disabled: ${reason}`);
+      pool = null;
+    };
+    const scheduleRestart = async (reason) => {
+      if (!pool && disabled && restartAttempts > maxRestartAttempts) return;    
+      disabled = true;
+      restartAttempts += 1;
+      if (restartAttempts > maxRestartAttempts) {
+        pendingRestart = false;
+        if (reason) log(`Worker pool disabled: ${reason}`);
+        return;
+      }
+      const delayMs = Math.min(
+        restartMaxDelayMs,
+        restartBaseDelayMs * (2 ** Math.max(0, restartAttempts - 1))
+      );
+      restartAtMs = Date.now() + delayMs;
+      pendingRestart = true;
+      if (activeTasks === 0) {
+        await shutdownPool();
+      }
+      if (reason) log(`Worker pool disabled: ${reason} (retry in ${delayMs}ms).`);
+    };
+    const maybeRestart = async () => {
+      if (!pendingRestart || !disabled) return false;
+      if (activeTasks > 0) return false;
+      if (Date.now() < restartAtMs) return false;
+      return ensurePool();
+    };
+    const ensurePool = async () => {
+      if (pool && !disabled) return true;
+      if (restartAttempts > maxRestartAttempts) return false;
+      if (!pendingRestart) return false;
+      if (activeTasks > 0) return false;
+      if (Date.now() < restartAtMs) return false;
+      if (!restarting) {
+        restarting = (async () => {
+          try {
+            await shutdownPool();
+            pool = createPool();
+            attachPoolListeners(pool);
+            disabled = false;
+            restartAttempts = 0;
+            restartAtMs = 0;
+            pendingRestart = false;
+            log('Worker pool restarted.');
+          } catch (err) {
+            await scheduleRestart(`restart failed: ${err?.message || err}`);    
+          } finally {
+            restarting = null;
+          }
+        })();
+      }
+      await restarting;
+      return !!pool && !disabled;
     };
     const sanitizePayload = (payload) => {
       if (!payload || typeof payload !== 'object') return payload;
@@ -132,7 +189,8 @@ export async function createIndexerWorkerPool(input = {}) {
       }
       return safe;
     };
-    if (pool?.on && crashLogger?.enabled) {
+    const attachPoolListeners = (poolInstance) => {
+      if (!poolInstance?.on || !crashLogger?.enabled) return;
       const formatPoolError = (err) => ({
         message: err?.message || String(err),
         stack: err?.stack || null,
@@ -140,10 +198,10 @@ export async function createIndexerWorkerPool(input = {}) {
         code: err?.code || null,
         raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true })
       });
-      pool.on('error', (err) => {
+      poolInstance.on('error', (err) => {
         crashLogger.logError({ phase: 'worker-pool', ...formatPoolError(err) });
       });
-      pool.on('workerCreate', (worker) => {
+      poolInstance.on('workerCreate', (worker) => {
         if (!worker) return;
         worker.on('error', (err) => {
           crashLogger.logError({
@@ -161,12 +219,17 @@ export async function createIndexerWorkerPool(input = {}) {
           });
         });
       });
-    }
+    };
+    pool = createPool();
+    attachPoolListeners(pool);
     return {
       config,
-      pool,
+      get pool() {
+        return pool;
+      },
       dictConfig: sanitizeDictConfig(dictConfig),
       shouldUseForFile(sizeBytes) {
+        if (disabled) return false;
         if (config.enabled === true) return true;
         if (config.enabled === 'auto') {
           if (config.maxFileBytes == null) return true;
@@ -175,14 +238,20 @@ export async function createIndexerWorkerPool(input = {}) {
         return false;
       },
       async runTokenize(payload) {
-        if (disabled) return null;
+        activeTasks += 1;
         try {
+          if (disabled && !(await ensurePool())) return null;
           return await pool.run(sanitizePayload(payload), { name: 'tokenizeChunk' });
         } catch (err) {
           const isCloneError = err?.name === 'DataCloneError'
             || /could not be cloned|DataCloneError/i.test(err?.message || '');
-          const reason = isCloneError ? 'data-clone error' : 'worker failure';
-          await destroyPool(reason);
+          const detail = String(err?.message || err?.code || err?.name || err || '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          const reason = isCloneError
+            ? 'data-clone error'
+            : (detail ? `worker failure: ${detail}` : 'worker failure');
+          await scheduleRestart(reason);
           if (crashLogger?.enabled) {
             crashLogger.logError({
               phase: 'worker-tokenize',
@@ -220,10 +289,19 @@ export async function createIndexerWorkerPool(input = {}) {
             });
           }
           return null;
+        } finally {
+          activeTasks = Math.max(0, activeTasks - 1);
+          if (activeTasks === 0) {
+            await maybeRestart();
+          }
         }
       },
       async runQuantize(payload) {
+        activeTasks += 1;
         try {
+          if (disabled && !(await ensurePool())) {
+            throw new Error('worker pool unavailable');
+          }
           return await pool.run(payload, { name: 'quantizeVectors' });
         } catch (err) {
           if (crashLogger?.enabled) {
@@ -262,10 +340,17 @@ export async function createIndexerWorkerPool(input = {}) {
             });
           }
           throw err;
+        } finally {
+          activeTasks = Math.max(0, activeTasks - 1);
+          if (activeTasks === 0) {
+            await maybeRestart();
+          }
         }
       },
       async destroy() {
-        await pool.destroy();
+        disabled = true;
+        restartAttempts = maxRestartAttempts + 1;
+        await shutdownPool();
       }
     };
   } catch (err) {

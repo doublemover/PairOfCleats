@@ -34,31 +34,39 @@ export async function ensureQueueDir(dirPath) {
   await fs.mkdir(dirPath, { recursive: true });
 }
 
-export function getQueuePaths(dirPath) {
+const normalizeQueueName = (value) => {
+  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (!raw || raw === 'index') return null;
+  return raw.replace(/[^a-z0-9_-]+/g, '-');
+};
+
+export function getQueuePaths(dirPath, queueName = null) {
+  const normalized = normalizeQueueName(queueName);
+  const suffix = normalized ? `-${normalized}` : '';
   return {
-    queuePath: path.join(dirPath, 'queue.json'),
-    lockPath: path.join(dirPath, 'queue.lock')
+    queuePath: path.join(dirPath, `queue${suffix}.json`),
+    lockPath: path.join(dirPath, `queue${suffix}.lock`)
   };
 }
 
-export async function loadQueue(dirPath) {
-  const { queuePath } = getQueuePaths(dirPath);
+export async function loadQueue(dirPath, queueName = null) {
+  const { queuePath } = getQueuePaths(dirPath, queueName);
   const payload = await readJson(queuePath, { jobs: [] });
   return {
     jobs: Array.isArray(payload.jobs) ? payload.jobs : []
   };
 }
 
-export async function saveQueue(dirPath, queue) {
-  const { queuePath } = getQueuePaths(dirPath);
+export async function saveQueue(dirPath, queue, queueName = null) {
+  const { queuePath } = getQueuePaths(dirPath, queueName);
   await fs.writeFile(queuePath, JSON.stringify(queue, null, 2));
 }
 
-export async function enqueueJob(dirPath, job, maxQueued = null) {
+export async function enqueueJob(dirPath, job, maxQueued = null, queueName = null) {
   await ensureQueueDir(dirPath);
-  const { lockPath } = getQueuePaths(dirPath);
+  const { lockPath } = getQueuePaths(dirPath, queueName);
   return withLock(lockPath, async () => {
-    const queue = await loadQueue(dirPath);
+    const queue = await loadQueue(dirPath, queueName);
     const queued = queue.jobs.filter((entry) => entry.status === 'queued');
     if (Number.isFinite(maxQueued) && queued.length >= maxQueued) {
       return { ok: false, message: 'Queue is full.' };
@@ -69,46 +77,49 @@ export async function enqueueJob(dirPath, job, maxQueued = null) {
       status: 'queued',
       repo: job.repo,
       mode: job.mode,
-      reason: job.reason || null
+      reason: job.reason || null,
+      stage: job.stage || null,
+      args: Array.isArray(job.args) && job.args.length ? job.args : null
     };
     queue.jobs.push(next);
-    await saveQueue(dirPath, queue);
+    await saveQueue(dirPath, queue, queueName);
     return { ok: true, job: next };
   });
 }
 
-export async function claimNextJob(dirPath) {
-  const { lockPath } = getQueuePaths(dirPath);
+export async function claimNextJob(dirPath, queueName = null) {
+  const { lockPath } = getQueuePaths(dirPath, queueName);
   return withLock(lockPath, async () => {
-    const queue = await loadQueue(dirPath);
+    const queue = await loadQueue(dirPath, queueName);
     const job = queue.jobs.find((entry) => entry.status === 'queued');
     if (!job) return null;
     job.status = 'running';
     job.startedAt = new Date().toISOString();
-    await saveQueue(dirPath, queue);
+    await saveQueue(dirPath, queue, queueName);
     return job;
   });
 }
 
-export async function completeJob(dirPath, jobId, status, result) {
-  const { lockPath } = getQueuePaths(dirPath);
+export async function completeJob(dirPath, jobId, status, result, queueName = null) {
+  const { lockPath } = getQueuePaths(dirPath, queueName);
   return withLock(lockPath, async () => {
-    const queue = await loadQueue(dirPath);
+    const queue = await loadQueue(dirPath, queueName);
     const job = queue.jobs.find((entry) => entry.id === jobId);
     if (!job) return null;
     job.status = status;
     job.finishedAt = new Date().toISOString();
     job.result = result || null;
-    await saveQueue(dirPath, queue);
+    await saveQueue(dirPath, queue, queueName);
     return job;
   });
 }
 
-export async function queueSummary(dirPath) {
-  if (!fsSync.existsSync(dirPath)) {
+export async function queueSummary(dirPath, queueName = null) {
+  const { queuePath } = getQueuePaths(dirPath, queueName);
+  if (!fsSync.existsSync(queuePath)) {
     return { total: 0, queued: 0, running: 0, done: 0, failed: 0 };
   }
-  const queue = await loadQueue(dirPath);
+  const queue = await loadQueue(dirPath, queueName);
   const summary = { total: queue.jobs.length, queued: 0, running: 0, done: 0, failed: 0 };
   for (const job of queue.jobs) {
     if (job.status === 'queued') summary.queued += 1;

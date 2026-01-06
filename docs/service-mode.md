@@ -42,6 +42,10 @@ pairofcleats indexer-service work --watch --interval 5000
 
 # Queue status
 pairofcleats indexer-service status
+
+# Embedding queue (service mode)
+pairofcleats indexer-service enqueue --queue embeddings --repo /path/to/repo --mode code
+pairofcleats indexer-service work --queue embeddings --concurrency 1
 ```
 
 Query serving
@@ -52,5 +56,7 @@ pairofcleats indexer-service serve --repo /path/to/repo
 
 Notes
 - The queue is persisted in the cache root under `service/queue/queue.json`.
+- Embedding jobs are stored in `service/queue/queue-embeddings.json`.
+- If `indexing.twoStage.background` is enabled, stage2 enrichment jobs are queued by default (set `indexing.twoStage.queue: false` to disable).
 - Use `syncPolicy: "fetch"` for Sourcebot-style fetch-only workflows.
 - Each job runs `build_index.js` for the configured repo/mode.

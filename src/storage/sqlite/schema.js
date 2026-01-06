@@ -17,7 +17,7 @@ export const REQUIRED_TABLES = [
   'file_manifest'
 ];
 
-export const CREATE_TABLES_SQL = `
+export const CREATE_TABLES_BASE_SQL = `
   DROP TABLE IF EXISTS chunks_fts;
   DROP TABLE IF EXISTS chunks;
   DROP TABLE IF EXISTS token_postings;
@@ -61,7 +61,6 @@ export const CREATE_TABLES_SQL = `
     churn REAL,
     chunk_authors TEXT
   );
-  CREATE INDEX idx_chunks_file ON chunks (mode, file);
   CREATE VIRTUAL TABLE chunks_fts USING fts5(
     mode UNINDEXED,
     file,
@@ -87,7 +86,6 @@ export const CREATE_TABLES_SQL = `
     tf INTEGER NOT NULL,
     PRIMARY KEY (mode, token_id, doc_id)
   );
-  CREATE INDEX idx_token_postings_token ON token_postings (mode, token_id);
   CREATE TABLE doc_lengths (
     mode TEXT NOT NULL,
     doc_id INTEGER NOT NULL,
@@ -112,7 +110,6 @@ export const CREATE_TABLES_SQL = `
     doc_id INTEGER NOT NULL,
     PRIMARY KEY (mode, phrase_id, doc_id)
   );
-  CREATE INDEX idx_phrase_postings_phrase ON phrase_postings (mode, phrase_id);
   CREATE TABLE chargram_vocab (
     mode TEXT NOT NULL,
     gram_id INTEGER NOT NULL,
@@ -126,7 +123,6 @@ export const CREATE_TABLES_SQL = `
     doc_id INTEGER NOT NULL,
     PRIMARY KEY (mode, gram_id, doc_id)
   );
-  CREATE INDEX idx_chargram_postings_gram ON chargram_postings (mode, gram_id);
   CREATE TABLE minhash_signatures (
     mode TEXT NOT NULL,
     doc_id INTEGER NOT NULL,
@@ -154,5 +150,17 @@ export const CREATE_TABLES_SQL = `
     chunk_count INTEGER,
     PRIMARY KEY (mode, file)
   );
+`;
+
+export const CREATE_INDEXES_SQL = `
+  CREATE INDEX idx_chunks_file ON chunks (mode, file);
+  CREATE INDEX idx_token_postings_token ON token_postings (mode, token_id);
+  CREATE INDEX idx_phrase_postings_phrase ON phrase_postings (mode, phrase_id);
+  CREATE INDEX idx_chargram_postings_gram ON chargram_postings (mode, gram_id);
   CREATE INDEX idx_file_manifest_mode_file ON file_manifest (mode, file);
+`;
+
+export const CREATE_TABLES_SQL = `
+${CREATE_TABLES_BASE_SQL}
+${CREATE_INDEXES_SQL}
 `;

@@ -16,10 +16,12 @@ const argv = createCli({
     repo: { type: 'string' },
     mode: { type: 'string', default: 'both' },
     reason: { type: 'string' },
+    stage: { type: 'string' },
     command: { type: 'string' },
     watch: { type: 'boolean', default: false },
     interval: { type: 'number' },
-    concurrency: { type: 'number' }
+    concurrency: { type: 'number' },
+    queue: { type: 'string', default: 'index' }
   }
 }).parse();
 
@@ -33,6 +35,7 @@ const baseDir = config.baseDir
 const queueDir = config.queueDir
   ? path.resolve(config.queueDir)
   : path.join(getCacheRoot(), 'service', 'queue');
+const queueName = argv.queue || 'index';
 
 const resolveRepoEntry = (repoArg) => {
   if (!repoArg) return null;
@@ -47,11 +50,25 @@ const formatJobId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 1
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const runBuildIndex = (repoPath, mode) => new Promise((resolve) => {
+const runBuildIndex = (repoPath, mode, stage, extraArgs = null) => new Promise((resolve) => {
   const buildPath = path.join(path.resolve(__dirname, '..'), 'build_index.js');
+  const args = [buildPath];
+  if (Array.isArray(extraArgs) && extraArgs.length) {
+    args.push(...extraArgs);
+  } else {
+    args.push('--repo', repoPath);
+    if (mode && mode !== 'both') args.push('--mode', mode);
+    if (stage) args.push('--stage', stage);
+  }
+  const child = spawn(process.execPath, args, { stdio: 'inherit' });
+  child.on('close', (code) => resolve(code ?? 1));
+});
+
+const runBuildEmbeddings = (repoPath, mode, extraEnv = {}) => new Promise((resolve) => {
+  const buildPath = path.join(path.resolve(__dirname, '..'), 'tools', 'build-embeddings.js');
   const args = [buildPath, '--repo', repoPath];
   if (mode && mode !== 'both') args.push('--mode', mode);
-  const child = spawn(process.execPath, args, { stdio: 'inherit' });
+  const child = spawn(process.execPath, args, { stdio: 'inherit', env: { ...process.env, ...extraEnv } });
   child.on('close', (code) => resolve(code ?? 1));
 });
 
@@ -77,6 +94,9 @@ const handleEnqueue = async () => {
     process.exit(1);
   }
   await ensureQueueDir(queueDir);
+  const queueConfig = queueName === 'embeddings'
+    ? (config.embeddings?.queue || {})
+    : (config.queue || {});
   const id = formatJobId();
   const mode = argv.mode || 'both';
   const result = await enqueueJob(queueDir, {
@@ -84,8 +104,9 @@ const handleEnqueue = async () => {
     createdAt: new Date().toISOString(),
     repo: resolveRepoPath(target, baseDir) || target.path,
     mode,
-    reason: argv.reason || null
-  }, config.queue?.maxQueued ?? null);
+    reason: argv.reason || null,
+    stage: argv.stage || null
+  }, queueConfig.maxQueued ?? null, queueName);
   if (!result.ok) {
     console.error(result.message || 'Failed to enqueue job.');
     process.exit(1);
@@ -94,24 +115,36 @@ const handleEnqueue = async () => {
 };
 
 const handleStatus = async () => {
-  const summary = await queueSummary(queueDir);
-  console.log(JSON.stringify({ ok: true, queue: summary }, null, 2));
+  const summary = await queueSummary(queueDir, queueName);
+  console.log(JSON.stringify({ ok: true, queue: summary, name: queueName }, null, 2));
 };
 
 const processQueueOnce = async () => {
-  const job = await claimNextJob(queueDir);
+  const job = await claimNextJob(queueDir, queueName);
   if (!job) return false;
-  const exitCode = await runBuildIndex(job.repo, job.mode);
+  const embedWorkerConfig = config.embeddings?.worker || {};
+  const memoryMb = Number.isFinite(Number(embedWorkerConfig.maxMemoryMb))
+    ? Math.max(128, Math.floor(Number(embedWorkerConfig.maxMemoryMb)))
+    : null;
+  const extraEnv = memoryMb
+    ? { NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --max-old-space-size=${memoryMb}`.trim() }
+    : {};
+  const exitCode = queueName === 'embeddings'
+    ? await runBuildEmbeddings(job.repo, job.mode, extraEnv)
+    : await runBuildIndex(job.repo, job.mode, job.stage, job.args);
   const status = exitCode === 0 ? 'done' : 'failed';
-  await completeJob(queueDir, job.id, status, { exitCode });
+  await completeJob(queueDir, job.id, status, { exitCode }, queueName);
   return true;
 };
 
 const handleWork = async () => {
   await ensureQueueDir(queueDir);
+  const workerConfig = queueName === 'embeddings'
+    ? (config.embeddings?.worker || {})
+    : (config.worker || {});
   const concurrency = Number.isFinite(Number(argv.concurrency))
     ? Math.max(1, Number(argv.concurrency))
-    : (config.worker?.concurrency || 1);
+    : (workerConfig.concurrency || 1);
   const intervalMs = Number.isFinite(Number(argv.interval))
     ? Math.max(100, Number(argv.interval))
     : (config.sync?.intervalMs || 5000);
@@ -151,6 +184,6 @@ if (command === 'sync') {
 } else if (command === 'serve') {
   await handleServe();
 } else {
-  console.error('Usage: indexer-service <sync|enqueue|work|status|serve>');
+  console.error('Usage: indexer-service <sync|enqueue|work|status|serve> [--queue index|embeddings] [--stage stage1|stage2]');
   process.exit(1);
 }

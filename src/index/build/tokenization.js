@@ -44,6 +44,15 @@ export function createTokenizationContext(input) {
   };
 }
 
+export function createTokenizationBuffers() {
+  return {
+    tokens: [],
+    seq: [],
+    scratch: [],
+    scratch2: []
+  };
+}
+
 const normalizeToken = (value) => {
   for (let i = 0; i < value.length; i += 1) {
     if (value.charCodeAt(i) > 127) return value.normalize('NFKD');
@@ -51,29 +60,58 @@ const normalizeToken = (value) => {
   return value;
 };
 
-export function buildTokenSequence({ text, mode, ext, dictWords, dictConfig }) {
-  let tokens = splitId(text);
-  tokens = tokens.map(normalizeToken);
-  if (mode === 'code') {
-    tokens = tokens.concat(extractPunctuationTokens(text));
+export function buildTokenSequence({ text, mode, ext, dictWords, dictConfig, buffers = null }) {
+  const useBuffers = !!buffers;
+  const tokensOut = useBuffers ? buffers.tokens : [];
+  const seqOut = useBuffers ? buffers.seq : [];
+  const scratch = useBuffers ? buffers.scratch : [];
+  const scratch2 = useBuffers ? buffers.scratch2 : [];
+  if (useBuffers) {
+    tokensOut.length = 0;
+    seqOut.length = 0;
+    scratch.length = 0;
+    scratch2.length = 0;
   }
 
+  const baseTokens = splitId(text);
+  for (const token of baseTokens) {
+    scratch.push(normalizeToken(token));
+  }
+  if (mode === 'code') {
+    const punctuation = extractPunctuationTokens(text);
+    for (const token of punctuation) scratch.push(token);
+  }
+
+  let working = scratch;
   if (!(mode === 'prose' && ext === '.md')) {
-    tokens = tokens.flatMap((t) => splitWordsWithDict(t, dictWords, dictConfig));
+    for (const token of working) {
+      const parts = splitWordsWithDict(token, dictWords, dictConfig);
+      if (Array.isArray(parts) && parts.length) {
+        for (const part of parts) scratch2.push(part);
+      }
+    }
+    working = scratch2;
   }
 
   if (mode === 'prose') {
-    tokens = tokens.filter((w) => !STOP.has(w));
-    tokens = tokens.flatMap((w) => [w, stem(w)]);
+    for (const token of working) {
+      if (STOP.has(token)) continue;
+      tokensOut.push(token);
+      tokensOut.push(stem(token));
+    }
+  } else {
+    for (const token of working) tokensOut.push(token);
   }
 
-  const seq = [];
-  for (const w of tokens) {
-    seq.push(w);
-    if (SYN[w]) seq.push(SYN[w]);
+  for (const w of tokensOut) {
+    seqOut.push(w);
+    if (SYN[w]) seqOut.push(SYN[w]);
   }
 
-  return { tokens, seq };
+  return {
+    tokens: useBuffers ? tokensOut.slice() : tokensOut,
+    seq: useBuffers ? seqOut.slice() : seqOut
+  };
 }
 
 export function buildChargramsFromTokens(tokens, options) {
@@ -107,7 +145,7 @@ const computeTokenStats = (tokens) => {
  * @returns {{tokens:string[],seq:string[],ngrams:string[]|null,chargrams:string[]|null,minhashSig:number[],stats:object}}
  */
 export function tokenizeChunkText(input) {
-  const { text, mode, ext, context } = input;
+  const { text, mode, ext, context, buffers = null } = input;
   const {
     dictWords,
     dictConfig,
@@ -120,7 +158,14 @@ export function tokenizeChunkText(input) {
     chargramEnabled
   } = context;
 
-  const { tokens, seq } = buildTokenSequence({ text, mode, ext, dictWords, dictConfig });
+  const { tokens, seq } = buildTokenSequence({
+    text,
+    mode,
+    ext,
+    dictWords,
+    dictConfig,
+    buffers
+  });
 
   const ngrams = phraseEnabled ? extractNgrams(seq, phraseMinN, phraseMaxN) : null;
   let chargrams = null;

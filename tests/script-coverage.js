@@ -443,6 +443,56 @@ const actions = [
     covers: []
   },
   {
+    label: 'file-line-guard-test',
+    run: () => runNode('file-line-guard-test', path.join(root, 'tests', 'file-line-guard.js')),
+    covers: []
+  },
+  {
+    label: 'skip-minified-binary-test',
+    run: () => runNode('skip-minified-binary-test', path.join(root, 'tests', 'skip-minified-binary.js')),
+    covers: []
+  },
+  {
+    label: 'incremental-tokenization-cache-test',
+    run: () => runNode('incremental-tokenization-cache-test', path.join(root, 'tests', 'incremental-tokenization-cache.js')),
+    covers: []
+  },
+  {
+    label: 'tokenization-buffering-test',
+    run: () => runNode('tokenization-buffering-test', path.join(root, 'tests', 'tokenization-buffering.js')),
+    covers: []
+  },
+  {
+    label: 'shard-merge-test',
+    run: () => runNode('shard-merge-test', path.join(root, 'tests', 'shard-merge.js')),
+    covers: []
+  },
+  {
+    label: 'service-queue-test',
+    run: () => runNode('service-queue-test', path.join(root, 'tests', 'service-queue.js')),
+    covers: []
+  },
+  {
+    label: 'build-embeddings-cache-test',
+    run: () => runNode('build-embeddings-cache-test', path.join(root, 'tests', 'build-embeddings-cache.js')),
+    covers: []
+  },
+  {
+    label: 'embedding-batch-autotune-test',
+    run: () => runNode('embedding-batch-autotune-test', path.join(root, 'tests', 'embedding-batch-autotune.js')),
+    covers: []
+  },
+  {
+    label: 'sqlite-build-indexes-test',
+    run: () => runNode('sqlite-build-indexes-test', path.join(root, 'tests', 'sqlite-build-indexes.js')),
+    covers: []
+  },
+  {
+    label: 'two-stage-state-test',
+    run: () => runNode('two-stage-state-test', path.join(root, 'tests', 'two-stage-state.js')),
+    covers: []
+  },
+  {
     label: 'ts-jsx-fixtures',
     run: () => runNode('ts-jsx-fixtures', path.join(root, 'tests', 'ts-jsx-fixtures.js')),
     covers: []

@@ -5,19 +5,46 @@ import { sha1 } from '../../shared/hash.js';
 
 /**
  * Initialize incremental cache state for a mode.
- * @param {{repoCacheRoot:string,mode:'code'|'prose',enabled:boolean}} input
+ * @param {{repoCacheRoot:string,mode:'code'|'prose',enabled:boolean,tokenizationKey?:string,log?:(msg:string)=>void}} input
  * @returns {Promise<{enabled:boolean,incrementalDir:string,bundleDir:string,manifestPath:string,manifest:object}>}
  */
-export async function loadIncrementalState({ repoCacheRoot, mode, enabled }) {
+export async function loadIncrementalState({
+  repoCacheRoot,
+  mode,
+  enabled,
+  tokenizationKey = null,
+  log = null
+}) {
   const incrementalDir = path.join(repoCacheRoot, 'incremental', mode);
   const bundleDir = path.join(incrementalDir, 'files');
   const manifestPath = path.join(incrementalDir, 'manifest.json');
-  let manifest = { version: 1, mode, files: {} };
+  let manifest = {
+    version: 3,
+    mode,
+    tokenizationKey: tokenizationKey || null,
+    files: {},
+    shards: null
+  };
   if (enabled && fsSync.existsSync(manifestPath)) {
     try {
       const loaded = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
       if (loaded && typeof loaded === 'object') {
-        manifest = { version: loaded.version || 1, mode, files: loaded.files || {} };
+        const loadedKey = typeof loaded.tokenizationKey === 'string'
+          ? loaded.tokenizationKey
+          : null;
+        if (tokenizationKey && loadedKey !== tokenizationKey) {
+          if (typeof log === 'function') {
+            log(`[incremental] ${mode} cache reset: tokenization config changed.`);
+          }
+        } else {
+          manifest = {
+            version: loaded.version || 1,
+            mode,
+            tokenizationKey: loadedKey || tokenizationKey || null,
+            files: loaded.files || {},
+            shards: loaded.shards || null
+          };
+        }
       }
     } catch {}
   }

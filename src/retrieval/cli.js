@@ -640,6 +640,19 @@ const idxCode = runCode
 const idxRecords = runRecords
   ? loadIndexCached(recordsDir)
   : { chunkMeta: [], denseVec: null, minhash: null };
+const warnPendingState = (idx, label) => {
+  if (!emitOutput) return;
+  const state = idx?.state;
+  if (!state || useSqlite) return;
+  if (state.enrichment?.pending) {
+    console.warn(`[search] ${label} index enrichment pending (stage1).`);
+  }
+  if (annActive && state.embeddings?.enabled && state.embeddings.ready === false) {
+    console.warn(`[search] ${label} embeddings pending; ANN may be limited.`);
+  }
+};
+warnPendingState(idxCode, 'code');
+warnPendingState(idxProse, 'prose');
 const resolveDenseVector = (idx, mode) => {
   if (!idx) return null;
   if (resolvedDenseVectorMode === 'code') return idx.denseVecCode || idx.denseVec || null;

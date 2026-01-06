@@ -1,4 +1,3 @@
-import os from 'node:os';
 import yargs from 'yargs/yargs';
 
 /**
@@ -14,8 +13,9 @@ export function parseBuildArgs(rawArgs) {
     })
     .options({
       mode: { type: 'string', default: 'all' },
+      stage: { type: 'string' },
       dims: { type: 'number', default: 384 },
-      threads: { type: 'number', default: os.cpus().length },
+      threads: { type: 'number' },
       incremental: { type: 'boolean', default: false, alias: 'i' },
       'stub-embeddings': { type: 'boolean', default: false },
       watch: { type: 'boolean', default: false },

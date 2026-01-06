@@ -135,3 +135,127 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
   if (chunk.fieldTokens) delete chunk.fieldTokens;
   state.chunks.push(chunk);
 }
+
+/**
+ * Merge a shard state into the main state with doc id offsets.
+ * @param {object} target
+ * @param {object} source
+ */
+export function mergeIndexState(target, source) {
+  if (!target || !source) return;
+  const offset = target.chunks.length;
+  const srcChunks = Array.isArray(source.chunks) ? source.chunks : [];
+
+  for (let i = 0; i < srcChunks.length; i += 1) {
+    const chunk = srcChunks[i];
+    if (!chunk) continue;
+    const sourceId = Number.isFinite(chunk.id) ? chunk.id : i;
+    target.chunks.push({ ...chunk, id: offset + sourceId });
+  }
+
+  const mergeLengths = (dest, src) => {
+    if (!Array.isArray(src)) return;
+    for (let i = 0; i < src.length; i += 1) {
+      dest[offset + i] = src[i];
+    }
+  };
+
+  mergeLengths(target.docLengths, source.docLengths);
+  if (target.fieldDocLengths && source.fieldDocLengths) {
+    for (const [field, lengths] of Object.entries(source.fieldDocLengths)) {
+      if (!target.fieldDocLengths[field]) target.fieldDocLengths[field] = [];
+      mergeLengths(target.fieldDocLengths[field], lengths);
+    }
+  }
+  if (Array.isArray(source.fieldTokens)) {
+    mergeLengths(target.fieldTokens, source.fieldTokens);
+  }
+
+  if (source.df && typeof source.df.entries === 'function') {
+    for (const [token, count] of source.df.entries()) {
+      target.df.set(token, (target.df.get(token) || 0) + count);
+    }
+  }
+
+  if (source.tokenPostings && typeof source.tokenPostings.entries === 'function') {
+    for (const [token, postings] of source.tokenPostings.entries()) {
+      let dest = target.tokenPostings.get(token);
+      if (!dest) {
+        dest = [];
+        target.tokenPostings.set(token, dest);
+      }
+      for (const entry of postings || []) {
+        const docId = Array.isArray(entry) ? entry[0] : null;
+        const tf = Array.isArray(entry) ? entry[1] : null;
+        if (!Number.isFinite(docId)) continue;
+        dest.push([docId + offset, tf]);
+      }
+    }
+  }
+
+  if (source.fieldPostings) {
+    for (const [field, postingsMap] of Object.entries(source.fieldPostings)) {
+      if (!target.fieldPostings[field]) target.fieldPostings[field] = new Map();
+      if (!postingsMap || typeof postingsMap.entries !== 'function') continue;
+      for (const [token, postings] of postingsMap.entries()) {
+        let dest = target.fieldPostings[field].get(token);
+        if (!dest) {
+          dest = [];
+          target.fieldPostings[field].set(token, dest);
+        }
+        for (const entry of postings || []) {
+          const docId = Array.isArray(entry) ? entry[0] : null;
+          const tf = Array.isArray(entry) ? entry[1] : null;
+          if (!Number.isFinite(docId)) continue;
+          dest.push([docId + offset, tf]);
+        }
+      }
+    }
+  }
+
+  if (source.phrasePost && typeof source.phrasePost.entries === 'function') {
+    for (const [phrase, postingSet] of source.phrasePost.entries()) {
+      let dest = target.phrasePost.get(phrase);
+      if (!dest) {
+        dest = new Set();
+        target.phrasePost.set(phrase, dest);
+      }
+      for (const docId of postingSet || []) {
+        if (!Number.isFinite(docId)) continue;
+        dest.add(docId + offset);
+      }
+    }
+  }
+
+  if (source.triPost && typeof source.triPost.entries === 'function') {
+    for (const [gram, postingSet] of source.triPost.entries()) {
+      let dest = target.triPost.get(gram);
+      if (!dest) {
+        dest = new Set();
+        target.triPost.set(gram, dest);
+      }
+      for (const docId of postingSet || []) {
+        if (!Number.isFinite(docId)) continue;
+        dest.add(docId + offset);
+      }
+    }
+  }
+
+  if (Array.isArray(source.scannedFiles)) {
+    target.scannedFiles.push(...source.scannedFiles);
+  }
+  if (Array.isArray(source.scannedFilesTimes)) {
+    target.scannedFilesTimes.push(...source.scannedFilesTimes);
+  }
+  if (Array.isArray(source.skippedFiles)) {
+    target.skippedFiles.push(...source.skippedFiles);
+  }
+  if (Number.isFinite(source.totalTokens)) {
+    target.totalTokens += source.totalTokens;
+  }
+  if (source.fileRelations && typeof source.fileRelations.entries === 'function') {
+    for (const [file, relations] of source.fileRelations.entries()) {
+      target.fileRelations.set(file, relations);
+    }
+  }
+}

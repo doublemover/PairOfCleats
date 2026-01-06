@@ -25,7 +25,8 @@ export async function writeIndexArtifacts(input) {
     root,
     userConfig,
     incrementalEnabled,
-    fileCounts
+    fileCounts,
+    indexState
   } = input;
   const indexingConfig = userConfig?.indexing || {};
   const tokenModeRaw = indexingConfig.chunkTokenMode || 'auto';
@@ -276,6 +277,9 @@ export async function writeIndexArtifacts(input) {
   log('Writing index files...');
   const writeStart = Date.now();
   const writes = [];
+  if (indexState && typeof indexState === 'object') {
+    writes.push(writeJsonObjectFile(path.join(outDir, 'index_state.json'), indexState));
+  }
   const artifactPath = (base, compressed) => path.join(
     outDir,
     compressed ? `${base}.json.gz` : `${base}.json`
@@ -308,19 +312,32 @@ export async function writeIndexArtifacts(input) {
     writes.push(writeJsonArrayFile(artifactPath(base, false), items));
   };
 
-  enqueueJsonObject('dense_vectors_uint8', {
-    fields: { model: modelId, dims: postings.dims, scale: denseScale },
-    arrays: { vectors: postings.quantizedVectors }
-  });
+  const denseVectorsEnabled = postings.dims > 0 && postings.quantizedVectors.length;
+  if (!denseVectorsEnabled) {
+    await removeArtifact(path.join(outDir, 'dense_vectors_uint8.json'));
+    await removeArtifact(path.join(outDir, 'dense_vectors_uint8.json.gz'));
+    await removeArtifact(path.join(outDir, 'dense_vectors_doc_uint8.json'));
+    await removeArtifact(path.join(outDir, 'dense_vectors_doc_uint8.json.gz'));
+    await removeArtifact(path.join(outDir, 'dense_vectors_code_uint8.json'));
+    await removeArtifact(path.join(outDir, 'dense_vectors_code_uint8.json.gz'));
+  }
+  if (denseVectorsEnabled) {
+    enqueueJsonObject('dense_vectors_uint8', {
+      fields: { model: modelId, dims: postings.dims, scale: denseScale },
+      arrays: { vectors: postings.quantizedVectors }
+    });
+  }
   enqueueJsonArray('file_meta', fileMeta, { compressible: false });
-  enqueueJsonObject('dense_vectors_doc_uint8', {
-    fields: { model: modelId, dims: postings.dims, scale: denseScale },
-    arrays: { vectors: postings.quantizedDocVectors }
-  });
-  enqueueJsonObject('dense_vectors_code_uint8', {
-    fields: { model: modelId, dims: postings.dims, scale: denseScale },
-    arrays: { vectors: postings.quantizedCodeVectors }
-  });
+  if (denseVectorsEnabled) {
+    enqueueJsonObject('dense_vectors_doc_uint8', {
+      fields: { model: modelId, dims: postings.dims, scale: denseScale },
+      arrays: { vectors: postings.quantizedDocVectors }
+    });
+    enqueueJsonObject('dense_vectors_code_uint8', {
+      fields: { model: modelId, dims: postings.dims, scale: denseScale },
+      arrays: { vectors: postings.quantizedCodeVectors }
+    });
+  }
   if (chunkMetaUseJsonl) {
     if (chunkMetaUseShards) {
       const partsDir = path.join(outDir, 'chunk_meta.parts');
@@ -480,7 +497,8 @@ export async function writeIndexArtifacts(input) {
     embeddings: {
       dims: postings.dims,
       stub: useStubEmbeddings,
-      model: modelId
+      model: modelId,
+      enabled: denseVectorsEnabled
     },
     dictionaries: dictSummary,
     artifacts: {

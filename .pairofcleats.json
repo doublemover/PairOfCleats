@@ -13,10 +13,10 @@
   "cache": {
     "root": "",
     "runtime": {
-      "fileText": { "maxMb": 64, "ttlMs": 0 },
+      "fileText": { "maxMb": 128, "ttlMs": 0 },
       "summary": { "maxMb": 32, "ttlMs": 0 },
-      "lint": { "maxMb": 16, "ttlMs": 0 },
-      "complexity": { "maxMb": 16, "ttlMs": 0 },
+      "lint": { "maxMb": 32, "ttlMs": 0 },
+      "complexity": { "maxMb": 32, "ttlMs": 0 },
       "gitMeta": { "maxMb": 16, "ttlMs": 0 }
     }
   },
@@ -70,33 +70,38 @@
     }
   },
   "indexing": {
-    "concurrency": 4,
-    "importConcurrency": 4,
     "astDataflow": true,
     "controlFlow": true,
     "javascriptParser": "babel",
     "javascriptFlow": "auto",
-    "typescriptParser": "auto",
+    "typescriptParser": "babel",
+    "typescript": {
+      "importsOnly": false,
+      "embeddingBatchMultiplier": 2
+    },
     "pythonAst": {
       "enabled": true,
-      "workerCount": 2,
-      "maxWorkers": 2,
-      "scaleUpQueueMs": 250,
+      "workerCount": 32,
+      "maxWorkers": 32,
+      "scaleUpQueueMs": 500,
       "taskTimeoutMs": 30000,
-      "maxRetries": 1
+      "maxRetries": 2
     },
     "workerPool": {
       "enabled": "auto",
-      "maxWorkers": 2,
       "maxFileBytes": 524288,
       "idleTimeoutMs": 30000,
       "taskTimeoutMs": 60000,
-      "quantizeBatchSize": 128
+      "quantizeBatchSize": 256
+    },
+    "shards": {
+      "enabled": true,
+      "dirDepth": 0
     },
     "riskAnalysis": true,
     "riskAnalysisCrossFile": true,
-    "typeInference": false,
-    "typeInferenceCrossFile": false,
+    "typeInference": true,
+    "typeInferenceCrossFile": true,
     "postings": {
       "enablePhraseNgrams": true,
       "phraseMinN": 2,

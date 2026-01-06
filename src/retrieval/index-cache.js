@@ -12,7 +12,8 @@ const INDEX_FILES = [
   'minhash_signatures.json',
   'file_relations.json',
   'file_meta.json',
-  'filter_index.json'
+  'filter_index.json',
+  'index_state.json'
 ];
 
 const fileSignature = (filePath) => {

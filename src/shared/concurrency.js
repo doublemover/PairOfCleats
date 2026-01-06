@@ -1,14 +1,18 @@
 import PQueue from 'p-queue';
 
 /**
- * Create shared task queues for IO and CPU work.
- * @param {{ioConcurrency:number,cpuConcurrency:number}} input
- * @returns {{io:PQueue,cpu:PQueue}}
+ * Create shared task queues for IO, CPU, and embeddings work.
+ * @param {{ioConcurrency:number,cpuConcurrency:number,embeddingConcurrency?:number}} input
+ * @returns {{io:PQueue,cpu:PQueue,embedding:PQueue}}
  */
-export function createTaskQueues({ ioConcurrency, cpuConcurrency }) {
+export function createTaskQueues({ ioConcurrency, cpuConcurrency, embeddingConcurrency }) {
   const io = new PQueue({ concurrency: Math.max(1, Math.floor(ioConcurrency || 1)) });
   const cpu = new PQueue({ concurrency: Math.max(1, Math.floor(cpuConcurrency || 1)) });
-  return { io, cpu };
+  const embeddingLimit = Number.isFinite(Number(embeddingConcurrency))
+    ? Math.max(1, Math.floor(Number(embeddingConcurrency)))
+    : Math.max(1, Math.floor(cpuConcurrency || 1));
+  const embedding = new PQueue({ concurrency: embeddingLimit });
+  return { io, cpu, embedding };
 }
 
 /**
