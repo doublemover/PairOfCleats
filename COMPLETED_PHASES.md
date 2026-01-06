@@ -1413,3 +1413,89 @@ Work items:
 - [x] Enforce MAX_JSON_BYTES estimates for chunk_meta and token_postings outputs.
 - [x] Auto-switch to jsonl/sharded formats when estimates exceed limits.
 - [x] Add size guardrails test and env override documentation.
+
+## Phase 19: Performance-First Input Filtering + Caps (status: done)
+Goal: Reduce indexing I/O and memory by skipping build outputs, minified files, and binaries while enforcing per-language size/line caps.
+Work items:
+- [x] Expand default skip lists and config-driven ignore patterns for build/output dirs (add to `src/index/constants.js`, `src/index/build/ignore.js`), with explicit docs/config schema updates.
+  - [x] Add minified detection (filename heuristics + line length/ratio checks) and record skip reasons in `src/index/build/discover.js` or `src/index/build/file-processor.js`.
+  - [x] Add binary detection (null-byte/high non-text ratio sampling) before read/parse to skip large binaries quickly.
+  - [x] Verify per-language `maxBytes`/`maxLines` caps exist; if missing, add to `src/index/build/runtime.js` + `docs/config-schema.json`.
+  - [x] Add regression tests for skip reasons and per-language caps (new/updated tests under `tests/`).
+Notes:
+- Performance is the top priority: optimize for fast reject paths and low per-file overhead.
+
+## Phase 20: Aggressive Embedding Batching + Auto-Tuning (status: done)
+Goal: Maximize embedding throughput while keeping memory stable on large repos.
+Work items:
+- [x] Add an auto-tuned batch size based on model dims + available memory (`indexing.embeddingBatchSize`, `src/index/build/runtime.js`).
+- [x] Batch embeddings with adaptive sizing and throughput logging in `src/index/build/file-processor.js`.
+- [x] Ensure batching cooperates with worker pool/thread limits (avoid oversubscription on Windows).
+- [x] Add config schema + docs for new batching controls.
+- [x] Add benchmarks/tests to validate speed gains without OOM.
+Notes:
+- Favor larger batches for performance; fall back safely when memory pressure is detected.
+
+## Phase 21: Tokenization/Minhash Cache by File Hash (status: done)
+Goal: Skip tokenization and minhash for unchanged files using incremental bundles keyed by content hash.
+Work items:
+- [x] Extend incremental bundle metadata to persist tokenization/minhash outputs (and version tags) in `src/index/build/incremental.js`.
+- [x] Use file hash (content) to decide reuse in `src/index/build/file-processor.js`, skipping tokenization/minhash when unchanged.
+- [x] Add invalidation rules when tokenization config changes (segmentation, chargrams, phrase n-grams).
+- [x] Add tests for cache reuse and invalidation.
+Notes:
+- Keep hash computation cheap and avoid full-text reads when size/mtime already match.
+
+## Phase 22: SQLite Bulk Build Optimization (status: done)
+Goal: Improve SQLite build throughput with larger transactions and reduced fsyncs during build.
+Work items:
+- [x] Use WAL + `synchronous=OFF` during bulk build in `tools/build-sqlite-index.js`, then normalize to `synchronous=NORMAL` after.
+- [x] Batch inserts with larger transactions and delay index creation until after bulk inserts.
+- [x] Tune `temp_store`, `cache_size`, and `mmap_size` for build time, then reset to safe defaults.
+- [x] Add safety checks/rollback on failure to avoid partial DB corruption.
+- [x] Add performance regression tests or benchmarks for build time.
+Notes:
+- Optimize for speed during build; ensure final DB is consistent and portable.
+
+## Phase 23: Two-Stage Indexing with Immediate Searchability (status: done)
+Goal: Produce a fast sparse index first (searchable immediately), then enrich in the background.
+Work items:
+- [x] Stage 1: build tokens/postings + minimal metadata; skip tree-sitter, risk, lint, embeddings (`build_index.js`, `src/index/build/indexer.js`).
+- [x] Stage 2: background enrichment pipeline for tree-sitter/risk/lint/embeddings with partial artifact updates.
+- [x] Add artifact readiness flags so search uses the best available data and knows which enrichments are pending.
+- [x] Add queueing for background enrichment with resumable state.
+- [x] Add tests for immediate search correctness and staged enrichment.
+Notes:
+- Performance first: stage 1 should be dramatically faster on large repos.
+
+## Phase 24: Streaming Tokenization + GC Reduction (status: done)
+Goal: Reduce allocation/GC overhead in tokenization and chunk processing.
+Work items:
+- [x] Refactor tokenization to stream per file and reuse buffers (`src/index/build/tokenization.js`, `src/index/build/file-processor.js`).
+- [x] Avoid repeated string/array allocations in hot loops (chargrams/minhash).
+- [x] Add lightweight metrics for allocations/GC pressure in verbose mode.
+- [x] Add targeted tests for token correctness and performance.
+Notes:
+- Tight inner loops and fewer allocations are key to large-repo performance.
+
+## Phase 25: Sharded Indexing + Merge (dir -> language) (status: done)
+Goal: Split indexing into shards for parallelism and lower peak memory, then merge deterministically.
+Work items:
+- [x] Build a shard planner that groups by top-level directory, then by language (configurable).
+- [x] Implement per-shard index builds with a global concurrency cap and per-shard limits (Windows-safe defaults; e.g., 1 worker per dir/lang, max total threads).
+- [x] Implement deterministic merge for postings/vocab/minhash/embeddings and resolve doc_id offsets (`src/index/build/artifacts.js` + new merge helper).
+- [x] Add shard-aware incremental updates and shard cache invalidation.
+- [x] Add tests for merge correctness + Windows multi-worker stability.
+Notes:
+- Concurrency must be bounded globally on Windows to avoid worker instability.
+
+## Phase 26: Embedding Service Extension + Separate Queue (status: done)
+Goal: Decouple embeddings from indexing via an indexer-service extension with its own queue + vector cache.
+Work items:
+- [x] Add an embedding queue under service mode (`tools/indexer-service.js` or new service module) with durable cache state.
+- [x] Implement embedding workers that fetch tasks, compute vectors, and write cached outputs keyed by file hash.
+- [x] Integrate indexer to enqueue embedding tasks and ingest results asynchronously.
+- [x] Add config for worker concurrency, memory caps, and Windows-safe limits.
+- [x] Add tests for queue behavior, cache hits, and failure recovery.
+Notes:
+- Keep indexing unblocked; embeddings should not slow core build throughput.
