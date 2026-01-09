@@ -4,9 +4,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
-import { fileURLToPath } from 'node:url';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/experimental/compare/config.js';
-import { DEFAULT_MODEL_ID, getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
+import { DEFAULT_MODEL_ID, getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveSqlitePaths, resolveToolRoot } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
@@ -41,7 +40,7 @@ const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_O
 const baseEnv = resolvedNodeOptions
   ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
   : process.env;
-const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scriptRoot = resolveToolRoot();
 
 const configCompare = Array.isArray(userConfig.models?.compare) ? userConfig.models.compare : [];
 const defaultModel = userConfig.models?.id || DEFAULT_MODEL_ID;

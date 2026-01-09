@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { parseBuildArgs } from '../../index/build/args.js';
 import { buildIndexForMode } from '../../index/build/indexer.js';
 import { acquireIndexLock } from '../../index/build/lock.js';
@@ -11,15 +10,13 @@ import { watchIndex } from '../../index/build/watch.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { log as defaultLog } from '../../shared/progress.js';
 import { shutdownPythonAstPool } from '../../lang/python.js';
-import { getCacheRoot, getRepoCacheRoot, loadUserConfig, resolveRepoRoot } from '../../../tools/dict-utils.js';
+import { getCacheRoot, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveToolRoot } from '../../../tools/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../tools/service/queue.js';
 import { runBuildSqliteIndex } from '../../../tools/build-sqlite-index.js';
 import { runSearchCli } from '../../retrieval/cli.js';
 import { getStatus } from './status.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const toolRoot = path.resolve(__dirname, '..', '..', '..');
+const toolRoot = resolveToolRoot();
 const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build-embeddings.js');
 
 const buildRawArgs = (options = {}) => {
@@ -391,7 +388,7 @@ export async function buildIndex(repoRoot, options = {}) {
         return { modes, stage1: stage1Result, stage2: { queued: true, queueId: jobId }, repo: root };
       }
     }
-    const stage2ArgsWithScript = [path.join(root, 'build_index.js'), ...stage2Args];
+    const stage2ArgsWithScript = [path.join(toolRoot, 'build_index.js'), ...stage2Args];
     spawn(process.execPath, stage2ArgsWithScript, { stdio: 'ignore', detached: true }).unref();
     return { modes, stage1: stage1Result, stage2: { background: true }, repo: root };
   }

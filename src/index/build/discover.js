@@ -119,6 +119,18 @@ export async function discoverEntries({ root, ignoreMatcher, maxFileBytes = null
     entries.push({ abs: absPath, rel: relPosix, stat, ext, isSpecial });
   }
 
+  entries.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  skippedCommon.sort((a, b) => {
+    const fileA = String(a?.file || '');
+    const fileB = String(b?.file || '');
+    if (fileA < fileB) return -1;
+    if (fileA > fileB) return 1;
+    const reasonA = String(a?.reason || '');
+    const reasonB = String(b?.reason || '');
+    if (reasonA < reasonB) return -1;
+    if (reasonA > reasonB) return 1;
+    return 0;
+  });
   return { entries, skippedCommon };
 }
 

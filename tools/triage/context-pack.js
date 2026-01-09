@@ -2,9 +2,8 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { execaSync } from 'execa';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
-import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot } from '../dict-utils.js';
+import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveToolRoot } from '../dict-utils.js';
 
 const argv = createCli({
   scriptName: 'triage-context-pack',
@@ -236,7 +235,7 @@ async function loadRecord(recordsDir, recordId) {
 }
 
 function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
-  const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const scriptRoot = resolveToolRoot();
   const searchPath = path.join(scriptRoot, 'search.js');
   const args = [searchPath, query, '--mode', mode, '--json', '--top', String(top), '--repo', repoRoot];
   if (Array.isArray(metaFilters)) {

@@ -2,10 +2,9 @@
 import { execaSync } from 'execa';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot } from '../tools/dict-utils.js';
+import { getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveToolRoot } from '../tools/dict-utils.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = resolveToolRoot();
 
 const COMMANDS = new Map([
   ['build-index', { script: 'build_index.js', extraArgs: [] }],

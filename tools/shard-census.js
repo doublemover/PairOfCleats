@@ -3,9 +3,8 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
-import { loadUserConfig } from './dict-utils.js';
+import { loadUserConfig, resolveToolRoot } from './dict-utils.js';
 import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
 import { discoverFilesForModes } from '../src/index/build/discover.js';
 import { planShards } from '../src/index/build/shards.js';
@@ -20,7 +19,7 @@ const argv = createCli({
   }
 }).parse();
 
-const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scriptRoot = resolveToolRoot();
 const benchConfigPath = path.join(scriptRoot, 'benchmarks', 'repos.json');
 const benchReposRoot = path.join(scriptRoot, 'benchmarks', 'repos');
 

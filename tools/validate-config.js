@@ -2,8 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
-import { fileURLToPath } from 'node:url';
-import { resolveRepoRoot } from './dict-utils.js';
+import { resolveRepoRoot, resolveToolRoot } from './dict-utils.js';
 import { validateConfig } from '../src/config/validate.js';
 
 const argv = createCli({
@@ -18,7 +17,7 @@ const argv = createCli({
 const repoArg = argv.repo ? path.resolve(argv.repo) : null;
 const repoRoot = repoArg || resolveRepoRoot(process.cwd());
 const configPath = argv.config ? path.resolve(argv.config) : path.join(repoRoot, '.pairofcleats.json');
-const toolRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const toolRoot = resolveToolRoot();
 const schemaPath = path.join(toolRoot, 'docs', 'config-schema.json');
 
 if (!fs.existsSync(schemaPath)) {

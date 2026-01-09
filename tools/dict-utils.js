@@ -8,11 +8,14 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../src/shared/cache.js';
 import { isPlainObject, mergeConfig } from '../src/shared/config.js';
 import { getEnvConfig } from '../src/shared/env.js';
+import { stableStringify } from '../src/shared/stable-json.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROFILES_DIR = path.resolve(__dirname, '..', 'profiles');
+const TOOL_ROOT = path.resolve(__dirname, '..');
+const PROFILES_DIR = path.resolve(TOOL_ROOT, 'profiles');
 const profileWarnings = new Set();
 const deprecationWarnings = new Set();
+let toolVersionCache = null;
 const DEFAULT_DP_MAX_BY_FILE_COUNT = [
   { maxFiles: 5000, dpMaxTokenLength: 32 },
   { maxFiles: 20000, dpMaxTokenLength: 24 },
@@ -54,6 +57,44 @@ export function loadUserConfig(repoRoot, options = {}) {
   } catch {
     return {};
   }
+}
+
+/**
+ * Resolve the installation root for PairOfCleats tooling.
+ * @returns {string}
+ */
+export function resolveToolRoot() {
+  return TOOL_ROOT;
+}
+
+/**
+ * Resolve the current tool version from package.json.
+ * @returns {string|null}
+ */
+export function getToolVersion() {
+  if (toolVersionCache !== null) return toolVersionCache;
+  try {
+    const pkgPath = path.join(TOOL_ROOT, 'package.json');
+    const parsed = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    toolVersionCache = typeof parsed?.version === 'string' ? parsed.version : null;
+  } catch {
+    toolVersionCache = null;
+  }
+  return toolVersionCache;
+}
+
+/**
+ * Compute a stable hash of the effective config inputs for a repo.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @returns {string}
+ */
+export function getEffectiveConfigHash(repoRoot, userConfig = null) {
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  const env = getEnvConfig();
+  const payload = { config: cfg, env };
+  const json = stableStringify(payload);
+  return crypto.createHash('sha1').update(json).digest('hex');
 }
 
 

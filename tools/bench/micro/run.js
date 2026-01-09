@@ -1,16 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import { buildIndex } from '../../../src/integrations/core/index.js';
-import { getIndexDir, resolveRepoRoot } from '../../dict-utils.js';
+import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../dict-utils.js';
 import { formatMs, formatStats } from './utils.js';
 import { runIndexBuildBenchmark } from './index-build.js';
 import { runSearchBenchmark } from './search.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const defaultRepo = path.resolve(__dirname, '../../../tests/fixtures/sample');
+const toolRoot = resolveToolRoot();
+const defaultRepo = path.resolve(toolRoot, 'tests', 'fixtures', 'sample');
 
 const argv = yargs(hideBin(process.argv))
   .option('repo', {

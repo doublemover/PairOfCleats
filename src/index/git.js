@@ -158,6 +158,27 @@ export async function getRepoBranch(repoRoot) {
 }
 
 /**
+ * Resolve git provenance for a repo.
+ * @param {string} repoRoot
+ * @returns {Promise<{commit:string|null,dirty:boolean|null,branch:string|null,isRepo:boolean}>}
+ */
+export async function getRepoProvenance(repoRoot) {
+  try {
+    const git = simpleGit({ baseDir: repoRoot });
+    const [commitRaw, status] = await Promise.all([
+      git.revparse(['HEAD']),
+      git.status()
+    ]);
+    const commit = String(commitRaw || '').trim() || null;
+    const dirty = Array.isArray(status?.files) ? status.files.length > 0 : null;
+    const branch = status?.current || null;
+    return { commit, dirty, branch, isRepo: true };
+  } catch {
+    return { commit: null, dirty: null, branch: null, isRepo: false };
+  }
+}
+
+/**
  * Compute churn from git numstat output.
  * @param {import('simple-git').SimpleGit} git
  * @param {string} file

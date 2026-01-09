@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
-import { getMetricsDir } from '../../../tools/dict-utils.js';
-import { getRepoBranch } from '../git.js';
+import { getEffectiveConfigHash, getMetricsDir, getToolVersion } from '../../../tools/dict-utils.js';
+import { getRepoProvenance } from '../git.js';
 import { log } from '../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io.js';
 import { writeJsonArrayFile, writeJsonLinesFile, writeJsonObjectFile } from '../../shared/json-stream.js';
@@ -755,13 +756,29 @@ export async function writeIndexArtifacts(input) {
     acc[reason] = (acc[reason] || 0) + 1;
     return acc;
   }, {});
+  const toolVersion = getToolVersion();
+  const effectiveConfigHash = getEffectiveConfigHash(root, userConfig);
+  const repoProvenance = await getRepoProvenance(root);
   const metrics = {
     generatedAt: new Date().toISOString(),
+    tool: {
+      version: toolVersion,
+      node: process.version,
+      os: {
+        platform: os.platform(),
+        release: os.release(),
+        arch: os.arch()
+      },
+      configHash: effectiveConfigHash
+    },
+    repo: {
+      provenance: repoProvenance
+    },
     repoRoot: path.resolve(root),
     mode,
     indexDir: path.resolve(outDir),
     incremental: incrementalEnabled,
-    git: await getRepoBranch(root),
+    git: { branch: repoProvenance.branch, isRepo: repoProvenance.isRepo },
     cache: {
       hits: cacheHits,
       misses: cacheMisses,

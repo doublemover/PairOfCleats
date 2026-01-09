@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { execa, execaSync } from 'execa';
 import simpleGit from 'simple-git';
 import { getToolDefs } from '../src/integrations/mcp/defs.js';
@@ -21,14 +20,14 @@ import {
   getRepoId,
   loadUserConfig,
   resolveRepoRoot,
-  resolveSqlitePaths
+  resolveSqlitePaths,
+  resolveToolRoot
 } from './dict-utils.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..');
-const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const toolRoot = resolveToolRoot();
+const PKG = JSON.parse(fs.readFileSync(path.join(toolRoot, 'package.json'), 'utf8'));
 
 const TOOL_DEFS = getToolDefs(DEFAULT_MODEL_ID);
 
@@ -617,7 +616,7 @@ function maybeRestoreArtifacts(repoPath, artifactsDir, progress) {
       phase: 'start'
     });
   }
-  runNodeSync(repoPath, [path.join(ROOT, 'tools', 'ci-restore-artifacts.js'), '--repo', repoPath, '--from', fromDir]);
+  runNodeSync(repoPath, [path.join(toolRoot, 'tools', 'ci-restore-artifacts.js'), '--repo', repoPath, '--from', fromDir]);
   if (progress) {
     progress({
       message: 'CI artifacts restored.',
@@ -847,7 +846,7 @@ async function downloadModels(args = {}, context = {}) {
   const userConfig = loadUserConfig(repoPath);
   const modelConfig = getModelConfig(repoPath, userConfig);
   const model = args.model || modelConfig.id || DEFAULT_MODEL_ID;
-  const scriptArgs = [path.join(ROOT, 'tools', 'download-models.js'), '--model', model, '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'download-models.js'), '--model', model, '--repo', repoPath];
   if (args.cacheDir) scriptArgs.push('--cache-dir', args.cacheDir);
   const progress = typeof context.progress === 'function' ? context.progress : null;
   const progressLine = progress
@@ -873,7 +872,7 @@ async function downloadModels(args = {}, context = {}) {
  */
 async function downloadDictionaries(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'download-dicts.js'), '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'download-dicts.js'), '--repo', repoPath];
   if (args.lang) scriptArgs.push('--lang', String(args.lang));
   const urls = Array.isArray(args.url) ? args.url : (args.url ? [args.url] : []);
   urls.forEach((value) => scriptArgs.push('--url', String(value)));
@@ -902,7 +901,7 @@ async function downloadDictionaries(args = {}, context = {}) {
  */
 async function downloadExtensions(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'download-extensions.js'), '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'download-extensions.js'), '--repo', repoPath];
   if (args.provider) scriptArgs.push('--provider', String(args.provider));
   if (args.dir) scriptArgs.push('--dir', String(args.dir));
   if (args.out) scriptArgs.push('--out', String(args.out));
@@ -936,7 +935,7 @@ async function downloadExtensions(args = {}, context = {}) {
  */
 function verifyExtensions(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'verify-extensions.js'), '--json', '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'verify-extensions.js'), '--json', '--repo', repoPath];
   if (args.provider) scriptArgs.push('--provider', String(args.provider));
   if (args.dir) scriptArgs.push('--dir', String(args.dir));
   if (args.path) scriptArgs.push('--path', String(args.path));
@@ -992,7 +991,7 @@ async function buildSqliteIndex(args = {}, context = {}) {
  */
 async function compactSqliteIndex(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'compact-sqlite-index.js'), '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'compact-sqlite-index.js'), '--repo', repoPath];
   if (args.mode) scriptArgs.push('--mode', String(args.mode));
   if (args.dryRun === true) scriptArgs.push('--dry-run');
   if (args.keepBackup === true) scriptArgs.push('--keep-backup');
@@ -1013,7 +1012,7 @@ async function compactSqliteIndex(args = {}, context = {}) {
  */
 function cacheGc(args = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'cache-gc.js'), '--json', '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'cache-gc.js'), '--json', '--repo', repoPath];
   if (args.dryRun === true) scriptArgs.push('--dry-run');
   if (Number.isFinite(Number(args.maxBytes))) scriptArgs.push('--max-bytes', String(args.maxBytes));
   if (Number.isFinite(Number(args.maxGb))) scriptArgs.push('--max-gb', String(args.maxGb));
@@ -1033,7 +1032,7 @@ function cacheGc(args = {}) {
  */
 async function cleanArtifacts(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'clean-artifacts.js'), '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'clean-artifacts.js'), '--repo', repoPath];
   if (args.all === true) scriptArgs.push('--all');
   if (args.dryRun === true) scriptArgs.push('--dry-run');
   const stdout = await runToolWithProgress({
@@ -1053,7 +1052,7 @@ async function cleanArtifacts(args = {}, context = {}) {
  */
 async function runBootstrap(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
-  const scriptArgs = [path.join(ROOT, 'tools', 'bootstrap.js'), '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'bootstrap.js'), '--repo', repoPath];
   if (args.skipInstall === true) scriptArgs.push('--skip-install');
   if (args.skipDicts === true) scriptArgs.push('--skip-dicts');
   if (args.skipIndex === true) scriptArgs.push('--skip-index');
@@ -1095,7 +1094,7 @@ async function triageIngest(args = {}, context = {}) {
   }
   const resolvedInput = path.isAbsolute(inputPath) ? inputPath : path.join(repoPath, inputPath);
   const metaFilters = normalizeMetaFilters(args.meta);
-  const ingestArgs = [path.join(ROOT, 'tools', 'triage', 'ingest.js'), '--source', source, '--in', resolvedInput];
+  const ingestArgs = [path.join(toolRoot, 'tools', 'triage', 'ingest.js'), '--source', source, '--in', resolvedInput];
   ingestArgs.push('--repo', repoPath);
   if (Array.isArray(metaFilters)) {
     metaFilters.forEach((entry) => ingestArgs.push('--meta', entry));
@@ -1142,7 +1141,7 @@ function triageDecision(args = {}) {
     throw new Error('finding and status are required.');
   }
   const metaFilters = normalizeMetaFilters(args.meta);
-  const decisionArgs = [path.join(ROOT, 'tools', 'triage', 'decision.js'), '--finding', finding, '--status', status];
+  const decisionArgs = [path.join(toolRoot, 'tools', 'triage', 'decision.js'), '--finding', finding, '--status', status];
   decisionArgs.push('--repo', repoPath);
   if (args.justification) decisionArgs.push('--justification', String(args.justification));
   if (args.reviewer) decisionArgs.push('--reviewer', String(args.reviewer));
@@ -1167,7 +1166,7 @@ async function triageContextPack(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
   const recordId = String(args.recordId || '').trim();
   if (!recordId) throw new Error('recordId is required.');
-  const contextArgs = [path.join(ROOT, 'tools', 'triage', 'context-pack.js'), '--record', recordId];
+  const contextArgs = [path.join(toolRoot, 'tools', 'triage', 'context-pack.js'), '--record', recordId];
   contextArgs.push('--repo', repoPath);
   if (args.outPath) contextArgs.push('--out', String(args.outPath));
   if (args.ann === true) contextArgs.push('--ann');

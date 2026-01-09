@@ -453,6 +453,11 @@ const actions = [
     covers: []
   },
   {
+    label: 'tool-root-test',
+    run: () => runNode('tool-root-test', path.join(root, 'tests', 'tool-root.js')),
+    covers: []
+  },
+  {
     label: 'file-size-guard-test',
     run: () => runNode('file-size-guard-test', path.join(root, 'tests', 'file-size-guard.js')),
     covers: []

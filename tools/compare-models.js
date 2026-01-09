@@ -4,7 +4,6 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execaSync } from 'execa';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/experimental/compare/config.js';
@@ -18,7 +17,8 @@ import {
   loadUserConfig,
   resolveNodeOptions,
   resolveRepoRoot,
-  resolveSqlitePaths
+  resolveSqlitePaths,
+  resolveToolRoot
 } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
@@ -50,7 +50,7 @@ const argv = createCli({
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
-const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scriptRoot = resolveToolRoot();
 const userConfig = loadUserConfig(root, { profile: argv.profile });
 if (userConfig.profile !== 'full') {
   console.error('compare-models is experimental. Run with profile=full or set PAIROFCLEATS_PROFILE=full.');

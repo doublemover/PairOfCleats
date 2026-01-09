@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
 import { execaSync } from 'execa';
-import { getIndexDir, loadUserConfig } from './dict-utils.js';
+import { getIndexDir, loadUserConfig, resolveToolRoot } from './dict-utils.js';
 
 const argv = createCli({
   scriptName: 'bench-score-strategy',
@@ -23,6 +23,7 @@ const argv = createCli({
   }
 }).parse();
 
+const toolRoot = resolveToolRoot();
 const root = process.cwd();
 const repoSource = path.resolve(
   argv.repo || path.join(root, 'tests', 'fixtures', 'sample')
@@ -131,7 +132,7 @@ const originalConfig = configExisted ? await fsPromises.readFile(configPath, 'ut
 const userConfig = loadUserConfig(workRoot);
 const indexExists = hasIndexArtifacts(workRoot, userConfig);
 if (!indexExists || buildRequested) {
-  const buildArgs = [path.join(root, 'build_index.js'), '--repo', workRoot];
+  const buildArgs = [path.join(toolRoot, 'build_index.js'), '--repo', workRoot];
   if (useStubEmbeddings) buildArgs.push('--stub-embeddings');
   runCommand('build index', buildArgs, envBase);
 }
@@ -149,7 +150,7 @@ function mean(values) {
 
 function runSearch(query, annFlag) {
   const args = [
-    path.join(root, 'search.js'),
+    path.join(toolRoot, 'search.js'),
     query,
     '--repo',
     workRoot,

@@ -2,9 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
-import { resolveRepoRoot, getCacheRoot } from './dict-utils.js';
+import { resolveRepoRoot, getCacheRoot, resolveToolRoot } from './dict-utils.js';
 import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './service/config.js';
 import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary, resolveQueueName } from './service/queue.js';
 import { ensureRepo, resolveRepoPath } from './service/repos.js';
@@ -52,11 +51,10 @@ const resolveRepoEntry = (repoArg) => {
 
 const formatJobId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const toolRoot = resolveToolRoot();
 
 const runBuildIndex = (repoPath, mode, stage, extraArgs = null) => new Promise((resolve) => {
-  const buildPath = path.join(path.resolve(__dirname, '..'), 'build_index.js');
+  const buildPath = path.join(toolRoot, 'build_index.js');
   const args = [buildPath];
   if (Array.isArray(extraArgs) && extraArgs.length) {
     args.push(...extraArgs);
@@ -70,7 +68,7 @@ const runBuildIndex = (repoPath, mode, stage, extraArgs = null) => new Promise((
 });
 
 const runBuildEmbeddings = (repoPath, mode, extraEnv = {}) => new Promise((resolve) => {
-  const buildPath = path.join(path.resolve(__dirname, '..'), 'tools', 'build-embeddings.js');
+  const buildPath = path.join(toolRoot, 'tools', 'build-embeddings.js');
   const args = [buildPath, '--repo', repoPath];
   if (mode && mode !== 'both') args.push('--mode', mode);
   const child = spawn(process.execPath, args, { stdio: 'inherit', env: { ...process.env, ...extraEnv } });
@@ -207,7 +205,7 @@ const handleWork = async () => {
 };
 
 const handleServe = async () => {
-  const apiPath = path.join(path.resolve(__dirname, '..'), 'tools', 'api-server.js');
+  const apiPath = path.join(toolRoot, 'tools', 'api-server.js');
   const repoArg = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
   const child = spawn(process.execPath, [apiPath, '--repo', repoArg], { stdio: 'inherit' });
   child.on('exit', (code) => process.exit(code ?? 0));

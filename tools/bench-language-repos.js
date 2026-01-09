@@ -8,8 +8,7 @@ import { execa, execaSync } from 'execa';
 import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../src/shared/cli-options.js';
-import { fileURLToPath } from 'node:url';
-import { getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions } from './dict-utils.js';
+import { getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveToolRoot } from './dict-utils.js';
 import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
 import { discoverFilesForModes } from '../src/index/build/discover.js';
 import { toPosix } from '../src/shared/files.js';
@@ -46,7 +45,7 @@ const argv = createCli({
 }).parse();
 validateBenchArgs(argv);
 
-const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scriptRoot = resolveToolRoot();
 const configPath = path.resolve(argv.config || path.join(scriptRoot, 'benchmarks', 'repos.json'));
 const reposRoot = path.resolve(argv.root || path.join(scriptRoot, 'benchmarks', 'repos'));
 const cacheRootBase = path.resolve(argv['cache-root'] || path.join(scriptRoot, 'benchmarks', 'cache'));
