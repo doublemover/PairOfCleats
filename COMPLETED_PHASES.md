@@ -1,6 +1,6 @@
 # Completed Phases
 
-Completed phases moved out of `COMPLETE_PLAN.md` live here. Append new completed phases to the end to keep updates simple.
+Completed phases moved out of `NEW_ROADMAP.md` live here. Append new completed phases to the end to keep updates simple.
 
 ## Baseline goals (status: done)
 - [x] Per-repo indexing with a central cache outside the repo.
@@ -396,7 +396,7 @@ Note: Captured for reference; implemented in the current codebase.
 
 
 ## Phase 29: MCP + Docs Quality (status: done)
-- [x] Refresh `ROADMAP.md` or mark it as historical to avoid contradicting `COMPLETE_PLAN.md`.
+- [x] Refresh `ROADMAP.md` or mark it as historical to avoid contradicting `NEW_ROADMAP.md`.
 - [x] Add async MCP build support (stream output vs `spawnSync`) and document error payloads.
 - [x] Add MCP error-path tests (invalid repo path, missing indexes).
 - [x] Add a docs consistency test to catch stale plan/roadmap references.
@@ -659,7 +659,7 @@ Goal: Ensure new refactors are covered and documentation matches current behavio
 Work items:
 - [x] Add tests for index validation and docstring extraction updates.
 - [x] Refresh README maintenance/setup sections to include new tooling.
-- [x] Confirm `COMPLETE_PLAN.md` statuses are updated after each phase.
+- [x] Confirm `NEW_ROADMAP.md` statuses are updated after each phase.
 
 
 ## Phase 57: Dictionary Tokenization Robustness (status: done)
@@ -814,7 +814,7 @@ Work items:
 - [x] docs/api-server.md + docs/mcp-server.md: verify endpoints, request/response payloads, streaming behavior, and build/search flags; add samples.
 - [x] docs/config-schema.json: audit every documented config key against actual usage; add/adjust schema descriptions where missing.
 - [x] docs/combined-summary.json / model-compare*.json: verify sample reports are current or regenerate with placeholder notes (no stale fields).
-- [x] ROADMAP.md: ensure "historical" status and link to COMPLETE_PLAN; remove stale roadmap items.
+- [x] ROADMAP.md: ensure "historical" status and link to NEW_ROADMAP; remove stale roadmap items.
 
 
 ## Phase 69: Deps Fixes - JSON-RPC + LSP Protocol Dependencies (status: done)
@@ -950,7 +950,7 @@ Work items:
 - README: make sections collapsible (tests, maintenance, cache layout, design docs).
 - Docs: sync `docs/setup.md`, `docs/editor-integration.md`, `docs/sqlite-*.md`, `docs/ast-feature-list.md`, `docs/language-fidelity.md`, `docs/repometrics-dashboard.md`, `docs/api-server.md`, `docs/mcp-server.md`.
 - `docs/config-schema.json`: audit keys vs actual config usage and add missing descriptions.
-- `ROADMAP.md`: ensure it links to `COMPLETE_PLAN.md` and removes stale items.
+- `ROADMAP.md`: ensure it links to `NEW_ROADMAP.md` and removes stale items.
 
 
 ### Phase 69 details

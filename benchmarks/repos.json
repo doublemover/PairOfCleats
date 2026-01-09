@@ -1,130 +1,4 @@
 {
-  "python": {
-    "label": "Python",
-    "queries": "benchmarks/queries/python.txt",
-    "repos": {
-      "large": [
-        "ansible/ansible",
-        "saltstack/salt"
-      ],
-      "typical": [
-        "psf/requests"
-      ]
-    }
-  },
-  "swift": {
-    "label": "Swift",
-    "queries": "benchmarks/queries/swift.txt",
-    "repos": {
-      "large": [
-        "apple/swift",
-        "apple/swift-nio",
-        "Alamofire/Alamofire"
-      ],
-      "typical": []
-    }
-  },
-  "rust": {
-    "label": "Rust",
-    "queries": "benchmarks/queries/rust.txt",
-    "repos": {
-      "large": [
-        "rust-lang/rust",
-        "servo/servo"
-      ],
-      "typical": [
-        "BurntSushi/ripgrep"
-      ]
-    }
-  },
-  "clike": {
-    "label": "C / C++ / Objective-C",
-    "queries": "benchmarks/queries/clike.txt",
-    "repos": {
-      "large": [
-        "llvm/llvm-project",
-        "opencv/opencv",
-        "curl/curl"
-      ],
-      "typical": []
-    }
-  },
-  "go": {
-    "label": "Go",
-    "queries": "benchmarks/queries/go.txt",
-    "repos": {
-      "large": [
-        "kubernetes/kubernetes",
-        "prometheus/prometheus"
-      ],
-      "typical": [
-        "gin-gonic/gin"
-      ]
-    }
-  },
-  "java": {
-    "label": "Java",
-    "queries": "benchmarks/queries/java.txt",
-    "repos": {
-      "large": [
-        "apache/kafka",
-        "elastic/elasticsearch",
-        "spring-projects/spring-boot"
-      ],
-      "typical": []
-    }
-  },
-  "csharp": {
-    "label": "C#",
-    "queries": "benchmarks/queries/csharp.txt",
-    "repos": {
-      "large": [
-        "dotnet/runtime",
-        "dotnet/roslyn",
-        "AutoMapper/AutoMapper"
-      ],
-      "typical": []
-    }
-  },
-  "kotlin": {
-    "label": "Kotlin",
-    "queries": "benchmarks/queries/kotlin.txt",
-    "repos": {
-      "large": [
-        "JetBrains/kotlin",
-        "ktorio/ktor",
-        "Kotlin/kotlinx.coroutines"
-      ],
-      "typical": [
-      ]
-    }
-  },
-  "ruby": {
-    "label": "Ruby",
-    "queries": "benchmarks/queries/ruby.txt",
-    "repos": {
-      "large": [
-        "rails/rails",
-        "discourse/discourse"
-      ],
-      "typical": [
-        "jekyll/jekyll"
-      ]
-    }
-  },
-  "php": {
-    "label": "PHP",
-    "queries": "benchmarks/queries/php.txt",
-    "repos": {
-      "large": [
-        "laravel/framework",
-        "symfony/symfony",
-        "composer/composer"
-      ],
-      "typical": [
-      ]
-    }
-  },
   "lua": {
     "label": "Lua",
     "queries": "benchmarks/queries/lua.txt",
@@ -135,19 +9,6 @@
       ],
       "typical": [
         "luarocks/luarocks"
-      ]
-    }
-  },
-  "sql": {
-    "label": "SQL",
-    "queries": "benchmarks/queries/sql.txt",
-    "repos": {
-      "large": [
-        "postgres/postgres",
-        "mysql/mysql-server"
-      ],
-      "typical": [
-        "dbt-labs/jaffle_shop"
       ]
     }
   },
@@ -173,6 +34,166 @@
       ],
       "typical": [
         "bash-it/bash-it"
+      ]
+    }
+  },
+  "ruby": {
+    "label": "Ruby",
+    "queries": "benchmarks/queries/ruby.txt",
+    "repos": {
+      "problematic": [
+        "rails/rails"
+      ],
+      "large": [
+        "discourse/discourse"
+      ],
+      "typical": [
+        "jekyll/jekyll"
+      ]
+    }
+  },
+  "php": {
+    "label": "PHP",
+    "queries": "benchmarks/queries/php.txt",
+    "repos": {
+      "huge": [
+        "symfony/symfony",
+        "laravel/framework"
+      ],
+      "large": [
+        "composer/composer"
+      ],
+      "typical": [
+      ]
+    }
+  },
+  "sql": {
+    "label": "SQL",
+    "queries": "benchmarks/queries/sql.txt",
+    "repos": {
+      "huge": [
+        "mysql/mysql-server",
+        "postgres/postgres"
+      ],
+      "large": [
+        
+      ],
+      "typical": [
+        "dbt-labs/jaffle_shop"
+      ]
+    }
+  },
+  "python": {
+    "label": "Python",
+    "queries": "benchmarks/queries/python.txt",
+    "repos": {
+      "large": [
+        "ansible/ansible",
+        "saltstack/salt"
+      ],
+      "typical": [
+        "psf/requests"
+      ]
+    }
+  },
+  "swift": {
+    "label": "Swift",
+    "queries": "benchmarks/queries/swift.txt",
+    "repos": {
+      "huge": [
+        "apple/swift",
+        "Alamofire/Alamofire"
+      ],
+      "large": [
+        "apple/swift-nio"
+      ],
+      "typical": []
+    }
+  },
+  "rust": {
+    "label": "Rust",
+    "queries": "benchmarks/queries/rust.txt",
+    "repos": {
+      "huge": [
+        "rust-lang/rust",
+        "servo/servo"
+      ],
+      "typical": [
+        "BurntSushi/ripgrep"
+      ]
+    }
+  },
+  "clike": {
+    "label": "C / C++ / Objective-C",
+    "queries": "benchmarks/queries/clike.txt",
+    "repos": {
+      "huge": [
+        "llvm/llvm-project",
+        "opencv/opencv"
+      ],
+      "large": [
+        "curl/curl"
+      ],
+      "typical": []
+    }
+  },
+  "go": {
+    "label": "Go",
+    "queries": "benchmarks/queries/go.txt",
+    "repos": {
+      "huge": [
+        "kubernetes/kubernetes",
+        "prometheus/prometheus"
+      ],
+      "large": [
+        
+      ],
+      "typical": [
+        "gin-gonic/gin"
+      ]
+    }
+  },
+  "java": {
+    "label": "Java",
+    "queries": "benchmarks/queries/java.txt",
+    "repos": {
+      "huge": [
+        "elastic/elasticsearch",
+        "apache/kafka",
+        "spring-projects/spring-boot"
+      ],
+      "large": [
+        
+      ],
+      "typical": []
+    }
+  },
+  "csharp": {
+    "label": "C#",
+    "queries": "benchmarks/queries/csharp.txt",
+    "repos": {
+      "huge": [
+        "dotnet/runtime",
+        "dotnet/roslyn"
+      ],
+      "large": [
+        "AutoMapper/AutoMapper"
+      ],
+      "typical": []
+    }
+  },
+  "kotlin": {
+    "label": "Kotlin",
+    "queries": "benchmarks/queries/kotlin.txt",
+    "repos": {
+      "huge": [
+        "JetBrains/kotlin"
+      ],
+      "large": [
+        "ktorio/ktor",
+        "Kotlin/kotlinx.coroutines"
+      ],
+      "typical": [
       ]
     }
   },

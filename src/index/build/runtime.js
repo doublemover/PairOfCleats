@@ -232,8 +232,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     : 0;
   if (!embeddingBatchSize) {
     const totalGb = os.totalmem() / (1024 ** 3);
-    const autoBatch = Math.floor(totalGb * 32);
-    embeddingBatchSize = Math.min(128, Math.max(32, autoBatch));
+    const autoBatch = Math.floor(totalGb * 16);
+    embeddingBatchSize = Math.min(128, Math.max(16, autoBatch));
   }
   const embeddingsConfig = indexingConfig.embeddings || {};
   const embeddingQueueConfig = embeddingsConfig.queue || {};

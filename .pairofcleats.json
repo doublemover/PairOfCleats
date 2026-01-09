@@ -75,20 +75,27 @@
     "javascriptParser": "babel",
     "javascriptFlow": "auto",
     "typescriptParser": "babel",
+    "treeSitter": {
+      "enabled": true
+    },
+    "lint": true,
+    "complexity": true,
+    "riskAnalysis": true,
     "typescript": {
       "importsOnly": false,
-      "embeddingBatchMultiplier": 2
+      "embeddingBatchMultiplier": 4
     },
     "pythonAst": {
       "enabled": true,
-      "workerCount": 32,
-      "maxWorkers": 32,
-      "scaleUpQueueMs": 500,
+      "workerCount": 16,
+      "maxWorkers": 16,
+      "scaleUpQueueMs": 1000,
       "taskTimeoutMs": 30000,
       "maxRetries": 2
     },
     "workerPool": {
       "enabled": "auto",
+      "maxThreads": 16,
       "maxFileBytes": 524288,
       "idleTimeoutMs": 30000,
       "taskTimeoutMs": 60000,
@@ -96,7 +103,7 @@
     },
     "shards": {
       "enabled": true,
-      "dirDepth": 0
+      "dirDepth": 4
     },
     "riskAnalysis": true,
     "riskAnalysisCrossFile": true,

@@ -1,6 +1,6 @@
 # Codebase Review (Temporary)
 
-This document captures mistakes, enhancement ideas, and refactoring opportunities by phase. It will be used to update `COMPLETE_PLAN.md` and then removed.
+This document captures mistakes, enhancement ideas, and refactoring opportunities by phase. It will be used to update `NEW_ROADMAP.md` and then removed.
 
 ## Phase 1: Indexing Core (build_index + indexer/shared)
 
@@ -113,7 +113,7 @@ Risks/notes:
 ## Phase 6: MCP + Tests + Docs
 
 Mistakes:
-- `ROADMAP.md` is stale (still lists CFG/dataflow + type inference as pending despite completion in `COMPLETE_PLAN.md`).
+- `ROADMAP.md` is stale (still lists CFG/dataflow + type inference as pending despite completion in `NEW_ROADMAP.md`).
 
 Enhancements:
 - MCP server now streams build/index tasks via async subprocesses; add troubleshooting guidance for progress output if needed.

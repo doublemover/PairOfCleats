@@ -1,0 +1,992 @@
+{
+  "generated": "2026-01-08T07:26:06.037986Z",
+  "project": "https://github.com/doublemover/PairOfCleats",
+  "package_count": 57,
+  "link_count": 117,
+  "packages": [
+    {
+      "package": "@ast-grep/napi",
+      "area": "Pattern-based AST search (high-performance)",
+      "sheet": "deps/ast-grep-napi.md",
+      "links": [
+        {
+          "package": "@ast-grep/napi",
+          "desc": "JavaScript API (parse, findAll, replace; AST access via N-API)",
+          "url": "https://ast-grep.github.io/guide/api-usage/js-api.html"
+        },
+        {
+          "package": "@ast-grep/napi",
+          "desc": "Performance tip (avoid per-node JS\u2194Rust FFI calls; prefer findAll)",
+          "url": "https://ast-grep.github.io/guide/api-usage/performance-tip.html"
+        },
+        {
+          "package": "@ast-grep/napi",
+          "desc": "Rule configuration essentials (patterns, constraints, utilities)",
+          "url": "https://ast-grep.github.io/guide/rule-config.html"
+        }
+      ]
+    },
+    {
+      "package": "@astrojs/compiler",
+      "area": "Framework parsing (Astro)",
+      "sheet": "deps/astrojs-compiler.md",
+      "links": [
+        {
+          "package": "@astrojs/compiler",
+          "desc": "Compiler package README (parse, transform; AST + loc mapping)",
+          "url": "https://github.com/withastro/compiler/blob/main/packages/compiler/README.md"
+        },
+        {
+          "package": "@astrojs/compiler",
+          "desc": "Source: compiler package folder (API surface; wasm constraints)",
+          "url": "https://github.com/withastro/compiler/tree/main/packages/compiler"
+        }
+      ]
+    },
+    {
+      "package": "@babel/traverse",
+      "area": "AST traversal (JS/TS/ESTree/Babel AST)",
+      "sheet": "deps/babel-traverse.md",
+      "links": [
+        {
+          "package": "@babel/traverse",
+          "desc": "Babel traverse docs (visitors, NodePath, scope, state)",
+          "url": "https://babeljs.io/docs/babel-traverse"
+        },
+        {
+          "package": "@babel/traverse",
+          "desc": "Plugin handbook (visitor patterns; avoiding perf pitfalls)",
+          "url": "https://babeljs.io/docs/en/plugins#plugin-development"
+        }
+      ]
+    },
+    {
+      "package": "@es-joy/jsdoccomment",
+      "area": "JSDoc comment parsing and conversion",
+      "sheet": "deps/es-joy-jsdoccomment.md",
+      "links": [
+        {
+          "package": "@es-joy/jsdoccomment",
+          "desc": "README: parseComment + tokenization options (preserve tag structure)",
+          "url": "https://github.com/es-joy/jsdoccomment#readme"
+        },
+        {
+          "package": "@es-joy/jsdoccomment",
+          "desc": "README: commentParserToESTree (convert JSDoc to ESTree nodes)",
+          "url": "https://github.com/es-joy/jsdoccomment#commentparsertosestree"
+        }
+      ]
+    },
+    {
+      "package": "@handlebars/parser",
+      "area": "Template parsing (Handlebars)",
+      "sheet": "deps/handlebars-parser.md",
+      "links": [
+        {
+          "package": "@handlebars/parser",
+          "desc": "Compiler API: parseWithoutProcessing \u2192 Handlebars AST (stable parsing entrypoint)",
+          "url": "https://github.com/handlebars-lang/handlebars.js/blob/master/docs/compiler-api.md"
+        }
+      ]
+    },
+    {
+      "package": "@mdx-js/mdx",
+      "area": "MDX parsing/compilation",
+      "sheet": "deps/mdx-js-mdx.md",
+      "links": [
+        {
+          "package": "@mdx-js/mdx",
+          "desc": "MDX core compiler docs (compile/evaluate; plugin hooks)",
+          "url": "https://mdxjs.com/packages/mdx/"
+        },
+        {
+          "package": "@mdx-js/mdx",
+          "desc": "Extending MDX (remark/rehype plugins; creating transforms)",
+          "url": "https://mdxjs.com/docs/extending-mdx/"
+        },
+        {
+          "package": "@mdx-js/mdx",
+          "desc": "remark-mdx syntax plugin docs (MDX syntax inside unified)",
+          "url": "https://mdxjs.com/packages/remark-mdx/"
+        }
+      ]
+    },
+    {
+      "package": "@swc/core",
+      "area": "Fast parsing/transform (JS/TS)",
+      "sheet": "deps/swc-core.md",
+      "links": [
+        {
+          "package": "@swc/core",
+          "desc": "Core usage docs (parse/transform; syntax options)",
+          "url": "https://swc.rs/docs/usage/core"
+        },
+        {
+          "package": "@swc/core",
+          "desc": "Configuration reference (parser syntax settings; TS/JSX/Decorators)",
+          "url": "https://swc.rs/docs/configuration/compilation"
+        }
+      ]
+    },
+    {
+      "package": "@typescript-eslint/typescript-estree",
+      "area": "Parsing (TS/JS \u2192 ESTree) + typed services",
+      "sheet": "deps/typescript-eslint-typescript-estree.md",
+      "links": [
+        {
+          "package": "@typescript-eslint/typescript-estree",
+          "desc": "Package docs (AST, tokens/comments, services, parse options)",
+          "url": "https://typescript-eslint.io/packages/typescript-estree/"
+        },
+        {
+          "package": "@typescript-eslint/typescript-estree",
+          "desc": "Typed linting / project configuration guidance (project, tsconfigRootDir, performance pitfalls)",
+          "url": "https://typescript-eslint.io/troubleshooting/typed-linting/"
+        },
+        {
+          "package": "@typescript-eslint/typescript-estree",
+          "desc": "Source: parser entrypoint (parse / parseAndGenerateServices implementation details)",
+          "url": "https://github.com/typescript-eslint/typescript-eslint/blob/main/packages/typescript-estree/src/parser.ts"
+        }
+      ]
+    },
+    {
+      "package": "@vscode/ripgrep",
+      "area": "Fast text search integration",
+      "sheet": "deps/vscode-ripgrep.md",
+      "links": [
+        {
+          "package": "@vscode/ripgrep",
+          "desc": "README: rgPath export + usage example (spawn rg; parse output)",
+          "url": "https://github.com/microsoft/vscode-ripgrep#usage-example"
+        },
+        {
+          "package": "@vscode/ripgrep",
+          "desc": "Ripgrep guide (flags, -json output, performance knobs)",
+          "url": "https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md"
+        }
+      ]
+    },
+    {
+      "package": "@vue/compiler-sfc",
+      "area": "Framework parsing (Vue SFC)",
+      "sheet": "deps/vue-compiler-sfc.md",
+      "links": [
+        {
+          "package": "@vue/compiler-sfc",
+          "desc": "Vue SFC tooling API overview (parse/compileScript/compileTemplate)",
+          "url": "https://vuejs.org/api/sfc-tooling.html"
+        },
+        {
+          "package": "@vue/compiler-sfc",
+          "desc": "Source: parse() implementation (descriptor blocks + loc mapping)",
+          "url": "https://github.com/vuejs/core/blob/main/packages/compiler-sfc/src/parse.ts"
+        },
+        {
+          "package": "@vue/compiler-sfc",
+          "desc": "Source: compileScript() (script setup transforms; binding metadata)",
+          "url": "https://github.com/vuejs/core/blob/main/packages/compiler-sfc/src/compileScript.ts"
+        }
+      ]
+    },
+    {
+      "package": "aho-corasick",
+      "area": "Multi-pattern search / dictionary matching",
+      "sheet": "deps/aho-corasick.md",
+      "links": [
+        {
+          "package": "aho-corasick",
+          "desc": "Reference implementation + API examples (build automaton; search)",
+          "url": "https://github.com/spencermountain/aho_corasick#readme"
+        },
+        {
+          "package": "aho-corasick",
+          "desc": "Alternative high-perf wrapper (Rust daachorse via Node bindings)",
+          "url": "https://github.com/BlackGlory/aho-corasick#readme"
+        }
+      ]
+    },
+    {
+      "package": "ajv",
+      "area": "Config validation / schema enforcement",
+      "sheet": "deps/ajv.md",
+      "links": [
+        {
+          "package": "ajv",
+          "desc": "Options reference (strict, allErrors, removeAdditional, useDefaults, unevaluatedProperties)",
+          "url": "https://ajv.js.org/options.html"
+        },
+        {
+          "package": "ajv",
+          "desc": "Getting started / schema compilation patterns (compile once; reuse validators)",
+          "url": "https://ajv.js.org/guide/getting-started.html"
+        }
+      ]
+    },
+    {
+      "package": "better-sqlite3",
+      "area": "SQLite storage backend",
+      "sheet": "deps/better-sqlite3.md",
+      "links": [
+        {
+          "package": "better-sqlite3",
+          "desc": "API docs (transactions, pragmas, prepared statements)",
+          "url": "https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md"
+        },
+        {
+          "package": "better-sqlite3",
+          "desc": "Performance guide (WAL, pragmas, patterns)",
+          "url": "https://github.com/WiseLibs/better-sqlite3/blob/master/docs/performance.md"
+        }
+      ]
+    },
+    {
+      "package": "chardet",
+      "area": "Encoding detection",
+      "sheet": "deps/chardet.md",
+      "links": [
+        {
+          "package": "chardet",
+          "desc": "README: detect/detectFile APIs + confidence scores",
+          "url": "https://github.com/runk/node-chardet#readme"
+        }
+      ]
+    },
+    {
+      "package": "chokidar",
+      "area": "File watching / incremental indexing",
+      "sheet": "deps/chokidar.md",
+      "links": [
+        {
+          "package": "chokidar",
+          "desc": "README: API + watch options (ignored, awaitWriteFinish, atomic)",
+          "url": "https://github.com/paulmillr/chokidar#readme"
+        },
+        {
+          "package": "chokidar",
+          "desc": "awaitWriteFinish caveats (edge cases; tuning guidance)",
+          "url": "https://github.com/paulmillr/chokidar/issues/513"
+        }
+      ]
+    },
+    {
+      "package": "dockerfile-ast",
+      "area": "Dockerfile parsing",
+      "sheet": "deps/dockerfile-ast.md",
+      "links": [
+        {
+          "package": "dockerfile-ast",
+          "desc": "Repo README: parsing & AST access (instructions, args, env, etc.)",
+          "url": "https://github.com/rcjsuen/dockerfile-ast#readme"
+        },
+        {
+          "package": "dockerfile-ast",
+          "desc": "CodeSandbox examples (quick-start runnable parsers)",
+          "url": "https://codesandbox.io/examples/package/dockerfile-ast"
+        }
+      ]
+    },
+    {
+      "package": "esquery",
+      "area": "AST querying (selectors over ESTree)",
+      "sheet": "deps/esquery.md",
+      "links": [
+        {
+          "package": "esquery",
+          "desc": "Selector syntax reference (queries over ESTree; :matches/:has, etc.)",
+          "url": "https://github.com/estools/esquery#selectors"
+        },
+        {
+          "package": "esquery",
+          "desc": "Examples of selector usage (practical query patterns)",
+          "url": "https://github.com/estools/esquery#examples"
+        }
+      ]
+    },
+    {
+      "package": "execa",
+      "area": "Process execution",
+      "sheet": "deps/execa.md",
+      "links": [
+        {
+          "package": "execa",
+          "desc": "API reference (stdio, all, reject, cleanup, pipes)",
+          "url": "https://github.com/sindresorhus/execa/blob/main/docs/api.md"
+        }
+      ]
+    },
+    {
+      "package": "fast-xml-parser",
+      "area": "XML parsing",
+      "sheet": "deps/fast-xml-parser.md",
+      "links": [
+        {
+          "package": "fast-xml-parser",
+          "desc": "Parsing options (attributes, namespaces, preserveOrder)",
+          "url": "https://naturalintelligence.github.io/fast-xml-parser/"
+        },
+        {
+          "package": "fast-xml-parser",
+          "desc": "Detailed option reference (XMLParser options)",
+          "url": "https://github.com/NaturalIntelligence/fast-xml-parser/blob/master/docs/v4/2.XMLparseOptions.md"
+        }
+      ]
+    },
+    {
+      "package": "fdir",
+      "area": "Filesystem crawling",
+      "sheet": "deps/fdir.md",
+      "links": [
+        {
+          "package": "fdir",
+          "desc": "README: API (withSymlinks, filters, maxDepth, globbing)",
+          "url": "https://github.com/thecodrr/fdir#readme"
+        }
+      ]
+    },
+    {
+      "package": "fflate",
+      "area": "Compression / zip artifacts",
+      "sheet": "deps/fflate.md",
+      "links": [
+        {
+          "package": "fflate",
+          "desc": "Docs index (async streaming APIs; zip/unzip primitives)",
+          "url": "https://github.com/101arrowz/fflate/blob/master/docs/README.md"
+        },
+        {
+          "package": "fflate",
+          "desc": "AsyncUnzipInflate class docs (incremental unzip example)",
+          "url": "https://github.com/101arrowz/fflate/blob/master/docs/classes/AsyncUnzipInflate.md"
+        }
+      ]
+    },
+    {
+      "package": "file-type",
+      "area": "Binary detection (magic numbers)",
+      "sheet": "deps/file-type.md",
+      "links": [
+        {
+          "package": "file-type",
+          "desc": "README: fileTypeFromBuffer/fromFile/fromStream (magic-number detection)",
+          "url": "https://github.com/sindresorhus/file-type#readme"
+        }
+      ]
+    },
+    {
+      "package": "graphology",
+      "area": "Graph modeling (relations and traversals)",
+      "sheet": "deps/graphology.md",
+      "links": [
+        {
+          "package": "graphology",
+          "desc": "Graphology docs (graphs, attributes, serialization)",
+          "url": "https://graphology.github.io/"
+        },
+        {
+          "package": "graphology",
+          "desc": "Standard library algorithms (centrality, shortest paths, traversal)",
+          "url": "https://graphology.github.io/standard-library/"
+        }
+      ]
+    },
+    {
+      "package": "graphql",
+      "area": "GraphQL document parsing/visiting",
+      "sheet": "deps/graphql.md",
+      "links": [
+        {
+          "package": "graphql",
+          "desc": "GraphQL.js language API (parse, visit, getLocation; AST ops)",
+          "url": "https://www.graphql-js.org/api-v16/language/"
+        },
+        {
+          "package": "graphql",
+          "desc": "Example: using visit() to transform documents (visitor patterns)",
+          "url": "https://www.apollographql.com/docs/react/data/document-transforms"
+        }
+      ]
+    },
+    {
+      "package": "greedy-number-partitioning",
+      "area": "Work sharding / load balancing",
+      "sheet": "deps/greedy-number-partitioning.md",
+      "links": [
+        {
+          "package": "greedy-number-partitioning",
+          "desc": "Repo README: usage (partition weights into k bins; LPT heuristic)",
+          "url": "https://github.com/dvopalecky/greedy-number-partitioning#readme"
+        }
+      ]
+    },
+    {
+      "package": "hdr-histogram-js",
+      "area": "High-resolution latency histograms",
+      "sheet": "deps/hdr-histogram-js.md",
+      "links": [
+        {
+          "package": "hdr-histogram-js",
+          "desc": "README: recordValue + percentile metrics (latency histograms)",
+          "url": "https://github.com/HdrHistogram/HdrHistogramJS#record-values-and-retrieve-metrics"
+        },
+        {
+          "package": "hdr-histogram-js",
+          "desc": "Widget examples (visualize histograms encoded across languages)",
+          "url": "https://github.com/HdrHistogram/HdrHistogramWidget#readme"
+        }
+      ]
+    },
+    {
+      "package": "hnswlib-node",
+      "area": "Vector index (HNSW) lifecycle",
+      "sheet": "deps/hnswlib-node.md",
+      "links": [
+        {
+          "package": "hnswlib-node",
+          "desc": "Repo README: create/add/search/save/load patterns (HNSW index lifecycle)",
+          "url": "https://github.com/yoshoku/hnswlib-node#readme"
+        },
+        {
+          "package": "hnswlib-node",
+          "desc": "HNSW background (parameter intuition: M, efConstruction, efSearch)",
+          "url": "https://github.com/nmslib/hnswlib#readme"
+        }
+      ]
+    },
+    {
+      "package": "iconv-lite",
+      "area": "Text decoding/encoding (streaming)",
+      "sheet": "deps/iconv-lite.md",
+      "links": [
+        {
+          "package": "iconv-lite",
+          "desc": "Streaming API (decodeStream/encodeStream for large file ingestion)",
+          "url": "https://github.com/ashtuchkin/iconv-lite/wiki/Stream-API"
+        },
+        {
+          "package": "iconv-lite",
+          "desc": "README: supported encodings + BOM handling notes",
+          "url": "https://github.com/ashtuchkin/iconv-lite#readme"
+        }
+      ]
+    },
+    {
+      "package": "ignore",
+      "area": "Ignore semantics (.gitignore-compatible)",
+      "sheet": "deps/ignore.md",
+      "links": [
+        {
+          "package": "ignore",
+          "desc": "README: createFilter + .gitignore semantics in Node",
+          "url": "https://github.com/kaelzhang/node-ignore#readme"
+        },
+        {
+          "package": "ignore",
+          "desc": "gitignore pattern format reference (edge cases; negations)",
+          "url": "https://git-scm.com/docs/gitignore"
+        }
+      ]
+    },
+    {
+      "package": "istextorbinary",
+      "area": "Text vs binary heuristics",
+      "sheet": "deps/istextorbinary.md",
+      "links": [
+        {
+          "package": "istextorbinary",
+          "desc": "README: isText/isBinary + buffer vs file-path variants",
+          "url": "https://github.com/bevry/istextorbinary#readme"
+        }
+      ]
+    },
+    {
+      "package": "jsdoc-type-pratt-parser",
+      "area": "JSDoc type parsing",
+      "sheet": "deps/jsdoc-type-pratt-parser.md",
+      "links": [
+        {
+          "package": "jsdoc-type-pratt-parser",
+          "desc": "Docs site (AST output; supported grammar; examples)",
+          "url": "https://jsdoc-type-pratt-parser.js.org/"
+        },
+        {
+          "package": "jsdoc-type-pratt-parser",
+          "desc": "Repo README (usage patterns; parsing JSDoc type expressions)",
+          "url": "https://github.com/jsdoc-type-pratt-parser/jsdoc-type-pratt-parser#readme"
+        }
+      ]
+    },
+    {
+      "package": "jsonc-parser",
+      "area": "JSON-with-comments parsing and edits",
+      "sheet": "deps/jsonc-parser.md",
+      "links": [
+        {
+          "package": "jsonc-parser",
+          "desc": "README: getLocation/findNodeAtLocation/modify/applyEdits APIs",
+          "url": "https://github.com/microsoft/node-jsonc-parser#readme"
+        }
+      ]
+    },
+    {
+      "package": "linguist-languages",
+      "area": "Language detection / file classification",
+      "sheet": "deps/linguist-languages.md",
+      "links": [
+        {
+          "package": "linguist-languages",
+          "desc": "Language metadata source of truth (extensions \u2192 language, filenames, interpreters)",
+          "url": "https://github.com/github-linguist/linguist/blob/master/lib/linguist/languages.yml"
+        },
+        {
+          "package": "linguist-languages",
+          "desc": "How Linguist works (heuristics, vendored/generated classification)",
+          "url": "https://github.com/github-linguist/linguist/blob/master/docs/how-linguist-works.md"
+        },
+        {
+          "package": "linguist-languages",
+          "desc": "Overrides (how to force language detection when heuristics are wrong)",
+          "url": "https://github.com/github-linguist/linguist/blob/master/docs/overrides.md"
+        }
+      ]
+    },
+    {
+      "package": "lmdb",
+      "area": "Persistent KV store (LMDB)",
+      "sheet": "deps/lmdb.md",
+      "links": [
+        {
+          "package": "lmdb",
+          "desc": "lmdb-js README (transactions, getRange, compression, async writes)",
+          "url": "https://github.com/DoctorEvidence/lmdb-js/blob/master/README.md"
+        },
+        {
+          "package": "lmdb",
+          "desc": "LMDB in Node (design notes; recommended write strategy)",
+          "url": "https://dev.doctorevidence.com/lmdb-in-node-29af907aad6e"
+        }
+      ]
+    },
+    {
+      "package": "lru-cache",
+      "area": "Caching / single-flight async work",
+      "sheet": "deps/lru-cache.md",
+      "links": [
+        {
+          "package": "lru-cache",
+          "desc": "Docs: Options (TTL, sizeCalculation, dispose, updateAgeOnGet)",
+          "url": "https://isaacs.github.io/node-lru-cache/interfaces/LRUCache.Options.html"
+        },
+        {
+          "package": "lru-cache",
+          "desc": "Docs: FetchOptions / fetchMethod (single-flight cache for async work)",
+          "url": "https://isaacs.github.io/node-lru-cache/interfaces/LRUCache.FetchOptions.html"
+        }
+      ]
+    },
+    {
+      "package": "micromark",
+      "area": "Doc parsing (Markdown) and positional chunking",
+      "sheet": "deps/micromark.md",
+      "links": [
+        {
+          "package": "micromark",
+          "desc": "Extensions API (inject GFM/frontmatter handling; keep positions stable)",
+          "url": "https://github.com/micromark/micromark#extensions"
+        },
+        {
+          "package": "micromark",
+          "desc": "Companion: mdast-util-from-markdown (build AST with positional info from micromark)",
+          "url": "https://github.com/syntax-tree/mdast-util-from-markdown#readme"
+        },
+        {
+          "package": "micromark",
+          "desc": "Companion: micromark-extension-frontmatter (YAML/TOML frontmatter blocks)",
+          "url": "https://github.com/micromark/micromark-extension-frontmatter#readme"
+        }
+      ]
+    },
+    {
+      "package": "msgpackr",
+      "area": "Binary serialization for artifacts",
+      "sheet": "deps/msgpackr.md",
+      "links": [
+        {
+          "package": "msgpackr",
+          "desc": "README: options (useRecords, structuredClone, extensions)",
+          "url": "https://github.com/kriszyp/msgpackr/blob/master/README.md"
+        },
+        {
+          "package": "msgpackr",
+          "desc": "MessagePack spec (cross-language compatibility expectations)",
+          "url": "https://msgpack.org/index.html"
+        }
+      ]
+    },
+    {
+      "package": "nunjucks",
+      "area": "Template parsing (Nunjucks)",
+      "sheet": "deps/nunjucks.md",
+      "links": [
+        {
+          "package": "nunjucks",
+          "desc": "API: custom tags (parser API exposure; advanced template analysis)",
+          "url": "https://mozilla.github.io/nunjucks/api.html#custom-tags"
+        },
+        {
+          "package": "nunjucks",
+          "desc": "Precompiling templates (build-time parsing; avoiding runtime parse costs)",
+          "url": "https://mozilla.github.io/nunjucks/api.html#precompiling"
+        }
+      ]
+    },
+    {
+      "package": "onnxruntime-node",
+      "area": "Embeddings/inference (ONNX Runtime)",
+      "sheet": "deps/onnxruntime-node.md",
+      "links": [
+        {
+          "package": "onnxruntime-node",
+          "desc": "JS API: InferenceSession.SessionOptions (threading, logging, etc.)",
+          "url": "https://onnxruntime.ai/docs/api/js/interfaces/InferenceSession.SessionOptions.html"
+        },
+        {
+          "package": "onnxruntime-node",
+          "desc": "Example: configuring SessionOptions in Node (reference setup)",
+          "url": "https://github.com/microsoft/onnxruntime-inference-examples/blob/main/js/api-usage_session-options/README.md"
+        },
+        {
+          "package": "onnxruntime-node",
+          "desc": "Performance: I/O binding concept (reduce copies; pre-allocate outputs)",
+          "url": "https://onnxruntime.ai/docs/performance/tune-performance/iobinding.html"
+        }
+      ]
+    },
+    {
+      "package": "parse5",
+      "area": "HTML parsing with locations",
+      "sheet": "deps/parse5.md",
+      "links": [
+        {
+          "package": "parse5",
+          "desc": "ParserOptions: sourceCodeLocationInfo (node ranges for chunking)",
+          "url": "https://parse5.js.org/interfaces/parse5.ParserOptions.html"
+        },
+        {
+          "package": "parse5",
+          "desc": "SAX tokens: comment token locations (if streaming/low-memory parse)",
+          "url": "https://parse5.js.org/interfaces/parse5-sax-parser.Comment.html"
+        },
+        {
+          "package": "parse5",
+          "desc": "Companion: hast-util-from-parse5 (convert parse5 AST to hast)",
+          "url": "https://github.com/syntax-tree/hast-util-from-parse5#readme"
+        }
+      ]
+    },
+    {
+      "package": "picomatch",
+      "area": "Glob parsing/matching",
+      "sheet": "deps/picomatch.md",
+      "links": [
+        {
+          "package": "picomatch",
+          "desc": "README: API (makeRe/parse/scan; extglobs/braces)",
+          "url": "https://github.com/micromatch/picomatch#readme"
+        },
+        {
+          "package": "picomatch",
+          "desc": "Changelog: scan()/parse() output details (tokens/slashes/parts)",
+          "url": "https://github.com/micromatch/picomatch/blob/master/CHANGELOG.md"
+        }
+      ]
+    },
+    {
+      "package": "pino",
+      "area": "Logging (structured, high-performance)",
+      "sheet": "deps/pino.md",
+      "links": [
+        {
+          "package": "pino",
+          "desc": "Transports (worker-thread transports; custom targets; perf model)",
+          "url": "https://github.com/pinojs/pino/blob/main/docs/transports.md"
+        },
+        {
+          "package": "pino",
+          "desc": "Redaction (safely strip secrets from logs; path-based redaction)",
+          "url": "https://getpino.io/#/docs/redaction"
+        },
+        {
+          "package": "pino",
+          "desc": "Serializers & bindings (structured fields; child loggers)",
+          "url": "https://getpino.io/#/docs/api"
+        }
+      ]
+    },
+    {
+      "package": "pino-pretty",
+      "area": "Log formatting / developer ergonomics",
+      "sheet": "deps/pino-pretty.md",
+      "links": [
+        {
+          "package": "pino-pretty",
+          "desc": "README: handling non-serializable transport options (messageFormat as function)",
+          "url": "https://github.com/pinojs/pino-pretty#handling-non-serializable-options"
+        },
+        {
+          "package": "pino-pretty",
+          "desc": "Pino transports doc (how to run pretty transport in worker threads)",
+          "url": "https://github.com/pinojs/pino/blob/main/docs/transports.md"
+        }
+      ]
+    },
+    {
+      "package": "piscina",
+      "area": "Worker pools / parallel indexing",
+      "sheet": "deps/piscina.md",
+      "links": [
+        {
+          "package": "piscina",
+          "desc": "Instance API (minThreads/maxThreads, concurrentTasksPerWorker, atomics)",
+          "url": "https://piscinajs.dev/api-reference/Instance/"
+        },
+        {
+          "package": "piscina",
+          "desc": "Resource limits example (prevent OOM; handle failures deterministically)",
+          "url": "https://piscinajs.dev/examples/Resource%20Limits/"
+        },
+        {
+          "package": "piscina",
+          "desc": "README: concurrentTasksPerWorker guidance (only for async-heavy tasks)",
+          "url": "https://github.com/piscinajs/piscina#concurrenttasksperworker"
+        }
+      ]
+    },
+    {
+      "package": "prom-client",
+      "area": "Metrics (Prometheus client)",
+      "sheet": "deps/prom-client.md",
+      "links": [
+        {
+          "package": "prom-client",
+          "desc": "README: Registry + collectDefaultMetrics (multi-registry patterns)",
+          "url": "https://github.com/siimon/prom-client#default-metrics"
+        },
+        {
+          "package": "prom-client",
+          "desc": "README: Histogram/Summary usage (latency & size metrics)",
+          "url": "https://github.com/siimon/prom-client#histogram"
+        }
+      ]
+    },
+    {
+      "package": "protobufjs",
+      "area": "Protocol Buffers parsing/tooling",
+      "sheet": "deps/protobufjs.md",
+      "links": [
+        {
+          "package": "protobufjs",
+          "desc": "Protobuf.js docs (load .proto; reflection-based messages)",
+          "url": "https://protobufjs.github.io/protobuf.js/index.html"
+        },
+        {
+          "package": "protobufjs",
+          "desc": "CLI docs (pbjs/pbts for generating static modules)",
+          "url": "https://github.com/protobufjs/protobuf.js/blob/master/cli/README.md"
+        }
+      ]
+    },
+    {
+      "package": "pyright",
+      "area": "Python typing / diagnostics",
+      "sheet": "deps/pyright.md",
+      "links": [
+        {
+          "package": "pyright",
+          "desc": "Pyright configuration reference (pyrightconfig.json; strictness controls)",
+          "url": "https://microsoft.github.io/pyright/#/configuration"
+        },
+        {
+          "package": "pyright",
+          "desc": "Command line reference (JSON output, verifytypes, diagnostics)",
+          "url": "https://microsoft.github.io/pyright/#/command-line"
+        }
+      ]
+    },
+    {
+      "package": "re2js",
+      "area": "Safe regex (ReDoS-resistant)",
+      "sheet": "deps/re2js.md",
+      "links": [
+        {
+          "package": "re2js",
+          "desc": "README: ReDoS-safe regex engine usage + supported syntax",
+          "url": "https://github.com/le0pard/re2js#readme"
+        },
+        {
+          "package": "re2js",
+          "desc": "README: compatibility notes/limitations vs native RegExp",
+          "url": "https://github.com/le0pard/re2js#limitations"
+        }
+      ]
+    },
+    {
+      "package": "roaring-wasm",
+      "area": "Compressed bitsets / postings sets",
+      "sheet": "deps/roaring-wasm.md",
+      "links": [
+        {
+          "package": "roaring-wasm",
+          "desc": "README: serialization formats + streaming APIs (format arg required)",
+          "url": "https://github.com/SalvatorePreviti/roaring-wasm/blob/master/README.md"
+        },
+        {
+          "package": "roaring-wasm",
+          "desc": "Roaring format background (interoperability; why roaring bitmaps)",
+          "url": "https://github.com/RoaringBitmap/RoaringBitmap#readme"
+        }
+      ]
+    },
+    {
+      "package": "seedrandom",
+      "area": "Determinism / reproducible sampling",
+      "sheet": "deps/seedrandom.md",
+      "links": [
+        {
+          "package": "seedrandom",
+          "desc": "README: deterministic PRNG streams + global seeding patterns",
+          "url": "https://github.com/davidbau/seedrandom#readme"
+        }
+      ]
+    },
+    {
+      "package": "semver",
+      "area": "Version parsing and range evaluation",
+      "sheet": "deps/semver.md",
+      "links": [
+        {
+          "package": "semver",
+          "desc": "npm SemVer functions + range syntax (satisfies/coerce; npm semantics)",
+          "url": "https://docs.npmjs.com/cli/v6/using-npm/semver"
+        },
+        {
+          "package": "semver",
+          "desc": "SemVer 2.0.0 spec (baseline rules; prerelease ordering)",
+          "url": "https://semver.org/"
+        },
+        {
+          "package": "semver",
+          "desc": "node-semver README: ranges (caret/tilde/hyphen; set operations)",
+          "url": "https://github.com/npm/node-semver#ranges"
+        }
+      ]
+    },
+    {
+      "package": "smol-toml",
+      "area": "TOML parsing",
+      "sheet": "deps/smol-toml.md",
+      "links": [
+        {
+          "package": "smol-toml",
+          "desc": "Repo README: parse/stringify API (TOML v1.1-ish compliance notes)",
+          "url": "https://github.com/squirrelchat/smol-toml#readme"
+        },
+        {
+          "package": "smol-toml",
+          "desc": "TOML spec (edge cases; multiline strings; datetime)",
+          "url": "https://toml.io/en/"
+        }
+      ]
+    },
+    {
+      "package": "svelte",
+      "area": "Framework parsing (Svelte)",
+      "sheet": "deps/svelte.md",
+      "links": [
+        {
+          "package": "svelte",
+          "desc": "Svelte compiler API (parse/compile; AST structure)",
+          "url": "https://svelte.dev/docs/svelte-compiler"
+        },
+        {
+          "package": "svelte",
+          "desc": "Compiler 'parse' API (AST + positions; used for Svelte chunking)",
+          "url": "https://svelte.dev/docs/svelte-compiler#parse"
+        }
+      ]
+    },
+    {
+      "package": "tinybench",
+      "area": "Microbench tooling",
+      "sheet": "deps/tinybench.md",
+      "links": [
+        {
+          "package": "tinybench",
+          "desc": "README: warmup/iterations/timing hooks (microbench discipline)",
+          "url": "https://github.com/tinylibs/tinybench#readme"
+        }
+      ]
+    },
+    {
+      "package": "typescript",
+      "area": "Parsing / Type analysis (TS/JS)",
+      "sheet": "deps/typescript.md",
+      "links": [
+        {
+          "package": "typescript",
+          "desc": "Using the Compiler API (Program, SourceFile, TypeChecker patterns)",
+          "url": "https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API"
+        },
+        {
+          "package": "typescript",
+          "desc": "Using the Language Service API (incremental, project-aware analysis)",
+          "url": "https://github.com/microsoft/TypeScript/wiki/Using-the-Language-Service-API"
+        },
+        {
+          "package": "typescript",
+          "desc": "tsserver protocol types (request/response shapes; useful for incremental queries)",
+          "url": "https://github.com/microsoft/TypeScript/blob/main/lib/protocol.d.ts"
+        }
+      ]
+    },
+    {
+      "package": "xxhash-wasm",
+      "area": "Hashing / stable IDs",
+      "sheet": "deps/xxhash-wasm.md",
+      "links": [
+        {
+          "package": "xxhash-wasm",
+          "desc": "Repo README: API usage (xxh32/xxh64; sync/async init)",
+          "url": "https://github.com/jungomi/xxhash-wasm#readme"
+        },
+        {
+          "package": "xxhash-wasm",
+          "desc": "Algorithm background (xxHash reference; perf characteristics)",
+          "url": "https://xxhash.com/"
+        }
+      ]
+    },
+    {
+      "package": "yaml",
+      "area": "Config/document parsing (YAML) with positional fidelity",
+      "sheet": "deps/yaml.md",
+      "links": [
+        {
+          "package": "yaml",
+          "desc": "YAML package docs (parse Document; CST/AST; preserving comments & source tokens)",
+          "url": "https://eemeli.org/yaml/"
+        },
+        {
+          "package": "yaml",
+          "desc": "Parsing documents + line/position utilities (for stable chunk boundaries)",
+          "url": "https://eemeli.org/yaml/#parsing-documents"
+        },
+        {
+          "package": "yaml",
+          "desc": "Source: YAML repo CST/AST/Document APIs (deep dive)",
+          "url": "https://github.com/eemeli/yaml#readme"
+        }
+      ]
+    }
+  ]
+}

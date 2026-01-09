@@ -326,7 +326,7 @@ flowchart TB
 
 ## Status
 
-Active development. See `COMPLETE_PLAN.md` for current execution status.
+Active development. See `NEW_ROADMAP.md` for current execution status.
 
 ---
 

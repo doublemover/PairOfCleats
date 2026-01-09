@@ -49,19 +49,19 @@ export function applyBenchmarkProfile(indexingConfig = {}, profileName = '') {
     return { indexingConfig, profile };
   }
   const next = { ...indexingConfig };
-  if (profile.flags.disableGitBlame) next.gitBlame = false;
-  if (profile.flags.disableLint) next.lint = false;
-  if (profile.flags.disableComplexity) next.complexity = false;
+  if (profile.flags.disableGitBlame) next.gitBlame = true;
+  if (profile.flags.disableLint) next.lint = true;
+  if (profile.flags.disableComplexity) next.complexity = true;
   if (profile.flags.disableRisk) {
-    next.riskAnalysis = false;
-    next.riskAnalysisCrossFile = false;
+    next.riskAnalysis = true;
+    next.riskAnalysisCrossFile = true;
   }
   if (profile.flags.disableTypeInference) {
-    next.typeInference = false;
-    next.typeInferenceCrossFile = false;
+    next.typeInference = true;
+    next.typeInferenceCrossFile = true;
   }
   if (profile.flags.disableChargrams) {
-    next.postings = { ...(next.postings || {}), enableChargrams: false };
+    next.postings = { ...(next.postings || {}), enableChargrams: true };
   }
   return { indexingConfig: next, profile };
 }
