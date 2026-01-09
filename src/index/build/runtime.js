@@ -6,10 +6,13 @@ import {
   getCacheRuntimeConfig,
   getDictionaryPaths,
   getDictConfig,
+  getEffectiveConfigHash,
   getModelConfig,
+  getBuildsRoot,
   getRepoCacheRoot,
   getToolingConfig,
-  loadUserConfig
+  loadUserConfig,
+  resolveIndexRoot
 } from '../../../tools/dict-utils.js';
 import { createEmbedder } from '../embedding.js';
 import { log } from '../../shared/progress.js';
@@ -25,6 +28,7 @@ import { normalizeEmbeddingBatchMultipliers } from './embedding-batch.js';
 import { preloadTreeSitterLanguages, resolveEnabledTreeSitterLanguages } from '../../lang/tree-sitter.js';
 import { sha1 } from '../../shared/hash.js';
 import { isPlainObject, mergeConfig } from '../../shared/config.js';
+import { getRepoProvenance } from '../git.js';
 
 const normalizeStage = (raw) => {
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
@@ -35,6 +39,10 @@ const normalizeStage = (raw) => {
   if (value === '4' || value === 'stage4' || value === 'sqlite' || value === 'ann') return 'stage4';
   return null;
 };
+
+const formatBuildTimestamp = (date) => (
+  date.toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/[-:]/g, '')
+);
 
 const buildStageOverrides = (twoStageConfig, stage) => {
   if (!['stage1', 'stage2', 'stage3', 'stage4'].includes(stage)) return null;
@@ -102,6 +110,13 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const currentIndexRoot = resolveIndexRoot(root, userConfig);
+  const configHash = getEffectiveConfigHash(root, userConfig);
+  const repoProvenance = await getRepoProvenance(root);
+  const gitShortSha = repoProvenance?.commit ? repoProvenance.commit.slice(0, 7) : 'nogit';
+  const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
+  const buildId = `${formatBuildTimestamp(new Date())}_${gitShortSha}_${configHash8}`;
+  const buildRoot = path.join(getBuildsRoot(root, userConfig), buildId);
   const toolingConfig = getToolingConfig(root, userConfig);
   const toolingEnabled = toolingConfig.autoEnableOnDetect !== false;
   const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});
@@ -499,6 +514,10 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     log: null
   });
 
+  try {
+    await fs.mkdir(buildRoot, { recursive: true });
+  } catch {}
+
   let workerPool = null;
   if (workerPoolConfig.enabled !== false) {
     workerPool = await createIndexerWorkerPool({
@@ -560,6 +579,11 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     rawArgv,
     userConfig,
     repoCacheRoot,
+    buildId,
+    buildRoot,
+    currentIndexRoot,
+    configHash,
+    repoProvenance,
     toolingConfig,
     toolingEnabled,
     indexingConfig,

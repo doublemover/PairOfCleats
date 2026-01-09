@@ -255,7 +255,8 @@ pairofcleats search -- "query" --backend sqlite
 By default, caches and indexes live **outside the repo**:
 
 - cache root: OS-specific (or `PAIROFCLEATS_HOME` / `PAIROFCLEATS_CACHE_ROOT`)
-- per-repo artifacts: `<cache>/repos/<repoId>/index-code`, `index-prose`, etc.
+- per-repo artifacts: `<cache>/repos/<repoId>/builds/<buildId>/index-code`, `index-prose`, etc.
+- current pointer: `<cache>/repos/<repoId>/builds/current.json` (active build root)
 
 Override cache location via `.pairofcleats.json`:
 ```json

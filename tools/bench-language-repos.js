@@ -8,7 +8,7 @@ import { execa, execaSync } from 'execa';
 import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../src/shared/cli-options.js';
-import { getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveToolRoot } from './dict-utils.js';
+import { getIndexDir, getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveSqlitePaths, resolveToolRoot } from './dict-utils.js';
 import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
 import { discoverFilesForModes } from '../src/index/build/discover.js';
 import { toPosix } from '../src/shared/files.js';
@@ -1085,16 +1085,23 @@ function resolveRepoCache(repoPath) {
   return getRepoCacheRoot(repoPath, cacheConfig);
 }
 
-function needsIndexArtifacts(repoCacheRoot) {
-  const codeMeta = path.join(repoCacheRoot, 'index-code', 'chunk_meta.json');
-  const proseMeta = path.join(repoCacheRoot, 'index-prose', 'chunk_meta.json');
-  return !fs.existsSync(codeMeta) || !fs.existsSync(proseMeta);
+function needsIndexArtifacts(repoRoot) {
+  const userConfig = loadUserConfig(repoRoot);
+  const codeDir = getIndexDir(repoRoot, 'code', userConfig);
+  const proseDir = getIndexDir(repoRoot, 'prose', userConfig);
+  const hasChunkMeta = (dir) => (
+    fs.existsSync(path.join(dir, 'chunk_meta.json'))
+    || fs.existsSync(path.join(dir, 'chunk_meta.jsonl'))
+    || fs.existsSync(path.join(dir, 'chunk_meta.meta.json'))
+    || fs.existsSync(path.join(dir, 'chunk_meta.parts'))
+  );
+  return !hasChunkMeta(codeDir) || !hasChunkMeta(proseDir);
 }
 
-function needsSqliteArtifacts(repoCacheRoot) {
-  const codeDb = path.join(repoCacheRoot, 'index-sqlite', 'index-code.db');
-  const proseDb = path.join(repoCacheRoot, 'index-sqlite', 'index-prose.db');
-  return !fs.existsSync(codeDb) || !fs.existsSync(proseDb);
+function needsSqliteArtifacts(repoRoot) {
+  const userConfig = loadUserConfig(repoRoot);
+  const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
+  return !fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath);
 }
 
 async function runProcess(label, cmd, args, options = {}) {
@@ -1416,8 +1423,8 @@ for (const task of tasks) {
   await fsPromises.mkdir(outDir, { recursive: true });
 
   const repoCacheRoot = resolveRepoCache(repoPath);
-  const missingIndex = needsIndexArtifacts(repoCacheRoot);
-  const missingSqlite = wantsSqlite && needsSqliteArtifacts(repoCacheRoot);
+  const missingIndex = needsIndexArtifacts(repoPath);
+  const missingSqlite = wantsSqlite && needsSqliteArtifacts(repoPath);
   let autoBuildIndex = false;
   let autoBuildSqlite = false;
   const buildIndexRequested = argv.build || argv['build-index'];

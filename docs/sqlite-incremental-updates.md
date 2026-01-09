@@ -5,7 +5,7 @@ Update SQLite indexes in-place by touching only the files that changed since the
 
 ## Inputs
 - Per-file incremental cache from `build_index.js --incremental`.
-- Existing SQLite DBs at `<cache>/repos/<repoId>/index-sqlite/index-code.db` and `<cache>/repos/<repoId>/index-sqlite/index-prose.db` (unless overridden).
+- Existing SQLite DBs at the current build root, e.g. `<cache>/repos/<repoId>/builds/<buildId>/index-sqlite/index-code.db` and `index-prose.db` (resolved via `builds/current.json`, unless overridden).
 
 ## Schema Additions
 - `file_manifest` table tracks per-file hashes and sizes used for change detection.
@@ -30,6 +30,7 @@ Update SQLite indexes in-place by touching only the files that changed since the
 ## Usage
 - Build incremental cache: `pairofcleats index build --incremental`.
 - Update SQLite in place: `pairofcleats build-sqlite-index --incremental`.
+- Override target build root: `pairofcleats build-sqlite-index --incremental --index-root <path>`.
 - `pairofcleats bootstrap --incremental --with-sqlite` runs both.
 - `--validate <off|smoke|full>` controls post-build SQLite validation (default: `smoke`).
 

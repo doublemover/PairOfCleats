@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getRepoId } from '../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'lsp-enrichment');
@@ -62,8 +62,8 @@ if (buildResult.status !== 0) {
   process.exit(buildResult.status ?? 1);
 }
 
-const repoId = getRepoId(repoRoot);
-const indexDir = path.join(cacheRoot, 'repos', repoId, 'index-code');
+const userConfig = loadUserConfig(repoRoot);
+const indexDir = getIndexDir(repoRoot, 'code', userConfig);
 const metaPath = path.join(indexDir, 'chunk_meta.json');
 if (!fs.existsSync(metaPath)) {
   console.error('LSP enrichment test failed: chunk_meta.json missing.');

@@ -14,6 +14,7 @@ import {
   getModelConfig,
   getRepoCacheRoot,
   loadUserConfig,
+  resolveIndexRoot,
   resolveRepoRoot,
   resolveSqlitePaths
 } from './dict-utils.js';
@@ -26,6 +27,7 @@ import {
 } from './vector-extension.js';
 import { loadIncrementalManifest } from '../src/storage/sqlite/incremental.js';
 import { dequantizeUint8ToFloat32, packUint8, toVectorId } from '../src/storage/sqlite/vector.js';
+import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../src/index/build/build-state.js';
 
 let Database = null;
 try {
@@ -40,7 +42,8 @@ const argv = createCli({
     repo: { type: 'string' },
     dims: { type: 'number' },
     batch: { type: 'number' },
-    'stub-embeddings': { type: 'boolean', default: false }
+    'stub-embeddings': { type: 'boolean', default: false },
+    'index-root': { type: 'string' }
   }
 }).parse();
 
@@ -91,6 +94,12 @@ const embedder = createEmbedder({
 const getChunkEmbeddings = embedder.getChunkEmbeddings;
 
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+const indexRoot = argv['index-root']
+  ? path.resolve(argv['index-root'])
+  : resolveIndexRoot(root, userConfig);
+const buildStatePath = resolveBuildStatePath(indexRoot);
+const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
+const stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage3') : () => {};
 const cacheDirConfig = embeddingsConfig.cache?.dir;
 const cacheRoot = cacheDirConfig
   ? path.resolve(cacheDirConfig)
@@ -115,7 +124,7 @@ const updateSqliteDense = ({ mode, vectors, dims, scale }) => {
     console.warn(`[embeddings] better-sqlite3 not available; skipping SQLite update for ${mode}.`);
     return;
   }
-  const sqlitePaths = resolveSqlitePaths(root, userConfig);
+  const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
   const dbPath = mode === 'code' ? sqlitePaths.codePath : sqlitePaths.prosePath;
   if (!dbPath || !fsSync.existsSync(dbPath)) {
     console.warn(`[embeddings] SQLite ${mode} index missing; skipping.`);
@@ -328,12 +337,16 @@ const embedModeRaw = (argv.mode || 'all').toLowerCase();
 const embedMode = embedModeRaw === 'both' ? 'all' : embedModeRaw;
 const modes = embedMode === 'all' ? ['code', 'prose'] : [embedMode];
 
+if (hasBuildState) {
+  await markBuildPhase(indexRoot, 'stage3', 'running');
+}
+
 for (const mode of modes) {
   if (!['code', 'prose'].includes(mode)) {
     console.error(`Invalid mode: ${mode}`);
     process.exit(1);
   }
-  const indexDir = getIndexDir(root, mode, userConfig);
+  const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
   const chunkMetaPath = path.join(indexDir, 'chunk_meta.json');
   const chunkMetaJsonlPath = path.join(indexDir, 'chunk_meta.jsonl');
   const chunkMetaMetaPath = path.join(indexDir, 'chunk_meta.meta.json');
@@ -635,3 +648,8 @@ for (const mode of modes) {
 
   console.log(`[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`);
 }
+
+if (hasBuildState) {
+  await markBuildPhase(indexRoot, 'stage3', 'done');
+}
+stopHeartbeat();

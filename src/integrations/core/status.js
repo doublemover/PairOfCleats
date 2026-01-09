@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getCacheRoot, getDictConfig, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { getCacheRoot, getDictConfig, getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from '../../../tools/dict-utils.js';
 import { getEnvConfig } from '../../shared/env.js';
 
 const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
@@ -119,9 +119,11 @@ export async function getStatus(input = {}) {
   const dictDir = dictConfig.dir;
   const sqlitePaths = resolveSqlitePaths(root, userConfig);
 
+  const indexCodeDir = getIndexDir(root, 'code', userConfig);
+  const indexProseDir = getIndexDir(root, 'prose', userConfig);
   const repoArtifacts = {
-    indexCode: path.join(repoCacheRoot, 'index-code'),
-    indexProse: path.join(repoCacheRoot, 'index-prose'),
+    indexCode: indexCodeDir,
+    indexProse: indexProseDir,
     repometrics: path.join(repoCacheRoot, 'repometrics'),
     incremental: path.join(repoCacheRoot, 'incremental')
   };
@@ -153,36 +155,36 @@ export async function getStatus(input = {}) {
 
   const health = { issues: [], hints: [] };
   const indexIssues = [];
-  if (!fs.existsSync(repoArtifacts.indexCode)) {
+  if (!fs.existsSync(indexCodeDir)) {
     indexIssues.push('index-code directory missing');
   } else {
-    const codeChunkMeta = fs.existsSync(path.join(repoArtifacts.indexCode, 'chunk_meta.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexCode, 'chunk_meta.jsonl'))
-      || fs.existsSync(path.join(repoArtifacts.indexCode, 'chunk_meta.meta.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexCode, 'chunk_meta.parts'));
+    const codeChunkMeta = fs.existsSync(path.join(indexCodeDir, 'chunk_meta.json'))
+      || fs.existsSync(path.join(indexCodeDir, 'chunk_meta.jsonl'))
+      || fs.existsSync(path.join(indexCodeDir, 'chunk_meta.meta.json'))
+      || fs.existsSync(path.join(indexCodeDir, 'chunk_meta.parts'));
     if (!codeChunkMeta) {
       indexIssues.push('index-code chunk_meta.json missing');
     }
-    const codeTokenPostings = fs.existsSync(path.join(repoArtifacts.indexCode, 'token_postings.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexCode, 'token_postings.meta.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexCode, 'token_postings.shards'));
+    const codeTokenPostings = fs.existsSync(path.join(indexCodeDir, 'token_postings.json'))
+      || fs.existsSync(path.join(indexCodeDir, 'token_postings.meta.json'))
+      || fs.existsSync(path.join(indexCodeDir, 'token_postings.shards'));
     if (!codeTokenPostings) {
       indexIssues.push('index-code token_postings.json missing');
     }
   }
-  if (!fs.existsSync(repoArtifacts.indexProse)) {
+  if (!fs.existsSync(indexProseDir)) {
     indexIssues.push('index-prose directory missing');
   } else {
-    const proseChunkMeta = fs.existsSync(path.join(repoArtifacts.indexProse, 'chunk_meta.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexProse, 'chunk_meta.jsonl'))
-      || fs.existsSync(path.join(repoArtifacts.indexProse, 'chunk_meta.meta.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexProse, 'chunk_meta.parts'));
+    const proseChunkMeta = fs.existsSync(path.join(indexProseDir, 'chunk_meta.json'))
+      || fs.existsSync(path.join(indexProseDir, 'chunk_meta.jsonl'))
+      || fs.existsSync(path.join(indexProseDir, 'chunk_meta.meta.json'))
+      || fs.existsSync(path.join(indexProseDir, 'chunk_meta.parts'));
     if (!proseChunkMeta) {
       indexIssues.push('index-prose chunk_meta.json missing');
     }
-    const proseTokenPostings = fs.existsSync(path.join(repoArtifacts.indexProse, 'token_postings.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexProse, 'token_postings.meta.json'))
-      || fs.existsSync(path.join(repoArtifacts.indexProse, 'token_postings.shards'));
+    const proseTokenPostings = fs.existsSync(path.join(indexProseDir, 'token_postings.json'))
+      || fs.existsSync(path.join(indexProseDir, 'token_postings.meta.json'))
+      || fs.existsSync(path.join(indexProseDir, 'token_postings.shards'));
     if (!proseTokenPostings) {
       indexIssues.push('index-prose token_postings.json missing');
     }

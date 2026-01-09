@@ -24,6 +24,7 @@ import { loadStructuralMatches } from '../structural.js';
 import { sha1 } from '../../shared/hash.js';
 import { planShards } from './shards.js';
 import { ensureQueueDir, enqueueJob } from '../../../tools/service/queue.js';
+import { createBuildCheckpoint } from './build-state.js';
 
 const buildTokenizationKey = (runtime, mode) => {
   const payload = {
@@ -123,7 +124,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     enabled: runtime.debugCrash,
     log
   });
-  const outDir = getIndexDir(runtime.root, mode, runtime.userConfig);
+  const outDir = getIndexDir(runtime.root, mode, runtime.userConfig, { indexRoot: runtime.buildRoot });
   await fs.mkdir(outDir, { recursive: true });
   log(`\n📄  Scanning ${mode} …`);
   const timing = { start: Date.now() };
@@ -232,12 +233,18 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     ngrams: 0,
     chargrams: 0
   };
+  const checkpoint = createBuildCheckpoint({
+    buildRoot: runtime.buildRoot,
+    mode,
+    totalFiles: allEntries.length
+  });
   const progress = {
     total: allEntries.length,
     count: 0,
     tick() {
       this.count += 1;
       showProgress('Files', this.count, this.total);
+      checkpoint.tick();
     }
   };
   const handleFileResult = (result, stateRef, shardMeta = null) => {
@@ -522,6 +529,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     await processEntries({ entries: allEntries, runtime, stateRef: state });
   }
   showProgress('Files', progress.total, progress.total);
+  checkpoint.finish();
 
   timing.processMs = Date.now() - processStart;
   if (envConfig.verbose === true && tokenizationStats.chunks) {

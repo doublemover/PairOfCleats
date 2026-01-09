@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'fielded-bm25');
@@ -28,15 +29,13 @@ if (buildResult.status !== 0) {
   process.exit(buildResult.status ?? 1);
 }
 
-const indexDir = path.join(cacheRoot, 'repos');
-const fieldPostings = (() => {
-  const candidates = fs.readdirSync(indexDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(indexDir, entry.name, 'index-code', 'field_postings.json'));
-  return candidates.find((p) => fs.existsSync(p)) || null;
-})();
+const userConfig = loadUserConfig(fixtureRoot);
+const fieldPostings = path.join(
+  getIndexDir(fixtureRoot, 'code', userConfig),
+  'field_postings.json'
+);
 
-if (!fieldPostings) {
+if (!fs.existsSync(fieldPostings)) {
   console.error('fielded bm25 test failed: field_postings.json missing');
   process.exit(1);
 }

@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
 import { resolveRepoRoot, getCacheRoot, resolveToolRoot } from './dict-utils.js';
 import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './service/config.js';
-import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary, resolveQueueName } from './service/queue.js';
+import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary, resolveQueueName, requeueStaleJobs, touchJobHeartbeat } from './service/queue.js';
 import { ensureRepo, resolveRepoPath } from './service/repos.js';
 
 const argv = createCli({
@@ -124,6 +124,12 @@ const handleStatus = async () => {
 };
 
 const processQueueOnce = async (metrics) => {
+  const queueConfig = queueName === 'embeddings'
+    ? (config.embeddings?.queue || {})
+    : (config.queue || {});
+  await requeueStaleJobs(queueDir, resolvedQueueName, {
+    maxRetries: Number.isFinite(queueConfig.maxRetries) ? queueConfig.maxRetries : 2
+  });
   const job = await claimNextJob(queueDir, resolvedQueueName);
   if (!job) return false;
   metrics.processed += 1;
@@ -134,12 +140,13 @@ const processQueueOnce = async (metrics) => {
   const extraEnv = memoryMb
     ? { NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --max-old-space-size=${memoryMb}`.trim() }
     : {};
-  const queueConfig = queueName === 'embeddings'
-    ? (config.embeddings?.queue || {})
-    : (config.queue || {});
+  const heartbeat = setInterval(() => {
+    void touchJobHeartbeat(queueDir, job.id, resolvedQueueName);
+  }, 30000);
   const exitCode = queueName === 'embeddings'
     ? await runBuildEmbeddings(job.repo, job.mode, extraEnv)
     : await runBuildIndex(job.repo, job.mode, job.stage, job.args);
+  clearInterval(heartbeat);
   const status = exitCode === 0 ? 'done' : 'failed';
   const attempts = Number.isFinite(job.attempts) ? job.attempts : 0;
   const maxRetries = Number.isFinite(job.maxRetries)

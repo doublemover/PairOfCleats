@@ -39,7 +39,8 @@ PairOfCleats can ingest symbols from multiple sources. This document defines pre
 
 All artifacts live in the repo cache root (outside the repo by default):
 
-- `index-code/` + `index-prose/`: chunk metadata, postings, and repo map.
+- `builds/<buildId>/index-code/` + `builds/<buildId>/index-prose/`: chunk metadata, postings, and repo map.
+- `builds/current.json`: pointer to the active build root.
 - `scip/scip.jsonl`: normalized SCIP occurrences + metadata.
 - `lsif/lsif.jsonl`: normalized LSIF occurrences + metadata.
 - `ctags/ctags.jsonl`: normalized ctags symbols + metadata.

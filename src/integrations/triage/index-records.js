@@ -19,7 +19,7 @@ import { promoteRecordFields } from './record-utils.js';
 export async function buildRecordsIndexForRepo({ runtime }) {
   const triageConfig = getTriageConfig(runtime.root, runtime.userConfig);
   const recordsDir = triageConfig.recordsDir;
-  const outDir = getIndexDir(runtime.root, 'records', runtime.userConfig);
+  const outDir = getIndexDir(runtime.root, 'records', runtime.userConfig, { indexRoot: runtime.buildRoot });
   const postingsConfig = runtime.postingsConfig;
   await fs.mkdir(outDir, { recursive: true });
 

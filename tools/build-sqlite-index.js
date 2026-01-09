@@ -8,7 +8,7 @@ import Piscina from 'piscina';
 import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { resolveThreadLimits } from '../src/shared/threads.js';
-import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
+import { getIndexDir, getModelConfig, getRepoCacheRoot, loadUserConfig, resolveIndexRoot, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
 import { compactDatabase } from './compact-sqlite-index.js';
 import { CREATE_INDEXES_SQL, CREATE_TABLES_BASE_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
@@ -28,6 +28,25 @@ const applyBuildPragmas = (db) => {
   try { db.pragma('temp_store = MEMORY'); } catch {}
   try { db.pragma('cache_size = -200000'); } catch {}
   try { db.pragma('mmap_size = 268435456'); } catch {}
+};
+
+const createTempPath = (filePath) => (
+  `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
+);
+
+const replaceFile = async (tempPath, finalPath) => {
+  try {
+    await fs.rename(tempPath, finalPath);
+    return;
+  } catch (err) {
+    if (err?.code !== 'EEXIST' && err?.code !== 'EPERM' && err?.code !== 'ENOTEMPTY') {
+      throw err;
+    }
+  }
+  try {
+    await fs.rm(finalPath, { force: true });
+  } catch {}
+  await fs.rename(tempPath, finalPath);
 };
 
 const restoreBuildPragmas = (db) => {
@@ -149,7 +168,8 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
       repo: { type: 'string' },
       incremental: { type: 'boolean', default: false },
       compact: { type: 'boolean', default: false },
-      validate: { type: 'string', default: 'smoke' }
+      validate: { type: 'string', default: 'smoke' },
+      'index-root': { type: 'string' }
     }
   }).parse();
   const bail = (message, code = 1) => {
@@ -164,6 +184,9 @@ const root = rootArg || resolveRepoRoot(process.cwd());
 const envConfig = getEnvConfig();
 const userConfig = loadUserConfig(root);
 const validateMode = normalizeValidateMode(argv.validate);
+const indexRoot = argv['index-root']
+  ? path.resolve(argv['index-root'])
+  : resolveIndexRoot(root, userConfig);
 const threadLimits = resolveThreadLimits({
   argv,
   rawArgv: rawArgs,
@@ -192,9 +215,13 @@ const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const compactFlag = argv.compact;
 const compactOnIncremental = compactFlag === true
   || (compactFlag !== false && userConfig?.sqlite?.compactOnIncremental === true);
-const codeDir = argv['code-dir'] ? path.resolve(argv['code-dir']) : getIndexDir(root, 'code', userConfig);
-const proseDir = argv['prose-dir'] ? path.resolve(argv['prose-dir']) : getIndexDir(root, 'prose', userConfig);
-const sqlitePaths = resolveSqlitePaths(root, userConfig);
+const codeDir = argv['code-dir']
+  ? path.resolve(argv['code-dir'])
+  : getIndexDir(root, 'code', userConfig, { indexRoot });
+const proseDir = argv['prose-dir']
+  ? path.resolve(argv['prose-dir'])
+  : getIndexDir(root, 'prose', userConfig, { indexRoot });
+const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
 const incrementalRequested = argv.incremental === true;
 
 const modeArg = (argv.mode || 'all').toLowerCase();
@@ -1958,7 +1985,19 @@ async function runMode(mode, index, indexDir, targetPath, incrementalData) {
   }
   if (hasBundles) {
     console.log(`[sqlite] Using incremental bundles for ${mode} full rebuild.`);
-    const bundleResult = await buildDatabaseFromBundles(targetPath, mode, incrementalData);
+    const tempPath = createTempPath(targetPath);
+    let bundleResult = { count: 0 };
+    try {
+      bundleResult = await buildDatabaseFromBundles(tempPath, mode, incrementalData);
+      if (bundleResult.count) {
+        await replaceFile(tempPath, targetPath);
+      } else {
+        await fs.rm(tempPath, { force: true });
+      }
+    } catch (err) {
+      try { await fs.rm(tempPath, { force: true }); } catch {}
+      throw err;
+    }
     if (bundleResult.count) {
       return { count: bundleResult.count, incremental: false, changedFiles: null, deletedFiles: null, insertedChunks: bundleResult.count };
     }
@@ -1966,7 +2005,15 @@ async function runMode(mode, index, indexDir, targetPath, incrementalData) {
       console.warn(`[sqlite] Bundle build skipped (${bundleResult.reason}); falling back to file-backed artifacts.`);
     }
   }
-  const count = await buildDatabase(targetPath, index, indexDir, mode, incrementalData?.manifest?.files);
+  const tempPath = createTempPath(targetPath);
+  let count = 0;
+  try {
+    count = await buildDatabase(tempPath, index, indexDir, mode, incrementalData?.manifest?.files);
+    await replaceFile(tempPath, targetPath);
+  } catch (err) {
+    try { await fs.rm(tempPath, { force: true }); } catch {}
+    throw err;
+  }
   return { count, incremental: false, changedFiles: null, deletedFiles: null, insertedChunks: count };
 }
 

@@ -355,6 +355,55 @@ export function getRepoCacheRoot(repoRoot, userConfig = null) {
 }
 
 /**
+ * Resolve the builds root directory for a repo.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @returns {string}
+ */
+export function getBuildsRoot(repoRoot, userConfig = null) {
+  return path.join(getRepoCacheRoot(repoRoot, userConfig), 'builds');
+}
+
+/**
+ * Resolve current build metadata for a repo, if present.
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @returns {{buildId:string,buildRoot:string,path:string,data:object}|null}
+ */
+export function getCurrentBuildInfo(repoRoot, userConfig = null) {
+  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+  const buildsRoot = path.join(repoCacheRoot, 'builds');
+  const currentPath = path.join(buildsRoot, 'current.json');
+  if (!fs.existsSync(currentPath)) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
+    const buildId = typeof data.buildId === 'string' ? data.buildId : null;
+    const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
+    const buildRoot = buildRootRaw
+      ? (path.isAbsolute(buildRootRaw) ? buildRootRaw : path.join(repoCacheRoot, buildRootRaw))
+      : (buildId ? path.join(buildsRoot, buildId) : null);
+    if (!buildId || !buildRoot || !fs.existsSync(buildRoot)) return null;
+    return { buildId, buildRoot, path: currentPath, data };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve the active index root for a repo (current build or legacy path).
+ * @param {string} repoRoot
+ * @param {object|null} userConfig
+ * @param {{indexRoot?:string|null}} [options]
+ * @returns {string}
+ */
+export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
+  if (options?.indexRoot) return path.resolve(options.indexRoot);
+  const current = getCurrentBuildInfo(repoRoot, userConfig);
+  if (current?.buildRoot) return current.buildRoot;
+  return getRepoCacheRoot(repoRoot, userConfig);
+}
+
+/**
  * Resolve model configuration for a repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
@@ -447,8 +496,9 @@ export function resolveNodeOptions(runtimeConfig, baseOptions = process.env.NODE
  * @param {object|null} userConfig
  * @returns {string}
  */
-export function getIndexDir(repoRoot, mode, userConfig = null) {
-  return path.join(getRepoCacheRoot(repoRoot, userConfig), `index-${mode}`);
+export function getIndexDir(repoRoot, mode, userConfig = null, options = {}) {
+  const base = resolveIndexRoot(repoRoot, userConfig, options);
+  return path.join(base, `index-${mode}`);
 }
 
 /**
@@ -522,12 +572,13 @@ export function getRepoDictPath(repoRoot, dictConfig = null) {
  * @param {object|null} userConfig
  * @returns {{codePath:string,prosePath:string,dbDir:string,legacyPath:string,legacyExists:boolean}}
  */
-export function resolveSqlitePaths(repoRoot, userConfig = null) {
+export function resolveSqlitePaths(repoRoot, userConfig = null, options = {}) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const sqlite = cfg.sqlite || {};
   const repoCacheRoot = getRepoCacheRoot(repoRoot, cfg);
-  const defaultDir = path.join(repoCacheRoot, 'index-sqlite');
-  const legacyPath = sqlite.dbPath ? resolvePath(repoRoot, sqlite.dbPath) : path.join(defaultDir, 'index.db');
+  const indexRoot = resolveIndexRoot(repoRoot, cfg, options);
+  const defaultDir = path.join(indexRoot, 'index-sqlite');
+  const legacyPath = sqlite.dbPath ? resolvePath(repoRoot, sqlite.dbPath) : path.join(repoCacheRoot, 'index-sqlite', 'index.db');
   const dbDir = sqlite.dbDir ? resolvePath(repoRoot, sqlite.dbDir) : defaultDir;
   const codePath = sqlite.codeDbPath
     ? resolvePath(repoRoot, sqlite.codeDbPath)

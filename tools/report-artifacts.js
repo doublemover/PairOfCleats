@@ -45,8 +45,8 @@ const prose = repo.sqlite?.prose;
 
 console.log('Repo artifacts');
 console.log(`- cache root: ${formatBytes(repo.totalBytes)} (${repo.root})`);
-console.log(`- index-code: ${formatBytes(repo.artifacts.indexCode)} (${path.join(repo.root, 'index-code')})`);
-console.log(`- index-prose: ${formatBytes(repo.artifacts.indexProse)} (${path.join(repo.root, 'index-prose')})`);
+console.log(`- index-code: ${formatBytes(repo.artifacts.indexCode)} (${repo.artifacts.indexCode})`);
+console.log(`- index-prose: ${formatBytes(repo.artifacts.indexProse)} (${repo.artifacts.indexProse})`);
 console.log(`- repometrics: ${formatBytes(repo.artifacts.repometrics)} (${path.join(repo.root, 'repometrics')})`);
 console.log(`- incremental: ${formatBytes(repo.artifacts.incremental)} (${path.join(repo.root, 'incremental')})`);
 console.log(`- sqlite code db: ${code ? formatBytes(code.bytes) : 'missing'} (${code?.path || status.repo.sqlite?.code?.path || 'missing'})`);
