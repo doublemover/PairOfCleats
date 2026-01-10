@@ -3,22 +3,33 @@ import util from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { log as defaultLog } from '../../shared/progress.js';
 
-const summarizeError = (err, maxLen = 240) => {
+const summarizeError = (err, options = {}) => {
+  const {
+    maxLen = 240,
+    fullDepth = false
+  } = options;
   if (!err) return '';
   const asString = (value) => (typeof value === 'string' ? value.trim() : '');
   let detail = asString(err?.message)
     || asString(err?.code)
     || asString(err?.name)
     || asString(typeof err === 'string' ? err : '');
-  if (!detail || detail === '[object Object]') {
+  if (!detail || detail === '[object Object]' || detail === '{}') {
     detail = util.inspect(err, {
-      depth: 2,
+      depth: fullDepth ? null : 2,
       breakLength: 120,
-      maxArrayLength: 6,
-      maxStringLength: 200,
+      maxArrayLength: fullDepth ? null : 6,
+      maxStringLength: fullDepth ? null : 200,
       showHidden: true,
       getters: true
     });
+    if (detail === '{}' || detail === '[object Object]') {
+      try {
+        detail = JSON.stringify(err, Object.getOwnPropertyNames(err), 2);
+      } catch (jsonErr) {
+        detail = detail || `unserializable error: ${asString(jsonErr?.message)}`;
+      }
+    }
   }
   detail = detail.replace(/\s+/g, ' ').trim();
   if (maxLen > 3 && detail.length > maxLen) {
@@ -313,7 +324,7 @@ export async function createIndexerWorkerPool(input = {}) {
         } catch (err) {
           const isCloneError = err?.name === 'DataCloneError'
             || /could not be cloned|DataCloneError/i.test(err?.message || '');
-          const detail = summarizeError(err);
+          const detail = summarizeError(err, { fullDepth: true, maxLen: 0 });
           const reason = isCloneError
             ? (detail ? `data-clone error: ${detail}` : 'data-clone error')
             : (detail ? `worker failure: ${detail}` : 'worker failure');
