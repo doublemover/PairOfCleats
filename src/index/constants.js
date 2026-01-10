@@ -124,7 +124,7 @@ export const SKIP_FILES = new Set([
   'AGENTS.md'
 ]);
 
-export const EXTS_PROSE = new Set(['.md', '.txt', '.rst', '.adoc', '.asciidoc']);
+export const EXTS_PROSE = new Set(['.md', '.mdx', '.txt', '.rst', '.adoc', '.asciidoc']);
 
 export const JS_EXTS = new Set(['.js', '.mjs', '.cjs', '.jsx']);
 export const TS_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts']);

@@ -403,7 +403,7 @@ const CODE_FORMAT_CHUNKERS = [
 ];
 
 const PROSE_CHUNKERS = [
-  { id: 'markdown', match: (ext) => ext === '.md', chunk: ({ text }) => chunkMarkdown(text) },
+  { id: 'markdown', match: (ext) => ext === '.md' || ext === '.mdx', chunk: ({ text }) => chunkMarkdown(text) },
   { id: 'rst', match: (ext) => ext === '.rst', chunk: ({ text }) => chunkRst(text) },
   { id: 'asciidoc', match: (ext) => ext === '.adoc' || ext === '.asciidoc', chunk: ({ text }) => chunkAsciiDoc(text) }
 ];

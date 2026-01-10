@@ -1,3 +1,4 @@
+import { parse, postprocess, preprocess } from 'micromark';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { sha1 } from '../shared/hash.js';
 import { smartChunk } from './chunking.js';
@@ -20,6 +21,9 @@ const LANGUAGE_ID_EXT = new Map([
   ['jsx', '.jsx'],
   ['html', '.html'],
   ['css', '.css'],
+  ['scss', '.css'],
+  ['sass', '.css'],
+  ['less', '.css'],
   ['markdown', '.md'],
   ['yaml', '.yaml'],
   ['json', '.json'],
@@ -32,10 +36,53 @@ const LANGUAGE_ID_EXT = new Map([
   ['go', '.go'],
   ['rust', '.rs'],
   ['java', '.java'],
+  ['c', '.c'],
+  ['cpp', '.cpp'],
   ['csharp', '.cs'],
   ['kotlin', '.kt'],
   ['sql', '.sql'],
   ['shell', '.sh']
+]);
+
+const CONFIG_LANGS = new Set(['json', 'yaml', 'toml']);
+
+const MARKDOWN_FENCE_LANG_ALIASES = new Map([
+  ['js', 'javascript'],
+  ['javascript', 'javascript'],
+  ['jsx', 'javascript'],
+  ['ts', 'typescript'],
+  ['typescript', 'typescript'],
+  ['tsx', 'typescript'],
+  ['html', 'html'],
+  ['css', 'css'],
+  ['scss', 'scss'],
+  ['sass', 'sass'],
+  ['less', 'less'],
+  ['json', 'json'],
+  ['yaml', 'yaml'],
+  ['yml', 'yaml'],
+  ['toml', 'toml'],
+  ['xml', 'xml'],
+  ['md', 'markdown'],
+  ['markdown', 'markdown'],
+  ['sh', 'shell'],
+  ['bash', 'shell'],
+  ['shell', 'shell'],
+  ['py', 'python'],
+  ['python', 'python'],
+  ['rb', 'ruby'],
+  ['ruby', 'ruby'],
+  ['go', 'go'],
+  ['rust', 'rust'],
+  ['java', 'java'],
+  ['c', 'c'],
+  ['cpp', 'cpp'],
+  ['csharp', 'csharp'],
+  ['cs', 'csharp'],
+  ['kotlin', 'kotlin'],
+  ['kt', 'kotlin'],
+  ['php', 'php'],
+  ['sql', 'sql']
 ]);
 
 const resolveSegmentType = (mode, ext) => {
@@ -77,6 +124,151 @@ const buildSegmentId = (relPath, segment) => {
   return `seg_${sha1(key)}`;
 };
 
+const normalizeFenceLanguage = (raw) => {
+  if (!raw) return null;
+  const normalized = String(raw).trim().split(/\s+/)[0]?.toLowerCase();
+  if (!normalized) return null;
+  return MARKDOWN_FENCE_LANG_ALIASES.get(normalized) || normalized;
+};
+
+const hasMeaningfulText = (text) => /\S/.test(text || '');
+
+const detectFrontmatter = (text) => {
+  if (!text.startsWith('---') && !text.startsWith('+++') && !text.startsWith(';;;')) return null;
+  const lines = text.split('\n');
+  if (!lines.length) return null;
+  const fence = lines[0].trim();
+  if (!['---', '+++', ';;;'].includes(fence)) return null;
+  let endLine = -1;
+  for (let i = 1; i < lines.length; i += 1) {
+    const trimmed = lines[i].trim();
+    if (trimmed === fence || (fence === '---' && trimmed === '...')) {
+      endLine = i;
+      break;
+    }
+  }
+  if (endLine < 0) return null;
+  let endOffset = 0;
+  for (let i = 0; i <= endLine; i += 1) {
+    endOffset += lines[i].length;
+    if (i < endLine) endOffset += 1;
+  }
+  if (text[endOffset] === '\n') endOffset += 1;
+  const languageId = fence === '+++'
+    ? 'toml'
+    : (fence === ';;;' ? 'json' : 'yaml');
+  return { start: 0, end: endOffset, languageId };
+};
+
+const extractFencedBlocks = (text) => {
+  const events = postprocess(parse().document().write(preprocess()(text, 'utf8', true)));
+  const blocks = [];
+  let current = null;
+  for (const [action, token] of events) {
+    if (action === 'enter' && token.type === 'codeFenced') {
+      current = { info: null, valueStart: null, valueEnd: null };
+      continue;
+    }
+    if (!current) continue;
+    if (action === 'enter' && token.type === 'codeFencedFenceInfo') {
+      current.info = text.slice(token.start.offset, token.end.offset);
+    }
+    if (token.type === 'codeFlowValue') {
+      if (action === 'enter') current.valueStart = token.start.offset;
+      if (action === 'exit') current.valueEnd = token.end.offset;
+    }
+    if (action === 'exit' && token.type === 'codeFenced') {
+      if (Number.isFinite(current.valueStart) && Number.isFinite(current.valueEnd)) {
+        blocks.push({
+          start: current.valueStart,
+          end: current.valueEnd,
+          info: current.info || null
+        });
+      }
+      current = null;
+    }
+  }
+  return blocks;
+};
+
+const segmentMarkdown = ({ text, ext, relPath }) => {
+  const segments = [];
+  const frontmatter = detectFrontmatter(text);
+  if (frontmatter) {
+    segments.push({
+      type: 'config',
+      languageId: frontmatter.languageId,
+      start: frontmatter.start,
+      end: frontmatter.end,
+      parentSegmentId: null,
+      embeddingContext: 'config',
+      meta: { frontmatter: true }
+    });
+  }
+  const fencedBlocks = extractFencedBlocks(text);
+  for (const block of fencedBlocks) {
+    if (frontmatter && block.start < frontmatter.end) continue;
+    const languageId = normalizeFenceLanguage(block.info);
+    const embeddingContext = CONFIG_LANGS.has(languageId) ? 'config' : 'code';
+    segments.push({
+      type: 'embedded',
+      languageId,
+      start: block.start,
+      end: block.end,
+      parentSegmentId: null,
+      embeddingContext,
+      meta: { fenceInfo: block.info || null }
+    });
+  }
+  const special = segments.slice().sort((a, b) => a.start - b.start || a.end - b.end);
+  let cursor = 0;
+  if (special.length) {
+    for (const seg of special) {
+      if (seg.start > cursor) {
+        const slice = text.slice(cursor, seg.start);
+        if (hasMeaningfulText(slice)) {
+          segments.push({
+            type: 'prose',
+            languageId: 'markdown',
+            start: cursor,
+            end: seg.start,
+            parentSegmentId: null,
+            embeddingContext: 'prose',
+            meta: {}
+          });
+        }
+      }
+      cursor = Math.max(cursor, seg.end);
+    }
+  }
+  if (cursor < text.length) {
+    const slice = text.slice(cursor);
+    if (hasMeaningfulText(slice)) {
+      segments.push({
+        type: 'prose',
+        languageId: 'markdown',
+        start: cursor,
+        end: text.length,
+        parentSegmentId: null,
+        embeddingContext: 'prose',
+        meta: {}
+      });
+    }
+  }
+  if (!segments.length) {
+    segments.push({
+      type: resolveSegmentType('prose', ext),
+      languageId: 'markdown',
+      start: 0,
+      end: text.length,
+      parentSegmentId: null,
+      embeddingContext: 'prose',
+      meta: {}
+    });
+  }
+  return finalizeSegments(segments, relPath);
+};
+
 const finalizeSegments = (segments, relPath) => {
   const output = [];
   for (const segment of segments || []) {
@@ -103,6 +295,9 @@ export function discoverSegments({
   mode,
   languageId = null
 }) {
+  if (ext === '.md' || ext === '.mdx') {
+    return segmentMarkdown({ text, ext, relPath });
+  }
   const baseSegment = {
     type: resolveSegmentType(mode, ext),
     languageId,
