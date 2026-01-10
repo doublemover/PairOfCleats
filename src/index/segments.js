@@ -1,4 +1,7 @@
 import { parse, postprocess, preprocess } from 'micromark';
+import { parse as parseAstro } from '@astrojs/compiler/sync';
+import { parse as parseSvelte } from 'svelte/compiler';
+import { parse as parseVue } from '@vue/compiler-sfc';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { sha1 } from '../shared/hash.js';
 import { smartChunk } from './chunking.js';
@@ -129,6 +132,13 @@ const normalizeFenceLanguage = (raw) => {
   const normalized = String(raw).trim().split(/\s+/)[0]?.toLowerCase();
   if (!normalized) return null;
   return MARKDOWN_FENCE_LANG_ALIASES.get(normalized) || normalized;
+};
+
+const normalizeLanguageHint = (raw, fallback) => {
+  if (!raw) return fallback;
+  const normalized = String(raw).trim().split(/\s+/)[0]?.toLowerCase();
+  if (!normalized) return fallback;
+  return MARKDOWN_FENCE_LANG_ALIASES.get(normalized) || normalized || fallback;
 };
 
 const hasMeaningfulText = (text) => /\S/.test(text || '');
@@ -269,6 +279,181 @@ const segmentMarkdown = ({ text, ext, relPath }) => {
   return finalizeSegments(segments, relPath);
 };
 
+const segmentVue = ({ text, relPath }) => {
+  let descriptor = null;
+  try {
+    ({ descriptor } = parseVue(text, { sourceMap: false }));
+  } catch {
+    return null;
+  }
+  if (!descriptor) return null;
+  const segments = [];
+  const addBlock = (block, blockType, fallbackLang) => {
+    if (!block?.loc) return;
+    const start = block.loc.start?.offset;
+    const end = block.loc.end?.offset;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+    const languageId = normalizeLanguageHint(block.lang, fallbackLang);
+    segments.push({
+      type: 'embedded',
+      languageId,
+      start,
+      end,
+      parentSegmentId: null,
+      embeddingContext: 'code',
+      meta: { block: blockType, lang: block.lang || null }
+    });
+  };
+  addBlock(descriptor.template, 'template', 'html');
+  addBlock(descriptor.script, 'script', 'javascript');
+  addBlock(descriptor.scriptSetup, 'scriptSetup', 'javascript');
+  for (const style of descriptor.styles || []) {
+    addBlock(style, 'style', 'css');
+  }
+  return segments.length ? finalizeSegments(segments, relPath) : null;
+};
+
+const segmentSvelte = ({ text, relPath }) => {
+  let ast = null;
+  try {
+    ast = parseSvelte(text);
+  } catch {
+    return null;
+  }
+  if (!ast) return null;
+  const segments = [];
+  const addContentBlock = (node, blockType, fallbackLang) => {
+    const content = node?.content || null;
+    const start = content?.start ?? node?.start;
+    const end = content?.end ?? node?.end;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+    const languageId = normalizeLanguageHint(node?.lang, fallbackLang);
+    segments.push({
+      type: 'embedded',
+      languageId,
+      start,
+      end,
+      parentSegmentId: null,
+      embeddingContext: 'code',
+      meta: { block: blockType }
+    });
+  };
+  addContentBlock(ast.instance, 'script', 'javascript');
+  addContentBlock(ast.module, 'scriptModule', 'javascript');
+  addContentBlock(ast.css, 'style', 'css');
+  if (Number.isFinite(ast.html?.start) && Number.isFinite(ast.html?.end) && ast.html.end > ast.html.start) {
+    segments.push({
+      type: 'embedded',
+      languageId: 'html',
+      start: ast.html.start,
+      end: ast.html.end,
+      parentSegmentId: null,
+      embeddingContext: 'code',
+      meta: { block: 'template' }
+    });
+  }
+  return segments.length ? finalizeSegments(segments, relPath) : null;
+};
+
+const segmentAstro = ({ text, relPath }) => {
+  let ast = null;
+  try {
+    const result = parseAstro(text);
+    ast = result?.ast || null;
+  } catch {
+    return null;
+  }
+  if (!ast || !Array.isArray(ast.children)) return null;
+  const segments = [];
+  const addFrontmatter = (node) => {
+    const value = typeof node?.value === 'string' ? node.value : '';
+    const position = node?.position;
+    if (!position?.start || !position?.end) return;
+    let start = text.indexOf(value, position.start.offset);
+    if (start < 0) start = position.start.offset;
+    const end = start + value.length;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+    segments.push({
+      type: 'embedded',
+      languageId: 'javascript',
+      start,
+      end,
+      parentSegmentId: null,
+      embeddingContext: 'code',
+      meta: { block: 'frontmatter' }
+    });
+  };
+  const addElementBlock = (node, blockType, fallbackLang) => {
+    if (!Array.isArray(node?.children) || !node.children.length) return;
+    let start = null;
+    let end = null;
+    for (const child of node.children) {
+      const pos = child?.position;
+      const childStart = pos?.start?.offset;
+      const childEnd = pos?.end?.offset;
+      if (!Number.isFinite(childStart) || !Number.isFinite(childEnd)) continue;
+      if (start == null || childStart < start) start = childStart;
+      if (end == null || childEnd > end) end = childEnd;
+    }
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+    const languageId = normalizeLanguageHint(node?.attributes?.find?.((attr) => attr?.name === 'lang')?.value, fallbackLang);
+    segments.push({
+      type: 'embedded',
+      languageId,
+      start,
+      end,
+      parentSegmentId: null,
+      embeddingContext: 'code',
+      meta: { block: blockType }
+    });
+  };
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'frontmatter') addFrontmatter(node);
+    if (node.type === 'element') {
+      const name = String(node.name || '').toLowerCase();
+      if (name === 'script') addElementBlock(node, 'script', 'javascript');
+      if (name === 'style') addElementBlock(node, 'style', 'css');
+    }
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) walk(child);
+    }
+  };
+  for (const child of ast.children) walk(child);
+  if (!segments.length) return null;
+  const special = segments.slice().sort((a, b) => a.start - b.start || a.end - b.end);
+  let cursor = 0;
+  for (const seg of special) {
+    if (seg.start > cursor) {
+      const slice = text.slice(cursor, seg.start);
+      if (hasMeaningfulText(slice)) {
+        segments.push({
+          type: 'embedded',
+          languageId: 'html',
+          start: cursor,
+          end: seg.start,
+          parentSegmentId: null,
+          embeddingContext: 'code',
+          meta: { block: 'template' }
+        });
+      }
+    }
+    cursor = Math.max(cursor, seg.end);
+  }
+  if (cursor < text.length && hasMeaningfulText(text.slice(cursor))) {
+    segments.push({
+      type: 'embedded',
+      languageId: 'html',
+      start: cursor,
+      end: text.length,
+      parentSegmentId: null,
+      embeddingContext: 'code',
+      meta: { block: 'template' }
+    });
+  }
+  return finalizeSegments(segments, relPath);
+};
+
 const finalizeSegments = (segments, relPath) => {
   const output = [];
   for (const segment of segments || []) {
@@ -297,6 +482,18 @@ export function discoverSegments({
 }) {
   if (ext === '.md' || ext === '.mdx') {
     return segmentMarkdown({ text, ext, relPath });
+  }
+  if (ext === '.vue') {
+    const segments = segmentVue({ text, relPath });
+    if (segments) return segments;
+  }
+  if (ext === '.svelte') {
+    const segments = segmentSvelte({ text, relPath });
+    if (segments) return segments;
+  }
+  if (ext === '.astro') {
+    const segments = segmentAstro({ text, relPath });
+    if (segments) return segments;
   }
   const baseSegment = {
     type: resolveSegmentType(mode, ext),

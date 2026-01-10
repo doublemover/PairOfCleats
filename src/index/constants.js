@@ -149,7 +149,8 @@ export const EXTS_CODE = new Set([
   '.html', '.htm', '.css', '.py', '.swift', '.rs', '.c', '.cc', '.cpp', '.h', '.hpp', '.hh',
   '.m', '.mm', '.go', '.java', '.cs', '.kt', '.kts', '.rb', '.php', '.phtml',
   '.lua', '.sql', '.psql', '.pgsql', '.mysql', '.sqlite', '.pl', '.pm', '.bash',
-  '.zsh', '.ksh', '.json', '.toml', '.ini', '.xml', '.cfg', '.conf'
+  '.zsh', '.ksh', '.json', '.toml', '.ini', '.xml', '.cfg', '.conf', '.vue',
+  '.svelte', '.astro'
 ]);
 
 export const CODE_FILENAMES = new Set(['dockerfile', 'makefile']);
