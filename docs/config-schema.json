@@ -502,6 +502,27 @@
         },
         "riskAnalysis": { "type": "boolean" },
         "riskAnalysisCrossFile": { "type": "boolean" },
+        "riskRules": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "includeDefaults": { "type": "boolean" },
+            "rulesPath": { "type": "string" },
+            "rules": { "type": "object", "additionalProperties": true }
+          }
+        },
+        "riskCaps": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxBytes": { "type": "number" },
+            "maxLines": { "type": "number" },
+            "maxNodes": { "type": "number" },
+            "maxEdges": { "type": "number" },
+            "maxMs": { "type": "number" },
+            "maxFlows": { "type": "number" }
+          }
+        },
         "typeInference": { "type": "boolean" },
         "typeInferenceCrossFile": { "type": "boolean" },
         "gitBlame": { "type": "boolean" },
@@ -563,6 +584,10 @@
       "properties": {
         "autoInstallOnDetect": { "type": "boolean" },
         "autoEnableOnDetect": { "type": "boolean" },
+        "timeoutMs": { "type": "number" },
+        "maxRetries": { "type": "number" },
+        "circuitBreakerThreshold": { "type": "number" },
+        "logDir": { "type": "string" },
         "installScope": { "type": "string" },
         "allowGlobalFallback": { "type": "boolean" },
         "dir": { "type": "string" },

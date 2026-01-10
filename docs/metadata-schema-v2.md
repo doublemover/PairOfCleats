@@ -5,7 +5,7 @@ This document defines the v2 per-chunk metadata contract. It is the canonical sc
 ## Versioning
 
 - **Schema version:** 2.0.0
-- **Container:** Stored inside `chunk_meta` entries as `metaV2` (future field).
+- **Container:** Stored inside `chunk_meta` entries as `metaV2`.
 - **Compatibility:** Readers must tolerate missing v2 metadata until migration completes.
 
 ## Core fields (stable)

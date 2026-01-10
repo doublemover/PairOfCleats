@@ -635,6 +635,10 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const typescript = tooling.typescript || {};
   const clangd = tooling.clangd || {};
   const envConfig = getEnvConfig();
+  const timeoutMs = Number(tooling.timeoutMs ?? envConfig.toolingTimeoutMs);
+  const maxRetries = Number(tooling.maxRetries ?? envConfig.toolingMaxRetries);
+  const breakerThreshold = Number(tooling.circuitBreakerThreshold ?? envConfig.toolingCircuitBreaker);
+  const logDir = typeof tooling.logDir === 'string' ? tooling.logDir : '';
   const installScope = (tooling.installScope || envConfig.toolingInstallScope || 'cache').toLowerCase();
   const normalizeOrder = (value) => {
     if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
@@ -658,6 +662,10 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   return {
     autoInstallOnDetect: tooling.autoInstallOnDetect === true,
     autoEnableOnDetect: tooling.autoEnableOnDetect !== false,
+    timeoutMs: Number.isFinite(timeoutMs) ? Math.max(1000, Math.floor(timeoutMs)) : null,
+    maxRetries: Number.isFinite(maxRetries) ? Math.max(0, Math.floor(maxRetries)) : null,
+    circuitBreakerThreshold: Number.isFinite(breakerThreshold) ? Math.max(1, Math.floor(breakerThreshold)) : null,
+    logDir: logDir.trim(),
     installScope,
     allowGlobalFallback: tooling.allowGlobalFallback !== false,
     dir: getToolingDir(repoRoot, cfg),

@@ -146,6 +146,7 @@ export async function writeIndexArtifacts(input) {
         segment: c.segment || null,
         codeRelations: c.codeRelations,
         docmeta: c.docmeta,
+        metaV2: c.metaV2,
         stats: c.stats,
         complexity: c.complexity,
         lint: c.lint,

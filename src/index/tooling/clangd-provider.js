@@ -6,7 +6,7 @@ import { buildLineIndex } from '../../shared/lines.js';
 import { createLspClient, languageIdForFileExt, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { rangeToOffsets } from '../../integrations/tooling/lsp/positions.js';
 import { flattenSymbols } from '../../integrations/tooling/lsp/symbols.js';
-import { createToolingEntry, uniqueTypes } from '../../integrations/tooling/providers/shared.js';
+import { createToolingEntry, createToolingGuard, uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
 
 export const CLIKE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh', '.m', '.mm'];
@@ -119,7 +119,9 @@ export async function collectClangdTypes({
   log = () => {},
   cmd = 'clangd',
   args = [],
-  timeoutMs = 15000
+  timeoutMs = 15000,
+  retries = 2,
+  breakerThreshold = 3
 }) {
   const resolvedCmd = resolveCommand(cmd);
   const useShell = shouldUseShell(resolvedCmd);
@@ -132,12 +134,20 @@ export async function collectClangdTypes({
   }
 
   const client = createLspClient({ cmd: resolvedCmd, args, cwd: rootDir, log, shell: useShell });
+  const guard = createToolingGuard({
+    name: 'clangd',
+    timeoutMs,
+    retries,
+    breakerThreshold,
+    log
+  });
   const rootUri = pathToFileUri(rootDir);
   try {
-    await client.initialize({
+    await guard.run(({ timeoutMs: guardTimeout }) => client.initialize({
       rootUri,
-      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } }
-    });
+      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+      timeoutMs: guardTimeout
+    }), { label: 'initialize' });
   } catch (err) {
     log(`[index] clangd initialize failed: ${err?.message || err}`);
     client.kill();
@@ -167,10 +177,18 @@ export async function collectClangdTypes({
 
     let symbols = null;
     try {
-      symbols = await client.request('textDocument/documentSymbol', { textDocument: { uri } }, { timeoutMs });
+      symbols = await guard.run(
+        ({ timeoutMs: guardTimeout }) => client.request(
+          'textDocument/documentSymbol',
+          { textDocument: { uri } },
+          { timeoutMs: guardTimeout }
+        ),
+        { label: 'documentSymbol' }
+      );
     } catch (err) {
       log(`[index] clangd documentSymbol failed (${file}): ${err?.message || err}`);
       client.notify('textDocument/didClose', { textDocument: { uri } });
+      if (guard.isOpen()) break;
       continue;
     }
 
@@ -190,10 +208,13 @@ export async function collectClangdTypes({
       let info = parseSignature(symbol.detail, languageId, symbol.name);
       if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) {
         try {
-          const hover = await client.request('textDocument/hover', {
-            textDocument: { uri },
-            position: symbol.selectionRange?.start || symbol.range?.start
-          }, { timeoutMs: 8000 });
+          const hover = await guard.run(
+            ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
+              textDocument: { uri },
+              position: symbol.selectionRange?.start || symbol.range?.start
+            }, { timeoutMs: guardTimeout }),
+            { label: 'hover', timeoutOverride: 8000 }
+          );
           const hoverText = normalizeHoverContents(hover?.contents);
           const hoverInfo = parseSignature(hoverText, languageId, symbol.name);
           if (hoverInfo) info = hoverInfo;

@@ -148,6 +148,52 @@ const validateChunkIds = (report, mode, chunkMeta) => {
   }
 };
 
+const validateMetaV2 = (report, mode, chunkMeta) => {
+  const maxErrors = 20;
+  let errors = 0;
+  for (let i = 0; i < chunkMeta.length; i += 1) {
+    const entry = chunkMeta[i];
+    const meta = entry?.metaV2;
+    if (!meta) continue;
+    if (typeof meta.chunkId !== 'string' || !meta.chunkId) {
+      addIssue(report, mode, `metaV2 missing chunkId at index ${i}`, 'Rebuild index artifacts for this mode.');
+      errors += 1;
+    }
+    if (typeof meta.file !== 'string' || !meta.file) {
+      addIssue(report, mode, `metaV2 missing file at index ${i}`, 'Rebuild index artifacts for this mode.');
+      errors += 1;
+    }
+    if (meta.risk?.flows) {
+      for (const flow of meta.risk.flows || []) {
+        if (!flow || !flow.source || !flow.sink) {
+          addIssue(report, mode, `metaV2 risk flow missing source/sink at index ${i}`, 'Rebuild index artifacts for this mode.');
+          errors += 1;
+          break;
+        }
+      }
+    }
+    if (meta.types && typeof meta.types === 'object') {
+      const checkTypeEntries = (bucket) => {
+        if (!bucket || typeof bucket !== 'object') return;
+        for (const entries of Object.values(bucket)) {
+          const list = Array.isArray(entries) ? entries : [];
+          for (const typeEntry of list) {
+            if (!typeEntry?.type) {
+              addIssue(report, mode, `metaV2 type entry missing type at index ${i}`, 'Rebuild index artifacts for this mode.');
+              errors += 1;
+              return;
+            }
+          }
+        }
+      };
+      checkTypeEntries(meta.types.declared);
+      checkTypeEntries(meta.types.inferred);
+      checkTypeEntries(meta.types.tooling);
+    }
+    if (errors >= maxErrors) return;
+  }
+};
+
 export async function validateIndexArtifacts(input = {}) {
   const root = input.root ? path.resolve(input.root) : resolveRepoRoot(process.cwd());
   const indexRoot = input.indexRoot ? path.resolve(input.indexRoot) : null;
@@ -291,6 +337,7 @@ export async function validateIndexArtifacts(input = {}) {
       const chunkMeta = loadChunkMeta(dir);
       validateSchema(report, mode, 'chunk_meta', chunkMeta, 'Rebuild index artifacts for this mode.');
       validateChunkIds(report, mode, chunkMeta);
+      validateMetaV2(report, mode, chunkMeta);
 
       const tokenIndex = loadTokenPostings(dir);
       const tokenNormalized = normalizeTokenPostings(tokenIndex);

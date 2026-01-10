@@ -4,7 +4,7 @@ import { buildLineIndex } from '../../../shared/lines.js';
 import { createLspClient, languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { rangeToOffsets } from '../lsp/positions.js';
 import { flattenSymbols } from '../lsp/symbols.js';
-import { createToolingEntry, uniqueTypes } from './shared.js';
+import { createToolingEntry, createToolingGuard, uniqueTypes } from './shared.js';
 
 const splitParams = (value) => {
   if (!value) return [];
@@ -168,18 +168,28 @@ export async function collectLspTypes({
   log,
   cmd,
   args,
-  timeoutMs = 15000
+  timeoutMs = 15000,
+  retries = 2,
+  breakerThreshold = 3
 }) {
   const files = Array.from(chunksByFile.keys());
   if (!files.length) return { typesByChunk: new Map(), enriched: 0 };
 
   const client = createLspClient({ cmd, args, cwd: rootDir, log });
+  const guard = createToolingGuard({
+    name: cmd,
+    timeoutMs,
+    retries,
+    breakerThreshold,
+    log
+  });
   const rootUri = pathToFileUri(rootDir);
   try {
-    await client.initialize({
+    await guard.run(({ timeoutMs: guardTimeout }) => client.initialize({
       rootUri,
-      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } }
-    });
+      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+      timeoutMs: guardTimeout
+    }), { label: 'initialize' });
   } catch (err) {
     log(`[index] ${cmd} initialize failed: ${err?.message || err}`);
     client.kill();
@@ -209,10 +219,18 @@ export async function collectLspTypes({
 
     let symbols = null;
     try {
-      symbols = await client.request('textDocument/documentSymbol', { textDocument: { uri } }, { timeoutMs });
+      symbols = await guard.run(
+        ({ timeoutMs: guardTimeout }) => client.request(
+          'textDocument/documentSymbol',
+          { textDocument: { uri } },
+          { timeoutMs: guardTimeout }
+        ),
+        { label: 'documentSymbol' }
+      );
     } catch (err) {
       log(`[index] ${cmd} documentSymbol failed (${file}): ${err?.message || err}`);
       client.notify('textDocument/didClose', { textDocument: { uri } });
+      if (guard.isOpen()) break;
       continue;
     }
     const flattened = flattenSymbols(symbols || []);
@@ -231,10 +249,13 @@ export async function collectLspTypes({
       let info = extractSignatureInfo(symbol.detail, languageId, symbol.name);
       if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) {
         try {
-          const hover = await client.request('textDocument/hover', {
-            textDocument: { uri },
-            position: symbol.selectionRange?.start || symbol.range?.start
-          }, { timeoutMs: 8000 });
+          const hover = await guard.run(
+            ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
+              textDocument: { uri },
+              position: symbol.selectionRange?.start || symbol.range?.start
+            }, { timeoutMs: guardTimeout }),
+            { label: 'hover', timeoutOverride: 8000 }
+          );
           const hoverText = normalizeHoverContents(hover?.contents);
           const hoverInfo = extractSignatureInfo(hoverText, languageId, symbol.name);
           if (hoverInfo) info = hoverInfo;

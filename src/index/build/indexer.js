@@ -60,6 +60,8 @@ const buildIncrementalSignature = (runtime, mode, tokenizationKey) => {
       typeInferenceCrossFileEnabled: runtime.typeInferenceCrossFileEnabled,
       gitBlameEnabled: runtime.gitBlameEnabled
     },
+    riskRules: runtime.indexingConfig?.riskRules || null,
+    riskCaps: runtime.indexingConfig?.riskCaps || null,
     parsers: {
       javascript: languageOptions.javascript?.parser || null,
       javascriptFlow: languageOptions.javascript?.flow || null,
@@ -305,6 +307,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       embeddingEnabled: runtimeRef.embeddingEnabled,
       typeInferenceEnabled: runtimeRef.typeInferenceEnabled,
       riskAnalysisEnabled: runtimeRef.riskAnalysisEnabled,
+      riskConfig: runtimeRef.riskConfig,
+      toolInfo: runtimeRef.toolInfo,
       seenFiles,
       gitBlameEnabled: runtimeRef.gitBlameEnabled,
       lintEnabled: runtimeRef.lintEnabled,

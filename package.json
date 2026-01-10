@@ -88,6 +88,7 @@
     "sqlite-compact-test": "node tests/sqlite-compact.js",
     "sqlite-ann-extension-test": "node tests/sqlite-ann-extension.js",
     "language-fidelity-test": "node tests/language-fidelity.js",
+    "metadata-v2-test": "node tests/metadata-v2.js",
     "tree-sitter-chunks-test": "node tests/tree-sitter-chunks.js",
     "prose-skip-imports-test": "node tests/prose-skip-imports.js",
     "format-fidelity-test": "node tests/format-fidelity.js",

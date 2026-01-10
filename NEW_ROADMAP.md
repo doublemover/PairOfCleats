@@ -397,16 +397,6 @@ with explicit provenance, confidence scoring, and testable correctness.
   - `roaring-wasm` — store large sets of symbol IDs, callsites, and references compactly with fast set ops.
   - `xxhash-wasm` — hash AST node signatures and normalized identifiers for stable IDs.
 
-- [ ] For each supported language, implement metadata extraction producing v2 fields:
-  - [ ] symbol identity: name/kind/namespace/class context
-  - [ ] signature parsing (params, defaults, return annotations)
-  - [ ] modifiers/visibility (public/private/protected/internal)
-  - [ ] decorators/attributes/annotations (language-specific)
-  - [ ] control-flow summary: branch/loop counts, early return, throw, await
-  - [ ] dataflow summary (local): reads/writes/mutates/aliases for key identifiers
-  - [ ] call graph summary (local): calls, awaited calls, dynamic calls
-  - [ ] structural tags (existing) normalized into v2 tags
-- [ ] Add per-language fidelity tests (“golden metadata” tests)
 
 ## 4.2 Advanced **risk analysis**: sources / sinks / sanitizers / flows
 
@@ -422,53 +412,12 @@ with explicit provenance, confidence scoring, and testable correctness.
 The current regex-based “sources × sinks” cartesian product is a useful baseline, but not advanced.
 
 ### 4.2.1 Risk rule system
-- [ ] Define `docs/risk-rules.md`:
-  - [ ] source patterns (API inputs, env, files, IPC, user-controlled)
-  - [ ] sink patterns (SQL exec, shell exec, file writes, eval, HTML sinks)
-  - [ ] sanitizer patterns (escape/sanitize/parameterize)
-  - [ ] propagation rules (assignments, returns, params)
-  - [ ] categories + severity + confidence
-  - [ ] per-language overrides
-- [ ] Implement a versioned risk rules bundle:
-  - [ ] shipped defaults
-  - [ ] repo-local overrides + allowlists/suppressions
-  - [ ] rule provenance stored in metadata
 
 ### 4.2.2 Intra-procedural taint/dataflow (per chunk/function scope)
-- [ ] Build a local dataflow graph per function-like chunk:
-  - [ ] identify variables, params, returns
-  - [ ] detect reads/writes
-  - [ ] propagate taint from sources through assignments/calls/returns
-  - [ ] detect sink calls and whether arguments are tainted
-  - [ ] record flow evidence (line ranges and variable names)
-- [ ] Implement conservative approximations for dynamic constructs:
-  - [ ] JS eval/dynamic property access
-  - [ ] Python getattr/exec
-  - [ ] SQL string building heuristics
-- [ ] Add thresholds to prevent worst-case blowups (concrete defaults):
-  - [ ] hard cap inputs for graph-based analysis: **≤ 200 KiB** OR **≤ 3,000 lines** per chunk (otherwise skip graph build)
-  - [ ] max graph size: **15,000 nodes** / **45,000 edges** per chunk
-  - [ ] max analysis budget: **75 ms** wall time per chunk (check budget every ~250 nodes)
-  - [ ] fallback when any cap is hit: heuristic-only risk signals + set `risk.analysisStatus = "capped"` with the cap reason
 
 ### 4.2.3 Inter-procedural flows (within file, then cross-file)
-- [ ] Phase 1 (within file):
-  - [ ] connect calls between chunks in same file
-  - [ ] propagate taint across call boundaries where signatures are available
-- [ ] Phase 2 (cross-file):
-  - [ ] build a repo call graph approximation (using existing relations + imports)
-  - [ ] propagate taint across module boundaries with bounded depth: **max 2 cross-file hops** (imports/exports), **max 6 total hops** per flow
-  - [ ] record “flow paths” with hop list capped to **6 hops** and confidence decay: `confidence *= 0.85` per hop (floor **0.20**); keep at most **3** shortest paths per source→sink pair
 
 ### 4.2.4 Risk metadata outputs
-- [ ] For each chunk:
-  - [ ] `risk.sources[]`, `risk.sinks[]`, `risk.sanitizers[]`
-  - [ ] `risk.flows[]` with evidence and scope `local|file|cross-file`
-  - [ ] severity + confidence + ruleIds
-- [ ] Add search filters:
-  - [ ] filter by risk tags/category/severity
-  - [ ] filter by flow existence (source→sink)
-  - [ ] option to show flow explanation in `--explain`
 
 ## 4.3 Advanced **type inference** (local + cross-file + tooling)
 
@@ -480,53 +429,13 @@ The current regex-based “sources × sinks” cartesian product is a useful bas
 - `protobufjs` — leverage schema-defined types for `.proto` files and for generated-code correlation when present.
 
 ### 4.3.1 Local type extraction upgrades
-- [ ] Improve literal inference (existing) to include (concrete defaults):
-  - [ ] object shape hints (JS/Python dict keys): cap at **20 keys** (keep first-seen order; drop remainder)
-  - [ ] array element hints: inspect first **25 elements**
-  - [ ] union narrowing from simple conditionals (limited)
-- [ ] Track provenance per type entry:
-  - [ ] declared (annotation)
-  - [ ] inferred (literal/flow)
-  - [ ] tooling-derived (LSP/tsserver/clangd/sourcekit)
-- [ ] Normalize and canonicalize types per language:
-  - [ ] unify builtin synonyms
-  - [ ] normalize generics and union notation
 
 
 ### 4.3.2 Cross-file inference engine
-- [ ] Build a repo symbol table keyed by:
-  - [ ] file + symbol name + kind
-  - [ ] export/import edges
-- [ ] Infer:
-  - [ ] return types from called constructors/factories (bounded; defaults: sample **25** call sites per symbol, depth **≤ 2** hops)
-  - [ ] param types based on call sites (bounded; defaults):
-    - [ ] sample up to **25** call sites per function (prefer distinct call sites across files)
-    - [ ] keep at most **5** distinct candidate types per parameter (drop tail candidates by confidence)
-    - [ ] stop after **2** cross-file hops (`confidence *= 0.85` per hop; floor **0.20**)
-  - [ ] field types based on assignments and constructor patterns (bounded; defaults):
-    - [ ] sample up to **50** assignments/initializers per field
-    - [ ] keep at most **5** distinct candidate types per field
-- [ ] Confidence model:
-  - [ ] decay across hops
-  - [ ] conflict resolution rules
-  - [ ] record competing candidates
 
 ### 4.3.3 Tooling integration hardening (LSP and language servers)
-- [ ] Timeouts + circuit breaker + bounded retries (concrete defaults)
-  - [ ] per-request timeout: `tooling.timeoutMs = 15_000` (15s; matches current provider defaults, with some secondary calls at 8s)
-  - [ ] retries: **2** (exponential backoff 250ms → 1s)
-  - [ ] circuit breaker: disable a provider for the remainder of the run after **3** consecutive timeouts/errors
-- [ ] Capture per-tool logs per build
-- [ ] Store tooling provenance (tool version, command line, workspace root)
-- [ ] Make tooling optional and non-fatal
 
 ### 4.3.4 Output schema and search integration
-- [ ] Emit types in v2 metadata schema:
-  - [ ] params, returns, locals, fields
-  - [ ] confidence + source + evidence
-- [ ] Search filters must support:
-  - [ ] `--inferred-type`, `--return-type`, `--param`, `--signature`
-  - [ ] “tooling-only” vs “heuristic-only” gating (for debugging)
 
 **Deliverables**
 - `docs/risk-rules.md` + risk rules bundle format

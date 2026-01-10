@@ -193,6 +193,11 @@ const actions = [
     covers: ['language-fidelity-test']
   },
   {
+    label: 'metadata-v2-test',
+    run: () => runNode('metadata-v2-test', path.join(root, 'tests', 'metadata-v2.js')),
+    covers: ['metadata-v2-test']
+  },
+  {
     label: 'kotlin-perf-guard-test',
     run: () => runNode('kotlin-perf-guard-test', path.join(root, 'tests', 'kotlin-perf-guard.js')),
     covers: ['kotlin-perf-guard-test']

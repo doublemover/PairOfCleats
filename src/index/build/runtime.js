@@ -10,6 +10,7 @@ import {
   getModelConfig,
   getBuildsRoot,
   getRepoCacheRoot,
+  getToolVersion,
   getToolingConfig,
   loadUserConfig,
   resolveIndexRoot
@@ -31,6 +32,7 @@ import { preloadTreeSitterLanguages, resolveEnabledTreeSitterLanguages } from '.
 import { sha1 } from '../../shared/hash.js';
 import { isPlainObject, mergeConfig } from '../../shared/config.js';
 import { getRepoProvenance } from '../git.js';
+import { normalizeRiskConfig } from '../risk.js';
 
 const normalizeStage = (raw) => {
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
@@ -115,6 +117,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
   const configHash = getEffectiveConfigHash(root, userConfig);
   const repoProvenance = await getRepoProvenance(root);
+  const toolVersion = getToolVersion();
   const gitShortSha = repoProvenance?.commit ? repoProvenance.commit.slice(0, 7) : 'nogit';
   const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
   const buildId = `${formatBuildTimestamp(new Date())}_${gitShortSha}_${configHash8}`;
@@ -588,6 +591,11 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     currentIndexRoot,
     configHash,
     repoProvenance,
+    toolInfo: {
+      tool: 'pairofcleats',
+      version: toolVersion,
+      configHash
+    },
     toolingConfig,
     toolingEnabled,
     indexingConfig,
@@ -601,6 +609,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     typeInferenceCrossFileEnabled,
     riskAnalysisEnabled,
     riskAnalysisCrossFileEnabled,
+    riskConfig,
     embeddingBatchSize,
     embeddingConcurrency,
     embeddingEnabled,
@@ -662,3 +671,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     verboseCache
   };
 }
+  const riskConfig = normalizeRiskConfig({
+    enabled: riskAnalysisEnabled,
+    rules: indexingConfig.riskRules,
+    caps: indexingConfig.riskCaps
+  }, { rootDir: root });

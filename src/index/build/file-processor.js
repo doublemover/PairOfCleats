@@ -6,6 +6,7 @@ import { chunkSegments, detectFrontmatter, discoverSegments, normalizeSegmentsCo
 import { extractComments, normalizeCommentConfig } from '../comments.js';
 import { buildChunkRelations, buildLanguageContext } from '../language-registry.js';
 import { detectRiskSignals } from '../risk.js';
+import { buildMetaV2 } from '../metadata-v2.js';
 import { inferTypeMetadata } from '../type-inference.js';
 import { getHeadline } from '../headline.js';
 import { getChunkAuthorsFromLines, getGitMetaForFile } from '../git.js';
@@ -45,6 +46,7 @@ export function createFileProcessor(options) {
     getChunkEmbeddings,
     typeInferenceEnabled,
     riskAnalysisEnabled,
+    riskConfig,
     relationsEnabled: relationsEnabledRaw,
     seenFiles,
     gitBlameEnabled,
@@ -62,6 +64,7 @@ export function createFileProcessor(options) {
     fileScan = null,
     skippedFiles = null,
     embeddingEnabled = true,
+    toolInfo = null,
     tokenizationStats = null
   } = options;
   const lintEnabled = lintEnabledRaw !== false;
@@ -736,7 +739,12 @@ export function createFileProcessor(options) {
             }
           }
           if (riskAnalysisEnabled) {
-            const risk = detectRiskSignals({ text: ctext });
+            const risk = detectRiskSignals({
+              text: ctext,
+              chunk: c,
+              config: riskConfig,
+              languageId: lang?.id || null
+            });
             if (risk) {
               docmeta = { ...docmeta, risk };
             }
@@ -974,6 +982,8 @@ export function createFileProcessor(options) {
         const chunkPayload = {
           file: relKey,
           ext,
+          lang: fileLanguageId || lang?.id || null,
+          segment: c.segment || null,
           start: c.start,
           end: c.end,
           startLine,
@@ -1001,6 +1011,11 @@ export function createFileProcessor(options) {
           ...gitMeta,
           externalDocs
         };
+        chunkPayload.metaV2 = buildMetaV2({
+          chunk: chunkPayload,
+          docmeta,
+          toolInfo
+        });
 
         chunks.push(chunkPayload);
         if (embeddingEnabled && codeTexts && docTexts) {
