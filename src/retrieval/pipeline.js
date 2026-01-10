@@ -6,7 +6,7 @@ import { extractNgrams, tri } from '../shared/tokenize.js';
 /**
  * Create a search pipeline runner bound to a shared context.
  * @param {object} context
- * @returns {(idx:object, mode:'code'|'prose'|'records', queryEmbedding:number[]|null)=>Array<object>}
+ * @returns {(idx:object, mode:'code'|'prose'|'records'|'extracted-prose', queryEmbedding:number[]|null)=>Array<object>}
  */
 export function createSearchPipeline(context) {
   const {
@@ -83,7 +83,7 @@ export function createSearchPipeline(context) {
    * Build a candidate set from file-backed indexes (or SQLite).
    * @param {object} idx
    * @param {string[]} tokens
-   * @param {'code'|'prose'|'records'} mode
+   * @param {'code'|'prose'|'records'|'extracted-prose'} mode
    * @returns {Set<number>|null}
    */
   function buildCandidateSet(idx, tokens, mode) {
@@ -144,10 +144,10 @@ export function createSearchPipeline(context) {
   /**
    * Execute the full search pipeline for a mode.
    * @param {object} idx
-   * @param {'code'|'prose'|'records'} mode
-   * @param {number[]|null} queryEmbedding
-   * @returns {Array<object>}
-   */
+    * @param {'code'|'prose'|'records'|'extracted-prose'} mode
+    * @param {number[]|null} queryEmbedding
+    * @returns {Array<object>}
+    */
   return function runSearch(idx, mode, queryEmbedding) {
     const meta = idx.chunkMeta;
     const sqliteEnabledForMode = useSqlite && (mode === 'code' || mode === 'prose');

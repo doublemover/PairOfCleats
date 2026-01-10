@@ -203,6 +203,7 @@
             "name": { "type": "number" },
             "signature": { "type": "number" },
             "doc": { "type": "number" },
+            "comment": { "type": "number" },
             "body": { "type": "number" }
           }
         },
@@ -315,6 +316,35 @@
                 "maxNonTextRatio": { "type": "number" }
               }
             }
+          }
+        },
+        "segments": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "inlineCodeSpans": { "type": "boolean" },
+            "inlineCodeMinChars": { "type": "number" },
+            "inlineCodeMaxSpans": { "type": "number" },
+            "inlineCodeMaxBytes": { "type": "number" }
+          }
+        },
+        "comments": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "extract": { "type": "string", "enum": ["off", "doc", "all"] },
+            "includeLicense": { "type": "boolean" },
+            "minDocChars": { "type": "number" },
+            "minInlineChars": { "type": "number" },
+            "minTokens": { "type": "number" },
+            "maxPerChunk": { "type": "number" },
+            "maxBytesPerChunk": { "type": "number" },
+            "headerMaxLines": { "type": "number" },
+            "licensePattern": { "type": "string" },
+            "generatedPattern": { "type": "string" },
+            "linterPattern": { "type": "string" },
+            "skipGenerated": { "type": "boolean" },
+            "skipLinter": { "type": "boolean" }
           }
         },
         "astDataflow": { "type": "boolean" },

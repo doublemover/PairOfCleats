@@ -128,8 +128,15 @@ try {
 } catch (err) {
   return bail(err.message);
 }
-const { searchMode, runCode, runProse, runRecords } = searchModeInfo;
-const bm25Defaults = resolveBm25Defaults(metricsDir, { runCode, runProse });
+  const {
+    searchMode,
+    runCode,
+    runProse,
+    runRecords,
+    runExtractedProse: runExtractedProseRaw
+  } = searchModeInfo;
+  let runExtractedProse = runExtractedProseRaw;
+  const bm25Defaults = resolveBm25Defaults(metricsDir, { runCode, runProse, runExtractedProse });
 const bm25K1 = bm25K1Arg
   ?? (Number.isFinite(Number(bm25Config.k1)) ? Number(bm25Config.k1) : null)
   ?? (bm25Defaults ? bm25Defaults.k1 : null)
@@ -216,6 +223,7 @@ function resolveIndexedFileCount(metricsRoot) {
   const modes = [];
   if (runCode) modes.push('code');
   if (runProse) modes.push('prose');
+  if (runExtractedProse) modes.push('extracted-prose');
   if (!modes.length) return null;
   const counts = [];
   for (const mode of modes) {
@@ -238,6 +246,7 @@ function resolveBm25Defaults(metricsRoot, modeFlags) {
   const targets = [];
   if (modeFlags?.runCode) targets.push('code');
   if (modeFlags?.runProse) targets.push('prose');
+  if (modeFlags?.runExtractedProse) targets.push('extracted-prose');
   if (!targets.length) return null;
   const values = [];
   for (const mode of targets) {
@@ -373,6 +382,7 @@ const backendLabel = useSqlite
 const backendPolicyInfo = { ...backendPolicy, backendLabel };
 let modelIdForCode = null;
 let modelIdForProse = null;
+let modelIdForExtractedProse = null;
 let modelIdForRecords = null;
 
 const loadBranchFromMetrics = (mode) => {
@@ -433,7 +443,7 @@ if (branchFilter) {
 
 /**
  * Return the active SQLite connection for a mode.
- * @param {'code'|'prose'} mode
+ * @param {'code'|'prose'|'extracted-prose'} mode
  * @returns {import('better-sqlite3').Database|null}
  */
 function getSqliteDb(mode) {
@@ -623,6 +633,31 @@ const loadIndexCached = (dir) => loadIndexWithCache(
   { modelIdDefault, fileChargramN },
   loadIndex
 );
+const hasIndexMeta = (dir) => {
+  if (!dir) return false;
+  const metaPath = path.join(dir, 'chunk_meta.json');
+  const metaJsonlPath = path.join(dir, 'chunk_meta.jsonl');
+  const metaPartsPath = path.join(dir, 'chunk_meta.meta.json');
+  const metaPartsDir = path.join(dir, 'chunk_meta.parts');
+  return fsSync.existsSync(metaPath)
+    || fsSync.existsSync(metaJsonlPath)
+    || fsSync.existsSync(metaPartsPath)
+    || fsSync.existsSync(metaPartsDir);
+};
+let extractedProseDir = null;
+if (runExtractedProse) {
+  if (searchMode === 'extracted-prose') {
+    extractedProseDir = requireIndexDir(ROOT, 'extracted-prose', userConfig, { emitOutput, exitOnError });
+  } else {
+    extractedProseDir = resolveIndexDir(ROOT, 'extracted-prose', userConfig);
+    if (!hasIndexMeta(extractedProseDir)) {
+      runExtractedProse = false;
+      if (emitOutput) {
+        console.warn('[search] extracted-prose index not found; skipping.');
+      }
+    }
+  }
+}
 const idxProse = runProse
   ? (useSqlite ? loadIndexFromSqlite('prose', {
     includeDense: annActive,
@@ -630,6 +665,9 @@ const idxProse = runProse
     includeChunks: sqliteContextChunks,
     includeFilterIndex: filtersActive
   }) : loadIndexCached(proseDir))
+  : { chunkMeta: [], denseVec: null, minhash: null };
+const idxExtractedProse = runExtractedProse
+  ? loadIndexCached(extractedProseDir)
   : { chunkMeta: [], denseVec: null, minhash: null };
 const idxCode = runCode
   ? (useSqlite ? loadIndexFromSqlite('code', {
@@ -655,13 +693,16 @@ const warnPendingState = (idx, label) => {
 };
 warnPendingState(idxCode, 'code');
 warnPendingState(idxProse, 'prose');
+warnPendingState(idxExtractedProse, 'extracted-prose');
 const resolveDenseVector = (idx, mode) => {
   if (!idx) return null;
   if (resolvedDenseVectorMode === 'code') return idx.denseVecCode || idx.denseVec || null;
   if (resolvedDenseVectorMode === 'doc') return idx.denseVecDoc || idx.denseVec || null;
   if (resolvedDenseVectorMode === 'auto') {
     if (mode === 'code') return idx.denseVecCode || idx.denseVec || null;
-    if (mode === 'prose') return idx.denseVecDoc || idx.denseVec || null;
+    if (mode === 'prose' || mode === 'extracted-prose') {
+      return idx.denseVecDoc || idx.denseVec || null;
+    }
   }
   return idx.denseVec || null;
 };
@@ -711,8 +752,20 @@ if (runProse) {
     idxProse.repoMap = loadRepoMap('prose');
   }
 }
+if (runExtractedProse) {
+  idxExtractedProse.denseVec = resolveDenseVector(idxExtractedProse, 'extracted-prose');
+  if (!idxExtractedProse.fileRelations) {
+    idxExtractedProse.fileRelations = loadFileRelations('extracted-prose');
+  }
+  if (!idxExtractedProse.repoMap) {
+    idxExtractedProse.repoMap = loadRepoMap('extracted-prose');
+  }
+}
 modelIdForCode = runCode ? (idxCode?.denseVec?.model || modelIdDefault) : null;
 modelIdForProse = runProse ? (idxProse?.denseVec?.model || modelIdDefault) : null;
+modelIdForExtractedProse = runExtractedProse
+  ? (idxExtractedProse?.denseVec?.model || modelIdDefault)
+  : null;
 modelIdForRecords = runRecords ? (idxRecords?.denseVec?.model || modelIdDefault) : null;
 const searchPipeline = createSearchPipeline({
   useSqlite,
@@ -808,6 +861,7 @@ return await (async () => {
       sqliteCodePath,
       sqliteProsePath,
       runRecords,
+      runExtractedProse,
       root: ROOT,
       userConfig
     });
@@ -836,6 +890,7 @@ return await (async () => {
       models: {
         code: modelIdForCode,
         prose: modelIdForProse,
+        extractedProse: modelIdForExtractedProse,
         records: modelIdForRecords
       },
       contextExpansion: {
@@ -873,6 +928,7 @@ return await (async () => {
   const needsEmbedding = !cacheHit && annActive && (
     (runProse && (idxProse.denseVec?.vectors?.length || vectorAnnState.prose.available)) ||
     (runCode && (idxCode.denseVec?.vectors?.length || vectorAnnState.code.available)) ||
+    (runExtractedProse && idxExtractedProse?.denseVec?.vectors?.length) ||
     (runRecords && idxRecords.denseVec?.vectors?.length)
   );
   const embeddingCache = new Map();
@@ -896,12 +952,20 @@ return await (async () => {
   const queryEmbeddingProse = needsEmbedding && runProse && (idxProse.denseVec?.vectors?.length || vectorAnnState.prose.available)
     ? await getEmbeddingForModel(modelIdForProse, idxProse.denseVec?.dims || null)
     : null;
+  const queryEmbeddingExtractedProse = needsEmbedding && runExtractedProse && idxExtractedProse?.denseVec?.vectors?.length
+    ? await getEmbeddingForModel(modelIdForExtractedProse, idxExtractedProse.denseVec?.dims || null)
+    : null;
   const queryEmbeddingRecords = needsEmbedding && runRecords && idxRecords.denseVec?.vectors?.length
     ? await getEmbeddingForModel(modelIdForRecords, idxRecords.denseVec?.dims || null)
     : null;
   const proseHits = cacheHit && cachedPayload
     ? (cachedPayload.prose || [])
     : (runProse ? searchPipeline(idxProse, 'prose', queryEmbeddingProse) : []);
+  const extractedProseHits = cacheHit && cachedPayload
+    ? (cachedPayload.extractedProse || [])
+    : (runExtractedProse
+      ? searchPipeline(idxExtractedProse, 'extracted-prose', queryEmbeddingExtractedProse)
+      : []);
   const codeHits = cacheHit && cachedPayload
     ? (cachedPayload.code || [])
     : (runCode ? searchPipeline(idxCode, 'code', queryEmbeddingCode) : []);
@@ -912,6 +976,7 @@ return await (async () => {
     enabled: contextExpansionEnabled,
     code: 0,
     prose: 0,
+    'extracted-prose': 0,
     records: 0
   };
   const expandModeHits = (mode, idx, hits) => {
@@ -936,9 +1001,13 @@ return await (async () => {
     return { hits: hits.concat(contextHits), contextHits };
   };
   const proseExpanded = runProse ? expandModeHits('prose', idxProse, proseHits) : { hits: proseHits, contextHits: [] };
+  const extractedProseExpanded = runExtractedProse
+    ? expandModeHits('extracted-prose', idxExtractedProse, extractedProseHits)
+    : { hits: extractedProseHits, contextHits: [] };
   const codeExpanded = runCode ? expandModeHits('code', idxCode, codeHits) : { hits: codeHits, contextHits: [] };
   const recordExpanded = runRecords ? expandModeHits('records', idxRecords, recordHits) : { hits: recordHits, contextHits: [] };
   const proseHitsFinal = proseExpanded.hits;
+  const extractedProseHitsFinal = extractedProseExpanded.hits;
   const codeHitsFinal = codeExpanded.hits;
   const recordHitsFinal = recordExpanded.hits;
   const annBackend = vectorAnnEnabled && (vectorAnnUsed.code || vectorAnnUsed.prose)
@@ -949,6 +1018,9 @@ return await (async () => {
   const payload = {
     backend: backendLabel,
     prose: jsonCompact ? proseHitsFinal.map((hit) => compactHit(hit, explain)) : proseHitsFinal,
+    extractedProse: jsonCompact
+      ? extractedProseHitsFinal.map((hit) => compactHit(hit, explain))
+      : extractedProseHitsFinal,
     code: jsonCompact ? codeHitsFinal.map((hit) => compactHit(hit, explain)) : codeHitsFinal,
     records: jsonCompact ? recordHitsFinal.map((hit) => compactHit(hit, explain)) : recordHitsFinal,
     stats: {
@@ -970,6 +1042,7 @@ return await (async () => {
       models: {
         code: modelIdForCode,
         prose: modelIdForProse,
+        extractedProse: modelIdForExtractedProse,
         records: modelIdForRecords
       },
       cache: {
@@ -1001,6 +1074,7 @@ return await (async () => {
 
   if (emitOutput && !jsonOutput) {
     let showProse = runProse ? argv.n : 0;
+    let showExtractedProse = runExtractedProse ? argv.n : 0;
     let showCode = runCode ? argv.n : 0;
     let showRecords = runRecords ? argv.n : 0;
 
@@ -1014,6 +1088,7 @@ return await (async () => {
   }
   if (contextExpansionEnabled) {
     showProse += proseExpanded.contextHits.length;
+    showExtractedProse += extractedProseExpanded.contextHits.length;
     showCode += codeExpanded.contextHits.length;
     showRecords += recordExpanded.contextHits.length;
   }
@@ -1043,6 +1118,43 @@ return await (async () => {
           chunk: h,
           index: i,
           mode: 'prose',
+          score: h.score,
+          scoreType: h.scoreType,
+          explain,
+          color,
+          queryTokens,
+          rx,
+          matched: argv.matched
+        }));
+      }
+    });
+    console.log('\n');
+  }
+
+  if (runExtractedProse) {
+    console.log(color.bold(`===== Extracted Prose Results (${backendLabel}) =====`));
+    const summaryState = { lastCount: 0 };
+    extractedProseHitsFinal.slice(0, showExtractedProse).forEach((h, i) => {
+      if (i < 2) {
+        process.stdout.write(formatFullChunk({
+          chunk: h,
+          index: i,
+          mode: 'extracted-prose',
+          score: h.score,
+          scoreType: h.scoreType,
+          explain,
+          color,
+          queryTokens,
+          rx,
+          matched: argv.matched,
+          rootDir: ROOT,
+          summaryState
+        }));
+      } else {
+        process.stdout.write(formatShortChunk({
+          chunk: h,
+          index: i,
+          mode: 'extracted-prose',
           score: h.score,
           scoreType: h.scoreType,
           explain,

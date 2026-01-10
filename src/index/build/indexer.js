@@ -27,11 +27,19 @@ import { ensureQueueDir, enqueueJob } from '../../../tools/service/queue.js';
 import { createBuildCheckpoint } from './build-state.js';
 
 const buildTokenizationKey = (runtime, mode) => {
+  const commentsConfig = runtime.commentsConfig || {};
   const payload = {
     mode,
     dictConfig: runtime.dictConfig || {},
     postingsConfig: runtime.postingsConfig || {},
-    dictSignature: runtime.dictSignature || null
+    dictSignature: runtime.dictSignature || null,
+    segmentsConfig: runtime.segmentsConfig || {},
+    commentsConfig: {
+      ...commentsConfig,
+      licensePattern: commentsConfig.licensePattern?.source || null,
+      generatedPattern: commentsConfig.generatedPattern?.source || null,
+      linterPattern: commentsConfig.linterPattern?.source || null
+    }
   };
   return sha1(JSON.stringify(payload));
 };
@@ -112,7 +120,7 @@ const enqueueEmbeddingJob = async ({ runtime, mode }) => {
 
 /**
  * Build indexes for a given mode.
- * @param {{mode:'code'|'prose'|'records',runtime:object,discovery?:{entries:Array,skippedFiles:Array}}} input
+ * @param {{mode:'code'|'prose'|'records'|'extracted-prose',runtime:object,discovery?:{entries:Array,skippedFiles:Array}}} input
  */
 export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   if (mode === 'records') {
@@ -286,6 +294,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       dictWords: runtimeRef.dictWords,
       languageOptions: runtimeRef.languageOptions,
       postingsConfig: runtimeRef.postingsConfig,
+      segmentsConfig: runtimeRef.segmentsConfig,
+      commentsConfig: runtimeRef.commentsConfig,
       allImports: importResult.allImports,
       contextWin,
       incrementalState,

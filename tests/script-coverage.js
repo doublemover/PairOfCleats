@@ -238,6 +238,11 @@ const actions = [
     covers: []
   },
   {
+    label: 'segment-pipeline-test',
+    run: () => runNode('segment-pipeline-test', path.join(root, 'tests', 'segment-pipeline.js')),
+    covers: []
+  },
+  {
     label: 'prose-skip-imports-test',
     run: () => runNode('prose-skip-imports-test', path.join(root, 'tests', 'prose-skip-imports.js')),
     covers: ['prose-skip-imports-test']

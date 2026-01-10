@@ -109,6 +109,7 @@ pairofcleats search -- "rate limit exceeded" --mode prose
 Modes:
 - `--mode code` (code-focused)
 - `--mode prose` (docs/readmes/comments)
+- `--mode extracted-prose` (comment-prose only; requires extracted-prose index)
 - `--mode both` (default in many workflows)
 
 Use `--explain` (or `--why`) to see score breakdowns.

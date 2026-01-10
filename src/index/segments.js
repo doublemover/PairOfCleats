@@ -135,6 +135,25 @@ const normalizeFenceLanguage = (raw) => {
   return MARKDOWN_FENCE_LANG_ALIASES.get(normalized) || normalized;
 };
 
+const normalizeLimit = (value, fallback) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(0, Math.floor(num));
+};
+
+export function normalizeSegmentsConfig(input = {}) {
+  const cfg = input && typeof input === 'object' ? input : {};
+  const inlineCodeSpans = cfg.inlineCodeSpans === true;
+  return {
+    inlineCodeSpans,
+    inlineCodeMinChars: normalizeLimit(cfg.inlineCodeMinChars, 8),
+    inlineCodeMaxSpans: normalizeLimit(cfg.inlineCodeMaxSpans, 200),
+    inlineCodeMaxBytes: normalizeLimit(cfg.inlineCodeMaxBytes, 64 * 1024),
+    frontmatterProse: cfg.frontmatterProse === true,
+    onlyExtras: cfg.onlyExtras === true
+  };
+}
+
 const normalizeLanguageHint = (raw, fallback) => {
   if (!raw) return fallback;
   const normalized = String(raw).trim().split(/\s+/)[0]?.toLowerCase();
@@ -144,7 +163,7 @@ const normalizeLanguageHint = (raw, fallback) => {
 
 const hasMeaningfulText = (text) => /\S/.test(text || '');
 
-const detectFrontmatter = (text) => {
+export const detectFrontmatter = (text) => {
   if (!text.startsWith('---') && !text.startsWith('+++') && !text.startsWith(';;;')) return null;
   const lines = text.split('\n');
   if (!lines.length) return null;
@@ -169,6 +188,31 @@ const detectFrontmatter = (text) => {
     ? 'toml'
     : (fence === ';;;' ? 'json' : 'yaml');
   return { start: 0, end: endOffset, languageId };
+};
+
+const extractInlineCodeSpans = (text, config) => {
+  if (!config?.inlineCodeSpans) return [];
+  const minChars = normalizeLimit(config.inlineCodeMinChars, 8);
+  const maxSpans = normalizeLimit(config.inlineCodeMaxSpans, 200);
+  const maxBytes = normalizeLimit(config.inlineCodeMaxBytes, 64 * 1024);
+  const events = postprocess(parse().document().write(preprocess()(text, 'utf8', true)));
+  const spans = [];
+  let totalBytes = 0;
+  for (const [action, token] of events) {
+    if (action !== 'enter' || token.type !== 'codeTextData') continue;
+    const start = token.start.offset;
+    const end = token.end.offset;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    const slice = text.slice(start, end);
+    if (!hasMeaningfulText(slice)) continue;
+    const nonWhitespace = slice.replace(/\s/g, '').length;
+    if (nonWhitespace < minChars) continue;
+    const bytes = Buffer.byteLength(slice, 'utf8');
+    if (spans.length >= maxSpans || totalBytes + bytes > maxBytes) break;
+    totalBytes += bytes;
+    spans.push({ start, end });
+  }
+  return spans;
 };
 
 const extractFencedBlocks = (text) => {
@@ -202,7 +246,8 @@ const extractFencedBlocks = (text) => {
   return blocks;
 };
 
-const segmentMarkdown = ({ text, ext, relPath }) => {
+const segmentMarkdown = ({ text, ext, relPath, segmentsConfig }) => {
+  const config = normalizeSegmentsConfig(segmentsConfig);
   const segments = [];
   const frontmatter = detectFrontmatter(text);
   if (frontmatter) {
@@ -215,6 +260,17 @@ const segmentMarkdown = ({ text, ext, relPath }) => {
       embeddingContext: 'config',
       meta: { frontmatter: true }
     });
+    if (config.frontmatterProse) {
+      segments.push({
+        type: 'prose',
+        languageId: 'markdown',
+        start: frontmatter.start,
+        end: frontmatter.end,
+        parentSegmentId: null,
+        embeddingContext: 'prose',
+        meta: { frontmatter: true }
+      });
+    }
   }
   const fencedBlocks = extractFencedBlocks(text);
   for (const block of fencedBlocks) {
@@ -230,6 +286,21 @@ const segmentMarkdown = ({ text, ext, relPath }) => {
       embeddingContext,
       meta: { fenceInfo: block.info || null }
     });
+  }
+  if (config.inlineCodeSpans) {
+    const spans = extractInlineCodeSpans(text, config);
+    for (const span of spans) {
+      if (frontmatter && span.start < frontmatter.end) continue;
+      segments.push({
+        type: 'embedded',
+        languageId: 'markdown',
+        start: span.start,
+        end: span.end,
+        parentSegmentId: null,
+        embeddingContext: 'code',
+        meta: { inlineCode: true }
+      });
+    }
   }
   const special = segments.slice().sort((a, b) => a.start - b.start || a.end - b.end);
   let cursor = 0;
@@ -578,26 +649,51 @@ export function discoverSegments({
   relPath,
   mode,
   languageId = null,
-  context = null
+  context = null,
+  segmentsConfig = null,
+  extraSegments = []
 }) {
+  const config = normalizeSegmentsConfig(segmentsConfig);
+  if (config.onlyExtras) {
+    return finalizeSegments(extraSegments || [], relPath);
+  }
   if (ext === '.md' || ext === '.mdx') {
-    return segmentMarkdown({ text, ext, relPath });
+    const segments = segmentMarkdown({ text, ext, relPath, segmentsConfig: config });
+    return extraSegments && extraSegments.length
+      ? finalizeSegments([...segments, ...extraSegments], relPath)
+      : segments;
   }
   if (ext === '.jsx' || ext === '.tsx') {
     const segments = segmentJsx({ text, ext, relPath, languageId, context });
-    if (segments) return segments;
+    if (segments) {
+      return extraSegments && extraSegments.length
+        ? finalizeSegments([...segments, ...extraSegments], relPath)
+        : segments;
+    }
   }
   if (ext === '.vue') {
     const segments = segmentVue({ text, relPath });
-    if (segments) return segments;
+    if (segments) {
+      return extraSegments && extraSegments.length
+        ? finalizeSegments([...segments, ...extraSegments], relPath)
+        : segments;
+    }
   }
   if (ext === '.svelte') {
     const segments = segmentSvelte({ text, relPath });
-    if (segments) return segments;
+    if (segments) {
+      return extraSegments && extraSegments.length
+        ? finalizeSegments([...segments, ...extraSegments], relPath)
+        : segments;
+    }
   }
   if (ext === '.astro') {
     const segments = segmentAstro({ text, relPath });
-    if (segments) return segments;
+    if (segments) {
+      return extraSegments && extraSegments.length
+        ? finalizeSegments([...segments, ...extraSegments], relPath)
+        : segments;
+    }
   }
   const baseSegment = {
     type: resolveSegmentType(mode, ext),
@@ -607,7 +703,9 @@ export function discoverSegments({
     parentSegmentId: null,
     meta: {}
   };
-  return finalizeSegments([baseSegment], relPath);
+  return extraSegments && extraSegments.length
+    ? finalizeSegments([baseSegment, ...extraSegments], relPath)
+    : finalizeSegments([baseSegment], relPath);
 }
 
 export function chunkSegments({
@@ -619,12 +717,13 @@ export function chunkSegments({
   segments = [],
   lineIndex = null
 }) {
+  const effectiveMode = mode === 'extracted-prose' ? 'prose' : mode;
   const resolvedLineIndex = lineIndex || buildLineIndex(text);
   const chunks = [];
   for (const segment of segments) {
     const segmentText = text.slice(segment.start, segment.end);
     const tokenMode = resolveSegmentTokenMode(segment);
-    if (!shouldIndexSegment(segment, tokenMode, mode)) continue;
+    if (!shouldIndexSegment(segment, tokenMode, effectiveMode)) continue;
     const segmentExt = resolveSegmentExt(ext, segment);
     const segmentContext = {
       ...context,

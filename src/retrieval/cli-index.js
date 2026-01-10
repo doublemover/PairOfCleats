@@ -125,7 +125,7 @@ export function loadIndex(dir, options) {
 /**
  * Resolve the index directory (cache-first, local fallback).
  * @param {string} root
- * @param {'code'|'prose'|'records'} mode
+ * @param {'code'|'prose'|'records'|'extracted-prose'} mode
  * @param {object} userConfig
  * @returns {string}
  */
@@ -158,7 +158,7 @@ export function resolveIndexDir(root, mode, userConfig) {
 /**
  * Ensure a file-backed index exists for a mode.
  * @param {string} root
- * @param {'code'|'prose'|'records'} mode
+ * @param {'code'|'prose'|'records'|'extracted-prose'} mode
  * @param {object} userConfig
  * @returns {string}
  */
@@ -172,7 +172,9 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
     && !fsSync.existsSync(metaJsonlPath)
     && !fsSync.existsSync(metaPartsPath)
     && !fsSync.existsSync(metaPartsDir)) {
-    const suffix = mode === 'records' ? ' --mode records' : '';
+    const suffix = (mode === 'records' || mode === 'extracted-prose')
+      ? ` --mode ${mode}`
+      : '';
     const message = `[search] ${mode} index not found at ${dir}. Run "pairofcleats build-index${suffix}" or "npm run build-index${suffix}".`;
     const emitOutput = options.emitOutput !== false;
     const exitOnError = options.exitOnError !== false;
@@ -206,6 +208,7 @@ export function getIndexSignature(options) {
     sqliteCodePath,
     sqliteProsePath,
     runRecords,
+    runExtractedProse,
     root,
     userConfig
   } = options;
@@ -223,6 +226,12 @@ export function getIndexSignature(options) {
     }
   };
 
+  const extractedProseDir = runExtractedProse
+    ? resolveIndexDir(root, 'extracted-prose', userConfig)
+    : null;
+  const extractedProseMeta = extractedProseDir ? path.join(extractedProseDir, 'chunk_meta.json') : null;
+  const extractedProseDense = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_uint8.json') : null;
+
   if (useSqlite) {
     const codeDir = resolveIndexDir(root, 'code', userConfig);
     const proseDir = resolveIndexDir(root, 'prose', userConfig);
@@ -237,6 +246,8 @@ export function getIndexSignature(options) {
       prose: fileSignature(sqliteProsePath),
       codeRelations: fileSignature(codeRelations),
       proseRelations: fileSignature(proseRelations),
+      extractedProse: extractedProseMeta ? fileSignature(extractedProseMeta) : null,
+      extractedProseDense: extractedProseDense ? fileSignature(extractedProseDense) : null,
       records: recordMeta ? fileSignature(recordMeta) : null,
       recordsDense: recordDense ? fileSignature(recordDense) : null
     };
@@ -261,6 +272,8 @@ export function getIndexSignature(options) {
     proseDense: fileSignature(proseDense),
     codeRelations: fileSignature(codeRelations),
     proseRelations: fileSignature(proseRelations),
+    extractedProse: extractedProseMeta ? fileSignature(extractedProseMeta) : null,
+    extractedProseDense: extractedProseDense ? fileSignature(extractedProseDense) : null,
     records: recordMeta ? fileSignature(recordMeta) : null,
     recordsDense: recordDense ? fileSignature(recordDense) : null
   };

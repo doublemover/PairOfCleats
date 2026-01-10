@@ -15,6 +15,8 @@ import {
   resolveIndexRoot
 } from '../../../tools/dict-utils.js';
 import { createEmbedder } from '../embedding.js';
+import { normalizeCommentConfig } from '../comments.js';
+import { normalizeSegmentsConfig } from '../segments.js';
 import { log } from '../../shared/progress.js';
 import { createTaskQueues } from '../../shared/concurrency.js';
 import { getEnvConfig } from '../../shared/env.js';
@@ -241,6 +243,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const javascriptFlow = normalizeFlow(indexingConfig.javascriptFlow);
   const pythonAstConfig = indexingConfig.pythonAst || {};
   const pythonAstEnabled = pythonAstConfig.enabled !== false;
+  const segmentsConfig = normalizeSegmentsConfig(indexingConfig.segments || {});
+  const commentsConfig = normalizeCommentConfig(indexingConfig.comments || {});
   const embeddingBatchRaw = Number(indexingConfig.embeddingBatchSize);
   let embeddingBatchSize = Number.isFinite(embeddingBatchRaw)
     ? Math.max(0, Math.floor(embeddingBatchRaw))
@@ -589,6 +593,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     indexingConfig,
     benchmarkProfile,
     postingsConfig,
+    segmentsConfig,
+    commentsConfig,
     astDataflowEnabled,
     controlFlowEnabled,
     typeInferenceEnabled,

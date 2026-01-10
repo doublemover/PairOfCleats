@@ -2,7 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import util from 'node:util';
 import { analyzeComplexity, lintChunk } from '../analysis.js';
-import { chunkSegments, discoverSegments } from '../segments.js';
+import { chunkSegments, detectFrontmatter, discoverSegments, normalizeSegmentsConfig } from '../segments.js';
+import { extractComments, normalizeCommentConfig } from '../comments.js';
 import { buildChunkRelations, buildLanguageContext } from '../language-registry.js';
 import { detectRiskSignals } from '../risk.js';
 import { inferTypeMetadata } from '../type-inference.js';
@@ -35,6 +36,8 @@ export function createFileProcessor(options) {
     dictWords,
     languageOptions,
     postingsConfig,
+    segmentsConfig,
+    commentsConfig,
     allImports,
     contextWin,
     incrementalState,
@@ -77,6 +80,8 @@ export function createFileProcessor(options) {
     dictConfig,
     postingsConfig
   });
+  const normalizedSegmentsConfig = normalizeSegmentsConfig(segmentsConfig);
+  const normalizedCommentsConfig = normalizeCommentConfig(commentsConfig);
   const fileScanner = createFileScanner(fileScan);
   const recordSkip = (filePath, reason, extra = {}) => {
     if (!skippedFiles) return;
@@ -96,6 +101,37 @@ export function createFileProcessor(options) {
       maxBytes: pickMinLimit(defaultCaps.maxBytes, extCaps?.maxBytes, langCaps?.maxBytes),
       maxLines: pickMinLimit(defaultCaps.maxLines, extCaps?.maxLines, langCaps?.maxLines)
     };
+  };
+  const truncateByBytes = (value, maxBytes) => {
+    const text = typeof value === 'string' ? value : '';
+    const limit = Number.isFinite(Number(maxBytes)) ? Number(maxBytes) : 0;
+    if (!limit || Buffer.byteLength(text, 'utf8') <= limit) {
+      return { text, truncated: false, bytes: Buffer.byteLength(text, 'utf8') };
+    }
+    const buffer = Buffer.from(text, 'utf8');
+    const sliced = buffer.toString('utf8', 0, limit);
+    return {
+      text: sliced,
+      truncated: true,
+      bytes: Buffer.byteLength(sliced, 'utf8')
+    };
+  };
+  const assignCommentsToChunks = (comments, chunks) => {
+    const assignments = new Map();
+    if (!Array.isArray(comments) || !comments.length || !Array.isArray(chunks) || !chunks.length) {
+      return assignments;
+    }
+    let chunkIdx = 0;
+    for (const comment of comments) {
+      while (chunkIdx < chunks.length && chunks[chunkIdx].end < comment.start) {
+        chunkIdx += 1;
+      }
+      const target = chunkIdx < chunks.length ? chunkIdx : chunks.length - 1;
+      if (target < 0) continue;
+      if (!assignments.has(target)) assignments.set(target, []);
+      assignments.get(target).push(comment);
+    }
+    return assignments;
   };
   const getWorkerDictOverride = () => {
     if (!workerPool?.dictConfig || !dictConfig) return null;
@@ -501,6 +537,7 @@ export function createFileProcessor(options) {
         options: languageOptions
       });
       fileLanguageId = lang?.id || null;
+      const tokenMode = mode === 'extracted-prose' ? 'prose' : mode;
       const lineIndex = buildLineIndex(text);
       const totalLines = lineIndex.length || 1;
       const fileLines = contextWin > 0 ? text.split('\n') : null;
@@ -535,13 +572,78 @@ export function createFileProcessor(options) {
       const fileGitMeta = gitMeta && typeof gitMeta === 'object'
         ? Object.fromEntries(Object.entries(gitMeta).filter(([key]) => key !== 'lineAuthors'))
         : {};
+      const commentsEnabled = (mode === 'code' || mode === 'extracted-prose')
+        && normalizedCommentsConfig.extract !== 'off';
+      const commentData = commentsEnabled
+        ? extractComments({
+          text,
+          ext,
+          languageId: lang?.id || null,
+          lineIndex,
+          config: normalizedCommentsConfig
+        })
+        : { comments: [], configSegments: [] };
+      const commentEntries = [];
+      const commentSegments = [];
+      if (commentsEnabled && Array.isArray(commentData.comments)) {
+        for (const comment of commentData.comments) {
+          const commentTokens = buildTokenSequence({
+            text: comment.text,
+            mode: 'prose',
+            ext,
+            dictWords,
+            dictConfig
+          }).tokens;
+          if (commentTokens.length < normalizedCommentsConfig.minTokens) continue;
+          const entry = { ...comment, tokens: commentTokens };
+          commentEntries.push(entry);
+          if (comment.type !== 'license' || normalizedCommentsConfig.includeLicense) {
+            commentSegments.push({
+              type: 'comment',
+              languageId: lang?.id || null,
+              start: comment.start,
+              end: comment.end,
+              parentSegmentId: null,
+              embeddingContext: 'prose',
+              meta: {
+                commentType: comment.type,
+                commentStyle: comment.style
+              }
+            });
+          }
+        }
+      }
+      const extraSegments = [];
+      if (commentSegments.length) extraSegments.push(...commentSegments);
+      if (Array.isArray(commentData.configSegments) && commentData.configSegments.length) {
+        extraSegments.push(...commentData.configSegments);
+      }
+      if (mode === 'extracted-prose' && (ext === '.md' || ext === '.mdx')) {
+        const frontmatter = detectFrontmatter(text);
+        if (frontmatter) {
+          extraSegments.push({
+            type: 'prose',
+            languageId: 'markdown',
+            start: frontmatter.start,
+            end: frontmatter.end,
+            parentSegmentId: null,
+            embeddingContext: 'prose',
+            meta: { frontmatter: true }
+          });
+        }
+      }
+      const resolvedSegmentsConfig = mode === 'extracted-prose'
+        ? { ...normalizedSegmentsConfig, onlyExtras: true }
+        : normalizedSegmentsConfig;
       const segments = discoverSegments({
         text,
         ext,
         relPath: relKey,
         mode,
         languageId: lang?.id || null,
-        context: languageContext
+        context: languageContext,
+        segmentsConfig: resolvedSegmentsConfig,
+        extraSegments
       });
       const sc = chunkSegments({
         text,
@@ -566,6 +668,7 @@ export function createFileProcessor(options) {
         if (endLine < startLine) endLine = startLine;
         return { startLine, endLine };
       });
+      const commentAssignments = assignCommentsToChunks(commentEntries, sc);
       const chunks = [];
       const tokenBuffers = createTokenizationBuffers();
       const codeTexts = embeddingEnabled ? [] : null;
@@ -653,13 +756,69 @@ export function createFileProcessor(options) {
           }
         }
 
+        let commentFieldTokens = [];
+        if (commentAssignments.size) {
+          const assigned = commentAssignments.get(ci) || [];
+          if (assigned.length) {
+            const chunkStart = c.start;
+            const sorted = assigned.slice().sort((a, b) => (
+              Math.abs(a.start - chunkStart) - Math.abs(b.start - chunkStart)
+            ));
+            const maxPerChunk = normalizedCommentsConfig.maxPerChunk;
+            const maxBytes = normalizedCommentsConfig.maxBytesPerChunk;
+            let totalBytes = 0;
+            const metaComments = [];
+            for (const comment of sorted) {
+              if (maxPerChunk && metaComments.length >= maxPerChunk) break;
+              const remaining = maxBytes ? Math.max(0, maxBytes - totalBytes) : 0;
+              if (maxBytes && remaining <= 0) break;
+              const clipped = maxBytes ? truncateByBytes(comment.text, remaining) : {
+                text: comment.text,
+                truncated: false,
+                bytes: Buffer.byteLength(comment.text, 'utf8')
+              };
+              if (!clipped.text) continue;
+              totalBytes += clipped.bytes;
+              const includeInTokens = comment.type === 'inline'
+                || comment.type === 'block'
+                || (comment.type === 'license' && normalizedCommentsConfig.includeLicense);
+              if (includeInTokens) {
+                const tokens = buildTokenSequence({
+                  text: clipped.text,
+                  mode: 'prose',
+                  ext,
+                  dictWords,
+                  dictConfig
+                }).tokens;
+                if (tokens.length) commentFieldTokens = commentFieldTokens.concat(tokens);
+              }
+              metaComments.push({
+                type: comment.type,
+                style: comment.style,
+                languageId: comment.languageId || null,
+                start: comment.start,
+                end: comment.end,
+                startLine: comment.startLine,
+                endLine: comment.endLine,
+                text: clipped.text,
+                truncated: clipped.truncated || false,
+                indexed: includeInTokens,
+                anchorChunkId: null
+              });
+            }
+            if (metaComments.length) {
+              docmeta = { ...docmeta, comments: metaComments };
+            }
+          }
+        }
+
         let fieldChargramTokens = null;
         if (tokenContext.chargramSource === 'fields') {
           const fieldText = [c.name, docmeta?.doc].filter(Boolean).join(' ');
           if (fieldText) {
             const fieldSeq = buildTokenSequence({
               text: fieldText,
-              mode,
+              mode: tokenMode,
               ext,
               dictWords,
               dictConfig
@@ -673,7 +832,7 @@ export function createFileProcessor(options) {
           try {
             tokenPayload = await workerPool.runTokenize({
               text: ctext,
-              mode,
+              mode: tokenMode,
               ext,
               chargramTokens: fieldChargramTokens,
               ...(workerDictOverride ? { dictConfig: workerDictOverride } : {})
@@ -713,7 +872,7 @@ export function createFileProcessor(options) {
         if (!tokenPayload) {
           tokenPayload = tokenizeChunkText({
             text: ctext,
-            mode,
+            mode: tokenMode,
             ext,
             context: tokenContext,
             chargramTokens: fieldChargramTokens,
@@ -745,13 +904,14 @@ export function createFileProcessor(options) {
         const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
         const fieldedEnabled = postingsConfig?.fielded !== false;
         const fieldTokens = fieldedEnabled ? {
-          name: c.name ? buildTokenSequence({ text: c.name, mode, ext, dictWords, dictConfig }).tokens : [],
+          name: c.name ? buildTokenSequence({ text: c.name, mode: tokenMode, ext, dictWords, dictConfig }).tokens : [],
           signature: docmeta?.signature
-            ? buildTokenSequence({ text: docmeta.signature, mode, ext, dictWords, dictConfig }).tokens
+            ? buildTokenSequence({ text: docmeta.signature, mode: tokenMode, ext, dictWords, dictConfig }).tokens
             : [],
           doc: docText
-            ? buildTokenSequence({ text: docText, mode, ext, dictWords, dictConfig }).tokens
+            ? buildTokenSequence({ text: docText, mode: tokenMode, ext, dictWords, dictConfig }).tokens
             : [],
+          comment: commentFieldTokens,
           body: tokens
         } : null;
 

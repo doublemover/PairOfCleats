@@ -62,19 +62,19 @@ If exit criteria are not met, do not proceed to later phases except for narrowly
 - `jsonc-parser` — if feature flags or config files are JSONC, use offset-aware parsing (`getLocation`, `parseTree`) so you can attach *precise* diagnostics to a feature claim.
 - `semver` — version every claim bundle and feature gate using semver ranges rather than ad-hoc strings.
 
-- [ ] Build `docs/truth-table.md` that covers:
-  - [ ] Build modes: code / prose / records / mixed
-  - [ ] Chunking rules (by language and file type)
-  - [ ] Tokenization semantics (code vs prose)
-  - [ ] Index artifact outputs (memory + sqlite + shard formats)
-  - [ ] Search semantics (filters, scoring, explain)
-  - [ ] Enrichment outputs (risk, types, relations, git)
-  - [ ] Service/API/MCP behavior (contracts, stability expectations)
-- [ ] For each claim:
-  - [ ] link to implementation module(s)
-  - [ ] list configuration toggles
-  - [ ] list known limitations / failure modes
-  - [ ] identify a fixture-based test that demonstrates it
+- [x] Build `docs/truth-table.md` that covers:
+  - [x] Build modes: code / prose / records / mixed
+  - [x] Chunking rules (by language and file type)
+  - [x] Tokenization semantics (code vs prose)
+  - [x] Index artifact outputs (memory + sqlite + shard formats)
+  - [x] Search semantics (filters, scoring, explain)
+  - [x] Enrichment outputs (risk, types, relations, git)
+  - [x] Service/API/MCP behavior (contracts, stability expectations)
+- [x] For each claim:
+  - [x] link to implementation module(s)
+  - [x] list configuration toggles
+  - [x] list known limitations / failure modes
+  - [x] identify a fixture-based test that demonstrates it
 
 ## 1.2 Acceptance-test fixtures and golden expectations
 
@@ -82,15 +82,15 @@ If exit criteria are not met, do not proceed to later phases except for narrowly
 - `seedrandom` — make all randomized fixture generation deterministic (seed = repo hash + test name), so flaky “random repos” never block correctness gates.
 - `xxhash-wasm` — use fast, stable hashing to derive fixture IDs and to detect unintended fixture drift (hash raw inputs + normalized outputs).
 
-- [ ] Add fixture repos representing:
-  - [ ] small: <1k files mixed code/prose
-  - [ ] medium: 5k–50k files with mixed languages
-  - [ ] multi-language mixed-file repo (HTML+JS+CSS, markdown code fences, etc)
-- [ ] Define “must-hit” retrieval assertions:
-  - [ ] symbol lookup (name/kind)
-  - [ ] structural filters (e.g., `--kind`, `--signature`, `--decorator`)
-  - [ ] risk filter behavior (even if basic initially)
-  - [ ] type inference visibility (even if minimal initially)
+- [x] Add fixture repos representing:
+  - [x] small: <1k files mixed code/prose
+  - [x] medium: 5k–50k files with mixed languages
+  - [x] multi-language mixed-file repo (HTML+JS+CSS, markdown code fences, etc)
+- [x] Define “must-hit” retrieval assertions:
+  - [x] symbol lookup (name/kind)
+  - [x] structural filters (e.g., `--kind`, `--signature`, `--decorator`)
+  - [x] risk filter behavior (even if basic initially)
+  - [x] type inference visibility (even if minimal initially)
 
 ## 1.3 Tool invocation correctness (install-root vs repo-root)
 
@@ -99,11 +99,11 @@ If exit criteria are not met, do not proceed to later phases except for narrowly
   - Prefer `reject: false` and check `exitCode` explicitly; capture `stdout`, `stderr`, and combined `all` output.
 - `semver` — validate runtime/tool versions (Node, npm/pnpm, optional native deps) and emit actionable errors early.
 
-- [ ] Implement and require a single resolver:
-  - [ ] `resolveToolRoot()` (ESM-safe, based on `import.meta.url`)
-  - [ ] `resolveRepoRoot()` (explicit > inferred; deterministic)
-- [ ] Convert *all* scripts that spawn other scripts/tools to use toolRoot resolution.
-- [ ] Add tests that run commands from a directory **outside** repoRoot.
+- [x] Implement and require a single resolver:
+  - [x] `resolveToolRoot()` (ESM-safe, based on `import.meta.url`)
+  - [x] `resolveRepoRoot()` (explicit > inferred; deterministic)
+- [x] Convert *all* scripts that spawn other scripts/tools to use toolRoot resolution.
+- [x] Add tests that run commands from a directory **outside** repoRoot.
 
 ## 1.4 Determinism and reproducibility baseline
 
@@ -112,12 +112,12 @@ If exit criteria are not met, do not proceed to later phases except for narrowly
 - `xxhash-wasm` — deterministic hashing for chunk IDs and segment IDs; avoid crypto hashes unless explicitly required.
 - `msgpackr` — if you snapshot intermediate artifacts for determinism tests, prefer MsgPack for speed and stable binary outputs.
 
-- [ ] Ensure build artifacts include:
-  - [ ] tool version, node version, OS, effective config hash
-  - [ ] repo provenance (git commit + dirty flag when available)
-- [ ] Establish a deterministic test mode:
-  - [ ] deterministic embedding stub (by default in tests)
-  - [ ] deterministic ordering everywhere (files, shards, chunk IDs)
+- [x] Ensure build artifacts include:
+  - [x] tool version, node version, OS, effective config hash
+  - [x] repo provenance (git commit + dirty flag when available)
+- [x] Establish a deterministic test mode:
+  - [x] deterministic embedding stub (by default in tests)
+  - [x] deterministic ordering everywhere (files, shards, chunk IDs)
 
 **Deliverables**
 - `docs/truth-table.md`
@@ -148,14 +148,14 @@ If exit criteria are not met, do not proceed to later phases except for narrowly
 - `better-sqlite3` — if SQLite is a backend, standardize on prepared statements + WAL mode + transactional writes for durability.
 - `lmdb` (optional) — consider as an alternative backend for very high write throughput; gate behind optional dependency/feature flag (install friction).
 
-- [ ] Define/refresh `docs/artifact-contract.md`:
-  - [ ] every artifact file + format + version
-  - [ ] required fields + optional fields
-  - [ ] invariants (cross-artifact) and validation rules
-- [ ] Strengthen `tools/index-validate`:
-  - [ ] schema validation per artifact
-  - [ ] cross checks: chunk IDs, file references, postings references, embedding references
-  - [ ] human remediation hints for each failure class
+- [x] Define/refresh `docs/artifact-contract.md`:
+  - [x] every artifact file + format + version
+  - [x] required fields + optional fields
+  - [x] invariants (cross-artifact) and validation rules
+- [x] Strengthen `tools/index-validate`:
+  - [x] schema validation per artifact
+  - [x] cross checks: chunk IDs, file references, postings references, embedding references
+  - [x] human remediation hints for each failure class
 
 ## 2.2 **Metadata schema v2** (rich per-chunk metadata contract)
 
@@ -166,19 +166,19 @@ If exit criteria are not met, do not proceed to later phases except for narrowly
 
 This is the foundation for advanced rich metadata, risk flows, and type inference.
 
-- [ ] Create `docs/metadata-schema-v2.md` defining:
-  - [ ] stable core: `chunkId`, `file`, `segment`, `range`, `lang`, `ext`, `kind`, `name`
-  - [ ] provenance: `generatedBy`, `tooling`, `parser`, versions
-  - [ ] doc metadata: signature, docstring/doc-comments, annotations, decorators/attributes
-  - [ ] control-flow summary: branches/loops/returns/throws/awaits/async/generator
-  - [ ] dataflow summary: reads/writes/mutates/aliases (local first; later cross-file)
-  - [ ] dependencies: imports, referenced modules, includes
-  - [ ] risk metadata: sources/sinks/sanitizers/flows (+ confidence)
-  - [ ] type metadata: declared/inferred/tooling (+ confidence)
-  - [ ] embedded metadata: segment parent, embedded language, embedding context
-- [ ] Define compatibility rules with existing `docmeta`:
-  - [ ] migration mapping from current fields to v2 fields
-  - [ ] deprecation schedule for legacy keys
+- [x] Create `docs/metadata-schema-v2.md` defining:
+  - [x] stable core: `chunkId`, `file`, `segment`, `range`, `lang`, `ext`, `kind`, `name`
+  - [x] provenance: `generatedBy`, `tooling`, `parser`, versions
+  - [x] doc metadata: signature, docstring/doc-comments, annotations, decorators/attributes
+  - [x] control-flow summary: branches/loops/returns/throws/awaits/async/generator
+  - [x] dataflow summary: reads/writes/mutates/aliases (local first; later cross-file)
+  - [x] dependencies: imports, referenced modules, includes
+  - [x] risk metadata: sources/sinks/sanitizers/flows (+ confidence)
+  - [x] type metadata: declared/inferred/tooling (+ confidence)
+  - [x] embedded metadata: segment parent, embedded language, embedding context
+- [x] Define compatibility rules with existing `docmeta`:
+  - [x] migration mapping from current fields to v2 fields
+  - [x] deprecation schedule for legacy keys
 
 ## 2.3 Atomic build and “current” pointer
 
@@ -187,12 +187,12 @@ This is the foundation for advanced rich metadata, risk flows, and type inferenc
   - Use WAL journaling; keep write transactions short and bounded.
 - `fflate` — if “current pointer” points at compressed shard bundles, stream compress/decompress rather than buffering whole bundles.
 
-- [ ] Build to staging directory `builds/<buildId>/...` (default format: `YYYYMMDDTHHMMSSZ_<gitShortSha|nogit>_<configHash8>`)
-- [ ] Validate staging artifacts before promoting to “current”
-- [ ] Ensure readers never see partial outputs:
-  - [ ] atomic rename/swap semantics
-  - [ ] sqlite temp file + rename
-  - [ ] shard manifest atomicity
+- [x] Build to staging directory `builds/<buildId>/...` (default format: `YYYYMMDDTHHMMSSZ_<gitShortSha|nogit>_<configHash8>`)
+- [x] Validate staging artifacts before promoting to “current”
+- [x] Ensure readers never see partial outputs:
+  - [x] atomic rename/swap semantics
+  - [x] sqlite temp file + rename
+  - [x] shard manifest atomicity
 
 ## 2.4 Durable state machine for multi-stage builds
 
@@ -202,15 +202,15 @@ This is the foundation for advanced rich metadata, risk flows, and type inferenc
 - `pino` — log state transitions as structured events (runId, shardId, stage, timings, error category).
 - `prom-client` — expose state machine counters/histograms for throughput and failure rates (per stage, per language).
 
-- [ ] Create a build state model with explicit phases:
-  - [ ] discovery → preprocessing → stage1 → stage2 → stage3 → validation → promote
-- [ ] Ensure stage2/stage3 jobs cannot remain “running forever”:
-  - [ ] heartbeat timestamps: persist `lastHeartbeatAt` every **30s** while a job is `running`
-  - [ ] stale job detection: consider a job stale if `now - lastHeartbeatAt` exceeds:
-    - [ ] **10 minutes** for stage2 (enrichment; mostly CPU + local IO)
-    - [ ] **15 minutes** for stage3 (embeddings; can be longer-running, but heartbeat is independent of work duration)
-  - [ ] recovery policy: mark stale jobs as `failed` and re-queue up to **2 retries** (default) with exponential backoff (**2m**, **10m**)
-  - [ ] resumable checkpoints: persist progress at least every **1,000 files** or **120 seconds** (whichever comes first)
+- [x] Create a build state model with explicit phases:
+  - [x] discovery → preprocessing → stage1 → stage2 → stage3 → validation → promote
+- [x] Ensure stage2/stage3 jobs cannot remain “running forever”:
+  - [x] heartbeat timestamps: persist `lastHeartbeatAt` every **30s** while a job is `running`
+  - [x] stale job detection: consider a job stale if `now - lastHeartbeatAt` exceeds:
+    - [x] **10 minutes** for stage2 (enrichment; mostly CPU + local IO)
+    - [x] **15 minutes** for stage3 (embeddings; can be longer-running, but heartbeat is independent of work duration)
+  - [x] recovery policy: mark stale jobs as `failed` and re-queue up to **2 retries** (default) with exponential backoff (**2m**, **10m**)
+  - [x] resumable checkpoints: persist progress at least every **1,000 files** or **120 seconds** (whichever comes first)
 
 **Deliverables**
 - `docs/artifact-contract.md`
@@ -238,11 +238,11 @@ This is the foundation for advanced rich metadata, risk flows, and type inferenc
 - `picomatch` — precompile include/exclude globs for the segment discovery pre-pass (don’t recompile per file).
 - `linguist-languages` — unify extension → languageId mapping, but keep project overrides (repo-local config) higher priority.
 
-- [ ] Define a new internal representation:
-  - [ ] `FileDocument { file, bytes, text, ext, langHint }`
-  - [ ] `Segment { segmentId, type: code|prose|config|comment|embedded, languageId, start, end, parentSegmentId?, meta }`
-  - [ ] `Chunk { chunkId, segmentId, start, end, name, kind, metaV2 }`
-- [ ] Replace “single chunker per file” with:
+- [x] Define a new internal representation:
+  - [x] `FileDocument { file, bytes, text, ext, langHint }`
+  - [x] `Segment { segmentId, type: code|prose|config|comment|embedded, languageId, start, end, parentSegmentId?, meta }`
+  - [x] `Chunk { chunkId, segmentId, start, end, name, kind, metaV2 }`
+- [x] Replace “single chunker per file” with:
   1) segment discovery
   2) per-segment chunking
   3) chunk merging + stable ordering + overlap rules
@@ -269,23 +269,23 @@ This is the foundation for advanced rich metadata, risk flows, and type inferenc
 
 Implement segment discovery + chunking for at least:
 
-- [ ] Markdown/RST/AsciiDoc:
-  - [ ] heading segments (existing)
-  - [ ] fenced code blocks (```lang) as **embedded code segments**
-  - [ ] inline code spans as optional micro-segments (configurable; concrete defaults):
-    - [ ] `indexing.segments.inlineCodeSpans = false` (default)
-    - [ ] if enabled: only emit spans with **≥ 8** non-whitespace characters
-    - [ ] per-file caps: **≤ 200** spans AND **≤ 64 KiB** total inline-code bytes (truncate beyond cap)
-  - [ ] frontmatter blocks (YAML/TOML/JSON) as **config segments**
-- [ ] Web components and template containers:
-  - [ ] `.vue` (template/script/style)
-  - [ ] `.svelte` (script/style/template)
-  - [ ] `.astro` (frontmatter + template + style)
-- [ ] “HTML inside other languages” baseline:
-  - [ ] JSX/TSX: treat JSX regions as embedded markup segments (at least for metadata; chunk boundaries already exist)
-- [ ] JSON/YAML embedded inside comments or strings (best-effort):
-  - [ ] detect fenced blocks in comments/docstrings tagged `json`, `yaml`, `toml`
-  - [ ] treat them as embedded config segments if parseable
+- [x] Markdown/RST/AsciiDoc:
+  - [x] heading segments (existing)
+  - [x] fenced code blocks (```lang) as **embedded code segments**
+  - [x] inline code spans as optional micro-segments (configurable; concrete defaults):
+    - [x] `indexing.segments.inlineCodeSpans = false` (default)
+    - [x] if enabled: only emit spans with **≥ 8** non-whitespace characters
+    - [x] per-file caps: **≤ 200** spans AND **≤ 64 KiB** total inline-code bytes (truncate beyond cap)
+  - [x] frontmatter blocks (YAML/TOML/JSON) as **config segments**
+- [x] Web components and template containers:
+  - [x] `.vue` (template/script/style)
+  - [x] `.svelte` (script/style/template)
+  - [x] `.astro` (frontmatter + template + style)
+- [x] “HTML inside other languages” baseline:
+  - [x] JSX/TSX: treat JSX regions as embedded markup segments (at least for metadata; chunk boundaries already exist)
+- [x] JSON/YAML embedded inside comments or strings (best-effort):
+  - [x] detect fenced blocks in comments/docstrings tagged `json`, `yaml`, `toml`
+  - [x] treat them as embedded config segments if parseable
 
 ## 3.3 Comment extraction as first-class segments
 
@@ -296,26 +296,26 @@ Implement segment discovery + chunking for at least:
 - `@typescript-eslint/typescript-estree` — for JS/TS, enable comment/tokens output to reliably extract all comments with ranges.
   - Prefer a non-type-aware parse for comment extraction (fast path), and only enable type-aware mode in Phase 4 when needed.
 
-- [ ] Implement a comment extraction layer per language:
-  - [ ] doc comments (existing behavior) as `comment:doc`
-  - [ ] inline comments (optional, configurable) as `comment:inline`
-  - [ ] block comments as `comment:block`
-  - [ ] license/header comments as `comment:license` (default: **extract but do not index**; searchable only when explicitly enabled)
-- [ ] Each comment segment must record:
-  - [ ] original language + comment style
-  - [ ] byte range and line range
-  - [ ] nearest symbol anchor (chunkId) when linkable
-- [ ] Add config toggles (with concrete defaults):
-  - [ ] `indexing.comments.extract = off|doc|all` (default: `doc`)
-  - [ ] `indexing.comments.includeLicense = false` (default; when false, emit `comment:license` segments but exclude from term postings)
-  - [ ] minimum length thresholds (defaults):
-    - [ ] doc comments: **≥ 15** non-whitespace characters after stripping markers
-    - [ ] inline/block comments: **≥ 30** non-whitespace characters after stripping markers
-    - [ ] after normalization/tokenization: **≥ 5** prose tokens (otherwise drop)
-  - [ ] skip patterns (defaults enabled; configurable allow/deny lists):
-    - [ ] license/header detector: if a comment is within the first **200 lines** and matches `copyright|license|spdx|apache|mit|gpl|bsd`
-    - [ ] generated detector: matches `generated by|do not edit|@generated|autogenerated`
-    - [ ] linter-noise detector: matches `eslint-disable|prettier-ignore|noinspection`
+- [x] Implement a comment extraction layer per language:
+  - [x] doc comments (existing behavior) as `comment:doc`
+  - [x] inline comments (optional, configurable) as `comment:inline`
+  - [x] block comments as `comment:block`
+  - [x] license/header comments as `comment:license` (default: **extract but do not index**; searchable only when explicitly enabled)
+- [x] Each comment segment must record:
+  - [x] original language + comment style
+  - [x] byte range and line range
+  - [x] nearest symbol anchor (chunkId) when linkable
+- [x] Add config toggles (with concrete defaults):
+  - [x] `indexing.comments.extract = off|doc|all` (default: `doc`)
+  - [x] `indexing.comments.includeLicense = false` (default; when false, emit `comment:license` segments but exclude from term postings)
+  - [x] minimum length thresholds (defaults):
+    - [x] doc comments: **≥ 15** non-whitespace characters after stripping markers
+    - [x] inline/block comments: **≥ 30** non-whitespace characters after stripping markers
+    - [x] after normalization/tokenization: **≥ 5** prose tokens (otherwise drop)
+  - [x] skip patterns (defaults enabled; configurable allow/deny lists):
+    - [x] license/header detector: if a comment is within the first **200 lines** and matches `copyright|license|spdx|apache|mit|gpl|bsd`
+    - [x] generated detector: matches `generated by|do not edit|@generated|autogenerated`
+    - [x] linter-noise detector: matches `eslint-disable|prettier-ignore|noinspection`
 
 ## 3.4 Prose-index strategy for comments and extracted prose
 
@@ -327,24 +327,24 @@ Implement segment discovery + chunking for at least:
 Two supported options (choose one as default, keep the other as optional):
 
 **Option A — Separate “extracted-prose” index (recommended for clarity)**
-  - [ ] Build a distinct index mode: `mode=extracted-prose`
-  - [ ] Store comment segments + extracted prose blocks (frontmatter, docstrings, etc.)
-  - [ ] Use **prose tokenization** (stemming/stopwords) for these segments
-  - [ ] Search tool can query `code`, `prose`, and `extracted-prose` and fuse (RRF)
+  - [x] Build a distinct index mode: `mode=extracted-prose`
+  - [x] Store comment segments + extracted prose blocks (frontmatter, docstrings, etc.)
+  - [x] Use **prose tokenization** (stemming/stopwords) for these segments
+  - [x] Search tool can query `code`, `prose`, and `extracted-prose` and fuse (RRF)
 
 **Option B — Fielded indexing inside code chunks (DEFAULT)**
-- [ ] Keep a single code chunk and index comment-prose as a **separate field**:
-  - [ ] add `fieldTokens.comment` (normalized prose tokens from extracted inline/block comments)
-  - [ ] keep doc comments in `fieldTokens.doc` (existing behavior)
-  - [ ] store raw comment snippets in `docmeta.comments[]` for explain/snippet (not tokenized)
-- [ ] Default caps (configurable):
-  - [ ] max **5** comment segments per chunk (nearest-to-symbol first)
-  - [ ] max **8 KiB** total raw comment bytes per chunk (truncate + note `truncated=true`)
-- [ ] Default scoring weights (BM25 field weights; overrideable via `search.fieldWeights`):
-  - [ ] code intent: `comment=0.6`
-  - [ ] prose intent: `comment=1.8`
-  - [ ] mixed intent: `comment=1.2`
-  - [ ] path intent: `comment=0.4`
+- [x] Keep a single code chunk and index comment-prose as a **separate field**:
+  - [x] add `fieldTokens.comment` (normalized prose tokens from extracted inline/block comments)
+  - [x] keep doc comments in `fieldTokens.doc` (existing behavior)
+  - [x] store raw comment snippets in `docmeta.comments[]` for explain/snippet (not tokenized)
+- [x] Default caps (configurable):
+  - [x] max **5** comment segments per chunk (nearest-to-symbol first)
+  - [x] max **8 KiB** total raw comment bytes per chunk (truncate + note `truncated=true`)
+- [x] Default scoring weights (BM25 field weights; overrideable via `search.fieldWeights`):
+  - [x] code intent: `comment=0.6`
+  - [x] prose intent: `comment=1.8`
+  - [x] mixed intent: `comment=1.2`
+  - [x] path intent: `comment=0.4`
 
 ## 3.5 Correctness tests for segmentation and hybrid chunking
 
@@ -352,16 +352,16 @@ Two supported options (choose one as default, keep the other as optional):
 - `seedrandom` — generate stress fixtures deterministically (random mixed-language embedding + comment fences).
 - `ajv` — validate that segmentation outputs comply with `SegmentedDocument` + metadata v2 schema before indexing.
 
-- [ ] Fixture files covering:
-  - [ ] HTML with script/style blocks (existing) + nested code/pre
-  - [ ] markdown with multiple fenced blocks + frontmatter
-  - [ ] Vue/Svelte/Astro files
-  - [ ] mixed json-in-comments (doc blocks)
-- [ ] Assert:
-  - [ ] segment boundaries correct (byte + line ranges)
-  - [ ] chunk boundaries correct (no overlaps unless explicitly allowed)
-  - [ ] embedded language detection correct enough (by tag/fence/lang attr)
-  - [ ] comment segments extracted according to config
+- [x] Fixture files covering:
+  - [x] HTML with script/style blocks (existing) + nested code/pre
+  - [x] markdown with multiple fenced blocks + frontmatter
+  - [x] Vue/Svelte/Astro files
+  - [x] mixed json-in-comments (doc blocks)
+- [x] Assert:
+  - [x] segment boundaries correct (byte + line ranges)
+  - [x] chunk boundaries correct (no overlaps unless explicitly allowed)
+  - [x] embedded language detection correct enough (by tag/fence/lang attr)
+  - [x] comment segments extracted according to config
 
 **Deliverables**
 - SegmentedDocument pipeline + segment discovery implementations

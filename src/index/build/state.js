@@ -16,6 +16,7 @@ export function createIndexState() {
       name: new Map(),
       signature: new Map(),
       doc: new Map(),
+      comment: new Map(),
       body: new Map()
     },
     docLengths: [],
@@ -23,6 +24,7 @@ export function createIndexState() {
       name: [],
       signature: [],
       doc: [],
+      comment: [],
       body: []
     },
     fieldTokens: [],
@@ -110,7 +112,7 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
   uniqueTokens.forEach((t) => state.df.set(t, (state.df.get(t) || 0) + 1));
   if (fieldedEnabled) {
     const fields = chunk.fieldTokens || {};
-    const fieldNames = ['name', 'signature', 'doc', 'body'];
+    const fieldNames = ['name', 'signature', 'doc', 'comment', 'body'];
     for (const field of fieldNames) {
       const fieldTokens = Array.isArray(fields[field]) ? fields[field] : [];
       state.fieldDocLengths[field][chunkId] = fieldTokens.length;
@@ -132,6 +134,13 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
     }
   }
   chunk.id = chunkId;
+  const commentMeta = chunk.docmeta?.comments;
+  if (Array.isArray(commentMeta)) {
+    for (const entry of commentMeta) {
+      if (!entry || entry.anchorChunkId != null) continue;
+      entry.anchorChunkId = chunkId;
+    }
+  }
   if (chunk.fieldTokens) delete chunk.fieldTokens;
   state.chunks.push(chunk);
 }

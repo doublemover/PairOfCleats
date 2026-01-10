@@ -115,7 +115,7 @@ export function getSearchUsage() {
     '',
     'Options:',
     '  --repo <path>',
-    '  --mode code|prose|both|records|all',
+    '  --mode code|prose|both|records|all|extracted-prose',
     '  --backend auto|memory|sqlite|sqlite-fts',
     '  --top N, --context N',
     '  --json | --json-compact | --human | --stats',
@@ -143,18 +143,19 @@ export function getSearchUsage() {
 /**
  * Resolve the requested search mode and derived flags.
  * @param {string|undefined} modeRaw
- * @returns {{searchMode:string,runCode:boolean,runProse:boolean,runRecords:boolean}}
+ * @returns {{searchMode:string,runCode:boolean,runProse:boolean,runRecords:boolean,runExtractedProse:boolean}}
  */
 export function resolveSearchMode(modeRaw) {
   const searchMode = String(modeRaw || 'both').toLowerCase();
-  const allowedModes = new Set(['code', 'prose', 'both', 'records', 'all']);
+  const allowedModes = new Set(['code', 'prose', 'both', 'records', 'all', 'extracted-prose']);
   if (!allowedModes.has(searchMode)) {
-    const error = new Error(`Invalid --mode ${searchMode}. Use code|prose|both|records|all.`);
+    const error = new Error(`Invalid --mode ${searchMode}. Use code|prose|both|records|all|extracted-prose.`);
     error.code = 'INVALID_MODE';
     throw error;
   }
   const runCode = searchMode === 'code' || searchMode === 'both' || searchMode === 'all';
   const runProse = searchMode === 'prose' || searchMode === 'both' || searchMode === 'all';
   const runRecords = searchMode === 'records' || searchMode === 'all';
-  return { searchMode, runCode, runProse, runRecords };
+  const runExtractedProse = searchMode === 'extracted-prose' || searchMode === 'all';
+  return { searchMode, runCode, runProse, runRecords, runExtractedProse };
 }

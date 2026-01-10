@@ -4,10 +4,10 @@ const CAMEL_PATTERN = /[a-z][A-Z]/;
 const SNAKE_PATTERN = /_/;
 
 const DEFAULT_FIELD_WEIGHTS = {
-  code: { name: 2.0, signature: 1.5, doc: 1.2, body: 1.0 },
-  prose: { name: 1.2, signature: 0.9, doc: 2.1, body: 1.7 },
-  path: { name: 2.4, signature: 1.7, doc: 0.9, body: 0.7 },
-  mixed: { name: 1.8, signature: 1.3, doc: 1.6, body: 1.2 }
+  code: { name: 2.0, signature: 1.5, doc: 1.2, comment: 0.6, body: 1.0 },
+  prose: { name: 1.2, signature: 0.9, doc: 2.1, comment: 1.8, body: 1.7 },
+  path: { name: 2.4, signature: 1.7, doc: 0.9, comment: 0.4, body: 0.7 },
+  mixed: { name: 1.8, signature: 1.3, doc: 1.6, comment: 1.2, body: 1.2 }
 };
 
 const detectSignals = (query, tokens) => {

@@ -142,12 +142,13 @@ const validators = {
     type: 'array',
     items: {
       type: 'object',
-      properties: {
-        name: { type: 'array', items: { type: 'string' } },
-        signature: { type: 'array', items: { type: 'string' } },
-        doc: { type: 'array', items: { type: 'string' } },
-        body: { type: 'array', items: { type: 'string' } }
-      },
+        properties: {
+          name: { type: 'array', items: { type: 'string' } },
+          signature: { type: 'array', items: { type: 'string' } },
+          doc: { type: 'array', items: { type: 'string' } },
+          comment: { type: 'array', items: { type: 'string' } },
+          body: { type: 'array', items: { type: 'string' } }
+        },
       additionalProperties: true
     }
   }),
