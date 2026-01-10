@@ -830,14 +830,22 @@ For each new language or container format:
 **Objective:** Capture failing tests after Phase 1–8 execution and lay out the fix plan.
 
 ## 9.1 Current failing tests (post-Phase 8)
-- `npm run test-all-no-bench` failed in `sqlite-incremental-test`:
-  - `ReferenceError: lang is not defined` at `src/index/build/file-processor.js:1175`
-  - The retry loop exhausted; `script-coverage-test` reported the failure.
+- `npm run test-all-no-bench` failed in `type-inference-crossfile-go`:
+  - `build_index.js` aborts during validation (`Index validation failed`).
+  - `tools/index-validate.js` on the failing build shows prose index missing `field_postings.json` and `field_tokens.json` when there are 0 prose files.
+- `npm run script-coverage-test` failed because the embedded `type-inference-crossfile-go` test fails for the same validation issue.
+- `npm run bench` failed during `build_index.js` validation for `lua/Kong/kong`.
+  - `tools/index-validate.js` on build root `benchmarks/cache/repos/30b593adfa274d3ce1c411d8f503d9e6a395eec2/builds/20260110T072459Z_1228042_20c23be4` reports missing SQLite DBs (code/prose) and missing records artifacts when `--mode all` is used.
 
 ## 9.2 Fix plan
-- [ ] Fix the undefined `lang` reference in `src/index/build/file-processor.js` by using the resolved language context (`fileLanguageId` or the `buildLanguageContext` result).
-- [ ] Update remaining tests/configs still using `sqlite.annMode` to `sqlite.vectorExtension.annMode` to avoid deprecation warnings.
-- [ ] Rerun `npm run sqlite-incremental-test` and `npm run script-coverage-test`, then resume `npm run test-all-no-bench`.
+- [x] Replace `freq`/`fieldFreq` in `src/index/build/state.js` with null-prototype maps (or `Map`) so tokens like `constructor` cannot corrupt term counts.
+- [x] Add a quick regression check ensuring postings counts remain integers during build (or via index-validate) for the languages fixture.
+- [x] Backfill TypeScript docmeta from signatures in `src/lang/typescript.js` to restore `extends`, param types, and return types when tree-sitter chunks are used.
+- [x] Preserve TypeScript type casing in `src/index/type-inference.js` so `Array` return types remain canonical for TS.
+- [x] Rerun `npm run language-fidelity-test` to confirm TypeScript extends/inferredTypes expectations pass.
+- [ ] Ensure fielded artifacts are emitted (or validation relaxed) when a mode has zero chunks so `field_postings.json`/`field_tokens.json` are not treated as missing.
+- [ ] Rerun `npm run test-all-no-bench` and `npm run script-coverage-test`.
+- [ ] Prevent bench stage1 validation from failing when SQLite/records are not built (e.g., skip sqlite validation when `shouldBuildSqlite` is false or set `sqlite.use: false` in the bench profile).
 
 ---
 

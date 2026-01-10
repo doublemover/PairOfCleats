@@ -10,19 +10,19 @@ PairOfCleats can ingest symbols from multiple sources. This document defines pre
 
 2) SCIP ingestion
 - Offline code intelligence. Preferred when available because it carries definitions + references in a standard format.
-- Ingested via `pairofcleats scip-ingest`.
+- Ingested via `pairofcleats ingest scip`.
 
 3) LSIF ingestion
 - Offline graph for definitions/references; often produced by CI.
-- Ingested via `pairofcleats lsif-ingest`.
+- Ingested via `pairofcleats ingest lsif`.
 
 4) Ctags ingestion
 - Fast, broad symbol discovery, fewer type details.
-- Ingested via `pairofcleats ctags-ingest`.
+- Ingested via `pairofcleats ingest ctags`.
 
 5) GNU Global (GTAGS) ingestion
 - Fallback symbol lookup for repos without tooling/ctags coverage.
-- Ingested via `pairofcleats gtags-ingest`.
+- Ingested via `pairofcleats ingest gtags`.
 
 6) Heuristic / AST chunking
 - Always available; used as a baseline when no external sources are present.

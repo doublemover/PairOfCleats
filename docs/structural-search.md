@@ -12,9 +12,9 @@ Supported engines
 
 CLI
 ```bash
-pairofcleats structural-search --pack semgrep-security --repo /path/to/repo
-pairofcleats structural-search --pack astgrep-js-safety --format json
-pairofcleats structural-search --engine semgrep --rule rules/semgrep/security.yml
+pairofcleats structural search --pack semgrep-security --repo /path/to/repo
+pairofcleats structural search --pack astgrep-js-safety --format json
+pairofcleats structural search --engine semgrep --rule rules/semgrep/security.yml
 ```
 
 Indexing integration

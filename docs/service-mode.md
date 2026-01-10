@@ -31,31 +31,31 @@ Example:
 Commands
 ```bash
 # Sync repos (clone or pull)
-pairofcleats indexer-service sync --config /path/to/config.json
+pairofcleats service indexer sync --config /path/to/config.json
 
 # Enqueue a repo for indexing
-pairofcleats indexer-service enqueue --repo /path/to/repo --mode code
+pairofcleats service indexer enqueue --repo /path/to/repo --mode code
 
 # Process the queue once, or keep watching
-pairofcleats indexer-service work --concurrency 2
-pairofcleats indexer-service work --watch --interval 5000
+pairofcleats service indexer work --concurrency 2
+pairofcleats service indexer work --watch --interval 5000
 
 # Queue status
-pairofcleats indexer-service status
+pairofcleats service indexer status
 
 # Embedding queue (service mode)
-pairofcleats indexer-service enqueue --queue embeddings --repo /path/to/repo --mode code
-pairofcleats indexer-service work --queue embeddings --concurrency 1
+pairofcleats service indexer enqueue --queue embeddings --repo /path/to/repo --mode code
+pairofcleats service indexer work --queue embeddings --concurrency 1
 
 # Stage/mode-specific queues (optional)
-pairofcleats indexer-service enqueue --queue auto --stage stage2 --mode code --repo /path/to/repo
-pairofcleats indexer-service work --queue auto --stage stage2 --mode code --concurrency 1
+pairofcleats service indexer enqueue --queue auto --stage stage2 --mode code --repo /path/to/repo
+pairofcleats service indexer work --queue auto --stage stage2 --mode code --concurrency 1
 ```
 
 Query serving
 Use the API server to serve queries once indexes are built:
 ```bash
-pairofcleats indexer-service serve --repo /path/to/repo
+pairofcleats service indexer serve --repo /path/to/repo
 ```
 
 Notes

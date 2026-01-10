@@ -70,8 +70,6 @@ Experimental commands require `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
 - `pairofcleats bench matrix`
 
 ## Migration notes
-- Legacy aliases (for example, `pairofcleats build-index` or `pairofcleats search-sqlite`)
-  are still accepted. Run `pairofcleats help` to see the full alias mapping.
 - Language-specific bench scripts were removed; use `pairofcleats bench language --language <lang>`
   and `--tier <typical|large>` instead.
 

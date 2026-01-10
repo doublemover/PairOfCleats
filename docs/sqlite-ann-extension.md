@@ -11,7 +11,7 @@ back to the JS ANN path when the extension or vector table is unavailable.
 - Place it under the extensions cache (default `<cache>/extensions`), or point
   `sqlite.vectorExtension.path` at the file.
 - Rebuild the SQLite indexes so the `dense_vectors_ann` table is created.
-`download-extensions` can read `sqlite.vectorExtension.downloads` keyed by
+`assets extensions` can read `sqlite.vectorExtension.downloads` keyed by
 `<platform>-<arch>` (for example, `win32-x64`).
 The download helper supports `.zip`, `.tar`, `.tar.gz`, and `.tgz` archives by
 extracting the extension binary (matching the configured filename or platform
@@ -20,12 +20,12 @@ If `vectorExtension.path` is set, it overrides the `dir` + `filename` layout.
 
 Use the helper:
 ```
-pairofcleats download-extensions --url vec0.dll=https://example.com/vec0.dll
+pairofcleats assets extensions --url vec0.dll=https://example.com/vec0.dll
 ```
 
 Verify the extension install (presence-only):
 ```
-pairofcleats verify-extensions --no-load
+pairofcleats assets extensions-verify --no-load
 ```
 
 ## Configuration
@@ -55,7 +55,7 @@ metric settings).
 
 ## Build
 ```
-pairofcleats build-sqlite-index
+pairofcleats sqlite build
 ```
 When the extension loads successfully, the build creates `dense_vectors_ann` and
 stores float32 embeddings for ANN queries.
@@ -70,7 +70,7 @@ implementation instead.
 ## Notes
 - Extensions are stored outside the repo under the cache root.
 - Environment overrides: `PAIROFCLEATS_EXTENSIONS_DIR`, `PAIROFCLEATS_VECTOR_EXTENSION`.
-- `clean-artifacts` keeps extensions; `pairofcleats uninstall` removes them.
+- `cache clean` keeps extensions; `pairofcleats uninstall` removes them.
 - The extension table is optional and not required for SQLite to work.
 - `dense_vectors_ann` stores float32 embeddings, which increases SQLite size.
 - `dense_vectors_ann` uses `rowid` = `doc_id` for lookups.

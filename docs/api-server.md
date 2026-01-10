@@ -7,7 +7,7 @@ agent orchestration), not for exposing publicly. There is no auth layer; bind to
 `127.0.0.1` or a private interface.
 
 ## Startup
-- `pairofcleats server`
+- `pairofcleats service api`
 
 Options:
 - `--host <addr>`: bind address (default `127.0.0.1`)
@@ -29,7 +29,7 @@ Response:
 
 ### `GET /status`
 Reports artifact sizes and cache health using the same logic as
-`pairofcleats report-artifacts`.
+`pairofcleats cache report`.
 
 Query params:
 - `repo`: optional repo path override
@@ -39,7 +39,7 @@ Response:
 {
   "ok": true,
   "repo": "/path/to/repo",
-  "status": { "...": "see report-artifacts output" }
+  "status": { "...": "see cache report output" }
 }
 ```
 

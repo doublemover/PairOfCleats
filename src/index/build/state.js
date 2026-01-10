@@ -114,14 +114,14 @@ export function appendChunk(
     }
   }
 
-  const freq = {};
+  const freq = new Map();
   tokens.forEach((t) => {
-    freq[t] = (freq[t] || 0) + 1;
+    freq.set(t, (freq.get(t) || 0) + 1);
   });
   const chunkId = state.chunks.length;
 
   state.docLengths[chunkId] = tokens.length;
-  for (const [tok, count] of Object.entries(freq)) {
+  for (const [tok, count] of freq.entries()) {
     let postings = state.tokenPostings.get(tok);
     if (!postings) {
       postings = [];
@@ -154,11 +154,11 @@ export function appendChunk(
       state.fieldTokens[chunkId] = state.fieldTokens[chunkId] || {};
       state.fieldTokens[chunkId][field] = fieldTokens;
       if (!fieldTokens.length) continue;
-      const fieldFreq = {};
+      const fieldFreq = new Map();
       fieldTokens.forEach((tok) => {
-        fieldFreq[tok] = (fieldFreq[tok] || 0) + 1;
+        fieldFreq.set(tok, (fieldFreq.get(tok) || 0) + 1);
       });
-      for (const [tok, count] of Object.entries(fieldFreq)) {
+      for (const [tok, count] of fieldFreq.entries()) {
         let postings = state.fieldPostings[field].get(tok);
         if (!postings) {
           postings = [];

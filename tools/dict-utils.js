@@ -14,7 +14,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TOOL_ROOT = path.resolve(__dirname, '..');
 const PROFILES_DIR = path.resolve(TOOL_ROOT, 'profiles');
 const profileWarnings = new Set();
-const deprecationWarnings = new Set();
 let toolVersionCache = null;
 const DEFAULT_DP_MAX_BY_FILE_COUNT = [
   { maxFiles: 5000, dpMaxTokenLength: 32 },
@@ -50,10 +49,10 @@ export function loadUserConfig(repoRoot, options = {}) {
   try {
     const configPath = path.join(repoRoot, '.pairofcleats.json');
     if (!fs.existsSync(configPath)) {
-      return normalizeUserConfig(applyProfileConfig({}, options.profile), repoRoot);
+      return normalizeUserConfig(applyProfileConfig({}, options.profile));
     }
     const base = JSON.parse(fs.readFileSync(configPath, 'utf8')) || {};
-    return normalizeUserConfig(applyProfileConfig(base, options.profile), repoRoot);
+    return normalizeUserConfig(applyProfileConfig(base, options.profile));
   } catch {
     return {};
   }
@@ -98,60 +97,10 @@ export function getEffectiveConfigHash(repoRoot, userConfig = null) {
 }
 
 
-function warnDeprecatedConfig(key, replacement, detail = '') {
-  const note = replacement ? `Use ${replacement} instead.` : 'Remove this key.';
-  const message = `[config] Deprecated ${key}. ${note}${detail ? ` ${detail}` : ''}`;
-  if (deprecationWarnings.has(message)) return;
-  deprecationWarnings.add(message);
-  console.error(message);
-}
-
-function normalizeUserConfig(baseConfig, repoRoot) {
+function normalizeUserConfig(baseConfig) {
   if (!isPlainObject(baseConfig)) return baseConfig || {};
 
-  const cfg = baseConfig;
-  const sqlite = isPlainObject(cfg.sqlite) ? cfg.sqlite : null;
-  if (sqlite?.dbPath) {
-    warnDeprecatedConfig('sqlite.dbPath', 'sqlite.dbDir or sqlite.codeDbPath/sqlite.proseDbPath', 'Single DB paths are legacy.');
-    delete sqlite.dbPath;
-  }
-  if (sqlite?.annMode) {
-    warnDeprecatedConfig('sqlite.annMode', 'sqlite.vectorExtension.annMode');
-    delete sqlite.annMode;
-  }
-
-  const indexing = isPlainObject(cfg.indexing) ? cfg.indexing : null;
-  const fileCaps = indexing && isPlainObject(indexing.fileCaps) ? indexing.fileCaps : null;
-  if (fileCaps?.defaults) {
-    warnDeprecatedConfig('indexing.fileCaps.defaults', 'indexing.fileCaps.default');
-    delete fileCaps.defaults;
-  }
-  if (fileCaps?.byExtension) {
-    warnDeprecatedConfig('indexing.fileCaps.byExtension', 'indexing.fileCaps.byExt');
-    delete fileCaps.byExtension;
-  }
-  if (fileCaps?.byLang) {
-    warnDeprecatedConfig('indexing.fileCaps.byLang', 'indexing.fileCaps.byLanguage');
-    delete fileCaps.byLang;
-  }
-
-  const cache = isPlainObject(cfg.cache) ? cfg.cache : null;
-  const runtime = cache && isPlainObject(cache.runtime) ? cache.runtime : null;
-  if (runtime) {
-    for (const entry of Object.values(runtime)) {
-      if (!isPlainObject(entry)) continue;
-      if (entry.maxMB != null) {
-        warnDeprecatedConfig('cache.runtime.*.maxMB', 'cache.runtime.*.maxMb');
-        delete entry.maxMB;
-      }
-      if (entry.ttlMS != null) {
-        warnDeprecatedConfig('cache.runtime.*.ttlMS', 'cache.runtime.*.ttlMs');
-        delete entry.ttlMS;
-      }
-    }
-  }
-
-  return cfg;
+  return baseConfig;
 }
 
 

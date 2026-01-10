@@ -63,7 +63,7 @@ SQLite builds are written to temporary files and atomically swapped into place o
 
 ## Invariants
 
-These invariants are validated by `pairofcleats index-validate`:
+These invariants are validated by `pairofcleats index validate`:
 
 - `chunk_meta` entries have sequential, zero-based `id` values.
 - `file_meta.id` values are unique and referenced by `chunk_meta.fileId`.

@@ -42,6 +42,9 @@ const unique = (values) => Array.from(new Set((values || []).filter(Boolean)));
 const normalizeTypeName = (value, languageId) => {
   const normalized = normalizeText(value);
   if (!normalized) return '';
+  if (languageId === 'typescript' || languageId === 'tsx') {
+    return normalized;
+  }
   const lowered = normalized.toLowerCase();
   if (languageId === 'python') {
     const pyMap = {

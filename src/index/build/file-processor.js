@@ -415,6 +415,7 @@ export function createFileProcessor(options) {
     if (seenFiles) seenFiles.add(relKey);
     const ext = resolveExt(abs);
     let fileLanguageId = null;
+    let fileLineCount = 0;
     let fileStat;
     try {
       fileStat = typeof fileEntry === 'object' && fileEntry.stat
@@ -514,35 +515,35 @@ export function createFileProcessor(options) {
         return updatedChunk;
       });
       applyStructuralMatchesToChunks(updatedChunks, fileStructural);
-        const fileDurationMs = Date.now() - fileStart;
-        const cachedLanguage = updatedChunks.find((chunk) => chunk?.lang)?.lang
-          || null;
-        const cachedLines = updatedChunks.reduce((max, chunk) => {
-          const endLine = Number(chunk?.endLine) || 0;
-          return endLine > max ? endLine : max;
-        }, 0);
-        return {
-          abs,
-          relKey,
-          fileIndex,
-          cached: true,
+      const fileDurationMs = Date.now() - fileStart;
+      const cachedLanguage = updatedChunks.find((chunk) => chunk?.lang)?.lang
+        || null;
+      const cachedLines = updatedChunks.reduce((max, chunk) => {
+        const endLine = Number(chunk?.endLine) || 0;
+        return endLine > max ? endLine : max;
+      }, 0);
+      return {
+        abs,
+        relKey,
+        fileIndex,
+        cached: true,
+        durationMs: fileDurationMs,
+        chunks: updatedChunks,
+        manifestEntry,
+        fileRelations,
+        fileMetrics: {
+          languageId: fileLanguageId || cachedLanguage || null,
+          bytes: fileStat.size,
+          lines: cachedLines || (Number.isFinite(knownLines) ? knownLines : 0),
           durationMs: fileDurationMs,
-          chunks: updatedChunks,
-          manifestEntry,
-          fileRelations,
-          fileMetrics: {
-            languageId: fileLanguageId || cachedLanguage || null,
-            bytes: fileStat.size,
-            lines: cachedLines || (Number.isFinite(knownLines) ? knownLines : 0),
-            durationMs: fileDurationMs,
-            parseMs: 0,
-            tokenizeMs: 0,
-            enrichMs: 0,
-            embeddingMs: 0,
-            cached: true
-          }
-        };
-      }
+          parseMs: 0,
+          tokenizeMs: 0,
+          enrichMs: 0,
+          embeddingMs: 0,
+          cached: true
+        }
+      };
+    }
 
     if (!text) {
       try {
@@ -568,6 +569,7 @@ export function createFileProcessor(options) {
       const tokenMode = mode === 'extracted-prose' ? 'prose' : mode;
       const lineIndex = buildLineIndex(text);
       const totalLines = lineIndex.length || 1;
+      fileLineCount = totalLines;
       const fileLines = contextWin > 0 ? text.split('\n') : null;
       const capsByLanguage = resolveFileCaps(ext, lang?.id);
       if (capsByLanguage.maxLines && totalLines > capsByLanguage.maxLines) {
@@ -1172,9 +1174,9 @@ export function createFileProcessor(options) {
 
     const fileDurationMs = Date.now() - fileStart;
     const fileMetrics = {
-      languageId: fileLanguageId || lang?.id || null,
+      languageId: fileLanguageId || null,
       bytes: fileStat.size,
-      lines: totalLines,
+      lines: fileLineCount,
       durationMs: fileDurationMs,
       parseMs: fileTimings.parseMs,
       tokenizeMs: fileTimings.tokenizeMs,

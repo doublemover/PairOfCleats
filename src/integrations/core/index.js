@@ -322,31 +322,32 @@ export async function buildIndex(repoRoot, options = {}) {
         await buildIndexForMode({ mode: modeItem, runtime, discovery });
       }
       await markBuildPhase(runtime.buildRoot, phaseStage, 'done');
-      if (allowSqlite) {
-        const sqliteConfigured = runtime.userConfig?.sqlite?.use !== false;
-        const shouldBuildSqlite = typeof stageArgv.sqlite === 'boolean' ? stageArgv.sqlite : sqliteConfigured;
-        const sqliteModes = modes.filter((modeItem) => modeItem === 'code' || modeItem === 'prose');
-        if (shouldBuildSqlite && sqliteModes.length) {
-          const codeDir = getIndexDir(root, 'code', runtime.userConfig, { indexRoot: runtime.buildRoot });
-          const proseDir = getIndexDir(root, 'prose', runtime.userConfig, { indexRoot: runtime.buildRoot });
-          const sqliteOut = path.join(runtime.buildRoot, 'index-sqlite');
-          sqliteResult = await buildSqliteIndex(root, {
-            mode: sqliteModes.length === 1 ? sqliteModes[0] : 'all',
-            incremental: stageArgv.incremental === true,
-            out: sqliteOut,
-            codeDir,
-            proseDir,
-            emitOutput: options.emitOutput !== false,
-            exitOnError: false
-          });
-        }
+      const sqliteConfigured = runtime.userConfig?.sqlite?.use !== false;
+      const sqliteModes = modes.filter((modeItem) => modeItem === 'code' || modeItem === 'prose');
+      const shouldBuildSqlite = allowSqlite
+        && (typeof stageArgv.sqlite === 'boolean' ? stageArgv.sqlite : sqliteConfigured);
+      const sqliteEnabledForValidation = shouldBuildSqlite && sqliteModes.length > 0;
+      if (shouldBuildSqlite && sqliteModes.length) {
+        const codeDir = getIndexDir(root, 'code', runtime.userConfig, { indexRoot: runtime.buildRoot });
+        const proseDir = getIndexDir(root, 'prose', runtime.userConfig, { indexRoot: runtime.buildRoot });
+        const sqliteOut = path.join(runtime.buildRoot, 'index-sqlite');
+        sqliteResult = await buildSqliteIndex(root, {
+          mode: sqliteModes.length === 1 ? sqliteModes[0] : 'all',
+          incremental: stageArgv.incremental === true,
+          out: sqliteOut,
+          codeDir,
+          proseDir,
+          emitOutput: options.emitOutput !== false,
+          exitOnError: false
+        });
       }
       await markBuildPhase(runtime.buildRoot, 'validation', 'running');
       const validation = await validateIndexArtifacts({
         root: runtime.root,
         indexRoot: runtime.buildRoot,
         modes,
-        userConfig: runtime.userConfig
+        userConfig: runtime.userConfig,
+        sqliteEnabled: sqliteEnabledForValidation
       });
       await updateBuildState(runtime.buildRoot, {
         validation: {

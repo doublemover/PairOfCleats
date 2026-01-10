@@ -40,8 +40,8 @@ const config = {
   cache: { root: cacheRoot },
   sqlite: {
     use: true,
-    annMode: 'extension',
     vectorExtension: {
+      annMode: 'extension',
       path: extensionPath
     }
   },
@@ -144,7 +144,8 @@ await fsPromises.rm(deletableFile, { force: true });
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index (incremental)');
 run([path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--mode', 'code', '--repo', repoRoot], 'build sqlite index (incremental)');
 
-const dbAfter = new Database(sqlitePaths.codePath, { readonly: true });
+const sqlitePathsAfter = resolveSqlitePaths(repoRoot, userConfig);
+const dbAfter = new Database(sqlitePathsAfter.codePath, { readonly: true });
 try {
   dbAfter.loadExtension(extensionPath);
 } catch (err) {

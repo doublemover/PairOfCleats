@@ -75,6 +75,35 @@ const fileMetaPath = path.join(codeDir, 'file_meta.json');
 const fileMeta = fs.existsSync(fileMetaPath)
   ? JSON.parse(fs.readFileSync(fileMetaPath, 'utf8'))
   : [];
+const tokenPostingsPath = path.join(codeDir, 'token_postings.json');
+if (fs.existsSync(tokenPostingsPath)) {
+  try {
+    const tokenPostings = JSON.parse(fs.readFileSync(tokenPostingsPath, 'utf8'));
+    const postings = Array.isArray(tokenPostings?.postings)
+      ? tokenPostings.postings
+      : [];
+    let badEntry = null;
+    for (let i = 0; i < postings.length; i += 1) {
+      const list = postings[i];
+      if (!Array.isArray(list)) continue;
+      for (let j = 0; j < list.length; j += 1) {
+        const entry = list[j];
+        if (!Array.isArray(entry)) continue;
+        const count = entry[1];
+        if (!Number.isInteger(count)) {
+          badEntry = { i, j, count };
+          break;
+        }
+      }
+      if (badEntry) break;
+    }
+    if (badEntry) {
+      failures.push(`Token postings contain non-integer counts at ${badEntry.i}/${badEntry.j}: ${badEntry.count}`);
+    }
+  } catch {
+    failures.push('Token postings check failed: invalid JSON payload.');
+  }
+}
 const fileById = new Map(
   (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
 );

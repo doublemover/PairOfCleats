@@ -5,7 +5,7 @@
 ## Usage
 
 ```bash
-pairofcleats eval-run --repo /path/to/repo --dataset /path/to/queries.json --backend sqlite --top 10
+pairofcleats report eval --repo /path/to/repo --dataset /path/to/queries.json --backend sqlite --top 10
 ```
 
 Options:

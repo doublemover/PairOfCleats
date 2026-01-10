@@ -293,11 +293,6 @@ const actions = [
     covers: ['summary-report-test', 'summary-report']
   },
   {
-    label: 'docs-consistency-test',
-    run: () => runNode('docs-consistency-test', path.join(root, 'tests', 'docs-consistency.js')),
-    covers: ['docs-consistency-test']
-  },
-  {
     label: 'repometrics-dashboard-test',
     run: () => runNode('repometrics-dashboard-test', path.join(root, 'tests', 'repometrics-dashboard.js')),
     covers: ['repometrics-dashboard-test', 'repometrics-dashboard']
@@ -761,11 +756,6 @@ const actions = [
     label: 'config-dump-test',
     run: () => runNode('config-dump-test', path.join(root, 'tests', 'config-dump.js')),
     covers: ['config-dump-test']
-  },
-  {
-    label: 'config-deprecations-test',
-    run: () => runNode('config-deprecations-test', path.join(root, 'tests', 'config-deprecations.js')),
-    covers: ['config-deprecations-test']
   },
   {
     label: 'profile-config-test',

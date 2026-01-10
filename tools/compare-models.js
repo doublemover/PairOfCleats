@@ -174,7 +174,23 @@ function buildEnv(modelId, modelCacheRoot) {
  * @returns {boolean}
  */
 function indexExists(modelCacheRoot, mode) {
-  const metaPath = path.join(modelCacheRoot, 'repos', repoId, `index-${mode}`, 'chunk_meta.json');
+  const repoCacheRoot = path.join(modelCacheRoot, 'repos', repoId);
+  let indexRoot = repoCacheRoot;
+  const currentPath = path.join(repoCacheRoot, 'builds', 'current.json');
+  if (fs.existsSync(currentPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
+      const buildId = typeof data.buildId === 'string' ? data.buildId : null;
+      const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
+      const buildRoot = buildRootRaw
+        ? (path.isAbsolute(buildRootRaw) ? buildRootRaw : path.join(repoCacheRoot, buildRootRaw))
+        : (buildId ? path.join(repoCacheRoot, 'builds', buildId) : null);
+      if (buildRoot && fs.existsSync(buildRoot)) {
+        indexRoot = buildRoot;
+      }
+    } catch {}
+  }
+  const metaPath = path.join(indexRoot, `index-${mode}`, 'chunk_meta.json');
   return fs.existsSync(metaPath);
 }
 

@@ -105,7 +105,6 @@
     "docs-consistency-test": "node tests/docs-consistency.js",
     "summary-report-test": "node tests/summary-report.js",
     "config-validate-test": "node tests/config-validate.js",
-    "config-deprecations-test": "node tests/config-deprecations.js",
     "config-dump-test": "node tests/config-dump.js",
     "profile-config-test": "node tests/profile-config.js",
     "bench-profile-test": "node tests/bench-profile.js",

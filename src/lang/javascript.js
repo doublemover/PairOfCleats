@@ -708,6 +708,10 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
       const value = arg && (arg.value ?? null);
       if (typeof value === 'string') imports.add(value);
     }
+    if (node.type === 'CallExpression' && node.callee?.type === 'Identifier' && node.callee.name === 'require') {
+      const arg = node.arguments?.[0];
+      if (arg && typeof arg.value === 'string') imports.add(arg.value);
+    }
 
     if (node.type === 'ExportAllDeclaration') {
       exports.add('*');

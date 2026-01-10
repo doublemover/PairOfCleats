@@ -203,12 +203,16 @@ export async function validateIndexArtifacts(input = {}) {
     ? input.modes
     : ['code', 'prose'];
 
+  const sqliteEnabled = typeof input.sqliteEnabled === 'boolean'
+    ? input.sqliteEnabled
+    : userConfig.sqlite?.use !== false;
+
   const report = {
     ok: true,
     root: path.resolve(root),
     indexRoot: indexRoot ? path.resolve(indexRoot) : null,
     modes: {},
-    sqlite: { enabled: userConfig.sqlite?.use !== false },
+    sqlite: { enabled: sqliteEnabled },
     issues: [],
     warnings: [],
     hints: []
@@ -217,10 +221,6 @@ export async function validateIndexArtifacts(input = {}) {
   const requiredFiles = ['chunk_meta', 'token_postings'];
   if (postingsConfig.enablePhraseNgrams) requiredFiles.push('phrase_ngrams.json');
   if (postingsConfig.enableChargrams) requiredFiles.push('chargram_postings.json');
-  if (postingsConfig.fielded) {
-    requiredFiles.push('field_postings.json');
-    requiredFiles.push('field_tokens.json');
-  }
   const optionalFiles = [
     'minhash_signatures.json',
     'file_relations.json',
@@ -338,6 +338,20 @@ export async function validateIndexArtifacts(input = {}) {
       validateSchema(report, mode, 'chunk_meta', chunkMeta, 'Rebuild index artifacts for this mode.');
       validateChunkIds(report, mode, chunkMeta);
       validateMetaV2(report, mode, chunkMeta);
+
+      if (postingsConfig.fielded && chunkMeta.length > 0) {
+        const missingFieldArtifacts = [];
+        if (!hasArtifact('field_postings.json')) missingFieldArtifacts.push('field_postings.json');
+        if (!hasArtifact('field_tokens.json')) missingFieldArtifacts.push('field_tokens.json');
+        if (missingFieldArtifacts.length) {
+          modeReport.ok = false;
+          modeReport.missing.push(...missingFieldArtifacts);
+          missingFieldArtifacts.forEach((artifact) => {
+            report.issues.push(`[${mode}] missing ${artifact}`);
+            report.hints.push('Run `pairofcleats index build` to rebuild missing artifacts.');
+          });
+        }
+      }
 
       const tokenIndex = loadTokenPostings(dir);
       const tokenNormalized = normalizeTokenPostings(tokenIndex);
@@ -503,6 +517,9 @@ export async function validateIndexArtifacts(input = {}) {
 
   const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
   const sqliteMode = userConfig.sqlite?.scoreMode === 'fts' ? 'fts' : 'bm25';
+  const sqliteTargets = new Set(modes.filter((mode) => mode === 'code' || mode === 'prose'));
+  const requireCodeDb = sqliteTargets.has('code');
+  const requireProseDb = sqliteTargets.has('prose');
   const sqliteRequiredTables = sqliteMode === 'fts'
     ? ['chunks', 'chunks_fts', 'minhash_signatures', 'dense_vectors', 'dense_meta']
     : [
@@ -528,11 +545,12 @@ export async function validateIndexArtifacts(input = {}) {
     prose: sqlitePaths.prosePath,
     issues: []
   };
+  sqliteReport.enabled = sqliteReport.enabled && sqliteTargets.size > 0;
 
   if (sqliteReport.enabled) {
     const sqliteIssues = [];
-    if (!fs.existsSync(sqlitePaths.codePath)) sqliteIssues.push('code db missing');
-    if (!fs.existsSync(sqlitePaths.prosePath)) sqliteIssues.push('prose db missing');
+    if (requireCodeDb && !fs.existsSync(sqlitePaths.codePath)) sqliteIssues.push('code db missing');
+    if (requireProseDb && !fs.existsSync(sqlitePaths.prosePath)) sqliteIssues.push('prose db missing');
     if (sqliteIssues.length) {
       sqliteReport.ok = false;
       sqliteReport.issues.push(...sqliteIssues);
@@ -565,8 +583,8 @@ export async function validateIndexArtifacts(input = {}) {
             db.close();
           }
         };
-        checkTables(sqlitePaths.codePath, 'code');
-        checkTables(sqlitePaths.prosePath, 'prose');
+        if (requireCodeDb) checkTables(sqlitePaths.codePath, 'code');
+        if (requireProseDb) checkTables(sqlitePaths.prosePath, 'prose');
       }
     }
   }

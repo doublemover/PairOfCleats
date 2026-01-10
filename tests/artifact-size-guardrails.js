@@ -27,6 +27,9 @@ for (let i = 0; i < 3; i += 1) {
 await fsPromises.writeFile(
   path.join(repoRoot, '.pairofcleats.json'),
   JSON.stringify({
+    sqlite: {
+      use: false
+    },
     indexing: {
       fileScan: {
         minified: { sampleMinBytes: 20000 }
