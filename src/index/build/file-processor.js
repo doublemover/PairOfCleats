@@ -540,7 +540,8 @@ export function createFileProcessor(options) {
         ext,
         relPath: relKey,
         mode,
-        languageId: lang?.id || null
+        languageId: lang?.id || null,
+        context: languageContext
       });
       const sc = chunkSegments({
         text,
