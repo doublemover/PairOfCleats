@@ -18,7 +18,7 @@ import {
 import { createEmbedder } from '../embedding.js';
 import { normalizeCommentConfig } from '../comments.js';
 import { normalizeSegmentsConfig } from '../segments.js';
-import { log } from '../../shared/progress.js';
+import { configureLogger, log, updateLogContext } from '../../shared/progress.js';
 import { createTaskQueues } from '../../shared/concurrency.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { resolveThreadLimits } from '../../shared/threads.js';
@@ -122,6 +122,34 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const configHash8 = configHash ? configHash.slice(0, 8) : 'nohash';
   const buildId = `${formatBuildTimestamp(new Date())}_${gitShortSha}_${configHash8}`;
   const buildRoot = path.join(getBuildsRoot(root, userConfig), buildId);
+  const loggingConfig = userConfig.logging || {};
+  const logFormatRaw = envConfig.logFormat || loggingConfig.format || 'text';
+  const logFormat = ['text', 'json', 'pretty'].includes(logFormatRaw)
+    ? logFormatRaw
+    : 'text';
+  const logLevelRaw = envConfig.logLevel || loggingConfig.level || 'info';
+  const logLevel = typeof logLevelRaw === 'string' && logLevelRaw.trim()
+    ? logLevelRaw.trim().toLowerCase()
+    : 'info';
+  const ringMax = Number.isFinite(Number(loggingConfig.ringMax))
+    ? Math.max(1, Math.floor(Number(loggingConfig.ringMax)))
+    : 200;
+  const ringMaxBytes = Number.isFinite(Number(loggingConfig.ringMaxBytes))
+    ? Math.max(1024, Math.floor(Number(loggingConfig.ringMaxBytes)))
+    : 2 * 1024 * 1024;
+  configureLogger({
+    enabled: logFormat !== 'text',
+    pretty: logFormat === 'pretty',
+    level: logLevel,
+    ringMax,
+    ringMaxBytes,
+    context: {
+      buildId,
+      stage: stage || null,
+      configHash: configHash || null,
+      repoRoot: root
+    }
+  });
   const toolingConfig = getToolingConfig(root, userConfig);
   const toolingEnabled = toolingConfig.autoEnableOnDetect !== false;
   const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});
@@ -616,6 +644,25 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       log('Worker pool disabled (fallback to main thread).');
     }
   }
+
+  log('Build environment snapshot.', {
+    event: 'build.env',
+    node: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    cpuCount,
+    memoryMb: Math.round(os.totalmem() / (1024 * 1024)),
+    configHash,
+    stage: stage || null,
+    features: {
+      embeddings: embeddingEnabled || embeddingService,
+      treeSitter: treeSitterEnabled,
+      relations: stage !== 'stage1',
+      tooling: toolingEnabled,
+      typeInference: typeInferenceEnabled,
+      riskAnalysis: riskAnalysisEnabled
+    }
+  });
 
   const languageOptions = {
     rootDir: root,

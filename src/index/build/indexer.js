@@ -443,10 +443,12 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
         crashLogger.updateFile({
           phase: 'processing',
           mode,
+          stage: runtimeRef.stage,
           fileIndex,
           total: progress.total,
           file: entry.rel,
-          size: entry.stat?.size || null
+          size: entry.stat?.size || null,
+          shardId: shardMeta?.id || null
         });
         try {
           const result = await processFile(entry, fileIndex);
@@ -456,7 +458,9 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
           crashLogger.logError({
             phase: 'processing',
             mode,
+            stage: runtimeRef.stage,
             file: entry.rel,
+            shardId: shardMeta?.id || null,
             message: err?.message || String(err),
             stack: err?.stack || null
           });
@@ -685,7 +689,17 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
           shardBracket = shardBracket ? `${shardBracket} ${partLabel}` : partLabel;
         }
         const shardDisplay = shardLabel + (shardBracket ? ` [${shardBracket}]` : '');
-        log(`→ Shard ${shardIndex}/${shardTotal}: ${shardDisplay} (${entries.length} files)`);
+        log(
+          `→ Shard ${shardIndex}/${shardTotal}: ${shardDisplay} (${entries.length} files)`,
+          {
+            shardId: shard.id,
+            shardIndex,
+            shardTotal,
+            partIndex,
+            partTotal,
+            fileCount: entries.length
+          }
+        );
         const shardState = createIndexState();
         const shardStart = Date.now();
         await processEntries({

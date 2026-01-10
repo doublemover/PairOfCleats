@@ -34,6 +34,14 @@ export async function ensureQueueDir(dirPath) {
   await fs.mkdir(dirPath, { recursive: true });
 }
 
+const ensureJobDirs = async (dirPath) => {
+  const logsDir = path.join(dirPath, 'logs');
+  const reportsDir = path.join(dirPath, 'reports');
+  await fs.mkdir(logsDir, { recursive: true });
+  await fs.mkdir(reportsDir, { recursive: true });
+  return { logsDir, reportsDir };
+};
+
 const normalizeQueueName = (value) => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
   if (!raw || raw === 'index') return null;
@@ -77,6 +85,7 @@ export async function saveQueue(dirPath, queue, queueName = null) {
 
 export async function enqueueJob(dirPath, job, maxQueued = null, queueName = null) {
   await ensureQueueDir(dirPath);
+  const { logsDir, reportsDir } = await ensureJobDirs(dirPath);
   const resolvedQueueName = resolveQueueName(queueName, job);
   const { lockPath } = getQueuePaths(dirPath, resolvedQueueName);
   return withLock(lockPath, async () => {
@@ -100,7 +109,9 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
       attempts: 0,
       maxRetries,
       nextEligibleAt: null,
-      lastHeartbeatAt: null
+      lastHeartbeatAt: null,
+      logPath: path.join(logsDir, `${job.id}.log`),
+      reportPath: path.join(reportsDir, `${job.id}.json`)
     };
     queue.jobs.push(next);
     await saveQueue(dirPath, queue, resolvedQueueName);
@@ -111,6 +122,7 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
 export async function claimNextJob(dirPath, queueName = null) {
   const { lockPath } = getQueuePaths(dirPath, queueName);
   return withLock(lockPath, async () => {
+    const { logsDir, reportsDir } = await ensureJobDirs(dirPath);
     const queue = await loadQueue(dirPath, queueName);
     const now = Date.now();
     const job = queue.jobs.find((entry) => {
@@ -120,6 +132,8 @@ export async function claimNextJob(dirPath, queueName = null) {
       return Number.isNaN(eligibleAt) || eligibleAt <= now;
     });
     if (!job) return null;
+    if (!job.logPath) job.logPath = path.join(logsDir, `${job.id}.log`);
+    if (!job.reportPath) job.reportPath = path.join(reportsDir, `${job.id}.json`);
     job.status = 'running';
     job.startedAt = new Date().toISOString();
     job.lastHeartbeatAt = job.startedAt;
@@ -131,6 +145,7 @@ export async function claimNextJob(dirPath, queueName = null) {
 export async function completeJob(dirPath, jobId, status, result, queueName = null) {
   const { lockPath } = getQueuePaths(dirPath, queueName);
   return withLock(lockPath, async () => {
+    const { reportsDir } = await ensureJobDirs(dirPath);
     const queue = await loadQueue(dirPath, queueName);
     const job = queue.jobs.find((entry) => entry.id === jobId);
     if (!job) return null;
@@ -145,6 +160,14 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
     }
     job.lastHeartbeatAt = null;
     await saveQueue(dirPath, queue, queueName);
+    const reportPath = job.reportPath || path.join(reportsDir, `${job.id}.json`);
+    try {
+      await fs.writeFile(reportPath, JSON.stringify({
+        updatedAt: new Date().toISOString(),
+        status: job.status,
+        job
+      }, null, 2));
+    } catch {}
     return job;
   });
 }

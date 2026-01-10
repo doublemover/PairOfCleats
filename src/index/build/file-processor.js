@@ -897,6 +897,7 @@ export function createFileProcessor(options) {
                 phase: 'worker-tokenize',
                 file: relKey,
                 size: fileStat?.size || null,
+                languageId: fileLanguageId || lang?.id || null,
                 message: formatError(err),
                 stack: err?.stack || null,
                 raw: util.inspect(err, {

@@ -5,6 +5,16 @@
   "additionalProperties": false,
   "properties": {
     "profile": { "type": "string" },
+    "logging": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": { "type": "string", "enum": ["text", "json", "pretty"] },
+        "level": { "type": "string" },
+        "ringMax": { "type": "number" },
+        "ringMaxBytes": { "type": "number" }
+      }
+    },
     "dictionary": {
       "type": "object",
       "additionalProperties": false,

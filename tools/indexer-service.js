@@ -53,7 +53,28 @@ const formatJobId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 1
 
 const toolRoot = resolveToolRoot();
 
-const runBuildIndex = (repoPath, mode, stage, extraArgs = null) => new Promise((resolve) => {
+const spawnWithLog = (args, extraEnv = {}, logPath = null) => new Promise((resolve) => {
+  const useLog = typeof logPath === 'string' && logPath.trim();
+  const stdio = useLog ? ['ignore', 'pipe', 'pipe'] : 'inherit';
+  const child = spawn(process.execPath, args, { stdio, env: { ...process.env, ...extraEnv } });
+  let stream = null;
+  if (useLog) {
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    stream = fs.createWriteStream(logPath, { flags: 'a' });
+    stream.write(`[${new Date().toISOString()}] job start\n`);
+    child.stdout.pipe(stream);
+    child.stderr.pipe(stream);
+  }
+  child.on('close', (code) => {
+    if (stream) {
+      stream.write(`[${new Date().toISOString()}] job exit ${code ?? 1}\n`);
+      stream.end();
+    }
+    resolve(code ?? 1);
+  });
+});
+
+const runBuildIndex = (repoPath, mode, stage, extraArgs = null, logPath = null) => {
   const buildPath = path.join(toolRoot, 'build_index.js');
   const args = [buildPath];
   if (Array.isArray(extraArgs) && extraArgs.length) {
@@ -63,17 +84,15 @@ const runBuildIndex = (repoPath, mode, stage, extraArgs = null) => new Promise((
     if (mode && mode !== 'both') args.push('--mode', mode);
     if (stage) args.push('--stage', stage);
   }
-  const child = spawn(process.execPath, args, { stdio: 'inherit' });
-  child.on('close', (code) => resolve(code ?? 1));
-});
+  return spawnWithLog(args, {}, logPath);
+};
 
-const runBuildEmbeddings = (repoPath, mode, extraEnv = {}) => new Promise((resolve) => {
+const runBuildEmbeddings = (repoPath, mode, extraEnv = {}, logPath = null) => {
   const buildPath = path.join(toolRoot, 'tools', 'build-embeddings.js');
   const args = [buildPath, '--repo', repoPath];
   if (mode && mode !== 'both') args.push('--mode', mode);
-  const child = spawn(process.execPath, args, { stdio: 'inherit', env: { ...process.env, ...extraEnv } });
-  child.on('close', (code) => resolve(code ?? 1));
-});
+  return spawnWithLog(args, extraEnv, logPath);
+};
 
 const handleSync = async () => {
   const targets = argv.repo ? [resolveRepoEntry(argv.repo)].filter(Boolean) : repoEntries;
@@ -143,9 +162,10 @@ const processQueueOnce = async (metrics) => {
   const heartbeat = setInterval(() => {
     void touchJobHeartbeat(queueDir, job.id, resolvedQueueName);
   }, 30000);
+  const logPath = job.logPath || path.join(queueDir, 'logs', `${job.id}.log`);
   const exitCode = queueName === 'embeddings'
-    ? await runBuildEmbeddings(job.repo, job.mode, extraEnv)
-    : await runBuildIndex(job.repo, job.mode, job.stage, job.args);
+    ? await runBuildEmbeddings(job.repo, job.mode, extraEnv, logPath)
+    : await runBuildIndex(job.repo, job.mode, job.stage, job.args, logPath);
   clearInterval(heartbeat);
   const status = exitCode === 0 ? 'done' : 'failed';
   const attempts = Number.isFinite(job.attempts) ? job.attempts : 0;
