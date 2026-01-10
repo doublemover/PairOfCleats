@@ -3,12 +3,12 @@
 This file complements `docs/config-inventory.md` with manual analysis and ownership hints.
 
 ## Ownership map (primary modules)
-- cache: `tools/dict-utils.js`, `src/shared/cache.js`, `src/shared/bench-profile.js`
+- cache: `tools/dict-utils.js`, `src/shared/cache.js`
 - dictionary: `tools/dict-utils.js`, `src/index/build/runtime.js`, `src/index/build/tokenization.js`
 - extensions: `tools/download-extensions.js`, `tools/verify-extensions.js`, `tools/vector-extension.js`
 - indexing: `src/index/build/runtime.js`, `src/index/build/indexer.js`, `src/index/build/file-processor.js`
 - models: `tools/dict-utils.js`, `src/shared/embedding.js`, `src/index/build/runtime.js`
-- profile: `src/shared/cli.js`, `src/shared/bench-profile.js`, `tools/dict-utils.js`
+- profile: `src/shared/cli.js`, `tools/dict-utils.js`
 - runtime: `tools/dict-utils.js`, `src/shared/cli.js`
 - search: `src/retrieval/cli.js`, `src/retrieval/pipeline.js`, `src/retrieval/sqlite-helpers.js`
 - sql: `src/index/build/runtime.js`, `src/lang/sql.js`

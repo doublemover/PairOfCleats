@@ -6,7 +6,6 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
 import { BENCH_OPTIONS, validateBenchArgs } from '../src/shared/cli-options.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveSqlitePaths } from '../tools/dict-utils.js';
-import { resolveBenchmarkProfile } from '../src/shared/bench-profile.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { runWithConcurrency } from '../src/shared/concurrency.js';
 import os from 'node:os';
@@ -77,10 +76,7 @@ const indexProfileArg = typeof argv['index-profile'] === 'string'
   : '';
 const noIndexProfile = rawArgs.includes('--no-index-profile');
 const originalEnvProfile = process.env.PAIROFCLEATS_PROFILE;
-let indexProfileRaw = indexProfileArg;
-if (!indexProfileRaw && !noIndexProfile && !envConfig.profile) {
-  indexProfileRaw = 'bench-index';
-}
+const indexProfileRaw = indexProfileArg;
 const suppressEnvProfile = noIndexProfile && !indexProfileRaw;
 if (suppressEnvProfile) {
   delete process.env.PAIROFCLEATS_PROFILE;
@@ -143,9 +139,8 @@ const runtimeConfigForRun = heapOverride
 const resolvedNodeOptions = resolveNodeOptions(runtimeConfigForRun, baseNodeOptions);
 const envStubEmbeddings = envConfig.embeddings === 'stub';
 const realEmbeddings = argv['real-embeddings'] === true;
-const benchmarkProfile = resolveBenchmarkProfile(userConfig.profile);
 const stubEmbeddings = argv['stub-embeddings'] === true
-  || (!realEmbeddings && (envStubEmbeddings || benchmarkProfile.enabled));
+  || (!realEmbeddings && envStubEmbeddings);
 const baseEnv = resolvedNodeOptions
   ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
   : { ...process.env };
@@ -466,10 +461,6 @@ const summary = {
   queries: selectedQueries.length,
   topN,
   annEnabled,
-  benchmarkProfile: {
-    enabled: benchmarkProfile.enabled,
-    disabled: benchmarkProfile.disabled
-  },
   backends,
   latencyMsAvg: Object.fromEntries(backends.map((b) => [b, latencyStats[b].mean])),
   latencyMs: latencyStats,

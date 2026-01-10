@@ -60,6 +60,7 @@ Experimental commands require `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
 ## Config + triage
 - `pairofcleats config validate`
 - `pairofcleats config dump`
+- `pairofcleats config reset`
 - `pairofcleats triage ingest`
 - `pairofcleats triage decision`
 - `pairofcleats triage context-pack`

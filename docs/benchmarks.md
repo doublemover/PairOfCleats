@@ -29,7 +29,7 @@ index build plus three search modes.
 
 Note: dense-only still performs sparse candidate generation; the blend weights
 zero out sparse contributions in scoring. The dense/hybrid presets use the
-`bench-dense` and `bench-hybrid` profiles under `profiles/`.
+Use the standard profiles under `profiles/` if you need to override defaults.
 
 ### Warm vs cold
 - Cold run: first execution after clearing in-process caches.

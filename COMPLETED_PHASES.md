@@ -1189,10 +1189,10 @@ Work items:
 - [x] Updated triage and SQLite incremental docs to use `pairofcleats index build`.
 
 ## Phase 36: Remove Dead/Legacy Options (status: done)
-- [x] Removed `--benchmark-profile`/`--no-benchmark-profile` and `PAIROFCLEATS_BENCH_PROFILE` in favor of `bench-index` profiles.
+- [x] Removed `--benchmark-profile`/`--no-benchmark-profile` and `PAIROFCLEATS_BENCH_PROFILE` (bench profiles removed).
 - [x] Dropped `indexing.benchmarkProfile` from the config schema and inventory.
-- [x] Updated benchmark tooling to default to `bench-index` and honor `--no-index-profile`.
-- [x] Added coverage updates for benchmark profile behavior.
+- [x] Updated benchmark tooling to use standard profiles and honor `--no-index-profile`.
+- [x] Updated coverage to remove benchmark profile tests.
 
 ## Phase 37: Config Access + Control Refinement (status: done)
 - [x] Centralized config merge helpers in `src/shared/config.js` and reused them in `tools/dict-utils.js` and `src/index/build/runtime.js`.

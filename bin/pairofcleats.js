@@ -263,6 +263,9 @@ function resolveCommand(primary, rest) {
     if (sub === 'dump') {
       return { script: 'tools/config-dump.js', extraArgs: [], args: rest };
     }
+    if (sub === 'reset') {
+      return { script: 'tools/reset-config.js', extraArgs: [], args: rest };
+    }
     console.error(`Unknown config subcommand: ${sub}`);
     printConfigHelp();
     process.exit(1);
@@ -406,6 +409,7 @@ Other:
 Config + triage:
   config validate          Validate .pairofcleats.json
   config dump              Show effective config + derived paths
+  config reset             Reset .pairofcleats.json to defaults
   triage ingest            Ingest triage records
   triage decision          Create triage decisions
   triage context-pack      Generate context packs
@@ -417,7 +421,8 @@ function printConfigHelp() {
 
 Subcommands:
   validate                 Validate .pairofcleats.json (see docs/config-schema.json)
-  dump                     Show effective config + derived paths`);
+  dump                     Show effective config + derived paths
+  reset                    Reset .pairofcleats.json to defaults`);
 }
 
 function printTriageHelp() {

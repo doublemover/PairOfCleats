@@ -763,11 +763,6 @@ const actions = [
     covers: ['profile-config-test']
   },
   {
-    label: 'bench-profile-test',
-    run: () => runNode('bench-profile-test', path.join(root, 'tests', 'bench-profile.js')),
-    covers: ['bench-profile-test']
-  },
-  {
     label: 'backend-policy-test',
     run: () => runNode('backend-policy-test', path.join(root, 'tests', 'backend-policy.js')),
     covers: ['backend-policy-test']

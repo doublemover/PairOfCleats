@@ -24,7 +24,6 @@ import { getEnvConfig } from '../../shared/env.js';
 import { resolveThreadLimits } from '../../shared/threads.js';
 import { buildIgnoreMatcher } from './ignore.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
-import { applyBenchmarkProfile } from '../../shared/bench-profile.js';
 import { createIndexerWorkerPools, resolveWorkerPoolConfig } from './worker-pool.js';
 import { createCrashLogger } from './crash-log.js';
 import { normalizeEmbeddingBatchMultipliers } from './embedding-batch.js';
@@ -103,10 +102,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const userConfig = loadUserConfig(root);
   const envConfig = getEnvConfig();
   const rawIndexingConfig = userConfig.indexing || {};
-  let { indexingConfig, profile: benchmarkProfile } = applyBenchmarkProfile(
-    rawIndexingConfig,
-    userConfig.profile
-  );
+  let indexingConfig = rawIndexingConfig;
   const stage = normalizeStage(argv.stage || envConfig.stage);
   const twoStageConfig = indexingConfig.twoStage || {};
   const stageOverrides = buildStageOverrides(twoStageConfig, stage);
@@ -552,12 +548,6 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   if (incrementalEnabled) {
     log(`Incremental cache enabled (root: ${path.join(repoCacheRoot, 'incremental')}).`);
   }
-  if (benchmarkProfile.enabled) {
-    const disabled = benchmarkProfile.disabled.length
-      ? benchmarkProfile.disabled.join(', ')
-      : 'none';
-    log(`Benchmark profile enabled: disabled ${disabled}.`);
-  }
   log(`Queue concurrency: io=${ioConcurrency}, cpu=${cpuConcurrency}.`);
   if (!astDataflowEnabled) {
     log('AST dataflow metadata disabled via indexing.astDataflow.');
@@ -723,7 +713,6 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     toolingConfig,
     toolingEnabled,
     indexingConfig,
-    benchmarkProfile,
     postingsConfig,
     segmentsConfig,
     commentsConfig,
