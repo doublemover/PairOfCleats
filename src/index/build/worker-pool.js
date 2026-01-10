@@ -3,6 +3,30 @@ import util from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { log as defaultLog } from '../../shared/progress.js';
 
+const summarizeError = (err, maxLen = 240) => {
+  if (!err) return '';
+  const asString = (value) => (typeof value === 'string' ? value.trim() : '');
+  let detail = asString(err?.message)
+    || asString(err?.code)
+    || asString(err?.name)
+    || asString(typeof err === 'string' ? err : '');
+  if (!detail || detail === '[object Object]') {
+    detail = util.inspect(err, {
+      depth: 2,
+      breakLength: 120,
+      maxArrayLength: 6,
+      maxStringLength: 200,
+      showHidden: true,
+      getters: true
+    });
+  }
+  detail = detail.replace(/\s+/g, ' ').trim();
+  if (maxLen > 3 && detail.length > maxLen) {
+    detail = `${detail.slice(0, maxLen - 3)}...`;
+  }
+  return detail;
+};
+
 const normalizeEnabled = (raw) => {
   if (raw === true || raw === false) return raw;
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
@@ -159,7 +183,8 @@ export async function createIndexerWorkerPool(input = {}) {
       try {
         await pool.destroy();
       } catch (err) {
-        log(`Worker pool shutdown failed: ${err?.message || err}`);
+        const detail = summarizeError(err);
+        log(`Worker pool shutdown failed: ${detail || 'unknown error'}`);
       }
       pool = null;
     };
@@ -207,7 +232,8 @@ export async function createIndexerWorkerPool(input = {}) {
             pendingRestart = false;
             log('Worker pool restarted.');
           } catch (err) {
-            await scheduleRestart(`restart failed: ${err?.message || err}`);    
+            const detail = summarizeError(err);
+            await scheduleRestart(`restart failed: ${detail || 'unknown error'}`);
           } finally {
             restarting = null;
           }
@@ -287,11 +313,9 @@ export async function createIndexerWorkerPool(input = {}) {
         } catch (err) {
           const isCloneError = err?.name === 'DataCloneError'
             || /could not be cloned|DataCloneError/i.test(err?.message || '');
-          const detail = String(err?.message || err?.code || err?.name || err || '')
-            .replace(/\s+/g, ' ')
-            .trim();
+          const detail = summarizeError(err);
           const reason = isCloneError
-            ? 'data-clone error'
+            ? (detail ? `data-clone error: ${detail}` : 'data-clone error')
             : (detail ? `worker failure: ${detail}` : 'worker failure');
           await scheduleRestart(reason);
           if (crashLogger?.enabled) {
