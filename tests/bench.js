@@ -2,12 +2,13 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
 import { BENCH_OPTIONS, validateBenchArgs } from '../src/shared/cli-options.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveSqlitePaths } from '../tools/dict-utils.js';
 import { resolveBenchmarkProfile } from '../src/shared/bench-profile.js';
 import { getEnvConfig } from '../src/shared/env.js';
+import { runWithConcurrency } from '../src/shared/concurrency.js';
 import os from 'node:os';
 
 const rawArgs = process.argv.slice(2);
@@ -201,13 +202,36 @@ function runSearch(query, backend) {
   } else {
     delete env.PAIROFCLEATS_EMBEDDINGS;
   }
-  const result = spawnSync(process.execPath, args, { encoding: 'utf8', env });
-  if (result.status !== 0) {
-    console.error(`Search failed for backend=${backend} query="${query}"`);
-    if (result.stderr) console.error(result.stderr.trim());
-    process.exit(result.status ?? 1);
-  }
-  return JSON.parse(result.stdout || '{}');
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    child.on('error', (err) => {
+      console.error(`Search failed to start for backend=${backend} query="${query}"`);
+      if (err?.message) console.error(err.message);
+      process.exit(1);
+    });
+    child.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`Search failed for backend=${backend} query="${query}"`);
+        if (stderr) console.error(stderr.trim());
+        process.exit(code ?? 1);
+      }
+      try {
+        resolve(JSON.parse(stdout || '{}'));
+      } catch (err) {
+        console.error(`Search response parse failed for backend=${backend} query="${query}"`);
+        if (stderr) console.error(stderr.trim());
+        process.exit(1);
+      }
+    });
+  });
 }
 
 function mean(values) {
@@ -355,6 +379,10 @@ for (const backend of backends) {
 }
 
 const totalSearches = selectedQueries.length * backends.length;
+const queryConcurrencyRaw = Number(argv['query-concurrency']);
+const queryConcurrency = Number.isFinite(queryConcurrencyRaw) && queryConcurrencyRaw > 0
+  ? Math.floor(queryConcurrencyRaw)
+  : 1;
 const queryProgress = {
   count: 0,
   startMs: Date.now(),
@@ -387,24 +415,40 @@ const logQueryProgress = (force = false) => {
 logBench(`[bench] Running ${selectedQueries.length} queries across ${backends.length} backends (${totalSearches} searches).`);
 logQueryProgress(true);
 
+const queryTasks = [];
 let queryIndex = 0;
 for (const query of selectedQueries) {
   queryIndex += 1;
-  logBench(`[bench] Query ${queryIndex}/${selectedQueries.length}: ${query}`);
   for (const backend of backends) {
-    const payload = runSearch(query, backend);
-    queryProgress.count += 1;
-    logQueryProgress();
-    latency[backend].push(payload.stats?.elapsedMs || 0);
-    const codeHits = Array.isArray(payload.code) ? payload.code.length : 0;
-    const proseHits = Array.isArray(payload.prose) ? payload.prose.length : 0;
-    const totalHits = codeHits + proseHits;
-    resultCounts[backend].push(totalHits);
-    if (totalHits > 0) hitCounts[backend] += 1;
-    const rss = payload.stats?.memory?.rss;
-    if (Number.isFinite(rss)) memoryRss[backend].push(rss);
+    queryTasks.push({ query, backend, queryIndex });
   }
 }
+const loggedQueries = new Set();
+const runQueryTask = async (task) => {
+  if (!loggedQueries.has(task.queryIndex)) {
+    loggedQueries.add(task.queryIndex);
+    logBench(`[bench] Query ${task.queryIndex}/${selectedQueries.length}: ${task.query}`);
+  }
+  const payload = await runSearch(task.query, task.backend);
+  queryProgress.count += 1;
+  logQueryProgress();
+  latency[task.backend].push(payload.stats?.elapsedMs || 0);
+  const codeHits = Array.isArray(payload.code) ? payload.code.length : 0;
+  const proseHits = Array.isArray(payload.prose) ? payload.prose.length : 0;
+  const totalHits = codeHits + proseHits;
+  resultCounts[task.backend].push(totalHits);
+  if (totalHits > 0) hitCounts[task.backend] += 1;
+  const rss = payload.stats?.memory?.rss;
+  if (Number.isFinite(rss)) memoryRss[task.backend].push(rss);
+};
+if (queryTasks.length) {
+  await runWithConcurrency(
+    queryTasks,
+    Math.max(1, Math.min(queryConcurrency, queryTasks.length)),
+    runQueryTask
+  );
+}
+logQueryProgress(true);
 
 const reportArgs = [reportPath, '--json'];
 if (repoArg) reportArgs.push('--repo', repoArg);
