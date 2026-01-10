@@ -825,6 +825,22 @@ For each new language or container format:
 
 ---
 
+# Phase 9 — Test Failure Triage and Fix Plan
+
+**Objective:** Capture failing tests after Phase 1–8 execution and lay out the fix plan.
+
+## 9.1 Current failing tests (post-Phase 8)
+- `npm run test-all-no-bench` failed in `sqlite-incremental-test`:
+  - `ReferenceError: lang is not defined` at `src/index/build/file-processor.js:1175`
+  - The retry loop exhausted; `script-coverage-test` reported the failure.
+
+## 9.2 Fix plan
+- [ ] Fix the undefined `lang` reference in `src/index/build/file-processor.js` by using the resolved language context (`fileLanguageId` or the `buildLanguageContext` result).
+- [ ] Update remaining tests/configs still using `sqlite.annMode` to `sqlite.vectorExtension.annMode` to avoid deprecation warnings.
+- [ ] Rerun `npm run sqlite-incremental-test` and `npm run script-coverage-test`, then resume `npm run test-all-no-bench`.
+
+---
+
 ## Appendix — Explicit inclusion checklist
 
 This roadmap explicitly includes full implementation planning for:
