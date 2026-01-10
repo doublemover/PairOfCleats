@@ -691,7 +691,9 @@ function handleImportStatsLine(line) {
 
 function normalizeShardLabel(raw) {
   if (!raw) return '';
-  return raw.trim().replace(/^shard\s+/i, '').trim();
+  const trimmed = raw.trim();
+  if (!trimmed || /^shard$/i.test(trimmed)) return '';
+  return trimmed.replace(/^shard\s+/i, '').trim();
 }
 
 function parseFileProgressLine(line) {

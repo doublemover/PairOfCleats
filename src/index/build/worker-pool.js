@@ -379,7 +379,25 @@ export async function createIndexerWorkerPool(input = {}) {
         activeTasks += 1;
         try {
           if (disabled && !(await ensurePool())) {
-            throw new Error('worker pool unavailable');
+            if (crashLogger?.enabled) {
+              crashLogger.logError({
+                phase: 'worker-quantize',
+                message: 'worker pool unavailable',
+                stack: null,
+                name: 'Error',
+                code: null,
+                task: 'quantizeVectors',
+                payloadMeta: payload
+                  ? {
+                    vectorCount: Array.isArray(payload.vectors)
+                      ? payload.vectors.length
+                      : null,
+                    levels: payload.levels ?? null
+                  }
+                  : null
+              });
+            }
+            return null;
           }
           return await pool.run(payload, { name: 'quantizeVectors' });
         } catch (err) {
@@ -418,7 +436,7 @@ export async function createIndexerWorkerPool(input = {}) {
                 : null
             });
           }
-          throw err;
+          return null;
         } finally {
           activeTasks = Math.max(0, activeTasks - 1);
           if (activeTasks === 0) {

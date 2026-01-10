@@ -91,6 +91,14 @@ export async function buildPostings(input) {
       return zeroVec;
     };
     const quantizeWorker = quantizePool || workerPool;
+    let quantizeWarned = false;
+    const warnQuantizeFallback = () => {
+      if (quantizeWarned) return;
+      if (typeof log === 'function') {
+        log('Quantize worker unavailable; falling back to inline quantization.');
+      }
+      quantizeWarned = true;
+    };
     const quantizeVectors = async (selector) => {
       const out = new Array(chunks.length);
       if (!quantizeWorker) {
@@ -108,10 +116,18 @@ export async function buildPostings(input) {
         }
         try {
           const chunk = await quantizeWorker.runQuantize({ vectors: batch });
-          for (let j = 0; j < chunk.length; j += 1) {
-            out[i + j] = chunk[j];
+          if (Array.isArray(chunk) && chunk.length === batch.length) {
+            for (let j = 0; j < chunk.length; j += 1) {
+              out[i + j] = chunk[j];
+            }
+          } else {
+            warnQuantizeFallback();
+            for (let j = 0; j < batch.length; j += 1) {
+              out[i + j] = quantizeVec(batch[j]);
+            }
           }
         } catch {
+          warnQuantizeFallback();
           for (let j = 0; j < batch.length; j += 1) {
             out[i + j] = quantizeVec(batch[j]);
           }
