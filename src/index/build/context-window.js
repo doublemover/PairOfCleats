@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { smartChunk } from '../chunking.js';
 import { buildLanguageContext } from '../language-registry.js';
-import { isSpecialCodeFile } from '../constants.js';
+import { resolveSpecialCodeExt } from '../constants.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 
 /**
@@ -19,9 +19,7 @@ export async function estimateContextWindow({ files, root, mode, languageOptions
       const relSampleKey = toPosix(relSample);
       const baseName = path.basename(files[i]);
       const rawExt = fileExt(files[i]);
-      const ext = rawExt || (isSpecialCodeFile(baseName)
-        ? (baseName.toLowerCase() === 'dockerfile' ? '.dockerfile' : '.makefile')
-        : rawExt);
+      const ext = resolveSpecialCodeExt(baseName) || rawExt;
       const { context: sampleContext } = await buildLanguageContext({
         ext,
         relPath: relSampleKey,

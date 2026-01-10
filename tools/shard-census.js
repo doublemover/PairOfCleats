@@ -90,9 +90,9 @@ const resolveMaxFileBytes = (indexingConfig) => {
 const resolveFileCaps = (indexingConfig) => {
   const fileCapsConfig = indexingConfig?.fileCaps || {};
   return {
-    default: normalizeCapEntry(fileCapsConfig.default || fileCapsConfig.defaults || {}),
-    byExt: normalizeCapsByExt(fileCapsConfig.byExt || fileCapsConfig.byExtension),
-    byLanguage: normalizeCapsByLanguage(fileCapsConfig.byLanguage || fileCapsConfig.byLang)
+    default: normalizeCapEntry(fileCapsConfig.default || {}),
+    byExt: normalizeCapsByExt(fileCapsConfig.byExt || {}),
+    byLanguage: normalizeCapsByLanguage(fileCapsConfig.byLanguage || {})
   };
 };
 

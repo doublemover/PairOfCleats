@@ -2,7 +2,7 @@
 
 This document tracks deprecated config keys and their replacements.
 
-## Active deprecations
+## Removed deprecations
 - `sqlite.dbPath` -> `sqlite.dbDir` or `sqlite.codeDbPath`/`sqlite.proseDbPath`
   - Single database paths are legacy; split DBs are the default.
 - `sqlite.annMode` -> `sqlite.vectorExtension.annMode`
@@ -12,6 +12,4 @@ This document tracks deprecated config keys and their replacements.
 - `cache.runtime.*.maxMB` -> `cache.runtime.*.maxMb`
 - `cache.runtime.*.ttlMS` -> `cache.runtime.*.ttlMs`
 
-## Removal policy
-- Deprecated keys are still accepted with warnings.
-- Removal happens after callers migrate to the replacement keys.
+These keys are no longer accepted. Update configs to the replacement keys.

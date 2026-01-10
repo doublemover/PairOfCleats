@@ -113,36 +113,26 @@ function normalizeUserConfig(baseConfig, repoRoot) {
   const sqlite = isPlainObject(cfg.sqlite) ? cfg.sqlite : null;
   if (sqlite?.dbPath) {
     warnDeprecatedConfig('sqlite.dbPath', 'sqlite.dbDir or sqlite.codeDbPath/sqlite.proseDbPath', 'Single DB paths are legacy.');
-    if (!sqlite.dbDir && !sqlite.codeDbPath && !sqlite.proseDbPath) {
-      const resolved = path.isAbsolute(sqlite.dbPath)
-        ? sqlite.dbPath
-        : path.join(repoRoot, sqlite.dbPath);
-      sqlite.dbDir = path.dirname(resolved);
-    }
+    delete sqlite.dbPath;
   }
   if (sqlite?.annMode) {
     warnDeprecatedConfig('sqlite.annMode', 'sqlite.vectorExtension.annMode');
-    if (!sqlite.vectorExtension || !isPlainObject(sqlite.vectorExtension)) {
-      sqlite.vectorExtension = {};
-    }
-    if (!sqlite.vectorExtension.annMode) {
-      sqlite.vectorExtension.annMode = sqlite.annMode;
-    }
+    delete sqlite.annMode;
   }
 
   const indexing = isPlainObject(cfg.indexing) ? cfg.indexing : null;
   const fileCaps = indexing && isPlainObject(indexing.fileCaps) ? indexing.fileCaps : null;
-  if (fileCaps?.defaults && !fileCaps.default) {
+  if (fileCaps?.defaults) {
     warnDeprecatedConfig('indexing.fileCaps.defaults', 'indexing.fileCaps.default');
-    fileCaps.default = fileCaps.defaults;
+    delete fileCaps.defaults;
   }
-  if (fileCaps?.byExtension && !fileCaps.byExt) {
+  if (fileCaps?.byExtension) {
     warnDeprecatedConfig('indexing.fileCaps.byExtension', 'indexing.fileCaps.byExt');
-    fileCaps.byExt = fileCaps.byExtension;
+    delete fileCaps.byExtension;
   }
-  if (fileCaps?.byLang && !fileCaps.byLanguage) {
+  if (fileCaps?.byLang) {
     warnDeprecatedConfig('indexing.fileCaps.byLang', 'indexing.fileCaps.byLanguage');
-    fileCaps.byLanguage = fileCaps.byLang;
+    delete fileCaps.byLang;
   }
 
   const cache = isPlainObject(cfg.cache) ? cfg.cache : null;
@@ -150,13 +140,13 @@ function normalizeUserConfig(baseConfig, repoRoot) {
   if (runtime) {
     for (const entry of Object.values(runtime)) {
       if (!isPlainObject(entry)) continue;
-      if (entry.maxMB != null && entry.maxMb == null) {
+      if (entry.maxMB != null) {
         warnDeprecatedConfig('cache.runtime.*.maxMB', 'cache.runtime.*.maxMb');
-        entry.maxMb = entry.maxMB;
+        delete entry.maxMB;
       }
-      if (entry.ttlMS != null && entry.ttlMs == null) {
+      if (entry.ttlMS != null) {
         warnDeprecatedConfig('cache.runtime.*.ttlMS', 'cache.runtime.*.ttlMs');
-        entry.ttlMs = entry.ttlMS;
+        delete entry.ttlMS;
       }
     }
   }
@@ -451,8 +441,8 @@ export function getCacheRuntimeConfig(repoRoot, userConfig = null) {
   const runtimeCache = cfg.cache?.runtime || {};
   const resolveEntry = (key) => {
     const entry = runtimeCache[key] || {};
-    const maxMbRaw = entry.maxMb ?? entry.maxMB;
-    const ttlMsRaw = entry.ttlMs ?? entry.ttlMS;
+    const maxMbRaw = entry.maxMb;
+    const ttlMsRaw = entry.ttlMs;
     const maxMb = Number.isFinite(Number(maxMbRaw))
       ? Math.max(0, Number(maxMbRaw))
       : (DEFAULT_CACHE_MB[key] || 0);
@@ -578,7 +568,7 @@ export function resolveSqlitePaths(repoRoot, userConfig = null, options = {}) {
   const repoCacheRoot = getRepoCacheRoot(repoRoot, cfg);
   const indexRoot = resolveIndexRoot(repoRoot, cfg, options);
   const defaultDir = path.join(indexRoot, 'index-sqlite');
-  const legacyPath = sqlite.dbPath ? resolvePath(repoRoot, sqlite.dbPath) : path.join(repoCacheRoot, 'index-sqlite', 'index.db');
+  const legacyPath = path.join(repoCacheRoot, 'index-sqlite', 'index.db');
   const dbDir = sqlite.dbDir ? resolvePath(repoRoot, sqlite.dbDir) : defaultDir;
   const codePath = sqlite.codeDbPath
     ? resolvePath(repoRoot, sqlite.codeDbPath)

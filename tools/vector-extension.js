@@ -66,7 +66,7 @@ export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides 
   const provider = overrides.provider || vectorCfg.provider || DEFAULT_PROVIDER;
   const providerDefaults = PROVIDERS[provider] || {};
 
-  const annModeRaw = overrides.annMode || vectorCfg.annMode || sqlite.annMode || 'js';
+  const annModeRaw = overrides.annMode || vectorCfg.annMode || 'js';
   const annMode = String(annModeRaw).toLowerCase();
   const enabled = overrides.enabled === true
     || vectorCfg.enabled === true

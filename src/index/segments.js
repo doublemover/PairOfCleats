@@ -45,7 +45,19 @@ const LANGUAGE_ID_EXT = new Map([
   ['csharp', '.cs'],
   ['kotlin', '.kt'],
   ['sql', '.sql'],
-  ['shell', '.sh']
+  ['shell', '.sh'],
+  ['cmake', '.cmake'],
+  ['starlark', '.bzl'],
+  ['nix', '.nix'],
+  ['dart', '.dart'],
+  ['scala', '.scala'],
+  ['groovy', '.groovy'],
+  ['r', '.r'],
+  ['julia', '.jl'],
+  ['handlebars', '.hbs'],
+  ['mustache', '.mustache'],
+  ['jinja', '.jinja'],
+  ['razor', '.razor']
 ]);
 
 const CONFIG_LANGS = new Set(['json', 'yaml', 'toml']);
@@ -86,7 +98,25 @@ const MARKDOWN_FENCE_LANG_ALIASES = new Map([
   ['kotlin', 'kotlin'],
   ['kt', 'kotlin'],
   ['php', 'php'],
-  ['sql', 'sql']
+  ['sql', 'sql'],
+  ['cmake', 'cmake'],
+  ['bazel', 'starlark'],
+  ['starlark', 'starlark'],
+  ['bzl', 'starlark'],
+  ['nix', 'nix'],
+  ['dart', 'dart'],
+  ['scala', 'scala'],
+  ['groovy', 'groovy'],
+  ['r', 'r'],
+  ['julia', 'julia'],
+  ['handlebars', 'handlebars'],
+  ['hbs', 'handlebars'],
+  ['mustache', 'mustache'],
+  ['jinja', 'jinja'],
+  ['jinja2', 'jinja'],
+  ['django', 'jinja'],
+  ['razor', 'razor'],
+  ['cshtml', 'razor']
 ]);
 
 const resolveSegmentType = (mode, ext) => {

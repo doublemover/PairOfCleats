@@ -34,25 +34,30 @@ await fs.writeFile(configPath, JSON.stringify(config, null, 2));
 
 const loaded = loadUserConfig(cacheRoot);
 
-const expectedDbDir = path.join(cacheRoot, 'cache');
-if (loaded.sqlite?.dbDir !== expectedDbDir) {
-  throw new Error(`Expected sqlite.dbDir to be ${expectedDbDir}, got ${loaded.sqlite?.dbDir}`);
+if (loaded.sqlite?.dbPath) {
+  throw new Error('Expected sqlite.dbPath to be removed.');
 }
-if (loaded.sqlite?.vectorExtension?.annMode !== 'extension') {
-  throw new Error('Expected sqlite.vectorExtension.annMode to be set from sqlite.annMode.');
+if (loaded.sqlite?.annMode) {
+  throw new Error('Expected sqlite.annMode to be removed.');
 }
-if (!loaded.indexing?.fileCaps?.default) {
-  throw new Error('Expected indexing.fileCaps.default to be set from defaults.');
+if (loaded.sqlite?.dbDir) {
+  throw new Error('Expected sqlite.dbDir to be unset when only sqlite.dbPath is provided.');
 }
-if (!loaded.indexing?.fileCaps?.byExt?.['.js']) {
-  throw new Error('Expected indexing.fileCaps.byExt to be set from byExtension.');
+if (loaded.sqlite?.vectorExtension?.annMode) {
+  throw new Error('Expected sqlite.vectorExtension.annMode to be unset when only sqlite.annMode is provided.');
 }
-if (!loaded.indexing?.fileCaps?.byLanguage?.javascript) {
-  throw new Error('Expected indexing.fileCaps.byLanguage to be set from byLang.');
+if (loaded.indexing?.fileCaps?.default) {
+  throw new Error('Expected indexing.fileCaps.default to be unset when only defaults is provided.');
+}
+if (loaded.indexing?.fileCaps?.byExt) {
+  throw new Error('Expected indexing.fileCaps.byExt to be unset when only byExtension is provided.');
+}
+if (loaded.indexing?.fileCaps?.byLanguage) {
+  throw new Error('Expected indexing.fileCaps.byLanguage to be unset when only byLang is provided.');
 }
 const runtime = loaded.cache?.runtime?.fileText || {};
-if (runtime.maxMb !== 1 || runtime.ttlMs !== 2500) {
-  throw new Error('Expected cache.runtime.fileText maxMb/ttlMs to be normalized.');
+if (runtime.maxMb != null || runtime.ttlMs != null) {
+  throw new Error('Expected cache.runtime.fileText maxMb/ttlMs to be unset when only maxMB/ttlMS is provided.');
 }
 
 console.log('Config deprecations test passed');

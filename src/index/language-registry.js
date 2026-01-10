@@ -13,7 +13,19 @@ import {
   isHtml,
   isCss,
   isLua,
-  isSql
+  isSql,
+  CMAKE_EXTS,
+  STARLARK_EXTS,
+  NIX_EXTS,
+  DART_EXTS,
+  SCALA_EXTS,
+  GROOVY_EXTS,
+  R_EXTS,
+  JULIA_EXTS,
+  HANDLEBARS_EXTS,
+  MUSTACHE_EXTS,
+  JINJA_EXTS,
+  RAZOR_EXTS
 } from './constants.js';
 import { buildCLikeChunks, buildCLikeRelations, collectCLikeImports, computeCLikeFlow, extractCLikeDocMeta } from '../lang/clike.js';
 import { buildGoChunks, buildGoRelations, collectGoImports, computeGoFlow, extractGoDocMeta } from '../lang/go.js';
@@ -71,6 +83,205 @@ const JS_CONTROL_FLOW = {
 const PY_CONTROL_FLOW = {
   branchKeywords: ['if', 'elif', 'else', 'try', 'except', 'finally', 'match', 'case'],
   loopKeywords: ['for', 'while']
+};
+
+const normalizeImportToken = (raw) => {
+  if (!raw) return '';
+  return String(raw)
+    .trim()
+    .replace(/^[\"']/, '')
+    .replace(/[\"']$/, '')
+    .replace(/[);]+$/g, '');
+};
+
+const buildSimpleRelations = (imports, allImports) => {
+  const list = Array.isArray(imports) ? imports.filter(Boolean) : [];
+  const unique = Array.from(new Set(list));
+  const importLinks = unique
+    .map((entry) => allImports?.[entry])
+    .filter((entry) => !!entry)
+    .flat();
+  return {
+    imports: unique,
+    exports: [],
+    calls: [],
+    usages: [],
+    importLinks
+  };
+};
+
+const collectDockerfileImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const fromMatch = line.match(/^\s*FROM\s+([^\s]+)(?:\s+AS\s+[^\s]+)?/i);
+    if (fromMatch) imports.push(fromMatch[1]);
+    const copyMatch = line.match(/^\s*COPY\s+--from=([^\s]+)\s+/i);
+    if (copyMatch) imports.push(copyMatch[1]);
+  }
+  return imports;
+};
+
+const collectMakefileImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const trimmed = line.replace(/#.*$/, '').trim();
+    const match = trimmed.match(/^\s*-?include\s+(.+)$/i);
+    if (!match) continue;
+    const parts = match[1].split(/\s+/).filter(Boolean);
+    imports.push(...parts);
+  }
+  return imports;
+};
+
+const collectProtoImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const match = line.match(/^\s*import\s+(?:public\s+)?\"([^\"]+)\"/);
+    if (match) imports.push(match[1]);
+  }
+  return imports;
+};
+
+const collectGraphqlImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const match = line.match(/^\s*#import\s+\"([^\"]+)\"/i);
+    if (match) imports.push(match[1]);
+  }
+  return imports;
+};
+
+const collectCmakeImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    if (line.trim().startsWith('#')) continue;
+    const match = line.match(/^\s*(include|add_subdirectory|find_package)\s*\(\s*([^)]+)\)/i);
+    if (!match) continue;
+    const arg = match[2].trim().split(/\s+/)[0];
+    const cleaned = normalizeImportToken(arg);
+    if (cleaned) imports.push(cleaned);
+  }
+  return imports;
+};
+
+const collectStarlarkImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    if (line.trim().startsWith('#')) continue;
+    const match = line.match(/^\s*load\s*\(\s*['\"]([^'\"]+)['\"]/);
+    if (match) imports.push(match[1]);
+  }
+  return imports;
+};
+
+const collectNixImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const match = line.match(/\b(import|callPackage)\s+([^\s;]+)/);
+    if (!match) continue;
+    const cleaned = normalizeImportToken(match[2]);
+    if (cleaned) imports.push(cleaned);
+  }
+  return imports;
+};
+
+const collectDartImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const match = line.match(/^\s*(import|export)\s+['\"]([^'\"]+)['\"]/);
+    if (match) imports.push(match[2]);
+  }
+  return imports;
+};
+
+const collectScalaImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const match = line.match(/^\s*import\s+([^\s;]+)/);
+    if (match) imports.push(match[1]);
+  }
+  return imports;
+};
+
+const collectGroovyImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const match = line.match(/^\s*import\s+([^\s;]+)/);
+    if (match) imports.push(match[1]);
+  }
+  return imports;
+};
+
+const collectRImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const match = line.match(/^\s*(library|require|source)\s*\(\s*['\"]?([^'\")]+)\s*/);
+    if (match) imports.push(match[2]);
+  }
+  return imports;
+};
+
+const collectJuliaImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const match = line.match(/^\s*(using|import|include)\s+([^\s;]+)/);
+    if (!match) continue;
+    const cleaned = normalizeImportToken(match[2]);
+    if (cleaned) imports.push(cleaned);
+  }
+  return imports;
+};
+
+const collectHandlebarsImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const match = line.match(/{{>\s*['\"]?([^\"'\s}]+)\b/);
+    if (match) imports.push(match[1]);
+  }
+  return imports;
+};
+
+const collectMustacheImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const match = line.match(/{{>\s*['\"]?([^\"'\s}]+)\b/);
+    if (match) imports.push(match[1]);
+  }
+  return imports;
+};
+
+const collectJinjaImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const match = line.match(/{%\s*(include|extends|import)\s+['\"]([^'\"]+)['\"]/);
+    if (match) imports.push(match[2]);
+  }
+  return imports;
+};
+
+const collectRazorImports = (text) => {
+  const imports = [];
+  const lines = String(text || '').split('\n');
+  for (const line of lines) {
+    const match = line.match(/^\s*@(?:using|addTagHelper|inherits)\s+([^\s]+)/);
+    if (match) imports.push(match[1]);
+  }
+  return imports;
 };
 
 const LANGUAGE_REGISTRY = [
@@ -345,6 +556,166 @@ const LANGUAGE_REGISTRY = [
       }),
     extractDocMeta: ({ chunk }) => extractSqlDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeSqlFlow(text, chunk, flowOptions(options)),
+    attachName: true
+  },
+  {
+    id: 'dockerfile',
+    match: (ext) => ext === '.dockerfile',
+    collectImports: (text) => collectDockerfileImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectDockerfileImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'makefile',
+    match: (ext) => ext === '.makefile',
+    collectImports: (text) => collectMakefileImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectMakefileImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'protobuf',
+    match: (ext) => ext === '.proto',
+    collectImports: (text) => collectProtoImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectProtoImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'graphql',
+    match: (ext) => ext === '.graphql' || ext === '.gql',
+    collectImports: (text) => collectGraphqlImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectGraphqlImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'cmake',
+    match: (ext) => CMAKE_EXTS.has(ext),
+    collectImports: (text) => collectCmakeImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectCmakeImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'starlark',
+    match: (ext) => STARLARK_EXTS.has(ext),
+    collectImports: (text) => collectStarlarkImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectStarlarkImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'nix',
+    match: (ext) => NIX_EXTS.has(ext),
+    collectImports: (text) => collectNixImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectNixImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'dart',
+    match: (ext) => DART_EXTS.has(ext),
+    collectImports: (text) => collectDartImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectDartImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'scala',
+    match: (ext) => SCALA_EXTS.has(ext),
+    collectImports: (text) => collectScalaImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectScalaImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'groovy',
+    match: (ext) => GROOVY_EXTS.has(ext),
+    collectImports: (text) => collectGroovyImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectGroovyImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'r',
+    match: (ext) => R_EXTS.has(ext),
+    collectImports: (text) => collectRImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectRImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'julia',
+    match: (ext) => JULIA_EXTS.has(ext),
+    collectImports: (text) => collectJuliaImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectJuliaImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'handlebars',
+    match: (ext) => HANDLEBARS_EXTS.has(ext),
+    collectImports: (text) => collectHandlebarsImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectHandlebarsImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'mustache',
+    match: (ext) => MUSTACHE_EXTS.has(ext),
+    collectImports: (text) => collectMustacheImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectMustacheImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'jinja',
+    match: (ext) => JINJA_EXTS.has(ext),
+    collectImports: (text) => collectJinjaImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectJinjaImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
+    attachName: true
+  },
+  {
+    id: 'razor',
+    match: (ext) => RAZOR_EXTS.has(ext),
+    collectImports: (text) => collectRazorImports(text),
+    buildRelations: ({ text, allImports }) =>
+      buildSimpleRelations(collectRazorImports(text), allImports),
+    extractDocMeta: () => ({}),
+    flow: () => null,
     attachName: true
   },
   {

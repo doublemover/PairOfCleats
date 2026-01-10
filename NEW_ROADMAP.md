@@ -691,17 +691,17 @@ Within the limits of web-tree-sitter + tree-sitter-wasms:
 - `prom-client` — export counters/histograms for build throughput, parse failures, risk rule matches, and query latency.
 - `hdr-histogram-js` — maintain in-process histograms for high-cardinality timing stats (then export summaries).
 
-- [ ] Add structured JSON logs option:
-  - [ ] log levels
-  - [ ] timestamps
-  - [ ] buildId correlation
-  - [ ] shardId / workerId correlation
-- [ ] Capture environment snapshot at start of build:
-  - [ ] node version, OS, CPU count, memory
-  - [ ] enabled features and effective config hash
-- [ ] Ensure logs flush on crash:
-  - [ ] avoid fire-and-forget writes for crash logs
-  - [ ] add “last N events” ring buffer persisted on fatal errors (default: **N=200** events, capped to **2 MiB** serialized)
+- [x] Add structured JSON logs option:
+  - [x] log levels
+  - [x] timestamps
+  - [x] buildId correlation
+  - [x] shardId / workerId correlation
+- [x] Capture environment snapshot at start of build:
+  - [x] node version, OS, CPU count, memory
+  - [x] enabled features and effective config hash
+- [x] Ensure logs flush on crash:
+  - [x] avoid fire-and-forget writes for crash logs
+  - [x] add “last N events” ring buffer persisted on fatal errors (default: **N=200** events, capped to **2 MiB** serialized)
 
 ## 7.2 Failure taxonomy and actionable capture
 
@@ -709,15 +709,15 @@ Within the limits of web-tree-sitter + tree-sitter-wasms:
 - `pino` — emit structured error events with classification fields: `{ category, languageId, stage, shardId, file, offset?, tool, retryable }`.
 - `ajv` — validate that error objects conform to a schema (so failures are machine-actionable, not ad-hoc strings).
 
-- [ ] Define a failure taxonomy:
-  - [ ] parse failures
-  - [ ] tool dependency failures
-  - [ ] worker pool failures
-  - [ ] artifact IO failures (JSON too large, corruption)
-  - [ ] sqlite build failures
-- [ ] For each failure class:
-  - [ ] record minimal reproduction hints
-  - [ ] suggest config mitigations (e.g., file caps, disable feature X)
+- [x] Define a failure taxonomy:
+  - [x] parse failures
+  - [x] tool dependency failures
+  - [x] worker pool failures
+  - [x] artifact IO failures (JSON too large, corruption)
+  - [x] sqlite build failures
+- [x] For each failure class:
+  - [x] record minimal reproduction hints
+  - [x] suggest config mitigations (e.g., file caps, disable feature X)
 
 ## 7.3 Watch/service durability
 
@@ -725,11 +725,11 @@ Within the limits of web-tree-sitter + tree-sitter-wasms:
 - `chokidar` — cross-platform file watching; on Windows/network drives prefer `awaitWriteFinish` and consider polling fallback.
 - `piscina` — for watch mode, keep pools warm but rate-limit rebuilds; cancel in-flight shard work on superseding changes.
 
-- [ ] Ensure watch mode debounces and avoids rebuild storms
-- [ ] Ensure service queue and stage2 jobs:
-  - [ ] have durable state machine (Phase 2)
-  - [ ] can be resumed after crash/restart
-  - [ ] produce per-job logs and reports
+- [x] Ensure watch mode debounces and avoids rebuild storms
+- [x] Ensure service queue and stage2 jobs:
+  - [x] have durable state machine (Phase 2)
+  - [x] can be resumed after crash/restart
+  - [x] produce per-job logs and reports
 
 **Deliverables**
 - structured logging + diagnostic bundle output
@@ -757,19 +757,19 @@ Within the limits of web-tree-sitter + tree-sitter-wasms:
 
 For each new language or container format:
 
-- [ ] Decide parsing strategy:
-  - [ ] tree-sitter wasm grammar (preferred)
-  - [ ] heuristic parser
-  - [ ] tooling/LSP enrichment only (optional)
-- [ ] Implement:
-  - [ ] chunk extraction
-  - [ ] minimal relations (imports + calls) where feasible
-  - [ ] comment extraction rules
-  - [ ] metadata v2 mapping
-- [ ] Add fixtures:
-  - [ ] “language fidelity” tests
-  - [ ] perf guard tests (max bytes/lines)
-- [ ] Add to benchmark matrix.
+- [x] Decide parsing strategy:
+  - [x] tree-sitter wasm grammar (preferred)
+  - [x] heuristic parser
+  - [x] tooling/LSP enrichment only (optional)
+- [x] Implement:
+  - [x] chunk extraction
+  - [x] minimal relations (imports + calls) where feasible
+  - [x] comment extraction rules
+  - [x] metadata v2 mapping
+- [x] Add fixtures:
+  - [x] “language fidelity” tests
+  - [x] perf guard tests (max bytes/lines)
+- [x] Add to benchmark matrix.
 
 ## 8.2 Recommended language priorities
 
@@ -778,26 +778,26 @@ For each new language or container format:
 - Reuse existing primitives (`micromark`, `parse5`, `@ast-grep/napi`, `graphology`, `ajv`) rather than adding bespoke parsers where possible.
 
 **High priority (common + high ROI)**
-- [ ] JavaScript/TypeScript (tree-sitter wasm for chunking/metadata)
-- [ ] TSX/JSX segmentation improvements
-- [ ] Python (tree-sitter wasm chunking as stage1 fallback)
-- [ ] Dockerfile
-- [ ] Makefile
-- [ ] Protobuf
-- [ ] GraphQL
+- [x] JavaScript/TypeScript (tree-sitter wasm for chunking/metadata)
+- [x] TSX/JSX segmentation improvements
+- [x] Python (tree-sitter wasm chunking as stage1 fallback)
+- [x] Dockerfile
+- [x] Makefile
+- [x] Protobuf
+- [x] GraphQL
 
 **Next tier (ecosystem breadth)**
-- [ ] CMake
-- [ ] Bazel/Starlark
-- [ ] Nix
-- [ ] Dart
-- [ ] Scala / Groovy
-- [ ] R / Julia
+- [x] CMake
+- [x] Bazel/Starlark
+- [x] Nix
+- [x] Dart
+- [x] Scala / Groovy
+- [x] R / Julia
 
 **Web template tier**
-- [ ] Handlebars/Mustache
-- [ ] Jinja2 / Django templates
-- [ ] Razor
+- [x] Handlebars/Mustache
+- [x] Jinja2 / Django templates
+- [x] Razor
 
 ## 8.3 Architecture simplification after stabilization
 
@@ -807,12 +807,12 @@ For each new language or container format:
   - Structural matching: `@ast-grep/napi` rule packs to reduce custom per-language logic.
 - Keep serialization + storage minimal: `msgpackr` + `fflate` + one durable backend (`better-sqlite3` or `lmdb`) behind a stable contract.
 
-- [ ] Consolidate parsing APIs:
-  - [ ] one segment discovery API
-  - [ ] one chunking API
-  - [ ] one metadata v2 builder interface
-- [ ] Reduce duplicate passes and duplicated formats
-- [ ] Remove deprecated schema paths once migrations are complete
+- [x] Consolidate parsing APIs:
+  - [x] one segment discovery API
+  - [x] one chunking API
+  - [x] one metadata v2 builder interface
+- [x] Reduce duplicate passes and duplicated formats
+- [x] Remove deprecated schema paths once migrations are complete
 
 **Deliverables**
 - language onboarding playbook
@@ -846,6 +846,11 @@ This roadmap explicitly includes full implementation planning for:
 
 Local dependency references live under `docs/references/dependency-bundle/`.
 OSS summaries remain indexed in `docs/references/README.md`.
+
+### Phase 8 references
+- Language onboarding playbook — docs/language-onboarding-playbook.md
+- Language fidelity checklist — docs/language-fidelity.md
+- Language benchmarks — docs/language-benchmarks.md
 
 ### Bundle entrypoints
 - README — docs/references/dependency-bundle/README.md

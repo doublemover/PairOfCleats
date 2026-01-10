@@ -109,11 +109,9 @@
       "properties": {
         "use": { "type": "boolean" },
         "dbDir": { "type": "string" },
-        "dbPath": { "type": "string" },
         "codeDbPath": { "type": "string" },
         "proseDbPath": { "type": "string" },
         "scoreMode": { "type": "string" },
-        "annMode": { "type": "string" },
         "compactOnIncremental": { "type": "boolean" },
         "vectorExtension": {
           "type": "object",

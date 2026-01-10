@@ -36,7 +36,11 @@ const COMMENT_STYLES = [
       'kotlin',
       'swift',
       'objc',
-      'objective-c'
+      'objective-c',
+      'protobuf',
+      'dart',
+      'scala',
+      'groovy'
     ]),
     line: ['//'],
     block: [{ start: '/*', end: '*/', stripStar: true }],
@@ -49,7 +53,32 @@ const COMMENT_STYLES = [
     strings: ['"', '\'']
   },
   {
-    ids: new Set(['python', 'shell', 'ruby', 'yaml', 'toml', 'ini']),
+    ids: new Set(['nix']),
+    line: ['#'],
+    block: [{ start: '/*', end: '*/', stripStar: true }],
+    strings: ['"', '\'', '`']
+  },
+  {
+    ids: new Set(['julia']),
+    line: ['#'],
+    block: [{ start: '#=', end: '=#', stripStar: false }],
+    strings: ['"', '\'', '`']
+  },
+  {
+    ids: new Set([
+      'python',
+      'shell',
+      'ruby',
+      'yaml',
+      'toml',
+      'ini',
+      'dockerfile',
+      'makefile',
+      'graphql',
+      'cmake',
+      'starlark',
+      'r'
+    ]),
     line: ['#'],
     block: [],
     strings: ['"', '\'']
@@ -58,6 +87,27 @@ const COMMENT_STYLES = [
     ids: new Set(['sql']),
     line: ['--'],
     block: [{ start: '/*', end: '*/', stripStar: true }],
+    strings: ['"', '\'']
+  },
+  {
+    ids: new Set(['handlebars', 'mustache']),
+    line: [],
+    block: [
+      { start: '{{!--', end: '--}}', stripStar: false },
+      { start: '{{!', end: '}}', stripStar: false }
+    ],
+    strings: ['"', '\'']
+  },
+  {
+    ids: new Set(['jinja']),
+    line: [],
+    block: [{ start: '{#', end: '#}', stripStar: false }],
+    strings: ['"', '\'']
+  },
+  {
+    ids: new Set(['razor']),
+    line: [],
+    block: [{ start: '@*', end: '*@', stripStar: false }],
     strings: ['"', '\'']
   },
   {
@@ -107,7 +157,35 @@ const EXT_OVERRIDES = new Map([
   ['.xml', 'xml'],
   ['.vue', 'vue'],
   ['.svelte', 'svelte'],
-  ['.astro', 'astro']
+  ['.astro', 'astro'],
+  ['.dockerfile', 'dockerfile'],
+  ['.makefile', 'makefile'],
+  ['.proto', 'protobuf'],
+  ['.graphql', 'graphql'],
+  ['.gql', 'graphql'],
+  ['.cmake', 'cmake'],
+  ['.bzl', 'starlark'],
+  ['.bazel', 'starlark'],
+  ['.star', 'starlark'],
+  ['.nix', 'nix'],
+  ['.dart', 'dart'],
+  ['.scala', 'scala'],
+  ['.sc', 'scala'],
+  ['.groovy', 'groovy'],
+  ['.gradle', 'groovy'],
+  ['.gvy', 'groovy'],
+  ['.r', 'r'],
+  ['.jl', 'julia'],
+  ['.hbs', 'handlebars'],
+  ['.handlebars', 'handlebars'],
+  ['.mustache', 'mustache'],
+  ['.jinja', 'jinja'],
+  ['.jinja2', 'jinja'],
+  ['.j2', 'jinja'],
+  ['.django', 'jinja'],
+  ['.djhtml', 'jinja'],
+  ['.razor', 'razor'],
+  ['.cshtml', 'razor']
 ]);
 
 const normalizeLimit = (value, fallback) => {

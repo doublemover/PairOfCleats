@@ -1,0 +1,17 @@
+schema {
+  query: Query
+}
+
+type Query {
+  widget(id: ID!): Widget
+}
+
+type Widget {
+  id: ID!
+  name: String!
+}
+
+enum WidgetState {
+  ACTIVE
+  INACTIVE
+}

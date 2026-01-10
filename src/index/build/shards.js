@@ -1,16 +1,15 @@
 import path from 'node:path';
 import { fileExt, toPosix } from '../../shared/files.js';
 import { sha1 } from '../../shared/hash.js';
-import { isSpecialCodeFile } from '../constants.js';
+import { resolveSpecialCodeExt } from '../constants.js';
 import { getLanguageForFile } from '../language-registry.js';
 import { estimateFileCost } from './perf-profile.js';
 
 const resolveExt = (absPath) => {
   const baseName = path.basename(absPath);
-  const rawExt = fileExt(absPath);
-  if (rawExt) return rawExt;
-  if (!isSpecialCodeFile(baseName)) return rawExt;
-  return baseName.toLowerCase() === 'dockerfile' ? '.dockerfile' : '.makefile';
+  const specialExt = resolveSpecialCodeExt(baseName);
+  if (specialExt) return specialExt;
+  return fileExt(absPath);
 };
 
 const resolveDirKey = (rel, depth) => {

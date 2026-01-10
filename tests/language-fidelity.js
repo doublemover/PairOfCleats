@@ -663,6 +663,101 @@ if (!sqliteTable) {
   failures.push('SQLite dialect metadata missing for sqlite_widgets.');
 }
 
+const dockerChunk = findChunk({ file: 'src/Dockerfile', nameIncludes: 'FROM' });
+if (!dockerChunk) {
+  failures.push('Missing Dockerfile chunk (FROM).');
+}
+
+const makeChunk = findChunk({ file: 'src/Makefile', nameIncludes: 'build' });
+if (!makeChunk) {
+  failures.push('Missing Makefile chunk (build).');
+}
+
+const protoChunk = findChunk({ file: 'src/schema.proto', nameIncludes: 'Widget' });
+if (!protoChunk) {
+  failures.push('Missing Protobuf chunk (Widget).');
+}
+
+const graphqlChunk = findChunk({ file: 'src/schema.graphql', nameIncludes: 'Widget' });
+if (!graphqlChunk) {
+  failures.push('Missing GraphQL chunk (Widget).');
+}
+
+const cmakeChunk = findChunk({ file: 'src/CMakeLists.txt', nameIncludes: 'add_executable' });
+if (!cmakeChunk) {
+  failures.push('Missing CMake chunk (add_executable).');
+}
+
+const bazelChunk = findChunk({ file: 'src/BUILD', nameIncludes: 'widget_lib' });
+if (!bazelChunk) {
+  failures.push('Missing Bazel chunk (widget_lib).');
+}
+
+const workspaceChunk = findChunk({ file: 'src/WORKSPACE', nameIncludes: 'workspace' });
+if (!workspaceChunk) {
+  failures.push('Missing Bazel WORKSPACE chunk (workspace).');
+}
+
+const starlarkChunk = findChunk({ file: 'src/defs.bzl', nameIncludes: 'widget_rule' });
+if (!starlarkChunk) {
+  failures.push('Missing Starlark chunk (widget_rule).');
+}
+
+const nixChunk = findChunk({ file: 'src/default.nix', nameIncludes: 'widget' });
+if (!nixChunk) {
+  failures.push('Missing Nix chunk (widget).');
+}
+
+const dartChunk = findChunk({ file: 'src/widget.dart', nameIncludes: 'Widget' });
+if (!dartChunk) {
+  failures.push('Missing Dart chunk (Widget).');
+}
+
+const scalaChunk = findChunk({ file: 'src/Widget.scala', nameIncludes: 'WidgetFactory' });
+if (!scalaChunk) {
+  failures.push('Missing Scala chunk (WidgetFactory).');
+}
+
+const groovyChunk = findChunk({ file: 'src/Widget.groovy', nameIncludes: 'buildWidget' });
+if (!groovyChunk) {
+  failures.push('Missing Groovy chunk (buildWidget).');
+}
+
+const rChunk = findChunk({ file: 'src/widget.r', nameIncludes: 'build_widget' });
+if (!rChunk) {
+  failures.push('Missing R chunk (build_widget).');
+}
+
+const juliaChunk = findChunk({ file: 'src/widget.jl', nameIncludes: 'build_widget' });
+if (!juliaChunk) {
+  failures.push('Missing Julia chunk (build_widget).');
+}
+
+const handlebarsChunk = findChunk({ file: 'src/widget.hbs', nameIncludes: 'widgets' });
+if (!handlebarsChunk) {
+  failures.push('Missing Handlebars chunk (widgets).');
+}
+
+const mustacheChunk = findChunk({ file: 'src/widget.mustache', nameIncludes: 'widget' });
+if (!mustacheChunk) {
+  failures.push('Missing Mustache chunk (widget).');
+}
+
+const jinjaChunk = findChunk({ file: 'src/widget.jinja2', nameIncludes: 'content' });
+if (!jinjaChunk) {
+  failures.push('Missing Jinja chunk (content).');
+}
+
+const djangoChunk = findChunk({ file: 'src/widget.djhtml', nameIncludes: 'body' });
+if (!djangoChunk) {
+  failures.push('Missing Django template chunk (body).');
+}
+
+const razorChunk = findChunk({ file: 'src/widget.razor', nameIncludes: 'page' });
+if (!razorChunk) {
+  failures.push('Missing Razor chunk (page).');
+}
+
 if (failures.length) {
   failures.forEach((msg) => console.error(msg));
   process.exit(1);

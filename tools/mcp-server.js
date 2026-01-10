@@ -313,7 +313,7 @@ async function configStatus(args = {}) {
       models: modelConfig,
       sqlite: {
         use: sqliteConfigured,
-        annMode: userConfig.sqlite?.annMode || null,
+        annMode: vectorConfig.annMode || null,
         codeDbPath: sqlitePaths.codePath,
         proseDbPath: sqlitePaths.prosePath
       },

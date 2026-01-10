@@ -11,7 +11,7 @@ import { inferTypeMetadata } from '../type-inference.js';
 import { getHeadline } from '../headline.js';
 import { getChunkAuthorsFromLines, getGitMetaForFile } from '../git.js';
 import { getFieldWeight } from '../field-weighting.js';
-import { isGo, isJsLike, isSpecialCodeFile } from '../constants.js';
+import { isGo, isJsLike, resolveSpecialCodeExt } from '../constants.js';
 import { normalizeVec } from '../embedding.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { createLruCache, estimateJsonBytes } from '../../shared/cache.js';
@@ -172,10 +172,9 @@ export function createFileProcessor(options) {
 
   const resolveExt = (absPath) => {
     const baseName = path.basename(absPath);
-    const rawExt = fileExt(absPath);
-    return rawExt || (isSpecialCodeFile(baseName)
-      ? (baseName.toLowerCase() === 'dockerfile' ? '.dockerfile' : '.makefile')
-      : rawExt);
+    const specialExt = resolveSpecialCodeExt(baseName);
+    if (specialExt) return specialExt;
+    return fileExt(absPath);
   };
 
   const mergeFlowMeta = (docmeta, flowMeta) => {

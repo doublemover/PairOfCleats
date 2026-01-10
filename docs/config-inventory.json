@@ -1274,11 +1274,6 @@
       "enum": null
     },
     {
-      "path": "sqlite.annMode",
-      "type": "string",
-      "enum": null
-    },
-    {
       "path": "sqlite.codeDbPath",
       "type": "string",
       "enum": null
@@ -1290,11 +1285,6 @@
     },
     {
       "path": "sqlite.dbDir",
-      "type": "string",
-      "enum": null
-    },
-    {
-      "path": "sqlite.dbPath",
       "type": "string",
       "enum": null
     },

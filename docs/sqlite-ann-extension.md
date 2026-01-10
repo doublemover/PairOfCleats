@@ -32,8 +32,8 @@ pairofcleats verify-extensions --no-load
 ```
 {
   "sqlite": {
-    "annMode": "extension",
     "vectorExtension": {
+      "annMode": "extension",
       "provider": "sqlite-vec",
       "dir": "C:/cache/pairofcleats/extensions",
       "path": "",

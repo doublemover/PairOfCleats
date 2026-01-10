@@ -327,9 +327,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     : '';
   const fileCapsConfig = indexingConfig.fileCaps || {};
   const fileCaps = {
-    default: normalizeCapEntry(fileCapsConfig.default || fileCapsConfig.defaults || {}),
-    byExt: normalizeCapsByExt(fileCapsConfig.byExt || fileCapsConfig.byExtension),
-    byLanguage: normalizeCapsByLanguage(fileCapsConfig.byLanguage || fileCapsConfig.byLang)
+    default: normalizeCapEntry(fileCapsConfig.default || {}),
+    byExt: normalizeCapsByExt(fileCapsConfig.byExt || {}),
+    byLanguage: normalizeCapsByLanguage(fileCapsConfig.byLanguage || {})
   };
   const fileScanConfig = indexingConfig.fileScan || {};
   const minifiedScanConfig = fileScanConfig.minified || {};
