@@ -15,6 +15,16 @@ const argv = createCli({
   }
 }).parse();
 
+const isTruthy = (value) => {
+  if (value == null) return false;
+  const normalized = String(value).trim().toLowerCase();
+  return ['1', 'true', 'yes', 'on'].includes(normalized);
+};
+
+const forceRequested = argv.force
+  || isTruthy(process.env.PAIROFCLEATS_RESET_FORCE)
+  || isTruthy(process.env.npm_config_force);
+
 const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
 const configPath = argv.config
   ? path.resolve(argv.config)
@@ -27,7 +37,7 @@ const result = {
   reset: false
 };
 
-if (existing && !argv.force) {
+if (existing && !forceRequested) {
   result.ok = false;
   if (argv.json) {
     console.log(JSON.stringify(result, null, 2));
