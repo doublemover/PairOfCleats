@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import util from 'node:util';
 import { analyzeComplexity, lintChunk } from '../analysis.js';
-import { smartChunk } from '../chunking.js';
+import { chunkSegments, discoverSegments } from '../segments.js';
 import { buildChunkRelations, buildLanguageContext } from '../language-registry.js';
 import { detectRiskSignals } from '../risk.js';
 import { inferTypeMetadata } from '../type-inference.js';
@@ -535,11 +535,20 @@ export function createFileProcessor(options) {
       const fileGitMeta = gitMeta && typeof gitMeta === 'object'
         ? Object.fromEntries(Object.entries(gitMeta).filter(([key]) => key !== 'lineAuthors'))
         : {};
-      const sc = smartChunk({
+      const segments = discoverSegments({
         text,
         ext,
         relPath: relKey,
         mode,
+        languageId: lang?.id || null
+      });
+      const sc = chunkSegments({
+        text,
+        ext,
+        relPath: relKey,
+        mode,
+        segments,
+        lineIndex,
         context: {
           ...languageContext,
           yamlChunking: languageOptions?.yamlChunking,

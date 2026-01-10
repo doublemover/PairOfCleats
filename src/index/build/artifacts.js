@@ -143,6 +143,7 @@ export async function writeIndexArtifacts(input) {
         headline: c.headline,
         preContext: c.preContext,
         postContext: c.postContext,
+        segment: c.segment || null,
         codeRelations: c.codeRelations,
         docmeta: c.docmeta,
         stats: c.stats,
