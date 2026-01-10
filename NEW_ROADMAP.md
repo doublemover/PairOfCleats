@@ -438,16 +438,16 @@ The current regex-based “sources × sinks” cartesian product is a useful bas
 ### 4.3.4 Output schema and search integration
 
 **Deliverables**
-- `docs/risk-rules.md` + risk rules bundle format
-- advanced risk engine (local → file → cross-file)
-- advanced type inference engine (local + cross-file + tooling)
-- v2 metadata completeness across core languages
-- fixtures and goldens for risk/types correctness
+- [x] `docs/risk-rules.md` + risk rules bundle format
+- [x] advanced risk engine (local → file → cross-file)
+- [x] advanced type inference engine (local + cross-file + tooling)
+- [x] v2 metadata completeness across core languages
+- [x] fixtures and goldens for risk/types correctness
 
 **Exit criteria**
-- Risk flows and type inference are correct on fixtures with documented conservative limitations.
-- `index-validate` can validate risk/type metadata invariants.
-- Enrichment never crashes indexing; it degrades gracefully with actionable logs.
+- [x] Risk flows and type inference are correct on fixtures with documented conservative limitations.
+- [x] `index-validate` can validate risk/type metadata invariants.
+- [x] Enrichment never crashes indexing; it degrades gracefully with actionable logs.
 
 ---
 
