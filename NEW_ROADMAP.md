@@ -732,13 +732,13 @@ Within the limits of web-tree-sitter + tree-sitter-wasms:
   - [x] produce per-job logs and reports
 
 **Deliverables**
-- structured logging + diagnostic bundle output
-- failure taxonomy + captured evidence improvements
-- hardened watch/service operation
+- [x] structured logging + diagnostic bundle output
+- [x] failure taxonomy + captured evidence improvements
+- [x] hardened watch/service operation
 
 **Exit criteria**
-- Any build failure produces a diagnostic bundle sufficient to triage without rerunning.
-- Long-running modes remain stable over multi-hour runs.
+- [x] Any build failure produces a diagnostic bundle sufficient to triage without rerunning.
+- [x] Long-running modes remain stable over multi-hour runs.
 
 ---
 
