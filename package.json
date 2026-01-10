@@ -195,7 +195,7 @@
     "node-sql-parser": "^5.3.13",
     "nunjucks": "^3.2.4",
     "onnxruntime-node": "^1.23.2",
-    "p-queue": "8.0.1",
+    "p-queue": "9.1.0",
     "parse5": "^7.1.2",
     "picomatch": "^4.0.3",
     "pino": "^10.1.1",
