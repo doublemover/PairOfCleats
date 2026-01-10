@@ -2,7 +2,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fdir } from 'fdir';
-import { EXTS_CODE, EXTS_PROSE, isSpecialCodeFile } from '../constants.js';
+import {
+  EXTS_CODE,
+  EXTS_PROSE,
+  isLockFile,
+  isManifestFile,
+  isSpecialCodeFile,
+  resolveSpecialCodeExt
+} from '../constants.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 
 /**
@@ -93,9 +100,11 @@ export async function discoverEntries({ root, ignoreMatcher, maxFileBytes = null
   for (const absPath of candidates) {
     const relPosix = toPosix(path.relative(root, absPath));
     if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) continue;
-    const ext = fileExt(absPath);
     const baseName = path.basename(absPath);
-    const isSpecial = isSpecialCodeFile(baseName);
+    const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
+    const isManifest = isManifestFile(baseName);
+    const isLock = isLockFile(baseName);
+    const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock;
     if (minifiedNameRegex.test(baseName.toLowerCase())) {
       recordSkip(absPath, 'minified', { method: 'name' });
       continue;
@@ -116,7 +125,15 @@ export async function discoverEntries({ root, ignoreMatcher, maxFileBytes = null
       recordSkip(absPath, 'oversize', { bytes: stat.size, maxBytes: maxBytesForExt });
       continue;
     }
-    entries.push({ abs: absPath, rel: relPosix, stat, ext, isSpecial });
+    entries.push({
+      abs: absPath,
+      rel: relPosix,
+      stat,
+      ext,
+      isSpecial,
+      isManifest,
+      isLock
+    });
   }
 
   entries.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));

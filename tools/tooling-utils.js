@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { execaSync } from 'execa';
-import { SKIP_DIRS, SKIP_FILES } from '../src/index/constants.js';
+import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../src/index/constants.js';
 import { getToolingConfig } from './dict-utils.js';
 
 const LANGUAGE_EXTENSIONS = {
@@ -37,7 +37,14 @@ const FORMAT_EXTENSIONS = {
 
 const FORMAT_FILENAMES = {
   dockerfile: ['dockerfile'],
-  makefile: ['makefile']
+  makefile: ['makefile', 'gnumakefile'],
+  manifest: Array.from(MANIFEST_FILES),
+  lockfile: Array.from(LOCK_FILES)
+};
+
+const FORMAT_FILENAME_PREFIXES = {
+  dockerfile: ['dockerfile.'],
+  makefile: ['makefile.']
 };
 
 const TOOL_DOCS = {
@@ -135,6 +142,14 @@ function buildLangHits(extCounts) {
 
 function buildFormatHits(extCounts, lowerNames, workflowCount) {
   const hits = {};
+  const hasPrefixName = (prefix) => {
+    const key = prefix.toLowerCase();
+    if (lowerNames.has(key)) return true;
+    for (const name of lowerNames) {
+      if (name.startsWith(key)) return true;
+    }
+    return false;
+  };
   for (const [format, exts] of Object.entries(FORMAT_EXTENSIONS)) {
     const matched = exts.filter((ext) => extCounts.has(ext));
     if (!matched.length) continue;
@@ -142,7 +157,10 @@ function buildFormatHits(extCounts, lowerNames, workflowCount) {
     hits[format] = { extensions: matched, files: count };
   }
   for (const [format, names] of Object.entries(FORMAT_FILENAMES)) {
-    if (names.some((name) => lowerNames.has(name))) {
+    const prefixes = FORMAT_FILENAME_PREFIXES[format] || [];
+    const hasExact = names.some((name) => lowerNames.has(name));
+    const hasPrefix = prefixes.some((prefix) => hasPrefixName(prefix));
+    if (hasExact || hasPrefix) {
       hits[format] = { filenames: names, files: names.length };
     }
   }

@@ -15,11 +15,7 @@ export function resolveThreadLimits(input = {}) {
     defaultMultiplier = 4
   } = input;
   const cpuCount = os.cpus().length;
-  const isWindows = process.platform === 'win32';
-  const defaultFileConcurrency = Math.max(
-    1,
-    Math.min(cpuCount, isWindows ? 8 : 16)
-  );
+  const defaultFileConcurrency = Math.max(1, Math.min(cpuCount, 16));
   const defaultThreads = Math.max(1, defaultFileConcurrency * defaultMultiplier);
   const rawCliThreads = Number(argv.threads);
   const envThreads = Number(envConfig.threads);
@@ -36,8 +32,9 @@ export function resolveThreadLimits(input = {}) {
     : Number.isFinite(configConcurrency)
       ? Math.floor(configConcurrency)
       : defaultFileConcurrency;
-  const maxConcurrencyCap = Math.max(defaultFileConcurrency, requestedConcurrency);
-  const fileConcurrency = Math.max(1, Math.min(maxConcurrencyCap, requestedConcurrency));
+  const cappedConcurrency = Math.max(1, Math.min(cpuCount, requestedConcurrency));
+  const maxConcurrencyCap = Math.max(defaultFileConcurrency, cappedConcurrency);
+  const fileConcurrency = Math.max(1, Math.min(maxConcurrencyCap, cappedConcurrency));
   const importConcurrency = Math.max(
     1,
     Math.min(
@@ -49,7 +46,7 @@ export function resolveThreadLimits(input = {}) {
           : fileConcurrency
     )
   );
-  const ioCap = isWindows ? 32 : 64;
+  const ioCap = process.platform === 'win32' ? 32 : 64;
   const ioBase = Math.max(fileConcurrency, importConcurrency);
   const ioConcurrency = Math.max(1, Math.min(ioCap, ioBase * 4));
   const cpuConcurrency = Math.max(1, Math.min(maxConcurrencyCap, fileConcurrency));

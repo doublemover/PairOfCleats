@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
-import { resolveRepoRoot, getCacheRoot, resolveToolRoot } from './dict-utils.js';
+import { resolveRepoRoot, getCacheRoot, getRepoCacheRoot, resolveToolRoot } from './dict-utils.js';
 import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './service/config.js';
 import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary, resolveQueueName, requeueStaleJobs, touchJobHeartbeat } from './service/queue.js';
 import { ensureRepo, resolveRepoPath } from './service/repos.js';
@@ -52,6 +53,137 @@ const resolveRepoEntry = (repoArg) => {
 const formatJobId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
 const toolRoot = resolveToolRoot();
+
+const BUILD_STATE_FILE = 'build_state.json';
+const BUILD_STATE_POLL_MS = 5000;
+const BUILD_STATE_LOOKBACK_MS = 5 * 60 * 1000;
+
+const resolveBuildsRoot = (repoCacheRoot) => path.join(repoCacheRoot, 'builds');
+
+const readBuildState = async (buildRoot) => {
+  if (!buildRoot) return null;
+  const statePath = path.join(buildRoot, BUILD_STATE_FILE);
+  try {
+    const raw = await fsPromises.readFile(statePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? { state: parsed, path: statePath } : null;
+  } catch {
+    return null;
+  }
+};
+
+const listBuildStateCandidates = async (repoCacheRoot) => {
+  const buildsRoot = resolveBuildsRoot(repoCacheRoot);
+  let entries;
+  try {
+    entries = await fsPromises.readdir(buildsRoot, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const candidates = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const buildRoot = path.join(buildsRoot, entry.name);
+    const statePath = path.join(buildRoot, BUILD_STATE_FILE);
+    try {
+      const stat = await fsPromises.stat(statePath);
+      candidates.push({ buildRoot, statePath, mtimeMs: stat.mtimeMs });
+    } catch {}
+  }
+  return candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+};
+
+const pickBuildState = async (repoCacheRoot, stage, sinceMs) => {
+  const candidates = await listBuildStateCandidates(repoCacheRoot);
+  for (const candidate of candidates) {
+    if (Number.isFinite(sinceMs) && candidate.mtimeMs < sinceMs) continue;
+    const loaded = await readBuildState(candidate.buildRoot);
+    if (!loaded) continue;
+    const state = loaded.state;
+    if (stage && state?.stage && state.stage !== stage) continue;
+    if (stage && state?.phases?.[stage]?.status === 'failed') continue;
+    return { buildRoot: candidate.buildRoot, state: loaded.state, path: loaded.path };
+  }
+  return null;
+};
+
+const formatDuration = (ms) => {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+};
+
+const formatProgressLine = ({ jobId, stage, state }) => {
+  if (!state) return null;
+  const phases = state?.phases || {};
+  const phase = stage ? phases?.[stage] : null;
+  const phaseOrder = ['discovery', 'preprocessing', stage, 'validation', 'promote'].filter(Boolean);
+  const activePhase = phaseOrder.find((name) => phases?.[name]?.status === 'running');
+  const startedAtRaw = phase?.startedAt || state?.createdAt || null;
+  const startedAt = startedAtRaw ? Date.parse(startedAtRaw) : null;
+  const now = Date.now();
+  const elapsedMs = Number.isFinite(startedAt) ? Math.max(0, now - startedAt) : null;
+  const progress = state?.progress || {};
+  let processedTotal = 0;
+  let totalFiles = 0;
+  const modeParts = [];
+  for (const [mode, data] of Object.entries(progress)) {
+    const processed = Number(data?.processedFiles);
+    const total = Number(data?.totalFiles);
+    if (!Number.isFinite(processed) || !Number.isFinite(total) || total <= 0) continue;
+    processedTotal += processed;
+    totalFiles += total;
+    modeParts.push(`${mode} ${processed}/${total}`);
+  }
+  const etaMs = (elapsedMs && processedTotal > 0 && totalFiles > processedTotal)
+    ? ((totalFiles - processedTotal) / (processedTotal / (elapsedMs / 1000))) * 1000
+    : null;
+  const elapsedText = elapsedMs !== null ? formatDuration(elapsedMs) : 'n/a';
+  const etaText = Number.isFinite(etaMs) ? formatDuration(etaMs) : 'n/a';
+  const status = phase?.status || state?.stage || 'running';
+  const progressText = modeParts.length
+    ? modeParts.join(' | ')
+    : 'progress pending';
+  const phaseNote = activePhase && activePhase !== stage ? ` | phase ${activePhase} running` : '';
+  return `[indexer] job ${jobId} ${stage || state?.stage || 'stage'} ${status} | ${progressText}${phaseNote} | elapsed ${elapsedText} | eta ${etaText}`;
+};
+
+const startBuildProgressMonitor = ({ job, repoPath, stage }) => {
+  if (!job || !repoPath) return () => {};
+  const repoCacheRoot = getRepoCacheRoot(repoPath);
+  const startedAt = Date.now();
+  let active = null;
+  let waitingLogged = false;
+  let lastLine = '';
+  const poll = async () => {
+    if (!active) {
+      active = await pickBuildState(repoCacheRoot, stage, startedAt - BUILD_STATE_LOOKBACK_MS);
+    }
+    if (!active) {
+      if (!waitingLogged) {
+        console.log(`[indexer] job ${job.id} ${stage || 'stage'} running; waiting for build state...`);
+        waitingLogged = true;
+      }
+      return;
+    }
+    const loaded = await readBuildState(active.buildRoot);
+    if (loaded?.state) active.state = loaded.state;
+    const line = formatProgressLine({ jobId: job.id, stage, state: active.state });
+    if (line && line !== lastLine) {
+      console.log(line);
+      lastLine = line;
+    }
+  };
+  const timer = setInterval(() => {
+    void poll();
+  }, BUILD_STATE_POLL_MS);
+  void poll();
+  return () => clearInterval(timer);
+};
 
 const spawnWithLog = (args, extraEnv = {}, logPath = null) => new Promise((resolve) => {
   const useLog = typeof logPath === 'string' && logPath.trim();
@@ -163,9 +295,13 @@ const processQueueOnce = async (metrics) => {
     void touchJobHeartbeat(queueDir, job.id, resolvedQueueName);
   }, 30000);
   const logPath = job.logPath || path.join(queueDir, 'logs', `${job.id}.log`);
+  const stopProgress = queueName === 'index'
+    ? startBuildProgressMonitor({ job, repoPath: job.repo, stage: job.stage })
+    : () => {};
   const exitCode = queueName === 'embeddings'
     ? await runBuildEmbeddings(job.repo, job.mode, extraEnv, logPath)
     : await runBuildIndex(job.repo, job.mode, job.stage, job.args, logPath);
+  stopProgress();
   clearInterval(heartbeat);
   const status = exitCode === 0 ? 'done' : 'failed';
   const attempts = Number.isFinite(job.attempts) ? job.attempts : 0;

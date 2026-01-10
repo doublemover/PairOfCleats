@@ -168,6 +168,15 @@ const benchEnvWithProfile = indexProfileRaw
   ? { ...baseEnv, PAIROFCLEATS_PROFILE: indexProfileRaw }
   : baseEnv;
 
+function logBench(message) {
+  if (!message) return;
+  if (jsonOutput) {
+    process.stderr.write(`${message}\n`);
+  } else {
+    console.log(message);
+  }
+}
+
 function runSearch(query, backend) {
   const args = [
     searchPath,
@@ -234,6 +243,16 @@ function stripMaxOldSpaceFlag(options) {
 
 function formatGb(mb) {
   return `${(mb / 1024).toFixed(1)} GB`;
+}
+
+function formatDuration(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
 }
 
 function getRecommendedHeapMb() {
@@ -310,6 +329,7 @@ if (buildIndex || buildSqlite) {
     buildMs.index = runBuild(args, 'build index', buildEnv);
     if (useStageQueue) {
       runServiceQueue('index', buildEnv);
+      logBench('[bench] Stage2 enrichment complete; continuing with benchmark queries.');
     }
   }
   if (buildSqlite) {
@@ -334,9 +354,47 @@ for (const backend of backends) {
   resultCounts[backend] = [];
 }
 
+const totalSearches = selectedQueries.length * backends.length;
+const queryProgress = {
+  count: 0,
+  startMs: Date.now(),
+  lastLogMs: 0,
+  lastPct: 0
+};
+const logQueryProgress = (force = false) => {
+  if (!totalSearches) return;
+  const now = Date.now();
+  const pct = (queryProgress.count / totalSearches) * 100;
+  const elapsedMs = now - queryProgress.startMs;
+  const rate = elapsedMs > 0 ? queryProgress.count / (elapsedMs / 1000) : 0;
+  const remaining = totalSearches - queryProgress.count;
+  const etaMs = rate > 0 && remaining > 0 ? (remaining / rate) * 1000 : 0;
+  const shouldLog = force
+    || queryProgress.count === totalSearches
+    || now - queryProgress.lastLogMs >= 10000
+    || pct - queryProgress.lastPct >= 5;
+  if (!shouldLog) return;
+  const elapsedText = formatDuration(elapsedMs);
+  const etaText = etaMs > 0 ? formatDuration(etaMs) : 'n/a';
+  logBench(
+    `[bench] Queries ${queryProgress.count}/${totalSearches} (${pct.toFixed(1)}%) | ` +
+    `elapsed ${elapsedText} | eta ${etaText}`
+  );
+  queryProgress.lastLogMs = now;
+  queryProgress.lastPct = pct;
+};
+
+logBench(`[bench] Running ${selectedQueries.length} queries across ${backends.length} backends (${totalSearches} searches).`);
+logQueryProgress(true);
+
+let queryIndex = 0;
 for (const query of selectedQueries) {
+  queryIndex += 1;
+  logBench(`[bench] Query ${queryIndex}/${selectedQueries.length}: ${query}`);
   for (const backend of backends) {
     const payload = runSearch(query, backend);
+    queryProgress.count += 1;
+    logQueryProgress();
     latency[backend].push(payload.stats?.elapsedMs || 0);
     const codeHits = Array.isArray(payload.code) ? payload.code.length : 0;
     const proseHits = Array.isArray(payload.prose) ? payload.prose.length : 0;

@@ -4,7 +4,14 @@ import chokidar from 'chokidar';
 import { acquireIndexLock } from './lock.js';
 import { discoverFiles } from './discover.js';
 import { buildIndexForMode } from './indexer.js';
-import { EXTS_CODE, EXTS_PROSE, isSpecialCodeFile } from '../constants.js';
+import {
+  EXTS_CODE,
+  EXTS_PROSE,
+  isLockFile,
+  isManifestFile,
+  isSpecialCodeFile,
+  resolveSpecialCodeExt
+} from '../constants.js';
 import { log } from '../../shared/progress.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 
@@ -31,9 +38,11 @@ export function isIndexablePath({ absPath, root, ignoreMatcher, modes }) {
   const relPosix = toPosix(path.relative(root, absPath));
   if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
   if (ignoreMatcher?.ignores(relPosix)) return false;
-  const ext = fileExt(absPath);
   const baseName = path.basename(absPath);
-  const isSpecial = isSpecialCodeFile(baseName);
+  const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
+  const isManifest = isManifestFile(baseName);
+  const isLock = isLockFile(baseName);
+  const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock;
   const allowCode = modes.includes('code') && (EXTS_CODE.has(ext) || isSpecial);
   const allowProse = modes.includes('prose') && EXTS_PROSE.has(ext);
   return allowCode || allowProse;
@@ -66,7 +75,8 @@ const resolveMaxBytesForExt = (ext, maxFileBytes, fileCaps) => {
 };
 
 const isWithinMaxBytes = async (absPath, maxFileBytes, fileCaps) => {
-  const ext = fileExt(absPath);
+  const baseName = path.basename(absPath);
+  const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
   const resolvedMax = resolveMaxBytesForExt(ext, maxFileBytes, fileCaps);
   if (!Number.isFinite(Number(resolvedMax)) || Number(resolvedMax) <= 0) {
     return true;

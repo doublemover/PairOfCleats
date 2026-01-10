@@ -124,6 +124,20 @@ export const SKIP_FILES = new Set([
   'AGENTS.md'
 ]);
 
+export const MANIFEST_FILES = new Set([
+  'package.json',
+  'requirements.txt'
+]);
+
+export const LOCK_FILES = new Set([
+  'package-lock.json',
+  'pnpm-lock.yaml',
+  'yarn.lock',
+  'composer.lock',
+  'pipfile.lock',
+  'npm-shrinkwrap.json'
+]);
+
 export const EXTS_PROSE = new Set(['.md', '.mdx', '.txt', '.rst', '.adoc', '.asciidoc']);
 
 export const JS_EXTS = new Set(['.js', '.mjs', '.cjs', '.jsx']);
@@ -162,7 +176,7 @@ export const EXTS_CODE = new Set([
   '.m', '.mm', '.go', '.java', '.cs', '.kt', '.kts', '.rb', '.php', '.phtml',
   '.lua', '.sql', '.psql', '.pgsql', '.mysql', '.sqlite', '.pl', '.pm', '.bash',
   '.zsh', '.ksh', '.json', '.toml', '.ini', '.xml', '.cfg', '.conf', '.vue',
-  '.svelte', '.astro', '.proto', '.graphql', '.gql', '.cmake', '.bzl', '.bazel',
+  '.svelte', '.astro', '.proto', '.graphql', '.gql', '.cmake', '.dockerfile', '.makefile', '.bzl', '.bazel',
   '.star', '.nix', '.dart', '.scala', '.sc', '.groovy', '.gradle', '.gvy', '.r',
   '.jl', '.hbs', '.handlebars', '.mustache', '.jinja', '.jinja2', '.j2',
   '.django', '.djhtml', '.razor', '.cshtml'
@@ -171,6 +185,7 @@ export const EXTS_CODE = new Set([
 export const CODE_FILENAMES = new Set([
   'dockerfile',
   'makefile',
+  'gnumakefile',
   'cmakelists.txt',
   'build',
   'workspace'
@@ -179,9 +194,15 @@ export const CODE_FILENAMES = new Set([
 const SPECIAL_CODE_EXTS = new Map([
   ['dockerfile', '.dockerfile'],
   ['makefile', '.makefile'],
+  ['gnumakefile', '.makefile'],
   ['cmakelists.txt', '.cmake'],
   ['build', '.bazel'],
   ['workspace', '.bazel']
+]);
+
+const SPECIAL_CODE_PREFIXES = new Map([
+  ['dockerfile', '.dockerfile'],
+  ['makefile', '.makefile']
 ]);
 
 export const STOP = new Set([
@@ -364,7 +385,11 @@ export const isShell = (ext) => SHELL_EXTS.has(ext);
  * @param {string} name
  * @returns {boolean}
  */
-export const isSpecialCodeFile = (name) => CODE_FILENAMES.has(String(name || '').toLowerCase());
+export const isSpecialCodeFile = (name) => !!resolveSpecialCodeExt(name);
+
+export const isManifestFile = (name) => MANIFEST_FILES.has(String(name || '').toLowerCase());
+
+export const isLockFile = (name) => LOCK_FILES.has(String(name || '').toLowerCase());
 
 /**
  * Resolve the extension for special code filenames.
@@ -373,5 +398,9 @@ export const isSpecialCodeFile = (name) => CODE_FILENAMES.has(String(name || '')
  */
 export const resolveSpecialCodeExt = (name) => {
   const key = String(name || '').toLowerCase();
-  return SPECIAL_CODE_EXTS.get(key) || null;
+  if (SPECIAL_CODE_EXTS.has(key)) return SPECIAL_CODE_EXTS.get(key);
+  for (const [prefix, ext] of SPECIAL_CODE_PREFIXES.entries()) {
+    if (key === prefix || key.startsWith(`${prefix}.`)) return ext;
+  }
+  return null;
 };

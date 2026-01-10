@@ -102,6 +102,17 @@ export async function writeIndexArtifacts(input) {
     'phrase_ngrams',
     'chargram_postings'
   ]);
+  const formatBytes = (bytes) => {
+    const value = Number(bytes);
+    if (!Number.isFinite(value) || value <= 0) return '0B';
+    if (value < 1024) return `${Math.round(value)}B`;
+    const kb = value / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)}KB`;
+    const mb = kb / 1024;
+    if (mb < 1024) return `${mb.toFixed(1)}MB`;
+    const gb = mb / 1024;
+    return `${gb.toFixed(1)}GB`;
+  };
 
   const fileMeta = [];
   const fileIdByPath = new Map();
@@ -280,8 +291,8 @@ export async function writeIndexArtifacts(input) {
         chunkMetaUseShards = chunkMetaCount > chunkMetaShardSize;
         const chunkMetaMode = chunkMetaUseShards ? 'jsonl-sharded' : 'jsonl';
         log(
-          `Chunk metadata is large (~${Math.round(estimatedBytes / (1024 * 1024))}MB); ` +
-          `using ${chunkMetaMode} to stay under ${Math.round(maxJsonBytes / (1024 * 1024))}MB.`
+          `Chunk metadata estimate ~${formatBytes(estimatedBytes)}; ` +
+          `using ${chunkMetaMode} to stay under ${formatBytes(maxJsonBytes)}.`
         );
       }
     }
@@ -316,8 +327,8 @@ export async function writeIndexArtifacts(input) {
       const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));
       tokenPostingsShardSize = Math.min(tokenPostingsShardSize, targetShardSize);
       log(
-        `Token postings are large (~${Math.round(tokenPostingsEstimate.estimatedBytes / (1024 * 1024))}MB); ` +
-        `using sharded output to stay under ${Math.round(maxJsonBytes / (1024 * 1024))}MB.`
+        `Token postings estimate ~${formatBytes(tokenPostingsEstimate.estimatedBytes)}; ` +
+        `using sharded output to stay under ${formatBytes(maxJsonBytes)}.`
       );
     } else if (tokenPostingsUseShards) {
       const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));

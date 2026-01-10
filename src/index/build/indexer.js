@@ -289,20 +289,8 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     ngrams: 0,
     chargrams: 0
   };
-  const checkpoint = createBuildCheckpoint({
-    buildRoot: runtime.buildRoot,
-    mode,
-    totalFiles: allEntries.length
-  });
-  const progress = {
-    total: allEntries.length,
-    count: 0,
-    tick() {
-      this.count += 1;
-      showProgress('Files', this.count, this.total);
-      checkpoint.tick();
-    }
-  };
+  let checkpoint = null;
+  let progress = null;
   const indexingConfig = runtime.userConfig?.indexing || {};
   const tokenModeRaw = indexingConfig.chunkTokenMode || 'auto';
   const tokenMode = ['auto', 'full', 'sample', 'none'].includes(tokenModeRaw)
@@ -362,6 +350,18 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     if (result.fileRelations) {
       stateRef.fileRelations.set(result.relKey, result.fileRelations);
     }
+  };
+  const resolveCheckpointBatchSize = (totalFiles, shardPlan) => {
+    if (!Number.isFinite(totalFiles) || totalFiles <= 0) return 10;
+    const minBatch = 10;
+    const maxBatch = 250;
+    if (Array.isArray(shardPlan) && shardPlan.length) {
+      const perShard = Math.max(1, Math.ceil(totalFiles / shardPlan.length));
+      const target = Math.ceil(perShard / 10);
+      return Math.max(minBatch, Math.min(maxBatch, target));
+    }
+    const target = Math.ceil(totalFiles / 200);
+    return Math.max(minBatch, Math.min(maxBatch, target));
   };
   const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurrency, embeddingConcurrency }) => {
     const ioConcurrency = Math.max(fileConcurrency, importConcurrency);
@@ -527,6 +527,22 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
       ? { enabled: true, updatedAt, plan: shardSummary }
       : { enabled: false, updatedAt };
   }
+  const checkpointBatchSize = resolveCheckpointBatchSize(allEntries.length, shardPlan);
+  checkpoint = createBuildCheckpoint({
+    buildRoot: runtime.buildRoot,
+    mode,
+    totalFiles: allEntries.length,
+    batchSize: checkpointBatchSize
+  });
+  progress = {
+    total: allEntries.length,
+    count: 0,
+    tick() {
+      this.count += 1;
+      showProgress('Files', this.count, this.total);
+      checkpoint.tick();
+    }
+  };
   if (shardPlan && shardPlan.length > 1) {
     const shardExecutionPlan = [...shardPlan].sort((a, b) => {
       const costDelta = (b.costMs || 0) - (a.costMs || 0);

@@ -237,8 +237,20 @@ export function applyAdaptiveDictConfig(dictConfig, fileCount) {
  */
 export function getRepoId(repoRoot) {
   const resolved = path.resolve(repoRoot);
-  return crypto.createHash('sha1').update(resolved).digest('hex');
+  const base = path.basename(resolved);
+  const normalized = String(base || 'repo')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const prefix = (normalized || 'repo').slice(0, 24);
+  const hash = crypto.createHash('sha1').update(resolved).digest('hex').slice(0, 12);
+  return `${prefix}-${hash}`;
 }
+
+const getLegacyRepoId = (repoRoot) => {
+  const resolved = path.resolve(repoRoot);
+  return crypto.createHash('sha1').update(resolved).digest('hex');
+};
 
 /**
  * Resolve the repo root from a starting directory.
@@ -290,7 +302,10 @@ export function getRepoCacheRoot(repoRoot, userConfig = null) {
   const envConfig = getEnvConfig();
   const cacheRoot = (cfg.cache && cfg.cache.root) || envConfig.cacheRoot || getCacheRoot();
   const repoId = getRepoId(repoRoot);
-  return path.join(cacheRoot, 'repos', repoId);
+  const repoCacheRoot = path.join(cacheRoot, 'repos', repoId);
+  const legacyRoot = path.join(cacheRoot, 'repos', getLegacyRepoId(repoRoot));
+  if (fs.existsSync(legacyRoot) && !fs.existsSync(repoCacheRoot)) return legacyRoot;
+  return repoCacheRoot;
 }
 
 /**
@@ -718,6 +733,8 @@ export async function getDictionaryPaths(repoRoot, dictConfig = null) {
   if (config.enableRepoDictionary) {
     const repoDict = getRepoDictPath(repoRoot, config);
     if (fs.existsSync(repoDict)) paths.push(repoDict);
+    const legacyRepoDict = path.join(config.dir, 'repos', `${getLegacyRepoId(repoRoot)}.txt`);
+    if (fs.existsSync(legacyRepoDict)) paths.push(legacyRepoDict);
   }
 
   if (!paths.length) {

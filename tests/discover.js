@@ -31,6 +31,8 @@ runGit(['config', 'user.name', 'Tests']);
 
 await fs.writeFile(path.join(tempRoot, 'src', 'app.js'), 'console.log("hi")\n');
 await fs.writeFile(path.join(tempRoot, 'docs', 'readme.md'), '# Hello\n');
+await fs.writeFile(path.join(tempRoot, 'Dockerfile.dev'), 'FROM node:20\n');
+await fs.writeFile(path.join(tempRoot, 'Makefile.in'), 'build:\n\t@echo ok\n');
 runGit(['add', '.']);
 runGit(['commit', '-m', 'init']);
 
@@ -48,6 +50,8 @@ const codeEntries = await discoverFiles({
 });
 const codeRel = codeEntries.map((entry) => entry.rel);
 assert.ok(codeRel.includes('src/app.js'), 'tracked code file missing');
+assert.ok(codeRel.includes('Dockerfile.dev'), 'Dockerfile variant missing');
+assert.ok(codeRel.includes('Makefile.in'), 'Makefile variant missing');
 assert.ok(!codeRel.includes('src/untracked.js'), 'untracked file should not be discovered');
 assert.ok(codeEntries[0].stat && typeof codeEntries[0].stat.size === 'number', 'stat missing');
 
