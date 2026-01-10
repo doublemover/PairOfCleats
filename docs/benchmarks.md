@@ -4,6 +4,12 @@ This project has two layers of benchmarking:
 - Microbenchmarks for fast component-level timing.
 - Language benchmarks for full-size repo comparisons.
 
+## Query generation
+
+Use `npm run bench-queries` to generate a deterministic query suite from the
+current index metadata. The generator writes to `benchmarks/queries/` by default
+and accepts `--mode`, `--count`, and `--seed` for reproducibility.
+
 ## Microbench suite
 
 Run the microbench suite with:

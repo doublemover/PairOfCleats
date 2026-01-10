@@ -79,6 +79,7 @@
     "bench-micro": "node tools/bench/micro/run.js",
     "bench-language": "node tools/bench-language-repos.js",
     "bench-language:matrix": "node tools/bench-language-matrix.js",
+    "bench-queries": "node tools/bench-query-generator.js",
     "shard-census": "node tools/shard-census.js",
     "bench-language-test": "node tests/bench-language-repos.js",
     "bench-language-lock-test": "node tests/bench-language-lock.js",

@@ -462,16 +462,16 @@ The current regex-based “sources × sinks” cartesian product is a useful bas
 - `lru-cache` — query-result caching (per query plan signature); enforce size/TTL to prevent runaway memory.
 - `msgpackr` — persist query plans and explain traces for debugging/benchmark replay.
 
-- [ ] Define `docs/search-contract.md`:
-  - [ ] ranking components and weights
-  - [ ] filter semantics and precedence rules
-  - [ ] how multi-mode results are fused (RRF rules)
-  - [ ] how metadata fields impact scoring and filtering
-- [ ] Implement a single explain schema across backends:
-  - [ ] lexical score components
-  - [ ] semantic score components
-  - [ ] filter decisions
-  - [ ] metadata boosts
+- [x] Define `docs/search-contract.md`:
+  - [x] ranking components and weights
+  - [x] filter semantics and precedence rules
+  - [x] how multi-mode results are fused (RRF rules)
+  - [x] how metadata fields impact scoring and filtering
+- [x] Implement a single explain schema across backends:
+  - [x] lexical score components
+  - [x] semantic score components
+  - [x] filter decisions
+  - [x] metadata boosts
 
 ## 5.2 Backend parity as a gate (memory vs sqlite vs sqlite-fts)
 
@@ -479,24 +479,24 @@ The current regex-based “sources × sinks” cartesian product is a useful bas
 - `better-sqlite3` — SQLite backend parity testing: ensure identical semantics vs in-memory index.
 - `lmdb` (optional) — if introduced as an alternate backend, add parity tests against SQLite and in-memory.
 
-- [ ] Define parity thresholds (concrete defaults; `K=5`):
-  - [ ] Gate policy (concrete default):
-    - [ ] memory vs sqlite: **blocking** (fails CI)
-    - [ ] memory vs sqlite-fts: **non-blocking warning** (until the backend is promoted from experimental)
-  - [ ] Parity scoring rule (concrete default):
-    - [ ] if both backends return **0 hits** for a given query+mode, treat `overlap@K = 1.0` and exclude that query+mode from `rankCorr` averaging
-  - [ ] memory vs sqlite (primary backend; blocking):
-    - [ ] `overlap@5` average **≥ 0.95** (code and prose evaluated separately)
-    - [ ] Spearman `rankCorr` average **≥ 0.90**
-    - [ ] `avgDelta` average **≤ 0.10**
-    - [ ] no single query with `overlap@5 < 0.60`
-  - [ ] memory vs sqlite-fts (experimental backend; warning-only):
-    - [ ] `overlap@5` average **≥ 0.70**
-    - [ ] Spearman `rankCorr` average **≥ 0.55**
-    - [ ] `avgDelta` average **≤ 0.50**
-- [ ] Create parity debug tooling:
-  - [ ] compare component-level scoring
-  - [ ] diff filters and metadata interpretation
+- [x] Define parity thresholds (concrete defaults; `K=5`):
+  - [x] Gate policy (concrete default):
+    - [x] memory vs sqlite: **blocking** (fails CI)
+    - [x] memory vs sqlite-fts: **non-blocking warning** (until the backend is promoted from experimental)
+  - [x] Parity scoring rule (concrete default):
+    - [x] if both backends return **0 hits** for a given query+mode, treat `overlap@K = 1.0` and exclude that query+mode from `rankCorr` averaging
+  - [x] memory vs sqlite (primary backend; blocking):
+    - [x] `overlap@5` average **≥ 0.95** (code and prose evaluated separately)
+    - [x] Spearman `rankCorr` average **≥ 0.90**
+    - [x] `avgDelta` average **≤ 0.10**
+    - [x] no single query with `overlap@5 < 0.60`
+  - [x] memory vs sqlite-fts (experimental backend; warning-only):
+    - [x] `overlap@5` average **≥ 0.70**
+    - [x] Spearman `rankCorr` average **≥ 0.55**
+    - [x] `avgDelta` average **≤ 0.50**
+- [x] Create parity debug tooling:
+  - [x] compare component-level scoring
+  - [x] diff filters and metadata interpretation
 
 ## 5.3 **Index evaluator + benchmark query generator** (new)
 
@@ -509,39 +509,39 @@ The current regex-based “sources × sinks” cartesian product is a useful bas
 
 This is the requested capability.
 
-- [ ] Implement `tools/index-bench-suite.js` (name illustrative):
+- [x] Implement `tools/index-bench-suite.js` (name illustrative):
   - Inputs:
-    - [ ] index path (or repoRoot)
-    - [ ] number of queries (10–1000)
-    - [ ] random seed
-    - [ ] coverage targets (ensure flags are exercised)
+    - [x] index path (or repoRoot)
+    - [x] number of queries (10–1000)
+    - [x] random seed
+    - [x] coverage targets (ensure flags are exercised)
   - Index analysis step:
-    - [ ] sample symbols by language/kind
-    - [ ] sample files by ext/size
-    - [ ] sample metadata values (decorators, risk tags, types, visibility, imports)
+    - [x] sample symbols by language/kind
+    - [x] sample files by ext/size
+    - [x] sample metadata values (decorators, risk tags, types, visibility, imports)
   - Query generation step:
-    - [ ] generate a mixed set:
-      - [ ] “name lookup” queries (symbol exact-ish)
-      - [ ] “natural language” queries
-      - [ ] filters-heavy queries exercising flags:
-        - [ ] `--lang`, `--ext`, `--file`, `--kind`
-        - [ ] `--calls`, `--uses`, `--reads`, `--writes`, `--mutates`, `--awaits`
-        - [ ] `--decorator`, `--signature`, `--param`, `--return-type`, `--inferred-type`
-        - [ ] `--risk`, `--min-risk-score` (or equivalent), flow existence filters
-        - [ ] `--modified-after`, `--author`, churn filters (where available)
-      - [ ] backend toggles:
-        - [ ] memory vs sqlite vs sqlite-fts
-        - [ ] ann on/off
-        - [ ] rrf/mrr/mmr toggles where available
-    - [ ] ensure at least `N = max(10, ceil(0.25 * queryCount))` queries include **multiple flags simultaneously**
+    - [x] generate a mixed set:
+      - [x] “name lookup” queries (symbol exact-ish)
+      - [x] “natural language” queries
+      - [x] filters-heavy queries exercising flags:
+        - [x] `--lang`, `--ext`, `--file`, `--kind`
+        - [x] `--calls`, `--uses`, `--reads`, `--writes`, `--mutates`, `--awaits`
+        - [x] `--decorator`, `--signature`, `--param`, `--return-type`, `--inferred-type`
+        - [x] `--risk`, `--min-risk-score` (or equivalent), flow existence filters
+        - [x] `--modified-after`, `--author`, churn filters (where available)
+      - [x] backend toggles:
+        - [x] memory vs sqlite vs sqlite-fts
+        - [x] ann on/off
+        - [x] rrf/mrr/mmr toggles where available
+    - [x] ensure at least `N = max(10, ceil(0.25 * queryCount))` queries include **multiple flags simultaneously**
   - Execution step:
-    - [ ] run the search CLI/core search with each query
-    - [ ] capture latency, candidate counts, and topK stability
+    - [x] run the search CLI/core search with each query
+    - [x] capture latency, candidate counts, and topK stability
   - Report step:
-    - [ ] JSON report + optional markdown summary
-    - [ ] per-flag coverage report (“did we exercise X?”)
+    - [x] JSON report + optional markdown summary
+    - [x] per-flag coverage report (“did we exercise X?”)
 
-- [ ] Integrate into CI (smoke-level) and perf pipelines (tiered).
+- [x] Integrate into CI (smoke-level) and perf pipelines (tiered).
 
 **Deliverables**
 - `docs/search-contract.md`
