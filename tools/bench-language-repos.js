@@ -124,12 +124,20 @@ const cacheConfig = { cache: { root: cacheRoot } };
 const shardByLabel = new Map();
 const activeShards = new Map();
 const activeShardWindowMs = 5000;
+const isBenchProfile = (value) => {
+  if (!value) return false;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized === 'bench' || normalized.startsWith('bench-');
+};
 const indexProfileRaw = typeof argv['index-profile'] === 'string'
   ? argv['index-profile'].trim()
   : '';
-const indexProfile = argv['no-index-profile'] === true
-  ? ''
-  : (indexProfileRaw || 'bench-index');
+const defaultHeavyProfile = 'full';
+const resolvedProfile = indexProfileRaw && !isBenchProfile(indexProfileRaw)
+  ? indexProfileRaw
+  : defaultHeavyProfile;
+const indexProfile = argv['no-index-profile'] === true ? '' : resolvedProfile;
 const suppressProfileEnv = argv['no-index-profile'] === true;
 const lockMode = normalizeLockMode(
   argv['lock-mode']
@@ -1493,7 +1501,7 @@ for (const task of tasks) {
     outFile
   ];
   if (indexProfile) benchArgs.push('--index-profile', indexProfile);
-  if (argv['real-embeddings']) benchArgs.push('--real-embeddings');
+  benchArgs.push('--real-embeddings');
   if (argv.build) {
     benchArgs.push('--build');
   } else {
@@ -1501,7 +1509,9 @@ for (const task of tasks) {
     if (argv['build-sqlite'] || autoBuildSqlite) benchArgs.push('--build-sqlite');
   }
   if (argv.incremental) benchArgs.push('--incremental');
-  if (argv['stub-embeddings']) benchArgs.push('--stub-embeddings');
+  if (argv['stub-embeddings']) {
+    appendLog('[bench] Stub embeddings requested; ignored for heavy language benchmarks.');
+  }
   if (argv.ann) benchArgs.push('--ann');
   if (argv['no-ann']) benchArgs.push('--no-ann');
   if (argv.backend) benchArgs.push('--backend', String(argv.backend));
