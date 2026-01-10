@@ -815,13 +815,13 @@ For each new language or container format:
 - [x] Remove deprecated schema paths once migrations are complete
 
 **Deliverables**
-- language onboarding playbook
-- expanded language and mixed-file coverage
-- simplified architecture and reduced defect surface
+- [x] language onboarding playbook
+- [x] expanded language and mixed-file coverage
+- [x] simplified architecture and reduced defect surface
 
 **Exit criteria**
-- New languages can be added with predictable steps, tests, and guardrails.
-- Maintenance burden decreases while coverage increases.
+- [x] New languages can be added with predictable steps, tests, and guardrails.
+- [x] Maintenance burden decreases while coverage increases.
 
 ---
 
