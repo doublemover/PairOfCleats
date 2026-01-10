@@ -666,16 +666,16 @@ Within the limits of web-tree-sitter + tree-sitter-wasms:
   - [x] automatic fallback to heuristic parsing on slow files
 
 **Deliverables**
-- perf profile artifact + cost-model sharder
-- Windows worker pool reliability gate
-- reduced redundant passes and pipelined indexing where beneficial
-- tree-sitter traversal optimizations + additional wasm grammars
-- benchmark comparisons showing throughput improvements
+- [x] perf profile artifact + cost-model sharder
+- [x] Windows worker pool reliability gate
+- [x] reduced redundant passes and pipelined indexing where beneficial
+- [x] tree-sitter traversal optimizations + additional wasm grammars
+- [x] benchmark comparisons showing throughput improvements
 
 **Exit criteria**
-- Shards finish in near-equal wall time on benchmark repos (reduced straggler effect).
-- Worker pool does not fail on Windows across stress runs.
-- Measured throughput improves without violating correctness gates.
+- [x] Shards finish in near-equal wall time on benchmark repos (reduced straggler effect).
+- [x] Worker pool does not fail on Windows across stress runs.
+- [x] Measured throughput improves without violating correctness gates.
 
 ---
 
