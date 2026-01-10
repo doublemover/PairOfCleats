@@ -183,7 +183,7 @@
     "hdr-histogram-js": "^3.0.1",
     "hnswlib-node": "^3.0.0",
     "iconv-lite": "^0.7.2",
-    "ignore": "5.3.2",
+    "ignore": "7.0.5",
     "istextorbinary": "^9.5.0",
     "jsdoc-type-pratt-parser": "^7.0.0",
     "jsonc-parser": "^3.3.1",
