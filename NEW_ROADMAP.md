@@ -544,14 +544,14 @@ This is the requested capability.
 - [x] Integrate into CI (smoke-level) and perf pipelines (tiered).
 
 **Deliverables**
-- `docs/search-contract.md`
-- unified explain schema and parity tools
-- index benchmark suite generator + runner + reports
-- CI gate that runs a small benchmark suite on fixtures
+- [x] `docs/search-contract.md`
+- [x] unified explain schema and parity tools
+- [x] index benchmark suite generator + runner + reports
+- [x] CI gate that runs a small benchmark suite on fixtures
 
 **Exit criteria**
-- Search parity gates are green for fixtures.
-- Benchmark suite can generate and run 10–100+ flag-rich queries and produce a report deterministically.
+- [x] Search parity gates are green for fixtures.
+- [x] Benchmark suite can generate and run 10–100+ flag-rich queries and produce a report deterministically.
 
 ---
 
