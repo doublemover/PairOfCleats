@@ -705,7 +705,8 @@ export function createFileProcessor(options) {
       const tokenBuffers = createTokenizationBuffers();
       const codeTexts = embeddingEnabled ? [] : null;
       const docTexts = embeddingEnabled ? [] : null;
-      const useWorkerForTokens = !tokenWorkerDisabled
+      const useWorkerForTokens = tokenMode === 'code'
+        && !tokenWorkerDisabled
         && workerPool
         && workerPool.shouldUseForFile
         ? workerPool.shouldUseForFile(fileStat.size)
