@@ -36,6 +36,7 @@ import { buildJavaChunks } from '../lang/java.js';
 import { buildPerlChunks } from '../lang/perl.js';
 import { buildShellChunks } from '../lang/shell.js';
 import { buildLineIndex } from '../shared/lines.js';
+import { buildTreeSitterChunks } from '../lang/tree-sitter.js';
 
 function buildChunksFromMatches(text, matches, titleTransform) {
   const chunks = [];
@@ -76,7 +77,16 @@ function buildChunksFromLineHeadings(text, headings) {
   return chunks;
 }
 
-export function chunkMarkdown(text) {
+export function chunkMarkdown(text, ext, context) {
+  if (context?.treeSitter?.configChunking === true) {
+    const treeChunks = buildTreeSitterChunks({
+      text,
+      languageId: 'markdown',
+      ext: ext || '.md',
+      options: getTreeSitterOptions(context)
+    });
+    if (treeChunks && treeChunks.length) return treeChunks;
+  }
   const matches = [...text.matchAll(/^#{1,6} .+$/gm)];
   return buildChunksFromMatches(text, matches, (raw) => raw.replace(/^#+ /, '').trim());
 }
@@ -123,7 +133,16 @@ function parseJsonString(text, start) {
   return null;
 }
 
-export function chunkJson(text) {
+export function chunkJson(text, context) {
+  if (context?.treeSitter?.configChunking === true) {
+    const treeChunks = buildTreeSitterChunks({
+      text,
+      languageId: 'json',
+      ext: '.json',
+      options: getTreeSitterOptions(context)
+    });
+    if (treeChunks && treeChunks.length) return treeChunks;
+  }
   let parsed;
   try {
     parsed = JSON.parse(text);
@@ -170,7 +189,16 @@ export function chunkJson(text) {
   return chunks;
 }
 
-export function chunkIniToml(text, format = 'ini') {
+export function chunkIniToml(text, format = 'ini', context) {
+  if (format === 'toml' && context?.treeSitter?.configChunking === true) {
+    const treeChunks = buildTreeSitterChunks({
+      text,
+      languageId: 'toml',
+      ext: '.toml',
+      options: getTreeSitterOptions(context)
+    });
+    if (treeChunks && treeChunks.length) return treeChunks;
+  }
   const lines = text.split('\n');
   const headings = [];
   for (let i = 0; i < lines.length; ++i) {
@@ -330,8 +358,10 @@ function resolveYamlChunkMode(text, context) {
   const mode = ['auto', 'root', 'top-level'].includes(modeRaw) ? modeRaw : 'root';
   const maxBytesRaw = Number(config.maxBytes);
   const maxBytes = Number.isFinite(maxBytesRaw) ? Math.max(0, Math.floor(maxBytesRaw)) : 200 * 1024;
+  const textBytes = Buffer.byteLength(text, 'utf8');
+  if (mode === 'top-level' && textBytes > maxBytes) return 'root';
   if (mode === 'auto') {
-    return text.length <= maxBytes ? 'top-level' : 'root';
+    return textBytes <= maxBytes ? 'top-level' : 'root';
   }
   return mode;
 }
@@ -339,6 +369,15 @@ function resolveYamlChunkMode(text, context) {
 export function chunkYaml(text, relPath, context) {
   const isWorkflow = relPath ? relPath.replace(/\\\\/g, '/').includes('.github/workflows/') : false;
   if (isWorkflow) return chunkGitHubActions(text);
+  if (context?.treeSitter?.configChunking === true) {
+    const treeChunks = buildTreeSitterChunks({
+      text,
+      languageId: 'yaml',
+      ext: '.yaml',
+      options: getTreeSitterOptions(context)
+    });
+    if (treeChunks && treeChunks.length) return treeChunks;
+  }
   const mode = resolveYamlChunkMode(text, context);
   if (mode === 'top-level') {
     const chunks = chunkYamlTopLevel(text);
@@ -354,17 +393,27 @@ const getTreeSitterOptions = (context) => (
 );
 
 const CODE_CHUNKERS = [
-  { id: 'javascript', match: (ext) => isJsLike(ext), chunk: ({ text, ext, context }) =>
-    buildJsChunks(text, {
+  { id: 'javascript', match: (ext) => isJsLike(ext), chunk: ({ text, ext, context }) => {
+    if (context?.jsChunks) return context.jsChunks;
+    return buildJsChunks(text, {
       ext,
       ast: context?.jsAst,
       javascript: context?.javascript,
-      flowMode: context?.javascript?.flow
-    }) },
+      flowMode: context?.javascript?.flow,
+      treeSitter: context?.treeSitter,
+      log: context?.log
+    });
+  } },
   { id: 'typescript', match: (ext) => isTypeScript(ext), chunk: ({ text, ext, relPath, context }) => {
     if (context?.tsChunks) return context.tsChunks;
     const parser = context?.typescript?.importsOnly ? 'heuristic' : context?.typescript?.parser;
-    return buildTypeScriptChunks(text, { ext, relPath, parser });
+    return buildTypeScriptChunks(text, {
+      ext,
+      relPath,
+      parser,
+      treeSitter: context?.treeSitter,
+      log: context?.log
+    });
   } },
   { id: 'html', match: (ext) => isHtml(ext), chunk: ({ text, context }) =>
     context?.htmlChunks || buildHtmlChunks(text, getTreeSitterOptions(context)) },
@@ -372,7 +421,11 @@ const CODE_CHUNKERS = [
     context?.cssChunks || buildCssChunks(text) },
   { id: 'python', match: (ext) => ext === '.py', chunk: ({ text, context }) => {
     const astChunks = buildPythonChunksFromAst(text, context?.pythonAst || null);
-    return (astChunks && astChunks.length) ? astChunks : buildPythonHeuristicChunks(text);
+    if (astChunks && astChunks.length) return astChunks;
+    if (context?.pythonTreeChunks && context.pythonTreeChunks.length) {
+      return context.pythonTreeChunks;
+    }
+    return buildPythonHeuristicChunks(text);
   } },
   { id: 'swift', match: (ext) => ext === '.swift', chunk: ({ text, context }) => context?.swiftChunks || buildSwiftChunks(text, getTreeSitterOptions(context)) },
   { id: 'clike', match: (ext) => isCLike(ext), chunk: ({ text, ext, context }) => context?.clikeChunks || buildCLikeChunks(text, ext, getTreeSitterOptions(context)) },
@@ -390,11 +443,11 @@ const CODE_CHUNKERS = [
 ];
 
 const CODE_FORMAT_CHUNKERS = [
-  { id: 'json', match: (ext) => ext === '.json', chunk: ({ text }) => chunkJson(text) },
+  { id: 'json', match: (ext) => ext === '.json', chunk: ({ text, context }) => chunkJson(text, context) },
   {
     id: 'ini',
     match: (ext) => ['.toml', '.ini', '.cfg', '.conf'].includes(ext),
-    chunk: ({ text, ext }) => chunkIniToml(text, ext === '.toml' ? 'toml' : 'ini')
+    chunk: ({ text, ext, context }) => chunkIniToml(text, ext === '.toml' ? 'toml' : 'ini', context)
   },
   { id: 'xml', match: (ext) => ext === '.xml', chunk: ({ text }) => chunkXml(text) },
   { id: 'dockerfile', match: (ext) => ext === '.dockerfile', chunk: ({ text }) => chunkDockerfile(text) },
@@ -403,7 +456,7 @@ const CODE_FORMAT_CHUNKERS = [
 ];
 
 const PROSE_CHUNKERS = [
-  { id: 'markdown', match: (ext) => ext === '.md' || ext === '.mdx', chunk: ({ text }) => chunkMarkdown(text) },
+  { id: 'markdown', match: (ext) => ext === '.md' || ext === '.mdx', chunk: ({ text, ext, context }) => chunkMarkdown(text, ext, context) },
   { id: 'rst', match: (ext) => ext === '.rst', chunk: ({ text }) => chunkRst(text) },
   { id: 'asciidoc', match: (ext) => ext === '.adoc' || ext === '.asciidoc', chunk: ({ text }) => chunkAsciiDoc(text) }
 ];

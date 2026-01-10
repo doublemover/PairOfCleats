@@ -210,3 +210,44 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
     }
   };
 }
+
+export function buildImportLinksFromRelations(fileRelations) {
+  if (!fileRelations || typeof fileRelations.entries !== 'function') {
+    return { allImports: {}, stats: { modules: 0, edges: 0, files: 0, scanned: 0 } };
+  }
+  const moduleMap = new Map();
+  let filesWithImports = 0;
+  let scanned = 0;
+  for (const [file, relations] of fileRelations.entries()) {
+    scanned += 1;
+    const imports = Array.isArray(relations?.imports) ? relations.imports : [];
+    if (imports.length) filesWithImports += 1;
+    for (const mod of imports) {
+      if (!moduleMap.has(mod)) moduleMap.set(mod, new Set());
+      moduleMap.get(mod).add(file);
+    }
+  }
+  const dedupedImports = {};
+  let edgeCount = 0;
+  for (const [mod, files] of moduleMap.entries()) {
+    dedupedImports[mod] = Array.from(files);
+    edgeCount += files.size;
+  }
+  for (const [file, relations] of fileRelations.entries()) {
+    const imports = Array.isArray(relations?.imports) ? relations.imports : [];
+    const importLinks = imports
+      .map((imp) => dedupedImports[imp])
+      .filter(Boolean)
+      .flat();
+    fileRelations.set(file, { ...relations, importLinks });
+  }
+  return {
+    allImports: dedupedImports,
+    stats: {
+      modules: moduleMap.size,
+      edges: edgeCount,
+      files: filesWithImports,
+      scanned
+    }
+  };
+}

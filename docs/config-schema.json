@@ -254,6 +254,7 @@
       "properties": {
         "concurrency": { "type": "number" },
         "importConcurrency": { "type": "number" },
+        "importScan": { "type": ["string", "boolean"] },
         "maxFileBytes": { "type": ["number", "boolean"] },
         "fileCaps": {
           "type": "object",
@@ -367,6 +368,7 @@
             "enabled": { "type": "boolean" },
             "workerCount": { "type": "number" },
             "maxWorkers": { "type": "number" },
+            "allowOverCap": { "type": "boolean" },
             "scaleUpQueueMs": { "type": "number" },
             "taskTimeoutMs": { "type": "number" },
             "maxRetries": { "type": "number" }
@@ -435,7 +437,9 @@
               "maxWorkers": { "type": "number" },
               "maxShards": { "type": "number" },
               "minFiles": { "type": "number" },
-              "dirDepth": { "type": "number" }
+              "dirDepth": { "type": "number" },
+              "maxShardBytes": { "type": "number" },
+              "maxShardLines": { "type": "number" }
             }
           },
           "chunkTokenMode": { "type": "string", "enum": ["auto", "full", "sample", "none"] },
@@ -469,12 +473,37 @@
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": ["boolean", "string"] },
+            "configChunking": { "type": "boolean" },
             "maxBytes": { "type": "number" },
             "maxLines": { "type": "number" },
+            "maxParseMs": { "type": "number" },
+            "preload": { "type": ["string", "boolean"] },
+            "preloadConcurrency": { "type": "number" },
+            "byLanguage": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "maxBytes": { "type": "number" },
+                  "maxLines": { "type": "number" },
+                  "maxParseMs": { "type": "number" }
+                }
+              }
+            },
             "languages": {
               "type": "object",
               "additionalProperties": { "type": "boolean" },
               "properties": {
+                "javascript": { "type": "boolean" },
+                "typescript": { "type": "boolean" },
+                "tsx": { "type": "boolean" },
+                "jsx": { "type": "boolean" },
+                "python": { "type": "boolean" },
+                "json": { "type": "boolean" },
+                "yaml": { "type": "boolean" },
+                "toml": { "type": "boolean" },
+                "markdown": { "type": "boolean" },
                 "swift": { "type": "boolean" },
                 "kotlin": { "type": "boolean" },
                 "csharp": { "type": "boolean" },
@@ -483,7 +512,19 @@
                 "objc": { "type": "boolean" },
                 "go": { "type": "boolean" },
                 "rust": { "type": "boolean" },
-                "java": { "type": "boolean" }
+                "java": { "type": "boolean" },
+                "css": { "type": "boolean" },
+                "html": { "type": "boolean" }
+              }
+            },
+            "worker": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "maxWorkers": { "type": "number" },
+                "idleTimeoutMs": { "type": "number" },
+                "taskTimeoutMs": { "type": "number" }
               }
             }
           }
@@ -494,10 +535,14 @@
           "properties": {
             "enabled": { "type": ["boolean", "string"] },
             "maxWorkers": { "type": "number" },
+            "allowOverCap": { "type": "boolean" },
             "maxFileBytes": { "type": "number" },
             "idleTimeoutMs": { "type": "number" },
             "taskTimeoutMs": { "type": "number" },
-            "quantizeBatchSize": { "type": "number" }
+            "quantizeBatchSize": { "type": "number" },
+            "splitByTask": { "type": "boolean" },
+            "splitTasks": { "type": "boolean" },
+            "quantizeMaxWorkers": { "type": "number" }
           }
         },
         "riskAnalysis": { "type": "boolean" },

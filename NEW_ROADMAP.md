@@ -567,25 +567,25 @@ This is the requested capability.
 - `hdr-histogram-js` — maintain per-language/per-extension throughput distributions to inform shard planning.
 
 ### 6.1.1 Collect throughput metrics
-- [ ] During builds, record per-language performance:
-  - [ ] files/sec, lines/sec, bytes/sec
-  - [ ] parse time (chunking + relations)
-  - [ ] tokenization time
-  - [ ] stage2/3/x enrichment time
-- [ ] Persist a “perf profile” artifact:
-  - [ ] per language + file-size bucket cost model
-  - [ ] versioned and tied to config hash
+- [x] During builds, record per-language performance:
+  - [x] files/sec, lines/sec, bytes/sec
+  - [x] parse time (chunking + relations)
+  - [x] tokenization time
+  - [x] stage2/3/x enrichment time
+- [x] Persist a “perf profile” artifact:
+  - [x] per language + file-size bucket cost model
+  - [x] versioned and tied to config hash
 
 ### 6.1.2 Shard planning with a cost model
-- [ ] Replace line-count-only shard sizing with estimated time cost:
-  - [ ] cost(file) = overhead(lang) + bytes * byteCost(lang) + lines * lineCost(lang)
-  - [ ] modifiers for enabled features (relations/flow/tree-sitter/tooling)
-- [ ] Implement bin-packing / greedy balancing to minimize shard makespan
-- [ ] Support constraints:
-  - [ ] preserve directory locality (optional; default: off; for cache locality)
-  - [ ] cap max shard size by bytes/lines (defaults): **maxShardBytes = 64 MiB**, **maxShardLines = 200,000**
-- [ ] At runtime:
-  - [ ] adaptively rebalance when early shards show different throughput than predicted
+- [x] Replace line-count-only shard sizing with estimated time cost:
+  - [x] cost(file) = overhead(lang) + bytes * byteCost(lang) + lines * lineCost(lang)
+  - [x] modifiers for enabled features (relations/flow/tree-sitter/tooling)
+- [x] Implement bin-packing / greedy balancing to minimize shard makespan
+- [x] Support constraints:
+  - [x] preserve directory locality (optional; default: off; for cache locality)
+  - [x] cap max shard size by bytes/lines (defaults): **maxShardBytes = 64 MiB**, **maxShardLines = 200,000**
+- [x] At runtime:
+  - [x] adaptively rebalance when early shards show different throughput than predicted
 
 ## 6.2 Worker pool correctness + Windows reliability hard gate
 
@@ -595,24 +595,24 @@ This is the requested capability.
   - Validate Windows paths/URLs for worker entrypoints (`file://` URLs where needed).
 - `pino` — log worker lifecycle events and crashes with shard context; ensure uncaught exceptions are attributed to a shard + stage.
 
-- [ ] Explicitly cap default worker counts (concrete defaults):
-  - [ ] `fileConcurrency = min(cpuCount, 16)` (Windows: `min(cpuCount, 8)`)
-  - [ ] `cpuConcurrency = fileConcurrency` (avoid CPU oversubscription by default)
-  - [ ] `ioConcurrency = min(64, fileConcurrency * 4)` (Windows: `min(32, fileConcurrency * 4)`)
-  - [ ] `workerPool.maxWorkers = min(8, fileConcurrency)` (default), and hard-cap at **16** unless explicitly overridden
-  - [ ] `indexing.pythonAst.maxWorkers = min(4, fileConcurrency)` (default), and hard-cap at **8** unless explicitly overridden
-- [ ] Add Windows-specific CI and stress tests:
-  - [ ] worker pool creation, restart, and shutdown
-  - [ ] long runs with many small tasks
-  - [ ] path length + spaces + unicode paths
-- [ ] Improve worker crash reporting:
-  - [ ] capture error class, message, stack, serialized “cause” chain
-  - [ ] include task context (file, ext, size, mode) on failure
-- [ ] Consider splitting pools by task type:
-  - [ ] tokenization pool
-  - [ ] parsing pool (tree-sitter/Babel/TS)
-  - [ ] quantization pool
-  - [ ] avoid contention and reduce restart blast radius
+- [x] Explicitly cap default worker counts (concrete defaults):
+  - [x] `fileConcurrency = min(cpuCount, 16)` (Windows: `min(cpuCount, 8)`)
+  - [x] `cpuConcurrency = fileConcurrency` (avoid CPU oversubscription by default)
+  - [x] `ioConcurrency = min(64, fileConcurrency * 4)` (Windows: `min(32, fileConcurrency * 4)`)
+  - [x] `workerPool.maxWorkers = min(8, fileConcurrency)` (default), and hard-cap at **16** unless explicitly overridden
+  - [x] `indexing.pythonAst.maxWorkers = min(4, fileConcurrency)` (default), and hard-cap at **8** unless explicitly overridden
+- [x] Add Windows-specific CI and stress tests:
+  - [x] worker pool creation, restart, and shutdown
+  - [x] long runs with many small tasks
+  - [x] path length + spaces + unicode paths
+- [x] Improve worker crash reporting:
+  - [x] capture error class, message, stack, serialized “cause” chain
+  - [x] include task context (file, ext, size, mode) on failure
+- [x] Consider splitting pools by task type:
+  - [x] tokenization pool
+  - [x] parsing pool (tree-sitter/Babel/TS)
+  - [x] quantization pool
+  - [x] avoid contention and reduce restart blast radius
 
 ## 6.3 Parallelism and pipeline refactors (architectural changes allowed)
 
@@ -622,18 +622,18 @@ This is the requested capability.
 - `lru-cache` — cache parse artifacts (AST, token streams, segment maps) within shard lifetime; enforce strict memory budgets.
 - `fflate` — stream intermediate shard writes so workers can flush incrementally rather than buffering.
 
-- [ ] Reduce redundant IO passes:
-  - [ ] integrate import extraction into file processing when feasible
-  - [ ] defer import-link enrichment to a post-pass instead of separate full scan
-- [ ] Stream postings construction:
-  - [ ] avoid holding all chunk texts/tokens in memory at once
-  - [ ] incremental flush of postings shards
-- [ ] Pipeline embeddings with backpressure:
-  - [ ] overlap embedding computation with lexical index build where possible
-  - [ ] control memory via bounded queues (defaults):
-    - [ ] cap pending file-processing tasks at `min(10_000, fileConcurrency * 100)`
-    - [ ] cap pending embedding batches at `min(64, embeddingConcurrency * 8)`
-    - [ ] when caps are hit, producers block (no unbounded Promise arrays)
+- [x] Reduce redundant IO passes:
+  - [x] integrate import extraction into file processing when feasible
+  - [x] defer import-link enrichment to a post-pass instead of separate full scan
+- [x] Stream postings construction:
+  - [x] avoid holding all chunk texts/tokens in memory at once
+  - [x] incremental flush of postings shards
+- [x] Pipeline embeddings with backpressure:
+  - [x] overlap embedding computation with lexical index build where possible
+  - [x] control memory via bounded queues (defaults):
+    - [x] cap pending file-processing tasks at `min(10_000, fileConcurrency * 100)`
+    - [x] cap pending embedding batches at `min(64, embeddingConcurrency * 8)`
+    - [x] when caps are hit, producers block (no unbounded Promise arrays)
 
 ## 6.4 WASM parsing acceleration (tree-sitter)
 
@@ -644,26 +644,26 @@ This is the requested capability.
 
 Within the limits of web-tree-sitter + tree-sitter-wasms:
 
-- [ ] Optimize traversal:
-  - [ ] avoid `node.namedChildren` allocations; use `namedChildCount`/`namedChild(i)` or TreeCursor
-  - [ ] avoid `text.split('\n')` for doc extraction when possible (use line index + windowed scanning)
-- [ ] Preload grammars efficiently:
-  - [ ] keep per-process cache as today, but add an option to preload in parallel after correctness verification
-- [ ] Offload heavy parsing to workers (optional; default: off):
-  - [ ] per-worker wasm init + grammar cache
-  - [ ] measure if this improves throughput vs overhead
-- [ ] Add/enable additional WASM grammars where available:
-  - [ ] JavaScript / TypeScript / TSX / JSX
-  - [ ] Python (chunking fallback to avoid spawning python for stage1)
-  - [ ] JSON / YAML / TOML / Markdown (as available) for segment parsing
-- [ ] Add per-language performance guardrails:
-  - [ ] maxBytes/maxLines gating (defaults):
-    - [ ] tree-sitter: skip if file > **512 KiB** or > **10,000 lines**
-    - [ ] YAML top-level chunking: skip if file > **200 KiB**
-    - [ ] Kotlin flow: skip if file > **200 KiB** or > **3,000 lines**
-    - [ ] Kotlin relations: skip if file > **200 KiB** or > **2,000 lines**
-    - [ ] per-file parse timeout: if parsing exceeds **1000 ms**, fall back to heuristic chunking for that file
-  - [ ] automatic fallback to heuristic parsing on slow files
+- [x] Optimize traversal:
+  - [x] avoid `node.namedChildren` allocations; use `namedChildCount`/`namedChild(i)` or TreeCursor
+  - [x] avoid `text.split('\n')` for doc extraction when possible (use line index + windowed scanning)
+- [x] Preload grammars efficiently:
+  - [x] keep per-process cache as today, but add an option to preload in parallel after correctness verification
+- [x] Offload heavy parsing to workers (optional; default: off):
+  - [x] per-worker wasm init + grammar cache
+  - [x] measure if this improves throughput vs overhead
+- [x] Add/enable additional WASM grammars where available:
+  - [x] JavaScript / TypeScript / TSX / JSX
+  - [x] Python (chunking fallback to avoid spawning python for stage1)
+  - [x] JSON / YAML / TOML / Markdown (as available) for segment parsing
+- [x] Add per-language performance guardrails:
+  - [x] maxBytes/maxLines gating (defaults):
+    - [x] tree-sitter: skip if file > **512 KiB** or > **10,000 lines**
+    - [x] YAML top-level chunking: skip if file > **200 KiB**
+    - [x] Kotlin flow: skip if file > **200 KiB** or > **3,000 lines**
+    - [x] Kotlin relations: skip if file > **200 KiB** or > **2,000 lines**
+    - [x] per-file parse timeout: if parsing exceeds **1000 ms**, fall back to heuristic chunking for that file
+  - [x] automatic fallback to heuristic parsing on slow files
 
 **Deliverables**
 - perf profile artifact + cost-model sharder

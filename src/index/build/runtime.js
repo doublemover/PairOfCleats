@@ -25,7 +25,7 @@ import { resolveThreadLimits } from '../../shared/threads.js';
 import { buildIgnoreMatcher } from './ignore.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { applyBenchmarkProfile } from '../../shared/bench-profile.js';
-import { createIndexerWorkerPool, resolveWorkerPoolConfig } from './worker-pool.js';
+import { createIndexerWorkerPools, resolveWorkerPoolConfig } from './worker-pool.js';
 import { createCrashLogger } from './crash-log.js';
 import { normalizeEmbeddingBatchMultipliers } from './embedding-batch.js';
 import { preloadTreeSitterLanguages, resolveEnabledTreeSitterLanguages } from '../../lang/tree-sitter.js';
@@ -142,6 +142,11 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const riskAnalysisEnabled = indexingConfig.riskAnalysis !== false;
   const riskAnalysisCrossFileEnabled = riskAnalysisEnabled
     && indexingConfig.riskAnalysisCrossFile !== false;
+  const riskConfig = normalizeRiskConfig({
+    enabled: riskAnalysisEnabled,
+    rules: indexingConfig.riskRules,
+    caps: indexingConfig.riskCaps
+  }, { rootDir: root });
   const gitBlameEnabled = indexingConfig.gitBlame !== false;
   const lintEnabled = indexingConfig.lint !== false;
   const complexityEnabled = indexingConfig.complexity !== false;
@@ -208,10 +213,29 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     }
     return output;
   };
+  const normalizeOptionalLimit = (value) => {
+    if (value === 0 || value === false) return null;
+    if (value === undefined || value === null) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+  };
+  const normalizeTreeSitterByLanguage = (raw) => {
+    const input = raw && typeof raw === 'object' ? raw : {};
+    const output = {};
+    for (const [key, value] of Object.entries(input)) {
+      const entry = value && typeof value === 'object' ? value : {};
+      const maxBytes = normalizeCapValue(entry.maxBytes);
+      const maxLines = normalizeCapValue(entry.maxLines);
+      const maxParseMs = normalizeOptionalLimit(entry.maxParseMs);
+      if (maxBytes == null && maxLines == null && maxParseMs == null) continue;
+      output[key.toLowerCase()] = { maxBytes, maxLines, maxParseMs };
+    }
+    return output;
+  };
   const kotlinFlowMaxBytes = normalizeLimit(kotlinConfig.flowMaxBytes, 200 * 1024);
   const kotlinFlowMaxLines = normalizeLimit(kotlinConfig.flowMaxLines, 3000);
   const kotlinRelationsMaxBytes = normalizeLimit(kotlinConfig.relationsMaxBytes, 200 * 1024);
-  const kotlinRelationsMaxLines = normalizeLimit(kotlinConfig.relationsMaxLines, 3000);
+  const kotlinRelationsMaxLines = normalizeLimit(kotlinConfig.relationsMaxLines, 2000);
   const normalizeParser = (raw, fallback, allowed) => {
     const normalized = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
     return allowed.includes(normalized) ? normalized : fallback;
@@ -299,15 +323,32 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   };
   const shardsConfig = indexingConfig.shards || {};
   const shardsEnabled = shardsConfig.enabled === true;
-  const shardsMaxWorkers = normalizeLimit(shardsConfig.maxWorkers, null);
+  const shardsMaxWorkers = normalizeLimit(shardsConfig.maxWorkers, null);       
   const shardsMaxShards = normalizeLimit(shardsConfig.maxShards, null);
   const shardsMinFiles = normalizeLimit(shardsConfig.minFiles, null);
-  const shardsDirDepth = normalizeDepth(shardsConfig.dirDepth, 3);
+  const shardsDirDepth = normalizeDepth(shardsConfig.dirDepth, 0);
+  const shardsMaxShardBytes = normalizeLimit(
+    shardsConfig.maxShardBytes,
+    64 * 1024 * 1024
+  );
+  const shardsMaxShardLines = normalizeLimit(shardsConfig.maxShardLines, 200000);
   const treeSitterConfig = indexingConfig.treeSitter || {};
   const treeSitterEnabled = treeSitterConfig.enabled !== false;
   const treeSitterLanguages = treeSitterConfig.languages || {};
   const treeSitterMaxBytes = normalizeLimit(treeSitterConfig.maxBytes, 512 * 1024);
   const treeSitterMaxLines = normalizeLimit(treeSitterConfig.maxLines, 10000);
+  const treeSitterMaxParseMs = normalizeLimit(treeSitterConfig.maxParseMs, 1000);
+  const treeSitterByLanguage = normalizeTreeSitterByLanguage(
+    treeSitterConfig.byLanguage || {}
+  );
+  const treeSitterConfigChunking = treeSitterConfig.configChunking === true;
+  const treeSitterPreloadRaw = typeof treeSitterConfig.preload === 'string'
+    ? treeSitterConfig.preload.trim().toLowerCase()
+    : (treeSitterConfig.preload === true ? 'parallel' : '');
+  const treeSitterPreload = treeSitterPreloadRaw === 'parallel' ? 'parallel' : 'serial';
+  const treeSitterPreloadConcurrency = normalizeOptionalLimit(
+    treeSitterConfig.preloadConcurrency
+  );
   const sqlConfig = userConfig.sql || {};
   const defaultSqlDialects = {
     '.psql': 'postgres',
@@ -355,11 +396,31 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     embeddingConcurrency = Math.max(1, defaultEmbedding);
   }
   embeddingConcurrency = Math.max(1, Math.min(embeddingConcurrency, cpuConcurrency));
-  const queues = createTaskQueues({ ioConcurrency, cpuConcurrency, embeddingConcurrency });
+  const maxFilePending = Math.min(10000, fileConcurrency * 1000);
+  const maxIoPending = Math.min(10000, Math.max(ioConcurrency, fileConcurrency) * 1000);
+  const maxEmbeddingPending = Math.min(64, embeddingConcurrency * 8);
+  const queues = createTaskQueues({
+    ioConcurrency,
+    cpuConcurrency,
+    embeddingConcurrency,
+    ioPendingLimit: maxIoPending,
+    cpuPendingLimit: maxFilePending,
+    embeddingPendingLimit: maxEmbeddingPending
+  });
+  const pythonAstRuntimeConfig = {
+    ...pythonAstConfig,
+    defaultMaxWorkers: Math.min(4, fileConcurrency),
+    hardMaxWorkers: 8
+  };
+  const workerPoolDefaultMax = Math.min(8, fileConcurrency);
   const workerPoolConfig = resolveWorkerPoolConfig(
     indexingConfig.workerPool || {},
     envConfig,
-    { cpuLimit: cpuConcurrency }
+    {
+      cpuLimit: cpuConcurrency,
+      defaultMaxWorkers: workerPoolDefaultMax,
+      hardMaxWorkers: 16
+    }
   );
 
   const incrementalEnabled = argv.incremental === true;
@@ -486,7 +547,11 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       enabled: treeSitterEnabled,
       languages: treeSitterLanguages
     });
-    await preloadTreeSitterLanguages(enabledTreeSitterLanguages, { log });
+    await preloadTreeSitterLanguages(enabledTreeSitterLanguages, {
+      log,
+      parallel: treeSitterPreload === 'parallel',
+      concurrency: treeSitterPreloadConcurrency
+    });
   }
   if (typeInferenceEnabled) {
     log('Type inference metadata enabled via indexing.typeInference.');
@@ -526,8 +591,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   } catch {}
 
   let workerPool = null;
+  let quantizePool = null;
   if (workerPoolConfig.enabled !== false) {
-    workerPool = await createIndexerWorkerPool({
+    const workerPools = await createIndexerWorkerPools({
       config: workerPoolConfig,
       dictWords,
       dictConfig,
@@ -535,9 +601,14 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       crashLogger: workerCrashLogger,
       log
     });
+    workerPool = workerPools.tokenizePool;
+    quantizePool = workerPools.quantizePool;
     if (workerPool) {
       const modeLabel = workerPoolConfig.enabled === 'auto' ? 'auto' : 'on';
-      log(`Worker pool enabled (${modeLabel}, maxThreads=${workerPoolConfig.maxWorkers}).`);
+      const splitLabel = workerPoolConfig.splitByTask
+        ? `, split tasks (quantizeMax=${workerPoolConfig.quantizeMaxWorkers || Math.max(1, Math.floor(workerPoolConfig.maxWorkers / 2))})`
+        : '';
+      log(`Worker pool enabled (${modeLabel}, maxThreads=${workerPoolConfig.maxWorkers}${splitLabel}).`);
       if (workerPoolConfig.enabled === 'auto') {
         log(`Worker pool auto threshold: maxFileBytes=${workerPoolConfig.maxFileBytes}.`);
       }
@@ -559,7 +630,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       importsOnly: typescriptImportsOnly
     },
     embeddingBatchMultipliers,
-    pythonAst: pythonAstConfig,
+    pythonAst: pythonAstRuntimeConfig,
     kotlin: {
       flowMaxBytes: kotlinFlowMaxBytes,
       flowMaxLines: kotlinFlowMaxLines,
@@ -569,8 +640,14 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     treeSitter: {
       enabled: treeSitterEnabled,
       languages: treeSitterLanguages,
+      configChunking: treeSitterConfigChunking,
       maxBytes: treeSitterMaxBytes,
-      maxLines: treeSitterMaxLines
+      maxLines: treeSitterMaxLines,
+      maxParseMs: treeSitterMaxParseMs,
+      byLanguage: treeSitterByLanguage,
+      preload: treeSitterPreload,
+      preloadConcurrency: treeSitterPreloadConcurrency,
+      worker: treeSitterConfig.worker || null
     },
     resolveSqlDialect,
     yamlChunking: {
@@ -629,7 +706,9 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       maxWorkers: shardsMaxWorkers,
       maxShards: shardsMaxShards,
       minFiles: shardsMinFiles,
-      dirDepth: shardsDirDepth
+      dirDepth: shardsDirDepth,
+      maxShardBytes: shardsMaxShardBytes,
+      maxShardLines: shardsMaxShardLines
     },
     twoStage: {
       enabled: twoStageEnabled,
@@ -655,6 +734,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     modelsDir,
     workerPoolConfig,
     workerPool,
+    quantizePool,
     dictConfig,
     dictionaryPaths,
     dictWords,
@@ -671,8 +751,3 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     verboseCache
   };
 }
-  const riskConfig = normalizeRiskConfig({
-    enabled: riskAnalysisEnabled,
-    rules: indexingConfig.riskRules,
-    caps: indexingConfig.riskCaps
-  }, { rootDir: root });

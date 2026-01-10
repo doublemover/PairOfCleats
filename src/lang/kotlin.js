@@ -29,7 +29,7 @@ const DEFAULT_KOTLIN_LIMITS = {
   flowMaxBytes: 200 * 1024,
   flowMaxLines: 3000,
   relationsMaxBytes: 200 * 1024,
-  relationsMaxLines: 3000
+  relationsMaxLines: 2000
 };
 
 const normalizeLimit = (value, fallback) => {

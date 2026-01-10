@@ -20,15 +20,38 @@ function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const resolveLinesAccessor = (lines) => {
+  if (Array.isArray(lines)) {
+    return {
+      getLine: (idx) => lines[idx] ?? '',
+      length: lines.length
+    };
+  }
+  if (lines && typeof lines.getLine === 'function') {
+    const length = Number.isFinite(lines.length)
+      ? lines.length
+      : (Number.isFinite(lines.lineCount) ? lines.lineCount : 0);
+    return {
+      getLine: (idx) => lines.getLine(idx) ?? '',
+      length
+    };
+  }
+  return {
+    getLine: () => '',
+    length: 0
+  };
+};
+
 /**
  * Extract a doc comment immediately above a declaration.
  * Supports configurable line/block styles.
- * @param {string[]} lines
+ * @param {string[]|{getLine:(idx:number)=>string,length?:number,lineCount?:number}} lines
  * @param {number} startLineIdx
  * @param {{linePrefixes?:string[]|string,blockStarts?:string[]|string,blockEnd?:string,skipLine?:(line:string)=>boolean}} [options]
  * @returns {string}
  */
 export function extractDocComment(lines, startLineIdx, options = {}) {
+  const accessor = resolveLinesAccessor(lines);
   const linePrefixesRaw = options.linePrefixes ?? ['///'];
   const blockStartsRaw = options.blockStarts ?? ['/**'];
   const linePrefixes = Array.isArray(linePrefixesRaw) ? linePrefixesRaw.filter(Boolean) : [linePrefixesRaw].filter(Boolean);
@@ -36,15 +59,15 @@ export function extractDocComment(lines, startLineIdx, options = {}) {
   const blockEnd = options.blockEnd ?? '*/';
   const skipLine = typeof options.skipLine === 'function' ? options.skipLine : null;
   let i = startLineIdx - 1;
-  while (i >= 0 && lines[i].trim() === '') i--;
+  while (i >= 0 && accessor.getLine(i).trim() === '') i--;
   if (i < 0) return '';
-  const trimmed = lines[i].trim();
+  const trimmed = accessor.getLine(i).trim();
   if (linePrefixes.length) {
     const initialPrefix = linePrefixes.find((prefix) => trimmed.startsWith(prefix));
     if (initialPrefix) {
       const out = [];
       while (i >= 0) {
-        const line = lines[i].trim();
+        const line = accessor.getLine(i).trim();
         if (skipLine && skipLine(line)) {
           i--;
           continue;
@@ -63,7 +86,7 @@ export function extractDocComment(lines, startLineIdx, options = {}) {
     const raw = [];
     let foundStart = false;
     while (i >= 0) {
-      const line = lines[i];
+      const line = accessor.getLine(i);
       raw.unshift(line);
       if (blockStarts.some((start) => line.includes(start))) {
         foundStart = true;
@@ -102,6 +125,7 @@ export function extractDocComment(lines, startLineIdx, options = {}) {
  * @returns {string[]}
  */
 export function collectAttributes(lines, startLineIdx, signature) {
+  const accessor = resolveLinesAccessor(lines);
   const attrs = new Set();
   const addLine = (line) => {
     for (const match of line.matchAll(/@([A-Za-z_][A-Za-z0-9_]*)/g)) {
@@ -111,7 +135,7 @@ export function collectAttributes(lines, startLineIdx, signature) {
   if (signature) addLine(signature);
   let i = startLineIdx - 1;
   while (i >= 0) {
-    const trimmed = lines[i].trim();
+    const trimmed = accessor.getLine(i).trim();
     if (!trimmed) {
       if (attrs.size) break;
       i--;

@@ -663,6 +663,11 @@ const actions = [
     covers: ['worker-pool-test']
   },
   {
+    label: 'worker-pool-windows-test',
+    run: () => runNode('worker-pool-windows-test', path.join(root, 'tests', 'worker-pool-windows.js')),
+    covers: ['worker-pool-windows-test']
+  },
+  {
     label: 'repo-build-index',
     run: () => runNode('build-index', path.join(root, 'build_index.js'), ['--stub-embeddings', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['build-index']

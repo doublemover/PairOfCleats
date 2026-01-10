@@ -692,16 +692,27 @@ async function findPythonExecutable(log) {
   return pythonCheckPromise;
 }
 
-function normalizePythonAstConfig(config = {}) {
+function normalizePythonAstConfig(config = {}, options = {}) {
   if (config.enabled === false) return { enabled: false };
+  const defaultMaxWorkers = Number.isFinite(options.defaultMaxWorkers)
+    ? Math.max(1, Math.floor(options.defaultMaxWorkers))
+    : PYTHON_AST_DEFAULTS.maxWorkers;
+  const hardMaxWorkers = Number.isFinite(options.hardMaxWorkers)
+    ? Math.max(1, Math.floor(options.hardMaxWorkers))
+    : null;
+  const allowOverCap = config.allowOverCap === true || options.allowOverCap === true;
   const workerCountRaw = Number(config.workerCount);
   const workerCount = Number.isFinite(workerCountRaw)
     ? Math.max(1, Math.floor(workerCountRaw))
-    : PYTHON_AST_DEFAULTS.workerCount;
+    : Math.min(PYTHON_AST_DEFAULTS.workerCount, defaultMaxWorkers);
   const maxWorkersRaw = Number(config.maxWorkers);
-  const maxWorkers = Number.isFinite(maxWorkersRaw)
+  const requestedMax = Number.isFinite(maxWorkersRaw)
     ? Math.max(workerCount, Math.floor(maxWorkersRaw))
-    : Math.max(workerCount, PYTHON_AST_DEFAULTS.maxWorkers);
+    : Math.max(workerCount, defaultMaxWorkers);
+  const cappedMax = (!allowOverCap && Number.isFinite(hardMaxWorkers))
+    ? Math.min(requestedMax, hardMaxWorkers)
+    : requestedMax;
+  const maxWorkers = Math.max(workerCount, cappedMax);
   const scaleUpQueueMsRaw = Number(config.scaleUpQueueMs);
   const scaleUpQueueMs = Number.isFinite(scaleUpQueueMsRaw)
     ? Math.max(0, Math.floor(scaleUpQueueMsRaw))
@@ -895,7 +906,7 @@ function createPythonAstPool({ pythonBin, config, log }) {
 }
 
 async function getPythonAstPool(log, config = {}) {
-  const normalized = normalizePythonAstConfig(config);
+  const normalized = normalizePythonAstConfig(config, config);
   if (!normalized.enabled) return null;
   const pythonBin = await findPythonExecutable(log);
   if (!pythonBin) return null;

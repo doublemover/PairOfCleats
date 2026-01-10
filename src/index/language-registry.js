@@ -34,6 +34,7 @@ import { buildRustChunks, buildRustRelations, collectRustImports, computeRustFlo
 import { buildSwiftChunks, buildSwiftRelations, collectSwiftImports, computeSwiftFlow, extractSwiftDocMeta } from '../lang/swift.js';
 import { buildShellChunks, buildShellRelations, collectShellImports, computeShellFlow, extractShellDocMeta } from '../lang/shell.js';
 import { summarizeControlFlow } from '../lang/flow.js';
+import { buildTreeSitterChunksAsync } from '../lang/tree-sitter.js';
 
 const {
   buildKotlinChunks,
@@ -77,9 +78,21 @@ const LANGUAGE_REGISTRY = [
     id: 'javascript',
     match: (ext) => isJsLike(ext),
     collectImports: (text, options) => collectImports(text, options),
-    prepare: ({ text, mode, ext, options }) => (mode === 'code'
-      ? { jsAst: parseJavaScriptAst(text, { ...options, ext }) }
-      : {}),
+    prepare: async ({ text, mode, ext, options }) => {
+      if (mode !== 'code') return {};
+      const context = {};
+      const treeChunks = await buildTreeSitterChunksAsync({
+        text,
+        languageId: null,
+        ext,
+        options
+      });
+      if (treeChunks && treeChunks.length) context.jsChunks = treeChunks;
+      if (options?.relationsEnabled !== false) {
+        context.jsAst = parseJavaScriptAst(text, { ...options, ext });
+      }
+      return context;
+    },
     buildRelations: ({ text, relPath, allImports, context, options, ext }) =>
       buildCodeRelations(text, relPath, allImports, {
         ...options,
@@ -96,10 +109,19 @@ const LANGUAGE_REGISTRY = [
     id: 'typescript',
     match: (ext) => isTypeScript(ext),
     collectImports: (text, options) => collectTypeScriptImports(text, options),
-    prepare: ({ text, mode, ext, relPath, options }) => {
+    prepare: async ({ text, mode, ext, relPath, options }) => {
       if (mode !== 'code') return {};
       if (options?.typescript?.importsOnly === true) return {};
-      return { tsChunks: buildTypeScriptChunks(text, { ext, relPath, parser: options?.typescript?.parser }) };
+      let tsChunks = await buildTreeSitterChunksAsync({
+        text,
+        languageId: ext === '.tsx' ? 'tsx' : 'typescript',
+        ext,
+        options
+      });
+      if (!tsChunks || !tsChunks.length) {
+        tsChunks = buildTypeScriptChunks(text, { ext, relPath, parser: options?.typescript?.parser });
+      }
+      return { tsChunks };
     },
     buildRelations: ({ text, allImports, context, options, ext }) => {
       if (options?.typescript?.importsOnly === true) {
@@ -128,15 +150,30 @@ const LANGUAGE_REGISTRY = [
     id: 'python',
     match: (ext) => ext === '.py',
     collectImports: (text) => collectPythonImports(text).imports,
-    prepare: async ({ text, mode, options }) => (mode === 'code'
-      ? {
-        pythonAst: await getPythonAst(text, options.log, {
+    prepare: async ({ text, mode, options }) => {
+      if (mode !== 'code') return {};
+      let pythonAst = null;
+      if (options?.relationsEnabled !== false) {
+        pythonAst = await getPythonAst(text, options.log, {
           dataflow: options.astDataflowEnabled,
           controlFlow: options.controlFlowEnabled,
           pythonAst: options.pythonAst
-        })
+        });
       }
-      : {}),
+      let pythonTreeChunks = null;
+      if (!pythonAst) {
+        pythonTreeChunks = await buildTreeSitterChunksAsync({
+          text,
+          languageId: 'python',
+          ext: '.py',
+          options
+        });
+      }
+      return {
+        ...(pythonAst ? { pythonAst } : {}),
+        ...(pythonTreeChunks && pythonTreeChunks.length ? { pythonTreeChunks } : {})
+      };
+    },
     buildRelations: ({ text, allImports, context }) => buildPythonRelations(text, allImports, context.pythonAst),
     extractDocMeta: ({ chunk }) => extractPythonDocMeta(chunk),
     flow: ({ text, chunk, options }) => buildControlFlowOnly(text, chunk, options, PY_CONTROL_FLOW),

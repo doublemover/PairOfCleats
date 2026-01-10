@@ -10,8 +10,8 @@ if (limits.fileConcurrency !== 4) {
   console.error(`thread limits test failed: fileConcurrency ${limits.fileConcurrency} !== 4`);
   process.exit(1);
 }
-if (limits.cpuConcurrency !== limits.fileConcurrency * 2) {
-  console.error('thread limits test failed: cpuConcurrency not double fileConcurrency');
+if (limits.cpuConcurrency !== limits.fileConcurrency) {
+  console.error('thread limits test failed: cpuConcurrency not equal fileConcurrency');
   process.exit(1);
 }
 

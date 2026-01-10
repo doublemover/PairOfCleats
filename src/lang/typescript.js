@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { parseBabelAst } from './babel-parser.js';
 import { collectImportsFromAst } from './javascript.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
 import { collectAttributes, extractDocComment, sliceSignature } from './shared.js';
@@ -909,6 +910,15 @@ function buildTypeScriptChunksHeuristic(text) {
 }
 
 export function buildTypeScriptChunks(text, options = {}) {
+  if (options.treeSitter) {
+    const treeChunks = buildTreeSitterChunks({
+      text,
+      languageId: (options.ext || '').toLowerCase() === '.tsx' ? 'tsx' : 'typescript',
+      ext: options.ext,
+      options: { treeSitter: options.treeSitter, log: options.log }
+    });
+    if (treeChunks && treeChunks.length) return treeChunks;
+  }
   const parser = resolveTypeScriptParser(options);
   if (parser === 'heuristic') return buildTypeScriptChunksHeuristic(text);
   if (parser === 'babel') {

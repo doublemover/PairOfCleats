@@ -143,6 +143,7 @@
     "search-missing-index-test": "node tests/search-missing-index.js",
     "search-help-test": "node tests/search-help.js",
     "worker-pool-test": "node tests/worker-pool.js",
+    "worker-pool-windows-test": "node tests/worker-pool-windows.js",
     "minhash-parity-test": "node tests/minhash-parity.js"
   },
   "dependencies": {

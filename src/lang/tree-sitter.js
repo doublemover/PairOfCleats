@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { extractDocComment, sliceSignature } from './shared.js';
 
@@ -17,10 +19,23 @@ const languageLoadPromises = new Map();
 const loggedMissing = new Set();
 const loggedInitFailure = new Set();
 const loggedParseFailures = new Set();
+const loggedParseTimeouts = new Set();
 const loggedSizeSkips = new Set();
 const loggedUnavailable = new Set();
+const loggedWorkerFailures = new Set();
+let treeSitterWorkerPool = null;
+let treeSitterWorkerConfigSignature = null;
 
 const LANGUAGE_WASM_FILES = {
+  javascript: 'tree-sitter-javascript.wasm',
+  typescript: 'tree-sitter-typescript.wasm',
+  tsx: 'tree-sitter-tsx.wasm',
+  jsx: 'tree-sitter-javascript.wasm',
+  python: 'tree-sitter-python.wasm',
+  json: 'tree-sitter-json.wasm',
+  yaml: 'tree-sitter-yaml.wasm',
+  toml: 'tree-sitter-toml.wasm',
+  markdown: 'tree-sitter-markdown.wasm',
   swift: 'tree-sitter-swift.wasm',
   kotlin: 'tree-sitter-kotlin.wasm',
   csharp: 'tree-sitter-c_sharp.wasm',
@@ -48,6 +63,19 @@ const COMMON_NAME_NODE_TYPES = new Set([
   'namespace_identifier'
 ]);
 
+const getNamedChildCount = (node) => {
+  if (!node) return 0;
+  if (Number.isFinite(node.namedChildCount)) return node.namedChildCount;
+  return Array.isArray(node.namedChildren) ? node.namedChildren.length : 0;
+};
+
+const getNamedChild = (node, index) => {
+  if (!node) return null;
+  if (typeof node.namedChild === 'function') return node.namedChild(index);
+  if (Array.isArray(node.namedChildren)) return node.namedChildren[index] || null;
+  return null;
+};
+
 function findDescendantByType(root, types, maxDepth = 6) {
   if (!root) return null;
   const stack = [{ node: root, depth: 0 }];
@@ -56,16 +84,85 @@ function findDescendantByType(root, types, maxDepth = 6) {
     if (!node) continue;
     if (types.has(node.type)) return node;
     if (depth >= maxDepth) continue;
-    if (node.namedChildren && node.namedChildren.length) {
-      for (let i = node.namedChildren.length - 1; i >= 0; i -= 1) {
-        stack.push({ node: node.namedChildren[i], depth: depth + 1 });
-      }
+    const count = getNamedChildCount(node);
+    for (let i = count - 1; i >= 0; i -= 1) {
+      stack.push({ node: getNamedChild(node, i), depth: depth + 1 });
     }
   }
   return null;
 }
 
+const JS_TS_CONFIG = {
+  typeNodes: new Set([
+    'class_declaration',
+    'interface_declaration',
+    'type_alias_declaration',
+    'enum_declaration'
+  ]),
+  memberNodes: new Set([
+    'function_declaration',
+    'method_definition',
+    'function',
+    'arrow_function'
+  ]),
+  kindMap: {
+    class_declaration: 'ClassDeclaration',
+    interface_declaration: 'InterfaceDeclaration',
+    type_alias_declaration: 'TypeAlias',
+    enum_declaration: 'EnumDeclaration',
+    function_declaration: 'FunctionDeclaration',
+    method_definition: 'MethodDeclaration',
+    function: 'FunctionDeclaration',
+    arrow_function: 'ArrowFunction'
+  },
+  docComments: { linePrefixes: ['//'], blockStarts: ['/**'] }
+};
+
 const LANG_CONFIG = {
+  javascript: JS_TS_CONFIG,
+  typescript: JS_TS_CONFIG,
+  tsx: JS_TS_CONFIG,
+  jsx: JS_TS_CONFIG,
+  python: {
+    typeNodes: new Set(['class_definition']),
+    memberNodes: new Set(['function_definition']),
+    kindMap: {
+      class_definition: 'ClassDeclaration',
+      function_definition: 'FunctionDeclaration'
+    },
+    docComments: { linePrefixes: ['#'] },
+    nameFields: ['name']
+  },
+  json: {
+    typeNodes: new Set(['pair']),
+    memberNodes: new Set([]),
+    kindMap: { pair: 'ConfigEntry' },
+    nameFields: ['key']
+  },
+  yaml: {
+    typeNodes: new Set(['block_mapping_pair', 'flow_pair']),
+    memberNodes: new Set([]),
+    kindMap: {
+      block_mapping_pair: 'ConfigEntry',
+      flow_pair: 'ConfigEntry'
+    },
+    nameFields: ['key'],
+    docComments: { linePrefixes: ['#'] }
+  },
+  toml: {
+    typeNodes: new Set(['pair']),
+    memberNodes: new Set([]),
+    kindMap: { pair: 'ConfigEntry' },
+    nameFields: ['key']
+  },
+  markdown: {
+    typeNodes: new Set(['atx_heading', 'setext_heading']),
+    memberNodes: new Set([]),
+    kindMap: {
+      atx_heading: 'Section',
+      setext_heading: 'Section'
+    }
+  },
   swift: {
     typeNodes: new Set([
       'class_declaration',
@@ -348,6 +445,85 @@ function resolveRuntimePath() {
   throw new Error('web-tree-sitter WASM runtime not found');
 }
 
+const normalizeTreeSitterWorkerConfig = (raw) => {
+  if (raw === false) return { enabled: false };
+  if (raw === true) return { enabled: true };
+  if (!raw || typeof raw !== 'object') return { enabled: false };
+  const enabled = raw.enabled !== false;
+  const maxWorkersRaw = Number(raw.maxWorkers);
+  const defaultMax = Math.max(1, Math.min(4, os.cpus().length));
+  const maxWorkers = Number.isFinite(maxWorkersRaw) && maxWorkersRaw > 0
+    ? Math.max(1, Math.floor(maxWorkersRaw))
+    : defaultMax;
+  const idleTimeoutMsRaw = Number(raw.idleTimeoutMs);
+  const idleTimeoutMs = Number.isFinite(idleTimeoutMsRaw) && idleTimeoutMsRaw > 0
+    ? Math.floor(idleTimeoutMsRaw)
+    : 30000;
+  const taskTimeoutMsRaw = Number(raw.taskTimeoutMs);
+  const taskTimeoutMs = Number.isFinite(taskTimeoutMsRaw) && taskTimeoutMsRaw > 0
+    ? Math.floor(taskTimeoutMsRaw)
+    : 60000;
+  return {
+    enabled,
+    maxWorkers,
+    idleTimeoutMs,
+    taskTimeoutMs
+  };
+};
+
+const sanitizeTreeSitterOptions = (treeSitter) => {
+  const config = treeSitter && typeof treeSitter === 'object' ? treeSitter : {};
+  return {
+    enabled: config.enabled !== false,
+    languages: config.languages || {},
+    maxBytes: config.maxBytes ?? null,
+    maxLines: config.maxLines ?? null,
+    maxParseMs: config.maxParseMs ?? null,
+    byLanguage: config.byLanguage || {},
+    configChunking: config.configChunking === true
+  };
+};
+
+const getTreeSitterWorkerPool = async (rawConfig, options = {}) => {
+  const config = normalizeTreeSitterWorkerConfig(rawConfig);
+  if (!config.enabled) return null;
+  const signature = JSON.stringify(config);
+  if (treeSitterWorkerPool && treeSitterWorkerConfigSignature === signature) {
+    return treeSitterWorkerPool;
+  }
+  if (treeSitterWorkerPool && treeSitterWorkerPool.destroy) {
+    await treeSitterWorkerPool.destroy();
+    treeSitterWorkerPool = null;
+  }
+  treeSitterWorkerConfigSignature = signature;
+  let Piscina;
+  try {
+    Piscina = (await import('piscina')).default;
+  } catch (err) {
+    if (options?.log && !loggedWorkerFailures.has('piscina')) {
+      options.log(`[tree-sitter] Worker pool unavailable (piscina missing): ${err?.message || err}.`);
+      loggedWorkerFailures.add('piscina');
+    }
+    return null;
+  }
+  try {
+    treeSitterWorkerPool = new Piscina({
+      filename: fileURLToPath(new URL('./workers/tree-sitter-worker.js', import.meta.url)),
+      maxThreads: config.maxWorkers,
+      idleTimeout: config.idleTimeoutMs,
+      taskTimeout: config.taskTimeoutMs
+    });
+    return treeSitterWorkerPool;
+  } catch (err) {
+    if (options?.log && !loggedWorkerFailures.has('init')) {
+      options.log(`[tree-sitter] Worker pool init failed: ${err?.message || err}.`);
+      loggedWorkerFailures.add('init');
+    }
+    treeSitterWorkerPool = null;
+    return null;
+  }
+};
+
 export async function initTreeSitterWasm(options = {}) {
   if (TreeSitter || treeSitterInitError) return Boolean(TreeSitter);
   if (treeSitterInitPromise) return treeSitterInitPromise;
@@ -418,10 +594,27 @@ export async function preloadTreeSitterLanguages(languageIds = TREE_SITTER_LANGU
   const ok = await initTreeSitterWasm(options);
   if (!ok) return false;
   const unique = Array.from(new Set(languageIds || []));
-  for (const id of unique) {
-    // Load sequentially to avoid wasm runtime contention.
-    await loadWasmLanguage(id, options);
+  const parallel = options.parallel === true;
+  const concurrency = Number.isFinite(Number(options.concurrency))
+    ? Math.max(1, Math.floor(Number(options.concurrency)))
+    : unique.length;
+  if (!parallel || concurrency <= 1) {
+    for (const id of unique) {
+      // Load sequentially to avoid wasm runtime contention.
+      await loadWasmLanguage(id, options);
+    }
+    return true;
   }
+  const pending = new Set();
+  for (const id of unique) {
+    const task = loadWasmLanguage(id, options)
+      .finally(() => pending.delete(task));
+    pending.add(task);
+    if (pending.size >= concurrency) {
+      await Promise.race(pending);
+    }
+  }
+  await Promise.all(pending);
   return true;
 }
 
@@ -504,10 +697,28 @@ function countLines(text) {
   return count;
 }
 
+const createLineAccessor = (text, lineIndex) => {
+  const index = Array.isArray(lineIndex) ? lineIndex : buildLineIndex(text);
+  const lineCount = index.length;
+  return {
+    length: lineCount,
+    getLine: (idx) => {
+      if (!Number.isFinite(idx) || idx < 0 || idx >= lineCount) return '';
+      const start = index[idx] ?? 0;
+      const end = index[idx + 1] ?? text.length;
+      let line = text.slice(start, end);
+      if (line.endsWith('\n')) line = line.slice(0, -1);
+      if (line.endsWith('\r')) line = line.slice(0, -1);
+      return line;
+    }
+  };
+};
+
 function exceedsTreeSitterLimits(text, options, resolvedId) {
   const config = options?.treeSitter || {};
-  const maxBytes = config.maxBytes;
-  const maxLines = config.maxLines;
+  const perLanguage = config.byLanguage?.[resolvedId] || {};
+  const maxBytes = perLanguage.maxBytes ?? config.maxBytes;
+  const maxLines = perLanguage.maxLines ?? config.maxLines;
   if (typeof maxBytes === 'number' && maxBytes > 0) {
     const bytes = Buffer.byteLength(text, 'utf8');
     if (bytes > maxBytes) {
@@ -531,6 +742,14 @@ function exceedsTreeSitterLimits(text, options, resolvedId) {
     }
   }
   return false;
+}
+
+function resolveParseTimeoutMs(options, resolvedId) {
+  const config = options?.treeSitter || {};
+  const perLanguage = config.byLanguage?.[resolvedId] || {};
+  const raw = perLanguage.maxParseMs ?? config.maxParseMs;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
 }
 
 function extractSignature(text, start, end) {
@@ -562,13 +781,22 @@ function findNameNode(node, config) {
     const named = findDescendantByType(declarator, nameTypes, 8);
     if (named) return named;
   }
-  const queue = [...node.namedChildren];
+  const queue = [];
+  const initialCount = getNamedChildCount(node);
+  for (let i = 0; i < initialCount; i += 1) {
+    queue.push(getNamedChild(node, i));
+  }
   let depth = 0;
   while (queue.length && depth < 4) {
     const next = queue.shift();
+    if (!next) {
+      depth += 1;
+      continue;
+    }
     if (nameTypes.has(next.type)) return next;
-    if (next.namedChildren && next.namedChildren.length) {
-      queue.push(...next.namedChildren);
+    const childCount = getNamedChildCount(next);
+    for (let i = 0; i < childCount; i += 1) {
+      queue.push(getNamedChild(next, i));
     }
     depth += 1;
   }
@@ -601,16 +829,15 @@ function gatherChunkNodes(root, config) {
     if (config.typeNodes.has(node.type) || config.memberNodes.has(node.type)) {
       nodes.push(node);
     }
-    if (node.namedChildren && node.namedChildren.length) {
-      for (let i = node.namedChildren.length - 1; i >= 0; i -= 1) {
-        stack.push(node.namedChildren[i]);
-      }
+    const count = getNamedChildCount(node);
+    for (let i = count - 1; i >= 0; i -= 1) {
+      stack.push(getNamedChild(node, i));
     }
   }
   return nodes;
 }
 
-function toChunk(node, text, config, lineIndex, lines) {
+function toChunk(node, text, config, lineIndex, lineAccessor) {
   const name = extractNodeName(node, text, config);
   if (!name) return null;
   let kind = config.kindMap[node.type] || 'Declaration';
@@ -637,7 +864,11 @@ function toChunk(node, text, config, lineIndex, lines) {
   const endOffset = end > start ? end - 1 : start;
   const endLine = offsetToLine(lineIndex, endOffset);
   const signature = extractSignature(text, start, end);
-  const docstring = extractDocComment(lines, startLine - 1, config.docComments || {});
+  const docstring = extractDocComment(
+    lineAccessor,
+    startLine - 1,
+    config.docComments || {}
+  );
   return {
     start,
     end,
@@ -653,11 +884,21 @@ function toChunk(node, text, config, lineIndex, lines) {
 }
 
 function resolveLanguageForExt(languageId, ext) {
+  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
+  if (normalizedExt === '.tsx') return 'tsx';
+  if (normalizedExt === '.jsx') return 'jsx';
+  if (normalizedExt === '.ts' || normalizedExt === '.cts' || normalizedExt === '.mts') return 'typescript';
+  if (normalizedExt === '.js' || normalizedExt === '.mjs' || normalizedExt === '.cjs' || normalizedExt === '.jsm') return 'javascript';
+  if (normalizedExt === '.py') return 'python';
+  if (normalizedExt === '.json') return 'json';
+  if (normalizedExt === '.yaml' || normalizedExt === '.yml') return 'yaml';
+  if (normalizedExt === '.toml') return 'toml';
+  if (normalizedExt === '.md' || normalizedExt === '.mdx') return 'markdown';
   if (languageId) return languageId;
-  if (!ext) return null;
-  if (ext === '.m' || ext === '.mm') return 'objc';
-  if (ext === '.cpp' || ext === '.cc' || ext === '.cxx' || ext === '.hpp' || ext === '.hh') return 'cpp';
-  if (ext === '.c' || ext === '.h') return 'clike';
+  if (!normalizedExt) return null;
+  if (normalizedExt === '.m' || normalizedExt === '.mm') return 'objc';
+  if (normalizedExt === '.cpp' || normalizedExt === '.cc' || normalizedExt === '.cxx' || normalizedExt === '.hpp' || normalizedExt === '.hh') return 'cpp';
+  if (normalizedExt === '.c' || normalizedExt === '.h') return 'clike';
   return null;
 }
 
@@ -678,8 +919,20 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   if (!config) return null;
   let tree;
   try {
+    const parseTimeoutMs = resolveParseTimeoutMs(options, resolvedId);
+    if (typeof parser.setTimeoutMicros === 'function') {
+      parser.setTimeoutMicros(parseTimeoutMs ? parseTimeoutMs * 1000 : 0);
+    }
     tree = parser.parse(text);
-  } catch {
+  } catch (err) {
+    const message = err?.message || String(err);
+    if (/timeout/i.test(message)) {
+      if (options?.log && !loggedParseTimeouts.has(resolvedId)) {
+        options.log(`Tree-sitter parse timed out for ${resolvedId}; falling back to heuristic chunking.`);
+        loggedParseTimeouts.add(resolvedId);
+      }
+      return null;
+    }
     return null;
   }
   let rootNode = null;
@@ -693,7 +946,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     return null;
   }
   const lineIndex = buildLineIndex(text);
-  const lines = text.split('\n');
+  const lineAccessor = createLineAccessor(text, lineIndex);
   let nodes = [];
   try {
     nodes = gatherChunkNodes(rootNode, config);
@@ -707,10 +960,36 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   if (!nodes.length) return null;
   const chunks = [];
   for (const node of nodes) {
-    const chunk = toChunk(node, text, config, lineIndex, lines);
+    const chunk = toChunk(node, text, config, lineIndex, lineAccessor);
     if (chunk) chunks.push(chunk);
   }
   if (!chunks.length) return null;
   chunks.sort((a, b) => a.start - b.start);
   return chunks;
+}
+
+export async function buildTreeSitterChunksAsync({ text, languageId, ext, options }) {
+  if (!options?.treeSitter || options.treeSitter.enabled === false) {
+    return buildTreeSitterChunks({ text, languageId, ext, options });
+  }
+  const pool = await getTreeSitterWorkerPool(options?.treeSitter?.worker, options);
+  if (!pool) {
+    return buildTreeSitterChunks({ text, languageId, ext, options });
+  }
+  const payload = {
+    text,
+    languageId,
+    ext,
+    treeSitter: sanitizeTreeSitterOptions(options?.treeSitter)
+  };
+  try {
+    const result = await pool.run(payload, { name: 'parseTreeSitter' });
+    return Array.isArray(result) ? result : null;
+  } catch (err) {
+    if (options?.log && !loggedWorkerFailures.has('run')) {
+      options.log(`[tree-sitter] Worker parse failed; falling back to main thread (${err?.message || err}).`);
+      loggedWorkerFailures.add('run');
+    }
+    return buildTreeSitterChunks({ text, languageId, ext, options });
+  }
 }

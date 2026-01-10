@@ -30,6 +30,7 @@ export async function writeIndexArtifacts(input) {
     userConfig,
     incrementalEnabled,
     fileCounts,
+    perfProfile,
     indexState
   } = input;
   const indexingConfig = userConfig?.indexing || {};
@@ -53,7 +54,10 @@ export async function writeIndexArtifacts(input) {
   if (resolvedTokenMode === 'full' && tokenMode === 'auto') {
     let totalTokens = 0;
     for (const chunk of state.chunks) {
-      if (Array.isArray(chunk?.tokens)) totalTokens += chunk.tokens.length;
+      const count = Number.isFinite(chunk?.tokenCount)
+        ? chunk.tokenCount
+        : (Array.isArray(chunk?.tokens) ? chunk.tokens.length : 0);
+      totalTokens += count;
       if (totalTokens > tokenMaxTotal) break;
     }
     if (totalTokens > tokenMaxTotal) {
@@ -838,5 +842,11 @@ export async function writeIndexArtifacts(input) {
       path.join(metricsDir, `index-${mode}.json`),
       { fields: metrics, atomic: true }
     );
+    if (perfProfile) {
+      await writeJsonObjectFile(
+        path.join(metricsDir, `perf-profile-${mode}.json`),
+        { fields: perfProfile, atomic: true }
+      );
+    }
   } catch {}
 }

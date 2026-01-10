@@ -23,10 +23,21 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const cpuLimit = Number.isFinite(options.cpuLimit)
     ? Math.max(1, Math.floor(options.cpuLimit))
     : Math.max(1, os.cpus().length * 4);
-  const maxWorkersRaw = Number(raw.maxWorkers);
-  const maxWorkers = Number.isFinite(maxWorkersRaw) && maxWorkersRaw > 0
-    ? Math.max(1, Math.floor(maxWorkersRaw))
+  const defaultMaxWorkers = Number.isFinite(options.defaultMaxWorkers)
+    ? Math.max(1, Math.floor(options.defaultMaxWorkers))
     : Math.max(1, cpuLimit);
+  const hardMaxWorkers = Number.isFinite(options.hardMaxWorkers)
+    ? Math.max(1, Math.floor(options.hardMaxWorkers))
+    : null;
+  const maxWorkersRaw = Number(raw.maxWorkers);
+  const allowOverCap = raw.allowOverCap === true || options.allowOverCap === true;
+  const requestedMax = Number.isFinite(maxWorkersRaw) && maxWorkersRaw > 0
+    ? Math.max(1, Math.floor(maxWorkersRaw))
+    : defaultMaxWorkers;
+  const cappedMax = (!allowOverCap && Number.isFinite(hardMaxWorkers))
+    ? Math.min(requestedMax, hardMaxWorkers)
+    : requestedMax;
+  const maxWorkers = Math.max(1, cappedMax);
   const maxFileBytesRaw = raw.maxFileBytes;
   let maxFileBytes = 512 * 1024;
   if (maxFileBytesRaw === false || maxFileBytesRaw === 0) {
@@ -49,13 +60,20 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const quantizeBatchSize = Number.isFinite(quantizeBatchRaw) && quantizeBatchRaw > 0
     ? Math.floor(quantizeBatchRaw)
     : 128;
+  const splitByTask = raw.splitByTask === true || raw.splitTasks === true;
+  const quantizeMaxWorkersRaw = Number(raw.quantizeMaxWorkers);
+  const quantizeMaxWorkers = Number.isFinite(quantizeMaxWorkersRaw) && quantizeMaxWorkersRaw > 0
+    ? Math.max(1, Math.floor(quantizeMaxWorkersRaw))
+    : null;
   return {
     enabled,
     maxWorkers,
     maxFileBytes,
     idleTimeoutMs,
     taskTimeoutMs,
-    quantizeBatchSize
+    quantizeBatchSize,
+    splitByTask,
+    quantizeMaxWorkers
   };
 }
 
@@ -286,6 +304,8 @@ export async function createIndexerWorkerPool(input = {}) {
               task: 'tokenizeChunk',
               payloadMeta: payload
                 ? {
+                  file: typeof payload.file === 'string' ? payload.file : null,
+                  size: Number.isFinite(payload.size) ? payload.size : null,
                   textLength: typeof payload.text === 'string' ? payload.text.length : null,
                   mode: payload.mode || null,
                   ext: payload.ext || null
@@ -381,4 +401,39 @@ export async function createIndexerWorkerPool(input = {}) {
     log(`Worker pool unavailable: ${err?.message || err}`);
     return null;
   }
+}
+
+export async function createIndexerWorkerPools(input = {}) {
+  const baseConfig = input.config;
+  if (!baseConfig || baseConfig.enabled === false) {
+    return { tokenizePool: null, quantizePool: null, destroy: async () => {} };
+  }
+  if (!baseConfig.splitByTask) {
+    const pool = await createIndexerWorkerPool(input);
+    const destroy = async () => {
+      if (pool?.destroy) await pool.destroy();
+    };
+    return { tokenizePool: pool, quantizePool: pool, destroy };
+  }
+  const quantizeMaxWorkers = Number.isFinite(baseConfig.quantizeMaxWorkers)
+    ? Math.max(1, Math.floor(baseConfig.quantizeMaxWorkers))
+    : Math.max(1, Math.floor(baseConfig.maxWorkers / 2));
+  const tokenizePool = await createIndexerWorkerPool(input);
+  const quantizePool = await createIndexerWorkerPool({
+    ...input,
+    config: { ...baseConfig, maxWorkers: quantizeMaxWorkers }
+  });
+  const finalTokenizePool = tokenizePool || quantizePool;
+  const finalQuantizePool = quantizePool || tokenizePool;
+  const destroy = async () => {
+    if (finalTokenizePool?.destroy) await finalTokenizePool.destroy();
+    if (finalQuantizePool?.destroy && finalQuantizePool !== finalTokenizePool) {
+      await finalQuantizePool.destroy();
+    }
+  };
+  return {
+    tokenizePool: finalTokenizePool,
+    quantizePool: finalQuantizePool,
+    destroy
+  };
 }

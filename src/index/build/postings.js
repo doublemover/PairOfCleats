@@ -1,8 +1,14 @@
 import { quantizeVec } from '../embedding.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
+const resolveTokenCount = (chunk) => (
+  Number.isFinite(chunk?.tokenCount)
+    ? chunk.tokenCount
+    : (Array.isArray(chunk?.tokens) ? chunk.tokens.length : 0)
+);
+
 const tuneBM25Params = (chunks) => {
-  const avgLen = chunks.reduce((s, c) => s + c.tokens.length, 0) / chunks.length;
+  const avgLen = chunks.reduce((s, c) => s + resolveTokenCount(c), 0) / chunks.length;
   const b = avgLen > 800 ? 0.6 : 0.8;
   const k1 = avgLen > 800 ? 1.2 : 1.7;
   return { k1, b };
@@ -28,6 +34,7 @@ export async function buildPostings(input) {
     useStubEmbeddings,
     log,
     workerPool,
+    quantizePool,
     embeddingsEnabled = true
   } = input;
 
@@ -59,7 +66,7 @@ export async function buildPostings(input) {
 
   const { k1, b } = tuneBM25Params(chunks);
   const N = chunks.length;
-  const avgChunkLen = chunks.reduce((sum, c) => sum + c.tokens.length, 0) / Math.max(N, 1);
+  const avgChunkLen = chunks.reduce((sum, c) => sum + resolveTokenCount(c), 0) / Math.max(N, 1);
 
   let dims = 0;
   let quantizedVectors = [];
@@ -83,15 +90,16 @@ export async function buildPostings(input) {
       if (Array.isArray(chunk?.embedding) && chunk.embedding.length) return chunk.embedding;
       return zeroVec;
     };
+    const quantizeWorker = quantizePool || workerPool;
     const quantizeVectors = async (selector) => {
       const out = new Array(chunks.length);
-      if (!workerPool) {
+      if (!quantizeWorker) {
         for (let i = 0; i < chunks.length; i += 1) {
           out[i] = quantizeVec(selector(chunks[i]));
         }
         return out;
       }
-      const batchSize = workerPool.config?.quantizeBatchSize || 128;
+      const batchSize = quantizeWorker.config?.quantizeBatchSize || 128;
       for (let i = 0; i < chunks.length; i += batchSize) {
         const end = Math.min(i + batchSize, chunks.length);
         const batch = [];
@@ -99,7 +107,7 @@ export async function buildPostings(input) {
           batch.push(selector(chunks[j]));
         }
         try {
-          const chunk = await workerPool.runQuantize({ vectors: batch });
+          const chunk = await quantizeWorker.runQuantize({ vectors: batch });
           for (let j = 0; j < chunk.length; j += 1) {
             out[i + j] = chunk[j];
           }

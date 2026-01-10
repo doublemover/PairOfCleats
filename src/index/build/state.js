@@ -2,6 +2,36 @@ import { extractNgrams, tri } from '../../shared/tokenize.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
+const TOKEN_RETENTION_MODES = new Set(['full', 'sample', 'none']);
+
+export function normalizeTokenRetention(raw = {}) {
+  if (!raw || typeof raw !== 'object') {
+    return { mode: 'full', sampleSize: 32 };
+  }
+  const modeRaw = typeof raw.mode === 'string' ? raw.mode.trim().toLowerCase() : 'full';
+  const mode = TOKEN_RETENTION_MODES.has(modeRaw) ? modeRaw : 'full';
+  const sampleSize = Number.isFinite(Number(raw.sampleSize))
+    ? Math.max(1, Math.floor(Number(raw.sampleSize)))
+    : 32;
+  return { mode, sampleSize };
+}
+
+export function applyTokenRetention(chunk, retention) {
+  if (!chunk || !retention || retention.mode === 'full') return;
+  if (retention.mode === 'none') {
+    if (chunk.tokens) delete chunk.tokens;
+    if (chunk.ngrams) delete chunk.ngrams;
+    return;
+  }
+  if (retention.mode === 'sample') {
+    if (Array.isArray(chunk.tokens) && chunk.tokens.length > retention.sampleSize) {
+      chunk.tokens = chunk.tokens.slice(0, retention.sampleSize);
+    }
+    if (Array.isArray(chunk.ngrams) && chunk.ngrams.length > retention.sampleSize) {
+      chunk.ngrams = chunk.ngrams.slice(0, retention.sampleSize);
+    }
+  }
+}
 
 /**
  * Create the mutable state for index building.
@@ -43,7 +73,12 @@ export function createIndexState() {
  * @param {object} state
  * @param {object} chunk
  */
-export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONFIG) {
+export function appendChunk(
+  state,
+  chunk,
+  postingsConfig = DEFAULT_POSTINGS_CONFIG,
+  tokenRetention = null
+) {
   const tokens = Array.isArray(chunk.tokens) ? chunk.tokens : [];
   const seq = Array.isArray(chunk.seq) && chunk.seq.length ? chunk.seq : tokens;
   if (!seq.length) return;
@@ -134,6 +169,7 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
     }
   }
   chunk.id = chunkId;
+  chunk.tokenCount = tokens.length;
   const commentMeta = chunk.docmeta?.comments;
   if (Array.isArray(commentMeta)) {
     for (const entry of commentMeta) {
@@ -141,6 +177,9 @@ export function appendChunk(state, chunk, postingsConfig = DEFAULT_POSTINGS_CONF
       entry.anchorChunkId = chunkId;
     }
   }
+  applyTokenRetention(chunk, tokenRetention);
+  if (chunk.seq) delete chunk.seq;
+  if (chunk.chargrams) delete chunk.chargrams;
   if (chunk.fieldTokens) delete chunk.fieldTokens;
   state.chunks.push(chunk);
 }
