@@ -78,10 +78,12 @@ export const detectBinary = async ({ absPath, buffer, maxNonTextRatio }) => {
   if (binaryResult === true) {
     return { reason: 'binary', method: 'istextorbinary' };
   }
-  if (binaryResult === false) return null;
+  // Even if istextorbinary says "text", run a lightweight heuristic as a backstop.
+  // This catches obvious binary signals (e.g., NUL bytes) that can slip through.
   if (isLikelyBinary(buffer, maxNonTextRatio)) {
     return { reason: 'binary', method: 'heuristic' };
   }
+  if (binaryResult === false) return null;
   return null;
 };
 

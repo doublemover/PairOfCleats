@@ -2,387 +2,72 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
-import readline from 'node:readline';
-import { execa, execaSync } from 'execa';
-import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
-import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../src/shared/cli-options.js';
-import { getIndexDir, getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveSqlitePaths, resolveToolRoot } from './dict-utils.js';
-import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
-import { discoverFilesForModes } from '../src/index/build/discover.js';
-import { readTextFile } from '../src/shared/encoding.js';
-import { toPosix } from '../src/shared/files.js';
-import { formatShardFileProgress } from '../src/shared/bench-progress.js';
-import { countLinesForEntries } from '../src/shared/file-stats.js';
+import { getRuntimeConfig, loadUserConfig, resolveNodeOptions } from './dict-utils.js';
+import { parseBenchLanguageArgs } from './bench/language/cli.js';
+import { loadBenchConfig } from './bench/language/config.js';
+import { checkIndexLock, formatLockDetail } from './bench/language/locks.js';
+import {
+  ensureLongPathsSupport,
+  needsIndexArtifacts,
+  needsSqliteArtifacts,
+  resolveCloneTool,
+  resolveRepoCacheRoot,
+  resolveRepoDir
+} from './bench/language/repos.js';
+import { createProcessRunner } from './bench/language/process.js';
+import {
+  buildLineStats,
+  formatDuration,
+  formatGb,
+  formatMetricSummary,
+  getRecommendedHeapMb,
+  stripMaxOldSpaceFlag,
+  validateEncodingFixtures
+} from './bench/language/metrics.js';
+import { buildReportOutput, printSummary } from './bench/language/report.js';
+import { createProgressState } from './bench/language/progress/state.js';
+import { createProgressRenderer } from './bench/language/progress/render.js';
 
-const argv = createCli({
-  scriptName: 'bench-language',
-  options: mergeCliOptions(
-    BENCH_OPTIONS,
-    {
-      list: { type: 'boolean', default: false },
-      clone: { type: 'boolean', default: true },
-      'no-clone': { type: 'boolean', default: false },
-      'dry-run': { type: 'boolean', default: false },
-      'cache-run': { type: 'boolean', default: false },
-      config: { type: 'string' },
-      root: { type: 'string' },
-      'cache-root': { type: 'string' },
-      'cache-suffix': { type: 'string' },
-      results: { type: 'string' },
-      log: { type: 'string' },
-      language: { type: 'string' },
-      languages: { type: 'string' },
-      tier: { type: 'string' },
-      repos: { type: 'string' },
-      only: { type: 'string' },
-      'log-lines': { type: 'number' },
-      'lock-mode': { type: 'string' },
-      'lock-wait-ms': { type: 'number' },
-      'lock-stale-ms': { type: 'number' }
-    }
-  )
-}).parse();
-validateBenchArgs(argv);
-
-const scriptRoot = resolveToolRoot();
-const configPath = path.resolve(argv.config || path.join(scriptRoot, 'benchmarks', 'repos.json'));
-const reposRoot = path.resolve(argv.root || path.join(scriptRoot, 'benchmarks', 'repos'));
-const cacheRootBase = path.resolve(argv['cache-root'] || path.join(scriptRoot, 'benchmarks', 'cache'));
-const cacheSuffixRaw = typeof argv['cache-suffix'] === 'string' ? argv['cache-suffix'].trim() : '';
-const cacheRun = argv['cache-run'] === true;
-const cacheSuffix = cacheSuffixRaw || (cacheRun ? buildRunSuffix() : '');
-const cacheRoot = cacheSuffix ? path.resolve(cacheRootBase, cacheSuffix) : cacheRootBase;
-const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));
-const logRoot = path.join(resultsRoot, 'logs', 'bench-language');
-const logPath = argv.log
-  ? path.resolve(argv.log)
-  : path.join(logRoot, `${buildRunSuffix()}.log`);
-const baseEnv = { ...process.env };
-
-const cloneEnabled = argv['no-clone'] ? false : argv.clone !== false;
-const dryRun = argv['dry-run'] === true;
-const quietMode = argv.json === true;
-const interactive = !quietMode && process.stdout.isTTY;
-const colorEnabled = interactive && !process.env.NO_COLOR;
-
-const logLineArg = Number.parseInt(argv['log-lines'], 10);
-const logWindowSize = Number.isFinite(logLineArg)
-  ? Math.max(3, Math.min(50, logLineArg))
-  : 20;
-const logHistorySize = 50;
-const logLines = Array(logWindowSize).fill('');
-const logLineTags = Array(logWindowSize).fill('');
-const logHistory = [];
-const logUpdateByTag = new Map();
-const logUpdateDebounceMs = 250;
-let metricsLine = '';
-let progressLine = '';
-let fileProgressLine = '';
-let progressLineBase = '';
-let progressLinePrefix = '';
-let progressLineSuffix = '';
-let progressElapsedStartMs = null;
-let lastProgressRefreshMs = 0;
-const progressRefreshMs = 1000;
-let statusRendered = false;
-let cloneTool = null;
-let logStream = null;
-let lastProgressLogged = '';
-let lastMetricsLogged = '';
-let activeChild = null;
-let activeLabel = '';
-let exitLogged = false;
-let currentRepoLabel = '';
-const buildProgressState = {
-  step: null,
-  total: 0,
-  startMs: 0,
-  lastLoggedMs: 0,
-  lastCount: 0,
-  lastPct: 0,
-  label: '',
-  mode: null,
-  lineTotals: { code: 0, prose: 0 },
-  linesProcessed: { code: 0, prose: 0 },
-  linesByFile: { code: new Map(), prose: new Map() },
-  filesSeen: { code: new Set(), prose: new Set() },
-  currentFile: null,
-  currentLine: 0,
-  currentLineTotal: 0,
-  currentShard: null,
-  currentShardIndex: null,
-  currentShardTotal: null,
-  importStats: null
-};
-const buildProgressRegex = /^\s*(Files|Imports)\s+(\d+)\/(\d+)\s+\((\d+(?:\.\d+)?)%\)/i;
-const buildCombinedFileRegex = /^\s*Files\s+(\d+)\/(\d+)\s+\((\d+(?:\.\d+)?)%\)\s+(?:\[(.+?)\]\s+)?(?:File\s+)?(\d+)\/(\d+)(?:\s+lines\s+[0-9,\.]+)?\s+(.+)$/i;
-const buildFileOnlyRegex = /^\s*(?:\[(.+?)\]\s+)?(?:File\s+)?(\d+)\/(\d+)(?:\s+lines\s+[0-9,\.]+)?\s+(.+)$/i;
-const buildShardRegex = /^\s*(?:\u2192|->)\s+Shard\s+(\d+)\/(\d+):\s+([^[\r\n]+?)(?:\s+\[[^\]]+\])?\s+\((\d+)\s+files\)/i;
-const buildImportStatsRegex = /^\s*\u2192\s*Imports:\s+modules=(\d+),\s*edges=(\d+),\s*files=(\d+)/i;
-const buildScanRegex = /Scanning\s+(code|prose)/i;
-const buildLineRegex = /^\s*Line\s+(\d+)\s*\/\s*(\d+)/i;
-const statusLines = logWindowSize + 3;
-const cacheConfig = { cache: { root: cacheRoot } };
-const shardByLabel = new Map();
-const activeShards = new Map();
-const activeShardWindowMs = 5000;
-const isBenchProfile = (value) => {
-  if (!value) return false;
-  const normalized = String(value).trim().toLowerCase();
-  if (!normalized) return false;
-  return normalized === 'bench' || normalized.startsWith('bench-');
-};
-const indexProfileRaw = typeof argv['index-profile'] === 'string'
-  ? argv['index-profile'].trim()
-  : '';
-const defaultHeavyProfile = 'full';
-const resolvedProfile = indexProfileRaw && !isBenchProfile(indexProfileRaw)
-  ? indexProfileRaw
-  : defaultHeavyProfile;
-const indexProfile = argv['no-index-profile'] === true ? '' : resolvedProfile;
-const suppressProfileEnv = argv['no-index-profile'] === true;
-const lockMode = normalizeLockMode(
-  argv['lock-mode']
-  || ((argv.build || argv['build-index'] || argv['build-sqlite']) ? 'stale-clear' : '')
-);
-const lockWaitMs = parseMs(argv['lock-wait-ms'], 5 * 60 * 1000);
-const lockStaleMs = parseMs(argv['lock-stale-ms'], 30 * 60 * 1000);
-const backendList = resolveBackendList(argv.backend);
-const wantsSqlite = backendList.includes('sqlite') || backendList.includes('sqlite-fts') || backendList.includes('fts');
-const heapArgRaw = argv['heap-mb'];
-const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgRaw)) : null;
-const heapRecommendation = getRecommendedHeapMb();
-let heapLogged = false;
-const envConfig = getEnvConfig();
-
-function parseList(value) {
+const parseList = (value) => {
   if (!value) return [];
   return String(value)
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean);
-}
+};
 
-function buildRunSuffix() {
-  const now = new Date();
-  const stamp = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0')
-  ].join('');
-  const time = [
-    String(now.getHours()).padStart(2, '0'),
-    String(now.getMinutes()).padStart(2, '0'),
-    String(now.getSeconds()).padStart(2, '0')
-  ].join('');
-  return `run-${stamp}-${time}`;
-}
+const {
+  argv,
+  scriptRoot,
+  configPath,
+  reposRoot,
+  cacheRoot,
+  resultsRoot,
+  logPath,
+  cloneEnabled,
+  dryRun,
+  quietMode,
+  interactive,
+  colorEnabled,
+  logWindowSize,
+  lockMode,
+  lockWaitMs,
+  lockStaleMs,
+  wantsSqlite,
+  indexProfile,
+  suppressProfileEnv
+} = parseBenchLanguageArgs();
 
-function parseMs(value, fallback) {
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed >= 0) return Math.floor(parsed);
-  return fallback;
-}
+const baseEnv = { ...process.env };
+const envConfig = getEnvConfig();
+const heapArgRaw = argv['heap-mb'];
+const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgRaw)) : null;
+const heapRecommendation = getRecommendedHeapMb();
+let heapLogged = false;
 
-function normalizeLockMode(value) {
-  if (!value) return 'fail-fast';
-  const raw = String(value).trim().toLowerCase();
-  if (raw === 'wait' || raw === 'retry') return 'wait';
-  if (raw === 'stale-clear' || raw === 'stale') return 'stale-clear';
-  return 'fail-fast';
-}
-
-function isProcessAlive(pid) {
-  if (!Number.isFinite(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    return err?.code === 'EPERM';
-  }
-}
-
-async function readLockInfo(lockPath) {
-  try {
-    const raw = await fsPromises.readFile(lockPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-async function getLockAgeMs(lockPath, info) {
-  if (info?.startedAt) {
-    const started = Date.parse(info.startedAt);
-    if (Number.isFinite(started)) return Math.max(0, Date.now() - started);
-  }
-  try {
-    const stat = await fsPromises.stat(lockPath);
-    return Math.max(0, Date.now() - stat.mtimeMs);
-  } catch {
-    return null;
-  }
-}
-
-function formatLockDetail(detail) {
-  if (!detail) return '';
-  const parts = [];
-  if (Number.isFinite(detail.ageMs)) {
-    parts.push(`age ${formatDuration(detail.ageMs)}`);
-  }
-  if (Number.isFinite(detail.pid)) {
-    parts.push(`pid ${detail.pid}`);
-  }
-  return parts.length ? `(${parts.join(', ')})` : '';
-}
-
-async function checkIndexLock(repoCacheRoot, repoLabel) {
-  const lockPath = path.join(repoCacheRoot, 'locks', 'index.lock');
-  if (!fs.existsSync(lockPath)) return { ok: true };
-  const readDetail = async () => {
-    const info = await readLockInfo(lockPath);
-    const ageMs = await getLockAgeMs(lockPath, info);
-    const pid = Number.isFinite(Number(info?.pid)) ? Number(info.pid) : null;
-    const alive = pid ? isProcessAlive(pid) : null;
-    const detail = { lockPath, ageMs, pid, alive };
-    const isStale = (Number.isFinite(ageMs) && ageMs > lockStaleMs) || (pid && !alive);
-    return { detail, isStale };
-  };
-
-  const clearIfStale = async (detail) => {
-    try {
-      await fsPromises.rm(lockPath, { force: true });
-      appendLog(`[lock] cleared stale lock for ${repoLabel} ${formatLockDetail(detail)}`);
-      return true;
-    } catch (err) {
-      appendLog(`[lock] failed to clear stale lock for ${repoLabel}: ${err?.message || err}`);
-      return false;
-    }
-  };
-
-  const initial = await readDetail();
-  if (initial.isStale) {
-    const cleared = await clearIfStale(initial.detail);
-    if (cleared) return { ok: true, cleared: true, detail: initial.detail };
-  }
-
-  if (lockMode === 'wait') {
-    const deadline = Date.now() + lockWaitMs;
-    while (Date.now() < deadline) {
-      if (!fs.existsSync(lockPath)) return { ok: true };
-      const current = await readDetail();
-      if (current.isStale) {
-        const cleared = await clearIfStale(current.detail);
-        if (cleared) return { ok: true, cleared: true, detail: current.detail };
-      }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-  }
-
-  return { ok: false, detail: initial.detail };
-}
-
-function loadConfig() {
-  try {
-    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  } catch (err) {
-    console.error(`Failed to read ${configPath}`);
-    if (err && err.message) console.error(err.message);
-    process.exit(1);
-  }
-}
-
-function canRun(cmd, args) {
-  try {
-    const result = execaSync(cmd, args, { encoding: 'utf8', reject: false });
-    return result.exitCode === 0;
-  } catch {
-    return false;
-  }
-}
-
-function resolveCloneTool() {
-  const gitAvailable = canRun('git', ['--version']);
-  const ghAvailable = canRun('gh', ['--version']);
-  const preferGit = process.platform === 'win32' && gitAvailable;
-  if (preferGit) {
-    return {
-      label: 'git',
-      buildArgs: (repo, repoPath) => [
-        '-c',
-        'core.longpaths=true',
-        '-c',
-        'checkout.workers=0',
-        '-c',
-        'checkout.thresholdForParallelism=0',
-        'clone',
-        `https://github.com/${repo}.git`,
-        repoPath
-      ]
-    };
-  }
-  if (ghAvailable) {
-    return {
-      label: 'gh',
-      buildArgs: (repo, repoPath) => ['repo', 'clone', repo, repoPath]
-    };
-  }
-  if (gitAvailable) {
-    return {
-      label: 'git',
-      buildArgs: (repo, repoPath) => [
-        '-c',
-        'checkout.workers=0',
-        '-c',
-        'checkout.thresholdForParallelism=0',
-        'clone',
-        `https://github.com/${repo}.git`,
-        repoPath
-      ]
-    };
-  }
-  console.error('GitHub CLI (gh) or git is required to clone benchmark repos.');
-  process.exit(1);
-}
-
-function ensureLongPathsSupport() {
-  if (process.platform !== 'win32') return;
-  if (canRun('git', ['--version'])) {
-    try {
-      execaSync('git', ['config', '--global', 'core.longpaths', 'true'], { stdio: 'ignore', reject: false });
-    } catch {}
-  }
-  let regResult;
-  try {
-    regResult = execaSync(
-      'reg',
-      ['query', 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem', '/v', 'LongPathsEnabled'],
-      { encoding: 'utf8', reject: false }
-    );
-  } catch {
-    regResult = null;
-  }
-  if (!regResult || regResult.exitCode !== 0) {
-    console.warn('Warning: Unable to confirm Windows long path setting. Enable LongPathsEnabled=1 if clones fail.');
-    return;
-  }
-  const match = String(regResult.stdout || '').match(/LongPathsEnabled\\s+REG_DWORD\\s+0x([0-9a-f]+)/i);
-  if (!match) return;
-  const value = Number.parseInt(match[1], 16);
-  if (value === 0) {
-    console.warn('Warning: Windows long paths are disabled. Enable LongPathsEnabled=1 to avoid clone failures.');
-  }
-}
-
-function resolveRepoDir(repo, language) {
-  const safeName = repo.replace('/', '__');
-  return path.join(reposRoot, language, safeName);
-}
-
-function initLog() {
+let logStream = null;
+const initLog = () => {
   if (logStream) return;
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
   logStream = fs.createWriteStream(logPath, { flags: 'a' });
@@ -391,906 +76,76 @@ function initLog() {
   logStream.write(`Repos: ${reposRoot}\n`);
   logStream.write(`Cache: ${cacheRoot}\n`);
   logStream.write(`Results: ${resultsRoot}\n`);
-}
+};
 
-function writeLog(line) {
+const writeLog = (line) => {
   if (!logStream) initLog();
   if (!logStream) return;
   logStream.write(`${line}\n`);
-}
+};
 
-function writeLogSync(line) {
+const writeLogSync = (line) => {
   try {
     fs.mkdirSync(path.dirname(logPath), { recursive: true });
     fs.appendFileSync(logPath, `${line}\n`);
   } catch {}
-}
-
-function setActiveChild(child, label) {
-  activeChild = child;
-  activeLabel = label;
-}
-
-function clearActiveChild(child) {
-  if (activeChild === child) {
-    activeChild = null;
-    activeLabel = '';
-  }
-}
-
-function killProcessTree(pid) {
-  if (!Number.isFinite(pid)) return;
-  try {
-    if (process.platform === 'win32') {
-      execaSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', reject: false });
-      return;
-    }
-    process.kill(pid, 'SIGTERM');
-  } catch {}
-}
-
-function logExit(reason, code) {
-  if (exitLogged) return;
-  writeLogSync(`[exit] ${reason}${Number.isFinite(code) ? ` code=${code}` : ''}`);
-  exitLogged = true;
-}
-
-function pushHistory(line) {
-  if (!line) return;
-  logHistory.push(line);
-  if (logHistory.length > logHistorySize) logHistory.shift();
-}
-
-function truncateDisplay(line) {
-  if (!line) return '';
-  const width = Number.isFinite(process.stdout.columns) ? process.stdout.columns : 120;
-  if (line.length <= width) return line;
-  return `${line.slice(0, Math.max(0, width - 1))}…`;
-}
-
-const logTagRegex = /^\s*\[([^\]]+)\]\s*/;
-
-function extractLogTag(line) {
-  if (!line) return '';
-  const match = logTagRegex.exec(line);
-  return match ? match[1].trim().toLowerCase() : '';
-}
-
-function resolveLogTag(line, tagOverride) {
-  if (tagOverride) return String(tagOverride).trim().toLowerCase();
-  return extractLogTag(line);
-}
-
-function shouldUpdateLogWindowLine(line, tag) {
-  if (!tag) return true;
-  const now = Date.now();
-  const last = logUpdateByTag.get(tag);
-  if (last) {
-    if (last.line === line) return false;
-    if (now - last.at < logUpdateDebounceMs) return false;
-  }
-  logUpdateByTag.set(tag, { line, at: now });
-  return true;
-}
-
-function upsertLogWindowLine(line, tagOverride) {
-  const tag = resolveLogTag(line, tagOverride);
-  if (!tag) return false;
-  for (let i = logLines.length - 1; i >= 0; i -= 1) {
-    const existingTag = logLineTags[i] || extractLogTag(logLines[i]);
-    if (existingTag && existingTag === tag) {
-      logLines[i] = line;
-      logLineTags[i] = tag;
-      return true;
-    }
-  }
-  return false;
-}
-
-function pushLogWindowLine(line, options = {}) {
-  if (!interactive) return;
-  const tag = resolveLogTag(line, options.tag);
-  if (!shouldUpdateLogWindowLine(line, tag)) return;
-  const replaced = tag ? upsertLogWindowLine(line, tag) : false;
-  if (!replaced) {
-    logLines.push(line);
-    logLineTags.push(tag || '');
-    if (logLines.length > logWindowSize) logLines.shift();
-    if (logLineTags.length > logWindowSize) logLineTags.shift();
-  }
-  renderStatus();
-}
-
-const ansi = {
-  reset: '\x1b[0m',
-  fgDim: '\x1b[90m',
-  fgLight: '\x1b[37m',
-  fgBright: '\x1b[97m',
-  bgBlack: '\x1b[40m'
 };
 
-function styleText(text, prefix) {
-  if (!colorEnabled || !text) return text;
-  return `${prefix}${text}${ansi.reset}`;
-}
+const progressState = createProgressState({ logWindowSize });
+let processRunner = null;
+const progress = createProgressRenderer({
+  state: progressState,
+  interactive,
+  quietMode,
+  colorEnabled,
+  writeLog,
+  getActiveLabel: () => (processRunner ? processRunner.getActiveLabel() : '')
+});
+processRunner = createProcessRunner({
+  appendLog: progress.appendLog,
+  writeLog,
+  writeLogSync,
+  logHistory: progressState.logHistory,
+  logPath
+});
 
-function formatBarLine(line, width) {
-  const content = line || '';
-  const truncated = content.length > width
-    ? `${content.slice(0, Math.max(0, width - 1))}…`
-    : content;
-  if (!colorEnabled) return truncated;
-  const padded = truncated.padEnd(width, ' ');
-  return `${ansi.bgBlack}${ansi.fgLight}${padded}${ansi.reset}`;
-}
-
-function formatLogLine(line) {
-  const content = line || '';
-  if (!colorEnabled) return content;
-  if (/^\s*(?:→|->)\s*Shard\s+/i.test(content)) {
-    return styleText(content, ansi.fgBright);
+process.on('exit', (code) => {
+  processRunner.logExit('exit', code);
+  if (logStream) logStream.end();
+});
+process.on('SIGINT', () => {
+  writeLogSync('[signal] SIGINT received');
+  const active = processRunner.getActiveChild();
+  if (active) {
+    writeLogSync(`[signal] terminating ${processRunner.getActiveLabel()}`);
+    processRunner.killProcessTree(active.pid);
   }
-  if (/^\s*\[shard\s+/i.test(content)
-    || /^\s*Files\s+\d+\/\d+/i.test(content)
-    || /^\s*File\s+\d+\/\d+/i.test(content)) {
-    return styleText(content, ansi.fgDim);
+  processRunner.logExit('SIGINT', 130);
+  process.exit(130);
+});
+process.on('SIGTERM', () => {
+  writeLogSync('[signal] SIGTERM received');
+  const active = processRunner.getActiveChild();
+  if (active) {
+    writeLogSync(`[signal] terminating ${processRunner.getActiveLabel()}`);
+    processRunner.killProcessTree(active.pid);
   }
-  return content;
-}
+  processRunner.logExit('SIGTERM', 143);
+  process.exit(143);
+});
+process.on('uncaughtException', (err) => {
+  writeLogSync(`[error] uncaughtException: ${err?.stack || err}`);
+  processRunner.logExit('uncaughtException', 1);
+  process.exit(1);
+});
+process.on('unhandledRejection', (err) => {
+  writeLogSync(`[error] unhandledRejection: ${err?.stack || err}`);
+  processRunner.logExit('unhandledRejection', 1);
+  process.exit(1);
+});
 
-function renderStatus() {
-  if (!interactive) return;
-  if (!statusRendered) {
-    process.stdout.write('\n'.repeat(statusLines));
-    statusRendered = true;
-  }
-  readline.moveCursor(process.stdout, 0, -statusLines);
-  const lines = [...logLines];
-  const width = Number.isFinite(process.stdout.columns) ? process.stdout.columns : 120;
-  while (lines.length < logWindowSize) lines.push('');
-  lines.push(metricsLine);
-  lines.push(fileProgressLine);
-  lines.push(progressLine);
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    const isBar = i >= logWindowSize;
-    readline.clearLine(process.stdout, 0);
-    const output = isBar
-      ? formatBarLine(line || '', width)
-      : formatLogLine(truncateDisplay(line || ''));
-    process.stdout.write(output);
-    process.stdout.write('\n');
-  }
-}
-
-let lastProgressMessage = '';
-function parseDurationText(text) {
-  if (!text) return null;
-  const hours = /(\d+)\s*h/i.exec(text);
-  const minutes = /(\d+)\s*m/i.exec(text);
-  const seconds = /(\d+)\s*s/i.exec(text);
-  const totalSeconds = (hours ? Number(hours[1]) * 3600 : 0)
-    + (minutes ? Number(minutes[1]) * 60 : 0)
-    + (seconds ? Number(seconds[1]) : 0);
-  return Number.isFinite(totalSeconds) ? totalSeconds * 1000 : null;
-}
-
-function setProgressBase(message) {
-  progressLineBase = message || '';
-  progressLinePrefix = '';
-  progressLineSuffix = '';
-  progressElapsedStartMs = null;
-  if (!message) return;
-  const match = message.match(/^(.*\| elapsed )([^|]+)(.*)$/);
-  if (!match) return;
-  const parsedMs = parseDurationText(match[2].trim());
-  if (!Number.isFinite(parsedMs)) return;
-  progressLinePrefix = match[1];
-  progressLineSuffix = match[3] || '';
-  progressElapsedStartMs = Date.now() - parsedMs;
-}
-
-function getActiveShardList(now = Date.now()) {
-  const active = [];
-  for (const [index, lastSeen] of activeShards.entries()) {
-    if (now - lastSeen <= activeShardWindowMs) {
-      active.push(index);
-    } else {
-      activeShards.delete(index);
-    }
-  }
-  active.sort((a, b) => a - b);
-  return active;
-}
-
-function formatImportStats(stats) {
-  if (!stats) return '';
-  const parts = [];
-  if (Number.isFinite(stats.modules)) parts.push(`${stats.modules} mods`);
-  if (Number.isFinite(stats.edges)) parts.push(`${stats.edges} edges`);
-  if (Number.isFinite(stats.files)) parts.push(`${stats.files} files`);
-  if (!parts.length) return '';
-  return `imports ${parts.join(', ')}`;
-}
-
-function buildProgressLineExtras(now = Date.now()) {
-  const segments = [];
-  const shardList = getActiveShardList(now);
-  if (shardList.length) {
-    segments.push(`shards ${shardList.join(',')}`);
-  }
-  if (buildProgressState.step?.toLowerCase() === 'imports') {
-    const importText = formatImportStats(buildProgressState.importStats);
-    if (importText) segments.push(importText);
-  }
-  return segments.length ? ` | ${segments.join(' | ')}` : '';
-}
-
-function buildProgressLineBase(now = Date.now()) {
-  if (progressLinePrefix && Number.isFinite(progressElapsedStartMs)) {
-    return `${progressLinePrefix}${formatDuration(now - progressElapsedStartMs)}${progressLineSuffix}`;
-  }
-  return progressLineBase;
-}
-
-function renderProgressLine({ now = Date.now(), log = false, force = false } = {}) {
-  const baseLine = buildProgressLineBase(now);
-  const extra = buildProgressLineExtras(now);
-  let line = baseLine || '';
-  if (extra) {
-    line = baseLine ? `${baseLine}${extra}` : extra.replace(/^\s*\|\s*/, '');
-  }
-  if (!force && line === progressLine) return;
-  progressLine = line;
-  renderStatus();
-  if (log && line && line !== lastProgressLogged) {
-    writeLog(`[progress] ${line}`);
-    lastProgressLogged = line;
-  }
-  if (log && !interactive && !quietMode && line !== lastProgressMessage) {
-    console.log(line);
-    lastProgressMessage = line;
-  }
-}
-
-function updateProgress(message) {
-  setProgressBase(message);
-  renderProgressLine({ log: true, force: true });
-}
-
-function updateMetrics(message) {
-  metricsLine = message;
-  renderStatus();
-  if (message && message !== lastMetricsLogged) {
-    writeLog(`[metrics] ${message}`);
-    lastMetricsLogged = message;
-  }
-  if (!interactive && !quietMode && message) {
-    console.log(message);
-  }
-}
-
-function updateFileProgressLine() {
-  const file = buildProgressState.currentFile;
-  const current = buildProgressState.currentLine;
-  const total = buildProgressState.currentLineTotal;
-  if (!file) {
-    fileProgressLine = '';
-    renderStatus();
-    return;
-  }
-  const lineSegment = total > 0 ? ` [${current}/${total}]` : '';
-  const shardIndex = buildProgressState.currentShardIndex;
-  const shardTotal = buildProgressState.currentShardTotal;
-  const shardLabel = (Number.isFinite(shardIndex) && Number.isFinite(shardTotal))
-    ? `${shardIndex}/${shardTotal}`
-    : '';
-  const shardSegment = shardLabel ? `[shard ${shardLabel}] ` : '[shard] ';
-  fileProgressLine = `${shardSegment}${file}${lineSegment}`;
-  renderStatus();
-}
-
-function handleShardLine(line) {
-  const match = buildShardRegex.exec(line);
-  if (!match) return false;
-  const index = Number.parseInt(match[1], 10);
-  const total = Number.parseInt(match[2], 10);
-  const rawLabel = match[3] ? match[3].trim() : '';
-  if (rawLabel && Number.isFinite(index) && Number.isFinite(total)) {
-    shardByLabel.set(rawLabel, { index, total });
-  }
-  return true;
-}
-
-function handleImportStatsLine(line) {
-  const match = buildImportStatsRegex.exec(line);
-  if (!match) return false;
-  buildProgressState.importStats = {
-    modules: Number.parseInt(match[1], 10),
-    edges: Number.parseInt(match[2], 10),
-    files: Number.parseInt(match[3], 10)
-  };
-  return true;
-}
-
-function normalizeShardLabel(raw) {
-  if (!raw) return '';
-  const trimmed = raw.trim();
-  if (!trimmed || /^shard$/i.test(trimmed)) return '';
-  return trimmed.replace(/^shard\s+/i, '').trim();
-}
-
-function parseFileProgressLine(line) {
-  const combined = buildCombinedFileRegex.exec(line);
-  if (combined) {
-    return {
-      count: Number.parseInt(combined[1], 10),
-      total: Number.parseInt(combined[2], 10),
-      pct: Number.parseFloat(combined[3]),
-      shardLabel: normalizeShardLabel(combined[4]),
-      fileIndex: Number.parseInt(combined[5], 10),
-      fileTotal: Number.parseInt(combined[6], 10),
-      file: combined[7] ? combined[7].trim() : ''
-    };
-  }
-  const solo = buildFileOnlyRegex.exec(line);
-  if (!solo) return null;
-  return {
-    count: null,
-    total: null,
-    pct: null,
-    shardLabel: normalizeShardLabel(solo[1]),
-    fileIndex: Number.parseInt(solo[2], 10),
-    fileTotal: Number.parseInt(solo[3], 10),
-    file: solo[4] ? solo[4].trim() : ''
-  };
-}
-
-
-function formatProgressLine(line) {
-  const match = buildProgressRegex.exec(line);
-  if (!match) return null;
-  const step = match[1];
-  const count = Number.parseInt(match[2], 10);
-  const total = Number.parseInt(match[3], 10);
-  const pct = Number.parseFloat(match[4]);
-  if (!Number.isFinite(count) || !Number.isFinite(total)) return null;
-  const pctText = Number.isFinite(pct) ? `${pct.toFixed(1)}%` : null;
-  const lineText = `${step} ${count}/${total}${pctText ? ` (${pctText})` : ''}`;
-  return {
-    line: lineText,
-    tag: `progress:${step.toLowerCase()}`
-  };
-}
-
-function appendLog(line) {
-  const cleaned = line.replace(/\r/g, '').trimEnd();
-  if (!cleaned) return;
-  if (handleImportStatsLine(cleaned)) {
-    refreshProgressLine(Date.now(), true);
-  }
-  if (buildLineRegex.test(cleaned)) {
-    handleBuildLineProgress(cleaned);
-    handleBuildProgress(cleaned);
-    return;
-  }
-  const fileProgress = parseFileProgressLine(cleaned);
-  if (fileProgress && fileProgress.file) {
-    pushHistory(cleaned);
-    handleBuildMode(cleaned);
-    handleBuildFileLine(fileProgress);
-    handleBuildLineProgress(cleaned);
-    handleBuildProgress(cleaned);
-    const formatted = formatShardFileProgress(fileProgress, {
-      shardByLabel,
-      lineTotal: buildProgressState.currentLineTotal
-    });
-    if (formatted) {
-      writeLog(formatted);
-      if (interactive) {
-        pushLogWindowLine(formatted);
-      } else if (!quietMode) {
-        console.log(formatted);
-      }
-    }
-    return;
-  }
-  const formattedProgress = formatProgressLine(cleaned);
-  if (formattedProgress) {
-    const { line, tag } = formattedProgress;
-    pushHistory(cleaned);
-    handleBuildMode(cleaned);
-    handleBuildLineProgress(cleaned);
-    handleBuildProgress(cleaned);
-    writeLog(line);
-    if (interactive) {
-      pushLogWindowLine(line, { tag });
-    } else if (!quietMode) {
-      console.log(line);
-    }
-    return;
-  }
-  pushHistory(cleaned);
-  writeLog(cleaned);
-  if (handleShardLine(cleaned)) {
-    if (interactive) {
-      pushLogWindowLine(cleaned);
-    } else if (!quietMode) {
-      console.log(cleaned);
-    }
-    return;
-  }
-  handleBuildMode(cleaned);
-  handleBuildFileLine(cleaned);
-  handleBuildLineProgress(cleaned);
-  handleBuildProgress(cleaned);
-  if (interactive) {
-    pushLogWindowLine(cleaned);
-  } else if (!quietMode) {
-    console.log(cleaned);
-  }
-}
-
-function resetBuildProgress(label = '') {
-  buildProgressState.step = null;
-  buildProgressState.total = 0;
-  buildProgressState.startMs = 0;
-  buildProgressState.lastLoggedMs = 0;
-  buildProgressState.lastCount = 0;
-  buildProgressState.lastPct = 0;
-  buildProgressState.label = label;
-  buildProgressState.mode = null;
-  buildProgressState.lineTotals = { code: 0, prose: 0 };
-  buildProgressState.linesByFile = { code: new Map(), prose: new Map() };
-  buildProgressState.linesProcessed = { code: 0, prose: 0 };
-  buildProgressState.filesSeen = { code: new Set(), prose: new Set() };
-  buildProgressState.currentFile = null;
-  buildProgressState.currentLine = 0;
-  buildProgressState.currentLineTotal = 0;
-  buildProgressState.currentShard = null;
-  buildProgressState.currentShardIndex = null;
-  buildProgressState.currentShardTotal = null;
-  buildProgressState.importStats = null;
-  activeShards.clear();
-  logUpdateByTag.clear();
-  updateFileProgressLine();
-}
-
-function handleBuildMode(line) {
-  const match = buildScanRegex.exec(line);
-  if (!match) return;
-  const mode = match[1].toLowerCase();
-  if (mode === 'code' || mode === 'prose') {
-    buildProgressState.mode = mode;
-  }
-}
-
-function resolveModeForFile(rel) {
-  if (!rel) return null;
-  if (buildProgressState.linesByFile.code?.has(rel)) return 'code';
-  if (buildProgressState.linesByFile.prose?.has(rel)) return 'prose';
-  return null;
-}
-
-function handleBuildFileLine(lineOrEntry) {
-  const entry = typeof lineOrEntry === 'string' ? parseFileProgressLine(lineOrEntry) : lineOrEntry;
-  if (!entry || !entry.file) return;
-  const rawPath = entry.file.trim();
-  if (!rawPath) return;
-  const rel = toPosix(rawPath);
-  const inferredMode = resolveModeForFile(rel);
-  if (inferredMode && inferredMode !== buildProgressState.mode) {
-    buildProgressState.mode = inferredMode;
-  }
-  const mode = buildProgressState.mode;
-  if (!mode || !buildProgressState.linesByFile[mode]) return;
-  buildProgressState.currentFile = rel;
-  buildProgressState.currentLineTotal = buildProgressState.linesByFile[mode].get(rel) || 0;
-  buildProgressState.currentLine = 0;
-  const shardLabel = entry.shardLabel;
-  const shardInfo = shardLabel ? shardByLabel.get(shardLabel) : null;
-  buildProgressState.currentShard = shardLabel || null;
-  buildProgressState.currentShardIndex = shardInfo?.index ?? null;
-  buildProgressState.currentShardTotal = shardInfo?.total ?? null;
-  if (Number.isFinite(buildProgressState.currentShardIndex)) {
-    activeShards.set(buildProgressState.currentShardIndex, Date.now());
-  }
-  updateFileProgressLine();
-  const seen = buildProgressState.filesSeen[mode];
-  if (seen.has(rel)) return;
-  const lineCount = buildProgressState.linesByFile[mode].get(rel);
-  if (!Number.isFinite(lineCount)) return;
-  seen.add(rel);
-  buildProgressState.linesProcessed[mode] += lineCount;
-}
-
-function handleBuildLineProgress(line) {
-  const match = buildLineRegex.exec(line);
-  if (!match) return;
-  const current = Number.parseInt(match[1], 10);
-  const total = Number.parseInt(match[2], 10);
-  if (!Number.isFinite(current) || !Number.isFinite(total) || total <= 0) return;
-  buildProgressState.currentLine = current;
-  buildProgressState.currentLineTotal = total;
-  updateFileProgressLine();
-}
-
-function handleBuildProgress(line) {
-  const match = buildProgressRegex.exec(line);
-  if (!match) return false;
-  const step = match[1];
-  const count = Number.parseInt(match[2], 10);
-  const total = Number.parseInt(match[3], 10);
-  const pct = Number.parseFloat(match[4]);
-  if (
-    !Number.isFinite(count) ||
-    !Number.isFinite(total) ||
-    !Number.isFinite(pct) ||
-    total <= 0
-  ) {
-    return true;
-  }
-  const label = currentRepoLabel || activeLabel || '';
-  const now = Date.now();
-  if (
-    buildProgressState.step !== step ||
-    buildProgressState.total !== total ||
-    count < buildProgressState.lastCount ||
-    buildProgressState.label !== label
-  ) {
-    buildProgressState.step = step;
-    buildProgressState.total = total;
-    buildProgressState.startMs = now;
-    buildProgressState.lastLoggedMs = 0;
-    buildProgressState.lastCount = 0;
-    buildProgressState.lastPct = 0;
-    buildProgressState.label = label;
-  }
-  if (!buildProgressState.startMs) buildProgressState.startMs = now;
-  const elapsedMs = now - buildProgressState.startMs;
-  const rate = elapsedMs > 0 ? count / (elapsedMs / 1000) : 0;
-  const remaining = total - count;
-  let etaMs = rate > 0 && remaining > 0 ? (remaining / rate) * 1000 : 0;
-  let lineRate = 0;
-  let remainingLines = 0;
-  let totalLines = 0;
-  if (step.toLowerCase() === 'files' && !buildProgressState.mode) {
-    const fallbackMode = resolveModeForFile(buildProgressState.currentFile);
-    if (fallbackMode) {
-      buildProgressState.mode = fallbackMode;
-    }
-  }
-  if (step.toLowerCase() === 'files' && buildProgressState.mode) {
-    const mode = buildProgressState.mode;
-    totalLines = buildProgressState.lineTotals[mode] || 0;
-    const processedLines = buildProgressState.linesProcessed[mode] || 0;
-    if (elapsedMs > 0 && processedLines > 0) {
-      lineRate = processedLines / (elapsedMs / 1000);
-    }
-    remainingLines = totalLines - processedLines;
-    if (lineRate > 0 && remainingLines > 0) {
-      etaMs = (remainingLines / lineRate) * 1000;
-    }
-  }
-  const pctDelta = pct - buildProgressState.lastPct;
-  const countDelta = count - buildProgressState.lastCount;
-  const shouldLog =
-    count === total ||
-    now - buildProgressState.lastLoggedMs >= 5000 ||
-    pctDelta >= 1 ||
-    countDelta >= 500;
-  if (shouldLog) {
-    const rateText = rate > 0 ? `${rate.toFixed(1)}/s` : 'n/a';
-    const lineRateText = lineRate > 0 ? `${Math.round(lineRate).toLocaleString()}/s` : null;
-    const etaText = etaMs > 0 ? formatDuration(etaMs) : 'n/a';
-    const labelText = label ? ` ${label}` : '';
-    const lineRateSegment = lineRateText ? ` | lines ${lineRateText}` : '';
-    const totalLinesText = totalLines > 0 ? `${formatLoc(totalLines)}` : null;
-    const processedLinesText = totalLines > 0
-      ? `${formatLoc(totalLines - remainingLines)}/${totalLinesText}`
-      : null;
-    const linesElapsedSegment = processedLinesText ? ` (${processedLinesText})` : '';
-    const remainingLinesText = remainingLines > 0 ? formatLoc(remainingLines) : null;
-    const etaSegment = remainingLinesText ? `${etaText} (${remainingLinesText} rem)` : etaText;
-    const currentLineSegment = (buildProgressState.currentLineTotal > 0)
-      ? ` [${buildProgressState.currentLine}/${buildProgressState.currentLineTotal}]`
-      : '';
-    const message = `Indexing${labelText} ${step} ${count}/${total} (${pct.toFixed(
-      1
-    )}%)${currentLineSegment} | rate ${rateText}${lineRateSegment} | elapsed ${formatDuration(
-      elapsedMs
-    )}${linesElapsedSegment} | eta ${etaSegment}`;
-    updateMetrics(message);
-    buildProgressState.lastLoggedMs = now;
-    buildProgressState.lastCount = count;
-    buildProgressState.lastPct = pct;
-  }
-  refreshProgressLine(now);
-  return true;
-}
-
-function refreshProgressLine(now = Date.now(), force = false) {
-  if (!interactive) return;
-  if (!force && now - lastProgressRefreshMs < progressRefreshMs) return;
-  lastProgressRefreshMs = now;
-  renderProgressLine({ now, force });
-}
-
-function formatDuration(ms) {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const seconds = total % 60;
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
-}
-
-function formatGb(mb) {
-  return `${(mb / 1024).toFixed(1)} GB`;
-}
-
-function formatLoc(value) {
-  if (!Number.isFinite(value)) return 'n/a';
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
-  return `${Math.floor(value)}`;
-}
-
-async function validateEncodingFixtures() {
-  const fixturePath = path.join(scriptRoot, 'tests', 'fixtures', 'encoding', 'latin1.js');
-  if (!fs.existsSync(fixturePath)) return;
-  try {
-    const { text, usedFallback } = await readTextFile(fixturePath);
-    if (!text.includes('café') || !usedFallback) {
-      console.warn(`[bench] Encoding fixture did not decode as expected: ${fixturePath}`);
-    }
-  } catch (err) {
-    console.warn(`[bench] Encoding fixture read failed: ${err?.message || err}`);
-  }
-}
-
-function resolveMaxFileBytes(userConfig) {
-  const raw = userConfig?.indexing?.maxFileBytes;
-  const parsed = Number(raw);
-  if (raw === false || raw === 0) return null;
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return 5 * 1024 * 1024;
-}
-
-async function buildLineStats(repoPath, userConfig) {
-  const modes = ['code', 'prose'];
-  const { ignoreMatcher } = await buildIgnoreMatcher({ root: repoPath, userConfig });
-  const skippedByMode = { code: [], prose: [] };
-  const maxFileBytes = resolveMaxFileBytes(userConfig);
-  const entriesByMode = await discoverFilesForModes({
-    root: repoPath,
-    modes,
-    ignoreMatcher,
-    skippedByMode,
-    maxFileBytes
-  });
-  const linesByFile = { code: new Map(), prose: new Map() };
-  const totals = { code: 0, prose: 0 };
-  const concurrency = Math.max(1, Math.min(32, os.cpus().length * 2));
-  for (const mode of modes) {
-    const entries = entriesByMode[mode] || [];
-    if (!entries.length) continue;
-    const lineCounts = await countLinesForEntries(entries, { concurrency });
-    for (const [rel, lines] of lineCounts) {
-      linesByFile[mode].set(rel, lines);
-      totals[mode] += lines;
-    }
-  }
-  return { totals, linesByFile };
-}
-
-function stripMaxOldSpaceFlag(options) {
-  if (!options) return '';
-  return options
-    .replace(/--max-old-space-size=\d+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function getRecommendedHeapMb() {
-  const totalMb = Math.floor(os.totalmem() / (1024 * 1024));
-  const recommended = Math.max(4096, Math.floor(totalMb * 0.75));
-  const rounded = Math.floor(recommended / 256) * 256;
-  return {
-    totalMb,
-    recommendedMb: Math.max(4096, rounded)
-  };
-}
-
-function formatMetricSummary(summary) {
-  if (!summary) return 'Metrics: pending';
-  const backends = summary.backends || Object.keys(summary.latencyMsAvg || {});
-  const parts = [];
-  for (const backend of backends) {
-    const latency = summary.latencyMsAvg?.[backend];
-    const hitRate = summary.hitRate?.[backend];
-    const latencyText = Number.isFinite(latency) ? `${latency.toFixed(1)}ms` : 'n/a';
-    const hitText = Number.isFinite(hitRate) ? `${(hitRate * 100).toFixed(1)}%` : 'n/a';
-    parts.push(`${backend} ${latencyText} hit ${hitText}`);
-  }
-  if (summary.embeddingProvider) {
-    parts.push(`embed ${summary.embeddingProvider}`);
-  }
-  return parts.length ? `Metrics: ${parts.join(' | ')}` : 'Metrics: pending';
-}
-
-function resolveBackendList(value) {
-  if (!value) return ['memory', 'sqlite'];
-  const trimmed = String(value).trim().toLowerCase();
-  if (!trimmed) return ['memory', 'sqlite'];
-  if (trimmed === 'all') return ['memory', 'sqlite', 'sqlite-fts'];
-  return trimmed
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-function resolveRepoCache(repoPath) {
-  return getRepoCacheRoot(repoPath, cacheConfig);
-}
-
-function needsIndexArtifacts(repoRoot) {
-  const userConfig = loadUserConfig(repoRoot);
-  const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-  const proseDir = getIndexDir(repoRoot, 'prose', userConfig);
-  const hasChunkMeta = (dir) => (
-    fs.existsSync(path.join(dir, 'chunk_meta.json'))
-    || fs.existsSync(path.join(dir, 'chunk_meta.jsonl'))
-    || fs.existsSync(path.join(dir, 'chunk_meta.meta.json'))
-    || fs.existsSync(path.join(dir, 'chunk_meta.parts'))
-  );
-  return !hasChunkMeta(codeDir) || !hasChunkMeta(proseDir);
-}
-
-function needsSqliteArtifacts(repoRoot) {
-  const userConfig = loadUserConfig(repoRoot);
-  const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
-  return !fs.existsSync(sqlitePaths.codePath) || !fs.existsSync(sqlitePaths.prosePath);
-}
-
-async function runProcess(label, cmd, args, options = {}) {
-  const spawnOptions = {
-    ...options,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    reject: false
-  };
-  const child = execa(cmd, args, spawnOptions);
-  setActiveChild(child, label);
-  writeLog(`[start] ${label}`);
-  const carry = { stdout: '', stderr: '' };
-  const handleChunk = (chunk, key) => {
-    const text = carry[key] + chunk.toString('utf8');
-    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const parts = normalized.split('\n');
-    carry[key] = parts.pop() || '';
-    for (const line of parts) appendLog(line);
-  };
-  child.stdout?.on('data', (chunk) => handleChunk(chunk, 'stdout'));
-  child.stderr?.on('data', (chunk) => handleChunk(chunk, 'stderr'));
-  try {
-    const result = await child;
-    if (carry.stdout) appendLog(carry.stdout);
-    if (carry.stderr) appendLog(carry.stderr);
-    const code = result.exitCode;
-    writeLog(`[finish] ${label} code=${code}`);
-    clearActiveChild(child);
-    if (code === 0) {
-      return { ok: true };
-    }
-    console.error(`Failed: ${label}`);
-    console.error(`Log: ${logPath}`);
-    writeLog(`[error] Failed: ${label}`);
-    writeLog(`[error] Log: ${logPath}`);
-    if (logHistory.length) {
-      console.error('Last log lines:');
-      logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));
-      logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));
-    }
-    if (logHistory.some((line) => line.toLowerCase().includes('filename too long'))) {
-      console.error('Hint: On Windows, enable long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
-      writeLog('[hint] Enable Windows long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
-    }
-    logExit('failure', code ?? 1);
-    process.exit(code ?? 1);
-  } catch (err) {
-    const message = err?.shortMessage || err?.message || err;
-    writeLog(`[error] ${label} spawn failed: ${message}`);
-    clearActiveChild(child);
-    console.error(`Failed: ${label}`);
-    console.error(`Log: ${logPath}`);
-    if (logHistory.length) {
-      console.error('Last log lines:');
-      logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));
-      logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));
-    }
-    logExit('failure', err?.exitCode ?? 1);
-    process.exit(err?.exitCode ?? 1);
-  }
-}
-
-function summarizeResults(items) {
-  const valid = items.filter((entry) => entry.summary);
-  if (!valid.length) return null;
-  const backendSet = new Set();
-  for (const entry of valid) {
-    const summary = entry.summary;
-    const backends = summary.backends || Object.keys(summary.latencyMsAvg || {});
-    for (const backend of backends) backendSet.add(backend);
-  }
-  const backends = Array.from(backendSet);
-  const latencyMsAvg = {};
-  const hitRate = {};
-  const resultCountAvg = {};
-  const memoryRssAvgMb = {};
-  const buildMsAvg = {};
-  for (const backend of backends) {
-    const latencies = valid.map((entry) => entry.summary?.latencyMsAvg?.[backend]).filter(Number.isFinite);
-    const hits = valid.map((entry) => entry.summary?.hitRate?.[backend]).filter(Number.isFinite);
-    const results = valid.map((entry) => entry.summary?.resultCountAvg?.[backend]).filter(Number.isFinite);
-    const mem = valid
-      .map((entry) => entry.summary?.memoryRss?.[backend]?.mean)
-      .filter(Number.isFinite)
-      .map((value) => value / (1024 * 1024));
-    if (latencies.length) latencyMsAvg[backend] = latencies.reduce((a, b) => a + b, 0) / latencies.length;
-    if (hits.length) hitRate[backend] = hits.reduce((a, b) => a + b, 0) / hits.length;
-    if (results.length) resultCountAvg[backend] = results.reduce((a, b) => a + b, 0) / results.length;
-    if (mem.length) memoryRssAvgMb[backend] = mem.reduce((a, b) => a + b, 0) / mem.length;
-  }
-  for (const entry of valid) {
-    const build = entry.summary?.buildMs;
-    if (!build) continue;
-    for (const [key, value] of Object.entries(build)) {
-      if (!Number.isFinite(value)) continue;
-      if (!buildMsAvg[key]) buildMsAvg[key] = [];
-      buildMsAvg[key].push(value);
-    }
-  }
-  const buildMs = Object.fromEntries(
-    Object.entries(buildMsAvg).map(([key, values]) => [
-      key,
-      values.reduce((a, b) => a + b, 0) / values.length
-    ])
-  );
-  return {
-    backends,
-    latencyMsAvg,
-    hitRate,
-    resultCountAvg,
-    memoryRssAvgMb,
-    buildMs: Object.keys(buildMs).length ? buildMs : null
-  };
-}
-
-function printSummary(label, summary, count) {
-  if (!summary || quietMode) return;
-  console.log(`\n${label} summary (${count} repos)`);
-  for (const backend of summary.backends) {
-    const latency = summary.latencyMsAvg?.[backend];
-    const hit = summary.hitRate?.[backend];
-    const results = summary.resultCountAvg?.[backend];
-    const mem = summary.memoryRssAvgMb?.[backend];
-    const latencyText = Number.isFinite(latency) ? `${latency.toFixed(1)}ms` : 'n/a';
-    const hitText = Number.isFinite(hit) ? `${(hit * 100).toFixed(1)}%` : 'n/a';
-    const resultText = Number.isFinite(results) ? results.toFixed(1) : 'n/a';
-    const memText = Number.isFinite(mem) ? `${mem.toFixed(1)} MB` : 'n/a';
-    console.log(`- ${backend} avg ${latencyText} | hit ${hitText} | avg hits ${resultText} | rss ${memText}`);
-  }
-  if (summary.buildMs) {
-    for (const [key, value] of Object.entries(summary.buildMs)) {
-      if (!Number.isFinite(value)) continue;
-      console.log(`- build ${key} avg ${(value / 1000).toFixed(1)}s`);
-    }
-  }
-}
-
-const config = loadConfig();
-await validateEncodingFixtures();
+const config = loadBenchConfig(configPath);
+await validateEncodingFixtures(scriptRoot);
 const languageFilter = parseList(argv.languages || argv.language).map((entry) => entry.toLowerCase());
 let tierFilter = parseList(argv.tier).map((entry) => entry.toLowerCase());
 const repoFilter = parseList(argv.only || argv.repos).map((entry) => entry.toLowerCase());
@@ -1350,6 +205,7 @@ if (!tasks.length) {
   process.exit(1);
 }
 
+let cloneTool = null;
 if (cloneEnabled && !dryRun) {
   ensureLongPathsSupport();
   cloneTool = resolveCloneTool();
@@ -1359,68 +215,52 @@ await fsPromises.mkdir(reposRoot, { recursive: true });
 await fsPromises.mkdir(resultsRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 initLog();
-process.on('exit', (code) => {
-  logExit('exit', code);
-  if (logStream) logStream.end();
-});
-process.on('SIGINT', () => {
-  writeLogSync('[signal] SIGINT received');
-  if (activeChild) {
-    writeLogSync(`[signal] terminating ${activeLabel}`);
-    killProcessTree(activeChild.pid);
-  }
-  logExit('SIGINT', 130);
-  process.exit(130);
-});
-process.on('SIGTERM', () => {
-  writeLogSync('[signal] SIGTERM received');
-  if (activeChild) {
-    writeLogSync(`[signal] terminating ${activeLabel}`);
-    killProcessTree(activeChild.pid);
-  }
-  logExit('SIGTERM', 143);
-  process.exit(143);
-});
-process.on('uncaughtException', (err) => {
-  writeLogSync(`[error] uncaughtException: ${err?.stack || err}`);
-  logExit('uncaughtException', 1);
-  process.exit(1);
-});
-process.on('unhandledRejection', (err) => {
-  writeLogSync(`[error] unhandledRejection: ${err?.stack || err}`);
-  logExit('unhandledRejection', 1);
-  process.exit(1);
-});
 writeLog(`Clone tool: ${cloneTool ? cloneTool.label : 'disabled'}`);
 
 const benchScript = path.join(scriptRoot, 'tests', 'bench.js');
 const results = [];
-const groupedResults = new Map();
 const startTime = Date.now();
 let completed = 0;
 
-updateMetrics('Metrics: pending');
-updateProgress(`Progress: 0/${tasks.length} | elapsed ${formatDuration(0)}`);
+progress.updateMetrics('Metrics: pending');
+progress.updateProgress(`Progress: 0/${tasks.length} | elapsed ${formatDuration(0)}`);
 
 for (const task of tasks) {
-  const repoPath = resolveRepoDir(task.repo, task.language);
+  const repoPath = resolveRepoDir({ reposRoot, repo: task.repo, language: task.language });
   await fsPromises.mkdir(path.dirname(repoPath), { recursive: true });
   const repoLabel = `${task.language}/${task.repo}`;
   const phaseLabel = `repo ${repoLabel} (${task.tier})`;
-  currentRepoLabel = repoLabel;
-  resetBuildProgress(repoLabel);
+  progressState.currentRepoLabel = repoLabel;
+  progress.resetBuildProgress(repoLabel);
 
   if (!fs.existsSync(repoPath)) {
     if (!cloneEnabled && !dryRun) {
       console.error(`Missing repo ${task.repo} at ${repoPath}. Re-run with --clone.`);
       process.exit(1);
     }
-    updateProgress(`Progress: ${completed}/${tasks.length} | cloning ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
+    progress.updateProgress(`Progress: ${completed}/${tasks.length} | cloning ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
     if (!dryRun && cloneEnabled && cloneTool) {
       const args = cloneTool.buildArgs(task.repo, repoPath);
-      await runProcess(`clone ${task.repo}`, cloneTool.label, args, {
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+      const cloneResult = await processRunner.runProcess(`clone ${task.repo}`, cloneTool.label, args, {
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+        continueOnError: true
       });
+      if (!cloneResult.ok) {
+        progress.appendLog(`[error] Clone failed for ${repoLabel}; continuing to next repo.`);
+        completed += 1;
+        progress.updateProgress(`Progress: ${completed}/${tasks.length} | failed ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
+        progress.updateMetrics('Metrics: failed (clone)');
+        results.push({
+          ...task,
+          repoPath,
+          outFile: null,
+          summary: null,
+          failed: true,
+          failureReason: 'clone',
+          failureCode: cloneResult.code ?? null
+        });
+        continue;
+      }
     }
   }
 
@@ -1438,7 +278,7 @@ for (const task of tasks) {
   if (Number.isFinite(heapArg) && heapArg > 0) {
     heapOverride = heapArg;
     if (!heapLogged) {
-      appendLog(`[heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) from --heap-mb.`);
+      progress.appendLog(`[heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) from --heap-mb.`);
       heapLogged = true;
     }
   } else if (
@@ -1448,9 +288,9 @@ for (const task of tasks) {
   ) {
     heapOverride = heapRecommendation.recommendedMb;
     if (!heapLogged) {
-      appendLog(
-        `[auto-heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) for Node heap. ` +
-          'Override with --heap-mb or PAIROFCLEATS_MAX_OLD_SPACE_MB.'
+      progress.appendLog(
+        `[auto-heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) for Node heap. `
+          + 'Override with --heap-mb or PAIROFCLEATS_MAX_OLD_SPACE_MB.'
       );
       heapLogged = true;
     }
@@ -1476,7 +316,7 @@ for (const task of tasks) {
   const outFile = path.join(outDir, `${task.repo.replace('/', '__')}.json`);
   await fsPromises.mkdir(outDir, { recursive: true });
 
-  const repoCacheRoot = resolveRepoCache(repoPath);
+  const repoCacheRoot = resolveRepoCacheRoot({ repoPath, cacheRoot });
   const missingIndex = needsIndexArtifacts(repoPath);
   const missingSqlite = wantsSqlite && needsSqliteArtifacts(repoPath);
   let autoBuildIndex = false;
@@ -1485,13 +325,13 @@ for (const task of tasks) {
   const buildSqliteRequested = argv.build || argv['build-sqlite'];
   if (buildSqliteRequested && !buildIndexRequested && missingIndex) {
     autoBuildIndex = true;
-    appendLog('[auto-build] sqlite build requires index artifacts; enabling build-index.');
+    progress.appendLog('[auto-build] sqlite build requires index artifacts; enabling build-index.');
   }
   if (!argv.build && !argv['build-index'] && !argv['build-sqlite']) {
     if (missingIndex) autoBuildIndex = true;
     if (missingSqlite) autoBuildSqlite = true;
     if (autoBuildIndex || autoBuildSqlite) {
-      appendLog(
+      progress.appendLog(
         `[auto-build] missing artifacts${autoBuildIndex ? ' index' : ''}${autoBuildSqlite ? ' sqlite' : ''}; enabling build.`
       );
     }
@@ -1500,28 +340,35 @@ for (const task of tasks) {
   const shouldBuildIndex = argv.build || argv['build-index'] || autoBuildIndex;
   if (shouldBuildIndex && !dryRun) {
     try {
-      appendLog(`[metrics] Collecting line counts for ${repoLabel}...`);
+      progress.appendLog(`[metrics] Collecting line counts for ${repoLabel}...`);
       const stats = await buildLineStats(repoPath, repoUserConfig);
-      buildProgressState.lineTotals = stats.totals;
-      buildProgressState.linesByFile = stats.linesByFile;
-      appendLog(
+      progressState.build.lineTotals = stats.totals;
+      progressState.build.linesByFile = stats.linesByFile;
+      progress.appendLog(
         `[metrics] Line totals: code=${stats.totals.code.toLocaleString()} prose=${stats.totals.prose.toLocaleString()}`
       );
     } catch (err) {
-      appendLog(`[metrics] Line counts unavailable: ${err?.message || err}`);
+      progress.appendLog(`[metrics] Line counts unavailable: ${err?.message || err}`);
     }
   }
 
-  const lockCheck = await checkIndexLock(repoCacheRoot, repoLabel);
+  const lockCheck = await checkIndexLock({
+    repoCacheRoot,
+    repoLabel,
+    lockMode,
+    lockWaitMs,
+    lockStaleMs,
+    onLog: progress.appendLog
+  });
   if (!lockCheck.ok) {
     const detail = formatLockDetail(lockCheck.detail);
     const message = `Skipping ${repoLabel}: index lock held ${detail}`.trim();
-    appendLog(`[lock] ${message}`);
+    progress.appendLog(`[lock] ${message}`);
     if (!quietMode) console.error(message);
     completed += 1;
-    updateProgress(`Progress: ${completed}/${tasks.length} | skipped ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
-    updateMetrics('Metrics: skipped (lock)');
-    const entry = {
+    progress.updateProgress(`Progress: ${completed}/${tasks.length} | skipped ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
+    progress.updateMetrics('Metrics: skipped (lock)');
+    results.push({
       ...task,
       repoPath,
       outFile,
@@ -1529,10 +376,7 @@ for (const task of tasks) {
       skipped: true,
       skipReason: 'lock',
       lock: lockCheck.detail || null
-    };
-    results.push(entry);
-    if (!groupedResults.has(task.language)) groupedResults.set(task.language, []);
-    groupedResults.get(task.language).push(entry);
+    });
     continue;
   }
 
@@ -1556,7 +400,7 @@ for (const task of tasks) {
   }
   if (argv.incremental) benchArgs.push('--incremental');
   if (argv['stub-embeddings']) {
-    appendLog('[bench] Stub embeddings requested; ignored for heavy language benchmarks.');
+    progress.appendLog('[bench] Stub embeddings requested; ignored for heavy language benchmarks.');
   }
   if (argv.ann) benchArgs.push('--ann');
   if (argv['no-ann']) benchArgs.push('--no-ann');
@@ -1570,13 +414,13 @@ for (const task of tasks) {
   if (argv.threads) benchArgs.push('--threads', String(argv.threads));
   if (argv['no-index-profile']) benchArgs.push('--no-index-profile');
 
-  updateProgress(`Progress: ${completed}/${tasks.length} | bench ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
+  progress.updateProgress(`Progress: ${completed}/${tasks.length} | bench ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
 
   let summary = null;
   if (dryRun) {
-    appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
+    progress.appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
   } else {
-    await runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
+    const benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
       cwd: scriptRoot,
       env: {
         ...repoEnvBase,
@@ -1586,61 +430,74 @@ for (const task of tasks) {
         ...(Number.isFinite(Number(argv.threads)) && Number(argv.threads) > 0
           ? { PAIROFCLEATS_THREADS: String(argv.threads) }
           : {})
-      }
+      },
+      continueOnError: true
     });
+    if (!benchResult.ok) {
+      progress.appendLog(`[error] Bench failed for ${repoLabel}; continuing to next repo.`);
+      completed += 1;
+      progress.updateProgress(`Progress: ${completed}/${tasks.length} | failed ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
+      progress.updateMetrics('Metrics: failed (bench)');
+      results.push({
+        ...task,
+        repoPath,
+        outFile,
+        summary: null,
+        failed: true,
+        failureReason: 'bench',
+        failureCode: benchResult.code ?? null
+      });
+      continue;
+    }
     try {
       const raw = await fsPromises.readFile(outFile, 'utf8');
       summary = JSON.parse(raw).summary || null;
     } catch (err) {
-      console.error(`Failed to read bench report ${outFile}`);
+      progress.appendLog(`[error] Failed to read bench report for ${repoLabel}; continuing.`);
       if (err && err.message) console.error(err.message);
-      process.exit(1);
+      completed += 1;
+      progress.updateProgress(`Progress: ${completed}/${tasks.length} | failed ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
+      progress.updateMetrics('Metrics: failed (report)');
+      results.push({
+        ...task,
+        repoPath,
+        outFile,
+        summary: null,
+        failed: true,
+        failureReason: 'report',
+        failureCode: null
+      });
+      continue;
     }
   }
 
   completed += 1;
-  updateProgress(`Progress: ${completed}/${tasks.length} | finished ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
-  updateMetrics(formatMetricSummary(summary));
+  progress.updateProgress(`Progress: ${completed}/${tasks.length} | finished ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
+  progress.updateMetrics(formatMetricSummary(summary));
 
-  const entry = { ...task, repoPath, outFile, summary };
-  results.push(entry);
-  if (!groupedResults.has(task.language)) groupedResults.set(task.language, []);
-  groupedResults.get(task.language).push(entry);
-
+  results.push({ ...task, repoPath, outFile, summary });
 }
 
-const groupedSummary = {};
-for (const [language, items] of groupedResults.entries()) {
-  groupedSummary[language] = {
-    label: config[language]?.label || language,
-    count: items.length,
-    summary: summarizeResults(items)
-  };
-}
-const overallSummary = summarizeResults(results);
+const output = buildReportOutput({
+  configPath,
+  cacheRoot,
+  resultsRoot,
+  results,
+  config
+});
 
 if (!quietMode) {
   if (interactive) {
-    renderStatus();
+    progress.renderStatus();
     process.stdout.write('\n');
   }
   console.log('\nGrouped summary');
-  for (const [language, payload] of Object.entries(groupedSummary)) {
+  for (const [language, payload] of Object.entries(output.groupedSummary)) {
     if (!payload.summary) continue;
-    printSummary(payload.label, payload.summary, payload.count);
+    printSummary(payload.label, payload.summary, payload.count, quietMode);
   }
-  printSummary('Overall', overallSummary, results.length);
+  printSummary('Overall', output.overallSummary, results.length, quietMode);
 }
-
-const output = {
-  generatedAt: new Date().toISOString(),
-  config: configPath,
-  cacheRoot,
-  resultsRoot,
-  tasks: results,
-  groupedSummary,
-  overallSummary
-};
 
 if (argv.out) {
   const outPath = path.resolve(argv.out);

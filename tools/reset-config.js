@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
 import { resolveRepoRoot } from './dict-utils.js';
-import { DEFAULT_USER_CONFIG } from './default-config.js';
+import { DEFAULT_USER_CONFIG_TEMPLATE } from './default-config-template.js';
 
 const argv = createCli({
   scriptName: 'reset-config',
@@ -54,7 +54,8 @@ if (existing && argv.backup) {
   result.backupPath = backupPath;
 }
 
-fs.writeFileSync(configPath, `${JSON.stringify(DEFAULT_USER_CONFIG, null, 2)}\n`, 'utf8');
+const template = DEFAULT_USER_CONFIG_TEMPLATE.trimEnd();
+fs.writeFileSync(configPath, `${template}\n`, 'utf8');
 result.reset = true;
 
 if (argv.json) {

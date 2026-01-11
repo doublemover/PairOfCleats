@@ -6,11 +6,8 @@ import { chunkSegments, detectFrontmatter, discoverSegments, normalizeSegmentsCo
 import { extractComments, normalizeCommentConfig } from '../comments.js';
 import { buildChunkRelations, buildLanguageContext } from '../language-registry.js';
 import { detectRiskSignals } from '../risk.js';
-import { buildMetaV2 } from '../metadata-v2.js';
 import { inferTypeMetadata } from '../type-inference.js';
-import { getHeadline } from '../headline.js';
 import { getChunkAuthorsFromLines, getGitMetaForFile } from '../git.js';
-import { getFieldWeight } from '../field-weighting.js';
 import { isJsLike } from '../constants.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { createLruCache, estimateJsonBytes } from '../../shared/cache.js';
@@ -18,14 +15,17 @@ import { toPosix } from '../../shared/files.js';
 import { log, logLine } from '../../shared/progress.js';
 import { getEnvConfig } from '../../shared/env.js';
 import { readTextFileWithHash } from '../../shared/encoding.js';
-import { createFileScanner, detectBinary, isMinifiedName, readFileSample } from './file-scan.js';
-import { sha1 } from '../../shared/hash.js';
+import { createFileScanner } from './file-scan.js';
 import { buildTokenSequence, createTokenizationBuffers, createTokenizationContext, tokenizeChunkText } from './tokenization.js';
-import { applyStructuralMatchesToChunks, assignCommentsToChunks, getStructuralMatchesForChunk } from './file-processor/chunk.js';
+import { assignCommentsToChunks, getStructuralMatchesForChunk } from './file-processor/chunk.js';
+import { buildChunkPayload } from './file-processor/assemble.js';
+import { reuseCachedBundle } from './file-processor/cached-bundle.js';
 import { attachEmbeddings } from './file-processor/embeddings.js';
 import { loadCachedBundleForFile, writeBundleForFile } from './file-processor/incremental.js';
-import { buildExternalDocs, formatError, mergeFlowMeta } from './file-processor/meta.js';
-import { buildCallIndex, buildFileRelations, stripFileRelations } from './file-processor/relations.js';
+import { formatError, mergeFlowMeta } from './file-processor/meta.js';
+import { buildCallIndex, buildFileRelations } from './file-processor/relations.js';
+import { resolveBinarySkip, resolvePreReadSkip } from './file-processor/skip.js';
+import { createFileTimingTracker } from './file-processor/timings.js';
 import { resolveExt, resolveFileCaps, truncateByBytes } from './file-processor/read.js';
 
 /**
@@ -39,6 +39,7 @@ export function createFileProcessor(options) {
     mode,
     dictConfig,
     dictWords,
+    dictShared,
     languageOptions,
     postingsConfig,
     segmentsConfig,
@@ -69,7 +70,8 @@ export function createFileProcessor(options) {
     skippedFiles = null,
     embeddingEnabled = true,
     toolInfo = null,
-    tokenizationStats = null
+    tokenizationStats = null,
+    featureMetrics = null
   } = options;
   const lintEnabled = lintEnabledRaw !== false;
   const complexityEnabled = complexityEnabledRaw !== false;
@@ -82,8 +84,9 @@ export function createFileProcessor(options) {
   const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn) : (fn) => fn();
   const runEmbedding = embeddingQueue ? (fn) => embeddingQueue.add(fn) : (fn) => fn();
   const showLineProgress = getEnvConfig().progressLines === true;
+  const tokenDictWords = dictShared || dictWords;
   const tokenContext = createTokenizationContext({
-    dictWords,
+    dictWords: tokenDictWords,
     dictConfig,
     postingsConfig
   });
@@ -139,12 +142,24 @@ export function createFileProcessor(options) {
   async function processFile(fileEntry, fileIndex) {
     const abs = typeof fileEntry === 'string' ? fileEntry : fileEntry.abs;      
     const fileStart = Date.now();
-    const fileTimings = {
-      parseMs: 0,
-      tokenizeMs: 0,
-      enrichMs: 0,
-      embeddingMs: 0
-    };
+    const timing = createFileTimingTracker({ mode, featureMetrics });
+    const {
+      metricsCollector,
+      addSettingMetric,
+      addLineSpan,
+      addParseDuration,
+      addTokenizeDuration,
+      addEnrichDuration,
+      addEmbeddingDuration,
+      addLintDuration,
+      addComplexityDuration,
+      setGitDuration,
+      setPythonAstDuration,
+      finalizeLanguageLines,
+      recordFeatureMetrics,
+      recordFileMetrics,
+      buildFileMetrics
+    } = timing;
     const relKey = typeof fileEntry === 'object' && fileEntry.rel
       ? fileEntry.rel
       : toPosix(path.relative(root, abs));
@@ -164,40 +179,21 @@ export function createFileProcessor(options) {
     } catch {
       return null;
     }
-    const capsByExt = resolveFileCaps(fileCaps, ext);
-    if (capsByExt.maxBytes && fileStat.size > capsByExt.maxBytes) {
-      recordSkip(abs, 'oversize', { bytes: fileStat.size, maxBytes: capsByExt.maxBytes });
-      return null;
-    }
-    const scanState = typeof fileEntry === 'object' ? fileEntry.scan : null;
-    if (scanState?.skip) {
-      const { reason, ...extra } = scanState.skip;
+    const preReadSkip = await resolvePreReadSkip({
+      abs,
+      fileEntry,
+      fileStat,
+      ext,
+      fileCaps,
+      fileScanner,
+      runIo
+    });
+    if (preReadSkip) {
+      const { reason, ...extra } = preReadSkip;
       recordSkip(abs, reason || 'oversize', extra);
       return null;
     }
-    const baseName = path.basename(abs);
-    if (isMinifiedName(baseName)) {
-      recordSkip(abs, 'minified', { method: 'name' });
-      return null;
-    }
     const knownLines = Number(fileEntry?.lines);
-    if (capsByExt.maxLines && Number.isFinite(knownLines) && knownLines > capsByExt.maxLines) {
-      recordSkip(abs, 'oversize', { lines: knownLines, maxLines: capsByExt.maxLines });
-      return null;
-    }
-    if (!scanState?.checkedBinary || !scanState?.checkedMinified) {
-      const scanResult = await runIo(() => fileScanner.scanFile({
-        absPath: abs,
-        stat: fileStat,
-        ext,
-        readSample: readFileSample
-      }));
-      if (scanResult?.skip) {
-        const { reason, ...extra } = scanResult.skip;
-        recordSkip(abs, reason || 'oversize', extra);
-        return null;
-      }
-    }
 
     let cachedBundle = null;
     let text = null;
@@ -214,82 +210,30 @@ export function createFileProcessor(options) {
     fileHash = cachedResult.fileHash;
     fileBuffer = cachedResult.buffer;
 
-    if (cachedBundle && Array.isArray(cachedBundle.chunks)) {
-      const cachedCaps = resolveFileCaps(fileCaps, ext);
-      if (cachedCaps.maxLines) {
-        const maxLine = cachedBundle.chunks.reduce((max, chunk) => {
-          const endLine = Number(chunk?.endLine) || 0;
-          return endLine > max ? endLine : max;
-        }, 0);
-        if (maxLine > cachedCaps.maxLines) {
-          recordSkip(abs, 'oversize', { lines: maxLine, maxLines: cachedCaps.maxLines });
-          return null;
-        }
-      }
-      const cachedEntry = incrementalState.manifest?.files?.[relKey] || null;
-      const manifestEntry = cachedEntry ? {
-        hash: fileHash || cachedEntry.hash || null,
-        mtimeMs: fileStat.mtimeMs,
-        size: fileStat.size,
-        bundle: cachedEntry.bundle || `${sha1(relKey)}.json`
-      } : null;
-      let fileRelations = cachedBundle.fileRelations || null;
-      if (!fileRelations) {
-        const sample = cachedBundle.chunks.find((chunk) => chunk?.codeRelations);
-        if (sample?.codeRelations) {
-          fileRelations = buildFileRelations(sample.codeRelations);
-        }
-      }
-      if (fileRelations?.imports) {
-        const importLinks = fileRelations.imports
-          .map((i) => allImports[i])
-          .filter((x) => !!x)
-          .flat();
-        fileRelations = { ...fileRelations, importLinks };
-      }
-      const updatedChunks = cachedBundle.chunks.map((cachedChunk) => {
-        const updatedChunk = { ...cachedChunk };
-        if (updatedChunk.codeRelations) {
-          updatedChunk.codeRelations = stripFileRelations(updatedChunk.codeRelations);
-        }
-        if (!updatedChunk.metaV2?.chunkId) {
-          updatedChunk.metaV2 = buildMetaV2({
-            chunk: updatedChunk,
-            docmeta: updatedChunk.docmeta,
-            toolInfo
-          });
-        }
-        return updatedChunk;
-      });
-      applyStructuralMatchesToChunks(updatedChunks, fileStructural);
-      const fileDurationMs = Date.now() - fileStart;
-      const cachedLanguage = updatedChunks.find((chunk) => chunk?.lang)?.lang
-        || null;
-      const cachedLines = updatedChunks.reduce((max, chunk) => {
-        const endLine = Number(chunk?.endLine) || 0;
-        return endLine > max ? endLine : max;
-      }, 0);
-      return {
-        abs,
-        relKey,
-        fileIndex,
-        cached: true,
-        durationMs: fileDurationMs,
-        chunks: updatedChunks,
-        manifestEntry,
-        fileRelations,
-        fileMetrics: {
-          languageId: fileLanguageId || cachedLanguage || null,
-          bytes: fileStat.size,
-          lines: cachedLines || (Number.isFinite(knownLines) ? knownLines : 0),
-          durationMs: fileDurationMs,
-          parseMs: 0,
-          tokenizeMs: 0,
-          enrichMs: 0,
-          embeddingMs: 0,
-          cached: true
-        }
-      };
+    const cachedOutcome = reuseCachedBundle({
+      abs,
+      relKey,
+      fileIndex,
+      fileStat,
+      fileHash,
+      ext,
+      fileCaps,
+      cachedBundle,
+      incrementalState,
+      allImports,
+      fileStructural,
+      toolInfo,
+      fileStart,
+      knownLines,
+      fileLanguageId
+    });
+    if (cachedOutcome?.skip) {
+      const { reason, ...extra } = cachedOutcome.skip;
+      recordSkip(abs, reason || 'oversize', extra);
+      return null;
+    }
+    if (cachedOutcome?.result) {
+      return cachedOutcome.result;
     }
 
     if (!fileBuffer) {
@@ -303,17 +247,15 @@ export function createFileProcessor(options) {
         return null;
       }
     }
-    if (fileBuffer && fileBuffer.length) {
-      const binarySkip = await detectBinary({
-        absPath: abs,
-        buffer: fileBuffer,
-        maxNonTextRatio: fileScanner.binary?.maxNonTextRatio ?? 0.3
-      });
-      if (binarySkip) {
-        const { reason, ...extra } = binarySkip;
-        recordSkip(abs, reason || 'binary', extra);
-        return null;
-      }
+    const binarySkip = await resolveBinarySkip({
+      abs,
+      fileBuffer,
+      fileScanner
+    });
+    if (binarySkip) {
+      const { reason, ...extra } = binarySkip;
+      recordSkip(abs, reason || 'binary', extra);
+      return null;
     }
     if (!text || !fileHash) {
       const decoded = await readTextFileWithHash(abs, { buffer: fileBuffer });
@@ -321,10 +263,13 @@ export function createFileProcessor(options) {
       if (!fileHash) fileHash = decoded.hash;
     }
 
+    let languageLines = null;
+    let languageSetKey = null;
+
     const { chunks: fileChunks, fileRelations, skip } = await runCpu(async () => {
       const languageContextOptions = languageOptions && typeof languageOptions === 'object'
-        ? { ...languageOptions, relationsEnabled }
-        : { relationsEnabled };
+        ? { ...languageOptions, relationsEnabled, metricsCollector, filePath: abs }
+        : { relationsEnabled, metricsCollector, filePath: abs };
       const { lang, context: languageContext } = await buildLanguageContext({
         ext,
         relPath: relKey,
@@ -333,6 +278,9 @@ export function createFileProcessor(options) {
         options: languageContextOptions
       });
       fileLanguageId = lang?.id || null;
+      if (languageContext?.pythonAstMetrics?.durationMs) {
+        setPythonAstDuration(languageContext.pythonAstMetrics.durationMs);
+      }
       const tokenMode = mode === 'extracted-prose' ? 'prose' : mode;
       const lineIndex = buildLineIndex(text);
       const totalLines = lineIndex.length || 1;
@@ -359,10 +307,12 @@ export function createFileProcessor(options) {
         : null;
       const fileRelations = relationsEnabled ? buildFileRelations(rawRelations) : null;
       const callIndex = relationsEnabled ? buildCallIndex(rawRelations) : null;
+      const gitStart = Date.now();
       const gitMeta = await runIo(() => getGitMetaForFile(relKey, {
         blame: gitBlameEnabled,
         baseDir: root
       }));
+      setGitDuration(Date.now() - gitStart);
       const lineAuthors = Array.isArray(gitMeta?.lineAuthors)
         ? gitMeta.lineAuthors
         : null;
@@ -389,7 +339,7 @@ export function createFileProcessor(options) {
             text: comment.text,
             mode: 'prose',
             ext,
-            dictWords,
+            dictWords: tokenDictWords,
             dictConfig
           }).tokens;
           if (commentTokens.length < normalizedCommentsConfig.minTokens) continue;
@@ -460,7 +410,7 @@ export function createFileProcessor(options) {
           log: languageOptions?.log
         }
       });
-      fileTimings.parseMs += Date.now() - parseStart;
+      addParseDuration(Date.now() - parseStart);
       const chunkLineRanges = sc.map((chunk) => {
         const startLine = chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
         const endOffset = chunk.end > chunk.start ? chunk.end - 1 : chunk.start;
@@ -483,6 +433,12 @@ export function createFileProcessor(options) {
       for (let ci = 0; ci < sc.length; ++ci) {
         const c = sc[ci];
         const ctext = text.slice(c.start, c.end);
+        const lineRange = chunkLineRanges[ci] || { startLine: 1, endLine: fileLineCount || 1 };
+        const startLine = lineRange.startLine;
+        const endLine = lineRange.endLine;
+        const chunkLineCount = Math.max(1, endLine - startLine + 1);
+        const chunkLanguageId = c.segment?.languageId || fileLanguageId || lang?.id || 'unknown';
+        addLineSpan(chunkLanguageId, startLine, endLine);
         if (showLineProgress) {
           const currentLine = chunkLineRanges[ci]?.endLine ?? totalLines;
           const now = Date.now();
@@ -516,18 +472,32 @@ export function createFileProcessor(options) {
               callIndex
             });
           }
-          const flowMeta = lang && typeof lang.flow === 'function'
-            ? lang.flow({
+          let flowMeta = null;
+          if (lang && typeof lang.flow === 'function') {
+            const flowStart = Date.now();
+            flowMeta = lang.flow({
               text,
               chunk: c,
               context: languageContext,
               options: languageOptions
-            })
-            : null;
+            });
+            const flowDurationMs = Date.now() - flowStart;
+            if (flowDurationMs > 0) {
+              const flowTargets = [];
+              if (astDataflowEnabled) flowTargets.push('astDataflow');
+              if (controlFlowEnabled) flowTargets.push('controlFlow');
+              const flowShareMs = flowTargets.length
+                ? flowDurationMs / flowTargets.length
+                : 0;
+              for (const flowTarget of flowTargets) {
+                addSettingMetric(flowTarget, chunkLanguageId, chunkLineCount, flowShareMs);
+              }
+            }
+          }
           if (flowMeta) {
           docmeta = mergeFlowMeta(docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled });
           }
-          fileTimings.parseMs += Date.now() - relationStart;
+          addParseDuration(Date.now() - relationStart);
           if (typeInferenceEnabled) {
             const enrichStart = Date.now();
             const inferredTypes = inferTypeMetadata({
@@ -538,7 +508,9 @@ export function createFileProcessor(options) {
             if (inferredTypes) {
               docmeta = { ...docmeta, inferredTypes };
             }
-            fileTimings.enrichMs += Date.now() - enrichStart;
+            const typeDurationMs = Date.now() - enrichStart;
+            addEnrichDuration(typeDurationMs);
+            addSettingMetric('typeInference', chunkLanguageId, chunkLineCount, typeDurationMs);
           }
           if (riskAnalysisEnabled) {
             const enrichStart = Date.now();
@@ -551,11 +523,12 @@ export function createFileProcessor(options) {
             if (risk) {
               docmeta = { ...docmeta, risk };
             }
-            fileTimings.enrichMs += Date.now() - enrichStart;
+            const riskDurationMs = Date.now() - enrichStart;
+            addEnrichDuration(riskDurationMs);
+            addSettingMetric('riskAnalysis', chunkLanguageId, chunkLineCount, riskDurationMs);
           }
         }
 
-        const { startLine, endLine } = chunkLineRanges[ci];
         if (fileStructural) {
           const structural = getStructuralMatchesForChunk(
             fileStructural,
@@ -599,7 +572,7 @@ export function createFileProcessor(options) {
                   text: clipped.text,
                   mode: 'prose',
                   ext,
-                  dictWords,
+                  dictWords: tokenDictWords,
                   dictConfig
                 }).tokens;
                 if (tokens.length) commentFieldTokens = commentFieldTokens.concat(tokens);
@@ -632,7 +605,7 @@ export function createFileProcessor(options) {
               text: fieldText,
               mode: tokenMode,
               ext,
-              dictWords,
+              dictWords: tokenDictWords,
               dictConfig
             }).seq;
             if (fieldSeq.length) fieldChargramTokens = fieldSeq;
@@ -652,7 +625,11 @@ export function createFileProcessor(options) {
               chargramTokens: fieldChargramTokens,
               ...(workerDictOverride ? { dictConfig: workerDictOverride } : {})
             });
-            fileTimings.tokenizeMs += Date.now() - tokenStart;
+            const tokenDurationMs = Date.now() - tokenStart;
+            addTokenizeDuration(tokenDurationMs);
+            if (tokenPayload) {
+              addSettingMetric('tokenize', chunkLanguageId, chunkLineCount, tokenDurationMs);
+            }
           } catch (err) {
             if (!workerTokenizeFailed) {
               const message = formatError(err);
@@ -696,7 +673,9 @@ export function createFileProcessor(options) {
             chargramTokens: fieldChargramTokens,
             buffers: tokenBuffers
           });
-          fileTimings.tokenizeMs += Date.now() - tokenStart;
+          const tokenDurationMs = Date.now() - tokenStart;
+          addTokenizeDuration(tokenDurationMs);
+          addSettingMetric('tokenize', chunkLanguageId, chunkLineCount, tokenDurationMs);
         }
 
         const {
@@ -718,21 +697,7 @@ export function createFileProcessor(options) {
 
         if (!seq.length) continue;
 
-        const weight = getFieldWeight(c, rel);
-
         const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
-        const fieldedEnabled = postingsConfig?.fielded !== false;
-        const fieldTokens = fieldedEnabled ? {
-          name: c.name ? buildTokenSequence({ text: c.name, mode: tokenMode, ext, dictWords, dictConfig }).tokens : [],
-          signature: docmeta?.signature
-            ? buildTokenSequence({ text: docmeta.signature, mode: tokenMode, ext, dictWords, dictConfig }).tokens
-            : [],
-          doc: docText
-            ? buildTokenSequence({ text: docText, mode: tokenMode, ext, dictWords, dictConfig }).tokens
-            : [],
-          comment: commentFieldTokens,
-          body: tokens
-        } : null;
 
         let complexity = {}, lint = [];
         if (isJsLike(ext) && mode === 'code') {
@@ -745,7 +710,8 @@ export function createFileProcessor(options) {
               const compResult = await analyzeComplexity(fullCode, rel);        
               complexityCache.set(cacheKey, compResult);
               cachedComplexity = compResult;
-              fileTimings.enrichMs += Date.now() - enrichStart;
+              const enrichDurationMs = Date.now() - enrichStart;
+              addComplexityDuration(enrichDurationMs);
             }
             complexity = cachedComplexity || {};
           }
@@ -759,13 +725,12 @@ export function createFileProcessor(options) {
               const lintResult = await lintChunk(fullCode, rel);
               lintCache.set(cacheKey, lintResult);
               cachedLint = lintResult;
-              fileTimings.enrichMs += Date.now() - enrichStart;
+              const enrichDurationMs = Date.now() - enrichStart;
+              addLintDuration(enrichDurationMs);
             }
             lint = cachedLint || [];
           }
         }
-
-        const headline = getHeadline(c, tokens);
 
         let preContext = [], postContext = [];
         if (contextWin > 0 && fileLines) {
@@ -789,22 +754,13 @@ export function createFileProcessor(options) {
           ...fileGitMeta,
           ...(chunkAuthors.length ? { chunk_authors: chunkAuthors } : {})
         };
-
-        const externalDocs = relationsEnabled
-          ? buildExternalDocs(ext, fileRelations?.imports)
-          : [];
-
-        const chunkPayload = {
-          file: relKey,
+        const chunkRecord = { ...c, startLine, endLine };
+        const chunkPayload = buildChunkPayload({
+          chunk: chunkRecord,
+          rel,
+          relKey,
           ext,
-          lang: fileLanguageId || lang?.id || null,
-          segment: c.segment || null,
-          start: c.start,
-          end: c.end,
-          startLine,
-          endLine,
-          kind: c.kind,
-          name: c.name,
+          languageId: fileLanguageId || lang?.id || null,
           tokens,
           seq,
           ngrams,
@@ -814,22 +770,18 @@ export function createFileProcessor(options) {
           stats,
           complexity,
           lint,
-          headline,
           preContext,
           postContext,
-          embedding: [],
-          embed_doc: [],
-          embed_code: [],
           minhashSig,
-          ...(fieldTokens ? { fieldTokens } : {}),
-          weight,
-          ...gitMeta,
-          externalDocs
-        };
-        chunkPayload.metaV2 = buildMetaV2({
-          chunk: chunkPayload,
-          docmeta,
-          toolInfo
+          commentFieldTokens,
+          dictWords: tokenDictWords,
+          dictConfig,
+          postingsConfig,
+          tokenMode,
+          fileRelations,
+          relationsEnabled,
+          toolInfo,
+          gitMeta
         });
 
         chunks.push(chunkPayload);
@@ -851,7 +803,7 @@ export function createFileProcessor(options) {
         fileLanguageId,
         languageOptions
       });
-      fileTimings.embeddingMs += embeddingResult.embeddingMs;
+      addEmbeddingDuration(embeddingResult.embeddingMs);
 
       return { chunks, fileRelations, skip: null };
     });
@@ -860,6 +812,22 @@ export function createFileProcessor(options) {
       recordSkip(abs, reason || 'oversize', extra);
       return null;
     }
+
+    const { languageLines: resolvedLanguageLines, languageSetKey: resolvedLanguageSetKey } =
+      finalizeLanguageLines({ fileLineCount, fileLanguageId });
+    if (resolvedLanguageLines) {
+      languageLines = resolvedLanguageLines;
+      languageSetKey = resolvedLanguageSetKey;
+    }
+    recordFeatureMetrics({
+      gitBlameEnabled,
+      embeddingEnabled,
+      lintEnabled,
+      complexityEnabled,
+      fileLineCount,
+      languageLines,
+      languageSetKey
+    });
 
     const manifestEntry = await writeBundleForFile({
       runIo,
@@ -872,17 +840,20 @@ export function createFileProcessor(options) {
     });
 
     const fileDurationMs = Date.now() - fileStart;
-    const fileMetrics = {
-      languageId: fileLanguageId || null,
-      bytes: fileStat.size,
-      lines: fileLineCount,
-      durationMs: fileDurationMs,
-      parseMs: fileTimings.parseMs,
-      tokenizeMs: fileTimings.tokenizeMs,
-      enrichMs: fileTimings.enrichMs,
-      embeddingMs: fileTimings.embeddingMs,
+    const fileMetrics = buildFileMetrics({
+      fileLineCount,
+      fileStat,
+      fileDurationMs,
+      fileLanguageId,
       cached: false
-    };
+    });
+    recordFileMetrics({
+      fileLineCount,
+      fileStat,
+      fileDurationMs,
+      languageLines,
+      languageSetKey
+    });
     return {
       abs,
       relKey,

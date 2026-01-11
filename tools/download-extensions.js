@@ -175,11 +175,15 @@ function getArchiveTypeForSource(source) {
 }
 
 function normalizeArchiveEntry(entryName) {
-  return String(entryName || '')
-    .replace(/\\/g, '/')
-    .replace(/^(\.\/)+/, '')
-    .replace(/^\/+/, '')
-    .trim();
+  const name = String(entryName || '').replace(/\\/g, '/').trim();
+  let cleaned = name.replace(/^(\.\/)+/, '');
+  cleaned = cleaned.replace(/^\/+/, '');
+  // Handle Windows extended-length paths that can appear as //?/C:/...
+  cleaned = cleaned.replace(/^\?\//, '');
+  // Strip Windows drive-letter prefixes (e.g., C:, C:/, C:\)
+  cleaned = cleaned.replace(/^[A-Za-z]:/, '');
+  cleaned = cleaned.replace(/^\/+/, '');
+  return path.posix.normalize(cleaned);
 }
 
 function isArchivePathSafe(rootDir, entryName) {
@@ -281,24 +285,78 @@ async function extractZipNode(archivePath, destDir, limits) {
 }
 
 async function extractTarNode(archivePath, destDir, gzip, limits) {
-  const mod = await import('tar-fs');
-  const tarFs = mod.default || mod;
+  const mod = await import('tar-stream');
+  const tarStream = mod.default || mod;
+  const extract = tarStream.extract();
   const limiter = createArchiveLimiter(limits);
   await fs.mkdir(destDir, { recursive: true });
-  const extract = tarFs.extract(destDir, {
-    map: (header) => {
-      if (header?.type === 'symlink' || header?.type === 'link') {
-        throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe tar entry (symlink): ${header?.name || ''}`);
+  extract.on('entry', (header, stream, next) => {
+    const rawName = header?.name || '';
+    const normalized = normalizeArchiveEntry(rawName);
+    const type = header?.type || 'file';
+
+    (async () => {
+      // Reject symlinks/hardlinks to avoid writing outside the destination or
+      // creating unexpected filesystem references.
+      if (type === 'symlink' || type === 'link') {
+        throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe tar entry (symlink): ${rawName}`);
       }
-      if (!isArchivePathSafe(destDir, header?.name)) {
-        throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe tar entry: ${header?.name || ''}`);
+
+      // Skip empty / root-ish entries.
+      if (!normalized || normalized === '.' || normalized === '..') {
+        stream.resume();
+        return;
       }
-      const normalized = normalizeArchiveEntry(header.name);
-      header.name = normalized;
-      limiter.checkEntry(normalized, Number(header?.size) || 0);
-      header.mode = header.type === 'directory' ? DIR_MODE : FILE_MODE;
-      return header;
-    }
+
+      const targetPath = resolveArchivePath(destDir, normalized);
+      if (!targetPath) {
+        throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe tar entry: ${rawName}`);
+      }
+
+      if (type === 'directory') {
+        await fs.mkdir(targetPath, { recursive: true });
+        try { await fs.chmod(targetPath, DIR_MODE); } catch {}
+        stream.resume();
+        return;
+      }
+
+      // Ignore special entries (devices, FIFOs, pax headers, etc.).
+      if (type !== 'file' && type !== 'contiguous-file') {
+        stream.resume();
+        return;
+      }
+
+      const declaredSize = Number(header?.size);
+      const counted = limiter.checkEntry(
+        normalized,
+        Number.isFinite(declaredSize) ? declaredSize : 0
+      );
+
+      await fs.mkdir(path.dirname(targetPath), { recursive: true });
+
+      const writer = fsSync.createWriteStream(targetPath, { mode: FILE_MODE });
+      let written = 0;
+      stream.on('data', (chunk) => {
+        written += chunk.length;
+        if (limits?.maxEntryBytes && written > limits.maxEntryBytes) {
+          stream.destroy(
+            createError(ERROR_CODES.ARCHIVE_TOO_LARGE, `archive entry too large (${normalized}).`)
+          );
+        }
+      });
+
+      await pipeline(stream, writer);
+
+      if (written > counted) {
+        limiter.addBytes(written - counted);
+      }
+      try { await fs.chmod(targetPath, FILE_MODE); } catch {}
+    })()
+      .then(() => next())
+      .catch((err) => {
+        try { stream.resume(); } catch {}
+        extract.destroy(err);
+      });
   });
   const source = fsSync.createReadStream(archivePath);
   if (gzip) {

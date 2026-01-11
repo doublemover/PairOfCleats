@@ -1,18 +1,41 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export function getMissingFlagMessages(argv) {
+export function getMissingFlagMessages(argv, rawArgs = []) {
+  const args = Array.isArray(rawArgs) ? rawArgs : [];
+  const hasMissingValue = (flag) => {
+    const flagEq = `${flag}=`;
+    for (let i = 0; i < args.length; i += 1) {
+      const arg = String(args[i] || '');
+      if (arg === flag) {
+        const next = args[i + 1];
+        if (next === undefined) return true;
+        const nextValue = String(next);
+        if (!nextValue.trim() || nextValue.startsWith('-')) return true;
+        continue;
+      }
+      if (arg.startsWith(flagEq)) {
+        const value = arg.slice(flagEq.length);
+        if (!String(value).trim()) return true;
+      }
+    }
+    return false;
+  };
+
   const missingValueFlags = [
-    { name: 'type', example: '--type Function' },
-    { name: 'author', example: '--author "Jane Doe"' },
-    { name: 'import', example: '--import lodash' }
+    { key: 'type', flag: '--type', example: '--type Function' },
+    { key: 'author', flag: '--author', example: '--author "Jane Doe"' },
+    { key: 'import', flag: '--import', example: '--import lodash' }
   ];
   return missingValueFlags
     .filter((entry) => {
-      const value = argv[entry.name];
-      return value === true || (typeof value === 'string' && !value.trim());
+      const value = argv?.[entry.key];
+      if (value === true) return true;
+      if (typeof value === 'string' && !value.trim()) return true;
+      if (value === undefined && hasMissingValue(entry.flag)) return true;
+      return false;
     })
-    .map((entry) => `Missing value for --${entry.name}. Example: ${entry.example}`);
+    .map((entry) => `Missing value for ${entry.flag}. Example: ${entry.example}`);
 }
 
 export function estimateIndexBytes(indexDir) {

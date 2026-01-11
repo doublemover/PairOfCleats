@@ -239,6 +239,15 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   if (!resolvedId) return null;
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
   if (exceedsTreeSitterLimits(text, options, resolvedId)) return null;
+  const metricsCollector = options?.metricsCollector;
+  const shouldRecordMetrics = metricsCollector && typeof metricsCollector.add === 'function';
+  const lineCount = shouldRecordMetrics ? countLines(text) : 0;
+  const metricsStart = shouldRecordMetrics ? Date.now() : 0;
+  const recordMetrics = () => {
+    if (!shouldRecordMetrics) return;
+    const durationMs = Date.now() - metricsStart;
+    metricsCollector.add('treeSitter', resolvedId, lineCount, durationMs);
+  };
   const parser = getTreeSitterParser(resolvedId, options);
   if (!parser) {
     if (options?.log && !loggedUnavailable.has(resolvedId)) {
@@ -257,6 +266,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     }
     tree = parser.parse(text);
   } catch (err) {
+    recordMetrics();
     const message = err?.message || String(err);
     if (/timeout/i.test(message)) {
       if (options?.log && !loggedParseTimeouts.has(resolvedId)) {
@@ -271,6 +281,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   try {
     rootNode = tree.rootNode;
   } catch (err) {
+    recordMetrics();
     if (!loggedParseFailures.has(resolvedId) && options?.log) {
       options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
       loggedParseFailures.add(resolvedId);
@@ -283,20 +294,28 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   try {
     nodes = gatherChunkNodes(rootNode, config);
   } catch (err) {
+    recordMetrics();
     if (!loggedParseFailures.has(resolvedId) && options?.log) {
       options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
       loggedParseFailures.add(resolvedId);
     }
     return null;
   }
-  if (!nodes.length) return null;
+  if (!nodes.length) {
+    recordMetrics();
+    return null;
+  }
   const chunks = [];
   for (const node of nodes) {
     const chunk = toChunk(node, text, config, lineIndex, lineAccessor);
     if (chunk) chunks.push(chunk);
   }
-  if (!chunks.length) return null;
+  if (!chunks.length) {
+    recordMetrics();
+    return null;
+  }
   chunks.sort((a, b) => a.start - b.start);
+  recordMetrics();
   return chunks;
 }
 
@@ -308,6 +327,11 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
   if (!pool) {
     return buildTreeSitterChunks({ text, languageId, ext, options });
   }
+  const resolvedId = resolveLanguageForExt(languageId, ext) || languageId || 'unknown';
+  const metricsCollector = options?.metricsCollector;
+  const shouldRecordMetrics = metricsCollector && typeof metricsCollector.add === 'function';
+  const lineCount = shouldRecordMetrics ? countLines(text) : 0;
+  const metricsStart = shouldRecordMetrics ? Date.now() : 0;
   const payload = {
     text,
     languageId,
@@ -323,5 +347,10 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
       treeSitterState.loggedWorkerFailures.add('run');
     }
     return buildTreeSitterChunks({ text, languageId, ext, options });
+  } finally {
+    if (shouldRecordMetrics) {
+      const durationMs = Date.now() - metricsStart;
+      metricsCollector.add('treeSitter', resolvedId, lineCount, durationMs);
+    }
   }
 }

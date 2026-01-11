@@ -1,18 +1,4 @@
 {
-  "clike": {
-    "label": "C / C++ / Objective-C",
-    "queries": "benchmarks/queries/clike.txt",
-    "repos": {
-      "huge": [
-        "opencv/opencv"
-      ],
-      "large": [
-        "llvm/llvm-project",
-        "curl/curl"
-      ],
-      "typical": []
-    }
-  },
   "lua": {
     "label": "Lua",
     "queries": "benchmarks/queries/lua.txt",
@@ -305,6 +291,20 @@
     "label": "Mustache",
     "queries": "benchmarks/queries/mustache.txt",
     "repos": {
+      "typical": []
+    }
+  },
+  "clike": {
+    "label": "C / C++ / Objective-C",
+    "queries": "benchmarks/queries/clike.txt",
+    "repos": {
+      "huge": [
+        "opencv/opencv"
+      ],
+      "large": [
+        "llvm/llvm-project",
+        "curl/curl"
+      ],
       "typical": []
     }
   },

@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../src/shared/cache.js';
+import { readJsoncFile } from '../src/shared/jsonc.js';
 import { isPlainObject, mergeConfig } from '../src/shared/config.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { stableStringify } from '../src/shared/stable-json.js';
@@ -42,17 +43,28 @@ export const DEFAULT_TRIAGE_PROMOTE_FIELDS = [
 /**
  * Load repo-local configuration from .pairofcleats.json and apply profiles.
  * @param {string} repoRoot
- * @param {{profile?:string}} [options]
+ * @param {{profile?:string,fallbackRoot?:string,fallbackConfigPath?:string}} [options]
  * @returns {object}
  */
 export function loadUserConfig(repoRoot, options = {}) {
   try {
     const configPath = path.join(repoRoot, '.pairofcleats.json');
-    if (!fs.existsSync(configPath)) {
-      return normalizeUserConfig(applyProfileConfig({}, options.profile));
+    if (fs.existsSync(configPath)) {
+      const base = readJsoncFile(configPath) || {};
+      return normalizeUserConfig(applyProfileConfig(base, options.profile));
     }
-    const base = JSON.parse(fs.readFileSync(configPath, 'utf8')) || {};
-    return normalizeUserConfig(applyProfileConfig(base, options.profile));
+    const fallbackPath = options.fallbackConfigPath
+      || (options.fallbackRoot ? path.join(options.fallbackRoot, '.pairofcleats.json') : null);
+    if (fallbackPath && fs.existsSync(fallbackPath)) {
+      const base = readJsoncFile(fallbackPath) || {};
+      return normalizeUserConfig(applyProfileConfig(base, options.profile));
+    }
+    const defaultPath = path.join(TOOL_ROOT, '.pairofcleats.json');
+    if (defaultPath !== configPath && fs.existsSync(defaultPath)) {
+      const base = readJsoncFile(defaultPath) || {};
+      return normalizeUserConfig(applyProfileConfig(base, options.profile));
+    }
+    return normalizeUserConfig(applyProfileConfig({}, options.profile));
   } catch {
     return {};
   }

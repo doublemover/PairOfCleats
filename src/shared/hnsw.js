@@ -4,7 +4,37 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
+const parseNodeMajor = () => {
+  const raw = process.versions?.node || '';
+  const major = Number(String(raw).split('.')[0]);
+  return Number.isFinite(major) ? major : null;
+};
+
+const supportsHnswRuntime = () => {
+  const major = parseNodeMajor();
+  if (!Number.isFinite(major)) return true;
+  return major < 24;
+};
+
+let warnedRuntimeUnsupported = false;
+let warnedLoadFailure = false;
+const warnRuntimeUnsupported = () => {
+  if (warnedRuntimeUnsupported) return;
+  warnedRuntimeUnsupported = true;
+  console.warn(`[ann] HNSW disabled on Node ${process.versions.node}; use Node 20/22 or disable embeddings.hnsw.`);
+};
+
+const warnLoadFailure = (message) => {
+  if (warnedLoadFailure) return;
+  warnedLoadFailure = true;
+  console.warn(`[ann] HNSW index load failed; falling back to JS ANN. ${message || ''}`.trim());
+};
+
 const resolveHnswLib = () => {
+  if (!supportsHnswRuntime()) {
+    warnRuntimeUnsupported();
+    return null;
+  }
   try {
     return require('hnswlib-node');
   } catch {
@@ -79,7 +109,12 @@ export function loadHnswIndex({ indexPath, dims, config }) {
   const HNSW = lib?.HierarchicalNSW || lib?.default?.HierarchicalNSW || lib?.default;
   if (!HNSW) return null;
   const index = new HNSW(normalized.space, dims);
-  index.readIndexSync(resolved.path, normalized.allowReplaceDeleted);
+  try {
+    index.readIndexSync(resolved.path, normalized.allowReplaceDeleted);
+  } catch (err) {
+    warnLoadFailure(err?.message ? `(${err.message})` : '');
+    return null;
+  }
   if (normalized.efSearch) {
     index.setEf(normalized.efSearch);
   }

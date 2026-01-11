@@ -9,12 +9,21 @@ const normalizeRange = (value, fallback) => {
 
 /**
  * Build a tokenization context shared across chunks.
- * @param {{dictWords:Set<string>|string[],dictConfig:object,postingsConfig:object}} input
+ * @param {{dictWords:Set<string>|string[]|{size:number,has:function},dictConfig:object,postingsConfig:object}} input
  * @returns {object}
  */
 export function createTokenizationContext(input) {
   const dictWordsRaw = input?.dictWords || new Set();
-  const dictWords = dictWordsRaw instanceof Set ? dictWordsRaw : new Set(dictWordsRaw);
+  let dictWords = null;
+  if (dictWordsRaw && typeof dictWordsRaw.has === 'function' && typeof dictWordsRaw.size === 'number') {
+    dictWords = dictWordsRaw;
+  } else if (dictWordsRaw instanceof Set) {
+    dictWords = dictWordsRaw;
+  } else if (Array.isArray(dictWordsRaw)) {
+    dictWords = new Set(dictWordsRaw);
+  } else {
+    dictWords = new Set();
+  }
   const dictConfig = input?.dictConfig || {};
   const postingsConfig = input?.postingsConfig || {};
   const phraseMinN = normalizeRange(postingsConfig.phraseMinN, 2);

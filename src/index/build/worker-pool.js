@@ -53,6 +53,38 @@ const normalizeEnabled = (raw) => {
   return 'auto';
 };
 
+const buildWorkerExecArgv = () => process.execArgv.filter((arg) => {
+  if (!arg) return false;
+  return !arg.startsWith('--max-old-space-size')
+    && !arg.startsWith('--max-semi-space-size');
+});
+
+const parseMaxOldSpaceMb = () => {
+  const args = process.execArgv || [];
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (typeof arg !== 'string') continue;
+    if (arg.startsWith('--max-old-space-size=')) {
+      const value = Number(arg.split('=')[1]);
+      if (Number.isFinite(value) && value > 0) return Math.floor(value);
+    }
+    if (arg === '--max-old-space-size') {
+      const value = Number(args[i + 1]);
+      if (Number.isFinite(value) && value > 0) return Math.floor(value);
+    }
+  }
+  return null;
+};
+
+const resolveWorkerResourceLimits = (maxWorkers) => {
+  const maxOldSpaceMb = parseMaxOldSpaceMb();
+  if (!Number.isFinite(maxWorkers) || maxWorkers <= 0) return null;
+  if (!Number.isFinite(maxOldSpaceMb)) return null;
+  const perWorker = Math.max(256, Math.floor(maxOldSpaceMb / Math.max(1, maxWorkers)));
+  const capped = Math.min(4096, perWorker);
+  return { maxOldGenerationSizeMb: capped };
+};
+
 /**
  * Normalize worker pool configuration.
  * @param {object} raw
@@ -151,6 +183,7 @@ export async function createIndexerWorkerPool(input = {}) {
   const {
     config,
     dictWords,
+    dictSharedPayload,
     dictConfig,
     postingsConfig,
     crashLogger = null,
@@ -160,6 +193,9 @@ export async function createIndexerWorkerPool(input = {}) {
   const poolLabel = typeof poolName === 'string' && poolName.trim()
     ? poolName.trim().toLowerCase()
     : 'tokenize';
+  const poolConfig = config;
+  const dictWordsForPool = poolLabel === 'quantize' ? [] : dictWords;
+  const dictSharedForPool = poolLabel === 'quantize' ? null : dictSharedPayload;
   const sanitizeDictConfig = (raw) => {
     const cfg = raw && typeof raw === 'object' ? raw : {};
     return {
@@ -169,7 +205,7 @@ export async function createIndexerWorkerPool(input = {}) {
         : 32
     };
   };
-  if (!config || config.enabled === false) return null;
+  if (!poolConfig || poolConfig.enabled === false) return null;
   let Piscina;
   try {
     Piscina = (await import('piscina')).default;
@@ -189,18 +225,31 @@ export async function createIndexerWorkerPool(input = {}) {
     let restarting = null;
     let activeTasks = 0;
     let pendingRestart = false;
-    const createPool = () => new Piscina({
-      filename: fileURLToPath(new URL('./workers/indexer-worker.js', import.meta.url)),
-      maxThreads: config.maxWorkers,
-      idleTimeout: config.idleTimeoutMs,
-      taskTimeout: config.taskTimeoutMs,
-      recordTiming: true,
-      workerData: {
-        dictWords: Array.isArray(dictWords) ? dictWords : Array.from(dictWords || []),
+    const workerExecArgv = buildWorkerExecArgv();
+    const resourceLimits = resolveWorkerResourceLimits(poolConfig.maxWorkers);
+    const createPool = () => {
+      const workerData = {
         dictConfig: sanitizeDictConfig(dictConfig),
         postingsConfig: postingsConfig || {}
+      };
+      if (dictSharedForPool?.bytes && dictSharedForPool?.offsets) {
+        workerData.dictShared = dictSharedForPool;
+      } else {
+        workerData.dictWords = Array.isArray(dictWordsForPool)
+          ? dictWordsForPool
+          : Array.from(dictWordsForPool || []);
       }
-    });
+      return new Piscina({
+        filename: fileURLToPath(new URL('./workers/indexer-worker.js', import.meta.url)),
+        maxThreads: poolConfig.maxWorkers,
+        idleTimeout: poolConfig.idleTimeoutMs,
+        taskTimeout: poolConfig.taskTimeoutMs,
+        recordTiming: true,
+        execArgv: workerExecArgv,
+        ...(resourceLimits ? { resourceLimits } : {}),
+        workerData
+      });
+    };
     const updatePoolMetrics = () => {
       if (!pool) return;
       setWorkerQueueDepth({ pool: poolLabel, value: pool.queueSize });

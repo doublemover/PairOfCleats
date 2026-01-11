@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
+import { readJsoncFile } from '../src/shared/jsonc.js';
 import { resolveRepoRoot, resolveToolRoot } from './dict-utils.js';
 import { validateConfig } from '../src/config/validate.js';
 
@@ -37,7 +38,7 @@ if (!fs.existsSync(configPath)) {
 
 let config;
 try {
-  config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  config = readJsoncFile(configPath);
 } catch (err) {
   const message = `Failed to parse config: ${err?.message || err}`;
   if (argv.json) {

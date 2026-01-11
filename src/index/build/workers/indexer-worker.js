@@ -2,8 +2,10 @@ import { parentPort, threadId, workerData } from 'node:worker_threads';
 import util from 'node:util';
 import { quantizeVec } from '../../embedding.js';
 import { createTokenizationContext, tokenizeChunkText } from '../tokenization.js';
+import { createSharedDictionaryView } from '../../../shared/dictionary.js';
 
-const dictWords = new Set(Array.isArray(workerData?.dictWords) ? workerData.dictWords : []);
+const dictShared = createSharedDictionaryView(workerData?.dictShared);
+const dictWords = dictShared || new Set(Array.isArray(workerData?.dictWords) ? workerData.dictWords : []);
 const dictConfig = workerData?.dictConfig || {};
 const postingsConfig = workerData?.postingsConfig || {};
 const tokenContext = createTokenizationContext({

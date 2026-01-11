@@ -407,13 +407,44 @@
           "slangDirs": [],
           "slangFiles": []
         },
-        "indexing": {},
+        "indexing": {
+          "astDataflow": "<boolean>",
+          "complexity": "<boolean>",
+          "controlFlow": "<boolean>",
+          "gitBlame": "<boolean>",
+          "importScan": "<string>",
+          "lint": "<boolean>",
+          "postings": {
+            "chargramMaxN": "<number>",
+            "chargramMaxTokenLength": "<number>",
+            "chargramMinN": "<number>",
+            "chargramSource": "<string>",
+            "enableChargrams": "<boolean>",
+            "enablePhraseNgrams": "<boolean>",
+            "fielded": "<boolean>",
+            "phraseMaxN": "<number>",
+            "phraseMinN": "<number>"
+          },
+          "pythonAst": {
+            "enabled": "<boolean>"
+          },
+          "riskAnalysis": "<boolean>",
+          "riskAnalysisCrossFile": "<boolean>",
+          "treeSitter": {
+            "enabled": "<boolean>"
+          },
+          "typeInference": "<boolean>",
+          "typeInferenceCrossFile": "<boolean>"
+        },
         "models": {
           "dir": "<string>",
           "id": "<string>"
         },
         "repoCacheRoot": "<string>",
-        "search": {},
+        "search": {
+          "annDefault": "<boolean>",
+          "denseVectorMode": "<string>"
+        },
         "sqlite": {
           "annMode": "<string>",
           "codeDbPath": "<string>",

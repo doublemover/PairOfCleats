@@ -38,6 +38,16 @@ const normalizeGraphLevel = (value) => {
   return GRAPH_LEVELS.has(normalized) ? normalized : null;
 };
 
+const LARGE_MODEL_BYTES = Math.floor(1.5 * 1024 * 1024 * 1024);
+
+const statSize = (filePath) => {
+  try {
+    return fs.statSync(filePath).size;
+  } catch {
+    return null;
+  }
+};
+
 export function normalizeOnnxConfig(raw = {}) {
   const config = raw && typeof raw === 'object' ? raw : {};
   const executionProviders = normalizeProviders(config.executionProviders);
@@ -107,13 +117,38 @@ const normalizeVec = (vec) => {
   return vec.map((v) => v / norm);
 };
 
-const buildSessionOptions = (config) => {
+const normalizeExecutionProviders = (providers, lowMemory) => {
+  if (!providers || !lowMemory) return providers;
+  return providers.map((entry) => {
+    if (typeof entry === 'string') {
+      return entry === 'cpu' ? { name: 'cpu', useArena: false } : entry;
+    }
+    if (entry && entry.name === 'cpu' && entry.useArena === undefined) {
+      return { ...entry, useArena: false };
+    }
+    return entry;
+  });
+};
+
+const buildSessionOptions = (config, { lowMemory = false } = {}) => {
   const options = {};
-  if (config.executionProviders) options.executionProviders = config.executionProviders;
+  const providers = normalizeExecutionProviders(config.executionProviders, lowMemory);
+  if (providers && providers.length) {
+    options.executionProviders = providers;
+  } else if (lowMemory) {
+    options.executionProviders = [{ name: 'cpu', useArena: false }];
+  }
   if (config.intraOpNumThreads) options.intraOpNumThreads = config.intraOpNumThreads;
   if (config.interOpNumThreads) options.interOpNumThreads = config.interOpNumThreads;
   if (config.graphOptimizationLevel) {
     options.graphOptimizationLevel = config.graphOptimizationLevel;
+  } else if (lowMemory) {
+    options.graphOptimizationLevel = 'basic';
+  }
+  if (lowMemory) {
+    options.enableCpuMemArena = false;
+    options.enableMemPattern = false;
+    options.executionMode = 'sequential';
   }
   return Object.keys(options).length ? options : undefined;
 };
@@ -218,17 +253,20 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig }) 
   if (!resolvedModelPath) {
     throw new Error('ONNX model path not found. Set indexing.embeddings.onnx.modelPath.');
   }
+  const modelSize = statSize(resolvedModelPath);
+  const lowMemory = Number.isFinite(modelSize) && modelSize >= LARGE_MODEL_BYTES;
   const tokenizerId = normalized.tokenizerId || modelId;
   const cacheKey = JSON.stringify({
     resolvedModelPath,
     tokenizerId,
     executionProviders: normalized.executionProviders || null,
+    lowMemory,
     intraOpNumThreads: normalized.intraOpNumThreads || null,
     interOpNumThreads: normalized.interOpNumThreads || null,
     graphOptimizationLevel: normalized.graphOptimizationLevel || null
   });
   if (!onnxCache.has(cacheKey)) {
-    const sessionOptions = buildSessionOptions(normalized);
+    const sessionOptions = buildSessionOptions(normalized, { lowMemory });
     const promise = (async () => {
       const { AutoTokenizer, env } = await import('@xenova/transformers');
       if (modelsDir) {
@@ -236,7 +274,17 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig }) 
       }
       const tokenizer = await AutoTokenizer.from_pretrained(tokenizerId);
       const { InferenceSession, Tensor } = await import('onnxruntime-node');
-      const session = await InferenceSession.create(resolvedModelPath, sessionOptions);
+      let session;
+      try {
+        session = await InferenceSession.create(resolvedModelPath, sessionOptions);
+      } catch (err) {
+        if (!lowMemory) {
+          const fallbackOptions = buildSessionOptions(normalized, { lowMemory: true });
+          session = await InferenceSession.create(resolvedModelPath, fallbackOptions);
+        } else {
+          throw err;
+        }
+      }
       return { tokenizer, session, Tensor };
     })();
     onnxCache.set(cacheKey, promise);

@@ -77,6 +77,10 @@ const getDictMaxLen = (dict) => {
   if (!dict || dict.size === 0) return 0;
   const cached = dict.__maxTokenLength;
   if (Number.isFinite(cached) && cached > 0) return cached;
+  const altMax = Number.isFinite(dict.maxLen) && dict.maxLen > 0 ? dict.maxLen : 0;
+  if (altMax) return altMax;
+  if (dict.__sharedDict) return 0;
+  if (typeof dict[Symbol.iterator] !== 'function') return 0;
   let maxLen = 0;
   for (const word of dict) {
     if (typeof word === 'string' && word.length > maxLen) maxLen = word.length;
@@ -86,6 +90,8 @@ const getDictMaxLen = (dict) => {
 };
 
 const buildDictAhoMatcher = (dict) => {
+  if (!dict || dict.__sharedDict) return null;
+  if (typeof dict[Symbol.iterator] !== 'function') return null;
   const matcher = new AhoCorasick();
   const words = [];
   for (const word of dict) {
@@ -99,7 +105,7 @@ const buildDictAhoMatcher = (dict) => {
 };
 
 const getDictAhoMatcher = (dict) => {
-  if (!dict || dict.size === 0) return null;
+  if (!dict || dict.size === 0 || dict.__sharedDict) return null;
   const cached = dict.__ahoMatcher;
   if (cached && cached.size === dict.size) return cached.matcher;
   const built = buildDictAhoMatcher(dict);
@@ -248,12 +254,12 @@ const scoreSegments = (segments, dict) => segments.reduce((sum, seg) => (
 /**
  * Split a token into dictionary words when possible.
  * @param {string} token
- * @param {Set<string>} dict
+ * @param {{size:number,has:function}|Set<string>} dict
  * @param {{segmentation?:string,dpMaxTokenLength?:number}} [options]
  * @returns {string[]}
  */
 export function splitWordsWithDict(token, dict, options = {}) {
-  if (!dict || dict.size === 0) return [token];
+  if (!dict || dict.size === 0 || typeof dict.has !== 'function') return [token];
   if (!token) return [];
   const { mode, dpMaxTokenLength } = normalizeDictSegmentation(options);
   const maxLen = getDictMaxLen(dict);

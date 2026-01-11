@@ -307,6 +307,12 @@ function formatDuration(ms) {
   return `${seconds}s`;
 }
 
+function formatDurationMs(ms) {
+  if (!Number.isFinite(ms)) return 'n/a';
+  if (ms < 1000) return `${Math.max(0, Math.round(ms))}ms`;
+  return formatDuration(ms);
+}
+
 function formatRate(value, unit) {
   if (!Number.isFinite(value)) return 'n/a';
   const rounded = value >= 100 ? value.toFixed(0) : value >= 10 ? value.toFixed(1) : value.toFixed(2);
@@ -413,7 +419,7 @@ for (const query of selectedQueries) {
 const queryConcurrencyRaw = Number(argv['query-concurrency']);
 const queryConcurrencyList = Number.isFinite(queryConcurrencyRaw) && queryConcurrencyRaw > 0
   ? [Math.floor(queryConcurrencyRaw)]
-  : [20, 5, 1];
+  : [4];
 
 const runQueries = async (requestedConcurrency) => {
   const latency = {};
@@ -448,10 +454,17 @@ const runQueries = async (requestedConcurrency) => {
       || pct - queryProgress.lastPct >= 5;
     if (!shouldLog) return;
     const elapsedText = formatDuration(elapsedMs);
+    const avgSearchText = queryProgress.count
+      ? formatDurationMs(elapsedMs / queryProgress.count)
+      : 'n/a';
+    const avgQueryText = selectedQueries.length
+      ? formatDurationMs(elapsedMs / selectedQueries.length)
+      : 'n/a';
     const etaText = etaMs > 0 ? formatDuration(etaMs) : 'n/a';
     logBench(
       `[bench] Queries ${queryProgress.count}/${totalSearches} (${pct.toFixed(1)}%) | ` +
-      `concurrency ${requestedConcurrency} | elapsed ${elapsedText} | eta ${etaText}`
+      `concurrency ${requestedConcurrency} | elapsed ${elapsedText} | ` +
+      `avg/search ${avgSearchText} | avg/query ${avgQueryText} | eta ${etaText}`
     );
     queryProgress.lastLogMs = now;
     queryProgress.lastPct = pct;
@@ -497,6 +510,9 @@ const runQueries = async (requestedConcurrency) => {
     );
   }
   logQueryProgress(true);
+  const queryWallMs = Date.now() - queryProgress.startMs;
+  const queryWallMsPerSearch = totalSearches ? queryWallMs / totalSearches : 0;
+  const queryWallMsPerQuery = selectedQueries.length ? queryWallMs / selectedQueries.length : 0;
 
   const latencyStats = Object.fromEntries(backends.map((b) => [b, buildStats(latency[b], { scale: 1000 })]));
   const memoryStats = Object.fromEntries(backends.map((b) => [b, buildStats(memoryRss[b], { scale: 1 })]));
@@ -513,6 +529,9 @@ const runQueries = async (requestedConcurrency) => {
     embeddingProvider,
     backends,
     queryConcurrency: requestedConcurrency,
+    queryWallMs,
+    queryWallMsPerSearch,
+    queryWallMsPerQuery,
     latencyMsAvg: Object.fromEntries(backends.map((b) => [b, latencyStats[b].mean])),
     latencyMs: latencyStats,
     hitRate,
@@ -546,7 +565,7 @@ const summaries = runs.map((run) => run.summary).filter(Boolean);
 const concurrencyStats = {};
 for (const runSummary of summaries) {
   const concurrency = runSummary?.queryConcurrency;
-  if (concurrency === 20 || concurrency === 5) {
+  if (concurrency === 4) {
     concurrencyStats[String(concurrency)] = {
       latencyMsAvg: runSummary.latencyMsAvg,
       latencyMs: runSummary.latencyMs,
@@ -583,6 +602,13 @@ if (argv.json) {
     console.log(`- Queries: ${runSummary.queries}`);
     console.log(`- TopN: ${runSummary.topN}`);
     console.log(`- Ann: ${runSummary.annEnabled}`);
+    if (Number.isFinite(runSummary.queryWallMs)) {
+      console.log(
+        `- Query wall time: ${formatDuration(runSummary.queryWallMs)} ` +
+        `(avg/search ${formatDurationMs(runSummary.queryWallMsPerSearch)}, ` +
+        `avg/query ${formatDurationMs(runSummary.queryWallMsPerQuery)})`
+      );
+    }
     for (const backend of runSummary.backends || backends) {
       const stats = runSummary.latencyMs?.[backend];
       if (stats) {

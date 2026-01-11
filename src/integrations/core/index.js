@@ -14,7 +14,8 @@ import { getEnvConfig } from '../../shared/env.js';
 import { log as defaultLog } from '../../shared/progress.js';
 import { observeIndexDuration } from '../../shared/metrics.js';
 import { shutdownPythonAstPool } from '../../lang/python.js';
-import { getCacheRoot, getRepoCacheRoot, getToolVersion, getIndexDir, loadUserConfig, resolveRepoRoot, resolveToolRoot } from '../../../tools/dict-utils.js';
+import { createFeatureMetrics, writeFeatureMetrics } from '../../index/build/feature-metrics.js';
+import { getCacheRoot, getMetricsDir, getRepoCacheRoot, getToolVersion, getIndexDir, loadUserConfig, resolveRepoRoot, resolveToolRoot } from '../../../tools/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../tools/service/queue.js';
 import { runBuildSqliteIndex } from '../../../tools/build-sqlite-index.js';
 import { runSearchCli } from '../../retrieval/cli.js';
@@ -316,6 +317,13 @@ export async function buildIndex(repoRoot, options = {}) {
     try {
       runtime = await createBuildRuntime({ root, argv: stageArgv, rawArgv });
       phaseStage = runtime.stage || phaseStage;
+      runtime.featureMetrics = createFeatureMetrics({
+        buildId: runtime.buildId,
+        configHash: runtime.configHash,
+        stage: phaseStage,
+        repoRoot: runtime.root,
+        toolVersion: getToolVersion()
+      });
       const lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
       if (!lock) throw new Error('Index lock unavailable.');
       let sqliteResult = null;
@@ -367,6 +375,12 @@ export async function buildIndex(repoRoot, options = {}) {
       for (const modeItem of modes) {
         const discovery = sharedDiscovery ? sharedDiscovery[modeItem] : null;
         await buildIndexForMode({ mode: modeItem, runtime, discovery });
+      }
+      if (runtime.featureMetrics) {
+        await writeFeatureMetrics({
+          metricsDir: getMetricsDir(runtime.root, runtime.userConfig),
+          featureMetrics: runtime.featureMetrics
+        });
       }
       await markBuildPhase(runtime.buildRoot, phaseStage, 'done');
       const sqliteConfigured = runtime.userConfig?.sqlite?.use !== false;

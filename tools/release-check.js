@@ -35,20 +35,20 @@ if (!match) {
 }
 
 const sectionStart = match.index;
-const nextHeaderMatch = changelog.slice(sectionStart + match[0].length).match(/^##\\s+/m);
+const nextHeaderMatch = changelog.slice(sectionStart + match[0].length).match(/^##\s+/m);
 const sectionEnd = nextHeaderMatch
   ? sectionStart + match[0].length + nextHeaderMatch.index
   : changelog.length;
 const section = changelog.slice(sectionStart, sectionEnd);
 
 if (requireBreaking) {
-  const breakingHeader = section.match(/^###\\s+Breaking\\s*$/m);
+  const breakingHeader = section.match(/^###\s+Breaking\s*$/m);
   if (!breakingHeader) {
     console.error(`release-check: missing "### Breaking" section for v${version}.`);
     process.exit(1);
   }
   const afterBreaking = section.slice(breakingHeader.index + breakingHeader[0].length);
-  const nextSubsection = afterBreaking.match(/^###\\s+/m);
+  const nextSubsection = afterBreaking.match(/^###\s+/m);
   const breakingBlock = nextSubsection
     ? afterBreaking.slice(0, nextSubsection.index)
     : afterBreaking;

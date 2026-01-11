@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createCli } from '../src/shared/cli.js';
 import readline from 'node:readline/promises';
+import { readJsoncFile } from '../src/shared/jsonc.js';
 import {
   getDictionaryPaths,
   getDictConfig,
@@ -119,7 +120,7 @@ function getRecommendedHeapMb() {
 
 async function updateRuntimeConfig(maxOldSpaceMb) {
   const existing = configExists
-    ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
+    ? readJsoncFile(configPath)
     : {};
   const next = {
     ...existing,
@@ -135,7 +136,7 @@ async function updateRuntimeConfig(maxOldSpaceMb) {
 
 async function updateProfileConfig(profileName) {
   const existing = configExists
-    ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
+    ? readJsoncFile(configPath)
     : {};
   const next = {
     ...existing,

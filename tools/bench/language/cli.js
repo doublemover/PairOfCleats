@@ -1,0 +1,155 @@
+import path from 'node:path';
+import { createCli } from '../../../src/shared/cli.js';
+import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../../../src/shared/cli-options.js';
+import { resolveToolRoot } from '../../dict-utils.js';
+
+const parseMs = (value, fallback) => {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed >= 0) return Math.floor(parsed);
+  return fallback;
+};
+
+const normalizeLockMode = (value) => {
+  if (!value) return 'fail-fast';
+  const raw = String(value).trim().toLowerCase();
+  if (raw === 'wait' || raw === 'retry') return 'wait';
+  if (raw === 'stale-clear' || raw === 'stale') return 'stale-clear';
+  return 'fail-fast';
+};
+
+const resolveBackendList = (value) => {
+  if (!value) return ['memory', 'sqlite'];
+  const trimmed = String(value).trim().toLowerCase();
+  if (!trimmed) return ['memory', 'sqlite'];
+  if (trimmed === 'all') return ['memory', 'sqlite', 'sqlite-fts'];
+  return trimmed
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+};
+
+const isBenchProfile = (value) => {
+  if (!value) return false;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized === 'bench' || normalized.startsWith('bench-');
+};
+
+const buildRunSuffix = () => {
+  const now = new Date();
+  const stamp = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0')
+  ].join('');
+  const time = [
+    String(now.getHours()).padStart(2, '0'),
+    String(now.getMinutes()).padStart(2, '0'),
+    String(now.getSeconds()).padStart(2, '0')
+  ].join('');
+  return `run-${stamp}-${time}`;
+};
+
+export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
+  const argv = createCli({
+    scriptName: 'bench-language',
+    options: mergeCliOptions(
+      BENCH_OPTIONS,
+      {
+        list: { type: 'boolean', default: false },
+        clone: { type: 'boolean', default: true },
+        'no-clone': { type: 'boolean', default: false },
+        'dry-run': { type: 'boolean', default: false },
+        'cache-run': { type: 'boolean', default: false },
+        config: { type: 'string' },
+        root: { type: 'string' },
+        'cache-root': { type: 'string' },
+        'cache-suffix': { type: 'string' },
+        results: { type: 'string' },
+        log: { type: 'string' },
+        language: { type: 'string' },
+        languages: { type: 'string' },
+        tier: { type: 'string' },
+        repos: { type: 'string' },
+        only: { type: 'string' },
+        'log-lines': { type: 'number' },
+        'lock-mode': { type: 'string' },
+        'lock-wait-ms': { type: 'number' },
+        'lock-stale-ms': { type: 'number' }
+      }
+    ),
+    argv: ['node', 'bench-language-repos.js', ...(rawArgs || [])]
+  }).parse();
+  validateBenchArgs(argv);
+
+  const scriptRoot = resolveToolRoot();
+  const configPath = path.resolve(argv.config || path.join(scriptRoot, 'benchmarks', 'repos.json'));
+  const reposRoot = path.resolve(argv.root || path.join(scriptRoot, 'benchmarks', 'repos'));
+  const cacheRootBase = path.resolve(argv['cache-root'] || path.join(scriptRoot, 'benchmarks', 'cache'));
+  const cacheSuffixRaw = typeof argv['cache-suffix'] === 'string' ? argv['cache-suffix'].trim() : '';
+  const cacheRun = argv['cache-run'] === true;
+  const cacheSuffix = cacheSuffixRaw || (cacheRun ? buildRunSuffix() : '');
+  const cacheRoot = cacheSuffix ? path.resolve(cacheRootBase, cacheSuffix) : cacheRootBase;
+  const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));
+  const logRoot = path.join(resultsRoot, 'logs', 'bench-language');
+  const logPath = argv.log
+    ? path.resolve(argv.log)
+    : path.join(logRoot, `${buildRunSuffix()}.log`);
+
+  const cloneEnabled = argv['no-clone'] ? false : argv.clone !== false;
+  const dryRun = argv['dry-run'] === true;
+  const quietMode = argv.json === true;
+  const interactive = !quietMode && process.stdout.isTTY;
+  const colorEnabled = interactive && !process.env.NO_COLOR;
+
+  const logLineArg = Number.parseInt(argv['log-lines'], 10);
+  const logWindowSize = Number.isFinite(logLineArg)
+    ? Math.max(3, Math.min(50, logLineArg))
+    : 20;
+
+  const lockMode = normalizeLockMode(
+    argv['lock-mode']
+    || ((argv.build || argv['build-index'] || argv['build-sqlite']) ? 'stale-clear' : '')
+  );
+  const lockWaitMs = parseMs(argv['lock-wait-ms'], 5 * 60 * 1000);
+  const lockStaleMs = parseMs(argv['lock-stale-ms'], 30 * 60 * 1000);
+
+  const backendList = resolveBackendList(argv.backend);
+  const wantsSqlite = backendList.includes('sqlite')
+    || backendList.includes('sqlite-fts')
+    || backendList.includes('fts');
+
+  const indexProfileRaw = typeof argv['index-profile'] === 'string'
+    ? argv['index-profile'].trim()
+    : '';
+  const defaultHeavyProfile = 'full';
+  const resolvedProfile = indexProfileRaw && !isBenchProfile(indexProfileRaw)
+    ? indexProfileRaw
+    : defaultHeavyProfile;
+  const indexProfile = argv['no-index-profile'] === true ? '' : resolvedProfile;
+  const suppressProfileEnv = argv['no-index-profile'] === true;
+
+  return {
+    argv,
+    scriptRoot,
+    configPath,
+    reposRoot,
+    cacheRoot,
+    resultsRoot,
+    logRoot,
+    logPath,
+    cloneEnabled,
+    dryRun,
+    quietMode,
+    interactive,
+    colorEnabled,
+    logWindowSize,
+    lockMode,
+    lockWaitMs,
+    lockStaleMs,
+    backendList,
+    wantsSqlite,
+    indexProfile,
+    suppressProfileEnv
+  };
+};

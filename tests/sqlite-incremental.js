@@ -12,7 +12,20 @@ const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-incremental');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+const rmWithRetries = async (target, { retries = 8, delayMs = 150 } = {}) => {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      await fsPromises.rm(target, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (!err || attempt >= retries) throw err;
+      if (!['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(err.code)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
+    }
+  }
+};
+
+await rmWithRetries(tempRoot);
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 

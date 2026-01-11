@@ -1,0 +1,497 @@
+import os from 'node:os';
+import path from 'node:path';
+import { createTaskQueues, runWithQueue } from '../../../../shared/concurrency.js';
+import { getEnvConfig } from '../../../../shared/env.js';
+import { toPosix } from '../../../../shared/files.js';
+import { countLinesForEntries } from '../../../../shared/file-stats.js';
+import { log, logLine, showProgress } from '../../../../shared/progress.js';
+import { createBuildCheckpoint } from '../../build-state.js';
+import { createFileProcessor } from '../../file-processor.js';
+import { loadStructuralMatches } from '../../../structural.js';
+import { planShardBatches, planShards } from '../../shards.js';
+import { recordFileMetric } from '../../perf-profile.js';
+import { createTokenRetentionState } from './postings.js';
+
+const buildOrderedAppender = (handleFileResult, state) => {
+  const pending = new Map();
+  let nextIndex = 0;
+  let flushing = null;
+  const flush = async () => {
+    while (pending.has(nextIndex)) {
+      const entry = pending.get(nextIndex);
+      pending.delete(nextIndex);
+      if (entry?.result) {
+        handleFileResult(entry.result, state, entry.shardMeta);
+      }
+      nextIndex += 1;
+    }
+  };
+  const scheduleFlush = async () => {
+    if (flushing) return flushing;
+    flushing = (async () => {
+      try {
+        await flush();
+      } finally {
+        flushing = null;
+      }
+    })();
+    return flushing;
+  };
+  return {
+    enqueue(orderIndex, result, shardMeta) {
+      const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
+      pending.set(index, { result, shardMeta });
+      return scheduleFlush();
+    }
+  };
+};
+
+const resolveCheckpointBatchSize = (totalFiles, shardPlan) => {
+  if (!Number.isFinite(totalFiles) || totalFiles <= 0) return 10;
+  const minBatch = 10;
+  const maxBatch = 250;
+  if (Array.isArray(shardPlan) && shardPlan.length) {
+    const perShard = Math.max(1, Math.ceil(totalFiles / shardPlan.length));
+    const target = Math.ceil(perShard / 10);
+    return Math.max(minBatch, Math.min(maxBatch, target));
+  }
+  const target = Math.ceil(totalFiles / 200);
+  return Math.max(minBatch, Math.min(maxBatch, target));
+};
+
+const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurrency, embeddingConcurrency }) => {
+  const ioConcurrency = Math.max(fileConcurrency, importConcurrency);
+  const cpuLimit = Math.max(1, os.cpus().length * 2);
+  const cpuConcurrency = Math.max(1, Math.min(cpuLimit, fileConcurrency));
+  const maxFilePending = Math.min(10000, fileConcurrency * 1000);
+  const maxIoPending = Math.min(10000, ioConcurrency * 1000);
+  const maxEmbeddingPending = Math.min(64, embeddingConcurrency * 8);
+  const queues = createTaskQueues({
+    ioConcurrency,
+    cpuConcurrency,
+    embeddingConcurrency,
+    ioPendingLimit: maxIoPending,
+    cpuPendingLimit: maxFilePending,
+    embeddingPendingLimit: maxEmbeddingPending
+  });
+  const destroyQueues = async () => {
+    await Promise.all([
+      queues.io.onIdle(),
+      queues.cpu.onIdle(),
+      queues.embedding.onIdle()
+    ]);
+    queues.io.clear();
+    queues.cpu.clear();
+    queues.embedding.clear();
+  };
+  return {
+    ...baseRuntime,
+    fileConcurrency,
+    importConcurrency,
+    ioConcurrency,
+    cpuConcurrency,
+    embeddingConcurrency,
+    queues,
+    destroyQueues
+  };
+};
+
+export const processFiles = async ({
+  mode,
+  runtime,
+  discovery,
+  entries,
+  importResult,
+  contextWin,
+  timing,
+  crashLogger,
+  state,
+  perfProfile,
+  cacheReporter,
+  seenFiles,
+  incrementalState,
+  relationsEnabled,
+  shardPerfProfile
+}) => {
+  log('Processing and indexing files...');
+  crashLogger.updatePhase('processing');
+  const processStart = Date.now();
+  log(`Indexing concurrency: files=${runtime.fileConcurrency}, imports=${runtime.importConcurrency}, io=${runtime.ioConcurrency}, cpu=${runtime.cpuConcurrency}`);
+  const envConfig = getEnvConfig();
+  const showFileProgress = envConfig.progressFiles === true;
+
+  const structuralMatches = loadStructuralMatches({
+    repoRoot: runtime.root,
+    repoCacheRoot: runtime.repoCacheRoot,
+    log
+  });
+  const tokenRetentionState = createTokenRetentionState({
+    runtime,
+    totalFiles: entries.length,
+    log
+  });
+  const { tokenizationStats, appendChunkWithRetention } = tokenRetentionState;
+  let checkpoint = null;
+  let progress = null;
+  const orderedAppender = buildOrderedAppender(
+    (result, stateRef, shardMeta) => {
+      if (!result) return;
+      if (result.fileMetrics) {
+        recordFileMetric(perfProfile, result.fileMetrics);
+      }
+      for (const chunk of result.chunks) {
+        appendChunkWithRetention(stateRef, chunk, state);
+      }
+      stateRef.scannedFilesTimes.push({ file: result.abs, duration_ms: result.durationMs, cached: result.cached });
+      stateRef.scannedFiles.push(result.abs);
+      if (result.manifestEntry) {
+        if (shardMeta?.id) result.manifestEntry.shard = shardMeta.id;
+        incrementalState.manifest.files[result.relKey] = result.manifestEntry;
+      }
+      if (result.fileRelations) {
+        stateRef.fileRelations.set(result.relKey, result.fileRelations);
+      }
+    },
+    state
+  );
+  const processEntries = async ({ entries: shardEntries, runtime: runtimeRef, shardMeta = null, stateRef }) => {
+    const shardLabel = shardMeta?.label || shardMeta?.id || null;
+  const { processFile } = createFileProcessor({
+      root: runtimeRef.root,
+      mode,
+      dictConfig: runtimeRef.dictConfig,
+      dictWords: runtimeRef.dictWords,
+      dictShared: runtimeRef.dictShared,
+      languageOptions: runtimeRef.languageOptions,
+      postingsConfig: runtimeRef.postingsConfig,
+      segmentsConfig: runtimeRef.segmentsConfig,
+      commentsConfig: runtimeRef.commentsConfig,
+      allImports: importResult.allImports,
+      contextWin,
+      incrementalState,
+      getChunkEmbedding: runtimeRef.getChunkEmbedding,
+      getChunkEmbeddings: runtimeRef.getChunkEmbeddings,
+      embeddingBatchSize: runtimeRef.embeddingBatchSize,
+      embeddingEnabled: runtimeRef.embeddingEnabled,
+      typeInferenceEnabled: runtimeRef.typeInferenceEnabled,
+      riskAnalysisEnabled: runtimeRef.riskAnalysisEnabled,
+      riskConfig: runtimeRef.riskConfig,
+      toolInfo: runtimeRef.toolInfo,
+      seenFiles,
+      gitBlameEnabled: runtimeRef.gitBlameEnabled,
+      lintEnabled: runtimeRef.lintEnabled,
+      complexityEnabled: runtimeRef.complexityEnabled,
+      tokenizationStats,
+      structuralMatches,
+      cacheConfig: runtimeRef.cacheConfig,
+      cacheReporter,
+      queues: runtimeRef.queues,
+      useCpuQueue: false,
+      workerPool: runtimeRef.workerPool,
+      crashLogger,
+      relationsEnabled,
+      skippedFiles: stateRef.skippedFiles,
+      fileCaps: runtimeRef.fileCaps,
+      fileScan: runtimeRef.fileScan,
+      featureMetrics: runtimeRef.featureMetrics
+    });
+    await runWithQueue(
+      runtimeRef.queues.cpu,
+      shardEntries,
+      async (entry, fileIndex) => {
+        if (showFileProgress) {
+          const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
+          const shardText = shardLabel ? `shard ${shardLabel}` : 'shard';
+          const shardPrefix = `[${shardText}]`;
+          const countText = `${progress.count + 1}/${progress.total}`;
+          const lineText = Number.isFinite(entry.lines) ? `lines ${entry.lines}` : null;
+          const parts = [shardPrefix, countText, lineText, rel].filter(Boolean);
+          logLine(parts.join(' '));
+        }
+        crashLogger.updateFile({
+          phase: 'processing',
+          mode,
+          stage: runtimeRef.stage,
+          fileIndex,
+          total: progress.total,
+          file: entry.rel,
+          size: entry.stat?.size || null,
+          shardId: shardMeta?.id || null
+        });
+        try {
+          const result = await processFile(entry, fileIndex);
+          progress.tick();
+          return result;
+        } catch (err) {
+          crashLogger.logError({
+            phase: 'processing',
+            mode,
+            stage: runtimeRef.stage,
+            file: entry.rel,
+            shardId: shardMeta?.id || null,
+            message: err?.message || String(err),
+            stack: err?.stack || null
+          });
+          throw err;
+        }
+      },
+      {
+        collectResults: false,
+        onResult: (result, index) => {
+          const entry = shardEntries[index];
+          const orderIndex = Number.isFinite(entry?.orderIndex) ? entry.orderIndex : index;
+          return orderedAppender.enqueue(orderIndex, result, shardMeta);
+        },
+        retries: 2,
+        retryDelayMs: 200
+      }
+    );
+  };
+
+  const discoveryLineCounts = discovery?.lineCounts instanceof Map ? discovery.lineCounts : null;
+  let lineCounts = discoveryLineCounts;
+  if (runtime.shards?.enabled && !lineCounts) {
+    const hasEntryLines = entries.some((entry) => Number.isFinite(entry?.lines) && entry.lines > 0);
+    if (!hasEntryLines) {
+      const lineStart = Date.now();
+      const lineConcurrency = Math.max(1, Math.min(32, runtime.cpuConcurrency * 2));
+      if (envConfig.verbose === true) {
+        log(`→ Shard planning: counting lines (${lineConcurrency} workers)...`);
+      }
+      lineCounts = await countLinesForEntries(entries, { concurrency: lineConcurrency });
+      timing.lineCountsMs = Date.now() - lineStart;
+    }
+  }
+  const shardFeatureWeights = {
+    relations: relationsEnabled ? 0.15 : 0,
+    flow: (runtime.astDataflowEnabled || runtime.controlFlowEnabled) ? 0.1 : 0,
+    treeSitter: runtime.languageOptions?.treeSitter?.enabled !== false ? 0.1 : 0,
+    tooling: runtime.toolingEnabled ? 0.1 : 0,
+    embeddings: runtime.embeddingEnabled ? 0.2 : 0
+  };
+  const shardPlan = runtime.shards?.enabled
+    ? planShards(entries, {
+      mode,
+      maxShards: runtime.shards.maxShards,
+      minFiles: runtime.shards.minFiles,
+      dirDepth: runtime.shards.dirDepth,
+      lineCounts,
+      perfProfile: shardPerfProfile,
+      featureWeights: shardFeatureWeights,
+      maxShardBytes: runtime.shards.maxShardBytes,
+      maxShardLines: runtime.shards.maxShardLines
+    })
+    : null;
+  const shardSummary = shardPlan
+    ? shardPlan.map((shard) => ({
+      id: shard.id,
+      label: shard.label || shard.id,
+      dir: shard.dir,
+      lang: shard.lang,
+      fileCount: shard.entries.length,
+      lineCount: shard.lineCount || 0,
+      byteCount: shard.byteCount || 0,
+      costMs: shard.costMs || 0
+    }))
+    : [];
+  if (incrementalState?.manifest) {
+    const updatedAt = new Date().toISOString();
+    incrementalState.manifest.shards = runtime.shards?.enabled
+      ? { enabled: true, updatedAt, plan: shardSummary }
+      : { enabled: false, updatedAt };
+  }
+  const checkpointBatchSize = resolveCheckpointBatchSize(entries.length, shardPlan);
+  checkpoint = createBuildCheckpoint({
+    buildRoot: runtime.buildRoot,
+    mode,
+    totalFiles: entries.length,
+    batchSize: checkpointBatchSize
+  });
+  progress = {
+    total: entries.length,
+    count: 0,
+    tick() {
+      this.count += 1;
+      showProgress('Files', this.count, this.total);
+      checkpoint.tick();
+    }
+  };
+  if (shardPlan && shardPlan.length > 1) {
+    const shardExecutionPlan = [...shardPlan].sort((a, b) => {
+      const costDelta = (b.costMs || 0) - (a.costMs || 0);
+      if (costDelta !== 0) return costDelta;
+      const lineDelta = (b.lineCount || 0) - (a.lineCount || 0);
+      if (lineDelta !== 0) return lineDelta;
+      const sizeDelta = b.entries.length - a.entries.length;
+      if (sizeDelta !== 0) return sizeDelta;
+      return (a.label || a.id).localeCompare(b.label || b.id);
+    });
+    const shardIndexById = new Map(
+      shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
+    );
+    const totalFiles = shardPlan.reduce((sum, shard) => sum + shard.entries.length, 0);
+    const totalLines = shardPlan.reduce((sum, shard) => sum + (shard.lineCount || 0), 0);
+    const totalBytes = shardPlan.reduce((sum, shard) => sum + (shard.byteCount || 0), 0);
+    const totalCost = shardPlan.reduce((sum, shard) => sum + (shard.costMs || 0), 0);
+    if (envConfig.verbose === true) {
+      const top = shardExecutionPlan.slice(0, Math.min(10, shardExecutionPlan.length));
+      const costLabel = totalCost ? `, est ${Math.round(totalCost).toLocaleString()}ms` : '';
+      log(`→ Shard plan: ${shardPlan.length} shards, ${totalFiles.toLocaleString()} files, ${totalLines.toLocaleString()} lines${costLabel}.`);
+      for (const shard of top) {
+        const lineCount = shard.lineCount || 0;
+        const byteCount = shard.byteCount || 0;
+        const costMs = shard.costMs || 0;
+        const costText = costMs ? ` | est ${Math.round(costMs).toLocaleString()}ms` : '';
+        log(`[shards] ${shard.label || shard.id} | files ${shard.entries.length.toLocaleString()} | lines ${lineCount.toLocaleString()} | bytes ${byteCount.toLocaleString()}${costText}`);
+      }
+      const splitGroups = new Map();
+      for (const shard of shardPlan) {
+        if (!shard.splitFrom) continue;
+        const group = splitGroups.get(shard.splitFrom) || { count: 0, lines: 0, bytes: 0, cost: 0 };
+        group.count += 1;
+        group.lines += shard.lineCount || 0;
+        group.bytes += shard.byteCount || 0;
+        group.cost += shard.costMs || 0;
+        splitGroups.set(shard.splitFrom, group);
+      }
+      for (const [label, group] of splitGroups) {
+        const costText = group.cost ? `, est ${Math.round(group.cost).toLocaleString()}ms` : '';
+        log(`[shards] split ${label} -> ${group.count} parts (${group.lines.toLocaleString()} lines, ${group.bytes.toLocaleString()} bytes${costText})`);
+      }
+    }
+    const buildShardWorkPlan = () => {
+      const work = [];
+      const totalShards = shardExecutionPlan.length;
+      for (const shard of shardExecutionPlan) {
+        const fileCount = shard.entries.length;
+        const costPerFile = shard.costMs && fileCount ? shard.costMs / fileCount : 0;
+        const fileShare = totalFiles > 0 ? fileCount / totalFiles : 0;
+        const lineCount = shard.lineCount || 0;
+        const lineShare = totalLines > 0 ? lineCount / totalLines : 0;
+        const byteCount = shard.byteCount || 0;
+        const byteShare = totalBytes > 0 ? byteCount / totalBytes : 0;
+        const costMs = shard.costMs || 0;
+        const costShare = totalCost > 0 ? costMs / totalCost : 0;
+        const share = Math.max(fileShare, lineShare, byteShare, costShare);
+        let parts = 1;
+        if (share > 0.05) parts = share > 0.1 ? 4 : 2;
+        parts = Math.min(parts, Math.max(1, fileCount));
+        if (parts <= 1) {
+          work.push({
+            shard,
+            entries: shard.entries,
+            partIndex: 1,
+            partTotal: 1,
+            predictedCostMs: costPerFile ? costPerFile * fileCount : costMs,
+            shardIndex: shardIndexById.get(shard.id) || 1,
+            shardTotal: totalShards
+          });
+          continue;
+        }
+        const perPart = Math.ceil(fileCount / parts);
+        for (let i = 0; i < parts; i += 1) {
+          const start = i * perPart;
+          const end = Math.min(start + perPart, fileCount);
+          if (start >= end) continue;
+          const partCount = end - start;
+          work.push({
+            shard,
+            entries: shard.entries.slice(start, end),
+            partIndex: i + 1,
+            partTotal: parts,
+            predictedCostMs: costPerFile ? costPerFile * partCount : costMs / parts,
+            shardIndex: shardIndexById.get(shard.id) || 1,
+            shardTotal: totalShards
+          });
+        }
+      }
+      return work;
+    };
+    const shardWorkPlan = buildShardWorkPlan();
+    let defaultShardConcurrency = Math.max(1, Math.min(4, runtime.fileConcurrency));
+    if (process.platform === 'win32') {
+      defaultShardConcurrency = Math.max(1, runtime.cpuConcurrency);
+    }
+    let shardConcurrency = Number.isFinite(runtime.shards.maxWorkers)
+      ? Math.max(1, Math.floor(runtime.shards.maxWorkers))
+      : defaultShardConcurrency;
+    shardConcurrency = Math.min(shardConcurrency, runtime.fileConcurrency);
+    let shardBatches = planShardBatches(shardWorkPlan, shardConcurrency, {
+      resolveWeight: (workItem) => Number.isFinite(workItem.predictedCostMs)
+        ? workItem.predictedCostMs
+        : (workItem.shard.costMs || workItem.shard.lineCount || workItem.entries.length || 0)
+    });
+    if (!shardBatches.length && shardWorkPlan.length) {
+      shardBatches = [shardWorkPlan.slice()];
+    }
+    shardConcurrency = Math.max(1, shardBatches.length);
+    const perShardFileConcurrency = Math.max(
+      1,
+      Math.min(2, Math.floor(runtime.fileConcurrency / shardConcurrency))
+    );
+    const perShardImportConcurrency = Math.max(1, Math.floor(runtime.importConcurrency / shardConcurrency));
+    const baseEmbedConcurrency = Number.isFinite(runtime.embeddingConcurrency)
+      ? runtime.embeddingConcurrency
+      : runtime.cpuConcurrency;
+    const perShardEmbeddingConcurrency = Math.max(
+      1,
+      Math.min(perShardFileConcurrency, Math.floor(baseEmbedConcurrency / shardConcurrency))
+    );
+    log(`→ Sharding enabled: ${shardPlan.length} shards (concurrency=${shardConcurrency}, per-shard files=${perShardFileConcurrency}).`);
+    const runShardWorker = async (batch) => {
+      const shardRuntime = createShardRuntime(runtime, {
+        fileConcurrency: perShardFileConcurrency,
+        importConcurrency: perShardImportConcurrency,
+        embeddingConcurrency: perShardEmbeddingConcurrency
+      });
+      try {
+        for (const workItem of batch) {
+          const {
+            shard,
+            entries: shardEntries,
+            partIndex,
+            partTotal,
+            shardIndex,
+            shardTotal
+          } = workItem;
+          const shardLabel = shard.label || shard.id;
+          let shardBracket = shardLabel === shard.id ? null : shard.id;
+          if (partTotal > 1) {
+            const partLabel = `part ${partIndex}/${partTotal}`;
+            shardBracket = shardBracket ? `${shardBracket} ${partLabel}` : partLabel;
+          }
+          const shardDisplay = shardLabel + (shardBracket ? ` [${shardBracket}]` : '');
+          log(
+            `→ Shard ${shardIndex}/${shardTotal}: ${shardDisplay} (${shardEntries.length} files)`,
+            {
+              shardId: shard.id,
+              shardIndex,
+              shardTotal,
+              partIndex,
+              partTotal,
+              fileCount: shardEntries.length
+            }
+          );
+          await processEntries({
+            entries: shardEntries,
+            runtime: shardRuntime,
+            shardMeta: shard,
+            stateRef: state
+          });
+        }
+      } finally {
+        await shardRuntime.destroyQueues?.();
+      }
+    };
+    await Promise.all(
+      shardBatches.map((batch) => runShardWorker(batch))
+    );
+  } else {
+    await processEntries({ entries, runtime, stateRef: state });
+  }
+  showProgress('Files', progress.total, progress.total);
+  checkpoint.finish();
+  timing.processMs = Date.now() - processStart;
+
+  return { tokenizationStats, shardSummary, shardPlan };
+};
