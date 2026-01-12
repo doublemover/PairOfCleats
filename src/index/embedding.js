@@ -1,6 +1,21 @@
-import { pipeline, env } from '@xenova/transformers';
 import { stubEmbedding } from '../shared/embedding.js';
 import { createOnnxEmbedder, normalizeEmbeddingProvider } from '../shared/onnx-embeddings.js';
+
+// NOTE: @xenova/transformers is large and expensive to load.
+// We intentionally lazy-load it so that stub embeddings (used heavily in tests)
+// do not pay the memory/startup cost.
+let transformersModulePromise = null;
+
+async function loadTransformersModule(modelsDir) {
+  if (!transformersModulePromise) {
+    transformersModulePromise = import('@xenova/transformers');
+  }
+  const mod = await transformersModulePromise;
+  if (modelsDir && mod?.env) {
+    mod.env.cacheDir = modelsDir;
+  }
+  return mod;
+}
 
 /**
  * Quantize a float vector into uint8 bins for compact storage.
@@ -46,9 +61,6 @@ export function createEmbedder({
   provider,
   onnx
 }) {
-  if (modelsDir) {
-    env.cacheDir = modelsDir;
-  }
   const resolvedProvider = normalizeEmbeddingProvider(provider);
   const onnxEmbedder = !useStubEmbeddings && resolvedProvider === 'onnx'
     ? createOnnxEmbedder({
@@ -60,7 +72,9 @@ export function createEmbedder({
     : null;
   const embedderPromise = useStubEmbeddings
     ? null
-    : (onnxEmbedder ? onnxEmbedder.embedderPromise : pipeline('feature-extraction', modelId));
+    : (onnxEmbedder
+      ? onnxEmbedder.embedderPromise
+      : loadTransformersModule(modelsDir).then(({ pipeline }) => pipeline('feature-extraction', modelId)));
 
   const normalizeBatchOutput = (output, count) => {
     if (!output) return Array.from({ length: count }, () => []);

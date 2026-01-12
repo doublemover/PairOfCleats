@@ -264,9 +264,10 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     ? sha1(dictSignatureParts.join('|'))
     : null;
   const dictSummary = { files: dictionaryPaths.length, words: dictWords.size };
-  const dictSharedPayload = dictSummary.words && workerPoolConfig.enabled !== false
-    ? createSharedDictionary(dictWords)
-    : null;
+  const LARGE_DICT_SHARED_THRESHOLD = 200000;
+  const shouldShareDict = dictSummary.words
+    && (workerPoolConfig.enabled !== false || dictSummary.words >= LARGE_DICT_SHARED_THRESHOLD);
+  const dictSharedPayload = shouldShareDict ? createSharedDictionary(dictWords) : null;
   const dictShared = dictSharedPayload ? createSharedDictionaryView(dictSharedPayload) : null;
 
   const { ignoreMatcher, config: ignoreConfig, ignoreFiles } = await buildIgnoreMatcher({ root, userConfig });

@@ -12,6 +12,17 @@ const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-incremental');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
+const stripMaxOldSpaceFlag = (options) => {
+  if (!options) return '';
+  return options
+    .replace(/--max-old-space-size=\d+/g, '')
+    .replace(/--max-old-space-size\s+\d+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const nodeOptions = stripMaxOldSpaceFlag(process.env.NODE_OPTIONS || '');
+
 const rmWithRetries = async (target, { retries = 8, delayMs = 150 } = {}) => {
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
@@ -32,10 +43,19 @@ await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 const env = {
   ...process.env,
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  PAIROFCLEATS_WORKER_POOL: 'off',
+  PAIROFCLEATS_MAX_OLD_SPACE_MB: '8192'
 };
+if (nodeOptions) {
+  env.NODE_OPTIONS = nodeOptions;
+} else {
+  delete env.NODE_OPTIONS;
+}
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+process.env.PAIROFCLEATS_WORKER_POOL = 'off';
+process.env.PAIROFCLEATS_MAX_OLD_SPACE_MB = '8192';
 
 function run(args, label) {
   const result = spawnSync(process.execPath, args, {

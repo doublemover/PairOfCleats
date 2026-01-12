@@ -58,6 +58,7 @@ const DEFAULT_DICT_SEGMENTATION = {
 };
 
 const VALID_DICT_SEGMENT_MODES = new Set(['auto', 'greedy', 'dp', 'aho']);
+const MAX_AHO_DICT_SIZE = 200000;
 
 const normalizeDictSegmentation = (options = {}) => {
   const modeRaw = typeof options.segmentation === 'string'
@@ -92,6 +93,7 @@ const getDictMaxLen = (dict) => {
 const buildDictAhoMatcher = (dict) => {
   if (!dict || dict.__sharedDict) return null;
   if (typeof dict[Symbol.iterator] !== 'function') return null;
+  if (Number.isFinite(dict.size) && dict.size > MAX_AHO_DICT_SIZE) return null;
   const matcher = new AhoCorasick();
   const words = [];
   for (const word of dict) {

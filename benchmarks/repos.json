@@ -5,10 +5,21 @@
     "repos": {
       "large": [
         "Kong/kong",
-        "torch/torch7"
+        "torch/torch7",
+        "luals/lua-language-server",
+        "openresty/lua-nginx-module",
+        "luarocks/luarocks"
       ],
       "typical": [
-        "luarocks/luarocks"
+        "luarocks/luarocks",
+        "lunarmodules/luasocket",
+        "jgm/pandoc",
+        "kikito/inspect.lua"
+      ],
+      "huge": [
+        "Kong/kong",
+        "tarantool/tarantool",
+        "neovim/neovim"
       ]
     }
   },
@@ -19,9 +30,20 @@
       "large": [
         "bestpractical/rt",
         "metacpan/metacpan-web",
-        "mojolicious/mojo"
+        "mojolicious/mojo",
+        "ocpi/openscap"
       ],
-      "typical": []
+      "typical": [
+        "Perl-Critic/Perl-Critic",
+        "Dancer2/Dancer2",
+        "perl-carton/carton",
+        "gugod/App-perlbrew"
+      ],
+      "huge": [
+        "Perl/perl5",
+        "Ensembl/ensembl",
+        "metacpan/metacpan-web"
+      ]
     }
   },
   "shell": {
@@ -30,10 +52,21 @@
     "repos": {
       "large": [
         "ohmyzsh/ohmyzsh",
-        "nvm-sh/nvm"
+        "nvm-sh/nvm",
+        "Homebrew/brew",
+        "asdf-vm/asdf",
+        "pyenv/pyenv"
       ],
       "typical": [
-        "bash-it/bash-it"
+        "bash-it/bash-it",
+        "ohmybash/oh-my-bash",
+        "acmesh-official/acme.sh",
+        "rupa/z"
+      ],
+      "huge": [
+        "ohmyzsh/ohmyzsh",
+        "github/gitignore",
+        "nvm-sh/nvm"
       ]
     }
   },
@@ -45,10 +78,23 @@
         "rails/rails"
       ],
       "large": [
-        "discourse/discourse"
+        "discourse/discourse",
+        "spree/spree",
+        "chef/chef",
+        "jekyll/jekyll"
       ],
       "typical": [
-        "jekyll/jekyll"
+        "jekyll/jekyll",
+        "fastlane/fastlane",
+        "sidekiq/sidekiq",
+        "rspec/rspec",
+        "ruby/rake"
+      ],
+      "huge": [
+        "rubocop/rubocop",
+        "jekyll/jekyll",
+        "huginn/huginn",
+        "rails/rails"
       ]
     }
   },
@@ -58,12 +104,21 @@
     "repos": {
       "huge": [
         "symfony/symfony",
-        "laravel/framework"
+        "laravel/framework",
+        "magento/magento2",
+        "WordPress/wordpress-develop"
       ],
       "large": [
-        "composer/composer"
+        "composer/composer",
+        "woocommerce/woocommerce",
+        "drupal/drupal",
+        "laravel/framework"
       ],
       "typical": [
+        "slimphp/Slim",
+        "guzzle/guzzle",
+        "phpunit/phpunit",
+        "nikic/PHP-Parser"
       ]
     }
   },
@@ -73,13 +128,20 @@
     "repos": {
       "huge": [
         "mysql/mysql-server",
-        "postgres/postgres"
+        "postgres/postgres",
+        "cockroachdb/cockroach"
       ],
       "large": [
-        
+        "timescale/timescaledb",
+        "ClickHouse/ClickHouse",
+        "citusdata/citus",
+        "duckdb/duckdb"
       ],
       "typical": [
-        "dbt-labs/jaffle_shop"
+        "dbt-labs/jaffle_shop",
+        "ankane/pghero",
+        "Graphile/graphile-engine",
+        "dbt-labs/jaffle-shop"
       ]
     }
   },
@@ -89,10 +151,19 @@
     "repos": {
       "large": [
         "ansible/ansible",
-        "saltstack/salt"
+        "saltstack/salt",
+        "pandas-dev/pandas"
       ],
       "typical": [
-        "psf/requests"
+        "psf/requests",
+        "pydantic/pydantic",
+        "pygments/pygments"
+      ],
+      "huge": [
+        "django/django",
+        "pallets/flask",
+        "scikit-learn/scikit-learn",
+        "python/cpython"
       ]
     }
   },
@@ -102,12 +173,22 @@
     "repos": {
       "huge": [
         "apple/swift",
-        "Alamofire/Alamofire"
+        "Alamofire/Alamofire",
+        "apple/swift-package-manager",
+        "apple/swift-corelibs-foundation",
+        "swiftlang/swift"
       ],
       "large": [
-        "apple/swift-nio"
+        "apple/swift-nio",
+        "Alamofire/Alamofire",
+        "apple/swift-collections"
       ],
-      "typical": []
+      "typical": [
+        "onevcat/Kingfisher",
+        "SnapKit/SnapKit",
+        "ReactiveX/RxSwift",
+        "apple/swift-argument-parser"
+      ]
     }
   },
   "rust": {
@@ -116,10 +197,19 @@
     "repos": {
       "huge": [
         "rust-lang/rust",
-        "servo/servo"
+        "servo/servo",
+        "tokio-rs/tokio"
       ],
       "typical": [
-        "BurntSushi/ripgrep"
+        "BurntSushi/ripgrep",
+        "sharkdp/fd",
+        "serde-rs/serde"
+      ],
+      "large": [
+        "denoland/deno",
+        "nushell/nushell",
+        "alacritty/alacritty",
+        "tokio-rs/tokio"
       ]
     }
   },
@@ -129,13 +219,19 @@
     "repos": {
       "huge": [
         "kubernetes/kubernetes",
-        "prometheus/prometheus"
+        "prometheus/prometheus",
+        "moby/moby"
       ],
       "large": [
-        
+        "etcd-io/etcd",
+        "hashicorp/terraform",
+        "grafana/grafana",
+        "prometheus/prometheus"
       ],
       "typical": [
-        "gin-gonic/gin"
+        "gin-gonic/gin",
+        "spf13/cobra",
+        "gorilla/mux"
       ]
     }
   },
@@ -149,9 +245,17 @@
         "spring-projects/spring-boot"
       ],
       "large": [
-        
+        "apache/spark",
+        "google/guava",
+        "hibernate/hibernate-orm",
+        "spring-projects/spring-boot"
       ],
-      "typical": []
+      "typical": [
+        "junit-team/junit5",
+        "square/okhttp",
+        "mockito/mockito",
+        "junit-team/junit-framework"
+      ]
     }
   },
   "csharp": {
@@ -160,12 +264,21 @@
     "repos": {
       "huge": [
         "dotnet/runtime",
-        "dotnet/roslyn"
+        "dotnet/roslyn",
+        "dotnet/aspnetcore"
       ],
       "large": [
-        "AutoMapper/AutoMapper"
+        "AutoMapper/AutoMapper",
+        "AvaloniaUI/Avalonia",
+        "OrchardCMS/OrchardCore",
+        "dotnet/roslyn"
       ],
-      "typical": []
+      "typical": [
+        "jbogard/MediatR",
+        "Serilog/serilog",
+        "FluentValidation/FluentValidation",
+        "LuckyPennySoftware/AutoMapper"
+      ]
     }
   },
   "kotlin": {
@@ -173,13 +286,21 @@
     "queries": "benchmarks/queries/kotlin.txt",
     "repos": {
       "huge": [
-        "JetBrains/kotlin"
+        "JetBrains/kotlin",
+        "android/architecture-samples",
+        "Kotlin/kotlinx.coroutines"
       ],
       "large": [
         "ktorio/ktor",
-        "Kotlin/kotlinx.coroutines"
+        "Kotlin/kotlinx.coroutines",
+        "square/okhttp",
+        "airbnb/mavericks"
       ],
       "typical": [
+        "square/leakcanary",
+        "InsertKoinIO/koin",
+        "google/accompanist",
+        "Kotlin/kotlinx-datetime"
       ]
     }
   },
@@ -189,10 +310,19 @@
     "repos": {
       "large": [
         "vercel/next.js",
-        "microsoft/vscode"
+        "microsoft/vscode",
+        "angular/angular",
+        "nestjs/nest"
       ],
       "typical": [
-        "expressjs/express"
+        "expressjs/express",
+        "axios/axios",
+        "lodash/lodash"
+      ],
+      "huge": [
+        "microsoft/vscode",
+        "facebook/react",
+        "nodejs/node"
       ]
     }
   },
@@ -200,98 +330,319 @@
     "label": "Dockerfile",
     "queries": "benchmarks/queries/dockerfile.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "docker-library/official-images",
+        "devcontainers/images",
+        "nginxinc/docker-nginx",
+        "docker-library/hello-world"
+      ],
+      "huge": [
+        "kubernetes/kubernetes",
+        "moby/moby",
+        "github/actions",
+        "docker-library/official-images"
+      ],
+      "large": [
+        "docker/compose",
+        "hashicorp/terraform",
+        "grafana/grafana",
+        "docker/awesome-compose"
+      ]
     }
   },
   "makefile": {
     "label": "Makefile",
     "queries": "benchmarks/queries/makefile.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "madler/zlib",
+        "libexpat/libexpat",
+        "ninja-build/ninja"
+      ],
+      "huge": [
+        "llvm/llvm-project",
+        "kubernetes/kubernetes",
+        "opencv/opencv",
+        "torvalds/linux"
+      ],
+      "large": [
+        "git/git",
+        "curl/curl",
+        "redis/redis"
+      ]
     }
   },
   "protobuf": {
     "label": "Protobuf",
     "queries": "benchmarks/queries/protobuf.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "protocolbuffers/protobuf",
+        "bufbuild/buf",
+        "gogo/protobuf",
+        "bufbuild/protovalidate"
+      ],
+      "huge": [
+        "kubernetes/kubernetes",
+        "googleapis/googleapis",
+        "envoyproxy/envoy"
+      ],
+      "large": [
+        "istio/istio",
+        "prometheus/prometheus",
+        "grpc/grpc",
+        "protocolbuffers/protobuf"
+      ]
     }
   },
   "graphql": {
     "label": "GraphQL",
     "queries": "benchmarks/queries/graphql.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "graphql-dotnet/graphql-dotnet",
+        "dgraph-io/dgraph",
+        "n1ru4l/graphql-live-query",
+        "graphql/graphql-spec"
+      ],
+      "huge": [
+        "facebook/relay",
+        "apollographql/apollo-client",
+        "hasura/graphql-engine"
+      ],
+      "large": [
+        "apollographql/apollo-server",
+        "graphql/graphql-js",
+        "urql-graphql/urql"
+      ]
     }
   },
   "cmake": {
     "label": "CMake",
     "queries": "benchmarks/queries/cmake.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "fmtlib/fmt",
+        "gabime/spdlog",
+        "nlohmann/json"
+      ],
+      "huge": [
+        "llvm/llvm-project",
+        "opencv/opencv",
+        "godotengine/godot"
+      ],
+      "large": [
+        "microsoft/vcpkg",
+        "tensorflow/tensorflow",
+        "facebook/folly",
+        "Kitware/CMake"
+      ]
     }
   },
   "starlark": {
     "label": "Bazel / Starlark",
     "queries": "benchmarks/queries/starlark.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "bazelbuild/rules_go",
+        "bazelbuild/rules_nodejs",
+        "bazelbuild/rules_proto",
+        "bazelbuild/bazel-skylib"
+      ],
+      "huge": [
+        "tensorflow/tensorflow",
+        "bazelbuild/bazel",
+        "google/tsunami-security-scanner"
+      ],
+      "large": [
+        "grpc/grpc",
+        "envoyproxy/envoy",
+        "protocolbuffers/protobuf",
+        "bazelbuild/bazel"
+      ]
     }
   },
   "nix": {
     "label": "Nix",
     "queries": "benchmarks/queries/nix.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "ryantm/agenix",
+        "hercules-ci/hercules-ci-agent",
+        "Mic92/sops-nix",
+        "numtide/devshell"
+      ],
+      "huge": [
+        "NixOS/nixpkgs",
+        "nixos/nix",
+        "numtide/flake-utils"
+      ],
+      "large": [
+        "home-assistant/core",
+        "cachix/cachix",
+        "nix-community/home-manager"
+      ]
     }
   },
   "dart": {
     "label": "Dart",
     "queries": "benchmarks/queries/dart.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "flutter/packages",
+        "rrousselGit/provider",
+        "google/json_serializable.dart",
+        "dart-lang/http"
+      ],
+      "huge": [
+        "flutter/flutter",
+        "dart-lang/sdk",
+        "flutter/engine"
+      ],
+      "large": [
+        "firebase/flutterfire",
+        "dart-lang/http",
+        "rrousselGit/riverpod",
+        "dart-lang/sdk"
+      ]
     }
   },
   "scala": {
     "label": "Scala",
     "queries": "benchmarks/queries/scala.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "typelevel/cats",
+        "scalatest/scalatest",
+        "circe/circe"
+      ],
+      "huge": [
+        "apache/spark",
+        "akka/akka",
+        "twitter/finagle"
+      ],
+      "large": [
+        "scalaz/scalaz",
+        "playframework/playframework",
+        "sbt/sbt",
+        "akka/akka-core"
+      ]
     }
   },
   "groovy": {
     "label": "Groovy",
     "queries": "benchmarks/queries/groovy.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "geb/geb",
+        "CodeNarc/CodeNarc",
+        "google/protobuf-gradle-plugin",
+        "spockframework/spock"
+      ],
+      "huge": [
+        "jenkinsci/jenkins",
+        "apache/groovy",
+        "gradle/gradle"
+      ],
+      "large": [
+        "spockframework/spock",
+        "grails/grails-core",
+        "jenkinsci/pipeline-model-definition-plugin",
+        "gradle/gradle"
+      ]
     }
   },
   "r": {
     "label": "R",
     "queries": "benchmarks/queries/r.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "r-lib/testthat",
+        "hadley/stringr",
+        "satijalab/seurat"
+      ],
+      "huge": [
+        "rstudio/rstudio",
+        "tidyverse/ggplot2",
+        "tidyverse/dplyr",
+        "wch/r-source"
+      ],
+      "large": [
+        "r-lib/devtools",
+        "r-lib/usethis",
+        "yihui/knitr",
+        "tidyverse/ggplot2"
+      ]
     }
   },
   "julia": {
     "label": "Julia",
     "queries": "benchmarks/queries/julia.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "JuliaLang/IJulia.jl",
+        "JuliaPlots/Plots.jl",
+        "JuliaIO/HDF5.jl",
+        "JuliaIO/JSON.jl"
+      ],
+      "huge": [
+        "JuliaLang/julia",
+        "JuliaData/DataFrames.jl",
+        "SciML/DifferentialEquations.jl"
+      ],
+      "large": [
+        "FluxML/Flux.jl",
+        "MakieOrg/Makie.jl",
+        "JuMP-dev/JuMP.jl",
+        "JuliaData/DataFrames.jl"
+      ]
     }
   },
   "handlebars": {
     "label": "Handlebars",
     "queries": "benchmarks/queries/handlebars.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "handlebars-lang/handlebars.js",
+        "assemble/assemble",
+        "metalsmith/metalsmith",
+        "express-handlebars/express-handlebars"
+      ],
+      "huge": [
+        "microsoft/vscode",
+        "vercel/next.js",
+        "nodejs/node",
+        "emberjs/ember.js"
+      ],
+      "large": [
+        "twbs/bootstrap",
+        "ghost/ghost",
+        "emberjs/ember.js",
+        "TryGhost/Ghost"
+      ]
     }
   },
   "mustache": {
     "label": "Mustache",
     "queries": "benchmarks/queries/mustache.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "mustache/spec",
+        "janl/mustache.js",
+        "mustache/mustache"
+      ],
+      "huge": [
+        "kubernetes/kubernetes",
+        "ansible/ansible",
+        "elastic/elasticsearch",
+        "OpenAPITools/openapi-generator"
+      ],
+      "large": [
+        "helm/helm",
+        "hashicorp/terraform",
+        "grafana/grafana",
+        "swagger-api/swagger-codegen"
+      ]
     }
   },
   "clike": {
@@ -299,27 +650,69 @@
     "queries": "benchmarks/queries/clike.txt",
     "repos": {
       "huge": [
-        "opencv/opencv"
+        "opencv/opencv",
+        "llvm/llvm-project",
+        "godotengine/godot",
+        "torvalds/linux"
       ],
       "large": [
         "llvm/llvm-project",
-        "curl/curl"
+        "curl/curl",
+        "redis/redis",
+        "git/git"
       ],
-      "typical": []
+      "typical": [
+        "nlohmann/json",
+        "fmtlib/fmt",
+        "gabime/spdlog",
+        "madler/zlib"
+      ]
     }
   },
   "jinja": {
     "label": "Jinja / Django",
     "queries": "benchmarks/queries/jinja.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "pallets/jinja",
+        "cookiecutter/cookiecutter",
+        "apache/superset",
+        "pallets/flask"
+      ],
+      "huge": [
+        "ansible/ansible",
+        "home-assistant/core",
+        "pallets/flask",
+        "django/django"
+      ],
+      "large": [
+        "django/django",
+        "jupyter/notebook",
+        "pallets/jinja"
+      ]
     }
   },
   "razor": {
     "label": "Razor",
     "queries": "benchmarks/queries/razor.txt",
     "repos": {
-      "typical": []
+      "typical": [
+        "ardalis/CleanArchitecture",
+        "jasontaylordev/CleanArchitecture",
+        "dotnet-presentations/blazor-workshop",
+        "dotnet-architecture/eShopOnWeb"
+      ],
+      "huge": [
+        "dotnet/aspnetcore",
+        "OrchardCMS/OrchardCore",
+        "nopSolutions/nopCommerce"
+      ],
+      "large": [
+        "MudBlazor/MudBlazor",
+        "radzenhq/radzen-blazor",
+        "serenity-is/Serenity",
+        "OrchardCMS/OrchardCore"
+      ]
     }
   }
 }

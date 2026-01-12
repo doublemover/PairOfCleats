@@ -59,6 +59,14 @@ const buildWorkerExecArgv = () => process.execArgv.filter((arg) => {
     && !arg.startsWith('--max-semi-space-size');
 });
 
+const resolveMemoryWorkerCap = (requested) => {
+  const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
+  if (!Number.isFinite(requested) || requested <= 0) return null;
+  if (!Number.isFinite(totalMemMb) || totalMemMb <= 0) return null;
+  const cap = Math.max(1, Math.floor(totalMemMb / 4096));
+  return Math.min(requested, cap);
+};
+
 const parseMaxOldSpaceMb = () => {
   const args = process.execArgv || [];
   for (let i = 0; i < args.length; i += 1) {
@@ -78,10 +86,14 @@ const parseMaxOldSpaceMb = () => {
 
 const resolveWorkerResourceLimits = (maxWorkers) => {
   const maxOldSpaceMb = parseMaxOldSpaceMb();
+  const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
   if (!Number.isFinite(maxWorkers) || maxWorkers <= 0) return null;
-  if (!Number.isFinite(maxOldSpaceMb)) return null;
-  const perWorker = Math.max(256, Math.floor(maxOldSpaceMb / Math.max(1, maxWorkers)));
-  const capped = Math.min(4096, perWorker);
+  const basisMb = Number.isFinite(maxOldSpaceMb) && maxOldSpaceMb > 0
+    ? maxOldSpaceMb
+    : totalMemMb;
+  if (!Number.isFinite(basisMb) || basisMb <= 0) return null;
+  const perWorker = Math.max(256, Math.floor(basisMb / Math.max(1, maxWorkers * 2)));
+  const capped = Math.min(2048, perWorker);
   return { maxOldGenerationSizeMb: capped };
 };
 
@@ -193,7 +205,13 @@ export async function createIndexerWorkerPool(input = {}) {
   const poolLabel = typeof poolName === 'string' && poolName.trim()
     ? poolName.trim().toLowerCase()
     : 'tokenize';
-  const poolConfig = config;
+  const memoryCappedMax = resolveMemoryWorkerCap(config?.maxWorkers);
+  const poolConfig = Number.isFinite(memoryCappedMax) && memoryCappedMax > 0
+    ? { ...config, maxWorkers: memoryCappedMax }
+    : config;
+  if (config?.maxWorkers && poolConfig?.maxWorkers && config.maxWorkers !== poolConfig.maxWorkers) {
+    log(`Worker pool capped to ${poolConfig.maxWorkers} threads based on host memory.`);
+  }
   const dictWordsForPool = poolLabel === 'quantize' ? [] : dictWords;
   const dictSharedForPool = poolLabel === 'quantize' ? null : dictSharedPayload;
   const sanitizeDictConfig = (raw) => {
