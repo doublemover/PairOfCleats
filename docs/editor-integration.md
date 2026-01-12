@@ -1,13 +1,16 @@
 # Editor Integration
 
 ## CLI contract for editor tooling
-The editor integration shells out to the CLI and expects `--json-compact` output.
+Editor integrations shell out to the CLI and expect JSON output.
+- The VS Code extension uses `--json-compact`.
+- The Sublime Text integration is designed to use `--json` to retain full metadata.
+
 The JSON payload contains the following top-level keys:
 - `backend`: the selected backend (`memory`, `sqlite`, `sqlite-fts`, `lmdb`).
 - `code`, `prose`, `records`: arrays of result hits (may be empty).
 - `stats`: search timing and cache metadata.
 
-Compact hit fields (subset):
+Compact hit fields (subset, for `--json-compact`):
 - `file`: repo-relative path for the chunk.
 - `startLine`, `endLine`: 1-based line numbers for editor navigation.
 - `start`, `end`: byte offsets (optional).

@@ -1,0 +1,15 @@
+[
+  {
+    "id": "preferences",
+    "children": [
+      {
+        "caption": "PairOfCleats Settings",
+        "command": "pair_of_cleats_open_settings"
+      },
+      {
+        "caption": "PairOfCleats Validate Settings",
+        "command": "pair_of_cleats_validate_settings"
+      }
+    ]
+  }
+]

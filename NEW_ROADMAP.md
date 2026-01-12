@@ -13,56 +13,56 @@ Checkboxes represent “meets the intent of the requirement, end-to-end, without
 
 ### 1.1 Plugin repo structure + packaging
 
-* [ ] Create `sublime/PairOfCleats/` package skeleton:
+* [x] Create `sublime/PairOfCleats/` package skeleton:
 
-  * [ ] `PairOfCleats.py` (entrypoint)
-  * [ ] `commands/` (command modules)
-  * [ ] `lib/` (helpers: config, subprocess, parsing, caching)
-  * [ ] `messages/` (install/upgrade notes)
-  * [ ] `Default.sublime-commands`
-  * [ ] `Main.sublime-menu` (optional)
-  * [ ] `Default.sublime-keymap` (optional)
-* [ ] Add `README.md` for ST3 plugin installation + prerequisites
-* [ ] Add “Package Control” compatibility notes (no external deps beyond Node runtime + repo binaries)
+  * [x] `PairOfCleats.py` (entrypoint)
+  * [x] `commands/` (command modules)
+  * [x] `lib/` (helpers: config, subprocess, parsing, caching)
+  * [x] `messages/` (install/upgrade notes)
+  * [x] `Default.sublime-commands`
+  * [x] `Main.sublime-menu` (optional)
+  * [x] `Default.sublime-keymap` (optional)
+* [x] Add `README.md` for ST3 plugin installation + prerequisites
+* [x] Add “Package Control” compatibility notes (no external deps beyond Node runtime + repo binaries)
 
 ### 1.2 Node/CLI discovery + execution contract
 
-* [ ] Implement robust “pairofcleats binary discovery”:
+* [x] Implement robust “pairofcleats binary discovery”:
 
-  * [ ] Prefer project-local `node_modules/.bin/pairofcleats` when available
-  * [ ] Fallback to global `pairofcleats` on PATH
-  * [ ] Allow explicit override in ST settings: `pairofcleats_path`
-* [ ] Implement repo-root detection:
+  * [x] Prefer project-local `node_modules/.bin/pairofcleats` when available
+  * [x] Fallback to global `pairofcleats` on PATH
+  * [x] Allow explicit override in ST settings: `pairofcleats_path`
+* [x] Implement repo-root detection:
 
-  * [ ] Prefer `.pairofcleats.json` location
-  * [ ] Fallback to `.git` root
-  * [ ] Fallback to folder of active file
-* [ ] Implement subprocess wrapper:
+  * [x] Prefer `.pairofcleats.json` location
+  * [x] Fallback to `.git` root
+  * [x] Fallback to folder of active file
+* [x] Implement subprocess wrapper:
 
-  * [ ] Streams output to Sublime panel
-  * [ ] Captures JSON payloads when `--json` is used
-  * [ ] Supports cancellation (best-effort)
-  * [ ] Adds stable environment injection (cache root, embeddings mode, etc.)
+  * [x] Streams output to Sublime panel
+  * [x] Captures JSON payloads when `--json` is used
+  * [x] Supports cancellation (best-effort)
+  * [x] Adds stable environment injection (cache root, embeddings mode, etc.)
 
 ### 1.3 Settings + per-project overrides
 
-* [ ] Add `PairOfCleats.sublime-settings` defaults:
+* [x] Add `PairOfCleats.sublime-settings` defaults:
 
-  * [ ] `pairofcleats_path`, `node_path`
-  * [ ] `index_mode_default` (code/prose/both)
-  * [ ] `search_backend_default` (memory/sqlite-fts/etc)
-  * [ ] `open_results_in` (quick_panel / new_tab / output_panel)
-* [ ] Support `.sublime-project` settings overrides
-* [ ] Validate config and surface actionable error messages
+  * [x] `pairofcleats_path`, `node_path`
+  * [x] `index_mode_default` (code/prose/both)
+  * [x] `search_backend_default` (memory/sqlite-fts/etc)
+  * [x] `open_results_in` (quick_panel / new_tab / output_panel)
+* [x] Support `.sublime-project` settings overrides
+* [x] Validate config and surface actionable error messages
 
 ### 1.4 Smoke tests (plugin-side)
 
-* [ ] Add Python unit tests that:
+* [x] Add Python unit tests that:
 
-  * [ ] Import plugin modules without Sublime runtime (mock `sublime`, `sublime_plugin`)
-  * [ ] Validate binary discovery behavior
-  * [ ] Validate repo-root resolution on fixtures
-  * [ ] Validate settings overlay precedence
+  * [x] Import plugin modules without Sublime runtime (mock `sublime`, `sublime_plugin`)
+  * [x] Validate binary discovery behavior
+  * [x] Validate repo-root resolution on fixtures
+  * [x] Validate settings overlay precedence
 
 ---
 
