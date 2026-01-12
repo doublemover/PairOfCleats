@@ -116,29 +116,29 @@ Checkboxes represent “meets the intent of the requirement, end-to-end, without
 
 ### 3.1 Build index commands
 
-* [ ] `PairOfCleats: Index Build (Code)`
-* [ ] `PairOfCleats: Index Build (Prose)`
-* [ ] `PairOfCleats: Index Build (All)`
-* [ ] Stream progress to an output panel
-* [ ] Persist “last index time” + “last index mode” in project cache
+* [x] `PairOfCleats: Index Build (Code)`
+* [x] `PairOfCleats: Index Build (Prose)`
+* [x] `PairOfCleats: Index Build (All)`
+* [x] Stream progress to an output panel
+* [x] Persist “last index time” + “last index mode” in project cache
 
 ### 3.2 Watch mode integration
 
-* [ ] `PairOfCleats: Index Watch Start`
-* [ ] `PairOfCleats: Index Watch Stop`
-* [ ] Prevent duplicate watchers per window/project
-* [ ] Robust shutdown on Sublime exit / project close
+* [x] `PairOfCleats: Index Watch Start`
+* [x] `PairOfCleats: Index Watch Stop`
+* [x] Prevent duplicate watchers per window/project
+* [x] Robust shutdown on Sublime exit / project close
 
 ### 3.3 Validate + repair affordances
 
-* [ ] `PairOfCleats: Index Validate`
-* [ ] Surface actionable failures (missing artifacts, invalid JSON, stale manifests)
-* [ ] Provide “Open index directory” convenience command
+* [x] `PairOfCleats: Index Validate`
+* [x] Surface actionable failures (missing artifacts, invalid JSON, stale manifests)
+* [x] Provide “Open index directory” convenience command
 
 ### 3.4 Tests
 
-* [ ] Node tests for index build/validate on fixtures
-* [ ] Plugin tests for lifecycle commands and watcher gating
+* [x] Node tests for index build/validate on fixtures
+* [x] Plugin tests for lifecycle commands and watcher gating
 
 ---
 

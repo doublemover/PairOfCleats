@@ -48,6 +48,21 @@ def resolve_repo_root(window):
     return None
 
 
+def resolve_watch_root(window, settings):
+    repo_root = resolve_repo_root(window)
+    scope = (settings.get('index_watch_scope') or 'repo').strip().lower()
+    folder_override = settings.get('index_watch_folder') or ''
+    if scope == 'folder':
+        if folder_override:
+            resolved = resolve_path(repo_root, folder_override)
+            if resolved:
+                return resolved
+        folders = window.folders() if window is not None else []
+        if folders:
+            return folders[0]
+    return repo_root
+
+
 def resolve_cli(settings, repo_root):
     node_path = settings.get('node_path') or 'node'
     configured = (settings.get('pairofcleats_path') or '').strip()

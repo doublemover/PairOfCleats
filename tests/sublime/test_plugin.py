@@ -61,9 +61,12 @@ if PACKAGE_ROOT not in sys.path:
     sys.path.insert(0, PACKAGE_ROOT)
 
 config = importlib.import_module('PairOfCleats.lib.config')
+index_state = importlib.import_module('PairOfCleats.lib.index_state')
+indexing = importlib.import_module('PairOfCleats.lib.indexing')
 paths = importlib.import_module('PairOfCleats.lib.paths')
 search = importlib.import_module('PairOfCleats.lib.search')
 results = importlib.import_module('PairOfCleats.lib.results')
+watch = importlib.import_module('PairOfCleats.lib.watch')
 
 
 class MockView(object):
@@ -83,11 +86,34 @@ class MockWindow(object):
     def project_data(self):
         return self._project_data
 
+    def set_project_data(self, data):
+        self._project_data = data
+
     def folders(self):
         return list(self._folders)
 
     def active_view(self):
         return self._view
+
+    def id(self):
+        return 1
+
+
+class DummyProcess(object):
+    def __init__(self, running=True):
+        self._running = running
+
+    def poll(self):
+        return None if self._running else 0
+
+
+class DummyHandle(object):
+    def __init__(self, process):
+        self.process = process
+        self.cancelled = False
+
+    def cancel(self):
+        self.cancelled = True
 
 
 class SublimePluginTests(unittest.TestCase):
@@ -196,6 +222,36 @@ class SublimePluginTests(unittest.TestCase):
         files = [hit.get('file') for hit in hits]
         self.assertIn('src/a.py', files)
         self.assertIn('docs/readme.md', files)
+
+    def test_record_last_build(self):
+        window = MockWindow(project_data={})
+        state = index_state.record_last_build(window, 'code')
+        self.assertEqual(state.get('last_mode'), 'code')
+        stored = index_state.get_last_build(window)
+        self.assertEqual(stored.get('last_mode'), 'code')
+
+    def test_build_index_args(self):
+        args = indexing.build_index_args('code', repo_root='/repo')
+        self.assertEqual(args[0:2], ['index', 'build'])
+        self.assertIn('--mode', args)
+        self.assertIn('--repo', args)
+
+    def test_resolve_watch_root_folder_scope(self):
+        settings = dict(config.DEFAULT_SETTINGS)
+        settings['index_watch_scope'] = 'folder'
+        window = MockWindow(folders=['/workspace/sub'])
+        resolved = paths.resolve_watch_root(window, settings)
+        self.assertEqual(resolved, '/workspace/sub')
+
+    def test_watch_gating(self):
+        window = MockWindow()
+        process = DummyProcess(running=True)
+        handle = DummyHandle(process)
+        watch.register(window, handle, '/repo')
+        self.assertTrue(watch.is_running(window))
+        stopped = watch.stop(window)
+        self.assertTrue(stopped)
+        self.assertTrue(handle.cancelled)
 
 
 if __name__ == '__main__':

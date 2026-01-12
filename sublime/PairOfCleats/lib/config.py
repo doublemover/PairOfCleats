@@ -14,6 +14,11 @@ DEFAULT_SETTINGS = {
     'results_buffer_threshold': 50,
     'history_limit': 25,
     'search_prompt_options': False,
+    'index_watch_scope': 'repo',
+    'index_watch_folder': '',
+    'index_watch_mode': 'all',
+    'index_watch_poll_ms': 2000,
+    'index_watch_debounce_ms': 500,
     'profile': '',
     'cache_root': '',
     'embeddings_mode': '',
@@ -24,6 +29,8 @@ DEFAULT_SETTINGS = {
 VALID_INDEX_MODES = {'code', 'prose', 'both'}
 VALID_BACKENDS = {'memory', 'sqlite', 'sqlite-fts', 'lmdb'}
 VALID_OPEN_TARGETS = {'quick_panel', 'new_tab', 'output_panel'}
+VALID_WATCH_SCOPES = {'repo', 'folder'}
+VALID_WATCH_MODES = {'all', 'code', 'prose', 'records', 'extracted-prose'}
 
 
 def prime_settings():
@@ -129,6 +136,22 @@ def validate_settings(settings, repo_root=None):
     _validate_int_setting(errors, settings, 'search_limit', allow_zero=False)
     _validate_int_setting(errors, settings, 'results_buffer_threshold', allow_zero=True)
     _validate_int_setting(errors, settings, 'history_limit', allow_zero=True)
+    _validate_int_setting(errors, settings, 'index_watch_poll_ms', allow_zero=False)
+    _validate_int_setting(errors, settings, 'index_watch_debounce_ms', allow_zero=False)
+
+    watch_scope = settings.get('index_watch_scope')
+    if watch_scope and watch_scope not in VALID_WATCH_SCOPES:
+        errors.append('index_watch_scope must be repo or folder.')
+
+    watch_mode = settings.get('index_watch_mode')
+    if watch_mode and watch_mode not in VALID_WATCH_MODES:
+        errors.append('index_watch_mode must be one of: all, code, prose, records, extracted-prose.')
+
+    watch_folder = settings.get('index_watch_folder')
+    if watch_folder and (os.path.isabs(watch_folder) or repo_root):
+        resolved = _resolve_path(repo_root, watch_folder)
+        if resolved and not os.path.exists(resolved):
+            errors.append('index_watch_folder does not exist: {0}'.format(resolved))
 
     return errors
 

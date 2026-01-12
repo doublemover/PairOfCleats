@@ -36,6 +36,11 @@ Open the command palette and run `PairOfCleats: Open Settings` or `PairOfCleats:
 - `results_buffer_threshold`: When using `quick_panel`, switch to the output panel once results reach this count (0 disables).
 - `history_limit`: Maximum queries stored per project.
 - `search_prompt_options`: Prompt for mode/backend/limit each search.
+- `index_watch_scope`: `repo` or `folder` for watch root selection.
+- `index_watch_folder`: Optional folder path (absolute or repo-relative) when using `folder` scope.
+- `index_watch_mode`: `all`, `code`, `prose`, `records`, or `extracted-prose`.
+- `index_watch_poll_ms`: Watch polling interval in ms (when polling is enabled).
+- `index_watch_debounce_ms`: Debounce interval for watch rebuilds (ms).
 - `profile`: Sets `PAIROFCLEATS_PROFILE`.
 - `cache_root`: Sets `PAIROFCLEATS_CACHE_ROOT`.
 - `embeddings_mode`: Sets `PAIROFCLEATS_EMBEDDINGS`.
@@ -51,6 +56,13 @@ Open the command palette and run `PairOfCleats: Open Settings` or `PairOfCleats:
 - `PairOfCleats: Search History`
 - `PairOfCleats: Repeat Last Search`
 - `PairOfCleats: Explain Search`
+- `PairOfCleats: Index Build (Code)`
+- `PairOfCleats: Index Build (Prose)`
+- `PairOfCleats: Index Build (All)`
+- `PairOfCleats: Index Watch Start`
+- `PairOfCleats: Index Watch Stop`
+- `PairOfCleats: Index Validate`
+- `PairOfCleats: Open Index Directory`
 
 ## Project overrides
 
