@@ -180,17 +180,17 @@ It must explicitly incorporate and visualize:
 
 Leverage what is already produced today, and formalize how it’s consumed:
 
-* [ ] **Inputs** (expected present after `index build`):
+* [x] **Inputs** (expected present after `index build`):
 
-  * [ ] `file_relations.json` (imports, exports, usages, importLinks, functionMeta/classMeta)
-  * [ ] `repo_map.json` (chunk-level symbol map, exported flag, signatures)
-  * [ ] `chunk_meta.json` (docmeta/metaV2: signature/modifiers/returns/controlFlow/dataflow + relations)
-  * [ ] `graph_relations.json` (importGraph/callGraph/usageGraph)
-* [ ] Define “canonical IDs” used across the map:
+  * [x] `file_relations.json` (imports, exports, usages, importLinks, functionMeta/classMeta)
+  * [x] `repo_map.json` (chunk-level symbol map, exported flag, signatures)
+  * [x] `chunk_meta.json` (docmeta/metaV2: signature/modifiers/returns/controlFlow/dataflow + relations)
+  * [x] `graph_relations.json` (importGraph/callGraph/usageGraph)
+* [x] Define “canonical IDs” used across the map:
 
-  * [ ] `fileId = <repo-relative path>`
-  * [ ] `symbolId = <file>::<symbolName>` (already used in relation graphs)
-  * [ ] Stable IDs for anonymous/lambda cases (fallback: chunkId when name is `(anonymous)`)
+  * [x] `fileId = <repo-relative path>`
+  * [x] `symbolId = <file>::<symbolName>` (already used in relation graphs)
+  * [x] Stable IDs for anonymous/lambda cases (fallback: chunkId when name is `(anonymous)`)
 
 ---
 
@@ -198,31 +198,31 @@ Leverage what is already produced today, and formalize how it’s consumed:
 
 This is the core contract the plugin will consume.
 
-* [ ] Create `docs/map-schema.json` (or similar) with:
+* [x] Create `docs/map-schema.json` (or similar) with:
 
-  * [ ] `version`
-  * [ ] `generatedAt`
-  * [ ] `root` (repo root logical id)
-  * [ ] `legend`:
+  * [x] `version`
+  * [x] `generatedAt`
+  * [x] `root` (repo root logical id)
+  * [x] `legend`:
 
-    * [ ] `nodeTypes` (file/function/class/symbol)
-    * [ ] `fileShapes` mapping (category → shape)
-    * [ ] `functionBadges` mapping (modifier/returns/dataflow/control-flow → badge glyph)
-    * [ ] `edgeTypes` mapping (imports/calls/usages/dataflow/aliases/mutations)
-    * [ ] `edgeStyles` mapping (solid/dashed/dotted/double, arrowheads, labels)
-  * [ ] `nodes`:
+    * [x] `nodeTypes` (file/function/class/symbol)
+    * [x] `fileShapes` mapping (category → shape)
+    * [x] `functionBadges` mapping (modifier/returns/dataflow/control-flow → badge glyph)
+    * [x] `edgeTypes` mapping (imports/calls/usages/dataflow/aliases/mutations)
+    * [x] `edgeStyles` mapping (solid/dashed/dotted/double, arrowheads, labels)
+  * [x] `nodes`:
 
-    * [ ] file nodes with nested “members” (functions/classes)
-    * [ ] function nodes with structured “semantic facets”
-  * [ ] `edges` (typed, labeled, optionally “port-addressable”)
-* [ ] Schema must support **hierarchical nesting**:
+    * [x] file nodes with nested “members” (functions/classes)
+    * [x] function nodes with structured “semantic facets”
+  * [x] `edges` (typed, labeled, optionally “port-addressable”)
+* [x] Schema must support **hierarchical nesting**:
 
-  * [ ] File node has `members[]` with per-member ports
-  * [ ] Member nodes (functions) include `signature`, `modifiers`, `returns`, `controlFlow`, `dataflow`
-* [ ] Determinism requirements:
+  * [x] File node has `members[]` with per-member ports
+  * [x] Member nodes (functions) include `signature`, `modifiers`, `returns`, `controlFlow`, `dataflow`
+* [x] Determinism requirements:
 
-  * [ ] Stable ordering (sort keys/ids)
-  * [ ] Explicit timestamp field allowed, but everything else must be deterministic
+  * [x] Stable ordering (sort keys/ids)
+  * [x] Explicit timestamp field allowed, but everything else must be deterministic
 
 ---
 
@@ -230,55 +230,55 @@ This is the core contract the plugin will consume.
 
 Implement a Node tool that reads index artifacts and produces the map model.
 
-* [ ] Add `tools/code-map.js` (or `tools/report-code-map.js`) that:
+* [x] Add `tools/code-map.js` (or `tools/report-code-map.js`) that:
 
-  * [ ] Locates repo + index dirs using existing `tools/dict-utils.js`
-  * [ ] Loads:
+  * [x] Locates repo + index dirs using existing `tools/dict-utils.js`
+  * [x] Loads:
 
-    * [ ] `file_relations.json`
-    * [ ] `repo_map.json`
-    * [ ] `chunk_meta.json` (or minimal subset)
-    * [ ] `graph_relations.json`
-  * [ ] Merges into a single “map model”:
+    * [x] `file_relations.json`
+    * [x] `repo_map.json`
+    * [x] `chunk_meta.json` (or minimal subset)
+    * [x] `graph_relations.json`
+  * [x] Merges into a single “map model”:
 
-    * [ ] **Files** classified into categories (drives file shape)
-    * [ ] **Members** extracted per file:
+    * [x] **Files** classified into categories (drives file shape)
+    * [x] **Members** extracted per file:
 
-      * [ ] functions/methods/classes (from `repo_map` and/or chunk meta)
-      * [ ] include line ranges
-      * [ ] include `signature`, `modifiers`, `params`, `returns`
-    * [ ] **Function semantics**:
+      * [x] functions/methods/classes (from `repo_map` and/or chunk meta)
+      * [x] include line ranges
+      * [x] include `signature`, `modifiers`, `params`, `returns`
+    * [x] **Function semantics**:
 
-      * [ ] `dataflow.reads`, `dataflow.writes`, `dataflow.mutations`, `dataflow.aliases`
-      * [ ] `controlFlow.branches/loops/returns/throws/awaits/yields/breaks/continues`
-      * [ ] `throws`, `awaits`, `yields`, `returnsValue` facets surfaced explicitly
-    * [ ] **Edges**:
+      * [x] `dataflow.reads`, `dataflow.writes`, `dataflow.mutations`, `dataflow.aliases`
+      * [x] `controlFlow.branches/loops/returns/throws/awaits/yields/breaks/continues`
+      * [x] `throws`, `awaits`, `yields`, `returnsValue` facets surfaced explicitly
+    * [x] **Edges**:
 
-      * [ ] Import edges (file→file) from `importLinks` + raw `imports`
-      * [ ] Export edges (file→symbol) from `exports` + repo_map `exported`
-      * [ ] Call edges (fn→fn) from `callLinks` or `graph_relations.callGraph`
-      * [ ] Usage edges (fn→fn) from `usageLinks` or `graph_relations.usageGraph`
-      * [ ] Dataflow edges:
+      * [x] Import edges (file→file) from `importLinks` + raw `imports`
+      * [x] Export edges (file→symbol) from `exports` + repo_map `exported`
+      * [x] Call edges (fn→fn) from `callLinks` or `graph_relations.callGraph`
+      * [x] Usage edges (fn→fn) from `usageLinks` or `graph_relations.usageGraph`
+      * [x] Dataflow edges:
 
-        * [ ] Argument flow edges from `callSummaries.argMap` (caller→callee param ports)
-        * [ ] Return flow edges using inferred return metadata where available
-        * [ ] Optional: “state flow” edges when reads/writes/mutations overlap (guardrailed; see 28.6)
-      * [ ] Alias edges:
+        * [x] Argument flow edges from `callSummaries.argMap` (caller→callee param ports)
+        * [x] Return flow edges using inferred return metadata where available
+        * [x] Optional: “state flow” edges when reads/writes/mutations overlap (guardrailed; see 28.6)
+      * [x] Alias edges:
 
-        * [ ] derived from `dataflow.aliases` (function-local or cross-function via calls when resolvable)
-* [ ] Add CLI entrypoint:
+        * [x] derived from `dataflow.aliases` (function-local or cross-function via calls when resolvable)
+* [x] Add CLI entrypoint:
 
-  * [ ] `pairofcleats report map` (preferred, consistent with existing `report` group), or
-  * [ ] `pairofcleats map` (top-level)
-* [ ] Support scope + size controls:
+  * [x] `pairofcleats report map` (preferred, consistent with existing `report` group), or
+  * [x] `pairofcleats map` (top-level)
+* [x] Support scope + size controls:
 
-  * [ ] `--scope repo|dir|file|symbol`
-  * [ ] `--focus <path or symbol>`
-  * [ ] `--include imports,calls,usages,dataflow,exports`
-  * [ ] `--only-exported`
-  * [ ] `--max-files N`, `--max-members-per-file N`, `--max-edges N`
-  * [ ] `--collapse file|dir` (aggregate mode)
-  * [ ] `--format json|dot|svg|html` (see 28.4)
+  * [x] `--scope repo|dir|file|symbol`
+  * [x] `--focus <path or symbol>`
+  * [x] `--include imports,calls,usages,dataflow,exports`
+  * [x] `--only-exported`
+  * [x] `--max-files N`, `--max-members-per-file N`, `--max-edges N`
+  * [x] `--collapse file|dir` (aggregate mode)
+  * [x] `--format json|dot|svg|html` (see 28.4)
 
 ---
 
@@ -286,46 +286,46 @@ Implement a Node tool that reads index artifacts and produces the map model.
 
 To match your “shape with fill containing functions” requirement cleanly, DOT/Graphviz is the most direct representation.
 
-* [ ] Implement a DOT generator `src/map/dot-writer.js`:
+* [x] Implement a DOT generator `src/map/dot-writer.js`:
 
-  * [ ] **File nodes as outer shapes** with file-type-dependent shapes:
+  * [x] **File nodes as outer shapes** with file-type-dependent shapes:
 
-    * [ ] Source code: `box` or `component`
-    * [ ] Tests: `box` with distinct border style
-    * [ ] Config/data: `cylinder` or `hexagon`
-    * [ ] Docs/prose: `note`
-    * [ ] Generated/build artifacts: `folder` or `box3d`
-  * [ ] **Fill represents members** using HTML-like labels:
+    * [x] Source code: `box` or `component`
+    * [x] Tests: `box` with distinct border style
+    * [x] Config/data: `cylinder` or `hexagon`
+    * [x] Docs/prose: `note`
+    * [x] Generated/build artifacts: `folder` or `box3d`
+  * [x] **Fill represents members** using HTML-like labels:
 
-    * [ ] Outer `<TABLE>` represents the file “container”
-    * [ ] Each function/class is a row with a `PORT` so edges can land on that member specifically
-  * [ ] **Nested shapes inside the function row** (HTML sub-tables/cells) to represent:
+    * [x] Outer `<TABLE>` represents the file “container”
+    * [x] Each function/class is a row with a `PORT` so edges can land on that member specifically
+  * [x] **Nested shapes inside the function row** (HTML sub-tables/cells) to represent:
 
-    * [ ] modifiers: async/static/generator/visibility
-    * [ ] signature/params summary
-    * [ ] returns/returnType/returnsValue indicator
-    * [ ] dataflow mini-badges: reads/writes/mutates/aliases counts (and/or top N symbols)
-    * [ ] controlFlow mini-badges: branches/loops/throws/awaits/yields
-* [ ] **Edge encoding** (multiple edge “line types”):
+    * [x] modifiers: async/static/generator/visibility
+    * [x] signature/params summary
+    * [x] returns/returnType/returnsValue indicator
+    * [x] dataflow mini-badges: reads/writes/mutates/aliases counts (and/or top N symbols)
+    * [x] controlFlow mini-badges: branches/loops/throws/awaits/yields
+* [x] **Edge encoding** (multiple edge “line types”):
 
-  * [ ] Import edges: dashed file→file
-  * [ ] Call edges: solid function→function (primary control flow)
-  * [ ] Usage edges: thin/secondary style function→function
-  * [ ] Dataflow edges:
+  * [x] Import edges: dashed file→file
+  * [x] Call edges: solid function→function (primary control flow)
+  * [x] Usage edges: thin/secondary style function→function
+  * [x] Dataflow edges:
 
-    * [ ] dotted caller→callee(param) edges (argument flow)
-    * [ ] dotted callee→caller edges for return flow (if inferred)
-  * [ ] Mutation/state edges (optional, guardrailed): double-line or distinct style
-  * [ ] Alias edges: dashed-dotted, labeled `alias: a=b`
-* [ ] Output modes:
+    * [x] dotted caller→callee(param) edges (argument flow)
+    * [x] dotted callee→caller edges for return flow (if inferred)
+  * [x] Mutation/state edges (optional, guardrailed): double-line or distinct style
+  * [x] Alias edges: dashed-dotted, labeled `alias: a=b`
+* [x] Output modes:
 
-  * [ ] `--format dot` always available
-  * [ ] `--format svg` if Graphviz present (shell out to `dot -Tsvg`)
-  * [ ] `--format html` wraps SVG + legend into a standalone HTML viewer
-* [ ] Implement legend rendering:
+  * [x] `--format dot` always available
+  * [x] `--format svg` if Graphviz present (shell out to `dot -Tsvg`)
+  * [x] `--format html` wraps SVG + legend into a standalone HTML viewer
+* [x] Implement legend rendering:
 
-  * [ ] Either embed as a DOT subgraph or in HTML wrapper
-  * [ ] Must document shape/edge meaning for users
+  * [x] Either embed as a DOT subgraph or in HTML wrapper
+  * [x] Must document shape/edge meaning for users
 
 ---
 
@@ -333,39 +333,39 @@ To match your “shape with fill containing functions” requirement cleanly, DO
 
 Provide first-class UX inside Sublime, even if rendering happens externally.
 
-* [ ] Add commands:
+* [x] Add commands:
 
-  * [ ] `PairOfCleats: Map (Repo)`
-  * [ ] `PairOfCleats: Map (Current Folder)`
-  * [ ] `PairOfCleats: Map (Current File)`
-  * [ ] `PairOfCleats: Map (Symbol Under Cursor)`
-  * [ ] `PairOfCleats: Map (Selection)`
-* [ ] Add a “Map Type” chooser:
+  * [x] `PairOfCleats: Map (Repo)`
+  * [x] `PairOfCleats: Map (Current Folder)`
+  * [x] `PairOfCleats: Map (Current File)`
+  * [x] `PairOfCleats: Map (Symbol Under Cursor)`
+  * [x] `PairOfCleats: Map (Selection)`
+* [x] Add a “Map Type” chooser:
 
-  * [ ] Import Map
-  * [ ] Call Map
-  * [ ] Usage/Dependency Map
-  * [ ] Dataflow Map (args/returns/state)
-  * [ ] Combined Map (guardrailed by size limits)
-* [ ] Implement output handling:
+  * [x] Import Map
+  * [x] Call Map
+  * [x] Usage/Dependency Map
+  * [x] Dataflow Map (args/returns/state)
+  * [x] Combined Map (guardrailed by size limits)
+* [x] Implement output handling:
 
-  * [ ] Write outputs to `.pairofcleats/maps/` (repo-local) or cache dir
-  * [ ] Open `.dot` in Sublime for inspection
-  * [ ] If `.svg`/`.html` produced:
+  * [x] Write outputs to `.pairofcleats/maps/` (repo-local) or cache dir
+  * [x] Open `.dot` in Sublime for inspection
+  * [x] If `.svg`/`.html` produced:
 
-    * [ ] Provide “Open in Browser” command (best-effort)
-* [ ] Navigation affordances:
+    * [x] Provide “Open in Browser” command (best-effort)
+* [x] Navigation affordances:
 
-  * [ ] When a map is generated, also produce an indexable “node list” JSON:
+  * [x] When a map is generated, also produce an indexable “node list” JSON:
 
-    * [ ] allows Sublime quick panel “Jump to node” (file/function)
-    * [ ] opens file at recorded `startLine`
-* [ ] Graceful degradation:
+    * [x] allows Sublime quick panel “Jump to node” (file/function)
+    * [x] opens file at recorded `startLine`
+* [x] Graceful degradation:
 
-  * [ ] If `astDataflow` / `controlFlow` metadata is unavailable in the index:
+  * [x] If `astDataflow` / `controlFlow` metadata is unavailable in the index:
 
-    * [ ] show “limited map” warning
-    * [ ] offer action: “Rebuild index with dataflow/control-flow enabled” (invokes `index build` with the project’s config expectations)
+    * [x] show “limited map” warning
+    * [x] offer action: “Rebuild index with dataflow/control-flow enabled” (invokes `index build` with the project’s config expectations)
 
 ---
 
@@ -373,25 +373,25 @@ Provide first-class UX inside Sublime, even if rendering happens externally.
 
 This phase will generate *very large graphs* unless explicitly constrained.
 
-* [ ] Hard limits with user-overrides:
+* [x] Hard limits with user-overrides:
 
-  * [ ] `maxFiles`, `maxMembersPerFile`, `maxEdges`
-  * [ ] edge sampling policies per edge type
-* [ ] Aggregation modes:
+  * [x] `maxFiles`, `maxMembersPerFile`, `maxEdges`
+  * [x] edge sampling policies per edge type
+* [x] Aggregation modes:
 
-  * [ ] Directory-level aggregation (folder nodes contain files)
-  * [ ] File-only map (no nested functions)
-  * [ ] Export-only functions view
-  * [ ] “Top-K by degree” (highest call/import fan-in/out)
-* [ ] Deterministic sampling:
+  * [x] Directory-level aggregation (folder nodes contain files)
+  * [x] File-only map (no nested functions)
+  * [x] Export-only functions view
+  * [x] “Top-K by degree” (highest call/import fan-in/out)
+* [x] Deterministic sampling:
 
-  * [ ] same inputs → same output (stable selection)
-* [ ] Cache map builds keyed by:
+  * [x] same inputs → same output (stable selection)
+* [x] Cache map builds keyed by:
 
-  * [ ] index signature + generator options
-* [ ] Failure mode policy:
+  * [x] index signature + generator options
+* [x] Failure mode policy:
 
-  * [ ] If size exceeds limits, output a “truncated map” plus a summary explaining what was dropped
+  * [x] If size exceeds limits, output a “truncated map” plus a summary explaining what was dropped
 
 ---
 
@@ -401,47 +401,56 @@ Add explicit automated coverage for the map feature.
 
 #### Node tool tests (authoritative)
 
-* [ ] `tests/code-map-basic.js`
+* [x] `tests/code-map-basic.js`
 
-  * [ ] Build a tiny fixture repo with:
+  * [x] Build a tiny fixture repo with:
 
-    * [ ] imports/exports
-    * [ ] functions calling other functions
-    * [ ] a function with reads/writes/mutations/aliases
-    * [ ] a function with branches/loops/throws/awaits
-  * [ ] Run `build_index.js --stub-embeddings`
-  * [ ] Run `pairofcleats report map --format json`
-  * [ ] Assert:
+    * [x] imports/exports
+    * [x] functions calling other functions
+    * [x] a function with reads/writes/mutations/aliases
+    * [x] a function with branches/loops/throws/awaits
+  * [x] Run `build_index.js --stub-embeddings`
+  * [x] Run `pairofcleats report map --format json`
+  * [x] Assert:
 
-    * [ ] file nodes exist
-    * [ ] member nodes include `signature/modifiers/returns/dataflow/controlFlow`
-    * [ ] edge sets include imports + calls
-* [ ] `tests/code-map-dot.js`
+    * [x] file nodes exist
+    * [x] member nodes include `signature/modifiers/returns/dataflow/controlFlow`
+    * [x] edge sets include imports + calls
+* [x] `tests/code-map-dot.js`
 
-  * [ ] Generate DOT output
-  * [ ] Assert:
+  * [x] Generate DOT output
+  * [x] Assert:
 
-    * [ ] file “container” nodes exist
-    * [ ] function rows/ports exist
-    * [ ] edges connect to ports (caller fn → callee fn)
-    * [ ] distinct edge styles appear for import vs call vs dataflow
-* [ ] `tests/code-map-determinism.js`
+    * [x] file “container” nodes exist
+    * [x] function rows/ports exist
+    * [x] edges connect to ports (caller fn → callee fn)
+    * [x] distinct edge styles appear for import vs call vs dataflow
+* [x] `tests/code-map-determinism.js`
 
-  * [ ] Run map generation twice and compare outputs (ignore `generatedAt`)
-* [ ] `tests/code-map-guardrails.js`
+  * [x] Run map generation twice and compare outputs (ignore `generatedAt`)
+* [x] `tests/code-map-guardrails.js`
 
-  * [ ] Generate a repo with many dummy functions
-  * [ ] Ensure truncation behavior is correct and stable
+  * [x] Generate a repo with many dummy functions
+  * [x] Ensure truncation behavior is correct and stable
 
 #### Plugin-side tests
 
-* [ ] Python unit tests:
+* [x] Python unit tests:
 
-  * [ ] command registration exists
-  * [ ] subprocess args are correct for each map command
-  * [ ] output paths computed correctly
-  * [ ] “Graphviz missing” fallback behavior (DOT-only) works
+  * [x] command registration exists
+  * [x] subprocess args are correct for each map command
+  * [x] output paths computed correctly
+  * [x] “Graphviz missing” fallback behavior (DOT-only) works
 
+
+
+### 4.8 Isometric map viewer (three.js)
+
+* [x] Generate an isometric HTML viewer from the map model (three.js module import)
+* [x] Support zoom with configurable sensitivity
+* [x] Support WASD movement with configurable sensitivity/acceleration/drag
+* [x] Highlight selections and show file/line metadata
+* [x] Double-click opens the selected file/line via a URI template
 ---
 
 

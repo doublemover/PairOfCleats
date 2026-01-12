@@ -19,6 +19,26 @@ DEFAULT_SETTINGS = {
     'index_watch_mode': 'all',
     'index_watch_poll_ms': 2000,
     'index_watch_debounce_ms': 500,
+    'map_type_default': 'combined',
+    'map_format_default': 'html-iso',
+    'map_prompt_options': False,
+    'map_output_dir': '.pairofcleats/maps',
+    'map_only_exported': False,
+    'map_collapse_default': 'none',
+    'map_max_files': 200,
+    'map_max_members_per_file': 60,
+    'map_max_edges': 3000,
+    'map_top_k_by_degree': False,
+    'map_show_report_panel': None,
+    'map_stream_output': False,
+    'map_open_uri_template': 'subl://open?file={file}&line={line}&column={column}',
+    'map_three_url': '',
+    'map_index_mode': 'code',
+    'map_wasd_sensitivity': 160,
+    'map_wasd_acceleration': 60,
+    'map_wasd_max_speed': 240,
+    'map_wasd_drag': 6,
+    'map_zoom_sensitivity': 0.1,
     'profile': '',
     'cache_root': '',
     'embeddings_mode': '',
@@ -31,6 +51,10 @@ VALID_BACKENDS = {'memory', 'sqlite', 'sqlite-fts', 'lmdb'}
 VALID_OPEN_TARGETS = {'quick_panel', 'new_tab', 'output_panel'}
 VALID_WATCH_SCOPES = {'repo', 'folder'}
 VALID_WATCH_MODES = {'all', 'code', 'prose', 'records', 'extracted-prose'}
+VALID_MAP_TYPES = {'combined', 'imports', 'calls', 'usages', 'dataflow'}
+VALID_MAP_FORMATS = {'json', 'dot', 'svg', 'html', 'html-iso'}
+VALID_MAP_COLLAPSE = {'none', 'file', 'dir'}
+VALID_MAP_MODES = {'code', 'prose'}
 
 
 def prime_settings():
@@ -153,6 +177,31 @@ def validate_settings(settings, repo_root=None):
         if resolved and not os.path.exists(resolved):
             errors.append('index_watch_folder does not exist: {0}'.format(resolved))
 
+    map_type = settings.get('map_type_default')
+    if map_type and map_type not in VALID_MAP_TYPES:
+        errors.append('map_type_default must be one of: combined, imports, calls, usages, dataflow.')
+
+    map_format = settings.get('map_format_default')
+    if map_format and map_format not in VALID_MAP_FORMATS:
+        errors.append('map_format_default must be one of: json, dot, svg, html, html-iso.')
+
+    map_collapse = settings.get('map_collapse_default')
+    if map_collapse and map_collapse not in VALID_MAP_COLLAPSE:
+        errors.append('map_collapse_default must be one of: none, file, dir.')
+
+    map_mode = settings.get('map_index_mode')
+    if map_mode and map_mode not in VALID_MAP_MODES:
+        errors.append('map_index_mode must be code or prose.')
+
+    _validate_int_setting(errors, settings, 'map_max_files', allow_zero=False)
+    _validate_int_setting(errors, settings, 'map_max_members_per_file', allow_zero=False)
+    _validate_int_setting(errors, settings, 'map_max_edges', allow_zero=False)
+    _validate_number_setting(errors, settings, 'map_wasd_sensitivity', allow_zero=False)
+    _validate_number_setting(errors, settings, 'map_wasd_acceleration', allow_zero=False)
+    _validate_number_setting(errors, settings, 'map_wasd_max_speed', allow_zero=False)
+    _validate_number_setting(errors, settings, 'map_wasd_drag', allow_zero=False)
+    _validate_number_setting(errors, settings, 'map_zoom_sensitivity', allow_zero=False)
+
     return errors
 
 
@@ -186,3 +235,17 @@ def _validate_int_setting(errors, settings, key, allow_zero=False):
             errors.append('{0} must be 0 or higher.'.format(key))
     elif value < 1:
         errors.append('{0} must be 1 or higher.'.format(key))
+
+
+def _validate_number_setting(errors, settings, key, allow_zero=False):
+    value = settings.get(key)
+    if value is None or value == '':
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        errors.append('{0} must be a number.'.format(key))
+        return
+    if allow_zero:
+        if value < 0:
+            errors.append('{0} must be 0 or higher.'.format(key))
+    elif value <= 0:
+        errors.append('{0} must be greater than 0.'.format(key))

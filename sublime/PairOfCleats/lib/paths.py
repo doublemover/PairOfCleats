@@ -24,32 +24,65 @@ def find_repo_root(start_path):
     return None
 
 
-def resolve_repo_root(window):
+def resolve_repo_root(window, return_reason=False, path_hint=None):
+    root, reason = _resolve_repo_root(window, path_hint=path_hint)
+    if return_reason:
+        return root, reason
+    return root
+
+
+def has_repo_root(window, path_hint=None):
+    root, _ = resolve_repo_root(window, return_reason=True, path_hint=path_hint)
+    return root is not None
+
+
+def _resolve_repo_root(window, path_hint=None):
     if window is None:
-        return None
+        return None, 'No active window.'
 
-    view = window.active_view()
-    active_file = view.file_name() if view else None
+    hint_root = None
+    if path_hint:
+        hint_path = path_hint
+        if os.path.isfile(hint_path):
+            hint_path = os.path.dirname(hint_path)
+        if hint_path:
+            root = find_repo_root(hint_path)
+            if root:
+                return root, None
+            hint_root = os.path.abspath(hint_path)
+
     candidates = []
-
-    if active_file:
-        candidates.append(active_file)
-    for folder in window.folders() or []:
-        candidates.append(folder)
+    active_file = None
+    folders = window.folders() or []
+    folders = sorted([os.path.abspath(folder) for folder in folders if folder])
+    if folders:
+        candidates.extend(folders)
+    else:
+        view = window.active_view()
+        active_file = view.file_name() if view else None
+        if active_file:
+            candidates.append(active_file)
 
     for candidate in candidates:
         root = find_repo_root(candidate)
         if root:
-            return root
+            return root, None
 
+    if hint_root:
+        return hint_root, 'Repo root not found; using hint path.'
+    if folders:
+        return folders[0], 'Repo root not found; using open folder.'
     if active_file:
-        return os.path.dirname(active_file)
+        return os.path.dirname(active_file), 'Repo root not found; using active file folder.'
 
-    return None
+    if candidates:
+        return None, 'Repo root not found. Open a folder with .pairofcleats.json or .git.'
+
+    return None, 'No folders are open. Add a folder or project to enable PairOfCleats.'
 
 
 def resolve_watch_root(window, settings):
-    repo_root = resolve_repo_root(window)
+    repo_root, _ = resolve_repo_root(window, return_reason=True)
     scope = (settings.get('index_watch_scope') or 'repo').strip().lower()
     folder_override = settings.get('index_watch_folder') or ''
     if scope == 'folder':
@@ -92,7 +125,7 @@ def resolve_path(repo_root, value):
     if os.path.isabs(value):
         return value
     if repo_root:
-        return os.path.join(repo_root, value)
+        return os.path.normpath(os.path.join(repo_root, value))
     return value
 
 

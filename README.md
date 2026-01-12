@@ -1,5 +1,8 @@
 # PairOfCleats
 
+<p align=center><img src="https://github.com/doublemover/PairOfCleats/blob/main/clete.png" width=10% height=10%></img></p>
+
+
 **Local-first hybrid code search for humans and coding agents.**  
 Build an offline index of a repo, then retrieve the most relevant *chunks* using **BM25 + fuzzy matching + embeddings + metadata filters**.
 

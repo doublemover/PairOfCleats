@@ -41,6 +41,26 @@ Open the command palette and run `PairOfCleats: Open Settings` or `PairOfCleats:
 - `index_watch_mode`: `all`, `code`, `prose`, `records`, or `extracted-prose`.
 - `index_watch_poll_ms`: Watch polling interval in ms (when polling is enabled).
 - `index_watch_debounce_ms`: Debounce interval for watch rebuilds (ms).
+- `map_type_default`: `combined`, `imports`, `calls`, `usages`, or `dataflow`.
+- `map_format_default`: `html-iso`, `html`, `svg`, `dot`, or `json`.
+- `map_prompt_options`: Prompt for map type/format each run.
+- `map_output_dir`: Output directory for map artifacts (absolute or repo-relative).
+- `map_only_exported`: When true, include exported symbols only.
+- `map_collapse_default`: `none`, `file`, or `dir`.
+- `map_max_files`: Guardrail for file nodes.
+- `map_max_members_per_file`: Guardrail for members per file.
+- `map_max_edges`: Guardrail for edges.
+- `map_top_k_by_degree`: Prefer top-k files by edge degree when truncating.
+- `map_show_report_panel`: Set to true to show warnings/summary in an output panel.
+- `map_stream_output`: Stream CLI output to the map panel.
+- `map_open_uri_template`: URI template for the isometric viewer (Sublime links).
+- `map_three_url`: Override three.js module path (default resolves from node_modules).
+- `map_index_mode`: Index mode to read (`code` or `prose`).
+- `map_wasd_sensitivity`: Isometric viewer WASD sensitivity.
+- `map_wasd_acceleration`: Isometric viewer WASD acceleration.
+- `map_wasd_max_speed`: Isometric viewer WASD max speed.
+- `map_wasd_drag`: Isometric viewer WASD damping.
+- `map_zoom_sensitivity`: Isometric viewer zoom sensitivity.
 - `profile`: Sets `PAIROFCLEATS_PROFILE`.
 - `cache_root`: Sets `PAIROFCLEATS_CACHE_ROOT`.
 - `embeddings_mode`: Sets `PAIROFCLEATS_EMBEDDINGS`.
@@ -63,6 +83,13 @@ Open the command palette and run `PairOfCleats: Open Settings` or `PairOfCleats:
 - `PairOfCleats: Index Watch Stop`
 - `PairOfCleats: Index Validate`
 - `PairOfCleats: Open Index Directory`
+- `PairOfCleats: Map (Repo)`
+- `PairOfCleats: Map (Current Folder)`
+- `PairOfCleats: Map (Current File)`
+- `PairOfCleats: Map (Symbol Under Cursor)`
+- `PairOfCleats: Map (Selection)`
+- `PairOfCleats: Map Jump to Node`
+- `PairOfCleats: Map Open Last Viewer`
 
 ## Project overrides
 

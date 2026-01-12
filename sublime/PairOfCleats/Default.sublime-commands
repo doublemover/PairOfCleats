@@ -62,5 +62,33 @@
   {
     "caption": "PairOfCleats: Open Index Directory",
     "command": "pair_of_cleats_open_index_directory"
+  },
+  {
+    "caption": "PairOfCleats: Map (Repo)",
+    "command": "pair_of_cleats_map_repo"
+  },
+  {
+    "caption": "PairOfCleats: Map (Current Folder)",
+    "command": "pair_of_cleats_map_current_folder"
+  },
+  {
+    "caption": "PairOfCleats: Map (Current File)",
+    "command": "pair_of_cleats_map_current_file"
+  },
+  {
+    "caption": "PairOfCleats: Map (Symbol Under Cursor)",
+    "command": "pair_of_cleats_map_symbol_under_cursor"
+  },
+  {
+    "caption": "PairOfCleats: Map (Selection)",
+    "command": "pair_of_cleats_map_selection"
+  },
+  {
+    "caption": "PairOfCleats: Map Jump to Node",
+    "command": "pair_of_cleats_map_jump_to_node"
+  },
+  {
+    "caption": "PairOfCleats: Map Open Last Viewer",
+    "command": "pair_of_cleats_map_open_last_viewer"
   }
 ]

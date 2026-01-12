@@ -12,6 +12,14 @@ from ..lib import ui
 LIMIT_CHOICES = [10, 25, 50, 100, 200]
 
 
+def _resolve_repo_root(window):
+    return paths.resolve_repo_root(window, return_reason=True)
+
+
+def _has_repo_root(window):
+    return paths.has_repo_root(window)
+
+
 def _resolve_defaults(settings, overrides=None):
     overrides = overrides or {}
     mode = overrides.get('mode') or settings.get('index_mode_default') or 'both'
@@ -150,10 +158,12 @@ def _execute_search(window, query, overrides=None, explain=False):
         return
 
     settings = config.get_settings(window)
-    repo_root = paths.resolve_repo_root(window)
+    repo_root, reason = _resolve_repo_root(window)
     if not repo_root:
-        ui.show_error('PairOfCleats: unable to resolve repo root.')
+        ui.show_error('PairOfCleats: {0}'.format(reason))
         return
+    if reason:
+        ui.show_status('PairOfCleats: {0}'.format(reason))
 
     errors = config.validate_settings(settings, repo_root)
     if errors:
@@ -291,6 +301,12 @@ def _search_with_prompt(window, overrides=None, force_prompt=False):
 
 
 class PairOfCleatsSearchCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
     def run(self, query=None):
         if query:
             _search_with_query(self.window, query)
@@ -298,7 +314,13 @@ class PairOfCleatsSearchCommand(sublime_plugin.WindowCommand):
         _search_with_prompt(self.window)
 
 
-class PairOfCleatsSearchWithOptionsCommand(sublime_plugin.WindowCommand):
+class PairOfCleatsSearchWithOptionsCommand(sublime_plugin.WindowCommand):       
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
     def run(self, query=None):
         if query:
             _search_with_query(self.window, query, force_prompt=True)
@@ -307,6 +329,12 @@ class PairOfCleatsSearchWithOptionsCommand(sublime_plugin.WindowCommand):
 
 
 class PairOfCleatsSearchSelectionCommand(sublime_plugin.TextCommand):
+    def is_enabled(self):
+        return bool(self.view)
+
+    def is_visible(self):
+        return True
+
     def run(self, edit):
         query = _extract_selection(self.view)
         if not query:
@@ -315,7 +343,13 @@ class PairOfCleatsSearchSelectionCommand(sublime_plugin.TextCommand):
         _search_with_query(self.view.window(), query)
 
 
-class PairOfCleatsSearchSymbolUnderCursorCommand(sublime_plugin.TextCommand):
+class PairOfCleatsSearchSymbolUnderCursorCommand(sublime_plugin.TextCommand):   
+    def is_enabled(self):
+        return bool(self.view)
+
+    def is_visible(self):
+        return True
+
     def run(self, edit):
         query = _extract_symbol(self.view)
         if not query:
@@ -325,6 +359,12 @@ class PairOfCleatsSearchSymbolUnderCursorCommand(sublime_plugin.TextCommand):
 
 
 class PairOfCleatsSearchHistoryCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
     def run(self):
         entries = history.load_history(self.window)
         if not entries:
@@ -349,16 +389,28 @@ class PairOfCleatsSearchHistoryCommand(sublime_plugin.WindowCommand):
         self.window.show_quick_panel(items, on_select)
 
 
-class PairOfCleatsRepeatLastSearchCommand(sublime_plugin.WindowCommand):
+class PairOfCleatsRepeatLastSearchCommand(sublime_plugin.WindowCommand):        
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
     def run(self):
         entry = history.get_last_query(self.window)
         if not entry:
-            ui.show_status('PairOfCleats: no previous search to repeat.')
+            ui.show_status('PairOfCleats: no previous search to repeat.')       
             return
         _execute_search(self.window, entry.get('query'), entry)
 
 
 class PairOfCleatsExplainSearchCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
     def run(self):
         entry = history.get_last_query(self.window)
         if entry and entry.get('query'):

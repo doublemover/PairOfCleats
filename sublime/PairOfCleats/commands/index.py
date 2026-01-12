@@ -12,12 +12,22 @@ from ..lib import watch
 INDEX_PANEL = 'pairofcleats-index'
 
 
+def _resolve_repo_root(window):
+    return paths.resolve_repo_root(window, return_reason=True)
+
+
+def _has_repo_root(window):
+    return paths.has_repo_root(window)
+
+
 def _run_index_build(window, mode):
     settings = config.get_settings(window)
-    repo_root = paths.resolve_repo_root(window)
+    repo_root, reason = _resolve_repo_root(window)
     if not repo_root:
-        ui.show_error('PairOfCleats: unable to resolve repo root.')
+        ui.show_error('PairOfCleats: {0}'.format(reason))
         return
+    if reason:
+        ui.show_status('PairOfCleats: {0}'.format(reason))
 
     errors = config.validate_settings(settings, repo_root)
     if errors:
@@ -56,10 +66,12 @@ def _run_index_build(window, mode):
 
 def _run_index_watch(window):
     settings = config.get_settings(window)
-    repo_root = paths.resolve_repo_root(window)
+    repo_root, reason = _resolve_repo_root(window)
     if not repo_root:
-        ui.show_error('PairOfCleats: unable to resolve repo root.')
+        ui.show_error('PairOfCleats: {0}'.format(reason))
         return
+    if reason:
+        ui.show_status('PairOfCleats: {0}'.format(reason))
 
     errors = config.validate_settings(settings, repo_root)
     if errors:
@@ -130,10 +142,12 @@ def _run_index_watch_stop(window):
 
 def _run_index_validate(window):
     settings = config.get_settings(window)
-    repo_root = paths.resolve_repo_root(window)
+    repo_root, reason = _resolve_repo_root(window)
     if not repo_root:
-        ui.show_error('PairOfCleats: unable to resolve repo root.')
+        ui.show_error('PairOfCleats: {0}'.format(reason))
         return
+    if reason:
+        ui.show_status('PairOfCleats: {0}'.format(reason))
 
     errors = config.validate_settings(settings, repo_root)
     if errors:
@@ -232,10 +246,12 @@ def _format_validate_report(payload):
 
 def _run_open_index_dir(window):
     settings = config.get_settings(window)
-    repo_root = paths.resolve_repo_root(window)
+    repo_root, reason = _resolve_repo_root(window)
     if not repo_root:
-        ui.show_error('PairOfCleats: unable to resolve repo root.')
+        ui.show_error('PairOfCleats: {0}'.format(reason))
         return
+    if reason:
+        ui.show_status('PairOfCleats: {0}'.format(reason))
 
     errors = config.validate_settings(settings, repo_root)
     if errors:
@@ -281,35 +297,77 @@ def _run_open_index_dir(window):
 
 
 class PairOfCleatsIndexBuildCodeCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
     def run(self):
         _run_index_build(self.window, 'code')
 
 
 class PairOfCleatsIndexBuildProseCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
     def run(self):
         _run_index_build(self.window, 'prose')
 
 
 class PairOfCleatsIndexBuildAllCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
     def run(self):
         _run_index_build(self.window, 'all')
 
 
 class PairOfCleatsIndexWatchStartCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
     def run(self):
         _run_index_watch(self.window)
 
 
 class PairOfCleatsIndexWatchStopCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
     def run(self):
         _run_index_watch_stop(self.window)
 
 
 class PairOfCleatsIndexValidateCommand(sublime_plugin.WindowCommand):
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
     def run(self):
         _run_index_validate(self.window)
 
 
-class PairOfCleatsOpenIndexDirectoryCommand(sublime_plugin.WindowCommand):
+class PairOfCleatsOpenIndexDirectoryCommand(sublime_plugin.WindowCommand):      
+    def is_enabled(self):
+        return True
+
+    def is_visible(self):
+        return True
+
     def run(self):
         _run_open_index_dir(self.window)

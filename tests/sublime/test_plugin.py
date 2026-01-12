@@ -63,6 +63,8 @@ if PACKAGE_ROOT not in sys.path:
 config = importlib.import_module('PairOfCleats.lib.config')
 index_state = importlib.import_module('PairOfCleats.lib.index_state')
 indexing = importlib.import_module('PairOfCleats.lib.indexing')
+map_lib = importlib.import_module('PairOfCleats.lib.map')
+map_state = importlib.import_module('PairOfCleats.lib.map_state')
 paths = importlib.import_module('PairOfCleats.lib.paths')
 search = importlib.import_module('PairOfCleats.lib.search')
 results = importlib.import_module('PairOfCleats.lib.results')
@@ -210,6 +212,40 @@ class SublimePluginTests(unittest.TestCase):
         self.assertIn('--top', args)
         self.assertIn('--explain', args)
         self.assertIn('/repo', args)
+
+    def test_map_output_dir_default(self):
+        with tempfile.TemporaryDirectory() as root:
+            settings = dict(config.DEFAULT_SETTINGS)
+            output_dir = map_lib.resolve_output_dir(root, settings)
+            expected = os.path.join(root, '.pairofcleats', 'maps')
+            self.assertEqual(output_dir, expected)
+
+    def test_build_map_args(self):
+        settings = dict(config.DEFAULT_SETTINGS)
+        args = map_lib.build_map_args(
+            '/repo',
+            settings,
+            'file',
+            'src/app.js',
+            'calls',
+            'dot',
+            '/out.dot',
+            '/out.model.json',
+            '/out.nodes.json'
+        )
+        self.assertIn('report', args)
+        self.assertIn('map', args)
+        self.assertIn('--scope', args)
+        self.assertIn('file', args)
+        self.assertIn('--include', args)
+        self.assertIn('calls', args)
+
+    def test_record_last_map(self):
+        window = MockWindow()
+        payload = {'outPath': '/tmp/map.dot', 'format': 'dot'}
+        map_state.record_last_map(window, payload)
+        stored = map_state.get_last_map(window)
+        self.assertEqual(stored.get('format'), 'dot')
 
     def test_collect_hits_tolerates_partial_payload(self):
         payload = {

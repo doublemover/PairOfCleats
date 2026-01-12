@@ -211,7 +211,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'report') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      console.error('report requires a subcommand: repometrics|compare-models|summary|eval');
+      console.error('report requires a subcommand: repometrics|compare-models|summary|eval|map');
       printHelp();
       process.exit(1);
     }
@@ -226,6 +226,9 @@ function resolveCommand(primary, rest) {
     }
     if (sub === 'eval') {
       return { script: 'tools/eval/run.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'map') {
+      return { script: 'tools/report-code-map.js', extraArgs: [], args: rest };
     }
     console.error(`Unknown report subcommand: ${sub}`);
     printHelp();
@@ -413,6 +416,7 @@ Reports:
   report compare-models   Compare search models
   report summary          Generate summary report
   report eval             Run retrieval evaluation harness
+  report map              Generate code map artifacts
 
 Services:
   service api             Run local HTTP JSON API
