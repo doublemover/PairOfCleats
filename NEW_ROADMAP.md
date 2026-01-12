@@ -71,43 +71,43 @@ Checkboxes represent “meets the intent of the requirement, end-to-end, without
 
 ### 2.1 Search command(s)
 
-* [ ] `PairOfCleats: Search` command:
+* [x] `PairOfCleats: Search` command:
 
-  * [ ] Prompt input panel for query
-  * [ ] Optional toggles: code/prose/both, backend, limit
-  * [ ] Execute `pairofcleats search ... --json`
-* [ ] `PairOfCleats: Search Selection` command:
+  * [x] Prompt input panel for query
+  * [x] Optional toggles: code/prose/both, backend, limit
+  * [x] Execute `pairofcleats search ... --json`
+* [x] `PairOfCleats: Search Selection` command:
 
-  * [ ] Uses selected text as query
-* [ ] `PairOfCleats: Search Symbol Under Cursor` command
+  * [x] Uses selected text as query
+* [x] `PairOfCleats: Search Symbol Under Cursor` command
 
 ### 2.2 Results presentation
 
-* [ ] Quick panel results:
+* [x] Quick panel results:
 
-  * [ ] Show `file:line-range`, symbol name, snippet/headline, score
-  * [ ] Preserve stable ordering for repeatability
-* [ ] On selection:
+  * [x] Show `file:line-range`, symbol name, snippet/headline, score
+  * [x] Preserve stable ordering for repeatability
+* [x] On selection:
 
-  * [ ] Open file at best-effort location (line/column)
-  * [ ] Highlight match range (if available)
-* [ ] Add optional “results buffer” view (for large result sets)
+  * [x] Open file at best-effort location (line/column)
+  * [x] Highlight match range (if available)
+* [x] Add optional “results buffer” view (for large result sets)
 
 ### 2.3 Quality-of-life UX
 
-* [ ] Query history (per project)
-* [ ] “Repeat last search” command
-* [ ] “Explain search” (if supported by CLI flags / internal explain output)
+* [x] Query history (per project)
+* [x] “Repeat last search” command
+* [x] “Explain search” (if supported by CLI flags / internal explain output)
 
 ### 2.4 Tests
 
-* [ ] Add Node-level “search contract” tests:
+* [x] Add Node-level “search contract” tests:
 
-  * [ ] Ensure `--json` output parseability and required fields
-* [ ] Add plugin tests:
+  * [x] Ensure `--json` output parseability and required fields
+* [x] Add plugin tests:
 
-  * [ ] Search command dispatches correct subprocess args
-  * [ ] Results parsing tolerates partial/missing optional fields
+  * [x] Search command dispatches correct subprocess args
+  * [x] Results parsing tolerates partial/missing optional fields
 
 ---
 

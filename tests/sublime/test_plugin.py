@@ -26,6 +26,14 @@ def install_sublime_stubs():
     sublime.error_message = lambda _message: None
     sublime.status_message = lambda _message: None
     sublime.active_window = lambda: None
+    sublime.ENCODED_POSITION = 1
+
+    class Region(object):
+        def __init__(self, a, b):
+            self.a = a
+            self.b = b
+
+    sublime.Region = Region
 
     sublime_plugin = types.ModuleType('sublime_plugin')
 
@@ -34,6 +42,12 @@ def install_sublime_stubs():
             self.window = window
 
     sublime_plugin.WindowCommand = WindowCommand
+
+    class TextCommand(object):
+        def __init__(self, view=None):
+            self.view = view
+
+    sublime_plugin.TextCommand = TextCommand
 
     sys.modules['sublime'] = sublime
     sys.modules['sublime_plugin'] = sublime_plugin
@@ -48,6 +62,8 @@ if PACKAGE_ROOT not in sys.path:
 
 config = importlib.import_module('PairOfCleats.lib.config')
 paths = importlib.import_module('PairOfCleats.lib.paths')
+search = importlib.import_module('PairOfCleats.lib.search')
+results = importlib.import_module('PairOfCleats.lib.results')
 
 
 class MockView(object):
@@ -152,6 +168,34 @@ class SublimePluginTests(unittest.TestCase):
         settings['open_results_in'] = 'nowhere'
         errors = config.validate_settings(settings)
         self.assertTrue(errors)
+
+    def test_build_search_args(self):
+        args = search.build_search_args(
+            'alpha',
+            repo_root='/repo',
+            mode='code',
+            backend='memory',
+            limit=5,
+            explain=True
+        )
+        self.assertIn('--json', args)
+        self.assertIn('--mode', args)
+        self.assertIn('--backend', args)
+        self.assertIn('--top', args)
+        self.assertIn('--explain', args)
+        self.assertIn('/repo', args)
+
+    def test_collect_hits_tolerates_partial_payload(self):
+        payload = {
+            'code': [{'file': 'src/a.py'}],
+            'prose': None,
+            'records': 'bad',
+            'extractedProse': [{'file': 'docs/readme.md'}]
+        }
+        hits = results.collect_hits(payload)
+        files = [hit.get('file') for hit in hits]
+        self.assertIn('src/a.py', files)
+        self.assertIn('docs/readme.md', files)
 
 
 if __name__ == '__main__':

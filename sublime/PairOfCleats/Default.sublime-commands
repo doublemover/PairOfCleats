@@ -6,5 +6,33 @@
   {
     "caption": "PairOfCleats: Validate Settings",
     "command": "pair_of_cleats_validate_settings"
+  },
+  {
+    "caption": "PairOfCleats: Search",
+    "command": "pair_of_cleats_search"
+  },
+  {
+    "caption": "PairOfCleats: Search (With Options)",
+    "command": "pair_of_cleats_search_with_options"
+  },
+  {
+    "caption": "PairOfCleats: Search Selection",
+    "command": "pair_of_cleats_search_selection"
+  },
+  {
+    "caption": "PairOfCleats: Search Symbol Under Cursor",
+    "command": "pair_of_cleats_search_symbol_under_cursor"
+  },
+  {
+    "caption": "PairOfCleats: Search History",
+    "command": "pair_of_cleats_search_history"
+  },
+  {
+    "caption": "PairOfCleats: Repeat Last Search",
+    "command": "pair_of_cleats_repeat_last_search"
+  },
+  {
+    "caption": "PairOfCleats: Explain Search",
+    "command": "pair_of_cleats_explain_search"
   }
 ]

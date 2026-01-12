@@ -43,11 +43,14 @@ class ProcessHandle(object):
 
 
 def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCleats',
-                capture_json=False, on_done=None):
+                capture_json=False, on_done=None, stream_output=True,
+                panel_name='pairofcleats'):
     if window is None:
         window = sublime.active_window()
-    panel = _ensure_panel(window)
-    _show_panel(window, panel)
+    panel = None
+    if stream_output:
+        panel = _ensure_panel(window, panel_name)
+        _show_panel(window, panel_name)
 
     full_env = dict(os.environ)
     if env:
@@ -66,7 +69,8 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
 
     def append_line(line):
         output_lines.append(line)
-        _append_panel(panel, line)
+        if panel is not None:
+            _append_panel(panel, line)
 
     def done_callback(result):
         if on_done:
@@ -97,14 +101,14 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
     return ProcessHandle(proc, thread)
 
 
-def _ensure_panel(window):
-    panel = window.create_output_panel('pairofcleats')
+def _ensure_panel(window, name):
+    panel = window.create_output_panel(name)
     panel.set_read_only(False)
     return panel
 
 
-def _show_panel(window, panel):
-    window.run_command('show_panel', {'panel': 'output.pairofcleats'})
+def _show_panel(window, name):
+    window.run_command('show_panel', {'panel': 'output.{0}'.format(name)})
 
 
 def _append_panel(panel, text):

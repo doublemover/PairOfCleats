@@ -10,6 +10,10 @@ DEFAULT_SETTINGS = {
     'index_mode_default': 'both',
     'search_backend_default': '',
     'open_results_in': 'quick_panel',
+    'search_limit': 25,
+    'results_buffer_threshold': 50,
+    'history_limit': 25,
+    'search_prompt_options': False,
     'profile': '',
     'cache_root': '',
     'embeddings_mode': '',
@@ -122,6 +126,10 @@ def validate_settings(settings, repo_root=None):
                 'node_path does not exist: {0}'.format(node_path)
             )
 
+    _validate_int_setting(errors, settings, 'search_limit', allow_zero=False)
+    _validate_int_setting(errors, settings, 'results_buffer_threshold', allow_zero=True)
+    _validate_int_setting(errors, settings, 'history_limit', allow_zero=True)
+
     return errors
 
 
@@ -141,3 +149,17 @@ def _resolve_path(repo_root, raw_path):
     if repo_root:
         return os.path.join(repo_root, raw_path)
     return raw_path
+
+
+def _validate_int_setting(errors, settings, key, allow_zero=False):
+    value = settings.get(key)
+    if value is None or value == '':
+        return
+    if isinstance(value, bool) or not isinstance(value, int):
+        errors.append('{0} must be an integer.'.format(key))
+        return
+    if allow_zero:
+        if value < 0:
+            errors.append('{0} must be 0 or higher.'.format(key))
+    elif value < 1:
+        errors.append('{0} must be 1 or higher.'.format(key))

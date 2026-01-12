@@ -32,11 +32,25 @@ Open the command palette and run `PairOfCleats: Open Settings` or `PairOfCleats:
 - `index_mode_default`: `code`, `prose`, or `both`.
 - `search_backend_default`: `memory`, `sqlite`, `sqlite-fts`, or `lmdb`.
 - `open_results_in`: `quick_panel`, `new_tab`, or `output_panel`.
+- `search_limit`: Default `--top` value.
+- `results_buffer_threshold`: When using `quick_panel`, switch to the output panel once results reach this count (0 disables).
+- `history_limit`: Maximum queries stored per project.
+- `search_prompt_options`: Prompt for mode/backend/limit each search.
 - `profile`: Sets `PAIROFCLEATS_PROFILE`.
 - `cache_root`: Sets `PAIROFCLEATS_CACHE_ROOT`.
 - `embeddings_mode`: Sets `PAIROFCLEATS_EMBEDDINGS`.
 - `node_options`: Sets `PAIROFCLEATS_NODE_OPTIONS`.
 - `env`: Extra environment overrides (merged with defaults).
+
+## Commands
+
+- `PairOfCleats: Search`
+- `PairOfCleats: Search (With Options)`
+- `PairOfCleats: Search Selection`
+- `PairOfCleats: Search Symbol Under Cursor`
+- `PairOfCleats: Search History`
+- `PairOfCleats: Repeat Last Search`
+- `PairOfCleats: Explain Search`
 
 ## Project overrides
 
