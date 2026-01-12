@@ -21,7 +21,7 @@
   "indexing": {
     "workerPool": {
         "enabled": true,
-        "maxWorkers": 16
+        "maxWorkers": 8
       },
     // Sparse postings generation settings.
     // Speed impact: heavier postings settings increase indexing time/size.
@@ -56,7 +56,7 @@
     },
     // When to scan imports ("pre" or "post" indexing).
     // Speed impact: small; "post" avoids extra upfront work.
-    "importScan": "pre",
+    "importScan": "post",
     // Enable AST dataflow analysis.
     // Speed impact: moderate CPU cost on large codebases.
     "astDataflow": true,

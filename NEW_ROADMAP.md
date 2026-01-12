@@ -451,6 +451,10 @@ Add explicit automated coverage for the map feature.
 * [x] Support WASD movement with configurable sensitivity/acceleration/drag
 * [x] Highlight selections and show file/line metadata
 * [x] Double-click opens the selected file/line via a URI template
+* [x] Add layout styles (clustered/radial/flat) with adjustable spacing
+* [x] Add flow-connected highlighting (edges + related nodes) and hover highlights from the selection panel
+* [x] Add grid line rendering + glow, fog, and wireframe tuning (panel configurable)
+* [x] Modularize the isometric viewer client into <500-line modules
 ---
 
 
@@ -5446,5 +5450,24 @@ The following items should be completed to consider “Review Section 7” fully
 
 **Exit criteria**
 - [ ] All verification tests pass.
+
+---
+
+# Phase 35 — Isometric Visual Fidelity (Yoink-derived polish)
+
+**Objective:** fold in proven glass/postprocessing practices from the yoink prototype for higher visual quality without regressing performance.
+
+## 35.1 Glass + environment fidelity
+- [ ] Add HDR env map tone calibration controls (env intensity, exposure) to match yoink reference settings.
+- [ ] Support normal map repeat/scale on glass with clearcoat normal influence.
+- [ ] Add optional clearcoat normal map toggle for glass shells.
+
+## 35.2 Post-processing polish
+- [ ] Add optional UnrealBloomPass with user-controllable threshold/strength/radius.
+- [ ] Provide a toggle to enable/disable post-processing for performance.
+
+## 35.3 Rendering calibration
+- [ ] Expose metalness/roughness/transmission/ior/reflectivity/thickness controls as a grouped preset panel.
+- [ ] Add a “studio” preset that mirrors yoink defaults for fast tuning.
 
 ---

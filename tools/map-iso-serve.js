@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import https from 'node:https';
 import { spawnSync, spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
 import selfsigned from 'selfsigned';
 
@@ -10,6 +11,7 @@ const argv = createCli({
   scriptName: 'map-iso',
   options: {
     repo: { type: 'string', describe: 'Repo root.' },
+    dir: { type: 'string', describe: 'Alias for --repo.' },
     out: { type: 'string', describe: 'Output HTML path.' },
     port: { type: 'number', default: 0, describe: 'HTTPS port (0 for random).' },
     'open-uri-template': { type: 'string', describe: 'URI template for double-click.' },
@@ -19,7 +21,9 @@ const argv = createCli({
   }
 }).parse();
 
-const repoRoot = argv.repo ? path.resolve(argv.repo) : process.cwd();
+const toolRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = argv.repo ? path.resolve(argv.repo)
+  : (argv.dir ? path.resolve(argv.dir) : process.cwd());
 const mapsDir = path.join(repoRoot, '.pairofcleats', 'maps');
 const outPath = argv.out ? path.resolve(argv.out) : path.join(mapsDir, 'map.iso.html');
 const threeUrl = argv['three-url'] || '/three/three.module.js';
@@ -47,7 +51,7 @@ const ensureCert = (targetDir) => {
 const runReport = () => {
   ensureDir(path.dirname(outPath));
   const args = [
-    path.join(repoRoot, 'tools', 'report-code-map.js'),
+    path.join(toolRoot, 'tools', 'report-code-map.js'),
     '--repo', repoRoot,
     '--format', 'html-iso',
     '--out', outPath,
@@ -56,7 +60,7 @@ const runReport = () => {
   if (argv['open-uri-template']) {
     args.push('--open-uri-template', argv['open-uri-template']);
   }
-  const result = spawnSync(process.execPath, args, { cwd: repoRoot, stdio: 'inherit' });
+  const result = spawnSync(process.execPath, args, { cwd: toolRoot, stdio: 'inherit' });
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
@@ -68,6 +72,9 @@ const contentTypeFor = (filePath) => {
   if (ext === '.js') return 'application/javascript; charset=utf-8';
   if (ext === '.json') return 'application/json; charset=utf-8';
   if (ext === '.map') return 'application/json; charset=utf-8';
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+  if (ext === '.png') return 'image/png';
+  if (ext === '.hdr') return 'application/octet-stream';
   return 'application/octet-stream';
 };
 
@@ -90,7 +97,11 @@ const openBrowser = (url) => {
 runReport();
 
 const { key, cert } = ensureCert(certDir);
-const threeRoot = path.join(repoRoot, 'node_modules', 'three', 'build');
+const threeRoot = path.join(toolRoot, 'node_modules', 'three');
+const threeBuildRoot = path.join(threeRoot, 'build');
+const threeExamplesRoot = path.join(threeRoot, 'examples');
+const isomapAssetsRoot = path.join(toolRoot, 'assets', 'isomap');
+const isomapClientRoot = path.join(toolRoot, 'src', 'map', 'isometric', 'client');
 
 const server = https.createServer({ key, cert }, (req, res) => {
   const url = new URL(req.url || '/', 'https://localhost');
@@ -106,12 +117,48 @@ const server = https.createServer({ key, cert }, (req, res) => {
     fs.createReadStream(htmlPath).pipe(res);
     return;
   }
+  if (pathname.startsWith('/three/examples/')) {
+    const relativePath = pathname.replace('/three/examples/', '');
+    const targetPath = safeJoin(threeExamplesRoot, relativePath);
+    if (!targetPath || !fs.existsSync(targetPath)) {
+      res.writeHead(404);
+      res.end('three.js example asset not found.');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': contentTypeFor(targetPath) });
+    fs.createReadStream(targetPath).pipe(res);
+    return;
+  }
   if (pathname.startsWith('/three/')) {
     const relativePath = pathname.replace('/three/', '');
-    const targetPath = safeJoin(threeRoot, relativePath);
+    const targetPath = safeJoin(threeBuildRoot, relativePath);
     if (!targetPath || !fs.existsSync(targetPath)) {
       res.writeHead(404);
       res.end('three.js asset not found.');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': contentTypeFor(targetPath) });
+    fs.createReadStream(targetPath).pipe(res);
+    return;
+  }
+  if (pathname.startsWith('/assets/isomap/')) {
+    const relativePath = pathname.replace('/assets/isomap/', '');
+    const targetPath = safeJoin(isomapAssetsRoot, relativePath);
+    if (!targetPath || !fs.existsSync(targetPath)) {
+      res.writeHead(404);
+      res.end('isomap asset not found.');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': contentTypeFor(targetPath) });
+    fs.createReadStream(targetPath).pipe(res);
+    return;
+  }
+  if (pathname.startsWith('/isomap/')) {
+    const relativePath = pathname.replace('/isomap/', '');
+    const targetPath = safeJoin(isomapClientRoot, relativePath);
+    if (!targetPath || !fs.existsSync(targetPath)) {
+      res.writeHead(404);
+      res.end('isomap client asset not found.');
       return;
     }
     res.writeHead(200, { 'Content-Type': contentTypeFor(targetPath) });
