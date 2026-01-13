@@ -317,6 +317,7 @@ for (const task of tasks) {
   await fsPromises.mkdir(outDir, { recursive: true });
 
   const repoCacheRoot = resolveRepoCacheRoot({ repoPath, cacheRoot });
+  const wantsMemory = backendList.includes('memory');
   const missingIndex = needsIndexArtifacts(repoPath);
   const missingSqlite = wantsSqlite && needsSqliteArtifacts(repoPath);
   let autoBuildIndex = false;
@@ -328,8 +329,9 @@ for (const task of tasks) {
     progress.appendLog('[auto-build] sqlite build requires index artifacts; enabling build-index.');
   }
   if (!argv.build && !argv['build-index'] && !argv['build-sqlite']) {
-    if (missingIndex) autoBuildIndex = true;
+    if (missingIndex && wantsMemory) autoBuildIndex = true;
     if (missingSqlite) autoBuildSqlite = true;
+    if (autoBuildSqlite && missingIndex) autoBuildIndex = true;
     if (autoBuildIndex || autoBuildSqlite) {
       progress.appendLog(
         `[auto-build] missing artifacts${autoBuildIndex ? ' index' : ''}${autoBuildSqlite ? ' sqlite' : ''}; enabling build.`

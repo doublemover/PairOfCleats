@@ -2,7 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { log } from '../../../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../../../shared/artifact-io.js';
-import { writeJsonLinesFile, writeJsonObjectFile } from '../../../../shared/json-stream.js';
+import {
+  writeJsonArrayFile,
+  writeJsonLinesFile,
+  writeJsonObjectFile
+} from '../../../../shared/json-stream.js';
 
 const formatBytes = (bytes) => {
   const value = Number(bytes);
@@ -124,6 +128,7 @@ export const enqueueChunkMetaArtifacts = async ({
   outDir,
   chunkMetaIterator,
   chunkMetaPlan,
+  maxJsonBytes = MAX_JSON_BYTES,
   enqueueJsonArray,
   enqueueWrite,
   addPieceFile,
@@ -151,6 +156,53 @@ export const enqueueChunkMetaArtifacts = async ({
     await removeArtifact(path.join(outDir, 'chunk_meta.meta.json'));
     await removeArtifact(path.join(outDir, 'chunk_meta.parts'));
   }
+
+  const writeJsonlOutput = async () => {
+    const useShards = chunkMetaShardSize > 0 && chunkMetaCount > chunkMetaShardSize;
+    chunkMetaPlan.chunkMetaUseJsonl = true;
+    chunkMetaPlan.chunkMetaUseShards = useShards;
+    if (useShards) {
+      const partsDir = path.join(outDir, 'chunk_meta.parts');
+      await fs.mkdir(partsDir, { recursive: true });
+      const parts = [];
+      let partIndex = 0;
+      for (let i = 0; i < state.chunks.length; i += chunkMetaShardSize) {
+        const end = Math.min(i + chunkMetaShardSize, state.chunks.length);
+        const partCount = end - i;
+        const partName = `chunk_meta.part-${String(partIndex).padStart(5, '0')}.jsonl`;
+        const partPath = path.join(partsDir, partName);
+        parts.push(path.join('chunk_meta.parts', partName));
+        await writeJsonLinesFile(partPath, chunkMetaIterator(i, end), { atomic: true });
+        addPieceFile({
+          type: 'chunks',
+          name: 'chunk_meta',
+          format: 'jsonl',
+          count: partCount
+        }, partPath);
+        partIndex += 1;
+      }
+      const metaPath = path.join(outDir, 'chunk_meta.meta.json');
+      await writeJsonObjectFile(metaPath, {
+        fields: {
+          format: 'jsonl',
+          shardSize: chunkMetaShardSize,
+          totalChunks: chunkMetaCount,
+          parts
+        },
+        atomic: true
+      });
+      addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
+      return;
+    }
+    const jsonlPath = path.join(outDir, 'chunk_meta.jsonl');
+    await writeJsonLinesFile(jsonlPath, chunkMetaIterator(), { atomic: true });
+    addPieceFile({
+      type: 'chunks',
+      name: 'chunk_meta',
+      format: 'jsonl',
+      count: chunkMetaCount
+    }, jsonlPath);
+  };
 
   if (chunkMetaUseJsonl) {
     if (chunkMetaUseShards) {
@@ -208,9 +260,24 @@ export const enqueueChunkMetaArtifacts = async ({
       }, jsonlPath);
     }
   } else {
-    enqueueJsonArray('chunk_meta', chunkMetaIterator(), {
-      compressible: false,
-      piece: { type: 'chunks', name: 'chunk_meta', count: chunkMetaCount }
-    });
+    const jsonPath = path.join(outDir, 'chunk_meta.json');
+    enqueueWrite(
+      formatArtifactLabel(jsonPath),
+      async () => {
+        await writeJsonArrayFile(jsonPath, chunkMetaIterator(), { atomic: true });
+        const stat = await fs.stat(jsonPath);
+        if (stat.size <= maxJsonBytes) {
+          addPieceFile({
+            type: 'chunks',
+            name: 'chunk_meta',
+            format: 'json',
+            count: chunkMetaCount
+          }, jsonPath);
+          return;
+        }
+        await fs.rm(jsonPath, { force: true });
+        await writeJsonlOutput();
+      }
+    );
   }
 };

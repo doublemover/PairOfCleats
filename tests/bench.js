@@ -122,7 +122,13 @@ const needsMemory = backends.includes('memory');
 const needsSqlite = backends.some((entry) => entry.startsWith('sqlite'));
 const hasIndex = (mode) => {
   const dir = getIndexDir(runtimeRoot, mode, userConfig);
-  return fsSync.existsSync(path.join(dir, 'chunk_meta.json'));
+  const metaPaths = [
+    'chunk_meta.json',
+    'chunk_meta.jsonl',
+    'chunk_meta.meta.json',
+    'chunk_meta.parts'
+  ];
+  return metaPaths.some((entry) => fsSync.existsSync(path.join(dir, entry)));
 };
 const hasSqliteIndex = (mode) => {
   const paths = resolveSqlitePaths(runtimeRoot, userConfig);

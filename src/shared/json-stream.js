@@ -140,11 +140,63 @@ const createJsonWriteStream = (filePath, options = {}) => {
   };
 };
 
+const normalizeJsonValue = (value) => {
+  if (value && typeof value === 'object' && typeof value.toJSON === 'function') {
+    try {
+      return value.toJSON();
+    } catch {
+      return value;
+    }
+  }
+  return value;
+};
+
+const writeJsonValue = async (stream, value) => {
+  const normalized = normalizeJsonValue(value);
+  if (normalized === null || typeof normalized !== 'object') {
+    if (normalized === undefined || typeof normalized === 'function' || typeof normalized === 'symbol') {
+      await writeChunk(stream, 'null');
+      return;
+    }
+    await writeChunk(stream, JSON.stringify(normalized));
+    return;
+  }
+  if (Array.isArray(normalized)) {
+    await writeChunk(stream, '[');
+    let first = true;
+    for (const item of normalized) {
+      if (!first) await writeChunk(stream, ',');
+      const itemValue = normalizeJsonValue(item);
+      if (itemValue === undefined || typeof itemValue === 'function' || typeof itemValue === 'symbol') {
+        await writeChunk(stream, 'null');
+      } else {
+        await writeJsonValue(stream, itemValue);
+      }
+      first = false;
+    }
+    await writeChunk(stream, ']');
+    return;
+  }
+  await writeChunk(stream, '{');
+  let first = true;
+  for (const [key, entry] of Object.entries(normalized)) {
+    const entryValue = normalizeJsonValue(entry);
+    if (entryValue === undefined || typeof entryValue === 'function' || typeof entryValue === 'symbol') {
+      continue;
+    }
+    if (!first) await writeChunk(stream, ',');
+    await writeChunk(stream, `${JSON.stringify(key)}:`);
+    await writeJsonValue(stream, entryValue);
+    first = false;
+  }
+  await writeChunk(stream, '}');
+};
+
 const writeArrayItems = async (stream, items) => {
   let first = true;
   for (const item of items) {
-    const json = JSON.stringify(item === undefined ? null : item);
-    await writeChunk(stream, `${first ? '' : ','}${json}`);
+    if (!first) await writeChunk(stream, ',');
+    await writeJsonValue(stream, item);
     first = false;
   }
 };
@@ -160,8 +212,8 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
   const { compression = null, atomic = false } = options;
   const { stream, done } = createJsonWriteStream(filePath, { compression, atomic });
   for (const item of items) {
-    const json = JSON.stringify(item === undefined ? null : item);
-    await writeChunk(stream, `${json}\n`);
+    await writeJsonValue(stream, item);
+    await writeChunk(stream, '\n');
   }
   stream.end();
   await done;
@@ -203,8 +255,9 @@ export async function writeJsonObjectFile(filePath, input = {}) {
   await writeChunk(stream, '{');
   let first = true;
   for (const [key, value] of Object.entries(fields)) {
-    const entry = `${JSON.stringify(key)}:${JSON.stringify(value)}`;
-    await writeChunk(stream, `${first ? '' : ','}${entry}`);
+    if (!first) await writeChunk(stream, ',');
+    await writeChunk(stream, `${JSON.stringify(key)}:`);
+    await writeJsonValue(stream, value);
     first = false;
   }
   for (const [key, items] of Object.entries(arrays)) {

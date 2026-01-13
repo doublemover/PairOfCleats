@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { color } from '../src/retrieval/cli/ansi.js';
+import { getMetricsDir, loadUserConfig } from './dict-utils.js';
 
 const resultsRoot = path.join(process.cwd(), 'benchmarks', 'results');
 
@@ -43,11 +44,59 @@ const collect = (items, selector) => items
   .map((item) => selector(item))
   .filter((value) => Number.isFinite(value));
 
+const mergeTotals = (target, entry) => {
+  if (!entry) return;
+  if (Number.isFinite(entry.files)) target.files += entry.files;
+  if (Number.isFinite(entry.chunks)) target.chunks += entry.chunks;
+  if (Number.isFinite(entry.tokens)) target.tokens += entry.tokens;
+  if (Number.isFinite(entry.bytes)) target.bytes += entry.bytes;
+  if (Number.isFinite(entry.totalMs)) target.totalMs += entry.totalMs;
+};
+
+const rateFromTotals = (totals, key) => {
+  if (!Number.isFinite(totals.totalMs) || totals.totalMs <= 0) return null;
+  const value = totals[key];
+  if (!Number.isFinite(value)) return null;
+  return value / (totals.totalMs / 1000);
+};
+
+const sumRates = (...values) => {
+  let sum = 0;
+  let found = false;
+  for (const value of values) {
+    if (!Number.isFinite(value)) continue;
+    sum += value;
+    found = true;
+  }
+  return found ? sum : null;
+};
+
 const loadJson = (filePath) => {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch {
     return null;
+  }
+};
+
+const loadFeatureMetrics = (repoRoot) => {
+  if (!repoRoot) return null;
+  const userConfig = loadUserConfig(repoRoot);
+  const metricsDir = getMetricsDir(repoRoot, userConfig);
+  const runPath = path.join(metricsDir, 'feature-metrics-run.json');
+  const mergedPath = path.join(metricsDir, 'feature-metrics.json');
+  return loadJson(runPath) || loadJson(mergedPath);
+};
+
+const collectLanguageLines = (metrics, totals) => {
+  if (!metrics || !metrics.modes) return;
+  for (const modeEntry of Object.values(metrics.modes)) {
+    const languages = modeEntry?.languages || {};
+    for (const [language, bucket] of Object.entries(languages)) {
+      const lines = Number(bucket?.lines) || 0;
+      if (!lines) continue;
+      totals.set(language, (totals.get(language) || 0) + lines);
+    }
   }
 };
 
@@ -61,6 +110,13 @@ if (!folders.length) {
   console.log('No benchmark results folders found.');
   process.exit(0);
 }
+
+const totalThroughput = {
+  code: { files: 0, chunks: 0, tokens: 0, bytes: 0, totalMs: 0 },
+  prose: { files: 0, chunks: 0, tokens: 0, bytes: 0, totalMs: 0 }
+};
+const languageTotals = new Map();
+const reposWithMetrics = new Set();
 
 console.log(color.bold(color.cyan('Benchmark Performance Overview')));
 console.log(color.gray(`Root: ${resultsRoot}`));
@@ -78,6 +134,16 @@ for (const dir of folders) {
     const throughput = payload.artifacts?.throughput || {};
     runs.push({ file, summary, throughput });
     throughputs.push(throughput);
+    mergeTotals(totalThroughput.code, throughput.code);
+    mergeTotals(totalThroughput.prose, throughput.prose);
+    const repoRoot = payload.repo?.root;
+    if (repoRoot && !reposWithMetrics.has(repoRoot)) {
+      const metrics = loadFeatureMetrics(repoRoot);
+      if (metrics) {
+        collectLanguageLines(metrics, languageTotals);
+        reposWithMetrics.add(repoRoot);
+      }
+    }
   }
 
   const header = `${dir.name} (${runs.length} run${runs.length === 1 ? '' : 's'})`;
@@ -164,5 +230,39 @@ for (const dir of folders) {
       `query ${formatMs(summary.queryWallMsPerQuery)}`
     ].join(' | ');
     console.log(`    ${line}`);
+  }
+}
+
+const totalFilesPerSec = sumRates(
+  rateFromTotals(totalThroughput.code, 'files'),
+  rateFromTotals(totalThroughput.prose, 'files')
+);
+const totalChunksPerSec = sumRates(
+  rateFromTotals(totalThroughput.code, 'chunks'),
+  rateFromTotals(totalThroughput.prose, 'chunks')
+);
+const totalTokensPerSec = sumRates(
+  rateFromTotals(totalThroughput.code, 'tokens'),
+  rateFromTotals(totalThroughput.prose, 'tokens')
+);
+const totalBytesPerSec = sumRates(
+  rateFromTotals(totalThroughput.code, 'bytes'),
+  rateFromTotals(totalThroughput.prose, 'bytes')
+);
+
+console.log('');
+console.log(color.bold(color.green('Totals')));
+console.log(
+  `  ${color.bold('Files')}: ${formatNumber(totalFilesPerSec)} files/s | ` +
+  `${color.bold('Chunks')}: ${formatNumber(totalChunksPerSec)} chunks/s | ` +
+  `${color.bold('Tokens')}: ${formatNumber(totalTokensPerSec)} tokens/s | ` +
+  `${color.bold('Bytes')}: ${formatBytesPerSec(totalBytesPerSec)}`
+);
+if (languageTotals.size) {
+  const sortedLanguages = Array.from(languageTotals.entries())
+    .sort((a, b) => b[1] - a[1]);
+  console.log(`  ${color.bold('Lines by language')}:`);
+  for (const [language, lines] of sortedLanguages) {
+    console.log(`    ${language}: ${formatCount(lines)} lines`);
   }
 }

@@ -158,7 +158,6 @@ export async function writeIndexArtifacts(input) {
     chunkMetaShardSize,
     maxJsonBytes
   });
-  const { chunkMetaUseJsonl, chunkMetaUseShards } = chunkMetaPlan;
   const tokenPostingsFormat = tokenPostingsFormatConfig
     || (artifactMode === 'sharded' ? 'sharded' : (artifactMode === 'json' ? 'json' : 'auto'));
   let tokenPostingsUseShards = tokenPostingsFormat === 'sharded'
@@ -376,6 +375,7 @@ export async function writeIndexArtifacts(input) {
     outDir,
     chunkMetaIterator,
     chunkMetaPlan,
+    maxJsonBytes,
     enqueueJsonArray,
     enqueueWrite,
     addPieceFile,
@@ -549,8 +549,8 @@ export async function writeIndexArtifacts(input) {
     resolvedTokenMode,
     tokenSampleSize,
     tokenMaxFiles,
-    chunkMetaUseJsonl,
-    chunkMetaUseShards,
+    chunkMetaUseJsonl: chunkMetaPlan.chunkMetaUseJsonl,
+    chunkMetaUseShards: chunkMetaPlan.chunkMetaUseShards,
     tokenPostingsUseShards,
     compressionEnabled,
     compressionMode,
