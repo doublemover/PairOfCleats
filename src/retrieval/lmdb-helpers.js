@@ -1,6 +1,6 @@
 import { Unpackr } from 'msgpackr';
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
-import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../shared/hnsw.js';
+import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths, validateHnswMetaCompatibility } from '../shared/hnsw.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS } from '../storage/lmdb/schema.js';
 
 const unpackr = new Unpackr();
@@ -104,12 +104,19 @@ export function createLmdbHelpers(options) {
     const denseVecCode = embeddingsReady && includeDense
       ? getArtifact(db, LMDB_ARTIFACT_KEYS.denseVectorsCode)
       : null;
+    if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
+    if (denseVecDoc && !denseVecDoc.model && modelIdDefault) denseVecDoc.model = modelIdDefault;
+    if (denseVecCode && !denseVecCode.model && modelIdDefault) denseVecCode.model = modelIdDefault;
     const hnswMeta = embeddingsReady && includeDense && includeHnsw && hnswConfig.enabled
       ? getArtifact(db, LMDB_ARTIFACT_KEYS.denseHnswMeta)
       : null;
     let hnswIndex = null;
     let hnswAvailable = false;
     if (hnswMeta && includeHnsw && hnswConfig.enabled) {
+      const compatibility = validateHnswMetaCompatibility({ denseVectors: denseVec, hnswMeta });
+      if (!compatibility.ok) {
+        console.warn(`[ann] Skipping HNSW index load due to incompatible metadata: ${compatibility.warnings.join('; ')}`);
+      } else {
       const indexDir = indexDirs?.[mode] || null;
       if (indexDir) {
         const { indexPath } = resolveHnswPaths(indexDir);
@@ -121,13 +128,11 @@ export function createLmdbHelpers(options) {
         hnswIndex = loadHnswIndex({ indexPath, dims: hnswMeta.dims, config: mergedConfig });
         hnswAvailable = Boolean(hnswIndex);
       }
+      }
     }
 
     const fieldPostings = getArtifact(db, LMDB_ARTIFACT_KEYS.fieldPostings);
     const fieldTokens = getArtifact(db, LMDB_ARTIFACT_KEYS.fieldTokens);
-    if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
-    if (denseVecDoc && !denseVecDoc.model && modelIdDefault) denseVecDoc.model = modelIdDefault;
-    if (denseVecCode && !denseVecCode.model && modelIdDefault) denseVecCode.model = modelIdDefault;
     const filterIndexRaw = getArtifact(db, LMDB_ARTIFACT_KEYS.filterIndex);
     const idx = {
       chunkMeta,

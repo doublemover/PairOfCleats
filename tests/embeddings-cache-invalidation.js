@@ -39,6 +39,41 @@ assert.notEqual(base.key, dimsChanged.key, 'expected cache identity to change wi
 assert.notEqual(base.key, modelChanged.key, 'expected cache identity to change with model');
 assert.notEqual(base.key, providerChanged.key, 'expected cache identity to change with provider');
 
+// Provider-specific knobs should participate in cache invalidation.
+const onnxBase = buildCacheIdentity({
+  modelId: 'model-a',
+  provider: 'onnx',
+  mode: 'inline',
+  stub: false,
+  dims: 384,
+  scale: 0.5,
+  onnx: {
+    modelPath: '/models/model-a.onnx',
+    tokenizerId: 'model-a',
+    executionProviders: ['cpu'],
+    intraOpNumThreads: 1,
+    interOpNumThreads: 1,
+    graphOptimizationLevel: 'all'
+  }
+});
+const onnxModelPathChanged = buildCacheIdentity({
+  modelId: 'model-a',
+  provider: 'onnx',
+  mode: 'inline',
+  stub: false,
+  dims: 384,
+  scale: 0.5,
+  onnx: {
+    modelPath: '/models/other.onnx',
+    tokenizerId: 'model-a',
+    executionProviders: ['cpu'],
+    intraOpNumThreads: 1,
+    interOpNumThreads: 1,
+    graphOptimizationLevel: 'all'
+  }
+});
+assert.notEqual(onnxBase.key, onnxModelPathChanged.key, 'expected cache identity to change with onnx modelPath');
+
 const signature = 'sig-1';
 const cached = {
   chunkSignature: signature,

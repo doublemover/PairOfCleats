@@ -65,9 +65,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
 
   const embedModeRaw = (argv.mode || 'all').toLowerCase();
   const embedMode = embedModeRaw === 'both' ? 'all' : embedModeRaw;
-  const modes = embedMode === 'all'
-    ? ['code', 'prose', 'extracted-prose']
-    : [embedMode];
+  const modes = embedMode === 'all' ? ['code', 'prose'] : [embedMode];
 
   return {
     argv,

@@ -454,22 +454,18 @@ export function getRuntimeConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const runtime = cfg.runtime || {};
   const envConfig = getEnvConfig();
-
   const rawMaxOldSpace = runtime.maxOldSpaceMb ?? envConfig.maxOldSpaceMb;
   const parsedMaxOldSpace = Number(rawMaxOldSpace);
   const maxOldSpaceMb = Number.isFinite(parsedMaxOldSpace) && parsedMaxOldSpace > 0
     ? parsedMaxOldSpace
     : null;
-
   const nodeOptionsRaw = runtime.nodeOptions ?? envConfig.nodeOptions;
   const nodeOptions = typeof nodeOptionsRaw === 'string' ? nodeOptionsRaw.trim() : '';
-
   const rawUvThreadpoolSize = runtime.uvThreadpoolSize ?? envConfig.uvThreadpoolSize;
   const parsedUvThreadpoolSize = Number(rawUvThreadpoolSize);
   const uvThreadpoolSize = Number.isFinite(parsedUvThreadpoolSize) && parsedUvThreadpoolSize > 0
-    ? Math.max(1, Math.min(128, Math.floor(parsedUvThreadpoolSize)))
+    ? Math.floor(parsedUvThreadpoolSize)
     : null;
-
   return { maxOldSpaceMb, nodeOptions, uvThreadpoolSize };
 }
 
@@ -505,7 +501,7 @@ export function getCacheRuntimeConfig(repoRoot, userConfig = null) {
 
 /**
  * Merge runtime Node options with existing NODE_OPTIONS.
- * @param {{maxOldSpaceMb:number|null,nodeOptions:string}} runtimeConfig
+ * @param {{maxOldSpaceMb:number|null,nodeOptions:string,uvThreadpoolSize:number|null}} runtimeConfig
  * @param {string} [baseOptions]
  * @returns {string}
  */
@@ -524,11 +520,12 @@ export function resolveNodeOptions(runtimeConfig, baseOptions = process.env.NODE
 
 
 /**
- * Resolve the environment for spawning child processes that need runtime tuning.
- * Respects existing env vars (e.g. will not override an already-set UV_THREADPOOL_SIZE).
+ * Resolve the child-process runtime environment for PairOfCleats tool launches.
+ * Applies runtime Node options and (optionally) propagates UV_THREADPOOL_SIZE when configured.
+ * Note: UV_THREADPOOL_SIZE must be set before the Node process starts to affect libuv.
  * @param {{maxOldSpaceMb:number|null,nodeOptions:string,uvThreadpoolSize:number|null}} runtimeConfig
- * @param {Record<string, string|undefined>} [baseEnv]
- * @returns {Record<string, string|undefined>}
+ * @param {NodeJS.ProcessEnv} [baseEnv]
+ * @returns {NodeJS.ProcessEnv}
  */
 export function resolveRuntimeEnv(runtimeConfig, baseEnv = process.env) {
   const env = { ...baseEnv };
@@ -536,13 +533,16 @@ export function resolveRuntimeEnv(runtimeConfig, baseEnv = process.env) {
   if (resolvedNodeOptions) {
     env.NODE_OPTIONS = resolvedNodeOptions;
   }
-  const uvSize = Number(runtimeConfig?.uvThreadpoolSize);
-  if (Number.isFinite(uvSize) && uvSize > 0) {
-    const existing = env.UV_THREADPOOL_SIZE;
-    if (existing == null || existing === '') {
-      env.UV_THREADPOOL_SIZE = String(Math.max(1, Math.min(128, Math.floor(uvSize))));
-    }
+
+  const uvThreadpoolSize = runtimeConfig?.uvThreadpoolSize;
+  if (
+    Number.isFinite(Number(uvThreadpoolSize))
+    && Number(uvThreadpoolSize) > 0
+    && !env.UV_THREADPOOL_SIZE
+  ) {
+    env.UV_THREADPOOL_SIZE = String(Math.floor(Number(uvThreadpoolSize)));
   }
+
   return env;
 }
 

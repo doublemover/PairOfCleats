@@ -3,14 +3,13 @@ import { hasActiveFilters } from './filters.js';
 import { rankBM25, rankBM25Fields, rankDenseVectors, rankMinhash } from './rankers.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
 import { rankHnswIndex } from '../shared/hnsw.js';
-import { rankLanceDb } from './lancedb.js';
 
 const SQLITE_IN_LIMIT = 900;
 
 /**
  * Create a search pipeline runner bound to a shared context.
  * @param {object} context
- * @returns {(idx:object, mode:'code'|'prose'|'records'|'extracted-prose', queryEmbedding:number[]|null)=>Promise<Array<object>>}
+ * @returns {(idx:object, mode:'code'|'prose'|'records'|'extracted-prose', queryEmbedding:number[]|null)=>Array<object>}
  */
 export function createSearchPipeline(context) {
   const {
@@ -31,16 +30,12 @@ export function createSearchPipeline(context) {
     filtersActive,
     topN,
     annEnabled,
-    annBackend,
     scoreBlend,
     minhashMaxDocs,
     vectorAnnState,
     vectorAnnUsed,
     hnswAnnState,
     hnswAnnUsed,
-    lanceAnnState,
-    lanceAnnUsed,
-    lancedbConfig,
     buildCandidateSetSqlite,
     getTokenIndexForQuery,
     rankSqliteFts,
@@ -58,26 +53,21 @@ export function createSearchPipeline(context) {
   const symbolBoostDefinitionWeight = Number.isFinite(Number(symbolBoost?.definitionWeight))
     ? Number(symbolBoost.definitionWeight)
     : 1.15;
-  const symbolBoostExportWeight = Number.isFinite(
-    Number(symbolBoost?.exportWeight)
-  )
+  const symbolBoostExportWeight = Number.isFinite(Number(symbolBoost?.exportWeight))
     ? Number(symbolBoost.exportWeight)
     : 1.1;
   const rrfEnabled = rrf?.enabled !== false;
   const rrfK = Number.isFinite(Number(rrf?.k))
     ? Math.max(1, Number(rrf.k))
     : 60;
-  const minhashLimit = Number.isFinite(Number(minhashMaxDocs))
-    && Number(minhashMaxDocs) > 0
+  const minhashLimit = Number.isFinite(Number(minhashMaxDocs)) && Number(minhashMaxDocs) > 0
     ? Number(minhashMaxDocs)
     : null;
-  const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
-    ? null
-    : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
-  const fieldWeightsEnabled = fieldWeights
-    && Object.values(fieldWeights).some((value) => (
-      Number.isFinite(Number(value)) && Number(value) > 0
-    ));
+    const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
+      ? null
+      : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
+    const fieldWeightsEnabled = fieldWeights
+      && Object.values(fieldWeights).some((value) => Number.isFinite(Number(value)) && Number(value) > 0);
 
   const isDefinitionKind = (kind) => typeof kind === 'string'
     && /Declaration|Definition|Initializer|Deinitializer/.test(kind);
@@ -156,41 +146,14 @@ export function createSearchPipeline(context) {
     return { matches };
   }
 
-  const normalizeAnnBackend = (value) => {
-    if (typeof value !== 'string') return 'lancedb';
-    const trimmed = value.trim().toLowerCase();
-    if (!trimmed) return 'lancedb';
-    if (trimmed === 'sqlite' || trimmed === 'sqlite-extension') return 'sqlite-vector';
-    if (trimmed === 'dense') return 'js';
-    return trimmed;
-  };
-
-  const resolveAnnOrder = (value) => {
-    switch (normalizeAnnBackend(value)) {
-      case 'lancedb':
-        return ['lancedb', 'sqlite-vector', 'hnsw', 'js'];
-      case 'sqlite-vector':
-        return ['sqlite-vector', 'lancedb', 'hnsw', 'js'];
-      case 'hnsw':
-        return ['hnsw', 'lancedb', 'sqlite-vector', 'js'];
-      case 'js':
-        return ['js'];
-      case 'auto':
-      default:
-        return ['lancedb', 'sqlite-vector', 'hnsw', 'js'];
-    }
-  };
-
-  const annOrder = resolveAnnOrder(annBackend);
-
   /**
    * Execute the full search pipeline for a mode.
    * @param {object} idx
     * @param {'code'|'prose'|'records'|'extracted-prose'} mode
     * @param {number[]|null} queryEmbedding
-    * @returns {Promise<Array<object>>}
+    * @returns {Array<object>}
     */
-  return async function runSearch(idx, mode, queryEmbedding) {
+  return function runSearch(idx, mode, queryEmbedding) {
     const meta = idx.chunkMeta;
     const sqliteEnabledForMode = useSqlite && (mode === 'code' || mode === 'prose');
     const filtersEnabled = typeof filtersActive === 'boolean'
@@ -277,77 +240,38 @@ export function createSearchPipeline(context) {
     const annFallback = candidates && allowedIdx ? allowedIdx : null;
     const annCandidatesEmpty = annCandidates && annCandidates.size === 0;
     if (annEnabled) {
-      for (const backend of annOrder) {
-        if (!queryEmbedding && backend !== 'js') continue;
-        if (backend === 'lancedb') {
-          if (lancedbConfig?.enabled !== false
-            && (idx.lancedb?.available || lanceAnnState?.[mode]?.available)) {
-            if (!annCandidatesEmpty) {
-              annHits = await rankLanceDb({
-                lancedbInfo: idx.lancedb,
-                queryEmbedding,
-                topN: expandedTopN,
-                candidateSet: annCandidates,
-                config: lancedbConfig
-              });
-            }
-            if (!annHits.length && annFallback) {
-              annHits = await rankLanceDb({
-                lancedbInfo: idx.lancedb,
-                queryEmbedding,
-                topN: expandedTopN,
-                candidateSet: annFallback,
-                config: lancedbConfig
-              });
-            }
-            if (annHits.length) {
-              if (lanceAnnUsed && mode in lanceAnnUsed) lanceAnnUsed[mode] = true;
-              annSource = 'lancedb';
-              break;
-            }
-          }
-        } else if (backend === 'sqlite-vector') {
-          if (queryEmbedding && vectorAnnState?.[mode]?.available) {
-            if (!annCandidatesEmpty) {
-              annHits = rankVectorAnnSqlite(mode, queryEmbedding, expandedTopN, annCandidates);
-            }
-            if (!annHits.length && annFallback) {
-              annHits = rankVectorAnnSqlite(mode, queryEmbedding, expandedTopN, annFallback);
-            }
-            if (annHits.length) {
-              if (vectorAnnUsed && mode in vectorAnnUsed) vectorAnnUsed[mode] = true;
-              annSource = 'sqlite-vector';
-              break;
-            }
-          }
-        } else if (backend === 'hnsw') {
-          if (queryEmbedding && (idx.hnsw?.available || hnswAnnState?.[mode]?.available)) {
-            if (!annCandidatesEmpty) {
-              annHits = rankHnswIndex(idx.hnsw || {}, queryEmbedding, expandedTopN, annCandidates);
-            }
-            if (!annHits.length && annFallback) {
-              annHits = rankHnswIndex(idx.hnsw || {}, queryEmbedding, expandedTopN, annFallback);
-            }
-            if (annHits.length) {
-              if (hnswAnnUsed && mode in hnswAnnUsed) hnswAnnUsed[mode] = true;
-              annSource = 'hnsw';
-              break;
-            }
-          }
-        } else if (backend === 'js') {
-          if (queryEmbedding && idx.denseVec?.vectors?.length) {
-            if (!annCandidatesEmpty) {
-              annHits = rankDenseVectors(idx, queryEmbedding, expandedTopN, annCandidates);
-            }
-            if (!annHits.length && annFallback) {
-              annHits = rankDenseVectors(idx, queryEmbedding, expandedTopN, annFallback);
-            }
-            if (annHits.length) {
-              annSource = 'js';
-              break;
-            }
-          }
+      if (queryEmbedding && vectorAnnState?.[mode]?.available) {
+        if (!annCandidatesEmpty) {
+          annHits = rankVectorAnnSqlite(mode, queryEmbedding, expandedTopN, annCandidates);
         }
+        if (!annHits.length && annFallback) {
+          annHits = rankVectorAnnSqlite(mode, queryEmbedding, expandedTopN, annFallback);
+        }
+        if (annHits.length) {
+          vectorAnnUsed[mode] = true;
+          annSource = 'sqlite-vector';
+        }
+      }
+      if (!annHits.length && queryEmbedding && (idx.hnsw?.available || hnswAnnState?.[mode]?.available)) {
+        if (!annCandidatesEmpty) {
+          annHits = rankHnswIndex(idx.hnsw || {}, queryEmbedding, expandedTopN, annCandidates);
+        }
+        if (!annHits.length && annFallback) {
+          annHits = rankHnswIndex(idx.hnsw || {}, queryEmbedding, expandedTopN, annFallback);
+        }
+        if (annHits.length) {
+          if (hnswAnnUsed && mode in hnswAnnUsed) hnswAnnUsed[mode] = true;
+          annSource = 'hnsw';
+        }
+      }
+      if (!annHits.length && queryEmbedding && idx.denseVec?.vectors?.length) {
+        if (!annCandidatesEmpty) {
+          annHits = rankDenseVectors(idx, queryEmbedding, expandedTopN, annCandidates);
+        }
+        if (!annHits.length && annFallback) {
+          annHits = rankDenseVectors(idx, queryEmbedding, expandedTopN, annFallback);
+        }
+        if (annHits.length) annSource = 'dense';
       }
       if (!annHits.length) {
         const minhashBase = candidates || (bmHits.length ? new Set(bmHits.map((h) => h.idx)) : null);

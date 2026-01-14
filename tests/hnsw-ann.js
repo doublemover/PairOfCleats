@@ -17,7 +17,6 @@ await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const config = {
   cache: { root: cacheRoot },
-  search: { annBackend: 'hnsw' },
   indexing: {
     embeddings: {
       hnsw: {

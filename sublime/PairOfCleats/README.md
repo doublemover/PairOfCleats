@@ -23,17 +23,6 @@ Resolution order:
 
 If the selected path ends in `.js`, the plugin runs it with `node_path` (or `node`).
 
-## API server integration (optional)
-
-For map generation, the plugin can optionally call a locally running PairOfCleats API server instead of spawning the CLI. This reduces startup overhead and enables the isometric viewer to load its static assets from the server.
-
-1) Start the API server:
-   - `pairofcleats service api --host 127.0.0.1 --port 7345`
-2) Set `api_server_url` in your Sublime settings (or project overrides):
-   - `"api_server_url": "http://127.0.0.1:7345"`
-
-When `api_server_url` is set, `PairOfCleats: Map` requests use `/map` and `/map/nodes`. If the server is unavailable, the plugin falls back to CLI execution.
-
 ## Settings
 
 Open the command palette and run `PairOfCleats: Open Settings` or `PairOfCleats: Validate Settings`.
@@ -72,8 +61,6 @@ Open the command palette and run `PairOfCleats: Open Settings` or `PairOfCleats:
 - `map_wasd_max_speed`: Isometric viewer WASD max speed.
 - `map_wasd_drag`: Isometric viewer WASD damping.
 - `map_zoom_sensitivity`: Isometric viewer zoom sensitivity.
-- `api_server_url`: Optional base URL for a running `pairofcleats service api` instance (for map generation).
-- `api_timeout_ms`: HTTP timeout for API requests (ms).
 - `profile`: Sets `PAIROFCLEATS_PROFILE`.
 - `cache_root`: Sets `PAIROFCLEATS_CACHE_ROOT`.
 - `embeddings_mode`: Sets `PAIROFCLEATS_EMBEDDINGS`.

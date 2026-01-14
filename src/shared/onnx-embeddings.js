@@ -11,9 +11,19 @@ const PROVIDER_ALIASES = new Map([
 ]);
 
 const normalizeProvider = (value) => {
+  // Default to Xenova/Transformers when unset; reject unknown values.
   if (typeof value !== 'string') return 'xenova';
   const trimmed = value.trim().toLowerCase();
-  return PROVIDER_ALIASES.get(trimmed) || 'xenova';
+  if (!trimmed) return 'xenova';
+  const resolved = PROVIDER_ALIASES.get(trimmed);
+  if (!resolved) {
+    const supported = Array.from(new Set(PROVIDER_ALIASES.values())).sort();
+    throw new Error(
+      `[embeddings] Unknown embedding provider: ${JSON.stringify(value)}. `
+        + `Expected one of: ${supported.join(', ')}.`
+    );
+  }
+  return resolved;
 };
 
 const normalizeProviders = (value) => {
@@ -239,10 +249,6 @@ const rowsFromTensor = (tensor) => {
 };
 
 export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig }) {
-  const normalizedProvider = normalizeEmbeddingProvider('onnx');
-  if (normalizedProvider !== 'onnx') {
-    throw new Error('ONNX embedder misconfigured.');
-  }
   const normalized = normalizeOnnxConfig(onnxConfig);
   const resolvedModelPath = resolveOnnxModelPath({
     rootDir,
@@ -251,7 +257,11 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig }) 
     modelId
   });
   if (!resolvedModelPath) {
-    throw new Error('ONNX model path not found. Set indexing.embeddings.onnx.modelPath.');
+    const hint = modelId ? ` (modelId=${JSON.stringify(modelId)})` : '';
+    throw new Error(
+      `ONNX model path not found${hint}. `
+        + 'Set indexing.embeddings.onnx.modelPath or run "npm run download-models".'
+    );
   }
   const modelSize = statSize(resolvedModelPath);
   const lowMemory = Number.isFinite(modelSize) && modelSize >= LARGE_MODEL_BYTES;

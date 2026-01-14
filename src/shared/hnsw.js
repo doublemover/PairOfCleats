@@ -18,6 +18,7 @@ const supportsHnswRuntime = () => {
 
 let warnedRuntimeUnsupported = false;
 let warnedLoadFailure = false;
+let warnedFallbackUsed = false;
 const warnRuntimeUnsupported = () => {
   if (warnedRuntimeUnsupported) return;
   warnedRuntimeUnsupported = true;
@@ -28,6 +29,12 @@ const warnLoadFailure = (message) => {
   if (warnedLoadFailure) return;
   warnedLoadFailure = true;
   console.warn(`[ann] HNSW index load failed; falling back to JS ANN. ${message || ''}`.trim());
+};
+
+const warnFallbackUsed = (message) => {
+  if (warnedFallbackUsed) return;
+  warnedFallbackUsed = true;
+  console.warn(`[ann] HNSW primary index unreadable; using backup. ${message || ''}`.trim());
 };
 
 const resolveHnswLib = () => {
@@ -99,31 +106,90 @@ export function resolveHnswPaths(indexDir) {
   };
 }
 
-export function loadHnswIndex({ indexPath, dims, config }) {
+export function validateHnswMetaCompatibility({ denseVectors, hnswMeta } = {}) {
+  const warnings = [];
+  if (!denseVectors || !hnswMeta) {
+    return { ok: true, warnings };
+  }
+  const vecDims = Number(denseVectors.dims);
+  const metaDims = Number(hnswMeta.dims);
+  if (Number.isFinite(vecDims) && Number.isFinite(metaDims) && vecDims !== metaDims) {
+    warnings.push(`dims mismatch (vectors=${vecDims}, meta=${metaDims})`);
+  }
+  const vecModel = typeof denseVectors.model === 'string' ? denseVectors.model : null;
+  const metaModel = typeof hnswMeta.model === 'string' ? hnswMeta.model : null;
+  if (vecModel && metaModel && vecModel !== metaModel) {
+    warnings.push(`model mismatch (vectors=${vecModel}, meta=${metaModel})`);
+  }
+  const vecCount = Array.isArray(denseVectors.vectors) ? denseVectors.vectors.length : null;
+  const metaCount = Number(hnswMeta.count);
+  if (Number.isFinite(metaCount) && metaCount >= 0 && Number.isFinite(vecCount) && vecCount !== metaCount) {
+    warnings.push(`count mismatch (vectors=${vecCount}, meta=${metaCount})`);
+  }
+  const metaSpace = typeof hnswMeta.space === 'string' ? hnswMeta.space.trim().toLowerCase() : null;
+  if (metaSpace && !SPACES.has(metaSpace)) {
+    warnings.push(`space invalid (meta=${metaSpace})`);
+  }
+  return { ok: warnings.length === 0, warnings };
+}
+
+export function loadHnswIndex({ indexPath, dims, config, lib } = {}) {
   const resolved = resolveIndexPath(indexPath);
   if (!resolved) return null;
   if (!Number.isFinite(dims) || dims <= 0) return null;
   const normalized = normalizeHnswConfig(config);
   if (!normalized.enabled) return null;
-  const lib = resolveHnswLib();
-  const HNSW = lib?.HierarchicalNSW || lib?.default?.HierarchicalNSW || lib?.default;
+  const resolvedLib = lib || resolveHnswLib();
+  const HNSW = resolvedLib?.HierarchicalNSW || resolvedLib?.default?.HierarchicalNSW || resolvedLib?.default;
   if (!HNSW) return null;
-  const index = new HNSW(normalized.space, dims);
+  const buildIndex = () => new HNSW(normalized.space, dims);
+  const applyEfSearch = (index) => {
+    if (!normalized.efSearch) return;
+    try {
+      index.setEf(normalized.efSearch);
+    } catch {}
+  };
+  const tryLoad = (candidatePath) => {
+    const index = buildIndex();
+    index.readIndexSync(candidatePath, normalized.allowReplaceDeleted);
+    applyEfSearch(index);
+    return index;
+  };
+
   try {
-    index.readIndexSync(resolved.path, normalized.allowReplaceDeleted);
+    const index = tryLoad(resolved.path);
+    if (resolved.cleanup) cleanupBak(indexPath);
+    return index;
   } catch (err) {
+    // If the primary file exists but is unreadable/corrupt, fall back to the
+    // backup if available. This avoids hard failures when a prior atomic
+    // replace left a valid .bak behind.
+    const primaryPath = indexPath;
+    const bakPath = getBakPath(indexPath);
+    const altPath = resolved.path === primaryPath ? bakPath : primaryPath;
+    if (altPath && altPath !== resolved.path && fs.existsSync(altPath)) {
+      try {
+        const index = tryLoad(altPath);
+        warnFallbackUsed(path.basename(altPath));
+        return index;
+      } catch (altErr) {
+        warnLoadFailure(altErr?.message ? `(${altErr.message})` : '');
+        return null;
+      }
+    }
     warnLoadFailure(err?.message ? `(${err.message})` : '');
     return null;
   }
-  if (normalized.efSearch) {
-    index.setEf(normalized.efSearch);
-  }
-  if (resolved.cleanup) cleanupBak(indexPath);
-  return index;
 }
 
 export function rankHnswIndex({ index, space }, queryEmbedding, topN, candidateSet) {
-  if (!index || !Array.isArray(queryEmbedding) || !queryEmbedding.length) return [];
+  const embedding = Array.isArray(queryEmbedding)
+    ? queryEmbedding
+    : (ArrayBuffer.isView(queryEmbedding) ? Array.from(queryEmbedding) : null);
+  if (!index || !embedding || !embedding.length) return [];
+  // If a candidate set is provided but empty, the correct answer is an empty
+  // hit list (consistent with other rankers) rather than an unfiltered search.
+  if (candidateSet && typeof candidateSet.size === 'number' && candidateSet.size === 0) return [];
   const requested = Math.max(1, Number(topN) || 1);
   const maxElements = typeof index.getCurrentCount === 'function'
     ? index.getCurrentCount()
@@ -133,13 +199,13 @@ export function rankHnswIndex({ index, space }, queryEmbedding, topN, candidateS
   const cap = Number.isFinite(maxElements) && maxElements > 0
     ? Math.min(requested, Math.floor(maxElements))
     : requested;
-  const limit = candidateSet && candidateSet.size
+  const limit = candidateSet && typeof candidateSet.size === 'number'
     ? Math.max(1, Math.min(cap, candidateSet.size))
     : cap;
-  const filter = candidateSet && candidateSet.size
+  const filter = candidateSet && typeof candidateSet.size === 'number'
     ? (label) => candidateSet.has(label)
     : undefined;
-  const result = index.searchKnn(queryEmbedding, limit, filter);
+  const result = index.searchKnn(embedding, limit, filter);
   const distances = result?.distances || [];
   const neighbors = result?.neighbors || [];
   const hits = [];

@@ -119,14 +119,6 @@ This bundle is a curated set of implementation-relevant deep links for dependenc
 ### Microbench tooling
 - [tinybench](deps/tinybench.md)
 
-### Native regex (optional)
-- [re2](deps/re2.md)
-- [re2js](deps/re2js.md)
-
-### External backends (optional)
-- [@lancedb/lancedb](deps/lancedb.md)
-- [tantivy](deps/tantivy.md)
-
 ### Multi-pattern search / dictionary matching
 - [aho-corasick](deps/aho-corasick.md)
 

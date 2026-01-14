@@ -17,7 +17,6 @@ Build an offline index of a repo, then retrieve the most relevant *chunks* using
 PairOfCleats builds a **hybrid semantic index** for a repository (**code + configs + docs**, and optionally **triage records**) and exposes:
 
 - a CLI (`pairofcleats search`, `pairofcleats index build`)
-- a code-map generator (`pairofcleats report map`) (see [docs/code-maps.md](docs/code-maps.md))
 - an HTTP API server (`pairofcleats service api`)
 - an MCP server for agent/tool integration (`pairofcleats service mcp`)
 

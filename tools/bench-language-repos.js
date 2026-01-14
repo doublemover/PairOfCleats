@@ -298,12 +298,13 @@ for (const task of tasks) {
   const runtimeConfigForRun = heapOverride
     ? { ...repoRuntimeConfig, maxOldSpaceMb: heapOverride }
     : repoRuntimeConfig;
-
-  const baseEnvForRepo = { ...baseEnv };
-  if (typeof baseEnv.NODE_OPTIONS === 'string' || baseNodeOptions) {
-    baseEnvForRepo.NODE_OPTIONS = baseNodeOptions;
+  const baseEnvForRun = { ...baseEnv };
+  if (baseNodeOptions) {
+    baseEnvForRun.NODE_OPTIONS = baseNodeOptions;
+  } else {
+    delete baseEnvForRun.NODE_OPTIONS;
   }
-  const repoEnvBase = resolveRuntimeEnv(runtimeConfigForRun, baseEnvForRepo);
+  const repoEnvBase = resolveRuntimeEnv(runtimeConfigForRun, baseEnvForRun);
   if (suppressProfileEnv && repoEnvBase.PAIROFCLEATS_PROFILE) {
     delete repoEnvBase.PAIROFCLEATS_PROFILE;
   }

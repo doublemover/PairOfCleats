@@ -17,7 +17,11 @@ export const buildChunksFromBundles = async (bundleDir, manifestFiles, bundleFor
   const chunksByFile = new Map();
   let maxChunkId = -1;
   let total = 0;
-  for (const [relPath, entry] of Object.entries(manifestFiles || {})) {
+  // Ensure deterministic chunk ordering regardless of JSON object insertion order.
+  const manifestEntries = Object.entries(manifestFiles || {}).sort(([a], [b]) => (
+    a < b ? -1 : (a > b ? 1 : 0)
+  ));
+  for (const [relPath, entry] of manifestEntries) {
     const bundleName = entry?.bundle || resolveBundleFilename(relPath, resolvedBundleFormat);
     const bundlePath = path.join(bundleDir, bundleName);
     if (!fsSync.existsSync(bundlePath)) continue;

@@ -25,7 +25,7 @@ export const runDiscovery = async ({ runtime, mode, discovery, state, timing }) 
       maxFiles: runtime.guardrails?.maxFiles ?? null
     }));
   }
-  entries.sort((a, b) => a.rel.localeCompare(b.rel));
+  entries.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
   entries.forEach((entry, index) => {
     entry.orderIndex = index;
   });

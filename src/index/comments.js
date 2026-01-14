@@ -207,7 +207,6 @@ export function normalizeCommentConfig(input = {}) {
   const extract = ['off', 'doc', 'all'].includes(extractRaw) ? extractRaw : DEFAULT_COMMENT_CONFIG.extract;
   return {
     extract,
-    includeInCode: cfg.includeInCode === true,
     includeLicense: cfg.includeLicense === true,
     minDocChars: normalizeLimit(cfg.minDocChars, DEFAULT_COMMENT_CONFIG.minDocChars),
     minInlineChars: normalizeLimit(cfg.minInlineChars, DEFAULT_COMMENT_CONFIG.minInlineChars),

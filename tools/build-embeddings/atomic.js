@@ -43,3 +43,47 @@ export const replaceFile = async (tempPath, finalPath) => {
     await fs.rename(tempPath, finalPath);
   }
 };
+
+/**
+ * Replace a file atomically without creating a .bak. This is intended for
+ * ephemeral cache entries where retaining backups would create excessive churn.
+ */
+export const replaceFileNoBak = async (tempPath, finalPath) => {
+  const copyFallback = async () => {
+    try {
+      await fs.copyFile(tempPath, finalPath);
+      await fs.rm(tempPath, { force: true });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  try {
+    await fs.rename(tempPath, finalPath);
+    return;
+  } catch (err) {
+    if (err?.code === 'EXDEV') {
+      if (await copyFallback()) return;
+      throw err;
+    }
+    if (err?.code !== 'EEXIST'
+      && err?.code !== 'EPERM'
+      && err?.code !== 'ENOTEMPTY'
+      && err?.code !== 'EACCES') {
+      throw err;
+    }
+  }
+
+  try {
+    await fs.rm(finalPath, { force: true });
+  } catch {}
+  try {
+    await fs.rename(tempPath, finalPath);
+  } catch (err) {
+    if (err?.code === 'EXDEV') {
+      if (await copyFallback()) return;
+    }
+    throw err;
+  }
+};

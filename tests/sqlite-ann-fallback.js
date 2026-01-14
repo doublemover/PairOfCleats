@@ -21,7 +21,6 @@ await fsPromises.writeFile(
 const config = {
   cache: { root: cacheRoot },
   dictionary: { languages: ['en'] },
-  search: { annBackend: 'sqlite-vector' },
   sqlite: {
     use: true,
     vectorExtension: {

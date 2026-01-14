@@ -29,7 +29,6 @@ export function renderSearchOutput({
   vectorAnnUsed,
   hnswConfig,
   hnswAnnState,
-  lanceAnnState,
   modelIds,
   embeddingProvider,
   embeddingOnnx,
@@ -75,15 +74,6 @@ export function renderSearchOutput({
           prose: vectorAnnState.prose.available,
           records: vectorAnnState.records.available
         }
-      } : null,
-      annLance: lanceAnnState ? {
-        available: {
-          code: lanceAnnState.code.available,
-          prose: lanceAnnState.prose.available,
-          records: lanceAnnState.records.available,
-          extractedProse: lanceAnnState['extracted-prose'].available
-        },
-        metric: lanceAnnState.code.metric || lanceAnnState.prose.metric || null
       } : null,
       annHnsw: hnswConfig.enabled ? {
         available: {

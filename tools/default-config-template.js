@@ -19,9 +19,6 @@ export const DEFAULT_USER_CONFIG_TEMPLATE = `{
     // Prefer ANN search by default when multiple backends exist.
     // Speed impact: no impact on indexing; affects query latency/recall.
     "annDefault": true,
-    // Preferred ANN backend for dense vector search.
-    // Speed impact: affects index artifacts and query latency.
-    "annBackend": "lancedb",
     // Dense vector combination strategy for search.
     // Speed impact: minor impact on embedding/storage cost during indexing.
     "denseVectorMode": "merged",
@@ -48,29 +45,6 @@ export const DEFAULT_USER_CONFIG_TEMPLATE = `{
   // Index build pipeline options.
   // Speed impact: many flags here change CPU/IO per file.
   "indexing": {
-    // Embeddings storage configuration.
-    // Speed impact: enabling LanceDB adds indexing IO and disk usage.
-    "embeddings": {
-      // LanceDB vector storage options.
-      // Speed impact: additional artifact writes at stage3.
-      "lancedb": {
-        // Toggle LanceDB artifact generation.
-        // Speed impact: adds LanceDB write time and disk usage.
-        "enabled": true,
-        // LanceDB table name.
-        "table": "vectors",
-        // Column name for embedding vectors.
-        "embeddingColumn": "vector",
-        // Column name for chunk ids.
-        "idColumn": "id",
-        // Distance metric for ANN queries.
-        // Speed impact: affects ANN scoring semantics.
-        "metric": "cosine",
-        // Max rows per insert batch.
-        // Speed impact: higher values increase memory during build.
-        "batchSize": 1024
-      }
-    },
     // Sparse postings generation settings.
     // Speed impact: heavier postings settings increase indexing time/size.
     "postings": {

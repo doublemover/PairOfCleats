@@ -129,11 +129,6 @@ const actions = [
     covers: ['hnsw-ann-test']
   },
   {
-    label: 'lancedb-ann-test',
-    run: () => runNode('lancedb-ann-test', path.join(root, 'tests', 'lancedb-ann.js')),
-    covers: ['lancedb-ann-test']
-  },
-  {
     label: 'hnsw-atomic-test',
     run: () => runNode('hnsw-atomic-test', path.join(root, 'tests', 'hnsw-atomic.js')),
     covers: ['hnsw-atomic-test']
@@ -342,16 +337,6 @@ const actions = [
     label: 'api-server-test',
     run: () => runNode('api-server-test', path.join(root, 'tests', 'api-server.js')),
     covers: ['api-server-test', 'api-server']
-  },
-  {
-    label: 'sublime-pycompile-test',
-    run: () => runNode('sublime-pycompile-test', path.join(root, 'tests', 'sublime-pycompile.js')),
-    covers: ['sublime-pycompile-test']
-  },
-  {
-    label: 'subprocess-quoting-test',
-    run: () => runNode('subprocess-quoting-test', path.join(root, 'tests', 'subprocess-quoting.js')),
-    covers: ['subprocess-quoting-test']
   },
   {
     label: 'api-server-stream-test',
