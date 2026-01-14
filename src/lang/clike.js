@@ -414,8 +414,8 @@ export function buildCLikeChunks(text, ext, options = {}) {
           signature,
           params: extractObjcParams(signature),
           returns: extractObjcReturns(signature),
-          docstring: extractDocComment(lines, i),
-          attributes: collectAttributes(lines, i, signature),
+          docstring: extractDocComment(lines, i - 1),
+          attributes: collectAttributes(lines, i - 1, signature),
           modifiers
         }
       });
@@ -460,7 +460,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
         params: extractCLikeParams(signature),
         returns,
         modifiers: extractCLikeModifiers(signature),
-        docstring: extractDocComment(lines, i)
+        docstring: extractDocComment(lines, i - 1)
       }
     });
     i = endLine;

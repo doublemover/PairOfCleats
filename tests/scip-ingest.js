@@ -12,7 +12,7 @@ const inputPath = path.join(root, 'tests', 'fixtures', 'scip', 'index.json');
 const outPath = path.join(tempRoot, 'scip.jsonl');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
-
+await fsPromises.mkdir(tempRoot, { recursive: true });
 
 const result = spawnSync(
   process.execPath,

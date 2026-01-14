@@ -9,6 +9,7 @@ import {
   loadUserConfig,
   resolveRepoRoot
 } from '../dict-utils.js';
+import { resolveRepoRoot } from '../dict-utils.js';
 import { search, status } from '../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
 import { createSearchValidator, normalizeMetaFilters } from './validation.js';

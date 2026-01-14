@@ -208,11 +208,6 @@ const actions = [
     covers: []
   },
   {
-    label: 'clike-doc-comments-test',
-    run: () => runNode('clike-doc-comments-test', path.join(root, 'tests', 'clike-doc-comments.js')),
-    covers: []
-  },
-  {
     label: 'segment-pipeline-test',
     run: () => runNode('segment-pipeline-test', path.join(root, 'tests', 'segment-pipeline.js')),
     covers: []
@@ -481,6 +476,50 @@ const actions = [
     label: 'search-determinism-test',
     run: () => runNode('search-determinism-test', path.join(root, 'tests', 'search-determinism.js')),
     covers: ['search-determinism-test']
+  },
+  {
+    label: 'code-map-determinism-test',
+    run: () => runNode('code-map-determinism-test', path.join(root, 'tests', 'code-map-determinism.js')),
+    covers: ['code-map-determinism-test']
+  },
+  {
+    label: 'code-map-dot-test',
+    run: () => runNode('code-map-dot-test', path.join(root, 'tests', 'code-map-dot.js')),
+    covers: ['code-map-dot-test']
+  },
+  {
+    label: 'code-map-guardrails-test',
+    run: () => runNode('code-map-guardrails-test', path.join(root, 'tests', 'code-map-guardrails.js')),
+    covers: ['code-map-guardrails-test']
+  },
+  {
+    label: 'code-map-default-guardrails-test',
+    run: () => runNode(
+      'code-map-default-guardrails-test',
+      path.join(root, 'tests', 'code-map-default-guardrails.js')
+    ),
+    covers: ['code-map-default-guardrails-test']
+  },
+  {
+    label: 'code-map-graphviz-fallback-test',
+    run: () => runNode(
+      'code-map-graphviz-fallback-test',
+      path.join(root, 'tests', 'code-map-graphviz-fallback.js')
+    ),
+    covers: ['code-map-graphviz-fallback-test']
+  },
+  {
+    label: 'code-map-graphviz-available-test',
+    run: () => runNode(
+      'code-map-graphviz-available-test',
+      path.join(root, 'tests', 'code-map-graphviz-available.js')
+    ),
+    covers: ['code-map-graphviz-available-test']
+  },
+  {
+    label: 'editor-parity-test',
+    run: () => runNode('editor-parity-test', path.join(root, 'tests', 'editor-parity.js')),
+    covers: ['editor-parity-test']
   },
   {
     label: 'filter-index-artifact-test',
