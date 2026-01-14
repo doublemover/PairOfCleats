@@ -12,7 +12,7 @@ const inputPath = path.join(root, 'tests', 'fixtures', 'gtags', 'gtags.txt');
 const outPath = path.join(tempRoot, 'gtags.jsonl');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
-
+await fsPromises.mkdir(tempRoot, { recursive: true });
 
 const result = spawnSync(
   process.execPath,

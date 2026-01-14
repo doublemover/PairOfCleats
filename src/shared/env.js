@@ -1,11 +1,5 @@
 const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const FALSE_VALUES = new Set(['0', 'false', 'no', 'off']);
-const WATCHER_BACKENDS = new Set(['auto', 'chokidar', 'parcel']);
-const REGEX_ENGINES = new Set(['auto', 're2', 're2js']);
-const XXHASH_BACKENDS = new Set(['auto', 'native', 'wasm']);
-const COMPRESSION_MODES = new Set(['auto', 'gzip', 'zstd', 'none']);
-const DOC_EXTRACT = new Set(['auto', 'on', 'off']);
-const MCP_TRANSPORTS = new Set(['auto', 'sdk', 'legacy']);
 
 const normalizeString = (value) => {
   if (typeof value !== 'string') return '';
@@ -26,12 +20,6 @@ const parseNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const parseEnum = (value, allowed) => {
-  const normalized = normalizeString(value).toLowerCase();
-  if (!normalized) return '';
-  return allowed.has(normalized) ? normalized : '';
-};
-
 export function getEnvConfig(env = process.env) {
   return {
     profile: normalizeString(env.PAIROFCLEATS_PROFILE),
@@ -50,7 +38,6 @@ export function getEnvConfig(env = process.env) {
     workerPool: normalizeString(env.PAIROFCLEATS_WORKER_POOL),
     maxOldSpaceMb: parseNumber(env.PAIROFCLEATS_MAX_OLD_SPACE_MB),
     nodeOptions: normalizeString(env.PAIROFCLEATS_NODE_OPTIONS),
-    uvThreadpoolSize: parseNumber(env.PAIROFCLEATS_UV_THREADPOOL_SIZE),
     stage: normalizeString(env.PAIROFCLEATS_STAGE),
     ftsProfile: normalizeString(env.PAIROFCLEATS_FTS_PROFILE),
     vectorExtension: normalizeString(env.PAIROFCLEATS_VECTOR_EXTENSION),
@@ -60,13 +47,7 @@ export function getEnvConfig(env = process.env) {
     fileCacheMax: parseNumber(env.PAIROFCLEATS_FILE_CACHE_MAX),
     summaryCacheMax: parseNumber(env.PAIROFCLEATS_SUMMARY_CACHE_MAX),
     logFormat: normalizeString(env.PAIROFCLEATS_LOG_FORMAT),
-    logLevel: normalizeString(env.PAIROFCLEATS_LOG_LEVEL),
-    watcherBackend: parseEnum(env.PAIROFCLEATS_WATCHER_BACKEND, WATCHER_BACKENDS),
-    regexEngine: parseEnum(env.PAIROFCLEATS_REGEX_ENGINE, REGEX_ENGINES),
-    xxhashBackend: parseEnum(env.PAIROFCLEATS_XXHASH_BACKEND, XXHASH_BACKENDS),
-    compression: parseEnum(env.PAIROFCLEATS_COMPRESSION, COMPRESSION_MODES),
-    docExtract: parseEnum(env.PAIROFCLEATS_DOC_EXTRACT, DOC_EXTRACT),
-    mcpTransport: parseEnum(env.PAIROFCLEATS_MCP_TRANSPORT, MCP_TRANSPORTS)
+    logLevel: normalizeString(env.PAIROFCLEATS_LOG_LEVEL)
   };
 }
 

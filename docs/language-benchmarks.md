@@ -17,8 +17,6 @@ Use the language benchmark harness to run search and performance baselines acros
   - `pairofcleats bench language --build`
 - Run only typical repos, skip cloning:
   - `pairofcleats bench language --tier typical --no-clone`
-- Run only typical Python repos:
-  - `pairofcleats bench language --language python --tier typical --build`
 - Write an aggregate summary for Grafana:
   - `pairofcleats bench language --language python --build --out docs/benchmarks-python.json --json`
 

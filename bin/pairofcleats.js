@@ -2,7 +2,7 @@
 import { execaSync } from 'execa';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../tools/dict-utils.js';
+import { getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveToolRoot } from '../tools/dict-utils.js';
 
 const ROOT = resolveToolRoot();
 
@@ -329,30 +329,14 @@ function runScript(scriptPath, extraArgs, restArgs) {
   const repoRoot = repoOverride ? path.resolve(repoOverride) : resolveRepoRoot(process.cwd());
   const userConfig = loadUserConfig(repoRoot);
   const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
-  const env = resolveRuntimeEnv(runtimeConfig, process.env);
-  if (
-    Number.isFinite(runtimeConfig.uvThreadpoolSize)
-    && runtimeConfig.uvThreadpoolSize > 0
-    && (process.env.UV_THREADPOOL_SIZE == null || process.env.UV_THREADPOOL_SIZE === '')
-    && isVerboseRuntime(restArgs)
-  ) {
-    const effective = env.UV_THREADPOOL_SIZE || 'default';
-    console.error(`[runtime] UV_THREADPOOL_SIZE=${effective}`);
-  }
+  const nodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+  const env = nodeOptions ? { ...process.env, NODE_OPTIONS: nodeOptions } : process.env;
   const result = execaSync(process.execPath, [resolved, ...extraArgs, ...restArgs], {
     stdio: 'inherit',
     env,
     reject: false
   });
   process.exit(result.exitCode ?? 1);
-}
-
-function isVerboseRuntime(restArgs) {
-  const args = Array.isArray(restArgs) ? restArgs : [];
-  const cliVerbose = args.some((arg) => arg === '--verbose' || String(arg).startsWith('--verbose='));
-  const raw = String(process.env.PAIROFCLEATS_VERBOSE || '').trim().toLowerCase();
-  const envVerbose = raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
-  return cliVerbose || envVerbose;
 }
 
 function extractRepoArg(args) {

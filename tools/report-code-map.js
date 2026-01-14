@@ -229,7 +229,7 @@ const report = {
   nodeListPath: nodeListOut || null,
   cacheKey,
   summary: mapModel.summary || null,
-  warnings: Array.from(new Set(warnings.filter(Boolean)))
+  warnings: Array.from(new Set(warnings.filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b)))
 };
 
 if (argv.json) {

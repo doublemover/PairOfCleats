@@ -1,4 +1,5 @@
-import { StreamMessageWriter } from 'vscode-jsonrpc';
+import { PassThrough } from 'node:stream';
+import { StreamMessageReader, StreamMessageWriter } from 'vscode-jsonrpc';
 
 const writerCache = new WeakMap();
 
@@ -76,103 +77,26 @@ export function writeFramedJsonRpc(outputStream, payload) {
 
 /**
  * Create a framed JSON-RPC parser for Content-Length-delimited payloads.
- * @param {{onMessage?:(msg:object)=>void,onError?:(err:Error)=>void,maxBufferBytes?:number,maxHeaderBytes?:number,maxMessageBytes?:number}} input
+ * @param {{onMessage?:(msg:object)=>void,onError?:(err:Error)=>void,maxBufferBytes?:number}} input
  * @returns {{push:(chunk:Buffer|string)=>void,dispose:()=>void}}
  */
-export function createFramedJsonRpcParser({
-  onMessage,
-  onError,
-  maxBufferBytes = 8 * 1024 * 1024,
-  maxHeaderBytes = 64 * 1024,
-  maxMessageBytes = null
-} = {}) {
+export function createFramedJsonRpcParser({ onMessage, onError } = {}) {
+  const stream = new PassThrough();
+  const reader = new StreamMessageReader(stream);
   const handleMessage = typeof onMessage === 'function' ? onMessage : () => {};
   const handleError = typeof onError === 'function' ? onError : () => {};
-  const maxMessage = Number.isFinite(Number(maxMessageBytes)) && Number(maxMessageBytes) > 0
-    ? Math.floor(Number(maxMessageBytes))
-    : (Number.isFinite(Number(maxBufferBytes)) && Number(maxBufferBytes) > 0
-      ? Math.floor(Number(maxBufferBytes))
-      : null);
-  const maxBuffer = Number.isFinite(Number(maxBufferBytes)) && Number(maxBufferBytes) > 0
-    ? Math.floor(Number(maxBufferBytes))
-    : null;
-  const maxHeader = Number.isFinite(Number(maxHeaderBytes)) && Number(maxHeaderBytes) > 0
-    ? Math.floor(Number(maxHeaderBytes))
-    : null;
-  let buffer = Buffer.alloc(0);
-  let closed = false;
-  const fail = (message) => {
-    if (closed) return;
-    closed = true;
-    buffer = Buffer.alloc(0);
-    handleError(new Error(message));
-  };
-  const parseHeaders = (raw) => {
-    const lines = raw.split(/\r?\n/);
-    let contentLength = null;
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      const match = /^content-length:\s*(\d+)\s*$/i.exec(trimmed);
-      if (match) {
-        contentLength = Number.parseInt(match[1], 10);
-        break;
-      }
-    }
-    return contentLength;
-  };
-  const parseBuffer = () => {
-    while (!closed) {
-      const headerEnd = buffer.indexOf('\r\n\r\n');
-      if (headerEnd === -1) {
-        if (maxHeader && buffer.length > maxHeader) {
-          fail(`JSON-RPC header exceeded ${maxHeader} bytes.`);
-        }
-        return;
-      }
-      if (maxHeader && headerEnd > maxHeader) {
-        fail(`JSON-RPC header exceeded ${maxHeader} bytes.`);
-        return;
-      }
-      const headerRaw = buffer.slice(0, headerEnd).toString('utf8');
-      const contentLength = parseHeaders(headerRaw);
-      if (!Number.isFinite(contentLength) || contentLength < 0) {
-        fail('JSON-RPC Content-Length header missing or invalid.');
-        return;
-      }
-      if (maxMessage && contentLength > maxMessage) {
-        fail(`JSON-RPC message exceeded ${maxMessage} bytes.`);
-        return;
-      }
-      const frameEnd = headerEnd + 4 + contentLength;
-      if (buffer.length < frameEnd) return;
-      const payloadBuffer = buffer.slice(headerEnd + 4, frameEnd);
-      buffer = buffer.slice(frameEnd);
-      try {
-        const message = JSON.parse(payloadBuffer.toString('utf8'));
-        handleMessage(message);
-      } catch (err) {
-        fail(`JSON-RPC payload parse error: ${err?.message || err}`);
-        return;
-      }
-    }
-  };
+
+  reader.onError(handleError);
+  reader.listen(handleMessage);
 
   return {
     push(chunk) {
-      if (closed || !chunk || chunk.length === 0) return;
-      const incoming = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      if (!incoming.length) return;
-      if (maxBuffer && buffer.length + incoming.length > maxBuffer) {
-        fail(`JSON-RPC buffer exceeded ${maxBuffer} bytes.`);
-        return;
-      }
-      buffer = buffer.length ? Buffer.concat([buffer, incoming]) : incoming;
-      parseBuffer();
+      if (!chunk || chunk.length === 0) return;
+      stream.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     },
     dispose() {
-      closed = true;
-      buffer = Buffer.alloc(0);
+      reader.dispose();
+      stream.end();
     }
   };
 }

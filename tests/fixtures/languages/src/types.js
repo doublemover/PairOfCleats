@@ -1,3 +1,5 @@
-/** @typedef {{ name: string }} User */
+/* @flow */
 
-export const user = { name: '' };
+export type User = {
+  name: string
+};

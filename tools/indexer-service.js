@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
-import { resolveRepoRoot, getCacheRoot, getRepoCacheRoot, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveToolRoot } from './dict-utils.js';
+import { resolveRepoRoot, getCacheRoot, getRepoCacheRoot, resolveToolRoot } from './dict-utils.js';
 import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './service/config.js';
 import { ensureQueueDir, enqueueJob, claimNextJob, completeJob, queueSummary, resolveQueueName, requeueStaleJobs, touchJobHeartbeat } from './service/queue.js';
 import { ensureRepo, resolveRepoPath } from './service/repos.js';
@@ -53,27 +53,6 @@ const resolveRepoEntry = (repoArg) => {
 const formatJobId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
 const toolRoot = resolveToolRoot();
-
-
-function logThreadpoolInfo(repoRoot, label = 'indexer') {
-  const runtimeConfig = repoRoot ? getRuntimeConfig(repoRoot) : { uvThreadpoolSize: null };
-  const effectiveUvRaw = Number(process.env.UV_THREADPOOL_SIZE);
-  const effectiveUvThreadpoolSize = Number.isFinite(effectiveUvRaw) && effectiveUvRaw > 0
-    ? Math.floor(effectiveUvRaw)
-    : null;
-  if (effectiveUvThreadpoolSize) {
-    if (runtimeConfig.uvThreadpoolSize && runtimeConfig.uvThreadpoolSize !== effectiveUvThreadpoolSize) {
-      console.error(`[${label}] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (env overrides runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize})`);
-    } else if (runtimeConfig.uvThreadpoolSize) {
-      console.error(`[${label}] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize})`);
-    } else {
-      console.error(`[${label}] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (env)`);
-    }
-  } else if (runtimeConfig.uvThreadpoolSize) {
-    console.error(`[${label}] UV_THREADPOOL_SIZE=default (runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize} not applied; start via pairofcleats CLI or set UV_THREADPOOL_SIZE before launch)`);
-  }
-}
-
 
 const BUILD_STATE_FILE = 'build_state.json';
 const BUILD_STATE_POLL_MS = 5000;
@@ -237,21 +216,14 @@ const runBuildIndex = (repoPath, mode, stage, extraArgs = null, logPath = null) 
     if (mode && mode !== 'both') args.push('--mode', mode);
     if (stage) args.push('--stage', stage);
   }
-  const userConfig = loadUserConfig(repoPath);
-  const runtimeConfig = getRuntimeConfig(repoPath, userConfig);
-  const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
-  return spawnWithLog(args, runtimeEnv, logPath);
+  return spawnWithLog(args, {}, logPath);
 };
 
 const runBuildEmbeddings = (repoPath, mode, extraEnv = {}, logPath = null) => {
   const buildPath = path.join(toolRoot, 'tools', 'build-embeddings.js');
   const args = [buildPath, '--repo', repoPath];
   if (mode && mode !== 'both') args.push('--mode', mode);
-  const userConfig = loadUserConfig(repoPath);
-  const runtimeConfig = getRuntimeConfig(repoPath, userConfig);
-  const envCandidate = { ...process.env, ...extraEnv };
-  const runtimeEnv = resolveRuntimeEnv(runtimeConfig, envCandidate);
-  return spawnWithLog(args, runtimeEnv, logPath);
+  return spawnWithLog(args, extraEnv, logPath);
 };
 
 const handleSync = async () => {
@@ -398,11 +370,7 @@ const handleWork = async () => {
 const handleServe = async () => {
   const apiPath = path.join(toolRoot, 'tools', 'api-server.js');
   const repoArg = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
-  logThreadpoolInfo(repoArg, 'indexer');
-  const userConfig = loadUserConfig(repoArg);
-  const runtimeConfig = getRuntimeConfig(repoArg, userConfig);
-  const env = resolveRuntimeEnv(runtimeConfig, process.env);
-  const child = spawn(process.execPath, [apiPath, '--repo', repoArg], { stdio: 'inherit', env });
+  const child = spawn(process.execPath, [apiPath, '--repo', repoArg], { stdio: 'inherit' });
   child.on('exit', (code) => process.exit(code ?? 0));
 };
 
@@ -411,8 +379,6 @@ if (command === 'sync') {
 } else if (command === 'enqueue') {
   await handleEnqueue();
 } else if (command === 'work') {
-  const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
-  logThreadpoolInfo(repoRoot, 'indexer');
   await handleWork();
 } else if (command === 'status') {
   await handleStatus();

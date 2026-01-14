@@ -33,17 +33,7 @@ if (build.status !== 0) {
 
 const server = spawn(
   process.execPath,
-  [
-    serverPath,
-    '--port',
-    '0',
-    '--json',
-    '--quiet',
-    '--repo',
-    fixtureRoot,
-    '--allowed-repo-roots',
-    emptyRepo
-  ],
+  [serverPath, '--port', '0', '--json', '--quiet', '--repo', fixtureRoot],
   { env, stdio: ['ignore', 'pipe', 'pipe'] }
 );
 
@@ -141,14 +131,6 @@ try {
   });
   if (unknownField.status !== 400 || unknownField.body?.code !== 'INVALID_REQUEST') {
     throw new Error('api-server should reject unknown fields');
-  }
-
-  const forbidden = await requestJson('POST', '/search', {
-    repoPath: cacheRoot,
-    query: 'return'
-  });
-  if (forbidden.status !== 403 || forbidden.body?.code !== 'FORBIDDEN') {
-    throw new Error('api-server should reject disallowed repo paths');
   }
 
   const noIndex = await requestJson('POST', '/search', {

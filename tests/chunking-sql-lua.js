@@ -27,18 +27,4 @@ if (pgChunks.length !== 2) {
   process.exit(1);
 }
 
-const standardSql = "SELECT 'It''s; fine' AS msg; SELECT 2;";
-const standardChunks = buildSqlChunks(standardSql, { dialect: 'generic' }) || [];
-if (standardChunks.length !== 2) {
-  console.error(`Expected 2 statements with standard SQL escaping, got ${standardChunks.length}.`);
-  process.exit(1);
-}
-
-const standardDoubleQuotes = "SELECT \"A\"\"B;C\" AS ident; SELECT 3;";
-const doubleChunks = buildSqlChunks(standardDoubleQuotes, { dialect: 'generic' }) || [];
-if (doubleChunks.length !== 2) {
-  console.error(`Expected 2 statements with doubled identifier quotes, got ${doubleChunks.length}.`);
-  process.exit(1);
-}
-
 console.log('sql/lua chunking test passed');

@@ -61,22 +61,8 @@ const writeCache = (filePath, value) => {
 const shouldTreatAsTooLarge = (err) => {
   if (!err) return false;
   if (err.code === 'ERR_STRING_TOO_LONG') return true;
-  if (err.code === 'ERR_BUFFER_TOO_LARGE' || err.code === 'ERR_OUT_OF_RANGE') return true;
   const message = typeof err.message === 'string' ? err.message : '';
   return message.includes('Invalid string length');
-};
-
-const gunzipWithLimit = (buffer, maxBytes, sourcePath) => {
-  try {
-    const limit = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
-    const outputLimit = limit > 0 ? limit + 1024 : 0;
-    return gunzipSync(buffer, outputLimit > 0 ? { maxOutputLength: outputLimit } : undefined);
-  } catch (err) {
-    if (shouldTreatAsTooLarge(err)) {
-      throw toJsonTooLargeError(sourcePath, maxBytes);
-    }
-    throw err;
-  }
 };
 
 const readBuffer = (targetPath, maxBytes) => {
@@ -104,7 +90,7 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const tryRead = (targetPath, options = {}) => {
     const { gzip = false, cleanup = false } = options;
     const buffer = readBuffer(targetPath, maxBytes);
-    const parsed = parseBuffer(gzip ? gunzipWithLimit(buffer, maxBytes, targetPath) : buffer, targetPath);
+    const parsed = parseBuffer(gzip ? gunzipSync(buffer) : buffer, targetPath);
     if (cleanup) cleanupBak(targetPath);
     return parsed;
   };
