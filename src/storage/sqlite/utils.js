@@ -93,7 +93,7 @@ export function loadOptional(dir, name) {
  * @param {string} modelId
  * @returns {object|null}
  */
-export function loadIndex(dir, modelId) {
+export async function loadIndex(dir, modelId) {
   const chunkMetaPath = path.join(dir, 'chunk_meta.json');
   const chunkMetaJsonlPath = path.join(dir, 'chunk_meta.jsonl');
   const chunkMetaMetaPath = path.join(dir, 'chunk_meta.meta.json');
@@ -102,7 +102,7 @@ export function loadIndex(dir, modelId) {
     && !fs.existsSync(chunkMetaMetaPath)) {
     return null;
   }
-  const chunkMeta = loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES });
+  const chunkMeta = await loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES });
   const denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
   if (denseVec && !denseVec.model) denseVec.model = modelId || null;
   return {

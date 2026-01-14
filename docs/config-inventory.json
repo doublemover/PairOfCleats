@@ -1012,14 +1012,19 @@
       "type": "boolean",
       "enum": null
     },
-    {
-      "path": "indexing.pythonAst.maxQueued",
-      "type": "number",
-      "enum": null
-    },
-    {
-      "path": "indexing.pythonAst.maxRetries",
-      "type": "number",
+      {
+        "path": "indexing.pythonAst.maxQueued",
+        "type": "number",
+        "enum": null
+      },
+      {
+        "path": "indexing.pythonAst.maxTextBytes",
+        "type": "number",
+        "enum": null
+      },
+      {
+        "path": "indexing.pythonAst.maxRetries",
+        "type": "number",
       "enum": null
     },
     {

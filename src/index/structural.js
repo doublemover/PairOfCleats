@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { readJsonFile, readJsonLinesArraySync } from '../shared/artifact-io.js';
+import { readJsonFile, readJsonLinesArray } from '../shared/artifact-io.js';
 import { toPosix } from '../shared/files.js';
 
 const normalizePath = (repoRoot, rawPath) => {
@@ -35,9 +35,9 @@ const normalizeMatch = (repoRoot, entry) => {
   };
 };
 
-const readStructuralResults = (jsonlPath, jsonPath) => {
+const readStructuralResults = async (jsonlPath, jsonPath) => {
   if (jsonlPath && fs.existsSync(jsonlPath)) {
-    return readJsonLinesArraySync(jsonlPath);
+    return readJsonLinesArray(jsonlPath);
   }
   if (jsonPath && fs.existsSync(jsonPath)) {
     const payload = readJsonFile(jsonPath);
@@ -47,13 +47,13 @@ const readStructuralResults = (jsonlPath, jsonPath) => {
   return [];
 };
 
-export const loadStructuralMatches = ({ repoRoot, repoCacheRoot, log }) => {
+export const loadStructuralMatches = async ({ repoRoot, repoCacheRoot, log }) => {
   if (!repoCacheRoot) return null;
   const baseDir = path.join(repoCacheRoot, 'structural');
   const jsonlPath = path.join(baseDir, 'structural.jsonl');
   const jsonPath = path.join(baseDir, 'structural.json');
   if (!fs.existsSync(jsonlPath) && !fs.existsSync(jsonPath)) return null;
-  const entries = readStructuralResults(jsonlPath, jsonPath);
+  const entries = await readStructuralResults(jsonlPath, jsonPath);
   if (!entries.length) return null;
   const matchesByFile = new Map();
   let accepted = 0;

@@ -1,11 +1,25 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createInterface } from 'node:readline';
+import { getHeapStatistics } from 'node:v8';
 import { gunzipSync } from 'node:zlib';
 
 const MAX_JSON_BYTES_ENV = Number(process.env.PAIROFCLEATS_MAX_JSON_BYTES);
+const DEFAULT_MAX_JSON_BYTES = (() => {
+  const fallback = 128 * 1024 * 1024;
+  try {
+    const heapLimit = Number(getHeapStatistics()?.heap_size_limit);
+    if (!Number.isFinite(heapLimit) || heapLimit <= 0) return fallback;
+    const scaled = Math.floor(heapLimit * 0.1);
+    const bounded = Math.min(fallback, scaled);
+    return Math.max(32 * 1024 * 1024, bounded);
+  } catch {
+    return fallback;
+  }
+})();
 export const MAX_JSON_BYTES = Number.isFinite(MAX_JSON_BYTES_ENV) && MAX_JSON_BYTES_ENV > 0
   ? Math.floor(MAX_JSON_BYTES_ENV)
-  : 512 * 1024 * 1024 - 1024;
+  : DEFAULT_MAX_JSON_BYTES;
 
 const toJsonTooLargeError = (filePath, size) => {
   const err = new Error(
@@ -66,6 +80,20 @@ const shouldTreatAsTooLarge = (err) => {
   return message.includes('Invalid string length');
 };
 
+const shouldAbortForHeap = (bytes) => {
+  try {
+    const stats = getHeapStatistics();
+    const limit = Number(stats?.heap_size_limit);
+    const used = Number(stats?.used_heap_size);
+    if (!Number.isFinite(limit) || !Number.isFinite(used) || limit <= 0) return false;
+    const remaining = limit - used;
+    if (!Number.isFinite(remaining) || remaining <= 0) return false;
+    return bytes * 3 > remaining;
+  } catch {
+    return false;
+  }
+};
+
 const gunzipWithLimit = (buffer, maxBytes, sourcePath) => {
   try {
     const limit = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
@@ -90,6 +118,9 @@ const readBuffer = (targetPath, maxBytes) => {
 export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const parseBuffer = (buffer, sourcePath) => {
     if (buffer.length > maxBytes) {
+      throw toJsonTooLargeError(sourcePath, buffer.length);
+    }
+    if (shouldAbortForHeap(buffer.length)) {
       throw toJsonTooLargeError(sourcePath, buffer.length);
     }
     try {
@@ -145,12 +176,62 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   throw new Error(`Missing JSON artifact: ${filePath}`);
 };
 
-const readJsonFileCached = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
-  const cached = readCache(filePath);
-  if (cached) return cached;
-  const data = readJsonFile(filePath, { maxBytes });
-  writeCache(filePath, data);
-  return data;
+export const readJsonLinesArray = async (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
+  const parseLine = (line, targetPath) => {
+    const trimmed = line.trim();
+    if (!trimmed) return null;
+    if (trimmed.length > maxBytes) {
+      throw toJsonTooLargeError(targetPath, trimmed.length);
+    }
+    try {
+      return JSON.parse(trimmed);
+    } catch (err) {
+      if (shouldTreatAsTooLarge(err)) {
+        throw toJsonTooLargeError(targetPath, trimmed.length);
+      }
+      throw err;
+    }
+  };
+  const tryRead = async (targetPath, cleanup = false) => {
+    const stat = fs.statSync(targetPath);
+    if (stat.size > maxBytes) {
+      throw toJsonTooLargeError(targetPath, stat.size);
+    }
+    const parsed = [];
+    const stream = fs.createReadStream(targetPath, { encoding: 'utf8' });
+    const rl = createInterface({ input: stream, crlfDelay: Infinity });
+    try {
+      for await (const line of rl) {
+        const entry = parseLine(line, targetPath);
+        if (entry !== null) parsed.push(entry);
+      }
+    } catch (err) {
+      if (shouldTreatAsTooLarge(err)) {
+        throw toJsonTooLargeError(targetPath, stat.size);
+      }
+      throw err;
+    } finally {
+      rl.close();
+      stream.destroy();
+    }
+    if (cleanup) cleanupBak(targetPath);
+    return parsed;
+  };
+  const bakPath = getBakPath(filePath);
+  if (fs.existsSync(filePath)) {
+    try {
+      return await tryRead(filePath, true);
+    } catch (err) {
+      if (fs.existsSync(bakPath)) {
+        return await tryRead(bakPath);
+      }
+      throw err;
+    }
+  }
+  if (fs.existsSync(bakPath)) {
+    return await tryRead(bakPath);
+  }
+  throw new Error(`Missing JSONL artifact: ${filePath}`);
 };
 
 export const readJsonLinesArraySync = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
@@ -207,7 +288,7 @@ const readShardFiles = (dir, prefix) => {
 
 const existsOrBak = (filePath) => fs.existsSync(filePath) || fs.existsSync(getBakPath(filePath));
 
-export const loadChunkMeta = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
+export const loadChunkMeta = async (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const metaPath = path.join(dir, 'chunk_meta.meta.json');
   const partsDir = path.join(dir, 'chunk_meta.parts');
   if (existsOrBak(metaPath) || fs.existsSync(partsDir)) {
@@ -218,11 +299,16 @@ export const loadChunkMeta = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
     if (!parts.length) {
       throw new Error(`Missing chunk_meta shard files in ${partsDir}`);
     }
-    return parts.flatMap((partPath) => readJsonLinesArraySync(partPath, { maxBytes }));
+    const out = [];
+    for (const partPath of parts) {
+      const part = await readJsonLinesArray(partPath, { maxBytes });
+      for (const entry of part) out.push(entry);
+    }
+    return out;
   }
   const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
   if (existsOrBak(jsonlPath)) {
-    return readJsonLinesArraySync(jsonlPath, { maxBytes });
+    return readJsonLinesArray(jsonlPath, { maxBytes });
   }
   const jsonPath = path.join(dir, 'chunk_meta.json');
   if (existsOrBak(jsonPath)) {
@@ -244,12 +330,18 @@ export const loadTokenPostings = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
     }
     const vocab = [];
     const postings = [];
+    const pushChunked = (target, items) => {
+      const CHUNK = 4096;
+      for (let i = 0; i < items.length; i += CHUNK) {
+        target.push(...items.slice(i, i + CHUNK));
+      }
+    };
     for (const shardPath of shards) {
-      const shard = readJsonFileCached(shardPath, { maxBytes });
+      const shard = readJsonFile(shardPath, { maxBytes });
       const shardVocab = Array.isArray(shard?.vocab) ? shard.vocab : (Array.isArray(shard?.arrays?.vocab) ? shard.arrays.vocab : []);
       const shardPostings = Array.isArray(shard?.postings) ? shard.postings : (Array.isArray(shard?.arrays?.postings) ? shard.arrays.postings : []);
-      vocab.push(...shardVocab);
-      postings.push(...shardPostings);
+      if (shardVocab.length) pushChunked(vocab, shardVocab);
+      if (shardPostings.length) pushChunked(postings, shardPostings);
     }
     const docLengths = Array.isArray(meta?.docLengths)
       ? meta.docLengths

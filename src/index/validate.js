@@ -368,7 +368,7 @@ export async function validateIndexArtifacts(input = {}) {
       }
     }
     try {
-      const chunkMeta = loadChunkMeta(dir);
+      const chunkMeta = await loadChunkMeta(dir);
       validateSchema(report, mode, 'chunk_meta', chunkMeta, 'Rebuild index artifacts for this mode.');
       validateChunkIds(report, mode, chunkMeta);
       validateMetaV2(report, mode, chunkMeta);

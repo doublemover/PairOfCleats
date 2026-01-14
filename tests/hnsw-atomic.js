@@ -57,7 +57,7 @@ if (!fs.existsSync(`${hnswIndexPath}.bak`)) {
   process.exit(1);
 }
 
-const chunkMeta = loadChunkMeta(codeIndexDir);
+const chunkMeta = await loadChunkMeta(codeIndexDir);
 const meta = readJsonFile(hnswMetaPath);
 if (!Number.isFinite(meta?.count) || !Number.isFinite(meta?.expectedCount)) {
   console.error('hnsw atomic test failed: missing count fields in HNSW meta');

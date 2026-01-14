@@ -18,6 +18,16 @@ const SQL_PARSER_DIALECTS = {
  * SQL language chunking and relations.
  * Statement-based parser for schema objects.
  */
+
+function hasNonWhitespace(text, start, end) {
+  for (let i = start; i < end; i += 1) {
+    const code = text.charCodeAt(i);
+    // Common ASCII whitespace: tab, lf, cr, space, form-feed.
+    if (code !== 9 && code !== 10 && code !== 13 && code !== 32 && code !== 12) return true;
+  }
+  return false;
+}
+
 function splitSqlStatements(text) {
   const statements = [];
   let start = 0;
@@ -113,8 +123,7 @@ function splitSqlStatements(text) {
     if (!inSingle && !inDouble) {
       if (delimiter && text.startsWith(delimiter, i)) {
         const end = i + delimiter.length;
-        const slice = text.slice(start, end);
-        if (slice.trim()) statements.push({ start, end, text: slice });
+        if (hasNonWhitespace(text, start, end)) statements.push({ start, end });
         start = end;
         i = end - 1;
         continue;
@@ -132,15 +141,15 @@ function splitSqlStatements(text) {
       }
     }
   }
-  if (start < text.length) {
-    const slice = text.slice(start);
-    if (slice.trim()) statements.push({ start, end: text.length, text: slice });
+  if (start < text.length && hasNonWhitespace(text, start, text.length)) {
+    statements.push({ start, end: text.length });
   }
   return statements;
 }
 
 function stripSqlComments(text) {
-  let out = '';
+  // Build via array-join to avoid quadratic string concatenation for large statements.
+  const out = [];
   let inSingle = false;
   let inDouble = false;
   let inLineComment = false;
@@ -151,7 +160,7 @@ function stripSqlComments(text) {
     if (inLineComment) {
       if (ch === '\n') {
         inLineComment = false;
-        out += ch;
+        out.push(ch);
       }
       continue;
     }
@@ -177,7 +186,7 @@ function stripSqlComments(text) {
     if (!inDouble && ch === '\'') {
       if (inSingle) {
         if (next === '\'') {
-          out += "''";
+          out.push("''");
           i++;
           continue;
         }
@@ -188,7 +197,7 @@ function stripSqlComments(text) {
     } else if (!inSingle && ch === '"') {
       if (inDouble) {
         if (next === '"') {
-          out += '""';
+          out.push('""');
           i++;
           continue;
         }
@@ -197,9 +206,9 @@ function stripSqlComments(text) {
         inDouble = true;
       }
     }
-    out += ch;
+    out.push(ch);
   }
-  return out;
+  return out.join('');
 }
 
 const SQL_FLOW_SKIP = new Set();
@@ -320,34 +329,55 @@ function normalizeSqlIdentifier(raw) {
   return String(raw).replace(/[\"`\[\]]/g, '').trim();
 }
 
-function collectSqlTablesFromAst(node, tables) {
-  if (!node) return;
-  if (Array.isArray(node)) {
-    for (const entry of node) collectSqlTablesFromAst(entry, tables);
-    return;
-  }
-  if (typeof node !== 'object') return;
-  if (typeof node.table === 'string') {
-    const cleaned = normalizeSqlIdentifier(node.table);
-    if (cleaned) tables.add(cleaned);
-  } else if (node.table && typeof node.table === 'object') {
-    if (typeof node.table.table === 'string') {
-      const cleaned = normalizeSqlIdentifier(node.table.table);
-      if (cleaned) tables.add(cleaned);
+function collectSqlTablesFromAst(root, tables) {
+  if (!root) return;
+
+  // Iterative traversal to avoid deep recursion and to reduce per-node allocations.
+  const stack = [root];
+  const seen = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
+
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node || typeof node !== 'object') continue;
+    if (seen) {
+      if (seen.has(node)) continue;
+      seen.add(node);
     }
-    if (typeof node.table.name === 'string') {
-      const cleaned = normalizeSqlIdentifier(node.table.name);
-      if (cleaned) tables.add(cleaned);
+
+    if (Array.isArray(node)) {
+      for (let i = node.length - 1; i >= 0; i -= 1) {
+        stack.push(node[i]);
+      }
+      continue;
     }
-  }
-  if (Array.isArray(node.tableList)) {
-    for (const entry of node.tableList) {
-      const cleaned = normalizeSqlIdentifier(entry);
+
+    if (typeof node.table === 'string') {
+      const cleaned = normalizeSqlIdentifier(node.table);
       if (cleaned) tables.add(cleaned);
+    } else if (node.table && typeof node.table === 'object') {
+      if (typeof node.table.table === 'string') {
+        const cleaned = normalizeSqlIdentifier(node.table.table);
+        if (cleaned) tables.add(cleaned);
+      }
+      if (typeof node.table.name === 'string') {
+        const cleaned = normalizeSqlIdentifier(node.table.name);
+        if (cleaned) tables.add(cleaned);
+      }
     }
-  }
-  for (const value of Object.values(node)) {
-    collectSqlTablesFromAst(value, tables);
+
+    if (Array.isArray(node.tableList)) {
+      for (const entry of node.tableList) {
+        const cleaned = normalizeSqlIdentifier(entry);
+        if (cleaned) tables.add(cleaned);
+      }
+    }
+
+    // Avoid Object.values(...) (allocates an array per node).
+    for (const key in node) {
+      if (!Object.prototype.hasOwnProperty.call(node, key)) continue;
+      const value = node[key];
+      if (value && typeof value === 'object') stack.push(value);
+    }
   }
 }
 
@@ -388,12 +418,13 @@ export function buildSqlChunks(text, options = {}) {
   const dialect = options.dialect || 'generic';
   const decls = [];
   for (const stmt of statements) {
-    const { kind, name } = classifySqlStatement(stmt.text);
+    const stmtText = text.slice(stmt.start, stmt.end);
+    const { kind, name } = classifySqlStatement(stmtText);
     const startLine = offsetToLine(lineIndex, stmt.start);
     const endLine = offsetToLine(lineIndex, stmt.end);
-    const leading = extractSqlLeadingDoc(stmt.text);
+    const leading = extractSqlLeadingDoc(stmtText);
     const docstring = extractDocComment(lines, startLine - 1, SQL_DOC_OPTIONS) || leading.docstring;
-    const signature = leading.signature || stmt.text.trim().split('\n')[0].trim();
+    const signature = leading.signature || stmtText.trim().split('\n')[0].trim();
     decls.push({
       start: stmt.start,
       end: stmt.end,

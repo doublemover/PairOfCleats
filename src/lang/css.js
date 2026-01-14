@@ -1,6 +1,7 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { extractDocComment, sliceSignature } from './shared.js';
 import { getTreeSitterParser } from './tree-sitter.js';
+import { getNamedChild, getNamedChildCount } from './tree-sitter/ast.js';
 
 const RULE_NODES = new Set([
   'rule_set',
@@ -27,12 +28,13 @@ function gatherRuleNodes(root) {
   const stack = [root];
   while (stack.length) {
     const node = stack.pop();
-    if (!node || node.isMissing) continue;
+    if (!node) continue;
+    const missing = typeof node.isMissing === 'function' ? node.isMissing() : node.isMissing;
+    if (missing) continue;
     if (RULE_NODES.has(node.type)) nodes.push(node);
-    if (node.namedChildren && node.namedChildren.length) {
-      for (let i = node.namedChildren.length - 1; i >= 0; i -= 1) {
-        stack.push(node.namedChildren[i]);
-      }
+    const count = getNamedChildCount(node);
+    for (let i = count - 1; i >= 0; i -= 1) {
+      stack.push(getNamedChild(node, i));
     }
   }
   return nodes;
@@ -50,46 +52,63 @@ export function collectCssImports(text) {
 export function buildCssChunks(text) {
   const parser = getTreeSitterParser('css');
   if (!parser) return buildCssHeuristicChunks(text);
-  let tree;
+  let tree = null;
   try {
-    tree = parser.parse(text);
-  } catch {
-    return buildCssHeuristicChunks(text);
+    try {
+      tree = parser.parse(text);
+    } catch {
+      return buildCssHeuristicChunks(text);
+    }
+
+    let rootNode = null;
+    try {
+      rootNode = tree?.rootNode;
+    } catch {
+      return buildCssHeuristicChunks(text);
+    }
+    if (!rootNode) return buildCssHeuristicChunks(text);
+
+    const nodes = gatherRuleNodes(rootNode);
+    if (!nodes.length) return buildCssHeuristicChunks(text);
+
+    const lineIndex = buildLineIndex(text);
+    const lines = text.split('\n');
+    const chunks = [];
+    for (const node of nodes) {
+      const name = extractRuleName(text, node);
+      if (!name) continue;
+      const start = node.startIndex;
+      const end = node.endIndex;
+      const startLine = offsetToLine(lineIndex, start);
+      const endLine = offsetToLine(lineIndex, Math.max(start, end - 1));
+      const signature = sliceSignature(text, start, Math.min(end, start + 240));
+      const docstring = extractDocComment(lines, startLine - 1, {
+        blockStarts: ['/**', '/*']
+      });
+      chunks.push({
+        start,
+        end,
+        name,
+        kind: 'StyleRule',
+        meta: {
+          startLine,
+          endLine,
+          signature,
+          docstring
+        }
+      });
+    }
+    if (!chunks.length) return null;
+    chunks.sort((a, b) => a.start - b.start);
+    return chunks;
+  } finally {
+    // Ensure we release WASM-backed tree memory.
+    try {
+      if (tree && typeof tree.delete === 'function') tree.delete();
+    } catch {
+      // ignore disposal failures
+    }
   }
-  const rootNode = tree?.rootNode;
-  if (!rootNode) return buildCssHeuristicChunks(text);
-  const nodes = gatherRuleNodes(rootNode);
-  if (!nodes.length) return buildCssHeuristicChunks(text);
-  const lineIndex = buildLineIndex(text);
-  const lines = text.split('\n');
-  const chunks = [];
-  for (const node of nodes) {
-    const name = extractRuleName(text, node);
-    if (!name) continue;
-    const start = node.startIndex;
-    const end = node.endIndex;
-    const startLine = offsetToLine(lineIndex, start);
-    const endLine = offsetToLine(lineIndex, Math.max(start, end - 1));
-    const signature = sliceSignature(text, start, Math.min(end, start + 240));
-    const docstring = extractDocComment(lines, startLine - 1, {
-      blockStarts: ['/**', '/*']
-    });
-    chunks.push({
-      start,
-      end,
-      name,
-      kind: 'StyleRule',
-      meta: {
-        startLine,
-        endLine,
-        signature,
-        docstring
-      }
-    });
-  }
-  if (!chunks.length) return null;
-  chunks.sort((a, b) => a.start - b.start);
-  return chunks;
 }
 
 function buildCssHeuristicChunks(text) {

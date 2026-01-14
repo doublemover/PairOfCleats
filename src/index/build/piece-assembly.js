@@ -50,11 +50,11 @@ const readField = (value, key) => {
   return null;
 };
 
-const loadIndexArtifacts = (dir) => {
+const loadIndexArtifacts = async (dir) => {
   if (!fsSync.existsSync(dir)) {
     throw new Error(`Missing input index directory: ${dir}`);
   }
-  const chunkMeta = loadChunkMeta(dir);
+  const chunkMeta = await loadChunkMeta(dir);
   const fileMeta = readJsonOptional(dir, 'file_meta.json');
   const fileMetaById = new Map();
   if (Array.isArray(fileMeta)) {
@@ -212,7 +212,7 @@ export async function assembleIndexPieces({
   const stageInputs = [];
 
   for (const dir of inputs) {
-    const input = loadIndexArtifacts(dir);
+    const input = await loadIndexArtifacts(dir);
     const chunks = Array.isArray(input.chunkMeta) ? input.chunkMeta : [];
     const docLengths = Array.isArray(input.tokenPostings?.docLengths)
       ? input.tokenPostings.docLengths

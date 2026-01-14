@@ -18,7 +18,7 @@ import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../shared/
  * @param {{modelIdDefault:string}} options
  * @returns {object}
  */
-export function loadIndex(dir, options) {
+export async function loadIndex(dir, options) {
   const {
     modelIdDefault,
     fileChargramN,
@@ -42,7 +42,7 @@ export function loadIndex(dir, options) {
       return null;
     }
   };
-  const chunkMeta = loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES });
+  const chunkMeta = await loadChunkMeta(dir, { maxBytes: MAX_JSON_BYTES });
   const fileMetaRaw = loadOptional('file_meta.json');
   let fileMetaById = null;
   if (Array.isArray(fileMetaRaw)) {

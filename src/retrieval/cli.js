@@ -422,7 +422,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       modelIdForProse,
       modelIdForExtractedProse,
       modelIdForRecords
-    } = loadSearchIndexes({
+    } = await loadSearchIndexes({
       rootDir,
       userConfig,
       searchMode,

@@ -154,7 +154,7 @@ const storeArtifacts = (db, meta, artifacts) => {
 };
 
 const loadArtifactsForMode = (indexDir, mode) => {
-  const chunkMeta = loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES });
+  const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES });
   const tokenPostings = loadTokenPostings(indexDir, { maxBytes: MAX_JSON_BYTES });
   const fileMeta = readJsonOptional(path.join(indexDir, 'file_meta.json'));
   const fileRelations = readJsonOptional(path.join(indexDir, 'file_relations.json'));

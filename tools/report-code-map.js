@@ -108,7 +108,7 @@ if (!argv.refresh && fs.existsSync(cachePath)) {
 }
 
 if (!mapModel) {
-  mapModel = buildCodeMap({ repoRoot, indexDir, options: buildOptions });
+  mapModel = await buildCodeMap({ repoRoot, indexDir, options: buildOptions });
   mapModel.root.id = getRepoId(repoRoot);
   try {
     ensureDir(cachePath);

@@ -1,5 +1,4 @@
 {
-  "extraIgnore": ["**/*.swift"],
   // Enable sqlite index artifacts for search backends.
   // Speed impact: adds sqlite build time when stage4 runs.
   "sqlite": {
@@ -15,15 +14,30 @@
     "annDefault": true,
     // Dense vector combination strategy for search.
     // Speed impact: minor impact on embedding/storage cost during indexing.
-    "denseVectorMode": "merged"
+    "denseVectorMode": "merged",
+    "annBackend": "lancedb"
   },
   // Index build pipeline options.
   // Speed impact: many flags here change CPU/IO per file.
   "indexing": {
+    "embeddingBatchSize": 128,
+    "embeddings": {
+      "mode": "inline",
+      "batchSize": 32,
+      "concurrency": true,
+      "lancedb": {
+        "enabled": true,
+        "table": "vectors",
+        "idColumn": "id",
+        "embeddingColumn": "vector",
+        "metric": "cosine",
+        "batchSize": 8192
+      }
+    },
     "workerPool": {
         "enabled": true,
-        "maxWorkers": 8
-      },
+        "maxWorkers": 16
+    },
     // Sparse postings generation settings.
     // Speed impact: heavier postings settings increase indexing time/size.
     "postings": {
@@ -78,10 +92,10 @@
     "typeInferenceCrossFile": true,
     // Collect git blame/churn metadata per file.
     // Speed impact: heavy IO/CPU; can dominate indexing time.
-    "gitBlame": false,
+    "gitBlame": true,
     // Run linting pass for diagnostics.
     // Speed impact: extra CPU per file.
-    "lint": false,
+    "lint": true,
     // Compute complexity metrics.
     // Speed impact: extra CPU per file.
     "complexity": true,
@@ -98,15 +112,13 @@
       // Enable tree-sitter parsing.
       // Speed impact: moderate CPU on supported languages.
       "enabled": true,
-      "languages": {
-        "swift": false
-      }
   },
   // Runtime process limits for the indexer.
   // Speed impact: higher heap reduces GC stalls on big repos.
   "runtime": {
+    "uvThreadpoolSize": 32,
     // Max Node heap size in MB for the indexer process.
     // Speed impact: too low slows indexing; higher reduces GC overhead.
-    "maxOldSpaceMb": 8192
+    "maxOldSpaceMb": 65536
   }
 }

@@ -110,24 +110,30 @@ function findNameNode(node, config) {
     const named = findDescendantByType(declarator, nameTypes, 8);
     if (named) return named;
   }
+  // Depth-limited breadth-first search for a reasonable name node.
+  // Avoid Array#shift() here (O(n) per operation) to keep this path cheap.
   const queue = [];
+  const depths = [];
   const initialCount = getNamedChildCount(node);
   for (let i = 0; i < initialCount; i += 1) {
-    queue.push(getNamedChild(node, i));
+    const child = getNamedChild(node, i);
+    if (!child) continue;
+    queue.push(child);
+    depths.push(1);
   }
-  let depth = 0;
-  while (queue.length && depth < 4) {
-    const next = queue.shift();
-    if (!next) {
-      depth += 1;
-      continue;
-    }
+  for (let q = 0; q < queue.length; q += 1) {
+    const next = queue[q];
+    const depth = depths[q] || 1;
+    if (!next) continue;
     if (nameTypes.has(next.type)) return next;
+    if (depth >= 4) continue;
     const childCount = getNamedChildCount(next);
     for (let i = 0; i < childCount; i += 1) {
-      queue.push(getNamedChild(next, i));
+      const child = getNamedChild(next, i);
+      if (!child) continue;
+      queue.push(child);
+      depths.push(depth + 1);
     }
-    depth += 1;
   }
   return null;
 }
@@ -258,65 +264,78 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   }
   const config = LANG_CONFIG[resolvedId];
   if (!config) return null;
-  let tree;
+  let tree = null;
   try {
-    const parseTimeoutMs = resolveParseTimeoutMs(options, resolvedId);
-    if (typeof parser.setTimeoutMicros === 'function') {
-      parser.setTimeoutMicros(parseTimeoutMs ? parseTimeoutMs * 1000 : 0);
-    }
-    tree = parser.parse(text);
-  } catch (err) {
-    recordMetrics();
-    const message = err?.message || String(err);
-    if (/timeout/i.test(message)) {
-      if (options?.log && !loggedParseTimeouts.has(resolvedId)) {
-        options.log(`Tree-sitter parse timed out for ${resolvedId}; falling back to heuristic chunking.`);
-        loggedParseTimeouts.add(resolvedId);
+    try {
+      const parseTimeoutMs = resolveParseTimeoutMs(options, resolvedId);
+      if (typeof parser.setTimeoutMicros === 'function') {
+        parser.setTimeoutMicros(parseTimeoutMs ? parseTimeoutMs * 1000 : 0);
+      }
+      tree = parser.parse(text);
+    } catch (err) {
+      recordMetrics();
+      const message = err?.message || String(err);
+      if (/timeout/i.test(message)) {
+        if (options?.log && !loggedParseTimeouts.has(resolvedId)) {
+          options.log(`Tree-sitter parse timed out for ${resolvedId}; falling back to heuristic chunking.`);
+          loggedParseTimeouts.add(resolvedId);
+        }
+        return null;
       }
       return null;
     }
-    return null;
-  }
-  let rootNode = null;
-  try {
-    rootNode = tree.rootNode;
-  } catch (err) {
-    recordMetrics();
-    if (!loggedParseFailures.has(resolvedId) && options?.log) {
-      options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
-      loggedParseFailures.add(resolvedId);
+
+    let rootNode = null;
+    try {
+      rootNode = tree.rootNode;
+    } catch {
+      recordMetrics();
+      if (!loggedParseFailures.has(resolvedId) && options?.log) {
+        options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
+        loggedParseFailures.add(resolvedId);
+      }
+      return null;
     }
-    return null;
-  }
-  const lineIndex = buildLineIndex(text);
-  const lineAccessor = createLineAccessor(text, lineIndex);
-  let nodes = [];
-  try {
-    nodes = gatherChunkNodes(rootNode, config);
-  } catch (err) {
-    recordMetrics();
-    if (!loggedParseFailures.has(resolvedId) && options?.log) {
-      options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
-      loggedParseFailures.add(resolvedId);
+
+    let nodes = [];
+    try {
+      nodes = gatherChunkNodes(rootNode, config);
+    } catch {
+      recordMetrics();
+      if (!loggedParseFailures.has(resolvedId) && options?.log) {
+        options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
+        loggedParseFailures.add(resolvedId);
+      }
+      return null;
     }
-    return null;
-  }
-  if (!nodes.length) {
+
+    if (!nodes.length) {
+      recordMetrics();
+      return null;
+    }
+
+    const lineIndex = buildLineIndex(text);
+    const lineAccessor = createLineAccessor(text, lineIndex);
+    const chunks = [];
+    for (const node of nodes) {
+      const chunk = toChunk(node, text, config, lineIndex, lineAccessor);
+      if (chunk) chunks.push(chunk);
+    }
+    if (!chunks.length) {
+      recordMetrics();
+      return null;
+    }
+    chunks.sort((a, b) => a.start - b.start);
     recordMetrics();
-    return null;
+    return chunks;
+  } finally {
+    // web-tree-sitter `Tree` objects hold WASM-backed memory and must be explicitly released.
+    try {
+      if (tree && typeof tree.delete === 'function') tree.delete();
+    } catch {
+      // ignore disposal failures
+    }
   }
-  const chunks = [];
-  for (const node of nodes) {
-    const chunk = toChunk(node, text, config, lineIndex, lineAccessor);
-    if (chunk) chunks.push(chunk);
-  }
-  if (!chunks.length) {
-    recordMetrics();
-    return null;
-  }
-  chunks.sort((a, b) => a.start - b.start);
-  recordMetrics();
-  return chunks;
 }
 
 export async function buildTreeSitterChunksAsync({ text, languageId, ext, options }) {

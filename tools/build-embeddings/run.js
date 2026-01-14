@@ -149,7 +149,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     let chunkMeta;
     try {
       if (hasChunkMeta) {
-        chunkMeta = loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES });
+        chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES });
       }
     } catch (err) {
       if (err?.code === 'ERR_JSON_TOO_LARGE') {

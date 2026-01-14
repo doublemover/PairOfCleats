@@ -123,7 +123,7 @@ function findSwiftBodyBounds(text, start) {
     }
     if (inString) {
       if (inTripleString) {
-        if (ch === '"' && text.slice(i, i + 3) === '"""') {
+        if (ch === '"' && text.startsWith('"""', i)) {
           inString = false;
           inTripleString = false;
           i += 2;
@@ -150,7 +150,7 @@ function findSwiftBodyBounds(text, start) {
       continue;
     }
     if (ch === '"') {
-      if (text.slice(i, i + 3) === '"""') {
+      if (text.startsWith('"""', i)) {
         inString = true;
         inTripleString = true;
         i += 2;

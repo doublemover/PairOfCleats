@@ -1,0 +1,565 @@
+--- a/src/lang/tree-sitter/chunking.js
++++ b/src/lang/tree-sitter/chunking.js
+@@ -110,24 +110,30 @@
+     const named = findDescendantByType(declarator, nameTypes, 8);
+     if (named) return named;
+   }
++  // Depth-limited breadth-first search for a reasonable name node.
++  // Avoid Array#shift() here (O(n) per operation) to keep this path cheap.
+   const queue = [];
++  const depths = [];
+   const initialCount = getNamedChildCount(node);
+   for (let i = 0; i < initialCount; i += 1) {
+-    queue.push(getNamedChild(node, i));
+-  }
+-  let depth = 0;
+-  while (queue.length && depth < 4) {
+-    const next = queue.shift();
+-    if (!next) {
+-      depth += 1;
+-      continue;
+-    }
++    const child = getNamedChild(node, i);
++    if (!child) continue;
++    queue.push(child);
++    depths.push(1);
++  }
++  for (let q = 0; q < queue.length; q += 1) {
++    const next = queue[q];
++    const depth = depths[q] || 1;
++    if (!next) continue;
+     if (nameTypes.has(next.type)) return next;
++    if (depth >= 4) continue;
+     const childCount = getNamedChildCount(next);
+     for (let i = 0; i < childCount; i += 1) {
+-      queue.push(getNamedChild(next, i));
++      const child = getNamedChild(next, i);
++      if (!child) continue;
++      queue.push(child);
++      depths.push(depth + 1);
+     }
+-    depth += 1;
+   }
+   return null;
+ }
+@@ -258,65 +264,78 @@
+   }
+   const config = LANG_CONFIG[resolvedId];
+   if (!config) return null;
+-  let tree;
++  let tree = null;
+   try {
+-    const parseTimeoutMs = resolveParseTimeoutMs(options, resolvedId);
+-    if (typeof parser.setTimeoutMicros === 'function') {
+-      parser.setTimeoutMicros(parseTimeoutMs ? parseTimeoutMs * 1000 : 0);
++    try {
++      const parseTimeoutMs = resolveParseTimeoutMs(options, resolvedId);
++      if (typeof parser.setTimeoutMicros === 'function') {
++        parser.setTimeoutMicros(parseTimeoutMs ? parseTimeoutMs * 1000 : 0);
++      }
++      tree = parser.parse(text);
++    } catch (err) {
++      recordMetrics();
++      const message = err?.message || String(err);
++      if (/timeout/i.test(message)) {
++        if (options?.log && !loggedParseTimeouts.has(resolvedId)) {
++          options.log(`Tree-sitter parse timed out for ${resolvedId}; falling back to heuristic chunking.`);
++          loggedParseTimeouts.add(resolvedId);
++        }
++        return null;
++      }
++      return null;
+     }
+-    tree = parser.parse(text);
+-  } catch (err) {
+-    recordMetrics();
+-    const message = err?.message || String(err);
+-    if (/timeout/i.test(message)) {
+-      if (options?.log && !loggedParseTimeouts.has(resolvedId)) {
+-        options.log(`Tree-sitter parse timed out for ${resolvedId}; falling back to heuristic chunking.`);
+-        loggedParseTimeouts.add(resolvedId);
++
++    let rootNode = null;
++    try {
++      rootNode = tree.rootNode;
++    } catch {
++      recordMetrics();
++      if (!loggedParseFailures.has(resolvedId) && options?.log) {
++        options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
++        loggedParseFailures.add(resolvedId);
+       }
+       return null;
+     }
+-    return null;
+-  }
+-  let rootNode = null;
+-  try {
+-    rootNode = tree.rootNode;
+-  } catch (err) {
+-    recordMetrics();
+-    if (!loggedParseFailures.has(resolvedId) && options?.log) {
+-      options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
+-      loggedParseFailures.add(resolvedId);
++
++    let nodes = [];
++    try {
++      nodes = gatherChunkNodes(rootNode, config);
++    } catch {
++      recordMetrics();
++      if (!loggedParseFailures.has(resolvedId) && options?.log) {
++        options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
++        loggedParseFailures.add(resolvedId);
++      }
++      return null;
+     }
+-    return null;
+-  }
+-  const lineIndex = buildLineIndex(text);
+-  const lineAccessor = createLineAccessor(text, lineIndex);
+-  let nodes = [];
+-  try {
+-    nodes = gatherChunkNodes(rootNode, config);
+-  } catch (err) {
+-    recordMetrics();
+-    if (!loggedParseFailures.has(resolvedId) && options?.log) {
+-      options.log(`Tree-sitter parse failed for ${resolvedId}; falling back to heuristic chunking.`);
+-      loggedParseFailures.add(resolvedId);
++
++    if (!nodes.length) {
++      recordMetrics();
++      return null;
+     }
+-    return null;
+-  }
+-  if (!nodes.length) {
+-    recordMetrics();
+-    return null;
+-  }
+-  const chunks = [];
+-  for (const node of nodes) {
+-    const chunk = toChunk(node, text, config, lineIndex, lineAccessor);
+-    if (chunk) chunks.push(chunk);
+-  }
+-  if (!chunks.length) {
++
++    const lineIndex = buildLineIndex(text);
++    const lineAccessor = createLineAccessor(text, lineIndex);
++    const chunks = [];
++    for (const node of nodes) {
++      const chunk = toChunk(node, text, config, lineIndex, lineAccessor);
++      if (chunk) chunks.push(chunk);
++    }
++    if (!chunks.length) {
++      recordMetrics();
++      return null;
++    }
++    chunks.sort((a, b) => a.start - b.start);
+     recordMetrics();
+-    return null;
++    return chunks;
++  } finally {
++    // web-tree-sitter `Tree` objects hold WASM-backed memory and must be explicitly released.
++    try {
++      if (tree && typeof tree.delete === 'function') tree.delete();
++    } catch {
++      // ignore disposal failures
++    }
+   }
+-  chunks.sort((a, b) => a.start - b.start);
+-  recordMetrics();
+-  return chunks;
+ }
+ 
+ export async function buildTreeSitterChunksAsync({ text, languageId, ext, options }) {
+--- a/src/lang/css.js
++++ b/src/lang/css.js
+@@ -1,6 +1,7 @@
+ import { buildLineIndex, offsetToLine } from '../shared/lines.js';
+ import { extractDocComment, sliceSignature } from './shared.js';
+ import { getTreeSitterParser } from './tree-sitter.js';
++import { getNamedChild, getNamedChildCount } from './tree-sitter/ast.js';
+ 
+ const RULE_NODES = new Set([
+   'rule_set',
+@@ -27,12 +28,13 @@
+   const stack = [root];
+   while (stack.length) {
+     const node = stack.pop();
+-    if (!node || node.isMissing) continue;
++    if (!node) continue;
++    const missing = typeof node.isMissing === 'function' ? node.isMissing() : node.isMissing;
++    if (missing) continue;
+     if (RULE_NODES.has(node.type)) nodes.push(node);
+-    if (node.namedChildren && node.namedChildren.length) {
+-      for (let i = node.namedChildren.length - 1; i >= 0; i -= 1) {
+-        stack.push(node.namedChildren[i]);
+-      }
++    const count = getNamedChildCount(node);
++    for (let i = count - 1; i >= 0; i -= 1) {
++      stack.push(getNamedChild(node, i));
+     }
+   }
+   return nodes;
+@@ -50,46 +52,63 @@
+ export function buildCssChunks(text) {
+   const parser = getTreeSitterParser('css');
+   if (!parser) return buildCssHeuristicChunks(text);
+-  let tree;
++  let tree = null;
+   try {
+-    tree = parser.parse(text);
+-  } catch {
+-    return buildCssHeuristicChunks(text);
+-  }
+-  const rootNode = tree?.rootNode;
+-  if (!rootNode) return buildCssHeuristicChunks(text);
+-  const nodes = gatherRuleNodes(rootNode);
+-  if (!nodes.length) return buildCssHeuristicChunks(text);
+-  const lineIndex = buildLineIndex(text);
+-  const lines = text.split('\n');
+-  const chunks = [];
+-  for (const node of nodes) {
+-    const name = extractRuleName(text, node);
+-    if (!name) continue;
+-    const start = node.startIndex;
+-    const end = node.endIndex;
+-    const startLine = offsetToLine(lineIndex, start);
+-    const endLine = offsetToLine(lineIndex, Math.max(start, end - 1));
+-    const signature = sliceSignature(text, start, Math.min(end, start + 240));
+-    const docstring = extractDocComment(lines, startLine - 1, {
+-      blockStarts: ['/**', '/*']
+-    });
+-    chunks.push({
+-      start,
+-      end,
+-      name,
+-      kind: 'StyleRule',
+-      meta: {
+-        startLine,
+-        endLine,
+-        signature,
+-        docstring
+-      }
+-    });
++    try {
++      tree = parser.parse(text);
++    } catch {
++      return buildCssHeuristicChunks(text);
++    }
++
++    let rootNode = null;
++    try {
++      rootNode = tree?.rootNode;
++    } catch {
++      return buildCssHeuristicChunks(text);
++    }
++    if (!rootNode) return buildCssHeuristicChunks(text);
++
++    const nodes = gatherRuleNodes(rootNode);
++    if (!nodes.length) return buildCssHeuristicChunks(text);
++
++    const lineIndex = buildLineIndex(text);
++    const lines = text.split('\n');
++    const chunks = [];
++    for (const node of nodes) {
++      const name = extractRuleName(text, node);
++      if (!name) continue;
++      const start = node.startIndex;
++      const end = node.endIndex;
++      const startLine = offsetToLine(lineIndex, start);
++      const endLine = offsetToLine(lineIndex, Math.max(start, end - 1));
++      const signature = sliceSignature(text, start, Math.min(end, start + 240));
++      const docstring = extractDocComment(lines, startLine - 1, {
++        blockStarts: ['/**', '/*']
++      });
++      chunks.push({
++        start,
++        end,
++        name,
++        kind: 'StyleRule',
++        meta: {
++          startLine,
++          endLine,
++          signature,
++          docstring
++        }
++      });
++    }
++    if (!chunks.length) return null;
++    chunks.sort((a, b) => a.start - b.start);
++    return chunks;
++  } finally {
++    // Ensure we release WASM-backed tree memory.
++    try {
++      if (tree && typeof tree.delete === 'function') tree.delete();
++    } catch {
++      // ignore disposal failures
++    }
+   }
+-  if (!chunks.length) return null;
+-  chunks.sort((a, b) => a.start - b.start);
+-  return chunks;
+ }
+ 
+ function buildCssHeuristicChunks(text) {
+--- a/src/lang/sql.js
++++ b/src/lang/sql.js
+@@ -18,6 +18,16 @@
+  * SQL language chunking and relations.
+  * Statement-based parser for schema objects.
+  */
++
++function hasNonWhitespace(text, start, end) {
++  for (let i = start; i < end; i += 1) {
++    const code = text.charCodeAt(i);
++    // Common ASCII whitespace: tab, lf, cr, space, form-feed.
++    if (code !== 9 && code !== 10 && code !== 13 && code !== 32 && code !== 12) return true;
++  }
++  return false;
++}
++
+ function splitSqlStatements(text) {
+   const statements = [];
+   let start = 0;
+@@ -113,8 +123,7 @@
+     if (!inSingle && !inDouble) {
+       if (delimiter && text.startsWith(delimiter, i)) {
+         const end = i + delimiter.length;
+-        const slice = text.slice(start, end);
+-        if (slice.trim()) statements.push({ start, end, text: slice });
++        if (hasNonWhitespace(text, start, end)) statements.push({ start, end });
+         start = end;
+         i = end - 1;
+         continue;
+@@ -132,15 +141,15 @@
+       }
+     }
+   }
+-  if (start < text.length) {
+-    const slice = text.slice(start);
+-    if (slice.trim()) statements.push({ start, end: text.length, text: slice });
++  if (start < text.length && hasNonWhitespace(text, start, text.length)) {
++    statements.push({ start, end: text.length });
+   }
+   return statements;
+ }
+ 
+ function stripSqlComments(text) {
+-  let out = '';
++  // Build via array-join to avoid quadratic string concatenation for large statements.
++  const out = [];
+   let inSingle = false;
+   let inDouble = false;
+   let inLineComment = false;
+@@ -151,7 +160,7 @@
+     if (inLineComment) {
+       if (ch === '\n') {
+         inLineComment = false;
+-        out += ch;
++        out.push(ch);
+       }
+       continue;
+     }
+@@ -177,7 +186,7 @@
+     if (!inDouble && ch === '\'') {
+       if (inSingle) {
+         if (next === '\'') {
+-          out += "''";
++          out.push("''");
+           i++;
+           continue;
+         }
+@@ -188,7 +197,7 @@
+     } else if (!inSingle && ch === '"') {
+       if (inDouble) {
+         if (next === '"') {
+-          out += '""';
++          out.push('""');
+           i++;
+           continue;
+         }
+@@ -197,9 +206,9 @@
+         inDouble = true;
+       }
+     }
+-    out += ch;
++    out.push(ch);
+   }
+-  return out;
++  return out.join('');
+ }
+ 
+ const SQL_FLOW_SKIP = new Set();
+@@ -320,34 +329,55 @@
+   return String(raw).replace(/[\"`\[\]]/g, '').trim();
+ }
+ 
+-function collectSqlTablesFromAst(node, tables) {
+-  if (!node) return;
+-  if (Array.isArray(node)) {
+-    for (const entry of node) collectSqlTablesFromAst(entry, tables);
+-    return;
+-  }
+-  if (typeof node !== 'object') return;
+-  if (typeof node.table === 'string') {
+-    const cleaned = normalizeSqlIdentifier(node.table);
+-    if (cleaned) tables.add(cleaned);
+-  } else if (node.table && typeof node.table === 'object') {
+-    if (typeof node.table.table === 'string') {
+-      const cleaned = normalizeSqlIdentifier(node.table.table);
+-      if (cleaned) tables.add(cleaned);
++function collectSqlTablesFromAst(root, tables) {
++  if (!root) return;
++
++  // Iterative traversal to avoid deep recursion and to reduce per-node allocations.
++  const stack = [root];
++  const seen = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
++
++  while (stack.length) {
++    const node = stack.pop();
++    if (!node || typeof node !== 'object') continue;
++    if (seen) {
++      if (seen.has(node)) continue;
++      seen.add(node);
++    }
++
++    if (Array.isArray(node)) {
++      for (let i = node.length - 1; i >= 0; i -= 1) {
++        stack.push(node[i]);
++      }
++      continue;
+     }
+-    if (typeof node.table.name === 'string') {
+-      const cleaned = normalizeSqlIdentifier(node.table.name);
++
++    if (typeof node.table === 'string') {
++      const cleaned = normalizeSqlIdentifier(node.table);
+       if (cleaned) tables.add(cleaned);
++    } else if (node.table && typeof node.table === 'object') {
++      if (typeof node.table.table === 'string') {
++        const cleaned = normalizeSqlIdentifier(node.table.table);
++        if (cleaned) tables.add(cleaned);
++      }
++      if (typeof node.table.name === 'string') {
++        const cleaned = normalizeSqlIdentifier(node.table.name);
++        if (cleaned) tables.add(cleaned);
++      }
+     }
+-  }
+-  if (Array.isArray(node.tableList)) {
+-    for (const entry of node.tableList) {
+-      const cleaned = normalizeSqlIdentifier(entry);
+-      if (cleaned) tables.add(cleaned);
++
++    if (Array.isArray(node.tableList)) {
++      for (const entry of node.tableList) {
++        const cleaned = normalizeSqlIdentifier(entry);
++        if (cleaned) tables.add(cleaned);
++      }
++    }
++
++    // Avoid Object.values(...) (allocates an array per node).
++    for (const key in node) {
++      if (!Object.prototype.hasOwnProperty.call(node, key)) continue;
++      const value = node[key];
++      if (value && typeof value === 'object') stack.push(value);
+     }
+-  }
+-  for (const value of Object.values(node)) {
+-    collectSqlTablesFromAst(value, tables);
+   }
+ }
+ 
+@@ -388,12 +418,13 @@
+   const dialect = options.dialect || 'generic';
+   const decls = [];
+   for (const stmt of statements) {
+-    const { kind, name } = classifySqlStatement(stmt.text);
++    const stmtText = text.slice(stmt.start, stmt.end);
++    const { kind, name } = classifySqlStatement(stmtText);
+     const startLine = offsetToLine(lineIndex, stmt.start);
+     const endLine = offsetToLine(lineIndex, stmt.end);
+-    const leading = extractSqlLeadingDoc(stmt.text);
++    const leading = extractSqlLeadingDoc(stmtText);
+     const docstring = extractDocComment(lines, startLine - 1, SQL_DOC_OPTIONS) || leading.docstring;
+-    const signature = leading.signature || stmt.text.trim().split('\n')[0].trim();
++    const signature = leading.signature || stmtText.trim().split('\n')[0].trim();
+     decls.push({
+       start: stmt.start,
+       end: stmt.end,
+--- a/src/lang/swift.js
++++ b/src/lang/swift.js
+@@ -123,7 +123,7 @@
+     }
+     if (inString) {
+       if (inTripleString) {
+-        if (ch === '"' && text.slice(i, i + 3) === '"""') {
++        if (ch === '"' && text.startsWith('"""', i)) {
+           inString = false;
+           inTripleString = false;
+           i += 2;
+@@ -150,7 +150,7 @@
+       continue;
+     }
+     if (ch === '"') {
+-      if (text.slice(i, i + 3) === '"""') {
++      if (text.startsWith('"""', i)) {
+         inString = true;
+         inTripleString = true;
+         i += 2;
+--- a/src/lang/clike.js
++++ b/src/lang/clike.js
+@@ -145,7 +145,8 @@
+       inString = true;
+       continue;
+     }
+-    if (text.slice(i, i + 4) === '@end') {
++    // Avoid creating short-lived substring objects in this hot loop.
++    if (ch === '@' && text.startsWith('@end', i)) {
+       return i + 4;
+     }
+   }
+--- a/src/lang/go.js
++++ b/src/lang/go.js
+@@ -194,7 +194,8 @@
+       if (bounds.bodyStart === -1) {
+         end = lineIndex[i] + line.length;
+       }
+-      const signature = sliceSignature(text, start, bounds.bodyStart);
++      const signatureEnd = bounds.bodyStart > start ? bounds.bodyStart : end;
++      const signature = sliceSignature(text, start, signatureEnd);
+       const kind = match[2] === 'struct' ? 'StructDeclaration' : 'InterfaceDeclaration';
+       const meta = {
+         startLine: i + 1,
+--- a/src/lang/rust.js
++++ b/src/lang/rust.js
+@@ -203,7 +203,8 @@
+     if (bounds.bodyStart === -1) {
+       end = lineIndex[i] + line.length;
+     }
+-    const signature = sliceSignature(text, start, bounds.bodyStart);
++    const signatureEnd = bounds.bodyStart > start ? bounds.bodyStart : end;
++    const signature = sliceSignature(text, start, signatureEnd);
+     const meta = {
+       startLine: i + 1,
+       endLine: offsetToLine(lineIndex, end),
+@@ -237,7 +238,8 @@
+       mod: 'ModuleDeclaration'
+     };
+     const kind = kindMap[match[1]] || 'StructDeclaration';
+-    const signature = sliceSignature(text, start, bounds.bodyStart);
++    const signatureEnd = bounds.bodyStart > start ? bounds.bodyStart : end;
++    const signature = sliceSignature(text, start, signatureEnd);
+     const meta = {
+       startLine: i + 1,
+       endLine: offsetToLine(lineIndex, end),
+@@ -261,7 +263,8 @@
+     const bounds = findCLikeBodyBounds(text, start);
+     if (bounds.bodyStart === -1) continue;
+     const end = bounds.bodyEnd > start ? bounds.bodyEnd : bounds.bodyStart;
+-    const signature = sliceSignature(text, start, bounds.bodyStart);
++    const signatureEnd = bounds.bodyStart > start ? bounds.bodyStart : end;
++    const signature = sliceSignature(text, start, signatureEnd);
+     const typeName = parseRustImplTarget(signature);
+     if (!typeName) continue;
+     const entry = {

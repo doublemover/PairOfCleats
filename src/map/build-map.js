@@ -631,7 +631,7 @@ const applyCollapse = ({ nodes, edges, collapse }) => {
   return { nodes, edges };
 };
 
-export function buildCodeMap({ repoRoot, indexDir, options = {} }) {
+export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   const warnings = [];
   const includes = normalizeIncludeList(options.include);
   const limits = {
@@ -653,7 +653,7 @@ export function buildCodeMap({ repoRoot, indexDir, options = {} }) {
 
   let chunkMeta = [];
   try {
-    chunkMeta = loadChunkMeta(indexDir);
+    chunkMeta = await loadChunkMeta(indexDir);
   } catch (err) {
     warnings.push(`chunk_meta missing: ${err?.message || err}`);
   }

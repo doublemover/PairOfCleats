@@ -194,7 +194,8 @@ export function buildGoChunks(text, options = {}) {
       if (bounds.bodyStart === -1) {
         end = lineIndex[i] + line.length;
       }
-      const signature = sliceSignature(text, start, bounds.bodyStart);
+      const signatureEnd = bounds.bodyStart > start ? bounds.bodyStart : end;
+      const signature = sliceSignature(text, start, signatureEnd);
       const kind = match[2] === 'struct' ? 'StructDeclaration' : 'InterfaceDeclaration';
       const meta = {
         startLine: i + 1,

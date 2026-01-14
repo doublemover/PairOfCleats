@@ -120,7 +120,7 @@ export const processFiles = async ({
   const envConfig = getEnvConfig();
   const showFileProgress = envConfig.progressFiles !== false;
 
-  const structuralMatches = loadStructuralMatches({
+  const structuralMatches = await loadStructuralMatches({
     repoRoot: runtime.root,
     repoCacheRoot: runtime.repoCacheRoot,
     log

@@ -55,12 +55,12 @@ const runBuild = (cacheRoot, label) => {
   }
 };
 
-const readIndex = (cacheRoot) => {
+const readIndex = async (cacheRoot) => {
   const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
   process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
   const userConfig = loadUserConfig(repoRoot);
   const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-  const chunks = loadChunkMeta(codeDir, { maxBytes: MAX_JSON_BYTES });
+  const chunks = await loadChunkMeta(codeDir, { maxBytes: MAX_JSON_BYTES });
   const tokenIndex = loadTokenPostings(codeDir, { maxBytes: MAX_JSON_BYTES });
   if (previousCacheRoot === undefined) {
     delete process.env.PAIROFCLEATS_CACHE_ROOT;
@@ -72,11 +72,11 @@ const readIndex = (cacheRoot) => {
 
 await writeConfig(false);
 runBuild(cacheRootA, 'baseline build');
-const baseline = readIndex(cacheRootA);
+const baseline = await readIndex(cacheRootA);
 
 await writeConfig(true);
 runBuild(cacheRootB, 'sharded build');
-const sharded = readIndex(cacheRootB);
+const sharded = await readIndex(cacheRootB);
 
 if (baseline.chunks.length !== sharded.chunks.length) {
   console.error('Shard merge mismatch: chunk counts differ');

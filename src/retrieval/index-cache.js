@@ -155,7 +155,7 @@ export function createIndexCache({
   };
 }
 
-export function loadIndexWithCache(cache, dir, options, loader) {
+export async function loadIndexWithCache(cache, dir, options, loader) {
   if (!cache) return loader(dir, options);
   const hnswKey = options?.includeHnsw ? JSON.stringify(options?.hnswConfig || {}) : 'no-hnsw';
   const cacheKey = `${dir}::${options?.modelIdDefault || ''}::${options?.fileChargramN || ''}::${hnswKey}`;
@@ -164,7 +164,7 @@ export function loadIndexWithCache(cache, dir, options, loader) {
   if (cached && cached.signature === signature) {
     return cached.value;
   }
-  const value = loader(dir, options);
+  const value = await loader(dir, options);
   cache.set(cacheKey, { signature, value });
   return value;
 }

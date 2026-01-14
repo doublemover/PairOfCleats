@@ -14,7 +14,7 @@ import { resolveLanceDbPaths, resolveLanceDbTarget } from '../../shared/lancedb.
 
 const EMPTY_INDEX = { chunkMeta: [], denseVec: null, minhash: null };
 
-export function loadSearchIndexes({
+export async function loadSearchIndexes({
   rootDir,
   userConfig,
   searchMode,
@@ -54,7 +54,7 @@ export function loadSearchIndexes({
     ? requireIndexDir(rootDir, 'records', userConfig, { emitOutput, exitOnError })
     : null;
 
-  const loadIndexCachedLocal = (dir, includeHnsw = true) => loadIndexCached({
+  const loadIndexCachedLocal = async (dir, includeHnsw = true) => loadIndexCached({
     indexCache,
     dir,
     modelIdDefault,
@@ -91,10 +91,10 @@ export function loadSearchIndexes({
       includeMinhash: annActive,
       includeChunks: true,
       includeFilterIndex: filtersActive
-    }) : loadIndexCachedLocal(proseDir, annActive)))
+    }) : await loadIndexCachedLocal(proseDir, annActive)))
     : { ...EMPTY_INDEX };
   const idxExtractedProse = resolvedRunExtractedProse
-    ? loadIndexCachedLocal(extractedProseDir, annActive)
+    ? await loadIndexCachedLocal(extractedProseDir, annActive)
     : { ...EMPTY_INDEX };
   const idxCode = runCode
     ? (useSqlite ? loadIndexFromSqlite('code', {
@@ -107,10 +107,10 @@ export function loadSearchIndexes({
       includeMinhash: annActive,
       includeChunks: true,
       includeFilterIndex: filtersActive
-    }) : loadIndexCachedLocal(codeDir, annActive)))
+    }) : await loadIndexCachedLocal(codeDir, annActive)))
     : { ...EMPTY_INDEX };
   const idxRecords = runRecords
-    ? loadIndexCachedLocal(recordsDir, annActive)
+    ? await loadIndexCachedLocal(recordsDir, annActive)
     : { ...EMPTY_INDEX };
 
   warnPendingState(idxCode, 'code', { emitOutput, useSqlite, annActive });

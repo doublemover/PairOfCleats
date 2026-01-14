@@ -145,7 +145,8 @@ function findObjcEnd(text, start) {
       inString = true;
       continue;
     }
-    if (text.slice(i, i + 4) === '@end') {
+    // Avoid creating short-lived substring objects in this hot loop.
+    if (ch === '@' && text.startsWith('@end', i)) {
       return i + 4;
     }
   }

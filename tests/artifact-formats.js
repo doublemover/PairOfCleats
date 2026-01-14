@@ -60,7 +60,7 @@ await fs.writeFile(
   JSON.stringify({ vocab: ['legacy'], postings: [[[0, 1]]], docLengths: [1], avgDocLen: 1, totalDocs: 1 }, null, 2)
 );
 
-const idx = loadIndex(cacheRoot, { modelIdDefault: null, fileChargramN: 3 });
+const idx = await loadIndex(cacheRoot, { modelIdDefault: null, fileChargramN: 3 });
 
 if (!idx || !Array.isArray(idx.chunkMeta) || idx.chunkMeta.length !== 2) {
   console.error('Expected chunk_meta to load from JSONL.');

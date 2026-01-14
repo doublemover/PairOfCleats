@@ -469,10 +469,11 @@
             "maxWorkers": { "type": "number" },
             "allowOverCap": { "type": "boolean" },
             "scaleUpQueueMs": { "type": "number" },
-            "taskTimeoutMs": { "type": "number" },
-            "maxRetries": { "type": "number" },
-            "maxQueued": { "type": "number" },
-            "crashLoopMax": { "type": "number" },
+              "taskTimeoutMs": { "type": "number" },
+              "maxRetries": { "type": "number" },
+              "maxQueued": { "type": "number" },
+              "maxTextBytes": { "type": "number" },
+              "crashLoopMax": { "type": "number" },
             "crashWindowMs": { "type": "number" },
             "crashBackoffMs": { "type": "number" }
           }

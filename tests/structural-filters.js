@@ -48,7 +48,7 @@ if (buildResult.status !== 0) {
 }
 
 const indexDir = getIndexDir(repoRoot, 'code', userConfig);
-const chunkMeta = loadChunkMeta(indexDir);
+const chunkMeta = await loadChunkMeta(indexDir);
 const fileMeta = readJsonFile(path.join(indexDir, 'file_meta.json'));
 const fileMetaById = new Map(
   Array.isArray(fileMeta) ? fileMeta.map((entry) => [entry.id, entry]) : []
