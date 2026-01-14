@@ -82,16 +82,21 @@ export async function attachEmbeddings({
     }
   }
 
-  const dims = Array.isArray(codeVectors[0]) ? codeVectors[0].length : 0;
+  // Avoid allocating a full zero-vector per chunk when docs are missing.
+  // Most code chunks have no doc payload; allocating `dims` zeros for each chunk
+  // is a major memory multiplier for large indexes.
+  const missingDoc = [];
   for (let i = 0; i < chunks.length; i += 1) {
     const chunk = chunks[i];
     const embedCode = Array.isArray(codeVectors[i]) ? codeVectors[i] : [];
-    const embedDoc = Array.isArray(docVectors[i])
-      ? docVectors[i]
-      : (dims ? Array.from({ length: dims }, () => 0) : []);
+    const rawDoc = docVectors[i];
+    const hasDoc = Array.isArray(rawDoc) && rawDoc.length;
+    const embedDoc = hasDoc ? rawDoc : missingDoc;
     const merged = embedCode.length
-      ? embedCode.map((v, idx) => (v + (embedDoc[idx] ?? 0)) / 2)
-      : embedDoc;
+      ? (hasDoc
+        ? embedCode.map((v, idx) => (v + (rawDoc[idx] ?? 0)) / 2)
+        : embedCode)
+      : (hasDoc ? rawDoc : missingDoc);
     chunk.embed_code = embedCode;
     chunk.embed_doc = embedDoc;
     chunk.embedding = normalizeVec(merged);

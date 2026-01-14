@@ -104,13 +104,28 @@ export async function buildPostings(input) {
   if (embeddingsEnabled) {
     const embedLabel = useStubEmbeddings ? 'stub' : 'model';
     log(`Using ${embedLabel} embeddings for dense vectors (${modelId})...`);
-    dims = Array.isArray(chunks[0]?.embedding) ? chunks[0].embedding.length : 384;
+    const resolveDims = () => {
+      for (const chunk of chunks) {
+        const vec = chunk?.embedding;
+        if (Array.isArray(vec) && vec.length) return vec.length;
+        const code = chunk?.embed_code;
+        if (Array.isArray(code) && code.length) return code.length;
+        const doc = chunk?.embed_doc;
+        if (Array.isArray(doc) && doc.length) return doc.length;
+      }
+      return 384;
+    };
+    dims = resolveDims();
     const zeroVec = new Array(dims).fill(0);
     const selectEmbedding = (chunk) => (
       Array.isArray(chunk?.embedding) && chunk.embedding.length ? chunk.embedding : zeroVec
     );
     const selectDocEmbedding = (chunk) => {
-      if (Array.isArray(chunk?.embed_doc) && chunk.embed_doc.length) return chunk.embed_doc;
+      // `embed_doc: []` is used as an explicit marker for "no doc embedding" to
+      // avoid allocating a full dims-length zero vector per chunk.
+      if (Array.isArray(chunk?.embed_doc)) {
+        return chunk.embed_doc.length ? chunk.embed_doc : zeroVec;
+      }
       if (Array.isArray(chunk?.embedding) && chunk.embedding.length) return chunk.embedding;
       return zeroVec;
     };

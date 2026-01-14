@@ -64,20 +64,36 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
   };
 };
 
-export const buildIndexPostings = async ({ runtime, state }) => buildPostings({
-  chunks: state.chunks,
-  df: state.df,
-  tokenPostings: state.tokenPostings,
-  docLengths: state.docLengths,
-  fieldPostings: state.fieldPostings,
-  fieldDocLengths: state.fieldDocLengths,
-  phrasePost: state.phrasePost,
-  triPost: state.triPost,
-  postingsConfig: runtime.postingsConfig,
-  modelId: runtime.modelId,
-  useStubEmbeddings: runtime.useStubEmbeddings,
-  log: sharedLog,
-  workerPool: runtime.workerPool,
-  quantizePool: runtime.quantizePool,
-  embeddingsEnabled: runtime.embeddingEnabled
-});
+export const buildIndexPostings = async ({ runtime, state }) => {
+  const postings = await buildPostings({
+    chunks: state.chunks,
+    df: state.df,
+    tokenPostings: state.tokenPostings,
+    docLengths: state.docLengths,
+    fieldPostings: state.fieldPostings,
+    fieldDocLengths: state.fieldDocLengths,
+    phrasePost: state.phrasePost,
+    triPost: state.triPost,
+    postingsConfig: runtime.postingsConfig,
+    modelId: runtime.modelId,
+    useStubEmbeddings: runtime.useStubEmbeddings,
+    log: sharedLog,
+    workerPool: runtime.workerPool,
+    quantizePool: runtime.quantizePool,
+    embeddingsEnabled: runtime.embeddingEnabled
+  });
+
+  // Reduce peak memory before artifact writing.
+  // Dense vectors are now quantized and stored in `postings`.
+  // Keeping float embeddings on every chunk can double/triple RSS and trigger V8 OOM.
+  if (Array.isArray(state?.chunks)) {
+    for (const chunk of state.chunks) {
+      if (!chunk || typeof chunk !== 'object') continue;
+      delete chunk.embedding;
+      delete chunk.embed_code;
+      delete chunk.embed_doc;
+    }
+  }
+
+  return postings;
+};
