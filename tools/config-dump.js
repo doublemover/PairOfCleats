@@ -28,6 +28,11 @@ const repoRoot = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(repoRoot);
 const envConfig = getEnvConfig();
 
+const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
+const parsedUv = Number(process.env.UV_THREADPOOL_SIZE);
+const effectiveUvThreadpoolSize = Number.isFinite(parsedUv) && parsedUv > 0 ? Math.floor(parsedUv) : null;
+
+
 const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
 const payload = {
   repoRoot,
@@ -37,7 +42,7 @@ const payload = {
   derived: {
     cacheRoot,
     repoCacheRoot: getRepoCacheRoot(repoRoot, userConfig),
-    runtime: getRuntimeConfig(repoRoot, userConfig),
+    runtime: { ...runtimeConfig, effectiveUvThreadpoolSize },
     cacheRuntime: getCacheRuntimeConfig(repoRoot, userConfig),
     model: getModelConfig(repoRoot, userConfig),
     tooling: getToolingConfig(repoRoot, userConfig),
@@ -56,6 +61,7 @@ console.log(`- repo: ${repoRoot}`);
 console.log(`- profile: ${payload.profile || 'none'}`);
 console.log(`- cache root: ${payload.derived.cacheRoot}`);
 console.log(`- repo cache: ${payload.derived.repoCacheRoot}`);
+console.log(`- runtime UV_THREADPOOL_SIZE: ${payload.derived.runtime.effectiveUvThreadpoolSize ?? 'default'}`);
 console.log(`- model: ${payload.derived.model.id}`);
 console.log(`- lmdb code: ${payload.derived.lmdb.codePath}`);
 console.log(`- lmdb prose: ${payload.derived.lmdb.prosePath}`);
