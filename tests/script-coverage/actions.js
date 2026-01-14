@@ -328,6 +328,16 @@ const actions = [
     covers: ['api-server-test', 'api-server']
   },
   {
+    label: 'sublime-pycompile-test',
+    run: () => runNode('sublime-pycompile-test', path.join(root, 'tests', 'sublime-pycompile.js')),
+    covers: ['sublime-pycompile-test']
+  },
+  {
+    label: 'subprocess-quoting-test',
+    run: () => runNode('subprocess-quoting-test', path.join(root, 'tests', 'subprocess-quoting.js')),
+    covers: ['subprocess-quoting-test']
+  },
+  {
     label: 'api-server-stream-test',
     run: () => runNode('api-server-stream-test', path.join(root, 'tests', 'api-server-stream.js')),
     covers: ['api-server-stream-test']
