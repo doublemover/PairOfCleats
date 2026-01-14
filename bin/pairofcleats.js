@@ -2,7 +2,7 @@
 import { execaSync } from 'execa';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../tools/dict-utils.js';
+import { getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveToolRoot } from '../tools/dict-utils.js';
 
 const ROOT = resolveToolRoot();
 
@@ -329,7 +329,8 @@ function runScript(scriptPath, extraArgs, restArgs) {
   const repoRoot = repoOverride ? path.resolve(repoOverride) : resolveRepoRoot(process.cwd());
   const userConfig = loadUserConfig(repoRoot);
   const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
-  const env = resolveRuntimeEnv(runtimeConfig, process.env);
+  const nodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+  const env = nodeOptions ? { ...process.env, NODE_OPTIONS: nodeOptions } : process.env;
   const result = execaSync(process.execPath, [resolved, ...extraArgs, ...restArgs], {
     stdio: 'inherit',
     env,

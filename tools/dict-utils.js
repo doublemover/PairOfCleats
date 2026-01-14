@@ -448,7 +448,7 @@ export function getModelConfig(repoRoot, userConfig = null) {
  * Resolve runtime configuration for a repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
- * @returns {{maxOldSpaceMb:number|null,nodeOptions:string,uvThreadpoolSize:number|null}}
+ * @returns {{maxOldSpaceMb:number|null,nodeOptions:string}}
  */
 export function getRuntimeConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
@@ -461,12 +461,7 @@ export function getRuntimeConfig(repoRoot, userConfig = null) {
     : null;
   const nodeOptionsRaw = runtime.nodeOptions ?? envConfig.nodeOptions;
   const nodeOptions = typeof nodeOptionsRaw === 'string' ? nodeOptionsRaw.trim() : '';
-  const rawUvThreadpoolSize = runtime.uvThreadpoolSize ?? envConfig.uvThreadpoolSize;
-  const parsedUvThreadpoolSize = Number(rawUvThreadpoolSize);
-  const uvThreadpoolSize = Number.isFinite(parsedUvThreadpoolSize) && parsedUvThreadpoolSize > 0
-    ? Math.floor(parsedUvThreadpoolSize)
-    : null;
-  return { maxOldSpaceMb, nodeOptions, uvThreadpoolSize };
+  return { maxOldSpaceMb, nodeOptions };
 }
 
 /**
@@ -501,7 +496,7 @@ export function getCacheRuntimeConfig(repoRoot, userConfig = null) {
 
 /**
  * Merge runtime Node options with existing NODE_OPTIONS.
- * @param {{maxOldSpaceMb:number|null,nodeOptions:string,uvThreadpoolSize:number|null}} runtimeConfig
+ * @param {{maxOldSpaceMb:number|null,nodeOptions:string}} runtimeConfig
  * @param {string} [baseOptions]
  * @returns {string}
  */
@@ -516,34 +511,6 @@ export function resolveNodeOptions(runtimeConfig, baseOptions = process.env.NODE
     }
   }
   return [base, ...extras].filter(Boolean).join(' ').trim();
-}
-
-
-/**
- * Resolve the child-process runtime environment for PairOfCleats tool launches.
- * Applies runtime Node options and (optionally) propagates UV_THREADPOOL_SIZE when configured.
- * Note: UV_THREADPOOL_SIZE must be set before the Node process starts to affect libuv.
- * @param {{maxOldSpaceMb:number|null,nodeOptions:string,uvThreadpoolSize:number|null}} runtimeConfig
- * @param {NodeJS.ProcessEnv} [baseEnv]
- * @returns {NodeJS.ProcessEnv}
- */
-export function resolveRuntimeEnv(runtimeConfig, baseEnv = process.env) {
-  const env = { ...baseEnv };
-  const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, env.NODE_OPTIONS || '');
-  if (resolvedNodeOptions) {
-    env.NODE_OPTIONS = resolvedNodeOptions;
-  }
-
-  const uvThreadpoolSize = runtimeConfig?.uvThreadpoolSize;
-  if (
-    Number.isFinite(Number(uvThreadpoolSize))
-    && Number(uvThreadpoolSize) > 0
-    && !env.UV_THREADPOOL_SIZE
-  ) {
-    env.UV_THREADPOOL_SIZE = String(Math.floor(Number(uvThreadpoolSize)));
-  }
-
-  return env;
 }
 
 /**

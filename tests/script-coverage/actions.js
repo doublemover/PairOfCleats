@@ -208,6 +208,11 @@ const actions = [
     covers: []
   },
   {
+    label: 'clike-doc-comments-test',
+    run: () => runNode('clike-doc-comments-test', path.join(root, 'tests', 'clike-doc-comments.js')),
+    covers: []
+  },
+  {
     label: 'segment-pipeline-test',
     run: () => runNode('segment-pipeline-test', path.join(root, 'tests', 'segment-pipeline.js')),
     covers: []

@@ -189,9 +189,7 @@ export async function buildIndex(repoRoot, options = {}) {
   const explicitStage = normalizeStage(baseArgv.stage);
   const argv = explicitStage ? { ...baseArgv, stage: explicitStage } : baseArgv;
   const mode = argv.mode || 'all';
-  const modes = mode === 'all'
-    ? ['prose', 'code', 'extracted-prose']
-    : [mode];
+  const modes = mode === 'all' ? ['prose', 'code'] : [mode];
   const rawArgv = options.rawArgv || buildRawArgs(options);
   const log = typeof options.log === 'function' ? options.log : defaultLog;
   const metricsMode = mode || 'all';
