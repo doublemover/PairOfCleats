@@ -67,6 +67,17 @@ const actions = [
     covers: ['artifact-size-guardrails-test']
   },
   {
+    label: 'chunk-meta-jsonl-cleanup-test',
+    run: () => runNode('chunk-meta-jsonl-cleanup-test', path.join(root, 'tests', 'chunk-meta-jsonl-cleanup.js')),
+    covers: ['chunk-meta-jsonl-cleanup-test']
+  },
+  {
+    label: 'safe-regex-engine-test',
+    run: () => runNode('safe-regex-engine-test', path.join(root, 'tests', 'safe-regex-engine.js')),
+    covers: ['safe-regex-engine-test']
+  },
+
+  {
     label: 'incremental-manifest-test',
     run: () => runNode('incremental-manifest-test', path.join(root, 'tests', 'incremental-manifest.js')),
     covers: ['incremental-manifest-test']
@@ -476,50 +487,6 @@ const actions = [
     label: 'search-determinism-test',
     run: () => runNode('search-determinism-test', path.join(root, 'tests', 'search-determinism.js')),
     covers: ['search-determinism-test']
-  },
-  {
-    label: 'code-map-determinism-test',
-    run: () => runNode('code-map-determinism-test', path.join(root, 'tests', 'code-map-determinism.js')),
-    covers: ['code-map-determinism-test']
-  },
-  {
-    label: 'code-map-dot-test',
-    run: () => runNode('code-map-dot-test', path.join(root, 'tests', 'code-map-dot.js')),
-    covers: ['code-map-dot-test']
-  },
-  {
-    label: 'code-map-guardrails-test',
-    run: () => runNode('code-map-guardrails-test', path.join(root, 'tests', 'code-map-guardrails.js')),
-    covers: ['code-map-guardrails-test']
-  },
-  {
-    label: 'code-map-default-guardrails-test',
-    run: () => runNode(
-      'code-map-default-guardrails-test',
-      path.join(root, 'tests', 'code-map-default-guardrails.js')
-    ),
-    covers: ['code-map-default-guardrails-test']
-  },
-  {
-    label: 'code-map-graphviz-fallback-test',
-    run: () => runNode(
-      'code-map-graphviz-fallback-test',
-      path.join(root, 'tests', 'code-map-graphviz-fallback.js')
-    ),
-    covers: ['code-map-graphviz-fallback-test']
-  },
-  {
-    label: 'code-map-graphviz-available-test',
-    run: () => runNode(
-      'code-map-graphviz-available-test',
-      path.join(root, 'tests', 'code-map-graphviz-available.js')
-    ),
-    covers: ['code-map-graphviz-available-test']
-  },
-  {
-    label: 'editor-parity-test',
-    run: () => runNode('editor-parity-test', path.join(root, 'tests', 'editor-parity.js')),
-    covers: ['editor-parity-test']
   },
   {
     label: 'filter-index-artifact-test',
@@ -1065,6 +1032,21 @@ const actions = [
     label: 'config-dump-test',
     run: () => runNode('config-dump-test', path.join(root, 'tests', 'config-dump.js')),
     covers: ['config-dump-test']
+  },
+  {
+    label: 'uv-threadpool-env-test',
+    run: () => runNode('uv-threadpool-env-test', path.join(root, 'tests', 'uv-threadpool-env.js')),
+    covers: ['uv-threadpool-env-test']
+  },
+  {
+    label: 'uv-threadpool-no-override-test',
+    run: () => runNode('uv-threadpool-no-override-test', path.join(root, 'tests', 'uv-threadpool-no-override.js')),
+    covers: ['uv-threadpool-no-override-test']
+  },
+  {
+    label: 'io-concurrency-cap-test',
+    run: () => runNode('io-concurrency-cap-test', path.join(root, 'tests', 'io-concurrency-cap.js')),
+    covers: ['io-concurrency-cap-test']
   },
   {
     label: 'profile-config-test',

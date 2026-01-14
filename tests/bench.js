@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
 import { BENCH_OPTIONS, validateBenchArgs } from '../src/shared/cli-options.js';
-import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveSqlitePaths } from '../tools/dict-utils.js';
+import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveSqlitePaths } from '../tools/dict-utils.js';
 import { getEnvConfig } from '../src/shared/env.js';
 import { runWithConcurrency } from '../src/shared/concurrency.js';
 import os from 'node:os';
@@ -166,14 +166,13 @@ if (Number.isFinite(heapArg) && heapArg > 0) {
 const runtimeConfigForRun = heapOverride
   ? { ...runtimeConfig, maxOldSpaceMb: heapOverride }
   : runtimeConfig;
-const resolvedNodeOptions = resolveNodeOptions(runtimeConfigForRun, baseNodeOptions);
 const envStubEmbeddings = envConfig.embeddings === 'stub';
 const realEmbeddings = argv['real-embeddings'] === true;
 const stubEmbeddings = argv['stub-embeddings'] === true
   || (!realEmbeddings && envStubEmbeddings);
-const baseEnv = resolvedNodeOptions
-  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
-  : { ...process.env };
+
+const baseEnvCandidate = { ...process.env, NODE_OPTIONS: baseNodeOptions };
+const baseEnv = resolveRuntimeEnv(runtimeConfigForRun, baseEnvCandidate);
 const profileArgPresent = rawArgs.includes('--profile') || rawArgs.includes('--index-profile');
 if (noIndexProfile && !profileArgPresent && baseEnv.PAIROFCLEATS_PROFILE) {
   delete baseEnv.PAIROFCLEATS_PROFILE;
