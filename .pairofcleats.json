@@ -19,7 +19,6 @@
   // Index build pipeline options.
   // Speed impact: many flags here change CPU/IO per file.
   "indexing": {
-    "embeddingBatchSize": 16,
     "workerPool": {
         "enabled": true,
         "maxWorkers": 8
