@@ -92,7 +92,7 @@ const ensureOutputDir = async () => {
   await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
 };
 
-const writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
+let writeStream = null;
 
 const ingestStream = async (stream) => {
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
@@ -141,6 +141,7 @@ const runCtagsCommand = async () => {
 };
 
 await ensureOutputDir();
+writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
 if (interactive) {
   await ingestStream(process.stdin);
 } else if (inputPath && inputPath !== '-') {

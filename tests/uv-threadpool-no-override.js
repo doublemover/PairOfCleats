@@ -26,6 +26,22 @@ const result = spawnSync(
 
 if (result.status !== 0) {
   throw new Error(`uv-threadpool-no-override test failed: ${result.stderr || result.stdout}`);
+await fsPromises.writeFile(
+  path.join(repoRoot, '.pairofcleats.json'),
+  JSON.stringify({ runtime: { uvThreadpoolSize: 8 } }, null, 2)
+);
+
+const cliPath = path.join(root, 'bin', 'pairofcleats.js');
+const env = { ...process.env, UV_THREADPOOL_SIZE: '4' };
+
+const result = spawnSync(
+  process.execPath,
+  [cliPath, 'config', 'dump', '--json', '--repo', repoRoot],
+  { encoding: 'utf8', env }
+);
+
+if (result.status !== 0) {
+  throw new Error(`uv-threadpool-no-override test failed: ${result.stderr || result.stdout}`);
 }
 
 let payload;
@@ -33,6 +49,20 @@ try {
   payload = JSON.parse(result.stdout || '{}');
 } catch (err) {
   throw new Error(`uv-threadpool-no-override test failed: invalid JSON output: ${err?.message || err}`);
+}
+
+const runtime = payload?.derived?.runtime || {};
+if (runtime.uvThreadpoolSize !== 8) {
+  throw new Error(`uv-threadpool-no-override test failed: expected derived.runtime.uvThreadpoolSize=8, got ${runtime.uvThreadpoolSize}`);
+}
+if (runtime.effectiveUvThreadpoolSize !== 4) {
+  throw new Error(`uv-threadpool-no-override test failed: expected derived.runtime.effectiveUvThreadpoolSize=4, got ${runtime.effectiveUvThreadpoolSize}`);
+}
+
+console.log('uv-threadpool-no-override test passed');
+} catch {
+  console.error('config dump did not output valid JSON');
+  process.exit(1);
 }
 
 const runtime = payload?.derived?.runtime || {};

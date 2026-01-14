@@ -12,7 +12,7 @@ const inputPath = path.join(root, 'tests', 'fixtures', 'lsif', 'dump.lsif');
 const outPath = path.join(tempRoot, 'lsif.jsonl');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(tempRoot, { recursive: true });
+
 
 const result = spawnSync(
   process.execPath,
