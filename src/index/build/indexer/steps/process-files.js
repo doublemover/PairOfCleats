@@ -118,7 +118,7 @@ export const processFiles = async ({
   const processStart = Date.now();
   log(`Indexing concurrency: files=${runtime.fileConcurrency}, imports=${runtime.importConcurrency}, io=${runtime.ioConcurrency}, cpu=${runtime.cpuConcurrency}`);
   const envConfig = getEnvConfig();
-  const showFileProgress = envConfig.progressFiles === true;
+  const showFileProgress = envConfig.progressFiles !== false;
 
   const structuralMatches = loadStructuralMatches({
     repoRoot: runtime.root,

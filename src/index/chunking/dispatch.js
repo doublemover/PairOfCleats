@@ -87,14 +87,22 @@ const applyFormatMeta = (chunks, format, kind) => {
   }));
 };
 
+const MAX_REGEX_LINE = 8192;
+
 const chunkByLineRegex = (text, matcher, options = {}) => {
   const lines = text.split('\n');
   const headings = [];
+  const maxLineLength = Number.isFinite(Number(options.maxLineLength))
+    ? Math.max(0, Math.floor(Number(options.maxLineLength)))
+    : MAX_REGEX_LINE;
   const skipLine = typeof options.skipLine === 'function' ? options.skipLine : null;
+  const precheck = typeof options.precheck === 'function' ? options.precheck : null;
   const titleFor = typeof options.title === 'function' ? options.title : null;
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
+    if (maxLineLength && line.length > maxLineLength) continue;
     if (skipLine && skipLine(line)) continue;
+    if (precheck && !precheck(line)) continue;
     const match = line.match(matcher);
     if (!match) continue;
     const title = titleFor ? titleFor(match, line) : (match[1] || '').trim();
@@ -119,7 +127,10 @@ const chunkDockerfile = (text) => {
   const headings = [];
   const rx = /^\s*([A-Z][A-Z0-9_-]+)\b/;
   for (let i = 0; i < lines.length; ++i) {
-    const match = lines[i].match(rx);
+    const line = lines[i];
+    if (line.length > MAX_REGEX_LINE) continue;
+    if (!line || (line[0] < 'A' || line[0] > 'Z')) continue;
+    const match = line.match(rx);
     if (match) headings.push({ line: i, title: match[1] });
   }
   const chunks = buildChunksFromLineHeadings(text, headings);
@@ -135,7 +146,9 @@ const chunkMakefile = (text) => {
   const rx = /^([A-Za-z0-9_./-]+)\s*:/;
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
+    if (line.length > MAX_REGEX_LINE) continue;
     if (line.trim().startsWith('#') || !line.trim()) continue;
+    if (!line.includes(':')) continue;
     const match = line.match(rx);
     if (match) headings.push({ line: i, title: match[1] });
   }
@@ -151,7 +164,16 @@ const chunkProto = (text) => {
   const headings = [];
   const rx = /^\s*(message|enum|service|extend|oneof)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   for (let i = 0; i < lines.length; ++i) {
-    const match = lines[i].match(rx);
+    const line = lines[i];
+    if (line.length > MAX_REGEX_LINE) continue;
+    if (!(line.includes('message')
+      || line.includes('enum')
+      || line.includes('service')
+      || line.includes('extend')
+      || line.includes('oneof'))) {
+      continue;
+    }
+    const match = line.match(rx);
     if (match) {
       const kind = match[1];
       const name = match[2];
@@ -167,7 +189,20 @@ const chunkGraphql = (text) => {
   const headings = [];
   const rx = /^\s*(schema|type|interface|enum|union|input|scalar|directive|fragment)\b\s*([A-Za-z_][A-Za-z0-9_]*)?/;
   for (let i = 0; i < lines.length; ++i) {
-    const match = lines[i].match(rx);
+    const line = lines[i];
+    if (line.length > MAX_REGEX_LINE) continue;
+    if (!(line.includes('schema')
+      || line.includes('type')
+      || line.includes('interface')
+      || line.includes('enum')
+      || line.includes('union')
+      || line.includes('input')
+      || line.includes('scalar')
+      || line.includes('directive')
+      || line.includes('fragment'))) {
+      continue;
+    }
+    const match = line.match(rx);
     if (match) {
       const kind = match[1];
       const name = match[2] || '';
@@ -183,7 +218,8 @@ const chunkCmake = (text) => chunkByLineRegex(text, /^\s*([A-Za-z_][A-Za-z0-9_]*
   format: 'cmake',
   kind: 'ConfigSection',
   defaultName: 'cmake',
-  skipLine: (line) => line.trim().startsWith('#')
+  skipLine: (line) => line.trim().startsWith('#'),
+  precheck: (line) => line.includes('(')
 });
 
 const chunkStarlark = (text) => {
@@ -193,7 +229,11 @@ const chunkStarlark = (text) => {
   const callRx = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
+    if (line.length > MAX_REGEX_LINE) continue;
     if (line.trim().startsWith('#')) continue;
+    if (!(line.includes('def') || line.includes('class') || line.includes('('))) {
+      continue;
+    }
     const defMatch = line.match(defRx);
     if (defMatch) {
       headings.push({ line: i, title: `${defMatch[1]} ${defMatch[2]}` });
@@ -218,13 +258,14 @@ const chunkNix = (text) => {
     const trimmed = line.trim();
     return !trimmed || trimmed.startsWith('#') || trimmed === 'in' || trimmed === 'let';
   };
-  return chunkByLineRegex(text, /^\s*([A-Za-z0-9_.-]+)\s*=/, {
-    format: 'nix',
-    kind: 'Section',
-    defaultName: 'nix',
-    skipLine
-  });
-};
+    return chunkByLineRegex(text, /^\s*([A-Za-z0-9_.-]+)\s*=/, {
+      format: 'nix',
+      kind: 'Section',
+      defaultName: 'nix',
+      skipLine,
+      precheck: (line) => line.includes('=')
+    });
+  };
 
 const chunkDart = (text) => {
   const lines = text.split('\n');
@@ -234,7 +275,16 @@ const chunkDart = (text) => {
   const skipNames = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'new']);
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
+    if (line.length > MAX_REGEX_LINE) continue;
     if (line.trim().startsWith('//')) continue;
+    if (!(line.includes('class')
+      || line.includes('mixin')
+      || line.includes('enum')
+      || line.includes('extension')
+      || line.includes('typedef')
+      || line.includes('('))) {
+      continue;
+    }
     const typeMatch = line.match(typeRx);
     if (typeMatch) {
       headings.push({ line: i, title: typeMatch[2] });
@@ -263,7 +313,15 @@ const chunkScala = (text) => {
   const defRx = /^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)/;
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
+    if (line.length > MAX_REGEX_LINE) continue;
     if (line.trim().startsWith('//')) continue;
+    if (!(line.includes('class')
+      || line.includes('object')
+      || line.includes('trait')
+      || line.includes('enum')
+      || line.includes('def'))) {
+      continue;
+    }
     const typeMatch = line.match(typeRx);
     if (typeMatch) {
       headings.push({ line: i, title: typeMatch[1] });
@@ -290,7 +348,15 @@ const chunkGroovy = (text) => {
   const defRx = /^\s*def\s+([A-Za-z_][A-Za-z0-9_]*)/;
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
+    if (line.length > MAX_REGEX_LINE) continue;
     if (line.trim().startsWith('//')) continue;
+    if (!(line.includes('class')
+      || line.includes('interface')
+      || line.includes('trait')
+      || line.includes('enum')
+      || line.includes('def'))) {
+      continue;
+    }
     const typeMatch = line.match(typeRx);
     if (typeMatch) {
       headings.push({ line: i, title: typeMatch[2] });
@@ -313,7 +379,8 @@ const chunkGroovy = (text) => {
 const chunkR = (text) => chunkByLineRegex(text, /^\s*([A-Za-z.][A-Za-z0-9_.]*)\s*(?:<-|=)\s*function\b/, {
   format: 'r',
   kind: 'Section',
-  defaultName: 'r'
+  defaultName: 'r',
+  precheck: (line) => line.includes('function')
 });
 
 const chunkJulia = (text) => {
@@ -323,6 +390,10 @@ const chunkJulia = (text) => {
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
     if (line.trim().startsWith('#')) continue;
+    if (line.length > 8192) continue;
+    if (!(line.includes('module') || line.includes('function') || line.includes('macro'))) {
+      continue;
+    }
     const match = line.match(rx);
     if (match) {
       headings.push({ line: i, title: match[2] });
@@ -342,19 +413,22 @@ const chunkJulia = (text) => {
 const chunkHandlebars = (text) => chunkByLineRegex(text, /{{[#^]\s*([A-Za-z0-9_.-]+)\b/, {
   format: 'handlebars',
   kind: 'Section',
-  defaultName: 'handlebars'
+  defaultName: 'handlebars',
+  precheck: (line) => line.includes('{{')
 });
 
 const chunkMustache = (text) => chunkByLineRegex(text, /{{[#^]\s*([A-Za-z0-9_.-]+)\b/, {
   format: 'mustache',
   kind: 'Section',
-  defaultName: 'mustache'
+  defaultName: 'mustache',
+  precheck: (line) => line.includes('{{')
 });
 
-const chunkJinja = (text) => chunkByLineRegex(text, /{%\s*(block|macro|for|if|set|include|extends)\s+([^%]+)%}/, {
+const chunkJinja = (text) => chunkByLineRegex(text, /{%\s*(block|macro|for|if|set|include|extends)\s+([^%\n]+)%}/, {
   format: 'jinja',
   kind: 'Section',
   defaultName: 'jinja',
+  precheck: (line) => line.includes('{%'),
   title: (match) => {
     const name = String(match[2] || '').trim().split(/\s+/)[0];
     return name ? `${match[1]} ${name}` : match[1];
@@ -367,6 +441,8 @@ const chunkRazor = (text) => {
   const rx = /^\s*@\s*(page|model|inherits|functions|code|section)\b\s*([A-Za-z_][A-Za-z0-9_]*)?/i;
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
+    if (line.length > MAX_REGEX_LINE) continue;
+    if (!line.includes('@')) continue;
     const match = line.match(rx);
     if (!match) continue;
     const name = match[2] ? `${match[1]} ${match[2]}` : match[1];

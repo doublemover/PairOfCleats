@@ -1,4 +1,5 @@
 {
+  "extraIgnore": ["**/*.swift"],
   // Enable sqlite index artifacts for search backends.
   // Speed impact: adds sqlite build time when stage4 runs.
   "sqlite": {
@@ -22,7 +23,7 @@
     "embeddingBatchSize": 4,
     "workerPool": {
         "enabled": true,
-        "maxWorkers": 8
+        "maxWorkers": 16
       },
     // Sparse postings generation settings.
     // Speed impact: heavier postings settings increase indexing time/size.
@@ -97,14 +98,16 @@
     "treeSitter": {
       // Enable tree-sitter parsing.
       // Speed impact: moderate CPU on supported languages.
-      "enabled": true
-    }
+      "enabled": true,
+      "languages": {
+        "swift": false
+      }
   },
   // Runtime process limits for the indexer.
   // Speed impact: higher heap reduces GC stalls on big repos.
   "runtime": {
     // Max Node heap size in MB for the indexer process.
     // Speed impact: too low slows indexing; higher reduces GC overhead.
-    "maxOldSpaceMb": 98048
+    "maxOldSpaceMb": 8192
   }
 }
