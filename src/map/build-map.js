@@ -838,7 +838,7 @@ export function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     }),
     viewer,
     summary,
-    warnings: unique(warnings)
+    warnings: sortBy(unique(warnings), (entry) => entry)
   };
 }
 

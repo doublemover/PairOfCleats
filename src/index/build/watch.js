@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import chokidar from 'chokidar';
 import { acquireIndexLock } from './lock.js';
 import { discoverFiles } from './discover.js';
 import { buildIndexForMode } from './indexer.js';
@@ -20,60 +21,8 @@ import {
   setWatchBacklog
 } from '../../shared/metrics.js';
 import { fileExt, toPosix } from '../../shared/files.js';
-import { getCapabilities } from '../../shared/capabilities.js';
-import { getEnvConfig } from '../../shared/env.js';
-import { startChokidarWatcher } from './watch/backends/chokidar.js';
-import { startParcelWatcher } from './watch/backends/parcel.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const normalizeBackend = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
-
-export const resolveWatcherBackend = ({ runtime, pollMs }) => {
-  const envConfig = getEnvConfig();
-  const configBackend = normalizeBackend(runtime?.userConfig?.indexing?.watch?.backend);
-  const envBackend = normalizeBackend(envConfig.watcherBackend);
-  const requested = configBackend || envBackend || 'auto';
-  const caps = getCapabilities();
-  const pollingEnabled = Number.isFinite(Number(pollMs)) && Number(pollMs) > 0;
-  let resolved = requested;
-  let warning = null;
-
-  if (requested === 'auto') {
-    resolved = caps.watcher.parcel && !pollingEnabled ? 'parcel' : 'chokidar';
-  } else if (requested === 'parcel') {
-    if (!caps.watcher.parcel) {
-      resolved = 'chokidar';
-      warning = 'Parcel watcher unavailable; falling back to chokidar.';
-    } else if (pollingEnabled) {
-      resolved = 'chokidar';
-      warning = 'Polling requires chokidar; falling back.';
-    }
-  } else if (requested !== 'chokidar') {
-    resolved = 'chokidar';
-  }
-
-  return { requested, resolved, warning, pollingEnabled };
-};
-
-export const waitForStableFile = async (absPath, { checks, intervalMs }) => {
-  let lastSignature = null;
-  for (let index = 0; index < checks; index += 1) {
-    let stat = null;
-    try {
-      stat = await fs.stat(absPath);
-    } catch {
-      return false;
-    }
-    const signature = `${stat.size}:${stat.mtimeMs}`;
-    if (signature === lastSignature) return true;
-    lastSignature = signature;
-    if (index < checks - 1) {
-      await sleep(intervalMs);
-    }
-  }
-  return true;
-};
 
 export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCancel, onFire }) {
   let timer = null;
@@ -200,7 +149,6 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
   let burstCount = 0;
   let burstMax = 0;
   let scheduler;
-  let stabilityGuard = null;
 
   const stop = () => {
     if (resolveExit) {
@@ -284,10 +232,6 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
 
   const recordAddOrChange = async (absPath) => {
     if (!isIndexablePath({ absPath, root, ignoreMatcher, modes })) return;
-    if (stabilityGuard?.enabled) {
-      const stable = await waitForStableFile(absPath, stabilityGuard);
-      if (!stable) return;
-    }
     pendingPaths.add(absPath);
     setWatchBacklog(pendingPaths.size);
     const withinMax = await isWithinMaxBytes(absPath, maxFileBytes, fileCaps);
@@ -308,20 +252,21 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
 
   const initialFiles = await scanFiles({ root, modes, ignoreMatcher, maxFileBytes, fileCaps, maxDepth, maxFiles });
   initialFiles.forEach((file) => trackedFiles.add(file));
-  const backendSelection = resolveWatcherBackend({ runtime, pollMs });
-  const pollingEnabled = backendSelection.pollingEnabled;
+  const pollingEnabled = Number.isFinite(Number(pollMs)) && Number(pollMs) > 0;
   const pollLabel = pollingEnabled ? ` polling ${Number(pollMs)}ms` : ' fs events';
-  const backendLabel = backendSelection.resolved === 'parcel' ? 'parcel' : 'chokidar';
-  if (backendSelection.warning) log(`[watch] ${backendSelection.warning}`);
-  log(`[watch] Monitoring ${trackedFiles.size} file(s) via ${backendLabel}${pollLabel}.`);
+  log(`[watch] Monitoring ${trackedFiles.size} file(s)${pollLabel}.`);
 
-  stabilityGuard = backendSelection.resolved === 'parcel'
-    ? {
-      enabled: true,
-      checks: 3,
-      intervalMs: Math.max(50, Math.min(200, Math.floor(Number(debounceMs) / 3) || 50))
-    }
-    : { enabled: false, checks: 0, intervalMs: 0 };
+  const watcher = chokidar.watch(root, {
+    persistent: true,
+    ignoreInitial: true,
+    ignored: buildIgnoredMatcher({ root, ignoreMatcher }),
+    usePolling: pollingEnabled,
+    interval: pollingEnabled ? Number(pollMs) : undefined,
+    binaryInterval: pollingEnabled ? Number(pollMs) : undefined,
+    awaitWriteFinish: debounceMs
+      ? { stabilityThreshold: debounceMs, pollInterval: pollingEnabled ? Math.min(100, Number(pollMs)) : 100 }
+      : false
+  });
 
   const recordBurst = () => {
     const now = Date.now();
@@ -337,30 +282,25 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
     }
   };
 
-  const handleEvent = (event) => {
-    incWatchEvent(event?.type || 'unknown');
+  watcher.on('add', (filePath) => {
+    incWatchEvent('add');
     recordBurst();
-    if (event?.type === 'unlink') {
-      recordRemove(event.absPath);
-      return;
-    }
-    void recordAddOrChange(event.absPath);
-  };
-  const handleError = (err) => {
+    void recordAddOrChange(filePath);
+  });
+  watcher.on('change', (filePath) => {
+    incWatchEvent('change');
+    recordBurst();
+    void recordAddOrChange(filePath);
+  });
+  watcher.on('unlink', (filePath) => {
+    incWatchEvent('unlink');
+    recordBurst();
+    recordRemove(filePath);
+  });
+  watcher.on('error', (err) => {
     incWatchEvent('error');
     log(`[watch] Watcher error: ${err?.message || err}`);
-  };
-  const ignored = buildIgnoredMatcher({ root, ignoreMatcher });
-  const watcher = backendSelection.resolved === 'parcel'
-    ? await startParcelWatcher({ root, ignored, onEvent: handleEvent, onError: handleError })
-    : startChokidarWatcher({
-      root,
-      ignored,
-      onEvent: handleEvent,
-      onError: handleError,
-      pollMs,
-      awaitWriteFinishMs: debounceMs
-    });
+  });
 
   await new Promise((resolve) => {
     resolveExit = resolve;

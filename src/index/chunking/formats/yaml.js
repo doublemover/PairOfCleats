@@ -57,7 +57,7 @@ const chunkYamlTopLevel = (text) => {
   for (let i = 0; i < lines.length; ++i) {
     const line = lines[i];
     if (!line || line.trim().length === 0) continue;
-    if (line.startsWith(' ') || line.startsWith('\t')) continue;
+    if (line.startsWith(' ') || line.startsWith('\\t')) continue;
     const trimmed = line.trim();
     if (trimmed.startsWith('#') || trimmed === '---' || trimmed === '...') continue;
     if (trimmed.startsWith('-')) continue;
@@ -89,7 +89,7 @@ const resolveYamlChunkMode = (text, context) => {
 };
 
 export function chunkYaml(text, relPath, context) {
-  const isWorkflow = relPath ? relPath.replace(/\\/g, '/').includes('.github/workflows/') : false;
+  const isWorkflow = relPath ? relPath.replace(/\\\\/g, '/').includes('.github/workflows/') : false;
   if (isWorkflow) return chunkGitHubActions(text);
   if (context?.treeSitter?.configChunking === true) {
     const treeChunks = buildTreeSitterChunks({

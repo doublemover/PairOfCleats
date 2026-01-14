@@ -60,36 +60,12 @@ export const decodeTextBuffer = (buffer) => {
   };
 };
 
-const ensureNotSymlink = async (filePath, options = {}) => {
-  if (options.allowSymlink === true) return null;
-  const stat = options.stat || await fsPromises.lstat(filePath);
-  if (stat?.isSymbolicLink?.()) {
-    const err = new Error(`Refusing to read symlink: ${filePath}`);
-    err.code = 'ERR_SYMLINK';
-    throw err;
-  }
-  return stat;
-};
-
-const ensureNotSymlinkSync = (filePath, options = {}) => {
-  if (options.allowSymlink === true) return null;
-  const stat = options.stat || fs.lstatSync(filePath);
-  if (stat?.isSymbolicLink?.()) {
-    const err = new Error(`Refusing to read symlink: ${filePath}`);
-    err.code = 'ERR_SYMLINK';
-    throw err;
-  }
-  return stat;
-};
-
-export const readTextFile = async (filePath, options = {}) => {
-  await ensureNotSymlink(filePath, options);
-  const buffer = options.buffer ?? await fsPromises.readFile(filePath);
+export const readTextFile = async (filePath) => {
+  const buffer = await fsPromises.readFile(filePath);
   return decodeTextBuffer(buffer);
 };
 
 export const readTextFileWithHash = async (filePath, options = {}) => {
-  await ensureNotSymlink(filePath, options);
   const buffer = options.buffer ?? await fsPromises.readFile(filePath);
   const decoded = decodeTextBuffer(buffer);
   const hash = sha1(buffer);
@@ -100,8 +76,7 @@ export const readTextFileWithHash = async (filePath, options = {}) => {
   };
 };
 
-export const readTextFileSync = (filePath, options = {}) => {
-  ensureNotSymlinkSync(filePath, options);
-  const buffer = options.buffer ?? fs.readFileSync(filePath);
+export const readTextFileSync = (filePath) => {
+  const buffer = fs.readFileSync(filePath);
   return decodeTextBuffer(buffer);
 };

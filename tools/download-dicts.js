@@ -10,8 +10,6 @@ import { createCli } from '../src/shared/cli.js';
 import { createError, ERROR_CODES } from '../src/shared/error-codes.js';
 import { getDictConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
-const DEFAULT_MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
-
 const argv = createCli({
   scriptName: 'download-dicts',
   options: {
@@ -71,15 +69,10 @@ const resolveDownloadPolicy = (cfg) => {
   const allowlist = policy.allowlist && typeof policy.allowlist === 'object'
     ? policy.allowlist
     : {};
-  const maxBytesRaw = Number(policy.maxBytes);
-  const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0
-    ? Math.floor(maxBytesRaw)
-    : DEFAULT_MAX_DOWNLOAD_BYTES;
   return {
     requireHash: policy.requireHash === true,
     warnUnsigned: policy.warnUnsigned !== false,
-    allowlist,
-    maxBytes
+    allowlist
   };
 };
 
@@ -96,7 +89,7 @@ const resolveExpectedHash = (source, policy, overrides) => {
   return normalizeHash(fallback);
 };
 
-const verifyDownloadHash = (source, hashHex, expectedHash, policy) => {
+const verifyDownloadHash = (source, buffer, expectedHash, policy) => {
   if (!expectedHash) {
     if (policy?.requireHash) {
       throw createError(
@@ -109,19 +102,14 @@ const verifyDownloadHash = (source, hashHex, expectedHash, policy) => {
     }
     return null;
   }
-  if (!hashHex) {
+  const actual = crypto.createHash('sha256').update(buffer).digest('hex');
+  if (actual !== expectedHash) {
     throw createError(
       ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
       `Download verification failed for ${source?.name || source?.url || 'unknown source'}.`
     );
   }
-  if (hashHex !== expectedHash) {
-    throw createError(
-      ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
-      `Download verification failed for ${source?.name || source?.url || 'unknown source'}.`
-    );
-  }
-  return hashHex;
+  return actual;
 };
 
 const hashOverrides = parseHashes(argv.sha256);
@@ -178,58 +166,20 @@ function requestUrl(url, headers = {}, redirects = 0) {
         res.resume();
         return resolve(requestUrl(new URL(location, parsed).toString(), headers, redirects + 1));
       }
-      resolve({
-        statusCode: res.statusCode,
-        headers: res.headers,
-        stream: res
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        resolve({
+          statusCode: res.statusCode,
+          headers: res.headers,
+          body: Buffer.concat(chunks)
+        });
       });
     });
     req.on('error', reject);
     req.end();
   });
 }
-
-const streamToFile = (stream, outputPath, { maxBytes, expectedHash, policy }) => new Promise((resolve, reject) => {
-  let total = 0;
-  let lastByte = null;
-  let failed = false;
-  const hasher = expectedHash || policy?.requireHash ? crypto.createHash('sha256') : null;
-  const tempPath = `${outputPath}.tmp`;
-  const out = fsSync.createWriteStream(tempPath);
-  const onError = async (err) => {
-    if (failed) return;
-    failed = true;
-    try {
-      out.destroy();
-    } catch {}
-    try {
-      stream.destroy();
-    } catch {}
-    try {
-      await fs.rm(tempPath, { force: true });
-    } catch {}
-    reject(err);
-  };
-  stream.on('data', (chunk) => {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    total += buffer.length;
-    if (maxBytes && total > maxBytes) {
-      void onError(new Error(`Download exceeds maximum size (${maxBytes} bytes).`));
-      return;
-    }
-    if (hasher) hasher.update(buffer);
-    lastByte = buffer.length ? buffer[buffer.length - 1] : lastByte;
-    out.write(buffer);
-  });
-  stream.on('error', (err) => { void onError(err); });
-  out.on('error', (err) => { void onError(err); });
-  stream.on('end', () => {
-    out.end(() => {
-      const digest = hasher ? hasher.digest('hex') : null;
-      resolve({ tempPath, bytes: total, lastByte, hashHex: digest });
-    });
-  });
-});
 
 /**
  * Download a dictionary source into the cache.
@@ -252,33 +202,17 @@ async function downloadSource(source) {
 
   const response = await requestUrl(source.url, headers);
   if (response.statusCode === 304) {
-    response.stream?.resume?.();
     return { name: source.name, skipped: true };
   }
   if (response.statusCode !== 200) {
-    response.stream?.resume?.();
     throw new Error(`Failed to download ${source.url}: ${response.statusCode}`);
   }
 
   const expectedHash = resolveExpectedHash(source, downloadPolicy, hashOverrides);
-  const { tempPath, lastByte, hashHex } = await streamToFile(response.stream, outputPath, {
-    maxBytes: downloadPolicy.maxBytes,
-    expectedHash,
-    policy: downloadPolicy
-  });
-  let actualHash = null;
-  try {
-    actualHash = verifyDownloadHash(source, hashHex, expectedHash, downloadPolicy);
-  } catch (err) {
-    await fs.rm(tempPath, { force: true });
-    throw err;
-  }
+  const actualHash = verifyDownloadHash(source, response.body, expectedHash, downloadPolicy);
 
-  if (lastByte !== 10) {
-    await fs.appendFile(tempPath, '\n');
-  }
-  await fs.rm(outputPath, { force: true });
-  await fs.rename(tempPath, outputPath);
+  const text = response.body.toString('utf8');
+  await fs.writeFile(outputPath, text.endsWith('\n') ? text : `${text}\n`);
 
   manifest[source.name] = {
     url: source.url,

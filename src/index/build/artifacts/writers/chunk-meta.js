@@ -149,13 +149,7 @@ export const enqueueChunkMetaArtifacts = async ({
     await removeArtifact(path.join(outDir, 'chunk_meta.json'));
     await removeArtifact(path.join(outDir, 'chunk_meta.json.gz'));
     if (chunkMetaUseShards) {
-      // When writing sharded JSONL output, ensure any prior unsharded JSONL output is removed.
       await removeArtifact(path.join(outDir, 'chunk_meta.jsonl'));
-    } else {
-      // When writing unsharded JSONL output, remove any stale shard artifacts.
-      // The loader prefers chunk_meta.meta.json / chunk_meta.parts over chunk_meta.jsonl.
-      await removeArtifact(path.join(outDir, 'chunk_meta.meta.json'));
-      await removeArtifact(path.join(outDir, 'chunk_meta.parts'));
     }
   } else {
     await removeArtifact(path.join(outDir, 'chunk_meta.jsonl'));
@@ -169,7 +163,6 @@ export const enqueueChunkMetaArtifacts = async ({
     chunkMetaPlan.chunkMetaUseShards = useShards;
     if (useShards) {
       const partsDir = path.join(outDir, 'chunk_meta.parts');
-      await fs.rm(partsDir, { recursive: true, force: true });
       await fs.mkdir(partsDir, { recursive: true });
       const parts = [];
       let partIndex = 0;
@@ -178,7 +171,7 @@ export const enqueueChunkMetaArtifacts = async ({
         const partCount = end - i;
         const partName = `chunk_meta.part-${String(partIndex).padStart(5, '0')}.jsonl`;
         const partPath = path.join(partsDir, partName);
-        parts.push(path.posix.join('chunk_meta.parts', partName));
+        parts.push(path.join('chunk_meta.parts', partName));
         await writeJsonLinesFile(partPath, chunkMetaIterator(i, end), { atomic: true });
         addPieceFile({
           type: 'chunks',
@@ -214,7 +207,6 @@ export const enqueueChunkMetaArtifacts = async ({
   if (chunkMetaUseJsonl) {
     if (chunkMetaUseShards) {
       const partsDir = path.join(outDir, 'chunk_meta.parts');
-      await fs.rm(partsDir, { recursive: true, force: true });
       await fs.mkdir(partsDir, { recursive: true });
       const parts = [];
       let partIndex = 0;
@@ -223,7 +215,7 @@ export const enqueueChunkMetaArtifacts = async ({
         const partCount = end - i;
         const partName = `chunk_meta.part-${String(partIndex).padStart(5, '0')}.jsonl`;
         const partPath = path.join(partsDir, partName);
-        parts.push(path.posix.join('chunk_meta.parts', partName));
+        parts.push(path.join('chunk_meta.parts', partName));
         enqueueWrite(
           formatArtifactLabel(partPath),
           () => writeJsonLinesFile(

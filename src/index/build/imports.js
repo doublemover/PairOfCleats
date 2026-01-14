@@ -32,8 +32,7 @@ const collectModuleImportsFast = async ({ text, ext }) => {
     if (Array.isArray(entries)) {
       success = true;
       for (const entry of entries) {
-        const spec = entry?.n;
-        if (typeof spec === 'string' && spec) imports.add(spec);
+        if (entry?.n) imports.add(entry.n);
       }
     }
   } catch {}

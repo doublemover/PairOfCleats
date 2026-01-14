@@ -206,8 +206,7 @@ export async function collectClangdTypes({
       const target = findChunkForOffsets(fileChunks, offsets, symbol.name);
       if (!target) continue;
       let info = parseSignature(symbol.detail, languageId, symbol.name);
-      const hasParamTypes = Object.keys(info?.paramTypes || {}).length > 0;
-      if (!info || !info.returnType || !hasParamTypes) {
+      if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) {
         try {
           const hover = await guard.run(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {

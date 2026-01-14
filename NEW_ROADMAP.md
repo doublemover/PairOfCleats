@@ -9,7 +9,454 @@ Checkboxes represent “meets the intent of the requirement, end-to-end, without
 - [x] Implemented and appears complete/correct based on code inspection and existing test coverage
 - [ ] Not complete **or** there is a correctness gap **or** there is a missing/insufficient test proving behavior
 
-Completed Phases: `COMPLETED_PHASES.md`
+## Phase 1 — Sublime Text 3 Plugin Foundation (Parity + Plumbing)
+
+### 1.1 Plugin repo structure + packaging
+
+* [x] Create `sublime/PairOfCleats/` package skeleton:
+
+  * [x] `PairOfCleats.py` (entrypoint)
+  * [x] `commands/` (command modules)
+  * [x] `lib/` (helpers: config, subprocess, parsing, caching)
+  * [x] `messages/` (install/upgrade notes)
+  * [x] `Default.sublime-commands`
+  * [x] `Main.sublime-menu` (optional)
+  * [x] `Default.sublime-keymap` (optional)
+* [x] Add `README.md` for ST3 plugin installation + prerequisites
+* [x] Add “Package Control” compatibility notes (no external deps beyond Node runtime + repo binaries)
+
+### 1.2 Node/CLI discovery + execution contract
+
+* [x] Implement robust “pairofcleats binary discovery”:
+
+  * [x] Prefer project-local `node_modules/.bin/pairofcleats` when available
+  * [x] Fallback to global `pairofcleats` on PATH
+  * [x] Allow explicit override in ST settings: `pairofcleats_path`
+* [x] Implement repo-root detection:
+
+  * [x] Prefer `.pairofcleats.json` location
+  * [x] Fallback to `.git` root
+  * [x] Fallback to folder of active file
+* [x] Implement subprocess wrapper:
+
+  * [x] Streams output to Sublime panel
+  * [x] Captures JSON payloads when `--json` is used
+  * [x] Supports cancellation (best-effort)
+  * [x] Adds stable environment injection (cache root, embeddings mode, etc.)
+
+### 1.3 Settings + per-project overrides
+
+* [x] Add `PairOfCleats.sublime-settings` defaults:
+
+  * [x] `pairofcleats_path`, `node_path`
+  * [x] `index_mode_default` (code/prose/both)
+  * [x] `search_backend_default` (memory/sqlite-fts/etc)
+  * [x] `open_results_in` (quick_panel / new_tab / output_panel)
+* [x] Support `.sublime-project` settings overrides
+* [x] Validate config and surface actionable error messages
+
+### 1.4 Smoke tests (plugin-side)
+
+* [x] Add Python unit tests that:
+
+  * [x] Import plugin modules without Sublime runtime (mock `sublime`, `sublime_plugin`)
+  * [x] Validate binary discovery behavior
+  * [x] Validate repo-root resolution on fixtures
+  * [x] Validate settings overlay precedence
+
+---
+
+
+## Phase 2 — Sublime Search UX (Queries, Results, Navigation)
+
+### 2.1 Search command(s)
+
+* [x] `PairOfCleats: Search` command:
+
+  * [x] Prompt input panel for query
+  * [x] Optional toggles: code/prose/both, backend, limit
+  * [x] Execute `pairofcleats search ... --json`
+* [x] `PairOfCleats: Search Selection` command:
+
+  * [x] Uses selected text as query
+* [x] `PairOfCleats: Search Symbol Under Cursor` command
+
+### 2.2 Results presentation
+
+* [x] Quick panel results:
+
+  * [x] Show `file:line-range`, symbol name, snippet/headline, score
+  * [x] Preserve stable ordering for repeatability
+* [x] On selection:
+
+  * [x] Open file at best-effort location (line/column)
+  * [x] Highlight match range (if available)
+* [x] Add optional “results buffer” view (for large result sets)
+
+### 2.3 Quality-of-life UX
+
+* [x] Query history (per project)
+* [x] “Repeat last search” command
+* [x] “Explain search” (if supported by CLI flags / internal explain output)
+
+### 2.4 Tests
+
+* [x] Add Node-level “search contract” tests:
+
+  * [x] Ensure `--json` output parseability and required fields
+* [x] Add plugin tests:
+
+  * [x] Search command dispatches correct subprocess args
+  * [x] Results parsing tolerates partial/missing optional fields
+
+---
+
+
+## Phase 3 — Index Lifecycle in Sublime (Build/Watch/Validate + Status)
+
+### 3.1 Build index commands
+
+* [x] `PairOfCleats: Index Build (Code)`
+* [x] `PairOfCleats: Index Build (Prose)`
+* [x] `PairOfCleats: Index Build (All)`
+* [x] Stream progress to an output panel
+* [x] Persist “last index time” + “last index mode” in project cache
+
+### 3.2 Watch mode integration
+
+* [x] `PairOfCleats: Index Watch Start`
+* [x] `PairOfCleats: Index Watch Stop`
+* [x] Prevent duplicate watchers per window/project
+* [x] Robust shutdown on Sublime exit / project close
+
+### 3.3 Validate + repair affordances
+
+* [x] `PairOfCleats: Index Validate`
+* [x] Surface actionable failures (missing artifacts, invalid JSON, stale manifests)
+* [x] Provide “Open index directory” convenience command
+
+### 3.4 Tests
+
+* [x] Node tests for index build/validate on fixtures
+* [x] Plugin tests for lifecycle commands and watcher gating
+
+---
+
+
+## Phase 4 — Codebase Semantic Map (Imports/Exports/Calls/Dataflow/Control Flow → Visual Map)
+
+### What this phase delivers
+
+A **real codebase map** that uses existing and enriched semantic metadata to generate a **diagram-ready model** and one or more **rendered artifacts**.
+
+It must explicitly incorporate and visualize:
+
+* **Imports / Exports / ImportLinks**
+* **Calls / CallLinks / CallSummaries**
+* **Usages / UsageLinks**
+* **Signature / Modifiers / Params / Returns**
+* **Reads / Writes / Mutates / Aliases**
+* **Control flow** (branches, loops, throws, awaits, yields, returns)
+* **AST-derived semantics** (using what the indexer already extracts)
+
+#### Visual grammar (required characteristics)
+
+* **File = outer shape**
+
+  * Shape varies by file type/category (source/test/config/doc/generated/etc.)
+* **Functions/classes = content inside the file shape**
+
+  * The “fill” of the file node is structurally subdivided to represent contained functions/classes
+* **Function details = nested sub-shapes inside function area**
+
+  * Small badges/segments represent modifiers/returns/dataflow/control-flow
+* **Multiple line styles = multiple edge semantics**
+
+  * Imports (file→file), control flow calls (fn→fn), usage deps (fn→fn), dataflow (arg/return/state)
+
+---
+
+### 4.1 Inventory + normalize available semantics from existing artifacts
+
+Leverage what is already produced today, and formalize how it’s consumed:
+
+* [x] **Inputs** (expected present after `index build`):
+
+  * [x] `file_relations.json` (imports, exports, usages, importLinks, functionMeta/classMeta)
+  * [x] `repo_map.json` (chunk-level symbol map, exported flag, signatures)
+  * [x] `chunk_meta.json` (docmeta/metaV2: signature/modifiers/returns/controlFlow/dataflow + relations)
+  * [x] `graph_relations.json` (importGraph/callGraph/usageGraph)
+* [x] Define “canonical IDs” used across the map:
+
+  * [x] `fileId = <repo-relative path>`
+  * [x] `symbolId = <file>::<symbolName>` (already used in relation graphs)
+  * [x] Stable IDs for anonymous/lambda cases (fallback: chunkId when name is `(anonymous)`)
+
+---
+
+### 4.2 Define a versioned “Map Model” schema (diagram-ready)
+
+This is the core contract the plugin will consume.
+
+* [x] Create `docs/map-schema.json` (or similar) with:
+
+  * [x] `version`
+  * [x] `generatedAt`
+  * [x] `root` (repo root logical id)
+  * [x] `legend`:
+
+    * [x] `nodeTypes` (file/function/class/symbol)
+    * [x] `fileShapes` mapping (category → shape)
+    * [x] `functionBadges` mapping (modifier/returns/dataflow/control-flow → badge glyph)
+    * [x] `edgeTypes` mapping (imports/calls/usages/dataflow/aliases/mutations)
+    * [x] `edgeStyles` mapping (solid/dashed/dotted/double, arrowheads, labels)
+  * [x] `nodes`:
+
+    * [x] file nodes with nested “members” (functions/classes)
+    * [x] function nodes with structured “semantic facets”
+  * [x] `edges` (typed, labeled, optionally “port-addressable”)
+* [x] Schema must support **hierarchical nesting**:
+
+  * [x] File node has `members[]` with per-member ports
+  * [x] Member nodes (functions) include `signature`, `modifiers`, `returns`, `controlFlow`, `dataflow`
+* [x] Determinism requirements:
+
+  * [x] Stable ordering (sort keys/ids)
+  * [x] Explicit timestamp field allowed, but everything else must be deterministic
+
+---
+
+### 4.3 Build the semantic “map extractor” (core engine tool)
+
+Implement a Node tool that reads index artifacts and produces the map model.
+
+* [x] Add `tools/code-map.js` (or `tools/report-code-map.js`) that:
+
+  * [x] Locates repo + index dirs using existing `tools/dict-utils.js`
+  * [x] Loads:
+
+    * [x] `file_relations.json`
+    * [x] `repo_map.json`
+    * [x] `chunk_meta.json` (or minimal subset)
+    * [x] `graph_relations.json`
+  * [x] Merges into a single “map model”:
+
+    * [x] **Files** classified into categories (drives file shape)
+    * [x] **Members** extracted per file:
+
+      * [x] functions/methods/classes (from `repo_map` and/or chunk meta)
+      * [x] include line ranges
+      * [x] include `signature`, `modifiers`, `params`, `returns`
+    * [x] **Function semantics**:
+
+      * [x] `dataflow.reads`, `dataflow.writes`, `dataflow.mutations`, `dataflow.aliases`
+      * [x] `controlFlow.branches/loops/returns/throws/awaits/yields/breaks/continues`
+      * [x] `throws`, `awaits`, `yields`, `returnsValue` facets surfaced explicitly
+    * [x] **Edges**:
+
+      * [x] Import edges (file→file) from `importLinks` + raw `imports`
+      * [x] Export edges (file→symbol) from `exports` + repo_map `exported`
+      * [x] Call edges (fn→fn) from `callLinks` or `graph_relations.callGraph`
+      * [x] Usage edges (fn→fn) from `usageLinks` or `graph_relations.usageGraph`
+      * [x] Dataflow edges:
+
+        * [x] Argument flow edges from `callSummaries.argMap` (caller→callee param ports)
+        * [x] Return flow edges using inferred return metadata where available
+        * [x] Optional: “state flow” edges when reads/writes/mutations overlap (guardrailed; see 28.6)
+      * [x] Alias edges:
+
+        * [x] derived from `dataflow.aliases` (function-local or cross-function via calls when resolvable)
+* [x] Add CLI entrypoint:
+
+  * [x] `pairofcleats report map` (preferred, consistent with existing `report` group), or
+  * [x] `pairofcleats map` (top-level)
+* [x] Support scope + size controls:
+
+  * [x] `--scope repo|dir|file|symbol`
+  * [x] `--focus <path or symbol>`
+  * [x] `--include imports,calls,usages,dataflow,exports`
+  * [x] `--only-exported`
+  * [x] `--max-files N`, `--max-members-per-file N`, `--max-edges N`
+  * [x] `--collapse file|dir` (aggregate mode)
+  * [x] `--format json|dot|svg|html` (see 28.4)
+
+---
+
+### 4.4 Generate “shape-based” diagrams (DOT-first, with nested function fills)
+
+To match your “shape with fill containing functions” requirement cleanly, DOT/Graphviz is the most direct representation.
+
+* [x] Implement a DOT generator `src/map/dot-writer.js`:
+
+  * [x] **File nodes as outer shapes** with file-type-dependent shapes:
+
+    * [x] Source code: `box` or `component`
+    * [x] Tests: `box` with distinct border style
+    * [x] Config/data: `cylinder` or `hexagon`
+    * [x] Docs/prose: `note`
+    * [x] Generated/build artifacts: `folder` or `box3d`
+  * [x] **Fill represents members** using HTML-like labels:
+
+    * [x] Outer `<TABLE>` represents the file “container”
+    * [x] Each function/class is a row with a `PORT` so edges can land on that member specifically
+  * [x] **Nested shapes inside the function row** (HTML sub-tables/cells) to represent:
+
+    * [x] modifiers: async/static/generator/visibility
+    * [x] signature/params summary
+    * [x] returns/returnType/returnsValue indicator
+    * [x] dataflow mini-badges: reads/writes/mutates/aliases counts (and/or top N symbols)
+    * [x] controlFlow mini-badges: branches/loops/throws/awaits/yields
+* [x] **Edge encoding** (multiple edge “line types”):
+
+  * [x] Import edges: dashed file→file
+  * [x] Call edges: solid function→function (primary control flow)
+  * [x] Usage edges: thin/secondary style function→function
+  * [x] Dataflow edges:
+
+    * [x] dotted caller→callee(param) edges (argument flow)
+    * [x] dotted callee→caller edges for return flow (if inferred)
+  * [x] Mutation/state edges (optional, guardrailed): double-line or distinct style
+  * [x] Alias edges: dashed-dotted, labeled `alias: a=b`
+* [x] Output modes:
+
+  * [x] `--format dot` always available
+  * [x] `--format svg` if Graphviz present (shell out to `dot -Tsvg`)
+  * [x] `--format html` wraps SVG + legend into a standalone HTML viewer
+* [x] Implement legend rendering:
+
+  * [x] Either embed as a DOT subgraph or in HTML wrapper
+  * [x] Must document shape/edge meaning for users
+
+---
+
+### 4.5 Sublime Text 3 plugin commands for map generation + viewing
+
+Provide first-class UX inside Sublime, even if rendering happens externally.
+
+* [x] Add commands:
+
+  * [x] `PairOfCleats: Map (Repo)`
+  * [x] `PairOfCleats: Map (Current Folder)`
+  * [x] `PairOfCleats: Map (Current File)`
+  * [x] `PairOfCleats: Map (Symbol Under Cursor)`
+  * [x] `PairOfCleats: Map (Selection)`
+* [x] Add a “Map Type” chooser:
+
+  * [x] Import Map
+  * [x] Call Map
+  * [x] Usage/Dependency Map
+  * [x] Dataflow Map (args/returns/state)
+  * [x] Combined Map (guardrailed by size limits)
+* [x] Implement output handling:
+
+  * [x] Write outputs to `.pairofcleats/maps/` (repo-local) or cache dir
+  * [x] Open `.dot` in Sublime for inspection
+  * [x] If `.svg`/`.html` produced:
+
+    * [x] Provide “Open in Browser” command (best-effort)
+* [x] Navigation affordances:
+
+  * [x] When a map is generated, also produce an indexable “node list” JSON:
+
+    * [x] allows Sublime quick panel “Jump to node” (file/function)
+    * [x] opens file at recorded `startLine`
+* [x] Graceful degradation:
+
+  * [x] If `astDataflow` / `controlFlow` metadata is unavailable in the index:
+
+    * [x] show “limited map” warning
+    * [x] offer action: “Rebuild index with dataflow/control-flow enabled” (invokes `index build` with the project’s config expectations)
+
+---
+
+### 4.6 Performance guardrails + scaling strategy (mandatory for real repos)
+
+This phase will generate *very large graphs* unless explicitly constrained.
+
+* [x] Hard limits with user-overrides:
+
+  * [x] `maxFiles`, `maxMembersPerFile`, `maxEdges`
+  * [x] edge sampling policies per edge type
+* [x] Aggregation modes:
+
+  * [x] Directory-level aggregation (folder nodes contain files)
+  * [x] File-only map (no nested functions)
+  * [x] Export-only functions view
+  * [x] “Top-K by degree” (highest call/import fan-in/out)
+* [x] Deterministic sampling:
+
+  * [x] same inputs → same output (stable selection)
+* [x] Cache map builds keyed by:
+
+  * [x] index signature + generator options
+* [x] Failure mode policy:
+
+  * [x] If size exceeds limits, output a “truncated map” plus a summary explaining what was dropped
+
+---
+
+### 4.7 Tests (core + integration + determinism)
+
+Add explicit automated coverage for the map feature.
+
+#### Node tool tests (authoritative)
+
+* [x] `tests/code-map-basic.js`
+
+  * [x] Build a tiny fixture repo with:
+
+    * [x] imports/exports
+    * [x] functions calling other functions
+    * [x] a function with reads/writes/mutations/aliases
+    * [x] a function with branches/loops/throws/awaits
+  * [x] Run `build_index.js --stub-embeddings`
+  * [x] Run `pairofcleats report map --format json`
+  * [x] Assert:
+
+    * [x] file nodes exist
+    * [x] member nodes include `signature/modifiers/returns/dataflow/controlFlow`
+    * [x] edge sets include imports + calls
+* [x] `tests/code-map-dot.js`
+
+  * [x] Generate DOT output
+  * [x] Assert:
+
+    * [x] file “container” nodes exist
+    * [x] function rows/ports exist
+    * [x] edges connect to ports (caller fn → callee fn)
+    * [x] distinct edge styles appear for import vs call vs dataflow
+* [x] `tests/code-map-determinism.js`
+
+  * [x] Run map generation twice and compare outputs (ignore `generatedAt`)
+* [x] `tests/code-map-guardrails.js`
+
+  * [x] Generate a repo with many dummy functions
+  * [x] Ensure truncation behavior is correct and stable
+
+#### Plugin-side tests
+
+* [x] Python unit tests:
+
+  * [x] command registration exists
+  * [x] subprocess args are correct for each map command
+  * [x] output paths computed correctly
+  * [x] “Graphviz missing” fallback behavior (DOT-only) works
+
+
+
+### 4.8 Isometric map viewer (three.js)
+
+* [x] Generate an isometric HTML viewer from the map model (three.js module import)
+* [x] Support zoom with configurable sensitivity
+* [x] Support WASD movement with configurable sensitivity/acceleration/drag
+* [x] Highlight selections and show file/line metadata
+* [x] Double-click opens the selected file/line via a URI template
+* [x] Add layout styles (clustered/radial/flat) with adjustable spacing
+* [x] Add flow-connected highlighting (edges + related nodes) and hover highlights from the selection panel
+* [x] Add grid line rendering + glow, fog, and wireframe tuning (panel configurable)
+* [x] Modularize the isometric viewer client into <500-line modules
+---
+
 
 ## Phase 5 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
 
@@ -30,6 +477,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ---
 
+
 ## Phase 6 — Distribution Readiness (Package Control + Cross-Platform)
 
 *(Renumbered from prior Phase 29.)*
@@ -45,6 +493,7 @@ Tests:
 * [ ] Cross-platform subprocess quoting tests (Node)
 
 ---
+
 
 ## Phase 7 — Verification Gates (Regression + Parity + UX Acceptance)
 
@@ -78,13 +527,14 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
   * `graphology`-backed `graph_relations.json` provides a strong base graph layer
 * The missing piece is the **visual model + rendering/export** and **Sublime UX** around it, which Phase 28 supplies.
 
+
 ## Phase 8 — Test Gate Stabilization and Determinism
 
 **Objective:** Make the current test suite reliable (non-flaky) and green, so subsequent refactors (security, caching, RPC hardening) have a trustworthy safety net.
 
 1. **Fix failing Phase 22 gate: `type-inference-lsp-enrichment` (Python tooling return type missing)**
 
-   * [x] **Broaden hover fallback conditions in LSP tooling providers so missing return types are recovered even when parameter types are present.**
+   * [ ] **Broaden hover fallback conditions in LSP tooling providers so missing return types are recovered even when parameter types are present.**
 
      * **Why:** All three LSP tooling providers currently only fetch hover when *both* `returnType` is missing *and* `paramTypes` is empty. If a provider can parse param types from `documentSymbol.detail` but that string omits return type (a plausible LSP behavior), it will never attempt hover and will miss return types (exact symptom reported by the failing test).
      * **Where:**
@@ -117,7 +567,7 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 2. **Fix failing Phase 22 gate: `embeddings-dims-mismatch` (test is flaky due to cache file selection)**
 
-   * [x] **Make the test select a cache entry that matches the identity it intends to mutate.**
+   * [ ] **Make the test select a cache entry that matches the identity it intends to mutate.**
 
      * **Why:** The cache directory can contain *multiple* caches for the same file hash/signature but different identity keys (e.g., stub embeddings default dims 384 from `build_index` stage vs. a subsequent `build-embeddings --dims 8`). The test currently mutates an arbitrary first file returned by `readdir`, which is OS/filesystem-order dependent, causing nondeterministic behavior (observed in `tests/phase22-logs/embeddings-dims-mismatch.js.log`).
      * **Where:** `tests/embeddings-dims-mismatch.js`
@@ -131,7 +581,7 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 3. **De-flake related embeddings cache test to prevent future intermittent failures**
 
-   * [x] Apply the same deterministic cache selection strategy to `tests/embeddings-cache-identity.js`.
+   * [ ] Apply the same deterministic cache selection strategy to `tests/embeddings-cache-identity.js`.
 
      * **Why:** It uses the same “first file” selection pattern and can fail depending on directory enumeration order and presence of other identity caches.
      * **Where:** `tests/embeddings-cache-identity.js`
@@ -139,7 +589,7 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 4. **Add a “Phase 22 gate” smoke runner (optional but strongly recommended)**
 
-   * [x] Create a single script to run only the gate tests and report failures clearly.
+   * [ ] Create a single script to run only the gate tests and report failures clearly.
 
      * **Why:** Reduces time-to-signal and encourages frequent local verification during refactors.
      * **Where:** e.g., `tools/run-phase22-gates.js` or `npm run test:phase22`
@@ -154,13 +604,14 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 ---
 
+
 ## Phase 9 — Security and Input-Hardening (Local Servers + Indexing)
 
 **Objective:** Close high-impact vulnerabilities and unsafe defaults that could be exploited when indexing untrusted repositories or exposing the local API server beyond localhost.
 
 1. **Prevent symlink-based repo escape during discovery/indexing**
 
-   * [x] **Stop following symlinks when discovering and stat’ing files.**
+   * [ ] **Stop following symlinks when discovering and stat’ing files.**
 
      * **Why:** If a repository contains a tracked symlink pointing outside the repo (e.g., to `/etc/passwd`), the current logic can follow it and read/index external files. This is a classic “repo escape / data exfiltration” risk when indexing untrusted repos.
      * **Where:** `src/index/build/discover.js`
@@ -177,7 +628,7 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
        * Add a fixture repo containing a symlink file pointing outside repo root.
        * Assert indexing does not read it (and ideally logs a warning or records a skip reason).
-   * [x] **Ensure downstream file reads cannot accidentally follow symlinks even if discovery misses one.**
+   * [ ] **Ensure downstream file reads cannot accidentally follow symlinks even if discovery misses one.**
 
      * **Why:** Defense-in-depth; discovery should prevent it, but a second gate at file-read time reduces risk.
      * **Where:** `src/index/build/file-processor.js` and any shared read helpers (e.g., `src/shared/encoding.js` `readTextFileWithHash`)
@@ -185,7 +636,7 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 2. **Lock down API server defaults (CORS, repo selection, and exposure)**
 
-   * [x] **Remove unconditional permissive CORS (`Access-Control-Allow-Origin: *`) or make it explicitly opt-in.**
+   * [ ] **Remove unconditional permissive CORS (`Access-Control-Allow-Origin: *`) or make it explicitly opt-in.**
 
      * **Why:** If the server is started with `--host 0.0.0.0` (supported), permissive CORS plus no auth makes it trivial for any web page on the same network to call the API from a browser (cross-site request from an untrusted origin).
      * **Where (currently sets `*`):**
@@ -200,14 +651,14 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
          * `api.cors.allowedOrigins` (array)
          * `api.cors.allowAnyOrigin` (explicit opt-in, default false)
-   * [x] **Add authentication for non-localhost bindings (or always, with a “dev disable” escape hatch).**
+   * [ ] **Add authentication for non-localhost bindings (or always, with a “dev disable” escape hatch).**
 
      * **Why:** The API allows expensive operations (search) and can access the filesystem via repo selection (see next item). This should not be anonymous if reachable from other machines.
      * **Fix:**
 
        * Support a bearer token header, e.g. `Authorization: Bearer <token>` with `PAIR_OF_CLEATS_API_TOKEN` env var.
        * If `host` is not `127.0.0.1/localhost`, require token by default.
-   * [x] **Restrict `repoPath` override in API requests (prevent arbitrary filesystem indexing/search).**
+   * [ ] **Restrict `repoPath` override in API requests (prevent arbitrary filesystem indexing/search).**
 
      * **Why:** Current API accepts a request body that can set `repoPath`, and then resolves and operates on that directory. Without an allowlist, this is arbitrary directory read/search capability.
      * **Where:** `tools/api/router.js` `resolveRepo(value)` and usage in `/search`, `/status`, `/stream/search`.
@@ -222,7 +673,7 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 3. **Harden API request body parsing and limits**
 
-   * [x] **Replace string concatenation body parsing with byte-safe buffering and strict size enforcement.**
+   * [ ] **Replace string concatenation body parsing with byte-safe buffering and strict size enforcement.**
 
      * **Why:** Current `parseBody` in `tools/api/router.js` does `data += chunk` and uses `data.length` (characters, not bytes). This is less reliable and can be slower for large payloads due to repeated string reallocations.
      * **Fix:**
@@ -230,7 +681,7 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
        * Accumulate Buffers in an array; track `byteLength`.
        * Enforce a hard cap in bytes (e.g., 1 MiB configurable).
        * Only decode once at the end.
-   * [x] **Validate `Content-Type` for JSON endpoints.**
+   * [ ] **Validate `Content-Type` for JSON endpoints.**
 
      * **Why:** Avoid ambiguous parsing and reduce attack surface.
      * **Fix:** Require `application/json` for POST bodies on `/search` and stream endpoints (except where intentionally flexible).
@@ -244,13 +695,14 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 ---
 
+
 ## Phase 10 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
 
 **Objective:** Prevent unbounded memory growth and improve resilience when communicating with external processes (LSP servers, MCP transport), including malformed or oversized JSON-RPC frames.
 
 1. **Implement `maxBufferBytes` enforcement in framed JSON-RPC parser**
 
-   * [x] **Enforce `maxBufferBytes` in `createFramedJsonRpcParser`.**
+   * [ ] **Enforce `maxBufferBytes` in `createFramedJsonRpcParser`.**
 
      * **Why:** The function accepts `maxBufferBytes` but does not enforce it, leaving an unbounded buffer growth path if a peer sends large frames or never terminates headers.
      * **Where:** `src/shared/jsonrpc.js` (`createFramedJsonRpcParser`)
@@ -266,7 +718,7 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
          * `maxHeaderBytes` (protect header scan)
          * `maxMessageBytes` (protect content-length payload)
-   * [x] **Add explicit tests for oversized frames.**
+   * [ ] **Add explicit tests for oversized frames.**
 
      * **Where:** Add a new unit test under `tests/` that pushes > limit into parser and asserts:
 
@@ -275,7 +727,7 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 2. **Apply bounded JSON-RPC parsing in LSP client**
 
-   * [x] Replace `StreamMessageReader` usage with the bounded framed parser (or wrap it with size checks).
+   * [ ] Replace `StreamMessageReader` usage with the bounded framed parser (or wrap it with size checks).
 
      * **Why:** `StreamMessageReader` will buffer messages; without explicit size enforcement at your integration boundary, a misbehaving server can cause OOM.
      * **Where:** `src/integrations/tooling/lsp/client.js`
@@ -287,18 +739,107 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 3. **Apply bounded JSON-RPC parsing in MCP transport**
 
-   * [x] Replace `StreamMessageReader` usage similarly.
+   * [ ] Replace `StreamMessageReader` usage similarly.
 
      * **Where:** `tools/mcp/transport.js`
      * **Fix:** Same pattern as LSP client; enforce message size limits and fail gracefully.
 
 **Exit criteria**
 
-* [x] `createFramedJsonRpcParser` enforces max buffer/message sizes with tests.
-* [x] LSP client no longer relies on unbounded message buffering.
-* [x] MCP transport no longer relies on unbounded message buffering.
+* [ ] `createFramedJsonRpcParser` enforces max buffer/message sizes with tests.
+* [ ] LSP client no longer relies on unbounded message buffering.
+* [ ] MCP transport no longer relies on unbounded message buffering.
 
 ---
+
+
+## Phase 11 — Resource Lifecycle Management (Caches, Long-Lived Servers, Builds)
+
+**Objective:** Prevent memory and resource leaks in long-running processes (API server, service workers), especially across repeated builds and multi-repo usage.
+
+1. **Add eviction/TTL for API router repo-level caches**
+
+   * [ ] **Implement eviction for `repoCaches` map in `tools/api/router.js`.**
+
+     * **Why:** `repoCaches` can grow unbounded if clients query multiple repos or if repo roots vary. Each entry can hold heavy caches (index cache + sqlite connections).
+     * **Fix:**
+
+       * Add:
+
+         * `maxRepos` (e.g., 3–10)
+         * `repoTtlMs` (e.g., 10–30 minutes)
+       * Track `lastUsed` and evict least-recently-used / expired.
+       * On eviction: close sqlite cache handles (`sqliteCache.close()`), clear index cache.
+   * [ ] Add metrics for cache size and evictions.
+
+     * **Where:** `tools/api/router.js` and metrics registry.
+
+2. **Add eviction for per-repo index cache and sqlite DB cache**
+
+   * [ ] **Index cache eviction**
+
+     * **Why:** `src/retrieval/index-cache.js` caches by `dir` (which can change per build). On repeated re-indexing, old build directories can accumulate.
+     * **Fix:** Convert to LRU with max entries, or TTL purge on access.
+   * [ ] **SQLite DB cache eviction**
+
+     * **Where:** `src/retrieval/sqlite-cache.js`
+     * **Why:** Same “dir-per-build” key pattern; can leak connections/handles.
+     * **Fix:** LRU/TTL + ensure `close()` called on eviction.
+
+3. **Add explicit cache invalidation when “current build” pointer changes**
+
+   * [ ] Detect when the effective index directory changes (new build) and prune caches for previous builds.
+
+     * **Why:** Keeps hot caches relevant and bounds memory footprint.
+
+**Exit criteria**
+
+* [ ] API server memory does not grow unbounded when indexing/searching multiple repos/builds.
+* [ ] Old build caches are evicted/pruned automatically.
+* [ ] SQLite handles are closed on eviction (verified via tests or instrumentation).
+
+---
+
+
+## Phase 12 — Performance and Operational Hardening
+
+**Objective:** Improve throughput and robustness under load without changing core behavior.
+
+1. **Reduce event-loop blocking sync filesystem calls on API request paths**
+
+   * [ ] Replace `fsSync.*` in API request hot paths with async equivalents where practical.
+
+     * **Why:** Sync I/O can stall concurrent requests in the API server process.
+     * **Where (examples):**
+
+       * `tools/api/router.js` `resolveRepo()` uses `existsSync/statSync`.
+     * **Fix:** Use `fs.promises.stat` with try/catch; cache results briefly if needed.
+
+2. **Prevent decompression “zip bomb” style memory spikes in artifact reading**
+
+   * [ ] Add output size limiting to gzip decompression.
+
+     * **Why:** `src/shared/artifact-io.js` uses `gunzipSync(buffer)` and only checks decompressed size *after* decompression. A small compressed file could expand massively and spike memory.
+     * **Fix:**
+
+       * Use `zlib.gunzipSync(buffer, { maxOutputLength: maxBytes + slack })` (if supported in your Node target), or switch to streaming gunzip with explicit byte limits.
+     * **Where:** `src/shared/artifact-io.js` `parseBuffer` / gzip handling.
+
+3. **Add download size limits for tools that fetch large remote assets**
+
+   * [ ] Enforce maximum download size (or require hash) for dictionary downloads.
+
+     * **Why:** `tools/download-dicts.js` buffers the entire response in memory (`Buffer.concat`) without a hard cap.
+     * **Fix:** Stream to disk with a cap; abort if exceeded; strongly prefer requiring hashes for non-default URLs.
+
+**Exit criteria**
+
+* [ ] API request path avoids avoidable sync I/O.
+* [ ] Artifact gzip parsing cannot explode memory beyond configured limits.
+* [ ] Large downloads are bounded and/or verified.
+
+---
+
 
 ## Phase 13 — Documentation and Configuration Hardening
 
@@ -327,6 +868,159 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 * [ ] New options are documented and validated enough to prevent silent misconfiguration.
 
 ---
+
+---
+
+
+## Phase 14 — Optional-dependency framework + capability registry (foundation for all phases)
+
+### 14.1 Introduce a consistent “optional dependency” loader
+
+* [ ] Add `src/shared/optional-deps.js` with a single, opinionated API:
+
+  * [ ] `tryRequire(name)` / `tryImport(name)` helpers (use `createRequire(import.meta.url)` where needed)
+  * [ ] Standardized return shape: `{ ok: true, mod } | { ok: false, error, reason }`
+  * [ ] Standardized logging hook (only when `PAIROFCLEATS_VERBOSE` or a dedicated flag is enabled)
+* [ ] Add `src/shared/capabilities.js` that reports runtime availability:
+
+  * [ ] `watcher: { chokidar: true, parcel: boolean }`
+  * [ ] `regex: { re2: boolean, re2js: true }`
+  * [ ] `hash: { nodeRsXxhash: boolean, wasmXxhash: true }`
+  * [ ] `compression: { gzip: true, zstd: boolean }`
+  * [ ] `extractors: { pdf: boolean, docx: boolean }`
+  * [ ] `mcp: { sdk: boolean, legacy: true }`
+  * [ ] `externalBackends: { tantivy: boolean, lancedb: boolean }` (even if “boolean” means “reachable” rather than “installed”)
+* [ ] Wire capabilities into existing “status” surfaces:
+
+  * [ ] Extend `tools/mcp/repo.js` → `configStatus()` to include capability info and warnings for requested-but-unavailable features
+  * [ ] Extend `tools/config-dump.js` (or equivalent) to print capabilities in JSON output mode
+
+### 14.2 Add config + env “backend selectors” (uniform UX)
+
+* [ ] Extend `src/shared/env.js` to parse new selectors (string + allowlist):
+
+  * [ ] `PAIROFCLEATS_WATCHER_BACKEND` = `auto|chokidar|parcel`
+  * [ ] `PAIROFCLEATS_REGEX_ENGINE` = `auto|re2|re2js`
+  * [ ] `PAIROFCLEATS_XXHASH_BACKEND` = `auto|native|wasm`
+  * [ ] `PAIROFCLEATS_COMPRESSION` = `auto|gzip|zstd|none`
+  * [ ] `PAIROFCLEATS_DOC_EXTRACT` = `auto|on|off`
+  * [ ] `PAIROFCLEATS_MCP_TRANSPORT` = `auto|sdk|legacy`
+* [ ] Add parallel config keys in `.pairofcleats.json` (keep them near existing related config blocks):
+
+  * [ ] `indexing.watch.backend`
+  * [ ] `search.regex.engine`
+  * [ ] `indexing.hash.backend`
+  * [ ] `indexing.artifactCompression.mode` enum expansion + `auto`
+  * [ ] `indexing.documentExtraction.enabled`
+  * [ ] `mcp.transport`
+* [ ] Update `docs/config-schema.json`:
+
+  * [ ] Add/expand enums (avoid “free string” for anything that’s meant to be policy-controlled)
+  * [ ] Add descriptions that clarify fallback rules (`auto` behavior)
+* [ ] Update any config validation code paths if they enforce known keys (`src/config/validate.js` is schema-driven; keep schema authoritative)
+
+### 14.3 Add dependency-bundle reference stubs (keeps repo documentation consistent)
+
+For each new dependency introduced in later phases, add a minimal doc file under:
+`docs/references/dependency-bundle/deps/<dep>.md`
+
+* [ ] `parcel-watcher.md`
+* [ ] `re2.md`
+* [ ] `node-rs-xxhash.md`
+* [ ] `mongodb-js-zstd.md`
+* [ ] `pdfjs-dist.md`
+* [ ] `mammoth.md`
+* [ ] `modelcontextprotocol-sdk.md`
+* [ ] `lancedb.md` (if used)
+* [ ] `tantivy.md` (if used)
+* [ ] Update `docs/references/dependency-bundle/README.md` if it has an index
+
+### 14.4 Tests (framework-level)
+
+* [ ] Add `tests/capabilities-report.js`:
+
+  * [ ] Asserts `capabilities` object shape is stable
+  * [ ] Asserts `auto` selectors never throw when optional deps are missing
+* [ ] Add a script-coverage action to run it:
+
+  * [ ] `tests/script-coverage/actions.js`: add action entry that calls `runNode(...)`
+  * [ ] (Optional) Add an npm script alias if you want parity with the rest of the repo scripts
+
+**Exit criteria**
+
+* [ ] All “capability” calls are side-effect-free and safe when optional deps are absent
+* [ ] `config_status` (MCP) can surface “you requested X but it’s not available” warnings without crashing
+* [ ] CI passes on Node 18 (Ubuntu + Windows lanes)
+
+---
+
+
+## Phase 15 — File watching performance: add `@parcel/watcher` backend (keep chokidar fallback)
+
+### 15.1 Add the dependency (prefer optional unless you want it guaranteed everywhere)
+
+* [ ] Add `@parcel/watcher` to `package.json`
+
+  * [ ] Prefer `optionalDependencies` if you want installs to succeed even when native builds fail
+  * [ ] If you add it as a hard dependency, ensure Windows CI remains green
+
+### 15.2 Create a watcher-backend abstraction
+
+* [ ] Create `src/index/build/watch/backends/types.js` (or inline JSDoc contract) describing:
+
+  * [ ] `start({ root, ignored, onEvent, onError, pollMs? }) -> { close(): Promise<void> }`
+  * [ ] Normalized event shape: `{ type: 'add'|'change'|'unlink', absPath }`
+* [ ] Extract chokidar wiring out of `src/index/build/watch.js`:
+
+  * [ ] Move into `src/index/build/watch/backends/chokidar.js`
+  * [ ] Preserve existing semantics (`awaitWriteFinish`, ignored matcher, poll support)
+* [ ] Implement parcel watcher backend:
+
+  * [ ] New file: `src/index/build/watch/backends/parcel.js`
+  * [ ] Map parcel events to the normalized `{type, absPath}` model
+  * [ ] Decide how to handle rename/move (often appears as unlink+add):
+
+    * [ ] If parcel reports rename, still emit unlink+add for compatibility with current scheduling
+  * [ ] Implement “poll” behavior:
+
+    * [ ] If poll mode is requested, either:
+
+      * [ ] force chokidar with polling, **or**
+      * [ ] implement a cheap stat-based poller wrapper (only if needed)
+  * [ ] Implement “write stability” guard:
+
+    * [ ] Chokidar has `awaitWriteFinish`; parcel does not in the same way
+    * [ ] Add a “stabilize file” check in the pipeline: before processing a file, optionally confirm `mtime/size` stable across N ms
+    * [ ] Place this in `createDebouncedScheduler()` or immediately before `enqueueOrUpdate()` in `file-processor.js` (prefer a single shared guard)
+
+### 15.3 Wire selection into `watchIndex()`
+
+* [ ] Update `src/index/build/watch.js`:
+
+  * [ ] Choose backend via (in order): CLI/config → env → `auto` capability
+  * [ ] Log selected backend once at startup (only if verbose or `--watch`)
+  * [ ] Ensure `pollMs` is still honored (either by backend or by selection logic)
+
+### 15.4 Tests
+
+* [ ] Add `tests/watch-backend-selection.js`:
+
+  * [ ] Forces `PAIROFCLEATS_WATCHER_BACKEND=chokidar` and asserts no parcel import occurs
+  * [ ] Forces `...=parcel` and asserts fallback behavior if module unavailable (no crash, warning path)
+* [ ] Add `tests/watch-stability-guard.js`:
+
+  * [ ] Simulate “partial write” (write file in two chunks with delay) and assert processor waits/defers correctly
+  * [ ] Keep the test deterministic: use explicit timeouts and a temp directory under `tests/.cache`
+* [ ] Add corresponding script-coverage actions in `tests/script-coverage/actions.js`
+
+**Exit criteria**
+
+* [ ] `pairofcleats index watch` remains correct on Windows and Linux
+* [ ] No regressions in ignore behavior (still uses `buildIgnoredMatcher`)
+* [ ] Event storms do not cause repeated redundant rebuilds (existing debounce logic preserved)
+
+---
+
 
 ## Phase 16 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
 
@@ -379,42 +1073,44 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 ---
 
+
 ## Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
 
 ### 17.1 Add dependency + unify backend contract
 
-* [x] Add `@node-rs/xxhash` as optional dependency (or hard dep if you accept platform constraints)
-* [x] Create `src/shared/hash/xxhash-backend.js`:
+* [ ] Add `@node-rs/xxhash` as optional dependency (or hard dep if you accept platform constraints)
+* [ ] Create `src/shared/hash/xxhash-backend.js`:
 
-  * [x] `hash64(buffer|string) -> hex16` (exact output format must match existing `checksumString()` + `checksumFile()`)
-  * [x] `hash64Stream(readable) -> hex16` (if supported; otherwise implement chunking in JS)
-* [x] Update `src/shared/hash.js`:
+  * [ ] `hash64(buffer|string) -> hex16` (exact output format must match existing `checksumString()` + `checksumFile()`)
+  * [ ] `hash64Stream(readable) -> hex16` (if supported; otherwise implement chunking in JS)
+* [ ] Update `src/shared/hash.js`:
 
-  * [x] Keep `sha1()` unchanged
-  * [x] Route `checksumString()` / `checksumFile()` through the backend contract
-  * [x] Preserve deterministic formatting (`formatXxhashHex`)
+  * [ ] Keep `sha1()` unchanged
+  * [ ] Route `checksumString()` / `checksumFile()` through the backend contract
+  * [ ] Preserve deterministic formatting (`formatXxhashHex`)
 
 ### 17.2 Introduce selector + telemetry
 
-* [x] Add `PAIROFCLEATS_XXHASH_BACKEND=auto|native|wasm`
+* [ ] Add `PAIROFCLEATS_XXHASH_BACKEND=auto|native|wasm`
 * [ ] Emit backend choice in verbose logs (once)
 
 ### 17.3 Tests
 
-* [x] Add `tests/xxhash-backends.js`:
+* [ ] Add `tests/xxhash-backends.js`:
 
-  * [x] Assert `checksumString('abc')` matches a known baseline (record from current implementation)
-  * [x] Assert `checksumFile()` matches `checksumString()` on same content (via temp file)
-  * [x] If native backend is available, assert native and wasm match exactly
-  * [x] If native is missing, ensure test still passes (skips “native parity” block)
-* [x] Add script-coverage action(s)
+  * [ ] Assert `checksumString('abc')` matches a known baseline (record from current implementation)
+  * [ ] Assert `checksumFile()` matches `checksumString()` on same content (via temp file)
+  * [ ] If native backend is available, assert native and wasm match exactly
+  * [ ] If native is missing, ensure test still passes (skips “native parity” block)
+* [ ] Add script-coverage action(s)
 
 **Exit criteria**
 
-* [x] No change to bundle identity semantics (incremental cache stability)
-* [x] `checksumFile()` remains bounded-memory for large files (streaming or chunked reads)
+* [ ] No change to bundle identity semantics (incremental cache stability)
+* [ ] `checksumFile()` remains bounded-memory for large files (streaming or chunked reads)
 
 ---
+
 
 ## Phase 18 — Artifact compression upgrade: add Zstandard (`zstd`) alongside gzip
 
@@ -487,6 +1183,7 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 * [ ] Failure-mode behavior (`.bak` recovery) remains correct for new extensions
 
 ---
+
 
 ## Phase 19 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
 
@@ -577,6 +1274,7 @@ You must handle both “pre-read” scanning and “post-read” binary checks:
 
 ---
 
+
 ## Phase 20 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
 
 ### 20.1 Add MCP SDK and plan transport layering
@@ -629,6 +1327,7 @@ You must handle both “pre-read” scanning and “post-read” binary checks:
 * [ ] Maintenance burden reduced: eliminate custom framing/parsing where SDK provides it
 
 ---
+
 
 ## Phase 21 — Tantivy sparse backend (optional, high impact on large repos)
 
@@ -693,6 +1392,7 @@ You must handle both “pre-read” scanning and “post-read” binary checks:
 
 ---
 
+
 ## Phase 22 — LanceDB vector backend (optional, high impact on ANN scaling)
 
 ### 22.1 Extract a vector-ANN provider interface
@@ -741,6 +1441,7 @@ You must handle both “pre-read” scanning and “post-read” binary checks:
 
 ---
 
+
 ## Phase 23 — Benchmarks, regression gates, and release hardening (prove the ROI)
 
 ### 23.1 Extend microbench suite (`tools/bench/micro/`)
@@ -787,6 +1488,7 @@ You must handle both “pre-read” scanning and “post-read” binary checks:
 * [ ] New features are discoverable via config docs + `config_status`
 
 ---
+
 
 ## Phase 24 — LibUV threadpool utilization (explicit control + docs + tests)
 
@@ -932,6 +1634,7 @@ You must handle both “pre-read” scanning and “post-read” binary checks:
 
 ---
 
+
 ## Phase 25 — Threadpool-aware I/O scheduling guardrails
 
 **Objective:** Reduce misconfiguration risk by aligning PairOfCleats internal I/O scheduling with the effective libuv threadpool size and preventing runaway pending I/O buildup.
@@ -991,6 +1694,7 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 
 ---
 
+
 ## Phase 26 — (Conditional) Native LibUV work: only if profiling proves a real gap
 
 **Objective:** Only pursue *direct* libuv usage (via a native addon) if profiling demonstrates a material bottleneck that cannot be addressed through configuration and queue hygiene.
@@ -1035,6 +1739,8 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 * **Do add explicit support for libuv threadpool sizing** (via `UV_THREADPOOL_SIZE`) because the current concurrency model (notably `ioConcurrency` up to 64) strongly suggests you will otherwise hit an invisible throughput ceiling.
 
 ---
+
+
 
 ## Phase 27 — File processing & artifact assembly (chunk payloads/writers/shards)
 
@@ -1686,6 +2392,7 @@ This section enumerates each in-scope file and lists file-specific items to addr
 ### docs/contracts/indexing.md
 - [ ] (P1) Clarify which artifacts are “required” vs “optional/configurable” (e.g., minhash signatures).
 - [ ] (P1) Document sharded meta schema and loader precedence.
+
 
 ## Phase 28 — Section 2 — Index build orchestration review (findings + required fixes)
 
@@ -2380,6 +3087,7 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - [ ] Deterministic ordering is documented and enforced (no locale-dependent sorts in critical ordering paths).
 - [ ] Incremental cache reuse is safe across code releases (explicit schema/version invalidation).
 
+
 ## Phase 29 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
 
 **Objective:** harden the embeddings + ANN stack for correctness, determinism (where required), performance, and resilient fallbacks across **index build**, **build-embeddings tooling**, and **retrieval-time ANN execution**.
@@ -2880,6 +3588,7 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 ---
 
+
 ## Phase 30 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
 
 **Objective:** Review the Section 4 file set (56 files) and produce a concrete, exhaustive remediation checklist that (1) satisfies the provided Phase 4 checklist (A–G) and (2) captures additional defects, inconsistencies, and improvements found during review.
@@ -3351,6 +4060,7 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Metadata v2 output matches the schema doc, and `validateIndexArtifacts()` validates it meaningfully.
 - Risk analysis and tooling passes are “best-effort”: they may skip/partial, but they never crash indexing.
 
+
 ## Phase 31 — Language handlers & chunking review (Section 5)
 
 **Objective:** Make language detection, per-language chunking, tree-sitter integration, and ingestion tooling *deterministic, robust on real-world code*, and *well-tested* — with clear fallback behavior, predictable chunk boundaries, and guardrails against performance/pathological inputs.
@@ -3654,6 +4364,7 @@ While generating the markdown deliverable, I noticed one small wording issue in 
 - [ ] Tree-sitter worker-mode returns real chunks for supported languages and falls back when grammars are missing.
 - [ ] Chunk metadata semantics are documented and consistent across chunkers (or differences are explicitly justified).
 - [ ] Ingestion tools succeed when output directories are missing and produce valid NDJSON outputs.
+
 
 ## Phase 32 — (Review) — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
 

@@ -789,11 +789,6 @@
       "enum": null
     },
     {
-      "path": "indexing.ioConcurrencyCap",
-      "type": "number",
-      "enum": null
-    },
-    {
       "path": "indexing.importScan",
       "type": "string|boolean",
       "enum": null
@@ -1580,11 +1575,6 @@
     {
       "path": "runtime.nodeOptions",
       "type": "string",
-      "enum": null
-    },
-    {
-      "path": "runtime.uvThreadpoolSize",
-      "type": "number",
       "enum": null
     },
     {

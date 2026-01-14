@@ -1,12 +1,8 @@
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { LRUCache } from 'lru-cache';
 import simpleGit from 'simple-git';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
-import { createIndexCache } from '../../src/retrieval/index-cache.js';
-import { getCapabilities } from '../../src/shared/capabilities.js';
 import {
   getCacheRoot,
   getDictConfig,
@@ -21,103 +17,32 @@ import {
   resolveSqlitePaths
 } from '../dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../vector-extension.js';
-import { incCacheEviction, setCacheSize } from '../../src/shared/metrics.js';
 
-const repoCacheConfig = { maxEntries: 5, ttlMs: 15 * 60 * 1000 };
-const indexCacheConfig = { maxEntries: 4, ttlMs: 15 * 60 * 1000 };
-const sqliteCacheConfig = { maxEntries: 4, ttlMs: 15 * 60 * 1000 };
-const repoCaches = new LRUCache({
-  max: repoCacheConfig.maxEntries,
-  ttl: repoCacheConfig.ttlMs > 0 ? repoCacheConfig.ttlMs : undefined,
-  allowStale: false,
-  updateAgeOnGet: true,
-  dispose: (entry, _key, reason) => {
-    try {
-      entry?.indexCache?.clear?.();
-      entry?.sqliteCache?.closeAll?.();
-    } catch {}
-    if (reason === 'evict' || reason === 'expire') {
-      incCacheEviction({ cache: 'repo' });
-    }
-    setCacheSize({ cache: 'repo', value: repoCaches.size });
-  }
-});
-
-const buildRepoCacheEntry = (repoPath) => {
-  const userConfig = loadUserConfig(repoPath);
-  const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
-  return {
-    indexCache: createIndexCache(indexCacheConfig),
-    sqliteCache: createSqliteDbCache(sqliteCacheConfig),
-    lastUsed: Date.now(),
-    buildId: null,
-    buildPointerPath: path.join(repoCacheRoot, 'builds', 'current.json'),
-    buildPointerMtimeMs: null
-  };
-};
-
-const refreshBuildPointer = async (entry) => {
-  if (!entry?.buildPointerPath) return;
-  let stat = null;
-  try {
-    stat = await fsPromises.stat(entry.buildPointerPath);
-  } catch {
-    stat = null;
-  }
-  const nextMtime = stat?.mtimeMs || null;
-  if (entry.buildPointerMtimeMs && entry.buildPointerMtimeMs === nextMtime) {
-    return;
-  }
-  entry.buildPointerMtimeMs = nextMtime;
-  if (!stat) {
-    if (entry.buildId) {
-      entry.indexCache?.clear?.();
-      entry.sqliteCache?.closeAll?.();
-    }
-    entry.buildId = null;
-    return;
-  }
-  try {
-    const raw = await fsPromises.readFile(entry.buildPointerPath, 'utf8');
-    const data = JSON.parse(raw) || {};
-    const nextBuildId = typeof data.buildId === 'string' ? data.buildId : null;
-    const changed = (entry.buildId && !nextBuildId)
-      || (entry.buildId && nextBuildId && entry.buildId !== nextBuildId)
-      || (!entry.buildId && nextBuildId);
-    if (changed) {
-      entry.indexCache?.clear?.();
-      entry.sqliteCache?.closeAll?.();
-    }
-    entry.buildId = nextBuildId;
-  } catch {
-    entry.buildPointerMtimeMs = null;
-  }
-};
+const repoCaches = new Map();
 
 export const getRepoCaches = (repoPath) => {
   const key = repoPath || process.cwd();
-  let entry = repoCaches.get(key);
-  if (entry) {
-    entry.lastUsed = Date.now();
-  } else {
-    entry = buildRepoCacheEntry(key);
-    repoCaches.set(key, entry);
-    setCacheSize({ cache: 'repo', value: repoCaches.size });
+  const existing = repoCaches.get(key);
+  if (existing) {
+    existing.lastUsed = Date.now();
+    return existing;
   }
+  const entry = {
+    indexCache: new Map(),
+    sqliteCache: createSqliteDbCache(),
+    lastUsed: Date.now()
+  };
+  repoCaches.set(key, entry);
   return entry;
-};
-
-export const refreshRepoCaches = async (repoPath) => {
-  if (!repoPath) return;
-  const entry = repoCaches.get(repoPath);
-  if (!entry) return;
-  await refreshBuildPointer(entry);
 };
 
 export const clearRepoCaches = (repoPath) => {
   if (!repoPath) return;
+  const entry = repoCaches.get(repoPath);
+  if (!entry) return;
+  entry.sqliteCache?.closeAll?.();
+  entry.indexCache?.clear?.();
   repoCaches.delete(repoPath);
-  setCacheSize({ cache: 'repo', value: repoCaches.size });
 };
 
 /**
@@ -363,7 +288,6 @@ export async function configStatus(args = {}) {
   const sqliteConfigured = userConfig.sqlite?.use !== false;
   const vectorConfig = getVectorExtensionConfig(repoPath, userConfig);
   const vectorPath = resolveVectorExtensionPath(vectorConfig);
-  const capabilities = getCapabilities();
 
   const warnings = [];
   if (!dictionaryPaths.length && (dictConfig.languages.length || dictConfig.files.length || dictConfig.includeSlang || dictConfig.enableRepoDictionary)) {
@@ -397,65 +321,10 @@ export async function configStatus(args = {}) {
       });
     }
   }
-  const normalizeSelector = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
-  const watchBackendRequested = normalizeSelector(userConfig?.indexing?.watch?.backend)
-    || normalizeSelector(envConfig.watcherBackend)
-    || 'auto';
-  if (watchBackendRequested === 'parcel' && !capabilities.watcher.parcel) {
-    warnings.push({
-      code: 'watcher_backend_missing',
-      message: 'indexing.watch.backend=parcel requested but @parcel/watcher is not available.'
-    });
-  }
-  const regexEngineRequested = normalizeSelector(userConfig?.search?.regex?.engine)
-    || normalizeSelector(envConfig.regexEngine)
-    || 'auto';
-  if (regexEngineRequested === 're2' && !capabilities.regex.re2) {
-    warnings.push({
-      code: 'regex_backend_missing',
-      message: 'search.regex.engine=re2 requested but re2 is not available.'
-    });
-  }
-  const hashBackendRequested = normalizeSelector(userConfig?.indexing?.hash?.backend)
-    || normalizeSelector(envConfig.xxhashBackend)
-    || 'auto';
-  if (hashBackendRequested === 'native' && !capabilities.hash.nodeRsXxhash) {
-    warnings.push({
-      code: 'hash_backend_missing',
-      message: 'indexing.hash.backend=native requested but @node-rs/xxhash is not available.'
-    });
-  }
-  const compressionRequested = normalizeSelector(userConfig?.indexing?.artifactCompression?.mode)
-    || normalizeSelector(envConfig.compression)
-    || 'auto';
-  if (compressionRequested === 'zstd' && !capabilities.compression.zstd) {
-    warnings.push({
-      code: 'compression_backend_missing',
-      message: 'indexing.artifactCompression.mode=zstd requested but @mongodb-js/zstd is not available.'
-    });
-  }
-  const docExtractRequested = userConfig?.indexing?.documentExtraction?.enabled === true
-    || normalizeSelector(envConfig.docExtract) === 'on';
-  if (docExtractRequested && (!capabilities.extractors.pdf || !capabilities.extractors.docx)) {
-    warnings.push({
-      code: 'document_extract_missing',
-      message: 'Document extraction enabled but pdfjs-dist or mammoth is not available.'
-    });
-  }
-  const mcpTransportRequested = normalizeSelector(userConfig?.mcp?.transport)
-    || normalizeSelector(envConfig.mcpTransport)
-    || 'auto';
-  if (mcpTransportRequested === 'sdk' && !capabilities.mcp.sdk) {
-    warnings.push({
-      code: 'mcp_transport_missing',
-      message: 'mcp.transport=sdk requested but @modelcontextprotocol/sdk is not available.'
-    });
-  }
 
   return {
     repoPath,
     repoId: getRepoId(repoPath),
-    capabilities,
     config: {
       cacheRoot,
       repoCacheRoot,

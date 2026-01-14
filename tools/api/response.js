@@ -3,14 +3,13 @@
  * @param {import('node:http').ServerResponse} res
  * @param {number} statusCode
  * @param {any} payload
- * @param {object} [headers]
  */
-export const sendJson = (res, statusCode, payload, headers = {}) => {
+export const sendJson = (res, statusCode, payload) => {
   const body = JSON.stringify(payload);
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
-    ...headers
+    'Access-Control-Allow-Origin': '*'
   });
   res.end(body);
 };
@@ -22,9 +21,8 @@ export const sendJson = (res, statusCode, payload, headers = {}) => {
  * @param {string} code
  * @param {string} message
  * @param {object} [details]
- * @param {object} [headers]
  */
-export const sendError = (res, statusCode, code, message, details = {}, headers = {}) => {
+export const sendError = (res, statusCode, code, message, details = {}) => {
   const { code: ignored, ...rest } = details || {};
-  sendJson(res, statusCode, { ok: false, code, message, ...rest }, headers);
+  sendJson(res, statusCode, { ok: false, code, message, ...rest });
 };

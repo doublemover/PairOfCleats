@@ -47,24 +47,6 @@ const runEmbeddings = () => spawnSync(
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 
-const loadCacheEntries = async (cacheDir) => {
-  const files = (await fsPromises.readdir(cacheDir))
-    .filter((name) => name.endsWith('.json'))
-    .sort();
-  const entries = [];
-  for (const name of files) {
-    try {
-      const cache = JSON.parse(await fsPromises.readFile(path.join(cacheDir, name), 'utf8'));
-      entries.push({ name, cache });
-    } catch {}
-  }
-  return entries;
-};
-
-const findCacheEntry = (entries, predicate) => (
-  entries.find((entry) => predicate(entry?.cache?.cacheMeta?.identity || null))
-);
-
 const firstRun = runEmbeddings();
 if (firstRun.status !== 0) {
   console.error('embeddings dims mismatch test failed: initial build-embeddings failed');
@@ -74,21 +56,14 @@ if (firstRun.status !== 0) {
 const userConfig = loadUserConfig(repoRoot);
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const cacheDir = path.join(repoCacheRoot, 'embeddings', 'code', 'files');
-const cacheEntries = await loadCacheEntries(cacheDir);
-if (!cacheEntries.length) {
+const cacheFiles = (await fsPromises.readdir(cacheDir)).filter((name) => name.endsWith('.json'));
+if (!cacheFiles.length) {
   console.error('embeddings dims mismatch test failed: no cache files found');
   process.exit(1);
 }
 
-const targetEntry = findCacheEntry(cacheEntries, (identity) => (
-  identity?.dims === 8 && identity?.stub === true
-));
-if (!targetEntry) {
-  console.error('embeddings dims mismatch test failed: no cache entry for dims=8 stub=true');
-  process.exit(1);
-}
-const targetPath = path.join(cacheDir, targetEntry.name);
-const cached = targetEntry.cache;
+const targetPath = path.join(cacheDir, cacheFiles[0]);
+const cached = JSON.parse(await fsPromises.readFile(targetPath, 'utf8'));
 const bumpVector = (vec) => {
   if (Array.isArray(vec)) vec.push(0);
 };

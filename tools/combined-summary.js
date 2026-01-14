@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/experimental/compare/config.js';
-import { DEFAULT_MODEL_ID, getIndexDir, getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from './dict-utils.js';
+import { DEFAULT_MODEL_ID, getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveSqlitePaths, resolveToolRoot } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
@@ -36,7 +36,10 @@ if (userConfig.profile !== 'full') {
   process.exit(1);
 }
 const runtimeConfig = getRuntimeConfig(root, userConfig);
-const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+const baseEnv = resolvedNodeOptions
+  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
+  : process.env;
 const scriptRoot = resolveToolRoot();
 
 const configCompare = Array.isArray(userConfig.models?.compare) ? userConfig.models.compare : [];
