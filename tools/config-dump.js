@@ -28,6 +28,12 @@ const repoRoot = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(repoRoot);
 const envConfig = getEnvConfig();
 
+const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
+const effectiveUvRaw = Number(process.env.UV_THREADPOOL_SIZE);
+const effectiveUvThreadpoolSize = Number.isFinite(effectiveUvRaw) && effectiveUvRaw > 0
+  ? Math.floor(effectiveUvRaw)
+  : null;
+
 const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
 const payload = {
   repoRoot,
@@ -37,7 +43,7 @@ const payload = {
   derived: {
     cacheRoot,
     repoCacheRoot: getRepoCacheRoot(repoRoot, userConfig),
-    runtime: getRuntimeConfig(repoRoot, userConfig),
+    runtime: { ...runtimeConfig, effectiveUvThreadpoolSize },
     cacheRuntime: getCacheRuntimeConfig(repoRoot, userConfig),
     model: getModelConfig(repoRoot, userConfig),
     tooling: getToolingConfig(repoRoot, userConfig),

@@ -12,6 +12,7 @@ export function resolveThreadLimits(input = {}) {
     envConfig = {},
     configConcurrency = null,
     importConcurrencyConfig = null,
+    ioConcurrencyCapConfig = null,
     defaultMultiplier = 4
   } = input;
   const cpuCount = os.cpus().length;
@@ -46,9 +47,15 @@ export function resolveThreadLimits(input = {}) {
           : fileConcurrency
     )
   );
-  const ioCap = process.platform === 'win32' ? 32 : 64;
+  const ioPlatformCap = process.platform === 'win32' ? 32 : 64;
   const ioBase = Math.max(fileConcurrency, importConcurrency);
-  const ioConcurrency = Math.max(1, Math.min(ioCap, ioBase * 4));
+  const configuredIoCap = Number.isFinite(Number(ioConcurrencyCapConfig)) && Number(ioConcurrencyCapConfig) > 0
+    ? Math.floor(Number(ioConcurrencyCapConfig))
+    : null;
+  const ioDerived = Math.max(1, Math.min(ioPlatformCap, ioBase * 4));
+  const ioConcurrency = configuredIoCap !== null
+    ? Math.max(1, Math.min(ioDerived, configuredIoCap))
+    : ioDerived;
   const cpuConcurrency = Math.max(1, Math.min(maxConcurrencyCap, fileConcurrency));
   const source = envThreadsProvided
     ? 'env'

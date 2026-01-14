@@ -15,7 +15,7 @@ import {
   getRuntimeConfig,
   getToolingConfig,
   loadUserConfig,
-  resolveNodeOptions,
+  resolveRuntimeEnv,
   resolveRepoRoot,
   resolveToolRoot
 } from './dict-utils.js';
@@ -149,8 +149,7 @@ async function updateProfileConfig(profileName) {
 
 function buildRuntimeEnv(config) {
   const runtimeConfig = getRuntimeConfig(root, config);
-  const nodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
-  return nodeOptions ? { ...process.env, NODE_OPTIONS: nodeOptions } : { ...process.env };
+  return resolveRuntimeEnv(runtimeConfig, process.env);
 }
 
 let runtimeEnv = { ...process.env };
