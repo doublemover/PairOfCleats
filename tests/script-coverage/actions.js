@@ -208,6 +208,11 @@ const actions = [
     covers: []
   },
   {
+    label: 'clike-doc-comments-test',
+    run: () => runNode('clike-doc-comments-test', path.join(root, 'tests', 'clike-doc-comments.js')),
+    covers: []
+  },
+  {
     label: 'segment-pipeline-test',
     run: () => runNode('segment-pipeline-test', path.join(root, 'tests', 'segment-pipeline.js')),
     covers: []
@@ -326,6 +331,16 @@ const actions = [
     label: 'api-server-test',
     run: () => runNode('api-server-test', path.join(root, 'tests', 'api-server.js')),
     covers: ['api-server-test', 'api-server']
+  },
+  {
+    label: 'sublime-pycompile-test',
+    run: () => runNode('sublime-pycompile-test', path.join(root, 'tests', 'sublime-pycompile.js')),
+    covers: ['sublime-pycompile-test']
+  },
+  {
+    label: 'subprocess-quoting-test',
+    run: () => runNode('subprocess-quoting-test', path.join(root, 'tests', 'subprocess-quoting.js')),
+    covers: ['subprocess-quoting-test']
   },
   {
     label: 'api-server-stream-test',
