@@ -1028,6 +1028,21 @@ const actions = [
     covers: ['config-dump-test']
   },
   {
+    label: 'uv-threadpool-env-test',
+    run: () => runNode('uv-threadpool-env-test', path.join(root, 'tests', 'uv-threadpool-env.js')),
+    covers: ['uv-threadpool-env-test']
+  },
+  {
+    label: 'uv-threadpool-no-override-test',
+    run: () => runNode('uv-threadpool-no-override-test', path.join(root, 'tests', 'uv-threadpool-no-override.js')),
+    covers: ['uv-threadpool-no-override-test']
+  },
+  {
+    label: 'io-concurrency-cap-test',
+    run: () => runNode('io-concurrency-cap-test', path.join(root, 'tests', 'io-concurrency-cap.js')),
+    covers: ['io-concurrency-cap-test']
+  },
+  {
     label: 'profile-config-test',
     run: () => runNode('profile-config-test', path.join(root, 'tests', 'profile-config.js')),
     covers: ['profile-config-test']
