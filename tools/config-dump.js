@@ -2,7 +2,6 @@
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
-import { getCapabilities } from '../src/shared/capabilities.js';
 import {
   getCacheRoot,
   getCacheRuntimeConfig,
@@ -28,25 +27,17 @@ const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const repoRoot = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(repoRoot);
 const envConfig = getEnvConfig();
-const capabilities = getCapabilities();
-
-const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
-const effectiveUvRaw = Number(process.env.UV_THREADPOOL_SIZE);
-const effectiveUvThreadpoolSize = Number.isFinite(effectiveUvRaw) && effectiveUvRaw > 0
-  ? Math.floor(effectiveUvRaw)
-  : null;
 
 const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
 const payload = {
   repoRoot,
   profile: userConfig.profile || null,
   env: envConfig,
-  capabilities,
   userConfig,
   derived: {
     cacheRoot,
     repoCacheRoot: getRepoCacheRoot(repoRoot, userConfig),
-    runtime: { ...runtimeConfig, effectiveUvThreadpoolSize },
+    runtime: getRuntimeConfig(repoRoot, userConfig),
     cacheRuntime: getCacheRuntimeConfig(repoRoot, userConfig),
     model: getModelConfig(repoRoot, userConfig),
     tooling: getToolingConfig(repoRoot, userConfig),

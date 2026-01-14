@@ -15,7 +15,7 @@ import {
   getRepoId,
   getRuntimeConfig,
   loadUserConfig,
-  resolveRuntimeEnv,
+  resolveNodeOptions,
   resolveRepoRoot,
   resolveSqlitePaths,
   resolveToolRoot
@@ -58,7 +58,10 @@ if (userConfig.profile !== 'full') {
 }
 const envConfig = getEnvConfig();
 const runtimeConfig = getRuntimeConfig(root, userConfig);
-const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+const baseEnv = resolvedNodeOptions
+  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
+  : process.env;
 const configCacheRoot = typeof userConfig.cache?.root === 'string' && userConfig.cache.root.trim()
   ? path.resolve(userConfig.cache.root)
   : null;

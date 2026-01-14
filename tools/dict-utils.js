@@ -448,29 +448,20 @@ export function getModelConfig(repoRoot, userConfig = null) {
  * Resolve runtime configuration for a repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
- * @returns {{maxOldSpaceMb:number|null,nodeOptions:string,uvThreadpoolSize:number|null}}
+ * @returns {{maxOldSpaceMb:number|null,nodeOptions:string}}
  */
 export function getRuntimeConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const runtime = cfg.runtime || {};
   const envConfig = getEnvConfig();
-
   const rawMaxOldSpace = runtime.maxOldSpaceMb ?? envConfig.maxOldSpaceMb;
   const parsedMaxOldSpace = Number(rawMaxOldSpace);
   const maxOldSpaceMb = Number.isFinite(parsedMaxOldSpace) && parsedMaxOldSpace > 0
     ? parsedMaxOldSpace
     : null;
-
   const nodeOptionsRaw = runtime.nodeOptions ?? envConfig.nodeOptions;
   const nodeOptions = typeof nodeOptionsRaw === 'string' ? nodeOptionsRaw.trim() : '';
-
-  const rawUvThreadpoolSize = runtime.uvThreadpoolSize ?? envConfig.uvThreadpoolSize;
-  const parsedUvThreadpoolSize = Number(rawUvThreadpoolSize);
-  const uvThreadpoolSize = Number.isFinite(parsedUvThreadpoolSize) && parsedUvThreadpoolSize > 0
-    ? Math.max(1, Math.min(128, Math.floor(parsedUvThreadpoolSize)))
-    : null;
-
-  return { maxOldSpaceMb, nodeOptions, uvThreadpoolSize };
+  return { maxOldSpaceMb, nodeOptions };
 }
 
 /**
@@ -520,30 +511,6 @@ export function resolveNodeOptions(runtimeConfig, baseOptions = process.env.NODE
     }
   }
   return [base, ...extras].filter(Boolean).join(' ').trim();
-}
-
-
-/**
- * Resolve the environment for spawning child processes that need runtime tuning.
- * Respects existing env vars (e.g. will not override an already-set UV_THREADPOOL_SIZE).
- * @param {{maxOldSpaceMb:number|null,nodeOptions:string,uvThreadpoolSize:number|null}} runtimeConfig
- * @param {Record<string, string|undefined>} [baseEnv]
- * @returns {Record<string, string|undefined>}
- */
-export function resolveRuntimeEnv(runtimeConfig, baseEnv = process.env) {
-  const env = { ...baseEnv };
-  const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, env.NODE_OPTIONS || '');
-  if (resolvedNodeOptions) {
-    env.NODE_OPTIONS = resolvedNodeOptions;
-  }
-  const uvSize = Number(runtimeConfig?.uvThreadpoolSize);
-  if (Number.isFinite(uvSize) && uvSize > 0) {
-    const existing = env.UV_THREADPOOL_SIZE;
-    if (existing == null || existing === '') {
-      env.UV_THREADPOOL_SIZE = String(Math.max(1, Math.min(128, Math.floor(uvSize))));
-    }
-  }
-  return env;
 }
 
 /**

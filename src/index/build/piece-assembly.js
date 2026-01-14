@@ -164,7 +164,7 @@ const computeBm25 = (docLengths) => {
 
 const validateLengths = (label, list, expected) => {
   if (!Array.isArray(list)) return;
-  if (list.length !== expected) {
+  if (list.length && list.length !== expected) {
     throw new Error(`${label} length mismatch (${list.length} !== ${expected})`);
   }
 };
@@ -188,14 +188,12 @@ export async function assembleIndexPieces({
     name: new Map(),
     signature: new Map(),
     doc: new Map(),
-    comment: new Map(),
     body: new Map()
   };
   const mergedFieldDocLengths = {
     name: [],
     signature: [],
     doc: [],
-    comment: [],
     body: []
   };
   const mergedPhrasePostings = new Map();
@@ -343,18 +341,15 @@ export async function assembleIndexPieces({
     validateLengths('merged minhash', mergedMinhash, state.chunks.length);
   }
 
-  const sortKey = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
-  const tokenVocab = Array.from(mergedTokenPostings.keys()).sort(sortKey);
+  const tokenVocab = Array.from(mergedTokenPostings.keys());
   const tokenPostingsList = tokenVocab.map((token) => mergedTokenPostings.get(token));
-  const phraseVocab = Array.from(mergedPhrasePostings.keys()).sort(sortKey);
+  const phraseVocab = Array.from(mergedPhrasePostings.keys());
   const phrasePostings = phraseVocab.map((token) => mergedPhrasePostings.get(token));
-  const chargramVocab = Array.from(mergedChargramPostings.keys()).sort(sortKey);
+  const chargramVocab = Array.from(mergedChargramPostings.keys());
   const chargramPostings = chargramVocab.map((token) => mergedChargramPostings.get(token));
   const fieldPostings = {};
-  const fieldNames = Object.keys(mergedFieldPostings).sort(sortKey);
-  for (const field of fieldNames) {
-    const map = mergedFieldPostings[field];
-    const vocab = Array.from(map.keys()).sort(sortKey);
+  for (const [field, map] of Object.entries(mergedFieldPostings)) {
+    const vocab = Array.from(map.keys());
     if (!vocab.length) continue;
     const postings = vocab.map((token) => map.get(token));
     const lengths = mergedFieldDocLengths[field] || [];

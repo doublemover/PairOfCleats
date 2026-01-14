@@ -23,9 +23,6 @@ const envSkipScript = process.env.PAIROFCLEATS_SKIP_SCRIPT_COVERAGE === 'true'
   || process.env.npm_config_skip_script_coverage === '1';
 const skipBench = argv['skip-bench'] || envSkipBench;
 const skipScriptCoverage = argv['skip-script-coverage'] || envSkipScript;
-if (skipBench) {
-  process.env.PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL = '1';
-}
 
 const root = process.cwd();
 const run = (label, args) => {

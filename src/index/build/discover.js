@@ -137,13 +137,9 @@ export async function discoverEntries({ root, ignoreMatcher, maxFileBytes = null
     }
     let stat;
     try {
-      stat = await fs.lstat(absPath);
+      stat = await fs.stat(absPath);
     } catch {
       recordSkip(absPath, 'stat-failed');
-      continue;
-    }
-    if (stat.isSymbolicLink()) {
-      recordSkip(absPath, 'symlink');
       continue;
     }
     const maxBytesForExt = resolveMaxBytesForExt(ext);

@@ -23,7 +23,7 @@ const POOLS = new Set(['tokenize', 'quantize', 'watch', 'unknown']);
 const TASKS = new Set(['tokenize', 'quantize', 'unknown']);
 const WATCH_EVENTS = new Set(['add', 'change', 'unlink', 'error', 'unknown']);
 const DEBOUNCE = new Set(['scheduled', 'fired', 'canceled', 'unknown']);
-const CACHES = new Set(['query', 'embedding', 'output', 'repo', 'index', 'sqlite', 'unknown']);
+const CACHES = new Set(['query', 'embedding', 'output', 'unknown']);
 const CACHE_RESULTS = new Set(['hit', 'miss', 'unknown']);
 const SURFACES = new Set(['cli', 'api', 'mcp', 'search', 'index', 'unknown']);
 const FALLBACKS = new Set(['backend', 'vector-candidates', 'unknown']);
@@ -139,18 +139,6 @@ const ensureMetrics = () => {
       labelNames: ['cache', 'result'],
       registers: [registry]
     }),
-    cacheSize: new Gauge({
-      name: 'pairofcleats_cache_entries',
-      help: 'Cache size by cache name.',
-      labelNames: ['cache'],
-      registers: [registry]
-    }),
-    cacheEvictions: new Counter({
-      name: 'pairofcleats_cache_evictions_total',
-      help: 'Cache eviction events by cache name.',
-      labelNames: ['cache'],
-      registers: [registry]
-    }),
     fallbacks: new Counter({
       name: 'pairofcleats_fallbacks_total',
       help: 'Fallback events by surface.',
@@ -254,19 +242,6 @@ export function incCacheEvent({ cache, result }) {
     cache: normalizeCache(cache),
     result: normalizeCacheResult(result)
   });
-}
-
-export function setCacheSize({ cache, value }) {
-  ensureMetrics();
-  metrics.cacheSize.set({ cache: normalizeCache(cache) }, Number(value) || 0);
-}
-
-export function incCacheEviction({ cache, count = 1 }) {
-  ensureMetrics();
-  const normalized = normalizeCache(cache);
-  const amount = Number(count);
-  if (!Number.isFinite(amount) || amount <= 0) return;
-  metrics.cacheEvictions.inc({ cache: normalized }, amount);
 }
 
 export function incFallback({ surface, reason }) {

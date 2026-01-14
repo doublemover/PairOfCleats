@@ -6,14 +6,12 @@ import { createCrashLogger } from '../crash-log.js';
 export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingConfig, log }) => {
   const configConcurrency = Number(indexingConfig.concurrency);
   const importConcurrencyConfig = Number(indexingConfig.importConcurrency);
-  const ioConcurrencyCapConfig = Number(indexingConfig.ioConcurrencyCap);
   const threadLimits = resolveThreadLimits({
     argv,
     rawArgv,
     envConfig,
     configConcurrency,
-    importConcurrencyConfig,
-    ioConcurrencyCapConfig
+    importConcurrencyConfig
   });
   const {
     cpuCount,
@@ -23,22 +21,6 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
     ioConcurrency,
     cpuConcurrency
   } = threadLimits;
-  const effectiveUvRaw = Number(process.env.UV_THREADPOOL_SIZE);
-  const effectiveUvThreadpoolSize = Number.isFinite(effectiveUvRaw) && effectiveUvRaw > 0
-    ? Math.floor(effectiveUvRaw)
-    : null;
-  if (effectiveUvThreadpoolSize && ioConcurrency > effectiveUvThreadpoolSize * 2) {
-    console.warn(
-      `[threads] ioConcurrency=${ioConcurrency} exceeds UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize}. `
-        + 'Consider aligning runtime.uvThreadpoolSize/UV_THREADPOOL_SIZE with your I/O concurrency for best throughput.'
-    );
-  } else if (!effectiveUvThreadpoolSize && envConfig.verbose && ioConcurrency >= 16) {
-    console.warn(
-      `[threads] ioConcurrency=${ioConcurrency} with default UV threadpool. `
-        + 'Consider setting runtime.uvThreadpoolSize (or UV_THREADPOOL_SIZE) for I/O-heavy indexing.'
-    );
-  }
-
   if (envConfig.verbose) {
     log(`Thread limits (${threadLimits.source}): cpu=${cpuCount}, cap=${maxConcurrencyCap}, files=${fileConcurrency}, imports=${importConcurrency}, io=${ioConcurrency}, cpuWork=${cpuConcurrency}.`);
   }

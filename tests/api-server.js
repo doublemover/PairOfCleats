@@ -33,17 +33,7 @@ if (build.status !== 0) {
 
 const server = spawn(
   process.execPath,
-  [
-    serverPath,
-    '--port',
-    '0',
-    '--json',
-    '--quiet',
-    '--repo',
-    fixtureRoot,
-    '--allowed-repo-roots',
-    emptyRepo
-  ],
+  [serverPath, '--port', '0', '--json', '--quiet', '--repo', fixtureRoot],
   { env, stdio: ['ignore', 'pipe', 'pipe'] }
 );
 
@@ -121,6 +111,17 @@ try {
     throw new Error('api-server /status response missing repo info');
   }
 
+  const map = await requestJson('GET', '/map?format=json');
+  const mapSummary = map.body?.summary?.counts || {};
+  if (!map.body?.root?.path || !Number.isFinite(mapSummary.files)) {
+    throw new Error('api-server /map response invalid');
+  }
+
+  const nodes = await requestJson('GET', '/map/nodes?limit=25');
+  if (!Array.isArray(nodes.body?.nodes) || nodes.body.nodes.length === 0) {
+    throw new Error('api-server /map/nodes returned no nodes');
+  }
+
   const search = await requestJson('POST', '/search', { query: 'return', mode: 'code', top: 3 });
   const hits = search.body?.result?.code || [];
   if (!search.body?.ok || !hits.length) {
@@ -143,12 +144,20 @@ try {
     throw new Error('api-server should reject unknown fields');
   }
 
-  const forbidden = await requestJson('POST', '/search', {
-    repoPath: cacheRoot,
-    query: 'return'
-  });
-  if (forbidden.status !== 403 || forbidden.body?.code !== 'FORBIDDEN') {
-    throw new Error('api-server should reject disallowed repo paths');
+  const noIndexMap = await requestJson(
+    'GET',
+    `/map?repo=${encodeURIComponent(emptyRepo)}&format=json`
+  );
+  if (noIndexMap.status !== 409 || noIndexMap.body?.code !== 'NO_INDEX') {
+    throw new Error('api-server should return NO_INDEX when map index is missing');
+  }
+
+  const noIndexNodes = await requestJson(
+    'GET',
+    `/map/nodes?repo=${encodeURIComponent(emptyRepo)}&limit=5`
+  );
+  if (noIndexNodes.status !== 409 || noIndexNodes.body?.code !== 'NO_INDEX') {
+    throw new Error('api-server should return NO_INDEX when map nodes index is missing');
   }
 
   const noIndex = await requestJson('POST', '/search', {

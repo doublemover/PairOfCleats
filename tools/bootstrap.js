@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
 import { runCommand, runCommandOrExit } from './cli-utils.js';
-import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from './dict-utils.js';
+import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveToolRoot } from './dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
 const argv = createCli({
@@ -39,7 +39,10 @@ if (argv['validate-config'] && fs.existsSync(configPath)) {
 
 const userConfig = loadUserConfig(root);
 const runtimeConfig = getRuntimeConfig(root, userConfig);
-const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+const baseEnv = resolvedNodeOptions
+  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
+  : process.env;
 const vectorExtension = getVectorExtensionConfig(root, userConfig);
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const incrementalCacheRoot = path.join(repoCacheRoot, 'incremental');

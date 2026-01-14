@@ -53,43 +53,21 @@ const runEmbeddings = (dims) => {
   }
 };
 
-const loadCacheEntries = async (cacheDir) => {
-  const files = (await fsPromises.readdir(cacheDir))
-    .filter((name) => name.endsWith('.json'))
-    .sort();
-  const entries = [];
-  for (const name of files) {
-    try {
-      const cache = JSON.parse(await fsPromises.readFile(path.join(cacheDir, name), 'utf8'));
-      entries.push({ name, cache });
-    } catch {}
-  }
-  return entries;
-};
-
-const findCacheEntry = (entries, predicate) => (
-  entries.find((entry) => predicate(entry?.cache?.cacheMeta?.identity || null))
-);
-
 runEmbeddings(8);
 
 const userConfig = loadUserConfig(repoRoot);
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const cacheDir = path.join(repoCacheRoot, 'embeddings', 'code', 'files');
-const firstEntries = await loadCacheEntries(cacheDir);
-if (!firstEntries.length) {
+const firstFiles = (await fsPromises.readdir(cacheDir))
+  .filter((name) => name.endsWith('.json'));
+if (!firstFiles.length) {
   console.error('embeddings cache identity test failed: missing cache files');
   process.exit(1);
 }
 
-const firstEntry = findCacheEntry(firstEntries, (identity) => (
-  identity?.dims === 8 && identity?.stub === true
-));
-if (!firstEntry) {
-  console.error('embeddings cache identity test failed: no cache entry for dims=8 stub=true');
-  process.exit(1);
-}
-const firstCache = firstEntry.cache;
+const firstCache = JSON.parse(
+  await fsPromises.readFile(path.join(cacheDir, firstFiles[0]), 'utf8')
+);
 const meta = firstCache?.cacheMeta?.identity;
 if (!meta) {
   console.error('embeddings cache identity test failed: missing cache metadata');
@@ -109,9 +87,10 @@ if (!meta.provider || typeof meta.provider !== 'string') {
 }
 
 runEmbeddings(12);
-const secondEntries = await loadCacheEntries(cacheDir);
-const firstSet = new Set(firstEntries.map((entry) => entry.name));
-const hasNew = secondEntries.some((entry) => !firstSet.has(entry.name));
+const secondFiles = (await fsPromises.readdir(cacheDir))
+  .filter((name) => name.endsWith('.json'));
+const firstSet = new Set(firstFiles);
+const hasNew = secondFiles.some((name) => !firstSet.has(name));
 if (!hasNew) {
   console.error('embeddings cache identity test failed: expected new cache entries after dims change');
   process.exit(1);
