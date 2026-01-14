@@ -60,7 +60,7 @@ const ensureOutputDir = async () => {
   await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
 };
 
-let writeStream = null;
+const writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
 
 const roleInfo = (roles) => {
   const value = Number(roles) || 0;
@@ -207,7 +207,6 @@ const runScipCommand = async () => {
 };
 
 await ensureOutputDir();
-writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
 if (runScip) {
   await runScipCommand();
 } else if (inputPath && inputPath !== '-') {

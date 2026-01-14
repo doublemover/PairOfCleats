@@ -1,29 +1,26 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { getEnvConfig } from './env.js';
-import { hash64Stream, hashFileStream, resolveXxhashBackend } from './hash/xxhash-backend.js';
+import xxhash from 'xxhash-wasm';
 
-let backendOverride = null;
-let backendName = null;
-let backendPromise = null;
+const XXHASH_HEX_WIDTH = 16;
+let xxhashState = null;
 
-const resolveBackendName = (envConfig) => {
-  if (backendOverride) return backendOverride;
-  const envValue = envConfig?.xxhashBackend;
-  if (typeof envValue === 'string' && envValue.trim()) return envValue.trim();
-  return 'auto';
+const loadXxhash = async () => {
+  if (!xxhashState) {
+    xxhashState = xxhash();
+  }
+  return xxhashState;
 };
 
-const getBackend = async () => {
-  const envConfig = getEnvConfig();
-  const next = resolveBackendName(envConfig);
-  if (backendPromise && backendName === next) return backendPromise;
-  backendName = next;
-  backendPromise = resolveXxhashBackend({
-    backend: next,
-    verbose: envConfig.verbose === true
-  });
-  return backendPromise;
+const formatXxhashHex = (value) => {
+  if (typeof value === 'bigint') {
+    return value.toString(16).padStart(XXHASH_HEX_WIDTH, '0');
+  }
+  if (typeof value === 'number') {
+    return Math.floor(value).toString(16).padStart(XXHASH_HEX_WIDTH, '0');
+  }
+  if (typeof value === 'string') return value;
+  return '';
 };
 
 /**
@@ -51,20 +48,17 @@ export function sha1File(filePath) {
 }
 
 export async function checksumString(input) {
-  const backend = await getBackend();
-  const value = await backend.hash64(input);
-  return { algo: 'xxh64', value };
+  const { h64ToString } = await loadXxhash();
+  return { algo: 'xxh64', value: h64ToString(input) };
 }
 
 export async function checksumFile(filePath) {
-  const backend = await getBackend();
-  const stream = hashFileStream(filePath);
-  const value = await hash64Stream(stream, backend);
-  return { algo: 'xxh64', value };
-}
-
-export function setXxhashBackend(backend) {
-  backendOverride = typeof backend === 'string' && backend.trim() ? backend.trim() : null;
-  backendName = null;
-  backendPromise = null;
+  const { create64 } = await loadXxhash();
+  return new Promise((resolve, reject) => {
+    const hasher = create64();
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', reject);
+    stream.on('data', (chunk) => hasher.update(chunk));
+    stream.on('end', () => resolve({ algo: 'xxh64', value: formatXxhashHex(hasher.digest()) }));
+  });
 }

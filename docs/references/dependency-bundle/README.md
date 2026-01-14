@@ -28,7 +28,6 @@ This bundle is a curated set of implementation-relevant deep links for dependenc
 
 ### Compression / zip artifacts
 - [fflate](deps/fflate.md)
-- [@mongodb-js/zstd](deps/mongodb-js-zstd.md)
 
 ### Config validation / schema enforcement
 - [ajv](deps/ajv.md)
@@ -59,7 +58,6 @@ This bundle is a curated set of implementation-relevant deep links for dependenc
 
 ### File watching / incremental indexing
 - [chokidar](deps/chokidar.md)
-- [@parcel/watcher](deps/parcel-watcher.md)
 
 ### Filesystem crawling
 - [fdir](deps/fdir.md)
@@ -87,7 +85,6 @@ This bundle is a curated set of implementation-relevant deep links for dependenc
 
 ### Hashing / stable IDs
 - [xxhash-wasm](deps/xxhash-wasm.md)
-- [@node-rs/xxhash](deps/node-rs-xxhash.md)
 
 ### High-resolution latency histograms
 - [hdr-histogram-js](deps/hdr-histogram-js.md)
@@ -107,9 +104,6 @@ This bundle is a curated set of implementation-relevant deep links for dependenc
 ### Language detection / file classification
 - [linguist-languages](deps/linguist-languages.md)
 
-### MCP transport
-- [@modelcontextprotocol/sdk](deps/modelcontextprotocol-sdk.md)
-
 ### Log formatting / developer ergonomics
 - [pino-pretty](deps/pino-pretty.md)
 
@@ -121,10 +115,6 @@ This bundle is a curated set of implementation-relevant deep links for dependenc
 
 ### Metrics (Prometheus client)
 - [prom-client](deps/prom-client.md)
-
-### Optional document extraction
-- [pdfjs-dist](deps/pdfjs-dist.md)
-- [mammoth](deps/mammoth.md)
 
 ### Microbench tooling
 - [tinybench](deps/tinybench.md)

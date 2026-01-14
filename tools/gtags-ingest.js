@@ -49,7 +49,7 @@ const ensureOutputDir = async () => {
   await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
 };
 
-let writeStream = null;
+const writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
 
 const parseGlobalLine = (line) => {
   const trimmed = line.trim();
@@ -106,7 +106,6 @@ const runGlobalCommand = async () => {
 };
 
 await ensureOutputDir();
-writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
 if (runGlobal) {
   await runGlobalCommand();
 } else if (inputPath && inputPath !== '-') {

@@ -54,7 +54,6 @@ const {
   lockMode,
   lockWaitMs,
   lockStaleMs,
-  backendList,
   wantsSqlite,
   indexProfile,
   suppressProfileEnv
@@ -134,29 +133,12 @@ process.on('SIGTERM', () => {
   processRunner.logExit('SIGTERM', 143);
   process.exit(143);
 });
-
-const reportFatal = (label, err) => {
-  try {
-    // Ensure the log has the run header paths even on early crashes.
-    initLog();
-  } catch {}
-  try {
-    const details = err?.stack || String(err);
-    // Make failures visible even in interactive mode.
-    console.error(`\n[bench-language] Fatal: ${label}`);
-    console.error(details);
-    console.error(`[bench-language] Details logged to: ${logPath}\n`);
-  } catch {}
-};
-
 process.on('uncaughtException', (err) => {
-  reportFatal('uncaughtException', err);
   writeLogSync(`[error] uncaughtException: ${err?.stack || err}`);
   processRunner.logExit('uncaughtException', 1);
   process.exit(1);
 });
 process.on('unhandledRejection', (err) => {
-  reportFatal('unhandledRejection', err);
   writeLogSync(`[error] unhandledRejection: ${err?.stack || err}`);
   processRunner.logExit('unhandledRejection', 1);
   process.exit(1);
