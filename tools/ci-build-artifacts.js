@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
 import simpleGit from 'simple-git';
-import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveSqlitePaths, resolveToolRoot } from './dict-utils.js';
+import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from './dict-utils.js';
 
 const argv = createCli({
   scriptName: 'ci-build',
@@ -23,10 +23,7 @@ const root = rootArg || resolveRepoRoot(process.cwd());
 const scriptRoot = resolveToolRoot();
 const userConfig = loadUserConfig(root);
 const runtimeConfig = getRuntimeConfig(root, userConfig);
-const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
-const baseEnv = resolvedNodeOptions
-  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
-  : process.env;
+const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const outDir = argv.out ? path.resolve(argv.out) : path.join(root, 'ci-artifacts');
 const codeDir = getIndexDir(root, 'code', userConfig);
 const proseDir = getIndexDir(root, 'prose', userConfig);

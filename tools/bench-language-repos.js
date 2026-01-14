@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getEnvConfig } from '../src/shared/env.js';
-import { getRuntimeConfig, loadUserConfig, resolveNodeOptions } from './dict-utils.js';
+import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from './dict-utils.js';
 import { parseBenchLanguageArgs } from './bench/language/cli.js';
 import { loadBenchConfig } from './bench/language/config.js';
 import { checkIndexLock, formatLockDetail } from './bench/language/locks.js';
@@ -298,10 +298,12 @@ for (const task of tasks) {
   const runtimeConfigForRun = heapOverride
     ? { ...repoRuntimeConfig, maxOldSpaceMb: heapOverride }
     : repoRuntimeConfig;
-  const repoNodeOptions = resolveNodeOptions(runtimeConfigForRun, baseNodeOptions);
-  const repoEnvBase = repoNodeOptions
-    ? { ...baseEnv, NODE_OPTIONS: repoNodeOptions }
-    : { ...baseEnv };
+
+  const baseEnvForRepo = { ...baseEnv };
+  if (typeof baseEnv.NODE_OPTIONS === 'string' || baseNodeOptions) {
+    baseEnvForRepo.NODE_OPTIONS = baseNodeOptions;
+  }
+  const repoEnvBase = resolveRuntimeEnv(runtimeConfigForRun, baseEnvForRepo);
   if (suppressProfileEnv && repoEnvBase.PAIROFCLEATS_PROFILE) {
     delete repoEnvBase.PAIROFCLEATS_PROFILE;
   }

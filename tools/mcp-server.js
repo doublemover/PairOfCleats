@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getToolDefs } from '../src/integrations/mcp/defs.js';
-import { DEFAULT_MODEL_ID, loadUserConfig, resolveRepoRoot, resolveToolRoot } from './dict-utils.js';
+import { DEFAULT_MODEL_ID, getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveToolRoot } from './dict-utils.js';
 import { parseTimeoutMs, resolveToolTimeoutMs } from './mcp/repo.js';
 import { handleToolCall } from './mcp/tools.js';
 import { createMcpTransport } from './mcp/transport.js';
@@ -29,7 +29,24 @@ const envQueueMax = parseTimeoutMs(process.env.PAIROFCLEATS_MCP_QUEUE_MAX);
 const envToolTimeoutMs = parseTimeoutMs(process.env.PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS);
 const baseConfigRoot = resolveRepoRoot(process.cwd());
 const baseConfig = loadUserConfig(baseConfigRoot);
-configureServiceLogger({ repoRoot: baseConfigRoot, service: 'mcp' });
+const { logLine } = configureServiceLogger({ repoRoot: baseConfigRoot, service: 'mcp' });
+const runtimeConfig = getRuntimeConfig(baseConfigRoot, baseConfig);
+const effectiveUvRaw = Number(process.env.UV_THREADPOOL_SIZE);
+const effectiveUvThreadpoolSize = Number.isFinite(effectiveUvRaw) && effectiveUvRaw > 0
+  ? Math.floor(effectiveUvRaw)
+  : null;
+if (effectiveUvThreadpoolSize) {
+  if (runtimeConfig.uvThreadpoolSize && runtimeConfig.uvThreadpoolSize !== effectiveUvThreadpoolSize) {
+    logLine(`[mcp] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (env overrides runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize})`);
+  } else if (runtimeConfig.uvThreadpoolSize) {
+    logLine(`[mcp] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize})`);
+  } else {
+    logLine(`[mcp] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (env)`);
+  }
+} else if (runtimeConfig.uvThreadpoolSize) {
+  logLine(`[mcp] UV_THREADPOOL_SIZE=default (runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize} not applied; start via pairofcleats CLI or set UV_THREADPOOL_SIZE before launch)`);
+}
+
 const baseMcpConfig = baseConfig?.mcp && typeof baseConfig.mcp === 'object' ? baseConfig.mcp : {};
 const configuredQueueMax = parseTimeoutMs(baseMcpConfig.queueMax);
 const queueMax = Math.max(1, configuredQueueMax ?? envQueueMax ?? DEFAULT_MCP_QUEUE_MAX);

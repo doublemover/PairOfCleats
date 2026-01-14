@@ -16,7 +16,12 @@ const argv = createCli({
     mode: { type: 'string', default: 'code' },
     repo: { type: 'string' },
     stage: { type: 'string' },
-    force: { type: 'boolean', default: false }
+    force: { type: 'boolean', default: false },
+    sort: {
+      type: 'boolean',
+      default: true,
+      describe: 'Sort input directories for deterministic assembly (disable with --no-sort)'
+    }
   }
 }).parse();
 
@@ -47,9 +52,14 @@ const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.c
 const userConfig = loadUserConfig(repoRoot);
 const mode = argv.mode || 'code';
 
+const resolvedInputs = inputDirs.map((dir) => path.resolve(dir));
+if (argv.sort !== false) {
+  resolvedInputs.sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+}
+
 try {
   await assembleIndexPieces({
-    inputs: inputDirs.map((dir) => path.resolve(dir)),
+    inputs: resolvedInputs,
     outDir,
     root: repoRoot,
     mode,

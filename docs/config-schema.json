@@ -314,6 +314,7 @@
       "properties": {
         "concurrency": { "type": "number" },
         "importConcurrency": { "type": "number" },
+        "ioConcurrencyCap": { "type": "number" },
         "importScan": { "type": ["string", "boolean"] },
         "maxFileBytes": { "type": ["number", "boolean"] },
         "untrusted": {
@@ -747,7 +748,8 @@
       "additionalProperties": false,
       "properties": {
         "maxOldSpaceMb": { "type": "number" },
-        "nodeOptions": { "type": "string" }
+        "nodeOptions": { "type": "string" },
+        "uvThreadpoolSize": { "type": "number" }
       }
     },
     "tooling": {

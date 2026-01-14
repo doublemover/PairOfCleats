@@ -1,6 +1,8 @@
-import { RE2JS } from 're2js';
+import { compileRe2js } from './safe-regex/backends/re2js.js';
+import { compileRe2, isRe2Available } from './safe-regex/backends/re2.js';
 
 export const DEFAULT_SAFE_REGEX_CONFIG = {
+  engine: 'auto',
   maxPatternLength: 512,
   maxInputLength: 10000,
   maxProgramSize: 2000,
@@ -15,12 +17,21 @@ const normalizeLimit = (value, fallback) => {
   return fallback;
 };
 
+const normalizeEngine = (raw, fallback) => {
+  if (!raw) return fallback;
+  const key = String(raw).trim().toLowerCase();
+  if (key === 'auto') return 'auto';
+  if (key === 're2') return 're2';
+  if (key === 're2js') return 're2js';
+  return fallback;
+};
+
 const normalizeFlags = (raw) => {
   if (!raw) return '';
   const seen = new Set();
   const out = [];
   for (const ch of String(raw)) {
-    if (!'gimsu'.includes(ch) || seen.has(ch)) continue;
+    if (!'gimsuy'.includes(ch) || seen.has(ch)) continue;
     seen.add(ch);
     out.push(ch);
   }
@@ -42,57 +53,65 @@ const mergeFlags = (explicit, fallback) => {
   return merged.join('');
 };
 
-const toFlagMask = (flags) => {
-  let mask = 0;
-  if (flags.includes('i')) mask |= RE2JS.CASE_INSENSITIVE;
-  if (flags.includes('m')) mask |= RE2JS.MULTILINE;
-  if (flags.includes('s')) mask |= RE2JS.DOTALL;
-  return mask;
-};
-
 class SafeRegex {
-  constructor(re2, source, flags, config) {
-    this.re2 = re2;
+  constructor(backend, source, flags, config, requestedEngine) {
+    this.backend = backend;
+    this.engine = backend?.engine || 're2js';
+    this.requestedEngine = requestedEngine || 'auto';
     this.source = source;
     this.flags = flags;
     this.config = config;
     this.lastIndex = 0;
     this.isGlobal = flags.includes('g');
+    this.isSticky = flags.includes('y');
+    this.usesLastIndex = this.isGlobal || this.isSticky;
   }
 
   exec(input) {
     const text = String(input ?? '');
     if (!text) {
-      if (this.isGlobal) this.lastIndex = 0;
+      if (this.usesLastIndex) this.lastIndex = 0;
       return null;
     }
+
     const { maxInputLength, timeoutMs } = this.config || {};
     if (maxInputLength && text.length > maxInputLength) {
-      if (this.isGlobal) this.lastIndex = 0;
+      if (this.usesLastIndex) this.lastIndex = 0;
       return null;
     }
-    const startIndex = this.isGlobal && Number.isFinite(this.lastIndex)
+
+    const startIndex = this.usesLastIndex && Number.isFinite(this.lastIndex)
       ? Math.max(0, this.lastIndex)
       : 0;
-    const started = timeoutMs ? Date.now() : 0;
-    const matcher = this.re2.matcher(text);
-    const found = matcher.find(startIndex);
-    if (timeoutMs && Date.now() - started > timeoutMs) {
-      if (this.isGlobal) this.lastIndex = 0;
+
+    if (this.usesLastIndex && startIndex > text.length) {
+      this.lastIndex = 0;
       return null;
     }
-    if (!found) {
-      if (this.isGlobal) this.lastIndex = 0;
+
+    const match = this.backend.match(text, startIndex, { timeoutMs, sticky: this.isSticky });
+    if (!match) {
+      if (this.usesLastIndex) this.lastIndex = 0;
       return null;
     }
-    const groupCount = this.re2.groupCount();
-    const result = new Array(groupCount + 1);
-    for (let i = 0; i <= groupCount; i += 1) {
-      result[i] = matcher.group(i);
-    }
-    result.index = matcher.start();
+
+    const groups = Array.isArray(match.groups) ? match.groups : [];
+    const result = groups.slice();
+    result.index = match.index;
     result.input = text;
-    if (this.isGlobal) this.lastIndex = matcher.end();
+
+    if (this.usesLastIndex) {
+      if (Number.isFinite(match.nextLastIndex)) {
+        this.lastIndex = match.nextLastIndex;
+      } else {
+        let next = match.end;
+        if (Number.isFinite(next) && next === match.index) {
+          next = Math.min(text.length, next + 1);
+        }
+        this.lastIndex = Number.isFinite(next) ? next : 0;
+      }
+    }
+
     return result;
   }
 
@@ -105,7 +124,9 @@ export function normalizeSafeRegexConfig(raw = {}, defaults = {}) {
   const base = { ...DEFAULT_SAFE_REGEX_CONFIG, ...defaults };
   const config = raw && typeof raw === 'object' ? raw : {};
   const hasFlagOverride = Object.prototype.hasOwnProperty.call(config, 'flags');
+  const hasEngineOverride = Object.prototype.hasOwnProperty.call(config, 'engine');
   return {
+    engine: normalizeEngine(hasEngineOverride ? config.engine : base.engine, base.engine),
     maxPatternLength: normalizeLimit(config.maxPatternLength, base.maxPatternLength),
     maxInputLength: normalizeLimit(config.maxInputLength, base.maxInputLength),
     maxProgramSize: normalizeLimit(config.maxProgramSize, base.maxProgramSize),
@@ -114,6 +135,13 @@ export function normalizeSafeRegexConfig(raw = {}, defaults = {}) {
   };
 }
 
+let warnedMissingRe2 = false;
+const warnMissingRe2Once = () => {
+  if (warnedMissingRe2) return;
+  warnedMissingRe2 = true;
+  console.warn('SafeRegex: engine "re2" requested but optional dependency "re2" is not available; falling back to re2js.');
+};
+
 export function createSafeRegex(pattern, flags = '', config = {}) {
   const normalized = normalizeSafeRegexConfig(config);
   const source = String(pattern ?? '');
@@ -121,16 +149,25 @@ export function createSafeRegex(pattern, flags = '', config = {}) {
   if (normalized.maxPatternLength && source.length > normalized.maxPatternLength) {
     return null;
   }
+
   const combinedFlags = mergeFlags(flags, normalized.flags);
-  const mask = toFlagMask(combinedFlags);
-  try {
-    const translated = RE2JS.translateRegExp(source);
-    const compiled = RE2JS.compile(translated, mask);
-    if (normalized.maxProgramSize && compiled.programSize() > normalized.maxProgramSize) {
-      return null;
+  const requestedEngine = normalized.engine || 'auto';
+
+  // Try native RE2 if requested (auto or explicit) and available.
+  if (requestedEngine !== 're2js') {
+    const nativeAvailable = isRe2Available();
+    if (nativeAvailable) {
+      const backend = compileRe2(source, combinedFlags);
+      if (backend) return new SafeRegex(backend, source, combinedFlags, normalized, requestedEngine);
+    } else if (requestedEngine === 're2') {
+      warnMissingRe2Once();
     }
-    return new SafeRegex(compiled, source, combinedFlags, normalized);
-  } catch {
-    return null;
   }
+
+  // Fall back to RE2JS.
+  const backend = compileRe2js(source, combinedFlags, normalized);
+  if (!backend) return null;
+  return new SafeRegex(backend, source, combinedFlags, normalized, requestedEngine);
 }
+
+export const isNativeRe2Available = isRe2Available;
