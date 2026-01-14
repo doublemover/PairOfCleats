@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { execaSync } from 'execa';
 import { createCli } from '../../src/shared/cli.js';
-import { getRuntimeConfig, getTriageConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../dict-utils.js';
+import { getRuntimeConfig, getTriageConfig, loadUserConfig, resolveNodeOptions, resolveRepoRoot, resolveToolRoot } from '../dict-utils.js';
 import { normalizeDependabot } from '../../src/integrations/triage/normalize/dependabot.js';
 import { normalizeAwsInspector } from '../../src/integrations/triage/normalize/aws-inspector.js';
 import { normalizeGeneric } from '../../src/integrations/triage/normalize/generic.js';
@@ -34,7 +34,10 @@ if (!source || !inputPath) {
 
 const userConfig = loadUserConfig(repoRoot);
 const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
-const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+const resolvedNodeOptions = resolveNodeOptions(runtimeConfig, process.env.NODE_OPTIONS || '');
+const baseEnv = resolvedNodeOptions
+  ? { ...process.env, NODE_OPTIONS: resolvedNodeOptions }
+  : { ...process.env };
 const triageConfig = getTriageConfig(repoRoot, userConfig);
 const meta = parseMeta(argv.meta);
 

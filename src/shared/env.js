@@ -37,7 +37,6 @@ export function getEnvConfig(env = process.env) {
     bundleThreads: parseNumber(env.PAIROFCLEATS_BUNDLE_THREADS),
     workerPool: normalizeString(env.PAIROFCLEATS_WORKER_POOL),
     maxOldSpaceMb: parseNumber(env.PAIROFCLEATS_MAX_OLD_SPACE_MB),
-    uvThreadpoolSize: parseNumber(env.PAIROFCLEATS_UV_THREADPOOL_SIZE),
     nodeOptions: normalizeString(env.PAIROFCLEATS_NODE_OPTIONS),
     stage: normalizeString(env.PAIROFCLEATS_STAGE),
     ftsProfile: normalizeString(env.PAIROFCLEATS_FTS_PROFILE),

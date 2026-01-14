@@ -21,7 +21,6 @@ PairOfCleats supports a small set of environment variables for advanced override
 - `PAIROFCLEATS_THREADS`: override indexing concurrency.
 - `PAIROFCLEATS_BUNDLE_THREADS`: override SQLite bundle parse threads.
 - `PAIROFCLEATS_MAX_OLD_SPACE_MB`: override Node heap size.
-- `PAIROFCLEATS_UV_THREADPOOL_SIZE`: set libuv threadpool size for child Node processes (must be set before Node starts).
 - `PAIROFCLEATS_NODE_OPTIONS`: append to Node options.
 - `PAIROFCLEATS_STAGE`: force indexing stage (`stage1` sparse without relations/imports, `stage2` enrichment, `stage3` embeddings pass, `stage4` sqlite/ANN pass).
 - `PAIROFCLEATS_WORKER_POOL`: control worker pool (`on`/`off`/`auto`).

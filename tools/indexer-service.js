@@ -26,12 +26,6 @@ const argv = createCli({
 }).parse();
 
 const command = argv.command || String(argv._[0] || '');
-const parsedUv = Number(process.env.UV_THREADPOOL_SIZE);
-const effectiveUvThreadpoolSize = Number.isFinite(parsedUv) && parsedUv > 0 ? Math.floor(parsedUv) : null;
-if (command === 'serve' || argv.watch) {
-  console.error(`[indexer-service] UV_THREADPOOL_SIZE: ${effectiveUvThreadpoolSize ?? 'default'}`);
-}
-
 const configPath = getServiceConfigPath(argv.config || null);
 const config = loadServiceConfig(configPath);
 const repoEntries = resolveRepoRegistry(config, configPath);

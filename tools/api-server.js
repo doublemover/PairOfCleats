@@ -2,7 +2,7 @@
 import http from 'node:http';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
-import { getRuntimeConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
+import { resolveRepoRoot } from './dict-utils.js';
 import { getMetricsRegistry } from '../src/shared/metrics.js';
 import { createApiRouter } from './api/router.js';
 import { configureServiceLogger } from './service/logger.js';
@@ -24,11 +24,6 @@ const port = Number.isFinite(Number(argv.port)) ? Number(argv.port) : 7345;
 const defaultRepo = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
 const jsonOutput = argv.json === true;
 const quiet = argv.quiet === true;
-const userConfig = loadUserConfig(defaultRepo);
-const runtimeConfig = getRuntimeConfig(defaultRepo, userConfig);
-const parsedUv = Number(process.env.UV_THREADPOOL_SIZE);
-const effectiveUvThreadpoolSize = Number.isFinite(parsedUv) && parsedUv > 0 ? Math.floor(parsedUv) : null;
-
 const metricsRegistry = getMetricsRegistry();
 const { logLine } = configureServiceLogger({ repoRoot: defaultRepo, service: 'api' });
 
@@ -55,7 +50,6 @@ server.listen({ port, host }, () => {
   } else {
     log(`[api] listening at ${baseUrl}`);
     log(`[api] repo root: ${defaultRepo}`);
-    log(`[api] UV_THREADPOOL_SIZE: ${effectiveUvThreadpoolSize ?? 'default'} (config=${runtimeConfig.uvThreadpoolSize ?? 'none'})`);
   }
 });
 

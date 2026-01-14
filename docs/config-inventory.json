@@ -1573,11 +1573,6 @@
       "enum": null
     },
     {
-      "path": "runtime.uvThreadpoolSize",
-      "type": "number",
-      "enum": null
-    },
-    {
       "path": "runtime.nodeOptions",
       "type": "string",
       "enum": null

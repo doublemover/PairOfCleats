@@ -3,8 +3,6 @@ import { sha1 } from '../../../shared/hash.js';
 export const buildTokenizationKey = (runtime, mode) => {
   const commentsConfig = runtime.commentsConfig || {};
   const payload = {
-    signatureVersion: 1,
-    toolVersion: runtime.toolVersion || null,
     mode,
     dictConfig: runtime.dictConfig || {},
     postingsConfig: runtime.postingsConfig || {},

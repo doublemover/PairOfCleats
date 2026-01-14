@@ -50,4 +50,39 @@ if (autoLarge.length !== 1 || autoLarge[0].name !== 'root') {
   process.exit(1);
 }
 
+const tabIndented = smartChunk({
+  text: 'root:\n\tchild: 1\nother: 2\n',
+  ext: '.yaml',
+  relPath: 'config.yaml',
+  mode: 'code',
+  context: { yamlChunking: { mode: 'top-level' } }
+});
+const tabNames = tabIndented.map((chunk) => chunk.name);
+if (!tabNames.includes('root') || !tabNames.includes('other') || tabNames.includes('child')) {
+  console.error(`Unexpected tab-indented YAML chunks: ${tabNames.join(',')}`);
+  process.exit(1);
+}
+
+const workflowText = [
+  'name: CI',
+  'on: [push]',
+  'jobs:',
+  '  build:',
+  '    runs-on: ubuntu-latest',
+  '  test:',
+  '    runs-on: ubuntu-latest'
+].join('\n');
+const workflowChunks = smartChunk({
+  text: workflowText,
+  ext: '.yaml',
+  relPath: '.github\\workflows\\ci.yml',
+  mode: 'code',
+  context: { yamlChunking: { mode: 'top-level' } }
+});
+const workflowNames = workflowChunks.map((chunk) => chunk.name);
+if (!workflowNames.includes('build') || !workflowNames.includes('test')) {
+  console.error(`Expected workflow chunking to produce job sections, got: ${workflowNames.join(',')}`);
+  process.exit(1);
+}
+
 console.log('yaml chunking test passed');

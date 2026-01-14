@@ -24,7 +24,7 @@ import { fileExt, toPosix } from '../../shared/files.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCancel, onFire, onError }) {
+export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCancel, onFire }) {
   let timer = null;
   const schedule = () => {
     if (timer) {
@@ -33,30 +33,8 @@ export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCanc
     }
     timer = setTimeout(() => {
       timer = null;
-
-      const handleError = (err) => {
-        if (!onError) return;
-        try {
-          onError(err);
-        } catch {}
-      };
-
-      if (onFire) {
-        try {
-          onFire();
-        } catch (err) {
-          handleError(err);
-        }
-      }
-
-      try {
-        const result = onRun();
-        if (result && typeof result.then === 'function') {
-          result.catch(handleError);
-        }
-      } catch (err) {
-        handleError(err);
-      }
+      if (onFire) onFire();
+      onRun();
     }, debounceMs);
     if (onSchedule) onSchedule();
   };
@@ -78,10 +56,8 @@ export function isIndexablePath({ absPath, root, ignoreMatcher, modes }) {
   const isManifest = isManifestFile(baseName);
   const isLock = isLockFile(baseName);
   const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock;
-  const wantsCode = modes.includes('code') || modes.includes('extracted-prose');
-  const wantsProse = modes.includes('prose') || modes.includes('extracted-prose');
-  const allowCode = wantsCode && (EXTS_CODE.has(ext) || isSpecial);
-  const allowProse = wantsProse && EXTS_PROSE.has(ext);
+  const allowCode = modes.includes('code') && (EXTS_CODE.has(ext) || isSpecial);
+  const allowProse = modes.includes('prose') && EXTS_PROSE.has(ext);
   return allowCode || allowProse;
 }
 
@@ -251,8 +227,7 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
     onRun: runBuild,
     onSchedule: () => incWatchDebounce('scheduled'),
     onCancel: () => incWatchDebounce('canceled'),
-    onFire: () => incWatchDebounce('fired'),
-    onError: (err) => log(`[watch] debounced task error: ${err?.stack || err}`)
+    onFire: () => incWatchDebounce('fired')
   });
 
   const recordAddOrChange = async (absPath) => {
