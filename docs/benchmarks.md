@@ -22,7 +22,7 @@ By default it targets `tests/fixtures/sample` with stub embeddings and runs the
 index build plus three search modes.
 
 ### Components
-- Index build (no embeddings): `pairofcleats index build --stub-embeddings` (defaults to code, prose, and extracted-prose).
+- Index build (no embeddings): `pairofcleats index build --stub-embeddings` (defaults to code mode).
 - Search sparse-only: `--no-ann`.
 - Search dense-only: `--ann` plus blend weights that fully weight ANN.
 - Search hybrid: `--ann` plus balanced blend weights.

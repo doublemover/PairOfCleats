@@ -170,9 +170,13 @@ const envStubEmbeddings = envConfig.embeddings === 'stub';
 const realEmbeddings = argv['real-embeddings'] === true;
 const stubEmbeddings = argv['stub-embeddings'] === true
   || (!realEmbeddings && envStubEmbeddings);
-
-const baseEnvCandidate = { ...process.env, NODE_OPTIONS: baseNodeOptions };
-const baseEnv = resolveRuntimeEnv(runtimeConfigForRun, baseEnvCandidate);
+const baseEnvInput = { ...process.env };
+if (baseNodeOptions) {
+  baseEnvInput.NODE_OPTIONS = baseNodeOptions;
+} else {
+  delete baseEnvInput.NODE_OPTIONS;
+}
+const baseEnv = resolveRuntimeEnv(runtimeConfigForRun, baseEnvInput);
 const profileArgPresent = rawArgs.includes('--profile') || rawArgs.includes('--index-profile');
 if (noIndexProfile && !profileArgPresent && baseEnv.PAIROFCLEATS_PROFILE) {
   delete baseEnv.PAIROFCLEATS_PROFILE;

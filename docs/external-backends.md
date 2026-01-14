@@ -1,7 +1,8 @@
 # External Backends (Prototype Notes)
 
-This document captures an evaluation of external sparse/vector backends and
-notes current integration status.
+This document captures an initial evaluation of external sparse/vector
+backends. These are not integrated yet; the notes are meant to guide future
+experiments and adopters.
 
 Sparse backends
 - Tantivy (Rust, Lucene-like): excellent performance and index size, but
@@ -9,18 +10,17 @@ Sparse backends
 - SQLite FTS5: already supported, fast to iterate, good default for most repos.
 
 Vector backends
-- LanceDB: supported for local ANN search. Artifacts live alongside
-  `dense_vectors*` in each index directory and are selected via
-  `search.annBackend` + `indexing.embeddings.lancedb`.
-- SQLite-based ANN: supported via the vector extension and/or dense vectors.
+- LanceDB: good for vector search with local storage, Python-first but has
+  Rust/JavaScript bindings. Suitable for a standalone ANN service.
+- SQLite-based ANN: good for local/offline workflows, but large repos may need
+  more tuning or server-backed vector stores.
 
 Search UI backends
 - Meilisearch: simple API, great for autocomplete and UI suggestions.
 - Typesense: similar to Meilisearch, stronger schema controls.
 
 Recommendation
-1. Prefer LanceDB for ANN-heavy workloads; keep SQLite vector extension as a
-   fallback for small repos or environments without LanceDB.
+1. Keep SQLite FTS5 + local ANN as the default for local and medium repos.
 2. Add a Rust-based service (Tantivy) for large-scale deployments.
 3. For UI-heavy use cases, evaluate Meilisearch or Typesense as a parallel
    suggestion index while retaining PairOfCleats for code-aware search.

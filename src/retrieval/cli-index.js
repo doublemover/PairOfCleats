@@ -10,7 +10,7 @@ import {
   loadTokenPostings,
   readJsonFile
 } from '../shared/artifact-io.js';
-import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../shared/hnsw.js';
+import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths, validateHnswMetaCompatibility } from '../shared/hnsw.js';
 
 /**
  * Load file-backed index artifacts from a directory.
@@ -90,12 +90,19 @@ export function loadIndex(dir, options) {
   const denseVec = embeddingsReady ? loadOptional('dense_vectors_uint8.json') : null;
   const denseVecDoc = embeddingsReady ? loadOptional('dense_vectors_doc_uint8.json') : null;
   const denseVecCode = embeddingsReady ? loadOptional('dense_vectors_code_uint8.json') : null;
+  if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
+  if (denseVecDoc && !denseVecDoc.model && modelIdDefault) denseVecDoc.model = modelIdDefault;
+  if (denseVecCode && !denseVecCode.model && modelIdDefault) denseVecCode.model = modelIdDefault;
   const hnswMeta = embeddingsReady && includeHnsw && hnswConfig.enabled
     ? loadOptional('dense_vectors_hnsw.meta.json')
     : null;
   let hnswIndex = null;
   let hnswAvailable = false;
   if (hnswMeta && includeHnsw && hnswConfig.enabled) {
+    const compatibility = validateHnswMetaCompatibility({ denseVectors: denseVec, hnswMeta });
+    if (!compatibility.ok) {
+      console.warn(`[ann] Skipping HNSW index load due to incompatible metadata: ${compatibility.warnings.join('; ')}`);
+    } else {
     const { indexPath } = resolveHnswPaths(dir);
     const mergedConfig = {
       ...hnswConfig,
@@ -104,12 +111,10 @@ export function loadIndex(dir, options) {
     };
     hnswIndex = loadHnswIndex({ indexPath, dims: hnswMeta.dims, config: mergedConfig });
     hnswAvailable = Boolean(hnswIndex);
+    }
   }
   const fieldPostings = loadOptional('field_postings.json');
   const fieldTokens = loadOptional('field_tokens.json');
-  if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
-  if (denseVecDoc && !denseVecDoc.model && modelIdDefault) denseVecDoc.model = modelIdDefault;
-  if (denseVecCode && !denseVecCode.model && modelIdDefault) denseVecCode.model = modelIdDefault;
   const filterIndexRaw = loadOptional('filter_index.json');
   const idx = {
     chunkMeta,
@@ -264,21 +269,12 @@ export function getIndexSignature(options) {
   const extractedProseDense = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_uint8.json') : null;
   const extractedProseHnswMeta = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_hnsw.meta.json') : null;
   const extractedProseHnswIndex = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_hnsw.bin') : null;
-  const extractedProseLanceMeta = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors.lancedb.meta.json') : null;
-  const extractedProseLanceDocMeta = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_doc.lancedb.meta.json') : null;
-  const extractedProseLanceCodeMeta = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_code.lancedb.meta.json') : null;
 
   if (useSqlite) {
     const codeDir = resolveIndexDir(root, 'code', userConfig);
     const proseDir = resolveIndexDir(root, 'prose', userConfig);
     const codeRelations = path.join(codeDir, 'file_relations.json');
     const proseRelations = path.join(proseDir, 'file_relations.json');
-    const codeLanceMeta = path.join(codeDir, 'dense_vectors.lancedb.meta.json');
-    const codeLanceDocMeta = path.join(codeDir, 'dense_vectors_doc.lancedb.meta.json');
-    const codeLanceCodeMeta = path.join(codeDir, 'dense_vectors_code.lancedb.meta.json');
-    const proseLanceMeta = path.join(proseDir, 'dense_vectors.lancedb.meta.json');
-    const proseLanceDocMeta = path.join(proseDir, 'dense_vectors_doc.lancedb.meta.json');
-    const proseLanceCodeMeta = path.join(proseDir, 'dense_vectors_code.lancedb.meta.json');
     const recordDir = runRecords ? resolveIndexDir(root, 'records', userConfig) : null;
     const recordMeta = recordDir ? path.join(recordDir, 'chunk_meta.json') : null;
     const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
@@ -288,19 +284,10 @@ export function getIndexSignature(options) {
       prose: fileSignature(sqliteProsePath),
       codeRelations: fileSignature(codeRelations),
       proseRelations: fileSignature(proseRelations),
-      codeLanceMeta: fileSignature(codeLanceMeta),
-      codeLanceDocMeta: fileSignature(codeLanceDocMeta),
-      codeLanceCodeMeta: fileSignature(codeLanceCodeMeta),
-      proseLanceMeta: fileSignature(proseLanceMeta),
-      proseLanceDocMeta: fileSignature(proseLanceDocMeta),
-      proseLanceCodeMeta: fileSignature(proseLanceCodeMeta),
       extractedProse: extractedProseMeta ? fileSignature(extractedProseMeta) : null,
       extractedProseDense: extractedProseDense ? fileSignature(extractedProseDense) : null,
       extractedProseHnswMeta: extractedProseHnswMeta ? fileSignature(extractedProseHnswMeta) : null,
       extractedProseHnswIndex: extractedProseHnswIndex ? fileSignature(extractedProseHnswIndex) : null,
-      extractedProseLanceMeta: extractedProseLanceMeta ? fileSignature(extractedProseLanceMeta) : null,
-      extractedProseLanceDocMeta: extractedProseLanceDocMeta ? fileSignature(extractedProseLanceDocMeta) : null,
-      extractedProseLanceCodeMeta: extractedProseLanceCodeMeta ? fileSignature(extractedProseLanceCodeMeta) : null,
       records: recordMeta ? fileSignature(recordMeta) : null,
       recordsDense: recordDense ? fileSignature(recordDense) : null
     };
@@ -316,12 +303,6 @@ export function getIndexSignature(options) {
   const codeHnswIndex = path.join(codeDir, 'dense_vectors_hnsw.bin');
   const proseHnswMeta = path.join(proseDir, 'dense_vectors_hnsw.meta.json');
   const proseHnswIndex = path.join(proseDir, 'dense_vectors_hnsw.bin');
-  const codeLanceMeta = path.join(codeDir, 'dense_vectors.lancedb.meta.json');
-  const codeLanceDocMeta = path.join(codeDir, 'dense_vectors_doc.lancedb.meta.json');
-  const codeLanceCodeMeta = path.join(codeDir, 'dense_vectors_code.lancedb.meta.json');
-  const proseLanceMeta = path.join(proseDir, 'dense_vectors.lancedb.meta.json');
-  const proseLanceDocMeta = path.join(proseDir, 'dense_vectors_doc.lancedb.meta.json');
-  const proseLanceCodeMeta = path.join(proseDir, 'dense_vectors_code.lancedb.meta.json');
   const codeRelations = path.join(codeDir, 'file_relations.json');
   const proseRelations = path.join(proseDir, 'file_relations.json');
   const recordDir = runRecords ? resolveIndexDir(root, 'records', userConfig) : null;
@@ -339,21 +320,12 @@ export function getIndexSignature(options) {
     codeHnswIndex: fileSignature(codeHnswIndex),
     proseHnswMeta: fileSignature(proseHnswMeta),
     proseHnswIndex: fileSignature(proseHnswIndex),
-    codeLanceMeta: fileSignature(codeLanceMeta),
-    codeLanceDocMeta: fileSignature(codeLanceDocMeta),
-    codeLanceCodeMeta: fileSignature(codeLanceCodeMeta),
-    proseLanceMeta: fileSignature(proseLanceMeta),
-    proseLanceDocMeta: fileSignature(proseLanceDocMeta),
-    proseLanceCodeMeta: fileSignature(proseLanceCodeMeta),
     codeRelations: fileSignature(codeRelations),
     proseRelations: fileSignature(proseRelations),
     extractedProse: extractedProseMeta ? fileSignature(extractedProseMeta) : null,
     extractedProseDense: extractedProseDense ? fileSignature(extractedProseDense) : null,
     extractedProseHnswMeta: extractedProseHnswMeta ? fileSignature(extractedProseHnswMeta) : null,
     extractedProseHnswIndex: extractedProseHnswIndex ? fileSignature(extractedProseHnswIndex) : null,
-    extractedProseLanceMeta: extractedProseLanceMeta ? fileSignature(extractedProseLanceMeta) : null,
-    extractedProseLanceDocMeta: extractedProseLanceDocMeta ? fileSignature(extractedProseLanceDocMeta) : null,
-    extractedProseLanceCodeMeta: extractedProseLanceCodeMeta ? fileSignature(extractedProseLanceCodeMeta) : null,
     records: recordMeta ? fileSignature(recordMeta) : null,
     recordsDense: recordDense ? fileSignature(recordDense) : null,
     recordsHnswMeta: recordHnswMeta ? fileSignature(recordHnswMeta) : null,

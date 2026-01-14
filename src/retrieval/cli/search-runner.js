@@ -1,4 +1,4 @@
-export async function runSearchByMode({
+export function runSearchByMode({
   searchPipeline,
   runProse,
   runExtractedProse,
@@ -13,23 +13,17 @@ export async function runSearchByMode({
   queryEmbeddingCode,
   queryEmbeddingRecords
 }) {
-  const prosePromise = runProse
+  const proseHits = runProse
     ? searchPipeline(idxProse, 'prose', queryEmbeddingProse)
-    : Promise.resolve([]);
-  const extractedProsePromise = runExtractedProse
+    : [];
+  const extractedProseHits = runExtractedProse
     ? searchPipeline(idxExtractedProse, 'extracted-prose', queryEmbeddingExtractedProse)
-    : Promise.resolve([]);
-  const codePromise = runCode
+    : [];
+  const codeHits = runCode
     ? searchPipeline(idxCode, 'code', queryEmbeddingCode)
-    : Promise.resolve([]);
-  const recordsPromise = runRecords
+    : [];
+  const recordHits = runRecords
     ? searchPipeline(idxRecords, 'records', queryEmbeddingRecords)
-    : Promise.resolve([]);
-  const [proseHits, extractedProseHits, codeHits, recordHits] = await Promise.all([
-    prosePromise,
-    extractedProsePromise,
-    codePromise,
-    recordsPromise
-  ]);
+    : [];
   return { proseHits, extractedProseHits, codeHits, recordHits };
 }

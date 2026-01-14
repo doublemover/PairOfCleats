@@ -196,7 +196,7 @@ const censusRepo = async (repoPath, label) => {
     shardStats.sort((a, b) => {
       if (b.lines !== a.lines) return b.lines - a.lines;
       if (b.files !== a.files) return b.files - a.files;
-      return a.label.localeCompare(b.label);
+      return a.label < b.label ? -1 : a.label > b.label ? 1 : 0;
     });
     const totalFiles = entries.length;
     const totalLines = shardStats.reduce((sum, shard) => sum + shard.lines, 0);

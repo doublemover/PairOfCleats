@@ -177,7 +177,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       searchRegexConfig,
       fileChargramN,
       vectorExtension,
-      annBackend,
       bm25K1,
       bm25B,
       branchesMin,
@@ -215,8 +214,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       fieldWeightsConfig,
       explain,
       denseVectorMode,
-      backendArg,
-      lancedbConfig
+      backendArg
     } = normalized;
 
     if (!query) {
@@ -416,8 +414,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       runExtractedProse,
       hnswAnnState,
       hnswAnnUsed,
-      lanceAnnState,
-      lanceAnnUsed,
       modelIdForCode,
       modelIdForProse,
       modelIdForExtractedProse,
@@ -442,7 +438,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       modelIdDefault,
       fileChargramN,
       hnswConfig,
-      lancedbConfig,
       loadIndexFromSqlite,
       loadIndexFromLmdb,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode
@@ -469,8 +464,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       useSqlite,
       annEnabled,
       annActive,
-      annBackend,
-      lancedbConfig,
       vectorExtension,
       vectorAnnEnabled,
       vectorAnnState,
@@ -478,8 +471,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       hnswConfig,
       hnswAnnState,
       hnswAnnUsed,
-      lanceAnnState,
-      lanceAnnUsed,
       sqliteFtsRequested,
       sqliteFtsNormalize,
       sqliteFtsProfile,
@@ -576,7 +567,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       vectorAnnUsed,
       hnswConfig,
       hnswAnnState,
-      lanceAnnState,
       modelIds,
       embeddingProvider,
       embeddingOnnx,

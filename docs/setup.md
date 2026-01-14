@@ -22,7 +22,6 @@ The unified setup script (`pairofcleats setup`) guides you through installing op
 - Build file-backed indexes (optionally incremental).
 - Build SQLite indexes (default unless `--skip-sqlite`).
 - Offer to set a Node heap limit for large repos (writes `runtime.maxOldSpaceMb`).
-- For I/O-heavy indexing, you can tune libuv's threadpool via `runtime.uvThreadpoolSize` (or `PAIROFCLEATS_UV_THREADPOOL_SIZE`).
 
 ## Flags
 
@@ -55,5 +54,7 @@ The unified setup script (`pairofcleats setup`) guides you through installing op
 - Index builds write `pieces/manifest.json` in each index directory to list artifact pieces and checksums.
 - Use `node tools/assemble-pieces.js --input <indexDir> --out <dest>` to merge piece outputs into a single index directory.
 - Use `node tools/compact-pieces.js --repo <repo>` to compact chunk_meta parts and token_postings shards.
+- For deeper profiling guidance (CPU vs I/O bottlenecks), see `docs/perf-profiling.md`.
+- If you increase indexing concurrency (`indexing.threads` / `PAIROFCLEATS_THREADS`), consider also setting `runtime.uvThreadpoolSize` (or `PAIROFCLEATS_UV_THREADPOOL_SIZE`) to avoid libuv threadpool bottlenecks (Node default is 4).
 - After setup, run `pairofcleats index validate` to confirm index artifacts are healthy.
 - If you prefer a fast, no-prompts path, use `pairofcleats bootstrap`.

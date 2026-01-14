@@ -32,7 +32,7 @@ command: `PairOfCleats: Search`. It:
 ### Settings
 - `pairofcleats.cliPath`: override the CLI command or point to a JS entrypoint.
 - `pairofcleats.cliArgs`: arguments inserted before the `search` command.
-- `pairofcleats.searchMode`: default search mode (code + prose + extracted-prose by default).
+- `pairofcleats.searchMode`: default search mode (`both` by default).
 - `pairofcleats.searchBackend`: optional backend override.
 - `pairofcleats.searchAnn`: enable/disable ANN usage.
 - `pairofcleats.maxResults`: max results to request.

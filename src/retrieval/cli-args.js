@@ -68,8 +68,7 @@ const STRING_FLAGS = [
   'fts-weights',
   'bm25-k1',
   'bm25-b',
-  'profile',
-  'ann-backend'
+  'profile'
 ];
 
 const ALIASES = { n: 'top', c: 'context', t: 'type', why: 'explain' };
@@ -137,7 +136,6 @@ export function getSearchUsage() {
     '  --top N, --context N',
     '  --json | --json-compact | --stats',
     '  --ann | --no-ann',
-    '  --ann-backend auto|lancedb|sqlite-vector|hnsw|js',
     '  --model <id>',
     '  --fts-profile <name> | --fts-weights <json|csv>',
     '  --bm25-k1 <num> | --bm25-b <num>',
@@ -164,17 +162,7 @@ export function getSearchUsage() {
  * @returns {{searchMode:string,runCode:boolean,runProse:boolean,runRecords:boolean,runExtractedProse:boolean}}
  */
 export function resolveSearchMode(modeRaw) {
-  const normalized = modeRaw == null ? '' : String(modeRaw).trim().toLowerCase();
-  if (!normalized) {
-    return {
-      searchMode: 'default',
-      runCode: true,
-      runProse: true,
-      runRecords: false,
-      runExtractedProse: true
-    };
-  }
-  const searchMode = normalized;
+  const searchMode = String(modeRaw || 'both').toLowerCase();
   const allowedModes = new Set(['code', 'prose', 'both', 'records', 'all', 'extracted-prose']);
   if (!allowedModes.has(searchMode)) {
     const error = new Error(`Invalid --mode ${searchMode}. Use code|prose|both|records|all|extracted-prose.`);

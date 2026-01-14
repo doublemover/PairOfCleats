@@ -12,13 +12,33 @@ import { fileExt, toPosix } from '../../shared/files.js';
  */
 export async function estimateContextWindow({ files, root, mode, languageOptions }) {
   const sampleChunkLens = [];
-  for (let i = 0; i < Math.min(20, files.length); ++i) {
+  // Ensure determinism regardless of upstream file enumeration order. We select a
+  // stable lexicographic sample rather than relying on the first N entries.
+  const sampleLimit = Math.min(20, files.length);
+  const sampleFiles = [];
+  const insertSorted = (arr, value) => {
+    let i = arr.length;
+    while (i > 0 && arr[i - 1] > value) i -= 1;
+    arr.splice(i, 0, value);
+  };
+  for (const filePath of files) {
+    if (sampleFiles.length < sampleLimit) {
+      insertSorted(sampleFiles, filePath);
+      continue;
+    }
+    const last = sampleFiles[sampleFiles.length - 1];
+    if (filePath >= last) continue;
+    insertSorted(sampleFiles, filePath);
+    sampleFiles.pop();
+  }
+
+  for (let i = 0; i < sampleFiles.length; ++i) {
     try {
-      const { text } = await readTextFile(files[i]);
-      const relSample = path.relative(root, files[i]);
+      const { text } = await readTextFile(sampleFiles[i]);
+      const relSample = path.relative(root, sampleFiles[i]);
       const relSampleKey = toPosix(relSample);
-      const baseName = path.basename(files[i]);
-      const rawExt = fileExt(files[i]);
+      const baseName = path.basename(sampleFiles[i]);
+      const rawExt = fileExt(sampleFiles[i]);
       const ext = resolveSpecialCodeExt(baseName) || rawExt;
       const { context: sampleContext } = await buildLanguageContext({
         ext,

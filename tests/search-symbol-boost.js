@@ -66,7 +66,7 @@ const searchPipeline = createSearchPipeline({
   rankVectorAnnSqlite: () => []
 });
 
-const results = await searchPipeline(idx, 'code', null);
+const results = searchPipeline(idx, 'code', null);
 assert.equal(results.length, 2, 'expected two results');
 assert.equal(results[0].name, 'foo', 'expected exported definition to rank first');
 assert.ok(results[0].score > results[1].score, 'expected boosted score to win');

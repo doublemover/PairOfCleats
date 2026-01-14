@@ -7,7 +7,8 @@ import crypto from 'node:crypto';
  * @returns {number[]}
  */
 export function stubEmbedding(text, dims) {
-  const safeDims = Number.isFinite(dims) && dims > 0 ? Math.floor(dims) : 512;
+  // Keep stub embeddings aligned with the default index dimensions.
+  const safeDims = Number.isFinite(dims) && dims > 0 ? Math.floor(dims) : 384;
   const hash = crypto.createHash('sha256').update(text).digest();
   let seed = 0;
   for (const byte of hash) seed = (seed * 31 + byte) >>> 0;

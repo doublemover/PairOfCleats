@@ -2,9 +2,8 @@
 
 ## Inputs
 - Requires a query; missing query returns non-zero with usage/help.
-- Mode selection via `--mode` (code/prose/extracted-prose/records). Defaults to code + prose + extracted-prose.
+- Mode selection via `--mode` (code/prose/extracted-prose/records).
 - Filters include file/path, extension, language, type, author, import, calls/uses, and risk tags.
-- ANN backend selection via `--ann-backend` (auto/lancedb/sqlite-vector/hnsw/js).
 - `--explain` / `--why` toggle human-readable score breakdowns.
 - `--top` applies after ranking within each mode; it may return fewer results when filters or candidate sets are too small.
 

@@ -3,7 +3,7 @@
 ## Stages and modes
 - Stage1 (sparse): discovery + chunking + token postings for each mode.
 - Stage2 (enrich): file metadata, repo maps, relations, and filter indexes.
-- Stage3 (embeddings): dense vectors + HNSW + LanceDB artifacts, index state updates.
+- Stage3 (embeddings): dense vectors + HNSW artifacts, index state updates.
 - Stage4 (sqlite): sqlite index build plus optional ANN tables.
 - Modes: `code`, `prose`, `extracted-prose`, `records`. Mode `all` builds the enabled set.
 
@@ -12,7 +12,7 @@
 - `token_postings.json` (+ optional `phrase_ngrams.json` / `chargram_postings.json`).
 - `minhash_signatures.json`.
 - `file_meta.json` (required when chunk metadata omits file fields).
-- Embeddings artifacts (`dense_vectors_*`, `dense_vectors_hnsw.*`, `dense_vectors*.lancedb`) when enabled.
+- Embeddings artifacts (`dense_vectors_*`, `dense_vectors_hnsw.*`) when enabled.
 - `index_state.json` tracks stage completion and gating.
 
 ## Invariants

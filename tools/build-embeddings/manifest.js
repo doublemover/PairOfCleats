@@ -46,13 +46,7 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
     { type: 'embeddings', name: 'dense_vectors_doc', format: 'json', path: 'dense_vectors_doc_uint8.json', count: totalChunks, dims },
     { type: 'embeddings', name: 'dense_vectors_code', format: 'json', path: 'dense_vectors_code_uint8.json', count: totalChunks, dims },
     { type: 'embeddings', name: 'dense_vectors_hnsw', format: 'bin', path: 'dense_vectors_hnsw.bin', count: totalChunks, dims },
-    { type: 'embeddings', name: 'dense_vectors_hnsw_meta', format: 'json', path: 'dense_vectors_hnsw.meta.json', count: totalChunks, dims },
-    { type: 'embeddings', name: 'dense_vectors_lancedb', format: 'dir', path: 'dense_vectors.lancedb', count: totalChunks, dims },
-    { type: 'embeddings', name: 'dense_vectors_lancedb_meta', format: 'json', path: 'dense_vectors.lancedb.meta.json', count: totalChunks, dims },
-    { type: 'embeddings', name: 'dense_vectors_doc_lancedb', format: 'dir', path: 'dense_vectors_doc.lancedb', count: totalChunks, dims },
-    { type: 'embeddings', name: 'dense_vectors_doc_lancedb_meta', format: 'json', path: 'dense_vectors_doc.lancedb.meta.json', count: totalChunks, dims },
-    { type: 'embeddings', name: 'dense_vectors_code_lancedb', format: 'dir', path: 'dense_vectors_code.lancedb', count: totalChunks, dims },
-    { type: 'embeddings', name: 'dense_vectors_code_lancedb_meta', format: 'json', path: 'dense_vectors_code.lancedb.meta.json', count: totalChunks, dims }
+    { type: 'embeddings', name: 'dense_vectors_hnsw_meta', format: 'json', path: 'dense_vectors_hnsw.meta.json', count: totalChunks, dims }
   ];
   const enriched = [];
   for (const entry of embeddingPieces) {
@@ -63,14 +57,10 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
     let checksumAlgo = null;
     try {
       const stat = await fs.stat(absPath);
-      if (stat.isDirectory()) {
-        bytes = null;
-      } else {
-        bytes = stat.size;
-        const result = await checksumFile(absPath);
-        checksum = result?.value || null;
-        checksumAlgo = result?.algo || null;
-      }
+      bytes = stat.size;
+      const result = await checksumFile(absPath);
+      checksum = result?.value || null;
+      checksumAlgo = result?.algo || null;
     } catch {}
     enriched.push({
       ...entry,

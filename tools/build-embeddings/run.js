@@ -10,9 +10,10 @@ import { loadChunkMeta, readJsonFile, MAX_JSON_BYTES } from '../../src/shared/ar
 import { readTextFileWithHash } from '../../src/shared/encoding.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { resolveHnswPaths } from '../../src/shared/hnsw.js';
-import { normalizeLanceDbConfig } from '../../src/shared/lancedb.js';
+import { resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { getIndexDir, getRepoCacheRoot } from '../dict-utils.js';
 import { buildCacheIdentity, buildCacheKey, isCacheValid, resolveCacheDir, resolveCacheRoot } from './cache.js';
+import { createTempPath, replaceFileNoBak } from './atomic.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
 import {
   buildQuantizedVectors,
@@ -24,7 +25,6 @@ import {
   validateCachedDims
 } from './embed.js';
 import { createHnswBuilder } from './hnsw.js';
-import { writeLanceDbIndex } from './lancedb.js';
 import { updatePieceManifest } from './manifest.js';
 import { updateSqliteDense } from './sqlite-dense.js';
 import { parseBuildEmbeddingsArgs } from './cli.js';
@@ -67,7 +67,6 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     indexRoot,
     modes
   } = config;
-  const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
 
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
     console.error('Embeddings disabled; skipping build-embeddings.');
@@ -76,13 +75,38 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
 
   const denseScale = 2 / 255;
   const cacheDims = useStubEmbeddings ? (configuredDims || 384) : configuredDims;
+  const cacheOnnx = embeddingProvider === 'onnx' ? {
+    modelPath: resolveOnnxModelPath({
+      rootDir: root,
+      modelPath: embeddingOnnx?.modelPath,
+      modelsDir,
+      modelId
+    }),
+    tokenizerId: embeddingOnnx?.tokenizerId || modelId || null,
+    executionProviders: embeddingOnnx?.executionProviders || null,
+    intraOpNumThreads: embeddingOnnx?.intraOpNumThreads || null,
+    interOpNumThreads: embeddingOnnx?.interOpNumThreads || null,
+    graphOptimizationLevel: embeddingOnnx?.graphOptimizationLevel || null
+  } : null;
   const { identity: cacheIdentity, key: cacheIdentityKey } = buildCacheIdentity({
     modelId,
     provider: embeddingProvider,
     mode: resolvedEmbeddingMode,
     stub: useStubEmbeddings,
     dims: cacheDims,
-    scale: denseScale
+    scale: denseScale,
+    preprocess: {
+      pooling: 'mean',
+      normalize: true,
+      truncation: true
+    },
+    quantization: {
+      version: 1,
+      minVal: -1,
+      maxVal: 1,
+      levels: 256
+    },
+    onnx: cacheOnnx
   });
 
   const embedder = createEmbedder({
@@ -111,7 +135,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
   }
 
   for (const mode of modes) {
-    if (!['code', 'prose', 'extracted-prose'].includes(mode)) {
+    if (!['code', 'prose'].includes(mode)) {
       console.error(`Invalid mode: ${mode}`);
       process.exit(1);
     }
@@ -240,7 +264,11 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     }
 
     let processedFiles = 0;
-    for (const [relPath, items] of chunksByFile.entries()) {
+    for (const [relPath, itemsRaw] of chunksByFile.entries()) {
+      // Ensure stable mapping between chunkSignature, cache vectors, and HNSW insertion.
+      const items = Array.isArray(itemsRaw)
+        ? [...itemsRaw].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+        : [];
       const normalizedRel = relPath.replace(/\\/g, '/');
       const chunkSignature = buildChunkSignature(items);
       const manifestEntry = manifestFiles[normalizedRel] || null;
@@ -420,23 +448,32 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       }
 
       if (cachePath) {
+        const payload = JSON.stringify({
+          key: cacheKey,
+          file: normalizedRel,
+          hash: fileHash,
+          chunkSignature,
+          cacheMeta: {
+            identityKey: cacheIdentityKey,
+            identity: cacheIdentity,
+            createdAt: new Date().toISOString()
+          },
+          codeVectors: cachedCodeVectors,
+          docVectors: cachedDocVectors,
+          mergedVectors: cachedMergedVectors
+        });
+        let tempPath;
         try {
-          await fs.writeFile(cachePath, JSON.stringify({
-            key: cacheKey,
-            file: normalizedRel,
-            hash: fileHash,
-            chunkSignature,
-            cacheMeta: {
-              identityKey: cacheIdentityKey,
-              identity: cacheIdentity,
-              createdAt: new Date().toISOString()
-            },
-            codeVectors: cachedCodeVectors,
-            docVectors: cachedDocVectors,
-            mergedVectors: cachedMergedVectors
-          }));
+          tempPath = createTempPath(cachePath);
+          await fs.writeFile(tempPath, payload);
+          await replaceFileNoBak(tempPath, cachePath);
         } catch {
           // Ignore cache write failures.
+          if (tempPath) {
+            try {
+              await fs.rm(tempPath, { force: true });
+            } catch {}
+          }
         }
       }
 
@@ -489,41 +526,6 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       }
     }
 
-    try {
-      await writeLanceDbIndex({
-        indexDir,
-        variant: 'merged',
-        vectors: mergedVectors,
-        dims: finalDims,
-        modelId,
-        config: lanceConfig,
-        emitOutput: true,
-        label: `${mode}/merged`
-      });
-      await writeLanceDbIndex({
-        indexDir,
-        variant: 'doc',
-        vectors: docVectors,
-        dims: finalDims,
-        modelId,
-        config: lanceConfig,
-        emitOutput: true,
-        label: `${mode}/doc`
-      });
-      await writeLanceDbIndex({
-        indexDir,
-        variant: 'code',
-        vectors: codeVectors,
-        dims: finalDims,
-        modelId,
-        config: lanceConfig,
-        emitOutput: true,
-        label: `${mode}/code`
-      });
-    } catch (err) {
-      console.warn(`[embeddings] ${mode}: failed to write LanceDB indexes: ${err?.message || err}`);
-    }
-
     const now = new Date().toISOString();
     indexState.generatedAt = indexState.generatedAt || now;
     indexState.updatedAt = now;
@@ -556,20 +558,18 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       // Ignore piece manifest write failures.
     }
 
-    if (mode === 'code' || mode === 'prose') {
-      updateSqliteDense({
-        Database,
-        root,
-        userConfig,
-        indexRoot,
-        mode,
-        vectors: mergedVectors,
-        dims: finalDims,
-        scale: denseScale,
-        modelId,
-        emitOutput: true
-      });
-    }
+    updateSqliteDense({
+      Database,
+      root,
+      userConfig,
+      indexRoot,
+      mode,
+      vectors: mergedVectors,
+      dims: finalDims,
+      scale: denseScale,
+      modelId,
+      emitOutput: true
+    });
 
     const validation = await validateIndexArtifacts({
       root,

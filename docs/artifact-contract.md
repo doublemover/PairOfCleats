@@ -44,10 +44,6 @@ Each `index-<mode>/` directory contains:
   - Per-chunk MinHash signatures.
 - `dense_vectors_uint8.json` + `dense_vectors_doc_uint8.json` + `dense_vectors_code_uint8.json` (optional)
   - Quantized embeddings with `model`, `dims`, and `scale`.
-- `dense_vectors.lancedb/` + `dense_vectors.lancedb.meta.json` (optional)
-- `dense_vectors_doc.lancedb/` + `dense_vectors_doc.lancedb.meta.json` (optional)
-- `dense_vectors_code.lancedb/` + `dense_vectors_code.lancedb.meta.json` (optional)
-  - LanceDB vector indexes with `dims`, `count`, `metric`, and table/column metadata.
 - `index_state.json`
   - Build feature flags + stage metadata for the mode.
 - `.filelists.json`
@@ -112,7 +108,6 @@ Artifact keys:
 - `artifact:index_state`
 
 HNSW binary indexes remain in the file-backed index directory (`index-<mode>/dense_vectors_hnsw.bin`).
-LanceDB indexes and metadata remain in the file-backed index directory (`index-<mode>/dense_vectors*.lancedb`).
 
 LMDB stores are rebuilt from file-backed artifacts via `pairofcleats lmdb build`.
 
@@ -135,7 +130,6 @@ These invariants are validated by `pairofcleats index validate`:
 - Posting lists only reference valid chunk IDs.
 - `minhash_signatures.signatures.length == chunk_meta.length`.
 - `dense_vectors*.vectors.length == chunk_meta.length`.
-- `dense_vectors*.lancedb.meta.json.count == chunk_meta.length` (when present).
 - Vector dimensionality matches `dims`.
 - `filter_index.fileChunksById` references valid chunk IDs.
 - `pieces/manifest.json` paths exist and `xxh64` checksums match (legacy `sha1` accepted).

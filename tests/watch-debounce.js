@@ -22,4 +22,32 @@ scheduler.schedule();
 await wait(50);
 assert.equal(calls, 2, 'expected second run after debounce');
 
+
+
+let errorCalls = 0;
+let unhandledRejections = 0;
+const onUnhandled = () => {
+  unhandledRejections += 1;
+};
+process.on('unhandledRejection', onUnhandled);
+
+const asyncScheduler = createDebouncedScheduler({
+  debounceMs: 10,
+  onRun: async () => {
+    throw new Error('boom');
+  },
+  onError: () => {
+    errorCalls += 1;
+  }
+});
+
+asyncScheduler.schedule();
+await wait(40);
+asyncScheduler.cancel();
+
+process.removeListener('unhandledRejection', onUnhandled);
+
+assert.equal(errorCalls, 1, 'expected onError to be invoked for async rejection');
+assert.equal(unhandledRejections, 0, 'expected no unhandledRejection events');
+
 console.log('watch debounce test passed');
