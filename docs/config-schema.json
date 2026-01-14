@@ -747,6 +747,7 @@
       "additionalProperties": false,
       "properties": {
         "maxOldSpaceMb": { "type": "number" },
+        "uvThreadpoolSize": { "type": "number" },
         "nodeOptions": { "type": "string" }
       }
     },

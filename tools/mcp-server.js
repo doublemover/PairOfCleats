@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getToolDefs } from '../src/integrations/mcp/defs.js';
-import { DEFAULT_MODEL_ID, loadUserConfig, resolveRepoRoot, resolveToolRoot } from './dict-utils.js';
+import { DEFAULT_MODEL_ID, getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveToolRoot } from './dict-utils.js';
 import { parseTimeoutMs, resolveToolTimeoutMs } from './mcp/repo.js';
 import { handleToolCall } from './mcp/tools.js';
 import { createMcpTransport } from './mcp/transport.js';
@@ -29,7 +29,14 @@ const envQueueMax = parseTimeoutMs(process.env.PAIROFCLEATS_MCP_QUEUE_MAX);
 const envToolTimeoutMs = parseTimeoutMs(process.env.PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS);
 const baseConfigRoot = resolveRepoRoot(process.cwd());
 const baseConfig = loadUserConfig(baseConfigRoot);
-configureServiceLogger({ repoRoot: baseConfigRoot, service: 'mcp' });
+const { logLine } = configureServiceLogger({ repoRoot: baseConfigRoot, service: 'mcp' });
+const runtimeConfig = getRuntimeConfig(baseConfigRoot, baseConfig);
+const parsedUv = Number(process.env.UV_THREADPOOL_SIZE);
+const effectiveUvThreadpoolSize = Number.isFinite(parsedUv) && parsedUv > 0 ? Math.floor(parsedUv) : null;
+if (effectiveUvThreadpoolSize || runtimeConfig.uvThreadpoolSize) {
+  logLine(`[mcp] UV_THREADPOOL_SIZE: ${effectiveUvThreadpoolSize ?? 'default'} (config=${runtimeConfig.uvThreadpoolSize ?? 'none'})`);
+}
+
 const baseMcpConfig = baseConfig?.mcp && typeof baseConfig.mcp === 'object' ? baseConfig.mcp : {};
 const configuredQueueMax = parseTimeoutMs(baseMcpConfig.queueMax);
 const queueMax = Math.max(1, configuredQueueMax ?? envQueueMax ?? DEFAULT_MCP_QUEUE_MAX);
