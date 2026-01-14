@@ -174,7 +174,8 @@ export async function collectSourcekitTypes({
       const target = findChunkForOffsets(fileChunks, offsets, symbol.name);
       if (!target) continue;
       let info = parseSwiftSignature(symbol.detail);
-      if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) {
+      const hasParamTypes = Object.keys(info?.paramTypes || {}).length > 0;
+      if (!info || !info.returnType || !hasParamTypes) {
         try {
           const hover = await guard.run(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {

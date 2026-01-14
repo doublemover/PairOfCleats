@@ -22,6 +22,7 @@ The unified setup script (`pairofcleats setup`) guides you through installing op
 - Build file-backed indexes (optionally incremental).
 - Build SQLite indexes (default unless `--skip-sqlite`).
 - Offer to set a Node heap limit for large repos (writes `runtime.maxOldSpaceMb`).
+- For I/O-heavy indexing, you can tune libuv's threadpool via `runtime.uvThreadpoolSize` (or `PAIROFCLEATS_UV_THREADPOOL_SIZE`).
 
 ## Flags
 

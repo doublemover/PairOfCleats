@@ -175,8 +175,12 @@ export function createFileProcessor(options) {
     try {
       fileStat = typeof fileEntry === 'object' && fileEntry.stat
         ? fileEntry.stat
-        : await runIo(() => fs.stat(abs));
+        : await runIo(() => fs.lstat(abs));
     } catch {
+      return null;
+    }
+    if (fileStat?.isSymbolicLink?.()) {
+      recordSkip(abs, 'symlink');
       return null;
     }
     const preReadSkip = await resolvePreReadSkip({
@@ -258,7 +262,7 @@ export function createFileProcessor(options) {
       return null;
     }
     if (!text || !fileHash) {
-      const decoded = await readTextFileWithHash(abs, { buffer: fileBuffer });
+      const decoded = await readTextFileWithHash(abs, { buffer: fileBuffer, stat: fileStat });
       if (!text) text = decoded.text;
       if (!fileHash) fileHash = decoded.hash;
     }

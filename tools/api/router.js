@@ -1,42 +1,223 @@
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { resolveRepoRoot } from '../dict-utils.js';
+import { LRUCache } from 'lru-cache';
+import { getRepoCacheRoot, loadUserConfig, resolveRepoRoot } from '../dict-utils.js';
 import { search, status } from '../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
+import { createIndexCache } from '../../src/retrieval/index-cache.js';
 import { createSearchValidator, normalizeMetaFilters } from './validation.js';
 import { sendError, sendJson } from './response.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { createSseResponder } from './sse.js';
+import { incCacheEviction, setCacheSize } from '../../src/shared/metrics.js';
 
 /**
  * Create an API router for the HTTP server.
- * @param {{host:string,defaultRepo:string,defaultOutput:string,metricsRegistry:any}} config
+ * @param {{
+ *  host:string,
+ *  defaultRepo:string,
+ *  defaultOutput:string,
+ *  metricsRegistry:any,
+ *  cors?:{allowedOrigins?:string[],allowAnyOrigin?:boolean},
+ *  auth?:{token?:string|null,required?:boolean},
+ *  allowedRepoRoots?:string[],
+ *  maxBodyBytes?:number,
+ *  repoCache?:{maxEntries?:number,ttlMs?:number},
+ *  indexCache?:{maxEntries?:number,ttlMs?:number},
+ *  sqliteCache?:{maxEntries?:number,ttlMs?:number}
+ * }} config
  */
-export const createApiRouter = ({ host, defaultRepo, defaultOutput, metricsRegistry }) => {
+export const createApiRouter = ({
+  host,
+  defaultRepo,
+  defaultOutput,
+  metricsRegistry,
+  cors = {},
+  auth = {},
+  allowedRepoRoots = [],
+  maxBodyBytes = 1_000_000,
+  repoCache = {},
+  indexCache = {},
+  sqliteCache = {}
+}) => {
   const validateSearchPayload = createSearchValidator();
-  const repoCaches = new Map();
+  const normalizeCacheConfig = (value, defaults) => {
+    const maxEntries = Number.isFinite(Number(value?.maxEntries))
+      ? Math.max(0, Math.floor(Number(value.maxEntries)))
+      : defaults.maxEntries;
+    const ttlMs = Number.isFinite(Number(value?.ttlMs))
+      ? Math.max(0, Number(value.ttlMs))
+      : defaults.ttlMs;
+    return { maxEntries, ttlMs };
+  };
+  const repoCacheConfig = normalizeCacheConfig(repoCache, { maxEntries: 5, ttlMs: 15 * 60 * 1000 });
+  const indexCacheConfig = normalizeCacheConfig(indexCache, { maxEntries: 4, ttlMs: 15 * 60 * 1000 });
+  const sqliteCacheConfig = normalizeCacheConfig(sqliteCache, { maxEntries: 4, ttlMs: 15 * 60 * 1000 });
+  const repoCaches = new LRUCache({
+    max: repoCacheConfig.maxEntries,
+    ttl: repoCacheConfig.ttlMs > 0 ? repoCacheConfig.ttlMs : undefined,
+    allowStale: false,
+    updateAgeOnGet: true,
+    dispose: (entry, _key, reason) => {
+      try {
+        entry?.indexCache?.clear?.();
+        entry?.sqliteCache?.closeAll?.();
+      } catch {}
+      if (reason === 'evict' || reason === 'expire') {
+        incCacheEviction({ cache: 'repo' });
+      }
+      setCacheSize({ cache: 'repo', value: repoCaches.size });
+    }
+  });
+  const authToken = typeof auth.token === 'string' && auth.token.trim()
+    ? auth.token.trim()
+    : null;
+  const authRequired = auth.required === true;
+  const allowAnyOrigin = cors.allowAnyOrigin === true;
+  const allowedOrigins = Array.isArray(cors.allowedOrigins)
+    ? cors.allowedOrigins.map((entry) => String(entry || '').trim()).filter(Boolean)
+    : [];
+  const allowLocalOrigins = !allowAnyOrigin && allowedOrigins.length === 0;
+  const normalizedDefaultRepo = defaultRepo ? path.resolve(defaultRepo) : '';
+  const resolvedRepoRoots = [
+    normalizedDefaultRepo,
+    ...allowedRepoRoots.map((entry) => path.resolve(String(entry || '')))
+  ].filter(Boolean);
+  const normalizePath = (value) => {
+    const resolved = value ? path.resolve(value) : '';
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
+  const toRealPath = (value) => {
+    if (!value) return '';
+    try {
+      return fs.realpathSync(value);
+    } catch {
+      return path.resolve(value);
+    }
+  };
+  const toRealPathAsync = async (value) => {
+    if (!value) return '';
+    try {
+      return await fsPromises.realpath(value);
+    } catch {
+      return path.resolve(value);
+    }
+  };
+  const normalizedRepoRoots = resolvedRepoRoots.map((root) => normalizePath(toRealPath(root)));
+  const isWithinRoot = (candidate, root) => {
+    if (!candidate || !root) return false;
+    const relative = path.relative(root, candidate);
+    if (!relative) return true;
+    return !relative.startsWith('..') && !path.isAbsolute(relative);
+  };
+  const isAllowedRepoPath = (candidate) => normalizedRepoRoots.some((root) => isWithinRoot(candidate, root));
+  const isLocalOrigin = (origin) => {
+    try {
+      const parsed = new URL(origin);
+      const host = String(parsed.hostname || '').toLowerCase();
+      return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+    } catch {
+      return false;
+    }
+  };
+  const isOriginAllowed = (origin) => {
+    if (allowAnyOrigin) return true;
+    if (allowLocalOrigins) return isLocalOrigin(origin);
+    const raw = String(origin || '').trim();
+    if (!raw) return false;
+    const lowered = raw.toLowerCase();
+    return allowedOrigins.some((entry) => {
+      const normalized = String(entry || '').trim().toLowerCase();
+      if (!normalized) return false;
+      if (normalized.includes('://')) return normalized === lowered;
+      try {
+        const parsed = new URL(raw);
+        return parsed.hostname.toLowerCase() === normalized;
+      } catch {
+        return false;
+      }
+    });
+  };
+  const resolveCorsHeaders = (req) => {
+    const origin = req?.headers?.origin ? String(req.headers.origin) : '';
+    if (!origin) return null;
+    if (!isOriginAllowed(origin)) return null;
+    return {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      Vary: 'Origin'
+    };
+  };
+
+  const buildRepoCacheEntry = (repoPath) => {
+    const userConfig = loadUserConfig(repoPath);
+    const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
+    return {
+      indexCache: createIndexCache(indexCacheConfig),
+      sqliteCache: createSqliteDbCache(sqliteCacheConfig),
+      lastUsed: Date.now(),
+      buildId: null,
+      buildPointerPath: path.join(repoCacheRoot, 'builds', 'current.json'),
+      buildPointerMtimeMs: null
+    };
+  };
+
+  const refreshBuildPointer = async (entry) => {
+    if (!entry?.buildPointerPath) return;
+    let stat = null;
+    try {
+      stat = await fsPromises.stat(entry.buildPointerPath);
+    } catch {
+      stat = null;
+    }
+    const nextMtime = stat?.mtimeMs || null;
+    if (entry.buildPointerMtimeMs && entry.buildPointerMtimeMs === nextMtime) {
+      return;
+    }
+    entry.buildPointerMtimeMs = nextMtime;
+    if (!stat) {
+      if (entry.buildId) {
+        entry.indexCache?.clear?.();
+        entry.sqliteCache?.closeAll?.();
+      }
+      entry.buildId = null;
+      return;
+    }
+    try {
+      const raw = await fsPromises.readFile(entry.buildPointerPath, 'utf8');
+      const data = JSON.parse(raw) || {};
+      const nextBuildId = typeof data.buildId === 'string' ? data.buildId : null;
+      const changed = (entry.buildId && !nextBuildId)
+        || (entry.buildId && nextBuildId && entry.buildId !== nextBuildId)
+        || (!entry.buildId && nextBuildId);
+      if (changed) {
+        entry.indexCache?.clear?.();
+        entry.sqliteCache?.closeAll?.();
+      }
+      entry.buildId = nextBuildId;
+    } catch {
+      entry.buildPointerMtimeMs = null;
+    }
+  };
 
   const getRepoCaches = (repoPath) => {
     const key = repoPath || defaultRepo;
-    const existing = repoCaches.get(key);
-    if (existing) {
-      existing.lastUsed = Date.now();
-      return existing;
+    let entry = repoCaches.get(key);
+    if (entry) {
+      entry.lastUsed = Date.now();
+    } else {
+      entry = buildRepoCacheEntry(key);
+      repoCaches.set(key, entry);
+      setCacheSize({ cache: 'repo', value: repoCaches.size });
     }
-    const entry = {
-      indexCache: new Map(),
-      sqliteCache: createSqliteDbCache(),
-      lastUsed: Date.now()
-    };
-    repoCaches.set(key, entry);
     return entry;
   };
 
   const closeRepoCaches = () => {
-    for (const entry of repoCaches.values()) {
-      entry.sqliteCache?.closeAll?.();
-    }
     repoCaches.clear();
+    setCacheSize({ cache: 'repo', value: repoCaches.size });
   };
 
   /**
@@ -45,33 +226,79 @@ export const createApiRouter = ({ host, defaultRepo, defaultOutput, metricsRegis
    * @returns {Promise<string>}
    */
   const parseBody = (req) => new Promise((resolve, reject) => {
-    let data = '';
+    const chunks = [];
+    let total = 0;
     req.on('data', (chunk) => {
-      data += chunk;
-      if (data.length > 1_000_000) {
-        reject(new Error('Request body too large.'));
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += buffer.length;
+      if (maxBodyBytes && total > maxBodyBytes) {
+        const err = new Error('Request body too large.');
+        err.code = 'ERR_BODY_TOO_LARGE';
+        reject(err);
         req.destroy();
+        return;
       }
+      chunks.push(buffer);
     });
     req.on('aborted', () => reject(new Error('Request aborted.')));
-    req.on('end', () => resolve(data));
+    req.on('end', () => resolve(Buffer.concat(chunks, total)));
     req.on('error', reject);
   });
+
+  const parseJsonBody = async (req) => {
+    const contentType = String(req?.headers?.['content-type'] || '').toLowerCase();
+    if (!contentType.includes('application/json')) {
+      const err = new Error('Content-Type must be application/json.');
+      err.code = 'ERR_UNSUPPORTED_MEDIA_TYPE';
+      throw err;
+    }
+    const buffer = await parseBody(req);
+    if (!buffer?.length) return null;
+    return JSON.parse(buffer.toString('utf8'));
+  };
+
+  const isAuthorized = (req) => {
+    if (!authRequired) return true;
+    if (!authToken) return false;
+    const header = req?.headers?.authorization || '';
+    const match = /^Bearer\s+(.+)$/i.exec(String(header));
+    if (!match) return false;
+    return match[1] === authToken;
+  };
 
   /**
    * Resolve and validate a repo path.
    * @param {string|null|undefined} value
    * @returns {string}
    */
-  const resolveRepo = (value) => {
-    const candidate = value ? path.resolve(value) : defaultRepo;
-    if (!fs.existsSync(candidate)) {
+  const resolveRepo = async (value) => {
+    const candidate = value ? path.resolve(value) : normalizedDefaultRepo;
+    const candidateReal = normalizePath(await toRealPathAsync(candidate));
+    if (value && !isAllowedRepoPath(candidateReal)) {
+      const err = new Error('Repo path not permitted by server configuration.');
+      err.code = ERROR_CODES.FORBIDDEN;
+      throw err;
+    }
+    let candidateStat;
+    try {
+      candidateStat = await fsPromises.stat(candidateReal);
+    } catch {
+      candidateStat = null;
+    }
+    if (!candidateStat) {
       throw new Error(`Repo path not found: ${candidate}`);
     }
-    if (!fs.statSync(candidate).isDirectory()) {
+    if (!candidateStat.isDirectory()) {
       throw new Error(`Repo path is not a directory: ${candidate}`);
     }
-    return value ? resolveRepoRoot(candidate) : candidate;
+    const resolvedRoot = value ? resolveRepoRoot(candidateReal) : candidateReal;
+    const resolvedReal = normalizePath(await toRealPathAsync(resolvedRoot));
+    if (value && !isAllowedRepoPath(resolvedReal)) {
+      const err = new Error('Resolved repo root not permitted by server configuration.');
+      err.code = ERROR_CODES.FORBIDDEN;
+      throw err;
+    }
+    return resolvedReal;
   };
 
   /**
@@ -222,17 +449,24 @@ export const createApiRouter = ({ host, defaultRepo, defaultOutput, metricsRegis
 
   const handleRequest = async (req, res) => {
     const requestUrl = new URL(req.url || '/', `http://${host}`);
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    const corsHeaders = resolveCorsHeaders(req);
+    const origin = req?.headers?.origin ? String(req.headers.origin) : '';
+    if (origin && !corsHeaders) {
+      sendError(res, 403, ERROR_CODES.FORBIDDEN, 'Origin not allowed.', {}, {});
+      return;
+    }
     if (req.method === 'OPTIONS') {
-      res.writeHead(204);
+      res.writeHead(204, corsHeaders || {});
       res.end();
+      return;
+    }
+    if (!isAuthorized(req)) {
+      sendError(res, 401, ERROR_CODES.UNAUTHORIZED, 'Missing or invalid API token.', {}, corsHeaders || {});
       return;
     }
 
     if (requestUrl.pathname === '/health' && req.method === 'GET') {
-      sendJson(res, 200, { ok: true, uptimeMs: Math.round(process.uptime() * 1000) });
+      sendJson(res, 200, { ok: true, uptimeMs: Math.round(process.uptime() * 1000) }, corsHeaders || {});
       return;
     }
 
@@ -241,27 +475,27 @@ export const createApiRouter = ({ host, defaultRepo, defaultOutput, metricsRegis
         const body = await metricsRegistry.metrics();
         res.writeHead(200, {
           'Content-Type': metricsRegistry.contentType || 'text/plain; version=0.0.4; charset=utf-8',
-          'Access-Control-Allow-Origin': '*'
+          ...(corsHeaders || {})
         });
         res.end(body);
       } catch (err) {
         sendError(res, 500, ERROR_CODES.INTERNAL, 'Failed to render metrics.', {
           error: err?.message || String(err)
-        });
+        }, corsHeaders || {});
       }
       return;
     }
 
     if (requestUrl.pathname === '/status/stream' && req.method === 'GET') {
-      const sse = createSseResponder(req, res);
+      const sse = createSseResponder(req, res, { headers: corsHeaders || {} });
       let repoPath = '';
       try {
-        repoPath = resolveRepo(requestUrl.searchParams.get('repo'));
+        repoPath = await resolveRepo(requestUrl.searchParams.get('repo'));
       } catch (err) {
         await sse.sendHeaders();
         await sse.sendEvent('error', {
           ok: false,
-          code: ERROR_CODES.INVALID_REQUEST,
+          code: err?.code || ERROR_CODES.INVALID_REQUEST,
           message: err?.message || 'Invalid repo path.'
         });
         await sse.sendEvent('done', { ok: false });
@@ -291,60 +525,76 @@ export const createApiRouter = ({ host, defaultRepo, defaultOutput, metricsRegis
     if (requestUrl.pathname === '/status' && req.method === 'GET') {
       let repoPath = '';
       try {
-        repoPath = resolveRepo(requestUrl.searchParams.get('repo'));
+        repoPath = await resolveRepo(requestUrl.searchParams.get('repo'));
       } catch (err) {
-        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, err?.message || 'Invalid repo path.');
+        const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
+        const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
+        sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
         return;
       }
       try {
         const payload = await status(repoPath);
-        sendJson(res, 200, { ok: true, repo: repoPath, status: payload });
+        sendJson(res, 200, { ok: true, repo: repoPath, status: payload }, corsHeaders || {});
       } catch (err) {
         sendError(res, 500, ERROR_CODES.INTERNAL, 'Failed to collect status.', {
           error: err?.message || String(err)
-        });
+        }, corsHeaders || {});
       }
       return;
     }
 
     if (requestUrl.pathname === '/search/stream' && req.method === 'POST') {
-      const sse = createSseResponder(req, res);
+      const sse = createSseResponder(req, res, { headers: corsHeaders || {} });
       let raw;
       try {
-        raw = await parseBody(req);
+        raw = await parseJsonBody(req);
       } catch (err) {
-        sendError(res, 413, ERROR_CODES.INVALID_REQUEST, err?.message || 'Request body too large.');
+        const status = err?.code === 'ERR_BODY_TOO_LARGE' ? 413
+          : err?.code === 'ERR_UNSUPPORTED_MEDIA_TYPE' ? 415
+            : 400;
+        sendError(
+          res,
+          status,
+          ERROR_CODES.INVALID_REQUEST,
+          err?.message || 'Invalid request body.',
+          {},
+          corsHeaders || {}
+        );
         return;
       }
-      let payload = null;
-      try {
-        payload = raw ? JSON.parse(raw) : null;
-      } catch {
-        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid JSON payload.');
-        return;
-      }
+      const payload = raw;
       const validation = validateSearchPayload(payload);
       if (!validation.ok) {
         sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
           errors: validation.errors
-        });
+        }, corsHeaders || {});
         return;
       }
       let repoPath = '';
       try {
-        repoPath = resolveRepo(payload?.repoPath || payload?.repo);
+        repoPath = await resolveRepo(payload?.repoPath || payload?.repo);
       } catch (err) {
-        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, err?.message || 'Invalid repo path.');
+        const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
+        const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
+        sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
         return;
       }
       const searchParams = buildSearchParams(repoPath, payload || {});
       if (!searchParams.ok) {
-        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, searchParams.message || 'Invalid search payload.');
+        sendError(
+          res,
+          400,
+          ERROR_CODES.INVALID_REQUEST,
+          searchParams.message || 'Invalid search payload.',
+          {},
+          corsHeaders || {}
+        );
         return;
       }
       await sse.sendHeaders();
       await sse.sendEvent('start', { ok: true });
       const caches = getRepoCaches(repoPath);
+      await refreshBuildPointer(caches);
       try {
         const body = await search(repoPath, {
           args: searchParams.args,
@@ -372,41 +622,54 @@ export const createApiRouter = ({ host, defaultRepo, defaultOutput, metricsRegis
     }
 
     if (requestUrl.pathname === '/search' && req.method === 'POST') {
-      let raw;
-      try {
-        raw = await parseBody(req);
-      } catch (err) {
-        sendError(res, 413, ERROR_CODES.INVALID_REQUEST, err?.message || 'Request body too large.');
-        return;
-      }
       let payload = null;
       try {
-        payload = raw ? JSON.parse(raw) : null;
-      } catch {
-        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid JSON payload.');
+        payload = await parseJsonBody(req);
+      } catch (err) {
+        const status = err?.code === 'ERR_BODY_TOO_LARGE' ? 413
+          : err?.code === 'ERR_UNSUPPORTED_MEDIA_TYPE' ? 415
+            : 400;
+        sendError(
+          res,
+          status,
+          ERROR_CODES.INVALID_REQUEST,
+          err?.message || 'Invalid request body.',
+          {},
+          corsHeaders || {}
+        );
         return;
       }
       const validation = validateSearchPayload(payload);
       if (!validation.ok) {
         sendError(res, 400, ERROR_CODES.INVALID_REQUEST, 'Invalid search payload.', {
           errors: validation.errors
-        });
+        }, corsHeaders || {});
         return;
       }
       let repoPath = '';
       try {
-        repoPath = resolveRepo(payload?.repoPath || payload?.repo);
+        repoPath = await resolveRepo(payload?.repoPath || payload?.repo);
       } catch (err) {
-        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, err?.message || 'Invalid repo path.');
+        const code = err?.code === ERROR_CODES.FORBIDDEN ? ERROR_CODES.FORBIDDEN : ERROR_CODES.INVALID_REQUEST;
+        const status = err?.code === ERROR_CODES.FORBIDDEN ? 403 : 400;
+        sendError(res, status, code, err?.message || 'Invalid repo path.', {}, corsHeaders || {});
         return;
       }
       const searchParams = buildSearchParams(repoPath, payload || {});
       if (!searchParams.ok) {
-        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, searchParams.message || 'Invalid search payload.');
+        sendError(
+          res,
+          400,
+          ERROR_CODES.INVALID_REQUEST,
+          searchParams.message || 'Invalid search payload.',
+          {},
+          corsHeaders || {}
+        );
         return;
       }
       try {
         const caches = getRepoCaches(repoPath);
+        await refreshBuildPointer(caches);
         const body = await search(repoPath, {
           args: searchParams.args,
           query: searchParams.query,
@@ -415,20 +678,27 @@ export const createApiRouter = ({ host, defaultRepo, defaultOutput, metricsRegis
           indexCache: caches.indexCache,
           sqliteCache: caches.sqliteCache
         });
-        sendJson(res, 200, { ok: true, repo: repoPath, result: body });
+        sendJson(res, 200, { ok: true, repo: repoPath, result: body }, corsHeaders || {});
       } catch (err) {
         if (isNoIndexError(err)) {
           sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
             error: err?.message || String(err)
-          });
+          }, corsHeaders || {});
           return;
         }
-        sendError(res, 500, ERROR_CODES.INTERNAL, 'Search failed.', { error: err?.message || String(err) });
+        sendError(
+          res,
+          500,
+          ERROR_CODES.INTERNAL,
+          'Search failed.',
+          { error: err?.message || String(err) },
+          corsHeaders || {}
+        );
       }
       return;
     }
 
-    sendError(res, 404, ERROR_CODES.NOT_FOUND, 'Not found.');
+    sendError(res, 404, ERROR_CODES.NOT_FOUND, 'Not found.', {}, corsHeaders || {});
   };
 
   return {

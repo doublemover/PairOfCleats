@@ -1,5 +1,10 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { LRUCache } from 'lru-cache';
+import { incCacheEviction, setCacheSize } from '../shared/metrics.js';
+
+const DEFAULT_INDEX_CACHE_MAX_ENTRIES = 4;
+const DEFAULT_INDEX_CACHE_TTL_MS = 15 * 60 * 1000;
 
 const INDEX_FILES = [
   'phrase_ngrams.json',
@@ -89,6 +94,62 @@ export function buildIndexSignature(dir) {
     })
   ];
   return parts.join('|');
+}
+
+export function createIndexCache({
+  maxEntries = DEFAULT_INDEX_CACHE_MAX_ENTRIES,
+  ttlMs = DEFAULT_INDEX_CACHE_TTL_MS,
+  onEvict = null
+} = {}) {
+  const resolvedMax = Number.isFinite(Number(maxEntries)) ? Math.floor(Number(maxEntries)) : DEFAULT_INDEX_CACHE_MAX_ENTRIES;
+  const resolvedTtlMs = Number.isFinite(Number(ttlMs)) ? Math.max(0, Number(ttlMs)) : DEFAULT_INDEX_CACHE_TTL_MS;
+  if (!resolvedMax || resolvedMax <= 0) {
+    return {
+      get() {
+        return null;
+      },
+      set() {},
+      delete() {},
+      clear() {},
+      size: () => 0,
+      cache: null
+    };
+  }
+  const cache = new LRUCache({
+    max: resolvedMax,
+    ttl: resolvedTtlMs > 0 ? resolvedTtlMs : undefined,
+    allowStale: false,
+    updateAgeOnGet: true,
+    dispose: (value, key, reason) => {
+      if (typeof onEvict === 'function') {
+        onEvict({ key, value, reason });
+      }
+      if (reason === 'evict' || reason === 'expire') {
+        incCacheEviction({ cache: 'index' });
+      }
+      setCacheSize({ cache: 'index', value: cache.size });
+    }
+  });
+  return {
+    get(key) {
+      const value = cache.get(key);
+      return value ?? null;
+    },
+    set(key, value) {
+      cache.set(key, value);
+      setCacheSize({ cache: 'index', value: cache.size });
+    },
+    delete(key) {
+      cache.delete(key);
+      setCacheSize({ cache: 'index', value: cache.size });
+    },
+    clear() {
+      cache.clear();
+      setCacheSize({ cache: 'index', value: cache.size });
+    },
+    size: () => cache.size,
+    cache
+  };
 }
 
 export function loadIndexWithCache(cache, dir, options, loader) {

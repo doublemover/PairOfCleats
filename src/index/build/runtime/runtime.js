@@ -23,7 +23,7 @@ import { normalizePostingsConfig } from '../../../shared/postings-config.js';
 import { createSharedDictionary, createSharedDictionaryView } from '../../../shared/dictionary.js';
 import { normalizeEmbeddingBatchMultipliers } from '../embedding-batch.js';
 import { mergeConfig } from '../../../shared/config.js';
-import { sha1 } from '../../../shared/hash.js';
+import { sha1, setXxhashBackend } from '../../../shared/hash.js';
 import { getRepoProvenance } from '../../git.js';
 import { normalizeRiskConfig } from '../../risk.js';
 import { buildContentConfigHash } from './hash.js';
@@ -53,6 +53,12 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const envConfig = getEnvConfig();
   const rawIndexingConfig = userConfig.indexing || {};
   let indexingConfig = rawIndexingConfig;
+  const requestedHashBackend = typeof indexingConfig?.hash?.backend === 'string'
+    ? indexingConfig.hash.backend.trim().toLowerCase()
+    : '';
+  if (requestedHashBackend && !envConfig.xxhashBackend) {
+    setXxhashBackend(requestedHashBackend);
+  }
   const stage = normalizeStage(argv.stage || envConfig.stage);
   const twoStageConfig = indexingConfig.twoStage || {};
   const stageOverrides = buildStageOverrides(twoStageConfig, stage);

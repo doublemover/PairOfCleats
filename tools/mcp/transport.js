@@ -1,4 +1,4 @@
-import { StreamMessageReader } from 'vscode-jsonrpc';
+import { createFramedJsonRpcParser } from '../../src/shared/jsonrpc.js';
 import { closeOutput, sendError, sendNotification, sendResult } from '../../src/integrations/mcp/protocol.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { logError } from '../../src/shared/progress.js';
@@ -83,9 +83,9 @@ function sendProgress(id, tool, payload) {
 
 /**
  * Start the MCP stdio transport.
- * @param {{toolDefs:any,serverInfo:{name:string,version:string},handleToolCall:Function,resolveToolTimeoutMs:Function,queueMax:number}} config
+ * @param {{toolDefs:any,serverInfo:{name:string,version:string},handleToolCall:Function,resolveToolTimeoutMs:Function,queueMax:number,maxBufferBytes?:number}} config
  */
-export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resolveToolTimeoutMs, queueMax }) => {
+export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resolveToolTimeoutMs, queueMax, maxBufferBytes }) => {
   let processing = false;
   const queue = [];
 
@@ -202,14 +202,26 @@ export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resol
   }
 
   const start = () => {
-    const reader = new StreamMessageReader(process.stdin);
-    reader.onError((err) => logError('[mcp] stream error', { error: err?.message || String(err) }));
-    reader.onClose(() => {
+    const parser = createFramedJsonRpcParser({
+      onMessage: enqueueMessage,
+      onError: (err) => {
+        logError('[mcp] stream error', { error: err?.message || String(err) });
+        closeOutput();
+        process.exit(1);
+      },
+      maxBufferBytes
+    });
+    process.stdin.on('data', (chunk) => parser.push(chunk));
+    process.stdin.on('end', () => {
       closeOutput();
       process.exit(0);
     });
-    reader.listen(enqueueMessage);
-    return reader;
+    process.stdin.on('error', (err) => {
+      logError('[mcp] stream error', { error: err?.message || String(err) });
+      closeOutput();
+      process.exit(1);
+    });
+    return parser;
   };
 
   return { start };

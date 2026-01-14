@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getEnvConfig } from '../src/shared/env.js';
-import { getRuntimeConfig, loadUserConfig, resolveNodeOptions } from './dict-utils.js';
+import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from './dict-utils.js';
 import { parseBenchLanguageArgs } from './bench/language/cli.js';
 import { loadBenchConfig } from './bench/language/config.js';
 import { checkIndexLock, formatLockDetail } from './bench/language/locks.js';
@@ -54,6 +54,7 @@ const {
   lockMode,
   lockWaitMs,
   lockStaleMs,
+  backendList,
   wantsSqlite,
   indexProfile,
   suppressProfileEnv
@@ -133,12 +134,29 @@ process.on('SIGTERM', () => {
   processRunner.logExit('SIGTERM', 143);
   process.exit(143);
 });
+
+const reportFatal = (label, err) => {
+  try {
+    // Ensure the log has the run header paths even on early crashes.
+    initLog();
+  } catch {}
+  try {
+    const details = err?.stack || String(err);
+    // Make failures visible even in interactive mode.
+    console.error(`\n[bench-language] Fatal: ${label}`);
+    console.error(details);
+    console.error(`[bench-language] Details logged to: ${logPath}\n`);
+  } catch {}
+};
+
 process.on('uncaughtException', (err) => {
+  reportFatal('uncaughtException', err);
   writeLogSync(`[error] uncaughtException: ${err?.stack || err}`);
   processRunner.logExit('uncaughtException', 1);
   process.exit(1);
 });
 process.on('unhandledRejection', (err) => {
+  reportFatal('unhandledRejection', err);
   writeLogSync(`[error] unhandledRejection: ${err?.stack || err}`);
   processRunner.logExit('unhandledRejection', 1);
   process.exit(1);
@@ -298,10 +316,12 @@ for (const task of tasks) {
   const runtimeConfigForRun = heapOverride
     ? { ...repoRuntimeConfig, maxOldSpaceMb: heapOverride }
     : repoRuntimeConfig;
-  const repoNodeOptions = resolveNodeOptions(runtimeConfigForRun, baseNodeOptions);
-  const repoEnvBase = repoNodeOptions
-    ? { ...baseEnv, NODE_OPTIONS: repoNodeOptions }
-    : { ...baseEnv };
+
+  const baseEnvForRepo = { ...baseEnv };
+  if (typeof baseEnv.NODE_OPTIONS === 'string' || baseNodeOptions) {
+    baseEnvForRepo.NODE_OPTIONS = baseNodeOptions;
+  }
+  const repoEnvBase = resolveRuntimeEnv(runtimeConfigForRun, baseEnvForRepo);
   if (suppressProfileEnv && repoEnvBase.PAIROFCLEATS_PROFILE) {
     delete repoEnvBase.PAIROFCLEATS_PROFILE;
   }

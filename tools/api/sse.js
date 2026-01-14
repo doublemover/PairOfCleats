@@ -2,9 +2,11 @@
  * Write SSE headers for streaming responses.
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
+ * @param {{headers?:object}} [options]
  */
-export const createSseResponder = (req, res) => {
+export const createSseResponder = (req, res, options = {}) => {
   let closed = false;
+  const extraHeaders = options.headers || {};
   const markClosed = () => {
     closed = true;
   };
@@ -27,7 +29,7 @@ export const createSseResponder = (req, res) => {
         'Content-Type': 'text/event-stream; charset=utf-8',
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
-        'Access-Control-Allow-Origin': '*'
+        ...extraHeaders
       });
       return writeChunk('\n');
     },

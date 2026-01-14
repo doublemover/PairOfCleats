@@ -40,6 +40,7 @@
           "properties": {
             "requireHash": { "type": "boolean" },
             "warnUnsigned": { "type": "boolean" },
+            "maxBytes": { "type": "number" },
             "allowlist": {
               "type": "object",
               "additionalProperties": { "type": "string" }
@@ -198,6 +199,13 @@
         "sqliteFtsNormalize": { "type": "boolean" },
         "sqliteFtsProfile": { "type": "string" },
         "denseVectorMode": { "type": "string", "enum": ["merged", "code", "doc", "auto"] },
+        "regex": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "engine": { "type": "string", "enum": ["auto", "re2", "re2js"] }
+          }
+        },
           "sqliteFtsWeights": {
             "type": ["array", "object"],
             "items": { "type": "number" },
@@ -314,7 +322,22 @@
       "properties": {
         "concurrency": { "type": "number" },
         "importConcurrency": { "type": "number" },
+        "ioConcurrencyCap": { "type": "number" },
         "importScan": { "type": ["string", "boolean"] },
+        "watch": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "backend": { "type": "string", "enum": ["auto", "chokidar", "parcel"] }
+          }
+        },
+        "hash": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "backend": { "type": "string", "enum": ["auto", "native", "wasm"] }
+          }
+        },
         "maxFileBytes": { "type": ["number", "boolean"] },
         "untrusted": {
           "type": "object",
@@ -566,12 +589,19 @@
               "maxLines": { "type": "number" }
             }
           },
+        "documentExtraction": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        },
         "artifactCompression": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
-            "mode": { "type": "string" },
+            "mode": { "type": "string", "enum": ["auto", "gzip", "zstd", "none"] },
             "keepRaw": { "type": "boolean" }
           }
         },
@@ -747,7 +777,8 @@
       "additionalProperties": false,
       "properties": {
         "maxOldSpaceMb": { "type": "number" },
-        "nodeOptions": { "type": "string" }
+        "nodeOptions": { "type": "string" },
+        "uvThreadpoolSize": { "type": "number" }
       }
     },
     "tooling": {
@@ -789,6 +820,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "transport": { "type": "string", "enum": ["auto", "sdk", "legacy"] },
         "queueMax": { "type": "number" },
         "toolTimeoutMs": { "type": "number" },
         "toolTimeouts": {
