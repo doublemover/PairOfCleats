@@ -112,15 +112,6 @@ def resolve_cli(settings, repo_root):
         if os.path.exists(local_js):
             return _cli_for_path(local_js, node_path, 'repo-bin')
 
-    # Windows: npm typically installs a .cmd wrapper on PATH.
-    # Running through COMSPEC avoids WinError 193 when the underlying command resolves to a batch file.
-    if os.name == 'nt':
-        return {
-            'command': os.environ.get('COMSPEC') or 'cmd.exe',
-            'args_prefix': ['/c', 'pairofcleats'],
-            'source': 'path'
-        }
-
     return {
         'command': 'pairofcleats',
         'args_prefix': [],

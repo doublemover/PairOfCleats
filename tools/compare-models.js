@@ -15,8 +15,8 @@ import {
   getRepoId,
   getRuntimeConfig,
   loadUserConfig,
-  resolveRepoRoot,
   resolveRuntimeEnv,
+  resolveRepoRoot,
   resolveSqlitePaths,
   resolveToolRoot
 } from './dict-utils.js';

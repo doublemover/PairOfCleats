@@ -6,12 +6,14 @@ import { createCrashLogger } from '../crash-log.js';
 export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingConfig, log }) => {
   const configConcurrency = Number(indexingConfig.concurrency);
   const importConcurrencyConfig = Number(indexingConfig.importConcurrency);
+  const ioConcurrencyCapConfig = Number(indexingConfig.ioConcurrencyCap);
   const threadLimits = resolveThreadLimits({
     argv,
     rawArgv,
     envConfig,
     configConcurrency,
-    importConcurrencyConfig
+    importConcurrencyConfig,
+    ioConcurrencyCapConfig
   });
   const {
     cpuCount,
@@ -21,29 +23,25 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
     ioConcurrency,
     cpuConcurrency
   } = threadLimits;
-  if (envConfig.verbose) {
-    log(`Thread limits (${threadLimits.source}): cpu=${cpuCount}, cap=${maxConcurrencyCap}, files=${fileConcurrency}, imports=${importConcurrency}, io=${ioConcurrency}, cpuWork=${cpuConcurrency}.`);
-  }
-  const parsedUvThreadpool = Number(process.env.UV_THREADPOOL_SIZE);
-  const effectiveUvThreadpoolSize = Number.isFinite(parsedUvThreadpool) && parsedUvThreadpool > 0
-    ? Math.floor(parsedUvThreadpool)
+  const effectiveUvRaw = Number(process.env.UV_THREADPOOL_SIZE);
+  const effectiveUvThreadpoolSize = Number.isFinite(effectiveUvRaw) && effectiveUvRaw > 0
+    ? Math.floor(effectiveUvRaw)
     : null;
-  if (envConfig.verbose) {
-    const uvLabel = effectiveUvThreadpoolSize ? String(effectiveUvThreadpoolSize) : 'default (4)';
-    log(`libuv threadpool: UV_THREADPOOL_SIZE=${uvLabel}.`);
-  }
   if (effectiveUvThreadpoolSize && ioConcurrency > effectiveUvThreadpoolSize * 2) {
-    log(
-      `Warning: ioConcurrency (${ioConcurrency}) is much higher than UV_THREADPOOL_SIZE (${effectiveUvThreadpoolSize}). `
-        + 'Consider setting runtime.uvThreadpoolSize (or UV_THREADPOOL_SIZE) or lowering indexing concurrency.'
+    console.warn(
+      `[threads] ioConcurrency=${ioConcurrency} exceeds UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize}. `
+        + 'Consider aligning runtime.uvThreadpoolSize/UV_THREADPOOL_SIZE with your I/O concurrency for best throughput.'
     );
   } else if (!effectiveUvThreadpoolSize && envConfig.verbose && ioConcurrency >= 16) {
-    log(
-      `Hint: ioConcurrency (${ioConcurrency}) is high but UV_THREADPOOL_SIZE is not set (Node default is 4). `
-        + 'Consider setting runtime.uvThreadpoolSize.'
+    console.warn(
+      `[threads] ioConcurrency=${ioConcurrency} with default UV threadpool. `
+        + 'Consider setting runtime.uvThreadpoolSize (or UV_THREADPOOL_SIZE) for I/O-heavy indexing.'
     );
   }
 
+  if (envConfig.verbose) {
+    log(`Thread limits (${threadLimits.source}): cpu=${cpuCount}, cap=${maxConcurrencyCap}, files=${fileConcurrency}, imports=${importConcurrency}, io=${ioConcurrency}, cpuWork=${cpuConcurrency}.`);
+  }
   return {
     threadLimits,
     cpuCount,

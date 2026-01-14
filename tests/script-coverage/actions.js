@@ -67,6 +67,11 @@ const actions = [
     covers: ['artifact-size-guardrails-test']
   },
   {
+    label: 'chunk-meta-jsonl-cleanup-test',
+    run: () => runNode('chunk-meta-jsonl-cleanup-test', path.join(root, 'tests', 'chunk-meta-jsonl-cleanup.js')),
+    covers: ['chunk-meta-jsonl-cleanup-test']
+  },
+  {
     label: 'incremental-manifest-test',
     run: () => runNode('incremental-manifest-test', path.join(root, 'tests', 'incremental-manifest.js')),
     covers: ['incremental-manifest-test']
@@ -326,16 +331,6 @@ const actions = [
     label: 'api-server-test',
     run: () => runNode('api-server-test', path.join(root, 'tests', 'api-server.js')),
     covers: ['api-server-test', 'api-server']
-  },
-  {
-    label: 'sublime-pycompile-test',
-    run: () => runNode('sublime-pycompile-test', path.join(root, 'tests', 'sublime-pycompile.js')),
-    covers: ['sublime-pycompile-test']
-  },
-  {
-    label: 'subprocess-quoting-test',
-    run: () => runNode('subprocess-quoting-test', path.join(root, 'tests', 'subprocess-quoting.js')),
-    covers: ['subprocess-quoting-test']
   },
   {
     label: 'api-server-stream-test',
@@ -1021,6 +1016,21 @@ const actions = [
     label: 'config-dump-test',
     run: () => runNode('config-dump-test', path.join(root, 'tests', 'config-dump.js')),
     covers: ['config-dump-test']
+  },
+  {
+    label: 'uv-threadpool-env-test',
+    run: () => runNode('uv-threadpool-env-test', path.join(root, 'tests', 'uv-threadpool-env.js')),
+    covers: ['uv-threadpool-env-test']
+  },
+  {
+    label: 'uv-threadpool-no-override-test',
+    run: () => runNode('uv-threadpool-no-override-test', path.join(root, 'tests', 'uv-threadpool-no-override.js')),
+    covers: ['uv-threadpool-no-override-test']
+  },
+  {
+    label: 'io-concurrency-cap-test',
+    run: () => runNode('io-concurrency-cap-test', path.join(root, 'tests', 'io-concurrency-cap.js')),
+    covers: ['io-concurrency-cap-test']
   },
   {
     label: 'profile-config-test',

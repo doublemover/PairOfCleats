@@ -30,7 +30,7 @@ const serializeGraph = (graph) => {
       in: incoming
     });
   });
-  nodes.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  nodes.sort((a, b) => a.id.localeCompare(b.id));
   return {
     nodeCount: graph.order,
     edgeCount: graph.size,

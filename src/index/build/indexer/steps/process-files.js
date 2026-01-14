@@ -324,9 +324,7 @@ export const processFiles = async ({
       if (lineDelta !== 0) return lineDelta;
       const sizeDelta = b.entries.length - a.entries.length;
       if (sizeDelta !== 0) return sizeDelta;
-      const labelA = a.label || a.id;
-      const labelB = b.label || b.id;
-      return labelA < labelB ? -1 : labelA > labelB ? 1 : 0;
+      return (a.label || a.id).localeCompare(b.label || b.id);
     });
     const shardIndexById = new Map(
       shardExecutionPlan.map((shard, index) => [shard.id, index + 1])

@@ -31,10 +31,20 @@ const baseConfigRoot = resolveRepoRoot(process.cwd());
 const baseConfig = loadUserConfig(baseConfigRoot);
 const { logLine } = configureServiceLogger({ repoRoot: baseConfigRoot, service: 'mcp' });
 const runtimeConfig = getRuntimeConfig(baseConfigRoot, baseConfig);
-const parsedUv = Number(process.env.UV_THREADPOOL_SIZE);
-const effectiveUvThreadpoolSize = Number.isFinite(parsedUv) && parsedUv > 0 ? Math.floor(parsedUv) : null;
-if (effectiveUvThreadpoolSize || runtimeConfig.uvThreadpoolSize) {
-  logLine(`[mcp] UV_THREADPOOL_SIZE: ${effectiveUvThreadpoolSize ?? 'default'} (config=${runtimeConfig.uvThreadpoolSize ?? 'none'})`);
+const effectiveUvRaw = Number(process.env.UV_THREADPOOL_SIZE);
+const effectiveUvThreadpoolSize = Number.isFinite(effectiveUvRaw) && effectiveUvRaw > 0
+  ? Math.floor(effectiveUvRaw)
+  : null;
+if (effectiveUvThreadpoolSize) {
+  if (runtimeConfig.uvThreadpoolSize && runtimeConfig.uvThreadpoolSize !== effectiveUvThreadpoolSize) {
+    logLine(`[mcp] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (env overrides runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize})`);
+  } else if (runtimeConfig.uvThreadpoolSize) {
+    logLine(`[mcp] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize})`);
+  } else {
+    logLine(`[mcp] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (env)`);
+  }
+} else if (runtimeConfig.uvThreadpoolSize) {
+  logLine(`[mcp] UV_THREADPOOL_SIZE=default (runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize} not applied; start via pairofcleats CLI or set UV_THREADPOOL_SIZE before launch)`);
 }
 
 const baseMcpConfig = baseConfig?.mcp && typeof baseConfig.mcp === 'object' ? baseConfig.mcp : {};

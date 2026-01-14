@@ -29,9 +29,10 @@ const userConfig = loadUserConfig(repoRoot);
 const envConfig = getEnvConfig();
 
 const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
-const parsedUv = Number(process.env.UV_THREADPOOL_SIZE);
-const effectiveUvThreadpoolSize = Number.isFinite(parsedUv) && parsedUv > 0 ? Math.floor(parsedUv) : null;
-
+const effectiveUvRaw = Number(process.env.UV_THREADPOOL_SIZE);
+const effectiveUvThreadpoolSize = Number.isFinite(effectiveUvRaw) && effectiveUvRaw > 0
+  ? Math.floor(effectiveUvRaw)
+  : null;
 
 const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
 const payload = {
@@ -61,7 +62,6 @@ console.log(`- repo: ${repoRoot}`);
 console.log(`- profile: ${payload.profile || 'none'}`);
 console.log(`- cache root: ${payload.derived.cacheRoot}`);
 console.log(`- repo cache: ${payload.derived.repoCacheRoot}`);
-console.log(`- runtime UV_THREADPOOL_SIZE: ${payload.derived.runtime.effectiveUvThreadpoolSize ?? 'default'}`);
 console.log(`- model: ${payload.derived.model.id}`);
 console.log(`- lmdb code: ${payload.derived.lmdb.codePath}`);
 console.log(`- lmdb prose: ${payload.derived.lmdb.prosePath}`);
