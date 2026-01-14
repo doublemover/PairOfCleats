@@ -111,6 +111,17 @@ try {
     throw new Error('api-server /status response missing repo info');
   }
 
+  const map = await requestJson('GET', '/map?format=json');
+  const mapSummary = map.body?.summary?.counts || {};
+  if (!map.body?.root?.path || !Number.isFinite(mapSummary.files)) {
+    throw new Error('api-server /map response invalid');
+  }
+
+  const nodes = await requestJson('GET', '/map/nodes?limit=25');
+  if (!Array.isArray(nodes.body?.nodes) || nodes.body.nodes.length === 0) {
+    throw new Error('api-server /map/nodes returned no nodes');
+  }
+
   const search = await requestJson('POST', '/search', { query: 'return', mode: 'code', top: 3 });
   const hits = search.body?.result?.code || [];
   if (!search.body?.ok || !hits.length) {
