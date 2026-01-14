@@ -2,6 +2,7 @@
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
+import { getCapabilities } from '../src/shared/capabilities.js';
 import {
   getCacheRoot,
   getCacheRuntimeConfig,
@@ -27,6 +28,7 @@ const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const repoRoot = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(repoRoot);
 const envConfig = getEnvConfig();
+const capabilities = getCapabilities();
 
 const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
 const effectiveUvRaw = Number(process.env.UV_THREADPOOL_SIZE);
@@ -39,6 +41,7 @@ const payload = {
   repoRoot,
   profile: userConfig.profile || null,
   env: envConfig,
+  capabilities,
   userConfig,
   derived: {
     cacheRoot,

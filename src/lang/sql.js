@@ -79,13 +79,35 @@ function splitSqlStatements(text) {
         continue;
       }
     }
-    if (!inDouble && ch === '\'' && text[i - 1] !== '\\') {
-      inSingle = !inSingle;
-      continue;
+    if (!inDouble && ch === '\'') {
+      if (inSingle) {
+        if (next === '\'') {
+          i++;
+          continue;
+        }
+        if (text[i - 1] !== '\\') {
+          inSingle = false;
+          continue;
+        }
+      } else {
+        inSingle = true;
+        continue;
+      }
     }
-    if (!inSingle && ch === '"' && text[i - 1] !== '\\') {
-      inDouble = !inDouble;
-      continue;
+    if (!inSingle && ch === '"') {
+      if (inDouble) {
+        if (next === '"') {
+          i++;
+          continue;
+        }
+        if (text[i - 1] !== '\\') {
+          inDouble = false;
+          continue;
+        }
+      } else {
+        inDouble = true;
+        continue;
+      }
     }
 
     if (!inSingle && !inDouble) {
@@ -152,10 +174,28 @@ function stripSqlComments(text) {
         continue;
       }
     }
-    if (!inDouble && ch === '\'' && text[i - 1] !== '\\') {
-      inSingle = !inSingle;
-    } else if (!inSingle && ch === '"' && text[i - 1] !== '\\') {
-      inDouble = !inDouble;
+    if (!inDouble && ch === '\'') {
+      if (inSingle) {
+        if (next === '\'') {
+          out += "''";
+          i++;
+          continue;
+        }
+        if (text[i - 1] !== '\\') inSingle = false;
+      } else {
+        inSingle = true;
+      }
+    } else if (!inSingle && ch === '"') {
+      if (inDouble) {
+        if (next === '"') {
+          out += '""';
+          i++;
+          continue;
+        }
+        if (text[i - 1] !== '\\') inDouble = false;
+      } else {
+        inDouble = true;
+      }
     }
     out += ch;
   }

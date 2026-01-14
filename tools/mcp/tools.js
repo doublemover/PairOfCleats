@@ -7,7 +7,7 @@ import {
   resolveToolRoot
 } from '../dict-utils.js';
 import { buildIndex as coreBuildIndex, buildSqliteIndex as coreBuildSqliteIndex, search as coreSearch, status as coreStatus } from '../../src/integrations/core/index.js';
-import { clearRepoCaches, configStatus, getRepoCaches, indexStatus, resolveRepoPath } from './repo.js';
+import { clearRepoCaches, configStatus, getRepoCaches, indexStatus, refreshRepoCaches, resolveRepoPath } from './repo.js';
 import { parseCountSummary, parseExtensionPath, runNodeAsync, runNodeSync, runToolWithProgress } from './runner.js';
 
 const toolRoot = resolveToolRoot();
@@ -264,6 +264,7 @@ export async function runSearch(args = {}) {
   }
 
   const caches = getRepoCaches(repoPath);
+  await refreshRepoCaches(repoPath);
   return await coreSearch(repoPath, {
     args: searchArgs,
     query,

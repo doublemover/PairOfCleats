@@ -54,7 +54,7 @@ const runWriter = async (chunkMetaPlan) => {
 
   for (const { label, job } of writes) {
     try {
-      // eslint-disable-next-line no-await-in-loop
+       
       await job();
     } catch (err) {
       throw new Error(`Failed write job (${label}): ${err?.message || err}`);

@@ -258,7 +258,8 @@ export async function collectPyrightTypes({
       const target = findChunkForOffsets(fileChunks, offsets);
       if (!target) continue;
       let info = parsePythonSignature(symbol.detail || symbol.name);
-      if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) {
+      const hasParamTypes = Object.keys(info?.paramTypes || {}).length > 0;
+      if (!info || !info.returnType || !hasParamTypes) {
         try {
           const hover = await guard.run(
             ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {

@@ -62,7 +62,7 @@ const ensureOutputDir = async () => {
   await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
 };
 
-const writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
+let writeStream = null;
 
 const vertexById = new Map();
 const docById = new Map();
@@ -161,6 +161,7 @@ const ingestJsonLines = async (stream) => {
 };
 
 await ensureOutputDir();
+writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
 if (inputPath && inputPath !== '-') {
   const inputStream = fs.createReadStream(inputPath, { encoding: 'utf8' });
   await ingestJsonLines(inputStream);

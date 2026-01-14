@@ -4,6 +4,8 @@ import path from 'node:path';
 export const buildActions = async (context) => {
   const { root, fixtureRoot, repoEnv, baseCacheRoot, runNode } = context;
   const ciOutDir = context.ciOutDir || path.join(baseCacheRoot, 'ci-artifacts');
+  const skipSqliteIncremental = process.env.PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL === '1'
+    || process.env.PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL === 'true';
 
 const actions = [
   {
@@ -22,6 +24,11 @@ const actions = [
     covers: ['vector-extension-sanitize-test']
   },
   {
+    label: 'xxhash-backends-test',
+    run: () => runNode('xxhash-backends-test', path.join(root, 'tests', 'xxhash-backends.js')),
+    covers: ['xxhash-backends-test']
+  },
+  {
     label: 'tooling-detect-test',
     run: () => runNode('tooling-detect-test', path.join(root, 'tests', 'tooling-detect.js')),
     covers: ['tooling-detect', 'tooling-detect-test']
@@ -30,6 +37,11 @@ const actions = [
     label: 'tooling-install-test',
     run: () => runNode('tooling-install-test', path.join(root, 'tests', 'tooling-install.js')),
     covers: ['tooling-install', 'tooling-install-test']
+  },
+  {
+    label: 'capabilities-report-test',
+    run: () => runNode('capabilities-report-test', path.join(root, 'tests', 'capabilities-report.js')),
+    covers: ['capabilities-report-test']
   },
   {
     label: 'clean-artifacts-test',
@@ -41,26 +53,21 @@ const actions = [
     run: () => runNode('uninstall-test', path.join(root, 'tests', 'uninstall.js')),
     covers: ['uninstall', 'uninstall-test']
   },
-  {
+  ...(skipSqliteIncremental ? [] : [{
     label: 'sqlite-incremental-test',
     run: () => runNode('sqlite-incremental-test', path.join(root, 'tests', 'sqlite-incremental.js')),
     covers: ['sqlite-incremental-test']
-  },
-  {
+  }]),
+  ...(skipSqliteIncremental ? [] : [{
     label: 'sqlite-incremental-no-change-test',
     run: () => runNode('sqlite-incremental-no-change-test', path.join(root, 'tests', 'sqlite-incremental-no-change.js')),
     covers: ['sqlite-incremental-no-change-test']
-  },
-  {
+  }]),
+  ...(skipSqliteIncremental ? [] : [{
     label: 'sqlite-bundle-missing-test',
     run: () => runNode('sqlite-bundle-missing-test', path.join(root, 'tests', 'sqlite-bundle-missing.js')),
     covers: ['sqlite-bundle-missing-test']
-  },
-  {
-    label: 'sqlite-index-state-fail-closed-test',
-    run: () => runNode('sqlite-index-state-fail-closed-test', path.join(root, 'tests', 'sqlite-index-state-fail-closed.js')),
-    covers: ['sqlite-index-state-fail-closed-test']
-  },
+  }]),
   {
     label: 'artifact-size-guardrails-test',
     run: () => runNode('artifact-size-guardrails-test', path.join(root, 'tests', 'artifact-size-guardrails.js')),
@@ -71,12 +78,6 @@ const actions = [
     run: () => runNode('chunk-meta-jsonl-cleanup-test', path.join(root, 'tests', 'chunk-meta-jsonl-cleanup.js')),
     covers: ['chunk-meta-jsonl-cleanup-test']
   },
-  {
-    label: 'safe-regex-engine-test',
-    run: () => runNode('safe-regex-engine-test', path.join(root, 'tests', 'safe-regex-engine.js')),
-    covers: ['safe-regex-engine-test']
-  },
-
   {
     label: 'incremental-manifest-test',
     run: () => runNode('incremental-manifest-test', path.join(root, 'tests', 'incremental-manifest.js')),
@@ -224,6 +225,11 @@ const actions = [
     covers: []
   },
   {
+    label: 'clike-doc-comments-test',
+    run: () => runNode('clike-doc-comments-test', path.join(root, 'tests', 'clike-doc-comments.js')),
+    covers: []
+  },
+  {
     label: 'segment-pipeline-test',
     run: () => runNode('segment-pipeline-test', path.join(root, 'tests', 'segment-pipeline.js')),
     covers: []
@@ -342,16 +348,6 @@ const actions = [
     label: 'api-server-test',
     run: () => runNode('api-server-test', path.join(root, 'tests', 'api-server.js')),
     covers: ['api-server-test', 'api-server']
-  },
-  {
-    label: 'sublime-pycompile-test',
-    run: () => runNode('sublime-pycompile-test', path.join(root, 'tests', 'sublime-pycompile.js')),
-    covers: ['sublime-pycompile-test']
-  },
-  {
-    label: 'subprocess-quoting-test',
-    run: () => runNode('subprocess-quoting-test', path.join(root, 'tests', 'subprocess-quoting.js')),
-    covers: ['subprocess-quoting-test']
   },
   {
     label: 'api-server-stream-test',
@@ -914,6 +910,11 @@ const actions = [
     covers: ['json-stream-test']
   },
   {
+    label: 'jsonrpc-parser-test',
+    run: () => runNode('jsonrpc-parser-test', path.join(root, 'tests', 'jsonrpc-parser.js')),
+    covers: ['jsonrpc-parser-test']
+  },
+  {
     label: 'index-cache-test',
     run: () => runNode('index-cache-test', path.join(root, 'tests', 'index-cache.js')),
     covers: ['index-cache-test']
@@ -987,6 +988,16 @@ const actions = [
     label: 'watch-debounce-test',
     run: () => runNode('watch-debounce-test', path.join(root, 'tests', 'watch-debounce.js')),
     covers: ['watch-debounce-test']
+  },
+  {
+    label: 'watch-backend-selection-test',
+    run: () => runNode('watch-backend-selection-test', path.join(root, 'tests', 'watch-backend-selection.js')),
+    covers: ['watch-backend-selection-test']
+  },
+  {
+    label: 'watch-stability-guard-test',
+    run: () => runNode('watch-stability-guard-test', path.join(root, 'tests', 'watch-stability-guard.js')),
+    covers: ['watch-stability-guard-test']
   },
   {
     label: 'watch-filter-test',

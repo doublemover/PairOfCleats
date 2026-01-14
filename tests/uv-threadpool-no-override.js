@@ -9,7 +9,6 @@ const repoRoot = path.join(cacheRoot, 'repo');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
-
 await fsPromises.writeFile(
   path.join(repoRoot, '.pairofcleats.json'),
   JSON.stringify({ runtime: { uvThreadpoolSize: 8 } }, null, 2)
@@ -32,15 +31,21 @@ let payload;
 try {
   payload = JSON.parse(result.stdout || '{}');
 } catch (err) {
-  throw new Error(`uv-threadpool-no-override test failed: invalid JSON output: ${err?.message || err}`);
+  throw new Error(
+    `uv-threadpool-no-override test failed: invalid JSON output: ${err?.message || err}`
+  );
 }
 
 const runtime = payload?.derived?.runtime || {};
 if (runtime.uvThreadpoolSize !== 8) {
-  throw new Error(`uv-threadpool-no-override test failed: expected derived.runtime.uvThreadpoolSize=8, got ${runtime.uvThreadpoolSize}`);
+  throw new Error(
+    `uv-threadpool-no-override test failed: expected derived.runtime.uvThreadpoolSize=8, got ${runtime.uvThreadpoolSize}`
+  );
 }
 if (runtime.effectiveUvThreadpoolSize !== 4) {
-  throw new Error(`uv-threadpool-no-override test failed: expected derived.runtime.effectiveUvThreadpoolSize=4, got ${runtime.effectiveUvThreadpoolSize}`);
+  throw new Error(
+    `uv-threadpool-no-override test failed: expected derived.runtime.effectiveUvThreadpoolSize=4, got ${runtime.effectiveUvThreadpoolSize}`
+  );
 }
 
 console.log('uv-threadpool-no-override test passed');

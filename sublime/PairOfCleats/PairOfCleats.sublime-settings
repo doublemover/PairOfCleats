@@ -33,8 +33,6 @@
   "map_wasd_max_speed": 24000,
   "map_wasd_drag": 6,
   "map_zoom_sensitivity": 0.1,
-  "api_server_url": "",
-  "api_timeout_ms": 5000,
   "profile": "",
   "cache_root": "",
   "embeddings_mode": "",

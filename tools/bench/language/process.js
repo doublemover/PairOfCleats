@@ -72,12 +72,14 @@ export const createProcessRunner = ({
       }
       console.error(`Failed: ${label}`);
       console.error(`Log: ${logPath}`);
+      console.error(logPath);
       writeLog(`[error] Failed: ${label}`);
       writeLog(`[error] Log: ${logPath}`);
+      writeLog(`[error] ${logPath}`);
       if (logHistory.length) {
         console.error('Last log lines:');
-        logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));
-        logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));
+        logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));    
+        logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));   
       }
       if (logHistory.some((line) => line.toLowerCase().includes('filename too long'))) {
         console.error('Hint: On Windows, enable long paths and set `git config --global core.longpaths true` or use a shorter --root path.');
@@ -94,10 +96,11 @@ export const createProcessRunner = ({
       clearActiveChild(child);
       console.error(`Failed: ${label}`);
       console.error(`Log: ${logPath}`);
+      console.error(logPath);
       if (logHistory.length) {
         console.error('Last log lines:');
-        logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));
-        logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));
+        logHistory.slice(-10).forEach((line) => console.error(`- ${line}`));    
+        logHistory.slice(-10).forEach((line) => writeLog(`[error] ${line}`));   
       }
       if (!continueOnError) {
         logExit('failure', err?.exitCode ?? 1);

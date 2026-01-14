@@ -21,9 +21,9 @@
   "indexing": {
     "embeddingBatchSize": 4,
     "workerPool": {
-      "enabled": true,
-      "maxWorkers": 8
-    },
+        "enabled": true,
+        "maxWorkers": 8
+      },
     // Sparse postings generation settings.
     // Speed impact: heavier postings settings increase indexing time/size.
     "postings": {

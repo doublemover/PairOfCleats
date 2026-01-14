@@ -14,6 +14,7 @@ const PKG = JSON.parse(fs.readFileSync(path.join(toolRoot, 'package.json'), 'utf
 const TOOL_DEFS = getToolDefs(DEFAULT_MODEL_ID);
 
 const DEFAULT_MCP_QUEUE_MAX = 64;
+const DEFAULT_MCP_MAX_BUFFER_BYTES = 8 * 1024 * 1024;
 const DEFAULT_TOOL_TIMEOUT_MS = 120000;
 const DEFAULT_TOOL_TIMEOUTS = {
   build_index: 10 * 60 * 1000,
@@ -26,6 +27,7 @@ const DEFAULT_TOOL_TIMEOUTS = {
 };
 
 const envQueueMax = parseTimeoutMs(process.env.PAIROFCLEATS_MCP_QUEUE_MAX);
+const envMaxBufferBytes = parseTimeoutMs(process.env.PAIROFCLEATS_MCP_MAX_BUFFER_BYTES);
 const envToolTimeoutMs = parseTimeoutMs(process.env.PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS);
 const baseConfigRoot = resolveRepoRoot(process.cwd());
 const baseConfig = loadUserConfig(baseConfigRoot);
@@ -49,7 +51,9 @@ if (effectiveUvThreadpoolSize) {
 
 const baseMcpConfig = baseConfig?.mcp && typeof baseConfig.mcp === 'object' ? baseConfig.mcp : {};
 const configuredQueueMax = parseTimeoutMs(baseMcpConfig.queueMax);
+const configuredMaxBufferBytes = parseTimeoutMs(baseMcpConfig.maxBufferBytes);
 const queueMax = Math.max(1, configuredQueueMax ?? envQueueMax ?? DEFAULT_MCP_QUEUE_MAX);
+const maxBufferBytes = configuredMaxBufferBytes ?? envMaxBufferBytes ?? DEFAULT_MCP_MAX_BUFFER_BYTES;
 
 const resolveTimeout = (name, args) => resolveToolTimeoutMs(name, args, {
   envToolTimeoutMs,
@@ -62,7 +66,8 @@ const transport = createMcpTransport({
   serverInfo: { name: 'PairOfCleats', version: PKG.version },
   handleToolCall,
   resolveToolTimeoutMs: resolveTimeout,
-  queueMax
+  queueMax,
+  maxBufferBytes
 });
 
 transport.start();

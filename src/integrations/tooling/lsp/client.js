@@ -1,8 +1,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { StreamMessageReader } from 'vscode-jsonrpc';
-import { closeJsonRpcWriter, getJsonRpcWriter } from '../../../shared/jsonrpc.js';
+import { closeJsonRpcWriter, createFramedJsonRpcParser, getJsonRpcWriter } from '../../../shared/jsonrpc.js';
 
 /**
  * Convert a local path to a file:// URI.
@@ -56,12 +55,15 @@ export function createLspClient(options) {
     shell = false,
     log = () => {},
     onNotification,
-    onRequest
+    onRequest,
+    maxBufferBytes,
+    maxHeaderBytes,
+    maxMessageBytes
   } = options || {};
   if (!cmd) throw new Error('createLspClient requires a command.');
 
   let proc = null;
-  let reader = null;
+  let parser = null;
   let writer = null;
   let writerClosed = false;
   let nextId = 1;
@@ -134,7 +136,16 @@ export function createLspClient(options) {
   const start = () => {
     if (proc) return proc;
     proc = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, env, shell });
-    reader = new StreamMessageReader(proc.stdout);
+    parser = createFramedJsonRpcParser({
+      onMessage: handleMessage,
+      onError: (err) => {
+        log(`[lsp] parse error: ${err.message}`);
+        proc?.kill();
+      },
+      maxBufferBytes,
+      maxHeaderBytes,
+      maxMessageBytes
+    });
     writer = getJsonRpcWriter(proc.stdin);
     writerClosed = false;
     const markWriterClosed = () => {
@@ -143,9 +154,9 @@ export function createLspClient(options) {
     };
     proc.stdin?.on('close', markWriterClosed);
     proc.stdin?.on('error', markWriterClosed);
-    reader.onError((err) => log(`[lsp] parse error: ${err.message}`));
-    reader.onClose(() => log('[lsp] reader closed'));
-    reader.listen(handleMessage);
+    proc.stdout?.on('data', (chunk) => parser?.push(chunk));
+    proc.stdout?.on('close', () => log('[lsp] reader closed'));
+    proc.stdout?.on('error', (err) => log(`[lsp] stdout error: ${err?.message || err}`));
     proc.stderr.on('data', (chunk) => {
       const text = chunk.toString('utf8').trim();
       if (text) log(`[lsp] ${text}`);
@@ -158,7 +169,8 @@ export function createLspClient(options) {
       }
       pending.clear();
       proc = null;
-      reader = null;
+      parser?.dispose();
+      parser = null;
       writer = null;
       writerClosed = true;
       if (currentProc?.stdin) closeJsonRpcWriter(currentProc.stdin);
@@ -171,7 +183,8 @@ export function createLspClient(options) {
       }
       pending.clear();
       proc = null;
-      reader = null;
+      parser?.dispose();
+      parser = null;
       writer = null;
       writerClosed = true;
       if (currentProc?.stdin) closeJsonRpcWriter(currentProc.stdin);
@@ -225,6 +238,7 @@ export function createLspClient(options) {
   const kill = () => {
     if (!proc) return;
     if (proc.stdin) closeJsonRpcWriter(proc.stdin);
+    parser?.dispose();
     proc.kill();
     proc = null;
     writerClosed = true;

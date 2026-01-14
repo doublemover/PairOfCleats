@@ -1,6 +1,5 @@
 import json
 import os
-import threading
 import webbrowser
 from urllib.parse import quote
 
@@ -8,7 +7,6 @@ import sublime
 import sublime_plugin
 
 from ..lib import config
-from ..lib import api_client
 from ..lib import map as map_lib
 from ..lib import map_state
 from ..lib import paths
@@ -76,14 +74,6 @@ def _relative_focus(repo_root, path_value):
 def _open_in_browser(path_value):
     if not path_value:
         return
-    if isinstance(path_value, str):
-        lowered = path_value.lower()
-        if lowered.startswith('http://') or lowered.startswith('https://') or lowered.startswith('file://'):
-            try:
-                webbrowser.open_new_tab(path_value)
-            except Exception:
-                ui.show_error('PairOfCleats: failed to open browser.')
-            return
     try:
         resolved = os.path.abspath(path_value)
         url = 'file:///{0}'.format(quote(resolved.replace('\\', '/')))
@@ -205,22 +195,7 @@ def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hin
     full_args = list(cli.get('args_prefix') or []) + args
     env = config.build_env(settings)
 
-    api_url = settings.get('api_server_url') or ''
-
-    def run_cli():
-        ui.show_status('PairOfCleats: generating map...')
-        runner.run_process(
-            command,
-            full_args,
-            cwd=repo_root,
-            env=env,
-            window=window,
-            title='PairOfCleats map',
-            capture_json=True,
-            on_done=on_done,
-            stream_output=settings.get('map_stream_output') is True,
-            panel_name='pairofcleats-map'
-        )
+    ui.show_status('PairOfCleats: generating map...')
 
     def on_done(result):
         if result.returncode != 0:
@@ -249,45 +224,18 @@ def _dispatch_map(window, scope, focus, map_type=None, map_format=None, path_hin
         elif resolved_path:
             window.open_file(resolved_path)
 
-    def run_api():
-        ui.show_status('PairOfCleats: generating map (API server)...')
-
-        def worker():
-            try:
-                include = map_lib.MAP_TYPES.get(map_type)
-                payload = api_client.generate_map_report(
-                    api_url,
-                    repo_root,
-                    settings,
-                    scope,
-                    focus,
-                    include,
-                    map_format,
-                    output_path,
-                    model_path,
-                    node_list_path
-                )
-                result = runner.ProcessResult(0, '', payload=payload, error=None)
-            except Exception as exc:
-                result = runner.ProcessResult(1, str(exc), payload=None, error=str(exc))
-
-            def done_callback():
-                if result.returncode != 0 or result.error:
-                    ui.show_status('PairOfCleats: API map failed; falling back to CLI.')
-                    run_cli()
-                    return
-                on_done(result)
-
-            sublime.set_timeout(done_callback, 0)
-
-        thread = threading.Thread(target=worker)
-        thread.daemon = True
-        thread.start()
-
-    if api_url:
-        run_api()
-    else:
-        run_cli()
+    runner.run_process(
+        command,
+        full_args,
+        cwd=repo_root,
+        env=env,
+        window=window,
+        title='PairOfCleats map',
+        capture_json=True,
+        on_done=on_done,
+        stream_output=settings.get('map_stream_output') is True,
+        panel_name='pairofcleats-map'
+    )
 
 
 def _run_with_options(window, scope, focus, map_type=None, map_format=None, path_hint=None):
