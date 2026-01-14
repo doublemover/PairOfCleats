@@ -3,28 +3,27 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { tryImport } from '../src/shared/optional-deps.js';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'hnsw-ann');
+const tempRoot = path.join(root, 'tests', '.cache', 'lancedb-ann');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
+
+const lanceAvailable = (await tryImport('@lancedb/lancedb')).ok;
+if (!lanceAvailable) {
+  console.warn('lancedb missing; skipping lancedb-ann test.');
+  process.exit(0);
+}
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const config = {
-  cache: { root: cacheRoot },
-  search: { annBackend: 'hnsw' },
-  indexing: {
-    embeddings: {
-      hnsw: {
-        enabled: true
-      }
-    }
-  }
+  cache: { root: cacheRoot }
 };
 
 await fsPromises.writeFile(
@@ -38,7 +37,7 @@ const env = {
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
 
-function run(args, label) {
+const run = (args, label) => {
   const result = spawnSync(process.execPath, args, {
     cwd: repoRoot,
     env,
@@ -48,26 +47,24 @@ function run(args, label) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);
   }
-}
+};
 
 run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index');
-run([path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'build embeddings (code)');
-run([path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'prose', '--repo', repoRoot], 'build embeddings (prose)');
 
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
 const proseDir = getIndexDir(repoRoot, 'prose', userConfig);
-const codeIndex = path.join(codeDir, 'dense_vectors_hnsw.bin');
-const codeMeta = path.join(codeDir, 'dense_vectors_hnsw.meta.json');
-const proseIndex = path.join(proseDir, 'dense_vectors_hnsw.bin');
-const proseMeta = path.join(proseDir, 'dense_vectors_hnsw.meta.json');
+const codeDb = path.join(codeDir, 'dense_vectors.lancedb');
+const proseDb = path.join(proseDir, 'dense_vectors.lancedb');
+const codeMeta = path.join(codeDir, 'dense_vectors.lancedb.meta.json');
+const proseMeta = path.join(proseDir, 'dense_vectors.lancedb.meta.json');
 
-if (!fs.existsSync(codeIndex) || !fs.existsSync(codeMeta)) {
-  console.error('HNSW index missing for code mode.');
+if (!fs.existsSync(codeDb) || !fs.existsSync(codeMeta)) {
+  console.error('LanceDB index missing for code mode.');
   process.exit(1);
 }
-if (!fs.existsSync(proseIndex) || !fs.existsSync(proseMeta)) {
-  console.error('HNSW index missing for prose mode.');
+if (!fs.existsSync(proseDb) || !fs.existsSync(proseMeta)) {
+  console.error('LanceDB index missing for prose mode.');
   process.exit(1);
 }
 
@@ -77,20 +74,21 @@ const searchResult = spawnSync(
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (searchResult.status !== 0) {
-  console.error('search.js failed for HNSW ANN test.');
+  console.error('search.js failed for LanceDB ANN test.');
   if (searchResult.stderr) console.error(searchResult.stderr.trim());
   process.exit(searchResult.status ?? 1);
 }
 
 const payload = JSON.parse(searchResult.stdout || '{}');
 const stats = payload.stats || {};
-if (stats.annBackend !== 'hnsw') {
-  console.error(`Expected annBackend=hnsw, got ${stats.annBackend}`);
+if (stats.annBackend !== 'lancedb') {
+  console.error(`Expected annBackend=lancedb, got ${stats.annBackend}`);
   process.exit(1);
 }
-if (!stats.annHnsw?.available?.code || !stats.annHnsw?.available?.prose) {
-  console.error('Expected HNSW availability for code and prose.');
+if (!stats.annLance?.available?.code || !stats.annLance?.available?.prose) {
+  console.error('Expected LanceDB availability for code and prose.');
   process.exit(1);
 }
 
-console.log('HNSW ANN test passed');
+await fsPromises.rm(tempRoot, { recursive: true, force: true });
+console.log('LanceDB ANN test passed');

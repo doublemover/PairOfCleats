@@ -23,6 +23,8 @@ export async function runSearchSession({
   useSqlite,
   annEnabled,
   annActive,
+  annBackend,
+  lancedbConfig,
   vectorExtension,
   vectorAnnEnabled,
   vectorAnnState,
@@ -30,6 +32,8 @@ export async function runSearchSession({
   hnswConfig,
   hnswAnnState,
   hnswAnnUsed,
+  lanceAnnState,
+  lanceAnnUsed,
   sqliteFtsRequested,
   sqliteFtsNormalize,
   sqliteFtsProfile,
@@ -92,6 +96,7 @@ export async function runSearchSession({
     filtersActive,
     topN,
     annEnabled: annActive,
+    annBackend,
     scoreBlend,
     rrf,
     minhashMaxDocs,
@@ -99,6 +104,9 @@ export async function runSearchSession({
     vectorAnnUsed,
     hnswAnnState,
     hnswAnnUsed,
+    lanceAnnState,
+    lanceAnnUsed,
+    lancedbConfig,
     buildCandidateSetSqlite,
     getTokenIndexForQuery,
     rankSqliteFts,
@@ -130,6 +138,7 @@ export async function runSearchSession({
       mode: searchMode,
       topN,
       ann: annActive,
+      annBackend,
       annMode: vectorExtension.annMode,
       annProvider: vectorExtension.provider,
       annExtension: vectorAnnEnabled,
@@ -182,11 +191,23 @@ export async function runSearchSession({
     incCacheEvent({ cache: 'query', result: cacheHit ? 'hit' : 'miss' });
   }
 
+  const hasAnn = (mode, idx) => Boolean(
+    idx?.denseVec?.vectors?.length
+    || vectorAnnState?.[mode]?.available
+    || hnswAnnState?.[mode]?.available
+    || lanceAnnState?.[mode]?.available
+  );
   const needsEmbedding = !cacheHit && annActive && (
-    (runProse && (idxProse.denseVec?.vectors?.length || vectorAnnState.prose.available || hnswAnnState.prose.available))
-    || (runCode && (idxCode.denseVec?.vectors?.length || vectorAnnState.code.available || hnswAnnState.code.available))
-    || (runExtractedProse && idxExtractedProse?.denseVec?.vectors?.length)
-    || (runRecords && idxRecords.denseVec?.vectors?.length)
+    (runProse && hasAnn('prose', idxProse))
+    || (runCode && hasAnn('code', idxCode))
+    || (runExtractedProse && hasAnn('extracted-prose', idxExtractedProse))
+    || (runRecords && hasAnn('records', idxRecords))
+  );
+  const resolveEmbeddingDims = (mode, idx) => (
+    idx?.denseVec?.dims
+    ?? idx?.hnsw?.meta?.dims
+    ?? lanceAnnState?.[mode]?.dims
+    ?? null
   );
   const embeddingCache = new Map();
   const getEmbeddingForModel = async (modelId, dims) => {
@@ -210,25 +231,17 @@ export async function runSearchSession({
     embeddingCache.set(cacheKeyLocal, embedding);
     return embedding;
   };
-  const queryEmbeddingCode = needsEmbedding && runCode && (
-    idxCode.denseVec?.vectors?.length
-    || vectorAnnState.code.available
-    || hnswAnnState.code.available
-  )
-    ? await getEmbeddingForModel(modelIds.code, idxCode.denseVec?.dims || null)
+  const queryEmbeddingCode = needsEmbedding && runCode && hasAnn('code', idxCode)
+    ? await getEmbeddingForModel(modelIds.code, resolveEmbeddingDims('code', idxCode))
     : null;
-  const queryEmbeddingProse = needsEmbedding && runProse && (
-    idxProse.denseVec?.vectors?.length
-    || vectorAnnState.prose.available
-    || hnswAnnState.prose.available
-  )
-    ? await getEmbeddingForModel(modelIds.prose, idxProse.denseVec?.dims || null)
+  const queryEmbeddingProse = needsEmbedding && runProse && hasAnn('prose', idxProse)
+    ? await getEmbeddingForModel(modelIds.prose, resolveEmbeddingDims('prose', idxProse))
     : null;
-  const queryEmbeddingExtractedProse = needsEmbedding && runExtractedProse && idxExtractedProse?.denseVec?.vectors?.length
-    ? await getEmbeddingForModel(modelIds.extractedProse, idxExtractedProse.denseVec?.dims || null)
+  const queryEmbeddingExtractedProse = needsEmbedding && runExtractedProse && hasAnn('extracted-prose', idxExtractedProse)
+    ? await getEmbeddingForModel(modelIds.extractedProse, resolveEmbeddingDims('extracted-prose', idxExtractedProse))
     : null;
-  const queryEmbeddingRecords = needsEmbedding && runRecords && idxRecords.denseVec?.vectors?.length
-    ? await getEmbeddingForModel(modelIds.records, idxRecords.denseVec?.dims || null)
+  const queryEmbeddingRecords = needsEmbedding && runRecords && hasAnn('records', idxRecords)
+    ? await getEmbeddingForModel(modelIds.records, resolveEmbeddingDims('records', idxRecords))
     : null;
 
   const cachedHits = cacheHit && cachedPayload
@@ -239,7 +252,7 @@ export async function runSearchSession({
       recordHits: cachedPayload.records || []
     }
     : null;
-  const { proseHits, extractedProseHits, codeHits, recordHits } = cachedHits || runSearchByMode({
+  const { proseHits, extractedProseHits, codeHits, recordHits } = cachedHits || await runSearchByMode({
     searchPipeline,
     runProse,
     runExtractedProse,
@@ -283,17 +296,24 @@ export async function runSearchSession({
     contextExpansionStats[mode] = contextHits.length;
     return { hits: hits.concat(contextHits), contextHits };
   };
-  const proseExpanded = runProse ? expandModeHits('prose', idxProse, proseHits) : { hits: proseHits, contextHits: [] };
+  const proseExpanded = runProse
+    ? expandModeHits('prose', idxProse, proseHits)
+    : { hits: proseHits, contextHits: [] };
   const extractedProseExpanded = runExtractedProse
     ? expandModeHits('extracted-prose', idxExtractedProse, extractedProseHits)
     : { hits: extractedProseHits, contextHits: [] };
-  const codeExpanded = runCode ? expandModeHits('code', idxCode, codeHits) : { hits: codeHits, contextHits: [] };
-  const recordExpanded = runRecords ? expandModeHits('records', idxRecords, recordHits) : { hits: recordHits, contextHits: [] };
+  const codeExpanded = runCode
+    ? expandModeHits('code', idxCode, codeHits)
+    : { hits: codeHits, contextHits: [] };
+  const recordExpanded = runRecords
+    ? expandModeHits('records', idxRecords, recordHits)
+    : { hits: recordHits, contextHits: [] };
 
   const hnswActive = Object.values(hnswAnnUsed).some(Boolean);
-  const annBackend = vectorAnnEnabled && (vectorAnnUsed.code || vectorAnnUsed.prose)
+  const lanceActive = Object.values(lanceAnnUsed).some(Boolean);
+  const annBackendUsed = vectorAnnEnabled && (vectorAnnUsed.code || vectorAnnUsed.prose)
     ? 'sqlite-extension'
-    : (hnswActive ? 'hnsw' : 'js');
+    : (lanceActive ? 'lancedb' : (hnswActive ? 'hnsw' : 'js'));
 
   if (queryCacheEnabled && cacheKey) {
     if (!cacheData) cacheData = { version: 1, entries: [] };
@@ -332,7 +352,7 @@ export async function runSearchSession({
     codeExpanded,
     recordExpanded,
     contextExpansionStats,
-    annBackend,
+    annBackend: annBackendUsed,
     cache: {
       enabled: queryCacheEnabled,
       hit: cacheHit,

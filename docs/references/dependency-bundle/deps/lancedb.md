@@ -1,4 +1,4 @@
-# `lancedb`
+# `@lancedb/lancedb`
 
 **Area:** External vector search backend
 

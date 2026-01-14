@@ -14,7 +14,7 @@ const argv = createCli({
   options: {
     config: { type: 'string' },
     repo: { type: 'string' },
-    mode: { type: 'string', default: 'both' },
+    mode: { type: 'string', default: 'all' },
     reason: { type: 'string' },
     stage: { type: 'string' },
     command: { type: 'string' },

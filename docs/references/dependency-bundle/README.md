@@ -134,7 +134,7 @@ This bundle is a curated set of implementation-relevant deep links for dependenc
 - [re2js](deps/re2js.md)
 
 ### External backends (optional)
-- [lancedb](deps/lancedb.md)
+- [@lancedb/lancedb](deps/lancedb.md)
 - [tantivy](deps/tantivy.md)
 
 ### Multi-pattern search / dictionary matching

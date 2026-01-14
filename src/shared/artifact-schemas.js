@@ -216,6 +216,22 @@ const validators = {
     },
     additionalProperties: true
   }),
+  dense_vectors_lancedb_meta: ajv.compile({
+    type: 'object',
+    required: ['dims', 'count', 'metric', 'table', 'embeddingColumn', 'idColumn'],
+    properties: {
+      version: { type: 'integer', minimum: 1 },
+      generatedAt: nullableString,
+      model: nullableString,
+      dims: { type: 'integer', minimum: 1 },
+      count: { type: 'integer', minimum: 0 },
+      metric: { type: 'string' },
+      table: { type: 'string' },
+      embeddingColumn: { type: 'string' },
+      idColumn: { type: 'string' }
+    },
+    additionalProperties: true
+  }),
   phrase_ngrams: ajv.compile({
     type: 'object',
     required: ['vocab', 'postings'],

@@ -325,6 +325,8 @@ export function createFileProcessor(options) {
         : {};
       const commentsEnabled = (mode === 'code' || mode === 'extracted-prose')
         && normalizedCommentsConfig.extract !== 'off';
+      const commentSegmentsEnabled = mode === 'extracted-prose'
+        || (mode === 'code' && normalizedCommentsConfig.includeInCode === true);
       const parseStart = Date.now();
       const commentData = commentsEnabled
         ? extractComments({
@@ -349,7 +351,10 @@ export function createFileProcessor(options) {
           if (commentTokens.length < normalizedCommentsConfig.minTokens) continue;
           const entry = { ...comment, tokens: commentTokens };
           commentEntries.push(entry);
-          if (comment.type !== 'license' || normalizedCommentsConfig.includeLicense) {
+          if (
+            commentSegmentsEnabled
+            && (comment.type !== 'license' || normalizedCommentsConfig.includeLicense)
+          ) {
             commentSegments.push({
               type: 'comment',
               languageId: lang?.id || null,
@@ -366,8 +371,14 @@ export function createFileProcessor(options) {
         }
       }
       const extraSegments = [];
-      if (commentSegments.length) extraSegments.push(...commentSegments);
-      if (Array.isArray(commentData.configSegments) && commentData.configSegments.length) {
+      if (commentSegmentsEnabled && commentSegments.length) {
+        extraSegments.push(...commentSegments);
+      }
+      if (
+        commentSegmentsEnabled
+        && Array.isArray(commentData.configSegments)
+        && commentData.configSegments.length
+      ) {
         extraSegments.push(...commentData.configSegments);
       }
       if (mode === 'extracted-prose' && (ext === '.md' || ext === '.mdx')) {

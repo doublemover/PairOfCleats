@@ -107,11 +107,14 @@
     "codeDbPath": null,
     "proseDbPath": null
   },
-  // Default: {"annDefault":true,"denseVectorMode":"merged","regex":{"maxPatternLength":512,"maxInputLength":10000,"maxProgramSize":2000,"timeoutMs":25,"flags":""}}
+  // Default: {"annDefault":true,"annBackend":"lancedb","denseVectorMode":"merged","regex":{"maxPatternLength":512,"maxInputLength":10000,"maxProgramSize":2000,"timeoutMs":25,"flags":""}}
   "search": {
     // Accepted values: true, false
     // Default: true
     "annDefault": true,
+    // Accepted values: "auto", "lancedb", "sqlite-vector", "sqlite-extension", "hnsw", "js"
+    // Default: "lancedb"
+    "annBackend": "lancedb",
     "sqliteAutoChunkThreshold": null,
     "sqliteAutoArtifactBytes": null,
     // Accepted values: true, false
@@ -204,10 +207,11 @@
       "maxEvidencePerQuery": null
     }
   },
-  // Default: {"postings":{"enablePhraseNgrams":true,"phraseMinN":2,"phraseMaxN":4,"enableChargrams":true,"chargramMinN":3,"chargramMaxN":5,"chargramSource":"fields","chargramMaxTokenLength":48,"fielded":true},"importScan":"post","astDataflow":true,"controlFlow":true,"riskAnalysis":true,"riskAnalysisCrossFile":true,"riskRegex":{"maxPatternLength":512,"maxInputLength":10000,"maxProgramSize":2000,"timeoutMs":25,"flags":"i"},"typeInference":false,"typeInferenceCrossFile":false,"gitBlame":true,"lint":true,"complexity":true,"pythonAst":{"enabled":true},"treeSitter":{"enabled":true}}
+  // Default: {"embeddings":{"lancedb":{"enabled":true,"table":"vectors","embeddingColumn":"vector","idColumn":"id","metric":"cosine","batchSize":1024}},"postings":{"enablePhraseNgrams":true,"phraseMinN":2,"phraseMaxN":4,"enableChargrams":true,"chargramMinN":3,"chargramMaxN":5,"chargramSource":"fields","chargramMaxTokenLength":48,"fielded":true},"importScan":"post","astDataflow":true,"controlFlow":true,"riskAnalysis":true,"riskAnalysisCrossFile":true,"riskRegex":{"maxPatternLength":512,"maxInputLength":10000,"maxProgramSize":2000,"timeoutMs":25,"flags":"i"},"typeInference":false,"typeInferenceCrossFile":false,"gitBlame":true,"lint":true,"complexity":true,"pythonAst":{"enabled":true},"treeSitter":{"enabled":true}}
   "indexing": {
     "concurrency": null,
     "importConcurrency": null,
+    "ioConcurrencyCap": null,
     // Accepted values: true, false
     // Default: "post"
     "importScan": "post",
@@ -262,6 +266,9 @@
     "comments": {
       // Accepted values: "off", "doc", "all"
       "extract": null,
+      // Accepted values: true, false
+      // Default: false
+      "includeInCode": false,
       // Accepted values: true, false
       "includeLicense": null,
       "minDocChars": null,
@@ -318,6 +325,7 @@
     },
     "embeddingBatchSize": null,
     "embeddingBatchMultipliers": null,
+    // Default: {"lancedb":{"enabled":true,"table":"vectors","embeddingColumn":"vector","idColumn":"id","metric":"cosine","batchSize":1024}}
     "embeddings": {
       // Accepted values: true, false
       "enabled": null,
@@ -341,6 +349,23 @@
       },
       "cache": {
         "dir": null
+      },
+      // Default: {"enabled":true,"table":"vectors","embeddingColumn":"vector","idColumn":"id","metric":"cosine","batchSize":1024}
+      "lancedb": {
+        // Accepted values: true, false
+        // Default: true
+        "enabled": true,
+        // Default: "vectors"
+        "table": "vectors",
+        // Default: "vector"
+        "embeddingColumn": "vector",
+        // Default: "id"
+        "idColumn": "id",
+        // Accepted values: "cosine", "l2", "dot"
+        // Default: "cosine"
+        "metric": "cosine",
+        // Default: 1024
+        "batchSize": 1024
       },
       "hnsw": {
         // Accepted values: true, false
@@ -571,7 +596,8 @@
   },
   "runtime": {
     "maxOldSpaceMb": null,
-    "nodeOptions": null
+    "nodeOptions": null,
+    "uvThreadpoolSize": null
   },
   "tooling": {
     // Accepted values: true, false

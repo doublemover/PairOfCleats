@@ -103,7 +103,7 @@ This document maps user-visible behavior to implementation, configuration switch
   - Tests: `tests/search-explain.js`.
   - Limitations: explain output is only available for JSON/human modes that emit it.
 
-- Claim: ranking blends BM25 + ANN with optional RRF; ANN backends are exercised by sqlite and HNSW tests.
+- Claim: ranking blends BM25 + ANN with optional RRF; ANN backends are exercised by sqlite, HNSW, and LanceDB tests.
   - Implementation: `src/retrieval/pipeline.js` (`mergeRanked`, `blendRanked`), `src/retrieval/rankers.js` (`rankDenseVectors`), `src/shared/hnsw.js` (`loadHnswIndex`).
   - Config: `search.bm25.*`, `search.scoreBlend.*`, `search.rrf.*`, `search.annDefault`; CLI `--ann`.
   - Tests: `tests/fielded-bm25.js`, `tests/search-rrf.js`, `tests/search-symbol-boost.js`, `tests/sqlite-ann-extension.js`, `tests/hnsw-ann.js`.

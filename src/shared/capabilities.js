@@ -37,7 +37,7 @@ export function getCapabilities(options = {}) {
     },
     externalBackends: {
       tantivy: check('tantivy', opts),
-      lancedb: check('lancedb', opts)
+      lancedb: check('@lancedb/lancedb', opts)
     }
   };
   return cached;
