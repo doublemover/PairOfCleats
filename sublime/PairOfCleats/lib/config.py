@@ -39,6 +39,8 @@ DEFAULT_SETTINGS = {
     'map_wasd_max_speed': 24000,
     'map_wasd_drag': 6,
     'map_zoom_sensitivity': 0.1,
+    'api_server_url': '',
+    'api_timeout_ms': 5000,
     'profile': '',
     'cache_root': '',
     'embeddings_mode': '',
@@ -119,6 +121,12 @@ def build_env(settings):
 
 def validate_settings(settings, repo_root=None):
     errors = []
+
+    api_url = settings.get('api_server_url')
+    if api_url is not None and api_url != '' and not isinstance(api_url, str):
+        errors.append('api_server_url must be a string.')
+
+    _validate_int_setting(errors, settings, 'api_timeout_ms', allow_zero=False)
 
     mode = settings.get('index_mode_default')
     if mode and mode not in VALID_INDEX_MODES:

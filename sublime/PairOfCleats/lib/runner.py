@@ -56,8 +56,23 @@ def run_process(command, args, cwd=None, env=None, window=None, title='PairOfCle
     if env:
         full_env.update(env)
 
+    cmd = command
+    cmd_args = list(args)
+
+    # Windows: `.cmd`/`.bat` wrappers (npm bin) are not directly executable via CreateProcess.
+    # Run them through cmd.exe for reliable cross-platform behavior.
+    if os.name == 'nt':
+        lowered = (command or '').lower()
+        if lowered.endswith('.cmd') or lowered.endswith('.bat'):
+            cmd = os.environ.get('COMSPEC') or 'cmd.exe'
+            cmd_args = ['/c', command] + cmd_args
+        elif lowered.endswith('.ps1'):
+            # PowerShell scripts require an interpreter.
+            cmd = 'powershell'
+            cmd_args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', command] + cmd_args
+
     proc = subprocess.Popen(
-        [command] + list(args),
+        [cmd] + cmd_args,
         cwd=cwd or None,
         env=full_env,
         stdout=subprocess.PIPE,
