@@ -65,13 +65,39 @@ const parseMaxOldSpaceSizeMb = (argv) => {
 };
 
 const resolveWorkerResourceLimits = (maxWorkers) => {
-  const workerCount = Math.max(1, Math.floor(Number(maxWorkers) || 1));
+  const workerCount = Math.max(1, Math.floor(Number(maxWorkers) || 0));
+  if (!Number.isFinite(workerCount) || workerCount <= 0) return null;
+
   const totalMemMb = Math.floor(os.totalmem() / 1024 / 1024);
-  const maxOldMb = parseMaxOldSpaceSizeMb(process.execArgv);
-  const basisMb = Math.max(512, Math.min(4096, Math.min(totalMemMb, maxOldMb || totalMemMb)));
-  const perWorkerMb = Math.floor(basisMb / (workerCount * 2));
+  // process.execArgv does NOT include NODE_OPTIONS.
+  const execArgv = Array.isArray(process.execArgv) ? process.execArgv : [];
+  const nodeOptionsRaw = typeof process.env.NODE_OPTIONS === 'string'
+    ? process.env.NODE_OPTIONS
+    : '';
+  const nodeOptionsArgv = nodeOptionsRaw
+    ? nodeOptionsRaw.split(/\s+/).filter(Boolean)
+    : [];
+  const maxOldMb = parseMaxOldSpaceSizeMb([...execArgv, ...nodeOptionsArgv]);
+
+  // Tree-sitter workers can load multiple WASM grammars. When indexing a repo
+  // that spans many languages, overly small heaps can crash workers with V8
+  // "Zone" OOMs even when overall RSS remains low.
+  let budgetMb = null;
+  if (Number.isFinite(maxOldMb) && maxOldMb > 0) {
+    budgetMb = Math.floor(maxOldMb);
+  } else if (Number.isFinite(totalMemMb) && totalMemMb > 0) {
+    budgetMb = Math.floor(totalMemMb * 0.5);
+  }
+  if (!Number.isFinite(budgetMb) || budgetMb <= 0) return null;
+
+  if (Number.isFinite(totalMemMb) && totalMemMb > 0) {
+    const hardCap = Math.max(512, Math.floor(totalMemMb * 0.85));
+    budgetMb = Math.min(budgetMb, hardCap);
+  }
+
+  const perWorkerMb = Math.floor(budgetMb / (workerCount + 1));
   const minMb = 128;
-  const platformCap = process.platform === 'win32' ? 512 : 1024;
+  const platformCap = process.platform === 'win32' ? 4096 : 8192;
   const oldGenMb = Math.max(minMb, Math.min(platformCap, perWorkerMb));
   return { maxOldGenerationSizeMb: oldGenMb };
 };

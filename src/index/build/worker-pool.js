@@ -68,7 +68,17 @@ const resolveMemoryWorkerCap = (requested) => {
 };
 
 const parseMaxOldSpaceMb = () => {
-  const args = process.execArgv || [];
+  // process.execArgv does NOT include NODE_OPTIONS. Since we often set
+  // --max-old-space-size via NODE_OPTIONS (e.g. from user/runtime config),
+  // include both sources when inferring the heap budget.
+  const execArgv = Array.isArray(process.execArgv) ? process.execArgv : [];
+  const nodeOptionsRaw = typeof process.env.NODE_OPTIONS === 'string'
+    ? process.env.NODE_OPTIONS
+    : '';
+  const nodeOptionsArgv = nodeOptionsRaw
+    ? nodeOptionsRaw.split(/\s+/).filter(Boolean)
+    : [];
+  const args = [...execArgv, ...nodeOptionsArgv];
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (typeof arg !== 'string') continue;
@@ -85,30 +95,46 @@ const parseMaxOldSpaceMb = () => {
 };
 
 const resolveWorkerResourceLimits = (maxWorkers) => {
-  const maxOldSpaceMb = parseMaxOldSpaceMb();
+  const workerCount = Math.max(1, Math.floor(Number(maxWorkers) || 0));
+  if (!Number.isFinite(workerCount) || workerCount <= 0) return null;
+
   const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
-  if (!Number.isFinite(maxWorkers) || maxWorkers <= 0) return null;
+  const maxOldSpaceMb = parseMaxOldSpaceMb();
 
-  // Keep worker heaps conservative: the main process may run with a very large
-  // --max-old-space-size, but spawning many isolates with large old-gen limits
-  // can quickly exhaust address space (especially on Windows).
-  let basisMb = totalMemMb;
+  // Budget worker heaps based on either the explicitly configured
+  // --max-old-space-size or a conservative fraction of system RAM.
+  //
+  // Important: this value is an upper bound per worker, not a reservation.
+  // The pool previously used a hard 8GB basis cap and then divided by
+  // (workers * 2), which could yield extremely small per-worker heaps on
+  // high-concurrency machines (e.g. 256MB with 16 workers). That is too small
+  // for multi-language parsing workloads and can trigger V8 "Zone" OOMs even
+  // when the process RSS is low.
+  let budgetMb = null;
   if (Number.isFinite(maxOldSpaceMb) && maxOldSpaceMb > 0) {
-    basisMb = Number.isFinite(basisMb) && basisMb > 0
-      ? Math.min(basisMb, maxOldSpaceMb)
-      : maxOldSpaceMb;
+    // If the user explicitly configured a heap budget, keep it as the sizing
+    // basis (we still apply a physical-RAM cap below).
+    budgetMb = Math.floor(maxOldSpaceMb);
+  } else if (Number.isFinite(totalMemMb) && totalMemMb > 0) {
+    // Without an explicit heap budget, stay conservative by default.
+    const defaultBasisCapMb = 8192;
+    budgetMb = Math.min(defaultBasisCapMb, Math.floor(totalMemMb * 0.75));
   }
-  if (!Number.isFinite(basisMb) || basisMb <= 0) return null;
+  if (!Number.isFinite(budgetMb) || budgetMb <= 0) return null;
 
-  // Hard cap the sizing basis to avoid inflating per-worker limits on high-RAM
-  // machines. This is a safety valve; workloads that need larger heaps can
-  // still run in-process without the pool.
-  const basisCapMb = 8192;
-  basisMb = Math.min(basisMb, basisCapMb);
+  // Avoid fully consuming physical memory; leave headroom for the main process
+  // and native allocations (SQLite, WASM, model runtimes, etc.).
+  if (Number.isFinite(totalMemMb) && totalMemMb > 0) {
+    const hardCap = Math.max(1024, Math.floor(totalMemMb * 0.9));
+    budgetMb = Math.min(budgetMb, hardCap);
+  }
 
-  const perWorker = Math.max(256, Math.floor(basisMb / Math.max(1, maxWorkers * 2)));
-  const platformCap = process.platform === 'win32' ? 1024 : 2048;
-  const capped = Math.min(platformCap, perWorker);
+  // Split the budget across workers while leaving one "share" for the main
+  // process.
+  const perWorker = Math.floor(budgetMb / (workerCount + 1));
+  const minMb = 256;
+  const platformCap = process.platform === 'win32' ? 8192 : 16384;
+  const capped = Math.max(minMb, Math.min(platformCap, perWorker));
   return { maxOldGenerationSizeMb: capped };
 };
 
