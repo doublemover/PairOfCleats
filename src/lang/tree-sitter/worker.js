@@ -36,6 +36,9 @@ export const sanitizeTreeSitterOptions = (treeSitter) => {
     maxBytes: config.maxBytes ?? null,
     maxLines: config.maxLines ?? null,
     maxParseMs: config.maxParseMs ?? null,
+    maxAstNodes: config.maxAstNodes ?? null,
+    maxAstStack: config.maxAstStack ?? null,
+    maxChunkNodes: config.maxChunkNodes ?? null,
     byLanguage: config.byLanguage || {},
     configChunking: config.configChunking === true
   };

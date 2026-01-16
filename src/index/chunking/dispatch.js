@@ -485,7 +485,7 @@ const CODE_CHUNKERS = [
   { id: 'html', match: (ext) => isHtml(ext), chunk: ({ text, context }) =>
     context?.htmlChunks || buildHtmlChunks(text, getTreeSitterOptions(context)) },
   { id: 'css', match: (ext) => isCss(ext), chunk: ({ text, context }) =>
-    context?.cssChunks || buildCssChunks(text) },
+    context?.cssChunks || buildCssChunks(text, getTreeSitterOptions(context)) },
   { id: 'python', match: (ext) => ext === '.py', chunk: ({ text, context }) => {
     const astChunks = buildPythonChunksFromAst(text, context?.pythonAst || null);
     if (astChunks && astChunks.length) return astChunks;

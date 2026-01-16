@@ -330,7 +330,7 @@ const LANGUAGE_REGISTRY = [
     id: 'css',
     match: (ext) => isCss(ext),
     collectImports: (text) => collectCssImports(text),
-    prepare: ({ text, mode }) => (mode === 'code' ? { cssChunks: buildCssChunks(text) } : {}),
+    prepare: ({ text, mode, options }) => (mode === 'code' ? { cssChunks: buildCssChunks(text, options) } : {}),
     buildRelations: ({ text, allImports }) => buildCssRelations(text, allImports),
     extractDocMeta: ({ chunk }) => extractCssDocMeta(chunk),
     flow: () => computeCssFlow(),

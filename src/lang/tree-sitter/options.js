@@ -2,7 +2,19 @@ import { TREE_SITTER_LANGUAGE_IDS } from './config.js';
 
 function normalizeEnabled(value) {
   if (value === false) return false;
-  if (value === 'off') return false;
+  if (value === true) return true;
+
+  if (typeof value === 'number') {
+    if (value === 0) return false;
+    if (value === 1) return true;
+  }
+
+  if (typeof value === 'string') {
+    const v = value.trim().toLowerCase();
+    if (v === 'off' || v === 'false' || v === '0' || v === 'no') return false;
+    if (v === 'on' || v === 'true' || v === '1' || v === 'yes') return true;
+  }
+
   return true;
 }
 

@@ -245,8 +245,19 @@ export function getTreeSitterParser(languageId, options = {}) {
     if (!treeSitterState.sharedParser) {
       treeSitterState.sharedParser = new treeSitterState.TreeSitter();
       treeSitterState.sharedParserLanguageId = null;
-      // Clear the legacy per-language cache to avoid keeping extra Parsers alive.
-      treeSitterState.parserCache?.clear?.();
+      // Clear and dispose the legacy per-language cache to avoid keeping extra Parsers alive.
+      if (treeSitterState.parserCache && typeof treeSitterState.parserCache.values === 'function') {
+        for (const cached of treeSitterState.parserCache.values()) {
+          if (cached && typeof cached.delete === 'function') {
+            try {
+              cached.delete();
+            } catch {
+              // ignore
+            }
+          }
+        }
+        treeSitterState.parserCache.clear();
+      }
     }
 
     if (treeSitterState.sharedParserLanguageId !== resolvedId) {

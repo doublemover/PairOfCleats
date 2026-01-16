@@ -119,53 +119,51 @@ function extractSignature(text, start, end) {
   return sliceSignature(text, start, endIdx).replace(/\s+/g, ' ').trim();
 }
 
+const DEFAULT_NAME_SEARCH_MAX_DEPTH = 6;
+const DEFAULT_NAME_SEARCH_MAX_NODES = 128;
+
 function findNameNode(node, config) {
-  if (!node) return null;
-  const direct = node.childForFieldName('name');
-  if (direct) return direct;
-  const fieldNames = Array.isArray(config?.nameFields) ? config.nameFields : [];
-  for (const field of fieldNames) {
-    const child = node.childForFieldName(field);
-    if (child) return child;
-  }
-  const nameTypes = config?.nameNodeTypes || COMMON_NAME_NODE_TYPES;
-  const declarator = node.childForFieldName('declarator');
-  if (declarator) {
-    const named = findDescendantByType(declarator, nameTypes, 8);
-    if (named) return named;
-  }
-  // Depth-limited breadth-first search for a reasonable name node.
-  // Avoid Array#shift() here (O(n) per operation) to keep this path cheap.
-  const queue = [];
-  const depths = [];
+  const nameTypes = config?.nameTypes;
+  if (!nameTypes || !nameTypes.size || !node) return null;
+
+  // Traversal limits: names should be close to the declaration node, but some grammars
+  // wrap identifiers a few levels deep. Keep this bounded and deterministic.
+  const maxDepth = Number.isFinite(config?.nameSearchMaxDepth)
+    ? Math.max(1, Math.floor(config.nameSearchMaxDepth))
+    : DEFAULT_NAME_SEARCH_MAX_DEPTH;
+
+  const maxNodes = Number.isFinite(config?.nameSearchMaxNodes)
+    ? Math.max(1, Math.floor(config.nameSearchMaxNodes))
+    : DEFAULT_NAME_SEARCH_MAX_NODES;
+
+  let frontier = [];
   const initialCount = getNamedChildCount(node);
   for (let i = 0; i < initialCount; i += 1) {
     const child = getNamedChild(node, i);
-    if (!child) continue;
-    queue.push(child);
-    depths.push(1);
+    if (child) frontier.push(child);
   }
-  for (let q = 0; q < queue.length; q += 1) {
-    const next = queue[q];
-    const depth = depths[q] || 1;
-    if (!next) continue;
-    if (nameTypes.has(next.type)) return next;
-    if (depth >= 4) continue;
-    const childCount = getNamedChildCount(next);
-    for (let i = 0; i < childCount; i += 1) {
-      const child = getNamedChild(next, i);
-      if (!child) continue;
-      queue.push(child);
-      depths.push(depth + 1);
-    }
-  }
-  return null;
-}
 
-function extractNodeName(node, text, config) {
-  const nameNode = findNameNode(node, config);
-  if (!nameNode) return '';
-  return text.slice(nameNode.startIndex, nameNode.endIndex).trim();
+  let visited = 0;
+  for (let depth = 1; depth <= maxDepth && frontier.length; depth += 1) {
+    const nextFrontier = [];
+
+    for (const next of frontier) {
+      if (!next) continue;
+      visited += 1;
+      if (nameTypes.has(next.type)) return next;
+      if (visited >= maxNodes) return null;
+
+      const childCount = getNamedChildCount(next);
+      for (let i = 0; i < childCount; i += 1) {
+        const child = getNamedChild(next, i);
+        if (child) nextFrontier.push(child);
+      }
+    }
+
+    frontier = nextFrontier;
+  }
+
+  return null;
 }
 
 function findNearestType(node, config) {
@@ -392,8 +390,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     // Some tree-sitter builds retain internal parse stack allocations across parses.
     // Resetting keeps memory bounded across long-running indexing jobs.
     try {
-      const parserRef = treeSitterState?.parserCache?.get?.(resolvedId);
-      if (parserRef && typeof parserRef.reset === 'function') parserRef.reset();
+      if (parser && typeof parser.reset === 'function') parser.reset();
     } catch {
       // ignore reset failures
     }
@@ -401,33 +398,53 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
 }
 
 export async function buildTreeSitterChunksAsync({ text, languageId, ext, options }) {
+  // If tree-sitter is disabled (or no config provided), keep the synchronous behavior.
   if (!options?.treeSitter || options.treeSitter.enabled === false) {
     return buildTreeSitterChunks({ text, languageId, ext, options });
   }
+
+  const resolvedId = resolveLanguageForExt(languageId, ext);
+  if (!resolvedId) return null;
+
+  // Avoid spinning up / dispatching to workers when we already know we will skip tree-sitter.
+  if (!isTreeSitterEnabled(options, resolvedId)) return null;
+  if (exceedsTreeSitterLimits(text, options, resolvedId)) return null;
+  if (!LANG_CONFIG[resolvedId]) return null;
+
   const pool = await getTreeSitterWorkerPool(options?.treeSitter?.worker, options);
   if (!pool) {
     return buildTreeSitterChunks({ text, languageId, ext, options });
   }
-  const resolvedId = resolveLanguageForExt(languageId, ext) || languageId || 'unknown';
+
   const metricsCollector = options?.metricsCollector;
   const shouldRecordMetrics = metricsCollector && typeof metricsCollector.add === 'function';
   const lineCount = shouldRecordMetrics ? countLines(text) : 0;
   const metricsStart = shouldRecordMetrics ? Date.now() : 0;
+
   const payload = {
     text,
     languageId,
     ext,
     treeSitter: sanitizeTreeSitterOptions(options?.treeSitter)
   };
+
+  // Avoid double-counting tree-sitter metrics when falling back to in-thread parsing.
+  const fallbackOptions = shouldRecordMetrics
+    ? { ...options, metricsCollector: null }
+    : options;
+
   try {
     const result = await pool.run(payload, { name: 'parseTreeSitter' });
-    return Array.isArray(result) ? result : null;
+    if (Array.isArray(result) && result.length) return result;
+
+    // Null/empty results from a worker are treated as a failure signal; retry in-thread for determinism.
+    return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
   } catch (err) {
     if (options?.log && !treeSitterState.loggedWorkerFailures.has('run')) {
       options.log(`[tree-sitter] Worker parse failed; falling back to main thread (${err?.message || err}).`);
       treeSitterState.loggedWorkerFailures.add('run');
     }
-    return buildTreeSitterChunks({ text, languageId, ext, options });
+    return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
   } finally {
     if (shouldRecordMetrics) {
       const durationMs = Date.now() - metricsStart;
