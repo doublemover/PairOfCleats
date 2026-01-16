@@ -138,7 +138,8 @@ const formatEdgeTargets = (edgeList, direction, limit = 8) => {
     let refType = '';
     let refId = '';
     if (endpoint.member) {
-      const member = state.memberById.get(endpoint.member);
+      const memberKey = endpoint.member === 0 || endpoint.member ? String(endpoint.member) : null;
+      const member = memberKey ? (state.memberById.get(memberKey) || state.memberById.get(endpoint.member)) : null;
       if (member) {
         label = `${member.name || endpoint.member} - ${member.file || ''}`.trim();
         refType = 'member';
@@ -182,12 +183,17 @@ const collectEdgesForSelection = (selectionInfo, member, node) => {
   state.edges.forEach((edge) => {
     const from = edge.from || {};
     const to = edge.to || {};
+    const fromMemberId = from.member === 0 || from.member ? String(from.member) : null;
+    const toMemberId = to.member === 0 || to.member ? String(to.member) : null;
+    const fromMemberFile = fromMemberId ? (state.fileByMember.get(fromMemberId) || state.fileByMember.get(from.member)) : null;
+    const toMemberFile = toMemberId ? (state.fileByMember.get(toMemberId) || state.fileByMember.get(to.member)) : null;
+
     const fromMatch = memberId
-      ? from.member === memberId
-      : (from.file === fileKey || state.fileByMember.get(from.member) === fileKey);
+      ? (fromMemberId === String(memberId))
+      : (from.file === fileKey || fromMemberFile === fileKey);
     const toMatch = memberId
-      ? to.member === memberId
-      : (to.file === fileKey || state.fileByMember.get(to.member) === fileKey);
+      ? (toMemberId === String(memberId))
+      : (to.file === fileKey || toMemberFile === fileKey);
     if (fromMatch) outgoing.push(edge);
     if (toMatch) incoming.push(edge);
   });
@@ -205,8 +211,10 @@ export const renderSelectionDetails = (info) => {
   const node = nodeByPath.get(fileKey) || nodeById.get(info.id) || null;
   const rangeKey = buildMemberKey(fileKey, info.name || '', info.range || {});
   const nameKey = buildMemberNameKey(fileKey, info.name || '');
-  const member = info.id
-    ? memberById.get(info.id)
+  const rawMemberId = (info.type === 'member' ? (info.id ?? info.memberId ?? null) : (info.memberId ?? null));
+  const memberId = rawMemberId !== null && rawMemberId !== undefined ? String(rawMemberId) : null;
+  const member = memberId
+    ? (memberById.get(memberId) || memberById.get(rawMemberId))
     : (memberByKey.get(rangeKey) || memberByKey.get(nameKey) || null);
 
   if (info.type === 'file' || (!info.type && node)) {
@@ -275,36 +283,59 @@ const resetMaterialHighlight = (material) => {
   material.needsUpdate = true;
 };
 
+
+const resolveHitInfo = (hit) => {
+  if (!hit) return null;
+  const obj = hit.object || hit;
+  if (!obj) return null;
+
+  // Instanced members store per-instance metadata in userData.instanceInfo.
+  if (obj.isInstancedMesh && hit.instanceId != null) {
+    const info = obj.userData?.instanceInfo?.[hit.instanceId] || null;
+    return info;
+  }
+
+  return obj.userData || null;
+};
+
+const setMemberInstanceTint = (memberId, color) => {
+  if (!memberId) return;
+  const key = String(memberId);
+  const ref = state.memberInstanceById?.get(key) || null;
+  if (!ref || !ref.mesh || ref.instanceId == null) return;
+
+  ref.mesh.setColorAt(ref.instanceId, color);
+  if (ref.mesh.instanceColor) ref.mesh.instanceColor.needsUpdate = true;
+};
+
+const resetMemberInstanceHighlights = () => {
+  const highlighted = state.highlightedMemberIds;
+  if (!highlighted || !highlighted.size) return;
+
+  const white = new state.THREE.Color(0xffffff);
+  for (const memberId of highlighted) {
+    const base = state.memberColorById?.get(memberId) || white;
+    setMemberInstanceTint(memberId, base);
+  }
+  highlighted.clear();
+};
+
 const resetObjectHighlights = () => {
-  for (const mesh of [...state.fileMeshes, ...state.memberMeshes, ...state.chunkMeshes]) {
+  for (const mesh of [...(state.fileMeshes || []), ...(state.memberMeshes || []), ...(state.chunkMeshes || [])]) {
+    if (!mesh) continue;
     resetMaterialHighlight(mesh.material);
     const inner = mesh.userData?.shellInner;
     if (inner?.material) resetMaterialHighlight(inner.material);
   }
+
+  // Restore any per-instance tints applied to instanced members.
+  resetMemberInstanceHighlights();
 };
 
 const resetEdgeHighlights = () => {
   for (const mesh of state.edgeMeshes) {
     const material = mesh.material;
-    if (!material) continue;
-    if (mesh.isInstancedMesh) {
-      const baseColors = mesh.userData?.instanceBaseColors;
-      if (Array.isArray(baseColors)) {
-        baseColors.forEach((color, index) => {
-          if (color) mesh.setColorAt(index, color);
-        });
-        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-      }
-      if (material.userData?.baseEmissiveIntensity != null) {
-        material.emissiveIntensity = material.userData.baseEmissiveIntensity;
-      }
-      if (material.userData?.baseOpacity != null) {
-        material.opacity = material.userData.baseOpacity;
-      }
-      material.needsUpdate = true;
-      continue;
-    }
-    if (!material.userData?.baseColor) continue;
+    if (!material || !material.userData?.baseColor) continue;
     material.color.copy(material.userData.baseColor);
     material.emissive.copy(material.userData.baseEmissive);
     material.emissiveIntensity = material.userData.baseEmissiveIntensity ?? material.emissiveIntensity;
@@ -357,34 +388,31 @@ const highlightEdgeMesh = (mesh, color) => {
   mesh.material.needsUpdate = true;
 };
 
-const highlightEdgeInstance = (mesh, index, color) => {
-  if (!mesh || !mesh.isInstancedMesh) return;
-  if (typeof mesh.setColorAt === 'function') {
-    mesh.setColorAt(index, color);
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }
-};
-
 const buildSelectionKeys = (info) => {
   const keys = new Set();
   if (!info) return keys;
+
   const fileKey = info.file || info.name || '';
   if (fileKey) keys.add(`file:${fileKey}`);
-  const memberId = info.id || info.memberId || null;
-  if (memberId) {
+
+  const rawMemberId = (info.id ?? info.memberId ?? null);
+  if (rawMemberId !== null && rawMemberId !== undefined && rawMemberId !== '') {
+    const memberId = String(rawMemberId);
     keys.add(`member:${memberId}`);
-    const memberFile = state.fileByMember.get(memberId);
+
+    // fileByMember keys may be stored as strings or numbers depending on ingestion.
+    const memberFile = state.fileByMember?.get(memberId) || state.fileByMember?.get(rawMemberId);
     if (memberFile) keys.add(`file:${memberFile}`);
   }
+
   return keys;
 };
 
 const applyHighlightsForKeys = (selectionKeys, intensity = 1) => {
   if (!selectionKeys || !selectionKeys.size) return;
   const connected = new Map();
-  const edgeSegments = state.edgeSegments || [];
-  edgeSegments.forEach((segment) => {
-    const endpoints = segment.endpoints;
+  state.edgeMeshes.forEach((mesh) => {
+    const endpoints = mesh.userData?.endpoints;
     if (!endpoints || !endpoints.size) return;
     let matches = false;
     for (const key of selectionKeys) {
@@ -394,9 +422,8 @@ const applyHighlightsForKeys = (selectionKeys, intensity = 1) => {
       }
     }
     if (!matches) return;
-    const edgeColor = segment.edgeColor || new state.THREE.Color(0xffffff);
-    const highlightColor = segment.highlightColor || edgeColor;
-    highlightEdgeInstance(segment.mesh, segment.index, highlightColor);
+    const edgeColor = mesh.userData?.edgeColor || new state.THREE.Color(0xffffff);
+    highlightEdgeMesh(mesh, edgeColor);
     endpoints.forEach((endpointKey) => {
       if (selectionKeys.has(endpointKey)) return;
       const entry = connected.get(endpointKey) || { color: new state.THREE.Color(0, 0, 0), weight: 0 };
@@ -413,8 +440,11 @@ const applyHighlightsForKeys = (selectionKeys, intensity = 1) => {
     if (type === 'file' && state.fileMeshByKey.has(id)) {
       highlightMesh(state.fileMeshByKey.get(id), color, 0.35 * intensity + 0.15, 0.25 * intensity);
     }
-    if (type === 'member' && state.memberMeshById.has(id)) {
-      highlightMesh(state.memberMeshById.get(id), color, 0.35 * intensity + 0.15, 0.25 * intensity);
+    if (type === 'member') {
+      // Instanced members: tint the instance temporarily.
+      const tint = color.clone().lerp(new state.THREE.Color(0xffffff), 0.2);
+      setMemberInstanceTint(id, tint);
+      if (state.highlightedMemberIds) state.highlightedMemberIds.add(String(id));
     }
   });
 };
@@ -423,38 +453,80 @@ export const applyHighlights = () => {
   resetObjectHighlights();
   resetEdgeHighlights();
   resetWireHighlights();
-  const selectionKeys = buildSelectionKeys(state.selected?.userData || null);
-  if (state.selected) {
-    const baseColor = state.selected.userData?.baseColor
-      ? state.selected.userData.baseColor
-      : (state.selected.material?.color ? state.selected.material.color : new state.THREE.Color(0xffffff));
-    highlightMesh(state.selected, baseColor.clone().lerp(new state.THREE.Color(0xffffff), 0.35), 0.7, 0.85);
+
+  const white = new state.THREE.Color(0xffffff);
+
+  const selectedHit = state.selected;
+  const selectedObj = selectedHit?.object || null;
+  const selectedInfo = resolveHitInfo(selectedHit);
+  const selectionKeys = buildSelectionKeys(selectedInfo);
+
+  if (selectedHit && selectedObj) {
+    if (selectedObj.isInstancedMesh && selectedHit.instanceId != null) {
+      const memberId = selectedInfo?.id ? String(selectedInfo.id) : null;
+      const base = (memberId && state.memberColorById?.get(memberId)) || selectedInfo?.baseColor || white;
+      const tint = base.clone().lerp(white, 0.45);
+      if (memberId) {
+        setMemberInstanceTint(memberId, tint);
+        state.highlightedMemberIds?.add(memberId);
+      }
+    } else {
+      const baseColor = selectedObj.userData?.baseColor
+        ? selectedObj.userData.baseColor
+        : (selectedObj.material?.color ? selectedObj.material.color : white);
+      highlightMesh(selectedObj, baseColor.clone().lerp(white, 0.35), 0.7, 0.85);
+    }
+
     applyHighlightsForKeys(selectionKeys, 1);
   }
+
   if (state.hoveredRef) {
     const hoverInfo = state.hoveredRef.refType === 'member'
-      ? { id: state.hoveredRef.refId, memberId: state.hoveredRef.refId }
-      : { file: state.hoveredRef.refId, name: state.hoveredRef.refId };
+      ? { type: 'member', id: String(state.hoveredRef.refId), memberId: String(state.hoveredRef.refId) }
+      : { type: 'file', file: state.hoveredRef.refId, name: state.hoveredRef.refId };
+
     const hoverKeys = buildSelectionKeys(hoverInfo);
     applyHighlightsForKeys(hoverKeys, 0.6);
+
     if (state.hoveredRef.refType === 'file' && state.fileMeshByKey.has(state.hoveredRef.refId)) {
-      highlightMesh(state.fileMeshByKey.get(state.hoveredRef.refId), new state.THREE.Color(0xffffff), 0.35, 0.35);
+      highlightMesh(state.fileMeshByKey.get(state.hoveredRef.refId), white, 0.35, 0.35);
     }
-    if (state.hoveredRef.refType === 'member' && state.memberMeshById.has(state.hoveredRef.refId)) {
-      highlightMesh(state.memberMeshById.get(state.hoveredRef.refId), new state.THREE.Color(0xffffff), 0.35, 0.35);
+
+    if (state.hoveredRef.refType === 'member') {
+      const memberId = String(state.hoveredRef.refId);
+      const base = state.memberColorById?.get(memberId) || white;
+      const tint = base.clone().lerp(white, 0.25);
+      setMemberInstanceTint(memberId, tint);
+      state.highlightedMemberIds?.add(memberId);
     }
   }
-  if (state.hoveredMesh && !state.selected) {
-    const baseColor = state.hoveredMesh.userData?.baseColor
-      ? state.hoveredMesh.userData.baseColor.clone().lerp(new state.THREE.Color(0xffffff), 0.25)
-      : new state.THREE.Color(0xffffff);
-    highlightMesh(state.hoveredMesh, baseColor, 0.35, 0.4);
+
+  const hoveredHit = state.hovered;
+  if (hoveredHit && !state.selected) {
+    const hoveredObj = hoveredHit.object || null;
+    if (hoveredObj) {
+      if (hoveredObj.isInstancedMesh && hoveredHit.instanceId != null) {
+        const hoverInfo = resolveHitInfo(hoveredHit);
+        const memberId = hoverInfo?.id ? String(hoverInfo.id) : null;
+        const base = (memberId && state.memberColorById?.get(memberId)) || hoverInfo?.baseColor || white;
+        const tint = base.clone().lerp(white, 0.25);
+        if (memberId) {
+          setMemberInstanceTint(memberId, tint);
+          state.highlightedMemberIds?.add(memberId);
+        }
+      } else {
+        const baseColor = hoveredObj.userData?.baseColor
+          ? hoveredObj.userData.baseColor.clone().lerp(white, 0.25)
+          : white;
+        highlightMesh(hoveredObj, baseColor, 0.35, 0.4);
+      }
+    }
   }
 };
 
-export const setSelection = (object) => {
-  state.selected = object;
-  const info = state.selected ? (state.selected.userData || {}) : null;
+export const setSelection = (hit) => {
+  state.selected = hit;
+  const info = resolveHitInfo(hit);
   renderSelectionDetails(info);
   applyHighlights();
 };
@@ -486,7 +558,9 @@ const buildOpenUri = (info) => {
 
 export const openSelection = () => {
   if (!state.selected) return;
-  const uri = buildOpenUri(state.selected.userData || {});
+  const info = resolveHitInfo(state.selected);
+  const uri = buildOpenUri(info || {});
   if (uri) window.location.href = uri;
 };
+
 

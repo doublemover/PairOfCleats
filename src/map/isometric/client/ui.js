@@ -11,6 +11,7 @@ import {
   updateMemberOpacity,
   updateWireframes
 } from './materials.js';
+import { applyRendererSettings } from './scene.js';
 import { scheduleRebuild } from './rebuild.js';
 import { renderSelectionDetails } from './selection.js';
 import { clearGroup } from './scene-utils.js';
@@ -151,18 +152,8 @@ export const syncStateFromPanel = () => {
 };
 
 export const renderEdgeMenu = () => {
-  const { dom, edgeTypes, edgeVisibility, edgeTypeGroups, visuals, visualDefaults } = state;
+  const { dom, edgeTypes, edgeVisibility, edgeTypeGroups } = state;
   dom.menuEdges.textContent = '';
-  createToggle(dom.menuEdges, {
-    label: 'Curve edges',
-    checked: visuals.curveEdges ?? visualDefaults.curveEdges,
-    onChange: (value) => {
-      setNested(state.panelState, 'visuals.curveEdges', value);
-      syncStateFromPanel();
-      scheduleRebuild();
-      persistPanelState();
-    }
-  });
   if (!edgeTypes.length) {
     const empty = document.createElement('div');
     empty.textContent = 'No edges available';
@@ -228,18 +219,8 @@ export const initUi = () => {
       if (state.gridLines) state.gridLines.visible = value;
     }
   });
-  createToggle(dom.menuView, {
-    label: 'Files',
-    onChange: (value) => {
-      fileGroup.visible = value;
-    }
-  });
-  createToggle(dom.menuView, {
-    label: 'Members',
-    onChange: (value) => {
-      memberGroup.visible = value;
-    }
-  });
+  createToggle(dom.menuView, { label: 'Files', onChange: (value) => { fileGroup.visible = value; } });
+  createToggle(dom.menuView, { label: 'Members', onChange: (value) => { memberGroup.visible = value; } });
   createToggle(dom.menuView, {
     label: 'Labels',
     checked: false,
@@ -253,83 +234,17 @@ export const initUi = () => {
       }
     }
   });
-  createToggle(dom.menuView, {
-    label: 'Wireframes',
-    onChange: (value) => {
-      wireGroup.visible = value;
-    }
-  });
-  createToggle(dom.menuView, {
-    label: 'Edges',
-    onChange: (value) => {
-      edgeGroup.visible = value;
-    }
-  });
+  createToggle(dom.menuView, { label: 'Wireframes', onChange: (value) => { wireGroup.visible = value; } });
+  createToggle(dom.menuView, { label: 'Edges', onChange: (value) => { edgeGroup.visible = value; } });
 
-  createSlider(dom.menuControls, {
-    label: 'Pan sensitivity',
-    path: 'controls.panSensitivity',
-    min: 0.2,
-    max: 4,
-    step: 0.1,
-    defaultValue: controlDefaults.panSensitivity,
-    rebuild: false
-  });
-  createSlider(dom.menuControls, {
-    label: 'Zoom damping',
-    path: 'controls.zoomDamping',
-    min: 0.6,
-    max: 0.98,
-    step: 0.01,
-    defaultValue: controlDefaults.zoomDamping,
-    format: (value) => value.toFixed(2),
-    rebuild: false
-  });
-  createSlider(dom.menuControls, {
-    label: 'Zoom max',
-    path: 'controls.zoomMax',
-    min: 4,
-    max: 120,
-    step: 1,
-    defaultValue: controlDefaults.zoomMax,
-    rebuild: false
-  });
-  createSlider(dom.menuControls, {
-    label: 'WASD sensitivity',
-    path: 'controls.wasd.sensitivity',
-    min: 100,
-    max: 50000,
-    step: 100,
-    defaultValue: controlDefaults.wasd.sensitivity,
-    rebuild: false
-  });
-  createSlider(dom.menuControls, {
-    label: 'WASD accel',
-    path: 'controls.wasd.acceleration',
-    min: 100,
-    max: 20000,
-    step: 100,
-    defaultValue: controlDefaults.wasd.acceleration,
-    rebuild: false
-  });
-  createSlider(dom.menuControls, {
-    label: 'WASD max',
-    path: 'controls.wasd.maxSpeed',
-    min: 100,
-    max: 60000,
-    step: 500,
-    defaultValue: controlDefaults.wasd.maxSpeed,
-    rebuild: false
-  });
-  createSlider(dom.menuControls, {
-    label: 'WASD drag',
-    path: 'controls.wasd.drag',
-    min: 1,
-    max: 20,
-    step: 0.5,
-    defaultValue: controlDefaults.wasd.drag,
-    rebuild: false
-  });
+  createSlider(dom.menuControls, { label: 'Pan sensitivity', path: 'controls.panSensitivity', min: 0.2, max: 4, step: 0.1, defaultValue: controlDefaults.panSensitivity, rebuild: false });
+  createSlider(dom.menuControls, { label: 'Zoom sensitivity', path: 'controls.zoomSensitivity', min: 0.5, max: 40, step: 0.5, defaultValue: controlDefaults.zoomSensitivity, rebuild: false });
+  createSlider(dom.menuControls, { label: 'Zoom damping', path: 'controls.zoomDamping', min: 0.6, max: 0.98, step: 0.01, defaultValue: controlDefaults.zoomDamping, format: (value) => value.toFixed(2), rebuild: false });
+  createSlider(dom.menuControls, { label: 'Zoom max', path: 'controls.zoomMax', min: 4, max: 120, step: 1, defaultValue: controlDefaults.zoomMax, rebuild: false });
+  createSlider(dom.menuControls, { label: 'WASD sensitivity', path: 'controls.wasd.sensitivity', min: 100, max: 50000, step: 100, defaultValue: controlDefaults.wasd.sensitivity, rebuild: false });
+  createSlider(dom.menuControls, { label: 'WASD accel', path: 'controls.wasd.acceleration', min: 100, max: 20000, step: 100, defaultValue: controlDefaults.wasd.acceleration, rebuild: false });
+  createSlider(dom.menuControls, { label: 'WASD max', path: 'controls.wasd.maxSpeed', min: 100, max: 60000, step: 500, defaultValue: controlDefaults.wasd.maxSpeed, rebuild: false });
+  createSlider(dom.menuControls, { label: 'WASD drag', path: 'controls.wasd.drag', min: 1, max: 20, step: 0.5, defaultValue: controlDefaults.wasd.drag, rebuild: false });
 
   createSelect(dom.menuLayout, {
     label: 'Layout style',
@@ -338,8 +253,9 @@ export const initUi = () => {
     options: [
       { label: 'Clustered', value: 'clustered' },
       { label: 'Flow', value: 'flow' },
-      { label: 'Hex grid', value: 'hex' },
+      { label: 'Dependency lanes', value: 'lanes' },
       { label: 'Radial', value: 'radial' },
+      { label: 'Spiral', value: 'spiral' },
       { label: 'Flat grid', value: 'flat' },
       { label: 'Stream', value: 'stream' }
     ],
@@ -360,19 +276,7 @@ export const initUi = () => {
       { label: 'Mixed', value: 'mix' },
       { label: 'Square', value: 'square' },
       { label: 'Circle', value: 'circle' },
-      { label: 'Pyramid', value: 'pyramid' },
-      { label: 'Pentagon', value: 'pentagon' },
-      { label: 'Hexagon', value: 'hexagon' },
-      { label: 'Heptagon', value: 'heptagon' },
-      { label: 'Octagon', value: 'octagon' },
-      { label: 'Pentagon pyramid', value: 'pentagon-pyramid' },
-      { label: 'Hexagon pyramid', value: 'hexagon-pyramid' },
-      { label: 'Heptagon pyramid', value: 'heptagon-pyramid' },
-      { label: 'Octagon pyramid', value: 'octagon-pyramid' },
-      { label: 'Pentagon frustum', value: 'pentagon-frustum' },
-      { label: 'Hexagon frustum', value: 'hexagon-frustum' },
-      { label: 'Heptagon frustum', value: 'heptagon-frustum' },
-      { label: 'Octagon frustum', value: 'octagon-frustum' }
+      { label: 'Pyramid', value: 'pyramid' }
     ],
     onChange: (value) => {
       setNested(state.panelState, 'layout.fileShape', value);
@@ -391,19 +295,7 @@ export const initUi = () => {
       { label: 'Mixed', value: 'mix' },
       { label: 'Square', value: 'square' },
       { label: 'Circle', value: 'circle' },
-      { label: 'Pyramid', value: 'pyramid' },
-      { label: 'Pentagon', value: 'pentagon' },
-      { label: 'Hexagon', value: 'hexagon' },
-      { label: 'Heptagon', value: 'heptagon' },
-      { label: 'Octagon', value: 'octagon' },
-      { label: 'Pentagon pyramid', value: 'pentagon-pyramid' },
-      { label: 'Hexagon pyramid', value: 'hexagon-pyramid' },
-      { label: 'Heptagon pyramid', value: 'heptagon-pyramid' },
-      { label: 'Octagon pyramid', value: 'octagon-pyramid' },
-      { label: 'Pentagon frustum', value: 'pentagon-frustum' },
-      { label: 'Hexagon frustum', value: 'hexagon-frustum' },
-      { label: 'Heptagon frustum', value: 'heptagon-frustum' },
-      { label: 'Octagon frustum', value: 'octagon-frustum' }
+      { label: 'Pyramid', value: 'pyramid' }
     ],
     onChange: (value) => {
       setNested(state.panelState, 'layout.memberShape', value);
@@ -413,183 +305,40 @@ export const initUi = () => {
     }
   });
 
-  createSlider(dom.menuLayout, {
-    label: 'Group spacing',
-    path: 'layout.groupSpacing',
-    min: 0,
-    max: 16,
-    step: 0.5,
-    defaultValue: layoutDefaults.groupSpacing
-  });
-  createSlider(dom.menuLayout, {
-    label: 'File spacing',
-    path: 'layout.fileSpacing',
-    min: 0,
-    max: 12,
-    step: 0.5,
-    defaultValue: layoutDefaults.fileSpacing
-  });
-  createSlider(dom.menuLayout, {
-    label: 'Compactness',
-    path: 'layout.compactness',
-    min: 0.5,
-    max: 1.4,
-    step: 0.05,
-    defaultValue: layoutDefaults.compactness
-  });
-  createSlider(dom.menuLayout, {
-    label: 'Routing padding',
-    path: 'layout.routingPadding',
-    min: 0,
-    max: 3,
-    step: 0.1,
-    defaultValue: layoutDefaults.routingPadding
-  });
-  createSlider(dom.menuLayout, {
-    label: 'Routing step',
-    path: 'layout.routingStep',
-    min: 0.5,
-    max: 5,
-    step: 0.1,
-    defaultValue: layoutDefaults.routingStep
-  });
-  createSlider(dom.menuLayout, {
-    label: 'Edge plane',
-    path: 'layout.edgePlane',
-    min: -4,
-    max: 0.5,
-    step: 0.05,
-    defaultValue: layoutDefaults.edgePlane
-  });
-  createSlider(dom.menuLayout, {
-    label: 'Label size',
-    path: 'layout.labelScale',
-    min: 0.01,
-    max: 0.04,
-    step: 0.002,
-    defaultValue: layoutDefaults.labelScale,
-    format: (value) => value.toFixed(3)
-  });
-  createSlider(dom.menuLayout, {
-    label: 'Label offset',
-    path: 'layout.labelOffset',
-    min: 0,
-    max: 1.5,
-    step: 0.05,
-    defaultValue: layoutDefaults.labelOffset
-  });
+  createSlider(dom.menuLayout, { label: 'Group spacing', path: 'layout.groupSpacing', min: 0, max: 16, step: 0.5, defaultValue: layoutDefaults.groupSpacing });
+  createSlider(dom.menuLayout, { label: 'File spacing', path: 'layout.fileSpacing', min: 0, max: 12, step: 0.5, defaultValue: layoutDefaults.fileSpacing });
+  createSlider(dom.menuLayout, { label: 'Compactness', path: 'layout.compactness', min: 0.5, max: 1.4, step: 0.05, defaultValue: layoutDefaults.compactness });
+  createSlider(dom.menuLayout, { label: 'Routing padding', path: 'layout.routingPadding', min: 0, max: 3, step: 0.1, defaultValue: layoutDefaults.routingPadding });
+  createSlider(dom.menuLayout, { label: 'Routing step', path: 'layout.routingStep', min: 0.5, max: 5, step: 0.1, defaultValue: layoutDefaults.routingStep });
+  createSlider(dom.menuLayout, { label: 'Edge plane', path: 'layout.edgePlane', min: -4, max: 0.5, step: 0.05, defaultValue: layoutDefaults.edgePlane });
+  createSlider(dom.menuLayout, { label: 'Label size', path: 'layout.labelScale', min: 0.01, max: 0.04, step: 0.002, defaultValue: layoutDefaults.labelScale, format: (value) => value.toFixed(3) });
+  createSlider(dom.menuLayout, { label: 'Label offset', path: 'layout.labelOffset', min: 0, max: 1.5, step: 0.05, defaultValue: layoutDefaults.labelOffset });
 
-  createSlider(dom.menuScore, {
-    label: 'Dataflow weight',
-    path: 'scoring.dataflow',
-    min: 0,
-    max: 2,
-    step: 0.05,
-    defaultValue: scoringDefaults.dataflow
-  });
-  createSlider(dom.menuScore, {
-    label: 'Controlflow weight',
-    path: 'scoring.controlFlow',
-    min: 0,
-    max: 2,
-    step: 0.05,
-    defaultValue: scoringDefaults.controlFlow
-  });
-  createSlider(dom.menuScore, {
-    label: 'Params weight',
-    path: 'scoring.params',
-    min: 0,
-    max: 1.5,
-    step: 0.05,
-    defaultValue: scoringDefaults.params
-  });
-  createSlider(dom.menuScore, {
-    label: 'Signature weight',
-    path: 'scoring.signature',
-    min: 0,
-    max: 0.15,
-    step: 0.01,
-    defaultValue: scoringDefaults.signature,
-    format: (value) => value.toFixed(2)
-  });
-  createSlider(dom.menuScore, {
-    label: 'Exported boost',
-    path: 'scoring.exported',
-    min: 0,
-    max: 3,
-    step: 0.1,
-    defaultValue: scoringDefaults.exported
-  });
-  createSlider(dom.menuScore, {
-    label: 'Modifiers weight',
-    path: 'scoring.modifiers',
-    min: 0,
-    max: 1.5,
-    step: 0.05,
-    defaultValue: scoringDefaults.modifiers
-  });
-  createSlider(dom.menuScore, {
-    label: 'Type weight',
-    path: 'scoring.type',
-    min: 0,
-    max: 2,
-    step: 0.05,
-    defaultValue: scoringDefaults.type
-  });
-  createSlider(dom.menuScore, {
-    label: 'Returns weight',
-    path: 'scoring.returns',
-    min: 0,
-    max: 2,
-    step: 0.05,
-    defaultValue: scoringDefaults.returns
-  });
+  const scoringWeights = document.createElement('details');
+  const scoringSummary = document.createElement('summary');
+  scoringSummary.textContent = 'Weights';
+  scoringWeights.appendChild(scoringSummary);
+  const scoringWrap = document.createElement('div');
+  scoringWrap.style.display = 'flex';
+  scoringWrap.style.flexDirection = 'column';
+  scoringWrap.style.gap = '0.35rem';
+  scoringWeights.appendChild(scoringWrap);
+  dom.menuScore.appendChild(scoringWeights);
 
-  createSlider(dom.menuColors, {
-    label: 'Hue start',
-    path: 'colors.hueStart',
-    min: 0,
-    max: 1,
-    step: 0.01,
-    defaultValue: colorDefaults.hueStart,
-    format: (value) => value.toFixed(2)
-  });
-  createSlider(dom.menuColors, {
-    label: 'Hue end',
-    path: 'colors.hueEnd',
-    min: 0,
-    max: 1,
-    step: 0.01,
-    defaultValue: colorDefaults.hueEnd,
-    format: (value) => value.toFixed(2)
-  });
-  createSlider(dom.menuColors, {
-    label: 'Saturation',
-    path: 'colors.saturation',
-    min: 0.2,
-    max: 1,
-    step: 0.02,
-    defaultValue: colorDefaults.saturation,
-    format: (value) => value.toFixed(2)
-  });
-  createSlider(dom.menuColors, {
-    label: 'Light min',
-    path: 'colors.lightnessMin',
-    min: 0.2,
-    max: 0.8,
-    step: 0.02,
-    defaultValue: colorDefaults.lightnessMin,
-    format: (value) => value.toFixed(2)
-  });
-  createSlider(dom.menuColors, {
-    label: 'Light max',
-    path: 'colors.lightnessMax',
-    min: 0.3,
-    max: 0.95,
-    step: 0.02,
-    defaultValue: colorDefaults.lightnessMax,
-    format: (value) => value.toFixed(2)
-  });
+  createSlider(scoringWrap, { label: 'Dataflow weight', path: 'scoring.dataflow', min: 0, max: 2, step: 0.05, defaultValue: scoringDefaults.dataflow });
+  createSlider(scoringWrap, { label: 'Controlflow weight', path: 'scoring.controlFlow', min: 0, max: 2, step: 0.05, defaultValue: scoringDefaults.controlFlow });
+  createSlider(scoringWrap, { label: 'Params weight', path: 'scoring.params', min: 0, max: 1.5, step: 0.05, defaultValue: scoringDefaults.params });
+  createSlider(scoringWrap, { label: 'Signature weight', path: 'scoring.signature', min: 0, max: 0.15, step: 0.01, defaultValue: scoringDefaults.signature, format: (value) => value.toFixed(2) });
+  createSlider(scoringWrap, { label: 'Exported boost', path: 'scoring.exported', min: 0, max: 3, step: 0.1, defaultValue: scoringDefaults.exported });
+  createSlider(scoringWrap, { label: 'Modifiers weight', path: 'scoring.modifiers', min: 0, max: 1.5, step: 0.05, defaultValue: scoringDefaults.modifiers });
+  createSlider(scoringWrap, { label: 'Type weight', path: 'scoring.type', min: 0, max: 2, step: 0.05, defaultValue: scoringDefaults.type });
+  createSlider(scoringWrap, { label: 'Returns weight', path: 'scoring.returns', min: 0, max: 2, step: 0.05, defaultValue: scoringDefaults.returns });
+
+  createSlider(dom.menuColors, { label: 'Hue start', path: 'colors.hueStart', min: 0, max: 1, step: 0.01, defaultValue: colorDefaults.hueStart, format: (value) => value.toFixed(2) });
+  createSlider(dom.menuColors, { label: 'Hue end', path: 'colors.hueEnd', min: 0, max: 1, step: 0.01, defaultValue: colorDefaults.hueEnd, format: (value) => value.toFixed(2) });
+  createSlider(dom.menuColors, { label: 'Saturation', path: 'colors.saturation', min: 0.2, max: 1, step: 0.02, defaultValue: colorDefaults.saturation, format: (value) => value.toFixed(2) });
+  createSlider(dom.menuColors, { label: 'Light min', path: 'colors.lightnessMin', min: 0.2, max: 0.8, step: 0.02, defaultValue: colorDefaults.lightnessMin, format: (value) => value.toFixed(2) });
+  createSlider(dom.menuColors, { label: 'Light max', path: 'colors.lightnessMax', min: 0.3, max: 0.95, step: 0.02, defaultValue: colorDefaults.lightnessMax, format: (value) => value.toFixed(2) });
 
   createSelect(dom.menuColorMode, {
     label: 'Color mode',
@@ -597,7 +346,8 @@ export const initUi = () => {
     defaultValue: colorDefaults.mode || 'score',
     options: [
       { label: 'Score gradient', value: 'score' },
-      { label: 'Distinct (hash)', value: 'distinct' }
+      { label: 'Distinct (hash)', value: 'distinct' },
+      { label: 'Distinct (palette)', value: 'palette' }
     ],
     onChange: (value) => {
       setNested(state.panelState, 'colors.mode', value);
@@ -606,251 +356,30 @@ export const initUi = () => {
       persistPanelState();
     }
   });
-  createSlider(dom.menuColorMode, {
-    label: 'Distinct saturation',
-    path: 'colors.distinctSaturation',
-    min: 0.2,
-    max: 1,
-    step: 0.02,
-    defaultValue: colorDefaults.distinctSaturation,
-    format: (value) => value.toFixed(2)
-  });
-  createSlider(dom.menuColorMode, {
-    label: 'Distinct lightness',
-    path: 'colors.distinctLightness',
-    min: 0.2,
-    max: 0.85,
-    step: 0.02,
-    defaultValue: colorDefaults.distinctLightness,
-    format: (value) => value.toFixed(2)
-  });
-  createSlider(dom.menuColorMode, {
-    label: 'Distinct hue offset',
-    path: 'colors.distinctHueOffset',
-    min: 0,
-    max: 1,
-    step: 0.01,
-    defaultValue: colorDefaults.distinctHueOffset,
-    format: (value) => value.toFixed(2)
-  });
+  createSlider(dom.menuColorMode, { label: 'Distinct saturation', path: 'colors.distinctSaturation', min: 0.2, max: 1, step: 0.02, defaultValue: colorDefaults.distinctSaturation, format: (value) => value.toFixed(2) });
+  createSlider(dom.menuColorMode, { label: 'Distinct lightness', path: 'colors.distinctLightness', min: 0.2, max: 0.85, step: 0.02, defaultValue: colorDefaults.distinctLightness, format: (value) => value.toFixed(2) });
+  createSlider(dom.menuColorMode, { label: 'Distinct hue offset', path: 'colors.distinctHueOffset', min: 0, max: 1, step: 0.01, defaultValue: colorDefaults.distinctHueOffset, format: (value) => value.toFixed(2) });
 
-  createSlider(dom.menuVisuals, {
-    label: 'File opacity',
-    path: 'visuals.fileOpacity',
-    min: 0.1,
-    max: 1,
-    step: 0.05,
-    defaultValue: visualDefaults.fileOpacity,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: updateFileOpacity
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Member opacity',
-    path: 'visuals.memberOpacity',
-    min: 0.1,
-    max: 1,
-    step: 0.05,
-    defaultValue: visualDefaults.memberOpacity,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: updateMemberOpacity
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Wireframe thickness',
-    path: 'visuals.wireframeThickness',
-    min: 0.01,
-    max: 10,
-    step: 0.02,
-    defaultValue: visualDefaults.wireframeThickness,
-    rebuild: false,
-    onInput: updateWireframes
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Wireframe glow',
-    path: 'visuals.wireframeGlow',
-    min: 0,
-    max: 2.5,
-    step: 0.05,
-    defaultValue: visualDefaults.wireframeGlow,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: updateWireframes
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Wire pulse speed',
-    path: 'visuals.wirePulseSpeed',
-    min: 0.02,
-    max: 1,
-    step: 0.02,
-    defaultValue: visualDefaults.wirePulseSpeed,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: updateWireframes
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Flow glow base',
-    path: 'visuals.flowGlowBase',
-    min: 0,
-    max: 2,
-    step: 0.05,
-    defaultValue: visualDefaults.flowGlowBase,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: updateFlowGlow
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Flow glow pulse',
-    path: 'visuals.flowGlowRange',
-    min: 0,
-    max: 2,
-    step: 0.05,
-    defaultValue: visualDefaults.flowGlowRange,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: updateFlowGlow
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Glow speed',
-    path: 'visuals.glowPulseSpeed',
-    min: 0.4,
-    max: 4,
-    step: 0.1,
-    defaultValue: visualDefaults.glowPulseSpeed,
-    format: (value) => value.toFixed(1),
-    rebuild: false
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Glass roughness',
-    path: 'visuals.glass.roughness',
-    min: 0,
-    max: 1,
-    step: 0.02,
-    defaultValue: visualDefaults.glass.roughness,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: applyGlassSettings
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Glass metalness',
-    path: 'visuals.glass.metalness',
-    min: 0,
-    max: 1,
-    step: 0.02,
-    defaultValue: visualDefaults.glass.metalness,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: applyGlassSettings
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Glass transmission',
-    path: 'visuals.glass.transmission',
-    min: 0,
-    max: 1,
-    step: 0.02,
-    defaultValue: visualDefaults.glass.transmission,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: applyGlassSettings
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Glass IOR',
-    path: 'visuals.glass.ior',
-    min: 1,
-    max: 2.4,
-    step: 0.02,
-    defaultValue: visualDefaults.glass.ior,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: applyGlassSettings
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Glass reflectivity',
-    path: 'visuals.glass.reflectivity',
-    min: 0,
-    max: 1,
-    step: 0.02,
-    defaultValue: visualDefaults.glass.reflectivity,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: applyGlassSettings
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Glass thickness',
-    path: 'visuals.glass.thickness',
-    min: 0.1,
-    max: 10,
-    step: 0.1,
-    defaultValue: visualDefaults.glass.thickness,
-    format: (value) => value.toFixed(1),
-    rebuild: false,
-    onInput: applyGlassSettings
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Env intensity',
-    path: 'visuals.glass.envMapIntensity',
-    min: 0,
-    max: 8,
-    step: 0.1,
-    defaultValue: visualDefaults.glass.envMapIntensity,
-    format: (value) => value.toFixed(1),
-    rebuild: false,
-    onInput: applyGlassSettings
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Clearcoat',
-    path: 'visuals.glass.clearcoat',
-    min: 0,
-    max: 1,
-    step: 0.02,
-    defaultValue: visualDefaults.glass.clearcoat,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: applyGlassSettings
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Clearcoat rough',
-    path: 'visuals.glass.clearcoatRoughness',
-    min: 0,
-    max: 1,
-    step: 0.02,
-    defaultValue: visualDefaults.glass.clearcoatRoughness,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: applyGlassSettings
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Normal scale',
-    path: 'visuals.glass.normalScale',
-    min: 0,
-    max: 2,
-    step: 0.05,
-    defaultValue: visualDefaults.glass.normalScale,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: applyGlassSettings
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Clearcoat normal',
-    path: 'visuals.glass.clearcoatNormalScale',
-    min: 0,
-    max: 2,
-    step: 0.05,
-    defaultValue: visualDefaults.glass.clearcoatNormalScale,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: applyGlassSettings
-  });
-  createSlider(dom.menuVisuals, {
-    label: 'Normal repeat',
-    path: 'visuals.glass.normalRepeat',
-    min: 1,
-    max: 6,
-    step: 1,
-    defaultValue: visualDefaults.glass.normalRepeat,
-    rebuild: false,
-    onInput: applyGlassSettings
-  });
+  createSlider(dom.menuVisuals, { label: 'File opacity', path: 'visuals.fileOpacity', min: 0.1, max: 1, step: 0.05, defaultValue: visualDefaults.fileOpacity, format: (value) => value.toFixed(2), rebuild: false, onInput: updateFileOpacity });
+  createSlider(dom.menuVisuals, { label: 'Member opacity', path: 'visuals.memberOpacity', min: 0.1, max: 1, step: 0.05, defaultValue: visualDefaults.memberOpacity, format: (value) => value.toFixed(2), rebuild: false, onInput: updateMemberOpacity });
+  createSlider(dom.menuVisuals, { label: 'Wireframe thickness', path: 'visuals.wireframeThickness', min: 0.02, max: 2.5, step: 0.02, defaultValue: visualDefaults.wireframeThickness, rebuild: false, onInput: updateWireframes });
+  createSlider(dom.menuVisuals, { label: 'Wireframe glow', path: 'visuals.wireframeGlow', min: 0, max: 1, step: 0.05, defaultValue: visualDefaults.wireframeGlow, format: (value) => value.toFixed(2), rebuild: false, onInput: updateWireframes });
+  createSlider(dom.menuVisuals, { label: 'Wire pulse speed', path: 'visuals.wirePulseSpeed', min: 0.02, max: 1, step: 0.02, defaultValue: visualDefaults.wirePulseSpeed, format: (value) => value.toFixed(2), rebuild: false, onInput: updateWireframes });
+  createSlider(dom.menuVisuals, { label: 'Flow glow base', path: 'visuals.flowGlowBase', min: 0, max: 2, step: 0.05, defaultValue: visualDefaults.flowGlowBase, format: (value) => value.toFixed(2), rebuild: false, onInput: updateFlowGlow });
+  createSlider(dom.menuVisuals, { label: 'Flow glow pulse', path: 'visuals.flowGlowRange', min: 0, max: 2, step: 0.05, defaultValue: visualDefaults.flowGlowRange, format: (value) => value.toFixed(2), rebuild: false, onInput: updateFlowGlow });
+  createSlider(dom.menuVisuals, { label: 'Glow speed', path: 'visuals.glowPulseSpeed', min: 0.4, max: 4, step: 0.1, defaultValue: visualDefaults.glowPulseSpeed, format: (value) => value.toFixed(1), rebuild: false });
+  createSlider(dom.menuVisuals, { label: 'Glass roughness', path: 'visuals.glass.roughness', min: 0, max: 1, step: 0.02, defaultValue: visualDefaults.glass.roughness, format: (value) => value.toFixed(2), rebuild: false, onInput: applyGlassSettings });
+  createSlider(dom.menuVisuals, { label: 'Glass metalness', path: 'visuals.glass.metalness', min: 0, max: 1, step: 0.02, defaultValue: visualDefaults.glass.metalness, format: (value) => value.toFixed(2), rebuild: false, onInput: applyGlassSettings });
+  createSlider(dom.menuVisuals, { label: 'Glass transmission', path: 'visuals.glass.transmission', min: 0, max: 1, step: 0.02, defaultValue: visualDefaults.glass.transmission, format: (value) => value.toFixed(2), rebuild: false, onInput: applyGlassSettings });
+  createSlider(dom.menuVisuals, { label: 'Glass IOR', path: 'visuals.glass.ior', min: 1, max: 2.4, step: 0.02, defaultValue: visualDefaults.glass.ior, format: (value) => value.toFixed(2), rebuild: false, onInput: applyGlassSettings });
+  createSlider(dom.menuVisuals, { label: 'Glass reflectivity', path: 'visuals.glass.reflectivity', min: 0, max: 1, step: 0.02, defaultValue: visualDefaults.glass.reflectivity, format: (value) => value.toFixed(2), rebuild: false, onInput: applyGlassSettings });
+  createSlider(dom.menuVisuals, { label: 'Glass thickness', path: 'visuals.glass.thickness', min: 0.1, max: 10, step: 0.1, defaultValue: visualDefaults.glass.thickness, format: (value) => value.toFixed(1), rebuild: false, onInput: applyGlassSettings });
+  createSlider(dom.menuVisuals, { label: 'Env intensity', path: 'visuals.glass.envMapIntensity', min: 0, max: 8, step: 0.1, defaultValue: visualDefaults.glass.envMapIntensity, format: (value) => value.toFixed(1), rebuild: false, onInput: applyGlassSettings });
+  createSlider(dom.menuVisuals, { label: 'Clearcoat', path: 'visuals.glass.clearcoat', min: 0, max: 1, step: 0.02, defaultValue: visualDefaults.glass.clearcoat, format: (value) => value.toFixed(2), rebuild: false, onInput: applyGlassSettings });
+  createSlider(dom.menuVisuals, { label: 'Clearcoat rough', path: 'visuals.glass.clearcoatRoughness', min: 0, max: 1, step: 0.02, defaultValue: visualDefaults.glass.clearcoatRoughness, format: (value) => value.toFixed(2), rebuild: false, onInput: applyGlassSettings });
+  createSlider(dom.menuVisuals, { label: 'Normal scale', path: 'visuals.glass.normalScale', min: 0, max: 2, step: 0.05, defaultValue: visualDefaults.glass.normalScale, format: (value) => value.toFixed(2), rebuild: false, onInput: applyGlassSettings });
+  createSlider(dom.menuVisuals, { label: 'Clearcoat normal', path: 'visuals.glass.clearcoatNormalScale', min: 0, max: 2, step: 0.05, defaultValue: visualDefaults.glass.clearcoatNormalScale, format: (value) => value.toFixed(2), rebuild: false, onInput: applyGlassSettings });
+  createSlider(dom.menuVisuals, { label: 'Normal repeat', path: 'visuals.glass.normalRepeat', min: 1, max: 6, step: 1, defaultValue: visualDefaults.glass.normalRepeat, rebuild: false, onInput: applyGlassSettings });
 
   createToggle(dom.menuEffects, {
     label: 'Fog',
@@ -872,46 +401,31 @@ export const initUi = () => {
       persistPanelState();
     }
   });
-  createSlider(dom.menuEffects, {
-    label: 'Fog distance',
-    path: 'visuals.fogDistance',
-    min: 1.2,
-    max: 4,
-    step: 0.1,
-    defaultValue: visualDefaults.fogDistance,
-    format: (value) => value.toFixed(1),
-    rebuild: false,
-    onInput: () => updateFog()
+  createToggle(dom.menuEffects, {
+    label: 'Shadows',
+    checked: visuals.enableShadows === true,
+    onChange: (value) => {
+      setNested(state.panelState, 'visuals.enableShadows', value);
+      syncStateFromPanel();
+      applyRendererSettings();
+      persistPanelState();
+    }
   });
-  createSlider(dom.menuEffects, {
-    label: 'Fog height',
-    path: 'visuals.fogHeight',
-    min: 0,
-    max: 40,
-    step: 0.5,
-    defaultValue: visualDefaults.fogHeight,
-    format: (value) => value.toFixed(1),
-    rebuild: false,
-    onInput: () => updateFog()
-  });
-  createSlider(dom.menuEffects, {
-    label: 'Fog height range',
-    path: 'visuals.fogHeightRange',
-    min: 4,
-    max: 40,
-    step: 0.5,
-    defaultValue: visualDefaults.fogHeightRange,
-    format: (value) => value.toFixed(1),
-    rebuild: false,
-    onInput: () => updateFog()
-  });
+  createSlider(dom.menuEffects, { label: 'Pixel ratio cap', path: 'visuals.pixelRatioCap', min: 0.5, max: 2.5, step: 0.05, defaultValue: visualDefaults.pixelRatioCap, format: (value) => value.toFixed(2), rebuild: false, onInput: applyRendererSettings });
+  createSlider(dom.menuEffects, { label: 'Fog distance', path: 'visuals.fogDistance', min: 1.2, max: 4, step: 0.1, defaultValue: visualDefaults.fogDistance, format: (value) => value.toFixed(1), rebuild: false, onInput: () => updateFog() });
+  createSlider(dom.menuEffects, { label: 'Fog height', path: 'visuals.fogHeight', min: 0, max: 40, step: 0.5, defaultValue: visualDefaults.fogHeight, format: (value) => value.toFixed(1), rebuild: false, onInput: () => updateFog() });
+  createSlider(dom.menuEffects, { label: 'Fog height range', path: 'visuals.fogHeightRange', min: 4, max: 40, step: 0.5, defaultValue: visualDefaults.fogHeightRange, format: (value) => value.toFixed(1), rebuild: false, onInput: () => updateFog() });
   createToggle(dom.menuEffects, {
     label: 'Flow lights',
     checked: visuals.enableFlowLights !== false,
     onChange: (value) => {
       setNested(state.panelState, 'visuals.enableFlowLights', value);
       syncStateFromPanel();
-      updateFlowLights();
+      if (value && (!state.flowLights || state.flowLights.length === 0)) {
+        scheduleRebuild();
+      } else {
+        updateFlowLights();
+      }
       persistPanelState();
     }
   });
@@ -925,50 +439,10 @@ export const initUi = () => {
       persistPanelState();
     }
   });
-  createSlider(dom.menuEffects, {
-    label: 'Grid glow base',
-    path: 'visuals.gridGlowBase',
-    min: 0,
-    max: 0.6,
-    step: 0.02,
-    defaultValue: visualDefaults.gridGlowBase,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: updateGridGlow
-  });
-  createSlider(dom.menuEffects, {
-    label: 'Grid glow pulse',
-    path: 'visuals.gridGlowRange',
-    min: 0,
-    max: 1,
-    step: 0.02,
-    defaultValue: visualDefaults.gridGlowRange,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: updateGridGlow
-  });
-  createSlider(dom.menuEffects, {
-    label: 'Grid glow speed',
-    path: 'visuals.gridPulseSpeed',
-    min: 0.1,
-    max: 1,
-    step: 0.05,
-    defaultValue: visualDefaults.gridPulseSpeed,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: updateGridGlow
-  });
-  createSlider(dom.menuEffects, {
-    label: 'Grid line thickness',
-    path: 'visuals.gridLineThickness',
-    min: 0.02,
-    max: 6,
-    step: 0.05,
-    defaultValue: visualDefaults.gridLineThickness,
-    format: (value) => value.toFixed(2),
-    rebuild: false,
-    onInput: updateGridGlow
-  });
+  createSlider(dom.menuEffects, { label: 'Grid glow base', path: 'visuals.gridGlowBase', min: 0, max: 0.6, step: 0.02, defaultValue: visualDefaults.gridGlowBase, format: (value) => value.toFixed(2), rebuild: false, onInput: updateGridGlow });
+  createSlider(dom.menuEffects, { label: 'Grid glow pulse', path: 'visuals.gridGlowRange', min: 0, max: 1, step: 0.02, defaultValue: visualDefaults.gridGlowRange, format: (value) => value.toFixed(2), rebuild: false, onInput: updateGridGlow });
+  createSlider(dom.menuEffects, { label: 'Grid glow speed', path: 'visuals.gridPulseSpeed', min: 0.1, max: 1, step: 0.05, defaultValue: visualDefaults.gridPulseSpeed, format: (value) => value.toFixed(2), rebuild: false, onInput: updateGridGlow });
+  createSlider(dom.menuEffects, { label: 'Grid line thickness', path: 'visuals.gridLineThickness', min: 0.02, max: 6, step: 0.05, defaultValue: visualDefaults.gridLineThickness, format: (value) => value.toFixed(2), rebuild: false, onInput: updateGridGlow });
 
   createButton(dom.menuActions, 'Save settings', () => {
     persistPanelState();

@@ -43,9 +43,8 @@ const initViewer = async () => {
     }
   };
 
-  const flowWaveTotal =
-    flowWaveLayers.reduce((acc, layer) => acc + layer.amplitude, 0) || 1;
-  const RGBELoader = await loadRgbeLoader(assets.rgbeLoaderUrl);
+  const flowWaveTotal = flowWaveLayers.reduce((acc, layer) => acc + layer.amplitude, 0) || 1;
+  const RGBELoader = await loadRgbeLoader(assets.rgbeLoaderUrl, config.threeUrl);
 
   Object.assign(state, {
     map,
@@ -73,12 +72,20 @@ const initViewer = async () => {
     edgeVisibility: new Map(),
     gridVisible: true,
     hoveredRef: null,
-    hoveredMesh: null,
+    hovered: null,
     selected: null,
     fileMeshes: [],
     memberMeshes: [],
     chunkMeshes: [],
-    fileChunkMeshes: [],
+    // Instancing + performance structures.
+    memberInstancedMeshes: [],
+    memberInnerInstancedMeshes: [],
+    memberClusters: [],
+    memberInstanceById: new Map(),
+    highlightedMemberIds: new Set(),
+    instancedMemberMaterials: null,
+    instancedChunkMaterial: null,
+    pickTargets: [],
     fileAnchors: new Map(),
     memberAnchors: new Map(),
     fileMeshByKey: new Map(),
@@ -87,9 +94,6 @@ const initViewer = async () => {
     memberColorById: new Map(),
     wireByMesh: new Map(),
     edgeMeshes: [],
-    edgeSegments: [],
-    edgeDotMesh: null,
-    edgeDotMaterial: null,
     edgeTypeGroups: new Map(),
     edgeTypes: [],
     flowLights: [],
@@ -104,9 +108,7 @@ const initViewer = async () => {
   });
 
   const counts = map.summary?.counts || { files: 0, members: 0, edges: 0 };
-  dom.summary.textContent =
-    `files: ${counts.files || 0} | members: ${counts.members || 0}` +
-    ` | edges: ${counts.edges || 0}`;
+  dom.summary.textContent = `files: ${counts.files || 0} | members: ${counts.members || 0} | edges: ${counts.edges || 0}`;
 
   await initScene();
   initMapData();

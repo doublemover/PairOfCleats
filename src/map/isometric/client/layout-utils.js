@@ -1,38 +1,35 @@
 import { clamp, hashString } from './utils.js';
 
 const shapeForCategory = {
-  source: 'hexagon',
-  test: 'pentagon-pyramid',
-  config: 'octagon',
-  docs: 'heptagon',
+  source: 'square',
+  test: 'pyramid',
+  config: 'circle',
+  docs: 'circle',
   generated: 'square',
-  dir: 'pentagon',
+  dir: 'square',
   other: 'square'
 };
 
 const shapeForMemberType = {
   class: 'pyramid',
-  function: 'hexagon-pyramid',
+  function: 'circle',
   symbol: 'square'
 };
 
-const knownShapes = new Set([
-  'square',
-  'circle',
-  'pyramid',
-  'pentagon',
-  'hexagon',
-  'heptagon',
-  'octagon',
-  'pentagon-pyramid',
-  'hexagon-pyramid',
-  'heptagon-pyramid',
-  'octagon-pyramid',
-  'pentagon-frustum',
-  'hexagon-frustum',
-  'heptagon-frustum',
-  'octagon-frustum'
-]);
+const distinctPalette = [
+  0x4e79a7,
+  0xf28e2b,
+  0xe15759,
+  0x76b7b2,
+  0x59a14f,
+  0xedc948,
+  0xb07aa1,
+  0xff9da7,
+  0x9c755f,
+  0xbab0ac,
+  0x86bc86,
+  0xd37295
+];
 
 export const resolveShape = (mode, { key, category, type } = {}) => {
   const normalized = String(mode || 'square').toLowerCase();
@@ -43,14 +40,11 @@ export const resolveShape = (mode, { key, category, type } = {}) => {
   }
   if (normalized === 'mix') {
     const mixSeed = hashString(key || category || type || '');
-    if (mixSeed < 0.2) return 'square';
-    if (mixSeed < 0.4) return 'circle';
-    if (mixSeed < 0.6) return 'pyramid';
-    if (mixSeed < 0.75) return 'hexagon';
-    if (mixSeed < 0.9) return 'pentagon';
-    return 'octagon';
+    if (mixSeed < 0.34) return 'square';
+    if (mixSeed < 0.67) return 'circle';
+    return 'pyramid';
   }
-  if (knownShapes.has(normalized)) {
+  if (normalized === 'circle' || normalized === 'pyramid' || normalized === 'square') {
     return normalized;
   }
   return 'square';
@@ -104,6 +98,12 @@ export const scoreMember = (member, scoring) => {
 export const scoreToColor = (score, maxScore, colors, THREE, key) => {
   const mode = String(colors.mode || 'score').toLowerCase();
   const color = new THREE.Color();
+  if (mode === 'palette' || mode === 'distinct-palette') {
+    const seed = hashString(key || String(score || ''));
+    const idx = seed % distinctPalette.length;
+    color.setHex(distinctPalette[idx]);
+    return color;
+  }
   if (mode === 'distinct') {
     const seed = hashString(key || score || '');
     const normalized = seed / 0xffffffff;
@@ -196,12 +196,14 @@ export const layoutGridItems = (items, columns, spacing) => {
   const rows = Math.max(1, Math.ceil(count / cols));
   const colWidths = Array.from({ length: cols }, () => 0);
   const rowDepths = Array.from({ length: rows }, () => 0);
+
   items.forEach((item, index) => {
     const col = index % cols;
     const row = Math.floor(index / cols);
     colWidths[col] = Math.max(colWidths[col], item.width || 0);
     rowDepths[row] = Math.max(rowDepths[row], item.depth || 0);
   });
+
   const colOffsets = [];
   const rowOffsets = [];
   let offsetX = 0;
@@ -214,14 +216,14 @@ export const layoutGridItems = (items, columns, spacing) => {
     rowOffsets[row] = offsetZ;
     offsetZ += rowDepths[row] + spacing;
   }
+
   items.forEach((item, index) => {
     const col = index % cols;
     const row = Math.floor(index / cols);
-    const xPad = (colWidths[col] - item.width) / 2;
-    const zPad = (rowDepths[row] - item.depth) / 2;
-    item.x = colOffsets[col] + xPad;
-    item.z = rowOffsets[row] + zPad;
+    item.x = colOffsets[col] + colWidths[col] / 2;
+    item.z = rowOffsets[row] + rowDepths[row] / 2;
   });
+
   const totalWidth = colWidths.reduce((acc, value) => acc + value, 0) + spacing * (cols - 1);
   const totalDepth = rowDepths.reduce((acc, value) => acc + value, 0) + spacing * (rows - 1);
   return { width: totalWidth, depth: totalDepth, columns: cols, rows };
@@ -251,28 +253,6 @@ export const layoutRadialItems = (items, spacing) => {
   return { width: extent * 2, depth: extent * 2 };
 };
 
-export const layoutHexItems = (items, spacing) => {
-  const count = items.length;
-  if (!count) return { width: 0, depth: 0, columns: 0, rows: 0 };
-  const cols = Math.max(1, Math.ceil(Math.sqrt(count)));
-  const rows = Math.max(1, Math.ceil(count / cols));
-  const maxWidth = items.reduce((acc, item) => Math.max(acc, item.width || 0), 0);
-  const maxDepth = items.reduce((acc, item) => Math.max(acc, item.depth || 0), 0);
-  const cellWidth = maxWidth + spacing;
-  const cellDepth = maxDepth + spacing;
-  const rowStep = cellDepth * 0.86;
-  items.forEach((item, index) => {
-    const row = Math.floor(index / cols);
-    const col = index % cols;
-    const offset = (row % 2) * cellWidth * 0.5;
-    item.x = col * cellWidth + offset;
-    item.z = row * rowStep;
-  });
-  const totalWidth = cellWidth * cols + cellWidth * 0.5;
-  const totalDepth = rowStep * Math.max(1, rows - 1) + maxDepth;
-  return { width: totalWidth, depth: totalDepth, columns: cols, rows };
-};
-
 export const layoutFlowItems = (items, spacing, adjacency, getKey) => {
   const count = items.length;
   if (!count) return { width: 0, depth: 0 };
@@ -298,7 +278,6 @@ export const layoutFlowItems = (items, spacing, adjacency, getKey) => {
   const attract = 0.04;
   const damping = 0.75;
   const minSpacing = Math.max(0.6, spacing * 0.8);
-  const maxVelocity = Math.max(minSpacing, spacing * 1.2);
 
   for (let iter = 0; iter < iterations; iter += 1) {
     for (let i = 0; i < count; i += 1) {
@@ -312,7 +291,7 @@ export const layoutFlowItems = (items, spacing, adjacency, getKey) => {
         const dx = posB.x - posA.x;
         const dz = posB.z - posA.z;
         const dist = Math.sqrt(dx * dx + dz * dz) || 0.0001;
-        const target = (a.width + b.width) * 0.5 + minSpacing;
+        const target = (Math.max(a.width || 0, a.depth || 0) + Math.max(b.width || 0, b.depth || 0)) * 0.5 + minSpacing;
         const overlap = target - dist;
         if (overlap > 0) {
           const push = overlap * repulse;
@@ -330,21 +309,13 @@ export const layoutFlowItems = (items, spacing, adjacency, getKey) => {
         const dx = posB.x - posA.x;
         const dz = posB.z - posA.z;
         const dist = Math.sqrt(dx * dx + dz * dz) || 0.0001;
-        const target = (a.width + b.width) * 0.4 + spacing * 0.6;
-        // Keep attraction pulling toward the target distance to avoid runaway layouts.
-        const pull = (target - dist) * attract * Math.min(3, neighbor.weight || 1);
+        const target = (Math.max(a.width || 0, a.depth || 0) + Math.max(b.width || 0, b.depth || 0)) * 0.45 + spacing * 0.55;
+        const pull = (dist - target) * attract * Math.min(3, neighbor.weight || 1);
         fx += (dx / dist) * pull;
         fz += (dz / dist) * pull;
       }
       velocities[i].x = (velocities[i].x + fx) * damping;
       velocities[i].z = (velocities[i].z + fz) * damping;
-      const speed = Math.hypot(velocities[i].x, velocities[i].z);
-      if (speed > maxVelocity) {
-        // Clamp velocity to avoid unstable layouts that can explode the bounds.
-        const scale = maxVelocity / speed;
-        velocities[i].x *= scale;
-        velocities[i].z *= scale;
-      }
     }
     for (let i = 0; i < count; i += 1) {
       positions[i].x += velocities[i].x;
@@ -367,5 +338,219 @@ export const layoutFlowItems = (items, spacing, adjacency, getKey) => {
     minZ = Math.min(minZ, item.z - item.depth / 2);
     maxZ = Math.max(maxZ, item.z + item.depth / 2);
   });
+  return { width: Math.max(0, maxX - minX), depth: Math.max(0, maxZ - minZ) };
+};
+
+
+const buildSccLanes = (keys, adjacency) => {
+  const keySet = new Set(keys);
+  const indexByKey = new Map();
+  const lowlink = new Map();
+  const stack = [];
+  const onStack = new Set();
+  const componentByKey = new Map();
+  const components = [];
+  let index = 0;
+
+  const strongconnect = (v) => {
+    indexByKey.set(v, index);
+    lowlink.set(v, index);
+    index += 1;
+    stack.push(v);
+    onStack.add(v);
+
+    const neighbors = adjacency.get(v) || new Map();
+    for (const w of neighbors.keys()) {
+      if (!keySet.has(w)) continue;
+      if (!indexByKey.has(w)) {
+        strongconnect(w);
+        lowlink.set(v, min(lowlink.get(v), lowlink.get(w)));
+      } else if (onStack.has(w)) {
+        lowlink.set(v, min(lowlink.get(v), indexByKey.get(w)));
+      }
+    }
+
+    if (lowlink.get(v) === indexByKey.get(v)) {
+      const component = [];
+      while (stack.length) {
+        const w = stack.pop();
+        onStack.delete(w);
+        componentByKey.set(w, components.length);
+        component.push(w);
+        if (w === v) break;
+      }
+      components.push(component);
+    }
+  };
+
+  const min = (a, b) => a < b ? a : b;
+
+  for (const key of keys) {
+    if (!indexByKey.has(key)) {
+      strongconnect(key);
+    }
+  }
+
+  const componentEdges = new Map();
+  const indegree = Array.from({ length: components.length }, () => 0);
+
+  for (const from of keys) {
+    const fromComp = componentByKey.get(from);
+    const neighbors = adjacency.get(from) || new Map();
+    for (const to of neighbors.keys()) {
+      if (!keySet.has(to)) continue;
+      const toComp = componentByKey.get(to);
+      if (fromComp == null || toComp == null || fromComp === toComp) continue;
+      const bucket = componentEdges.get(fromComp) || new Set();
+      if (!bucket.has(toComp)) {
+        bucket.add(toComp);
+        componentEdges.set(fromComp, bucket);
+        indegree[toComp] += 1;
+      }
+    }
+  }
+
+  const queue = [];
+  for (let i = 0; i < indegree.length; i += 1) {
+    if (indegree[i] === 0) queue.push(i);
+  }
+  queue.sort((a, b) => a - b);
+
+  const topo = [];
+  while (queue.length) {
+    const comp = queue.shift();
+    topo.push(comp);
+    const out = componentEdges.get(comp);
+    if (!out) continue;
+    for (const target of out) {
+      indegree[target] -= 1;
+      if (indegree[target] === 0) {
+        queue.push(target);
+        queue.sort((a, b) => a - b);
+      }
+    }
+  }
+
+  const layerByComponent = Array.from({ length: components.length }, () => 0);
+  for (const comp of topo) {
+    const out = componentEdges.get(comp);
+    if (!out) continue;
+    for (const target of out) {
+      layerByComponent[target] = Math.max(layerByComponent[target], layerByComponent[comp] + 1);
+    }
+  }
+
+  return { componentByKey, layerByComponent };
+};
+
+export const layoutDependencyLanes = (items, spacing, adjacency, getKey) => {
+  const count = items.length;
+  if (!count) return { width: 0, depth: 0, lanes: 0 };
+  const keys = items.map(getKey);
+  const { componentByKey, layerByComponent } = buildSccLanes(keys, adjacency);
+  const layerByKey = new Map();
+  keys.forEach((key) => {
+    const comp = componentByKey.get(key) || 0;
+    layerByKey.set(key, layerByComponent[comp] || 0);
+  });
+
+  const lanes = new Map();
+  items.forEach((item) => {
+    const key = getKey(item);
+    const lane = layerByKey.get(key) || 0;
+    const bucket = lanes.get(lane) || [];
+    bucket.push(item);
+    lanes.set(lane, bucket);
+  });
+
+  const laneIds = Array.from(lanes.keys()).sort((a, b) => a - b);
+
+  // Sort within each lane: higher out-degree first (keeps hubs closer to center)
+  const outWeight = new Map();
+  keys.forEach((key) => {
+    const neighbors = adjacency.get(key) || new Map();
+    let total = 0;
+    for (const value of neighbors.values()) total += value || 0;
+    outWeight.set(key, total);
+  });
+
+  laneIds.forEach((lane) => {
+    const bucket = lanes.get(lane) || [];
+    bucket.sort((a, b) => {
+      const keyA = getKey(a);
+      const keyB = getKey(b);
+      const diff = (outWeight.get(keyB) || 0) - (outWeight.get(keyA) || 0);
+      return diff || String(keyA).localeCompare(String(keyB));
+    });
+  });
+
+  let cursorX = 0;
+  let globalMinX = Infinity;
+  let globalMaxX = -Infinity;
+  let globalMinZ = Infinity;
+  let globalMaxZ = -Infinity;
+
+  for (const lane of laneIds) {
+    const bucket = lanes.get(lane) || [];
+    if (!bucket.length) continue;
+
+    const laneWidth = bucket.reduce((acc, item) => Math.max(acc, item.width || 0), 0);
+    const xCenter = cursorX + laneWidth / 2;
+    cursorX += laneWidth + spacing;
+
+    let cursorZ = 0;
+    for (const item of bucket) {
+      item.x = xCenter;
+      item.z = cursorZ + (item.depth || 0) / 2;
+      cursorZ += (item.depth || 0) + spacing;
+    }
+
+    // Center the lane around z=0.
+    const laneDepth = Math.max(0, cursorZ - spacing);
+    const laneCenterZ = laneDepth / 2;
+    for (const item of bucket) {
+      item.z -= laneCenterZ;
+      globalMinX = Math.min(globalMinX, item.x - item.width / 2);
+      globalMaxX = Math.max(globalMaxX, item.x + item.width / 2);
+      globalMinZ = Math.min(globalMinZ, item.z - item.depth / 2);
+      globalMaxZ = Math.max(globalMaxZ, item.z + item.depth / 2);
+    }
+  }
+
+  const width = Math.max(0, globalMaxX - globalMinX);
+  const depth = Math.max(0, globalMaxZ - globalMinZ);
+  return { width, depth, lanes: laneIds.length };
+};
+
+export const layoutSpiralItems = (items, spacing) => {
+  const count = items.length;
+  if (!count) return { width: 0, depth: 0 };
+
+  let angle = 0;
+  let radius = 0;
+  const step = 0.65;
+  const gap = Math.max(0.4, spacing * 0.6);
+
+  for (let i = 0; i < count; i += 1) {
+    const item = items[i];
+    const itemRadius = Math.max(item.width || 0, item.depth || 0) / 2;
+    radius += itemRadius + gap;
+    angle += step;
+    item.x = Math.cos(angle) * radius;
+    item.z = Math.sin(angle) * radius;
+    radius += itemRadius * 0.25;
+  }
+
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const item of items) {
+    minX = Math.min(minX, item.x - item.width / 2);
+    maxX = Math.max(maxX, item.x + item.width / 2);
+    minZ = Math.min(minZ, item.z - item.depth / 2);
+    maxZ = Math.max(maxZ, item.z + item.depth / 2);
+  }
+
   return { width: Math.max(0, maxX - minX), depth: Math.max(0, maxZ - minZ) };
 };

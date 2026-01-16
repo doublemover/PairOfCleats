@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { clamp } from './utils.js';
+import { clamp, numberValue } from './utils.js';
 import { applyHighlights, setSelection, openSelection } from './selection.js';
 
 export const initControls = () => {
@@ -24,6 +24,48 @@ export const initControls = () => {
   const raycaster = new THREE.Raycaster();
   const zoomRaycaster = new THREE.Raycaster();
 
+  const fillPickTargets = () => {
+    const targets = state.pickTargets || (state.pickTargets = []);
+    targets.length = 0;
+
+    const fileVisible = state.fileGroup?.visible !== false;
+    const memberVisible = state.memberGroup?.visible !== false;
+
+    if (fileVisible) {
+      targets.push(...(state.fileMeshes || []));
+    }
+
+    if (memberVisible) {
+      for (const mesh of state.memberInstancedMeshes || []) {
+        // Cluster culling toggles parent visibility.
+        if (mesh?.parent?.visible !== false) targets.push(mesh);
+      }
+      // Legacy (non-instanced) members.
+      targets.push(...(state.memberMeshes || []));
+    }
+
+    return targets;
+  };
+
+  // Cluster / frustum culling for member instances (updates group.visible in batches).
+  const cullFrustum = new THREE.Frustum();
+  const cullMatrix = new THREE.Matrix4();
+  let cullTimer = 0;
+  const cullInterval = 0.08;
+
+  const updateMemberCulling = () => {
+    if (!state.memberClusters || !state.memberClusters.length) return;
+    if (state.memberGroup?.visible === false) return;
+    cullMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    cullFrustum.setFromProjectionMatrix(cullMatrix);
+
+    for (const cluster of state.memberClusters) {
+      if (!cluster?.group || !cluster?.sphere) continue;
+      cluster.group.visible = cullFrustum.intersectsSphere(cluster.sphere);
+    }
+  };
+
+
   const getPointerNdc = (event) => {
     const rect = renderer.domElement.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -44,9 +86,9 @@ export const initControls = () => {
     pointer.x = ndc.x;
     pointer.y = ndc.y;
     raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects([...state.memberMeshes, ...state.fileMeshes]);
-    const target = hits.length ? hits[0].object : null;
-    setSelection(target);
+
+    const hits = raycaster.intersectObjects(fillPickTargets(), false);
+    setSelection(hits.length ? hits[0] : null);
   };
 
   let dragging = false;
@@ -91,10 +133,15 @@ export const initControls = () => {
     pointer.x = ndc.x;
     pointer.y = ndc.y;
     raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects([...state.memberMeshes, ...state.fileMeshes]);
-    const nextHover = hits.length ? hits[0].object : null;
-    if (nextHover !== state.hoveredMesh) {
-      state.hoveredMesh = nextHover;
+    const hits = raycaster.intersectObjects(fillPickTargets(), false);
+    const nextHover = hits.length ? hits[0] : null;
+    const prev = state.hovered;
+    const same =
+      (prev === null && nextHover === null) ||
+      (prev && nextHover && prev.object === nextHover.object && prev.instanceId === nextHover.instanceId);
+
+    if (!same) {
+      state.hovered = nextHover;
       applyHighlights();
     }
   };
@@ -109,7 +156,7 @@ export const initControls = () => {
   renderer.domElement.addEventListener('pointerleave', endDrag);
   renderer.domElement.addEventListener('pointermove', updateHover);
   renderer.domElement.addEventListener('pointerleave', () => {
-    state.hoveredMesh = null;
+    state.hovered = null;
     applyHighlights();
   });
 
@@ -184,19 +231,14 @@ export const initControls = () => {
       : controlDefaults.zoomSensitivity;
     const rawDelta = Number.isFinite(event.deltaY) ? event.deltaY : 0;
     const deltaModeScale = event.deltaMode === 1 ? 18 : (event.deltaMode === 2 ? 360 : 1);
-    const delta = -rawDelta * deltaModeScale * 0.05;
+    const delta = -rawDelta * deltaModeScale * 0.0025;
     const ndc = getPointerNdc(event);
     zoomPointer = { x: ndc.x, y: ndc.y };
-    const direction = Math.sign(delta);
-    const velocityDir = Math.sign(zoomVelocity);
-    const momentumBoost = Math.min(6, Math.abs(zoomVelocity) * 0.6);
-    const repeatBoost = direction !== 0 && direction === velocityDir ? 1 + momentumBoost : 1;
-    zoomVelocity += delta * zoomSensitivity * (2 + repeatBoost);
+    zoomVelocity += delta * zoomSensitivity;
   };
   renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
 
   let lastTime = performance.now();
-  let lastPulseUpdate = 0;
   const animate = () => {
     requestAnimationFrame(animate);
     const now = performance.now();
@@ -220,17 +262,24 @@ export const initControls = () => {
       zoomVelocity *= Math.pow(damping, dt * 60);
       if (Math.abs(zoomVelocity) < 0.0001) zoomVelocity = 0;
     }
-    if (now - lastPulseUpdate > 33) {
-      lastPulseUpdate = now;
+    const pulse = 0.5 + 0.5 * Math.sin(now * 0.002);
+
+    const fileVisible = state.fileGroup?.visible !== false;
+    const memberVisible = state.memberGroup?.visible !== false;
+    const edgeVisible = state.edgeGroup?.visible !== false;
+    const wireVisible = state.wireGroup?.visible !== false;
+    const gridVisible = state.gridLines?.visible !== false;
+
+    if (fileVisible || memberVisible) {
       for (const material of state.glowMaterials) {
         const base = material.userData?.glowBase ?? 0;
         const range = material.userData?.glowRange ?? 0.05;
-        const glowSpeed = material.userData?.glowSpeed ?? 1;
-        const glowPhase = material.userData?.glowPhase ?? 0;
-        const pulse = 0.5 + 0.5 * Math.sin(now * 0.002 * glowSpeed + glowPhase);
         material.emissiveIntensity = base + range * pulse;
       }
-      const flowSpeed = visuals.glowPulseSpeed || visualDefaults.glowPulseSpeed;
+    }
+
+    const flowSpeed = visuals.glowPulseSpeed || visualDefaults.glowPulseSpeed;
+    if (edgeVisible) {
       for (const material of state.flowMaterials) {
         const base = material.userData?.glowBase ?? 0;
         const range = material.userData?.glowRange ?? 0.05;
@@ -240,35 +289,36 @@ export const initControls = () => {
         const offset = material.userData?.flowOffset ?? 0;
         let waveSum = 0;
         for (const layer of flowWaveLayers) {
-          const waveTime =
-            now * 0.002 * flowSpeed * layer.speed * typeSpeed + offset - phase * dir;
-          waveSum += layer.amplitude * (0.5 + 0.5 * Math.sin(waveTime));
+          waveSum += layer.amplitude * (0.5 + 0.5 * Math.sin(now * 0.002 * flowSpeed * layer.speed * typeSpeed + offset - phase * dir));
         }
         const waveValue = waveSum / flowWaveTotal;
         material.emissiveIntensity = base + range * waveValue;
       }
+    }
+
+    if (wireVisible) {
       for (const material of state.wireMaterials) {
         const base = material.userData?.glowBase ?? 0.3;
         const range = material.userData?.glowRange ?? 0.4;
         const phase = material.userData?.flowPhase ?? 0;
-        const wireSpeed =
-          material.userData?.flowSpeed ??
-          visuals.wirePulseSpeed ??
-          visualDefaults.wirePulseSpeed;
+        const wireSpeed = material.userData?.flowSpeed ?? visuals.wirePulseSpeed ?? visualDefaults.wirePulseSpeed;
         const wirePulse = 0.5 + 0.5 * Math.sin(now * 0.002 * wireSpeed - phase);
-        material.opacity = clamp(base + range * wirePulse, 0.02, 0.6);
+        material.opacity = clamp(base + range * wirePulse, 0.02, 0.35);
       }
+    }
+
+    if (gridVisible) {
       for (const material of state.gridLineMaterials) {
         const base = material.userData?.glowBase ?? 0.1;
         const range = material.userData?.glowRange ?? 0.2;
         const phase = material.userData?.flowPhase ?? 0;
-        const gridSpeed =
-          material.userData?.flowSpeed ??
-          visuals.gridPulseSpeed ??
-          visualDefaults.gridPulseSpeed;
+        const gridSpeed = material.userData?.flowSpeed ?? visuals.gridPulseSpeed ?? visualDefaults.gridPulseSpeed;
         const gridPulse = 0.5 + 0.5 * Math.sin(now * 0.002 * gridSpeed + phase);
         material.opacity = clamp(base + range * gridPulse, 0.02, 0.6);
       }
+    }
+
+    if (edgeVisible) {
       for (const light of state.flowLights) {
         const base = light.userData?.base ?? 0.8;
         const phase = light.userData?.flowPhase ?? 0;
@@ -277,15 +327,23 @@ export const initControls = () => {
         const offset = light.userData?.flowOffset ?? 0;
         let waveSum = 0;
         for (const layer of flowWaveLayers) {
-          const waveTime =
-            now * 0.002 * flowSpeed * layer.speed * typeSpeed + offset - phase * dir;
-          waveSum += layer.amplitude * (0.5 + 0.5 * Math.sin(waveTime));
+          waveSum += layer.amplitude * (0.5 + 0.5 * Math.sin(now * 0.002 * flowSpeed * layer.speed * typeSpeed + offset - phase * dir));
         }
         const waveValue = waveSum / flowWaveTotal;
         light.intensity = base * (0.4 + 0.6 * waveValue);
       }
+    } else {
+      for (const light of state.flowLights) {
+        light.intensity = 0;
+      }
     }
-    lockIsometric();
+
+    cullTimer += dt;
+    if (cullTimer >= cullInterval) {
+      cullTimer = 0;
+      updateMemberCulling();
+    }
+
     renderer.render(state.scene, camera);
   };
   animate();
@@ -313,7 +371,8 @@ export const initControls = () => {
         material.resolution.set(lineResolution.width, lineResolution.height);
       }
     }
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    const pixelRatioCap = numberValue(visuals.pixelRatioCap, visualDefaults.pixelRatioCap);
+    renderer.setPixelRatio(Math.min(pixelRatioCap, window.devicePixelRatio || 1));
     renderer.setSize(viewport.width, viewport.height);
     lockIsometric();
   };

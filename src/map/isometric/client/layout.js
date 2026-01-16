@@ -13,7 +13,8 @@ import {
   layoutGridItems,
   layoutRadialItems,
   layoutFlowItems,
-  layoutHexItems
+  layoutDependencyLanes,
+  layoutSpiralItems
 } from './layout-utils.js';
 
 export const createShapeGeometry = (shape) => {
@@ -23,29 +24,11 @@ export const createShapeGeometry = (shape) => {
   if (state.shapeGeometryCache.has(resolved)) {
     return state.shapeGeometryCache.get(resolved);
   }
-  const polygonMatch = resolved.match(/^(pentagon|hexagon|heptagon|octagon)(?:-(pyramid|frustum))?$/);
-  const polygonSides = {
-    pentagon: 5,
-    hexagon: 6,
-    heptagon: 7,
-    octagon: 8
-  };
-
   let geometry;
   if (resolved === 'circle') {
-    geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32, 1, false);
+    geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 24, 1, false);
   } else if (resolved === 'pyramid') {
-    geometry = new THREE.CylinderGeometry(0, 0.55, 1, 4, 1, false);
-  } else if (polygonMatch) {
-    const [, polygon, variant] = polygonMatch;
-    const sides = polygonSides[polygon] || 6;
-    if (variant === 'pyramid') {
-      geometry = new THREE.CylinderGeometry(0, 0.55, 1, sides, 1, false);
-    } else if (variant === 'frustum') {
-      geometry = new THREE.CylinderGeometry(0.25, 0.55, 1, sides, 1, false);
-    } else {
-      geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, sides, 1, false);
-    }
+    geometry = new THREE.CylinderGeometry(0.44, 0.62, 1, 4, 1, false);
   } else {
     geometry = new THREE.BoxGeometry(1, 1, 1);
   }
@@ -102,7 +85,9 @@ export const computeLayout = () => {
   };
 
   const fileAdjacency = new Map();
+  const fileAdjacencyDirected = new Map();
   const groupAdjacency = new Map();
+  const groupAdjacencyDirected = new Map();
   const touchAdjacency = (mapRef, from, to, weight) => {
     if (!from || !to || from === to) return;
     const bucket = mapRef.get(from) || new Map();
@@ -112,10 +97,8 @@ export const computeLayout = () => {
 
   const groupKeyByFile = new Map();
   const surfaceScaleForShape = (shape) => {
-    if (shape === 'pyramid') return 0.72;
-    if (shape?.endsWith('-pyramid')) return 0.72;
-    if (shape?.endsWith('-frustum')) return 0.82;
-    if (shape === 'circle') return 0.9;
+    if (shape === 'pyramid') return 0.78;
+    if (shape === 'circle') return 0.92;
     return 1;
   };
 
@@ -130,11 +113,13 @@ export const computeLayout = () => {
     const weight = edgeWeights[edge.type] || 1;
     touchAdjacency(fileAdjacency, fromFile, toFile, weight);
     touchAdjacency(fileAdjacency, toFile, fromFile, weight);
+    touchAdjacency(fileAdjacencyDirected, fromFile, toFile, weight);
     const fromGroup = groupKeyByFile.get(fromFile);
     const toGroup = groupKeyByFile.get(toFile);
     if (fromGroup && toGroup) {
       touchAdjacency(groupAdjacency, fromGroup, toGroup, weight);
       touchAdjacency(groupAdjacency, toGroup, fromGroup, weight);
+      touchAdjacency(groupAdjacencyDirected, fromGroup, toGroup, weight);
     }
   }
 
@@ -208,7 +193,6 @@ export const computeLayout = () => {
       rows: grid.rows,
       cellSize,
       cellGap,
-      slotStep: cellSize + cellGap,
       memberSlots: buildSlots(
         surfaceWidth,
         surfaceDepth,
@@ -257,10 +241,6 @@ export const computeLayout = () => {
     );
     if (layoutStyle === 'radial') {
       const metrics = layoutRadialItems(group.files, fileSpacing);
-      group.width = Math.max(baseSize, metrics.width);
-      group.depth = Math.max(baseSize, metrics.depth);
-    } else if (layoutStyle === 'hex') {
-      const metrics = layoutHexItems(group.files, fileSpacing);
       group.width = Math.max(baseSize, metrics.width);
       group.depth = Math.max(baseSize, metrics.depth);
     } else {
@@ -324,14 +304,27 @@ export const computeLayout = () => {
       fileAdjacency,
       (file) => file.node.path || file.node.name || ''
     );
-  } else if (layoutStyle === 'hex') {
+  } else if (layoutStyle === 'lanes' || layoutStyle === 'dependency' || layoutStyle === 'dependencies') {
+    const orderedFiles = orderByAdjacency(
+      allFiles,
+      (file) => file.node.path || file.node.name || '',
+      fileAdjacencyDirected
+    );
+    layoutDependencyLanes(
+      orderedFiles,
+      fileSpacing,
+      fileAdjacencyDirected,
+      (file) => file.node.path || file.node.name || ''
+    );
+  } else if (layoutStyle === 'spiral') {
     const orderedFiles = orderByAdjacency(
       allFiles,
       (file) => file.node.path || file.node.name || '',
       fileAdjacency
     );
-    layoutHexItems(orderedFiles, fileSpacing);
+    layoutSpiralItems(orderedFiles, fileSpacing);
   } else {
+
     const groupCount = Math.max(1, groups.length);
     const groupColumns = Math.ceil(Math.sqrt(groupCount));
     const groupLayouts = groups.map((group) => ({

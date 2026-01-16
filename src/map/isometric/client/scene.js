@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { numberValue } from './utils.js';
 
 export const initScene = async () => {
   const { THREE, dom, RGBELoader, assets, visuals } = state;
@@ -12,7 +13,8 @@ export const initScene = async () => {
   };
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  const pixelRatioCap = numberValue(visuals.pixelRatioCap, 2);
+  renderer.setPixelRatio(Math.min(pixelRatioCap, window.devicePixelRatio || 1));
   const initialViewport = getViewport();
   const lineResolution = { width: initialViewport.width, height: initialViewport.height };
   renderer.setSize(initialViewport.width, initialViewport.height);
@@ -21,9 +23,8 @@ export const initScene = async () => {
   renderer.physicallyCorrectLights = true;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.9;
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = visuals.enableShadows === true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.shadowMap.autoUpdate = false;
   if (renderer.outputColorSpace !== undefined) {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
   }
@@ -36,7 +37,7 @@ export const initScene = async () => {
   scene.add(ambient);
   const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
   dirLight.position.set(50, 80, 30);
-  dirLight.castShadow = true;
+  dirLight.castShadow = visuals.enableShadows === true;
   scene.add(dirLight);
   const hemiLight = new THREE.HemisphereLight(0x6fb1ff, 0x2b2f3a, 0.8);
   scene.add(hemiLight);
@@ -61,10 +62,10 @@ export const initScene = async () => {
   scene.add(wireGroup);
   scene.add(edgeGroup);
   edgeGroup.renderOrder = 1;
-  wireGroup.renderOrder = 5;
-  labelGroup.renderOrder = 4;
-  fileGroup.renderOrder = 2;
-  memberGroup.renderOrder = 3;
+  fileGroup.renderOrder = 3;
+  memberGroup.renderOrder = 4;
+  wireGroup.renderOrder = 6;
+  labelGroup.renderOrder = 7;
   labelGroup.visible = false;
 
   let cameraBase = 40;
@@ -128,6 +129,7 @@ export const initScene = async () => {
     farPlane,
     cameraInitialized: false,
     extraLights,
+    mainLight: dirLight,
     fileGroup,
     memberGroup,
     labelGroup,
@@ -143,4 +145,36 @@ export const initScene = async () => {
   if (visuals?.enableExtraLights === false) {
     extraLights.forEach((light) => { light.visible = false; });
   }
+};
+
+
+export const applyRendererSettings = () => {
+  const { renderer, visuals, visualDefaults, getViewport, mainLight } = state;
+  if (!renderer || !getViewport) return;
+
+  const viewport = getViewport();
+  const pixelRatioCap = numberValue(visuals.pixelRatioCap, visualDefaults?.pixelRatioCap ?? 2);
+  renderer.setPixelRatio(Math.min(pixelRatioCap, window.devicePixelRatio || 1));
+  renderer.setSize(viewport.width, viewport.height);
+
+  const enableShadows = visuals.enableShadows === true;
+  renderer.shadowMap.enabled = enableShadows;
+  if (mainLight) mainLight.castShadow = enableShadows;
+
+  // Update existing meshes without requiring a full rebuild.
+  const toggleShadow = (mesh) => {
+    if (!mesh) return;
+    mesh.castShadow = enableShadows;
+    mesh.receiveShadow = enableShadows;
+    const inner = mesh.userData?.shellInner;
+    if (inner) {
+      inner.castShadow = enableShadows;
+      inner.receiveShadow = enableShadows;
+    }
+  };
+  for (const mesh of state.fileMeshes || []) toggleShadow(mesh);
+  for (const mesh of state.memberMeshes || []) toggleShadow(mesh);
+  for (const mesh of state.memberInstancedMeshes || []) toggleShadow(mesh);
+  for (const mesh of state.chunkMeshes || []) toggleShadow(mesh);
+  if (state.grid) state.grid.receiveShadow = enableShadows;
 };
