@@ -36,7 +36,6 @@ const isProcessAlive = (pid) => {
   }
   return true;
 };
-};
 
 const readLockInfo = async (lockPath) => {
   try {
