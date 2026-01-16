@@ -29,6 +29,7 @@ import { createFileTimingTracker } from './file-processor/timings.js';
 import { resolveExt, resolveFileCaps, truncateByBytes } from './file-processor/read.js';
 import { TREE_SITTER_LANGUAGE_IDS } from '../../lang/tree-sitter/config.js';
 import { isTreeSitterEnabled } from '../../lang/tree-sitter/options.js';
+import { getLanguageForFile } from '../language-registry.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 
@@ -318,6 +319,45 @@ export function createFileProcessor(options) {
       const treeSitterConfig = fileEntry?.treeSitterDisabled
         ? { ...(languageOptions?.treeSitter || {}), enabled: false }
         : languageOptions?.treeSitter;
+      const resolvedSegmentsConfig = mode === 'extracted-prose'
+        ? { ...normalizedSegmentsConfig, onlyExtras: true }
+        : normalizedSegmentsConfig;
+      const treeSitterDeferMissing = treeSitterConfig?.deferMissing !== false;
+      const treeSitterDeferMissingMax = Number.isFinite(treeSitterConfig?.deferMissingMax)
+        ? Math.max(0, Math.floor(treeSitterConfig.deferMissingMax))
+        : 0;
+      if (treeSitterDeferMissing && treeSitterDeferMissingMax > 0 && !fileEntry?.treeSitterDisabled) {
+        const deferrals = Number(fileEntry?.treeSitterDeferrals) || 0;
+        if (deferrals < treeSitterDeferMissingMax) {
+          const languageHint = getLanguageForFile(ext, relKey);
+          const languageIdHint = languageHint?.id || null;
+          const segmentHint = discoverSegments({
+            text,
+            ext,
+            relPath: relKey,
+            mode,
+            languageId: languageIdHint,
+            context: null,
+            segmentsConfig: resolvedSegmentsConfig,
+            extraSegments: []
+          });
+          const requiredLanguages = resolveTreeSitterLanguagesForSegments({
+            segments: segmentHint,
+            primaryLanguageId: languageIdHint,
+            ext,
+            treeSitterConfig
+          });
+          if (requiredLanguages.length) {
+            const batchLanguages = new Set(
+              Array.isArray(fileEntry?.treeSitterBatchLanguages) ? fileEntry.treeSitterBatchLanguages : []
+            );
+            const missingLanguages = requiredLanguages.filter((languageId) => !batchLanguages.has(languageId));
+            if (missingLanguages.length) {
+              return { defer: true, missingLanguages };
+            }
+          }
+        }
+      }
       const languageContextOptions = languageOptions && typeof languageOptions === 'object'
         ? { ...languageOptions, relationsEnabled, metricsCollector, filePath: abs, treeSitter: treeSitterConfig }
         : { relationsEnabled, metricsCollector, filePath: abs, treeSitter: treeSitterConfig };
@@ -442,9 +482,6 @@ export function createFileProcessor(options) {
           });
         }
       }
-      const resolvedSegmentsConfig = mode === 'extracted-prose'
-        ? { ...normalizedSegmentsConfig, onlyExtras: true }
-        : normalizedSegmentsConfig;
       const segments = discoverSegments({
         text,
         ext,
@@ -455,30 +492,6 @@ export function createFileProcessor(options) {
         segmentsConfig: resolvedSegmentsConfig,
         extraSegments
       });
-      const treeSitterDeferMissing = treeSitterConfig?.deferMissing !== false;
-      const treeSitterDeferMissingMax = Number.isFinite(treeSitterConfig?.deferMissingMax)
-        ? Math.max(0, Math.floor(treeSitterConfig.deferMissingMax))
-        : 0;
-      if (treeSitterDeferMissing && treeSitterDeferMissingMax > 0 && !fileEntry?.treeSitterDisabled) {
-        const deferrals = Number(fileEntry?.treeSitterDeferrals) || 0;
-        if (deferrals < treeSitterDeferMissingMax) {
-          const requiredLanguages = resolveTreeSitterLanguagesForSegments({
-            segments,
-            primaryLanguageId: lang?.id || null,
-            ext,
-            treeSitterConfig
-          });
-          if (requiredLanguages.length) {
-            const batchLanguages = new Set(
-              Array.isArray(fileEntry?.treeSitterBatchLanguages) ? fileEntry.treeSitterBatchLanguages : []
-            );
-            const missingLanguages = requiredLanguages.filter((languageId) => !batchLanguages.has(languageId));
-            if (missingLanguages.length) {
-              return { defer: true, missingLanguages };
-            }
-          }
-        }
-      }
       const sc = chunkSegments({
         text,
         ext,
