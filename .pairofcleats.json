@@ -22,10 +22,8 @@
   // Index build pipeline options.
   // Speed impact: many flags here change CPU/IO per file.
   "indexing": {
-    "embeddingBatchSize": 128,
     "embeddings": {
-      "mode": "inline",
-      "batchSize": 32,
+      "batchSize": 128,
       "concurrency": true,
       "lancedb": {
         "enabled": true,
@@ -39,7 +37,7 @@
         "enabled": true,
         // Best “full utilization” point because per-shard file concurrency
         // is capped at 2: 8 workers * 2 files/worker = 16.
-        "maxWorkers": 8,
+        "maxWorkers": 16,
 
         // Keep shard keys primarily language-based (dirKey="."),
         // i.e., avoid mixing languages inside a shard.
@@ -83,7 +81,7 @@
     },
     // When to scan imports ("pre" or "post" indexing).
     // Speed impact: small; "post" avoids extra upfront work.
-    "importScan": "post",
+    "importScan": "pre",
     // Enable AST dataflow analysis.
     // Speed impact: moderate CPU cost on large codebases.
     "astDataflow": true,
