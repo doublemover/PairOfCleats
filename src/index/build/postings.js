@@ -186,10 +186,35 @@ export async function buildPostings(input) {
     log('Embeddings disabled; skipping dense vector build.');
   }
 
-  const phraseVocab = phraseEnabled ? Array.from(phrasePost.keys()) : [];
-  const phrasePostings = phraseEnabled ? phraseVocab.map((k) => Array.from(phrasePost.get(k))) : [];
-  const chargramVocab = chargramEnabled ? Array.from(triPost.keys()) : [];
-  const chargramPostings = chargramEnabled ? chargramVocab.map((k) => Array.from(triPost.get(k))) : [];
+  // Convert phrase/chargram postings into dense arrays while aggressively
+  // releasing the source Sets/Maps to keep peak RSS lower.
+  let phraseVocab = [];
+  let phrasePostings = [];
+  if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {
+    phraseVocab = Array.from(phrasePost.keys());
+    phrasePostings = new Array(phraseVocab.length);
+    for (let i = 0; i < phraseVocab.length; i += 1) {
+      const key = phraseVocab[i];
+      const postingSet = phrasePost.get(key);
+      phrasePostings[i] = Array.from(postingSet || []);
+      phrasePost.delete(key);
+    }
+    if (typeof phrasePost.clear === 'function') phrasePost.clear();
+  }
+
+  let chargramVocab = [];
+  let chargramPostings = [];
+  if (chargramEnabled && triPost && typeof triPost.keys === 'function') {
+    chargramVocab = Array.from(triPost.keys());
+    chargramPostings = new Array(chargramVocab.length);
+    for (let i = 0; i < chargramVocab.length; i += 1) {
+      const key = chargramVocab[i];
+      const postingSet = triPost.get(key);
+      chargramPostings[i] = Array.from(postingSet || []);
+      triPost.delete(key);
+    }
+    if (typeof triPost.clear === 'function') triPost.clear();
+  }
 
   const tokenVocab = Array.from(tokenPostings.keys());
   const tokenPostingsList = tokenVocab.map((t) => tokenPostings.get(t));

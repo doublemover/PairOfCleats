@@ -143,8 +143,9 @@ export function appendChunk(
     }
   }
 
-  const uniqueTokens = new Set(tokens);
-  uniqueTokens.forEach((t) => state.df.set(t, (state.df.get(t) || 0) + 1));
+  // NOTE: We intentionally do not maintain a separate `df` map here.
+  // Document frequency can be derived from postings list lengths, and keeping
+  // a second token->count map roughly doubles token-keyed memory.
   if (fieldedEnabled) {
     const fields = chunk.fieldTokens || {};
     const fieldNames = ['name', 'signature', 'doc', 'comment', 'body'];

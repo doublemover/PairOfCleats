@@ -12,37 +12,87 @@ import { planShardBatches, planShards } from '../../shards.js';
 import { recordFileMetric } from '../../perf-profile.js';
 import { createTokenRetentionState } from './postings.js';
 
+// Ordered appender used to ensure deterministic chunk/doc ids regardless of
+// concurrency and shard execution order.
+//
+// IMPORTANT: The original implementation returned the *flush attempt* promise.
+// When an earlier file was slow, results from later files accumulated in
+// `pending` until `nextIndex` advanced, creating unbounded buffering and
+// eventual V8 OOMs that were highly timing-sensitive (e.g., "--inspect" would
+// often avoid the crash).
+//
+// This version returns a promise that resolves only once the specific
+// `orderIndex` has been flushed (i.e., processed in order). That creates
+// backpressure via `runWithQueue`'s awaited `onResult`, bounding in-flight
+// buffered results to queue concurrency.
 const buildOrderedAppender = (handleFileResult, state) => {
   const pending = new Map();
   let nextIndex = 0;
   let flushing = null;
+  let aborted = false;
+
+  const abort = (err) => {
+    if (aborted) return;
+    aborted = true;
+    for (const entry of pending.values()) {
+      try {
+        entry?.reject?.(err);
+      } catch {}
+    }
+    pending.clear();
+  };
+
   const flush = async () => {
     while (pending.has(nextIndex)) {
       const entry = pending.get(nextIndex);
       pending.delete(nextIndex);
-      if (entry?.result) {
-        handleFileResult(entry.result, state, entry.shardMeta);
+      try {
+        if (entry?.result) {
+          handleFileResult(entry.result, state, entry.shardMeta);
+        }
+        entry?.resolve?.();
+      } catch (err) {
+        try { entry?.reject?.(err); } catch {}
+        throw err;
+      } finally {
+        nextIndex += 1;
       }
-      nextIndex += 1;
     }
   };
+
   const scheduleFlush = async () => {
     if (flushing) return flushing;
     flushing = (async () => {
       try {
         await flush();
+      } catch (err) {
+        abort(err);
+        throw err;
       } finally {
         flushing = null;
       }
     })();
     return flushing;
   };
+
   return {
     enqueue(orderIndex, result, shardMeta) {
+      if (aborted) {
+        return Promise.reject(new Error('Ordered appender aborted.'));
+      }
       const index = Number.isFinite(orderIndex) ? orderIndex : nextIndex;
-      pending.set(index, { result, shardMeta });
-      return scheduleFlush();
-    }
+      let resolve;
+      let reject;
+      const done = new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      pending.set(index, { result, shardMeta, resolve, reject });
+      // Ensure rejections from the flush loop don't surface as unhandled.
+      scheduleFlush().catch(() => {});
+      return done;
+    },
+    abort
   };
 };
 
@@ -195,10 +245,11 @@ export const processFiles = async ({
       fileScan: runtimeRef.fileScan,
       featureMetrics: runtimeRef.featureMetrics
     });
-    await runWithQueue(
-      runtimeRef.queues.cpu,
-      shardEntries,
-      async (entry, fileIndex) => {
+    try {
+      await runWithQueue(
+        runtimeRef.queues.cpu,
+        shardEntries,
+        async (entry, fileIndex) => {
         if (showFileProgress) {
           const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
           const shardText = shardLabel ? `shard ${shardLabel}` : 'shard';
@@ -235,17 +286,24 @@ export const processFiles = async ({
           throw err;
         }
       },
-      {
-        collectResults: false,
-        onResult: (result, index) => {
-          const entry = shardEntries[index];
-          const orderIndex = Number.isFinite(entry?.orderIndex) ? entry.orderIndex : index;
-          return orderedAppender.enqueue(orderIndex, result, shardMeta);
-        },
-        retries: 2,
-        retryDelayMs: 200
-      }
-    );
+        {
+          collectResults: false,
+          onResult: (result, index) => {
+            const entry = shardEntries[index];
+            const orderIndex = Number.isFinite(entry?.orderIndex) ? entry.orderIndex : index;
+            return orderedAppender.enqueue(orderIndex, result, shardMeta);
+          },
+          retries: 2,
+          retryDelayMs: 200
+        }
+      );
+    } catch (err) {
+      // If the shard processing fails before a contiguous `orderIndex` is
+      // enqueued, later tasks may be blocked waiting for an ordered flush.
+      // Abort rejects any waiting promises to prevent hangs/leaks.
+      orderedAppender.abort(err);
+      throw err;
+    }
   };
 
   const discoveryLineCounts = discovery?.lineCounts instanceof Map ? discovery.lineCounts : null;
