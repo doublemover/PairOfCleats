@@ -167,23 +167,17 @@ const computeTokenStats = (tokens) => {
 };
 
 /**
- * Tokenize chunk text into tokens, ngrams, chargrams, and minhash signature.
+ * Tokenize chunk text into tokens/sequence and a minhash signature.
+ *
+ * NOTE: We intentionally do not materialize phrase ngrams or chargrams here. Those are
+ * derived (and often very large) and should only exist as short-lived locals during
+ * postings construction to avoid retaining them on chunk payloads.
  * @param {{text:string,mode:'code'|'prose',ext:string,context:object}} input
- * @returns {{tokens:string[],seq:string[],ngrams:string[]|null,chargrams:string[]|null,minhashSig:number[],stats:object}}
+ * @returns {{tokens:string[],seq:string[],minhashSig:number[],stats:object}}
  */
 export function tokenizeChunkText(input) {
   const { text, mode, ext, context, buffers = null } = input;
-  const {
-    dictWords,
-    dictConfig,
-    phraseMinN,
-    phraseMaxN,
-    chargramMinN,
-    chargramMaxN,
-    chargramMaxTokenLength,
-    phraseEnabled,
-    chargramEnabled
-  } = context;
+  const { dictWords, dictConfig } = context;
 
   const { tokens, seq } = buildTokenSequence({
     text,
@@ -194,18 +188,8 @@ export function tokenizeChunkText(input) {
     buffers
   });
 
-  const ngrams = phraseEnabled ? extractNgrams(seq, phraseMinN, phraseMaxN) : null;
-  let chargrams = null;
-  if (chargramEnabled) {
-    const sourceTokens = Array.isArray(input.chargramTokens) && input.chargramTokens.length
-      ? input.chargramTokens
-      : seq;
-    chargrams = buildChargramsFromTokens(sourceTokens, {
-      chargramMinN,
-      chargramMaxN,
-      chargramMaxTokenLength
-    }, buffers);
-  }
+  // Phrase ngrams and chargrams are built in appendChunk() where they can be
+  // immediately consumed to update postings maps and then discarded.
 
   const mh = buffers?.minhash || new SimpleMinHash();
   if (buffers?.minhash) mh.reset();
@@ -216,8 +200,6 @@ export function tokenizeChunkText(input) {
   return {
     tokens,
     seq,
-    ngrams,
-    chargrams,
     minhashSig: buffers?.minhash ? mh.hashValues.slice() : mh.hashValues,
     stats: computeTokenStats(tokens)
   };

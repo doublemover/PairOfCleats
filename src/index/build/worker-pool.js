@@ -88,12 +88,27 @@ const resolveWorkerResourceLimits = (maxWorkers) => {
   const maxOldSpaceMb = parseMaxOldSpaceMb();
   const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
   if (!Number.isFinite(maxWorkers) || maxWorkers <= 0) return null;
-  const basisMb = Number.isFinite(maxOldSpaceMb) && maxOldSpaceMb > 0
-    ? maxOldSpaceMb
-    : totalMemMb;
+
+  // Keep worker heaps conservative: the main process may run with a very large
+  // --max-old-space-size, but spawning many isolates with large old-gen limits
+  // can quickly exhaust address space (especially on Windows).
+  let basisMb = totalMemMb;
+  if (Number.isFinite(maxOldSpaceMb) && maxOldSpaceMb > 0) {
+    basisMb = Number.isFinite(basisMb) && basisMb > 0
+      ? Math.min(basisMb, maxOldSpaceMb)
+      : maxOldSpaceMb;
+  }
   if (!Number.isFinite(basisMb) || basisMb <= 0) return null;
+
+  // Hard cap the sizing basis to avoid inflating per-worker limits on high-RAM
+  // machines. This is a safety valve; workloads that need larger heaps can
+  // still run in-process without the pool.
+  const basisCapMb = 8192;
+  basisMb = Math.min(basisMb, basisCapMb);
+
   const perWorker = Math.max(256, Math.floor(basisMb / Math.max(1, maxWorkers * 2)));
-  const capped = Math.min(2048, perWorker);
+  const platformCap = process.platform === 'win32' ? 1024 : 2048;
+  const capped = Math.min(platformCap, perWorker);
   return { maxOldGenerationSizeMb: capped };
 };
 
@@ -631,15 +646,40 @@ export async function createIndexerWorkerPools(input = {}) {
     };
     return { tokenizePool: pool, quantizePool: pool, destroy };
   }
-  const quantizeMaxWorkers = Number.isFinite(baseConfig.quantizeMaxWorkers)
+
+  // When splitting work across pools, treat maxWorkers as a TOTAL thread budget.
+  // The previous behavior created multiple pools each with maxWorkers threads,
+  // which could exceed the intended cap and exhaust memory on some platforms.
+  const totalBudget = Number.isFinite(baseConfig.maxWorkers)
+    ? Math.max(1, Math.floor(baseConfig.maxWorkers))
+    : 1;
+
+  // If there is no room to split, fall back to a single pool.
+  if (totalBudget <= 1) {
+    const pool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
+    const destroy = async () => {
+      if (pool?.destroy) await pool.destroy();
+    };
+    return { tokenizePool: pool, quantizePool: pool, destroy };
+  }
+
+  const requestedQuantize = Number.isFinite(baseConfig.quantizeMaxWorkers)
     ? Math.max(1, Math.floor(baseConfig.quantizeMaxWorkers))
-    : Math.max(1, Math.floor(baseConfig.maxWorkers / 2));
-  const tokenizePool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
+    : Math.max(1, Math.floor(totalBudget / 2));
+  const quantizeBudget = Math.min(Math.max(1, requestedQuantize), totalBudget - 1);
+  const tokenizeBudget = Math.max(1, totalBudget - quantizeBudget);
+
+  const tokenizePool = await createIndexerWorkerPool({
+    ...input,
+    config: { ...baseConfig, maxWorkers: tokenizeBudget },
+    poolName: 'tokenize'
+  });
   const quantizePool = await createIndexerWorkerPool({
     ...input,
-    config: { ...baseConfig, maxWorkers: quantizeMaxWorkers },
+    config: { ...baseConfig, maxWorkers: quantizeBudget },
     poolName: 'quantize'
   });
+
   const finalTokenizePool = tokenizePool || quantizePool;
   const finalQuantizePool = quantizePool || tokenizePool;
   const destroy = async () => {

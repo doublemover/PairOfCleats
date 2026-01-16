@@ -113,9 +113,13 @@ const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurrency, e
   const ioConcurrency = Math.max(fileConcurrency, importConcurrency);
   const cpuLimit = Math.max(1, os.cpus().length * 2);
   const cpuConcurrency = Math.max(1, Math.min(cpuLimit, fileConcurrency));
-  const maxFilePending = Math.min(10000, fileConcurrency * 1000);
-  const maxIoPending = Math.min(10000, ioConcurrency * 1000);
-  const maxEmbeddingPending = Math.min(64, embeddingConcurrency * 8);
+  // Keep shard workers from running too far ahead of the ordered append cursor.
+  // Large pending windows can accumulate many completed-but-unappended file results
+  // (especially when one earlier file is slow), which is a common source of V8 OOM
+  // that often disappears under `--inspect`.
+  const maxFilePending = Math.min(256, Math.max(32, fileConcurrency * 4));
+  const maxIoPending = Math.min(512, Math.max(64, ioConcurrency * 4));
+  const maxEmbeddingPending = Math.min(64, Math.max(16, embeddingConcurrency * 8));
   const queues = createTaskQueues({
     ioConcurrency,
     cpuConcurrency,

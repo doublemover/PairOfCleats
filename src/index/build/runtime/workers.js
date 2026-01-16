@@ -59,9 +59,25 @@ export const createRuntimeQueues = ({
   fileConcurrency,
   embeddingConcurrency
 }) => {
-  const maxFilePending = Math.min(10000, fileConcurrency * 1000);
-  const maxIoPending = Math.min(10000, Math.max(ioConcurrency, fileConcurrency) * 1000);
-  const maxEmbeddingPending = Math.min(64, embeddingConcurrency * 8);
+  // Bound the number of in-flight tasks we allow `runWithQueue()` to schedule.
+  //
+  // Rationale:
+  // - We enforce deterministic ordering when appending results (stable chunk ids).
+  // - If one early file is slow, many later files can finish first.
+  // - Those results must be buffered until the missing orderIndex arrives.
+  // - A very large pending window (e.g. 10k) can therefore create a transient but
+  //   extreme peak in retained chunk payloads, which is timing-sensitive (often
+  //   disappears under `--inspect`) and can trigger V8 OOM.
+  //
+  // Keep a small, CPU-scaled window to cap worst-case buffering without requiring
+  // users to tweak configuration.
+  const maxFilePending = Math.min(256, Math.max(32, fileConcurrency * 4));
+  const maxIoPending = Math.min(512, Math.max(64, Math.max(ioConcurrency, fileConcurrency) * 4));
+  const effectiveEmbeddingConcurrency = Number.isFinite(embeddingConcurrency) && embeddingConcurrency > 0
+    ? embeddingConcurrency
+    : Math.max(1, Math.min(cpuConcurrency || 1, fileConcurrency || 1));
+  const maxEmbeddingPending = Math.min(64, Math.max(16, effectiveEmbeddingConcurrency * 8));
+
   const queues = createTaskQueues({
     ioConcurrency,
     cpuConcurrency,

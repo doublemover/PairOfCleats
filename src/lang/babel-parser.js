@@ -49,18 +49,24 @@ export function parseBabelAst(text, options = {}) {
     plugins.push('flow', 'flowComments');
   }
 
+  const includeTokens = typeof options.tokens === 'boolean'
+    ? options.tokens
+    : (typeof options.includeTokens === 'boolean'
+      ? options.includeTokens
+      : !isTypeScript);
+
   try {
     const ast = parse(text, {
       sourceType: 'unambiguous',
       errorRecovery: true,
       ranges: true,
-      tokens: true,
+      tokens: includeTokens,
       allowReturnOutsideFunction: true,
       allowAwaitOutsideFunction: true,
       plugins
     });
     if (ast && ast.type === 'File' && ast.program) {
-      if (ast.tokens && !ast.program.tokens) {
+      if (includeTokens && ast.tokens && !ast.program.tokens) {
         ast.program.tokens = ast.tokens;
       }
       return ast.program;

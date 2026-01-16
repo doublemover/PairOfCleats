@@ -17,6 +17,8 @@
     "denseVectorMode": "merged",
     "annBackend": "lancedb"
   },
+
+
   // Index build pipeline options.
   // Speed impact: many flags here change CPU/IO per file.
   "indexing": {
@@ -32,6 +34,16 @@
         "embeddingColumn": "vector",
         "metric": "cosine",
         "batchSize": 8192
+      },
+      "shards": {
+        "enabled": true,
+        // Best “full utilization” point because per-shard file concurrency
+        // is capped at 2: 8 workers * 2 files/worker = 16.
+        "maxWorkers": 8,
+
+        // Keep shard keys primarily language-based (dirKey="."),
+        // i.e., avoid mixing languages inside a shard.
+        "dirDepth": 0
       }
     },
     "workerPool": {

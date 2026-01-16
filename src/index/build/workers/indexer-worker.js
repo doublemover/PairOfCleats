@@ -264,11 +264,12 @@ let lastResult = null;
 
 const withWorkerError = (fn, label) => (input) => {
   const startedAt = process.hrtime.bigint();
+  lastTask = label;
+  lastStage = 'payload';
+  lastPayload = input;
+  lastResult = null;
+
   try {
-    lastTask = label;
-    lastStage = 'payload';
-    lastPayload = input;
-    lastResult = null;
     validateCloneable(input, `${label} payload`);
     const result = fn(input);
     lastStage = 'result';
@@ -279,6 +280,11 @@ const withWorkerError = (fn, label) => (input) => {
   } catch (err) {
     reportTiming(label, startedAt, 'error');
     throw formatWorkerError(err, label);
+  } finally {
+    // Avoid retaining references to large payloads/results between tasks.
+    // These are only needed for crash diagnostics.
+    lastPayload = null;
+    lastResult = null;
   }
 };
 

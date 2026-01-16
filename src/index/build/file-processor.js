@@ -590,7 +590,9 @@ export function createFileProcessor(options) {
                   dictWords: tokenDictWords,
                   dictConfig
                 }).tokens;
-                if (tokens.length) commentFieldTokens = commentFieldTokens.concat(tokens);
+                if (tokens.length) {
+                  for (const token of tokens) commentFieldTokens.push(token);
+                }
               }
               metaComments.push({
                 type: comment.type,
@@ -696,8 +698,6 @@ export function createFileProcessor(options) {
         const {
           tokens,
           seq,
-          ngrams,
-          chargrams,
           minhashSig,
           stats
         } = tokenPayload;
@@ -706,8 +706,8 @@ export function createFileProcessor(options) {
           tokenizationStats.chunks += 1;
           tokenizationStats.tokens += tokens.length;
           tokenizationStats.seq += seq.length;
-          tokenizationStats.ngrams += Array.isArray(ngrams) ? ngrams.length : 0;
-          tokenizationStats.chargrams += Array.isArray(chargrams) ? chargrams.length : 0;
+          // Phrase ngrams and chargrams are computed during postings construction (appendChunk).
+          // We don't materialize them during tokenization to avoid large transient allocations.
         }
 
         if (!seq.length) continue;
@@ -778,8 +778,6 @@ export function createFileProcessor(options) {
           languageId: fileLanguageId || lang?.id || null,
           tokens,
           seq,
-          ngrams,
-          chargrams,
           codeRelations,
           docmeta,
           stats,
