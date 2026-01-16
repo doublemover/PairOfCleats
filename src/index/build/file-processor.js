@@ -293,7 +293,7 @@ export function createFileProcessor(options) {
     let languageLines = null;
     let languageSetKey = null;
 
-    const { chunks: fileChunks, fileRelations, skip } = await runCpu(async () => {
+    const cpuResult = await runCpu(async () => {
       const treeSitterConfig = fileEntry?.treeSitterDisabled
         ? { ...(languageOptions?.treeSitter || {}), enabled: false }
         : languageOptions?.treeSitter;
@@ -858,6 +858,10 @@ export function createFileProcessor(options) {
 
       return { chunks, fileRelations, skip: null };
     });
+    if (cpuResult?.defer) {
+      return cpuResult;
+    }
+    const { chunks: fileChunks, fileRelations, skip } = cpuResult || {};
     if (skip) {
       const { reason, ...extra } = skip;
       recordSkip(abs, reason || 'oversize', extra);
