@@ -1,10 +1,30 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { LANGUAGE_WASM_FILES, TREE_SITTER_LANGUAGE_IDS } from './config.js';
 import { treeSitterState } from './state.js';
 
 const require = createRequire(import.meta.url);
+
+// Tree-sitter Parser instances can hold non-trivial native/WASM memory.
+// In multi-language repos this can balloon quickly if we cache one Parser per
+// language indefinitely. We cap the parser cache and evict LRU entries.
+const DEFAULT_MAX_PARSER_CACHE = (() => {
+  try {
+    const envRaw = process.env.POC_TREE_SITTER_MAX_PARSERS;
+    const envMax = Number(envRaw);
+    if (Number.isFinite(envMax) && envMax > 0) {
+      return Math.max(1, Math.min(16, Math.floor(envMax)));
+    }
+
+    const cpuCount = Array.isArray(os.cpus?.()) ? os.cpus().length : 0;
+    // Keep this intentionally small; we only parse on the main thread.
+    return Math.max(2, Math.min(4, cpuCount || 4));
+  } catch {
+    return 4;
+  }
+})();
 
 function resolveLanguageId(languageId) {
   return typeof languageId === 'string' ? languageId : null;
@@ -130,6 +150,30 @@ export async function preloadTreeSitterLanguages(languageIds = TREE_SITTER_LANGU
   return true;
 }
 
+function touchParserCacheEntry(languageId) {
+  // Map iteration order is insertion order; re-insert to mark as most-recently-used.
+  if (!treeSitterState.parserCache.has(languageId)) return;
+  const value = treeSitterState.parserCache.get(languageId);
+  treeSitterState.parserCache.delete(languageId);
+  treeSitterState.parserCache.set(languageId, value);
+}
+
+function evictOldParsers(maxSize = DEFAULT_MAX_PARSER_CACHE) {
+  if (!Number.isFinite(Number(maxSize)) || maxSize <= 0) return;
+  while (treeSitterState.parserCache.size > maxSize) {
+    const oldestKey = treeSitterState.parserCache.keys().next().value;
+    const oldestParser = treeSitterState.parserCache.get(oldestKey);
+    treeSitterState.parserCache.delete(oldestKey);
+    if (oldestParser && typeof oldestParser.delete === 'function') {
+      try {
+        oldestParser.delete();
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
 export function getTreeSitterParser(languageId, options = {}) {
   if (!treeSitterState.TreeSitter) {
     const resolvedId = resolveLanguageId(languageId);
@@ -142,7 +186,10 @@ export function getTreeSitterParser(languageId, options = {}) {
   }
   const resolvedId = resolveLanguageId(languageId);
   if (!resolvedId) return null;
-  if (treeSitterState.parserCache.has(resolvedId)) return treeSitterState.parserCache.get(resolvedId);
+  if (treeSitterState.parserCache.has(resolvedId)) {
+    touchParserCacheEntry(resolvedId);
+    return treeSitterState.parserCache.get(resolvedId);
+  }
   const entry = treeSitterState.languageCache.get(resolvedId) || null;
   const language = entry?.language || null;
   if (!language) {
@@ -161,6 +208,13 @@ export function getTreeSitterParser(languageId, options = {}) {
   try {
     parser.setLanguage(language);
   } catch (err) {
+    if (typeof parser.delete === 'function') {
+      try {
+        parser.delete();
+      } catch {
+        // ignore
+      }
+    }
     treeSitterState.parserCache.set(resolvedId, null);
     if (!treeSitterState.loggedMissing.has(resolvedId)) {
       const message = err?.message || err;
@@ -168,8 +222,10 @@ export function getTreeSitterParser(languageId, options = {}) {
       log(`[tree-sitter] Failed to load ${resolvedId} WASM grammar: ${message}.`);
       treeSitterState.loggedMissing.add(resolvedId);
     }
+    evictOldParsers();
     return null;
   }
   treeSitterState.parserCache.set(resolvedId, parser);
+  evictOldParsers();
   return parser;
 }

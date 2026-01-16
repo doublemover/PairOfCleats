@@ -9,7 +9,7 @@ export function parseJsoncText(rawText, source = '') {
     throw new Error(`Failed to parse${describeSource(source)}: empty file.`);
   }
   const errors = [];
-  const parsed = parseJsonc(text, errors, { allowTrailingComma: false });
+  const parsed = parseJsonc(text, errors, { allowTrailingComma: true });
   if (errors.length) {
     const first = errors[0];
     const code = typeof printParseErrorCode === 'function'

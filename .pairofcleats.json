@@ -9,8 +9,8 @@
   },
   "indexing": {
     "embeddings": {
-      "batchSize": 8192,
-      "concurrency": 8,
+      "batchSize": 512,
+      "concurrency": 16,
       "lancedb": {
         "enabled": true,
         "table": "vectors",
@@ -54,7 +54,7 @@
       "enabled": true
     },
     "treeSitter": {
-      "enabled": false
+      "enabled": true
     },
     "runtime": {
       "uvThreadpoolSize": 32,
