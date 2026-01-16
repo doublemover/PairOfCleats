@@ -9,7 +9,7 @@
   },
   "indexing": {
     "embeddings": {
-      "batchSize": 128,
+      "batchSize": 512,
       "concurrency": true,
       "lancedb": {
         "enabled": true,
@@ -41,20 +41,20 @@
       "fielded": true
     },
     "importScan": "pre",
-    "astDataflow": true,
-    "controlFlow": true,
-    "riskAnalysis": true,
-    "riskAnalysisCrossFile": true,
-    "typeInference": true,
-    "typeInferenceCrossFile": true,
-    "gitBlame": true,
-    "lint": true,
-    "complexity": true,
+    "astDataflow": false,
+    "controlFlow": false,
+    "riskAnalysis": false,
+    "riskAnalysisCrossFile": false,
+    "typeInference": false,
+    "typeInferenceCrossFile": false,
+    "gitBlame": false,
+    "lint": false,
+    "complexity": false,
     "pythonAst": {
-      "enabled": true
+      "enabled": false
     },
     "treeSitter": {
-      "enabled": true
+      "enabled": false
     },
     "runtime": {
       "uvThreadpoolSize": 32,
