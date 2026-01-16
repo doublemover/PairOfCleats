@@ -41,20 +41,20 @@
       "fielded": true
     },
     "importScan": "pre",
-    "astDataflow": false,
-    "controlFlow": false,
-    "riskAnalysis": false,
-    "riskAnalysisCrossFile": false,
-    "typeInference": false,
-    "typeInferenceCrossFile": false,
-    "gitBlame": false,
-    "lint": false,
-    "complexity": false,
+    "astDataflow": true,
+    "controlFlow": true,
+    "riskAnalysis": true,
+    "riskAnalysisCrossFile": true,
+    "typeInference": true,
+    "typeInferenceCrossFile": true,
+    "gitBlame": true,
+    "lint": true,
+    "complexity": true,
     "pythonAst": {
-      "enabled": false
+      "enabled": true
     },
     "treeSitter": {
-      "enabled": false
+      "enabled": true
     },
     "runtime": {
       "uvThreadpoolSize": 32,
