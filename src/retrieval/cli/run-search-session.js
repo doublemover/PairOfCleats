@@ -178,8 +178,9 @@ export async function runSearchSession({
         if (cachedPayload) {
           const hasCode = !runCode || Array.isArray(cachedPayload.code);
           const hasProse = !runProse || Array.isArray(cachedPayload.prose);
+          const hasExtractedProse = !runExtractedProse || Array.isArray(cachedPayload.extractedProse);
           const hasRecords = !runRecords || Array.isArray(cachedPayload.records);
-          if (hasCode && hasProse && hasRecords) {
+          if (hasCode && hasProse && hasExtractedProse && hasRecords) {
             cacheHit = true;
             entry.ts = Date.now();
           }
@@ -330,6 +331,7 @@ export async function runSearchSession({
         },
         payload: {
           prose: proseHits,
+          extractedProse: extractedProseHits,
           code: codeHits,
           records: recordHits
         }

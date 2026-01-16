@@ -27,6 +27,29 @@ import { buildCallIndex, buildFileRelations } from './file-processor/relations.j
 import { resolveBinarySkip, resolvePreReadSkip } from './file-processor/skip.js';
 import { createFileTimingTracker } from './file-processor/timings.js';
 import { resolveExt, resolveFileCaps, truncateByBytes } from './file-processor/read.js';
+import { TREE_SITTER_LANGUAGE_IDS } from '../../lang/tree-sitter/config.js';
+import { isTreeSitterEnabled } from '../../lang/tree-sitter/options.js';
+
+const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
+
+const resolveTreeSitterLanguagesForSegments = ({ segments, primaryLanguageId, treeSitterConfig }) => {
+  if (!treeSitterConfig || treeSitterConfig.enabled === false) return [];
+  const options = { treeSitter: treeSitterConfig };
+  const languages = new Set();
+  const add = (languageId) => {
+    if (!languageId || !TREE_SITTER_LANG_IDS.has(languageId)) return;
+    if (!isTreeSitterEnabled(options, languageId)) return;
+    languages.add(languageId);
+  };
+  add(primaryLanguageId);
+  if (Array.isArray(segments)) {
+    for (const segment of segments) {
+      if (!segment || segment.type !== 'embedded') continue;
+      add(segment.languageId);
+    }
+  }
+  return Array.from(languages);
+};
 
 /**
  * Create a file processor with shared caches.
@@ -271,9 +294,12 @@ export function createFileProcessor(options) {
     let languageSetKey = null;
 
     const { chunks: fileChunks, fileRelations, skip } = await runCpu(async () => {
+      const treeSitterConfig = fileEntry?.treeSitterDisabled
+        ? { ...(languageOptions?.treeSitter || {}), enabled: false }
+        : languageOptions?.treeSitter;
       const languageContextOptions = languageOptions && typeof languageOptions === 'object'
-        ? { ...languageOptions, relationsEnabled, metricsCollector, filePath: abs }
-        : { relationsEnabled, metricsCollector, filePath: abs };
+        ? { ...languageOptions, relationsEnabled, metricsCollector, filePath: abs, treeSitter: treeSitterConfig }
+        : { relationsEnabled, metricsCollector, filePath: abs, treeSitter: treeSitterConfig };
       const { lang, context: languageContext } = await buildLanguageContext({
         ext,
         relPath: relKey,
@@ -408,6 +434,29 @@ export function createFileProcessor(options) {
         segmentsConfig: resolvedSegmentsConfig,
         extraSegments
       });
+      const treeSitterDeferMissing = treeSitterConfig?.deferMissing !== false;
+      const treeSitterDeferMissingMax = Number.isFinite(treeSitterConfig?.deferMissingMax)
+        ? Math.max(0, Math.floor(treeSitterConfig.deferMissingMax))
+        : 0;
+      if (treeSitterDeferMissing && treeSitterDeferMissingMax > 0 && !fileEntry?.treeSitterDisabled) {
+        const deferrals = Number(fileEntry?.treeSitterDeferrals) || 0;
+        if (deferrals < treeSitterDeferMissingMax) {
+          const requiredLanguages = resolveTreeSitterLanguagesForSegments({
+            segments,
+            primaryLanguageId: lang?.id || null,
+            treeSitterConfig
+          });
+          if (requiredLanguages.length) {
+            const batchLanguages = new Set(
+              Array.isArray(fileEntry?.treeSitterBatchLanguages) ? fileEntry.treeSitterBatchLanguages : []
+            );
+            const missingLanguages = requiredLanguages.filter((languageId) => !batchLanguages.has(languageId));
+            if (missingLanguages.length) {
+              return { defer: true, missingLanguages };
+            }
+          }
+        }
+      }
       const sc = chunkSegments({
         text,
         ext,
@@ -421,7 +470,7 @@ export function createFileProcessor(options) {
           chunking: languageOptions?.chunking,
           javascript: languageOptions?.javascript,
           typescript: languageOptions?.typescript,
-          treeSitter: languageOptions?.treeSitter,
+          treeSitter: treeSitterConfig,
           log: languageOptions?.log
         }
       });

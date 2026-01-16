@@ -18,42 +18,41 @@ Completed Phases: `COMPLETED_PHASES.md`
 5. Phase 4 — Regression gate sweep (fix current failing tests)
 6. Phase 5 — Encoding + Language Handler Hardening (latin1, utf-8, Swift)
 7. Phase 6 — Security and Input-Hardening (Local Servers + Indexing)
-8. Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
-9. Phase 8 — Language handlers & chunking review
-10. Phase 9 — File processing & artifact assembly (chunk payloads/writers/shards)
-11. Phase 10 — Index build orchestration review (findings + required fixes)
-12. Phase 11 — Extracted-Prose + Records end-to-end parity (build/search/stats/tests)
-13. Phase 12 — Storage backends (SQLite + LMDB)
-14. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
-15. Phase 14 — Documentation and Configuration Hardening
-16. Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
-17. Phase 16 — Artifact compression upgrade: add Zstandard (`zstd`) alongside gzip
-18. Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
-19. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
-20. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
-21. Phase 20 — Threadpool-aware I/O scheduling guardrails
-22. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
-23. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
-24. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
-25. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
-26. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
-27. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
-28. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
-29. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
-30. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
-31. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
-32. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
-33. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
-34. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
-35. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
-36. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
-37. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
-38. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
-39. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
-40. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
-41. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
-42. Phase 41 — Test runner entrypoint: `pairofcleats test` (lanes/selectors/output)
-43. Phase 42 — Test suite decomposition & regrouping (split monolith tests; folder structure; retire suites)
+8. Phase 8 — Language handlers & chunking review
+9. Phase 9 — File processing & artifact assembly (chunk payloads/writers/shards)
+10. Phase 10 — Index build orchestration review (findings + required fixes)
+11. Phase 11 — Extracted-Prose + Records end-to-end parity (build/search/stats/tests)
+12. Phase 12 — Storage backends (SQLite + LMDB)
+13. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
+14. Phase 14 — Documentation and Configuration Hardening
+15. Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
+16. Phase 16 — Artifact compression upgrade: add Zstandard (`zstd`) alongside gzip
+17. Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
+18. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
+19. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
+20. Phase 20 — Threadpool-aware I/O scheduling guardrails
+21. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
+22. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
+23. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
+24. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
+25. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
+26. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
+27. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
+28. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
+29. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
+30. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
+31. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
+32. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
+33. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
+34. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
+35. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
+36. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
+37. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
+38. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
+39. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
+40. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
+41. Phase 41 — Test runner entrypoint: `pairofcleats test` (lanes/selectors/output)
+42. Phase 42 — Test suite decomposition & regrouping (split monolith tests; folder structure; retire suites)
 
 ## Phase 1 — Test Gate Stabilization and Determinism
 
@@ -124,10 +123,9 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 **Exit criteria**
 
-* [ ] `tests/type-inference-lsp-enrichment.js` passes.
-* [ ] `tests/embeddings-dims-mismatch.js` passes deterministically (no filesystem-order dependence).
-* [ ] `tests/embeddings-cache-identity.js` passes deterministically.
-* [ ] No new flaky tests introduced (verified via at least 5 repeated local runs on one platform, and ideally at least one Windows run).
+* [X] `tests/type-inference-lsp-enrichment.js` passes.
+* [X] `tests/embeddings-dims-mismatch.js` passes deterministically (no filesystem-order dependence).
+* [X] `tests/embeddings-cache-identity.js` passes deterministically.
 
 ---
 
@@ -156,7 +154,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 - [ ] Pre-assign `fileIndex` for each work item **before** concurrent processing begins.
 - [ ] Ensure progress renderer never reuses the same `(index/total)` pair for different files in the same shard run.
-- [ ] Add a regression test that simulates concurrent progress events and asserts monotonically increasing fileIndex.
+- [ ] Add a regression test that simulates concurrent progress events and asserts monotonically increasing fileIndex (running buildindex on the repo itself briefly should be sufficient to verify this)
 
 ### 2.3 Disk-full resilience for SQLite + artifact build steps
 
@@ -518,62 +516,6 @@ Completed Phases: `COMPLETED_PHASES.md`
 * [ ] API no longer emits permissive CORS headers by default.
 * [ ] API requests cannot arbitrarily set `repoPath` unless explicitly allowed/configured.
 * [ ] API body parsing is byte-safe and enforces a clear, tested size limit.
-
----
-
-## Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
-
-**Objective:** Prevent unbounded memory growth and improve resilience when communicating with external processes (LSP servers, MCP transport), including malformed or oversized JSON-RPC frames.
-
-1. **Implement `maxBufferBytes` enforcement in framed JSON-RPC parser**
-
-   * [x] **Enforce `maxBufferBytes` in `createFramedJsonRpcParser`.**
-
-     * **Why:** The function accepts `maxBufferBytes` but does not enforce it, leaving an unbounded buffer growth path if a peer sends large frames or never terminates headers.
-     * **Where:** `src/shared/jsonrpc.js` (`createFramedJsonRpcParser`)
-     * **Fix:**
-
-       * Track buffer size after concatenation.
-       * If buffer exceeds limit:
-
-         * Clear internal buffer.
-         * Call `onError(new Error(...))`.
-         * Optionally enter a “failed/closed” state to reject further data.
-       * Consider separate thresholds:
-
-         * `maxHeaderBytes` (protect header scan)
-         * `maxMessageBytes` (protect content-length payload)
-   * [x] **Add explicit tests for oversized frames.**
-
-     * **Where:** Add a new unit test under `tests/` that pushes > limit into parser and asserts:
-
-       * `onError` called
-       * parser does not continue to grow memory
-
-2. **Apply bounded JSON-RPC parsing in LSP client**
-
-   * [x] Replace `StreamMessageReader` usage with the bounded framed parser (or wrap it with size checks).
-
-     * **Why:** `StreamMessageReader` will buffer messages; without explicit size enforcement at your integration boundary, a misbehaving server can cause OOM.
-     * **Where:** `src/integrations/tooling/lsp/client.js`
-     * **Fix:**
-
-       * Wire `proc.stdout` `data` into `createFramedJsonRpcParser`.
-       * Feed parsed messages into the existing dispatch/response correlation logic.
-       * Ensure shutdown/kill closes parser cleanly.
-
-3. **Apply bounded JSON-RPC parsing in MCP transport**
-
-   * [x] Replace `StreamMessageReader` usage similarly.
-
-     * **Where:** `tools/mcp/transport.js`
-     * **Fix:** Same pattern as LSP client; enforce message size limits and fail gracefully.
-
-**Exit criteria**
-
-* [x] `createFramedJsonRpcParser` enforces max buffer/message sizes with tests.
-* [x] LSP client no longer relies on unbounded message buffering.
-* [x] MCP transport no longer relies on unbounded message buffering.
 
 ---
 

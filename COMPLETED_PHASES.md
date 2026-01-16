@@ -683,3 +683,59 @@ For each new dependency introduced in later phases, add a minimal doc file under
 * [x] Event storms do not cause repeated redundant rebuilds (existing debounce logic preserved)
 
 ---
+
+## Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
+
+**Objective:** Prevent unbounded memory growth and improve resilience when communicating with external processes (LSP servers, MCP transport), including malformed or oversized JSON-RPC frames.
+
+1. **Implement `maxBufferBytes` enforcement in framed JSON-RPC parser**
+
+   * [x] **Enforce `maxBufferBytes` in `createFramedJsonRpcParser`.**
+
+     * **Why:** The function accepts `maxBufferBytes` but does not enforce it, leaving an unbounded buffer growth path if a peer sends large frames or never terminates headers.
+     * **Where:** `src/shared/jsonrpc.js` (`createFramedJsonRpcParser`)
+     * **Fix:**
+
+       * Track buffer size after concatenation.
+       * If buffer exceeds limit:
+
+         * Clear internal buffer.
+         * Call `onError(new Error(...))`.
+         * Optionally enter a “failed/closed” state to reject further data.
+       * Consider separate thresholds:
+
+         * `maxHeaderBytes` (protect header scan)
+         * `maxMessageBytes` (protect content-length payload)
+   * [x] **Add explicit tests for oversized frames.**
+
+     * **Where:** Add a new unit test under `tests/` that pushes > limit into parser and asserts:
+
+       * `onError` called
+       * parser does not continue to grow memory
+
+2. **Apply bounded JSON-RPC parsing in LSP client**
+
+   * [x] Replace `StreamMessageReader` usage with the bounded framed parser (or wrap it with size checks).
+
+     * **Why:** `StreamMessageReader` will buffer messages; without explicit size enforcement at your integration boundary, a misbehaving server can cause OOM.
+     * **Where:** `src/integrations/tooling/lsp/client.js`
+     * **Fix:**
+
+       * Wire `proc.stdout` `data` into `createFramedJsonRpcParser`.
+       * Feed parsed messages into the existing dispatch/response correlation logic.
+       * Ensure shutdown/kill closes parser cleanly.
+
+3. **Apply bounded JSON-RPC parsing in MCP transport**
+
+   * [x] Replace `StreamMessageReader` usage similarly.
+
+     * **Where:** `tools/mcp/transport.js`
+     * **Fix:** Same pattern as LSP client; enforce message size limits and fail gracefully.
+
+**Exit criteria**
+
+* [x] `createFramedJsonRpcParser` enforces max buffer/message sizes with tests.
+* [x] LSP client no longer relies on unbounded message buffering.
+* [x] MCP transport no longer relies on unbounded message buffering.
+
+---

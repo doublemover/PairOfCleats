@@ -2,7 +2,11 @@ import { tryRequire } from './optional-deps.js';
 
 let cached = null;
 
-const check = (name, options) => tryRequire(name, options).ok;
+const check = (name, options, { allowEsm = false } = {}) => {
+  const result = tryRequire(name, options);
+  if (result.ok) return true;
+  return allowEsm && result.reason === 'unsupported';
+};
 
 export function getCapabilities(options = {}) {
   if (cached && options.refresh !== true) return cached;
@@ -37,7 +41,7 @@ export function getCapabilities(options = {}) {
     },
     externalBackends: {
       tantivy: check('tantivy', opts),
-      lancedb: check('@lancedb/lancedb', opts)
+      lancedb: check('@lancedb/lancedb', opts, { allowEsm: true })
     }
   };
   return cached;

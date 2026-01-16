@@ -8,6 +8,9 @@ import {
   normalizeTreeSitterByLanguage
 } from './caps.js';
 
+const DEFAULT_MAX_LOADED_LANGUAGES = 3;
+const DEFAULT_DEFER_MISSING_MAX = 2;
+
 const normalizePreloadMode = (raw) => {
   if (raw === true) return 'parallel';
   if (raw === false || raw === undefined || raw === null) return 'none';
@@ -40,6 +43,13 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterConfig.byLanguage || {}
   );
   const treeSitterConfigChunking = treeSitterConfig.configChunking === true;
+  const treeSitterBatchByLanguage = treeSitterConfig.batchByLanguage !== false;
+  const treeSitterBatchEmbeddedLanguages = treeSitterConfig.batchEmbeddedLanguages !== false;
+  const treeSitterDeferMissing = treeSitterConfig.deferMissing !== false;
+  const hasDeferMissingMax = Object.prototype.hasOwnProperty.call(treeSitterConfig, 'deferMissingMax');
+  const treeSitterDeferMissingMax = hasDeferMissingMax
+    ? normalizeOptionalLimit(treeSitterConfig.deferMissingMax) ?? 0
+    : DEFAULT_DEFER_MISSING_MAX;
 
   // IMPORTANT: Tree-sitter WASM grammar loading can consume non-trivial memory.
   // Default to *on-demand* loading rather than preloading every enabled grammar.
@@ -50,9 +60,10 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
 
   // Optional cap for the number of loaded WASM grammars retained in memory.
   // When null, the tree-sitter runtime will use its conservative internal defaults.
-  const treeSitterMaxLoadedLanguages = normalizeOptionalLimit(
-    treeSitterConfig.maxLoadedLanguages
-  );
+  const hasMaxLoadedLanguages = Object.prototype.hasOwnProperty.call(treeSitterConfig, 'maxLoadedLanguages');
+  const treeSitterMaxLoadedLanguages = hasMaxLoadedLanguages
+    ? normalizeOptionalLimit(treeSitterConfig.maxLoadedLanguages)
+    : DEFAULT_MAX_LOADED_LANGUAGES;
 
   return {
     treeSitterEnabled,
@@ -65,6 +76,10 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterPreload,
     treeSitterPreloadConcurrency,
     treeSitterMaxLoadedLanguages,
+    treeSitterBatchByLanguage,
+    treeSitterBatchEmbeddedLanguages,
+    treeSitterDeferMissing,
+    treeSitterDeferMissingMax,
     treeSitterWorker: treeSitterConfig.worker || null
   };
 };

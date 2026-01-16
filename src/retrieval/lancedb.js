@@ -145,7 +145,10 @@ export async function rankLanceDb({
     }
   }
   if (typeof query.limit === 'function') query = query.limit(limit);
-  if (typeof query.select === 'function') query = query.select([idColumn]);
+  if (typeof query.select === 'function') {
+    const columns = [idColumn, '_distance'];
+    query = query.select(columns.filter(Boolean));
+  }
 
   let rows;
   try {

@@ -2,11 +2,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { createTaskQueues, runWithQueue } from '../../../../shared/concurrency.js';
 import { getEnvConfig } from '../../../../shared/env.js';
-import { toPosix } from '../../../../shared/files.js';
+import { fileExt, toPosix } from '../../../../shared/files.js';
 import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress.js';
+import { preloadTreeSitterLanguages, TREE_SITTER_LANGUAGE_IDS } from '../../../../lang/tree-sitter.js';
 import { createBuildCheckpoint } from '../../build-state.js';
 import { createFileProcessor } from '../../file-processor.js';
+import { getLanguageForFile } from '../../../language-registry.js';
 import { loadStructuralMatches } from '../../../structural.js';
 import { planShardBatches, planShards } from '../../shards.js';
 import { recordFileMetric } from '../../perf-profile.js';
@@ -94,6 +96,159 @@ const buildOrderedAppender = (handleFileResult, state) => {
     },
     abort
   };
+};
+
+const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
+const TREE_SITTER_EXT_MAP = new Map([
+  ['.tsx', 'tsx'],
+  ['.jsx', 'jsx'],
+  ['.ts', 'typescript'],
+  ['.cts', 'typescript'],
+  ['.mts', 'typescript'],
+  ['.js', 'javascript'],
+  ['.mjs', 'javascript'],
+  ['.cjs', 'javascript'],
+  ['.jsm', 'javascript'],
+  ['.py', 'python'],
+  ['.json', 'json'],
+  ['.yaml', 'yaml'],
+  ['.yml', 'yaml'],
+  ['.toml', 'toml'],
+  ['.md', 'markdown'],
+  ['.mdx', 'markdown'],
+  ['.css', 'css'],
+  ['.scss', 'css'],
+  ['.sass', 'css'],
+  ['.less', 'css'],
+  ['.html', 'html'],
+  ['.htm', 'html']
+]);
+const HTML_EMBEDDED_LANGUAGES = ['javascript', 'css'];
+
+const resolveTreeSitterLanguageForEntry = (entry) => {
+  const extRaw = typeof entry?.ext === 'string' && entry.ext ? entry.ext : fileExt(entry?.abs || entry?.rel || '');
+  const ext = typeof extRaw === 'string' ? extRaw.toLowerCase() : '';
+  const extLang = ext ? TREE_SITTER_EXT_MAP.get(ext) : null;
+  if (extLang && TREE_SITTER_LANG_IDS.has(extLang)) return extLang;
+  const lang = getLanguageForFile(ext, entry?.rel || '');
+  const languageId = lang?.id || null;
+  return languageId && TREE_SITTER_LANG_IDS.has(languageId) ? languageId : null;
+};
+
+const resolveTreeSitterBatchInfo = (entry, treeSitterOptions) => {
+  const primary = resolveTreeSitterLanguageForEntry(entry);
+  if (!primary) return { key: 'none', languages: [] };
+  const languages = new Set([primary]);
+  if (treeSitterOptions?.batchEmbeddedLanguages !== false && primary === 'html') {
+    const maxLoaded = Number.isFinite(treeSitterOptions?.maxLoadedLanguages)
+      ? Math.max(1, Math.floor(treeSitterOptions.maxLoadedLanguages))
+      : null;
+    const embeddedBudget = maxLoaded ? Math.max(0, maxLoaded - 1) : null;
+    let embeddedCount = 0;
+    for (const lang of HTML_EMBEDDED_LANGUAGES) {
+      if (embeddedBudget != null && embeddedCount >= embeddedBudget) break;
+      if (!TREE_SITTER_LANG_IDS.has(lang)) continue;
+      languages.add(lang);
+      embeddedCount += 1;
+    }
+  }
+  const normalized = Array.from(languages).filter((lang) => TREE_SITTER_LANG_IDS.has(lang)).sort();
+  const key = normalized.length ? normalized.join('+') : 'none';
+  return { key, languages: normalized };
+};
+
+const applyTreeSitterBatching = (entries, treeSitterOptions, envConfig, { allowReorder = true } = {}) => {
+  if (!treeSitterOptions || treeSitterOptions.enabled === false) return;
+  if (treeSitterOptions.batchByLanguage === false) return;
+  if (!Array.isArray(entries) || entries.length < 2) return;
+
+  const batchMeta = new Map();
+  for (const entry of entries) {
+    const info = resolveTreeSitterBatchInfo(entry, treeSitterOptions);
+    entry.treeSitterBatchKey = info.key;
+    entry.treeSitterBatchLanguages = info.languages;
+    batchMeta.set(info.key, info.languages);
+  }
+
+  if (allowReorder) {
+    entries.sort((a, b) => {
+      const keyA = a.treeSitterBatchKey || 'none';
+      const keyB = b.treeSitterBatchKey || 'none';
+      const keyDelta = keyA.localeCompare(keyB);
+      if (keyDelta !== 0) return keyDelta;
+      return (a.rel || '').localeCompare(b.rel || '');
+    });
+    entries.forEach((entry, index) => {
+      entry.orderIndex = index;
+    });
+  }
+
+  if (envConfig?.verbose === true && batchMeta.size > 1 && allowReorder) {
+    const keys = Array.from(batchMeta.keys()).sort();
+    log(`[tree-sitter] Batching files by language: ${keys.join(', ')}.`);
+  }
+};
+
+const normalizeTreeSitterLanguages = (languages) => {
+  const output = new Set();
+  for (const language of languages || []) {
+    if (TREE_SITTER_LANG_IDS.has(language)) output.add(language);
+  }
+  return Array.from(output).sort();
+};
+
+const updateEntryTreeSitterBatch = (entry, languages) => {
+  const normalized = normalizeTreeSitterLanguages(languages);
+  entry.treeSitterBatchLanguages = normalized;
+  entry.treeSitterBatchKey = normalized.length ? normalized.join('+') : 'none';
+};
+
+const sortEntriesByTreeSitterBatchKey = (entries) => {
+  entries.sort((a, b) => {
+    const keyA = a.treeSitterBatchKey || 'none';
+    const keyB = b.treeSitterBatchKey || 'none';
+    const keyDelta = keyA.localeCompare(keyB);
+    if (keyDelta !== 0) return keyDelta;
+    return (a.rel || '').localeCompare(b.rel || '');
+  });
+};
+
+const resolveNextOrderIndex = (entries) => {
+  let maxIndex = -1;
+  for (const entry of entries) {
+    const orderIndex = Number.isFinite(entry?.orderIndex) ? entry.orderIndex : -1;
+    if (orderIndex > maxIndex) maxIndex = orderIndex;
+  }
+  return maxIndex + 1;
+};
+
+const buildTreeSitterEntryBatches = (entries) => {
+  const batches = [];
+  let current = null;
+  for (const entry of entries) {
+    const key = entry.treeSitterBatchKey || 'none';
+    const languages = Array.isArray(entry.treeSitterBatchLanguages) ? entry.treeSitterBatchLanguages : [];
+    if (!current || current.key !== key) {
+      current = { key, languages, entries: [] };
+      batches.push(current);
+    }
+    current.entries.push(entry);
+  }
+  return batches;
+};
+
+const preloadTreeSitterBatch = async ({ languages, treeSitter, log }) => {
+  if (!treeSitter || treeSitter.enabled === false) return;
+  if (!Array.isArray(languages) || !languages.length) return;
+  try {
+    await preloadTreeSitterLanguages(languages, {
+      log,
+      parallel: false,
+      maxLoadedLanguages: treeSitter.maxLoadedLanguages
+    });
+  } catch {
+    // Best-effort preload; parsing will fall back if a grammar fails to load.
+  }
 };
 
 const resolveCheckpointBatchSize = (totalFiles, shardPlan) => {
@@ -208,9 +363,13 @@ export const processFiles = async ({
     },
     state
   );
+  applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
+    allowReorder: runtime.shards?.enabled !== true
+  });
+  const orderIndexState = { next: resolveNextOrderIndex(entries) };
   const processEntries = async ({ entries: shardEntries, runtime: runtimeRef, shardMeta = null, stateRef }) => {
     const shardLabel = shardMeta?.label || shardMeta?.id || null;
-  const { processFile } = createFileProcessor({
+    const { processFile } = createFileProcessor({
       root: runtimeRef.root,
       mode,
       dictConfig: runtimeRef.dictConfig,
@@ -249,58 +408,110 @@ export const processFiles = async ({
       fileScan: runtimeRef.fileScan,
       featureMetrics: runtimeRef.featureMetrics
     });
-    try {
+    const runEntryBatch = async (batchEntries, deferredEntries) => {
       await runWithQueue(
         runtimeRef.queues.cpu,
-        shardEntries,
+        batchEntries,
         async (entry, fileIndex) => {
-        if (showFileProgress) {
-          const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
-          const shardText = shardLabel ? `shard ${shardLabel}` : 'shard';
-          const shardPrefix = `[${shardText}]`;
-          const countText = `${progress.count + 1}/${progress.total}`;
-          const lineText = Number.isFinite(entry.lines) ? `lines ${entry.lines}` : null;
-          const parts = [shardPrefix, countText, lineText, rel].filter(Boolean);
-          logLine(parts.join(' '));
-        }
-        crashLogger.updateFile({
-          phase: 'processing',
-          mode,
-          stage: runtimeRef.stage,
-          fileIndex,
-          total: progress.total,
-          file: entry.rel,
-          size: entry.stat?.size || null,
-          shardId: shardMeta?.id || null
-        });
-        try {
-          const result = await processFile(entry, fileIndex);
-          progress.tick();
-          return result;
-        } catch (err) {
-          crashLogger.logError({
+          if (showFileProgress) {
+            const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
+            const shardText = shardLabel ? `shard ${shardLabel}` : 'shard';
+            const shardPrefix = `[${shardText}]`;
+            const countText = `${progress.count + 1}/${progress.total}`;
+            const lineText = Number.isFinite(entry.lines) ? `lines ${entry.lines}` : null;
+            const parts = [shardPrefix, countText, lineText, rel].filter(Boolean);
+            logLine(parts.join(' '));
+          }
+          crashLogger.updateFile({
             phase: 'processing',
             mode,
             stage: runtimeRef.stage,
+            fileIndex,
+            total: progress.total,
             file: entry.rel,
-            shardId: shardMeta?.id || null,
-            message: err?.message || String(err),
-            stack: err?.stack || null
+            size: entry.stat?.size || null,
+            shardId: shardMeta?.id || null
           });
-          throw err;
-        }
-      },
+          try {
+            const result = await processFile(entry, fileIndex);
+            return result;
+          } catch (err) {
+            crashLogger.logError({
+              phase: 'processing',
+              mode,
+              stage: runtimeRef.stage,
+              file: entry.rel,
+              shardId: shardMeta?.id || null,
+              message: err?.message || String(err),
+              stack: err?.stack || null
+            });
+            throw err;
+          }
+        },
         {
           collectResults: false,
           onResult: (result, index) => {
-            const entry = shardEntries[index];
+            const entry = batchEntries[index];
             const orderIndex = Number.isFinite(entry?.orderIndex) ? entry.orderIndex : index;
+            if (result?.defer) {
+              deferredEntries.push({
+                entry,
+                missingLanguages: Array.isArray(result.missingLanguages) ? result.missingLanguages : []
+              });
+              return orderedAppender.enqueue(orderIndex, null, shardMeta);
+            }
+            progress.tick();
             return orderedAppender.enqueue(orderIndex, result, shardMeta);
           },
           retries: 2,
           retryDelayMs: 200
         }
       );
+    };
+    const treeSitterOptions = runtimeRef.languageOptions?.treeSitter;
+    const deferMissingMax = Number.isFinite(treeSitterOptions?.deferMissingMax)
+      ? Math.max(0, Math.floor(treeSitterOptions.deferMissingMax))
+      : 0;
+    let pendingEntries = shardEntries;
+    try {
+      while (pendingEntries.length) {
+        const entryBatches = buildTreeSitterEntryBatches(pendingEntries);
+        const deferred = [];
+        for (const batch of entryBatches) {
+          await preloadTreeSitterBatch({ languages: batch.languages, treeSitter: treeSitterOptions, log });
+          await runEntryBatch(batch.entries, deferred);
+        }
+        if (!deferred.length) break;
+        const nextEntries = [];
+        for (const deferredItem of deferred) {
+          const entry = deferredItem.entry;
+          const missingLanguages = Array.isArray(deferredItem.missingLanguages)
+            ? deferredItem.missingLanguages
+            : [];
+          entry.treeSitterDeferrals = (Number(entry.treeSitterDeferrals) || 0) + 1;
+          if (deferMissingMax === 0 || entry.treeSitterDeferrals > deferMissingMax) {
+            entry.treeSitterDisabled = true;
+            updateEntryTreeSitterBatch(entry, []);
+            nextEntries.push(entry);
+            continue;
+          }
+          if (missingLanguages.length) {
+            const merged = normalizeTreeSitterLanguages([
+              ...(Array.isArray(entry.treeSitterBatchLanguages) ? entry.treeSitterBatchLanguages : []),
+              ...missingLanguages
+            ]);
+            updateEntryTreeSitterBatch(entry, merged);
+          }
+          nextEntries.push(entry);
+        }
+        if (treeSitterOptions?.batchByLanguage !== false) {
+          sortEntriesByTreeSitterBatchKey(nextEntries);
+        }
+        for (const entry of nextEntries) {
+          entry.orderIndex = orderIndexState.next++;
+        }
+        pendingEntries = nextEntries;
+      }
     } catch (err) {
       // If the shard processing fails before a contiguous `orderIndex` is
       // enqueued, later tasks may be blocked waiting for an ordered flush.
