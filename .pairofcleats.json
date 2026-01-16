@@ -1,26 +1,12 @@
 {
-  // Enable sqlite index artifacts for search backends.
-  // Speed impact: adds sqlite build time when stage4 runs.
   "sqlite": {
-    // Toggle sqlite index usage/artifact generation.
-    // Speed impact: enabling adds some indexing time and disk usage.
     "use": true
   },
-  // Search defaults for query-time behavior.
-  // Speed impact: no direct impact on indexing speed.
   "search": {
-    // Prefer ANN search by default when multiple backends exist.
-    // Speed impact: no impact on indexing; affects query latency/recall.
     "annDefault": true,
-    // Dense vector combination strategy for search.
-    // Speed impact: minor impact on embedding/storage cost during indexing.
     "denseVectorMode": "merged",
     "annBackend": "lancedb"
   },
-
-
-  // Index build pipeline options.
-  // Speed impact: many flags here change CPU/IO per file.
   "indexing": {
     "embeddings": {
       "batchSize": 128,
@@ -35,100 +21,44 @@
       },
       "shards": {
         "enabled": true,
-        // Best “full utilization” point because per-shard file concurrency
-        // is capped at 2: 8 workers * 2 files/worker = 16.
-        "maxWorkers": 16,
-
-        // Keep shard keys primarily language-based (dirKey="."),
-        // i.e., avoid mixing languages inside a shard.
+        "maxWorkers": 8,
         "dirDepth": 0
       }
     },
     "workerPool": {
-        "enabled": true,
-        "maxWorkers": 16
+      "enabled": true,
+      "maxWorkers": 16
     },
-    // Sparse postings generation settings.
-    // Speed impact: heavier postings settings increase indexing time/size.
     "postings": {
-      // Build phrase n-gram postings.
-      // Speed impact: increases indexing time and index size.
       "enablePhraseNgrams": true,
-      // Smallest phrase n-gram length.
-      // Speed impact: lower values add more n-grams and cost.
       "phraseMinN": 2,
-      // Largest phrase n-gram length.
-      // Speed impact: higher values increase indexing time and size.
       "phraseMaxN": 4,
-      // Build chargram postings for fuzzy matching.
-      // Speed impact: noticeable extra CPU and disk usage.
       "enableChargrams": true,
-      // Smallest chargram length.
-      // Speed impact: lower values increase chargram volume and cost.
       "chargramMinN": 3,
-      // Largest chargram length.
-      // Speed impact: higher values increase chargram volume and cost.
       "chargramMaxN": 5,
-      // Choose which fields contribute chargrams.
-      // Speed impact: more fields increase indexing work.
       "chargramSource": "fields",
-      // Cap token length eligible for chargrams.
-      // Speed impact: higher caps increase CPU on long identifiers.
       "chargramMaxTokenLength": 48,
-      // Track postings per field (name, path, body, etc).
-      // Speed impact: slight overhead for richer scoring.
       "fielded": true
     },
-    // When to scan imports ("pre" or "post" indexing).
-    // Speed impact: small; "post" avoids extra upfront work.
     "importScan": "pre",
-    // Enable AST dataflow analysis.
-    // Speed impact: moderate CPU cost on large codebases.
     "astDataflow": true,
-    // Enable control-flow analysis.
-    // Speed impact: moderate CPU cost on large codebases.
     "controlFlow": true,
-    // Enable risk analysis rules.
-    // Speed impact: moderate CPU cost; can be heavy on huge repos.
     "riskAnalysis": true,
-    // Enable cross-file risk correlation.
-    // Speed impact: heavy extra work on large repos.
     "riskAnalysisCrossFile": true,
-    // Enable type inference.
-    // Speed impact: moderate to heavy CPU cost.
     "typeInference": true,
-    // Enable cross-file type inference.
-    // Speed impact: heavy extra work on large repos.
     "typeInferenceCrossFile": true,
-    // Collect git blame/churn metadata per file.
-    // Speed impact: heavy IO/CPU; can dominate indexing time.
     "gitBlame": true,
-    // Run linting pass for diagnostics.
-    // Speed impact: extra CPU per file.
     "lint": true,
-    // Compute complexity metrics.
-    // Speed impact: extra CPU per file.
     "complexity": true,
-    // Python AST parsing options.
-    // Speed impact: small to moderate CPU on Python files.
     "pythonAst": {
-      // Enable Python AST parsing.
-      // Speed impact: small to moderate on Python-heavy repos.
       "enabled": true
     },
-    // Tree-sitter parsing options.
-    // Speed impact: moderate CPU, improved chunking accuracy.
     "treeSitter": {
-      // Enable tree-sitter parsing.
-      // Speed impact: moderate CPU on supported languages.
-      "enabled": true,
-  },
-  // Runtime process limits for the indexer.
-  // Speed impact: higher heap reduces GC stalls on big repos.
-  "runtime": {
-    "uvThreadpoolSize": 32,
-    // Max Node heap size in MB for the indexer process.
-    // Speed impact: too low slows indexing; higher reduces GC overhead.
-    "maxOldSpaceMb": 65536
+      "enabled": true
+    },
+    "runtime": {
+      "uvThreadpoolSize": 32,
+      "maxOldSpaceMb": 65536
+    }
   }
 }

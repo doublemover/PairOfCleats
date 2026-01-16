@@ -1,0 +1,93 @@
+diff -ruN a/.pairofcleats.json b/.pairofcleats.json
+--- a/.pairofcleats.json	2026-01-16 12:23:20.000000000 +0000
++++ b/.pairofcleats.json	2026-01-16 13:29:56.537385795 +0000
+@@ -124,6 +124,7 @@
+       // Enable tree-sitter parsing.
+       // Speed impact: moderate CPU on supported languages.
+       "enabled": true,
++    }
+   },
+   // Runtime process limits for the indexer.
+   // Speed impact: higher heap reduces GC stalls on big repos.
+diff -ruN a/src/index/build/file-processor/embeddings.js b/src/index/build/file-processor/embeddings.js
+--- a/src/index/build/file-processor/embeddings.js	2026-01-16 12:23:20.000000000 +0000
++++ b/src/index/build/file-processor/embeddings.js	2026-01-16 13:27:38.179834035 +0000
+@@ -1,4 +1,4 @@
+-import { normalizeVec } from '../../embedding.js';
++import { normalizeVec, quantizeVecUint8 } from '../../embedding.js';
+ import { resolveEmbeddingBatchSize } from '../embedding-batch.js';
+ 
+ export async function attachEmbeddings({
+@@ -86,6 +86,9 @@
+   // Most code chunks have no doc payload; allocating `dims` zeros for each chunk
+   // is a major memory multiplier for large indexes.
+   const missingDoc = [];
++  // IMPORTANT: represent "no doc" with a shared empty Uint8Array so downstream
++  // builders can substitute a zero-vector without allocating one per chunk.
++  const missingDocU8 = new Uint8Array(0);
+   for (let i = 0; i < chunks.length; i += 1) {
+     const chunk = chunks[i];
+     const embedCode = Array.isArray(codeVectors[i]) ? codeVectors[i] : [];
+@@ -97,9 +100,27 @@
+         ? embedCode.map((v, idx) => (v + (rawDoc[idx] ?? 0)) / 2)
+         : embedCode)
+       : (hasDoc ? rawDoc : missingDoc);
+-    chunk.embed_code = embedCode;
+-    chunk.embed_doc = embedDoc;
+-    chunk.embedding = normalizeVec(merged);
++    // Float vectors (JS number arrays) are very memory expensive. To keep the
++    // in-flight footprint low (especially when many file results are queued
++    // before being appended to the global index state), we pre-quantize to
++    // Uint8Array and drop the float vectors.
++
++    chunk.embed_code_u8 = embedCode.length
++      ? quantizeVecUint8(embedCode, -1, 1, 256)
++      : undefined;
++    chunk.embed_doc_u8 = hasDoc
++      ? quantizeVecUint8(rawDoc, -1, 1, 256)
++      : missingDocU8;
++
++    const mergedNorm = normalizeVec(merged);
++    chunk.embedding_u8 = mergedNorm.length
++      ? quantizeVecUint8(mergedNorm, -1, 1, 256)
++      : null;
++
++    // Preserve markers only in quantized form.
++    delete chunk.embed_code;
++    delete chunk.embed_doc;
++    delete chunk.embedding;
+   }
+ 
+   return { embeddingMs: Date.now() - embedStart };
+diff -ruN a/src/shared/jsonc.js b/src/shared/jsonc.js
+--- a/src/shared/jsonc.js	2026-01-16 12:23:20.000000000 +0000
++++ b/src/shared/jsonc.js	2026-01-16 13:28:50.110121765 +0000
+@@ -9,7 +9,10 @@
+     throw new Error(`Failed to parse${describeSource(source)}: empty file.`);
+   }
+   const errors = [];
+-  const parsed = parseJsonc(text, errors, { allowTrailingComma: false });
++  // Config files are treated as JSONC (comments allowed). Trailing commas are
++  // a very common authoring pattern in hand-edited config; rejecting them makes
++  // configuration failures easy to miss.
++  const parsed = parseJsonc(text, errors, { allowTrailingComma: true });
+   if (errors.length) {
+     const first = errors[0];
+     const code = typeof printParseErrorCode === 'function'
+diff -ruN a/tools/dict-utils.js b/tools/dict-utils.js
+--- a/tools/dict-utils.js	2026-01-16 12:23:20.000000000 +0000
++++ b/tools/dict-utils.js	2026-01-16 13:30:39.113282680 +0000
+@@ -65,7 +65,12 @@
+       return normalizeUserConfig(applyProfileConfig(base, options.profile));
+     }
+     return normalizeUserConfig(applyProfileConfig({}, options.profile));
+-  } catch {
++  } catch (err) {
++    // Do not fail hard on config load/parsing errors (keep CLI usable), but
++    // make the failure visible. Silent fallback makes perf/memory tuning appear
++    // ineffective when the config file simply isn't being parsed.
++    const msg = err && typeof err === 'object' && 'message' in err ? err.message : String(err);
++    console.warn(`[pairofcleats] Failed to load .pairofcleats.json; using defaults. ${msg}`);
+     return {};
+   }
+ }
