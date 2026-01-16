@@ -89,36 +89,73 @@ export async function initTreeSitterWasm(options = {}) {
 
 async function loadWasmLanguage(languageId, options = {}) {
   const resolvedId = resolveLanguageId(languageId);
-  if (!resolvedId) return { language: null, error: new Error('invalid language id') };
+  if (!resolvedId) {
+    return { language: null, error: new Error('Missing tree-sitter language id') };
+  }
   const cached = treeSitterState.languageCache.get(resolvedId);
   if (cached?.language || cached?.error) return cached;
-  const pending = treeSitterState.languageLoadPromises.get(resolvedId);
-  if (pending) return pending;
+
+  const wasmFile = LANGUAGE_WASM_FILES[resolvedId];
+  if (!wasmFile) {
+    const entry = { language: null, error: new Error(`Missing WASM file for ${resolvedId}`) };
+    treeSitterState.languageCache.set(resolvedId, entry);
+    return entry;
+  }
+
+  // Deduplicate aliases that share the same wasm (e.g. javascript/jsx).
+  const wasmKey = wasmFile;
+  const wasmCached = treeSitterState.wasmLanguageCache.get(wasmKey);
+  if (wasmCached?.language || wasmCached?.error) {
+    treeSitterState.languageCache.set(resolvedId, wasmCached);
+    return wasmCached;
+  }
+
+  const pending = treeSitterState.languageLoadPromises.get(wasmKey);
+  if (pending) {
+    return pending.then((entry) => {
+      if (entry && !treeSitterState.languageCache.has(resolvedId)) {
+        treeSitterState.languageCache.set(resolvedId, entry);
+      }
+      return entry;
+    });
+  }
   const promise = (async () => {
     const ok = await initTreeSitterWasm(options);
     if (!ok) {
-      return { language: null, error: treeSitterState.treeSitterInitError || new Error('Tree-sitter WASM init failed') };
-    }
-    const wasmFile = LANGUAGE_WASM_FILES[resolvedId];
-    if (!wasmFile) {
-      return { language: null, error: new Error(`Missing WASM file for ${resolvedId}`) };
+      const entry = {
+        language: null,
+        error: treeSitterState.treeSitterInitError || new Error('Tree-sitter WASM init failed')
+      };
+      treeSitterState.languageCache.set(resolvedId, entry);
+      treeSitterState.wasmLanguageCache.set(wasmKey, entry);
+      return entry;
     }
     try {
       const wasmPath = path.join(resolveWasmRoot(), wasmFile);
-      const wasmBytes = await fs.readFile(wasmPath);
-      const language = await treeSitterState.TreeSitterLanguage.load(wasmBytes);
+      // Prefer path-based loading to avoid retaining large WASM buffers in JS.
+      // (Some web-tree-sitter builds accept a file path.)
+      let language;
+      try {
+        language = await treeSitterState.TreeSitterLanguage.load(wasmPath);
+      } catch {
+        const wasmBytes = await fs.readFile(wasmPath);
+        language = await treeSitterState.TreeSitterLanguage.load(wasmBytes);
+      }
       const entry = { language, error: null };
       treeSitterState.languageCache.set(resolvedId, entry);
+      treeSitterState.wasmLanguageCache.set(wasmKey, entry);
       return entry;
     } catch (err) {
       const entry = { language: null, error: err };
       treeSitterState.languageCache.set(resolvedId, entry);
+      treeSitterState.wasmLanguageCache.set(wasmKey, entry);
       return entry;
     } finally {
-      treeSitterState.languageLoadPromises.delete(resolvedId);
+      treeSitterState.languageLoadPromises.delete(wasmKey);
     }
   })();
-  treeSitterState.languageLoadPromises.set(resolvedId, promise);
+
+  treeSitterState.languageLoadPromises.set(wasmKey, promise);
   return promise;
 }
 
@@ -186,10 +223,6 @@ export function getTreeSitterParser(languageId, options = {}) {
   }
   const resolvedId = resolveLanguageId(languageId);
   if (!resolvedId) return null;
-  if (treeSitterState.parserCache.has(resolvedId)) {
-    touchParserCacheEntry(resolvedId);
-    return treeSitterState.parserCache.get(resolvedId);
-  }
   const entry = treeSitterState.languageCache.get(resolvedId) || null;
   const language = entry?.language || null;
   if (!language) {
@@ -204,28 +237,44 @@ export function getTreeSitterParser(languageId, options = {}) {
     }
     return null;
   }
-  const parser = new treeSitterState.TreeSitter();
+
+  // IMPORTANT: Keep a single shared Parser instance and switch languages.
+  // Keeping multiple parsers alive (even with an LRU cache) can balloon WASM
+  // memory in polyglot repos and trigger V8 "Zone" OOMs on Windows.
   try {
-    parser.setLanguage(language);
-  } catch (err) {
-    if (typeof parser.delete === 'function') {
+    if (!treeSitterState.sharedParser) {
+      treeSitterState.sharedParser = new treeSitterState.TreeSitter();
+      treeSitterState.sharedParserLanguageId = null;
+      // Clear the legacy per-language cache to avoid keeping extra Parsers alive.
+      treeSitterState.parserCache?.clear?.();
+    }
+
+    if (treeSitterState.sharedParserLanguageId !== resolvedId) {
       try {
-        parser.delete();
+        treeSitterState.sharedParser.reset?.();
       } catch {
         // ignore
       }
+      treeSitterState.sharedParser.setLanguage(language);
+      treeSitterState.sharedParserLanguageId = resolvedId;
     }
-    treeSitterState.parserCache.set(resolvedId, null);
+    return treeSitterState.sharedParser;
+  } catch (err) {
+    // If the shared parser becomes unusable, drop it and try to recreate on the next call.
+    try {
+      treeSitterState.sharedParser?.delete?.();
+    } catch {
+      // ignore
+    }
+    treeSitterState.sharedParser = null;
+    treeSitterState.sharedParserLanguageId = null;
+
     if (!treeSitterState.loggedMissing.has(resolvedId)) {
-      const message = err?.message || err;
+      const message = err?.message || String(err);
       const log = options?.log || console.warn;
-      log(`[tree-sitter] Failed to load ${resolvedId} WASM grammar: ${message}.`);
+      log(`[tree-sitter] Failed to activate ${resolvedId} WASM grammar: ${message}.`);
       treeSitterState.loggedMissing.add(resolvedId);
     }
-    evictOldParsers();
     return null;
   }
-  treeSitterState.parserCache.set(resolvedId, parser);
-  evictOldParsers();
-  return parser;
 }

@@ -16,6 +16,30 @@ const loggedParseFailures = new Set();
 const loggedParseTimeouts = new Set();
 const loggedSizeSkips = new Set();
 const loggedUnavailable = new Set();
+const loggedTraversalBudget = new Set();
+
+// Guardrails: keep tree traversal and chunk extraction bounded even on pathological inputs.
+// These caps are intentionally conservative for JS/TS where nested lambdas/callbacks can be dense.
+const DEFAULT_MAX_AST_NODES = 250_000;
+const DEFAULT_MAX_AST_STACK = 250_000;
+const DEFAULT_MAX_CHUNK_NODES = 5_000;
+
+const JS_TS_LANGUAGE_IDS = new Set(['javascript', 'typescript', 'tsx', 'jsx']);
+
+function resolveTraversalBudget(options, resolvedId) {
+  const config = options?.treeSitter || {};
+  const perLanguage = config.byLanguage?.[resolvedId] || {};
+  const isJsTs = JS_TS_LANGUAGE_IDS.has(resolvedId);
+  const defaultMaxChunkNodes = isJsTs ? 1_000 : DEFAULT_MAX_CHUNK_NODES;
+  const maxAstNodes = perLanguage.maxAstNodes ?? config.maxAstNodes ?? DEFAULT_MAX_AST_NODES;
+  const maxAstStack = perLanguage.maxAstStack ?? config.maxAstStack ?? DEFAULT_MAX_AST_STACK;
+  const maxChunkNodes = perLanguage.maxChunkNodes ?? config.maxChunkNodes ?? defaultMaxChunkNodes;
+  return {
+    maxAstNodes: Number.isFinite(maxAstNodes) && maxAstNodes > 0 ? Math.floor(maxAstNodes) : DEFAULT_MAX_AST_NODES,
+    maxAstStack: Number.isFinite(maxAstStack) && maxAstStack > 0 ? Math.floor(maxAstStack) : DEFAULT_MAX_AST_STACK,
+    maxChunkNodes: Number.isFinite(maxChunkNodes) && maxChunkNodes > 0 ? Math.floor(maxChunkNodes) : defaultMaxChunkNodes
+  };
+}
 
 function countLines(text) {
   if (!text) return 0;
@@ -153,23 +177,37 @@ function findNearestType(node, config) {
   return null;
 }
 
-function gatherChunkNodes(root, config) {
+function gatherChunkNodes(root, config, budget) {
   const nodes = [];
   const stack = [root];
+  let visited = 0;
+  const maxAstNodes = budget?.maxAstNodes ?? DEFAULT_MAX_AST_NODES;
+  const maxAstStack = budget?.maxAstStack ?? DEFAULT_MAX_AST_STACK;
+  const maxChunkNodes = budget?.maxChunkNodes ?? DEFAULT_MAX_CHUNK_NODES;
   while (stack.length) {
+    if (stack.length > maxAstStack) {
+      return { nodes: null, reason: 'maxAstStack', visited, matched: nodes.length };
+    }
     const node = stack.pop();
     if (!node) continue;
+    visited += 1;
+    if (visited > maxAstNodes) {
+      return { nodes: null, reason: 'maxAstNodes', visited, matched: nodes.length };
+    }
     const missing = typeof node.isMissing === 'function' ? node.isMissing() : node.isMissing;
     if (missing) continue;
     if (config.typeNodes.has(node.type) || config.memberNodes.has(node.type)) {
       nodes.push(node);
+      if (nodes.length > maxChunkNodes) {
+        return { nodes: null, reason: 'maxChunkNodes', visited, matched: nodes.length };
+      }
     }
     const count = getNamedChildCount(node);
     for (let i = count - 1; i >= 0; i -= 1) {
       stack.push(getNamedChild(node, i));
     }
   }
-  return nodes;
+  return { nodes, reason: null, visited, matched: nodes.length };
 }
 
 function toChunk(node, text, config, lineIndex, lineAccessor) {
@@ -264,6 +302,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
   }
   const config = LANG_CONFIG[resolvedId];
   if (!config) return null;
+  const traversalBudget = resolveTraversalBudget(options, resolvedId);
   let tree = null;
   try {
     try {
@@ -299,7 +338,21 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
 
     let nodes = [];
     try {
-      nodes = gatherChunkNodes(rootNode, config);
+      const result = gatherChunkNodes(rootNode, config, traversalBudget);
+      if (!result?.nodes) {
+        recordMetrics();
+        const key = `${resolvedId}:${result?.reason || 'budget'}`;
+        if (options?.log && !loggedTraversalBudget.has(key)) {
+          options.log(
+            `Tree-sitter traversal aborted for ${resolvedId} (${result?.reason}); `
+              + `visited=${result?.visited ?? 'n/a'} matched=${result?.matched ?? 'n/a'}. `
+              + 'Falling back to heuristic chunking.'
+          );
+          loggedTraversalBudget.add(key);
+        }
+        return null;
+      }
+      nodes = result.nodes;
     } catch {
       recordMetrics();
       if (!loggedParseFailures.has(resolvedId) && options?.log) {
@@ -334,6 +387,15 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       if (tree && typeof tree.delete === 'function') tree.delete();
     } catch {
       // ignore disposal failures
+    }
+
+    // Some tree-sitter builds retain internal parse stack allocations across parses.
+    // Resetting keeps memory bounded across long-running indexing jobs.
+    try {
+      const parserRef = treeSitterState?.parserCache?.get?.(resolvedId);
+      if (parserRef && typeof parserRef.reset === 'function') parserRef.reset();
+    } catch {
+      // ignore reset failures
     }
   }
 }

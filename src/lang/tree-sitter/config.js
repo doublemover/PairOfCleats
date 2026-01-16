@@ -36,9 +36,7 @@ const JS_TS_CONFIG = {
   ]),
   memberNodes: new Set([
     'function_declaration',
-    'method_definition',
-    'function',
-    'arrow_function'
+    'method_definition'
   ]),
   kindMap: {
     class_declaration: 'ClassDeclaration',
@@ -46,9 +44,7 @@ const JS_TS_CONFIG = {
     type_alias_declaration: 'TypeAlias',
     enum_declaration: 'EnumDeclaration',
     function_declaration: 'FunctionDeclaration',
-    method_definition: 'MethodDeclaration',
-    function: 'FunctionDeclaration',
-    arrow_function: 'ArrowFunction'
+    method_definition: 'MethodDeclaration'
   },
   docComments: { linePrefixes: ['//'], blockStarts: ['/**'] }
 };

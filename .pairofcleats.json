@@ -8,8 +8,9 @@
     "annBackend": "lancedb"
   },
   "indexing": {
+    "embeddingBatchSize": 1024,
     "embeddings": {
-      "batchSize": 512,
+      "batchSize": 1024,
       "concurrency": 16,
       "lancedb": {
         "enabled": true,
@@ -21,7 +22,7 @@
       },
       "shards": {
         "enabled": true,
-        "maxWorkers": 8,
+        "maxWorkers": 16,
         "dirDepth": 0
       }
     },

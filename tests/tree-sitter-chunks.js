@@ -12,7 +12,14 @@ const fixtures = [
   { id: 'objc', file: 'objc.m', ext: '.m', expect: ['Widget', 'greet'] },
   { id: 'go', file: 'go.go', languageId: 'go', expect: ['Widget', 'Widget.Greet'] },
   { id: 'rust', file: 'rust.rs', languageId: 'rust', expect: ['Widget', 'Widget.greet'] },
-  { id: 'java', file: 'java.java', languageId: 'java', expect: ['Widget', 'Widget.greet'] }
+  { id: 'java', file: 'java.java', languageId: 'java', expect: ['Widget', 'Widget.greet'] },
+  {
+    id: 'javascript',
+    file: 'javascript.js',
+    languageId: 'javascript',
+    expect: ['top', 'Foo', 'Foo.method', 'Foo.make', 'outer'],
+    noKinds: ['ArrowFunction']
+  }
 ];
 
 const preloadIds = fixtures
@@ -63,10 +70,19 @@ if (limitedByLines !== null) {
 }
 
 const toNameSet = (chunks) => new Set(chunks.map((c) => c.name));
+const toKindSet = (chunks) => new Set(chunks.map((c) => c.kind));
 const assertHas = (set, expected, label) => {
   for (const name of expected) {
     if (!set.has(name)) {
       throw new Error(`${label} missing expected chunk name: ${name}`);
+    }
+  }
+};
+
+const assertNotHas = (set, forbidden, label) => {
+  for (const item of forbidden || []) {
+    if (set.has(item)) {
+      throw new Error(`${label} unexpectedly contained: ${item}`);
     }
   }
 };
@@ -84,6 +100,10 @@ for (const fixture of fixtures) {
   }
   const names = toNameSet(chunks);
   assertHas(names, fixture.expect, fixture.id);
+  if (fixture.noKinds) {
+    const kinds = toKindSet(chunks);
+    assertNotHas(kinds, fixture.noKinds, fixture.id);
+  }
 }
 
 console.log('tree-sitter chunk fixtures passed.');
