@@ -1,4 +1,4 @@
-import { extractNgrams, tri } from '../../shared/tokenize.js';
+import { tri } from '../../shared/tokenize.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
@@ -32,6 +32,47 @@ function appendDocIdToPostingsMap(map, key, docId) {
   // Back-compat: if older states used Sets, continue supporting them.
   if (current && typeof current.add === 'function') {
     current.add(docId);
+  }
+}
+
+/**
+ * Appends phrase n-grams for a token sequence to a postings map without
+ * materializing the full n-gram array.
+ *
+ * This significantly reduces transient allocation pressure compared to
+ * `extractNgrams(...)`, especially for long token sequences.
+ */
+function appendPhraseNgramsToPostingsMap(map, tokens, docId, minN, maxN) {
+  if (!map) return;
+  if (!Array.isArray(tokens) || tokens.length === 0) return;
+  const min = Number.isFinite(minN) ? minN : 2;
+  const max = Number.isFinite(maxN) ? maxN : 4;
+  if (min < 1 || max < min) return;
+
+  const len = tokens.length;
+  // For very short token sequences, nothing to do.
+  if (len < min) return;
+
+  const sep = '\u0001';
+  const maxSpan = Math.min(max, len);
+
+  for (let i = 0; i < len; i += 1) {
+    // Build incrementally: token[i], token[i]␁token[i+1], ...
+    let key = '';
+    for (let n = 1; n <= maxSpan; n += 1) {
+      const j = i + n - 1;
+      if (j >= len) break;
+      const tok = tokens[j];
+      if (tok == null || tok === '') {
+        // Reset on empty tokens so we don't emit malformed n-grams.
+        key = '';
+        continue;
+      }
+      key = key ? `${key}${sep}${tok}` : String(tok);
+      if (n >= min) {
+        appendDocIdToPostingsMap(map, key, docId);
+      }
+    }
   }
 }
 
@@ -131,6 +172,14 @@ export function appendChunk(
   if (!seq.length) return;
 
   const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
+  const phraseMinN = Number.isFinite(postingsConfig?.phraseMinN)
+    ? postingsConfig.phraseMinN
+    : 2;
+  const phraseMaxN = Number.isFinite(postingsConfig?.phraseMaxN)
+    ? postingsConfig.phraseMaxN
+    : 4;
+  const phraseSource = postingsConfig?.phraseSource === 'full' ? 'full' : 'fields';
+
   const chargramEnabled = postingsConfig?.enableChargrams !== false;
   const fieldedEnabled = postingsConfig?.fielded !== false;
   const chargramSource = postingsConfig?.chargramSource === 'full' ? 'full' : 'fields';
@@ -139,11 +188,6 @@ export function appendChunk(
     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
 
   state.totalTokens += seq.length;
-  const ngrams = phraseEnabled
-    ? (Array.isArray(chunk.ngrams) && chunk.ngrams.length
-      ? chunk.ngrams
-      : extractNgrams(seq, postingsConfig.phraseMinN, postingsConfig.phraseMaxN))
-    : [];
 
   const charSet = new Set();
   if (chargramEnabled) {
@@ -170,8 +214,10 @@ export function appendChunk(
         addFromTokens(fields.name);
         addFromTokens(fields.doc);
         if (!charSet.size) {
-          // Fallback when no field tokens exist.
-          addFromTokens(seq);
+          // Intentionally emit no chargrams when no field tokens exist.
+          // Falling back to the full token stream defeats the purpose of
+          // bounding the chargram vocabulary and can create extremely large
+          // postings maps in multi-language repos.
         }
       } else {
         addFromTokens(seq);
@@ -196,8 +242,19 @@ export function appendChunk(
   }
 
   if (phraseEnabled) {
-    for (const ng of ngrams) {
-      appendDocIdToPostingsMap(state.phrasePost, ng, chunkId);
+    if (phraseSource === 'full') {
+      appendPhraseNgramsToPostingsMap(state.phrasePost, seq, chunkId, phraseMinN, phraseMaxN);
+    } else {
+      const fields = chunk.fieldTokens || {};
+      // IMPORTANT: Do not fall back to the full token stream here. The entire
+      // point of the field-based strategy is to keep phrase vocabulary bounded,
+      // especially across many languages.
+      const phraseFields = ['name', 'signature', 'doc', 'comment'];
+      for (const field of phraseFields) {
+        const fieldTokens = Array.isArray(fields[field]) ? fields[field] : null;
+        if (!fieldTokens || !fieldTokens.length) continue;
+        appendPhraseNgramsToPostingsMap(state.phrasePost, fieldTokens, chunkId, phraseMinN, phraseMaxN);
+      }
     }
   }
   if (chargramEnabled) {

@@ -33,7 +33,10 @@ export function buildChunkPayload({
   const weight = getFieldWeight(chunk, rel);
   const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
   const fieldedEnabled = postingsConfig?.fielded !== false;
-  const fieldTokens = fieldedEnabled ? {
+  const wantsFieldTokens = fieldedEnabled
+    || postingsConfig?.chargramSource === 'fields'
+    || postingsConfig?.phraseSource === 'fields';
+  const fieldTokens = wantsFieldTokens ? {
     name: chunk.name ? buildTokenSequence({
       text: chunk.name,
       mode: tokenMode,
@@ -60,7 +63,7 @@ export function buildChunkPayload({
       }).tokens
       : [],
     comment: commentFieldTokens,
-    body: tokens
+    body: fieldedEnabled ? tokens : []
   } : null;
   const headline = getHeadline(chunk, tokens);
   const externalDocs = relationsEnabled
