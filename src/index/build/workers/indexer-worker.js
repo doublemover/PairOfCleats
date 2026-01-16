@@ -1,7 +1,11 @@
 import { parentPort, threadId, workerData } from 'node:worker_threads';
 import util from 'node:util';
 import { quantizeVec } from '../../embedding.js';
-import { createTokenizationContext, tokenizeChunkText } from '../tokenization.js';
+import {
+  createTokenizationBuffers,
+  createTokenizationContext,
+  tokenizeChunkText
+} from '../tokenization.js';
 import { createSharedDictionaryView } from '../../../shared/dictionary.js';
 
 const dictShared = createSharedDictionaryView(workerData?.dictShared);
@@ -13,6 +17,10 @@ const tokenContext = createTokenizationContext({
   dictConfig,
   postingsConfig
 });
+
+// Reuse tokenization scratch buffers to reduce per-task allocations and GC pressure.
+// Piscina runs one task at a time per worker thread, so this shared instance is safe.
+const tokenBuffers = createTokenizationBuffers();
 
 const normalizeEmptyMessage = (value) => {
   if (typeof value !== 'string') return value;
@@ -156,15 +164,28 @@ const validateCloneable = (value, label) => {
 
 const normalizeStringArray = (value) => {
   if (!Array.isArray(value)) return [];
-  const out = [];
-  for (const entry of value) {
-    if (typeof entry === 'string') out.push(entry);
+
+  // Fast path: avoid copying when the array already contains only strings.
+  for (let i = 0; i < value.length; i += 1) {
+    if (typeof value[i] !== 'string') {
+      const out = [];
+      for (const entry of value) {
+        if (typeof entry === 'string') out.push(entry);
+      }
+      return out;
+    }
   }
-  return out;
+  return value;
 };
 
 const normalizeNumberArray = (value) => {
-  if (Array.isArray(value)) return value.map((entry) => Number(entry));
+  if (Array.isArray(value)) {
+    // Fast path: avoid copying when already numeric.
+    for (let i = 0; i < value.length; i += 1) {
+      if (typeof value[i] !== 'number') return value.map((entry) => Number(entry));
+    }
+    return value;
+  }
   if (ArrayBuffer.isView(value)) return Array.from(value, (entry) => Number(entry));
   return [];
 };
@@ -298,7 +319,7 @@ export const tokenizeChunk = withWorkerError(
         postingsConfig: input.postingsConfig || postingsConfig
       })
       : tokenContext;
-    const result = tokenizeChunkText({ ...input, context });
+    const result = tokenizeChunkText({ ...input, context, buffers: tokenBuffers });
     return sanitizeTokenizeResult(result);
   },
   'tokenizeChunk'

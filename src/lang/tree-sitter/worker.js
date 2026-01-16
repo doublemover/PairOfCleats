@@ -41,6 +41,41 @@ export const sanitizeTreeSitterOptions = (treeSitter) => {
   };
 };
 
+const buildWorkerExecArgv = () => process.execArgv.filter((arg) => (
+  typeof arg === 'string'
+  && !arg.startsWith('--max-old-space-size')
+  && !arg.startsWith('--max-semi-space-size')
+));
+
+const parseMaxOldSpaceSizeMb = (argv) => {
+  if (!Array.isArray(argv)) return null;
+  for (let i = argv.length - 1; i >= 0; i -= 1) {
+    const arg = argv[i];
+    if (typeof arg !== 'string') continue;
+    if (arg === '--max-old-space-size' && i + 1 < argv.length) {
+      const value = Number(argv[i + 1]);
+      if (Number.isFinite(value) && value > 0) return Math.floor(value);
+    }
+    if (arg.startsWith('--max-old-space-size=')) {
+      const value = Number(arg.split('=', 2)[1]);
+      if (Number.isFinite(value) && value > 0) return Math.floor(value);
+    }
+  }
+  return null;
+};
+
+const resolveWorkerResourceLimits = (maxWorkers) => {
+  const workerCount = Math.max(1, Math.floor(Number(maxWorkers) || 1));
+  const totalMemMb = Math.floor(os.totalmem() / 1024 / 1024);
+  const maxOldMb = parseMaxOldSpaceSizeMb(process.execArgv);
+  const basisMb = Math.max(512, Math.min(4096, Math.min(totalMemMb, maxOldMb || totalMemMb)));
+  const perWorkerMb = Math.floor(basisMb / (workerCount * 2));
+  const minMb = 128;
+  const platformCap = process.platform === 'win32' ? 512 : 1024;
+  const oldGenMb = Math.max(minMb, Math.min(platformCap, perWorkerMb));
+  return { maxOldGenerationSizeMb: oldGenMb };
+};
+
 export const getTreeSitterWorkerPool = async (rawConfig, options = {}) => {
   const config = normalizeTreeSitterWorkerConfig(rawConfig);
   if (!config.enabled) return null;
@@ -64,11 +99,15 @@ export const getTreeSitterWorkerPool = async (rawConfig, options = {}) => {
     return null;
   }
   try {
+    const execArgv = buildWorkerExecArgv();
+    const resourceLimits = resolveWorkerResourceLimits(config.maxWorkers);
     treeSitterState.treeSitterWorkerPool = new Piscina({
       filename: fileURLToPath(new URL('../workers/tree-sitter-worker.js', import.meta.url)),
       maxThreads: config.maxWorkers,
       idleTimeout: config.idleTimeoutMs,
-      taskTimeout: config.taskTimeoutMs
+      taskTimeout: config.taskTimeoutMs,
+      ...(execArgv.length ? { execArgv } : {}),
+      ...(resourceLimits ? { resourceLimits } : {})
     });
     return treeSitterState.treeSitterWorkerPool;
   } catch (err) {

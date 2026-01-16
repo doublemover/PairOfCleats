@@ -4,6 +4,7 @@ import { Packr, Unpackr } from 'msgpackr';
 import { sha1, checksumString } from './hash.js';
 import { estimateJsonBytes } from './cache.js';
 import { stableStringify } from './stable-json.js';
+import { writeJsonObjectFile } from './json-stream.js';
 
 const BUNDLE_FORMAT_TAG = 'pairofcleats.bundle';
 const BUNDLE_VERSION = 1;
@@ -72,7 +73,7 @@ export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
       checksumAlgo: checksum?.algo ?? null
     };
   }
-  await fs.writeFile(bundlePath, `${JSON.stringify(bundle)}\n`);
+  await writeJsonObjectFile(bundlePath, { fields: bundle, trailingNewline: true });
   return { format: resolvedFormat, checksum: null, checksumAlgo: null };
 }
 
