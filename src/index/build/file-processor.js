@@ -32,7 +32,28 @@ import { isTreeSitterEnabled } from '../../lang/tree-sitter/options.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 
-const resolveTreeSitterLanguagesForSegments = ({ segments, primaryLanguageId, treeSitterConfig }) => {
+const resolveTreeSitterLanguageForExt = (languageId, ext) => {
+  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
+  if (normalizedExt === '.tsx') return 'tsx';
+  if (normalizedExt === '.jsx') return 'jsx';
+  if (normalizedExt === '.ts' || normalizedExt === '.cts' || normalizedExt === '.mts') return 'typescript';
+  if (normalizedExt === '.js' || normalizedExt === '.mjs' || normalizedExt === '.cjs' || normalizedExt === '.jsm') {
+    return 'javascript';
+  }
+  if (normalizedExt === '.py') return 'python';
+  if (normalizedExt === '.json') return 'json';
+  if (normalizedExt === '.yaml' || normalizedExt === '.yml') return 'yaml';
+  if (normalizedExt === '.toml') return 'toml';
+  if (normalizedExt === '.md' || normalizedExt === '.mdx') return 'markdown';
+  if (!normalizedExt) return languageId;
+  if (normalizedExt === '.m' || normalizedExt === '.mm') return 'objc';
+  if (normalizedExt === '.cpp' || normalizedExt === '.cc' || normalizedExt === '.cxx'
+    || normalizedExt === '.hpp' || normalizedExt === '.hh' || normalizedExt === '.hxx') return 'cpp';
+  if (normalizedExt === '.c' || normalizedExt === '.h') return 'clike';
+  return languageId;
+};
+
+const resolveTreeSitterLanguagesForSegments = ({ segments, primaryLanguageId, ext, treeSitterConfig }) => {
   if (!treeSitterConfig || treeSitterConfig.enabled === false) return [];
   const options = { treeSitter: treeSitterConfig };
   const languages = new Set();
@@ -41,7 +62,7 @@ const resolveTreeSitterLanguagesForSegments = ({ segments, primaryLanguageId, tr
     if (!isTreeSitterEnabled(options, languageId)) return;
     languages.add(languageId);
   };
-  add(primaryLanguageId);
+  add(resolveTreeSitterLanguageForExt(primaryLanguageId, ext));
   if (Array.isArray(segments)) {
     for (const segment of segments) {
       if (!segment || segment.type !== 'embedded') continue;
@@ -444,6 +465,7 @@ export function createFileProcessor(options) {
           const requiredLanguages = resolveTreeSitterLanguagesForSegments({
             segments,
             primaryLanguageId: lang?.id || null,
+            ext,
             treeSitterConfig
           });
           if (requiredLanguages.length) {

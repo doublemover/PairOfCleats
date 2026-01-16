@@ -120,6 +120,16 @@ const TREE_SITTER_EXT_MAP = new Map([
   ['.scss', 'css'],
   ['.sass', 'css'],
   ['.less', 'css'],
+  ['.c', 'clike'],
+  ['.h', 'clike'],
+  ['.m', 'objc'],
+  ['.mm', 'objc'],
+  ['.cpp', 'cpp'],
+  ['.cc', 'cpp'],
+  ['.cxx', 'cpp'],
+  ['.hpp', 'cpp'],
+  ['.hh', 'cpp'],
+  ['.hxx', 'cpp'],
   ['.html', 'html'],
   ['.htm', 'html']
 ]);
