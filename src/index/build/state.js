@@ -133,6 +133,7 @@ export function appendChunk(
   const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
   const chargramEnabled = postingsConfig?.enableChargrams !== false;
   const fieldedEnabled = postingsConfig?.fielded !== false;
+  const chargramSource = postingsConfig?.chargramSource === 'full' ? 'full' : 'fields';
   const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
     ? null
     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
@@ -152,12 +153,29 @@ export function appendChunk(
     if (chargrams) {
       chargrams.forEach((g) => charSet.add(g));
     } else {
-      seq.forEach((w) => {
-        if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) return;
-        for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) {
-          tri(w, n).forEach((g) => charSet.add(g));
+      const addFromTokens = (tokenList) => {
+        if (!Array.isArray(tokenList) || !tokenList.length) return;
+        tokenList.forEach((w) => {
+          if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) return;
+          for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) {
+            tri(w, n).forEach((g) => charSet.add(g));
+          }
+        });
+      };
+
+      if (chargramSource === 'fields' && chunk.fieldTokens && typeof chunk.fieldTokens === 'object') {
+        const fields = chunk.fieldTokens;
+        // Historically we derived chargrams from "field" text (name + doc). Doing so
+        // keeps the chargram vocab bounded even when indexing many languages.
+        addFromTokens(fields.name);
+        addFromTokens(fields.doc);
+        if (!charSet.size) {
+          // Fallback when no field tokens exist.
+          addFromTokens(seq);
         }
-      });
+      } else {
+        addFromTokens(seq);
+      }
     }
   }
 
@@ -202,14 +220,24 @@ export function appendChunk(
     for (const field of fieldNames) {
       const fieldTokens = Array.isArray(fields[field]) ? fields[field] : [];
       state.fieldDocLengths[field][chunkId] = fieldTokens.length;
-      // IMPORTANT: Never retain full body/comment token arrays in memory.
-      // They are not required to build postings (we already built them), and
-      // retaining them defeats token retention and can double memory.
+
+      // Always sample what we retain in-memory.
       if (fieldTokens.length <= fieldTokenSampleSize) {
         state.fieldTokens[chunkId][field] = fieldTokens;
       } else {
         state.fieldTokens[chunkId][field] = fieldTokens.slice(0, fieldTokenSampleSize);
       }
+
+      // IMPORTANT:
+      // - The unfielded token index already covers the chunk body.
+      // - Building a second "body" postings map roughly doubles memory usage.
+      // Treat "body" as an alias of the unfielded index at query time.
+      if (field === 'body') {
+        // Avoid retaining any additional body token material.
+        state.fieldTokens[chunkId][field] = [];
+        continue;
+      }
+
       if (!fieldTokens.length) continue;
       const fieldFreq = new Map();
       fieldTokens.forEach((tok) => {

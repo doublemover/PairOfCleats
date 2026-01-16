@@ -614,20 +614,9 @@ export function createFileProcessor(options) {
           }
         }
 
-        let fieldChargramTokens = null;
-        if (tokenContext.chargramSource === 'fields') {
-          const fieldText = [c.name, docmeta?.doc].filter(Boolean).join(' ');
-          if (fieldText) {
-            const fieldSeq = buildTokenSequence({
-              text: fieldText,
-              mode: tokenMode,
-              ext,
-              dictWords: tokenDictWords,
-              dictConfig
-            }).seq;
-            if (fieldSeq.length) fieldChargramTokens = fieldSeq;
-          }
-        }
+        // Chargrams are built during postings construction (appendChunk), where we can
+        // honor postingsConfig.chargramSource without duplicating tokenization work here.
+        const fieldChargramTokens = null;
 
         let tokenPayload = null;
         if (useWorkerForTokens) {
@@ -639,7 +628,7 @@ export function createFileProcessor(options) {
               ext,
               file: relKey,
               size: fileStat.size,
-              chargramTokens: fieldChargramTokens,
+              // chargramTokens is intentionally omitted (see note above).
               ...(workerDictOverride ? { dictConfig: workerDictOverride } : {})
             });
             const tokenDurationMs = Date.now() - tokenStart;
@@ -687,7 +676,7 @@ export function createFileProcessor(options) {
             mode: tokenMode,
             ext,
             context: tokenContext,
-            chargramTokens: fieldChargramTokens,
+            // chargramTokens is intentionally omitted (see note above).
             buffers: tokenBuffers
           });
           const tokenDurationMs = Date.now() - tokenStart;

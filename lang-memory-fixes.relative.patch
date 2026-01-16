@@ -1,0 +1,153 @@
+--- a/src/index/build/state.js
++++ b/src/index/build/state.js
+@@ -133,6 +133,7 @@
+   const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
+   const chargramEnabled = postingsConfig?.enableChargrams !== false;
+   const fieldedEnabled = postingsConfig?.fielded !== false;
++  const chargramSource = postingsConfig?.chargramSource === 'full' ? 'full' : 'fields';
+   const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
+     ? null
+     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
+@@ -152,12 +153,29 @@
+     if (chargrams) {
+       chargrams.forEach((g) => charSet.add(g));
+     } else {
+-      seq.forEach((w) => {
+-        if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) return;
+-        for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) {
+-          tri(w, n).forEach((g) => charSet.add(g));
++      const addFromTokens = (tokenList) => {
++        if (!Array.isArray(tokenList) || !tokenList.length) return;
++        tokenList.forEach((w) => {
++          if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) return;
++          for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) {
++            tri(w, n).forEach((g) => charSet.add(g));
++          }
++        });
++      };
++
++      if (chargramSource === 'fields' && chunk.fieldTokens && typeof chunk.fieldTokens === 'object') {
++        const fields = chunk.fieldTokens;
++        // Historically we derived chargrams from "field" text (name + doc). Doing so
++        // keeps the chargram vocab bounded even when indexing many languages.
++        addFromTokens(fields.name);
++        addFromTokens(fields.doc);
++        if (!charSet.size) {
++          // Fallback when no field tokens exist.
++          addFromTokens(seq);
+         }
+-      });
++      } else {
++        addFromTokens(seq);
++      }
+     }
+   }
+ 
+@@ -202,14 +220,24 @@
+     for (const field of fieldNames) {
+       const fieldTokens = Array.isArray(fields[field]) ? fields[field] : [];
+       state.fieldDocLengths[field][chunkId] = fieldTokens.length;
+-      // IMPORTANT: Never retain full body/comment token arrays in memory.
+-      // They are not required to build postings (we already built them), and
+-      // retaining them defeats token retention and can double memory.
++
++      // Always sample what we retain in-memory.
+       if (fieldTokens.length <= fieldTokenSampleSize) {
+         state.fieldTokens[chunkId][field] = fieldTokens;
+       } else {
+         state.fieldTokens[chunkId][field] = fieldTokens.slice(0, fieldTokenSampleSize);
+       }
++
++      // IMPORTANT:
++      // - The unfielded token index already covers the chunk body.
++      // - Building a second "body" postings map roughly doubles memory usage.
++      // Treat "body" as an alias of the unfielded index at query time.
++      if (field === 'body') {
++        // Avoid retaining any additional body token material.
++        state.fieldTokens[chunkId][field] = [];
++        continue;
++      }
++
+       if (!fieldTokens.length) continue;
+       const fieldFreq = new Map();
+       fieldTokens.forEach((tok) => {
+--- a/src/retrieval/rankers.js
++++ b/src/retrieval/rankers.js
+@@ -141,6 +141,13 @@
+   }
+   if (allowedIdx && allowedIdx.size === 0) return [];
+ 
++  // NOTE:
++  // The build pipeline may intentionally omit a dedicated "body" field postings map
++  // because the unfielded token index already covers the body and maintaining both
++  // roughly doubles memory. When that happens we treat "body" as an alias of the
++  // unfielded token index at query time.
++  const tokenIndex = getTokenIndex(idx);
++
+   const qtf = new Map();
+   tokens.forEach((tok) => qtf.set(tok, (qtf.get(tok) || 0) + 1));
+ 
+@@ -148,7 +155,18 @@
+   for (const [field, weight] of Object.entries(fieldWeights)) {
+     const fieldWeight = Number(weight);
+     if (!Number.isFinite(fieldWeight) || fieldWeight <= 0) continue;
+-    const index = fields[field];
++
++    let index = fields[field];
++
++    // Fallback: use unfielded index for body weighting when the field index is
++    // absent or effectively empty.
++    if (field === 'body' && tokenIndex) {
++      const emptyBody = !index
++        || !Array.isArray(index.vocab) || index.vocab.length === 0
++        || !Array.isArray(index.postings) || index.postings.length === 0;
++      if (emptyBody) index = tokenIndex;
++    }
++
+     if (!index || !index.vocab || !index.postings) continue;
+     if (!index.vocabIndex) {
+       index.vocabIndex = new Map(index.vocab.map((t, i) => [t, i]));
+--- a/src/index/build/file-processor.js
++++ b/src/index/build/file-processor.js
+@@ -614,20 +614,9 @@
+           }
+         }
+ 
+-        let fieldChargramTokens = null;
+-        if (tokenContext.chargramSource === 'fields') {
+-          const fieldText = [c.name, docmeta?.doc].filter(Boolean).join(' ');
+-          if (fieldText) {
+-            const fieldSeq = buildTokenSequence({
+-              text: fieldText,
+-              mode: tokenMode,
+-              ext,
+-              dictWords: tokenDictWords,
+-              dictConfig
+-            }).seq;
+-            if (fieldSeq.length) fieldChargramTokens = fieldSeq;
+-          }
+-        }
++        // Chargrams are built during postings construction (appendChunk), where we can
++        // honor postingsConfig.chargramSource without duplicating tokenization work here.
++        const fieldChargramTokens = null;
+ 
+         let tokenPayload = null;
+         if (useWorkerForTokens) {
+@@ -639,7 +628,7 @@
+               ext,
+               file: relKey,
+               size: fileStat.size,
+-              chargramTokens: fieldChargramTokens,
++              // chargramTokens is intentionally omitted (see note above).
+               ...(workerDictOverride ? { dictConfig: workerDictOverride } : {})
+             });
+             const tokenDurationMs = Date.now() - tokenStart;
+@@ -687,7 +676,7 @@
+             mode: tokenMode,
+             ext,
+             context: tokenContext,
+-            chargramTokens: fieldChargramTokens,
++            // chargramTokens is intentionally omitted (see note above).
+             buffers: tokenBuffers
+           });
+           const tokenDurationMs = Date.now() - tokenStart;
