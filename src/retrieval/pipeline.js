@@ -142,16 +142,36 @@ export function createSearchPipeline(context) {
     return matched ? candidates : null;
   }
 
-  function getPhraseMatchInfo(chunk, phraseSet, range) {
-    if (!phraseSet || !phraseSet.size || !chunk) return { matches: 0 };
-    let ngrams = Array.isArray(chunk.ngrams) && chunk.ngrams.length ? chunk.ngrams : null;
-    if (!ngrams && Array.isArray(chunk.tokens) && range?.min && range?.max) {
-      ngrams = extractNgrams(chunk.tokens, range.min, range.max);
+  function postingIncludesDocId(posting, docId) {
+    if (!Array.isArray(posting) || !posting.length) return false;
+    // Posting lists are built in chunk-id order; use binary search.
+    let lo = 0;
+    let hi = posting.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const v = posting[mid];
+      if (v === docId) return true;
+      if (v < docId) lo = mid + 1;
+      else hi = mid - 1;
     }
-    if (!ngrams || !ngrams.length) return { matches: 0 };
+    return false;
+  }
+
+  // Phrase postings are the authoritative source of phrase membership.
+  // Do NOT rely on per-chunk ngram arrays: they are optional, often sampled,
+  // and (in memory-constrained builds) may not be present at all.
+  function getPhraseMatchInfo(idx, chunkId, phraseSet) {
+    if (!phraseSet || !phraseSet.size || !idx) return { matches: 0 };
+    const phraseIndex = idx.phraseNgrams;
+    if (!phraseIndex || !phraseIndex.vocab || !phraseIndex.postings) return { matches: 0 };
+    const vocabIndex = phraseIndex.vocabIndex
+      || (phraseIndex.vocabIndex = new Map(phraseIndex.vocab.map((t, i) => [t, i])));
     let matches = 0;
-    for (const ng of ngrams) {
-      if (phraseSet.has(ng)) matches += 1;
+    for (const ng of phraseSet) {
+      const hit = vocabIndex.get(ng);
+      if (hit === undefined) continue;
+      const posting = phraseIndex.postings[hit] || [];
+      if (postingIncludesDocId(posting, chunkId)) matches += 1;
     }
     return { matches };
   }
@@ -480,8 +500,8 @@ export function createSearchPipeline(context) {
         let phraseMatches = 0;
         let phraseBoost = 0;
         let phraseFactor = 0;
-        if (phraseNgramSet && phraseRange?.min && phraseRange?.max) {
-          const matchInfo = getPhraseMatchInfo(chunk, phraseNgramSet, phraseRange);
+        if (phraseNgramSet && phraseNgramSet.size) {
+          const matchInfo = getPhraseMatchInfo(idx, idxVal, phraseNgramSet);
           phraseMatches = matchInfo.matches;
           if (phraseMatches) {
             phraseFactor = Math.min(0.5, phraseMatches * 0.1);

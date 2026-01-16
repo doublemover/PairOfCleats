@@ -4,6 +4,53 @@ import { normalizePostingsConfig } from '../../shared/postings-config.js';
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
 const TOKEN_RETENTION_MODES = new Set(['full', 'sample', 'none']);
 
+// Postings maps can be extremely large (especially phrase n-grams and chargrams).
+// Storing posting lists as `Set`s is extremely memory-expensive when the vast
+// majority of terms are singletons (df=1).
+//
+// We store posting lists in a compact representation:
+//   - number: a single docId
+//   - number[]: a list of docIds in insertion order (typically increasing)
+//
+// This avoids allocating one `Set` per term.
+function appendDocIdToPostingsMap(map, key, docId) {
+  if (!map) return;
+  const current = map.get(key);
+  if (current === undefined) {
+    map.set(key, docId);
+    return;
+  }
+  if (typeof current === 'number') {
+    if (current !== docId) map.set(key, [current, docId]);
+    return;
+  }
+  if (Array.isArray(current)) {
+    const last = current[current.length - 1];
+    if (last !== docId) current.push(docId);
+    return;
+  }
+  // Back-compat: if older states used Sets, continue supporting them.
+  if (current && typeof current.add === 'function') {
+    current.add(docId);
+  }
+}
+
+function *iteratePostingDocIds(posting) {
+  if (posting == null) return;
+  if (typeof posting === 'number') {
+    yield posting;
+    return;
+  }
+  if (Array.isArray(posting)) {
+    for (const id of posting) yield id;
+    return;
+  }
+  if (typeof posting[Symbol.iterator] === 'function') {
+    // eslint-disable-next-line no-restricted-syntax
+    for (const id of posting) yield id;
+  }
+}
+
 export function normalizeTokenRetention(raw = {}) {
   if (!raw || typeof raw !== 'object') {
     return { mode: 'full', sampleSize: 32 };
@@ -132,14 +179,12 @@ export function appendChunk(
 
   if (phraseEnabled) {
     for (const ng of ngrams) {
-      if (!state.phrasePost.has(ng)) state.phrasePost.set(ng, new Set());
-      state.phrasePost.get(ng).add(chunkId);
+      appendDocIdToPostingsMap(state.phrasePost, ng, chunkId);
     }
   }
   if (chargramEnabled) {
     for (const tg of charSet) {
-      if (!state.triPost.has(tg)) state.triPost.set(tg, new Set());
-      state.triPost.get(tg).add(chunkId);
+      appendDocIdToPostingsMap(state.triPost, tg, chunkId);
     }
   }
 
@@ -149,11 +194,22 @@ export function appendChunk(
   if (fieldedEnabled) {
     const fields = chunk.fieldTokens || {};
     const fieldNames = ['name', 'signature', 'doc', 'comment', 'body'];
+    const fieldTokenSampleSize = Number.isFinite(Number(tokenRetention?.sampleSize))
+      ? Math.max(1, Math.floor(Number(tokenRetention.sampleSize)))
+      : 32;
+    // Ensure a schema-valid object exists for each chunk (avoid array holes -> nulls).
+    state.fieldTokens[chunkId] = state.fieldTokens[chunkId] || {};
     for (const field of fieldNames) {
       const fieldTokens = Array.isArray(fields[field]) ? fields[field] : [];
       state.fieldDocLengths[field][chunkId] = fieldTokens.length;
-      state.fieldTokens[chunkId] = state.fieldTokens[chunkId] || {};
-      state.fieldTokens[chunkId][field] = fieldTokens;
+      // IMPORTANT: Never retain full body/comment token arrays in memory.
+      // They are not required to build postings (we already built them), and
+      // retaining them defeats token retention and can double memory.
+      if (fieldTokens.length <= fieldTokenSampleSize) {
+        state.fieldTokens[chunkId][field] = fieldTokens;
+      } else {
+        state.fieldTokens[chunkId][field] = fieldTokens.slice(0, fieldTokenSampleSize);
+      }
       if (!fieldTokens.length) continue;
       const fieldFreq = new Map();
       fieldTokens.forEach((tok) => {
@@ -182,6 +238,8 @@ export function appendChunk(
   if (chunk.seq) delete chunk.seq;
   if (chunk.chargrams) delete chunk.chargrams;
   if (chunk.fieldTokens) delete chunk.fieldTokens;
+  // Phrase postings are authoritative; do not retain per-chunk n-grams in meta.
+  if (chunk.ngrams) delete chunk.ngrams;
   state.chunks.push(chunk);
 }
 
@@ -263,29 +321,19 @@ export function mergeIndexState(target, source) {
   }
 
   if (source.phrasePost && typeof source.phrasePost.entries === 'function') {
-    for (const [phrase, postingSet] of source.phrasePost.entries()) {
-      let dest = target.phrasePost.get(phrase);
-      if (!dest) {
-        dest = new Set();
-        target.phrasePost.set(phrase, dest);
-      }
-      for (const docId of postingSet || []) {
+    for (const [phrase, posting] of source.phrasePost.entries()) {
+      for (const docId of iteratePostingDocIds(posting)) {
         if (!Number.isFinite(docId)) continue;
-        dest.add(docId + offset);
+        appendDocIdToPostingsMap(target.phrasePost, phrase, docId + offset);
       }
     }
   }
 
   if (source.triPost && typeof source.triPost.entries === 'function') {
-    for (const [gram, postingSet] of source.triPost.entries()) {
-      let dest = target.triPost.get(gram);
-      if (!dest) {
-        dest = new Set();
-        target.triPost.set(gram, dest);
-      }
-      for (const docId of postingSet || []) {
+    for (const [gram, posting] of source.triPost.entries()) {
+      for (const docId of iteratePostingDocIds(posting)) {
         if (!Number.isFinite(docId)) continue;
-        dest.add(docId + offset);
+        appendDocIdToPostingsMap(target.triPost, gram, docId + offset);
       }
     }
   }

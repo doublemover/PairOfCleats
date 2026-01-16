@@ -97,6 +97,14 @@ export async function buildPostings(input) {
   const N = chunks.length;
   const avgChunkLen = chunks.reduce((sum, c) => sum + resolveTokenCount(c), 0) / Math.max(N, 1);
 
+  const normalizeDocIdList = (value) => {
+    if (value == null) return [];
+    if (typeof value === 'number') return [value];
+    if (Array.isArray(value)) return value;
+    if (typeof value[Symbol.iterator] === 'function') return Array.from(value);
+    return [];
+  };
+
   let dims = 0;
   let quantizedVectors = [];
   let quantizedDocVectors = [];
@@ -195,8 +203,8 @@ export async function buildPostings(input) {
     phrasePostings = new Array(phraseVocab.length);
     for (let i = 0; i < phraseVocab.length; i += 1) {
       const key = phraseVocab[i];
-      const postingSet = phrasePost.get(key);
-      phrasePostings[i] = Array.from(postingSet || []);
+      const posting = phrasePost.get(key);
+      phrasePostings[i] = normalizeDocIdList(posting);
       phrasePost.delete(key);
     }
     if (typeof phrasePost.clear === 'function') phrasePost.clear();
@@ -209,8 +217,8 @@ export async function buildPostings(input) {
     chargramPostings = new Array(chargramVocab.length);
     for (let i = 0; i < chargramVocab.length; i += 1) {
       const key = chargramVocab[i];
-      const postingSet = triPost.get(key);
-      chargramPostings[i] = Array.from(postingSet || []);
+      const posting = triPost.get(key);
+      chargramPostings[i] = normalizeDocIdList(posting);
       triPost.delete(key);
     }
     if (typeof triPost.clear === 'function') triPost.clear();
