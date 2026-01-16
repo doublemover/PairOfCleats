@@ -8,7 +8,7 @@ import {
 } from './ast.js';
 import { LANG_CONFIG } from './config.js';
 import { isTreeSitterEnabled } from './options.js';
-import { getTreeSitterParser } from './runtime.js';
+import { getTreeSitterParser, preloadTreeSitterLanguages } from './runtime.js';
 import { treeSitterState } from './state.js';
 import { getTreeSitterWorkerPool, sanitizeTreeSitterOptions } from './worker.js';
 
@@ -413,6 +413,14 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
 
   const pool = await getTreeSitterWorkerPool(options?.treeSitter?.worker, options);
   if (!pool) {
+    try {
+      await preloadTreeSitterLanguages([resolvedId], {
+        log: options?.log,
+        maxLoadedLanguages: options?.treeSitter?.maxLoadedLanguages
+      });
+    } catch {
+      // If the runtime or grammar load fails, fall back to heuristic chunking.
+    }
     return buildTreeSitterChunks({ text, languageId, ext, options });
   }
 
@@ -438,11 +446,27 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
     if (Array.isArray(result) && result.length) return result;
 
     // Null/empty results from a worker are treated as a failure signal; retry in-thread for determinism.
+    try {
+      await preloadTreeSitterLanguages([resolvedId], {
+        log: options?.log,
+        maxLoadedLanguages: options?.treeSitter?.maxLoadedLanguages
+      });
+    } catch {
+      // ignore preload failures; buildTreeSitterChunks will fall back upstream.
+    }
     return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
   } catch (err) {
     if (options?.log && !treeSitterState.loggedWorkerFailures.has('run')) {
       options.log(`[tree-sitter] Worker parse failed; falling back to main thread (${err?.message || err}).`);
       treeSitterState.loggedWorkerFailures.add('run');
+    }
+    try {
+      await preloadTreeSitterLanguages([resolvedId], {
+        log: options?.log,
+        maxLoadedLanguages: options?.treeSitter?.maxLoadedLanguages
+      });
+    } catch {
+      // ignore preload failures; buildTreeSitterChunks will fall back upstream.
     }
     return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
   } finally {

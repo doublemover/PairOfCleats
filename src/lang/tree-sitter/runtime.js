@@ -1,11 +1,18 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { isMainThread } from 'node:worker_threads';
 import { createRequire } from 'node:module';
 import { LANGUAGE_WASM_FILES, TREE_SITTER_LANGUAGE_IDS } from './config.js';
 import { treeSitterState } from './state.js';
 
 const require = createRequire(import.meta.url);
+
+const clampPositiveInt = (value, { min = 1, max = 64 } = {}) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.max(min, Math.min(max, Math.floor(parsed)));
+};
 
 // Tree-sitter Parser instances can hold non-trivial native/WASM memory.
 // In multi-language repos this can balloon quickly if we cache one Parser per
@@ -13,10 +20,8 @@ const require = createRequire(import.meta.url);
 const DEFAULT_MAX_PARSER_CACHE = (() => {
   try {
     const envRaw = process.env.POC_TREE_SITTER_MAX_PARSERS;
-    const envMax = Number(envRaw);
-    if (Number.isFinite(envMax) && envMax > 0) {
-      return Math.max(1, Math.min(16, Math.floor(envMax)));
-    }
+    const envMax = clampPositiveInt(envRaw, { min: 1, max: 16 });
+    if (envMax) return envMax;
 
     const cpuCount = Array.isArray(os.cpus?.()) ? os.cpus().length : 0;
     // Keep this intentionally small; we only parse on the main thread.
@@ -25,6 +30,95 @@ const DEFAULT_MAX_PARSER_CACHE = (() => {
     return 4;
   }
 })();
+
+// Default cap for retained WASM grammars.
+//
+// - On the main thread we default to retaining all supported grammars because
+//   synchronous chunkers may rely on preloaded grammars.
+// - On worker threads we keep a conservative cap by default because caches are
+//   multiplied per thread.
+const DEFAULT_MAX_WASM_LANGUAGE_CACHE = (() => {
+  // Environment override applies everywhere.
+  try {
+    const envRaw = process.env.POC_TREE_SITTER_MAX_LANGUAGES
+      || process.env.PAIR_OF_CLEATS_TREE_SITTER_MAX_LANGUAGES;
+    const envMax = clampPositiveInt(envRaw, { min: 1, max: 64 });
+    if (envMax) return envMax;
+  } catch {
+    // ignore
+  }
+
+  if (isMainThread) return TREE_SITTER_LANGUAGE_IDS.length;
+  return process.platform === 'win32' ? 6 : 8;
+})();
+
+function resolveMaxLoadedLanguages(options = {}) {
+  const raw = options?.maxLoadedLanguages
+    ?? options?.treeSitter?.maxLoadedLanguages
+    ?? null;
+  const parsed = clampPositiveInt(raw, { min: 1, max: 64 });
+  return parsed || DEFAULT_MAX_WASM_LANGUAGE_CACHE;
+}
+
+function touchWasmLanguageCacheEntry(wasmKey) {
+  if (!wasmKey || !treeSitterState.wasmLanguageCache.has(wasmKey)) return;
+  const value = treeSitterState.wasmLanguageCache.get(wasmKey);
+  treeSitterState.wasmLanguageCache.delete(wasmKey);
+  treeSitterState.wasmLanguageCache.set(wasmKey, value);
+}
+
+function removeLanguageCacheEntriesForWasmKey(wasmKey) {
+  if (!wasmKey) return;
+  const toDelete = [];
+  for (const langId of treeSitterState.languageCache.keys()) {
+    if (LANGUAGE_WASM_FILES[langId] === wasmKey) toDelete.push(langId);
+  }
+  for (const langId of toDelete) {
+    treeSitterState.languageCache.delete(langId);
+  }
+}
+
+function disposeWasmLanguageEntry(entry) {
+  const language = entry?.language;
+  if (language && typeof language.delete === 'function') {
+    try {
+      language.delete();
+    } catch {
+      // ignore disposal failures
+    }
+  }
+}
+
+function evictOldWasmLanguages(maxSize, options = {}) {
+  const max = Number(maxSize);
+  if (!Number.isFinite(max) || max <= 0) return;
+
+  // Never evict the grammar currently active on the shared parser.
+  const activeLangId = treeSitterState.sharedParserLanguageId;
+  const activeWasmKey = activeLangId ? LANGUAGE_WASM_FILES[activeLangId] : null;
+
+  let guard = 0;
+  while (treeSitterState.wasmLanguageCache.size > max && guard < 1024) {
+    const oldestKey = treeSitterState.wasmLanguageCache.keys().next().value;
+    if (!oldestKey) break;
+
+    if (activeWasmKey && oldestKey === activeWasmKey) {
+      // Move the active grammar to the back and try the next.
+      touchWasmLanguageCacheEntry(oldestKey);
+      guard += 1;
+      continue;
+    }
+
+    const entry = treeSitterState.wasmLanguageCache.get(oldestKey);
+    treeSitterState.wasmLanguageCache.delete(oldestKey);
+    removeLanguageCacheEntriesForWasmKey(oldestKey);
+    disposeWasmLanguageEntry(entry);
+  }
+
+  if (guard >= 1024 && options?.log) {
+    options.log('[tree-sitter] WASM grammar eviction guard tripped; cache may remain oversized.');
+  }
+}
 
 function resolveLanguageId(languageId) {
   return typeof languageId === 'string' ? languageId : null;
@@ -92,10 +186,16 @@ async function loadWasmLanguage(languageId, options = {}) {
   if (!resolvedId) {
     return { language: null, error: new Error('Missing tree-sitter language id') };
   }
-  const cached = treeSitterState.languageCache.get(resolvedId);
-  if (cached?.language || cached?.error) return cached;
 
   const wasmFile = LANGUAGE_WASM_FILES[resolvedId];
+  const wasmKey = wasmFile || null;
+
+  const cached = treeSitterState.languageCache.get(resolvedId);
+  if (cached?.language || cached?.error) {
+    if (wasmKey) touchWasmLanguageCacheEntry(wasmKey);
+    return cached;
+  }
+
   if (!wasmFile) {
     const entry = { language: null, error: new Error(`Missing WASM file for ${resolvedId}`) };
     treeSitterState.languageCache.set(resolvedId, entry);
@@ -103,9 +203,9 @@ async function loadWasmLanguage(languageId, options = {}) {
   }
 
   // Deduplicate aliases that share the same wasm (e.g. javascript/jsx).
-  const wasmKey = wasmFile;
   const wasmCached = treeSitterState.wasmLanguageCache.get(wasmKey);
   if (wasmCached?.language || wasmCached?.error) {
+    touchWasmLanguageCacheEntry(wasmKey);
     treeSitterState.languageCache.set(resolvedId, wasmCached);
     return wasmCached;
   }
@@ -116,9 +216,11 @@ async function loadWasmLanguage(languageId, options = {}) {
       if (entry && !treeSitterState.languageCache.has(resolvedId)) {
         treeSitterState.languageCache.set(resolvedId, entry);
       }
+      touchWasmLanguageCacheEntry(wasmKey);
       return entry;
     });
   }
+
   const promise = (async () => {
     const ok = await initTreeSitterWasm(options);
     if (!ok) {
@@ -128,8 +230,11 @@ async function loadWasmLanguage(languageId, options = {}) {
       };
       treeSitterState.languageCache.set(resolvedId, entry);
       treeSitterState.wasmLanguageCache.set(wasmKey, entry);
+      touchWasmLanguageCacheEntry(wasmKey);
+      evictOldWasmLanguages(resolveMaxLoadedLanguages(options), options);
       return entry;
     }
+
     try {
       const wasmPath = path.join(resolveWasmRoot(), wasmFile);
       // Prefer path-based loading to avoid retaining large WASM buffers in JS.
@@ -144,11 +249,15 @@ async function loadWasmLanguage(languageId, options = {}) {
       const entry = { language, error: null };
       treeSitterState.languageCache.set(resolvedId, entry);
       treeSitterState.wasmLanguageCache.set(wasmKey, entry);
+      touchWasmLanguageCacheEntry(wasmKey);
+      evictOldWasmLanguages(resolveMaxLoadedLanguages(options), options);
       return entry;
     } catch (err) {
       const entry = { language: null, error: err };
       treeSitterState.languageCache.set(resolvedId, entry);
       treeSitterState.wasmLanguageCache.set(wasmKey, entry);
+      touchWasmLanguageCacheEntry(wasmKey);
+      evictOldWasmLanguages(resolveMaxLoadedLanguages(options), options);
       return entry;
     } finally {
       treeSitterState.languageLoadPromises.delete(wasmKey);
@@ -162,11 +271,26 @@ async function loadWasmLanguage(languageId, options = {}) {
 export async function preloadTreeSitterLanguages(languageIds = TREE_SITTER_LANGUAGE_IDS, options = {}) {
   const ok = await initTreeSitterWasm(options);
   if (!ok) return false;
+
   const unique = Array.from(new Set(languageIds || []));
+
+  const maxLoaded = resolveMaxLoadedLanguages(options);
+  if (options?.log && maxLoaded && unique.length > maxLoaded && treeSitterState.loggedEvictionWarnings) {
+    const key = `preload:${unique.length}:${maxLoaded}`;
+    if (!treeSitterState.loggedEvictionWarnings.has(key)) {
+      options.log(
+        `[tree-sitter] Preloading ${unique.length} grammars with maxLoadedLanguages=${maxLoaded}; `
+          + 'older grammars may be evicted during preload.'
+      );
+      treeSitterState.loggedEvictionWarnings.add(key);
+    }
+  }
+
   const parallel = options.parallel === true;
   const concurrency = Number.isFinite(Number(options.concurrency))
     ? Math.max(1, Math.floor(Number(options.concurrency)))
     : unique.length;
+
   if (!parallel || concurrency <= 1) {
     for (const id of unique) {
       // Load sequentially to avoid wasm runtime contention.
@@ -174,6 +298,7 @@ export async function preloadTreeSitterLanguages(languageIds = TREE_SITTER_LANGU
     }
     return true;
   }
+
   const pending = new Set();
   for (const id of unique) {
     const task = loadWasmLanguage(id, options)
@@ -221,8 +346,10 @@ export function getTreeSitterParser(languageId, options = {}) {
     }
     return null;
   }
+
   const resolvedId = resolveLanguageId(languageId);
   if (!resolvedId) return null;
+
   const entry = treeSitterState.languageCache.get(resolvedId) || null;
   const language = entry?.language || null;
   if (!language) {
@@ -238,6 +365,10 @@ export function getTreeSitterParser(languageId, options = {}) {
     return null;
   }
 
+  // Keep grammar LRU fresh.
+  const wasmKey = LANGUAGE_WASM_FILES[resolvedId];
+  if (wasmKey) touchWasmLanguageCacheEntry(wasmKey);
+
   // IMPORTANT: Keep a single shared Parser instance and switch languages.
   // Keeping multiple parsers alive (even with an LRU cache) can balloon WASM
   // memory in polyglot repos and trigger V8 "Zone" OOMs on Windows.
@@ -245,6 +376,7 @@ export function getTreeSitterParser(languageId, options = {}) {
     if (!treeSitterState.sharedParser) {
       treeSitterState.sharedParser = new treeSitterState.TreeSitter();
       treeSitterState.sharedParserLanguageId = null;
+
       // Clear and dispose the legacy per-language cache to avoid keeping extra Parsers alive.
       if (treeSitterState.parserCache && typeof treeSitterState.parserCache.values === 'function') {
         for (const cached of treeSitterState.parserCache.values()) {
@@ -269,6 +401,7 @@ export function getTreeSitterParser(languageId, options = {}) {
       treeSitterState.sharedParser.setLanguage(language);
       treeSitterState.sharedParserLanguageId = resolvedId;
     }
+
     return treeSitterState.sharedParser;
   } catch (err) {
     // If the shared parser becomes unusable, drop it and try to recreate on the next call.

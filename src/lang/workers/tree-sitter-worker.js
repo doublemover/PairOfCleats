@@ -70,7 +70,9 @@ export async function parseTreeSitter(payload = {}) {
     const resolvedId = resolveLanguageForExt(languageId, ext);
     if (resolvedId && isLanguageEnabled(treeSitter, resolvedId)) {
       // Cached by the runtime module within this worker thread.
-      await preloadTreeSitterLanguages([resolvedId]);
+      await preloadTreeSitterLanguages([resolvedId], {
+        maxLoadedLanguages: treeSitter?.maxLoadedLanguages
+      });
     }
   } catch {
     // If init/preload fails in this worker, fall back to heuristic chunking upstream.

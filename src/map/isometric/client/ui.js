@@ -364,10 +364,10 @@ export const initUi = () => {
   createSlider(dom.menuVisuals, { label: 'Member opacity', path: 'visuals.memberOpacity', min: 0.1, max: 1, step: 0.05, defaultValue: visualDefaults.memberOpacity, format: (value) => value.toFixed(2), rebuild: false, onInput: updateMemberOpacity });
   createSlider(dom.menuVisuals, { label: 'Wireframe thickness', path: 'visuals.wireframeThickness', min: 0.02, max: 2.5, step: 0.02, defaultValue: visualDefaults.wireframeThickness, rebuild: false, onInput: updateWireframes });
   createSlider(dom.menuVisuals, { label: 'Wireframe glow', path: 'visuals.wireframeGlow', min: 0, max: 1, step: 0.05, defaultValue: visualDefaults.wireframeGlow, format: (value) => value.toFixed(2), rebuild: false, onInput: updateWireframes });
-  createSlider(dom.menuVisuals, { label: 'Wire pulse speed', path: 'visuals.wirePulseSpeed', min: 0.02, max: 1, step: 0.02, defaultValue: visualDefaults.wirePulseSpeed, format: (value) => value.toFixed(2), rebuild: false, onInput: updateWireframes });
+  createSlider(dom.menuVisuals, { label: 'Wire pulse speed', path: 'visuals.wirePulseSpeed', min: 0, max: 1, step: 0.02, defaultValue: visualDefaults.wirePulseSpeed, format: (value) => value.toFixed(2), rebuild: false, onInput: updateWireframes });
   createSlider(dom.menuVisuals, { label: 'Flow glow base', path: 'visuals.flowGlowBase', min: 0, max: 2, step: 0.05, defaultValue: visualDefaults.flowGlowBase, format: (value) => value.toFixed(2), rebuild: false, onInput: updateFlowGlow });
   createSlider(dom.menuVisuals, { label: 'Flow glow pulse', path: 'visuals.flowGlowRange', min: 0, max: 2, step: 0.05, defaultValue: visualDefaults.flowGlowRange, format: (value) => value.toFixed(2), rebuild: false, onInput: updateFlowGlow });
-  createSlider(dom.menuVisuals, { label: 'Glow speed', path: 'visuals.glowPulseSpeed', min: 0.4, max: 4, step: 0.1, defaultValue: visualDefaults.glowPulseSpeed, format: (value) => value.toFixed(1), rebuild: false });
+  createSlider(dom.menuVisuals, { label: 'Glow speed', path: 'visuals.glowPulseSpeed', min: 0, max: 4, step: 0.1, defaultValue: visualDefaults.glowPulseSpeed, format: (value) => value.toFixed(1), rebuild: false });
   createSlider(dom.menuVisuals, { label: 'Glass roughness', path: 'visuals.glass.roughness', min: 0, max: 1, step: 0.02, defaultValue: visualDefaults.glass.roughness, format: (value) => value.toFixed(2), rebuild: false, onInput: applyGlassSettings });
   createSlider(dom.menuVisuals, { label: 'Glass metalness', path: 'visuals.glass.metalness', min: 0, max: 1, step: 0.02, defaultValue: visualDefaults.glass.metalness, format: (value) => value.toFixed(2), rebuild: false, onInput: applyGlassSettings });
   createSlider(dom.menuVisuals, { label: 'Glass transmission', path: 'visuals.glass.transmission', min: 0, max: 1, step: 0.02, defaultValue: visualDefaults.glass.transmission, format: (value) => value.toFixed(2), rebuild: false, onInput: applyGlassSettings });
@@ -441,7 +441,7 @@ export const initUi = () => {
   });
   createSlider(dom.menuEffects, { label: 'Grid glow base', path: 'visuals.gridGlowBase', min: 0, max: 0.6, step: 0.02, defaultValue: visualDefaults.gridGlowBase, format: (value) => value.toFixed(2), rebuild: false, onInput: updateGridGlow });
   createSlider(dom.menuEffects, { label: 'Grid glow pulse', path: 'visuals.gridGlowRange', min: 0, max: 1, step: 0.02, defaultValue: visualDefaults.gridGlowRange, format: (value) => value.toFixed(2), rebuild: false, onInput: updateGridGlow });
-  createSlider(dom.menuEffects, { label: 'Grid glow speed', path: 'visuals.gridPulseSpeed', min: 0.1, max: 1, step: 0.05, defaultValue: visualDefaults.gridPulseSpeed, format: (value) => value.toFixed(2), rebuild: false, onInput: updateGridGlow });
+  createSlider(dom.menuEffects, { label: 'Grid glow speed', path: 'visuals.gridPulseSpeed', min: 0, max: 1, step: 0.05, defaultValue: visualDefaults.gridPulseSpeed, format: (value) => value.toFixed(2), rebuild: false, onInput: updateGridGlow });
   createSlider(dom.menuEffects, { label: 'Grid line thickness', path: 'visuals.gridLineThickness', min: 0.02, max: 6, step: 0.05, defaultValue: visualDefaults.gridLineThickness, format: (value) => value.toFixed(2), rebuild: false, onInput: updateGridGlow });
 
   createButton(dom.menuActions, 'Save settings', () => {

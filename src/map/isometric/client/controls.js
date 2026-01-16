@@ -262,7 +262,10 @@ export const initControls = () => {
       zoomVelocity *= Math.pow(damping, dt * 60);
       if (Math.abs(zoomVelocity) < 0.0001) zoomVelocity = 0;
     }
-    const pulse = 0.5 + 0.5 * Math.sin(now * 0.002);
+    const glowSpeed = Math.max(0, numberValue(visuals.glowPulseSpeed, visualDefaults.glowPulseSpeed));
+    const pulse = glowSpeed > 0
+      ? (0.5 + 0.5 * Math.sin(now * 0.002 * glowSpeed))
+      : 0.5;
 
     const fileVisible = state.fileGroup?.visible !== false;
     const memberVisible = state.memberGroup?.visible !== false;
@@ -278,7 +281,9 @@ export const initControls = () => {
       }
     }
 
-    const flowSpeed = visuals.glowPulseSpeed || visualDefaults.glowPulseSpeed;
+    const flowSpeed = glowSpeed;
+    const wireSpeedGlobal = Math.max(0, numberValue(visuals.wirePulseSpeed, visualDefaults.wirePulseSpeed));
+    const gridSpeedGlobal = Math.max(0, numberValue(visuals.gridPulseSpeed, visualDefaults.gridPulseSpeed));
     if (edgeVisible) {
       for (const material of state.flowMaterials) {
         const base = material.userData?.glowBase ?? 0;
@@ -301,7 +306,7 @@ export const initControls = () => {
         const base = material.userData?.glowBase ?? 0.3;
         const range = material.userData?.glowRange ?? 0.4;
         const phase = material.userData?.flowPhase ?? 0;
-        const wireSpeed = material.userData?.flowSpeed ?? visuals.wirePulseSpeed ?? visualDefaults.wirePulseSpeed;
+        const wireSpeed = material.userData?.flowSpeed ?? wireSpeedGlobal;
         const wirePulse = 0.5 + 0.5 * Math.sin(now * 0.002 * wireSpeed - phase);
         material.opacity = clamp(base + range * wirePulse, 0.02, 0.35);
       }
@@ -312,7 +317,7 @@ export const initControls = () => {
         const base = material.userData?.glowBase ?? 0.1;
         const range = material.userData?.glowRange ?? 0.2;
         const phase = material.userData?.flowPhase ?? 0;
-        const gridSpeed = material.userData?.flowSpeed ?? visuals.gridPulseSpeed ?? visualDefaults.gridPulseSpeed;
+        const gridSpeed = material.userData?.flowSpeed ?? gridSpeedGlobal;
         const gridPulse = 0.5 + 0.5 * Math.sin(now * 0.002 * gridSpeed + phase);
         material.opacity = clamp(base + range * gridPulse, 0.02, 0.6);
       }

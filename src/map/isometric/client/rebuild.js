@@ -34,6 +34,9 @@ const resetScene = () => {
   state.wireMaterials = [];
   state.gridLineMaterials = [];
   state.edgeMeshes = [];
+  state.edgeSegments = [];
+  state.edgeDotMesh = null;
+  state.edgeDotMaterial = null;
   state.fileMeshByKey = new Map();
   state.memberMeshById = new Map();
   state.wireByMesh = new Map();

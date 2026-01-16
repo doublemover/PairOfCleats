@@ -163,6 +163,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     treeSitterByLanguage,
     treeSitterPreload,
     treeSitterPreloadConcurrency,
+    treeSitterMaxLoadedLanguages,
     treeSitterWorker
   } = resolveTreeSitterRuntime(indexingConfig);
   const sqlConfig = userConfig.sql || {};
@@ -328,6 +329,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       treeSitterLanguages,
       treeSitterPreload,
       treeSitterPreloadConcurrency,
+      treeSitterMaxLoadedLanguages,
       log
     });
   }
@@ -451,6 +453,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       byLanguage: treeSitterByLanguage,
       preload: treeSitterPreload,
       preloadConcurrency: treeSitterPreloadConcurrency,
+      maxLoadedLanguages: treeSitterMaxLoadedLanguages,
       worker: treeSitterWorker
     },
     resolveSqlDialect,

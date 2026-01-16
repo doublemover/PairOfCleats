@@ -1,17 +1,6 @@
 import { state } from './state.js';
 import { clamp, numberValue } from './utils.js';
 
-const computeAttenuationDistance = (transmission) => {
-  const t = clamp(Number.isFinite(transmission) ? transmission : 0, 0, 1);
-  if (t <= 0) return 0;
-  // Use a curved response so low transmission values don't look fully on.
-  // Larger values mean less absorption (clearer glass).
-  const minDist = 0.35;
-  const maxDist = 120;
-  const curve = t * t;
-  return minDist + (maxDist - minDist) * curve;
-};
-
 export const initMaterials = () => {
   const { THREE, assets, visuals } = state;
   state.glowMaterials = [];
@@ -116,7 +105,7 @@ export const createGlassMaterial = (color, opacity) => {
     side: THREE.DoubleSide
   });
 
-  material.attenuationDistance = computeAttenuationDistance(transmission);
+  material.attenuationDistance = tCurve > 0 ? (2 + 120 * tCurve) : 0;
   material.attenuationColor = color.clone();
 
   material.emissive = color.clone().multiplyScalar(0.22);
@@ -169,52 +158,22 @@ export const createGlassShell = (geometry, material) => {
 };
 
 export const configureWireMaterial = (wireMat) => {
-  const { THREE, visuals, visualDefaults } = state;
-  if (!wireMat) return;
-
+  const { visuals, visualDefaults } = state;
   const thickness = numberValue(visuals.wireframeThickness, visualDefaults.wireframeThickness);
   const glow = numberValue(visuals.wireframeGlow, visualDefaults.wireframeGlow);
+  const baseColor = wireMat.userData?.baseColor || wireMat.color;
+  const emissiveColor = wireMat.userData?.emissiveColor || baseColor;
 
-  wireMat.userData = wireMat.userData || {};
-
-  const baseColor = wireMat.userData.baseColor && typeof wireMat.userData.baseColor.clone === 'function'
-    ? wireMat.userData.baseColor.clone()
-    : (wireMat.color && typeof wireMat.color.clone === 'function' ? wireMat.color.clone() : new THREE.Color(0xffffff));
-
-  // Compress the glow response so max glow doesn't blow out the scene.
-  const g = clamp(glow, 0, 1);
-  const gCurve = Math.pow(g, 1.6);
-
-  // The animation loop drives opacity using glowBase/glowRange.
-  // Keep the max combined opacity modest even at max glow.
-  const glowBase = 0.02 + gCurve * 0.08;
-  const glowRange = 0.03 + gCurve * 0.12;
-
-  wireMat.userData.glowBase = glowBase;
-  wireMat.userData.glowRange = glowRange;
-
-  // Initial opacity (controls.js keeps updating this per frame).
-  wireMat.opacity = clamp(glowBase + glowRange * 0.6, 0.02, 0.28);
-
+  // Keep glow usable without overpowering the scene.
+  wireMat.opacity = clamp(0.03 + glow * 0.07, 0.03, 0.22);
   if ('linewidth' in wireMat) {
-    // For LineMaterial in screen-space mode, interpret wireframeThickness as a multiplier
-    // and scale it into a practical pixel range.
-    const isScreenSpace = Boolean(wireMat.resolution) && wireMat.worldUnits === false;
-    wireMat.linewidth = isScreenSpace
-      ? clamp(thickness * 6, 0.25, 18)
-      : clamp(thickness, 0.02, 2.5);
+    wireMat.linewidth = clamp(thickness, 0.02, 2.5);
     wireMat.userData.baseLinewidth = wireMat.linewidth;
   }
-
-  // Keep the original hue and only nudge toward white slightly.
-  const brighten = 0.05 + gCurve * 0.15;
-  const wireColor = baseColor.clone().lerp(new THREE.Color(0xffffff), brighten);
-  wireMat.color.copy(wireColor);
-  wireMat.userData.emissiveColor = wireColor.clone();
-  wireMat.userData.baseColor = baseColor.clone();
-
-  // Let tonemapping control extremes (prevents blown-out additive wires).
-  if ('toneMapped' in wireMat) wireMat.toneMapped = true;
+  wireMat.color.copy(emissiveColor);
+  wireMat.userData = wireMat.userData || {};
+  wireMat.userData.glowBase = clamp(0.02 + glow * 0.06, 0.02, 0.16);
+  wireMat.userData.glowRange = clamp(0.03 + glow * 0.11, 0.03, 0.22);
 };
 
 export const createWireframe = (geometry, color, phase) => {
@@ -238,7 +197,7 @@ export const createWireframe = (geometry, color, phase) => {
       depthWrite: false,
       depthTest: false
     });
-    wireMat.worldUnits = false;
+    wireMat.worldUnits = true;
     wireMat.resolution.set(lineResolution.width, lineResolution.height);
   } else {
     wireMat = new THREE.LineBasicMaterial({
@@ -339,7 +298,7 @@ export const applyGlassSettings = () => {
     material.ior = glass.ior;
     material.reflectivity = glass.reflectivity;
     material.thickness = glass.thickness;
-    material.attenuationDistance = computeAttenuationDistance(transmission);
+    material.attenuationDistance = tCurve > 0 ? (2 + 120 * tCurve) : 0;
     if ('attenuationColor' in material) material.attenuationColor = (material.userData?.baseColor || material.color).clone();
     material.envMapIntensity = glass.envMapIntensity * envScale;
     material.clearcoat = glass.clearcoat;

@@ -335,7 +335,27 @@ const resetObjectHighlights = () => {
 const resetEdgeHighlights = () => {
   for (const mesh of state.edgeMeshes) {
     const material = mesh.material;
-    if (!material || !material.userData?.baseColor) continue;
+    if (!material) continue;
+
+    if (mesh.isInstancedMesh) {
+      const baseColors = mesh.userData?.instanceBaseColors;
+      if (Array.isArray(baseColors)) {
+        baseColors.forEach((color, index) => {
+          if (color) mesh.setColorAt(index, color);
+        });
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      }
+      if (material.userData?.baseEmissiveIntensity != null) {
+        material.emissiveIntensity = material.userData.baseEmissiveIntensity;
+      }
+      if (material.userData?.baseOpacity != null) {
+        material.opacity = material.userData.baseOpacity;
+      }
+      material.needsUpdate = true;
+      continue;
+    }
+
+    if (!material.userData?.baseColor) continue;
     material.color.copy(material.userData.baseColor);
     material.emissive.copy(material.userData.baseEmissive);
     material.emissiveIntensity = material.userData.baseEmissiveIntensity ?? material.emissiveIntensity;
@@ -388,6 +408,14 @@ const highlightEdgeMesh = (mesh, color) => {
   mesh.material.needsUpdate = true;
 };
 
+const highlightEdgeInstance = (mesh, index, color) => {
+  if (!mesh || !mesh.isInstancedMesh) return;
+  if (typeof mesh.setColorAt === 'function') {
+    mesh.setColorAt(index, color);
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }
+};
+
 const buildSelectionKeys = (info) => {
   const keys = new Set();
   if (!info) return keys;
@@ -411,8 +439,10 @@ const buildSelectionKeys = (info) => {
 const applyHighlightsForKeys = (selectionKeys, intensity = 1) => {
   if (!selectionKeys || !selectionKeys.size) return;
   const connected = new Map();
-  state.edgeMeshes.forEach((mesh) => {
-    const endpoints = mesh.userData?.endpoints;
+  const edgeSegments = state.edgeSegments || [];
+
+  edgeSegments.forEach((segment) => {
+    const endpoints = segment.endpoints;
     if (!endpoints || !endpoints.size) return;
     let matches = false;
     for (const key of selectionKeys) {
@@ -422,8 +452,11 @@ const applyHighlightsForKeys = (selectionKeys, intensity = 1) => {
       }
     }
     if (!matches) return;
-    const edgeColor = mesh.userData?.edgeColor || new state.THREE.Color(0xffffff);
-    highlightEdgeMesh(mesh, edgeColor);
+
+    const edgeColor = segment.edgeColor || new state.THREE.Color(0xffffff);
+    const highlightColor = segment.highlightColor || edgeColor;
+    highlightEdgeInstance(segment.mesh, segment.index, highlightColor);
+
     endpoints.forEach((endpointKey) => {
       if (selectionKeys.has(endpointKey)) return;
       const entry = connected.get(endpointKey) || { color: new state.THREE.Color(0, 0, 0), weight: 0 };
