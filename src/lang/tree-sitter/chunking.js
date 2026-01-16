@@ -123,8 +123,8 @@ const DEFAULT_NAME_SEARCH_MAX_DEPTH = 6;
 const DEFAULT_NAME_SEARCH_MAX_NODES = 128;
 
 function findNameNode(node, config) {
-  const nameTypes = config?.nameTypes;
-  if (!nameTypes || !nameTypes.size || !node) return null;
+  const nameTypes = (config?.nameTypes && config.nameTypes.size) ? config.nameTypes : COMMON_NAME_NODE_TYPES;
+  if (!node) return null;
 
   // Traversal limits: names should be close to the declaration node, but some grammars
   // wrap identifiers a few levels deep. Keep this bounded and deterministic.
@@ -165,6 +165,52 @@ function findNameNode(node, config) {
 
   return null;
 }
+
+function sliceNodeText(node, text) {
+  if (!node || typeof text !== 'string') return '';
+  const start = Number(node.startIndex);
+  const end = Number(node.endIndex);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return '';
+  if (start < 0 || end < 0 || end <= start || start > text.length) return '';
+  return text.slice(start, Math.min(end, text.length));
+}
+
+function extractNodeName(node, text, config) {
+  if (!node) return '';
+
+  // Optional language-specific resolver (e.g., markdown headings).
+  if (typeof config?.resolveName === 'function') {
+    try {
+      const resolved = config.resolveName(node, text);
+      if (typeof resolved === 'string') return resolved.trim();
+      if (resolved && typeof resolved.name === 'string') return resolved.name.trim();
+    } catch {
+      // Ignore resolver failures; fall back to generic extraction.
+    }
+  }
+
+  // Prefer field-based naming when supported by the grammar.
+  const nameFields = Array.isArray(config?.nameFields) ? config.nameFields : null;
+  if (nameFields && typeof node.childForFieldName === 'function') {
+    for (const field of nameFields) {
+      if (typeof field !== 'string' || !field) continue;
+      try {
+        const fieldNode = node.childForFieldName(field);
+        const raw = sliceNodeText(fieldNode, text);
+        const trimmed = raw.trim();
+        if (trimmed) return trimmed;
+      } catch {
+        // ignore field extraction failures
+      }
+    }
+  }
+
+  // Fall back to a bounded BFS for a nearby common identifier node.
+  const nameNode = findNameNode(node, config);
+  if (!nameNode) return '';
+  return sliceNodeText(nameNode, text).trim();
+}
+
 
 function findNearestType(node, config) {
   let current = node?.parent || null;

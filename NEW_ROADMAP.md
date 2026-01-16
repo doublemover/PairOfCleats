@@ -1,7 +1,5 @@
 # PairOfCleats GigaRoadmap
 
-Large architectural changes are explicitly permitted when they reduce defect surface area and/or materially improve throughput and durability. Confirm before you enact any large architectural changes!
-
 ## Status legend
 
 Checkboxes represent “meets the intent of the requirement, end-to-end, without known correctness gaps”:
