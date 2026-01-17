@@ -1,11 +1,11 @@
 import fs from 'node:fs';
-import { stubEmbedding } from '../shared/embedding.js';
+import { resolveStubDims, stubEmbedding } from '../shared/embedding.js';
 import { createOnnxEmbedder, normalizeEmbeddingProvider } from '../shared/onnx-embeddings.js';
 
 const embedderCache = new Map();
 
 async function getEmbedder({ provider, modelId, modelDir, rootDir, onnxConfig }) {
-  const resolvedProvider = normalizeEmbeddingProvider(provider);
+  const resolvedProvider = normalizeEmbeddingProvider(provider, { strict: true });
   const cacheKey = JSON.stringify({
     provider: resolvedProvider,
     modelId,
@@ -58,10 +58,10 @@ export async function getQueryEmbedding({
   rootDir
 }) {
   if (useStub) {
-    return stubEmbedding(text, dims);
+    return stubEmbedding(text, resolveStubDims(dims));
   }
   try {
-    const resolvedProvider = normalizeEmbeddingProvider(provider);
+    const resolvedProvider = normalizeEmbeddingProvider(provider, { strict: true });
     const embedder = await getEmbedder({
       provider: resolvedProvider,
       modelId,
@@ -73,7 +73,7 @@ export async function getQueryEmbedding({
       return await embedder.getEmbedding(text);
     }
     const output = await embedder(text, { pooling: 'mean', normalize: true });
-    return Array.from(output.data);
+    return output.data instanceof Float32Array ? output.data : Float32Array.from(output.data);
   } catch {
     return null;
   }

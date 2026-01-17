@@ -1,4 +1,5 @@
 import { quantizeVec } from '../embedding.js';
+import { DEFAULT_STUB_DIMS } from '../../shared/embedding.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
@@ -100,7 +101,7 @@ export async function buildPostings(input) {
       tokenPostingsList: [],
       avgDocLen: 0,
       minhashSigs: [],
-      dims: embeddingsEnabled ? 384 : 0,
+      dims: embeddingsEnabled ? DEFAULT_STUB_DIMS : 0,
       quantizedVectors: [],
       quantizedDocVectors: [],
       quantizedCodeVectors: []
@@ -154,6 +155,11 @@ export async function buildPostings(input) {
     const embedLabel = useStubEmbeddings ? 'stub' : 'model';
     log(`Using ${embedLabel} embeddings for dense vectors (${modelId})...`);
 
+    const isVectorLike = (value) => {
+      if (Array.isArray(value)) return true;
+      return ArrayBuffer.isView(value) && !(value instanceof DataView);
+    };
+
     const isByteVector = (value) => (
       value
       && typeof value === 'object'
@@ -173,13 +179,13 @@ export async function buildPostings(input) {
       // Fall back to float embeddings.
       for (const chunk of chunks) {
         const vec = chunk?.embedding;
-        if (Array.isArray(vec) && vec.length) return vec.length;
+        if (isVectorLike(vec) && vec.length) return vec.length;
         const code = chunk?.embed_code;
-        if (Array.isArray(code) && code.length) return code.length;
+        if (isVectorLike(code) && code.length) return code.length;
         const doc = chunk?.embed_doc;
-        if (Array.isArray(doc) && doc.length) return doc.length;
+        if (isVectorLike(doc) && doc.length) return doc.length;
       }
-      return 384;
+      return DEFAULT_STUB_DIMS;
     };
 
     dims = resolveDims();
@@ -192,10 +198,10 @@ export async function buildPostings(input) {
     const zeroVec = new Array(dims).fill(0);
 
     const normalizeFloatVector = (vec) => {
-      if (!Array.isArray(vec)) return zeroVec;
-      if (vec.length === dims) return vec;
-      if (vec.length > dims) return vec.slice(0, dims);
-      const out = vec.slice();
+      if (!isVectorLike(vec)) return zeroVec;
+      if (vec.length === dims) return ArrayBuffer.isView(vec) ? Array.from(vec) : vec;
+      if (vec.length > dims) return Array.from(vec).slice(0, dims);
+      const out = Array.from(vec);
       while (out.length < dims) out.push(0);
       return out;
     };

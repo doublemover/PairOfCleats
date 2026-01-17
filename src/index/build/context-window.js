@@ -12,13 +12,14 @@ import { fileExt, toPosix } from '../../shared/files.js';
  */
 export async function estimateContextWindow({ files, root, mode, languageOptions }) {
   const sampleChunkLens = [];
-  for (let i = 0; i < Math.min(20, files.length); ++i) {
+  const ordered = Array.isArray(files) ? [...files].sort() : [];
+  for (let i = 0; i < Math.min(20, ordered.length); ++i) {
     try {
-      const { text } = await readTextFile(files[i]);
-      const relSample = path.relative(root, files[i]);
+      const { text } = await readTextFile(ordered[i]);
+      const relSample = path.relative(root, ordered[i]);
       const relSampleKey = toPosix(relSample);
-      const baseName = path.basename(files[i]);
-      const rawExt = fileExt(files[i]);
+      const baseName = path.basename(ordered[i]);
+      const rawExt = fileExt(ordered[i]);
       const ext = resolveSpecialCodeExt(baseName) || rawExt;
       const { context: sampleContext } = await buildLanguageContext({
         ext,

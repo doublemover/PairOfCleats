@@ -115,7 +115,7 @@ export async function loadIndex(dir, options) {
       space: hnswMeta.space || hnswConfig.space,
       efSearch: hnswMeta.efSearch || hnswConfig.efSearch
     };
-    hnswIndex = loadHnswIndex({ indexPath, dims: hnswMeta.dims, config: mergedConfig });
+    hnswIndex = loadHnswIndex({ indexPath, dims: hnswMeta.dims, config: mergedConfig, meta: hnswMeta });
     hnswAvailable = Boolean(hnswIndex);
   }
   const fieldPostings = loadOptional('field_postings.json');

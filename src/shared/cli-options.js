@@ -1,9 +1,10 @@
 import { validateConfig } from '../config/validate.js';
+import { DEFAULT_STUB_DIMS } from './embedding.js';
 
 export const INDEX_BUILD_OPTIONS = {
   mode: { type: 'string', default: 'all' },
   stage: { type: 'string' },
-  dims: { type: 'number', default: 384 },
+  dims: { type: 'number', default: DEFAULT_STUB_DIMS },
   threads: { type: 'number' },
   incremental: { type: 'boolean', default: false, alias: 'i' },
   'stub-embeddings': { type: 'boolean', default: false },

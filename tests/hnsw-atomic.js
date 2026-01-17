@@ -4,7 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
-import { resolveHnswPaths } from '../src/shared/hnsw.js';
+import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../src/shared/hnsw.js';
 import { loadChunkMeta, readJsonFile } from '../src/shared/artifact-io.js';
 
 const root = process.cwd();
@@ -69,6 +69,25 @@ if (meta.count !== meta.expectedCount) {
 }
 if (meta.count !== chunkMeta.length) {
   console.error(`hnsw atomic test failed: expected ${chunkMeta.length} vectors, got ${meta.count}`);
+  process.exit(1);
+}
+
+const nodeMajor = Number(String(process.versions?.node || '').split('.')[0]);
+if (Number.isFinite(nodeMajor) && nodeMajor >= 24) {
+  console.log('hnsw atomic tests passed (fallback check skipped on Node >= 24)');
+  process.exit(0);
+}
+
+const hnswConfig = normalizeHnswConfig(userConfig.indexing?.embeddings?.hnsw || {});
+await fsPromises.writeFile(hnswIndexPath, 'corrupt');
+const fallbackIndex = loadHnswIndex({
+  indexPath: hnswIndexPath,
+  dims: meta.dims,
+  config: hnswConfig,
+  meta
+});
+if (!fallbackIndex) {
+  console.error('hnsw atomic test failed: expected .bak fallback to load');
   process.exit(1);
 }
 

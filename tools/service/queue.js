@@ -105,6 +105,8 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
       mode: job.mode,
       reason: job.reason || null,
       stage: job.stage || null,
+      embeddingIdentity: job.embeddingIdentity || null,
+      embeddingIdentityKey: job.embeddingIdentityKey || null,
       args: Array.isArray(job.args) && job.args.length ? job.args : null,
       attempts: 0,
       maxRetries,

@@ -24,6 +24,11 @@ const actions = [
     covers: ['vector-extension-sanitize-test']
   },
   {
+    label: 'vector-extension-missing-test',
+    run: () => runNode('vector-extension-missing-test', path.join(root, 'tests', 'vector-extension-missing.js')),
+    covers: ['vector-extension-missing-test']
+  },
+  {
     label: 'xxhash-backends-test',
     run: () => runNode('xxhash-backends-test', path.join(root, 'tests', 'xxhash-backends.js')),
     covers: ['xxhash-backends-test']
@@ -148,6 +153,16 @@ const actions = [
     label: 'hnsw-atomic-test',
     run: () => runNode('hnsw-atomic-test', path.join(root, 'tests', 'hnsw-atomic.js')),
     covers: ['hnsw-atomic-test']
+  },
+  {
+    label: 'hnsw-candidate-set-test',
+    run: () => runNode('hnsw-candidate-set-test', path.join(root, 'tests', 'hnsw-candidate-set.js')),
+    covers: ['hnsw-candidate-set-test']
+  },
+  {
+    label: 'hnsw-distance-metrics-test',
+    run: () => runNode('hnsw-distance-metrics-test', path.join(root, 'tests', 'hnsw-distance-metrics.js')),
+    covers: ['hnsw-distance-metrics-test']
   },
   {
     label: 'minhash-parity-test',
@@ -498,6 +513,11 @@ const actions = [
     covers: ['embeddings-cache-identity-test']
   },
   {
+    label: 'embeddings-identity-test',
+    run: () => runNode('embeddings-identity-test', path.join(root, 'tests', 'embeddings-identity.js')),
+    covers: ['embeddings-identity-test']
+  },
+  {
     label: 'embeddings-cache-invalidation-test',
     run: () => runNode('embeddings-cache-invalidation-test', path.join(root, 'tests', 'embeddings-cache-invalidation.js')),
     covers: ['embeddings-cache-invalidation-test']
@@ -648,6 +668,16 @@ const actions = [
     covers: []
   },
   {
+    label: 'embedding-batch-defaults-test',
+    run: () => runNode('embedding-batch-defaults-test', path.join(root, 'tests', 'embedding-batch-defaults.js')),
+    covers: []
+  },
+  {
+    label: 'embedding-batch-throughput-test',
+    run: () => runNode('embedding-batch-throughput-test', path.join(root, 'tests', 'embedding-batch-throughput.js')),
+    covers: []
+  },
+  {
     label: 'typescript-imports-only-test',
     run: () => runNode('typescript-imports-only-test', path.join(root, 'tests', 'typescript-imports-only.js')),
     covers: []
@@ -700,6 +730,11 @@ const actions = [
   {
     label: 'service-queue-test',
     run: () => runNode('service-queue-test', path.join(root, 'tests', 'service-queue.js')),
+    covers: []
+  },
+  {
+    label: 'embedding-queue-defaults-test',
+    run: () => runNode('embedding-queue-defaults-test', path.join(root, 'tests', 'embedding-queue-defaults.js')),
     covers: []
   },
   {

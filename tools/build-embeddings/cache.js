@@ -1,17 +1,10 @@
 import path from 'node:path';
 import { sha1 } from '../../src/shared/hash.js';
+import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../src/shared/embedding-identity.js';
 
-export const buildCacheIdentity = ({ modelId, provider, mode, stub, dims, scale }) => {
-  const identity = {
-    version: 1,
-    modelId: modelId || null,
-    provider: provider || null,
-    mode: mode || null,
-    stub: stub === true,
-    dims: dims ?? null,
-    scale
-  };
-  const key = sha1(JSON.stringify(identity));
+export const buildCacheIdentity = (input = {}) => {
+  const identity = buildEmbeddingIdentity(input);
+  const key = buildEmbeddingIdentityKey(identity);
   return { identity, key };
 };
 

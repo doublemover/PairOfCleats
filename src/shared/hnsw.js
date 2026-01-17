@@ -44,16 +44,17 @@ const resolveHnswLib = () => {
 
 const getBakPath = (filePath) => `${filePath}.bak`;
 
-const resolveIndexPath = (indexPath) => {
-  if (!indexPath) return null;
+const resolveIndexCandidates = (indexPath) => {
+  if (!indexPath) return [];
+  const candidates = [];
   if (fs.existsSync(indexPath)) {
-    return { path: indexPath, cleanup: true };
+    candidates.push({ path: indexPath, cleanup: true });
   }
   const bakPath = getBakPath(indexPath);
   if (fs.existsSync(bakPath)) {
-    return { path: bakPath, cleanup: false };
+    candidates.push({ path: bakPath, cleanup: false });
   }
-  return null;
+  return candidates;
 };
 
 const cleanupBak = (indexPath) => {
@@ -99,31 +100,47 @@ export function resolveHnswPaths(indexDir) {
   };
 }
 
-export function loadHnswIndex({ indexPath, dims, config }) {
-  const resolved = resolveIndexPath(indexPath);
-  if (!resolved) return null;
-  if (!Number.isFinite(dims) || dims <= 0) return null;
+export function loadHnswIndex({ indexPath, dims, config, meta }) {
+  const candidates = resolveIndexCandidates(indexPath);
+  if (!candidates.length) return null;
+  const resolvedDims = Number.isFinite(dims)
+    ? dims
+    : (Number.isFinite(meta?.dims) ? meta.dims : null);
+  if (!Number.isFinite(resolvedDims) || resolvedDims <= 0) return null;
+  if (Number.isFinite(meta?.dims) && Number.isFinite(dims) && meta.dims !== dims) {
+    warnLoadFailure('(meta dims mismatch)');
+    return null;
+  }
   const normalized = normalizeHnswConfig(config);
   if (!normalized.enabled) return null;
   const lib = resolveHnswLib();
   const HNSW = lib?.HierarchicalNSW || lib?.default?.HierarchicalNSW || lib?.default;
   if (!HNSW) return null;
-  const index = new HNSW(normalized.space, dims);
-  try {
-    index.readIndexSync(resolved.path, normalized.allowReplaceDeleted);
-  } catch (err) {
-    warnLoadFailure(err?.message ? `(${err.message})` : '');
-    return null;
+  const resolvedSpace = typeof meta?.space === 'string' ? meta.space : normalized.space;
+  let lastErr = null;
+  for (const candidate of candidates) {
+    const index = new HNSW(resolvedSpace, resolvedDims);
+    try {
+      index.readIndexSync(candidate.path, normalized.allowReplaceDeleted);
+    } catch (err) {
+      lastErr = err;
+      continue;
+    }
+    if (normalized.efSearch) {
+      index.setEf(normalized.efSearch);
+    }
+    if (candidate.cleanup) cleanupBak(indexPath);
+    return index;
   }
-  if (normalized.efSearch) {
-    index.setEf(normalized.efSearch);
-  }
-  if (resolved.cleanup) cleanupBak(indexPath);
-  return index;
+  warnLoadFailure(lastErr?.message ? `(${lastErr.message})` : '');
+  return null;
 }
 
 export function rankHnswIndex({ index, space }, queryEmbedding, topN, candidateSet) {
-  if (!index || !Array.isArray(queryEmbedding) || !queryEmbedding.length) return [];
+  if (candidateSet && candidateSet.size === 0) return [];
+  const isVectorLike = Array.isArray(queryEmbedding)
+    || (ArrayBuffer.isView(queryEmbedding) && !(queryEmbedding instanceof DataView));
+  if (!index || !isVectorLike || !queryEmbedding.length) return [];
   const requested = Math.max(1, Number(topN) || 1);
   const maxElements = typeof index.getCurrentCount === 'function'
     ? index.getCurrentCount()
@@ -133,13 +150,15 @@ export function rankHnswIndex({ index, space }, queryEmbedding, topN, candidateS
   const cap = Number.isFinite(maxElements) && maxElements > 0
     ? Math.min(requested, Math.floor(maxElements))
     : requested;
+  // No explicit candidate-set cap; limit is bounded by candidate set size and topN.
   const limit = candidateSet && candidateSet.size
     ? Math.max(1, Math.min(cap, candidateSet.size))
     : cap;
   const filter = candidateSet && candidateSet.size
     ? (label) => candidateSet.has(label)
     : undefined;
-  const result = index.searchKnn(queryEmbedding, limit, filter);
+  const queryVec = Array.isArray(queryEmbedding) ? queryEmbedding : Array.from(queryEmbedding);
+  const result = index.searchKnn(queryVec, limit, filter);
   const distances = result?.distances || [];
   const neighbors = result?.neighbors || [];
   const hits = [];

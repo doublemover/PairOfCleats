@@ -48,7 +48,7 @@ export function normalizeSearchOptions({
   const query = argv._.join(' ').trim();
 
   const embeddingsConfig = userConfig.indexing?.embeddings || {};
-  const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider);
+  const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
   const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
   const lancedbConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
