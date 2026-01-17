@@ -28,6 +28,7 @@ const defaultRedactPaths = [
   'auth',
   'credentials'
 ];
+let progressHandlers = null;
 
 const normalizeRedact = (value) => {
   if (value === false) return null;
@@ -103,6 +104,14 @@ export function configureLogger(options = {}) {
     : {};
 }
 
+export function setProgressHandlers(handlers) {
+  const prev = progressHandlers;
+  progressHandlers = handlers && typeof handlers === 'object' ? handlers : null;
+  return () => {
+    progressHandlers = prev;
+  };
+}
+
 export function updateLogContext(context = {}) {
   if (!context || typeof context !== 'object') return;
   logContext = { ...logContext, ...context };
@@ -126,7 +135,11 @@ function clearProgressLine() {
   lastProgressWidth = 0;
 }
 
-export function showProgress(step, i, total) {
+export function showProgress(step, i, total, meta = null) {
+  if (progressHandlers?.showProgress) {
+    progressHandlers.showProgress(step, i, total, meta);
+    return;
+  }
   if (structuredEnabled) return;
   const pct = ((i / total) * 100).toFixed(1);
   const line = `${step} ${i}/${total} (${pct}%)`;
@@ -156,9 +169,16 @@ export function log(msg, meta = null) {
   if (logger) {
     logger.info({ ...logContext, ...(meta || {}) }, msg);
     recordEvent('info', msg, meta);
+    if (progressHandlers?.log) {
+      progressHandlers.log(msg, meta);
+    }
     return;
   }
   recordEvent('info', msg, meta);
+  if (progressHandlers?.log) {
+    progressHandlers.log(msg, meta);
+    return;
+  }
   clearProgressLine();
   process.stderr.write(`\n${msg}\n`);
 }
@@ -172,9 +192,16 @@ export function logLine(msg, meta = null) {
   if (logger) {
     logger.info({ ...logContext, ...(meta || {}) }, msg);
     recordEvent('info', msg, meta);
+    if (progressHandlers?.logLine) {
+      progressHandlers.logLine(msg, meta);
+    }
     return;
   }
   recordEvent('info', msg, meta);
+  if (progressHandlers?.logLine) {
+    progressHandlers.logLine(msg, meta);
+    return;
+  }
   clearProgressLine();
   process.stderr.write(`${msg}\n`);
 }
@@ -188,9 +215,16 @@ export function logError(msg, meta = null) {
   if (logger) {
     logger.error({ ...logContext, ...(meta || {}) }, msg);
     recordEvent('error', msg, meta);
+    if (progressHandlers?.logError) {
+      progressHandlers.logError(msg, meta);
+    }
     return;
   }
   recordEvent('error', msg, meta);
+  if (progressHandlers?.logError) {
+    progressHandlers.logError(msg, meta);
+    return;
+  }
   clearProgressLine();
   process.stderr.write(`\n${msg}\n`);
 }

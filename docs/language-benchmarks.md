@@ -28,9 +28,10 @@ The matrix runner is now `pairofcleats bench matrix`.
 
 ## Output
 - Per-repo reports are written under `benchmarks/results/<language>/` (JSON payload from `tests/bench.js`).
-- Summary output is printed to the console; use `--json` and/or `--out` for a machine-readable aggregate.
-- The runner shows a live progress line, a metrics line, and a scrolling log window when stdout is a TTY. Use `--log-lines <n>` (3-50, default 20) to change the window height.
-- The log window coalesces tagged updates (debounced) to reduce noise; file progress lines use `[shard <index>/<total>]` prefixes with file counts and line totals.
+- Summary output is printed to stdout; use `--json` and/or `--out` for a machine-readable aggregate.
+- Progress/logging renders to stderr via the unified CLI display. Use `--progress=auto|off|jsonl` (default `auto`).
+- TTY runs show the interactive progress UI; non-TTY runs emit periodic single-line progress summaries. Use `--log-lines <n>` (3-50, default 20) to change the log window height.
+- Use `--verbose` for per-file/line progress and shard detail; `--quiet` suppresses non-error logs while still printing the final summary.
 - A run log is written to `benchmarks/results/logs/bench-language/<timestamp>.log` by default (override with `--log <file>`).
 - Runs now log start/finish, termination signals, and in-progress indexing counters with elapsed time, rate, and ETA, plus recent file names during indexing (expect larger logs on large repos).
 - If index artifacts are missing, the runner auto-enables build steps even if `--build` was not provided.
@@ -58,5 +59,5 @@ The matrix runner is now `pairofcleats bench matrix`.
 - Queries are plain text, one query per line; lines starting with `#` are ignored.
 - Language benchmarks run with the `full` profile by default to keep all enrichment steps enabled; use `--no-index-profile` if you want the repo's base config instead.
 - The runner uses `execa` for child processes and terminates trees via `taskkill` on Windows and `SIGTERM` elsewhere; we avoid `tree-kill` due to past Windows command-injection advisories and only pass trusted PIDs.
-- Set `PAIROFCLEATS_VERBOSE=1` to emit shard plan diagnostics (top shard sizes and split summaries) during builds.
+- Use `--verbose` to emit shard plan diagnostics (top shard sizes and split summaries) during builds.
 - Shard planning uses line counts: subdirs with <3 files merge unless a file is at least half the size of the 10th largest shard (by lines), and oversized shards are split by line totals for balance.

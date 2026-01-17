@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
+import { createDisplay } from '../src/shared/cli/display.js';
 import simpleGit from 'simple-git';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from './dict-utils.js';
 
@@ -14,9 +15,29 @@ const argv = createCli({
     'skip-sqlite': { type: 'boolean', default: false },
     incremental: { type: 'boolean', default: false },
     out: { type: 'string' },
-    repo: { type: 'string' }
+    repo: { type: 'string' },
+    progress: { type: 'string', default: 'auto' },
+    verbose: { type: 'boolean', default: false },
+    quiet: { type: 'boolean', default: false }
   }
 }).parse();
+
+const display = createDisplay({
+  stream: process.stderr,
+  progressMode: argv.progress,
+  verbose: argv.verbose === true,
+  quiet: argv.quiet === true
+});
+const logger = {
+  log: (message) => display.log(message),
+  warn: (message) => display.warn(message),
+  error: (message) => display.error(message)
+};
+const totalSteps = (argv['skip-build'] ? 0 : 1) + (argv['skip-sqlite'] ? 0 : 1) + 1;
+let stepIndex = 0;
+const updateProgress = (message) => {
+  display.showProgress('CI', stepIndex, totalSteps, { stage: 'ci', message });
+};
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
@@ -38,23 +59,47 @@ const sqlitePaths = resolveSqlitePaths(root, userConfig);
 function run(cmd, args, label) {
   const result = spawnSync(cmd, args, { stdio: 'inherit', env: baseEnv });
   if (result.status !== 0) {
-    console.error(`Failed: ${label || cmd}`);
+    logger.error(`Failed: ${label || cmd}`);
+    display.close();
     process.exit(result.status ?? 1);
   }
 }
 
 if (!argv['skip-build']) {
-  const args = [path.join(scriptRoot, 'build_index.js'), '--repo', root];
+  const childProgress = argv.verbose ? (argv.progress || 'auto') : 'off';
+  const args = [
+    path.join(scriptRoot, 'build_index.js'),
+    '--repo',
+    root,
+    '--progress',
+    childProgress
+  ];
   if (argv.incremental) args.push('--incremental');
+  if (argv.verbose) args.push('--verbose');
+  if (argv.quiet) args.push('--quiet');
+  updateProgress('build index');
   run(process.execPath, args, 'build index');
+  stepIndex += 1;
 }
 
 if (!argv['skip-sqlite']) {
-  const args = [path.join(scriptRoot, 'tools', 'build-sqlite-index.js'), '--repo', root];
+  const childProgress = argv.verbose ? (argv.progress || 'auto') : 'off';
+  const args = [
+    path.join(scriptRoot, 'tools', 'build-sqlite-index.js'),
+    '--repo',
+    root,
+    '--progress',
+    childProgress
+  ];
   if (argv.incremental) args.push('--incremental');
+  if (argv.verbose) args.push('--verbose');
+  if (argv.quiet) args.push('--quiet');
+  updateProgress('build sqlite');
   run(process.execPath, args, 'build sqlite index');
+  stepIndex += 1;
 }
 
+updateProgress('pack artifacts');
 await fsPromises.rm(outDir, { recursive: true, force: true });
 await fsPromises.mkdir(outDir, { recursive: true });
 
@@ -81,7 +126,8 @@ const copied = {
 };
 
 if (!copied.code || !copied.prose) {
-  console.error('Index artifacts missing; build indexes before exporting.');
+  logger.error('Index artifacts missing; build indexes before exporting.');
+  display.close();
   process.exit(1);
 }
 
@@ -99,10 +145,10 @@ if (!argv['skip-sqlite']) {
     copied.sqlite.prose = true;
   }
   if (!codeExists || !proseExists) {
-    console.warn('SQLite index missing (code or prose); skipping missing sqlite artifacts.');
+    logger.warn('SQLite index missing (code or prose); skipping missing sqlite artifacts.');
   }
   if (sqlitePaths.legacyExists) {
-    console.warn(`Legacy sqlite index detected (ignored): ${sqlitePaths.legacyPath}`);
+    logger.warn(`Legacy sqlite index detected (ignored): ${sqlitePaths.legacyPath}`);
   }
 }
 
@@ -146,4 +192,7 @@ await fsPromises.writeFile(
   JSON.stringify(manifest, null, 2)
 );
 
-console.log(`CI artifacts written to ${outDir}`);
+stepIndex += 1;
+display.showProgress('CI', stepIndex, totalSteps, { stage: 'ci', message: 'complete' });
+logger.log(`CI artifacts written to ${outDir}`);
+display.close();

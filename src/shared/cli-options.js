@@ -13,7 +13,10 @@ export const INDEX_BUILD_OPTIONS = {
   sqlite: { type: 'boolean' },
   'debug-crash': { type: 'boolean', default: false },
   model: { type: 'string' },
-  repo: { type: 'string' }
+  repo: { type: 'string' },
+  progress: { type: 'string', default: 'auto' },
+  verbose: { type: 'boolean', default: false },
+  quiet: { type: 'boolean', default: false }
 };
 
 export const BENCH_OPTIONS = {
@@ -41,7 +44,10 @@ export const BENCH_OPTIONS = {
   limit: { type: 'number', default: 0 },
   'heap-mb': { type: 'number' },
   'query-concurrency': { type: 'number' },
-  threads: { type: 'number' }
+  threads: { type: 'number' },
+  progress: { type: 'string', default: 'auto' },
+  verbose: { type: 'boolean', default: false },
+  quiet: { type: 'boolean', default: false }
 };
 
 export function mergeCliOptions(...sets) {
@@ -66,7 +72,10 @@ const INDEX_BUILD_SCHEMA = {
     watch: { type: 'boolean' },
     sqlite: { type: 'boolean' },
     model: { type: 'string' },
-    repo: { type: 'string' }
+    repo: { type: 'string' },
+    progress: { type: 'string' },
+    verbose: { type: 'boolean' },
+    quiet: { type: 'boolean' }
   }
 };
 
@@ -91,7 +100,10 @@ const BENCH_SCHEMA = {
     'fts-weights': { type: 'string' },
     'query-concurrency': { type: 'number' },
     threads: { type: 'number' },
-    'heap-mb': { type: 'number' }
+    'heap-mb': { type: 'number' },
+    progress: { type: 'string' },
+    verbose: { type: 'boolean' },
+    quiet: { type: 'boolean' }
   }
 };
 

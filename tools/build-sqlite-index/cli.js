@@ -24,7 +24,10 @@ export const parseBuildSqliteArgs = (rawArgs, options = {}) => {
       incremental: { type: 'boolean', default: false },
       compact: { type: 'boolean', default: false },
       validate: { type: 'string', default: 'smoke' },
-      'index-root': { type: 'string' }
+      'index-root': { type: 'string' },
+      progress: { type: 'string', default: 'auto' },
+      verbose: { type: 'boolean', default: false },
+      quiet: { type: 'boolean', default: false }
     }
   }).parse();
   const validateMode = normalizeValidateMode(argv.validate);

@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
+import { createDisplay } from '../src/shared/cli/display.js';
 import { loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
 import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
@@ -64,16 +65,17 @@ function buildBackupPath(dbPath, keepBackup) {
  */
 export async function compactDatabase(input) {
   const { dbPath, mode, vectorExtension, dryRun = false, keepBackup = false } = input || {};
+  const logger = input?.logger || console;
   const vectorAnnEnabled = vectorExtension?.enabled === true;
   if (!fs.existsSync(dbPath)) {
-    console.warn(`[compact] ${mode} db missing: ${dbPath}`);
+    logger.warn(`[compact] ${mode} db missing: ${dbPath}`);
     return { skipped: true };
   }
 
   const sourceDb = new Database(dbPath, { readonly: true });
   if (!hasRequiredTables(sourceDb, REQUIRED_TABLES)) {
     sourceDb.close();
-    console.error(`[compact] ${mode} db missing required tables. Rebuild first.`);
+    logger.error(`[compact] ${mode} db missing required tables. Rebuild first.`);
     process.exit(1);
   }
 
@@ -105,7 +107,7 @@ export async function compactDatabase(input) {
         );
       }
     } else {
-      console.warn(`[compact] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
+      logger.warn(`[compact] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
     }
   }
 
@@ -242,7 +244,7 @@ export async function compactDatabase(input) {
         `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
       );
     } else {
-      console.warn(`[compact] Failed to create vector table for ${mode}: ${created.reason}`);
+      logger.warn(`[compact] Failed to create vector table for ${mode}: ${created.reason}`);
     }
   }
 
@@ -273,7 +275,7 @@ export async function compactDatabase(input) {
       if (newId === undefined) continue;
       insertDense.run(mode, newId, row.vector);
       if (vectorAnnLoaded && !vectorAnnReady && !vectorAnnWarned) {
-        console.warn(`[compact] Skipping vector table for ${mode}: missing dense_meta dims.`);
+        logger.warn(`[compact] Skipping vector table for ${mode}: missing dense_meta dims.`);
         vectorAnnWarned = true;
       }
       if (vectorAnnReady && insertVectorAnn) {
@@ -393,7 +395,7 @@ export async function compactDatabase(input) {
 
   if (dryRun) {
     await fsPromises.rm(tempPath, { force: true });
-    console.log(`[compact] dry-run: ${mode} would replace ${dbPath}`);
+    logger.log(`[compact] dry-run: ${mode} would replace ${dbPath}`);
     return { skipped: true };
   }
 
@@ -414,9 +416,24 @@ if (isDirectRun) {
       mode: { type: 'string', default: 'all' },
       repo: { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
-      'keep-backup': { type: 'boolean', default: false }
+      'keep-backup': { type: 'boolean', default: false },
+      progress: { type: 'string', default: 'auto' },
+      verbose: { type: 'boolean', default: false },
+      quiet: { type: 'boolean', default: false }
     }
   }).parse();
+
+  const display = createDisplay({
+    stream: process.stderr,
+    progressMode: argv.progress,
+    verbose: argv.verbose === true,
+    quiet: argv.quiet === true
+  });
+  const logger = {
+    log: (message) => display.log(message),
+    warn: (message) => display.warn(message),
+    error: (message) => display.error(message)
+  };
 
   const rootArg = argv.repo ? path.resolve(argv.repo) : null;
   const root = rootArg || resolveRepoRoot(process.cwd());
@@ -426,7 +443,8 @@ if (isDirectRun) {
 
   const modeArg = (argv.mode || 'all').toLowerCase();
   if (!['all', 'code', 'prose'].includes(modeArg)) {
-    console.error('Invalid mode. Use --mode all|code|prose');
+    display.error('Invalid mode. Use --mode all|code|prose');
+    display.close();
     process.exit(1);
   }
 
@@ -438,15 +456,22 @@ if (isDirectRun) {
     targets.push({ mode: 'prose', path: sqlitePaths.prosePath });
   }
 
+  const modeTask = display.task('SQLite compact', { total: targets.length, stage: 'sqlite' });
+  let completed = 0;
   for (const target of targets) {
+    modeTask.set(completed, targets.length, { message: `compacting ${target.mode}` });
     await compactDatabase({
       dbPath: target.path,
       mode: target.mode,
       vectorExtension,
       dryRun: argv['dry-run'],
-      keepBackup: argv['keep-backup']
+      keepBackup: argv['keep-backup'],
+      logger
     });
+    completed += 1;
+    modeTask.set(completed, targets.length, { message: `compacted ${target.mode}` });
   }
 
-  console.log('SQLite compaction complete.');
+  display.log('SQLite compaction complete.');
+  display.close();
 }

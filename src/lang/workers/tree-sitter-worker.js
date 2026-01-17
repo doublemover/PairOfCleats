@@ -36,7 +36,6 @@ function isLanguageEnabled(treeSitterConfig, languageId) {
       }
     }
   }
-
   const langs = config.languages || {};
   if (languageId && Object.prototype.hasOwnProperty.call(langs, languageId)) {
     return normalizeEnabled(langs[languageId]);

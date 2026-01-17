@@ -3,6 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseBuildSqliteArgs } from './cli.js';
+import { createDisplay } from '../../src/shared/cli/display.js';
 import { createTempPath } from './temp-path.js';
 import { updateSqliteState } from './index-state.js';
 import { getEnvConfig } from '../../src/shared/env.js';
@@ -65,8 +66,33 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     modeArg,
     rawArgs: parsedRawArgs
   } = parseBuildSqliteArgs(rawArgs, options);
+  const display = createDisplay({
+    stream: process.stderr,
+    progressMode: argv.progress,
+    verbose: argv.verbose === true,
+    quiet: argv.quiet === true
+  });
+  let stopHeartbeat = () => {};
+  let finalized = false;
+  const finalize = () => {
+    if (finalized) return;
+    finalized = true;
+    stopHeartbeat();
+    display.close();
+  };
+  process.once('exit', finalize);
+  const log = (message) => {
+    if (emitOutput && message) display.log(message);
+  };
+  const warn = (message) => {
+    if (emitOutput && message) display.warn(message);
+  };
+  const error = (message) => {
+    if (emitOutput && message) display.error(message);
+  };
   const bail = (message, code = 1) => {
-    if (emitOutput && message) console.error(message);
+    if (message) error(message);
+    finalize();
     if (exitOnError) process.exit(code);
     throw new Error(message || 'SQLite index build failed.');
   };
@@ -81,7 +107,7 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     : resolveIndexRoot(root, userConfig);
   const buildStatePath = resolveBuildStatePath(indexRoot);
   const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
-  const stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage4') : () => {};
+  stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage4') : () => {};
   const threadLimits = resolveThreadLimits({
     argv,
     rawArgv: parsedRawArgs,
@@ -89,8 +115,8 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     configConcurrency: userConfig?.indexing?.concurrency,
     importConcurrencyConfig: userConfig?.indexing?.importConcurrency
   });
-  if (emitOutput && envConfig.verbose === true) {
-    console.log(
+  if (emitOutput && argv.verbose === true) {
+    log(
       `[sqlite] Thread limits (${threadLimits.source}): ` +
       `cpu=${threadLimits.cpuCount}, cap=${threadLimits.maxConcurrencyCap}, ` +
       `files=${threadLimits.fileConcurrency}, imports=${threadLimits.importConcurrency}, ` +
@@ -158,7 +184,7 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
       return { index: null, tooLarge: false, pieces: loadIndexPieces(dir, modelConfig.id) };
     } catch (err) {
       if (err?.code === 'ERR_JSON_TOO_LARGE') {
-        console.warn(`[sqlite] ${label} chunk_meta too large; will use pieces if available.`);
+        warn(`[sqlite] ${label} chunk_meta too large; will use pieces if available.`);
         return { index: null, tooLarge: true, pieces: loadIndexPieces(dir, modelConfig.id) };
       }
       throw err;
@@ -177,9 +203,9 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
   if (sqlitePaths.legacyExists) {
     try {
       await fs.rm(sqlitePaths.legacyPath, { force: true });
-      console.warn(`Removed legacy SQLite index at ${sqlitePaths.legacyPath}`);
+      warn(`Removed legacy SQLite index at ${sqlitePaths.legacyPath}`);
     } catch (err) {
-      console.warn(`Failed to remove legacy SQLite index at ${sqlitePaths.legacyPath}: ${err?.message || err}`);
+      warn(`Failed to remove legacy SQLite index at ${sqlitePaths.legacyPath}: ${err?.message || err}`);
     }
   }
 
@@ -214,23 +240,24 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
       });
       if (result.used) {
         if (compactOnIncremental && (result.changedFiles || result.deletedFiles)) {
-          console.log(`[sqlite] Compaction requested for ${mode} index...`);
+          log(`[sqlite] Compaction requested for ${mode} index...`);
           await compactDatabase({
             dbPath: targetPath,
             mode,
             vectorExtension,
             dryRun: false,
-            keepBackup: false
+            keepBackup: false,
+            logger: { log, warn, error }
           });
         }
         return { ...result, incremental: true };
       }
       if (result.reason) {
-        console.warn(`[sqlite] Incremental ${mode} update skipped (${result.reason}); rebuilding full index.`);
+        warn(`[sqlite] Incremental ${mode} update skipped (${result.reason}); rebuilding full index.`);
       }
     }
     if (hasBundles) {
-      console.log(`[sqlite] Using incremental bundles for ${mode} full rebuild.`);
+      log(`[sqlite] Using incremental bundles for ${mode} full rebuild.`);
       const tempPath = createTempPath(targetPath);
       let bundleResult = { count: 0 };
       try {
@@ -266,7 +293,7 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
         };
       }
       if (bundleResult.reason) {
-        console.warn(`[sqlite] Bundle build skipped (${bundleResult.reason}); falling back to file-backed artifacts.`);
+        warn(`[sqlite] Bundle build skipped (${bundleResult.reason}); falling back to file-backed artifacts.`);
       }
     }
     const tempPath = createTempPath(targetPath);
@@ -293,33 +320,45 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
   };
 
   const results = {};
+  const modeList = modeArg === 'all' ? ['code', 'prose'] : [modeArg];
+  let completedModes = 0;
+  const modeTask = display.task('SQLite', { total: modeList.length, stage: 'sqlite' });
+  const updateModeProgress = (message) => {
+    modeTask.set(completedModes, modeList.length, { message });
+  };
   if (modeArg === 'all' || modeArg === 'code') {
     const targetPath = modeArg === 'all' ? codeOutPath : outPath;
     const codeInput = codeIndex || codePieces;
+    updateModeProgress('building code');
     results.code = await runMode('code', codeInput, codeDir, targetPath, incrementalCode);
+    completedModes += 1;
+    updateModeProgress('built code');
   }
   if (modeArg === 'all' || modeArg === 'prose') {
     const targetPath = modeArg === 'all' ? proseOutPath : outPath;
     const proseInput = proseIndex || prosePieces;
+    updateModeProgress('building prose');
     results.prose = await runMode('prose', proseInput, proseDir, targetPath, incrementalProse);
+    completedModes += 1;
+    updateModeProgress('built prose');
   }
 
   if (modeArg === 'all') {
     const codeResult = results.code || {};
     const proseResult = results.prose || {};
     if (codeResult.incremental || proseResult.incremental) {
-      console.log(`SQLite indexes updated at code=${codeOutPath} prose=${proseOutPath}. ` +
+      log(`SQLite indexes updated at code=${codeOutPath} prose=${proseOutPath}. ` +
         `code+${codeResult.insertedChunks || 0} prose+${proseResult.insertedChunks || 0}`);
     } else {
-      console.log(`SQLite indexes built at code=${codeOutPath} prose=${proseOutPath}. ` +
+      log(`SQLite indexes built at code=${codeOutPath} prose=${proseOutPath}. ` +
         `code=${codeResult.count || 0} prose=${proseResult.count || 0}`);
     }
   } else {
     const result = modeArg === 'code' ? results.code : results.prose;
     if (result?.incremental) {
-      console.log(`SQLite ${modeArg} index updated at ${outPath}. +${result.insertedChunks || 0} chunks`);
+      log(`SQLite ${modeArg} index updated at ${outPath}. +${result.insertedChunks || 0} chunks`);
     } else {
-      console.log(`SQLite ${modeArg} index built at ${outPath}. ${modeArg}=${result?.count || 0}`);
+      log(`SQLite ${modeArg} index built at ${outPath}. ${modeArg}=${result?.count || 0}`);
     }
   }
 
@@ -331,7 +370,7 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
   if (hasBuildState) {
     await markBuildPhase(indexRoot, 'stage4', 'done');
   }
-  stopHeartbeat();
+  finalize();
 
   return {
     mode: modeArg,

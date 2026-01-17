@@ -373,7 +373,6 @@ export function resetTreeSitterParser({ hard = false } = {}) {
     treeSitterState.sharedParserLanguageId = null;
   }
 }
-
 function touchParserCacheEntry(languageId) {
   // Map iteration order is insertion order; re-insert to mark as most-recently-used.
   if (!treeSitterState.parserCache.has(languageId)) return;

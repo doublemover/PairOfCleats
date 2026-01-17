@@ -11,7 +11,6 @@ import {
 const DEFAULT_MAX_LOADED_LANGUAGES = 3;
 const DEFAULT_MAX_LOADED_LANGUAGES_WITH_PASSES = 1;
 const DEFAULT_DEFER_MISSING_MAX = 2;
-
 const normalizePreloadMode = (raw) => {
   if (raw === true) return 'parallel';
   if (raw === false || raw === undefined || raw === null) return 'none';
@@ -77,17 +76,17 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterMaxBytes,
     treeSitterMaxLines,
     treeSitterMaxParseMs,
-    treeSitterByLanguage,
-    treeSitterPreload,
-    treeSitterPreloadConcurrency,
-    treeSitterMaxLoadedLanguages,
-    treeSitterBatchByLanguage,
-    treeSitterBatchEmbeddedLanguages,
-    treeSitterLanguagePasses,
-    treeSitterDeferMissing,
-    treeSitterDeferMissingMax,
-    treeSitterWorker: treeSitterConfig.worker || null
-  };
+  treeSitterByLanguage,
+  treeSitterPreload,
+  treeSitterPreloadConcurrency,
+  treeSitterMaxLoadedLanguages,
+  treeSitterBatchByLanguage,
+  treeSitterBatchEmbeddedLanguages,
+  treeSitterLanguagePasses,
+  treeSitterDeferMissing,
+  treeSitterDeferMissingMax,
+  treeSitterWorker: treeSitterConfig.worker || null
+};
 };
 
 export const preloadTreeSitterRuntimeLanguages = async ({

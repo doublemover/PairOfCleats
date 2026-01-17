@@ -1,11 +1,13 @@
 import { execa, execaSync } from 'execa';
+import { parseProgressEventLine } from '../../src/shared/cli/progress-events.js';
 
 export const createProcessRunner = ({
   appendLog,
   writeLog,
   writeLogSync,
   logHistory,
-  logPath
+  logPath,
+  onProgressEvent
 }) => {
   let activeChild = null;
   let activeLabel = '';
@@ -51,19 +53,27 @@ export const createProcessRunner = ({
     setActiveChild(child, label);
     writeLog(`[start] ${label}`);
     const carry = { stdout: '', stderr: '' };
+    const handleLine = (line) => {
+      const event = parseProgressEventLine(line);
+      if (event && typeof onProgressEvent === 'function') {
+        onProgressEvent(event);
+        return;
+      }
+      appendLog(line);
+    };
     const handleChunk = (chunk, key) => {
       const text = carry[key] + chunk.toString('utf8');
       const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const parts = normalized.split('\n');
       carry[key] = parts.pop() || '';
-      for (const line of parts) appendLog(line);
+      for (const line of parts) handleLine(line);
     };
     child.stdout?.on('data', (chunk) => handleChunk(chunk, 'stdout'));
     child.stderr?.on('data', (chunk) => handleChunk(chunk, 'stderr'));
     try {
       const result = await child;
-      if (carry.stdout) appendLog(carry.stdout);
-      if (carry.stderr) appendLog(carry.stderr);
+      if (carry.stdout) handleLine(carry.stdout);
+      if (carry.stderr) handleLine(carry.stderr);
       const code = result.exitCode;
       writeLog(`[finish] ${label} code=${code}`);
       clearActiveChild(child);

@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
+import { createDisplay } from '../src/shared/cli/display.js';
 import { loadChunkMeta, loadTokenPostings, readJsonFile, MAX_JSON_BYTES } from '../src/shared/artifact-io.js';
 import { writeJsonObjectFile } from '../src/shared/json-stream.js';
 import { checksumFile } from '../src/shared/hash.js';
@@ -20,13 +21,29 @@ const argv = createCli({
   options: {
     mode: { type: 'string', default: 'all' },
     repo: { type: 'string' },
-    'index-root': { type: 'string' }
+    'index-root': { type: 'string' },
+    progress: { type: 'string', default: 'auto' },
+    verbose: { type: 'boolean', default: false },
+    quiet: { type: 'boolean', default: false }
   }
 }).parse();
 
+const display = createDisplay({
+  stream: process.stderr,
+  progressMode: argv.progress,
+  verbose: argv.verbose === true,
+  quiet: argv.quiet === true
+});
+const log = (message) => display.log(message);
+const warn = (message) => display.warn(message);
+const fail = (message, code = 1) => {
+  display.error(message);
+  display.close();
+  process.exit(code);
+};
+
 if (!open) {
-  console.error('lmdb is required. Run npm install first.');
-  process.exit(1);
+  fail('lmdb is required. Run npm install first.');
 }
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
@@ -129,6 +146,8 @@ const updateLmdbState = async (indexDir, patch) => {
 const buildModeRaw = String(argv.mode || 'all').trim().toLowerCase();
 const buildMode = buildModeRaw === 'both' ? 'all' : buildModeRaw;
 const modes = buildMode === 'all' ? ['code', 'prose'] : [buildMode];
+const modeTask = display.task('LMDB', { total: modes.length, stage: 'lmdb' });
+let completedModes = 0;
 
 const packr = new Packr();
 
@@ -208,9 +227,9 @@ const loadArtifactsForMode = (indexDir, mode) => {
 
 for (const mode of modes) {
   if (!['code', 'prose'].includes(mode)) {
-    console.error(`Invalid mode: ${mode}`);
-    process.exit(1);
+    fail(`Invalid mode: ${mode}`);
   }
+  modeTask.set(completedModes, modes.length, { message: `building ${mode}` });
   const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
   const targetPath = mode === 'code' ? lmdbPaths.codePath : lmdbPaths.prosePath;
   const buildStart = Date.now();
@@ -266,5 +285,9 @@ for (const mode of modes) {
     );
   } catch {}
 
-  console.log(`[lmdb] ${mode} index built at ${targetPath}.`);
+  completedModes += 1;
+  modeTask.set(completedModes, modes.length, { message: `built ${mode}` });
+  log(`[lmdb] ${mode} index built at ${targetPath}.`);
 }
+
+display.close();

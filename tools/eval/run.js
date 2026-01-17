@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { createDisplay } from '../../src/shared/cli/display.js';
 import { search as coreSearch } from '../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
 
@@ -14,10 +15,26 @@ const argv = createCli({
     top: { type: 'number', default: 10 },
     ann: { type: 'boolean' },
     out: { type: 'string' },
-    pretty: { type: 'boolean', default: false }
+    pretty: { type: 'boolean', default: false },
+    progress: { type: 'string', default: 'auto' },
+    verbose: { type: 'boolean', default: false },
+    quiet: { type: 'boolean', default: false }
   },
   aliases: { n: 'top' }
 }).parse();
+
+const display = createDisplay({
+  stream: process.stderr,
+  progressMode: argv.progress,
+  verbose: argv.verbose === true,
+  quiet: argv.quiet === true,
+  json: true
+});
+const fail = (message, code = 1) => {
+  display.error(message);
+  display.close();
+  process.exit(code);
+};
 
 const root = process.cwd();
 const repoRoot = argv.repo ? path.resolve(argv.repo) : root;
@@ -102,11 +119,12 @@ const evalCaches = {
 
 const cases = loadDataset();
 if (!cases.length) {
-  console.error(`No eval cases found at ${datasetPath}`);
-  process.exit(1);
+  fail(`No eval cases found at ${datasetPath}`);
 }
 
 const results = [];
+const evalTask = display.task('Eval', { total: cases.length, stage: 'eval' });
+let processedCases = 0;
 for (const entry of cases) {
   const query = String(entry?.query || '').trim();
   if (!query) continue;
@@ -149,6 +167,8 @@ for (const entry of cases) {
     metrics,
     goldMetrics
   });
+  processedCases += 1;
+  evalTask.set(processedCases, cases.length);
 }
 
 const aggregate = (field) => {
@@ -191,4 +211,5 @@ if (argv.out) {
 }
 
 const payload = argv.pretty ? JSON.stringify(output, null, 2) : JSON.stringify(output);
+display.close();
 console.log(payload);

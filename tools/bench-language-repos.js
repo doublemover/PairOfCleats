@@ -26,8 +26,7 @@ import {
   validateEncodingFixtures
 } from './bench/language/metrics.js';
 import { buildReportOutput, printSummary } from './bench/language/report.js';
-import { createProgressState } from './bench/language/progress/state.js';
-import { createProgressRenderer } from './bench/language/progress/render.js';
+import { createDisplay } from '../src/shared/cli/display.js';
 
 const parseList = (value) => {
   if (!value) return [];
@@ -47,9 +46,6 @@ const {
   logPath,
   cloneEnabled,
   dryRun,
-  quietMode,
-  interactive,
-  colorEnabled,
   logWindowSize,
   lockMode,
   lockWaitMs,
@@ -62,6 +58,19 @@ const {
 
 const baseEnv = { ...process.env };
 const envConfig = getEnvConfig();
+const quietMode = argv.quiet === true || argv.json === true;
+const display = createDisplay({
+  stream: process.stderr,
+  progressMode: argv.progress,
+  verbose: argv.verbose === true,
+  quiet: quietMode,
+  logWindowSize,
+  json: argv.json === true
+});
+const exitWithDisplay = (code) => {
+  display.close();
+  process.exit(code);
+};
 const heapArgRaw = argv['heap-mb'];
 const heapArg = Number.isFinite(Number(heapArgRaw)) ? Math.floor(Number(heapArgRaw)) : null;
 const heapRecommendation = getRecommendedHeapMb();
@@ -92,22 +101,63 @@ const writeLogSync = (line) => {
   } catch {}
 };
 
-const progressState = createProgressState({ logWindowSize });
+const logHistory = [];
+const logHistoryLimit = 50;
+const appendLog = (line, level = 'info') => {
+  if (!line) return;
+  writeLog(line);
+  if (level === 'error') {
+    display.error(line);
+  } else if (level === 'warn') {
+    display.warn(line);
+  } else {
+    display.log(line);
+  }
+  logHistory.push(line);
+  if (logHistory.length > logHistoryLimit) logHistory.shift();
+};
+const handleProgressEvent = (event) => {
+  if (!event || typeof event !== 'object') return;
+  if (event.event === 'log') {
+    const message = event.message || '';
+    const level = event.level || 'info';
+    appendLog(message, level);
+    return;
+  }
+  const name = event.name || event.taskId || 'task';
+  const total = Number.isFinite(event.total) && event.total > 0 ? event.total : null;
+  const task = display.task(name, {
+    taskId: event.taskId || name,
+    stage: event.stage,
+    mode: event.mode,
+    total,
+    ephemeral: event.ephemeral === true
+  });
+  const current = Number.isFinite(event.current) ? event.current : 0;
+  if (event.event === 'task:start') {
+    task.set(current, total, { message: event.message });
+    return;
+  }
+  if (event.event === 'task:progress') {
+    task.set(current, total, { message: event.message });
+    return;
+  }
+  if (event.event === 'task:end') {
+    if (event.status === 'failed') {
+      task.fail(new Error(event.message || 'failed'));
+    } else {
+      task.done({ message: event.message });
+    }
+  }
+};
 let processRunner = null;
-const progress = createProgressRenderer({
-  state: progressState,
-  interactive,
-  quietMode,
-  colorEnabled,
-  writeLog,
-  getActiveLabel: () => (processRunner ? processRunner.getActiveLabel() : '')
-});
 processRunner = createProcessRunner({
-  appendLog: progress.appendLog,
+  appendLog,
   writeLog,
   writeLogSync,
-  logHistory: progressState.logHistory,
-  logPath
+  logHistory,
+  logPath,
+  onProgressEvent: handleProgressEvent
 });
 
 process.on('exit', (code) => {
@@ -122,7 +172,7 @@ process.on('SIGINT', () => {
     processRunner.killProcessTree(active.pid);
   }
   processRunner.logExit('SIGINT', 130);
-  process.exit(130);
+  exitWithDisplay(130);
 });
 process.on('SIGTERM', () => {
   writeLogSync('[signal] SIGTERM received');
@@ -132,7 +182,7 @@ process.on('SIGTERM', () => {
     processRunner.killProcessTree(active.pid);
   }
   processRunner.logExit('SIGTERM', 143);
-  process.exit(143);
+  exitWithDisplay(143);
 });
 
 const reportFatal = (label, err) => {
@@ -143,9 +193,9 @@ const reportFatal = (label, err) => {
   try {
     const details = err?.stack || String(err);
     // Make failures visible even in interactive mode.
-    console.error(`\n[bench-language] Fatal: ${label}`);
-    console.error(details);
-    console.error(`[bench-language] Details logged to: ${logPath}\n`);
+    display.error(`[bench-language] Fatal: ${label}`);
+    display.error(details);
+    display.error(`[bench-language] Details logged to: ${logPath}`);
   } catch {}
 };
 
@@ -153,13 +203,13 @@ process.on('uncaughtException', (err) => {
   reportFatal('uncaughtException', err);
   writeLogSync(`[error] uncaughtException: ${err?.stack || err}`);
   processRunner.logExit('uncaughtException', 1);
-  process.exit(1);
+  exitWithDisplay(1);
 });
 process.on('unhandledRejection', (err) => {
   reportFatal('unhandledRejection', err);
   writeLogSync(`[error] unhandledRejection: ${err?.stack || err}`);
   processRunner.logExit('unhandledRejection', 1);
-  process.exit(1);
+  exitWithDisplay(1);
 });
 
 const config = loadBenchConfig(configPath);
@@ -181,8 +231,8 @@ for (const [language, entry] of Object.entries(config)) {
     ? path.resolve(argv.queries)
     : path.resolve(scriptRoot, entry.queries || '');
   if (!fs.existsSync(queriesPath)) {
-    console.error(`Missing queries file: ${queriesPath}`);
-    process.exit(1);
+    display.error(`Missing queries file: ${queriesPath}`);
+    exitWithDisplay(1);
   }
   const repoGroups = entry.repos || {};
   for (const [tier, repos] of Object.entries(repoGroups)) {
@@ -215,48 +265,51 @@ if (argv.list) {
       console.log(`- ${task.language} ${task.tier} ${task.repo}`);
     }
   }
-  process.exit(0);
+  exitWithDisplay(0);
 }
 
 if (!tasks.length) {
-  console.error('No benchmark targets match the requested filters.');
-  process.exit(1);
+  display.error('No benchmark targets match the requested filters.');
+  exitWithDisplay(1);
 }
 
 let cloneTool = null;
 if (cloneEnabled && !dryRun) {
   ensureLongPathsSupport();
   cloneTool = resolveCloneTool();
-  if (!quietMode) console.log(`Clone tool: ${cloneTool.label}`);
 }
 await fsPromises.mkdir(reposRoot, { recursive: true });
 await fsPromises.mkdir(resultsRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 initLog();
-writeLog(`Clone tool: ${cloneTool ? cloneTool.label : 'disabled'}`);
+appendLog(`Clone tool: ${cloneTool ? cloneTool.label : 'disabled'}`);
 
 const benchScript = path.join(scriptRoot, 'tests', 'bench.js');
 const results = [];
 const startTime = Date.now();
 let completed = 0;
 
-progress.updateMetrics('Metrics: pending');
-progress.updateProgress(`Progress: 0/${tasks.length} | elapsed ${formatDuration(0)}`);
+const benchTask = display.task('Repos', { total: tasks.length, stage: 'bench' });
+const updateBenchProgress = (label) => {
+  const elapsed = formatDuration(Date.now() - startTime);
+  const message = label ? `${label} | elapsed ${elapsed}` : `elapsed ${elapsed}`;
+  benchTask.set(completed, tasks.length, { message });
+};
+updateBenchProgress('pending');
 
 for (const task of tasks) {
   const repoPath = resolveRepoDir({ reposRoot, repo: task.repo, language: task.language });
   await fsPromises.mkdir(path.dirname(repoPath), { recursive: true });
   const repoLabel = `${task.language}/${task.repo}`;
   const phaseLabel = `repo ${repoLabel} (${task.tier})`;
-  progressState.currentRepoLabel = repoLabel;
-  progress.resetBuildProgress(repoLabel);
+  updateBenchProgress(`starting ${phaseLabel}`);
 
   if (!fs.existsSync(repoPath)) {
     if (!cloneEnabled && !dryRun) {
-      console.error(`Missing repo ${task.repo} at ${repoPath}. Re-run with --clone.`);
-      process.exit(1);
+      display.error(`Missing repo ${task.repo} at ${repoPath}. Re-run with --clone.`);
+      exitWithDisplay(1);
     }
-    progress.updateProgress(`Progress: ${completed}/${tasks.length} | cloning ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
+    updateBenchProgress(`cloning ${phaseLabel}`);
     if (!dryRun && cloneEnabled && cloneTool) {
       const args = cloneTool.buildArgs(task.repo, repoPath);
       const cloneResult = await processRunner.runProcess(`clone ${task.repo}`, cloneTool.label, args, {
@@ -264,10 +317,10 @@ for (const task of tasks) {
         continueOnError: true
       });
       if (!cloneResult.ok) {
-        progress.appendLog(`[error] Clone failed for ${repoLabel}; continuing to next repo.`);
+        appendLog(`[error] Clone failed for ${repoLabel}; continuing to next repo.`, 'error');
         completed += 1;
-        progress.updateProgress(`Progress: ${completed}/${tasks.length} | failed ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
-        progress.updateMetrics('Metrics: failed (clone)');
+        updateBenchProgress(`failed ${phaseLabel}`);
+        appendLog('[metrics] failed (clone)');
         results.push({
           ...task,
           repoPath,
@@ -296,7 +349,7 @@ for (const task of tasks) {
   if (Number.isFinite(heapArg) && heapArg > 0) {
     heapOverride = heapArg;
     if (!heapLogged) {
-      progress.appendLog(`[heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) from --heap-mb.`);
+      appendLog(`[heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) from --heap-mb.`);
       heapLogged = true;
     }
   } else if (
@@ -306,7 +359,7 @@ for (const task of tasks) {
   ) {
     heapOverride = heapRecommendation.recommendedMb;
     if (!heapLogged) {
-      progress.appendLog(
+      appendLog(
         `[auto-heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) for Node heap. `
           + 'Override with --heap-mb or PAIROFCLEATS_MAX_OLD_SPACE_MB.'
       );
@@ -346,14 +399,14 @@ for (const task of tasks) {
   const buildSqliteRequested = argv.build || argv['build-sqlite'];
   if (buildSqliteRequested && !buildIndexRequested && missingIndex) {
     autoBuildIndex = true;
-    progress.appendLog('[auto-build] sqlite build requires index artifacts; enabling build-index.');
+    appendLog('[auto-build] sqlite build requires index artifacts; enabling build-index.');
   }
   if (!argv.build && !argv['build-index'] && !argv['build-sqlite']) {
     if (missingIndex && wantsMemory) autoBuildIndex = true;
     if (missingSqlite) autoBuildSqlite = true;
     if (autoBuildSqlite && missingIndex) autoBuildIndex = true;
     if (autoBuildIndex || autoBuildSqlite) {
-      progress.appendLog(
+      appendLog(
         `[auto-build] missing artifacts${autoBuildIndex ? ' index' : ''}${autoBuildSqlite ? ' sqlite' : ''}; enabling build.`
       );
     }
@@ -362,15 +415,13 @@ for (const task of tasks) {
   const shouldBuildIndex = argv.build || argv['build-index'] || autoBuildIndex;
   if (shouldBuildIndex && !dryRun) {
     try {
-      progress.appendLog(`[metrics] Collecting line counts for ${repoLabel}...`);
+      appendLog(`[metrics] Collecting line counts for ${repoLabel}...`);
       const stats = await buildLineStats(repoPath, repoUserConfig);
-      progressState.build.lineTotals = stats.totals;
-      progressState.build.linesByFile = stats.linesByFile;
-      progress.appendLog(
+      appendLog(
         `[metrics] Line totals: code=${stats.totals.code.toLocaleString()} prose=${stats.totals.prose.toLocaleString()}`
       );
     } catch (err) {
-      progress.appendLog(`[metrics] Line counts unavailable: ${err?.message || err}`);
+      appendLog(`[metrics] Line counts unavailable: ${err?.message || err}`);
     }
   }
 
@@ -380,16 +431,16 @@ for (const task of tasks) {
     lockMode,
     lockWaitMs,
     lockStaleMs,
-    onLog: progress.appendLog
+    onLog: appendLog
   });
   if (!lockCheck.ok) {
     const detail = formatLockDetail(lockCheck.detail);
     const message = `Skipping ${repoLabel}: index lock held ${detail}`.trim();
-    progress.appendLog(`[lock] ${message}`);
-    if (!quietMode) console.error(message);
+    appendLog(`[lock] ${message}`);
+    if (!quietMode) display.error(message);
     completed += 1;
-    progress.updateProgress(`Progress: ${completed}/${tasks.length} | skipped ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
-    progress.updateMetrics('Metrics: skipped (lock)');
+    updateBenchProgress(`skipped ${phaseLabel}`);
+    appendLog('[metrics] skipped (lock)');
     results.push({
       ...task,
       repoPath,
@@ -422,7 +473,7 @@ for (const task of tasks) {
   }
   if (argv.incremental) benchArgs.push('--incremental');
   if (argv['stub-embeddings']) {
-    progress.appendLog('[bench] Stub embeddings requested; ignored for heavy language benchmarks.');
+    appendLog('[bench] Stub embeddings requested; ignored for heavy language benchmarks.');
   }
   if (argv.ann) benchArgs.push('--ann');
   if (argv['no-ann']) benchArgs.push('--no-ann');
@@ -435,20 +486,22 @@ for (const task of tasks) {
   if (argv['fts-weights']) benchArgs.push('--fts-weights', String(argv['fts-weights']));
   if (argv.threads) benchArgs.push('--threads', String(argv.threads));
   if (argv['no-index-profile']) benchArgs.push('--no-index-profile');
+  const childProgressMode = argv.progress === 'off' ? 'off' : 'jsonl';
+  benchArgs.push('--progress', childProgressMode);
+  if (argv.verbose) benchArgs.push('--verbose');
+  if (argv.quiet || argv.json) benchArgs.push('--quiet');
 
-  progress.updateProgress(`Progress: ${completed}/${tasks.length} | bench ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
+  updateBenchProgress(`bench ${phaseLabel}`);
 
   let summary = null;
   if (dryRun) {
-    progress.appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
+    appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
   } else {
     const benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
       cwd: scriptRoot,
       env: {
         ...repoEnvBase,
         PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-        PAIROFCLEATS_PROGRESS_FILES: '1',
-        PAIROFCLEATS_PROGRESS_LINES: '1',
         ...(Number.isFinite(Number(argv.threads)) && Number(argv.threads) > 0
           ? { PAIROFCLEATS_THREADS: String(argv.threads) }
           : {})
@@ -456,10 +509,10 @@ for (const task of tasks) {
       continueOnError: true
     });
     if (!benchResult.ok) {
-      progress.appendLog(`[error] Bench failed for ${repoLabel}; continuing to next repo.`);
+      appendLog(`[error] Bench failed for ${repoLabel}; continuing to next repo.`, 'error');
       completed += 1;
-      progress.updateProgress(`Progress: ${completed}/${tasks.length} | failed ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
-      progress.updateMetrics('Metrics: failed (bench)');
+      updateBenchProgress(`failed ${phaseLabel}`);
+      appendLog('[metrics] failed (bench)');
       results.push({
         ...task,
         repoPath,
@@ -475,11 +528,11 @@ for (const task of tasks) {
       const raw = await fsPromises.readFile(outFile, 'utf8');
       summary = JSON.parse(raw).summary || null;
     } catch (err) {
-      progress.appendLog(`[error] Failed to read bench report for ${repoLabel}; continuing.`);
-      if (err && err.message) console.error(err.message);
+      appendLog(`[error] Failed to read bench report for ${repoLabel}; continuing.`, 'error');
+      if (err && err.message) display.error(err.message);
       completed += 1;
-      progress.updateProgress(`Progress: ${completed}/${tasks.length} | failed ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
-      progress.updateMetrics('Metrics: failed (report)');
+      updateBenchProgress(`failed ${phaseLabel}`);
+      appendLog('[metrics] failed (report)');
       results.push({
         ...task,
         repoPath,
@@ -494,8 +547,8 @@ for (const task of tasks) {
   }
 
   completed += 1;
-  progress.updateProgress(`Progress: ${completed}/${tasks.length} | finished ${phaseLabel} | elapsed ${formatDuration(Date.now() - startTime)}`);
-  progress.updateMetrics(formatMetricSummary(summary));
+  updateBenchProgress(`finished ${phaseLabel}`);
+  appendLog(`[metrics] ${formatMetricSummary(summary)}`);
 
   results.push({ ...task, repoPath, outFile, summary });
 }
@@ -508,11 +561,9 @@ const output = buildReportOutput({
   config
 });
 
+display.close();
+
 if (!quietMode) {
-  if (interactive) {
-    progress.renderStatus();
-    process.stdout.write('\n');
-  }
   console.log('\nGrouped summary');
   for (const [language, payload] of Object.entries(output.groupedSummary)) {
     if (!payload.summary) continue;

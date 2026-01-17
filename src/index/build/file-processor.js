@@ -144,7 +144,7 @@ export function createFileProcessor(options) {
   const runIo = ioQueue ? (fn) => ioQueue.add(fn) : (fn) => fn();
   const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn) : (fn) => fn();
   const runEmbedding = embeddingQueue ? (fn) => embeddingQueue.add(fn) : (fn) => fn();
-  const showLineProgress = getEnvConfig().progressLines === true;
+  const showLineProgress = getEnvConfig().verbose === true;
   const tokenDictWords = dictShared || dictWords;
   const tokenContext = createTokenizationContext({
     dictWords: tokenDictWords,
@@ -714,7 +714,14 @@ export function createFileProcessor(options) {
           if (shouldLog && currentLine > lastLineLogged) {
             lastLineLogged = currentLine;
             lastLineLogMs = now;
-            logLine(`Line ${currentLine}/${totalLines}`);
+            logLine(`Line ${currentLine}/${totalLines}`, {
+              kind: 'line-progress',
+              mode,
+              stage: 'processing',
+              file: rel,
+              current: currentLine,
+              total: totalLines
+            });
           }
         }
 

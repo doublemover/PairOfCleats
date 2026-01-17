@@ -3,7 +3,7 @@ import { applyAdaptiveDictConfig, getIndexDir, getMetricsDir } from '../../../..
 import { buildRecordsIndexForRepo } from '../../../integrations/triage/index-records.js';
 import { createCacheReporter } from '../../../shared/cache.js';
 import { getEnvConfig } from '../../../shared/env.js';
-import { log } from '../../../shared/progress.js';
+import { log, showProgress } from '../../../shared/progress.js';
 import { createCrashLogger } from '../crash-log.js';
 import { estimateContextWindow } from '../context-window.js';
 import { createPerfProfile, loadPerfProfile } from '../perf-profile.js';
@@ -86,6 +86,27 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   const cacheReporter = createCacheReporter({ enabled: runtime.verboseCache, log });
   const seenFiles = new Set();
 
+  const stagePlan = [
+    { id: 'discover', label: 'discovery' },
+    { id: 'imports', label: 'imports' },
+    { id: 'processing', label: 'processing' },
+    { id: 'relations', label: 'relations' },
+    { id: 'postings', label: 'postings' },
+    { id: 'write', label: 'write' }
+  ];
+  const stageTotal = stagePlan.length;
+  let stageIndex = 0;
+  const advanceStage = (stage) => {
+    stageIndex += 1;
+    showProgress('Stage', stageIndex, stageTotal, {
+      taskId: `stage:${mode}`,
+      stage: stage.id,
+      mode,
+      message: stage.label
+    });
+  };
+
+  advanceStage(stagePlan[0]);
   const allEntries = await runDiscovery({ runtime, mode, discovery, state, timing });
   runtime.dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
   const tokenizationKey = buildTokenizationKey(runtime, mode);
@@ -105,6 +126,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   }
 
   const relationsEnabled = runtime.stage !== 'stage1';
+  advanceStage(stagePlan[1]);
   let { importResult, scanPlan } = await preScanImports({
     runtime,
     mode,
@@ -123,6 +145,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   });
   log(`Auto-selected context window: ${contextWin} lines`);
 
+  advanceStage(stagePlan[2]);
   const processResult = await processFiles({
     mode,
     runtime,
@@ -151,6 +174,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   });
   if (postImportResult) importResult = postImportResult;
 
+  advanceStage(stagePlan[3]);
   const { crossFileEnabled, graphRelations } = await runCrossFileInference({
     runtime,
     mode,
@@ -183,8 +207,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
 
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);
 
+  advanceStage(stagePlan[4]);
   const postings = await buildIndexPostings({ runtime, state });
 
+  advanceStage(stagePlan[5]);
   await writeIndexArtifactsForMode({
     runtime,
     mode,

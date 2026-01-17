@@ -11,6 +11,7 @@ import { readTextFileWithHash } from '../../src/shared/encoding.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { resolveHnswPaths } from '../../src/shared/hnsw.js';
 import { normalizeLanceDbConfig } from '../../src/shared/lancedb.js';
+import { createDisplay } from '../../src/shared/cli/display.js';
 import { getIndexDir, getRepoCacheRoot } from '../dict-utils.js';
 import { buildCacheIdentity, buildCacheKey, isCacheValid, resolveCacheDir, resolveCacheRoot } from './cache.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
@@ -67,10 +68,33 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     indexRoot,
     modes
   } = config;
+  const display = createDisplay({
+    stream: process.stderr,
+    progressMode: argv.progress,
+    verbose: argv.verbose === true,
+    quiet: argv.quiet === true
+  });
+  let displayClosed = false;
+  const closeDisplay = () => {
+    if (displayClosed) return;
+    displayClosed = true;
+    display.close();
+  };
+  process.once('exit', closeDisplay);
+  const log = (message) => display.log(message);
+  const warn = (message) => display.warn(message);
+  const error = (message) => display.error(message);
+  const logger = { log, warn, error };
+  const fail = (message, code = 1) => {
+    error(message);
+    closeDisplay();
+    process.exit(code);
+  };
   const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
 
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
-    console.error('Embeddings disabled; skipping build-embeddings.');
+    error('Embeddings disabled; skipping build-embeddings.');
+    closeDisplay();
     return { skipped: true };
   }
 
@@ -110,11 +134,18 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     await markBuildPhase(indexRoot, 'stage3', 'running');
   }
 
+  const modeTask = display.task('Embeddings', { total: modes.length, stage: 'embeddings' });
+  let completedModes = 0;
+
   for (const mode of modes) {
     if (!['code', 'prose', 'extracted-prose'].includes(mode)) {
-      console.error(`Invalid mode: ${mode}`);
-      process.exit(1);
+      fail(`Invalid mode: ${mode}`);
     }
+    modeTask.set(completedModes, modes.length, { message: `building ${mode}` });
+    const finishMode = (message) => {
+      completedModes += 1;
+      modeTask.set(completedModes, modes.length, { message });
+    };
     const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
     const statePath = path.join(indexDir, 'index_state.json');
     const stateNow = new Date().toISOString();
@@ -153,9 +184,9 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       }
     } catch (err) {
       if (err?.code === 'ERR_JSON_TOO_LARGE') {
-        console.warn(`[embeddings] chunk_meta too large for ${mode}; using incremental bundles if available.`);
+        warn(`[embeddings] chunk_meta too large for ${mode}; using incremental bundles if available.`);
       } else {
-        console.warn(`[embeddings] Failed to load chunk_meta for ${mode}: ${err?.message || err}`);
+        warn(`[embeddings] Failed to load chunk_meta for ${mode}: ${err?.message || err}`);
       }
       chunkMeta = null;
     }
@@ -169,7 +200,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
         try {
           fileMeta = readJsonFile(fileMetaPath, { maxBytes: MAX_JSON_BYTES });
         } catch (err) {
-          console.warn(`[embeddings] Failed to read file_meta for ${mode}: ${err?.message || err}`);
+          warn(`[embeddings] Failed to read file_meta for ${mode}: ${err?.message || err}`);
           fileMeta = [];
         }
       }
@@ -192,7 +223,8 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       totalChunks = chunkMeta.length;
     } else {
       if (!manifestFiles || !Object.keys(manifestFiles).length) {
-        console.warn(`[embeddings] Missing chunk_meta and no incremental bundles for ${mode}; skipping.`);
+        warn(`[embeddings] Missing chunk_meta and no incremental bundles for ${mode}; skipping.`);
+        finishMode(`skipped ${mode}`);
         continue;
       }
       const bundleResult = await buildChunksFromBundles(
@@ -203,10 +235,11 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       chunksByFile = bundleResult.chunksByFile;
       totalChunks = bundleResult.totalChunks;
       if (!chunksByFile.size || !totalChunks) {
-        console.warn(`[embeddings] Incremental bundles empty for ${mode}; skipping.`);
+        warn(`[embeddings] Incremental bundles empty for ${mode}; skipping.`);
+        finishMode(`skipped ${mode}`);
         continue;
       }
-      console.log(`[embeddings] ${mode}: using incremental bundles (${chunksByFile.size} files).`);
+      log(`[embeddings] ${mode}: using incremental bundles (${chunksByFile.size} files).`);
     }
 
     const codeVectors = new Array(totalChunks).fill(null);
@@ -240,6 +273,13 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     }
 
     let processedFiles = 0;
+    const fileTask = display.task('Files', {
+      taskId: `embeddings:${mode}:files`,
+      total: chunksByFile.size,
+      stage: 'embeddings',
+      mode,
+      ephemeral: true
+    });
     for (const [relPath, items] of chunksByFile.entries()) {
       const normalizedRel = relPath.replace(/\\/g, '/');
       const chunkSignature = buildChunkSignature(items);
@@ -298,7 +338,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       try {
         textInfo = await readTextFileWithHash(absPath);
       } catch {
-        console.warn(`[embeddings] Failed to read ${normalizedRel}; skipping.`);
+        warn(`[embeddings] Failed to read ${normalizedRel}; skipping.`);
         continue;
       }
       const text = textInfo.text;
@@ -441,8 +481,9 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       }
 
       processedFiles += 1;
-      if (processedFiles % 50 === 0) {
-        console.log(`[embeddings] ${mode}: processed ${processedFiles}/${chunksByFile.size} files`);
+      if (processedFiles % 50 === 0 || processedFiles === chunksByFile.size) {
+        fileTask.set(processedFiles, chunksByFile.size, { message: `${processedFiles}/${chunksByFile.size} files` });
+        log(`[embeddings] ${mode}: processed ${processedFiles}/${chunksByFile.size} files`);
       }
     }
 
@@ -482,10 +523,10 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
           dims: finalDims
         });
         if (!result.skipped) {
-          console.log(`[embeddings] ${mode}: wrote HNSW index (${result.count} vectors).`);
+          log(`[embeddings] ${mode}: wrote HNSW index (${result.count} vectors).`);
         }
       } catch (err) {
-        console.warn(`[embeddings] ${mode}: failed to write HNSW index: ${err?.message || err}`);
+        warn(`[embeddings] ${mode}: failed to write HNSW index: ${err?.message || err}`);
       }
     }
 
@@ -498,7 +539,8 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
         modelId,
         config: lanceConfig,
         emitOutput: true,
-        label: `${mode}/merged`
+        label: `${mode}/merged`,
+        logger
       });
       await writeLanceDbIndex({
         indexDir,
@@ -508,7 +550,8 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
         modelId,
         config: lanceConfig,
         emitOutput: true,
-        label: `${mode}/doc`
+        label: `${mode}/doc`,
+        logger
       });
       await writeLanceDbIndex({
         indexDir,
@@ -518,10 +561,11 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
         modelId,
         config: lanceConfig,
         emitOutput: true,
-        label: `${mode}/code`
+        label: `${mode}/code`,
+        logger
       });
     } catch (err) {
-      console.warn(`[embeddings] ${mode}: failed to write LanceDB indexes: ${err?.message || err}`);
+      warn(`[embeddings] ${mode}: failed to write LanceDB indexes: ${err?.message || err}`);
     }
 
     const now = new Date().toISOString();
@@ -567,7 +611,8 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
         dims: finalDims,
         scale: denseScale,
         modelId,
-        emitOutput: true
+        emitOutput: true,
+        logger
       });
     }
 
@@ -582,12 +627,14 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       throw new Error(`[embeddings] ${mode} index validation failed; see index-validate output for details.`);
     }
 
-    console.log(`[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`);
+    log(`[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`);
+    finishMode(`built ${mode}`);
   }
 
   if (hasBuildState) {
     await markBuildPhase(indexRoot, 'stage3', 'done');
   }
   stopHeartbeat();
+  closeDisplay();
   return { modes };
 }
