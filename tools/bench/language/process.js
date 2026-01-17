@@ -1,5 +1,5 @@
 import { execa, execaSync } from 'execa';
-import { parseProgressEventLine } from '../../src/shared/cli/progress-events.js';
+import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
 
 export const createProcessRunner = ({
   appendLog,
