@@ -181,6 +181,13 @@ export function createFileProcessor(options) {
     reporter: cacheReporter
   });
 
+  let treeSitterSerial = Promise.resolve();
+  const runTreeSitterSerial = async (fn) => {
+    const run = treeSitterSerial.then(fn, fn);
+    treeSitterSerial = run.catch(() => {});
+    return run;
+  };
+
   const chunkSegmentsWithTreeSitterPasses = async ({
     text,
     ext,
@@ -423,6 +430,7 @@ export function createFileProcessor(options) {
         : normalizedSegmentsConfig;
       const treeSitterDeferMissing = treeSitterConfig?.deferMissing !== false;
       const treeSitterLanguagePasses = treeSitterConfig?.languagePasses !== false;
+      const treeSitterEnabled = treeSitterConfig?.enabled !== false;
       const treeSitterDeferMissingMax = Number.isFinite(treeSitterConfig?.deferMissingMax)
         ? Math.max(0, Math.floor(treeSitterConfig.deferMissingMax))
         : 0;
@@ -464,12 +472,27 @@ export function createFileProcessor(options) {
       const languageContextOptions = languageOptions && typeof languageOptions === 'object'
         ? { ...languageOptions, relationsEnabled, metricsCollector, filePath: abs, treeSitter: treeSitterConfig }
         : { relationsEnabled, metricsCollector, filePath: abs, treeSitter: treeSitterConfig };
-      const { lang, context: languageContext } = await buildLanguageContext({
-        ext,
-        relPath: relKey,
-        mode,
-        text,
-        options: languageContextOptions
+      const runTreeSitter = treeSitterEnabled ? runTreeSitterSerial : (fn) => fn();
+      const primaryLanguageId = getLanguageForFile(ext, relKey)?.id || null;
+      const { lang, context: languageContext } = await runTreeSitter(async () => {
+        if (treeSitterEnabled && primaryLanguageId && TREE_SITTER_LANG_IDS.has(primaryLanguageId)) {
+          try {
+            await preloadTreeSitterLanguages([primaryLanguageId], {
+              log: languageOptions?.log,
+              parallel: false,
+              maxLoadedLanguages: treeSitterConfig?.maxLoadedLanguages
+            });
+          } catch {
+            // ignore preload failures; prepare will fall back if needed.
+          }
+        }
+        return buildLanguageContext({
+          ext,
+          relPath: relKey,
+          mode,
+          text,
+          options: languageContextOptions
+        });
       });
       fileLanguageId = lang?.id || null;
       if (languageContext?.pythonAstMetrics?.durationMs) {
@@ -605,7 +628,7 @@ export function createFileProcessor(options) {
         log: languageOptions?.log
       };
       const sc = treeSitterConfig?.languagePasses === false
-        ? chunkSegments({
+        ? await runTreeSitter(() => chunkSegments({
           text,
           ext,
           relPath: relKey,
@@ -613,8 +636,8 @@ export function createFileProcessor(options) {
           segments,
           lineIndex,
           context: segmentContext
-        })
-        : await chunkSegmentsWithTreeSitterPasses({
+        }))
+        : await runTreeSitter(() => chunkSegmentsWithTreeSitterPasses({
           text,
           ext,
           relPath: relKey,
@@ -623,7 +646,7 @@ export function createFileProcessor(options) {
           lineIndex,
           context: segmentContext,
           treeSitterConfig
-        });
+        }));
       addParseDuration(Date.now() - parseStart);
       const chunkLineRanges = sc.map((chunk) => {
         const startLine = chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
