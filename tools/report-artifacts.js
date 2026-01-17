@@ -32,7 +32,9 @@ const readJson = (targetPath) => {
 
 const indexMetrics = {
   code: readJson(path.join(metricsDir, 'index-code.json')),
-  prose: readJson(path.join(metricsDir, 'index-prose.json'))
+  prose: readJson(path.join(metricsDir, 'index-prose.json')),
+  extractedProse: readJson(path.join(metricsDir, 'index-extracted-prose.json')),
+  records: readJson(path.join(metricsDir, 'index-records.json'))
 };
 const lmdbMetrics = {
   code: readJson(path.join(metricsDir, 'lmdb-code.json')),
@@ -73,13 +75,19 @@ const buildThroughput = (mode, metrics, bytes) => {
 const throughput = {
   code: buildThroughput('code', indexMetrics.code, status.repo?.artifacts?.indexCode),
   prose: buildThroughput('prose', indexMetrics.prose, status.repo?.artifacts?.indexProse),
+  extractedProse: buildThroughput('extracted-prose', indexMetrics.extractedProse, status.repo?.artifacts?.indexExtractedProse),
+  records: buildThroughput('records', indexMetrics.records, status.repo?.artifacts?.indexRecords),
   lmdb: {
     code: buildThroughput('lmdb code', lmdbMetrics.code, status.repo?.lmdb?.code?.bytes),
     prose: buildThroughput('lmdb prose', lmdbMetrics.prose, status.repo?.lmdb?.prose?.bytes)
   }
 };
 
-const corruption = await validateIndexArtifacts({ root, userConfig, modes: ['code', 'prose'] });
+const corruption = await validateIndexArtifacts({
+  root,
+  userConfig,
+  modes: ['code', 'prose', 'extracted-prose', 'records']
+});
 status.throughput = throughput;
 status.corruption = corruption;
 
@@ -110,6 +118,8 @@ const repo = status.repo;
 const overall = status.overall;
 const code = repo.sqlite?.code;
 const prose = repo.sqlite?.prose;
+const extractedProse = repo.sqlite?.extractedProse;
+const records = repo.sqlite?.records;
 const lmdbCode = repo.lmdb?.code;
 const lmdbProse = repo.lmdb?.prose;
 
@@ -117,10 +127,14 @@ console.log('Repo artifacts');
 console.log(`- cache root: ${formatBytes(repo.totalBytes)} (${repo.root})`);
 console.log(`- index-code: ${formatBytes(repo.artifacts.indexCode)} (${repo.artifacts.indexCode})`);
 console.log(`- index-prose: ${formatBytes(repo.artifacts.indexProse)} (${repo.artifacts.indexProse})`);
+console.log(`- index-extracted-prose: ${formatBytes(repo.artifacts.indexExtractedProse)} (${repo.artifacts.indexExtractedProse})`);
+console.log(`- index-records: ${formatBytes(repo.artifacts.indexRecords)} (${repo.artifacts.indexRecords})`);
 console.log(`- repometrics: ${formatBytes(repo.artifacts.repometrics)} (${path.join(repo.root, 'repometrics')})`);
 console.log(`- incremental: ${formatBytes(repo.artifacts.incremental)} (${path.join(repo.root, 'incremental')})`);
 console.log(`- sqlite code db: ${code ? formatBytes(code.bytes) : 'missing'} (${code?.path || status.repo.sqlite?.code?.path || 'missing'})`);
 console.log(`- sqlite prose db: ${prose ? formatBytes(prose.bytes) : 'missing'} (${prose?.path || status.repo.sqlite?.prose?.path || 'missing'})`);
+console.log(`- sqlite extracted-prose db: ${extractedProse ? formatBytes(extractedProse.bytes) : 'missing'} (${extractedProse?.path || status.repo.sqlite?.extractedProse?.path || 'missing'})`);
+console.log(`- sqlite records db: ${records ? formatBytes(records.bytes) : 'missing'} (${records?.path || status.repo.sqlite?.records?.path || 'missing'})`);
 console.log(`- lmdb code db: ${lmdbCode ? formatBytes(lmdbCode.bytes) : 'missing'} (${lmdbCode?.path || status.repo.lmdb?.code?.path || 'missing'})`);
 console.log(`- lmdb prose db: ${lmdbProse ? formatBytes(lmdbProse.bytes) : 'missing'} (${lmdbProse?.path || status.repo.lmdb?.prose?.path || 'missing'})`);
 if (repo.sqlite?.legacy) {
@@ -151,6 +165,8 @@ if (status.throughput) {
   const entries = [
     ['code', status.throughput.code],
     ['prose', status.throughput.prose],
+    ['extracted-prose', status.throughput.extractedProse],
+    ['records', status.throughput.records],
     ['lmdb code', status.throughput.lmdb?.code],
     ['lmdb prose', status.throughput.lmdb?.prose]
   ];

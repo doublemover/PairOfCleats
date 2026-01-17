@@ -28,8 +28,8 @@ assert.equal(
 
 assert.equal(
   isIndexablePath({ absPath: mdPath, root, ignoreMatcher, modes: ['extracted-prose'] }),
-  false,
-  'expected prose extension to be excluded for extracted-prose mode'
+  true,
+  'expected prose extension to be indexable for extracted-prose mode'
 );
 
 assert.equal(

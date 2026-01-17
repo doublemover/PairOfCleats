@@ -6,6 +6,7 @@ export async function recordSearchArtifacts({
   query,
   queryTokens,
   proseHits,
+  extractedProseHits,
   codeHits,
   recordHits,
   elapsedMs,
@@ -24,13 +25,14 @@ export async function recordSearchArtifacts({
       metrics = {};
     }
     const inc = (file, key) => {
-      if (!metrics[file]) metrics[file] = { md: 0, code: 0, records: 0, terms: [] };
+      if (!metrics[file]) metrics[file] = { md: 0, extractedProse: 0, code: 0, records: 0, terms: [] };
       metrics[file][key] = (metrics[file][key] || 0) + 1;
       queryTokens.forEach((token) => {
         if (!metrics[file].terms.includes(token)) metrics[file].terms.push(token);
       });
     };
     proseHits.forEach((hit) => inc(hit.file, 'md'));
+    extractedProseHits.forEach((hit) => inc(hit.file, 'extractedProse'));
     codeHits.forEach((hit) => inc(hit.file, 'code'));
     recordHits.forEach((hit) => inc(hit.file, 'records'));
     await fs.writeFile(metricsPath, JSON.stringify(metrics) + '\n');
@@ -41,6 +43,7 @@ export async function recordSearchArtifacts({
         time: new Date().toISOString(),
         query,
         mdFiles: proseHits.length,
+        extractedProseFiles: extractedProseHits.length,
         codeFiles: codeHits.length,
         recordFiles: recordHits.length,
         ms: elapsedMs,
@@ -48,7 +51,7 @@ export async function recordSearchArtifacts({
       }) + '\n'
     );
 
-    if (proseHits.length === 0 && codeHits.length === 0 && recordHits.length === 0) {
+    if (proseHits.length === 0 && extractedProseHits.length === 0 && codeHits.length === 0 && recordHits.length === 0) {
       await fs.appendFile(
         noResultPath,
         JSON.stringify({ time: new Date().toISOString(), query }) + '\n'

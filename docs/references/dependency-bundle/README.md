@@ -47,6 +47,7 @@ This bundle is a curated set of implementation-relevant deep links for dependenc
 
 ### Embeddings/inference (ONNX Runtime)
 - [onnxruntime-node](deps/onnxruntime-node.md)
+- [@xenova/transformers](deps/xenova-transformers.md)
 
 ### Encoding detection
 - [chardet](deps/chardet.md)

@@ -19,6 +19,7 @@ export const runDiscovery = async ({ runtime, mode, discovery, state, timing }) 
       root: runtime.root,
       mode,
       recordsDir: runtime.recordsDir,
+      recordsConfig: runtime.recordsConfig,
       ignoreMatcher: runtime.ignoreMatcher,
       skippedFiles: state?.skippedFiles || [],
       maxFileBytes: runtime.maxFileBytes,

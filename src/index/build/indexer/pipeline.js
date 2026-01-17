@@ -39,7 +39,7 @@ const buildFeatureSettings = (runtime, mode) => ({
  */
 export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   if (mode === 'records') {
-    await buildRecordsIndexForRepo({ runtime });
+    await buildRecordsIndexForRepo({ runtime, discovery });
     if (runtime?.overallProgress?.advance) {
       runtime.overallProgress.advance({ message: 'records' });
     }

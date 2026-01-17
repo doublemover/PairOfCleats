@@ -27,6 +27,7 @@ import { mergeConfig } from '../../../shared/config.js';
 import { sha1, setXxhashBackend } from '../../../shared/hash.js';
 import { getRepoProvenance } from '../../git.js';
 import { normalizeRiskConfig } from '../../risk.js';
+import { normalizeRecordsConfig } from '../records.js';
 import { buildContentConfigHash } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
 import { configureRuntimeLogger } from './logging.js';
@@ -68,6 +69,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   }
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const triageConfig = getTriageConfig(root, userConfig);
+  const recordsConfig = normalizeRecordsConfig(userConfig.records || {});
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
   const configHash = getEffectiveConfigHash(root, userConfig);
   const contentConfigHash = buildContentConfigHash(userConfig, envConfig);
@@ -220,6 +222,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     rootDir: root,
     userConfig,
     recordsDir: triageConfig.recordsDir,
+    recordsConfig,
     indexingConfig,
     envConfig,
     argv,

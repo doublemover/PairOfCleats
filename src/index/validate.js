@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   getIndexDir,
+  getRepoRoot,
   loadUserConfig,
   resolveLmdbPaths,
-  resolveRepoRoot,
   resolveSqlitePaths
 } from '../../tools/dict-utils.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
@@ -213,13 +213,13 @@ const validateMetaV2 = (report, mode, chunkMeta) => {
 };
 
 export async function validateIndexArtifacts(input = {}) {
-  const root = input.root ? path.resolve(input.root) : resolveRepoRoot(process.cwd());
+  const root = getRepoRoot(input.root);
   const indexRoot = input.indexRoot ? path.resolve(input.indexRoot) : null;
   const userConfig = input.userConfig || loadUserConfig(root);
   const postingsConfig = normalizePostingsConfig(userConfig.indexing?.postings || {});
   const modes = Array.isArray(input.modes) && input.modes.length
     ? input.modes
-    : ['code', 'prose'];
+    : ['code', 'prose', 'extracted-prose', 'records'];
 
   const sqliteEnabled = typeof input.sqliteEnabled === 'boolean'
     ? input.sqliteEnabled

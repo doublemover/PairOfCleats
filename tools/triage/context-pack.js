@@ -139,7 +139,7 @@ async function buildRepoEvidence({ repoRoot, finding, maxEvidencePerQuery, warni
   const queries = buildEvidenceQueries(finding);
   const results = [];
   for (const query of queries) {
-    for (const mode of ['code', 'prose']) {
+    for (const mode of ['code', 'prose', 'extracted-prose']) {
       const result = runSearchJson({
         repoRoot,
         query,

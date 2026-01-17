@@ -153,7 +153,8 @@ const updateLmdbState = async (indexDir, patch) => {
 
 const buildModeRaw = String(argv.mode || 'all').trim().toLowerCase();
 const buildMode = buildModeRaw === 'both' ? 'all' : buildModeRaw;
-const modes = buildMode === 'all' ? ['code', 'prose'] : [buildMode];
+const supportedModes = ['code', 'prose'];
+const modes = buildMode === 'all' ? supportedModes : [buildMode];
 const modeTask = display.task('LMDB', { total: modes.length, stage: 'lmdb' });
 let completedModes = 0;
 
@@ -246,8 +247,8 @@ const loadArtifactsForMode = async (indexDir, mode) => {
 };
 
 for (const mode of modes) {
-  if (!['code', 'prose'].includes(mode)) {
-    fail(`Invalid mode: ${mode}`);
+  if (!supportedModes.includes(mode)) {
+    fail(`Invalid mode: ${mode}. LMDB supports code|prose|all.`);
   }
   modeTask.set(completedModes, modes.length, { message: `building ${mode}` });
   const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });

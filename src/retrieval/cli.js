@@ -6,10 +6,10 @@ import {
   DEFAULT_MODEL_ID,
   getCacheRuntimeConfig,
   getDictConfig,
+  getRepoRoot,
   getMetricsDir,
   getModelConfig,
   loadUserConfig,
-  resolveRepoRoot,
   resolveLmdbPaths,
   resolveSqlitePaths
 } from '../../tools/dict-utils.js';
@@ -103,7 +103,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const jsonOutput = argv.json || jsonCompact;
   const rootOverride = options.root ? path.resolve(options.root) : null;
   const rootArg = rootOverride || (argv.repo ? path.resolve(argv.repo) : null);
-  const rootDir = rootArg || resolveRepoRoot(process.cwd());
+  const rootDir = getRepoRoot(rootArg);
   const userConfig = loadUserConfig(rootDir);
   const cacheConfig = getCacheRuntimeConfig(rootDir, userConfig);
   const envConfig = getEnvConfig();
@@ -161,12 +161,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       searchAuthor,
       searchImport,
       chunkAuthorFilter,
-      searchMode,
-      runCode,
-      runProse,
-      runRecords,
-      runExtractedProse: runExtractedProseRaw,
-      embeddingProvider,
+        searchMode,
+        runCode,
+        runProse,
+        runRecords,
+        runExtractedProse: runExtractedProseRaw,
+        commentsEnabled,
+        embeddingProvider,
       embeddingOnnx,
       hnswConfig,
       sqliteConfig,
@@ -363,7 +364,12 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const dictConfigBase = getDictConfig(rootDir, userConfig);
     const dictConfig = applyAdaptiveDictConfig(
       dictConfigBase,
-      resolveIndexedFileCount(metricsDir, { runCode, runProse, runExtractedProse: runExtractedProseRaw })
+      resolveIndexedFileCount(metricsDir, {
+        runCode,
+        runProse,
+        runExtractedProse: runExtractedProseRaw,
+        runRecords
+      })
     );
     const { dict } = await loadDictionary(rootDir, dictConfig);
 
@@ -408,12 +414,15 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     } = sqliteHelpers;
     const { loadIndexFromLmdb } = lmdbHelpers;
 
+    const joinComments = commentsEnabled && runCode;
+
     const {
       idxProse,
       idxExtractedProse,
       idxCode,
       idxRecords,
       runExtractedProse,
+      extractedProseLoaded,
       hnswAnnState,
       hnswAnnUsed,
       lanceAnnState,
@@ -445,7 +454,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       lancedbConfig,
       loadIndexFromSqlite,
       loadIndexFromLmdb,
-      resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode
+      resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
+      loadExtractedProse: joinComments
     });
 
     const modelIds = {
@@ -465,6 +475,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       runProse,
       runExtractedProse,
       runRecords,
+      commentsEnabled: joinComments,
+      extractedProseLoaded,
       topN,
       useSqlite,
       annEnabled,
@@ -586,6 +598,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       fieldWeights: queryPlan.fieldWeights,
       contextExpansionStats: searchResult.contextExpansionStats,
       idxProse,
+      idxExtractedProse,
       idxCode,
       idxRecords,
       showStats,
@@ -599,6 +612,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       query,
       queryTokens: queryPlan.queryTokens,
       proseHits: searchResult.proseHits,
+      extractedProseHits: searchResult.extractedProseHits,
       codeHits: searchResult.codeHits,
       recordHits: searchResult.recordHits,
       elapsedMs,

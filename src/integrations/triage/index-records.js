@@ -13,10 +13,10 @@ import { promoteRecordFields } from './record-utils.js';
 
 /**
  * Build the records index for a repo.
- * @param {{runtime:object}} input
+ * @param {{runtime:object,discovery?:{entries:Array}}} input
  * @returns {Promise<void>}
  */
-export async function buildRecordsIndexForRepo({ runtime }) {
+export async function buildRecordsIndexForRepo({ runtime, discovery = null }) {
   const triageConfig = getTriageConfig(runtime.root, runtime.userConfig);
   const recordsDir = triageConfig.recordsDir;
   const outDir = getIndexDir(runtime.root, 'records', runtime.userConfig, { indexRoot: runtime.buildRoot });
@@ -27,15 +27,42 @@ export async function buildRecordsIndexForRepo({ runtime }) {
   const timing = { start: Date.now() };
 
   const state = createIndexState();
-  const recordFiles = await listMarkdownFiles(recordsDir);
-  recordFiles.sort();
-  log(`→ Found ${recordFiles.length} record(s).`);
+  const recordSources = [];
+  const seenAbs = new Set();
+  const discoveredEntries = Array.isArray(discovery?.entries) ? discovery.entries : [];
+  for (const entry of discoveredEntries) {
+    if (!entry?.abs || entry.skip || !entry.record) continue;
+    if (seenAbs.has(entry.abs)) continue;
+    seenAbs.add(entry.abs);
+    recordSources.push({
+      absPath: entry.abs,
+      relPath: entry.rel || toPosix(path.relative(runtime.root, entry.abs)),
+      recordMeta: entry.record,
+      source: entry.record?.source || 'repo'
+    });
+  }
+  const triageFiles = await listMarkdownFiles(recordsDir);
+  triageFiles.sort();
+  for (const absPath of triageFiles) {
+    if (seenAbs.has(absPath)) continue;
+    seenAbs.add(absPath);
+    recordSources.push({
+      absPath,
+      relPath: toPosix(path.relative(recordsDir, absPath)),
+      recordMeta: { source: 'triage', recordType: 'record', reason: 'records-dir' },
+      source: 'triage'
+    });
+  }
+
+  recordSources.sort((a, b) => (a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0));
+  log(`→ Found ${recordSources.length} record(s).`);
 
   let processed = 0;
   const progressMeta = { stage: 'records', mode: 'records' };
-  for (const absPath of recordFiles) {
+  for (const recordEntry of recordSources) {
     const started = Date.now();
-    const relPath = toPosix(path.relative(recordsDir, absPath));
+    const absPath = recordEntry.absPath;
+    const relPath = recordEntry.relPath;
     let text;
     try {
       text = await fs.readFile(absPath, 'utf8');
@@ -45,15 +72,21 @@ export async function buildRecordsIndexForRepo({ runtime }) {
     if (!text) continue;
     text = text.normalize('NFKD');
 
-    const record = await loadRecordJson(recordsDir, absPath);
-    const docmeta = buildDocMeta(record, triageConfig);
-    const recordName = record?.vuln?.vulnId || record?.recordId || path.basename(relPath, '.md');
+    const isTriage = recordEntry.source === 'triage'
+      && recordsDir
+      && absPath.startsWith(recordsDir);
+    const record = isTriage ? await loadRecordJson(recordsDir, absPath) : null;
+    const docmeta = buildDocMeta(record, triageConfig, recordEntry.recordMeta);
+    const recordName = record?.vuln?.vulnId
+      || record?.recordId
+      || path.basename(relPath, path.extname(relPath));
 
+    const recordExt = path.extname(absPath) || '.txt';
     const tokenPayload = tokenizeRecord(
       text,
       runtime.dictWords,
       runtime.dictConfig,
-      '.md',
+      recordExt,
       postingsConfig,
       [recordName, docmeta.doc || ''].filter(Boolean).join(' ')
     );
@@ -61,9 +94,9 @@ export async function buildRecordsIndexForRepo({ runtime }) {
 
     const stats = computeTokenStats(tokenPayload.tokens);
     const fieldTokens = postingsConfig?.fielded !== false ? {
-      name: recordName ? buildRecordSeq(recordName, runtime.dictWords, runtime.dictConfig, '.md').tokens : [],
+      name: recordName ? buildRecordSeq(recordName, runtime.dictWords, runtime.dictConfig, recordExt).tokens : [],
       signature: [],
-      doc: docmeta.doc ? buildRecordSeq(docmeta.doc, runtime.dictWords, runtime.dictConfig, '.md').tokens : [],
+      doc: docmeta.doc ? buildRecordSeq(docmeta.doc, runtime.dictWords, runtime.dictConfig, recordExt).tokens : [],
       comment: [],
       body: tokenPayload.tokens
     } : null;
@@ -77,9 +110,10 @@ export async function buildRecordsIndexForRepo({ runtime }) {
     const startLine = 1;
     const endLine = lines.length;
 
+    const recordFile = isTriage ? `triage/records/${relPath}` : relPath;
     const chunkPayload = {
-      file: `triage/records/${relPath}`,
-      ext: '.md',
+      file: recordFile,
+      ext: recordExt,
       start: 0,
       end: text.length,
       startLine,
@@ -106,16 +140,16 @@ export async function buildRecordsIndexForRepo({ runtime }) {
     };
 
     appendChunk(state, chunkPayload, postingsConfig);
-    state.scannedFiles.push(relPath);
+    state.scannedFiles.push(recordFile);
     state.scannedFilesTimes.push({
-      file: relPath,
+      file: recordFile,
       duration_ms: Date.now() - started,
       cached: false
     });
     processed += 1;
-    showProgress('Records', processed, recordFiles.length, progressMeta);
+    showProgress('Records', processed, recordSources.length, progressMeta);
   }
-  showProgress('Records', recordFiles.length, recordFiles.length, progressMeta);
+  showProgress('Records', recordSources.length, recordSources.length, progressMeta);
 
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);
 
@@ -148,7 +182,7 @@ export async function buildRecordsIndexForRepo({ runtime }) {
     root: runtime.root,
     userConfig: runtime.userConfig,
     incrementalEnabled: false,
-    fileCounts: { candidates: recordFiles.length }
+    fileCounts: { candidates: recordSources.length }
   });
 }
 

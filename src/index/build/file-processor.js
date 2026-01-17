@@ -68,6 +68,40 @@ const createLineReader = (text, lineIndex) => {
   };
   return { getLines, totalLines };
 };
+
+const stripCommentText = (chunkText, chunkStart, comments) => {
+  if (!Array.isArray(comments) || comments.length === 0) return chunkText;
+  const ranges = comments
+    .map((comment) => ({
+      start: Math.max(0, Number(comment.start) - chunkStart),
+      end: Math.min(chunkText.length, Number(comment.end) - chunkStart)
+    }))
+    .filter((range) => Number.isFinite(range.start) && Number.isFinite(range.end) && range.end > range.start)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  if (!ranges.length) return chunkText;
+  const merged = [];
+  let current = ranges[0];
+  for (let i = 1; i < ranges.length; i += 1) {
+    const next = ranges[i];
+    if (next.start <= current.end) {
+      current = { start: current.start, end: Math.max(current.end, next.end) };
+    } else {
+      merged.push(current);
+      current = next;
+    }
+  }
+  merged.push(current);
+  let cursor = 0;
+  let output = '';
+  for (const range of merged) {
+    if (range.start > cursor) output += chunkText.slice(cursor, range.start);
+    const slice = chunkText.slice(range.start, range.end);
+    output += slice.replace(/[^\r\n]/g, ' ');
+    cursor = range.end;
+  }
+  if (cursor < chunkText.length) output += chunkText.slice(cursor);
+  return output;
+};
 /**
  * Create a file processor with shared caches.
  * @param {object} options
@@ -656,9 +690,11 @@ export function createFileProcessor(options) {
         return failFile('parse-error', 'comments', err);
       }
       const commentEntries = [];
+      const commentRanges = [];
       const commentSegments = [];
       if (commentsEnabled && Array.isArray(commentData.comments)) {
         for (const comment of commentData.comments) {
+          commentRanges.push(comment);
           const commentTokens = buildTokenSequence({
             text: comment.text,
             mode: 'prose',
@@ -819,6 +855,7 @@ export function createFileProcessor(options) {
         return { startLine, endLine };
       });
       const commentAssignments = assignCommentsToChunks(commentEntries, sc);
+      const commentRangeAssignments = assignCommentsToChunks(commentRanges, sc);
       const chunks = [];
       const tokenBuffers = createTokenizationBuffers();
       const codeTexts = embeddingEnabled ? [] : null;
@@ -865,6 +902,7 @@ export function createFileProcessor(options) {
       for (let ci = 0; ci < sc.length; ++ci) {
         const c = sc[ci];
         const ctext = text.slice(c.start, c.end);
+        let tokenText = ctext;
         const lineRange = chunkLineRanges[ci] || { startLine: 1, endLine: fileLineCount || 1 };
         const startLine = lineRange.startLine;
         const endLine = lineRange.endLine;
@@ -992,9 +1030,11 @@ export function createFileProcessor(options) {
           }
         }
 
+        let assignedRanges = [];
         let commentFieldTokens = [];
-        if (commentAssignments.size) {
+        if (commentAssignments.size || commentRangeAssignments.size) {
           const assigned = commentAssignments.get(ci) || [];
+          assignedRanges = commentRangeAssignments.get(ci) || [];
           if (assigned.length) {
             const chunkStart = c.start;
             const sorted = assigned.slice().sort((a, b) => (
@@ -1004,8 +1044,22 @@ export function createFileProcessor(options) {
             const maxBytes = normalizedCommentsConfig.maxBytesPerChunk;
             let totalBytes = 0;
             const metaComments = [];
+            const commentRefs = [];
             for (const comment of sorted) {
-              if (maxPerChunk && metaComments.length >= maxPerChunk) break;
+              if (maxPerChunk && commentRefs.length >= maxPerChunk) break;
+              const ref = {
+                type: comment.type,
+                style: comment.style,
+                languageId: comment.languageId || null,
+                start: comment.start,
+                end: comment.end,
+                startLine: comment.startLine,
+                endLine: comment.endLine
+              };
+              commentRefs.push(ref);
+
+              if (mode === 'code') continue;
+
               const remaining = maxBytes ? Math.max(0, maxBytes - totalBytes) : 0;
               if (maxBytes && remaining <= 0) break;
               const clipped = maxBytes ? truncateByBytes(comment.text, remaining) : {
@@ -1031,23 +1085,24 @@ export function createFileProcessor(options) {
                 }
               }
               metaComments.push({
-                type: comment.type,
-                style: comment.style,
-                languageId: comment.languageId || null,
-                start: comment.start,
-                end: comment.end,
-                startLine: comment.startLine,
-                endLine: comment.endLine,
+                ...ref,
                 text: clipped.text,
                 truncated: clipped.truncated || false,
                 indexed: includeInTokens,
                 anchorChunkId: null
               });
             }
-            if (metaComments.length) {
+            if (mode === 'code') {
+              if (commentRefs.length) {
+                docmeta = { ...docmeta, commentRefs };
+              }
+            } else if (metaComments.length) {
               docmeta = { ...docmeta, comments: metaComments };
             }
           }
+        }
+        if (mode === 'code' && normalizedCommentsConfig.includeInCode !== true && assignedRanges.length) {
+          tokenText = stripCommentText(ctext, c.start, assignedRanges);
         }
 
         // Chargrams are built during postings construction (appendChunk), where we can
@@ -1059,7 +1114,7 @@ export function createFileProcessor(options) {
           try {
             const tokenStart = Date.now();
             tokenPayload = await workerPool.runTokenize({
-              text: ctext,
+              text: tokenText,
               mode: tokenMode,
               ext,
               file: relKey,
@@ -1108,7 +1163,7 @@ export function createFileProcessor(options) {
         if (!tokenPayload) {
           const tokenStart = Date.now();
           tokenPayload = tokenizeChunkText({
-            text: ctext,
+            text: tokenText,
             mode: tokenMode,
             ext,
             context: tokenContext,
@@ -1195,7 +1250,7 @@ export function createFileProcessor(options) {
 
         chunks.push(chunkPayload);
         if (embeddingEnabled && codeTexts && docTexts) {
-          codeTexts.push(ctext);
+          codeTexts.push(tokenText);
           docTexts.push(docText.trim() ? docText : '');
         }
       }

@@ -10,6 +10,7 @@ const cacheRoot = path.join(root, 'tests', '.cache', 'preprocess');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(cacheRoot, 'src'), { recursive: true });
 await fs.mkdir(path.join(cacheRoot, 'docs'), { recursive: true });
+await fs.mkdir(path.join(cacheRoot, 'logs'), { recursive: true });
 
 await fs.writeFile(path.join(cacheRoot, 'src', 'app.js'), 'const a = 1;\nconst b = 2;\n');
 await fs.writeFile(path.join(cacheRoot, 'src', 'app.min.js'), 'var x=1;');
@@ -22,6 +23,7 @@ await fs.copyFile(
   path.join(cacheRoot, 'src', 'binary.png')
 );
 await fs.writeFile(path.join(cacheRoot, 'docs', 'readme.md'), '# title\n');
+await fs.writeFile(path.join(cacheRoot, 'logs', 'app.log'), '2024-01-01 12:00:00 started\n');
 
 const { ignoreMatcher } = await buildIgnoreMatcher({ root: cacheRoot, userConfig: {} });
 const fileScan = {
@@ -41,7 +43,7 @@ const fileScan = {
 
 const result = await preprocessFiles({
   root: cacheRoot,
-  modes: ['code', 'prose'],
+  modes: ['code', 'prose', 'extracted-prose', 'records'],
   ignoreMatcher,
   maxFileBytes: null,
   fileCaps: {},
@@ -52,8 +54,15 @@ const result = await preprocessFiles({
 
 const codeEntries = result.entriesByMode.code.map((entry) => entry.rel).sort();
 const proseEntries = result.entriesByMode.prose.map((entry) => entry.rel).sort();
+const extractedEntries = result.entriesByMode['extracted-prose'].map((entry) => entry.rel).sort();
+const recordEntries = result.entriesByMode.records.map((entry) => entry.rel).sort();
 assert.deepEqual(codeEntries, ['src/app.js']);
 assert.deepEqual(proseEntries, ['docs/readme.md']);
+assert.deepEqual(extractedEntries, ['docs/readme.md', 'src/app.js']);
+assert.deepEqual(recordEntries, ['logs/app.log']);
+assert.ok(!codeEntries.includes('logs/app.log'), 'records should not appear in code');
+assert.ok(!proseEntries.includes('logs/app.log'), 'records should not appear in prose');
+assert.ok(!extractedEntries.includes('logs/app.log'), 'records should not appear in extracted-prose');
 const codeSkips = result.skippedByMode.code.map((skip) => skip.reason);
 assert.ok(codeSkips.includes('minified'));
 assert.ok(codeSkips.includes('binary'));

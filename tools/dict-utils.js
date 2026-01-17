@@ -277,6 +277,11 @@ export function resolveRepoRoot(startPath = process.cwd()) {
   return configRoot || base;
 }
 
+export function getRepoRoot(repoRoot = null, startPath = process.cwd()) {
+  if (repoRoot) return path.resolve(repoRoot);
+  return resolveRepoRoot(startPath);
+}
+
 function resolveGitRoot(startPath) {
   try {
     const result = spawnSync('git', ['rev-parse', '--show-toplevel'], {

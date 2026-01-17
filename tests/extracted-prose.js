@@ -14,6 +14,8 @@ await fsPromises.mkdir(srcDir, { recursive: true });
 
 const commentText = 'extracted-prose sentinel phrase';
 const swiftCommentText = 'swift extracted-prose sentinel phrase';
+const mdCommentText = 'markdown comment sentinel phrase';
+const mdPlainText = 'opal zephyr raptor kinetic comet';
 const source = [
   '/**',
   ` * ${commentText}`,
@@ -31,6 +33,17 @@ const swiftSource = [
   ''
 ].join('\n');
 await fsPromises.writeFile(path.join(srcDir, 'sample.swift'), swiftSource);
+
+const docsDir = path.join(repoRoot, 'docs');
+await fsPromises.mkdir(docsDir, { recursive: true });
+await fsPromises.writeFile(
+  path.join(docsDir, 'notes.md'),
+  `# Notes\n\n<!-- ${mdCommentText} -->\n\nMore text.\n`
+);
+await fsPromises.writeFile(
+  path.join(docsDir, 'plain.md'),
+  `# Plain\n\n${mdPlainText}\n`
+);
 
 await fsPromises.writeFile(
   path.join(repoRoot, '.pairofcleats.json'),
@@ -58,7 +71,7 @@ if (buildResult.status !== 0) {
 
 const searchResult = spawnSync(
   process.execPath,
-  [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--json', commentText],
+  [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--no-ann', '--json', commentText],
   { env, encoding: 'utf8' }
 );
 if (searchResult.status !== 0) {
@@ -85,7 +98,7 @@ if (!matched) {
 
 const swiftResult = spawnSync(
   process.execPath,
-  [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--json', swiftCommentText],
+  [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--no-ann', '--json', swiftCommentText],
   { env, encoding: 'utf8' }
 );
 if (swiftResult.status !== 0) {
@@ -105,6 +118,55 @@ const swiftHits = Array.isArray(swiftPayload.extractedProse) ? swiftPayload.extr
 const swiftMatched = swiftHits.some((hit) => hit?.file === 'src/sample.swift');
 if (!swiftMatched) {
   console.error('Extracted-prose Swift test failed: expected Swift hit missing.');
+  process.exit(1);
+}
+
+const mdResult = spawnSync(
+  process.execPath,
+  [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--no-ann', '--json', mdCommentText],
+  { env, encoding: 'utf8' }
+);
+if (mdResult.status !== 0) {
+  console.error('Extracted-prose markdown test failed: search error.');
+  if (mdResult.stderr) console.error(mdResult.stderr.trim());
+  process.exit(mdResult.status ?? 1);
+}
+let mdPayload;
+try {
+  mdPayload = JSON.parse(mdResult.stdout || '{}');
+} catch {
+  console.error('Extracted-prose markdown test failed: invalid JSON output.');
+  if (mdResult.stdout) console.error(mdResult.stdout.trim());
+  process.exit(1);
+}
+const mdHits = Array.isArray(mdPayload.extractedProse) ? mdPayload.extractedProse : [];
+const mdMatched = mdHits.some((hit) => hit?.file === 'docs/notes.md');
+if (!mdMatched) {
+  console.error('Extracted-prose markdown test failed: expected markdown comment hit missing.');
+  process.exit(1);
+}
+
+const mdPlainResult = spawnSync(
+  process.execPath,
+  [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--no-ann', '--json', mdPlainText],
+  { env, encoding: 'utf8' }
+);
+if (mdPlainResult.status !== 0) {
+  console.error('Extracted-prose markdown plain test failed: search error.');
+  if (mdPlainResult.stderr) console.error(mdPlainResult.stderr.trim());
+  process.exit(mdPlainResult.status ?? 1);
+}
+let mdPlainPayload;
+try {
+  mdPlainPayload = JSON.parse(mdPlainResult.stdout || '{}');
+} catch {
+  console.error('Extracted-prose markdown plain test failed: invalid JSON output.');
+  if (mdPlainResult.stdout) console.error(mdPlainResult.stdout.trim());
+  process.exit(1);
+}
+const mdPlainHits = Array.isArray(mdPlainPayload.extractedProse) ? mdPlainPayload.extractedProse : [];
+if (mdPlainHits.length !== 0) {
+  console.error('Extracted-prose markdown plain test failed: expected no hits.');
   process.exit(1);
 }
 

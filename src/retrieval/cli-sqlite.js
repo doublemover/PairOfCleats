@@ -29,9 +29,10 @@ export async function createSqliteBackend(options) {
   const vectorAnnState = {
     code: { available: false },
     prose: { available: false },
-    records: { available: false }
+    records: { available: false },
+    'extracted-prose': { available: false }
   };
-  const vectorAnnUsed = { code: false, prose: false, records: false };
+  const vectorAnnUsed = { code: false, prose: false, records: false, 'extracted-prose': false };
 
   if (!useSqlite) {
     return { useSqlite, dbCode, dbProse, vectorAnnState, vectorAnnUsed };

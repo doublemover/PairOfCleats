@@ -60,7 +60,7 @@ if (!payload || typeof payload !== 'object') {
   process.exit(1);
 }
 
-for (const key of ['backend', 'code', 'prose', 'records', 'stats']) {
+for (const key of ['backend', 'code', 'prose', 'extractedProse', 'records', 'stats']) {
   if (!(key in payload)) {
     console.error(`Failed: search contract missing ${key}`);
     process.exit(1);
@@ -79,6 +79,11 @@ if (!hit || !hit.file) {
 }
 if (!Number.isFinite(hit.startLine)) {
   console.error('Failed: search contract hit missing startLine');
+  process.exit(1);
+}
+
+if (!payload.stats?.models || !Object.prototype.hasOwnProperty.call(payload.stats.models, 'extractedProse')) {
+  console.error('Failed: search contract missing extracted-prose model field');
   process.exit(1);
 }
 

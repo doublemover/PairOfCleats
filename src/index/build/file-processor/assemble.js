@@ -56,7 +56,7 @@ export function buildChunkPayload({
         dictConfig
       }).tokens
       : [],
-    doc: docText
+    doc: (docText && tokenMode !== 'code')
       ? buildTokenSequence({
         text: docText,
         mode: tokenMode,

@@ -443,7 +443,7 @@ if (isDirectRun) {
 
   const modeArg = (argv.mode || 'all').toLowerCase();
   if (!['all', 'code', 'prose'].includes(modeArg)) {
-    display.error('Invalid mode. Use --mode all|code|prose');
+    display.error('Invalid mode. Use --mode all|code|prose (sqlite compaction only supports code/prose).');
     display.close();
     process.exit(1);
   }

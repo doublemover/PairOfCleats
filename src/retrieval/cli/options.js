@@ -84,6 +84,7 @@ export function resolveIndexedFileCount(metricsRoot, modeFlags) {
   if (modeFlags?.runCode) modes.push('code');
   if (modeFlags?.runProse) modes.push('prose');
   if (modeFlags?.runExtractedProse) modes.push('extracted-prose');
+  if (modeFlags?.runRecords) modes.push('records');
   if (!modes.length) return null;
   const counts = [];
   for (const mode of modes) {
@@ -107,6 +108,7 @@ export function resolveBm25Defaults(metricsRoot, modeFlags) {
   if (modeFlags?.runCode) targets.push('code');
   if (modeFlags?.runProse) targets.push('prose');
   if (modeFlags?.runExtractedProse) targets.push('extracted-prose');
+  if (modeFlags?.runRecords) targets.push('records');
   if (!targets.length) return null;
   const values = [];
   for (const mode of targets) {

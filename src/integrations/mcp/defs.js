@@ -32,7 +32,7 @@ export function getToolDefs(defaultModelId) {
         type: 'object',
         properties: {
           repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-          mode: { type: 'string', enum: ['all', 'code', 'prose', 'records'] },
+          mode: { type: 'string', enum: ['all', 'code', 'prose', 'extracted-prose', 'records'] },
           sqlite: { type: 'boolean', description: 'Build SQLite indexes after JSON indexes.' },
           incremental: { type: 'boolean', description: 'Reuse per-file incremental cache.' },
           stubEmbeddings: { type: 'boolean', description: 'Skip model downloads and use stub embeddings.' },
@@ -49,7 +49,7 @@ export function getToolDefs(defaultModelId) {
         properties: {
           repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
           query: { type: 'string' },
-          mode: { type: 'string', enum: ['both', 'code', 'prose', 'records', 'all'] },
+          mode: { type: 'string', enum: ['both', 'code', 'prose', 'extracted-prose', 'records', 'all'] },
           backend: { type: 'string', enum: ['memory', 'sqlite', 'sqlite-fts'] },
           output: { type: 'string', enum: ['compact', 'full'], description: 'Return compact JSON (default) or full payload.' },
           ann: { type: 'boolean', description: 'Enable ANN re-ranking (default uses config).' },

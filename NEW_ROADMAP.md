@@ -14,35 +14,34 @@ Completed Phases: `COMPLETED_PHASES.md`
 1. Phase 2 — Benchmark + build harness reliability (cache hygiene, shard progress determinism, disk-full resilience)
 2. Phase 4 — Regression gate sweep (fix current failing tests)
 3. Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
-4. Phase 11 — Extracted-Prose + Records end-to-end parity (build/search/stats/tests)
-5. Phase 12 — Storage backends (SQLite + LMDB)
-6. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
-7. Phase 14 — Documentation and Configuration Hardening
-8. Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
-9. Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
-10. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
-11. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
-12. Phase 20 — Threadpool-aware I/O scheduling guardrails
-13. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
-14. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
-15. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
-16. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
-17. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
-18. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
-19. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
-20. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
-21. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
-22. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
-23. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
-24. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
-25. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
-26. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
-27. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
-28. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
-29. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
-30. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
-31. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
-32. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
+4. Phase 12 — Storage backends (SQLite + LMDB)
+5. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
+6. Phase 14 — Documentation and Configuration Hardening
+7. Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
+8. Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
+9. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
+10. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
+11. Phase 20 — Threadpool-aware I/O scheduling guardrails
+12. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
+13. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
+14. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
+15. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
+16. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
+17. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
+18. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
+19. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
+20. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
+21. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
+22. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
+23. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
+24. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
+25. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
+26. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
+27. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
+28. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
+29. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
+30. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
+31. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
 
 ## Phase 2 — Benchmark + build harness reliability (cache hygiene, shard progress determinism, disk-full resilience)
 
@@ -141,184 +140,6 @@ Completed Phases: `COMPLETED_PHASES.md`
 **Exit criteria**
 
 * [ ] All targeted failing tests above pass deterministically (at least 3 repeated local runs).
-
----
-
-## Phase 11 — Extracted-Prose + Records end-to-end parity (build/search/stats/tests)
-
-**Objective:** Make `extracted-prose` a first-class index mode (for extracted text such as code comments) and make `records` a first-class mode for log/record artifacts. Enforce deterministic, non-duplicative indexing across `code`, `prose`, `extracted-prose`, and `records`, and ensure `--mode all` includes all four.
-
-### Observed failures driving this phase
-
-- `📦  extracted-prose: 0 chunks, 0 tokens` during benchmark builds (unexpected; indicates missing extraction/discovery or incorrect pipeline wiring).
-- Risk of normal prose content being re-indexed into `extracted-prose` (mode separation not strict enough).
-- Comment text currently influences `code` mode search, duplicating content that should live in `extracted-prose`.
-- Logs/records can exist anywhere in a repo; they must be detected and kept out of the other modes.
-
-### 11.1 Define and enforce mode invariants
-
-* [ ] Document and enforce mode semantics in `docs/contracts/indexing.md`:
-  * `code` indexes code bodies + structural metadata; **must not index comments as searchable text**.
-  * `prose` indexes documentation/prose files (Markdown, text, etc.).
-    * Any comments that exist inside prose files (e.g., HTML comments inside Markdown) remain in `prose`.
-  * `extracted-prose` indexes **only extracted text** (comments/docstrings/config comments/etc.) sourced from **both** code and prose files.
-    * **All comments are eligible** for extraction (default on), but extracted-prose must never contain the “normal prose body” of a prose file.
-    * Implementation requirement: extracted-prose mode must only emit chunks for explicit extracted segments (no fallback that chunks the whole file).
-  * `records` indexes log/record/triage artifacts; anything indexed in `records` must be excluded from other modes.
-  * `all` == `{code, prose, extracted-prose, records}`.
-
-* [ ] Update build orchestration so `--mode all` truly means “all”:
-  * `src/index/build/args.js`: expand `--mode all` to include `records`.
-  * `src/integrations/core/index.js`: expand `mode === 'all'` to include `records` (do not re-derive modes inconsistently vs. `parseBuildArgs`).
-  * Ensure stage3 embedding generation includes `extracted-prose` when enabled:
-    * `src/integrations/core/index.js`: `buildEmbedModes` must include `extracted-prose` (and still exclude `records`).
-  * Add/extend `tests/build-index-all.js` to assert `records` is built.
-
-* [ ] Update discovery + file processing so extracted-prose never re-indexes full prose:
-  * Guarantee: a prose file with no extractable comment-like segments yields **0** extracted-prose chunks.
-  * `src/index/build/file-processor.js`:
-    * enforce `segmentsConfig.onlyExtras=true` for `mode === 'extracted-prose'` across all extensions
-    * ensure no fallback path can chunk the full file body into extracted-prose
-  * Add regression tests:
-    * `.md` with only normal prose -> 0 extracted-prose chunks
-    * `.md` with HTML comments (`<!-- ... -->`) -> extracted-prose chunks contain the comment text
-    * comments remain searchable in prose (since they remain in prose) while also appearing in extracted-prose
-
-* [ ] Ensure stats + smoke tests are mode-aware:
-  * Smoke test that builds all modes then runs:
-    * `search.js --mode extracted-prose ...`
-    * `search.js --mode records ...`
-  * Ensure any stats tooling used in CI includes extracted-prose + records counts (non-zero when fixtures contain eligible content).
-
-### 11.2 Comments: single source of truth in extracted-prose, displayed by default
-
-* [ ] Change the indexing contract so comment text is stored in one place:
-  * `extracted-prose` chunk meta contains comment text/tokens/embeddings.
-  * `code` chunk meta stores **references** to comment chunks/spans/IDs (no duplicated tokens).
-
-* [ ] Retrieval join contract (default-on):
-  * `code` results **include** a comment excerpt by default by joining to `extracted-prose` via `(fileId, start, end)` and/or explicit `commentChunkIds`.
-  * Add a flag to disable the join for performance debugging (e.g., `--no-comments` or `--comments=off`).
-  * Ensure joins are lazy and bounded (do not load all extracted-prose chunks eagerly).
-
-* [ ] Implementation (gate behind a compatibility flag only if required):
-  * `src/index/build/file-processor.js` / `src/index/build/file-processor/assemble.js`:
-    * remove `fieldTokens.comment` population in code mode
-    * attach comment references instead
-
-* [ ] Tests:
-  * [ ] Searching in `extracted-prose` finds doc comments for a code fixture.
-  * [ ] Searching in `code` does **not** match solely on comment text.
-  * [ ] Default retrieval output includes a comment excerpt for code results when the reference exists.
-
-### 11.3 Records: detect logs/records anywhere and prevent cross-mode duplication
-
-* [ ] Define “records” as **log/record-like artifacts**, regardless of directory:
-  * examples: build logs, test logs, stack traces, benchmark outputs, crash dumps, tool outputs.
-
-* [ ] Implement records detection + routing:
-  * Add a classifier (path + content heuristics) used during discovery, e.g. `classifyFileKind(entry)`.
-  * Heuristics should include:
-    * extensions: `.log`, `.out`, `.trace`, `.stacktrace`, `.dmp`, `.gcov`, `.lcov`, etc.
-    * path segments: `logs/`, `log/`, `out/`, `artifacts/`, `coverage/`, `tmp/`, `.cache/` (configurable)
-    * lightweight content sniffing (bounded bytes): high timestamp density, stack-trace signatures, test runner prefixes.
-  * Provide config overrides:
-    * `records.detect` (default on)
-    * `records.includeGlobs` / `records.excludeGlobs`
-
-* [ ] Enforce exclusion invariant:
-  * any file classified into `records` is excluded from `code`, `prose`, and `extracted-prose`.
-
-* [ ] Tests:
-  * [ ] Place a log-like file in an arbitrary subdir (not under a dedicated `recordsDir`) and assert it indexes only under `records`.
-  * [ ] Add a regression test that prevents a records file from being double-indexed into `prose`.
-
-### 11.4 Rust/prose mode isolation regression
-
-* [ ] Add a discovery/unit test that asserts `.rs` files are never included in `prose` discovery.
-* [ ] Add an integration smoke test that builds `prose` for a repo containing `.rs` and asserts zero `.rs` chunks exist in the prose index.
-
-### 11.5 Critical dependency reference documentation completeness
-
-* [ ] Define the “critical dependency set” (runtime deps that are native, download/exec, security-sensitive, or historically fragile).
-* [ ] Add a CI-friendly tooling check that verifies each critical dependency has a corresponding reference document under `docs/references/dependency-bundle/deps/`.
-* [ ] For missing entries, add stub docs with:
-  * purpose in PairOfCleats
-  * supported platforms/constraints
-  * security notes (native deps, downloads, binaries)
-  * upstream reference links
-
-### 11.6 Mode surface + observability parity (logs, stats, tooling)
-
-* [ ] Audit every place that enumerates modes (hard-coded `['code', 'prose']`, `code|prose|both|all`, etc.) and ensure:
-  * `extracted-prose` + `records` are included where intended, **or**
-  * the tool explicitly declares it only supports `code`/`prose` (and prints that once, clearly).
-
-  Known call-sites to fix (non-exhaustive; start here):
-  * Build orchestration:
-    * `src/index/build/args.js`
-    * `src/integrations/core/index.js`
-  * Validators / artifact tools:
-    * `src/index/validate.js` (defaults currently fall back to `['code', 'prose']`)
-    * `tools/report-artifacts.js`
-    * `tools/index-validate.js`
-    * `tools/compact-pieces.js`
-    * `tools/shard-census.js`
-    * `tools/triage/context-pack.js`
-  * Storage backend build tools (mode flags):
-    * `tools/build-lmdb-index.js`
-    * `tools/build-sqlite-index/*` (explicitly declare support set if it remains `code`/`prose` only)
-  * Tests that assume only two modes:
-    * `tests/discover.js`
-    * `tests/preprocess-files.js`
-    * `tests/watch-filter.js`
-
-* [ ] Update user-facing stats output to include extracted-prose wherever code/prose are shown:
-  * `src/retrieval/cli/render.js` (`--stats` line): include `extracted-prose chunks=...` and `records chunks=...` when those indexes are present/enabled.
-  * `build-index` final summary: ensure a per-mode summary line exists for all four modes (consistent order/labels).
-
-* [ ] Update tooling that reports/validates artifacts so it includes `extracted-prose` + `records` wherever it already includes `code` + `prose`:
-  * `tools/report-artifacts.js` (validation should cover all built modes)
-  * `tools/index-validate.js` (default should validate all available modes)
-  * `src/index/validate.js` (default mode set)
-  * `tools/shard-census.js` (mode loop)
-  * `tools/triage/context-pack.js` and `tools/triage/ingest.js` (exports should include mode artifacts consistently)
-
-* [ ] Update benchmark reporting to surface these modes consistently:
-  * `tools/bench/language/metrics.js` should either:
-    * report `extracted-prose` + `records` metrics alongside `code` + `prose`, or
-    * explicitly mark them as “not built / not available” (once, not per-row spam).
-
-* [ ] Normalize ordering + labels everywhere:
-  * Stable order: `code`, `prose`, `extracted-prose`, `records`
-  * Ensure all mode-summary lines and tables use the same order and consistent labels.
-
-* [ ] Add a focused smoke test that asserts user-facing output includes the new modes when present:
-  * Build a fixture that contains:
-    * a code comment (should produce `extracted-prose` chunks)
-    * a prose file with an HTML comment (should also produce `extracted-prose` chunks, while remaining in prose)
-    * a log-like file (should produce `records` chunks)
-  * Assert the final build summary mentions both `extracted-prose` and `records`.
-  * Assert `search.js --stats` output includes extracted-prose + records counts.
-
-### 11.7 Prose-edge linking between symbols and comment chunks (deferred)
-
-* [ ] After parity is complete, add a lightweight “prose-edge” mechanism to associate:
-  * files, classes, functions, and symbols
-  * to one-or-more extracted-prose comment chunks
-  * even when not physically adjacent (not necessarily a full graph edge).
-* [ ] Store as a separate artifact (e.g., `comment_links.jsonl`) so it can be recomputed without rewriting core chunk artifacts.
-* [ ] Retrieval should be able to surface linked comment chunks for a symbol/file without duplicating stored text.
-
-**Exit criteria**
-
-* [ ] `build_index.js --mode all` deterministically builds `code`, `prose`, `extracted-prose`, and `records`.
-* [ ] `extracted-prose` contains extracted comment text for code files with comments.
-* [ ] No prose files are indexed into `extracted-prose` (unless explicitly enabled for comment-like segments).
-* [ ] Code index does not duplicate comment text; it references extracted-prose and displays excerpts by default.
-* [ ] Records do not duplicate across modes; records detection works for logs placed anywhere.
-* [ ] Tooling and stats that report per-mode results include `extracted-prose` + `records` (or explicitly mark them unsupported).
-* [ ] CI has a deterministic check for missing critical dependency reference docs.
 
 ---
 

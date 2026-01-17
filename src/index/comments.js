@@ -53,6 +53,12 @@ const COMMENT_STYLES = [
     strings: ['"', '\'']
   },
   {
+    ids: new Set(['html', 'markdown', 'mdx']),
+    line: [],
+    block: [{ start: '<!--', end: '-->', stripStar: false }],
+    strings: []
+  },
+  {
     ids: new Set(['nix']),
     line: ['#'],
     block: [{ start: '/*', end: '*/', stripStar: true }],
@@ -293,7 +299,7 @@ const classifyCommentType = (raw, kind, headerLine, config) => {
     return 'license';
   }
   if (kind === 'block') {
-    if (raw.startsWith('/**') || raw.startsWith('/*!')) return 'doc';
+    if (raw.startsWith('/**') || raw.startsWith('/*!') || raw.startsWith('<!--')) return 'doc';
   } else if (kind === 'line') {
     if (raw.startsWith('///') || raw.startsWith('//!') || raw.startsWith('##')) return 'doc';
   }

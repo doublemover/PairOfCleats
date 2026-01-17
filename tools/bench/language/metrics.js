@@ -5,6 +5,7 @@ import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { discoverFilesForModes } from '../../../src/index/build/discover.js';
 import { readTextFile } from '../../../src/shared/encoding.js';
 import { countLinesForEntries } from '../../../src/shared/file-stats.js';
+import { getTriageConfig } from '../../dict-utils.js';
 
 export const formatDuration = (ms) => {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -69,19 +70,28 @@ const resolveMaxFileBytes = (userConfig) => {
 };
 
 export const buildLineStats = async (repoPath, userConfig) => {
-  const modes = ['code', 'prose'];
+  const modes = ['code', 'prose', 'extracted-prose', 'records'];
   const { ignoreMatcher } = await buildIgnoreMatcher({ root: repoPath, userConfig });
-  const skippedByMode = { code: [], prose: [] };
+  const skippedByMode = { code: [], prose: [], 'extracted-prose': [], records: [] };
   const maxFileBytes = resolveMaxFileBytes(userConfig);
+  const triageConfig = getTriageConfig(repoPath, userConfig);
+  const recordsConfig = userConfig.records || null;
   const entriesByMode = await discoverFilesForModes({
     root: repoPath,
     modes,
+    recordsDir: triageConfig.recordsDir,
+    recordsConfig,
     ignoreMatcher,
     skippedByMode,
     maxFileBytes
   });
-  const linesByFile = { code: new Map(), prose: new Map() };
-  const totals = { code: 0, prose: 0 };
+  const linesByFile = {
+    code: new Map(),
+    prose: new Map(),
+    'extracted-prose': new Map(),
+    records: new Map()
+  };
+  const totals = { code: 0, prose: 0, 'extracted-prose': 0, records: 0 };
   const concurrency = Math.max(1, Math.min(32, os.cpus().length * 2));
   for (const mode of modes) {
     const entries = entriesByMode[mode] || [];
