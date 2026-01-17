@@ -20,7 +20,6 @@ const INDEX_FILES = [
   'field_postings.json',
   'field_tokens.json',
   'minhash_signatures.json',
-  'file_relations.json',
   'file_meta.json',
   'filter_index.json',
   'index_state.json'
@@ -85,11 +84,29 @@ const tokenPostingsSignature = (dir) => {
   return 'token_postings.json:missing';
 };
 
+const jsonlArtifactSignature = (dir, baseName) => {
+  const jsonPath = path.join(dir, `${baseName}.json`);
+  const jsonSig = fileSignature(jsonPath);
+  if (jsonSig) return `${baseName}.json:${jsonSig}`;
+  const jsonlPath = path.join(dir, `${baseName}.jsonl`);
+  const jsonlSig = fileSignature(jsonlPath);
+  if (jsonlSig) return `${baseName}.jsonl:${jsonlSig}`;
+  const metaPath = path.join(dir, `${baseName}.meta.json`);
+  const metaSig = fileSignature(metaPath);
+  const partsSig = shardSignature(path.join(dir, `${baseName}.parts`), `${baseName}.part-`);
+  if (metaSig || partsSig) {
+    return `${baseName}.meta.json:${metaSig || 'missing'}|parts:${partsSig || 'missing'}`;
+  }
+  return `${baseName}.json:missing`;
+};
+
 export function buildIndexSignature(dir) {
   if (!dir) return null;
   const parts = [
     chunkMetaSignature(dir),
     tokenPostingsSignature(dir),
+    jsonlArtifactSignature(dir, 'file_relations'),
+    jsonlArtifactSignature(dir, 'repo_map'),
     ...INDEX_FILES.map((name) => {
       const target = path.join(dir, name);
       const sig = fileSignature(target);

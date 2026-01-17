@@ -1,6 +1,11 @@
 import { log as sharedLog } from '../../../../shared/progress.js';
 import { buildPostings } from '../../postings.js';
-import { applyTokenRetention, appendChunk, normalizeTokenRetention } from '../../state.js';
+import {
+  applyTokenRetention,
+  appendChunk,
+  getPostingsGuardWarnings,
+  normalizeTokenRetention
+} from '../../state.js';
 import { quantizeVecUint8 } from '../../../embedding.js';
 
 export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog }) => {
@@ -181,6 +186,11 @@ export const buildIndexPostings = async ({ runtime, state }) => {
       delete chunk.embed_code;
       delete chunk.embed_doc;
     }
+  }
+
+  const guardWarnings = getPostingsGuardWarnings(state);
+  for (const warning of guardWarnings) {
+    sharedLog(warning);
   }
 
   return postings;

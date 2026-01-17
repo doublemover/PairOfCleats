@@ -1,6 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadChunkMeta, readJsonFile } from '../shared/artifact-io.js';
+import {
+  loadChunkMeta,
+  loadGraphRelationsSync,
+  loadJsonArrayArtifactSync,
+  readJsonFile
+} from '../shared/artifact-io.js';
 import { sha1 } from '../shared/hash.js';
 import { stableStringify } from '../shared/stable-json.js';
 import {
@@ -28,6 +33,26 @@ const readJsonOptional = (filePath, warnings) => {
   } catch (err) {
     const detail = err?.message ? ` (${err.message})` : '';
     warnings.push(`Failed to read ${filePath}${detail}`);
+    return null;
+  }
+};
+
+const readJsonArrayOptional = (dir, baseName, warnings) => {
+  try {
+    return loadJsonArrayArtifactSync(dir, baseName);
+  } catch (err) {
+    const detail = err?.message ? ` (${err.message})` : '';
+    warnings.push(`Failed to read ${baseName}${detail}`);
+    return null;
+  }
+};
+
+const readGraphRelationsOptional = (dir, warnings) => {
+  try {
+    return loadGraphRelationsSync(dir);
+  } catch (err) {
+    const detail = err?.message ? ` (${err.message})` : '';
+    warnings.push(`Failed to read graph_relations${detail}`);
     return null;
   }
 };
@@ -646,9 +671,9 @@ export function buildCodeMap({ repoRoot, indexDir, options = {} }) {
       : DEFAULT_LIMITS.maxEdges
   };
 
-  const repoMap = readJsonOptional(path.join(indexDir, 'repo_map.json'), warnings) || [];
-  const fileRelations = readJsonOptional(path.join(indexDir, 'file_relations.json'), warnings) || [];
-  const graphRelations = readJsonOptional(path.join(indexDir, 'graph_relations.json'), warnings) || null;
+  const repoMap = readJsonArrayOptional(indexDir, 'repo_map', warnings) || [];
+  const fileRelations = readJsonArrayOptional(indexDir, 'file_relations', warnings) || [];
+  const graphRelations = readGraphRelationsOptional(indexDir, warnings) || null;
   const fileMeta = readJsonOptional(path.join(indexDir, 'file_meta.json'), warnings) || null;
 
   let chunkMeta = [];

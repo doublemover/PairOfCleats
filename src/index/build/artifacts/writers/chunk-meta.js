@@ -3,8 +3,8 @@ import path from 'node:path';
 import { log } from '../../../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../../../shared/artifact-io.js';
 import {
-  writeJsonArrayFile,
   writeJsonLinesFile,
+  writeJsonLinesSharded,
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 
@@ -124,7 +124,6 @@ export const resolveChunkMetaPlan = ({
 };
 
 export const enqueueChunkMetaArtifacts = async ({
-  state,
   outDir,
   chunkMetaIterator,
   chunkMetaPlan,
@@ -145,10 +144,51 @@ export const enqueueChunkMetaArtifacts = async ({
       await fs.rm(targetPath, { recursive: true, force: true });
     } catch {}
   };
-  if (chunkMetaUseJsonl) {
+  const measureChunkMeta = () => {
+    let totalJsonBytes = 2;
+    let totalJsonlBytes = 0;
+    let total = 0;
+    for (const entry of chunkMetaIterator()) {
+      const line = JSON.stringify(entry);
+      const lineBytes = Buffer.byteLength(line, 'utf8');
+      if (maxJsonBytes && (lineBytes + 1) > maxJsonBytes) {
+        throw new Error(`chunk_meta entry exceeds max JSON size (${lineBytes} bytes).`);
+      }
+      totalJsonBytes += lineBytes + (total > 0 ? 1 : 0);
+      totalJsonlBytes += lineBytes + 1;
+      total += 1;
+    }
+    return { totalJsonBytes, totalJsonlBytes, total };
+  };
+
+  const measured = chunkMetaCount
+    ? measureChunkMeta()
+    : { totalJsonBytes: 2, totalJsonlBytes: 0, total: 0 };
+  let resolvedUseJsonl = chunkMetaUseJsonl;
+  let resolvedUseShards = chunkMetaUseShards;
+  if (!resolvedUseJsonl && maxJsonBytes && measured.totalJsonBytes > maxJsonBytes) {
+    resolvedUseJsonl = true;
+    resolvedUseShards = true;
+    log(
+      `Chunk metadata measured ~${formatBytes(measured.totalJsonBytes)}; ` +
+      `using jsonl-sharded to stay under ${formatBytes(maxJsonBytes)}.`
+    );
+  } else if (resolvedUseJsonl && maxJsonBytes && measured.totalJsonlBytes > maxJsonBytes) {
+    resolvedUseShards = true;
+    if (!chunkMetaUseShards) {
+      log(
+        `Chunk metadata measured ~${formatBytes(measured.totalJsonlBytes)}; ` +
+        `using jsonl-sharded to stay under ${formatBytes(maxJsonBytes)}.`
+      );
+    }
+  }
+  chunkMetaPlan.chunkMetaUseJsonl = resolvedUseJsonl;
+  chunkMetaPlan.chunkMetaUseShards = resolvedUseShards;
+
+  if (resolvedUseJsonl) {
     await removeArtifact(path.join(outDir, 'chunk_meta.json'));
     await removeArtifact(path.join(outDir, 'chunk_meta.json.gz'));
-    if (chunkMetaUseShards) {
+    if (resolvedUseShards) {
       // When writing sharded JSONL output, ensure any prior unsharded JSONL output is removed.
       await removeArtifact(path.join(outDir, 'chunk_meta.jsonl'));
     } else {
@@ -163,102 +203,55 @@ export const enqueueChunkMetaArtifacts = async ({
     await removeArtifact(path.join(outDir, 'chunk_meta.parts'));
   }
 
-  const writeJsonlOutput = async () => {
-    const useShards = chunkMetaShardSize > 0 && chunkMetaCount > chunkMetaShardSize;
-    chunkMetaPlan.chunkMetaUseJsonl = true;
-    chunkMetaPlan.chunkMetaUseShards = useShards;
-    if (useShards) {
-      const partsDir = path.join(outDir, 'chunk_meta.parts');
-      await fs.rm(partsDir, { recursive: true, force: true });
-      await fs.mkdir(partsDir, { recursive: true });
-      const parts = [];
-      let partIndex = 0;
-      for (let i = 0; i < state.chunks.length; i += chunkMetaShardSize) {
-        const end = Math.min(i + chunkMetaShardSize, state.chunks.length);
-        const partCount = end - i;
-        const partName = `chunk_meta.part-${String(partIndex).padStart(5, '0')}.jsonl`;
-        const partPath = path.join(partsDir, partName);
-        parts.push(path.posix.join('chunk_meta.parts', partName));
-        await writeJsonLinesFile(partPath, chunkMetaIterator(i, end), { atomic: true });
-        addPieceFile({
-          type: 'chunks',
-          name: 'chunk_meta',
-          format: 'jsonl',
-          count: partCount
-        }, partPath);
-        partIndex += 1;
-      }
-      const metaPath = path.join(outDir, 'chunk_meta.meta.json');
-      await writeJsonObjectFile(metaPath, {
-        fields: {
-          format: 'jsonl',
-          shardSize: chunkMetaShardSize,
-          totalChunks: chunkMetaCount,
-          parts
-        },
-        atomic: true
-      });
-      addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
-      return;
-    }
-    const jsonlPath = path.join(outDir, 'chunk_meta.jsonl');
-    await writeJsonLinesFile(jsonlPath, chunkMetaIterator(), { atomic: true });
-    addPieceFile({
-      type: 'chunks',
-      name: 'chunk_meta',
-      format: 'jsonl',
-      count: chunkMetaCount
-    }, jsonlPath);
-  };
-
-  if (chunkMetaUseJsonl) {
-    if (chunkMetaUseShards) {
-      const partsDir = path.join(outDir, 'chunk_meta.parts');
-      await fs.rm(partsDir, { recursive: true, force: true });
-      await fs.mkdir(partsDir, { recursive: true });
-      const parts = [];
-      let partIndex = 0;
-      for (let i = 0; i < state.chunks.length; i += chunkMetaShardSize) {
-        const end = Math.min(i + chunkMetaShardSize, state.chunks.length);
-        const partCount = end - i;
-        const partName = `chunk_meta.part-${String(partIndex).padStart(5, '0')}.jsonl`;
-        const partPath = path.join(partsDir, partName);
-        parts.push(path.posix.join('chunk_meta.parts', partName));
-        enqueueWrite(
-          formatArtifactLabel(partPath),
-          () => writeJsonLinesFile(
-            partPath,
-            chunkMetaIterator(i, end),
-            { atomic: true }
-          )
-        );
-        addPieceFile({
-          type: 'chunks',
-          name: 'chunk_meta',
-          format: 'jsonl',
-          count: partCount
-        }, partPath);
-        partIndex += 1;
-      }
+  if (resolvedUseJsonl) {
+    if (resolvedUseShards) {
       const metaPath = path.join(outDir, 'chunk_meta.meta.json');
       enqueueWrite(
         formatArtifactLabel(metaPath),
-        () => writeJsonObjectFile(metaPath, {
-          fields: {
-            format: 'jsonl',
-            shardSize: chunkMetaShardSize,
-            totalChunks: chunkMetaCount,
-            parts
-          },
-          atomic: true
-        })
+        async () => {
+          const result = await writeJsonLinesSharded({
+            dir: outDir,
+            partsDirName: 'chunk_meta.parts',
+            partPrefix: 'chunk_meta.part-',
+            items: chunkMetaIterator(),
+            maxBytes: maxJsonBytes,
+            maxItems: chunkMetaShardSize,
+            atomic: true
+          });
+          const shardSize = result.counts.length
+            ? Math.max(...result.counts)
+            : chunkMetaShardSize || null;
+          await writeJsonObjectFile(metaPath, {
+            fields: {
+              format: 'jsonl',
+              shardSize,
+              totalChunks: chunkMetaCount,
+              parts: result.parts
+            },
+            atomic: true
+          });
+          for (let i = 0; i < result.parts.length; i += 1) {
+            const relPath = result.parts[i];
+            const absPath = path.join(outDir, relPath.split('/').join(path.sep));
+            addPieceFile({
+              type: 'chunks',
+              name: 'chunk_meta',
+              format: 'jsonl',
+              count: result.counts[i] || 0
+            }, absPath);
+          }
+          addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
+        }
       );
-      addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
     } else {
       const jsonlPath = path.join(outDir, 'chunk_meta.jsonl');
       enqueueWrite(
         formatArtifactLabel(jsonlPath),
-        () => writeJsonLinesFile(jsonlPath, chunkMetaIterator(), { atomic: true })
+        () => writeJsonLinesFile(
+          jsonlPath,
+          chunkMetaIterator(),
+          { atomic: true }
+        )
       );
       addPieceFile({
         type: 'chunks',
@@ -268,24 +261,8 @@ export const enqueueChunkMetaArtifacts = async ({
       }, jsonlPath);
     }
   } else {
-    const jsonPath = path.join(outDir, 'chunk_meta.json');
-    enqueueWrite(
-      formatArtifactLabel(jsonPath),
-      async () => {
-        await writeJsonArrayFile(jsonPath, chunkMetaIterator(), { atomic: true });
-        const stat = await fs.stat(jsonPath);
-        if (stat.size <= maxJsonBytes) {
-          addPieceFile({
-            type: 'chunks',
-            name: 'chunk_meta',
-            format: 'json',
-            count: chunkMetaCount
-          }, jsonPath);
-          return;
-        }
-        await fs.rm(jsonPath, { force: true });
-        await writeJsonlOutput();
-      }
-    );
+    enqueueJsonArray('chunk_meta', chunkMetaIterator(), {
+      piece: { type: 'chunks', name: 'chunk_meta', count: chunkMetaCount }
+    });
   }
 };

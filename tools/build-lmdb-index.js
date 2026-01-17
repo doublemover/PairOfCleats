@@ -4,7 +4,13 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
 import { createDisplay } from '../src/shared/cli/display.js';
-import { loadChunkMeta, loadTokenPostings, readJsonFile, MAX_JSON_BYTES } from '../src/shared/artifact-io.js';
+import {
+  loadChunkMeta,
+  loadJsonArrayArtifactSync,
+  loadTokenPostings,
+  readJsonFile,
+  MAX_JSON_BYTES
+} from '../src/shared/artifact-io.js';
 import { writeJsonObjectFile } from '../src/shared/json-stream.js';
 import { checksumFile } from '../src/shared/hash.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../src/storage/lmdb/schema.js';
@@ -172,12 +178,24 @@ const storeArtifacts = (db, meta, artifacts) => {
   });
 };
 
-const loadArtifactsForMode = (indexDir, mode) => {
+const loadArtifactsForMode = async (indexDir, mode) => {
   const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES });
   const tokenPostings = loadTokenPostings(indexDir, { maxBytes: MAX_JSON_BYTES });
   const fileMeta = readJsonOptional(path.join(indexDir, 'file_meta.json'));
-  const fileRelations = readJsonOptional(path.join(indexDir, 'file_relations.json'));
-  const repoMap = readJsonOptional(path.join(indexDir, 'repo_map.json'));
+  const fileRelations = (() => {
+    try {
+      return loadJsonArrayArtifactSync(indexDir, 'file_relations', { maxBytes: MAX_JSON_BYTES });
+    } catch {
+      return null;
+    }
+  })();
+  const repoMap = (() => {
+    try {
+      return loadJsonArrayArtifactSync(indexDir, 'repo_map', { maxBytes: MAX_JSON_BYTES });
+    } catch {
+      return null;
+    }
+  })();
   const filterIndex = readJsonOptional(path.join(indexDir, 'filter_index.json'));
   const fieldPostings = readJsonOptional(path.join(indexDir, 'field_postings.json'));
   const fieldTokens = readJsonOptional(path.join(indexDir, 'field_tokens.json'));
@@ -242,7 +260,7 @@ for (const mode of modes) {
   });
 
   const readStart = Date.now();
-  const { meta, artifacts, stats } = loadArtifactsForMode(indexDir, mode);
+  const { meta, artifacts, stats } = await loadArtifactsForMode(indexDir, mode);
   const readMs = Date.now() - readStart;
   const writeStart = Date.now();
   const db = open({ path: targetPath, readOnly: false });

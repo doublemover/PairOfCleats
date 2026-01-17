@@ -79,6 +79,16 @@ const actions = [
     covers: ['chunk-meta-jsonl-cleanup-test']
   },
   {
+    label: 'chunking-guardrails-test',
+    run: () => runNode('chunking-guardrails-test', path.join(root, 'tests', 'chunking-guardrails.js')),
+    covers: ['chunking-guardrails-test']
+  },
+  {
+    label: 'jsonl-validation-test',
+    run: () => runNode('jsonl-validation-test', path.join(root, 'tests', 'jsonl-validation.js')),
+    covers: ['jsonl-validation-test']
+  },
+  {
     label: 'incremental-manifest-test',
     run: () => runNode('incremental-manifest-test', path.join(root, 'tests', 'incremental-manifest.js')),
     covers: ['incremental-manifest-test']
@@ -678,6 +688,11 @@ const actions = [
     label: 'sqlite-build-indexes-test',
     run: () => runNode('sqlite-build-indexes-test', path.join(root, 'tests', 'sqlite-build-indexes.js')),
     covers: []
+  },
+  {
+    label: 'sqlite-chunk-meta-streaming-test',
+    run: () => runNode('sqlite-chunk-meta-streaming-test', path.join(root, 'tests', 'sqlite-chunk-meta-streaming.js')),
+    covers: ['sqlite-chunk-meta-streaming-test']
   },
   {
     label: 'lmdb-backend-test',

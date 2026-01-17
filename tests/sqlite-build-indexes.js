@@ -53,7 +53,14 @@ const runNode = (label, args) => {
   }
 };
 
-runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
+runNode('build_index', [
+  path.join(root, 'build_index.js'),
+  '--stub-embeddings',
+  '--stage',
+  'stage1',
+  '--repo',
+  repoRoot
+]);
 runNode('build_index_stage4', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage4', '--repo', repoRoot]);
 
 const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;

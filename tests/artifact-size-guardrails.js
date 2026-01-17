@@ -34,7 +34,8 @@ await fsPromises.writeFile(
       fileScan: {
         minified: { sampleMinBytes: 20000 }
       },
-      chunkTokenMode: 'full',
+      chunkTokenMode: 'sample',
+      chunkTokenSampleSize: 4,
       artifacts: {
         chunkMetaFormat: 'json',
         chunkMetaShardSize: 0,
@@ -50,10 +51,20 @@ const baseEnv = {
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
 
+const maxJsonBytes = 4096;
 const runBuild = (label, envOverrides) => {
   const result = spawnSync(
     process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
+    [
+      path.join(root, 'build_index.js'),
+      '--stub-embeddings',
+      '--mode',
+      'code',
+      '--stage',
+      'stage1',
+      '--repo',
+      repoRoot
+    ],
     { cwd: repoRoot, env: { ...baseEnv, ...envOverrides }, stdio: 'inherit' }
   );
   if (result.status !== 0) {
@@ -62,7 +73,7 @@ const runBuild = (label, envOverrides) => {
   }
 };
 
-runBuild('artifact guardrails (small max)', { PAIROFCLEATS_MAX_JSON_BYTES: '2048' });
+runBuild('artifact guardrails (small max)', { PAIROFCLEATS_MAX_JSON_BYTES: String(maxJsonBytes) });
 
 const userConfig = loadUserConfig(repoRoot);
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
@@ -77,6 +88,20 @@ if (!fs.existsSync(chunkMetaMetaPath) || !fs.existsSync(chunkMetaPartsDir)) {
 if (fs.existsSync(path.join(indexDir, 'chunk_meta.json'))) {
   console.error('Expected chunk_meta.json to be suppressed when sharding.');
   process.exit(1);
+}
+const partFiles = fs.readdirSync(chunkMetaPartsDir)
+  .filter((name) => name.startsWith('chunk_meta.part-'));
+if (!partFiles.length) {
+  console.error('Expected chunk_meta parts to be present when sharding.');
+  process.exit(1);
+}
+for (const partName of partFiles) {
+  const partPath = path.join(chunkMetaPartsDir, partName);
+  const stat = fs.statSync(partPath);
+  if (stat.size > maxJsonBytes) {
+    console.error(`chunk_meta part exceeds max JSON bytes (${stat.size} > ${maxJsonBytes}): ${partName}`);
+    process.exit(1);
+  }
 }
 
 const tokenMetaPath = path.join(indexDir, 'token_postings.meta.json');

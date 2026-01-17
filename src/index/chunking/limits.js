@@ -1,5 +1,7 @@
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 
+const DEFAULT_CHUNK_GUARDRAIL_MAX_BYTES = 200 * 1024;
+
 const normalizeChunkLimit = (value) => {
   const num = Number(value);
   if (!Number.isFinite(num)) return null;
@@ -100,14 +102,26 @@ export const splitChunkByBytes = (chunk, text, lineIndex, maxBytes) => {
 export const applyChunkingLimits = (chunks, text, context) => {
   if (!Array.isArray(chunks) || !chunks.length) return chunks;
   const { maxBytes, maxLines } = resolveChunkingLimits(context);
-  if (!maxBytes && !maxLines) return chunks;
+  const resolveChunkBytes = (chunk) => {
+    const start = Number.isFinite(chunk.start) ? chunk.start : 0;
+    const end = Number.isFinite(chunk.end) ? chunk.end : start;
+    if (end <= start) return 0;
+    return Buffer.byteLength(text.slice(start, end), 'utf8');
+  };
+  const guardrailMaxBytes = (!maxBytes && !maxLines)
+    ? chunks.some((chunk) => resolveChunkBytes(chunk) > DEFAULT_CHUNK_GUARDRAIL_MAX_BYTES)
+      ? DEFAULT_CHUNK_GUARDRAIL_MAX_BYTES
+      : null
+    : null;
+  if (!maxBytes && !maxLines && !guardrailMaxBytes) return chunks;
   const lineIndex = buildLineIndex(text);
   let output = chunks;
   if (maxLines) {
     output = output.flatMap((chunk) => splitChunkByLines(chunk, text, lineIndex, maxLines));
   }
-  if (maxBytes) {
-    output = output.flatMap((chunk) => splitChunkByBytes(chunk, text, lineIndex, maxBytes));
+  const effectiveMaxBytes = maxBytes || guardrailMaxBytes;
+  if (effectiveMaxBytes) {
+    output = output.flatMap((chunk) => splitChunkByBytes(chunk, text, lineIndex, effectiveMaxBytes));
   }
   return output;
 };

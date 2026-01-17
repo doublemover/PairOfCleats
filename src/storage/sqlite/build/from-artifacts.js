@@ -13,6 +13,7 @@ import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
 import { normalizeManifestFiles } from './manifest.js';
 import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
+import { MAX_JSON_BYTES, parseJsonlLine, resolveJsonlRequiredKeys } from '../../../shared/artifact-io.js';
 
 const listShardFiles = (dir, prefix) => {
   if (!fsSync.existsSync(dir)) return [];
@@ -71,13 +72,26 @@ const resolveTokenPostingsSources = (dir) => {
   return parts.length ? { metaPath, parts } : null;
 };
 
-const readJsonLinesFile = async (filePath, onEntry) => {
+const CHUNK_META_REQUIRED_KEYS = resolveJsonlRequiredKeys('chunk_meta');
+
+const readJsonLinesFile = async (
+  filePath,
+  onEntry,
+  { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
+) => {
   const stream = fsSync.createReadStream(filePath, { encoding: 'utf8' });
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-  for await (const line of rl) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    onEntry(JSON.parse(trimmed));
+  let lineNumber = 0;
+  try {
+    for await (const line of rl) {
+      lineNumber += 1;
+      const entry = parseJsonlLine(line, filePath, lineNumber, maxBytes, requiredKeys);
+      if (!entry) continue;
+      onEntry(entry);
+    }
+  } finally {
+    rl.close();
+    stream.destroy();
   }
 };
 
@@ -444,7 +458,7 @@ export async function buildDatabaseFromArtifacts({
         }
       } else {
         for (const chunkPath of sources.paths) {
-          await readJsonLinesFile(chunkPath, handleChunk);
+          await readJsonLinesFile(chunkPath, handleChunk, { requiredKeys: CHUNK_META_REQUIRED_KEYS });
         }
       }
       flush();
@@ -454,15 +468,25 @@ export async function buildDatabaseFromArtifacts({
     async function ingestIndex(indexData, targetMode, indexDir) {
       if (!indexData && !indexDir) return 0;
       const fileMetaById = new Map();
-      if (Array.isArray(indexData?.fileMeta)) {
-        for (const entry of indexData.fileMeta) {
+      const fileMetaRaw = Array.isArray(indexData?.fileMeta)
+        ? indexData.fileMeta
+        : (indexDir ? loadOptional(indexDir, 'file_meta.json') : null);
+      if (Array.isArray(fileMetaRaw)) {
+        for (const entry of fileMetaRaw) {
           if (!entry || !Number.isFinite(entry.id)) continue;
           fileMetaById.set(entry.id, entry);
         }
       }
       let chunkCount = 0;
       let fileCounts = new Map();
-      if (Array.isArray(indexData?.chunkMeta)) {
+      let chunkMetaLoaded = false;
+      if (indexDir) {
+        const result = await ingestChunkMetaPieces(targetMode, indexDir, fileMetaById);
+        chunkCount = result.count;
+        fileCounts = result.fileCounts;
+        chunkMetaLoaded = result.count > 0;
+      }
+      if (!chunkMetaLoaded && Array.isArray(indexData?.chunkMeta)) {
         const insert = db.transaction((rows) => {
           for (const row of rows) {
             insertChunk.run(row);
@@ -484,10 +508,6 @@ export async function buildDatabaseFromArtifacts({
           chunkCount += 1;
         }
         insert(rows);
-      } else if (indexDir) {
-        const result = await ingestChunkMetaPieces(targetMode, indexDir, fileMetaById);
-        chunkCount = result.count;
-        fileCounts = result.fileCounts;
       }
 
       let tokenIngested = false;

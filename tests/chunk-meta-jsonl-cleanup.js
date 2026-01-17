@@ -8,6 +8,7 @@ import {
   createChunkMetaIterator,
   enqueueChunkMetaArtifacts
 } from '../src/index/build/artifacts/writers/chunk-meta.js';
+import { loadChunkMeta } from '../src/shared/artifact-io.js';
 
 const root = process.cwd();
 const cacheRoot = path.join(root, 'tests', '.cache', 'chunk-meta-jsonl-cleanup');
@@ -81,6 +82,11 @@ if (fs.existsSync(jsonlPath)) {
   console.error('Did not expect chunk_meta.jsonl when writing sharded chunk_meta.');
   process.exit(1);
 }
+const loadedSharded = await loadChunkMeta(outDir);
+if (!Array.isArray(loadedSharded) || loadedSharded.length !== chunks.length) {
+  console.error('Expected loadChunkMeta to read sharded chunk_meta parts.');
+  process.exit(1);
+}
 
 await runWriter({
   chunkMetaUseJsonl: true,
@@ -95,6 +101,11 @@ if (!fs.existsSync(jsonlPath)) {
 }
 if (fs.existsSync(metaPath) || fs.existsSync(partsDir)) {
   console.error('Expected stale sharded chunk_meta artifacts to be removed when writing unsharded JSONL.');
+  process.exit(1);
+}
+const loadedJsonl = await loadChunkMeta(outDir);
+if (!Array.isArray(loadedJsonl) || loadedJsonl.length !== chunks.length) {
+  console.error('Expected loadChunkMeta to read chunk_meta.jsonl.');
   process.exit(1);
 }
 

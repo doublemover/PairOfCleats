@@ -1,20 +1,55 @@
 import Graph from 'graphology';
 
+const GRAPH_MAX_NODES = 200000;
+const GRAPH_MAX_EDGES = 500000;
+const GRAPH_SAMPLE_LIMIT = 5;
+
 const buildChunkKey = (chunk) => `${chunk.file}::${chunk.name}`;
 
-const mergeNode = (graph, id, attrs) => {
-  if (!id) return;
-  if (graph.hasNode(id)) {
-    graph.mergeNodeAttributes(id, attrs);
-  } else {
-    graph.addNode(id, attrs);
-  }
+const recordGraphSample = (guard, context) => {
+  if (!guard || !context) return;
+  if (guard.samples.length >= GRAPH_SAMPLE_LIMIT) return;
+  guard.samples.push({
+    file: context.file || null,
+    chunkId: context.chunkId || null
+  });
 };
 
-const addDirectedEdge = (graph, source, target) => {
-  if (!source || !target) return;
-  mergeNode(graph, source, {});
-  mergeNode(graph, target, {});
+const createGraphGuard = (label) => ({
+  label,
+  maxNodes: GRAPH_MAX_NODES,
+  maxEdges: GRAPH_MAX_EDGES,
+  disabled: false,
+  reason: null,
+  samples: []
+});
+
+const mergeNode = (graph, id, attrs, guard, context) => {
+  if (!id || guard?.disabled) return;
+  if (!graph.hasNode(id)) {
+    if (guard?.maxNodes && graph.order >= guard.maxNodes) {
+      guard.disabled = true;
+      guard.reason = 'max-nodes';
+      recordGraphSample(guard, context);
+      return;
+    }
+    graph.addNode(id, attrs);
+    return;
+  }
+  graph.mergeNodeAttributes(id, attrs);
+};
+
+const addDirectedEdge = (graph, source, target, guard, context) => {
+  if (!source || !target || guard?.disabled) return;
+  if (guard?.maxEdges && graph.size >= guard.maxEdges) {
+    guard.disabled = true;
+    guard.reason = 'max-edges';
+    recordGraphSample(guard, context);
+    return;
+  }
+  mergeNode(graph, source, {}, guard, context);
+  mergeNode(graph, target, {}, guard, context);
+  if (guard?.disabled) return;
   graph.mergeEdge(source, target);
 };
 
@@ -42,23 +77,28 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null } = {}) 
   const callGraph = new Graph({ type: 'directed' });
   const usageGraph = new Graph({ type: 'directed' });
   const importGraph = new Graph({ type: 'directed' });
+  const callGuard = createGraphGuard('callGraph');
+  const usageGuard = createGraphGuard('usageGraph');
+  const importGuard = createGraphGuard('importGraph');
 
   for (const chunk of chunks) {
     if (!chunk?.file || !chunk?.name) continue;
     const key = buildChunkKey(chunk);
+    const context = { file: chunk.file, chunkId: chunk.metaV2?.chunkId || null };
     const attrs = {
       file: chunk.file,
       name: chunk.name,
       kind: chunk.kind || null,
       chunkId: chunk.metaV2?.chunkId || null
     };
-    mergeNode(callGraph, key, attrs);
-    mergeNode(usageGraph, key, attrs);
+    mergeNode(callGraph, key, attrs, callGuard, context);
+    mergeNode(usageGraph, key, attrs, usageGuard, context);
   }
 
   for (const chunk of chunks) {
     if (!chunk?.file || !chunk?.name) continue;
     const sourceKey = buildChunkKey(chunk);
+    const context = { file: chunk.file, chunkId: chunk.metaV2?.chunkId || null };
     const relations = chunk.codeRelations || {};
     if (Array.isArray(relations.callLinks)) {
       for (const link of relations.callLinks) {
@@ -70,8 +110,9 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null } = {}) 
           file: link.file || null,
           name: link.target || null,
           kind: link.kind || null
-        });
-        addDirectedEdge(callGraph, sourceKey, targetKey);
+        }, callGuard, context);
+        addDirectedEdge(callGraph, sourceKey, targetKey, callGuard, context);
+        if (callGuard.disabled) break;
       }
     }
     if (Array.isArray(relations.usageLinks)) {
@@ -84,8 +125,9 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null } = {}) 
           file: link.file || null,
           name: link.target || null,
           kind: link.kind || null
-        });
-        addDirectedEdge(usageGraph, sourceKey, targetKey);
+        }, usageGuard, context);
+        addDirectedEdge(usageGraph, sourceKey, targetKey, usageGuard, context);
+        if (usageGuard.disabled) break;
       }
     }
   }
@@ -93,13 +135,16 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null } = {}) 
   if (fileRelations && typeof fileRelations.entries === 'function') {
     for (const [file, relations] of fileRelations.entries()) {
       if (!file) continue;
-      mergeNode(importGraph, file, { file });
+      const context = { file, chunkId: null };
+      mergeNode(importGraph, file, { file }, importGuard, context);
       const imports = Array.isArray(relations?.importLinks) ? relations.importLinks : [];
       for (const target of imports) {
         if (!target) continue;
-        mergeNode(importGraph, target, { file: target });
-        addDirectedEdge(importGraph, file, target);
+        mergeNode(importGraph, target, { file: target }, importGuard, context);
+        addDirectedEdge(importGraph, file, target, importGuard, context);
+        if (importGuard.disabled) break;
       }
+      if (importGuard.disabled) break;
     }
   }
 
@@ -108,6 +153,11 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null } = {}) 
     generatedAt: new Date().toISOString(),
     callGraph: serializeGraph(callGraph),
     usageGraph: serializeGraph(usageGraph),
-    importGraph: serializeGraph(importGraph)
+    importGraph: serializeGraph(importGraph),
+    caps: {
+      callGraph: callGuard.reason ? callGuard : null,
+      usageGraph: usageGuard.reason ? usageGuard : null,
+      importGraph: importGuard.reason ? importGuard : null
+    }
   };
 }

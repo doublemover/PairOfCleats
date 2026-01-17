@@ -155,42 +155,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 - [ ] Pre-assign `fileIndex` for each work item **before** concurrent processing begins.
 - [ ] Ensure progress renderer never reuses the same `(index/total)` pair for different files in the same shard run.
-8. Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
-9. Phase 8 — Language handlers & chunking review
-10. Phase 9 — File processing & artifact assembly (chunk payloads/writers/shards)
-11. Phase 10 — Index build orchestration review (findings + required fixes)
-12. Phase 11 — Extracted-Prose + Records end-to-end parity (build/search/stats/tests)
-13. Phase 12 — Storage backends (SQLite + LMDB)
-14. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
-15. Phase 14 — Documentation and Configuration Hardening
-16. Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
-17. Phase 16 — Artifact compression upgrade: add Zstandard (`zstd`) alongside gzip
-18. Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
-19. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
-20. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
-21. Phase 20 — Threadpool-aware I/O scheduling guardrails
-22. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
-23. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
-24. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
-25. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
-26. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
-27. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
-28. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
-29. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
-30. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
-31. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
-32. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
-33. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
-34. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
-35. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
-36. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
-37. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
-38. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
-39. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
-40. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
-41. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
-42. Phase 41 — Test runner entrypoint: `pairofcleats test` (lanes/selectors/output)
-43. Phase 42 — Test suite decomposition & regrouping (split monolith tests; folder structure; retire suites)
+- [ ] Add a regression test that simulates concurrent progress events and asserts monotonically increasing fileIndex (running buildindex on the repo itself briefly should be sufficient to verify this)
 
 ### 2.3 Disk-full resilience for SQLite + artifact build steps
 
@@ -5994,4 +5959,6 @@ Language spot-checks (fixture sample only) (`tests/lang/fixtures-sample/`):
 * [ ] The largest multi-domain scripts are split so failures point to a subsystem.
 * [ ] CI can run the `ci` lane deterministically with clear logs and minimal flake.
 * [ ] The test tree communicates intent via folder structure and stable ids.
+
+
 

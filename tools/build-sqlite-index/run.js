@@ -177,11 +177,13 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     await fs.mkdir(path.dirname(outPath), { recursive: true });
   }
 
-  const loadIndexSafe = (dir, label) => {
+  const loadIndexSafe = async (dir, label) => {
+    const pieces = loadIndexPieces(dir, modelConfig.id);
+    if (pieces) return { index: null, tooLarge: false, pieces };
     try {
-      const index = loadIndex(dir, modelConfig.id);
+      const index = await loadIndex(dir, modelConfig.id);
       if (index) return { index, tooLarge: false, pieces: null };
-      return { index: null, tooLarge: false, pieces: loadIndexPieces(dir, modelConfig.id) };
+      return { index: null, tooLarge: false, pieces: null };
     } catch (err) {
       if (err?.code === 'ERR_JSON_TOO_LARGE') {
         warn(`[sqlite] ${label} chunk_meta too large; will use pieces if available.`);
@@ -191,8 +193,8 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     }
   };
 
-  const { index: codeIndex, pieces: codePieces } = loadIndexSafe(codeDir, 'code');
-  const { index: proseIndex, pieces: prosePieces } = loadIndexSafe(proseDir, 'prose');
+  const { index: codeIndex, pieces: codePieces } = await loadIndexSafe(codeDir, 'code');
+  const { index: proseIndex, pieces: prosePieces } = await loadIndexSafe(proseDir, 'prose');
   const incrementalCode = loadIncrementalManifest(repoCacheRoot, 'code');
   const incrementalProse = loadIncrementalManifest(repoCacheRoot, 'prose');
   if (!codeIndex && !codePieces && !proseIndex && !prosePieces
