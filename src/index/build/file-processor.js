@@ -235,7 +235,11 @@ export function createFileProcessor(options) {
     for (const [languageId, languageSegments] of passSegments) {
       const passTreeSitter = { ...(treeSitterConfig || {}), allowedLanguages: [languageId] };
       resetTreeSitterParser({ hard: true });
-      pruneTreeSitterLanguages([languageId], { log: languageOptions?.log || log });
+      pruneTreeSitterLanguages([languageId], {
+        log: languageOptions?.log || log,
+        maxLoadedLanguages: treeSitterConfig?.maxLoadedLanguages,
+        onlyIfExceeds: true
+      });
       try {
         await preloadTreeSitterLanguages([languageId], {
           log: languageOptions?.log,

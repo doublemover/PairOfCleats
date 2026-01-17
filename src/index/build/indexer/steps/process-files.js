@@ -500,7 +500,11 @@ export const processFiles = async ({
         for (const batch of entryBatches) {
           if (treeSitterOptions?.enabled !== false && Array.isArray(batch.languages) && batch.languages.length) {
             resetTreeSitterParser({ hard: true });
-            pruneTreeSitterLanguages(batch.languages, { log });
+            pruneTreeSitterLanguages(batch.languages, {
+              log,
+              maxLoadedLanguages: treeSitterOptions?.maxLoadedLanguages,
+              onlyIfExceeds: true
+            });
           }
           await preloadTreeSitterBatch({ languages: batch.languages, treeSitter: treeSitterOptions, log });
           await runEntryBatch(batch.entries, deferred);

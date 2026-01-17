@@ -314,6 +314,11 @@ export async function preloadTreeSitterLanguages(languageIds = TREE_SITTER_LANGU
 
 export function pruneTreeSitterLanguages(keepLanguages = [], options = {}) {
   if (!treeSitterState.TreeSitter) return { removed: 0, kept: 0 };
+  const maxLoaded = Number(options?.maxLoadedLanguages);
+  const cacheSize = treeSitterState.wasmLanguageCache.size;
+  if (options?.onlyIfExceeds && Number.isFinite(maxLoaded) && maxLoaded > 0 && cacheSize <= maxLoaded) {
+    return { removed: 0, kept: cacheSize };
+  }
   const keepIds = new Set();
   for (const id of keepLanguages || []) {
     const resolved = resolveLanguageId(id);
