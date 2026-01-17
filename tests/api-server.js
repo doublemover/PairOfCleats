@@ -10,6 +10,7 @@ const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const cacheRoot = path.join(root, 'tests', '.cache', 'api-server');
 const emptyRepo = path.join(cacheRoot, 'empty');
 const serverPath = path.join(root, 'tools', 'api-server.js');
+const authToken = 'test-token';
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
@@ -41,8 +42,12 @@ const server = spawn(
     '--quiet',
     '--repo',
     fixtureRoot,
+    '--auth-token',
+    authToken,
     '--allowed-repo-roots',
-    emptyRepo
+    emptyRepo,
+    '--max-body-bytes',
+    '512'
   ],
   { env, stdio: ['ignore', 'pipe', 'pipe'] }
 );
@@ -67,22 +72,65 @@ const readStartup = async () => {
   });
 };
 
-const requestJson = async (method, requestPath, body) => await new Promise((resolve, reject) => {
+const requestJson = async (method, requestPath, body, options = {}) => await new Promise((resolve, reject) => {
   const host = serverInfo?.host || '127.0.0.1';
   const port = serverInfo?.port || 0;
   const payload = body ? JSON.stringify(body) : null;
+  const headers = { ...(options.headers || {}) };
+  if (options.auth !== false) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+  if (payload) {
+    if (!headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    headers['Content-Length'] = Buffer.byteLength(payload);
+  }
   const req = http.request(
     {
       host,
       port,
       path: requestPath,
       method,
-      headers: payload
-        ? {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(payload)
-          }
-        : {}
+      headers
+    },
+    (res) => {
+      let data = '';
+      res.on('data', (chunk) => {
+        data += chunk.toString();
+      });
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode || 0, body: JSON.parse(data || '{}') });
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+  );
+  req.on('error', reject);
+  if (payload) req.write(payload);
+  req.end();
+});
+
+const requestRaw = async (method, requestPath, body, options = {}) => await new Promise((resolve, reject) => {
+  const host = serverInfo?.host || '127.0.0.1';
+  const port = serverInfo?.port || 0;
+  const payload = body ? String(body) : '';
+  const headers = { ...(options.headers || {}) };
+  if (options.auth !== false) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+  if (payload) {
+    headers['Content-Length'] = Buffer.byteLength(payload);
+  }
+  const req = http.request(
+    {
+      host,
+      port,
+      path: requestPath,
+      method,
+      headers
     },
     (res) => {
       let data = '';
@@ -111,6 +159,18 @@ try {
     throw new Error('api-server did not report a listening port');
   }
 
+  const unauthorized = await requestJson('GET', '/health', null, { auth: false });
+  if (unauthorized.status !== 401 || unauthorized.body?.code !== 'UNAUTHORIZED') {
+    throw new Error('api-server should reject missing auth');
+  }
+
+  const corsBlocked = await requestJson('GET', '/health', null, {
+    headers: { Origin: 'https://example.com' }
+  });
+  if (corsBlocked.status !== 403 || corsBlocked.body?.code !== 'FORBIDDEN') {
+    throw new Error('api-server should reject disallowed CORS origins');
+  }
+
   const health = await requestJson('GET', '/health');
   if (!health.body?.ok || typeof health.body.uptimeMs !== 'number') {
     throw new Error('api-server /health response invalid');
@@ -133,6 +193,21 @@ try {
   const invalid = await requestJson('POST', '/search', {});
   if (invalid.status !== 400 || invalid.body?.ok !== false || invalid.body?.code !== 'INVALID_REQUEST') {
     throw new Error('api-server should reject missing query');
+  }
+
+  const missingContentType = await requestRaw('POST', '/search', JSON.stringify({ query: 'return' }), {
+    headers: {}
+  });
+  if (missingContentType.status !== 415 || missingContentType.body?.code !== 'INVALID_REQUEST') {
+    throw new Error('api-server should reject missing content-type');
+  }
+
+  const oversizedPayload = { query: 'return', extra: 'x'.repeat(600) };
+  const tooLarge = await requestRaw('POST', '/search', JSON.stringify(oversizedPayload), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (tooLarge.status !== 413 || tooLarge.body?.code !== 'INVALID_REQUEST') {
+    throw new Error('api-server should enforce body size limits');
   }
 
   const unknownField = await requestJson('POST', '/search', {

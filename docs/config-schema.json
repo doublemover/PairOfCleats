@@ -58,6 +58,29 @@
         }
       }
     },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowedRepoRoots": { "type": "array", "items": { "type": "string" } },
+        "maxBodyBytes": { "type": "number" },
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allowUnauthenticated": { "type": "boolean" }
+          }
+        },
+        "cors": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allowedOrigins": { "type": "array", "items": { "type": "string" } },
+            "allowAnyOrigin": { "type": "boolean" }
+          }
+        }
+      }
+    },
     "dictionary": {
       "type": "object",
       "additionalProperties": false,
@@ -343,6 +366,19 @@
           }
         },
         "maxFileBytes": { "type": ["number", "boolean"] },
+        "symlinks": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "type": "string", "enum": ["skip", "within-root", "safe", "scoped"] },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "mode": { "type": "string", "enum": ["skip", "within-root", "safe", "scoped"] }
+              }
+            }
+          ]
+        },
         "untrusted": {
           "type": "object",
           "additionalProperties": false,

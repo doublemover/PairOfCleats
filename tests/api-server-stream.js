@@ -9,6 +9,7 @@ const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const cacheRoot = path.join(root, 'tests', '.cache', 'api-server-stream');
 const serverPath = path.join(root, 'tools', 'api-server.js');
+const authToken = 'test-token';
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
@@ -31,7 +32,7 @@ if (build.status !== 0) {
 
 const server = spawn(
   process.execPath,
-  [serverPath, '--port', '0', '--json', '--quiet', '--repo', fixtureRoot],
+  [serverPath, '--port', '0', '--json', '--quiet', '--repo', fixtureRoot, '--auth-token', authToken],
   { env, stdio: ['ignore', 'pipe', 'pipe'] }
 );
 
@@ -74,6 +75,11 @@ const parseSse = (block) => {
 
 const readSse = async (method, requestPath, body) => await new Promise((resolve, reject) => {
   const payload = body ? JSON.stringify(body) : null;
+  const headers = { Authorization: `Bearer ${authToken}` };
+  if (payload) {
+    headers['Content-Type'] = 'application/json';
+    headers['Content-Length'] = Buffer.byteLength(payload);
+  }
   const events = [];
   let buffer = '';
   const req = http.request(
@@ -82,12 +88,7 @@ const readSse = async (method, requestPath, body) => await new Promise((resolve,
       port: serverInfo.port,
       path: requestPath,
       method,
-      headers: payload
-        ? {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(payload)
-          }
-        : {}
+      headers
     },
     (res) => {
       res.on('data', (chunk) => {
@@ -117,18 +118,18 @@ const readSse = async (method, requestPath, body) => await new Promise((resolve,
 
 const abortStream = async (method, requestPath, body) => await new Promise((resolve, reject) => {
   const payload = body ? JSON.stringify(body) : null;
+  const headers = { Authorization: `Bearer ${authToken}` };
+  if (payload) {
+    headers['Content-Type'] = 'application/json';
+    headers['Content-Length'] = Buffer.byteLength(payload);
+  }
   const req = http.request(
     {
       host: serverInfo.host,
       port: serverInfo.port,
       path: requestPath,
       method,
-      headers: payload
-        ? {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(payload)
-          }
-        : {}
+      headers
     },
     (res) => {
       const timeout = setTimeout(() => {

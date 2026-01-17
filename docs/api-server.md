@@ -3,8 +3,10 @@
 ## Overview
 The API server is a lightweight local HTTP JSON wrapper around the search/status
 pipeline with CLI-compatible payloads. It is intended for local developer
-tooling (or local agent orchestration), not for exposing publicly. There is no
-auth layer; bind to `127.0.0.1` or a private interface.
+tooling (or local agent orchestration), not for exposing publicly. **Auth is
+required by default**; provide a bearer token via `PAIROFCLEATS_API_TOKEN` or
+`--auth-token`. Use `--allow-unauthenticated` only when you explicitly want to
+disable auth.
 
 ## Startup
 - `pairofcleats service api`
@@ -16,6 +18,12 @@ Options:
 - `--output <compact|full|json>`: default search output (default `compact`)
 - `--json`: emit a JSON startup line with `host`, `port`, and `baseUrl`
 - `--quiet`: suppress non-essential logs
+- `--auth-token <token>`: bearer token required for requests (or set `PAIROFCLEATS_API_TOKEN`)
+- `--allow-unauthenticated`: explicit opt-out to disable auth
+- `--cors-allowed-origins <list>`: comma-separated allowlist of origins
+- `--cors-allow-any`: explicit opt-in to allow any origin (unsafe)
+- `--allowed-repo-roots <list>`: comma-separated allowlist for `repoPath` overrides
+- `--max-body-bytes <n>`: cap request body size in bytes (default 1,000,000)
 
 ## Endpoints
 
@@ -105,7 +113,11 @@ curl -N http://127.0.0.1:7345/search/stream \
 Notes:
 - By default, `output` is `compact` (same as `--json-compact` in the CLI).      
 - Missing indexes return `409 NO_INDEX` with a JSON error payload.
+- `Content-Type: application/json` is required for POST payloads.
+- `repoPath` overrides are **disabled by default** and only allowed when `--allowed-repo-roots` (or `api.allowedRepoRoots`) is set.
 
 ## Security considerations
-- No authentication is built in; bind locally and protect with firewall rules.
+- Auth is required by default; use `--allow-unauthenticated` only when you explicitly want to disable it.
+- CORS is disabled by default; enable with `--cors-allowed-origins` or opt-in to `--cors-allow-any` only if you understand the exposure.
+- `repoPath` overrides require an explicit allowlist; otherwise the server uses its configured repo only.
 - The server shells out to the CLI on each request. Ensure the repo is trusted.
