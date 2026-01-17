@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { expandContext } from '../src/retrieval/context-expansion.js';
+import { buildContextIndex, expandContext } from '../src/retrieval/context-expansion.js';
 
 const chunkMeta = [
   { id: 0, file: 'src/a.js', name: 'alpha', codeRelations: { calls: [['alpha', 'beta']] } },
@@ -12,11 +12,13 @@ const fileRelations = new Map([
 ]);
 
 const hits = [{ id: 0, file: 'src/a.js' }];
+const contextIndex = buildContextIndex({ chunkMeta, repoMap: null });
 const contextHits = expandContext({
   hits,
   chunkMeta,
   fileRelations,
   repoMap: null,
+  contextIndex,
   options: {
     maxPerHit: 5,
     maxTotal: 10,

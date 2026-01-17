@@ -895,7 +895,7 @@ Reviewed the complete Section 8 list from the attached markdown checklist docume
 #### Performance & Latency
 
 * [ ] SQLite FTS fast-path is not disabled by default (especially for large indexes).
-* [ ] Context expansion avoids repeated O(N) scans per query (or is cached/optimized).
+* [x] Context expansion avoids repeated O(N) scans per query (or is cached/optimized).
 * [ ] Benchmarks can write baselines reliably and optionally enforce budgets.
 
 #### Services Robustness
@@ -960,8 +960,8 @@ Reviewed the complete Section 8 list from the attached markdown checklist docume
 
 **Action items:**
 
-* [ ] Cache context index per loaded index signature (store on the loaded index object or in `index-cache.js`).
-* [ ] Add tests to ensure expansions are stable and do not cross branch/filters (if applicable).
+* [x] Cache context index per loaded index signature (store on the loaded index object or in `index-cache.js`).
+* [x] Add tests to ensure expansions are stable and do not cross branch/filters (if applicable).
 * [ ] Document the intended semantic boundaries of context expansion (same file vs cross-file, name matching rules, etc.).
 
 ---
@@ -1447,7 +1447,7 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 ### 17.2 Introduce selector + telemetry
 
 * [x] Add `PAIROFCLEATS_XXHASH_BACKEND=auto|native|wasm`
-* [ ] Emit backend choice in verbose logs (once)
+* [x] Emit backend choice in verbose logs (once)
 
 ### 17.3 Tests
 

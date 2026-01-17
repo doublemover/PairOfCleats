@@ -6,12 +6,23 @@ import { hash64Stream, hashFileStream, resolveXxhashBackend } from './hash/xxhas
 let backendOverride = null;
 let backendName = null;
 let backendPromise = null;
+let backendLogKey = null;
 
 const resolveBackendName = (envConfig) => {
   if (backendOverride) return backendOverride;
   const envValue = envConfig?.xxhashBackend;
   if (typeof envValue === 'string' && envValue.trim()) return envValue.trim();
   return 'auto';
+};
+
+const logBackendChoice = (backend, requested, envConfig) => {
+  if (envConfig?.verbose !== true) return;
+  const backendLabel = backend?.name || 'unknown';
+  const requestedLabel = requested || 'auto';
+  const nextKey = `${requestedLabel}:${backendLabel}`;
+  if (backendLogKey === nextKey) return;
+  backendLogKey = nextKey;
+  console.warn(`[hash] xxhash backend: ${backendLabel} (requested: ${requestedLabel})`);
 };
 
 const getBackend = async () => {
@@ -22,6 +33,9 @@ const getBackend = async () => {
   backendPromise = resolveXxhashBackend({
     backend: next,
     verbose: envConfig.verbose === true
+  }).then((backend) => {
+    logBackendChoice(backend, next, envConfig);
+    return backend;
   });
   return backendPromise;
 };
@@ -67,4 +81,5 @@ export function setXxhashBackend(backend) {
   backendOverride = typeof backend === 'string' && backend.trim() ? backend.trim() : null;
   backendName = null;
   backendPromise = null;
+  backendLogKey = null;
 }
