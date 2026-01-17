@@ -10,7 +10,7 @@ const source = [
   'const beta = () => {};',
   'export default function gamma() {}',
   'exports.qux = function() {};'
-].join('\\n');
+].join('\n');
 
 const chunks = buildJsChunks(source) || [];
 const names = new Set(chunks.map((chunk) => chunk.name));

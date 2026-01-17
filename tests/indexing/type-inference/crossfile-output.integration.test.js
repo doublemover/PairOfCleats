@@ -8,6 +8,7 @@ import { getIndexDir, loadUserConfig } from '../../../tools/dict-utils.js';
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'type-inference-crossfile-integration');
 const repoRoot = path.join(tempRoot, 'repo');
+const cacheRoot = path.join(tempRoot, 'cache');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
@@ -57,9 +58,10 @@ export function buildWidget() {
 
 const env = {
   ...process.env,
-  PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
+  PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
 const result = spawnSync(process.execPath, [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], {
   cwd: repoRoot,

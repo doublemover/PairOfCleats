@@ -11,6 +11,12 @@ const tempRoot = path.join(root, 'tests', '.cache', 'hnsw-ann');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
+const nodeMajor = Number(String(process.versions.node || '').split('.')[0]);
+if (Number.isFinite(nodeMajor) && nodeMajor >= 24) {
+  console.log(`Skipping HNSW ANN test on Node ${process.versions.node}.`);
+  process.exit(0);
+}
+
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });

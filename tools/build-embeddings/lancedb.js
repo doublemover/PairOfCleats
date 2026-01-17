@@ -48,7 +48,7 @@ const buildBatch = (vectors, start, end, idColumn, embeddingColumn) => {
     if (!floatVec) continue;
     rows.push({
       [idColumn]: i,
-      [embeddingColumn]: floatVec
+      [embeddingColumn]: Array.from(floatVec)
     });
   }
   return rows;
