@@ -59,6 +59,17 @@ const resolveTreeSitterLanguageForExt = (languageId, ext) => {
   return languageId;
 };
 
+const resolveTreeSitterLanguageForSegment = (languageId, ext) => {
+  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
+  if (languageId === 'typescript' && normalizedExt === '.tsx') return 'tsx';
+  if (languageId === 'javascript' && normalizedExt === '.jsx') return 'jsx';
+  if (languageId === 'clike' || languageId === 'objc' || languageId === 'cpp') {
+    return resolveTreeSitterLanguageForExt(languageId, ext);
+  }
+  if (languageId) return languageId;
+  return resolveTreeSitterLanguageForExt(languageId, ext);
+};
+
 const resolveTreeSitterLanguagesForSegments = ({ segments, primaryLanguageId, ext, treeSitterConfig }) => {
   if (!treeSitterConfig || treeSitterConfig.enabled === false) return [];
   const options = { treeSitter: treeSitterConfig };
@@ -68,11 +79,11 @@ const resolveTreeSitterLanguagesForSegments = ({ segments, primaryLanguageId, ex
     if (!isTreeSitterEnabled(options, languageId)) return;
     languages.add(languageId);
   };
-  add(resolveTreeSitterLanguageForExt(primaryLanguageId, ext));
+  add(resolveTreeSitterLanguageForSegment(primaryLanguageId, ext));
   if (Array.isArray(segments)) {
     for (const segment of segments) {
       if (!segment || segment.type !== 'embedded') continue;
-      add(segment.languageId);
+      add(resolveTreeSitterLanguageForSegment(segment.languageId, ext));
     }
   }
   return Array.from(languages);
@@ -211,7 +222,8 @@ export function createFileProcessor(options) {
     const passSegments = new Map();
     const fallbackSegments = [];
     for (const segment of segments) {
-      const languageId = segment?.languageId || context?.languageId || null;
+      const rawLanguageId = segment?.languageId || context?.languageId || null;
+      const languageId = resolveTreeSitterLanguageForSegment(rawLanguageId, ext);
       if (!languageId || !TREE_SITTER_LANG_IDS.has(languageId) || !isTreeSitterEnabled(baseOptions, languageId)) {
         fallbackSegments.push(segment);
         continue;
