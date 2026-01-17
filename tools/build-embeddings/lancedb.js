@@ -7,12 +7,12 @@ import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../../src/shared/la
 
 let warnedMissing = false;
 
-const loadLanceDb = async () => {
+const loadLanceDb = async (logger) => {
   const result = await tryImport('@lancedb/lancedb');
   if (!result.ok) {
     if (!warnedMissing) {
       warnedMissing = true;
-      console.warn('[embeddings] LanceDB unavailable; skipping LanceDB build.');
+      logger.warn('[embeddings] LanceDB unavailable; skipping LanceDB build.');
     }
     return null;
   }
@@ -62,14 +62,15 @@ export async function writeLanceDbIndex({
   modelId,
   config,
   emitOutput = true,
-  label = null
+  label = null,
+  logger = console
 }) {
   const resolvedConfig = normalizeLanceDbConfig(config);
   if (!resolvedConfig.enabled) return { skipped: true, reason: 'disabled' };
   if (!Array.isArray(vectors) || !vectors.length) {
     return { skipped: true, reason: 'empty' };
   }
-  const lancedb = await loadLanceDb();
+  const lancedb = await loadLanceDb(logger);
   if (!lancedb) return { skipped: true, reason: 'missing dependency' };
 
   const paths = resolveLanceDbPaths(indexDir);
@@ -136,7 +137,7 @@ export async function writeLanceDbIndex({
 
   if (emitOutput) {
     const targetLabel = label || variant;
-    console.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${vectors.length} vectors).`);
+    logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${vectors.length} vectors).`);
   }
   return { skipped: false, count: vectors.length };
 }

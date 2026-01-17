@@ -172,7 +172,7 @@ export const processFiles = async ({
   const processStart = Date.now();
   log(`Indexing concurrency: files=${runtime.fileConcurrency}, imports=${runtime.importConcurrency}, io=${runtime.ioConcurrency}, cpu=${runtime.cpuConcurrency}`);
   const envConfig = getEnvConfig();
-  const showFileProgress = envConfig.progressFiles !== false;
+  const showFileProgress = envConfig.verbose === true;
 
   const structuralMatches = await loadStructuralMatches({
     repoRoot: runtime.root,
@@ -210,7 +210,23 @@ export const processFiles = async ({
   );
   const processEntries = async ({ entries: shardEntries, runtime: runtimeRef, shardMeta = null, stateRef }) => {
     const shardLabel = shardMeta?.label || shardMeta?.id || null;
-  const { processFile } = createFileProcessor({
+    const shardProgress = shardMeta
+      ? {
+        total: shardEntries.length,
+        count: 0,
+        meta: {
+          taskId: `shard:${shardMeta.id}:${shardMeta.partIndex || 1}`,
+          stage: 'processing',
+          mode,
+          shardId: shardMeta.id,
+          shardIndex: shardMeta.shardIndex || null,
+          shardTotal: shardMeta.shardTotal || null,
+          message: shardMeta.display || shardLabel || shardMeta.id,
+          ephemeral: true
+        }
+      }
+      : null;
+    const { processFile } = createFileProcessor({
       root: runtimeRef.root,
       mode,
       dictConfig: runtimeRef.dictConfig,
@@ -261,7 +277,16 @@ export const processFiles = async ({
           const countText = `${progress.count + 1}/${progress.total}`;
           const lineText = Number.isFinite(entry.lines) ? `lines ${entry.lines}` : null;
           const parts = [shardPrefix, countText, lineText, rel].filter(Boolean);
-          logLine(parts.join(' '));
+          logLine(parts.join(' '), {
+            kind: 'file-progress',
+            mode,
+            stage: 'processing',
+            shardId: shardMeta?.id || null,
+            file: rel,
+            fileIndex: progress.count + 1,
+            total: progress.total,
+            lines: entry.lines || null
+          });
         }
         crashLogger.updateFile({
           phase: 'processing',
@@ -276,6 +301,10 @@ export const processFiles = async ({
         try {
           const result = await processFile(entry, fileIndex);
           progress.tick();
+          if (shardProgress) {
+            shardProgress.count += 1;
+            showProgress('Shard', shardProgress.count, shardProgress.total, shardProgress.meta);
+          }
           return result;
         } catch (err) {
           crashLogger.logError({
@@ -374,7 +403,7 @@ export const processFiles = async ({
     count: 0,
     tick() {
       this.count += 1;
-      showProgress('Files', this.count, this.total);
+      showProgress('Files', this.count, this.total, { stage: 'processing', mode });
       checkpoint.tick();
     }
   };
@@ -537,7 +566,14 @@ export const processFiles = async ({
           await processEntries({
             entries: shardEntries,
             runtime: shardRuntime,
-            shardMeta: shard,
+            shardMeta: {
+              ...shard,
+              partIndex,
+              partTotal,
+              shardIndex,
+              shardTotal,
+              display: shardDisplay
+            },
             stateRef: state
           });
         }
@@ -551,7 +587,7 @@ export const processFiles = async ({
   } else {
     await processEntries({ entries, runtime, stateRef: state });
   }
-  showProgress('Files', progress.total, progress.total);
+  showProgress('Files', progress.total, progress.total, { stage: 'processing', mode });
   checkpoint.finish();
   timing.processMs = Date.now() - processStart;
 

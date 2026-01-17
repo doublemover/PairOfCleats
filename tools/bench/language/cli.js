@@ -98,9 +98,8 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
 
   const cloneEnabled = argv['no-clone'] ? false : argv.clone !== false;
   const dryRun = argv['dry-run'] === true;
-  const quietMode = argv.json === true;
-  const interactive = !quietMode && process.stdout.isTTY;
-  const colorEnabled = interactive && !process.env.NO_COLOR;
+  const quietMode = argv.quiet === true || argv.json === true;
+  const progressMode = argv.progress || 'auto';
 
   const logLineArg = Number.parseInt(argv['log-lines'], 10);
   const logWindowSize = Number.isFinite(logLineArg)
@@ -141,8 +140,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
     cloneEnabled,
     dryRun,
     quietMode,
-    interactive,
-    colorEnabled,
+    progressMode,
     logWindowSize,
     lockMode,
     lockWaitMs,

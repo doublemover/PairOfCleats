@@ -16,7 +16,10 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
       dims: { type: 'number' },
       batch: { type: 'number' },
       'stub-embeddings': { type: 'boolean', default: false },
-      'index-root': { type: 'string' }
+      'index-root': { type: 'string' },
+      progress: { type: 'string', default: 'auto' },
+      verbose: { type: 'boolean', default: false },
+      quiet: { type: 'boolean', default: false }
     }
   }).parse();
 

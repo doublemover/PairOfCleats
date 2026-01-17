@@ -32,6 +32,7 @@ export async function buildRecordsIndexForRepo({ runtime }) {
   log(`→ Found ${recordFiles.length} record(s).`);
 
   let processed = 0;
+  const progressMeta = { stage: 'records', mode: 'records' };
   for (const absPath of recordFiles) {
     const started = Date.now();
     const relPath = toPosix(path.relative(recordsDir, absPath));
@@ -112,9 +113,9 @@ export async function buildRecordsIndexForRepo({ runtime }) {
       cached: false
     });
     processed += 1;
-    showProgress('Records', processed, recordFiles.length);
+    showProgress('Records', processed, recordFiles.length, progressMeta);
   }
-  showProgress('Records', recordFiles.length, recordFiles.length);
+  showProgress('Records', recordFiles.length, recordFiles.length, progressMeta);
 
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);
 

@@ -83,6 +83,7 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
   const start = Date.now();
   let processed = 0;
   let filesWithImports = 0;
+  const progressMeta = { stage: 'imports', mode };
   const items = files.map((entry, index) => {
     const absPath = typeof entry === 'string' ? entry : entry.abs;
     const rel = typeof entry === 'object' && entry.rel ? entry.rel : path.relative(root, absPath);
@@ -140,7 +141,7 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
         }
         if (cachedImports.length > 0) filesWithImports += 1;
         processed += 1;
-        showProgress('Imports', processed, items.length);
+        showProgress('Imports', processed, items.length, progressMeta);
         return;
       }
       if (incrementalState?.enabled && item.stat) {
@@ -160,7 +161,7 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
           }
           if (cachedImportsFallback.length > 0) filesWithImports += 1;
           processed += 1;
-          showProgress('Imports', processed, items.length);
+          showProgress('Imports', processed, items.length, progressMeta);
           return;
         }
       }
@@ -169,7 +170,7 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
         ({ text } = await readTextFile(item.absPath));
       } catch {
         processed += 1;
-        showProgress('Imports', processed, items.length);
+        showProgress('Imports', processed, items.length, progressMeta);
         return;
       }
       const fastImports = await collectModuleImportsFast({ text, ext });
@@ -188,12 +189,12 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
         allImports.get(mod).add(relKey);
       }
       processed += 1;
-      showProgress('Imports', processed, items.length);
+      showProgress('Imports', processed, items.length, progressMeta);
     },
     { collectResults: false }
   );
 
-  showProgress('Imports', items.length, items.length);
+  showProgress('Imports', items.length, items.length, progressMeta);
   const dedupedImports = {};
   for (const [mod, entries] of allImports.entries()) {
     dedupedImports[mod] = Array.from(entries);

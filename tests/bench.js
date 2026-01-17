@@ -77,6 +77,9 @@ const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann')
 const annEnabled = annFlagPresent ? argv.ann === true : true;
 const annArg = annEnabled ? '--ann' : '--no-ann';
 const jsonOutput = argv.json === true;
+const quietMode = argv.quiet === true;
+const progressMode = argv.progress || 'auto';
+const verboseMode = argv.verbose === true;
 const bm25K1Arg = argv['bm25-k1'];
 const bm25BArg = argv['bm25-b'];
 const ftsProfileArg = argv['fts-profile'];
@@ -137,15 +140,11 @@ const hasSqliteIndex = (mode) => {
 };
 if (needsMemory && !buildIndex && (!hasIndex('code') || !hasIndex('prose'))) {
   buildIndex = true;
-  if (!jsonOutput) {
-    console.log('[bench] Missing file-backed index; enabling build-index.');
-  }
+  logBench('[bench] Missing file-backed index; enabling build-index.');
 }
 if (needsSqlite && !buildSqlite && (!hasSqliteIndex('code') || !hasSqliteIndex('prose'))) {
   buildSqlite = true;
-  if (!jsonOutput) {
-    console.log('[bench] Missing sqlite index; enabling build-sqlite.');
-  }
+  logBench('[bench] Missing sqlite index; enabling build-sqlite.');
 }
 if (buildSqlite && !buildIndex) buildIndex = true;
 const heapArgRaw = argv['heap-mb'];
@@ -182,12 +181,10 @@ if (realEmbeddings && baseEnv.PAIROFCLEATS_EMBEDDINGS) {
 }
 if (heapOverride) {
   baseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapOverride);
-  if (!jsonOutput) {
-    console.log(
-      `[bench] heap ${formatGb(heapOverride)} (${heapOverride} MB) ` +
-        `(override with --heap-mb or PAIROFCLEATS_MAX_OLD_SPACE_MB)`
-    );
-  }
+  logBench(
+    `[bench] heap ${formatGb(heapOverride)} (${heapOverride} MB) ` +
+      `(override with --heap-mb or PAIROFCLEATS_MAX_OLD_SPACE_MB)`
+  );
 }
 const benchEnvWithProfile = indexProfileRaw
   ? { ...baseEnv, PAIROFCLEATS_PROFILE: indexProfileRaw }
@@ -195,11 +192,9 @@ const benchEnvWithProfile = indexProfileRaw
 
 function logBench(message) {
   if (!message) return;
-  if (jsonOutput) {
-    process.stderr.write(`${message}\n`);
-  } else {
-    console.log(message);
-  }
+  if (quietMode) return;
+  if (jsonOutput) process.stderr.write(`${message}\n`);
+  else console.log(message);
 }
 
 function runSearch(query, backend) {
@@ -389,8 +384,16 @@ if (buildIndex || buildSqlite) {
     : '';
   const embeddingsEnabled = userConfig.indexing?.embeddings?.enabled !== false;
   const useEmbeddingService = embeddingsEnabled && embeddingMode === 'service';
+  const buildProgressArgs = progressMode ? ['--progress', String(progressMode)] : [];
+  const buildVerboseArgs = verboseMode ? ['--verbose'] : [];
+  const buildQuietArgs = quietMode ? ['--quiet'] : [];
   if (buildIndex) {
-    const args = [buildIndexPath];
+    const args = [
+      buildIndexPath,
+      ...buildProgressArgs,
+      ...buildVerboseArgs,
+      ...buildQuietArgs
+    ];
     if (repoArg) args.push('--repo', repoArg);
     if (stubEmbeddings) args.push('--stub-embeddings');
     if (buildIncremental) args.push('--incremental');
@@ -402,7 +405,12 @@ if (buildIndex || buildSqlite) {
     }
   }
   if (buildSqlite) {
-    const args = [buildSqlitePath];
+    const args = [
+      buildSqlitePath,
+      ...buildProgressArgs,
+      ...buildVerboseArgs,
+      ...buildQuietArgs
+    ];
     if (repoArg) args.push('--repo', repoArg);
     if (buildIncremental) args.push('--incremental');
     buildMs.sqlite = runBuild(args, 'build sqlite', buildEnv);

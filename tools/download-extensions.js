@@ -9,9 +9,12 @@ import { pipeline } from 'node:stream/promises';
 import { URL } from 'node:url';
 import { createGunzip } from 'node:zlib';
 import { createCli } from '../src/shared/cli.js';
+import { createDisplay } from '../src/shared/cli/display.js';
 import { createError, ERROR_CODES } from '../src/shared/error-codes.js';
 import { loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { getBinarySuffix, getPlatformKey, getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
+
+let logger = console;
 
 const argv = createCli({
   scriptName: 'download-extensions',
@@ -25,9 +28,29 @@ const argv = createCli({
     out: { type: 'string' },
     platform: { type: 'string' },
     arch: { type: 'string' },
-    repo: { type: 'string' }
+    repo: { type: 'string' },
+    progress: { type: 'string', default: 'auto' },
+    verbose: { type: 'boolean', default: false },
+    quiet: { type: 'boolean', default: false }
   }
 }).parse();
+
+const display = createDisplay({
+  stream: process.stderr,
+  progressMode: argv.progress,
+  verbose: argv.verbose === true,
+  quiet: argv.quiet === true
+});
+logger = {
+  log: (message) => display.log(message),
+  warn: (message) => display.warn(message),
+  error: (message) => display.error(message)
+};
+const fail = (message, code = 1) => {
+  logger.error(message);
+  display.close();
+  process.exit(code);
+};
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const repoRoot = rootArg || resolveRepoRoot(process.cwd());
@@ -133,7 +156,7 @@ const verifyDownloadHash = (source, buffer, expectedHash, policy) => {
       );
     }
     if (policy?.warnUnsigned) {
-      console.warn(`[download] Skipping hash verification for ${source?.name || source?.url || 'unknown source'}.`);
+      logger.warn(`[download] Skipping hash verification for ${source?.name || source?.url || 'unknown source'}.`);
     }
     return null;
   }
@@ -507,13 +530,11 @@ if (!sources.length) {
 }
 
 if (!sources.length) {
-  console.error('No extension sources configured. Use --url name=url or set sqlite.vectorExtension.url/downloads.');
-  process.exit(1);
+  fail('No extension sources configured. Use --url name=url or set sqlite.vectorExtension.url/downloads.');
 }
 
 if (argv.out && sources.length > 1) {
-  console.error('When using --out, provide exactly one source.');
-  process.exit(1);
+  fail('When using --out, provide exactly one source.');
 }
 
 /**
@@ -621,12 +642,14 @@ async function downloadSource(source, index) {
 const results = [];
 for (let i = 0; i < sources.length; i++) {
   const source = sources[i];
+  display.showProgress('Downloads', i, sources.length, { stage: 'extensions' });
   try {
     results.push(await downloadSource(source, i));
   } catch (err) {
-    console.error(String(err));
+    logger.error(String(err));
   }
 }
+display.showProgress('Downloads', sources.length, sources.length, { stage: 'extensions' });
 
 await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 
@@ -634,6 +657,7 @@ const downloaded = results.filter((r) => !r.skipped).length;
 const skipped = results.filter((r) => r.skipped).length;
 const resolvedPath = resolveVectorExtensionPath(config);
 if (resolvedPath && fsSync.existsSync(resolvedPath)) {
-  console.log(`Extension present at ${resolvedPath}`);
+  logger.log(`Extension present at ${resolvedPath}`);
 }
-console.log(`Done. downloaded=${downloaded} skipped=${skipped}`);
+logger.log(`Done. downloaded=${downloaded} skipped=${skipped}`);
+display.close();

@@ -32,14 +32,15 @@ export const updateSqliteDense = ({
   scale,
   modelId,
   dbPath,
-  emitOutput = true
+  emitOutput = true,
+  logger = console
 }) => {
   if (userConfig?.sqlite?.use === false) {
     return { skipped: true, reason: 'sqlite disabled' };
   }
   if (!Database) {
     if (emitOutput) {
-      console.warn(`[embeddings] better-sqlite3 not available; skipping SQLite update for ${mode}.`);
+      logger.warn(`[embeddings] better-sqlite3 not available; skipping SQLite update for ${mode}.`);
     }
     return { skipped: true, reason: 'sqlite unavailable' };
   }
@@ -49,7 +50,7 @@ export const updateSqliteDense = ({
   })();
   if (!resolvedDbPath || !fsSync.existsSync(resolvedDbPath)) {
     if (emitOutput) {
-      console.warn(`[embeddings] SQLite ${mode} index missing; skipping.`);
+      logger.warn(`[embeddings] SQLite ${mode} index missing; skipping.`);
     }
     return { skipped: true, reason: 'sqlite missing' };
   }
@@ -58,7 +59,7 @@ export const updateSqliteDense = ({
   try {
     if (!hasTable(db, 'dense_vectors') || !hasTable(db, 'dense_meta')) {
       if (emitOutput) {
-        console.warn(`[embeddings] SQLite ${mode} index missing dense tables; skipping.`);
+        logger.warn(`[embeddings] SQLite ${mode} index missing dense tables; skipping.`);
       }
       return { skipped: true, reason: 'missing dense tables' };
     }
@@ -84,7 +85,7 @@ export const updateSqliteDense = ({
             vectorAnnTable = created.tableName;
             vectorAnnColumn = created.column;
           } else if (emitOutput) {
-            console.warn(`[embeddings] Failed to create vector table for ${mode}: ${created.reason}`);
+            logger.warn(`[embeddings] Failed to create vector table for ${mode}: ${created.reason}`);
           }
         }
         if (vectorAnnReady) {
@@ -93,7 +94,7 @@ export const updateSqliteDense = ({
           );
         }
       } else if (emitOutput) {
-        console.warn(`[embeddings] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
+        logger.warn(`[embeddings] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
       }
     }
 
@@ -124,7 +125,7 @@ export const updateSqliteDense = ({
     });
     run();
     if (emitOutput) {
-      console.log(`[embeddings] ${mode}: SQLite dense vectors updated (${resolvedDbPath}).`);
+      logger.log(`[embeddings] ${mode}: SQLite dense vectors updated (${resolvedDbPath}).`);
     }
     return { skipped: false, count: vectors.length };
   } finally {
