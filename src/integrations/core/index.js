@@ -18,6 +18,7 @@ import { createFeatureMetrics, writeFeatureMetrics } from '../../index/build/fea
 import { getCacheRoot, getMetricsDir, getRepoCacheRoot, getToolVersion, getIndexDir, loadUserConfig, resolveRepoRoot, resolveToolRoot } from '../../../tools/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../tools/service/queue.js';
 import { runBuildSqliteIndex } from '../../../tools/build-sqlite-index.js';
+import { shutdownTreeSitterWorkerPool } from '../../lang/tree-sitter.js';
 import { runSearchCli } from '../../retrieval/cli.js';
 import { getStatus } from './status.js';
 
@@ -159,6 +160,7 @@ const teardownRuntime = async (runtime) => {
       await runtime.workerPool.destroy();
     }
   } catch {}
+  await shutdownTreeSitterWorkerPool();
   shutdownPythonAstPool();
 };
 
@@ -189,7 +191,7 @@ export async function buildIndex(repoRoot, options = {}) {
   const explicitStage = normalizeStage(baseArgv.stage);
   const argv = explicitStage ? { ...baseArgv, stage: explicitStage } : baseArgv;
   const mode = argv.mode || 'all';
-  const modes = mode === 'all' ? ['prose', 'code'] : [mode];
+  const modes = mode === 'all' ? ['prose', 'code', 'extracted-prose'] : [mode];
   const rawArgv = options.rawArgv || buildRawArgs(options);
   const log = typeof options.log === 'function' ? options.log : defaultLog;
   const metricsMode = mode || 'all';

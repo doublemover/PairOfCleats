@@ -38,6 +38,7 @@ if (!fs.existsSync(extensionPath)) {
 
 const config = {
   cache: { root: cacheRoot },
+  search: { annBackend: 'sqlite-vector' },
   sqlite: {
     use: true,
     vectorExtension: {

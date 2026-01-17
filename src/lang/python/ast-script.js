@@ -619,10 +619,20 @@ def main():
             sys.stdout.flush()
             continue
         req_id = payload.get("id")
-        source = payload.get("text") or ""
+        source = payload.get("text")
         dataflow_flag = to_bool(payload.get("dataflow"), True)
         control_flow_flag = to_bool(payload.get("controlFlow"), True)
         source_path = payload.get("path") or None
+        if (source is None or source == "") and source_path:
+            try:
+                with open(source_path, "r", encoding="utf-8", errors="replace") as fh:
+                    source = fh.read()
+            except Exception as e:
+                sys.stdout.write(json.dumps({"id": req_id, "error": str(e)}) + "\\n")
+                sys.stdout.flush()
+                continue
+        if source is None:
+            source = ""
         result = parse_source(source, source_path, dataflow_flag, control_flow_flag)
         sys.stdout.write(json.dumps({"id": req_id, "result": result}) + "\\n")
         sys.stdout.flush()

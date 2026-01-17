@@ -1,8 +1,96 @@
-import { extractNgrams, tri } from '../../shared/tokenize.js';
+import { tri } from '../../shared/tokenize.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
 const TOKEN_RETENTION_MODES = new Set(['full', 'sample', 'none']);
+
+// Postings maps can be extremely large (especially phrase n-grams and chargrams).
+// Storing posting lists as `Set`s is extremely memory-expensive when the vast
+// majority of terms are singletons (df=1).
+//
+// We store posting lists in a compact representation:
+//   - number: a single docId
+//   - number[]: a list of docIds in insertion order (typically increasing)
+//
+// This avoids allocating one `Set` per term.
+function appendDocIdToPostingsMap(map, key, docId) {
+  if (!map) return;
+  const current = map.get(key);
+  if (current === undefined) {
+    map.set(key, docId);
+    return;
+  }
+  if (typeof current === 'number') {
+    if (current !== docId) map.set(key, [current, docId]);
+    return;
+  }
+  if (Array.isArray(current)) {
+    const last = current[current.length - 1];
+    if (last !== docId) current.push(docId);
+    return;
+  }
+  // Back-compat: if older states used Sets, continue supporting them.
+  if (current && typeof current.add === 'function') {
+    current.add(docId);
+  }
+}
+
+/**
+ * Appends phrase n-grams for a token sequence to a postings map without
+ * materializing the full n-gram array.
+ *
+ * This significantly reduces transient allocation pressure compared to
+ * `extractNgrams(...)`, especially for long token sequences.
+ */
+function appendPhraseNgramsToPostingsMap(map, tokens, docId, minN, maxN) {
+  if (!map) return;
+  if (!Array.isArray(tokens) || tokens.length === 0) return;
+  const min = Number.isFinite(minN) ? minN : 2;
+  const max = Number.isFinite(maxN) ? maxN : 4;
+  if (min < 1 || max < min) return;
+
+  const len = tokens.length;
+  // For very short token sequences, nothing to do.
+  if (len < min) return;
+
+  const sep = '\u0001';
+  const maxSpan = Math.min(max, len);
+
+  for (let i = 0; i < len; i += 1) {
+    // Build incrementally: token[i], token[i]␁token[i+1], ...
+    let key = '';
+    for (let n = 1; n <= maxSpan; n += 1) {
+      const j = i + n - 1;
+      if (j >= len) break;
+      const tok = tokens[j];
+      if (tok == null || tok === '') {
+        // Reset on empty tokens so we don't emit malformed n-grams.
+        key = '';
+        continue;
+      }
+      key = key ? `${key}${sep}${tok}` : String(tok);
+      if (n >= min) {
+        appendDocIdToPostingsMap(map, key, docId);
+      }
+    }
+  }
+}
+
+function *iteratePostingDocIds(posting) {
+  if (posting == null) return;
+  if (typeof posting === 'number') {
+    yield posting;
+    return;
+  }
+  if (Array.isArray(posting)) {
+    for (const id of posting) yield id;
+    return;
+  }
+  if (typeof posting[Symbol.iterator] === 'function') {
+    // eslint-disable-next-line no-restricted-syntax
+    for (const id of posting) yield id;
+  }
+}
 
 export function normalizeTokenRetention(raw = {}) {
   if (!raw || typeof raw !== 'object') {
@@ -84,18 +172,22 @@ export function appendChunk(
   if (!seq.length) return;
 
   const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
+  const phraseMinN = Number.isFinite(postingsConfig?.phraseMinN)
+    ? postingsConfig.phraseMinN
+    : 2;
+  const phraseMaxN = Number.isFinite(postingsConfig?.phraseMaxN)
+    ? postingsConfig.phraseMaxN
+    : 4;
+  const phraseSource = postingsConfig?.phraseSource === 'full' ? 'full' : 'fields';
+
   const chargramEnabled = postingsConfig?.enableChargrams !== false;
   const fieldedEnabled = postingsConfig?.fielded !== false;
+  const chargramSource = postingsConfig?.chargramSource === 'full' ? 'full' : 'fields';
   const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
     ? null
     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
 
   state.totalTokens += seq.length;
-  const ngrams = phraseEnabled
-    ? (Array.isArray(chunk.ngrams) && chunk.ngrams.length
-      ? chunk.ngrams
-      : extractNgrams(seq, postingsConfig.phraseMinN, postingsConfig.phraseMaxN))
-    : [];
 
   const charSet = new Set();
   if (chargramEnabled) {
@@ -105,12 +197,31 @@ export function appendChunk(
     if (chargrams) {
       chargrams.forEach((g) => charSet.add(g));
     } else {
-      seq.forEach((w) => {
-        if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) return;
-        for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) {
-          tri(w, n).forEach((g) => charSet.add(g));
+      const addFromTokens = (tokenList) => {
+        if (!Array.isArray(tokenList) || !tokenList.length) return;
+        tokenList.forEach((w) => {
+          if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) return;
+          for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) {
+            tri(w, n).forEach((g) => charSet.add(g));
+          }
+        });
+      };
+
+      if (chargramSource === 'fields' && chunk.fieldTokens && typeof chunk.fieldTokens === 'object') {
+        const fields = chunk.fieldTokens;
+        // Historically we derived chargrams from "field" text (name + doc). Doing so
+        // keeps the chargram vocab bounded even when indexing many languages.
+        addFromTokens(fields.name);
+        addFromTokens(fields.doc);
+        if (!charSet.size) {
+          // Intentionally emit no chargrams when no field tokens exist.
+          // Falling back to the full token stream defeats the purpose of
+          // bounding the chargram vocabulary and can create extremely large
+          // postings maps in multi-language repos.
         }
-      });
+      } else {
+        addFromTokens(seq);
+      }
     }
   }
 
@@ -131,28 +242,59 @@ export function appendChunk(
   }
 
   if (phraseEnabled) {
-    for (const ng of ngrams) {
-      if (!state.phrasePost.has(ng)) state.phrasePost.set(ng, new Set());
-      state.phrasePost.get(ng).add(chunkId);
+    if (phraseSource === 'full') {
+      appendPhraseNgramsToPostingsMap(state.phrasePost, seq, chunkId, phraseMinN, phraseMaxN);
+    } else {
+      const fields = chunk.fieldTokens || {};
+      // IMPORTANT: Do not fall back to the full token stream here. The entire
+      // point of the field-based strategy is to keep phrase vocabulary bounded,
+      // especially across many languages.
+      const phraseFields = ['name', 'signature', 'doc', 'comment'];
+      for (const field of phraseFields) {
+        const fieldTokens = Array.isArray(fields[field]) ? fields[field] : null;
+        if (!fieldTokens || !fieldTokens.length) continue;
+        appendPhraseNgramsToPostingsMap(state.phrasePost, fieldTokens, chunkId, phraseMinN, phraseMaxN);
+      }
     }
   }
   if (chargramEnabled) {
     for (const tg of charSet) {
-      if (!state.triPost.has(tg)) state.triPost.set(tg, new Set());
-      state.triPost.get(tg).add(chunkId);
+      appendDocIdToPostingsMap(state.triPost, tg, chunkId);
     }
   }
 
-  const uniqueTokens = new Set(tokens);
-  uniqueTokens.forEach((t) => state.df.set(t, (state.df.get(t) || 0) + 1));
+  // NOTE: We intentionally do not maintain a separate `df` map here.
+  // Document frequency can be derived from postings list lengths, and keeping
+  // a second token->count map roughly doubles token-keyed memory.
   if (fieldedEnabled) {
     const fields = chunk.fieldTokens || {};
     const fieldNames = ['name', 'signature', 'doc', 'comment', 'body'];
+    const fieldTokenSampleSize = Number.isFinite(Number(tokenRetention?.sampleSize))
+      ? Math.max(1, Math.floor(Number(tokenRetention.sampleSize)))
+      : 32;
+    // Ensure a schema-valid object exists for each chunk (avoid array holes -> nulls).
+    state.fieldTokens[chunkId] = state.fieldTokens[chunkId] || {};
     for (const field of fieldNames) {
       const fieldTokens = Array.isArray(fields[field]) ? fields[field] : [];
       state.fieldDocLengths[field][chunkId] = fieldTokens.length;
-      state.fieldTokens[chunkId] = state.fieldTokens[chunkId] || {};
-      state.fieldTokens[chunkId][field] = fieldTokens;
+
+      // Always sample what we retain in-memory.
+      if (fieldTokens.length <= fieldTokenSampleSize) {
+        state.fieldTokens[chunkId][field] = fieldTokens;
+      } else {
+        state.fieldTokens[chunkId][field] = fieldTokens.slice(0, fieldTokenSampleSize);
+      }
+
+      // IMPORTANT:
+      // - The unfielded token index already covers the chunk body.
+      // - Building a second "body" postings map roughly doubles memory usage.
+      // Treat "body" as an alias of the unfielded index at query time.
+      if (field === 'body') {
+        // Avoid retaining any additional body token material.
+        state.fieldTokens[chunkId][field] = [];
+        continue;
+      }
+
       if (!fieldTokens.length) continue;
       const fieldFreq = new Map();
       fieldTokens.forEach((tok) => {
@@ -181,6 +323,8 @@ export function appendChunk(
   if (chunk.seq) delete chunk.seq;
   if (chunk.chargrams) delete chunk.chargrams;
   if (chunk.fieldTokens) delete chunk.fieldTokens;
+  // Phrase postings are authoritative; do not retain per-chunk n-grams in meta.
+  if (chunk.ngrams) delete chunk.ngrams;
   state.chunks.push(chunk);
 }
 
@@ -262,29 +406,19 @@ export function mergeIndexState(target, source) {
   }
 
   if (source.phrasePost && typeof source.phrasePost.entries === 'function') {
-    for (const [phrase, postingSet] of source.phrasePost.entries()) {
-      let dest = target.phrasePost.get(phrase);
-      if (!dest) {
-        dest = new Set();
-        target.phrasePost.set(phrase, dest);
-      }
-      for (const docId of postingSet || []) {
+    for (const [phrase, posting] of source.phrasePost.entries()) {
+      for (const docId of iteratePostingDocIds(posting)) {
         if (!Number.isFinite(docId)) continue;
-        dest.add(docId + offset);
+        appendDocIdToPostingsMap(target.phrasePost, phrase, docId + offset);
       }
     }
   }
 
   if (source.triPost && typeof source.triPost.entries === 'function') {
-    for (const [gram, postingSet] of source.triPost.entries()) {
-      let dest = target.triPost.get(gram);
-      if (!dest) {
-        dest = new Set();
-        target.triPost.set(gram, dest);
-      }
-      for (const docId of postingSet || []) {
+    for (const [gram, posting] of source.triPost.entries()) {
+      for (const docId of iteratePostingDocIds(posting)) {
         if (!Number.isFinite(docId)) continue;
-        dest.add(docId + offset);
+        appendDocIdToPostingsMap(target.triPost, gram, docId + offset);
       }
     }
   }

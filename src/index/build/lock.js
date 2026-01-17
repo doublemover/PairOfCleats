@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const DEFAULT_STALE_MS = 30 * 60 * 1000;
 
@@ -10,11 +11,30 @@ const isProcessAlive = (pid) => {
   if (!Number.isFinite(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
-    return true;
   } catch (err) {
     if (err?.code === 'EPERM') return true;
     return false;
   }
+  if (process.platform !== 'win32') return true;
+  try {
+    const result = spawnSync(
+      'tasklist',
+      ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'],
+      { encoding: 'utf8', windowsHide: true }
+    );
+    if (result.error) return true;
+    const output = String(result.stdout || '').trim();
+    if (!output) return false;
+    if (/INFO:\s+No tasks are running/i.test(output)) return false;
+    const line = output.split(/\r?\n/)[0] || '';
+    const parts = line.split('","').map((part) => part.replace(/^"|"$/g, ''));
+    const pidText = parts[1] || '';
+    const parsedPid = Number(pidText);
+    if (Number.isFinite(parsedPid)) return parsedPid === pid;
+  } catch {
+    return true;
+  }
+  return true;
 };
 
 const readLockInfo = async (lockPath) => {

@@ -1,16 +1,6 @@
 import { state } from './state.js';
 import { clamp, numberValue } from './utils.js';
 
-const getWireGeometry = (geometry, THREE) => {
-  const cache = state.wireGeometryCache || (state.wireGeometryCache = new Map());
-  const key = geometry?.uuid || geometry;
-  if (cache.has(key)) return cache.get(key);
-  const wireGeom = new THREE.EdgesGeometry(geometry);
-  wireGeom.userData = { ...(wireGeom.userData || {}), shared: true };
-  cache.set(key, wireGeom);
-  return wireGeom;
-};
-
 export const initMaterials = () => {
   const { THREE, assets, visuals } = state;
   state.glowMaterials = [];
@@ -28,6 +18,7 @@ export const initMaterials = () => {
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
       texture.repeat.set(visuals.glass.normalRepeat, visuals.glass.normalRepeat);
+      texture.userData = { ...(texture.userData || {}), shared: true };
       state.normalMapState.texture = texture;
       applyGlassSettings();
     });
@@ -47,23 +38,6 @@ export const applyHeightFog = (material) => {
     shader.uniforms.fogHeight = { value: visuals.fogHeight };
     shader.uniforms.fogHeightRange = { value: visuals.fogHeightRange };
     shader.uniforms.fogHeightEnabled = { value: visuals.enableHeightFog ? 1 : 0 };
-    const fogUniformsSnippet = [
-      '#include <fog_pars_fragment>',
-      '  uniform float fogHeight;',
-      '  uniform float fogHeightRange;',
-      '  uniform float fogHeightEnabled;'
-    ].join('\n');
-    const heightExpr =
-      `  float heightFactor = fogHeightEnabled * clamp((fogHeight - ${fogVarying}.y) / ` +
-      'max(0.001, fogHeightRange), 0.0, 1.0);';
-    const fogFragmentSnippet = [
-      '#ifdef USE_FOG',
-      '  float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);',
-      heightExpr,
-      '  float combinedFog = max(fogFactor, heightFactor);',
-      '  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, combinedFog);',
-      '#endif'
-    ].join('\n');
     if (!shader.vertexShader.includes(`varying vec3 ${fogVarying}`)) {
       if (shader.vertexShader.includes('#include <common>')) {
         shader.vertexShader = shader.vertexShader.replace(
@@ -90,14 +64,14 @@ export const applyHeightFog = (material) => {
       if (shader.fragmentShader.includes('#include <fog_pars_fragment>')) {
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <fog_pars_fragment>',
-          fogUniformsSnippet
+          '#include <fog_pars_fragment>\n  uniform float fogHeight;\n  uniform float fogHeightRange;\n  uniform float fogHeightEnabled;'
         );
       }
     }
     if (shader.fragmentShader.includes('#include <fog_fragment>')) {
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <fog_fragment>',
-        fogFragmentSnippet
+        `#ifdef USE_FOG\n  float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);\n  float heightFactor = fogHeightEnabled * clamp((fogHeight - ${fogVarying}.y) / max(0.001, fogHeightRange), 0.0, 1.0);\n  float combinedFog = max(fogFactor, heightFactor);\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, combinedFog);\n#endif`
       );
     }
     material.userData.fogUniforms = shader.uniforms;
@@ -108,16 +82,21 @@ export const applyHeightFog = (material) => {
 export const createGlassMaterial = (color, opacity) => {
   const { THREE, visuals, normalMapState, glassMaterials, glowMaterials } = state;
   const glass = visuals.glass || state.visualDefaults.glass;
+
   const transmission = clamp(glass.transmission ?? 0, 0, 1);
+  // Perceptual curve: prevents the slider from behaving like "all or nothing".
+  const tCurve = Math.pow(transmission, 2.2);
+  const envScale = 0.35 + 0.65 * tCurve;
+
   const material = new THREE.MeshPhysicalMaterial({
     color,
     metalness: glass.metalness,
     roughness: glass.roughness,
-    transmission,
+    transmission: tCurve,
     ior: glass.ior,
     reflectivity: glass.reflectivity,
     thickness: glass.thickness,
-    envMapIntensity: glass.envMapIntensity,
+    envMapIntensity: glass.envMapIntensity * envScale,
     clearcoat: glass.clearcoat,
     clearcoatRoughness: glass.clearcoatRoughness,
     transparent: true,
@@ -125,23 +104,28 @@ export const createGlassMaterial = (color, opacity) => {
     depthWrite: false,
     side: THREE.DoubleSide
   });
-  material.attenuationDistance = transmission > 0 ? 9999 : 0;
-  material.emissive = color.clone().multiplyScalar(0.25);
-  material.emissiveIntensity = 0.4;
+
+  material.attenuationDistance = tCurve > 0 ? (2 + 120 * tCurve) : 0;
+  material.attenuationColor = color.clone();
+
+  material.emissive = color.clone().multiplyScalar(0.22);
+  material.emissiveIntensity = 0.35;
   material.userData = {
-    glowBase: 0.4,
-    glowRange: 0.3,
+    glowBase: 0.35,
+    glowRange: 0.25,
     baseColor: color.clone(),
     baseEmissive: material.emissive.clone(),
     baseEmissiveIntensity: material.emissiveIntensity,
     baseOpacity: opacity
   };
+
   if (normalMapState.texture) {
     material.normalMap = normalMapState.texture;
     material.clearcoatNormalMap = normalMapState.texture;
     material.normalScale = new THREE.Vector2(glass.normalScale, glass.normalScale);
     material.clearcoatNormalScale = new THREE.Vector2(glass.clearcoatNormalScale, glass.clearcoatNormalScale);
   }
+
   glassMaterials.push(material);
   glowMaterials.push(material);
   applyHeightFog(material);
@@ -174,21 +158,22 @@ export const createGlassShell = (geometry, material) => {
 };
 
 export const configureWireMaterial = (wireMat) => {
-  const { visuals, visualDefaults, scaleFactor } = state;
-  const thickness = numberValue(visuals.wireframeThickness, visualDefaults.wireframeThickness) * (scaleFactor || 1);
+  const { visuals, visualDefaults } = state;
+  const thickness = numberValue(visuals.wireframeThickness, visualDefaults.wireframeThickness);
   const glow = numberValue(visuals.wireframeGlow, visualDefaults.wireframeGlow);
   const baseColor = wireMat.userData?.baseColor || wireMat.color;
   const emissiveColor = wireMat.userData?.emissiveColor || baseColor;
-  wireMat.opacity = clamp(0.02 + glow * 0.22, 0.02, 0.8);
+
+  // Keep glow usable without overpowering the scene.
+  wireMat.opacity = clamp(0.03 + glow * 0.07, 0.03, 0.22);
   if ('linewidth' in wireMat) {
-    wireMat.linewidth = clamp(thickness, 0.01, 12);
+    wireMat.linewidth = clamp(thickness, 0.02, 2.5);
     wireMat.userData.baseLinewidth = wireMat.linewidth;
   }
   wireMat.color.copy(emissiveColor);
-  wireMat.userData.glowBase = 0.03 + glow * 0.2;
-  wireMat.userData.glowRange = 0.05 + glow * 0.35;
-  wireMat.userData.flowSpeed = numberValue(visuals.wirePulseSpeed, visualDefaults.wirePulseSpeed);
-  if ('toneMapped' in wireMat) wireMat.toneMapped = false;
+  wireMat.userData = wireMat.userData || {};
+  wireMat.userData.glowBase = clamp(0.02 + glow * 0.06, 0.02, 0.16);
+  wireMat.userData.glowRange = clamp(0.03 + glow * 0.11, 0.03, 0.22);
 };
 
 export const createWireframe = (geometry, color, phase) => {
@@ -200,7 +185,7 @@ export const createWireframe = (geometry, color, phase) => {
     lineResolution,
     wireMaterials
   } = state;
-  const wireGeom = getWireGeometry(geometry, THREE);
+  const wireGeom = new THREE.EdgesGeometry(geometry);
   let wireMat;
   if (LineMaterial && LineSegments2 && LineSegmentsGeometry) {
     wireMat = new LineMaterial({
@@ -225,7 +210,7 @@ export const createWireframe = (geometry, color, phase) => {
       depthTest: false
     });
   }
-  const emissiveColor = color.clone().lerp(new THREE.Color(0xffffff), 0.55);
+  const emissiveColor = color.clone().lerp(new THREE.Color(0xffffff), 0.18);
   wireMat.userData = {
     glowBase: 0.18,
     glowRange: 0.25,
@@ -240,6 +225,7 @@ export const createWireframe = (geometry, color, phase) => {
     lineGeom.setPositions(wireGeom.attributes.position.array);
     const line = new LineSegments2(lineGeom, wireMat);
     line.computeLineDistances();
+    wireGeom.dispose();
     return line;
   }
   return new THREE.LineSegments(wireGeom, wireMat);
@@ -299,25 +285,26 @@ export const applyGlassSettings = () => {
     visualDefaults,
     glassMaterials,
     glassShells,
-    normalMapState,
-    flowMaterials,
-    grid,
-    edgeDotMaterial
+    normalMapState
   } = state;
   const glass = visuals.glass || visualDefaults.glass;
   const transmission = clamp(glass.transmission ?? 0, 0, 1);
+  const tCurve = Math.pow(transmission, 2.2);
+  const envScale = 0.35 + 0.65 * tCurve;
   for (const material of glassMaterials) {
     material.metalness = glass.metalness;
     material.roughness = glass.roughness;
-    material.transmission = transmission;
+    material.transmission = tCurve;
     material.ior = glass.ior;
     material.reflectivity = glass.reflectivity;
     material.thickness = glass.thickness;
-    material.attenuationDistance = transmission > 0 ? 9999 : 0;
-    material.envMapIntensity = glass.envMapIntensity;
+    material.attenuationDistance = tCurve > 0 ? (2 + 120 * tCurve) : 0;
+    if ('attenuationColor' in material) material.attenuationColor = (material.userData?.baseColor || material.color).clone();
+    material.envMapIntensity = glass.envMapIntensity * envScale;
     material.clearcoat = glass.clearcoat;
     material.clearcoatRoughness = glass.clearcoatRoughness;
     if (normalMapState.texture) {
+      normalMapState.texture.repeat.set(glass.normalRepeat, glass.normalRepeat);
       material.normalScale = new THREE.Vector2(glass.normalScale, glass.normalScale);
       material.clearcoatNormalScale = new THREE.Vector2(glass.clearcoatNormalScale, glass.clearcoatNormalScale);
     }
@@ -330,20 +317,6 @@ export const applyGlassSettings = () => {
     }
     material.needsUpdate = true;
   }
-  for (const material of flowMaterials) {
-    if ('envMapIntensity' in material) {
-      material.envMapIntensity = glass.envMapIntensity;
-    }
-    material.needsUpdate = true;
-  }
-  if (edgeDotMaterial && 'envMapIntensity' in edgeDotMaterial) {
-    edgeDotMaterial.envMapIntensity = glass.envMapIntensity;
-    edgeDotMaterial.needsUpdate = true;
-  }
-  if (grid?.material && 'envMapIntensity' in grid.material) {
-    grid.material.envMapIntensity = glass.envMapIntensity;
-    grid.material.needsUpdate = true;
-  }
   const thicknessScale = clamp(1 - glass.thickness * 0.03, 0.75, 0.98);
   for (const shell of glassShells) {
     if (shell?.inner) shell.inner.scale.set(thicknessScale, thicknessScale, thicknessScale);
@@ -351,11 +324,9 @@ export const applyGlassSettings = () => {
 };
 
 export const updateFileOpacity = () => {
-  const { visuals, visualDefaults, fileMeshes, fileChunkMeshes } = state;
-  const baseOpacity = clamp(numberValue(visuals.fileOpacity, visualDefaults.fileOpacity), 0.1, 1);
-  for (const mesh of [...fileMeshes, ...fileChunkMeshes]) {
-    const offset = mesh.userData?.opacityOffset ?? 0;
-    const opacity = clamp(baseOpacity + offset, 0.1, 1);
+  const { visuals, visualDefaults, fileMeshes } = state;
+  const opacity = clamp(numberValue(visuals.fileOpacity, visualDefaults.fileOpacity), 0.1, 1);
+  for (const mesh of fileMeshes) {
     if (mesh.material) {
       mesh.material.opacity = opacity;
       if (mesh.material.userData) mesh.material.userData.baseOpacity = opacity;
@@ -370,11 +341,26 @@ export const updateFileOpacity = () => {
 };
 
 export const updateMemberOpacity = () => {
-  const { visuals, visualDefaults, memberMeshes, chunkMeshes } = state;
-  const baseOpacity = clamp(numberValue(visuals.memberOpacity, visualDefaults.memberOpacity), 0.1, 1);
-  for (const mesh of [...memberMeshes, ...chunkMeshes]) {
-    const offset = mesh.userData?.opacityOffset ?? 0;
-    const opacity = clamp(baseOpacity + offset, 0.1, 1);
+  const { visuals, visualDefaults, memberMeshes, chunkMeshes, instancedMemberMaterials, instancedChunkMaterial } = state;
+  const opacity = clamp(numberValue(visuals.memberOpacity, visualDefaults.memberOpacity), 0.1, 1);
+
+  // Instanced members/chunks use shared materials (huge perf win). Update those directly.
+  const instancedMemberMat = instancedMemberMaterials?.member || null;
+  if (instancedMemberMat) {
+    instancedMemberMat.opacity = opacity;
+    instancedMemberMat.userData = instancedMemberMat.userData || {};
+    instancedMemberMat.userData.baseOpacity = opacity;
+  }
+  if (instancedChunkMaterial) {
+    const chunkOpacity = clamp(opacity, 0.1, 1);
+    instancedChunkMaterial.opacity = chunkOpacity;
+    instancedChunkMaterial.userData = instancedChunkMaterial.userData || {};
+    instancedChunkMaterial.userData.baseOpacity = chunkOpacity;
+  }
+
+  // Legacy (non-instanced) meshes still get updated for compatibility.
+  for (const mesh of [...(memberMeshes || []), ...(chunkMeshes || [])]) {
+    if (!mesh) continue;
     if (mesh.material) {
       mesh.material.opacity = opacity;
       if (mesh.material.userData) mesh.material.userData.baseOpacity = opacity;
@@ -440,30 +426,14 @@ export const updateFog = (maxSpanOverride) => {
     flowMaterials,
     wireMaterials,
     gridLineMaterials,
-    grid,
-    edgeDotMaterial
+    grid
   } = state;
   if (Number.isFinite(maxSpanOverride)) {
     fogBounds.maxSpan = maxSpanOverride;
   }
   const maxSpan = fogBounds.maxSpan || 120;
-  const enableFog = visuals.enableFog === true;
-  const fogMaterials = [
-    ...glassMaterials,
-    ...labelMaterials,
-    ...flowMaterials,
-    ...wireMaterials,
-    ...gridLineMaterials,
-    ...(edgeDotMaterial ? [edgeDotMaterial] : [])
-  ];
-  if (!enableFog) {
+  if (!visuals.enableFog) {
     scene.fog = null;
-    if (state.fogEnabled !== enableFog) {
-      state.fogEnabled = enableFog;
-      fogMaterials.forEach((material) => {
-        if (material) material.needsUpdate = true;
-      });
-    }
     return;
   }
   const colorValue = visuals.fogColor || visualDefaults.fogColor;
@@ -472,12 +442,6 @@ export const updateFog = (maxSpanOverride) => {
   const fogNear = maxSpan * 0.9;
   const fogFar = maxSpan * Math.max(1.1, distance);
   scene.fog = new THREE.Fog(fogColor.getHex(), fogNear, fogFar);
-  if (state.fogEnabled !== enableFog) {
-    state.fogEnabled = enableFog;
-    fogMaterials.forEach((material) => {
-      if (material) material.needsUpdate = true;
-    });
-  }
   const updateFogUniforms = (material) => {
     if (!material?.userData?.fogUniforms) return;
     material.userData.fogUniforms.fogHeight.value = visuals.fogHeight;
@@ -486,7 +450,8 @@ export const updateFog = (maxSpanOverride) => {
       material.userData.fogUniforms.fogHeightEnabled.value = visuals.enableHeightFog ? 1 : 0;
     }
   };
-  fogMaterials.forEach(updateFogUniforms);
+  [...glassMaterials, ...labelMaterials, ...flowMaterials, ...wireMaterials, ...gridLineMaterials]
+    .forEach(updateFogUniforms);
   if (grid?.material) updateFogUniforms(grid.material);
 };
 

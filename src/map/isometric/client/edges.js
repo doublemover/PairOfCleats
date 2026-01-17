@@ -26,16 +26,29 @@ export const buildEdges = () => {
   const routingPadding = layoutMetrics.routingPadding;
   const routingStep = layoutMetrics.routingStep;
 
+  const allowFlowLights = visuals.enableFlowLights !== false;
+
+  const normalizeMemberId = (value) => {
+    if (value === null || value === undefined || value === '') return null;
+    if (value === 0) return '0';
+    return String(value);
+  };
+
   const resolveEdgeFile = (endpoint) => {
     if (!endpoint) return null;
     if (endpoint.file) return endpoint.file;
-    if (endpoint.member) return fileByMember.get(endpoint.member) || null;
+    const memberKey = normalizeMemberId(endpoint.member);
+    if (memberKey) return fileByMember.get(memberKey) || fileByMember.get(endpoint.member) || null;
     return null;
   };
 
   const resolveEdgeColor = (endpoint) => {
     if (!endpoint) return null;
-    if (endpoint.member && memberColorById.has(endpoint.member)) {
+    const memberKey = normalizeMemberId(endpoint.member);
+    if (memberKey && memberColorById.has(memberKey)) {
+      return memberColorById.get(memberKey);
+    }
+    if (endpoint.member !== undefined && endpoint.member !== null && memberColorById.has(endpoint.member)) {
       return memberColorById.get(endpoint.member);
     }
     if (endpoint.file && fileColorByPath.has(endpoint.file)) {
@@ -72,8 +85,12 @@ export const buildEdges = () => {
 
   const resolveAnchor = (endpoint) => {
     if (!endpoint) return null;
-    if (endpoint.member && memberAnchors.has(endpoint.member)) return memberAnchors.get(endpoint.member);
+    const memberKey = normalizeMemberId(endpoint.member);
+    if (memberKey && memberAnchors.has(memberKey)) return memberAnchors.get(memberKey);
+    if (endpoint.member !== undefined && endpoint.member !== null && memberAnchors.has(endpoint.member)) return memberAnchors.get(endpoint.member);
     if (endpoint.file && fileAnchors.has(endpoint.file)) return fileAnchors.get(endpoint.file);
+    const fileKey = resolveEdgeFile(endpoint);
+    if (fileKey && fileAnchors.has(fileKey)) return fileAnchors.get(fileKey);
     return null;
   };
 
@@ -239,9 +256,10 @@ export const buildEdges = () => {
   const resolveEdgeStyle = (type) => edgeStyles[resolveEdgeType(type)] || edgeStyles[type] || {};
   const addEndpoint = (entry, endpoint) => {
     if (!endpoint) return;
-    if (endpoint.member) {
-      entry.endpoints.add(`member:${endpoint.member}`);
-      const memberFile = fileByMember.get(endpoint.member);
+    const memberKey = normalizeMemberId(endpoint.member);
+    if (memberKey) {
+      entry.endpoints.add(`member:${memberKey}`);
+      const memberFile = fileByMember.get(memberKey) || fileByMember.get(endpoint.member);
       if (memberFile) entry.endpoints.add(`file:${memberFile}`);
     }
     if (endpoint.file) {
@@ -389,9 +407,11 @@ export const buildEdges = () => {
       addFlowSegment(type, a.x, a.y, a.z, b.x, b.y, b.z, weight, edgeColor, dir, edge);
     }
     if (edgeColor) {
-      if (edge.from?.member) addEndpointDot(`member:${edge.from.member}`, startAnchor, edgeColor);
+      const fromMemberKey = normalizeMemberId(edge.from?.member);
+      const toMemberKey = normalizeMemberId(edge.to?.member);
+      if (fromMemberKey) addEndpointDot(`member:${fromMemberKey}`, startAnchor, edgeColor);
       if (edge.from?.file) addEndpointDot(`file:${edge.from.file}`, startAnchor, edgeColor);
-      if (edge.to?.member) addEndpointDot(`member:${edge.to.member}`, endAnchor, edgeColor);
+      if (toMemberKey) addEndpointDot(`member:${toMemberKey}`, endAnchor, edgeColor);
       if (edge.to?.file) addEndpointDot(`file:${edge.to.file}`, endAnchor, edgeColor);
     }
   }
@@ -429,11 +449,16 @@ export const buildEdges = () => {
     if ('toneMapped' in material) material.toneMapped = false;
     material.emissive = new THREE.Color(0xffffff);
     material.emissiveIntensity = visuals.flowGlowBase;
+    const typeHash = Array.from(String(type)).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
     material.userData = {
       glowBase: visuals.flowGlowBase,
       glowRange: visuals.flowGlowRange,
       baseEmissiveIntensity: visuals.flowGlowBase,
-      baseOpacity: 0.8
+      baseOpacity: 0.8,
+      flowPhase: typeHash * 0.17,
+      flowDir: 1,
+      flowSpeed: typeProfile.speed || 1,
+      flowOffset: typeProfile.phase || 0
     };
     const prevCompile = material.onBeforeCompile;
     material.onBeforeCompile = (shader) => {
@@ -486,7 +511,7 @@ export const buildEdges = () => {
         edgeColor: brightColor,
         highlightColor
       });
-      flowLightCandidates.push({
+      if (allowFlowLights) flowLightCandidates.push({
         x: dummy.position.x,
         y: dummy.position.y,
         z: dummy.position.z,
@@ -508,7 +533,7 @@ export const buildEdges = () => {
     state.edgeMeshes.push(mesh);
   }
 
-  if (flowLightCandidates.length) {
+  if (allowFlowLights && flowLightCandidates.length) {
     flowLightCandidates.sort((a, b) => b.weight - a.weight);
     const maxLights = Math.min(32, flowLightCandidates.length);
     for (let i = 0; i < maxLights; i += 1) {

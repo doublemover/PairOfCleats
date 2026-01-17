@@ -27,6 +27,67 @@ import { buildCallIndex, buildFileRelations } from './file-processor/relations.j
 import { resolveBinarySkip, resolvePreReadSkip } from './file-processor/skip.js';
 import { createFileTimingTracker } from './file-processor/timings.js';
 import { resolveExt, resolveFileCaps, truncateByBytes } from './file-processor/read.js';
+import { TREE_SITTER_LANGUAGE_IDS } from '../../lang/tree-sitter/config.js';
+import { isTreeSitterEnabled } from '../../lang/tree-sitter/options.js';
+import {
+  preloadTreeSitterLanguages,
+  pruneTreeSitterLanguages,
+  resetTreeSitterParser
+} from '../../lang/tree-sitter.js';
+import { getLanguageForFile } from '../language-registry.js';
+
+const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
+
+const resolveTreeSitterLanguageForExt = (languageId, ext) => {
+  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
+  if (normalizedExt === '.tsx') return 'tsx';
+  if (normalizedExt === '.jsx') return 'jsx';
+  if (normalizedExt === '.ts' || normalizedExt === '.cts' || normalizedExt === '.mts') return 'typescript';
+  if (normalizedExt === '.js' || normalizedExt === '.mjs' || normalizedExt === '.cjs' || normalizedExt === '.jsm') {
+    return 'javascript';
+  }
+  if (normalizedExt === '.py') return 'python';
+  if (normalizedExt === '.json') return 'json';
+  if (normalizedExt === '.yaml' || normalizedExt === '.yml') return 'yaml';
+  if (normalizedExt === '.toml') return 'toml';
+  if (normalizedExt === '.md' || normalizedExt === '.mdx') return 'markdown';
+  if (!normalizedExt) return languageId;
+  if (normalizedExt === '.m' || normalizedExt === '.mm') return 'objc';
+  if (normalizedExt === '.cpp' || normalizedExt === '.cc' || normalizedExt === '.cxx'
+    || normalizedExt === '.hpp' || normalizedExt === '.hh' || normalizedExt === '.hxx') return 'cpp';
+  if (normalizedExt === '.c' || normalizedExt === '.h') return 'clike';
+  return languageId;
+};
+
+const resolveTreeSitterLanguageForSegment = (languageId, ext) => {
+  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
+  if (languageId === 'typescript' && normalizedExt === '.tsx') return 'tsx';
+  if (languageId === 'javascript' && normalizedExt === '.jsx') return 'jsx';
+  if (languageId === 'clike' || languageId === 'objc' || languageId === 'cpp') {
+    return resolveTreeSitterLanguageForExt(languageId, ext);
+  }
+  if (languageId) return languageId;
+  return resolveTreeSitterLanguageForExt(languageId, ext);
+};
+
+const resolveTreeSitterLanguagesForSegments = ({ segments, primaryLanguageId, ext, treeSitterConfig }) => {
+  if (!treeSitterConfig || treeSitterConfig.enabled === false) return [];
+  const options = { treeSitter: treeSitterConfig };
+  const languages = new Set();
+  const add = (languageId) => {
+    if (!languageId || !TREE_SITTER_LANG_IDS.has(languageId)) return;
+    if (!isTreeSitterEnabled(options, languageId)) return;
+    languages.add(languageId);
+  };
+  add(resolveTreeSitterLanguageForSegment(primaryLanguageId, ext));
+  if (Array.isArray(segments)) {
+    for (const segment of segments) {
+      if (!segment || segment.type !== 'embedded') continue;
+      add(resolveTreeSitterLanguageForSegment(segment.languageId, ext));
+    }
+  }
+  return Array.from(languages);
+};
 
 /**
  * Create a file processor with shared caches.
@@ -130,6 +191,101 @@ export function createFileProcessor(options) {
     sizeCalculation: estimateJsonBytes,
     reporter: cacheReporter
   });
+
+  let treeSitterSerial = Promise.resolve();
+  const runTreeSitterSerial = async (fn) => {
+    const run = treeSitterSerial.then(fn, fn);
+    treeSitterSerial = run.catch(() => {});
+    return run;
+  };
+
+  const chunkSegmentsWithTreeSitterPasses = async ({
+    text,
+    ext,
+    relPath,
+    mode,
+    segments,
+    lineIndex,
+    context,
+    treeSitterConfig
+  }) => {
+    if (!treeSitterConfig || treeSitterConfig.enabled === false) {
+      return chunkSegments({ text, ext, relPath, mode, segments, lineIndex, context });
+    }
+    if (treeSitterConfig.languagePasses === false) {
+      return chunkSegments({ text, ext, relPath, mode, segments, lineIndex, context });
+    }
+    if (!Array.isArray(segments) || !segments.length) {
+      return chunkSegments({ text, ext, relPath, mode, segments, lineIndex, context });
+    }
+    const baseOptions = { treeSitter: treeSitterConfig };
+    const passSegments = new Map();
+    const fallbackSegments = [];
+    for (const segment of segments) {
+      const rawLanguageId = segment?.languageId || context?.languageId || null;
+      const languageId = resolveTreeSitterLanguageForSegment(rawLanguageId, ext);
+      if (!languageId || !TREE_SITTER_LANG_IDS.has(languageId) || !isTreeSitterEnabled(baseOptions, languageId)) {
+        fallbackSegments.push(segment);
+        continue;
+      }
+      if (!passSegments.has(languageId)) passSegments.set(languageId, []);
+      passSegments.get(languageId).push(segment);
+    }
+    if (passSegments.size <= 1 && !fallbackSegments.length) {
+      return chunkSegments({ text, ext, relPath, mode, segments, lineIndex, context });
+    }
+    const chunks = [];
+    if (fallbackSegments.length) {
+      const fallbackContext = {
+        ...context,
+        treeSitter: { ...(treeSitterConfig || {}), enabled: false }
+      };
+      const fallbackChunks = chunkSegments({
+        text,
+        ext,
+        relPath,
+        mode,
+        segments: fallbackSegments,
+        lineIndex,
+        context: fallbackContext
+      });
+      if (fallbackChunks && fallbackChunks.length) chunks.push(...fallbackChunks);
+    }
+    for (const [languageId, languageSegments] of passSegments) {
+      const passTreeSitter = { ...(treeSitterConfig || {}), allowedLanguages: [languageId] };
+      resetTreeSitterParser({ hard: true });
+      pruneTreeSitterLanguages([languageId], {
+        log: languageOptions?.log || log,
+        maxLoadedLanguages: treeSitterConfig?.maxLoadedLanguages,
+        onlyIfExceeds: true
+      });
+      try {
+        await preloadTreeSitterLanguages([languageId], {
+          log: languageOptions?.log,
+          parallel: false,
+          maxLoadedLanguages: treeSitterConfig.maxLoadedLanguages
+        });
+      } catch {
+        // ignore preload failures; chunking will fall back if needed.
+      }
+      const passChunks = chunkSegments({
+        text,
+        ext,
+        relPath,
+        mode,
+        segments: languageSegments,
+        lineIndex,
+        context: {
+          ...context,
+          treeSitter: passTreeSitter
+        }
+      });
+      if (passChunks && passChunks.length) chunks.push(...passChunks);
+    }
+    if (!chunks.length) return chunks;
+    chunks.sort((a, b) => (a.start - b.start) || (a.end - b.end));
+    return chunks;
+  };
 
 
 
@@ -270,16 +426,102 @@ export function createFileProcessor(options) {
     let languageLines = null;
     let languageSetKey = null;
 
-    const { chunks: fileChunks, fileRelations, skip } = await runCpu(async () => {
+    const cpuResult = await runCpu(async () => {
+      const baseTreeSitterConfig = fileEntry?.treeSitterDisabled
+        ? { ...(languageOptions?.treeSitter || {}), enabled: false }
+        : languageOptions?.treeSitter;
+      const allowedLanguages = Array.isArray(fileEntry?.treeSitterAllowedLanguages)
+        ? fileEntry.treeSitterAllowedLanguages
+        : null;
+      const treeSitterConfig = allowedLanguages && allowedLanguages.length
+        && baseTreeSitterConfig?.languagePasses === false
+        ? { ...(baseTreeSitterConfig || {}), allowedLanguages }
+        : baseTreeSitterConfig;
+      const resolvedSegmentsConfig = mode === 'extracted-prose'
+        ? { ...normalizedSegmentsConfig, onlyExtras: true }
+        : normalizedSegmentsConfig;
+      const treeSitterEnabled = treeSitterConfig?.enabled !== false && mode === 'code';
+      const treeSitterLanguagePasses = treeSitterEnabled && treeSitterConfig?.languagePasses !== false;
+      const treeSitterDeferMissing = treeSitterConfig?.deferMissing !== false;
+      const shouldSerializeTreeSitter = treeSitterEnabled && mode === 'code';
+      const treeSitterDeferMissingMax = Number.isFinite(treeSitterConfig?.deferMissingMax)
+        ? Math.max(0, Math.floor(treeSitterConfig.deferMissingMax))
+        : 0;
+      if (!treeSitterLanguagePasses
+        && treeSitterEnabled
+        && treeSitterDeferMissing
+        && treeSitterDeferMissingMax > 0
+        && !fileEntry?.treeSitterDisabled) {
+        const deferrals = Number(fileEntry?.treeSitterDeferrals) || 0;
+        if (deferrals < treeSitterDeferMissingMax) {
+          const languageHint = getLanguageForFile(ext, relKey);
+          const languageIdHint = languageHint?.id || null;
+          const segmentHint = discoverSegments({
+            text,
+            ext,
+            relPath: relKey,
+            mode,
+            languageId: languageIdHint,
+            context: null,
+            segmentsConfig: resolvedSegmentsConfig,
+            extraSegments: []
+          });
+          const requiredLanguages = resolveTreeSitterLanguagesForSegments({
+            segments: segmentHint,
+            primaryLanguageId: languageIdHint,
+            ext,
+            treeSitterConfig
+          });
+          if (requiredLanguages.length) {
+            const batchLanguages = new Set(
+              Array.isArray(fileEntry?.treeSitterBatchLanguages) ? fileEntry.treeSitterBatchLanguages : []
+            );
+            const missingLanguages = requiredLanguages.filter((languageId) => !batchLanguages.has(languageId));
+            if (missingLanguages.length) {
+              return { defer: true, missingLanguages };
+            }
+          }
+        }
+      }
+      const treeSitterConfigForMode = treeSitterEnabled
+        ? treeSitterConfig
+        : { ...(treeSitterConfig || {}), enabled: false };
+      const contextTreeSitterConfig = treeSitterLanguagePasses
+        ? { ...(treeSitterConfigForMode || {}), enabled: false }
+        : treeSitterConfigForMode;
       const languageContextOptions = languageOptions && typeof languageOptions === 'object'
-        ? { ...languageOptions, relationsEnabled, metricsCollector, filePath: abs }
-        : { relationsEnabled, metricsCollector, filePath: abs };
-      const { lang, context: languageContext } = await buildLanguageContext({
-        ext,
-        relPath: relKey,
-        mode,
-        text,
-        options: languageContextOptions
+        ? {
+          ...languageOptions,
+          relationsEnabled,
+          metricsCollector,
+          filePath: abs,
+          treeSitter: contextTreeSitterConfig
+        }
+        : { relationsEnabled, metricsCollector, filePath: abs, treeSitter: contextTreeSitterConfig };
+      const runTreeSitter = shouldSerializeTreeSitter ? runTreeSitterSerial : (fn) => fn();
+      const primaryLanguageId = getLanguageForFile(ext, relKey)?.id || null;
+      const { lang, context: languageContext } = await runTreeSitter(async () => {
+        if (!treeSitterLanguagePasses
+          && treeSitterEnabled
+          && primaryLanguageId
+          && TREE_SITTER_LANG_IDS.has(primaryLanguageId)) {
+          try {
+            await preloadTreeSitterLanguages([primaryLanguageId], {
+              log: languageOptions?.log,
+              parallel: false,
+              maxLoadedLanguages: treeSitterConfigForMode?.maxLoadedLanguages
+            });
+          } catch {
+            // ignore preload failures; prepare will fall back if needed.
+          }
+        }
+        return buildLanguageContext({
+          ext,
+          relPath: relKey,
+          mode,
+          text,
+          options: languageContextOptions
+        });
       });
       fileLanguageId = lang?.id || null;
       if (languageContext?.pythonAstMetrics?.durationMs) {
@@ -325,6 +567,8 @@ export function createFileProcessor(options) {
         : {};
       const commentsEnabled = (mode === 'code' || mode === 'extracted-prose')
         && normalizedCommentsConfig.extract !== 'off';
+      const commentSegmentsEnabled = mode === 'extracted-prose'
+        || (mode === 'code' && normalizedCommentsConfig.includeInCode === true);
       const parseStart = Date.now();
       const commentData = commentsEnabled
         ? extractComments({
@@ -349,7 +593,10 @@ export function createFileProcessor(options) {
           if (commentTokens.length < normalizedCommentsConfig.minTokens) continue;
           const entry = { ...comment, tokens: commentTokens };
           commentEntries.push(entry);
-          if (comment.type !== 'license' || normalizedCommentsConfig.includeLicense) {
+          if (
+            commentSegmentsEnabled
+            && (comment.type !== 'license' || normalizedCommentsConfig.includeLicense)
+          ) {
             commentSegments.push({
               type: 'comment',
               languageId: lang?.id || null,
@@ -366,8 +613,14 @@ export function createFileProcessor(options) {
         }
       }
       const extraSegments = [];
-      if (commentSegments.length) extraSegments.push(...commentSegments);
-      if (Array.isArray(commentData.configSegments) && commentData.configSegments.length) {
+      if (commentSegmentsEnabled && commentSegments.length) {
+        extraSegments.push(...commentSegments);
+      }
+      if (
+        commentSegmentsEnabled
+        && Array.isArray(commentData.configSegments)
+        && commentData.configSegments.length
+      ) {
         extraSegments.push(...commentData.configSegments);
       }
       if (mode === 'extracted-prose' && (ext === '.md' || ext === '.mdx')) {
@@ -384,9 +637,6 @@ export function createFileProcessor(options) {
           });
         }
       }
-      const resolvedSegmentsConfig = mode === 'extracted-prose'
-        ? { ...normalizedSegmentsConfig, onlyExtras: true }
-        : normalizedSegmentsConfig;
       const segments = discoverSegments({
         text,
         ext,
@@ -397,23 +647,35 @@ export function createFileProcessor(options) {
         segmentsConfig: resolvedSegmentsConfig,
         extraSegments
       });
-      const sc = chunkSegments({
-        text,
-        ext,
-        relPath: relKey,
-        mode,
-        segments,
-        lineIndex,
-        context: {
-          ...languageContext,
-          yamlChunking: languageOptions?.yamlChunking,
-          chunking: languageOptions?.chunking,
-          javascript: languageOptions?.javascript,
-          typescript: languageOptions?.typescript,
-          treeSitter: languageOptions?.treeSitter,
-          log: languageOptions?.log
-        }
-      });
+      const segmentContext = {
+        ...languageContext,
+        yamlChunking: languageOptions?.yamlChunking,
+        chunking: languageOptions?.chunking,
+        javascript: languageOptions?.javascript,
+        typescript: languageOptions?.typescript,
+        treeSitter: treeSitterConfigForMode,
+        log: languageOptions?.log
+      };
+      const sc = treeSitterLanguagePasses === false
+        ? await runTreeSitter(() => chunkSegments({
+          text,
+          ext,
+          relPath: relKey,
+          mode,
+          segments,
+          lineIndex,
+          context: segmentContext
+        }))
+        : await runTreeSitter(() => chunkSegmentsWithTreeSitterPasses({
+          text,
+          ext,
+          relPath: relKey,
+          mode,
+          segments,
+          lineIndex,
+          context: segmentContext,
+          treeSitterConfig: treeSitterConfigForMode
+        }));
       addParseDuration(Date.now() - parseStart);
       const chunkLineRanges = sc.map((chunk) => {
         const startLine = chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
@@ -579,7 +841,9 @@ export function createFileProcessor(options) {
                   dictWords: tokenDictWords,
                   dictConfig
                 }).tokens;
-                if (tokens.length) commentFieldTokens = commentFieldTokens.concat(tokens);
+                if (tokens.length) {
+                  for (const token of tokens) commentFieldTokens.push(token);
+                }
               }
               metaComments.push({
                 type: comment.type,
@@ -601,20 +865,9 @@ export function createFileProcessor(options) {
           }
         }
 
-        let fieldChargramTokens = null;
-        if (tokenContext.chargramSource === 'fields') {
-          const fieldText = [c.name, docmeta?.doc].filter(Boolean).join(' ');
-          if (fieldText) {
-            const fieldSeq = buildTokenSequence({
-              text: fieldText,
-              mode: tokenMode,
-              ext,
-              dictWords: tokenDictWords,
-              dictConfig
-            }).seq;
-            if (fieldSeq.length) fieldChargramTokens = fieldSeq;
-          }
-        }
+        // Chargrams are built during postings construction (appendChunk), where we can
+        // honor postingsConfig.chargramSource without duplicating tokenization work here.
+        const fieldChargramTokens = null;
 
         let tokenPayload = null;
         if (useWorkerForTokens) {
@@ -626,7 +879,7 @@ export function createFileProcessor(options) {
               ext,
               file: relKey,
               size: fileStat.size,
-              chargramTokens: fieldChargramTokens,
+              // chargramTokens is intentionally omitted (see note above).
               ...(workerDictOverride ? { dictConfig: workerDictOverride } : {})
             });
             const tokenDurationMs = Date.now() - tokenStart;
@@ -674,7 +927,7 @@ export function createFileProcessor(options) {
             mode: tokenMode,
             ext,
             context: tokenContext,
-            chargramTokens: fieldChargramTokens,
+            // chargramTokens is intentionally omitted (see note above).
             buffers: tokenBuffers
           });
           const tokenDurationMs = Date.now() - tokenStart;
@@ -685,8 +938,6 @@ export function createFileProcessor(options) {
         const {
           tokens,
           seq,
-          ngrams,
-          chargrams,
           minhashSig,
           stats
         } = tokenPayload;
@@ -695,8 +946,8 @@ export function createFileProcessor(options) {
           tokenizationStats.chunks += 1;
           tokenizationStats.tokens += tokens.length;
           tokenizationStats.seq += seq.length;
-          tokenizationStats.ngrams += Array.isArray(ngrams) ? ngrams.length : 0;
-          tokenizationStats.chargrams += Array.isArray(chargrams) ? chargrams.length : 0;
+          // Phrase ngrams and chargrams are computed during postings construction (appendChunk).
+          // We don't materialize them during tokenization to avoid large transient allocations.
         }
 
         if (!seq.length) continue;
@@ -767,8 +1018,6 @@ export function createFileProcessor(options) {
           languageId: fileLanguageId || lang?.id || null,
           tokens,
           seq,
-          ngrams,
-          chargrams,
           codeRelations,
           docmeta,
           stats,
@@ -811,6 +1060,10 @@ export function createFileProcessor(options) {
 
       return { chunks, fileRelations, skip: null };
     });
+    if (cpuResult?.defer) {
+      return cpuResult;
+    }
+    const { chunks: fileChunks, fileRelations, skip } = cpuResult || {};
     if (skip) {
       const { reason, ...extra } = skip;
       recordSkip(abs, reason || 'oversize', extra);

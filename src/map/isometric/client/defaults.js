@@ -22,14 +22,14 @@ export const layoutDefaults = {
 };
 
 export const scoringDefaults = {
-  dataflow: 0.9,
-  controlFlow: 0.9,
-  params: 0.4,
-  signature: 0.03,
-  exported: 1.4,
-  modifiers: 0.4,
-  type: 1.2,
-  returns: 0.8
+  dataflow: 0.85,
+  controlFlow: 0.8,
+  params: 0.35,
+  signature: 0.02,
+  exported: 1.0,
+  modifiers: 0.3,
+  type: 1.0,
+  returns: 0.7
 };
 
 export const colorDefaults = {
@@ -63,15 +63,16 @@ export const visualDefaults = {
   gridGlowBase: 0.2,
   gridGlowRange: 0.38,
   gridPulseSpeed: 0.2,
-  enableFlowLights: true,
-  curveEdges: false,
+  pixelRatioCap: 1.25,
+  enableShadows: false,
+  enableFlowLights: false,
   enableFog: false,
   enableHeightFog: false,
   fogDistance: 2.8,
   fogColor: '#0f1115',
   fogHeight: 4,
   fogHeightRange: 14,
-  enableExtraLights: true,
+  enableExtraLights: false,
   glass: {
     metalness: 0.15,
     roughness: 0.03,
@@ -90,7 +91,7 @@ export const visualDefaults = {
 
 export const controlDefaults = {
   panSensitivity: 1.5,
-  zoomSensitivity: 6,
+  zoomSensitivity: 18,
   zoomDamping: 0.9,
   zoomMin: 1,
   zoomMax: 80,

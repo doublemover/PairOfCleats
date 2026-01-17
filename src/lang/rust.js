@@ -203,7 +203,8 @@ export function buildRustChunks(text, options = {}) {
     if (bounds.bodyStart === -1) {
       end = lineIndex[i] + line.length;
     }
-    const signature = sliceSignature(text, start, bounds.bodyStart);
+    const signatureEnd = bounds.bodyStart > start ? bounds.bodyStart : end;
+    const signature = sliceSignature(text, start, signatureEnd);
     const meta = {
       startLine: i + 1,
       endLine: offsetToLine(lineIndex, end),
@@ -237,7 +238,8 @@ export function buildRustChunks(text, options = {}) {
       mod: 'ModuleDeclaration'
     };
     const kind = kindMap[match[1]] || 'StructDeclaration';
-    const signature = sliceSignature(text, start, bounds.bodyStart);
+    const signatureEnd = bounds.bodyStart > start ? bounds.bodyStart : end;
+    const signature = sliceSignature(text, start, signatureEnd);
     const meta = {
       startLine: i + 1,
       endLine: offsetToLine(lineIndex, end),
@@ -261,7 +263,8 @@ export function buildRustChunks(text, options = {}) {
     const bounds = findCLikeBodyBounds(text, start);
     if (bounds.bodyStart === -1) continue;
     const end = bounds.bodyEnd > start ? bounds.bodyEnd : bounds.bodyStart;
-    const signature = sliceSignature(text, start, bounds.bodyStart);
+    const signatureEnd = bounds.bodyStart > start ? bounds.bodyStart : end;
+    const signature = sliceSignature(text, start, signatureEnd);
     const typeName = parseRustImplTarget(signature);
     if (!typeName) continue;
     const entry = {

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadIndexWithCache } from '../index-cache.js';
+import { MAX_JSON_BYTES, readJsonFile } from '../../shared/artifact-io.js';
 import { resolveIndexDir } from '../cli-index.js';
 
 export function hasLmdbStore(storePath) {
@@ -8,7 +9,7 @@ export function hasLmdbStore(storePath) {
   return fs.existsSync(path.join(storePath, 'data.mdb'));
 }
 
-export function loadIndexCached({
+export async function loadIndexCached({
   indexCache,
   dir,
   modelIdDefault,
@@ -72,7 +73,7 @@ export function loadFileRelations(rootDir, userConfig, mode) {
     const dir = resolveIndexDir(rootDir, mode, userConfig);
     const relPath = path.join(dir, 'file_relations.json');
     if (!fs.existsSync(relPath)) return null;
-    const raw = JSON.parse(fs.readFileSync(relPath, 'utf8'));
+    const raw = readJsonFile(relPath, { maxBytes: MAX_JSON_BYTES });
     if (!Array.isArray(raw)) return null;
     const map = new Map();
     for (const entry of raw) {
@@ -90,7 +91,7 @@ export function loadRepoMap(rootDir, userConfig, mode) {
     const dir = resolveIndexDir(rootDir, mode, userConfig);
     const mapPath = path.join(dir, 'repo_map.json');
     if (!fs.existsSync(mapPath)) return null;
-    const raw = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
+    const raw = readJsonFile(mapPath, { maxBytes: MAX_JSON_BYTES });
     return Array.isArray(raw) ? raw : null;
   } catch {
     return null;

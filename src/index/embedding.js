@@ -31,6 +31,47 @@ export function quantizeVec(vec, minVal = -1, maxVal = 1, levels = 256) {
   );
 }
 
+
+/**
+ * Quantize a float vector into a Uint8Array for compact storage.
+ *
+ * This is intentionally separate from `quantizeVec()` so callers can avoid
+ * retaining large JS number arrays in the V8 heap.
+ *
+ * @param {ArrayLike<number>} vec
+ * @param {number} [minVal]
+ * @param {number} [maxVal]
+ * @param {number} [levels]
+ * @returns {Uint8Array}
+ */
+export function quantizeVecUint8(vec, minVal = -1, maxVal = 1, levels = 256) {
+  if (!vec || typeof vec !== 'object') return new Uint8Array(0);
+  const length = Number.isFinite(vec.length) ? Math.max(0, Math.floor(vec.length)) : 0;
+  if (!length) return new Uint8Array(0);
+
+  const lvlRaw = Number(levels);
+  const lvl = Number.isFinite(lvlRaw) ? Math.max(2, Math.min(256, Math.floor(lvlRaw))) : 256;
+  const min = Number(minVal);
+  const max = Number(maxVal);
+  const range = max - min;
+
+  const out = new Uint8Array(length);
+  if (!Number.isFinite(range) || range === 0) return out;
+
+  const scale = (lvl - 1) / range;
+  const maxQ = lvl - 1;
+
+  for (let i = 0; i < length; i += 1) {
+    const f = vec[i];
+    const q = Math.round((Number(f) - min) * scale);
+    if (q <= 0) out[i] = 0;
+    else if (q >= maxQ) out[i] = maxQ;
+    else out[i] = q;
+  }
+
+  return out;
+}
+
 /**
  * L2-normalize an embedding vector.
  * @param {number[]} vec

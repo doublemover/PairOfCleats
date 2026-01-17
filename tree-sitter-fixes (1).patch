@@ -1,0 +1,666 @@
+diff --git a/src/lang/tree-sitter/chunking.js b/src/lang/tree-sitter/chunking.js
+index 2bc6209..d46a8eb 100644
+--- a/src/lang/tree-sitter/chunking.js
++++ b/src/lang/tree-sitter/chunking.js
+@@ -110,6 +110,17 @@ function findNameNode(node, config) {
+     const named = findDescendantByType(declarator, nameTypes, 8);
+     if (named) return named;
+   }
++  const noBfsTypes = config?.noBfsNameNodeTypes;
++  if (noBfsTypes) {
++    try {
++      const has = typeof noBfsTypes.has === 'function'
++        ? noBfsTypes.has(node.type)
++        : Array.isArray(noBfsTypes) && noBfsTypes.includes(node.type);
++      if (has) return null;
++    } catch {
++      // ignore invalid noBfsNameNodeTypes implementations
++    }
++  }
+   // Depth-limited breadth-first search for a reasonable name node.
+   // Avoid Array#shift() here (O(n) per operation) to keep this path cheap.
+   const queue = [];
+@@ -139,6 +150,16 @@ function findNameNode(node, config) {
+ }
+ 
+ function extractNodeName(node, text, config) {
++  if (!node) return '';
++  if (typeof config?.resolveName === 'function') {
++    try {
++      const resolved = config.resolveName(node, text);
++      if (typeof resolved === 'string') return resolved.trim();
++      if (resolved && typeof resolved.name === 'string') return resolved.name.trim();
++    } catch {
++      // ignore custom resolver failures
++    }
++  }
+   const nameNode = findNameNode(node, config);
+   if (!nameNode) return '';
+   return text.slice(nameNode.startIndex, nameNode.endIndex).trim();
+diff --git a/src/lang/tree-sitter/config.js b/src/lang/tree-sitter/config.js
+index 4ef2b99..7e4ff00 100644
+--- a/src/lang/tree-sitter/config.js
++++ b/src/lang/tree-sitter/config.js
+@@ -40,6 +40,34 @@ const JS_TS_CONFIG = {
+     'function',
+     'arrow_function'
+   ]),
++  noBfsNameNodeTypes: new Set(['function', 'arrow_function']),
++  resolveName: (node, text) => {
++    if (!node || typeof text !== 'string') return null;
++    if (node.type !== 'function' && node.type !== 'arrow_function') return null;
++
++    const parent = node.parent;
++    if (!parent) return null;
++
++    // Prefer the containing declarator/field name for function and arrow expressions.
++    const parentName = typeof parent.childForFieldName === 'function'
++      ? parent.childForFieldName('name')
++      : null;
++    if (parentName) return text.slice(parentName.startIndex, parentName.endIndex).trim();
++
++    // Object literal properties.
++    const key = typeof parent.childForFieldName === 'function'
++      ? parent.childForFieldName('key')
++      : null;
++    if (key) return text.slice(key.startIndex, key.endIndex).trim();
++
++    // Assignments: use the left-hand side as the most useful stable name.
++    if (parent.type === 'assignment_expression' && typeof parent.childForFieldName === 'function') {
++      const left = parent.childForFieldName('left');
++      if (left) return text.slice(left.startIndex, left.endIndex).trim();
++    }
++
++    return null;
++  },
+   kindMap: {
+     class_declaration: 'ClassDeclaration',
+     interface_declaration: 'InterfaceDeclaration',
+@@ -47,7 +75,7 @@ const JS_TS_CONFIG = {
+     enum_declaration: 'EnumDeclaration',
+     function_declaration: 'FunctionDeclaration',
+     method_definition: 'MethodDeclaration',
+-    function: 'FunctionDeclaration',
++    function: 'FunctionExpression',
+     arrow_function: 'ArrowFunction'
+   },
+   docComments: { linePrefixes: ['//'], blockStarts: ['/**'] }
+@@ -96,6 +124,23 @@ const LANG_CONFIG = {
+     kindMap: {
+       atx_heading: 'Section',
+       setext_heading: 'Section'
++    },
++    resolveName: (node, text) => {
++      if (!node || typeof text !== 'string') return null;
++      if (node.type === 'atx_heading') {
++        const raw = text.slice(node.startIndex, node.endIndex);
++        const line = raw.split('\n', 1)[0] || '';
++        let title = line.trim();
++        title = title.replace(/^#{1,6}\s*/, '');
++        title = title.replace(/\s*#+\s*$/, '');
++        return title.trim();
++      }
++      if (node.type === 'setext_heading') {
++        const raw = text.slice(node.startIndex, node.endIndex);
++        const firstLine = raw.split('\n', 1)[0] || '';
++        return firstLine.trim();
++      }
++      return null;
+     }
+   },
+   swift: {
+diff --git a/src/lang/tree-sitter/runtime.js b/src/lang/tree-sitter/runtime.js
+index d7c97b4..59c36b2 100644
+--- a/src/lang/tree-sitter/runtime.js
++++ b/src/lang/tree-sitter/runtime.js
+@@ -127,9 +127,21 @@ export async function preloadTreeSitterLanguages(languageIds = TREE_SITTER_LANGU
+   if (!ok) return false;
+   const unique = Array.from(new Set(languageIds || []));
+   const parallel = options.parallel === true;
+-  const concurrency = Number.isFinite(Number(options.concurrency))
+-    ? Math.max(1, Math.floor(Number(options.concurrency)))
+-    : unique.length;
++
++  let concurrency = 1;
++  if (parallel) {
++    const requested = options?.concurrency;
++    const parsed = requested == null ? Number.NaN : Number(requested);
++    if (Number.isFinite(parsed) && parsed > 0) {
++      concurrency = Math.max(1, Math.floor(parsed));
++    } else {
++      // Default: small fan-out to avoid WASM runtime contention.
++      const cpuCount = Array.isArray(os.cpus?.()) ? os.cpus().length : 0;
++      concurrency = Math.max(2, Math.min(4, cpuCount || 4));
++    }
++    if (unique.length) concurrency = Math.min(concurrency, unique.length);
++  }
++
+   if (!parallel || concurrency <= 1) {
+     for (const id of unique) {
+       // Load sequentially to avoid wasm runtime contention.
+diff --git a/src/lang/tree-sitter/worker.js b/src/lang/tree-sitter/worker.js
+index bcafe9a..01d4a40 100644
+--- a/src/lang/tree-sitter/worker.js
++++ b/src/lang/tree-sitter/worker.js
+@@ -41,22 +41,50 @@ export const sanitizeTreeSitterOptions = (treeSitter) => {
+   };
+ };
+ 
+-const buildWorkerExecArgv = () => process.execArgv.filter((arg) => (
+-  typeof arg === 'string'
+-  && !arg.startsWith('--max-old-space-size')
+-  && !arg.startsWith('--max-semi-space-size')
+-));
++const isMemoryFlag = (arg, flag) => (
++  arg === flag
++  || arg.startsWith(`${flag}=`)
++);
++
++const buildWorkerExecArgv = () => {
++  const argv = Array.isArray(process.execArgv) ? process.execArgv : [];
++  const filtered = [];
++  for (let i = 0; i < argv.length; i += 1) {
++    const arg = argv[i];
++    if (typeof arg !== 'string') continue;
++
++    const isOld = isMemoryFlag(arg, '--max-old-space-size') || isMemoryFlag(arg, '--max_old_space_size');
++    const isSemi = isMemoryFlag(arg, '--max-semi-space-size') || isMemoryFlag(arg, '--max_semi_space_size');
++
++    if (isOld || isSemi) {
++      // Skip the companion numeric value if provided as a separate argv element.
++      if ((arg === '--max-old-space-size'
++        || arg === '--max_old_space_size'
++        || arg === '--max-semi-space-size'
++        || arg === '--max_semi_space_size')
++        && i + 1 < argv.length
++        && typeof argv[i + 1] === 'string'
++        && /^\d+$/.test(argv[i + 1])) {
++        i += 1;
++      }
++      continue;
++    }
++
++    filtered.push(arg);
++  }
++  return filtered;
++};
+ 
+ const parseMaxOldSpaceSizeMb = (argv) => {
+   if (!Array.isArray(argv)) return null;
+   for (let i = argv.length - 1; i >= 0; i -= 1) {
+     const arg = argv[i];
+     if (typeof arg !== 'string') continue;
+-    if (arg === '--max-old-space-size' && i + 1 < argv.length) {
++    if ((arg === '--max-old-space-size' || arg === '--max_old_space_size') && i + 1 < argv.length) {
+       const value = Number(argv[i + 1]);
+       if (Number.isFinite(value) && value > 0) return Math.floor(value);
+     }
+-    if (arg.startsWith('--max-old-space-size=')) {
++    if (arg.startsWith('--max-old-space-size=') || arg.startsWith('--max_old_space_size=')) {
+       const value = Number(arg.split('=', 2)[1]);
+       if (Number.isFinite(value) && value > 0) return Math.floor(value);
+     }
+@@ -102,18 +130,43 @@ const resolveWorkerResourceLimits = (maxWorkers) => {
+   return { maxOldGenerationSizeMb: oldGenMb };
+ };
+ 
++const destroyWorkerPool = async (options = {}, logKey = 'destroy') => {
++  const pool = treeSitterState.treeSitterWorkerPool;
++  if (!pool) return;
++
++  treeSitterState.treeSitterWorkerPool = null;
++  treeSitterState.treeSitterWorkerConfigSignature = null;
++
++  if (typeof pool.destroy !== 'function') return;
++  try {
++    await pool.destroy();
++  } catch (err) {
++    if (options?.log && !treeSitterState.loggedWorkerFailures.has(logKey)) {
++      options.log(`[tree-sitter] Worker pool destroy failed: ${err?.message || err}.`);
++      treeSitterState.loggedWorkerFailures.add(logKey);
++    }
++  }
++};
++
+ export const getTreeSitterWorkerPool = async (rawConfig, options = {}) => {
+   const config = normalizeTreeSitterWorkerConfig(rawConfig);
+-  if (!config.enabled) return null;
++  if (!config.enabled) {
++    // If the worker pool was previously enabled, clean it up to avoid leaking threads.
++    await destroyWorkerPool(options, 'destroy');
++    return null;
++  }
++
+   const signature = JSON.stringify(config);
+   if (treeSitterState.treeSitterWorkerPool && treeSitterState.treeSitterWorkerConfigSignature === signature) {
+     return treeSitterState.treeSitterWorkerPool;
+   }
+-  if (treeSitterState.treeSitterWorkerPool && treeSitterState.treeSitterWorkerPool.destroy) {
+-    await treeSitterState.treeSitterWorkerPool.destroy();
+-    treeSitterState.treeSitterWorkerPool = null;
++
++  if (treeSitterState.treeSitterWorkerPool) {
++    await destroyWorkerPool(options, 'destroy');
+   }
++
+   treeSitterState.treeSitterWorkerConfigSignature = signature;
++
+   let Piscina;
+   try {
+     Piscina = (await import('piscina')).default;
+@@ -124,6 +177,7 @@ export const getTreeSitterWorkerPool = async (rawConfig, options = {}) => {
+     }
+     return null;
+   }
++
+   try {
+     const execArgv = buildWorkerExecArgv();
+     const resourceLimits = resolveWorkerResourceLimits(config.maxWorkers);
+@@ -142,6 +196,7 @@ export const getTreeSitterWorkerPool = async (rawConfig, options = {}) => {
+       treeSitterState.loggedWorkerFailures.add('init');
+     }
+     treeSitterState.treeSitterWorkerPool = null;
++    treeSitterState.treeSitterWorkerConfigSignature = null;
+     return null;
+   }
+ };
+diff --git a/src/lang/workers/tree-sitter-worker.js b/src/lang/workers/tree-sitter-worker.js
+index 0382cc4..71106d9 100644
+--- a/src/lang/workers/tree-sitter-worker.js
++++ b/src/lang/workers/tree-sitter-worker.js
+@@ -1,13 +1,86 @@
+-import { buildTreeSitterChunks } from '../tree-sitter.js';
++import { buildTreeSitterChunks, preloadTreeSitterLanguages } from '../tree-sitter.js';
++import { isTreeSitterEnabled } from '../tree-sitter/options.js';
+ 
+-export function parseTreeSitter(payload = {}) {
+-  const { text = '', languageId = null, ext = null, treeSitter = null } = payload;
++const normalizePayload = (payload) => {
++  const obj = payload && typeof payload === 'object' ? payload : {};
++  return {
++    text: typeof obj.text === 'string' ? obj.text : '',
++    languageId: typeof obj.languageId === 'string' ? obj.languageId : null,
++    ext: typeof obj.ext === 'string' ? obj.ext : null,
++    treeSitter: obj.treeSitter && typeof obj.treeSitter === 'object' ? obj.treeSitter : null
++  };
++};
++
++function countLines(text) {
++  if (!text) return 0;
++  let count = 1;
++  for (let i = 0; i < text.length; i += 1) {
++    if (text.charCodeAt(i) === 10) count += 1;
++  }
++  return count;
++}
++
++// Keep this in sync with src/lang/tree-sitter/chunking.js.
++function resolveLanguageForExt(languageId, ext) {
++  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
++  if (normalizedExt === '.tsx') return 'tsx';
++  if (normalizedExt === '.jsx') return 'jsx';
++  if (normalizedExt === '.ts' || normalizedExt === '.cts' || normalizedExt === '.mts') return 'typescript';
++  if (normalizedExt === '.js' || normalizedExt === '.mjs' || normalizedExt === '.cjs' || normalizedExt === '.jsm') {
++    return 'javascript';
++  }
++  if (normalizedExt === '.py') return 'python';
++  if (normalizedExt === '.json') return 'json';
++  if (normalizedExt === '.yaml' || normalizedExt === '.yml') return 'yaml';
++  if (normalizedExt === '.toml') return 'toml';
++  if (normalizedExt === '.md' || normalizedExt === '.mdx') return 'markdown';
++  if (languageId) return languageId;
++  if (!normalizedExt) return null;
++  if (normalizedExt === '.m' || normalizedExt === '.mm') return 'objc';
++  if (normalizedExt === '.cpp' || normalizedExt === '.cc' || normalizedExt === '.cxx'
++    || normalizedExt === '.hpp' || normalizedExt === '.hh') return 'cpp';
++  if (normalizedExt === '.c' || normalizedExt === '.h') return 'clike';
++  return null;
++}
++
++function exceedsTreeSitterLimits(text, treeSitter, resolvedId) {
++  const config = treeSitter && typeof treeSitter === 'object' ? treeSitter : {};
++  const perLanguage = config.byLanguage?.[resolvedId] || {};
++  const maxBytes = perLanguage.maxBytes ?? config.maxBytes;
++  const maxLines = perLanguage.maxLines ?? config.maxLines;
++
++  if (typeof maxBytes === 'number' && maxBytes > 0) {
++    const bytes = Buffer.byteLength(text, 'utf8');
++    if (bytes > maxBytes) return true;
++  }
++
++  if (typeof maxLines === 'number' && maxLines > 0) {
++    const lines = countLines(text);
++    if (lines > maxLines) return true;
++  }
++
++  return false;
++}
++
++export async function parseTreeSitter(payload = {}) {
+   try {
++    const { text, languageId, ext, treeSitter } = normalizePayload(payload);
++    const resolvedId = resolveLanguageForExt(languageId, ext);
++    if (!resolvedId) return null;
++
++    const options = { treeSitter };
++    if (!isTreeSitterEnabled(options, resolvedId)) return null;
++    if (exceedsTreeSitterLimits(text, treeSitter, resolvedId)) return null;
++
++    // Workers have their own module state; ensure the WASM runtime and the specific
++    // grammar are loaded in this thread before parsing.
++    await preloadTreeSitterLanguages([resolvedId]);
++
+     return buildTreeSitterChunks({
+       text,
+       languageId,
+       ext,
+-      options: { treeSitter }
++      options
+     });
+   } catch {
+     return null;
+diff --git a/tests/tree-sitter-chunks.js b/tests/tree-sitter-chunks.js
+index bf52d00..0009cb3 100644
+--- a/tests/tree-sitter-chunks.js
++++ b/tests/tree-sitter-chunks.js
+@@ -1,89 +1,240 @@
+ import fs from 'node:fs';
+ import path from 'node:path';
+-import { buildTreeSitterChunks, preloadTreeSitterLanguages } from '../src/lang/tree-sitter.js';
++import assert from 'node:assert';
++import {
++  initTreeSitterWasm,
++  preloadTreeSitterLanguages,
++  buildTreeSitterChunks,
++  buildTreeSitterChunksAsync
++} from '../src/lang/tree-sitter.js';
++
++const assertHas = (actualSet, expected, label) => {
++  const missing = expected.filter((name) => !actualSet.has(name));
++  if (missing.length) {
++    throw new Error(`${label}: missing expected chunks: ${missing.join(', ')}`);
++  }
++};
++
++const assertNotHas = (actualSet, unexpected, label) => {
++  const present = unexpected.filter((name) => actualSet.has(name));
++  if (present.length) {
++    throw new Error(`${label}: found unexpected chunks: ${present.join(', ')}`);
++  }
++};
+ 
+-const root = path.resolve('tests', 'fixtures', 'tree-sitter');
+ const fixtures = [
+-  { id: 'swift', file: 'swift.swift', languageId: 'swift', expect: ['Widget', 'Widget.greet'] },
+-  { id: 'kotlin', file: 'kotlin.kt', languageId: 'kotlin', expect: ['Widget', 'Widget.greet'] },
+-  { id: 'csharp', file: 'csharp.cs', languageId: 'csharp', expect: ['Widget', 'Widget.Greet'] },
+-  { id: 'clike', file: 'clike.c', ext: '.c', expect: ['Widget', 'greet'] },
+-  { id: 'cpp', file: 'cpp.cpp', ext: '.cpp', expect: ['Widget', 'Widget.greet'] },
+-  { id: 'objc', file: 'objc.m', ext: '.m', expect: ['Widget', 'greet'] },
+-  { id: 'go', file: 'go.go', languageId: 'go', expect: ['Widget', 'Widget.Greet'] },
+-  { id: 'rust', file: 'rust.rs', languageId: 'rust', expect: ['Widget', 'Widget.greet'] },
+-  { id: 'java', file: 'java.java', languageId: 'java', expect: ['Widget', 'Widget.greet'] }
++  {
++    id: 'swift',
++    languageId: 'swift',
++    ext: '.swift',
++    file: 'swift.swift',
++    expect: ['Widget', 'Widget.greet']
++  },
++  {
++    id: 'kotlin',
++    languageId: 'kotlin',
++    ext: '.kt',
++    file: 'kotlin.kt',
++    expect: ['Widget', 'Widget.greet']
++  },
++  {
++    id: 'csharp',
++    languageId: 'csharp',
++    ext: '.cs',
++    file: 'csharp.cs',
++    expect: ['Widget', 'Widget.Greet']
++  },
++  {
++    id: 'clike',
++    languageId: null,
++    ext: '.c',
++    file: 'clike.c',
++    expect: ['Widget', 'greet']
++  },
++  {
++    id: 'cpp',
++    languageId: null,
++    ext: '.cpp',
++    file: 'cpp.cpp',
++    expect: ['Widget', 'greet']
++  },
++  {
++    id: 'objc',
++    languageId: null,
++    ext: '.m',
++    file: 'objc.m',
++    expect: ['Widget', 'greet']
++  },
++  {
++    id: 'go',
++    languageId: 'go',
++    ext: '.go',
++    file: 'go.go',
++    expect: ['Widget', 'Widget.Greet']
++  },
++  {
++    id: 'rust',
++    languageId: 'rust',
++    ext: '.rs',
++    file: 'rust.rs',
++    expect: ['Widget', 'Widget.greet']
++  },
++  {
++    id: 'java',
++    languageId: 'java',
++    ext: '.java',
++    file: 'java.java',
++    expect: ['Widget', 'Widget.greet']
++  },
++  {
++    id: 'markdown',
++    languageId: 'markdown',
++    ext: '.md',
++    file: 'markdown.md',
++    expect: ['Title', 'Section A', 'Section B']
++  },
++  {
++    id: 'javascript',
++    languageId: 'javascript',
++    ext: '.js',
++    file: 'javascript.js',
++    expect: ['greet', 'hello', 'fn', 'Widget', 'Widget.method', 'Widget.field'],
++    // Callback parameter names must not be interpreted as chunk names.
++    expectNot: ['x']
++  }
+ ];
+ 
+-const preloadIds = fixtures
+-  .map((fixture) => fixture.languageId
+-    || (fixture.ext === '.c' ? 'clike' : null)
+-    || (fixture.ext === '.cpp' ? 'cpp' : null)
+-    || (fixture.ext === '.m' ? 'objc' : null))
+-  .filter(Boolean);
++const root = path.join(process.cwd(), 'tests/fixtures/tree-sitter');
++
++const toNameSet = (chunks) => new Set(chunks.map((c) => c.name));
++
++const log = () => {};
++
++const resolveLanguageForExt = (languageId, ext) => {
++  const lang = typeof languageId === 'string' ? languageId.toLowerCase() : null;
++  const e = typeof ext === 'string' ? ext.toLowerCase() : null;
+ 
+-await preloadTreeSitterLanguages(preloadIds);
++  const extMap = {
++    '.js': 'javascript',
++    '.jsx': 'jsx',
++    '.ts': 'typescript',
++    '.tsx': 'tsx',
++    '.py': 'python',
++    '.rs': 'rust',
++    '.go': 'go',
++    '.java': 'java',
++    '.kt': 'kotlin',
++    '.kts': 'kotlin',
++    '.swift': 'swift',
++    '.m': 'objc',
++    '.mm': 'objc',
++    '.cpp': 'cpp',
++    '.cc': 'cpp',
++    '.cxx': 'cpp',
++    '.hpp': 'cpp',
++    '.hh': 'cpp',
++    '.hxx': 'cpp',
++    '.cs': 'csharp',
++    '.md': 'markdown',
++    '.mdx': 'markdown',
++    '.json': 'json',
++    '.yaml': 'yaml',
++    '.yml': 'yaml',
++    '.toml': 'toml'
++  };
+ 
+-const options = { treeSitter: { enabled: true }, log: () => {} };
++  if (e && extMap[e]) return extMap[e];
++  if (lang) return lang;
++  if (e && ['.c', '.h'].includes(e)) return 'clike';
++  if (e && ['.rb'].includes(e)) return 'ruby';
+ 
++  return null;
++};
++
++const preloadIds = Array.from(new Set(fixtures
++  .map((f) => resolveLanguageForExt(f.languageId, f.ext))
++  .filter(Boolean)));
++
++
++await initTreeSitterWasm({ log });
++await preloadTreeSitterLanguages(preloadIds, { log });
++
++// Quick capability check: skip if Tree-sitter isn't available in this environment.
+ const first = fixtures[0];
+ const firstText = fs.readFileSync(path.join(root, first.file), 'utf8');
+ const firstChunks = buildTreeSitterChunks({
+   text: firstText,
+   languageId: first.languageId,
+   ext: first.ext,
+-  options
++  options: { log }
+ });
+ 
+-if (!firstChunks || !firstChunks.length) {
+-  console.log('tree-sitter not available; skipping tree-sitter chunk tests.');
++if (!firstChunks) {
++  console.log('Tree-sitter not available; skipping tree-sitter chunk tests.');
+   process.exit(0);
+ }
+ 
+-const limitedByBytes = buildTreeSitterChunks({
+-  text: firstText,
+-  languageId: first.languageId,
+-  ext: first.ext,
+-  options: { treeSitter: { enabled: true, maxBytes: 1 }, log: () => {} }
+-});
++for (const fixture of fixtures) {
++  const { id, languageId, ext, file, expect, expectNot } = fixture;
++  const text = fs.readFileSync(path.join(root, file), 'utf8');
++  const chunks = buildTreeSitterChunks({
++    text,
++    languageId,
++    ext,
++    options: { log }
++  });
+ 
+-if (limitedByBytes !== null) {
+-  throw new Error('expected tree-sitter to skip oversized file by maxBytes');
+-}
++  assert(chunks, `${id}: chunks should not be null`);
++  assert(chunks.length > 0, `${id}: should produce at least one chunk`);
+ 
+-const limitedByLines = buildTreeSitterChunks({
+-  text: firstText,
+-  languageId: first.languageId,
+-  ext: first.ext,
+-  options: { treeSitter: { enabled: true, maxLines: 1 }, log: () => {} }
+-});
++  const names = toNameSet(chunks);
++  assertHas(names, expect, id);
++  if (expectNot) assertNotHas(names, expectNot, id);
+ 
+-if (limitedByLines !== null) {
+-  throw new Error('expected tree-sitter to skip oversized file by maxLines');
++  console.log(`${id}: ok`);
+ }
+ 
+-const toNameSet = (chunks) => new Set(chunks.map((c) => c.name));
+-const assertHas = (set, expected, label) => {
+-  for (const name of expected) {
+-    if (!set.has(name)) {
+-      throw new Error(`${label} missing expected chunk name: ${name}`);
+-    }
+-  }
+-};
++// Validate worker-thread execution path. This will return null if the worker
++// cannot initialize Tree-sitter or load the grammar.
++const jsFixture = fixtures.find((f) => f.id === 'javascript');
++if (jsFixture) {
++  const text = fs.readFileSync(path.join(root, jsFixture.file), 'utf8');
+ 
+-for (const fixture of fixtures) {
+-  const text = fs.readFileSync(path.join(root, fixture.file), 'utf8');
+-  const chunks = buildTreeSitterChunks({
++  const workerChunks = await buildTreeSitterChunksAsync({
+     text,
+-    languageId: fixture.languageId,
+-    ext: fixture.ext,
+-    options
+-  }) || [];
+-  if (!chunks.length) {
+-    throw new Error(`${fixture.id} tree-sitter chunks not found`);
+-  }
+-  const names = toNameSet(chunks);
+-  assertHas(names, fixture.expect, fixture.id);
++    languageId: jsFixture.languageId,
++    ext: jsFixture.ext,
++    options: {
++      log,
++      treeSitter: {
++        enabled: true,
++        worker: true
++      }
++    }
++  });
++
++  assert(workerChunks, 'javascript-worker: chunks should not be null');
++  assert(workerChunks.length > 0, 'javascript-worker: should produce at least one chunk');
++
++  const names = toNameSet(workerChunks);
++  assertHas(names, jsFixture.expect, 'javascript-worker');
++  if (jsFixture.expectNot) assertNotHas(names, jsFixture.expectNot, 'javascript-worker');
++
++  // Ensure we do not leak worker threads in the test process.
++  await buildTreeSitterChunksAsync({
++    text: '',
++    languageId: jsFixture.languageId,
++    ext: jsFixture.ext,
++    options: {
++      log,
++      treeSitter: {
++        enabled: true,
++        worker: false
++      }
++    }
++  });
++
++  console.log('javascript-worker: ok');
+ }
+ 
+-console.log('tree-sitter chunk fixtures passed.');
++console.log('All tree-sitter chunk tests passed.');

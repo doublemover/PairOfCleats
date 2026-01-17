@@ -141,6 +141,13 @@ export function rankBM25Fields({
   }
   if (allowedIdx && allowedIdx.size === 0) return [];
 
+  // NOTE:
+  // The build pipeline may intentionally omit a dedicated "body" field postings map
+  // because the unfielded token index already covers the body and maintaining both
+  // roughly doubles memory. When that happens we treat "body" as an alias of the
+  // unfielded token index at query time.
+  const tokenIndex = getTokenIndex(idx);
+
   const qtf = new Map();
   tokens.forEach((tok) => qtf.set(tok, (qtf.get(tok) || 0) + 1));
 
@@ -148,7 +155,18 @@ export function rankBM25Fields({
   for (const [field, weight] of Object.entries(fieldWeights)) {
     const fieldWeight = Number(weight);
     if (!Number.isFinite(fieldWeight) || fieldWeight <= 0) continue;
-    const index = fields[field];
+
+    let index = fields[field];
+
+    // Fallback: use unfielded index for body weighting when the field index is
+    // absent or effectively empty.
+    if (field === 'body' && tokenIndex) {
+      const emptyBody = !index
+        || !Array.isArray(index.vocab) || index.vocab.length === 0
+        || !Array.isArray(index.postings) || index.postings.length === 0;
+      if (emptyBody) index = tokenIndex;
+    }
+
     if (!index || !index.vocab || !index.postings) continue;
     if (!index.vocabIndex) {
       index.vocabIndex = new Map(index.vocab.map((t, i) => [t, i]));

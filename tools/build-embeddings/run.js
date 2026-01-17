@@ -10,6 +10,7 @@ import { loadChunkMeta, readJsonFile, MAX_JSON_BYTES } from '../../src/shared/ar
 import { readTextFileWithHash } from '../../src/shared/encoding.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { resolveHnswPaths } from '../../src/shared/hnsw.js';
+import { normalizeLanceDbConfig } from '../../src/shared/lancedb.js';
 import { getIndexDir, getRepoCacheRoot } from '../dict-utils.js';
 import { buildCacheIdentity, buildCacheKey, isCacheValid, resolveCacheDir, resolveCacheRoot } from './cache.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
@@ -23,6 +24,7 @@ import {
   validateCachedDims
 } from './embed.js';
 import { createHnswBuilder } from './hnsw.js';
+import { writeLanceDbIndex } from './lancedb.js';
 import { updatePieceManifest } from './manifest.js';
 import { updateSqliteDense } from './sqlite-dense.js';
 import { parseBuildEmbeddingsArgs } from './cli.js';
@@ -65,6 +67,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     indexRoot,
     modes
   } = config;
+  const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
 
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
     console.error('Embeddings disabled; skipping build-embeddings.');
@@ -108,7 +111,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
   }
 
   for (const mode of modes) {
-    if (!['code', 'prose'].includes(mode)) {
+    if (!['code', 'prose', 'extracted-prose'].includes(mode)) {
       console.error(`Invalid mode: ${mode}`);
       process.exit(1);
     }
@@ -146,7 +149,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     let chunkMeta;
     try {
       if (hasChunkMeta) {
-        chunkMeta = loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES });
+        chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES });
       }
     } catch (err) {
       if (err?.code === 'ERR_JSON_TOO_LARGE') {
@@ -486,6 +489,41 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       }
     }
 
+    try {
+      await writeLanceDbIndex({
+        indexDir,
+        variant: 'merged',
+        vectors: mergedVectors,
+        dims: finalDims,
+        modelId,
+        config: lanceConfig,
+        emitOutput: true,
+        label: `${mode}/merged`
+      });
+      await writeLanceDbIndex({
+        indexDir,
+        variant: 'doc',
+        vectors: docVectors,
+        dims: finalDims,
+        modelId,
+        config: lanceConfig,
+        emitOutput: true,
+        label: `${mode}/doc`
+      });
+      await writeLanceDbIndex({
+        indexDir,
+        variant: 'code',
+        vectors: codeVectors,
+        dims: finalDims,
+        modelId,
+        config: lanceConfig,
+        emitOutput: true,
+        label: `${mode}/code`
+      });
+    } catch (err) {
+      console.warn(`[embeddings] ${mode}: failed to write LanceDB indexes: ${err?.message || err}`);
+    }
+
     const now = new Date().toISOString();
     indexState.generatedAt = indexState.generatedAt || now;
     indexState.updatedAt = now;
@@ -518,18 +556,20 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       // Ignore piece manifest write failures.
     }
 
-    updateSqliteDense({
-      Database,
-      root,
-      userConfig,
-      indexRoot,
-      mode,
-      vectors: mergedVectors,
-      dims: finalDims,
-      scale: denseScale,
-      modelId,
-      emitOutput: true
-    });
+    if (mode === 'code' || mode === 'prose') {
+      updateSqliteDense({
+        Database,
+        root,
+        userConfig,
+        indexRoot,
+        mode,
+        vectors: mergedVectors,
+        dims: finalDims,
+        scale: denseScale,
+        modelId,
+        emitOutput: true
+      });
+    }
 
     const validation = await validateIndexArtifacts({
       root,

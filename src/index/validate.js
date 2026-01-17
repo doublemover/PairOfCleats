@@ -11,6 +11,7 @@ import { normalizePostingsConfig } from '../shared/postings-config.js';
 import { loadChunkMeta, loadTokenPostings, readJsonFile } from '../shared/artifact-io.js';
 import { checksumFile, sha1File } from '../shared/hash.js';
 import { validateArtifact } from '../shared/artifact-schemas.js';
+import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../shared/lancedb.js';
 import { Unpackr } from 'msgpackr';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../storage/lmdb/schema.js';
 
@@ -246,6 +247,12 @@ export async function validateIndexArtifacts(input = {}) {
     optionalFiles.push('dense_vectors_doc_uint8.json');
     optionalFiles.push('dense_vectors_code_uint8.json');
   }
+  const lanceConfig = normalizeLanceDbConfig(userConfig.indexing?.embeddings?.lancedb || {});
+  if (lanceConfig.enabled) {
+    optionalFiles.push('dense_vectors.lancedb.meta.json');
+    optionalFiles.push('dense_vectors_doc.lancedb.meta.json');
+    optionalFiles.push('dense_vectors_code.lancedb.meta.json');
+  }
 
   for (const mode of modes) {
     const dir = resolveIndexDir(root, mode, userConfig, indexRoot);
@@ -361,7 +368,7 @@ export async function validateIndexArtifacts(input = {}) {
       }
     }
     try {
-      const chunkMeta = loadChunkMeta(dir);
+      const chunkMeta = await loadChunkMeta(dir);
       validateSchema(report, mode, 'chunk_meta', chunkMeta, 'Rebuild index artifacts for this mode.');
       validateChunkIds(report, mode, chunkMeta);
       validateMetaV2(report, mode, chunkMeta);
@@ -553,6 +560,28 @@ export async function validateIndexArtifacts(input = {}) {
         const hnswIndexPath = path.join(dir, 'dense_vectors_hnsw.bin');
         if (!fs.existsSync(hnswIndexPath)) {
           addIssue(report, mode, 'dense_vectors_hnsw index missing', 'Rebuild embeddings for this mode.');
+        }
+      }
+      if (lanceConfig.enabled) {
+        const lancePaths = resolveLanceDbPaths(dir);
+        const lanceTargets = [
+          { label: 'dense_vectors_lancedb', metaPath: lancePaths.merged.metaPath, dir: lancePaths.merged.dir },
+          { label: 'dense_vectors_doc_lancedb', metaPath: lancePaths.doc.metaPath, dir: lancePaths.doc.dir },
+          { label: 'dense_vectors_code_lancedb', metaPath: lancePaths.code.metaPath, dir: lancePaths.code.dir }
+        ];
+        for (const target of lanceTargets) {
+          if (!fs.existsSync(target.metaPath)) continue;
+          const meta = readJsonFile(target.metaPath);
+          validateSchema(report, mode, 'dense_vectors_lancedb_meta', meta, 'Rebuild embeddings for this mode.');
+          if (Number.isFinite(meta?.count) && meta.count !== chunkMeta.length) {
+            const issue = `${target.label} count mismatch (${meta.count} !== ${chunkMeta.length})`;
+            modeReport.ok = false;
+            modeReport.missing.push(issue);
+            report.issues.push(`[${mode}] ${issue}`);
+          }
+          if (!fs.existsSync(target.dir)) {
+            addIssue(report, mode, `${target.label} directory missing`, 'Rebuild embeddings for this mode.');
+          }
         }
       }
     } catch (err) {

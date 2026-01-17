@@ -161,6 +161,20 @@ const writeJsonValue = async (stream, value) => {
     await writeChunk(stream, JSON.stringify(normalized));
     return;
   }
+  // Treat TypedArrays (e.g. Uint8Array) as JSON arrays.
+  // This lets us keep large numeric payloads (like quantized embeddings)
+  // out of V8's old-space while still emitting schema-compatible JSON.
+  if (ArrayBuffer.isView(normalized) && !(normalized instanceof DataView)) {
+    await writeChunk(stream, '[');
+    let first = true;
+    for (let i = 0; i < normalized.length; i += 1) {
+      if (!first) await writeChunk(stream, ',');
+      await writeChunk(stream, JSON.stringify(normalized[i]));
+      first = false;
+    }
+    await writeChunk(stream, ']');
+    return;
+  }
   if (Array.isArray(normalized)) {
     await writeChunk(stream, '[');
     let first = true;

@@ -25,7 +25,7 @@ const userConfig = loadUserConfig(root);
 const mode = String(argv.mode || 'code').toLowerCase();
 const indexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
 const indexDir = getIndexDir(root, mode, userConfig, indexRoot ? { indexRoot } : {});
-const chunks = loadChunkMeta(indexDir);
+const chunks = await loadChunkMeta(indexDir);
 if (!Array.isArray(chunks) || !chunks.length) {
   console.error(`No chunk metadata found at ${indexDir}`);
   process.exit(1);

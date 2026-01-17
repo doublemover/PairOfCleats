@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import {
   hasIndexMeta,
   loadFileRelations,
@@ -8,10 +9,12 @@ import {
 } from './index-loader.js';
 import { loadIndex, requireIndexDir, resolveIndexDir } from '../cli-index.js';
 import { resolveModelIds } from './model-ids.js';
+import { MAX_JSON_BYTES, readJsonFile } from '../../shared/artifact-io.js';
+import { resolveLanceDbPaths, resolveLanceDbTarget } from '../../shared/lancedb.js';
 
 const EMPTY_INDEX = { chunkMeta: [], denseVec: null, minhash: null };
 
-export function loadSearchIndexes({
+export async function loadSearchIndexes({
   rootDir,
   userConfig,
   searchMode,
@@ -31,6 +34,7 @@ export function loadSearchIndexes({
   modelIdDefault,
   fileChargramN,
   hnswConfig,
+  lancedbConfig,
   loadIndexFromSqlite,
   loadIndexFromLmdb,
   resolvedDenseVectorMode
@@ -38,17 +42,19 @@ export function loadSearchIndexes({
   const sqliteLazyChunks = sqliteFtsRequested && !filtersActive;
   const sqliteContextChunks = contextExpansionEnabled ? true : !sqliteLazyChunks;
 
+  const proseIndexDir = runProse ? resolveIndexDir(rootDir, 'prose', userConfig) : null;
+  const codeIndexDir = runCode ? resolveIndexDir(rootDir, 'code', userConfig) : null;
   const proseDir = runProse && !useSqlite
     ? requireIndexDir(rootDir, 'prose', userConfig, { emitOutput, exitOnError })
-    : null;
+    : proseIndexDir;
   const codeDir = runCode && !useSqlite
     ? requireIndexDir(rootDir, 'code', userConfig, { emitOutput, exitOnError })
-    : null;
+    : codeIndexDir;
   const recordsDir = runRecords
     ? requireIndexDir(rootDir, 'records', userConfig, { emitOutput, exitOnError })
     : null;
 
-  const loadIndexCachedLocal = (dir, includeHnsw = true) => loadIndexCached({
+  const loadIndexCachedLocal = async (dir, includeHnsw = true) => loadIndexCached({
     indexCache,
     dir,
     modelIdDefault,
@@ -61,7 +67,7 @@ export function loadSearchIndexes({
   let extractedProseDir = null;
   let resolvedRunExtractedProse = runExtractedProse;
   if (resolvedRunExtractedProse) {
-    if (searchMode === 'extracted-prose') {
+    if (searchMode === 'extracted-prose' || searchMode === 'default') {
       extractedProseDir = requireIndexDir(rootDir, 'extracted-prose', userConfig, { emitOutput, exitOnError });
     } else {
       extractedProseDir = resolveIndexDir(rootDir, 'extracted-prose', userConfig);
@@ -85,10 +91,10 @@ export function loadSearchIndexes({
       includeMinhash: annActive,
       includeChunks: true,
       includeFilterIndex: filtersActive
-    }) : loadIndexCachedLocal(proseDir, annActive)))
+    }) : await loadIndexCachedLocal(proseDir, annActive)))
     : { ...EMPTY_INDEX };
   const idxExtractedProse = resolvedRunExtractedProse
-    ? loadIndexCachedLocal(extractedProseDir, annActive)
+    ? await loadIndexCachedLocal(extractedProseDir, annActive)
     : { ...EMPTY_INDEX };
   const idxCode = runCode
     ? (useSqlite ? loadIndexFromSqlite('code', {
@@ -101,10 +107,10 @@ export function loadSearchIndexes({
       includeMinhash: annActive,
       includeChunks: true,
       includeFilterIndex: filtersActive
-    }) : loadIndexCachedLocal(codeDir, annActive)))
+    }) : await loadIndexCachedLocal(codeDir, annActive)))
     : { ...EMPTY_INDEX };
   const idxRecords = runRecords
-    ? loadIndexCachedLocal(recordsDir, annActive)
+    ? await loadIndexCachedLocal(recordsDir, annActive)
     : { ...EMPTY_INDEX };
 
   warnPendingState(idxCode, 'code', { emitOutput, useSqlite, annActive });
@@ -126,6 +132,7 @@ export function loadSearchIndexes({
 
   if (runCode) {
     idxCode.denseVec = resolveDenseVector(idxCode, 'code', resolvedDenseVectorMode);
+    idxCode.indexDir = codeIndexDir;
     if ((useSqlite || useLmdb) && !idxCode.fileRelations) {
       idxCode.fileRelations = loadFileRelations(rootDir, userConfig, 'code');
     }
@@ -135,6 +142,7 @@ export function loadSearchIndexes({
   }
   if (runProse) {
     idxProse.denseVec = resolveDenseVector(idxProse, 'prose', resolvedDenseVectorMode);
+    idxProse.indexDir = proseIndexDir;
     if ((useSqlite || useLmdb) && !idxProse.fileRelations) {
       idxProse.fileRelations = loadFileRelations(rootDir, userConfig, 'prose');
     }
@@ -148,6 +156,7 @@ export function loadSearchIndexes({
       'extracted-prose',
       resolvedDenseVectorMode
     );
+    idxExtractedProse.indexDir = extractedProseDir;
     if (!idxExtractedProse.fileRelations) {
       idxExtractedProse.fileRelations = loadFileRelations(rootDir, userConfig, 'extracted-prose');
     }
@@ -155,6 +164,62 @@ export function loadSearchIndexes({
       idxExtractedProse.repoMap = loadRepoMap(rootDir, userConfig, 'extracted-prose');
     }
   }
+
+  if (runRecords) {
+    idxRecords.indexDir = recordsDir;
+  }
+
+  const attachLanceDb = (idx, mode, dir) => {
+    if (!idx || !dir || lancedbConfig?.enabled === false) return null;
+    const paths = resolveLanceDbPaths(dir);
+    const target = resolveLanceDbTarget(mode, resolvedDenseVectorMode);
+    const metaPath = paths?.[target]?.metaPath;
+    const lanceDir = paths?.[target]?.dir;
+    let meta = null;
+    if (metaPath && fs.existsSync(metaPath)) {
+      try {
+        meta = readJsonFile(metaPath, { maxBytes: MAX_JSON_BYTES });
+      } catch {}
+    }
+    const available = Boolean(meta && lanceDir && fs.existsSync(lanceDir));
+    idx.lancedb = {
+      target,
+      dir: lanceDir || null,
+      metaPath: metaPath || null,
+      meta,
+      available
+    };
+    return idx.lancedb;
+  };
+
+  attachLanceDb(idxCode, 'code', codeIndexDir);
+  attachLanceDb(idxProse, 'prose', proseIndexDir);
+  attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir);
+
+  const lanceAnnState = {
+    code: {
+      available: Boolean(idxCode?.lancedb?.available),
+      dims: idxCode?.lancedb?.meta?.dims ?? null,
+      metric: idxCode?.lancedb?.meta?.metric ?? null
+    },
+    prose: {
+      available: Boolean(idxProse?.lancedb?.available),
+      dims: idxProse?.lancedb?.meta?.dims ?? null,
+      metric: idxProse?.lancedb?.meta?.metric ?? null
+    },
+    records: { available: false, dims: null, metric: null },
+    'extracted-prose': {
+      available: Boolean(idxExtractedProse?.lancedb?.available),
+      dims: idxExtractedProse?.lancedb?.meta?.dims ?? null,
+      metric: idxExtractedProse?.lancedb?.meta?.metric ?? null
+    }
+  };
+  const lanceAnnUsed = {
+    code: false,
+    prose: false,
+    records: false,
+    'extracted-prose': false
+  };
 
   const {
     modelIdForCode,
@@ -181,6 +246,8 @@ export function loadSearchIndexes({
     runExtractedProse: resolvedRunExtractedProse,
     hnswAnnState,
     hnswAnnUsed,
+    lanceAnnState,
+    lanceAnnUsed,
     modelIdForCode,
     modelIdForProse,
     modelIdForExtractedProse,

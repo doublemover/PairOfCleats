@@ -10,6 +10,7 @@
  *   chargramMaxN:number,
  *   chargramMaxTokenLength:number|null,
  *   chargramSource:string,
+ *   phraseSource:string,
  *   fielded:boolean
  * }}
  */
@@ -18,6 +19,16 @@ export function normalizePostingsConfig(input = {}) {
   const enablePhraseNgrams = cfg.enablePhraseNgrams !== false;
   const enableChargrams = cfg.enableChargrams !== false;
   const fielded = cfg.fielded !== false;
+
+  // Phrase n-grams are very high-cardinality when derived from the full token
+  // stream of source code. Default to deriving them from low-cardinality fields
+  // (name/signature/doc/comment) unless explicitly requested.
+  const phraseSourceRaw = typeof cfg.phraseSource === 'string'
+    ? cfg.phraseSource.trim().toLowerCase()
+    : '';
+  const phraseSource = ['full', 'fields'].includes(phraseSourceRaw)
+    ? phraseSourceRaw
+    : 'fields';
   const chargramSourceRaw = typeof cfg.chargramSource === 'string'
     ? cfg.chargramSource.trim().toLowerCase()
     : '';
@@ -56,6 +67,7 @@ export function normalizePostingsConfig(input = {}) {
     enableChargrams,
     phraseMinN: phraseRange.min,
     phraseMaxN: phraseRange.max,
+    phraseSource,
     chargramMinN: chargramRange.min,
     chargramMaxN: chargramRange.max,
     chargramMaxTokenLength,

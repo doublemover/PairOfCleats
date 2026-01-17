@@ -46,10 +46,20 @@ export function splitIdPreserveCase(s) {
     .filter(Boolean);
 }
 
+const PUNCT_RE = /[=<>!:+\-*/%&|^~.?]{1,4}|[()[\]{}.,;:]/g;
+const MAX_PUNCT_TOKENS = 20000;
+
 export function extractPunctuationTokens(text) {
   if (!text) return [];
-  const tokens = text.match(/[=<>!:+\-*/%&|^~.?]{1,4}|[()[\]{}.,;:]/g);
-  return tokens ? tokens.filter(Boolean) : [];
+  PUNCT_RE.lastIndex = 0;
+  const out = [];
+  let match;
+  while ((match = PUNCT_RE.exec(text)) !== null) {
+    out.push(match[0]);
+    if (out.length >= MAX_PUNCT_TOKENS) break;
+    if (!match[0]) PUNCT_RE.lastIndex += 1;
+  }
+  return out;
 }
 
 const DEFAULT_DICT_SEGMENTATION = {

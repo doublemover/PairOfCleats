@@ -7,6 +7,7 @@ export const DEFAULT_USER_CONFIG = {
   },
   search: {
     annDefault: true,
+    annBackend: 'lancedb',
     denseVectorMode: 'merged',
     regex: {
       maxPatternLength: 512,
@@ -17,6 +18,11 @@ export const DEFAULT_USER_CONFIG = {
     }
   },
   indexing: {
+    embeddings: {
+      lancedb: {
+        enabled: true
+      }
+    },
     postings: {
       enablePhraseNgrams: true,
       phraseMinN: 2,

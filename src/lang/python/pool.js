@@ -11,6 +11,7 @@ const PYTHON_AST_DEFAULTS = {
   taskTimeoutMs: 30000,
   maxRetries: 1,
   maxQueued: null,
+  maxTextBytes: 512 * 1024,
   crashLoopMax: 3,
   crashWindowMs: 60000,
   crashBackoffMs: 30000
@@ -57,6 +58,10 @@ function normalizePythonAstConfig(config = {}, options = {}) {
   const maxQueued = Number.isFinite(maxQueuedRaw)
     ? Math.max(0, Math.floor(maxQueuedRaw))
     : null;
+  const maxTextBytesRaw = Number(config.maxTextBytes);
+  const maxTextBytes = Number.isFinite(maxTextBytesRaw)
+    ? Math.max(0, Math.floor(maxTextBytesRaw))
+    : PYTHON_AST_DEFAULTS.maxTextBytes;
   const crashLoopMaxRaw = Number(config.crashLoopMax);
   const crashLoopMax = Number.isFinite(crashLoopMaxRaw)
     ? Math.max(0, Math.floor(crashLoopMaxRaw))
@@ -77,6 +82,7 @@ function normalizePythonAstConfig(config = {}, options = {}) {
     taskTimeoutMs,
     maxRetries,
     maxQueued,
+    maxTextBytes,
     crashLoopMax,
     crashWindowMs,
     crashBackoffMs
@@ -96,7 +102,8 @@ function createPythonAstPool({ pythonBin, config, log }) {
     crashCount: 0,
     crashWindowStart: 0,
     lastBackpressureLog: 0,
-    lastDisabledLog: 0
+    lastDisabledLog: 0,
+    lastPayloadLog: 0
   };
 
   const isDisabled = () => state.disabledUntil && Date.now() < state.disabledUntil;
@@ -111,6 +118,10 @@ function createPythonAstPool({ pythonBin, config, log }) {
     if (key === 'disabled') {
       if (now - state.lastDisabledLog < 10000) return;
       state.lastDisabledLog = now;
+    }
+    if (key === 'payload') {
+      if (now - state.lastPayloadLog < 10000) return;
+      state.lastPayloadLog = now;
     }
     log(message);
   };
@@ -311,6 +322,19 @@ function createPythonAstPool({ pythonBin, config, log }) {
   return {
     request(text, { dataflow, controlFlow, path }) {
       return new Promise((resolve) => {
+        const maxTextBytes = Number.isFinite(config.maxTextBytes)
+          ? config.maxTextBytes
+          : null;
+        const sourceText = typeof text === 'string' ? text : '';
+        if (maxTextBytes && Buffer.byteLength(sourceText, 'utf8') > maxTextBytes) {
+          if (path) {
+            text = null;
+          } else {
+            logOnce('[python-ast] Payload too large; falling back to heuristic chunking.', 'payload');
+            resolve(null);
+            return;
+          }
+        }
         if (isDisabled()) {
           const remaining = Math.max(0, state.disabledUntil - Date.now());
           logOnce(`[python-ast] Pool disabled for ${remaining}ms; falling back to heuristic chunking.`, 'disabled');

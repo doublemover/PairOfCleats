@@ -47,11 +47,30 @@ const buildEvidence = (line, lineNo, column) => {
   };
 };
 
+const isIdentCharCode = (code) => (
+  (code >= 48 && code <= 57) // 0-9
+  || (code >= 65 && code <= 90) // A-Z
+  || (code >= 97 && code <= 122) // a-z
+  || code === 95 // _
+  || code === 36 // $
+);
+
 const lineContainsVar = (line, name) => {
   if (!name) return false;
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const rx = new RegExp(`\\b${escaped}\\b`);
-  return rx.test(line);
+  const hay = String(line || '');
+  const needle = String(name);
+  if (!needle) return false;
+  let idx = 0;
+  const nLen = needle.length;
+  while ((idx = hay.indexOf(needle, idx)) !== -1) {
+    const beforePos = idx - 1;
+    const afterPos = idx + nLen;
+    const beforeOk = beforePos < 0 || !isIdentCharCode(hay.charCodeAt(beforePos));
+    const afterOk = afterPos >= hay.length || !isIdentCharCode(hay.charCodeAt(afterPos));
+    if (beforeOk && afterOk) return true;
+    idx = idx + 1;
+  }
+  return false;
 };
 
 const matchRuleOnLine = (rule, line, languageId) => {

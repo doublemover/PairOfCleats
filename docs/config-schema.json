@@ -194,6 +194,10 @@
       "additionalProperties": false,
       "properties": {
         "annDefault": { "type": "boolean" },
+        "annBackend": {
+          "type": "string",
+          "enum": ["auto", "lancedb", "sqlite-vector", "sqlite-extension", "hnsw", "js"]
+        },
         "sqliteAutoChunkThreshold": { "type": "number" },
         "sqliteAutoArtifactBytes": { "type": "number" },
         "sqliteFtsNormalize": { "type": "boolean" },
@@ -428,6 +432,7 @@
           "additionalProperties": false,
           "properties": {
             "extract": { "type": "string", "enum": ["off", "doc", "all"] },
+            "includeInCode": { "type": "boolean", "default": false },
             "includeLicense": { "type": "boolean" },
             "minDocChars": { "type": "number" },
             "minInlineChars": { "type": "number" },
@@ -464,10 +469,11 @@
             "maxWorkers": { "type": "number" },
             "allowOverCap": { "type": "boolean" },
             "scaleUpQueueMs": { "type": "number" },
-            "taskTimeoutMs": { "type": "number" },
-            "maxRetries": { "type": "number" },
-            "maxQueued": { "type": "number" },
-            "crashLoopMax": { "type": "number" },
+              "taskTimeoutMs": { "type": "number" },
+              "maxRetries": { "type": "number" },
+              "maxQueued": { "type": "number" },
+              "maxTextBytes": { "type": "number" },
+              "crashLoopMax": { "type": "number" },
             "crashWindowMs": { "type": "number" },
             "crashBackoffMs": { "type": "number" }
           }
@@ -529,17 +535,29 @@
                 "maxQueued": { "type": "number" }
               }
             },
-            "cache": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "dir": { "type": "string" }
-              }
-            },
-            "hnsw": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
+              "cache": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "dir": { "type": "string" }
+                }
+              },
+              "lancedb": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "enabled": { "type": "boolean" },
+                  "table": { "type": "string" },
+                  "embeddingColumn": { "type": "string" },
+                  "idColumn": { "type": "string" },
+                  "metric": { "type": "string", "enum": ["cosine", "l2", "dot"] },
+                  "batchSize": { "type": "number" }
+                }
+              },
+              "hnsw": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
                 "enabled": { "type": "boolean" },
                 "space": { "type": "string", "enum": ["cosine", "ip", "l2"] },
                 "m": { "type": "number" },

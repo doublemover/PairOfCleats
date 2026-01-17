@@ -38,7 +38,7 @@ const filterIndexPath = path.join(indexDir, 'filter_index.json');
 const raw = readJsonFile(filterIndexPath);
 assert.equal(raw.fileChargramN, 4, 'expected filter_index.json fileChargramN to match config');
 
-const idx = loadIndex(indexDir, { modelIdDefault: 'test', fileChargramN: 2 });
+const idx = await loadIndex(indexDir, { modelIdDefault: 'test', fileChargramN: 2 });
 assert.equal(idx.filterIndex?.fileChargramN, 4, 'expected hydrated filter index to use persisted fileChargramN');
 
 console.log('filter index artifact test passed');

@@ -1,5 +1,6 @@
 import { getVectorExtensionConfig } from '../../../tools/vector-extension.js';
 import { normalizeHnswConfig } from '../../shared/hnsw.js';
+import { normalizeLanceDbConfig } from '../../shared/lancedb.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig } from '../../shared/onnx-embeddings.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { resolveFtsWeights } from '../fts.js';
@@ -19,6 +20,20 @@ const normalizeOptionalPositive = (value, fallback) => {
   return Math.max(0, parsed);
 };
 
+const normalizeAnnBackend = (value) => {
+  if (typeof value !== 'string') return 'lancedb';
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return 'lancedb';
+  if (trimmed === 'sqlite' || trimmed === 'sqlite-extension' || trimmed === 'vector-extension') {
+    return 'sqlite-vector';
+  }
+  if (trimmed === 'dense') return 'js';
+  if (['auto', 'lancedb', 'sqlite-vector', 'hnsw', 'js'].includes(trimmed)) {
+    return trimmed;
+  }
+  return 'lancedb';
+};
+
 export function normalizeSearchOptions({
   argv,
   rawArgs,
@@ -36,6 +51,7 @@ export function normalizeSearchOptions({
   const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider);
   const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
+  const lancedbConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
 
   const sqliteConfig = userConfig.sqlite || {};
   const sqliteAutoChunkThresholdRaw = userConfig.search?.sqliteAutoChunkThreshold;
@@ -108,6 +124,8 @@ export function normalizeSearchOptions({
   const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
   const annDefault = userConfig.search?.annDefault !== false;
   const annEnabled = annFlagPresent ? argv.ann : annDefault;
+  const annBackendRaw = argv['ann-backend'] ?? userConfig.search?.annBackend ?? 'lancedb';
+  const annBackend = normalizeAnnBackend(annBackendRaw);
 
   const scoreBlendConfig = userConfig.search?.scoreBlend || {};
   const scoreBlendEnabled = scoreBlendConfig.enabled === true;
@@ -221,6 +239,7 @@ export function normalizeSearchOptions({
     extFilter,
     metaFilters,
     annEnabled,
+    annBackend,
     scoreBlendEnabled,
     scoreBlendSparseWeight,
     scoreBlendAnnWeight,
@@ -242,6 +261,7 @@ export function normalizeSearchOptions({
     fieldWeightsConfig: userConfig.search?.fieldWeights,
     explain,
     denseVectorMode,
-    backendArg
+    backendArg,
+    lancedbConfig
   };
 }

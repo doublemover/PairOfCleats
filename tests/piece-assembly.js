@@ -74,9 +74,9 @@ run('assemble-pieces', [
   PAIROFCLEATS_CACHE_ROOT: cacheRoot
 });
 
-const chunksA = loadChunkMeta(indexA).length;
-const chunksB = loadChunkMeta(indexB).length;
-const chunksOut = loadChunkMeta(outputDir).length;
+const chunksA = (await loadChunkMeta(indexA)).length;
+const chunksB = (await loadChunkMeta(indexB)).length;
+const chunksOut = (await loadChunkMeta(outputDir)).length;
 if (chunksOut !== chunksA + chunksB) {
   console.error(`Expected merged chunk count ${chunksA + chunksB}, got ${chunksOut}`);
   process.exit(1);

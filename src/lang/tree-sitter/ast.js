@@ -4,6 +4,8 @@ export const COMMON_NAME_NODE_TYPES = new Set([
   'scoped_identifier',
   'qualified_identifier',
   'field_identifier',
+  // JavaScript/TypeScript frequently use this node type for method/property names.
+  'property_identifier',
   'simple_identifier',
   'namespace_identifier'
 ]);

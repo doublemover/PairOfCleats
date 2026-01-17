@@ -2,11 +2,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Packr, Unpackr } from 'msgpackr';
 import { sha1, checksumString } from './hash.js';
+import { estimateJsonBytes } from './cache.js';
 import { stableStringify } from './stable-json.js';
+import { writeJsonObjectFile } from './json-stream.js';
 
 const BUNDLE_FORMAT_TAG = 'pairofcleats.bundle';
 const BUNDLE_VERSION = 1;
 const MSGPACK_EXTENSIONS = new Set(['.mpk', '.msgpack', '.msgpackr']);
+const MAX_BUNDLE_CHECKSUM_BYTES = 16 * 1024 * 1024;
 
 const packr = new Packr({ useRecords: false, structuredClone: true });
 const unpackr = new Unpackr({ useRecords: false });
@@ -25,9 +28,11 @@ const normalizeBundlePayload = (value) => {
   return out;
 };
 
-const checksumBundlePayload = async (payload) => (
-  checksumString(stableStringify(payload))
-);
+const checksumBundlePayload = async (payload) => {
+  const estimate = estimateJsonBytes(payload);
+  if (estimate && estimate > MAX_BUNDLE_CHECKSUM_BYTES) return null;
+  return checksumString(stableStringify(payload));
+};
 
 export function normalizeBundleFormat(raw) {
   if (typeof raw !== 'string') return 'json';
@@ -68,7 +73,7 @@ export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
       checksumAlgo: checksum?.algo ?? null
     };
   }
-  await fs.writeFile(bundlePath, `${JSON.stringify(bundle)}\n`);
+  await writeJsonObjectFile(bundlePath, { fields: bundle, trailingNewline: true });
   return { format: resolvedFormat, checksum: null, checksumAlgo: null };
 }
 
@@ -90,6 +95,10 @@ export async function readBundleFile(bundlePath, { format = null } = {}) {
     const checksum = envelope.checksum?.value;
     if (checksum) {
       const normalized = normalizeBundlePayload(payload);
+      const estimate = estimateJsonBytes(normalized);
+      if (estimate && estimate > MAX_BUNDLE_CHECKSUM_BYTES) {
+        return { ok: true, bundle: normalized };
+      }
       if (envelope.checksum?.algo === 'xxh64') {
         const expected = await checksumBundlePayload(normalized);
         if (!expected || expected.value !== checksum) {

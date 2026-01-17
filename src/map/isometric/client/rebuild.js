@@ -4,7 +4,7 @@ import { applyHeightFog, updateFog, updateGridGlow, updateFlowLights } from './m
 import { computeLayout } from './layout.js';
 import { buildMeshes } from './meshes.js';
 import { buildEdges } from './edges.js';
-import { applyHighlights } from './selection.js';
+import { applyHighlights, renderSelectionDetails } from './selection.js';
 
 const resetScene = () => {
   clearGroup(state.fileGroup);
@@ -15,7 +15,17 @@ const resetScene = () => {
   state.fileMeshes = [];
   state.memberMeshes = [];
   state.chunkMeshes = [];
-  state.fileChunkMeshes = [];
+  state.memberInstancedMeshes = [];
+  state.memberInnerInstancedMeshes = [];
+  state.memberClusters = [];
+  state.memberInstanceById = new Map();
+  state.highlightedMemberIds = new Set();
+  state.pickTargets = [];
+  state.instancedMemberMaterials = null;
+  state.instancedChunkMaterial = null;
+  state.hovered = null;
+  state.selected = null;
+  renderSelectionDetails(null);
   state.glowMaterials = [];
   state.flowMaterials = [];
   state.glassMaterials = [];
@@ -86,24 +96,23 @@ export const rebuildScene = () => {
     lockIsometric,
     camera,
     controlDefaults,
-    controls,
-    renderer
+    controls
   } = state;
 
   const edgePlane = layoutMetrics.edgePlane;
   const gridSize = Math.max(80, Math.ceil(bounds.maxSpan * 1.4 / 10) * 10);
   const groundGeometry = new THREE.PlaneGeometry(gridSize, gridSize);
   const groundMaterial = new THREE.MeshStandardMaterial({
-    color: 0x151a20,
+    color: 0x1a1f26,
     metalness: 1,
-    roughness: 0.25,
-    envMapIntensity: visuals.glass.envMapIntensity * 0.6
+    roughness: 1,
+    envMapIntensity: visuals.glass.envMapIntensity
   });
   applyHeightFog(groundMaterial);
   state.grid = new THREE.Mesh(groundGeometry, groundMaterial);
   state.grid.rotation.x = -Math.PI / 2;
   state.grid.position.y = edgePlane - 0.05 * state.scaleFactor;
-  state.grid.receiveShadow = true;
+  state.grid.receiveShadow = visuals.enableShadows === true;
   scene.add(state.grid);
   state.grid.visible = state.gridVisible;
   state.groundPlane.constant = -state.grid.position.y;
@@ -218,7 +227,4 @@ export const rebuildScene = () => {
     state.renderEdgeMenu();
   }
   applyHighlights();
-  if (renderer?.shadowMap) {
-    renderer.shadowMap.needsUpdate = true;
-  }
 };

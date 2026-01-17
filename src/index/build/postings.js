@@ -97,6 +97,14 @@ export async function buildPostings(input) {
   const N = chunks.length;
   const avgChunkLen = chunks.reduce((sum, c) => sum + resolveTokenCount(c), 0) / Math.max(N, 1);
 
+  const normalizeDocIdList = (value) => {
+    if (value == null) return [];
+    if (typeof value === 'number') return [value];
+    if (Array.isArray(value)) return value;
+    if (typeof value[Symbol.iterator] === 'function') return Array.from(value);
+    return [];
+  };
+
   let dims = 0;
   let quantizedVectors = [];
   let quantizedDocVectors = [];
@@ -104,77 +112,187 @@ export async function buildPostings(input) {
   if (embeddingsEnabled) {
     const embedLabel = useStubEmbeddings ? 'stub' : 'model';
     log(`Using ${embedLabel} embeddings for dense vectors (${modelId})...`);
-    dims = Array.isArray(chunks[0]?.embedding) ? chunks[0].embedding.length : 384;
-    const zeroVec = new Array(dims).fill(0);
-    const selectEmbedding = (chunk) => (
-      Array.isArray(chunk?.embedding) && chunk.embedding.length ? chunk.embedding : zeroVec
+
+    const isByteVector = (value) => (
+      value
+      && typeof value === 'object'
+      && typeof value.length === 'number'
+      && ArrayBuffer.isView(value)
+      && !(value instanceof DataView)
+      && value.BYTES_PER_ELEMENT === 1
+      && !(typeof Buffer !== 'undefined' && Buffer.isBuffer(value))
     );
-    const selectDocEmbedding = (chunk) => {
-      if (Array.isArray(chunk?.embed_doc) && chunk.embed_doc.length) return chunk.embed_doc;
-      if (Array.isArray(chunk?.embedding) && chunk.embedding.length) return chunk.embedding;
-      return zeroVec;
-    };
-    const selectCodeEmbedding = (chunk) => {
-      if (Array.isArray(chunk?.embed_code) && chunk.embed_code.length) return chunk.embed_code;
-      if (Array.isArray(chunk?.embedding) && chunk.embedding.length) return chunk.embedding;
-      return zeroVec;
-    };
-    const quantizeWorker = quantizePool || workerPool;
-    let quantizeWarned = false;
-    const warnQuantizeFallback = () => {
-      if (quantizeWarned) return;
-      if (typeof log === 'function') {
-        log('Quantize worker unavailable; falling back to inline quantization.');
+
+    const resolveDims = () => {
+      // Prefer pre-quantized embeddings (Uint8Array) if present.
+      for (const chunk of chunks) {
+        const vec = chunk?.embedding_u8;
+        if (isByteVector(vec) && vec.length) return vec.length;
       }
-      quantizeWarned = true;
-    };
-    const quantizeVectors = async (selector) => {
-      const out = new Array(chunks.length);
-      if (!quantizeWorker) {
-        for (let i = 0; i < chunks.length; i += 1) {
-          out[i] = quantizeVec(selector(chunks[i]));
-        }
-        return out;
+      // Fall back to float embeddings.
+      for (const chunk of chunks) {
+        const vec = chunk?.embedding;
+        if (Array.isArray(vec) && vec.length) return vec.length;
+        const code = chunk?.embed_code;
+        if (Array.isArray(code) && code.length) return code.length;
+        const doc = chunk?.embed_doc;
+        if (Array.isArray(doc) && doc.length) return doc.length;
       }
-      const batchSize = quantizeWorker.config?.quantizeBatchSize || 128;
-      for (let i = 0; i < chunks.length; i += batchSize) {
-        const end = Math.min(i + batchSize, chunks.length);
-        const batch = [];
-        for (let j = i; j < end; j += 1) {
-          batch.push(selector(chunks[j]));
+      return 384;
+    };
+
+    dims = resolveDims();
+
+    // For missing vectors we intentionally use a "zero" float vector (all 0s),
+    // which quantizes to ~128 in uint8 space when min=-1,max=1.
+    const ZERO_QUANT = 128;
+    const zeroU8 = new Uint8Array(dims);
+    zeroU8.fill(ZERO_QUANT);
+
+    const hasPreQuantized = chunks.some((chunk) => {
+      const v = chunk?.embedding_u8;
+      return isByteVector(v) && v.length;
+    });
+
+    if (hasPreQuantized) {
+      // Streaming/early-quant path: chunks already carry uint8 vectors.
+      // This avoids building large float arrays and avoids a second quantization pass.
+      quantizedVectors = new Array(chunks.length);
+      quantizedDocVectors = new Array(chunks.length);
+      quantizedCodeVectors = new Array(chunks.length);
+
+      for (let i = 0; i < chunks.length; i += 1) {
+        const chunk = chunks[i];
+
+        const merged = chunk?.embedding_u8;
+        const mergedVec = isByteVector(merged) && merged.length ? merged : zeroU8;
+
+        // Doc vectors: an empty marker means "no doc", which should behave like
+        // a zero-vector so doc-only dense search doesn't surface code-only chunks.
+        const doc = chunk?.embed_doc_u8;
+        let docVec = null;
+        if (isByteVector(doc)) {
+          docVec = doc.length ? doc : zeroU8;
+        } else {
+          // If doc vector wasn't provided, fall back to merged.
+          docVec = mergedVec;
         }
-        try {
-          const chunk = await quantizeWorker.runQuantize({ vectors: batch });
-          if (Array.isArray(chunk) && chunk.length === batch.length) {
-            for (let j = 0; j < chunk.length; j += 1) {
-              out[i + j] = chunk[j];
+
+        // Code vectors: when missing, fall back to merged.
+        const code = chunk?.embed_code_u8;
+        let codeVec = null;
+        if (isByteVector(code) && code.length) {
+          codeVec = code;
+        } else {
+          codeVec = mergedVec;
+        }
+
+        quantizedVectors[i] = mergedVec;
+        quantizedDocVectors[i] = docVec;
+        quantizedCodeVectors[i] = codeVec;
+      }
+    } else {
+      // Legacy path: quantize from float embeddings.
+      const zeroVec = new Array(dims).fill(0);
+      const selectEmbedding = (chunk) => (
+        Array.isArray(chunk?.embedding) && chunk.embedding.length ? chunk.embedding : zeroVec
+      );
+      const selectDocEmbedding = (chunk) => {
+        // `embed_doc: []` is used as an explicit marker for "no doc embedding" to
+        // avoid allocating a full dims-length zero vector per chunk.
+        if (Array.isArray(chunk?.embed_doc)) {
+          return chunk.embed_doc.length ? chunk.embed_doc : zeroVec;
+        }
+        if (Array.isArray(chunk?.embedding) && chunk.embedding.length) return chunk.embedding;
+        return zeroVec;
+      };
+      const selectCodeEmbedding = (chunk) => {
+        if (Array.isArray(chunk?.embed_code) && chunk.embed_code.length) return chunk.embed_code;
+        if (Array.isArray(chunk?.embedding) && chunk.embedding.length) return chunk.embedding;
+        return zeroVec;
+      };
+      const quantizeWorker = quantizePool || workerPool;
+      let quantizeWarned = false;
+      const warnQuantizeFallback = () => {
+        if (quantizeWarned) return;
+        if (typeof log === 'function') {
+          log('Quantize worker unavailable; falling back to inline quantization.');
+        }
+        quantizeWarned = true;
+      };
+      const quantizeVectors = async (selector) => {
+        const out = new Array(chunks.length);
+        if (!quantizeWorker) {
+          for (let i = 0; i < chunks.length; i += 1) {
+            out[i] = quantizeVec(selector(chunks[i]));
+          }
+          return out;
+        }
+        const batchSize = quantizeWorker.config?.quantizeBatchSize || 128;
+        for (let i = 0; i < chunks.length; i += batchSize) {
+          const end = Math.min(i + batchSize, chunks.length);
+          const batch = [];
+          for (let j = i; j < end; j += 1) {
+            batch.push(selector(chunks[j]));
+          }
+          try {
+            const chunk = await quantizeWorker.runQuantize({ vectors: batch });
+            if (Array.isArray(chunk) && chunk.length === batch.length) {
+              for (let j = 0; j < chunk.length; j += 1) {
+                out[i + j] = chunk[j];
+              }
+            } else {
+              warnQuantizeFallback();
+              for (let j = 0; j < batch.length; j += 1) {
+                out[i + j] = quantizeVec(batch[j]);
+              }
             }
-          } else {
+          } catch {
             warnQuantizeFallback();
             for (let j = 0; j < batch.length; j += 1) {
               out[i + j] = quantizeVec(batch[j]);
             }
           }
-        } catch {
-          warnQuantizeFallback();
-          for (let j = 0; j < batch.length; j += 1) {
-            out[i + j] = quantizeVec(batch[j]);
-          }
         }
-      }
-      return out;
-    };
-    quantizedVectors = await quantizeVectors(selectEmbedding);
-    quantizedDocVectors = await quantizeVectors(selectDocEmbedding);
-    quantizedCodeVectors = await quantizeVectors(selectCodeEmbedding);
+        return out;
+      };
+      quantizedVectors = await quantizeVectors(selectEmbedding);
+      quantizedDocVectors = await quantizeVectors(selectDocEmbedding);
+      quantizedCodeVectors = await quantizeVectors(selectCodeEmbedding);
+    }
   } else {
     log('Embeddings disabled; skipping dense vector build.');
   }
 
-  const phraseVocab = phraseEnabled ? Array.from(phrasePost.keys()) : [];
-  const phrasePostings = phraseEnabled ? phraseVocab.map((k) => Array.from(phrasePost.get(k))) : [];
-  const chargramVocab = chargramEnabled ? Array.from(triPost.keys()) : [];
-  const chargramPostings = chargramEnabled ? chargramVocab.map((k) => Array.from(triPost.get(k))) : [];
+  // Convert phrase/chargram postings into dense arrays while aggressively
+  // releasing the source Sets/Maps to keep peak RSS lower.
+  let phraseVocab = [];
+  let phrasePostings = [];
+  if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {
+    phraseVocab = Array.from(phrasePost.keys());
+    phrasePostings = new Array(phraseVocab.length);
+    for (let i = 0; i < phraseVocab.length; i += 1) {
+      const key = phraseVocab[i];
+      const posting = phrasePost.get(key);
+      phrasePostings[i] = normalizeDocIdList(posting);
+      phrasePost.delete(key);
+    }
+    if (typeof phrasePost.clear === 'function') phrasePost.clear();
+  }
+
+  let chargramVocab = [];
+  let chargramPostings = [];
+  if (chargramEnabled && triPost && typeof triPost.keys === 'function') {
+    chargramVocab = Array.from(triPost.keys());
+    chargramPostings = new Array(chargramVocab.length);
+    for (let i = 0; i < chargramVocab.length; i += 1) {
+      const key = chargramVocab[i];
+      const posting = triPost.get(key);
+      chargramPostings[i] = normalizeDocIdList(posting);
+      triPost.delete(key);
+    }
+    if (typeof triPost.clear === 'function') triPost.clear();
+  }
 
   const tokenVocab = Array.from(tokenPostings.keys());
   const tokenPostingsList = tokenVocab.map((t) => tokenPostings.get(t));

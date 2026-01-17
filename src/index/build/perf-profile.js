@@ -125,7 +125,10 @@ export async function loadPerfProfile({ metricsDir, mode, configHash, log }) {
     const parsed = JSON.parse(raw);
     if (!parsed || parsed.version !== PERF_PROFILE_VERSION) return null;
     if (configHash && parsed.configHash && parsed.configHash !== configHash) {
-      if (log) log(`[shards] Perf profile config hash mismatch; ignoring.`);
+      if (log) log('[shards] Perf profile config hash mismatch; rebuilding.');
+      try {
+        await fs.unlink(filePath);
+      } catch {}
       return null;
     }
     return parsed;

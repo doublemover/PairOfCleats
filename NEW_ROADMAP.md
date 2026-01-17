@@ -1,7 +1,5 @@
 # PairOfCleats GigaRoadmap
 
-Large architectural changes are explicitly permitted when they reduce defect surface area and/or materially improve throughput and durability. Confirm before you enact any large architectural changes!
-
 ## Status legend
 
 Checkboxes represent “meets the intent of the requirement, end-to-end, without known correctness gaps”:
@@ -11,74 +9,52 @@ Checkboxes represent “meets the intent of the requirement, end-to-end, without
 
 Completed Phases: `COMPLETED_PHASES.md`
 
-## Phase 5 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
+## Roadmap order (stability/performance frontloaded)
 
-*(Renumbered from prior Phase 28; content largely unchanged, but consider adding map endpoints.)*
+1. Phase 1 — Test Gate Stabilization and Determinism
+2. Phase 2 — Benchmark + build harness reliability (cache hygiene, shard progress determinism, disk-full resilience)
+3. Phase 2.4 — Unified CLI progress display + logging hygiene (build-index, bench-lang, long runners)
+4. Phase 3 — Index build scalability: artifact sharding, OOM prevention, and parsing robustness
+5. Phase 4 — Regression gate sweep (fix current failing tests)
+6. Phase 5 — Encoding + Language Handler Hardening (latin1, utf-8, Swift)
+7. Phase 6 — Security and Input-Hardening (Local Servers + Indexing)
+8. Phase 8 — Language handlers & chunking review
+9. Phase 9 — File processing & artifact assembly (chunk payloads/writers/shards)
+10. Phase 10 — Index build orchestration review (findings + required fixes)
+11. Phase 11 — Extracted-Prose + Records end-to-end parity (build/search/stats/tests)
+12. Phase 12 — Storage backends (SQLite + LMDB)
+13. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
+14. Phase 14 — Documentation and Configuration Hardening
+15. Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
+16. Phase 16 — Artifact compression upgrade: add Zstandard (`zstd`) alongside gzip
+17. Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
+18. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
+19. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
+20. Phase 20 — Threadpool-aware I/O scheduling guardrails
+21. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
+22. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
+23. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
+24. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
+25. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
+26. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
+27. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
+28. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
+29. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
+30. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
+31. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
+32. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
+33. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
+34. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
+35. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
+36. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
+37. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
+38. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
+39. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
+40. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
+41. Phase 41 — Test runner entrypoint: `pairofcleats test` (lanes/selectors/output)
+42. Phase 42 — Test suite decomposition & regrouping (split monolith tests; folder structure; retire suites)
 
-### 5.1 Map endpoints (if service mode is adopted)
-
-* [ ] Extend `api-server` to support:
-
-  * [ ] `GET /map?scope=...&format=...`
-  * [ ] `GET /map/nodes?filter=...` for quick panels
-* [ ] Sublime plugin optionally consumes the API for faster iteration
-
-### 5.2 Tests
-
-* [ ] API contract tests for map endpoints
-* [ ] Sublime plugin integration tests (mock HTTP server)
-
----
-
-## Phase 6 — Distribution Readiness (Package Control + Cross-Platform)
-
-*(Renumbered from prior Phase 29.)*
-
-* [ ] Packaging rules for ST3 (no compiled Python deps)
-* [ ] Windows/macOS/Linux path + quoting correctness
-* [ ] Document Graphviz optional dependency (for SVG/HTML rendering)
-* [ ] Provide minimal “DOT-only mode” documentation
-
-Tests:
-
-* [ ] `python -m py_compile` over plugin package
-* [ ] Cross-platform subprocess quoting tests (Node)
-
----
-
-## Phase 7 — Verification Gates (Regression + Parity + UX Acceptance)
-
-*(Renumbered from prior Phase 30.)*
-
-* [ ] Parity checklist vs existing extension behaviors (where applicable)
-* [ ] Deterministic outputs for map/search commands
-* [ ] Performance acceptance criteria (map generation with guardrails)
-* [ ] End-to-end smoke suite including:
-
-  * [ ] index build
-  * [ ] search
-  * [ ] map generation (json + dot)
-  * [ ] optional svg rendering when Graphviz available
-
----
-
-### Notes on dependency leverage (aligned to the map phase)
-
-This map phase is intentionally designed to **maximize reuse** of what the repo already has:
-
-* Existing semantics extraction already provides the key fields you listed:
-
-  * `imports/exports/usages/importLinks` via relations
-  * `calls/callDetails` + cross-file `callLinks/usageLinks/callSummaries`
-  * `signature/modifiers/returns` via docmeta/functionMeta
-  * `reads/writes/mutations/aliases` via AST dataflow (when enabled)
-  * `controlFlow` counts already present in docmeta/functionMeta
-* Existing graph tooling:
-
-  * `graphology`-backed `graph_relations.json` provides a strong base graph layer
-* The missing piece is the **visual model + rendering/export** and **Sublime UX** around it, which Phase 28 supplies.
-
-## Phase 8 — Test Gate Stabilization and Determinism
+## Phase 1 — Test Gate Stabilization and Determinism
 
 **Objective:** Make the current test suite reliable (non-flaky) and green, so subsequent refactors (security, caching, RPC hardening) have a trustworthy safety net.
 
@@ -147,14 +123,313 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 **Exit criteria**
 
-* [ ] `tests/type-inference-lsp-enrichment.js` passes.
-* [ ] `tests/embeddings-dims-mismatch.js` passes deterministically (no filesystem-order dependence).
-* [ ] `tests/embeddings-cache-identity.js` passes deterministically.
-* [ ] No new flaky tests introduced (verified via at least 5 repeated local runs on one platform, and ideally at least one Windows run).
+* [X] `tests/type-inference-lsp-enrichment.js` passes.
+* [X] `tests/embeddings-dims-mismatch.js` passes deterministically (no filesystem-order dependence).
+* [X] `tests/embeddings-cache-identity.js` passes deterministically.
 
 ---
 
-## Phase 9 — Security and Input-Hardening (Local Servers + Indexing)
+## Phase 2 — Benchmark + build harness reliability (cache hygiene, shard progress determinism, disk-full resilience)
+
+**Objective:** Make benchmark runs reproducible and prevent disk/memory blowups by managing caches, improving progress determinism, and failing fast with actionable diagnostics when the environment is insufficient.
+
+### Observed failures driving this phase
+
+- Duplicate/late progress counters during sharded builds, e.g.:
+  - `[shard] 268/638 src/storage/sqlite/build-helpers.js`
+  - `[shard] 268/638 src/storage/sqlite/incremental.js`
+- `SqliteError: database or disk is full` during benchmark search/load.
+- Benchmark cache growth causing giant artifact files and disk exhaustion.
+
+### 2.1 Cache cleanup after each benchmarked repo
+
+- [ ] Update benchmark harnesses to **clean the repo cache after each repo** by default:
+  - remove repo build directories (including incremental chunk artifacts and shard parts) and sqlite DBs under `benchmarks/cache/repos/...`
+  - keep only benchmark results/baselines (and optionally a minimal build summary)
+  - do **not** delete shared caches (downloads, extension caches, shared embedding caches); only repo-specific build outputs
+- [ ] Add a `--keep-cache` override for debugging.
+- [ ] Document this in `docs/benchmarks.md` (cache policy + disk sizing expectations).
+
+### 2.2 Deterministic shard progress numbering
+
+- [ ] Pre-assign `fileIndex` for each work item **before** concurrent processing begins.
+- [ ] Ensure progress renderer never reuses the same `(index/total)` pair for different files in the same shard run.
+- [ ] Add a regression test that simulates concurrent progress events and asserts monotonically increasing fileIndex (running buildindex on the repo itself briefly should be sufficient to verify this)
+
+### 2.3 Disk-full resilience for SQLite + artifact build steps
+
+- [ ] Add a preflight free-disk-space check before:
+  - building sqlite indexes
+  - copying/compacting sqlite DBs
+  - writing large artifacts/shards
+- [ ] On insufficient space, fail fast with:
+  - required bytes estimate (best-effort)
+  - current free bytes
+  - remediation steps (change cache dir, enable cleanup, reduce modes, reduce token retention)
+- [ ] Optional: if a repo fails due to disk full during benchmark runs, record failure and continue to next repo.
+
+**Exit criteria**
+
+- [ ] Bench runs do not accumulate unbounded cache state across repos by default.
+- [ ] Sharded build progress numbering is stable and trustworthy.
+- [ ] Disk-full conditions are detected early with actionable messages rather than failing deep in sqlite reads.
+
+---
+
+## Phase 2.4 — Unified CLI progress display + logging hygiene (build-index, bench-lang, long runners)
+
+**Objective:** Make all long-running CLI commands share a single, high-quality TTY display (progress bars + compact logs), reduce noisy/repetitive output, and ensure mode-level visibility (`code`/`prose`/`extracted-prose`/`records`) is consistent everywhere.
+
+### 2.4.1 Standardize on a single progress UI dependency
+
+- [ ] Add `terminal-kit` as the progress/UI engine for TTY mode (Windows/macOS/Linux).
+  - Use built-in progress bars and screen-buffer primitives rather than hand-rolled ANSI.
+  - Explicitly validate in **PowerShell** (Windows Terminal + classic console hosts) as well as bash/zsh.
+  - Rendering contract:
+    - interactive UI renders to **stderr** (never stdout)
+    - stdout remains clean for JSON output, pipes, and file redirection
+
+- [ ] Add a thin wrapper module (new): `src/shared/cli/display.js`
+  - Public API (proposal):
+    - `createDisplay({ stream, isTTY, verbose, progressMode, json })`
+    - `display.task(name, { total, unit, mode, stage }) -> { tick(n=1), set(n), done(), fail(err) }`
+    - `display.log/info/warn/error(...)` (routes to log pane in TTY, to stderr otherwise)
+    - `display.close()` (restores terminal state)
+  - Defaults:
+    - `--progress=auto` is **on by default**:
+      - if `process.stderr.isTTY`: show interactive progress UI
+      - else: emit periodic, single-line progress summaries (no cursor movement)
+    - `--progress=off` (or `--no-progress`) disables progress rendering entirely
+    - `--progress=jsonl` emits machine-readable progress events to **stderr** (one JSON object per line)
+    - interactive UI is automatically disabled when `--json` output is enabled (JSON must remain clean)
+
+### 2.4.2 Define a shared progress event vocabulary
+
+- [ ] Add a small event layer that long tasks can emit (even when they are not directly rendering):
+  - `task:start`, `task:progress`, `task:end`
+  - stable fields:
+    - `taskId`
+    - `stage` (e.g., `discovery`, `processing`, `write`, `sqlite`, `validate`, `promote`, `bench`)
+    - `mode` (`code`, `prose`, `extracted-prose`, `records`)
+    - optional: `shardId`, `repoId`, `file`, `bytes`, `lines`, `etaMs`
+- [ ] Ensure events can be:
+  - rendered live in-process (direct `build_index.js` runs)
+  - consumed by a parent process (bench harness) without scraping free-form text
+- [ ] Standardize emission:
+  - progress events always go to **stderr**
+  - parent processes can opt-in to JSONL parsing via `--progress=jsonl`
+
+### 2.4.3 Upgrade `build-index` to use the unified display
+
+- [ ] Replace per-file `[shard] i/n …` spam (default) with:
+  - an overall stage bar
+  - per-mode bars when multiple modes are active
+  - shard-level bars only when sharding is enabled
+- [ ] Keep file-level output behind `--verbose` (CLI-only). Do not add env toggles; env is reserved for secrets/deployment wiring only.
+- [ ] Ensure extracted-prose + records are shown everywhere code/prose are shown:
+  - startup “modes enabled” banner
+  - stage/mode progress bars
+  - final per-mode summaries (chunks/tokens/dims)
+- [ ] Logging noise controls:
+  - avoid repeating identical warnings many times (dedupe + counters)
+  - cap redraw frequency (e.g., 10–20 updates/sec)
+  - in PowerShell/Windows, avoid flicker and cursor corruption (use terminal-kit primitives; add fallback to non-interactive lines when the console cannot reposition)
+
+### 2.4.4 Refactor `bench-lang` to use the same display
+
+- [ ] Replace `tools/bench/language/progress/render.js`’s custom ANSI UI with the shared display wrapper.
+- [ ] Ensure bench progress renders to **stderr** (never stdout), matching `build-index`.
+- [ ] Update `tools/bench-language-repos.js` + `tools/bench/language/run.js` to consume progress events from child index builds.
+- [ ] Ensure bench output remains stable and machine-readable when `--json` is used (no TTY UI in JSON mode).
+
+### 2.4.5 Adopt unified display for other long-running commands
+
+- [ ] Migrate these to emit progress events and/or use the unified display:
+  - `tools/build-sqlite-index/*`
+  - `tools/build-lmdb-index.js`
+  - `tools/build-embeddings/*`
+  - `tools/compact-sqlite-index.js`
+  - `tools/download-extensions.js` (download/verify/extract steps)
+  - `tools/ci-build-artifacts.js` (multi-step aggregator)
+  - `tools/eval/run.js` (long-running eval workflows)
+
+### 2.4.6 Logging hygiene: less noisy, more actionable
+
+- [ ] Add log de-duplication + coalescing:
+  - collapse repeated identical warnings/errors into one line with a counter
+  - throttle high-rate progress logs
+- [ ] Add a consistent verbosity contract across tools:
+  - default: compact info logs only (summary lines + key warnings)
+  - `--verbose`: per-file or per-item logs + shard plan dump
+  - `--quiet`: errors only (still prints final summary)
+- [ ] Ensure crash logs retain full detail regardless of verbosity:
+  - write full detail to crash report artifacts / ring buffer logs (not console spam)
+  - print a single-line “crash summary + path to report” to stderr
+
+**Exit criteria**
+
+- [ ] `build_index.js` and `tools/bench-language-repos.js` share the same display UX and render identical progress primitives.
+- [ ] Progress output is on by default and consistently emitted on **stderr**, with JSON-safe stdout.
+- [ ] Long-running tools listed above use the unified display (TTY) and emit clean line logs (non-TTY).
+- [ ] Default console output is materially less noisy while preserving debuggability via `--verbose`.
+
+---
+
+## Phase 3 — Index build scalability: artifact sharding, OOM prevention, and parsing robustness
+
+**Objective:** Prevent index builds from failing on large repos due to memory blowups, oversized artifacts, and brittle JSON parsing.
+
+### Observed failures driving this phase
+
+- `Error: JSON artifact too large to load (...)` while loading `chunk_meta` (examples observed: ~139MB, ~188MB, ~157MB, and ~704MB).
+- `RangeError: Map maximum size exceeded` in:
+  - `src/index/build/state.js` (`state.phrasePost.set(...)`)
+  - `graphology` during relation graph building
+- Out-of-memory (OOM) when indexing at least one file in the listed fixture set.
+- Repeated JSON parse/syntax errors while reading chunk JSON (“chunkJSON”), including lines containing `[]` / `{}` or bracket fragments.
+
+### 3.1 Hard guarantee: shard JSONL artifacts before they exceed MAX_JSON_BYTES
+
+- [ ] Upgrade `chunk_meta` sharding to be **measured**, not purely sample-estimated:
+  - enforce a hard upper bound per artifact file (and per shard part)
+  - if a part would exceed the bound, split earlier
+- [ ] Apply the same policy to other potentially-large JSONL artifacts as needed (file relations, repo map, graphs).
+- [ ] Add tests that generate synthetic chunk meta large enough to exceed `MAX_JSON_BYTES` and assert the writer produces `chunk_meta.meta.json` + `chunk_meta.parts/...`, and the loader can read it.
+- [ ] Align explicitly with the requirement: “split into multiple jsonl artifacts if it exceeds the size.”
+
+### 3.2 Streaming loaders for SQLite build tooling
+
+- [ ] Update sqlite index build tooling to avoid `readJsonLinesArray(...)` collecting the entire chunk_meta into memory:
+  - stream chunk_meta JSONL/parts and insert rows incrementally
+  - keep peak memory bounded by a small batch size
+- [ ] Add a regression test on a synthetic large index that builds sqlite from artifacts successfully without unbounded memory growth.
+
+### 3.3 Phrase postings and graph construction memory caps
+
+- [ ] Add guardrails to prevent `Map maximum size exceeded`:
+  - phrase postings: cap unique phrase grams per file/chunk; spill/flush; or disable phrase indexing beyond a threshold
+  - relation graphs: cap max edges; dedupe aggressively; avoid building a global in-memory graph for very large repos (stream edges instead)
+- [ ] Add diagnostics that identify top contributors (file path + chunk id) when a cap is hit.
+
+### 3.4 Fix the OOM file culprit in the fixture set
+
+- [ ] Reproduce the OOM reliably and identify the triggering file from the provided list (fixtures under `tests/fixtures/languages/*`, `tests/fixtures/sample/*`, `tests/fixtures/tree-sitter/*`).
+- [ ] Add a targeted regression test and the minimal fix (caps, chunking change, skip reason, or algorithmic improvement) so the fixture set indexes without OOM.
+
+### 3.5 JSONL parsing robustness (“chunkJSON”)
+
+- [ ] Add strict JSONL validation:
+  - each non-empty line must parse as a JSON object with required keys
+  - detect and fail fast on bracket/fragments indicative of “JSON array in a .jsonl file”
+- [ ] Improve error reporting (file, line number, short preview).
+- [ ] Add tests for trailing blank lines, truncated final line, and accidental JSON-array formatting.
+
+**Exit criteria**
+
+- [ ] Large repos no longer fail with “JSON artifact too large to load”.
+- [ ] Index builds do not crash with `Map maximum size exceeded`; they degrade gracefully with clear diagnostics.
+- [ ] The identified OOM fixture file is fixed and covered by tests.
+- [ ] JSONL parsing failures are actionable and do not appear as repeated opaque syntax errors.
+
+---
+
+## Phase 4 — Regression gate sweep (fix current failing tests)
+
+**Objective:** Clear the currently failing regression gates so subsequent refactors (scalability, mode separation, security) have trustworthy signal.
+
+### CLI flag removal and missing-value errors
+
+* [ ] `tests/search-removed-flags.js`
+  * [ ] Failure: expected actionable error for `--human`
+  * [ ] Log: `logs/phase-22/search-removed-flags.log:1`
+* [ ] `tests/search-missing-flag-values.js`
+  * [ ] Failure: expected missing value message for `--type`
+  * [ ] Log: `logs/phase-22/search-missing-flag-values.log:1`
+
+### Help output parity
+
+* [ ] `tests/search-help.js`
+  * [ ] Failure: help output missing flag `--calls`
+  * [ ] Log: `logs/phase-22/search-help.log:1`
+
+### Download / extraction safety (tar)
+
+* [ ] `tests/script-coverage.js`
+  * [ ] Failure: unsafe tar entry detected (e.g., `vec0.dll`)
+  * [ ] Log: `tests/.logs/2026-01-12T08-02-14-028Z/download-extensions-test.attempt-3.log:15`
+  * [ ] Requirement: extraction must fail-closed on unsafe entries (path traversal, absolute paths, invalid drive prefixes, etc.).
+
+### File processor skip behavior
+
+* [ ] `tests/file-processor/skip.test.js`
+  * [ ] Failure: expected binary buffer to skip with `reason=binary`
+  * [ ] Log: `logs/phase-22/file-processor-skip.log:1`
+
+### JavaScript chunking + relations
+
+* [ ] `tests/lang/js-chunking.test.js`
+  * [ ] Failure: missing exported function chunk (alpha)
+  * [ ] Log: `logs/phase-22/lang-js-chunking.log:1`
+* [ ] `tests/lang/js-relations.test.js`
+  * [ ] Failure: missing exports for `run/default: []`
+  * [ ] Log: `logs/phase-22/lang-js-relations.log:1`
+
+### Language registry collectors
+
+* [ ] `tests/language-registry/collectors.test.js`
+  * [ ] Failure: dockerfile mismatch (e.g., `["node:18"] !== ["base","node:18"]`)
+  * [ ] Log: `logs/phase-22/language-registry-collectors.log:1`
+
+**Exit criteria**
+
+* [ ] All targeted failing tests above pass deterministically (at least 3 repeated local runs).
+
+---
+
+## Phase 5 — Encoding + Language Handler Hardening (latin1, utf-8, Swift)
+
+**Objective:** Eliminate encoding-related crashes and restore full language coverage parity for the fixture corpus, with particular focus on latin1/invalid UTF‑8 inputs and Swift parsing.
+
+### 5.1 Encoding regression suite expansion
+
+- [ ] Add `latin1.js` fixture (from downloads) into `tests/fixtures/encoding/latin1.js` (or equivalent) with known latin1 bytes that are not valid UTF‑8.
+- [ ] Add tests covering:
+  - latin1 decode fallback path (iconv)
+  - invalid UTF‑8 does not crash (`TypeError: The encoded data was not valid for encoding utf-8`)
+  - JSONL artifact reading/writing always produces valid UTF‑8
+- [ ] Add a decode test matrix for `readTextFileWithHash`:
+  - utf-8 (valid)
+  - utf-8 (invalid sequences)
+  - latin1 / windows-1252 (detected + decoded)
+  - truncation near caps does not split multi-byte sequences
+
+### 5.2 Swift indexing parity
+
+- [ ] Reproduce “Swift broken” against:
+  - `tests/fixtures/languages/src/swift_advanced.swift`
+  - `tests/fixtures/tree-sitter/swift.swift`
+  - at least one real-world Swift repo used in benchmarks
+- [ ] Fix whichever stage is failing (language registry / chunking / docmeta / relations / comment extraction).
+- [ ] Add/extend Swift tests so that:
+  - chunking extracts expected functions/types
+  - extracted-prose comment extraction works
+
+### 5.3 Tree-sitter maxBytes behavior for JavaScript
+
+- [ ] Clarify and codify behavior when JS files exceed the tree-sitter `maxBytes` cap (e.g., `984433 > 524288`):
+  - fall back to heuristic chunking with a clear reason, OR
+  - treat as oversize/minified and skip indexing entirely (configurable)
+- [ ] Add tests covering the chosen behavior, including ensuring this path cannot trigger downstream Map-size blowups.
+
+**Exit criteria**
+
+- [ ] No encoding-related `TypeError` escapes the file read/decode boundary.
+- [ ] Swift fixtures index correctly (chunking + extracted-prose comments at minimum).
+- [ ] Large JS files do not cause tree-sitter disable → downstream indexer crashes.
+
+---
+
+## Phase 6 — Security and Input-Hardening (Local Servers + Indexing)
 
 **Objective:** Close high-impact vulnerabilities and unsafe defaults that could be exploited when indexing untrusted repositories or exposing the local API server beyond localhost.
 
@@ -244,799 +519,313 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 ---
 
-## Phase 10 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
+## Phase 8 — Language handlers & chunking review
 
-**Objective:** Prevent unbounded memory growth and improve resilience when communicating with external processes (LSP servers, MCP transport), including malformed or oversized JSON-RPC frames.
+**Objective:** Make language detection, per-language chunking, tree-sitter integration, and ingestion tooling *deterministic, robust on real-world code*, and *well-tested* — with clear fallback behavior, predictable chunk boundaries, and guardrails against performance/pathological inputs.
 
-1. **Implement `maxBufferBytes` enforcement in framed JSON-RPC parser**
+**Scope reference:** Review Section 5 file list + checklist (see the attached “review section 5 files and checklist” markdown).
 
-   * [x] **Enforce `maxBufferBytes` in `createFramedJsonRpcParser`.**
-
-     * **Why:** The function accepts `maxBufferBytes` but does not enforce it, leaving an unbounded buffer growth path if a peer sends large frames or never terminates headers.
-     * **Where:** `src/shared/jsonrpc.js` (`createFramedJsonRpcParser`)
-     * **Fix:**
-
-       * Track buffer size after concatenation.
-       * If buffer exceeds limit:
-
-         * Clear internal buffer.
-         * Call `onError(new Error(...))`.
-         * Optionally enter a “failed/closed” state to reject further data.
-       * Consider separate thresholds:
-
-         * `maxHeaderBytes` (protect header scan)
-         * `maxMessageBytes` (protect content-length payload)
-   * [x] **Add explicit tests for oversized frames.**
-
-     * **Where:** Add a new unit test under `tests/` that pushes > limit into parser and asserts:
-
-       * `onError` called
-       * parser does not continue to grow memory
-
-2. **Apply bounded JSON-RPC parsing in LSP client**
-
-   * [x] Replace `StreamMessageReader` usage with the bounded framed parser (or wrap it with size checks).
-
-     * **Why:** `StreamMessageReader` will buffer messages; without explicit size enforcement at your integration boundary, a misbehaving server can cause OOM.
-     * **Where:** `src/integrations/tooling/lsp/client.js`
-     * **Fix:**
-
-       * Wire `proc.stdout` `data` into `createFramedJsonRpcParser`.
-       * Feed parsed messages into the existing dispatch/response correlation logic.
-       * Ensure shutdown/kill closes parser cleanly.
-
-3. **Apply bounded JSON-RPC parsing in MCP transport**
-
-   * [x] Replace `StreamMessageReader` usage similarly.
-
-     * **Where:** `tools/mcp/transport.js`
-     * **Fix:** Same pattern as LSP client; enforce message size limits and fail gracefully.
-
-**Exit criteria**
-
-* [x] `createFramedJsonRpcParser` enforces max buffer/message sizes with tests.
-* [x] LSP client no longer relies on unbounded message buffering.
-* [x] MCP transport no longer relies on unbounded message buffering.
+### Note
+While generating the markdown deliverable, I noticed one small wording issue in the YAML section of the produced document: it currently describes the tab bug using code spans that don’t clearly distinguish '\t' vs '\\t' (because Markdown code spans visually collapse some intent). The underlying identified bug is correct and the remediation tasks are correct, but that one wording line could be clarified to explicitly contrast '\\t' (backslash+t) vs '\t' (actual tab).
 
 ---
 
-## Phase 13 — Documentation and Configuration Hardening
+### 8.0 Priority findings summary (what must be fixed first)
 
-**Objective:** Ensure the fixed behavior is discoverable, configurable, and hard to misconfigure into an unsafe state.
+#### P0 — Breaks correctness, tests, or core workflows
+- [ ] **Fix YAML tab handling + Windows path normalization bugs** in `src/index/chunking/formats/yaml.js` (tabs currently checked as the literal string `"\t"`; Windows paths normalized with the wrong regex).  
+  - Affects: skipping list items / indentation detection; GitHub Actions workflow detection on Windows-style paths.
+- [ ] **Fix C-like docstring/attribute extraction off-by-one** in `src/lang/clike.js` (doc comment extraction currently skips the line immediately above declarations).  
+  - Affects: docstring/attributes in C/C++/ObjC chunks (and downstream docmeta / fidelity).
+- [ ] **Fix broken test syntax** in `tests/language-registry/collectors.test.js` (invalid escaped quotes).  
+  - Affects: test suite execution.
+- [ ] **Fix ingestion tools writing output before ensuring directory exists** in:
+  - `tools/ctags-ingest.js`
+  - `tools/gtags-ingest.js`
+  - `tools/lsif-ingest.js`
+  - `tools/scip-ingest.js`  
+  Creating the write stream before `ensureOutputDir()` can fail when the output directory does not exist.
+- [ ] **Fix SQL statement splitting for standard SQL escaping (`''` / `""`)** in `src/lang/sql.js`.  
+  Current quote toggling assumes backslash-escaping and will mis-split statements containing doubled quotes.
 
-1. **Document security posture and safe defaults**
+#### P1 — Tree-sitter quality/perf gaps that will surface at scale
+- [ ] **Fix `findNameNode` traversal depth bug** in `src/lang/tree-sitter/chunking.js` (depth increments per node instead of per level; the search stops after ~4 iterations).  
+  - Affects: chunk naming quality and method/class qualification.
+- [ ] **Make tree-sitter worker path functional and deterministic** (`src/lang/workers/tree-sitter-worker.js` + `src/lang/tree-sitter/chunking.js`).  
+  - Worker currently does not preload/init grammars; `buildTreeSitterChunksAsync()` treats a `null` worker result as “success” and does not fall back.
 
-   * [ ] Document:
-
-     * API server host binding risks (`--host 0.0.0.0`)
-     * CORS policy and how to configure allowed origins
-     * Auth token configuration (if implemented)
-     * RepoPath allowlist behavior
-   * [ ] Add a prominent note: indexing untrusted repos and symlinks policy.
-
-2. **Add configuration schema coverage for new settings**
-
-   * [ ] If adding config keys (CORS/auth/cache TTL), ensure they are:
-
-     * Reflected in whatever config docs you maintain
-     * Validated consistently (even if validation is lightweight)
-
-**Exit criteria**
-
-* [ ] README/docs reflect new defaults and how to safely expose services.
-* [ ] New options are documented and validated enough to prevent silent misconfiguration.
-
----
-
-## Phase 16 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
-
-### 16.1 Add dependency + backend wrapper
-
-* [ ] Add `re2` (native) as an optional dependency (recommended)
-* [ ] Refactor `src/shared/safe-regex.js` into a backend-based module:
-
-  * [ ] Keep current behavior as the fallback backend (`re2js`)
-  * [ ] Add `src/shared/safe-regex/backends/re2.js`
-  * [ ] Add `src/shared/safe-regex/backends/re2js.js` (wrap existing usage cleanly)
-* [ ] Preserve existing safety constraints:
-
-  * [ ] `maxPatternLength`
-  * [ ] `maxInputLength`
-  * [ ] Guard flags normalization (only `gimsyu` supported as today)
-
-### 16.2 Integrate selector + compatibility contract
-
-* [ ] Add `createSafeRegex({ engine, ...limits })` selection:
-
-  * [ ] `engine=auto` uses `re2` if available else `re2js`
-  * [ ] `engine=re2` hard-requires native; if missing, returns a clear error (or a warning + fallback if you prefer)
-* [ ] Validate behavioral parity:
-
-  * [ ] Ensure `.exec()` and `.test()` match expectations for `g` and non-`g`
-  * [ ] Ensure `.lastIndex` semantics are either compatible or explicitly *not supported* (and documented)
-
-### 16.3 Update call sites
-
-* [ ] Verify these flows still behave correctly:
-
-  * [ ] `src/retrieval/output/filters.js` (file/path filters)
-  * [ ] `src/retrieval/output/risk-tags.js` (risk tagging)
-  * [ ] Any structural search / rulepack path using regex constraints
-
-### 16.4 Tests
-
-* [ ] Add `tests/safe-regex-engine.js`:
-
-  * [ ] Conformance tests (flags, match groups, global behavior)
-  * [ ] Safety limit tests (pattern length, input length)
-  * [ ] Engine-selection tests (`auto`, forced `re2js`)
-* [ ] Add script-coverage action(s)
-
-**Exit criteria**
-
-* [ ] No user-visible semantic regressions in filtering/risk-tagging
-* [ ] “Engine auto” is safe and silent (no noisy logs) unless verbose
+#### P2 — Cleanup, clarity, and long-term maintainability
+- [ ] **Remove or use unused imports** (e.g., `parseTypeScriptSignature` in `src/lang/typescript/chunks-babel.js`).
+- [ ] **Add missing/edge-case tests** (Windows paths, tabs, unicode identifiers, SQL quoting, tree-sitter worker behavior, etc.).
+- [ ] **Document chunk metadata semantics** (particularly `meta.endLine` inclusivity and byte vs. code-unit offsets) in `docs/contracts/chunking.md` (and/or a new contract doc).
 
 ---
 
-## Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
+### 8.1 Chunking pipeline: mapping, fallback, limits, determinism
 
-### 17.1 Add dependency + unify backend contract
+#### 8.1.1 Fallback behavior and deterministic output
+- [ ] **Audit & document** the full fallback chain in `src/index/chunking/dispatch.js`:
+  - code chunker → code-format chunker → prose chunker → root chunk (prose extensions) → fixed-size blob fallback.
+- [ ] **Add regression tests** that verify:
+  - A failed code chunker returns `null` and the dispatcher properly falls back.
+  - “Prose mode” behavior for `.md/.rst/.adoc/.txt/.mdx` is stable (chunk headings when possible; otherwise single chunk).
+  - “Code mode” for prose files intentionally uses blob fallback (or adjust if that’s not desired).
 
-* [x] Add `@node-rs/xxhash` as optional dependency (or hard dep if you accept platform constraints)
-* [x] Create `src/shared/hash/xxhash-backend.js`:
-
-  * [x] `hash64(buffer|string) -> hex16` (exact output format must match existing `checksumString()` + `checksumFile()`)
-  * [x] `hash64Stream(readable) -> hex16` (if supported; otherwise implement chunking in JS)
-* [x] Update `src/shared/hash.js`:
-
-  * [x] Keep `sha1()` unchanged
-  * [x] Route `checksumString()` / `checksumFile()` through the backend contract
-  * [x] Preserve deterministic formatting (`formatXxhashHex`)
-
-### 17.2 Introduce selector + telemetry
-
-* [x] Add `PAIROFCLEATS_XXHASH_BACKEND=auto|native|wasm`
-* [ ] Emit backend choice in verbose logs (once)
-
-### 17.3 Tests
-
-* [x] Add `tests/xxhash-backends.js`:
-
-  * [x] Assert `checksumString('abc')` matches a known baseline (record from current implementation)
-  * [x] Assert `checksumFile()` matches `checksumString()` on same content (via temp file)
-  * [x] If native backend is available, assert native and wasm match exactly
-  * [x] If native is missing, ensure test still passes (skips “native parity” block)
-* [x] Add script-coverage action(s)
-
-**Exit criteria**
-
-* [x] No change to bundle identity semantics (incremental cache stability)
-* [x] `checksumFile()` remains bounded-memory for large files (streaming or chunked reads)
+#### 8.1.2 Limits: correctness + performance under large inputs
+- [ ] **Add tests for multi-byte UTF-8 boundaries** in `applyChunkingLimits()` (`src/index/chunking/limits.js`):
+  - Ensure splits never create invalid surrogate pairs.
+  - Ensure byte limits are enforced correctly with emoji / non-ASCII identifiers.
+- [ ] **Performance review:** `resolveByteBoundary()` currently calls `Buffer.byteLength(text.slice(0, mid))` repeatedly.
+  - [ ] Consider a faster strategy (e.g., pre-encoding once to a `Buffer`, or maintaining cumulative byte counts per line) to avoid repeated substring allocations.
+- [ ] **Clarify contract semantics** for:
+  - Whether `chunk.end` is exclusive (it is treated as exclusive almost everywhere).
+  - Whether `meta.endLine` is “line containing end offset” vs “last included line”.  
+    (Many language chunkers use `offsetToLine(end)` vs `offsetToLine(end - 1)`; this should be intentional and documented.)
+  - Update `docs/contracts/chunking.md` accordingly and add examples.
 
 ---
 
-## Phase 18 — Artifact compression upgrade: add Zstandard (`zstd`) alongside gzip
+### 8.2 Format chunkers: YAML, JSON, XML, INI/TOML, Markdown, RST/Asciidoc
 
-### 18.1 Add compression dependency
+#### 8.2.1 YAML (`src/index/chunking/formats/yaml.js`)
+**Bugs**
+- [ ] **Fix tab detection** in `chunkYamlTopLevel()` and list-item skipping:
+  - Current code checks `line.startsWith("\t")` (literal backslash + t) instead of `line.startsWith("\t")` as a tab character.
+  - Locations:
+    - line ~60: `line.startsWith('\t')` in list-item skip condition
+    - line ~92: `line.startsWith('\t')` in indentation calculation
+- [ ] **Fix Windows path normalization** in `chunkYaml()`:
+  - Current: `normalizedPath = relPath.replace(/\\\\/g, '/')`  
+    This matches *double* backslashes; typical Windows paths contain single backslashes.
+  - Should be: `relPath.replace(/\\/g, '/')` (single backslash regex)
 
-* [ ] Add `@mongodb-js/zstd` (recommended as optional dependency due to native bindings)
-* [ ] Decide “streaming vs buffer-only” support:
+**Hardening / improvements**
+- [ ] **Add YAML tests** covering:
+  - Tab-indented YAML (even if discouraged, tools may produce it).
+  - Workflow path detection for both `".github/workflows/foo.yml"` and `".github\\workflows\\foo.yml"`.
+  - A workflow file with `jobs:` where indentation is not 2 spaces (ensure graceful behavior).
+- [ ] **Document YAML chunker limitations** (top-level-only + heuristics for GH Actions) in the chunking contract or a dedicated “format chunkers” doc section.
 
-  * [ ] If streaming is supported: implement streaming JSONL writers/readers
-  * [ ] If buffer-only: restrict zstd to JSON object/array artifacts, keep JSONL as gzip (document clearly)
+#### 8.2.2 JSON (`src/index/chunking/formats/json.js`)
+- [ ] **Test hygiene:** Fix test calls that pass arguments in the wrong positions (e.g., `chunkJson(jsonText, {})` in `tests/chunking/json.test.js` currently passes `{}` as `relPath`).  
+  Update to `chunkJson(jsonText, null, {})` for clarity and future-proofing.
+- [ ] **Optional robustness improvement:** consider using `jsonc-parser` for tolerant parsing (trailing commas/comments) *if desired*.
+  - If adopted, ensure invalid JSON still cleanly falls back (i.e., return `null`).
 
-### 18.2 Introduce compression abstraction (avoid sprinkling `if (mode===...)` everywhere)
+#### 8.2.3 XML (`src/index/chunking/formats/xml.js`)
+- [ ] Add tests for:
+  - Nested tags with attributes + self-closing tags.
+  - CDATA blocks and processing instructions.
+  - Malformed tag recovery (should return `null`, triggering fallback, rather than producing broken chunks).
 
-* [ ] Add `src/shared/compression.js`:
+#### 8.2.4 Markdown (`src/index/chunking/formats/markdown.js`)
+- [ ] Add tests for:
+  - Headings inside fenced blocks (should not create chunks; current `inFence` logic covers ``` and ~~~).
+  - Setext headings vs horizontal rules (ensure `---` under a paragraph is treated correctly).
 
-  * [ ] `compressBuffer(mode, buffer, level?)`
-  * [ ] `decompressBuffer(mode, buffer)`
-  * [ ] Optional stream helpers if supported
-* [ ] Update `src/index/build/artifacts/compression.js`:
+#### 8.2.5 RST/Asciidoc (`src/index/chunking/formats/rst-asciidoc.js`)
+- [ ] Add tests for:
+  - RST overline+underline headings and nested sectioning.
+  - Asciidoc `==` headings inside code/list blocks to avoid false positives.
 
-  * [ ] Expand `mode` validation: `gzip|zstd|none`
-  * [ ] Keep current defaults unchanged (`gzip` or `null` based on existing config)
-* [ ] Update `src/index/build/artifacts.js`:
-
-  * [ ] Replace hard-coded `.json.gz` with extension derived from compression mode
-
-    * [ ] gzip: `.json.gz`
-    * [ ] zstd: `.json.zst` (or `.json.zstd`; pick one and standardize)
-  * [ ] Ensure `compressionKeepRaw` behavior remains correct
-
-### 18.3 Update readers/writers for new extensions
-
-* [ ] Update `src/shared/artifact-io.js`:
-
-  * [ ] Extend `resolveArtifactPath()` to check:
-
-    * [ ] `<name>.json` then `<name>.json.gz` then `<name>.json.zst`
-    * [ ] Also handle `.bak` variants for each
-  * [ ] Extend `readJsonFile()` to decode zstd when applicable
-* [ ] Update `src/shared/json-stream.js`:
-
-  * [ ] Add zstd path for `writeJsonArrayFile()` / `writeJsonObjectFile()` when compression is requested
-  * [ ] If JSONL is to support zstd: update `writeJsonLinesFile()` and `readJsonLinesArraySync()`
-
-### 18.4 Update artifact contract + metrics
-
-* [ ] Update `docs/artifact-contract.md`:
-
-  * [ ] New allowed compression modes
-  * [ ] New filename extensions
-  * [ ] Backward compatibility statement (gzip still readable)
-* [ ] Update `src/index/build/artifacts/metrics.js` to report `compression.mode=zstd`
-* [ ] Update `docs/config-schema.json` to restrict/describe valid modes
-
-### 18.5 Tests
-
-* [ ] Add `tests/artifact-zstd-readwrite.js`:
-
-  * [ ] Write a compressed artifact (zstd) using production writer
-  * [ ] Read it with `readJsonFile()` and assert payload matches
-* [ ] Extend `tests/artifact-bak-recovery.js` with a zstd variant:
-
-  * [ ] `.json.zst` + `.bak` fallback behavior
-* [ ] Add script-coverage action(s)
-
-**Exit criteria**
-
-* [ ] `loadIndex()` can transparently read `.json`, `.json.gz`, and `.json.zst` artifacts
-* [ ] Existing gzip artifacts remain fully compatible
-* [ ] Failure-mode behavior (`.bak` recovery) remains correct for new extensions
+#### 8.2.6 INI/TOML (`src/index/chunking/formats/ini-toml.js`)
+- [ ] Add tests for:
+  - TOML array-of-tables (`[[table]]`).
+  - INI sections with unusual whitespace and comments.
 
 ---
 
-## Phase 19 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
+### 8.3 Language registry: selection, options, and collector mapping
 
-### 19.1 Add document extraction dependencies
+#### 8.3.1 Registry correctness (`src/index/language-registry/registry.js`)
+- [ ] **Confirm and document intentional grouping** of C/C++/ObjC into `id: 'clike'`:
+  - Ensure docs and tests consistently reflect that `.c/.h/.cpp/.hpp/.m/.mm` map to the same language id.
+  - Update language-fidelity expectations and/or docs if users expect separate ids.
 
-* [ ] Add `pdfjs-dist` (PDF text extraction)
-* [ ] Add `mammoth` (DOCX → text/HTML extraction)
+- [ ] Expand `tests/language-registry/selection.test.js` to cover:
+  - C/C++/ObjC extensions: `.c`, `.h`, `.cpp`, `.hpp`, `.m`, `.mm`
+  - Ambiguous extensions and “special names”:
+    - `Dockerfile`, `dockerfile`, `*.Dockerfile`
+    - `Makefile`, `makefile`
+    - `CMakeLists.txt`
+    - `.gitignore`-style config names (if supported elsewhere)
 
-### 19.2 Introduce “extractor” layer in indexing pipeline
+#### 8.3.2 Import collectors map (`tests/language-registry/collectors.test.js`)
+- [ ] **Fix syntax error** at the Dart fixture entry:
+  - Replace `text: "import 'package:foo/bar.dart';",` with a valid JS string literal:
+    - `text: "import 'package:foo/bar.dart';",`
 
-* [ ] Create `src/index/build/extractors/`:
-
-  * [ ] `text.js` (wrap existing `readTextFileWithHash` path)
-  * [ ] `pdf.js` (buffer → extracted text; include page separators if possible)
-  * [ ] `docx.js` (buffer → extracted text; preserve headings if possible)
-  * [ ] `index.js` (select extractor by extension + config)
-* [ ] Add a new constant set in `src/index/constants.js`:
-
-  * [ ] `EXTS_EXTRACTABLE_BINARY = new Set(['.pdf', '.docx'])`
-* [ ] Add `.pdf` and `.docx` to `EXTS_PROSE` **only if** extraction is enabled (or add them unconditionally but ensure they don’t get skipped)
-
-### 19.3 Fix binary-skip logic to allow extractable docs
-
-You must handle both “pre-read” scanning and “post-read” binary checks:
-
-* [ ] Update `src/index/build/file-scan.js` / `createFileScanner()`:
-
-  * [ ] If `ext` ∈ `EXTS_EXTRACTABLE_BINARY` and extraction enabled:
-
-    * [ ] Do **not** mark as `{ reason: 'binary' }`
-    * [ ] Still allow minified checks to run when relevant (likely irrelevant for pdf/docx)
-* [ ] Update `src/index/build/file-processor/skip.js`:
-
-  * [ ] If `ext` extractable and extraction enabled, do not return `binarySkip`
-* [ ] Update `src/index/build/file-processor.js`:
-
-  * [ ] Branch early on `ext`:
-
-    * [ ] For `.pdf`/`.docx`: read buffer → extractor → `text`
-    * [ ] For all else: existing text decoding path
-  * [ ] Ensure `hash` still derives from raw bytes (current `sha1(buffer)` behavior is good)
-  * [ ] Ensure `stats.bytes` is still the raw size for guardrails
-
-### 19.4 Chunking strategy for extracted docs
-
-* [ ] Decide on an initial, deterministic chunking approach:
-
-  * [ ] Minimal viable: treat extracted output as prose and let default prose chunking apply
-  * [ ] Better: add dedicated chunkers:
-
-    * [ ] Add `src/index/chunking/prose/pdf.js` to split by page markers
-    * [ ] Add `src/index/chunking/prose/docx.js` to split by headings / paragraph blocks
-* [ ] Update `src/index/chunking/dispatch.js`:
-
-  * [ ] Map `.pdf` and `.docx` to their chunkers (or prose fallback)
-
-### 19.5 Search + metadata integration
-
-* [ ] Ensure extracted docs appear in:
-
-  * [ ] `file_meta.json` (file path + ext)
-  * [ ] `chunk_meta.*` (chunks with correct file associations)
-* [ ] Consider adding a metadata flag for UI filters:
-
-  * [ ] `fileMeta[i].isExtractedDoc = true` (or reuse existing `externalDocs` pattern if appropriate)
-* [ ] Verify retrieval filters treat these files correctly (extension/path filters)
-
-### 19.6 Tests (must include “end-to-end search finds doc content”)
-
-* [ ] Add fixture files under `tests/fixtures/docs/`:
-
-  * [ ] `sample.pdf` with a known unique phrase
-  * [ ] `sample.docx` with a known unique phrase
-* [ ] Add `tests/pdf-docx-extraction.js`:
-
-  * [ ] Unit-level extraction returns expected text
-* [ ] Add `tests/pdf-docx-index-search.js`:
-
-  * [ ] Build prose index for a temp repo that includes the docs
-  * [ ] Run `search.js --mode prose` and assert the phrases match chunks
-* [ ] Add script-coverage action(s)
-
-**Exit criteria**
-
-* [ ] PDF/DOCX are no longer silently dropped as “binary” (when enabled)
-* [ ] Prose search can retrieve content from these formats reliably
-* [ ] No regression to binary detection for non-extractable files
+- [ ] Add edge-case import collector tests for:
+  - Multiline imports (where applicable).
+  - Imports inside comments (should be ignored where the collector claims to ignore comments).
+  - Duplicate imports / whitespace variants (ensure normalization works).
 
 ---
 
-## Phase 20 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
+### 8.4 Tree-sitter backbone: wasm init, language loading, chunk extraction, workers
 
-### 20.1 Add MCP SDK and plan transport layering
+#### 8.4.1 Name extraction (`src/lang/tree-sitter/chunking.js`)
+- [ ] **Fix `findNameNode()` depth logic**:
+  - Current implementation increments `depth` per dequeued node, not per BFS level.
+  - Result: the search stops after ~4 processed nodes and often fails to find a name.
+  - Expected: traverse up to N levels or up to a node-count budget (explicitly), and return the first plausible identifier.
 
-* [ ] Add `@modelcontextprotocol/sdk` dependency
-* [ ] Decide migration strategy:
+- [ ] Add tests that assert:
+  - Function and class chunk names are extracted correctly across multiple language grammars.
+  - Member/method names are found for nested AST shapes where the `name` field is not a direct child.
 
-  * [ ] **Option A (recommended):** keep `tools/mcp-server.js` as the entrypoint, but implement server via SDK and keep legacy behind a flag
-  * [ ] Option B: replace legacy entirely (higher risk)
+#### 8.4.2 Worker-mode tree-sitter chunking (`src/lang/workers/tree-sitter-worker.js`, `src/lang/tree-sitter/chunking.js`)
+- [ ] **Initialize and preload grammars inside the worker** (or add a per-worker lazy-init path):
+  - Today, the worker calls `buildTreeSitterChunks()` without ensuring tree-sitter wasm + language grammar are loaded in that worker thread.
+  - Proposed fix:
+    - In the worker, resolve language id from `ext`/`languageId`, then `await preloadTreeSitterLanguages([resolvedId], treeSitterOptions)` before parsing.
+- [ ] **Make `buildTreeSitterChunksAsync()` treat `null` results as a failure signal** and fall back to in-thread parsing (or to non-tree-sitter chunking), at least when worker-mode is enabled.
+- [ ] Add tests that explicitly enable worker-mode and assert that:
+  - Chunks are returned (not `null`) for a known fixture.
+  - The result matches non-worker behavior (same chunk boundaries, or documented acceptable differences).
+  - If a grammar is missing/unavailable, it falls back cleanly and deterministically.
 
-### 20.2 Implement SDK-based server
+#### 8.4.3 Configuration normalization (`src/lang/tree-sitter/options.js`)
+- [ ] Improve boolean normalization:
+  - Current `normalizeEnabled()` only recognizes `false` and the literal string `'off'`.
+  - Expand to treat `'false'`, `'0'`, `'no'` (case-insensitive) as disabled, and `'true'`, `'1'`, `'yes'`, `'on'` as enabled.
+- [ ] Add tests for config parsing from environment/JSON where booleans may be strings.
 
-* [ ] Add `src/integrations/mcp/sdk-server.js` (or similar):
-
-  * [ ] Register tools from `src/integrations/mcp/defs.js`
-  * [ ] Dispatch calls to existing handlers in `tools/mcp/tools.js` (or migrate handlers into `src/` cleanly)
-  * [ ] Preserve progress notifications semantics expected by `tests/mcp-server.js`:
-
-    * [ ] `notifications/progress`
-    * [ ] Include `{ tool: 'build_index', phase, message }` fields (match current tests)
-* [ ] Update `tools/mcp-server.js`:
-
-  * [ ] If `mcp.transport=legacy` or env forces legacy → use current transport
-  * [ ] Else → use SDK transport
-
-### 20.3 Remove or isolate legacy transport surface area
-
-* [ ] Keep `tools/mcp/transport.js` for now, but:
-
-  * [ ] Move to `tools/mcp/legacy/transport.js`
-  * [ ] Update imports accordingly
-  * [ ] Reduce churn risk while you validate parity
-
-### 20.4 Tests
-
-* [ ] Ensure these existing tests continue to pass without rewriting expectations unless protocol mandates it:
-
-  * [ ] `tests/mcp-server.js`
-  * [ ] `tests/mcp-robustness.js`
-  * [ ] `tests/mcp-schema.js`
-* [ ] Add `tests/mcp-transport-selector.js`:
-
-  * [ ] Force `PAIROFCLEATS_MCP_TRANSPORT=legacy` and assert legacy path still works
-  * [ ] Force `...=sdk` and assert SDK path works
-* [ ] Add script-coverage action(s)
-
-**Exit criteria**
-
-* [ ] MCP server behavior is unchanged from the client perspective (tool list, outputs, progress events)
-* [ ] Maintenance burden reduced: eliminate custom framing/parsing where SDK provides it
+#### 8.4.4 Offsets: bytes vs JS string indices
+- [ ] Add an explicit contract note and tests around offset units used by:
+  - tree-sitter (`node.startIndex/endIndex`)
+  - parse5 and other JS parsers
+  - Python AST (line/col from Python runtime)  
+  Ensure all chunk `start/end` offsets are consistent with JS string slicing expectations, particularly with non-BMP unicode characters.
 
 ---
 
-## Phase 21 — Tantivy sparse backend (optional, high impact on large repos)
+### 8.5 Language handlers: correctness fixes & hardening
 
-> This phase is intentionally split into “abstraction first” and “backend integration” to keep risk controlled.
+#### 8.5.1 C-like (`src/lang/clike.js`)
+- [ ] **Fix docstring extraction index** for functions and ObjC methods:
+  - Current:
+    - ObjC method chunk meta: `extractDocComment(lines, i - 1, ...)` and `collectAttributes(lines, i - 1, ...)`
+    - C-like functions: `extractDocComment(lines, i - 1)`
+  - This skips the immediate preceding line.  
+  - Fix: pass `i` (0-based declaration start line) instead of `i - 1`.
+  - Locations:
+    - ~417–418, ~463 in `src/lang/clike.js`
 
-### 21.1 Extract a sparse-retrieval interface
+- [ ] Add tests for C-like doc comment capture:
+  - A `/** ... */` or `// ...` directly above a `struct`, `class`, `enum`, and `function`.
+  - ObjC method with `///` doc comment above it.
 
-* [ ] Create `src/retrieval/sparse/`:
+#### 8.5.2 SQL (`src/lang/sql.js`)
+- [ ] **Fix quote handling** in both `stripSqlComments()` and `splitSqlStatements()`:
+  - SQL escaping commonly uses doubled quotes:
+    - `'It''s fine'`
+    - `"a ""quoted"" identifier"`
+  - Current logic toggles on every `'`/`"` not preceded by backslash, which breaks on doubled quotes.
 
-  * [ ] `types.js` contract: `search({ query, topN, filters, mode }) -> hits[]`
-  * [ ] `providers/sqlite-fts.js` wrapper around existing SQLite FTS ranking
-  * [ ] `providers/js-bm25.js` wrapper around the in-memory BM25 path
-* [ ] Update `src/retrieval/pipeline.js` to call the provider rather than direct sqlite/JS branching:
+- [ ] Add tests that include:
+  - Semicolons inside strings with doubled quotes.
+  - PostgreSQL dollar-quoted strings combined with single-quoted strings.
+  - MySQL delimiter blocks that contain semicolons.
 
-  * [ ] Keep behavior identical as baseline
-  * [ ] Preserve determinism (stable tie-breaking)
+#### 8.5.3 CSS (`src/lang/css.js`)
+- [ ] Add guardrails to prevent pathological chunk explosion when using the CSS tree-sitter parser:
+  - Options:
+    - Enforce a max node/chunk count (consistent with tree-sitter default maxChunkNodes behavior).
+    - Or switch to `buildTreeSitterChunks()` and its existing limits.
+- [ ] Add tests for:
+  - Nested `@media` with many rules (ensure performance and deterministic chunk output).
+  - Files exceeding the max node threshold (ensure fallback to heuristic).
 
-### 21.2 Implement Tantivy integration (choose one operational model)
-
-* [ ] Choose packaging model:
-
-  * [ ] **Sidecar model:** `tools/tantivy-server` (Rust) + Node client
-  * [ ] **Embedded binding:** Node N-API module
-* [ ] Add `src/retrieval/sparse/providers/tantivy.js`:
-
-  * [ ] Build query → execute → map results to `{ idx, score }`
-  * [ ] Support candidate-set filtering if feasible (or document it as a limitation and handle via post-filtering)
-* [ ] Add `tools/build-tantivy-index.js`:
-
-  * [ ] Consume existing artifacts (`chunk_meta`, token streams) and build tantivy index on disk
-  * [ ] Store alongside other indexes (e.g., under repo cache root)
-  * [ ] Consider incremental updates later; start with full rebuild
-
-### 21.3 Config + CLI integration
-
-* [ ] Add config:
-
-  * [ ] `tantivy.enabled`
-  * [ ] `tantivy.path` (optional override)
-  * [ ] `tantivy.autoBuild` (optional)
-* [ ] Extend backend policy logic (see `src/retrieval/cli/backend-context.js` and backend-policy tests):
-
-  * [ ] Allow `--backend tantivy` (or `--sparse-backend tantivy`)
-  * [ ] Ensure `auto` fallback behavior remains predictable
-
-### 21.4 Tests (gated if tantivy isn’t always available in CI)
-
-* [ ] Add `tests/tantivy-smoke.js`:
-
-  * [ ] Builds tantivy index for `tests/fixtures/sample`
-  * [ ] Executes a basic query and asserts hits are non-empty
-* [ ] Gate it behind env:
-
-  * [ ] `PAIROFCLEATS_TEST_TANTIVY=1` to run
-  * [ ] Otherwise test exits 0 with “skipped” message (match existing patterns in repo)
-* [ ] Add script-coverage action(s) that run it only when env flag is set (or mark as skipped in coverage if you keep strictness)
-
-**Exit criteria**
-
-* [ ] Tantivy backend can be enabled without changing default behavior
-* [ ] For large repos, sparse retrieval latency is materially improved (benchmarks added in Phase 15)
+#### 8.5.4 TypeScript (`src/lang/typescript/chunks-babel.js`)
+- [ ] Remove or use unused import `parseTypeScriptSignature` (currently imported but not referenced).
+- [ ] Add/extend tests ensuring:
+  - Babel-based TS chunker produces signatures and types consistently where expected.
+  - Worker/non-worker tree-sitter paths do not regress TS chunking (when enabled).
 
 ---
 
-## Phase 22 — LanceDB vector backend (optional, high impact on ANN scaling)
+### 8.6 Imports, relations, and control-flow metrics
 
-### 22.1 Extract a vector-ANN provider interface
+#### 8.6.1 Import collectors
+- [ ] Add test coverage for:
+  - Normalization rules (`normalizeImportToken()` behavior).
+  - Edge cases per language (e.g., JS `import type`, TS `import("x")`, Python relative imports).
+- [ ] Validate that collectors return stable, sorted output (dedupe + order determinism), or document if order is intentionally non-deterministic.
 
-* [ ] Create `src/retrieval/ann/`:
-
-  * [ ] `types.js`: `query({ embedding, topN, candidateSet, mode }) -> hits[]`
-  * [ ] `providers/sqlite-vec.js` wrapper around `rankVectorAnnSqlite`
-  * [ ] `providers/hnsw.js` wrapper around `rankHnswIndex`
-* [ ] Update `src/retrieval/pipeline.js` to use the provider interface
-
-### 22.2 Implement LanceDB integration (choose operational model)
-
-* [ ] Choose packaging model:
-
-  * [ ] Node library integration, **or**
-  * [ ] Sidecar service (Python) + HTTP
-* [ ] Add `src/retrieval/ann/providers/lancedb.js`:
-
-  * [ ] Query by vector and return `{ idx, sim }`
-  * [ ] Handle filtering:
-
-    * [ ] If LanceDB supports “where id IN (…)” efficiently → push down
-    * [ ] Otherwise → post-filter and overfetch
-
-### 22.3 Build tooling for vector index creation
-
-* [ ] Add `tools/build-lancedb-index.js`:
-
-  * [ ] Ingest `dense_vectors_*` artifacts
-  * [ ] Store LanceDB table in cache (mode-specific)
-  * [ ] Validate dims/model compatibility using existing `index_state.json` semantics
-
-### 22.4 Tests (gated)
-
-* [ ] Add `tests/lancedb-ann-smoke.js`:
-
-  * [ ] Build embeddings (stub) → build lancedb table → run a nearest-neighbor query → assert stable result ordering
-* [ ] Gate behind `PAIROFCLEATS_TEST_LANCEDB=1`
-* [ ] Add script-coverage action(s) gated similarly
-
-**Exit criteria**
-
-* [ ] LanceDB ANN can be enabled without breaking sqlite/hnsw fallbacks
-* [ ] Demonstrable memory and/or latency win for ANN retrieval at scale
+#### 8.6.2 Relations builders (`src/index/language-registry/simple-relations.js`, per-language `relations.js`)
+- [ ] Add a small integration test that:
+  - Runs `collectLanguageImports()` and `buildLanguageRelations()` for a multi-language fixture set.
+  - Verifies the resulting `imports`, `exports`, `calls`, and `usages` sets match expectations.
 
 ---
 
-## Phase 23 — Benchmarks, regression gates, and release hardening (prove the ROI)
+### 8.7 Ingestion tools: ctags / gtags / lsif / scip
 
-### 23.1 Extend microbench suite (`tools/bench/micro/`)
+#### 8.7.1 Output directory creation order
+- [ ] Move `await ensureOutputDir()` to occur *before* `fs.createWriteStream(outputPath, ...)` in:
+  - `tools/ctags-ingest.js` (write stream is created before the dir is ensured)
+  - `tools/gtags-ingest.js`
+  - `tools/lsif-ingest.js`
+  - `tools/scip-ingest.js`
 
-* [ ] Add `tools/bench/micro/watch.js`:
+#### 8.7.2 Robustness improvements
+- [ ] Add tests / smoke scripts that verify:
+  - Tools succeed when output directory doesn’t exist.
+  - Tools correctly handle empty input streams.
+  - Tools fail with actionable errors on malformed JSON lines.
 
-  * [ ] Event storm simulation (if feasible) or synthetic scheduler load
-* [ ] Add `tools/bench/micro/regex.js`:
-
-  * [ ] Compare `re2js` vs `re2` on representative patterns/inputs
-* [ ] Add `tools/bench/micro/hash.js`:
-
-  * [ ] Compare wasm vs native checksum throughput
-* [ ] Add `tools/bench/micro/compression.js`:
-
-  * [ ] gzip vs zstd compress/decompress for representative artifact payload sizes
-* [ ] Add `tools/bench/micro/extractors.js`:
-
-  * [ ] PDF/DOCX extraction throughput and memory ceiling
-
-### 23.2 Add “no-regression” assertions where it matters
-
-* [ ] Add deterministic snapshot tests (lightweight, not full golden files):
-
-  * [ ] Ensure chunk IDs stable across backends
-  * [ ] Ensure ordering stable under ties
-* [ ] Add metrics validation:
-
-  * [ ] `index-*.json` metrics reflect new compression/extractor options correctly
-
-### 23.3 Documentation + UX polish
-
-* [ ] Update `README.md`:
-
-  * [ ] Mention PDF/DOCX support and how to enable/disable
-  * [ ] Mention optional performance backends and how `auto` works
-* [ ] Update `docs/external-backends.md` for Tantivy/LanceDB reality (what’s implemented vs planned)
-* [ ] Update `docs/mcp-server.md` for SDK migration
-
-**Exit criteria**
-
-* [ ] Benchmarks show measurable improvement (and are reproducible)
-* [ ] CI remains green on Node 18 + Windows lane
-* [ ] New features are discoverable via config docs + `config_status`
+- [ ] Add optional flags/docs for:
+  - Strict vs tolerant ingest behavior (skip malformed lines vs fail-fast).
+  - Path normalization expectations (repo-root relative vs absolute).
 
 ---
 
-## Phase 24 — LibUV threadpool utilization (explicit control + docs + tests)
+### 8.8 Docs and test suite alignment
 
-**Objective:** Make libuv threadpool sizing an explicit, validated, and observable runtime control so PairOfCleats I/O concurrency scales predictably across platforms and workloads.
+#### 8.8.1 Fix broken / missing documentation references
+- [ ] The Section 5 checklist references docs that are *not present* in this repo snapshot (e.g., `docs/contracts/language-registry.md`, `docs/contracts/ast.md`, and `docs/optional/*`).  
+  Decide whether to:
+  - Create these docs, or
+  - Update the checklist to point to existing docs (`docs/language-handler-imports.md`, `docs/language-fidelity.md`, etc.).
 
-### 24.1 Audit: identify libuv-threadpool-bound hot paths and mismatch points
+#### 8.8.2 Update existing docs for discovered behavior
+- [ ] Update `docs/contracts/chunking.md` to include:
+  - Chunk offset semantics (exclusive `end`, unicode considerations).
+  - `meta.startLine/endLine` semantics and examples.
+  - Expected behavior for overlapping chunks (if allowed) vs non-overlapping (if required).
+- [ ] Update `docs/language-fidelity.md` if docstring expectations for C-like currently fail due to the off-by-one bug.
 
-* [ ] Audit all high-volume async filesystem call sites (these ultimately depend on libuv threadpool behavior):
-
-  * [ ] `src/index/build/file-processor.js` (notably `runIo(() => fs.stat(...))`, `runIo(() => fs.readFile(...))`)
-  * [ ] `src/index/build/file-scan.js` (`fs.open`, `handle.read`)
-  * [ ] `src/index/build/preprocess.js` (file sampling + `countLinesForEntries`)
-  * [ ] `src/shared/file-stats.js` (stream-based reads for line counting)
-* [ ] Audit concurrency derivation points where PairOfCleats may exceed practical libuv parallelism:
-
-  * [ ] `src/shared/threads.js` (`ioConcurrency = ioBase * 4`, cap 32/64)
-  * [ ] `src/index/build/runtime/workers.js` (`createRuntimeQueues` pending limits)
-* [ ] Decide and record the intended precedence rules for threadpool sizing:
-
-  * [ ] Whether PairOfCleats should **respect an already-set `UV_THREADPOOL_SIZE`** (recommended, matching existing `NODE_OPTIONS` behavior where flags aren’t overridden if already present).
-
-### 24.2 Add a first-class runtime setting + env override
-
-* [ ] Add config key (new):
-
-  * [ ] `runtime.uvThreadpoolSize` (number; if unset/invalid => no override)
-* [ ] Add env override (new):
-
-  * [ ] `PAIROFCLEATS_UV_THREADPOOL_SIZE` (number; same parsing rules as other numeric env overrides)
-* [ ] Implement parsing + precedence:
-
-  * [ ] Update `src/shared/env.js`
-
-    * [ ] Add `uvThreadpoolSize: parseNumber(env.PAIROFCLEATS_UV_THREADPOOL_SIZE)`
-  * [ ] Update `tools/dict-utils.js`
-
-    * [ ] Extend `getRuntimeConfig(repoRoot, userConfig)` to resolve `uvThreadpoolSize` with precedence:
-
-      * `userConfig.runtime.uvThreadpoolSize` → else `envConfig.uvThreadpoolSize` → else `null`
-    * [ ] Clamp/normalize: floor to integer; require `> 0`; else `null`
-    * [ ] Update the function’s return shape and JSDoc:
-
-      * from `{ maxOldSpaceMb, nodeOptions }`
-      * to `{ maxOldSpaceMb, nodeOptions, uvThreadpoolSize }`
-
-### 24.3 Propagate `UV_THREADPOOL_SIZE` early enough (launcher + spawned scripts)
-
-* [ ] Update `bin/pairofcleats.js` (critical path)
-
-  * [ ] In `runScript()`:
-
-    * [ ] Resolve `runtimeConfig` as today.
-    * [ ] Build child env as an object (don’t pass `process.env` by reference when you need to conditionally add keys).
-    * [ ] If `runtimeConfig.uvThreadpoolSize` is set and `process.env.UV_THREADPOOL_SIZE` is not set, add:
-
-      * [ ] `UV_THREADPOOL_SIZE = String(runtimeConfig.uvThreadpoolSize)`
-    * [ ] (Optional) If `--verbose` or `PAIROFCLEATS_VERBOSE`, log a one-liner showing the chosen `UV_THREADPOOL_SIZE` for the child process.
-* [ ] Update other scripts that spawn Node subcommands and already apply runtime Node options, so they also carry the threadpool sizing consistently:
-
-  * [ ] `tools/setup.js` (`buildRuntimeEnv()`)
-  * [ ] `tools/bootstrap.js` (`baseEnv`)
-  * [ ] `tools/ci-build-artifacts.js` (`baseEnv`)
-  * [ ] `tools/bench-language-repos.js` (repo child env)
-  * [ ] `tests/bench.js` (bench child env when spawning search/build steps)
-  * [ ] `tools/triage/context-pack.js`, `tools/triage/ingest.js` (where `resolveNodeOptions` is used)
-  * Implementation pattern: wherever you currently do `{ ...process.env, NODE_OPTIONS: resolvedNodeOptions }`, also conditionally set `UV_THREADPOOL_SIZE` from `runtimeConfig.uvThreadpoolSize` if not already present.
-
-> (Optional refactor, if you want to reduce repetition): add a helper in `tools/dict-utils.js` like `resolveRuntimeEnv(runtimeConfig, baseEnv)` and migrate the call sites above to use it.
-
-### 24.4 Observability: surface “configured vs effective” values
-
-* [ ] Update `tools/config-dump.js`
-
-  * [ ] Include in `payload.derived.runtime`:
-
-    * [ ] `uvThreadpoolSize` (configured value from `getRuntimeConfig`)
-    * [ ] `effectiveUvThreadpoolSize` (from `process.env.UV_THREADPOOL_SIZE` or null/undefined if absent)
-* [ ] Add runtime warnings in indexing startup when mismatch is likely:
-
-  * [ ] Update `src/index/build/runtime/workers.js` (in `resolveThreadLimitsConfig`, verbose mode is already supported)
-
-    * [ ] Compute `effectiveUv = Number(process.env.UV_THREADPOOL_SIZE) || null`
-    * [ ] If `effectiveUv` is set and `ioConcurrency` is materially larger, emit a single warning suggesting alignment.
-    * [ ] If `effectiveUv` is not set, consider a *non-fatal* hint when `ioConcurrency` is high (e.g., `>= 16`) and `--verbose` is enabled.
-* [ ] (Services) Emit one-time startup info in long-running modes:
-
-  * [ ] `tools/api-server.js`
-  * [ ] `tools/indexer-service.js`
-  * [ ] `tools/mcp-server.js`
-  * Log: effective `UV_THREADPOOL_SIZE`, and whether it was set by PairOfCleats runtime config or inherited from the environment.
-
-### 24.5 Documentation updates
-
-* [ ] Update env overrides doc:
-
-  * [ ] `docs/env-overrides.md`
-
-    * [ ] Add `PAIROFCLEATS_UV_THREADPOOL_SIZE`
-    * [ ] Explicitly note: libuv threadpool size must be set **before the Node process starts**; PairOfCleats applies it by setting `UV_THREADPOOL_SIZE` in spawned child processes (via `bin/pairofcleats.js` and other tool launchers).
-* [ ] Update config docs:
-
-  * [ ] `docs/config-schema.json` add `runtime.uvThreadpoolSize`
-  * [ ] `docs/config-inventory.md` add `runtime.uvThreadpoolSize (number)`
-  * [ ] `docs/config-inventory.json` add entry for `runtime.uvThreadpoolSize`
-* [ ] Update setup documentation:
-
-  * [ ] `docs/setup.md` add a short “Performance tuning” note:
-
-    * [ ] When indexing large repos or using higher `--threads`, consider setting `runtime.uvThreadpoolSize` (or `PAIROFCLEATS_UV_THREADPOOL_SIZE`) to avoid libuv threadpool becoming the limiting factor.
-* [ ] (Optional) Add a benchmark note:
-
-  * [ ] `docs/benchmarks.md` mention that benchmarking runs should control `UV_THREADPOOL_SIZE` for reproducibility.
-
-### 24.6 Tests: schema validation + env propagation
-
-* [ ] Update config validation tests:
-
-  * [ ] `tests/config-validate.js` ensure `runtime.uvThreadpoolSize` is accepted by schema validation.
-* [ ] Add a focused propagation test:
-
-  * [ ] New: `tests/uv-threadpool-env.js`
-
-    * [ ] Create a temp repo dir with a `.pairofcleats.json` that sets `runtime.uvThreadpoolSize`.
-    * [ ] Run: `node bin/pairofcleats.js config dump --json --repo <temp>`
-    * [ ] Assert:
-
-      * `payload.derived.runtime.uvThreadpoolSize` matches the config
-      * `payload.derived.runtime.effectiveUvThreadpoolSize` matches the propagated env (or check `process.env.UV_THREADPOOL_SIZE` if you expose it directly in the dump)
-* [ ] Add a non-override semantics test (if that’s the decided rule):
-
-  * [ ] New: `tests/uv-threadpool-no-override.js`
-
-    * [ ] Set parent env `UV_THREADPOOL_SIZE=…`
-    * [ ] Also set config `runtime.uvThreadpoolSize` to a different value
-    * [ ] Assert child sees the parent value (i.e., wrapper respects existing env)
-
-**Exit criteria**
-
-* [ ] `runtime.uvThreadpoolSize` is in schema + inventory and validated by `tools/validate-config.js`.
-* [ ] `pairofcleats …` launches propagate `UV_THREADPOOL_SIZE` to child processes when configured.
-* [ ] Users can confirm configured/effective behavior via `pairofcleats config dump --json`.
-* [ ] Docs clearly explain when and how the setting applies.
+#### 8.8.3 Add a “known limitations” section (recommended)
+- [ ] Document known heuristic limitations for:
+  - SQL parsing (heuristic statement splitting vs full parser).
+  - YAML parsing (line-based, top-level heuristics).
+  - Language relations (regex-based calls/usages for some languages).
 
 ---
 
-## Phase 25 — Threadpool-aware I/O scheduling guardrails
-
-**Objective:** Reduce misconfiguration risk by aligning PairOfCleats internal I/O scheduling with the effective libuv threadpool size and preventing runaway pending I/O buildup.
-
-### 25.1 Add a “threadpool-aware” cap option for I/O queue sizing
-
-* [ ] Add config (optional, but recommended if you want safer defaults):
-
-  * [ ] `indexing.ioConcurrencyCap` (number) **or** `runtime.ioConcurrencyCap` (number)
-  * Choose the namespace based on your ownership map (`docs/config-inventory-notes.md` suggests runtime is `tools/dict-utils.js`, indexing is build runtime).
-* [ ] Implement in:
-
-  * [ ] `src/shared/threads.js` (preferred, because it’s the canonical concurrency resolver)
-
-    * [ ] After computing `ioConcurrency`, apply:
-
-      * `ioConcurrency = min(ioConcurrency, ioConcurrencyCap)` when configured
-      * (Optional) `ioConcurrency = min(ioConcurrency, effectiveUvThreadpoolSize)` when a new boolean is enabled, e.g. `runtime.threadpoolAwareIo === true`
-  * [ ] `src/index/build/runtime/workers.js`
-
-    * [ ] Adjust `maxIoPending` to scale from the *final* `ioConcurrency`, not the pre-cap value.
-
-### 25.2 Split “filesystem I/O” from “process I/O” (optional, higher impact)
-
-If profiling shows git/tool subprocess work is being unnecessarily throttled by a threadpool-aware cap:
-
-* [ ] Update `src/shared/concurrency.js` to support two queues:
-
-  * [ ] `fs` queue (bounded by threadpool sizing)
-  * [ ] `proc` queue (bounded separately)
-* [ ] Update call sites:
-
-  * [ ] `src/index/build/file-processor.js`
-
-    * [ ] Use `fsQueue` for `fs.stat`, `fs.readFile`, `fs.open`
-    * [ ] Use `procQueue` for `getGitMetaForFile` (and any other spawn-heavy steps)
-  * [ ] `src/index/build/runtime/workers.js` and `src/index/build/indexer/steps/process-files.js`
-
-    * [ ] Wire new queues into runtime and shard runtime creation.
-
-### 25.3 Tests + benchmarks
-
-* [ ] Add tests that validate:
-
-  * [ ] Caps are applied deterministically
-  * [ ] Pending limits remain bounded
-  * [ ] No deadlocks when both queues exist
-* [ ] Update or add a micro-benchmark to show:
-
-  * [ ] Throughput difference when `UV_THREADPOOL_SIZE` and internal `ioConcurrency` are aligned vs misaligned.
-
-**Exit criteria**
-
-* [ ] Internal I/O concurrency cannot silently exceed intended caps.
-* [ ] No regression in incremental/watch mode stability.
-* [ ] Benchmarks show either improved throughput or reduced memory/queue pressure (ideally both).
+### Deliverables
+- [ ] All P0/P1 fixes implemented with unit tests.
+- [ ] Updated docs reflecting chunk semantics and configuration.
+- [ ] A focused regression test pack covering:
+  - YAML tabs + Windows workflow paths
+  - C-like doc comments
+  - SQL doubled-quote handling
+  - Tree-sitter worker-mode functionality
+  - Chunking limits with unicode/multi-byte text
 
 ---
 
-## Phase 26 — (Conditional) Native LibUV work: only if profiling proves a real gap
-
-**Objective:** Only pursue *direct* libuv usage (via a native addon) if profiling demonstrates a material bottleneck that cannot be addressed through configuration and queue hygiene.
-
-### 26.1 Profiling gate and decision record
-
-* [ ] Add a short profiling harness / guidance doc:
-
-  * [ ] `docs/perf-profiling.md` (new) describing how to profile indexing (CPU + I/O wait) and what thresholds justify native work.
-* [ ] Establish decision criteria (example):
-
-  * [ ] If ≥20–30% wall time is spent in JS-level file scanning/reading overhead beyond disk throughput limits, consider native.
-  * [ ] Otherwise, stay in JS + threadpool tuning.
-
-### 26.2 Prototype native module (N-API) using libuv for a specific hot path
-
-* [ ] Only target one narrow, measurable function (examples):
-
-  * [ ] Fast “sample read + binary/minified detection” replacing parts of `src/index/build/file-scan.js`
-  * [ ] Batched `stat + read` pipeline for small files
-* [ ] Provide a clean fallback path to existing JS implementation.
-* [ ] Add CI coverage for:
-
-  * [ ] Linux/macOS/Windows builds (or prebuilds)
-  * [ ] ABI compatibility across supported Node versions
-
-### 26.3 Packaging and docs
-
-* [ ] Update:
-
-  * [ ] `package.json` optionalDependencies/build tooling (node-gyp/prebuildify/etc.)
-  * [ ] `docs/setup.md` to explain native build requirements/fallback behavior
-
-**Exit criteria**
-
-* [ ] Prototype demonstrates measurable improvement on representative repos.
-* [ ] Install friction and cross-platform maintenance cost are explicitly accepted (or the work is abandoned).
-
-#### 18 Bottom line
-
-* **Do not add libuv directly** to this Node codebase.
-* **Do add explicit support for libuv threadpool sizing** (via `UV_THREADPOOL_SIZE`) because the current concurrency model (notably `ioConcurrency` up to 64) strongly suggests you will otherwise hit an invisible throughput ceiling.
+### Exit criteria
+- [ ] `npm test` (or the project’s test runner) executes without syntax errors (including `collectors.test.js`).
+- [ ] Format chunkers are robust against malformed inputs and fall back deterministically.
+- [ ] Tree-sitter worker-mode returns real chunks for supported languages and falls back when grammars are missing.
+- [ ] Chunk metadata semantics are documented and consistent across chunkers (or differences are explicitly justified).
+- [ ] Ingestion tools succeed when output directories are missing and produce valid NDJSON outputs.
 
 ---
 
-## Phase 27 — File processing & artifact assembly (chunk payloads/writers/shards)
+## Phase 9 — File processing & artifact assembly (chunk payloads/writers/shards)
 
 **Reviewed snapshot:** `PairOfCleats-main` (zip import)  
 **Scope driver:** `pairofcleats_review_section_3_files_and_checklist.md` (Section 3)  
@@ -1080,7 +869,7 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 
 ---
 
-## 27.1 Per-file processing correctness (Checklist A)
+### 9.1 Per-file processing correctness (Checklist A)
 
 **Audit**
 
@@ -1185,7 +974,7 @@ This makes post-hoc debugging harder:
 
 ---
 
-## 27.2 Artifact contract correctness (Checklist B)
+### 9.2 Artifact contract correctness (Checklist B)
 
 **Audit**
 
@@ -1270,7 +1059,7 @@ This is not always fatal if readers rely solely on `meta.parts`, but it violates
 
 ---
 
-## 27.3 Sharding / pieces / postings (Checklist C)
+### 9.3 Sharding / pieces / postings (Checklist C)
 
 **Audit**
 
@@ -1374,7 +1163,7 @@ Reviewed:
 
 ---
 
-## 27.4 Performance improvements to prioritize (Checklist D)
+### 9.4 Performance improvements to prioritize (Checklist D)
 
 **Audit**
 
@@ -1420,7 +1209,7 @@ The current implementation is functional and reasonably structured, but several 
 
 ---
 
-## 27.5 Refactoring goals (Checklist E)
+### 9.5 Refactoring goals (Checklist E)
 
 **Audit**
 
@@ -1449,7 +1238,7 @@ Current state:
 
 ---
 
-## 27.6 Tests (Checklist F)
+### 9.6 Tests (Checklist F)
 
 **Audit**
 
@@ -1687,7 +1476,9 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P1) Clarify which artifacts are “required” vs “optional/configurable” (e.g., minhash signatures).
 - [ ] (P1) Document sharded meta schema and loader precedence.
 
-## Phase 28 — Section 2 — Index build orchestration review (findings + required fixes)
+---
+
+## Phase 10 — Index build orchestration review (findings + required fixes)
 
 ### Executive summary: highest-priority issues (fix first)
 
@@ -1698,8 +1489,8 @@ This section enumerates each in-scope file and lists file-specific items to addr
   _Primary file:_ `src/index/build/indexer/steps/process-files.js`  
   _Related:_ `src/index/build/runtime/workers.js`, `src/index/build/worker-pool.js`
 
-- [ ] **`--mode all` behavior is inconsistent with “extracted-prose” expectations (tests + CLI surface).**  
-  `tests/build-index-all.js` expects an `extracted-prose` index to be produced for `--mode all`, and `parseBuildArgs(...)` already resolves `modes` to include it; however the CLI entry (`build_index.js`) discards the computed `modes` and delegates to the core build entry, which (in the current tree) resolves “all” differently.  
+- [ ] **`--mode all` behavior is inconsistent with “extracted-prose” + `records` expectations (tests + CLI surface).**  
+  `tests/build-index-all.js` expects an `extracted-prose` index (and should be extended to expect a `records` index) to be produced for `--mode all`. `parseBuildArgs(...)` already resolves `modes` to include `extracted-prose` and must be updated to include `records`; however the CLI entry (`build_index.js`) discards the computed `modes` and delegates to the core build entry, which (in the current tree) resolves “all” differently.  
   _Primary file(s) in scope:_ `build_index.js`, `src/index/build/args.js`, `tests/build-index-all.js`  
   _Note:_ the root cause may live outside this section’s file list, but the mismatch is observable from the files in scope and should be corrected at the boundary.
 
@@ -2100,8 +1891,8 @@ These are workable, but they heighten the importance of clear contracts/invarian
   - wrap `onRun()` in `Promise.resolve(...).catch(...)`
   - optionally provide an `onError` callback
 - [ ] Ensure “extracted-prose only” watch mode is supported:
-  - update `isIndexablePath(...)` to treat `extracted-prose` as both `code` and `prose` for extension filtering
-  - add coverage in `tests/watch-filter.js`
+  - update `isIndexablePath(...)` to treat `extracted-prose` as **code-only** for extension filtering (do **not** treat as prose; `extracted-prose` must not re-index normal prose)
+  - add coverage in `tests/watch-filter.js` (including a `.md` change that should *not* trigger when `modes=['extracted-prose']`)
 - [ ] Decide how to handle untracked file changes in git repos (discover is tracked-only):
   - either document that watch will trigger rebuilds but new untracked files will not be indexed
   - or add an optional “include untracked” mode for watch builds (with tests)
@@ -2172,7 +1963,7 @@ These are workable, but they heighten the importance of clear contracts/invarian
 #### E.2 Tests to add or strengthen
 
 **Remaining work**
-- [ ] **Build all modes:** Ensure `tests/build-index-all.js` reliably enforces that `--mode all` produces `code`, `prose`, and `extracted-prose` artifacts (and fix the orchestration boundary if currently inconsistent).
+- [ ] **Build all modes:** Ensure `tests/build-index-all.js` reliably enforces that `--mode all` produces `code`, `prose`, `extracted-prose`, and `records` artifacts (and fix the orchestration boundary if currently inconsistent).
 - [ ] **Watch extracted-prose:** add a case to `tests/watch-filter.js` where `modes=['extracted-prose']` and confirm indexable file changes trigger scheduling.
 - [ ] **Watch async error safety:** add a test that uses an async `onRun` that rejects once, and assert no `unhandledRejection` occurs (attach a listener in the test).
 - [ ] **Sharding teardown:** add a harness test that enables sharding and asserts no lingering worker threads prevent exit.
@@ -2186,7 +1977,7 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `build_index.js`
 
-- [ ] Pass the resolved `modes` from `parseBuildArgs(...)` through to the build orchestrator (or otherwise guarantee that “mode all” resolves identically at every boundary).  
+- [ ] Pass the resolved `modes` from `parseBuildArgs(...)` through to the build orchestrator (or otherwise guarantee that `--mode all` resolves identically at every boundary and includes `records`).  
   _Why:_ prevents drift between CLI arg parsing and internal orchestration; aligns with `tests/build-index-all.js`.
 
 #### `src/index/build/args.js`
@@ -2351,7 +2142,7 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 ##### `tests/build-index-all.js`
 
-- [ ] Ensure the build orchestration actually builds `extracted-prose` for `--mode all` (fix boundary mismatch if needed).
+- [ ] Ensure the build orchestration actually builds `extracted-prose` **and `records`** for `--mode all` (fix boundary mismatch if needed).
 
 ##### `tests/watch-filter.js`
 
@@ -2367,7 +2158,7 @@ These are workable, but they heighten the importance of clear contracts/invarian
 ### Deliverables
 
 - [ ] Fix sharding runtime lifecycle and add regression coverage.
-- [ ] Resolve “mode all” / extracted-prose mismatch and ensure `tests/build-index-all.js` passes reliably.
+- [ ] Resolve “mode all” / extracted-prose / records mismatch and ensure `tests/build-index-all.js` passes reliably.
 - [ ] Harden watch debounce scheduling against async rejection.
 - [ ] Replace localeCompare sorts in ordering-critical paths.
 - [ ] Add a cache schema/tool version component to incremental signature and add a test for invalidation.
@@ -2375,1782 +2166,192 @@ These are workable, but they heighten the importance of clear contracts/invarian
 ### Exit criteria
 
 - [ ] Sharded builds do not leak worker threads/handles and the process exits cleanly.
-- [ ] `--mode all` produces `code`, `prose`, and `extracted-prose` indices; validated by test.
+- [ ] `--mode all` produces `code`, `prose`, `extracted-prose`, and `records` indices; validated by test.
 - [ ] Watch mode does not emit unhandled promise rejections under forced error paths.
 - [ ] Deterministic ordering is documented and enforced (no locale-dependent sorts in critical ordering paths).
 - [ ] Incremental cache reuse is safe across code releases (explicit schema/version invalidation).
 
-## Phase 29 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
+---
 
-**Objective:** harden the embeddings + ANN stack for correctness, determinism (where required), performance, and resilient fallbacks across **index build**, **build-embeddings tooling**, and **retrieval-time ANN execution**.
+## Phase 11 — Extracted-Prose + Records end-to-end parity (build/search/stats/tests)
 
-### 29.1 Correctness
+**Objective:** Make `extracted-prose` a first-class index mode (for extracted text such as code comments) and make `records` a first-class mode for log/record artifacts. Enforce deterministic, non-duplicative indexing across `code`, `prose`, `extracted-prose`, and `records`, and ensure `--mode all` includes all four.
 
-#### 29.1.1 Model identity (cache keys, preprocessing, normalization, dims)
+### Observed failures driving this phase
 
-##### Current state (verified)
-- [x] Tooling cache keys include **file hash** + **chunk signature** + **embedding identity** (`tools/build-embeddings/cache.js`, `tools/build-embeddings/run.js`).
-- [x] Tooling includes **dims mismatch guardrails** with explicit hard-fail paths and tests (`tools/build-embeddings/embed.js`, `tests/embeddings-dims-mismatch.js`, `tests/embeddings-dims-validation.js`).
+- `📦  extracted-prose: 0 chunks, 0 tokens` during benchmark builds (unexpected; indicates missing extraction/discovery or incorrect pipeline wiring).
+- Risk of normal prose content being re-indexed into `extracted-prose` (mode separation not strict enough).
+- Comment text currently influences `code` mode search, duplicating content that should live in `extracted-prose`.
+- Logs/records can exist anywhere in a repo; they must be detected and kept out of the other modes.
 
-##### Remaining gaps / action items
-- [ ] **Expand embedding identity to include preprocessing + provider-specific knobs**, not just `{modelId, provider, mode, stub, dims, scale}`:
-  - Why: changing `onnx` tokenizer/model path or execution provider can change embeddings without changing `modelId`/`provider`, allowing silent cache reuse.
-  - Files:
-    - `tools/build-embeddings/cache.js` (identity schema)
-    - `tools/build-embeddings/run.js` (identity inputs)
-  - Add fields (at minimum):
-    - ONNX: `onnx.modelPath` (resolved), `onnx.tokenizerId`, `onnx.executionProviders`, `onnx.threads`, `onnx.graphOptimizationLevel`
-    - Common: pooling strategy (mean), `normalize=true`, truncation/max_length policy
-    - Quantization: `minVal/maxVal` (currently fixed -1..1), quantization “version”
-- [ ] **Include a tooling/version fingerprint in cache identity** (or bumpable `identity.version`) so cache invalidates when embedding algorithm changes:
-  - Why: changes to doc extraction, pooling logic, quantization, or merging should invalidate caches even if file hashes are unchanged.
-  - Files: `tools/build-embeddings/cache.js`, optionally `tools/build-embeddings/chunks.js`
-- [ ] **Add strict provider validation**: unknown `indexing.embeddings.provider` should not silently map to `xenova`.
-  - Why: silent fallback can produce “correct-looking” but unintended embeddings and cache identity mismatch.
-  - Files: `src/shared/onnx-embeddings.js` (normalizeEmbeddingProvider), `src/index/embedding.js`, `tools/build-embeddings/cli.js`, `src/retrieval/embedding.js`
-- [ ] **Unify default stub embedding dimensions across build + retrieval + tooling** (currently inconsistent defaults: 384 vs 512).
-  - Why: any code path that calls stub embeddings without an explicit `dims` risks producing query embeddings that cannot match the index dims.
-  - Files: `src/shared/embedding.js` (defaults to 512), `src/index/embedding.js` (defaults to 384), `tools/build-embeddings/run.js` (defaults to 384), `src/retrieval/embedding.js` (passes `dims`, but can pass null in some ANN-only paths).
-  - Recommendation: pick **384** as the single default everywhere OR require dims explicitly in stub mode and fail loudly if missing.
-- [ ] **Index-build (inline) path lacks explicit dims mismatch failure** comparable to build-embeddings tool:
-  - `src/index/build/file-processor/embeddings.js` currently coerces unexpected shapes to empty arrays and proceeds.
-  - Add an explicit “dims contract” check and fail fast (or disable embeddings) if:
-    - vectors are not arrays/typed arrays,
-    - dims are inconsistent across chunks,
-    - batch output length mismatches input length.
-- [ ] **Make per-file embedding cache writes atomic** (cache files are written with `fs.writeFile`):
-  - Why: partial/corrupt cache JSON can cause repeated recompute; while not “poisoning,” it degrades throughput and can mask real failures.
-  - Files: `tools/build-embeddings/run.js` (cache writes), optionally reuse `tools/build-embeddings/atomic.js` or shared atomic writer.
+### 11.1 Define and enforce mode invariants
+
+* [ ] Document and enforce mode semantics in `docs/contracts/indexing.md`:
+  * `code` indexes code bodies + structural metadata; **must not index comments as searchable text**.
+  * `prose` indexes documentation/prose files (Markdown, text, etc.).
+    * Any comments that exist inside prose files (e.g., HTML comments inside Markdown) remain in `prose`.
+  * `extracted-prose` indexes **only extracted text** (comments/docstrings/config comments/etc.) sourced from **both** code and prose files.
+    * **All comments are eligible** for extraction (default on), but extracted-prose must never contain the “normal prose body” of a prose file.
+    * Implementation requirement: extracted-prose mode must only emit chunks for explicit extracted segments (no fallback that chunks the whole file).
+  * `records` indexes log/record/triage artifacts; anything indexed in `records` must be excluded from other modes.
+  * `all` == `{code, prose, extracted-prose, records}`.
+
+* [ ] Update build orchestration so `--mode all` truly means “all”:
+  * `src/index/build/args.js`: expand `--mode all` to include `records`.
+  * `src/integrations/core/index.js`: expand `mode === 'all'` to include `records` (do not re-derive modes inconsistently vs. `parseBuildArgs`).
+  * Ensure stage3 embedding generation includes `extracted-prose` when enabled:
+    * `src/integrations/core/index.js`: `buildEmbedModes` must include `extracted-prose` (and still exclude `records`).
+  * Add/extend `tests/build-index-all.js` to assert `records` is built.
+
+* [ ] Update discovery + file processing so extracted-prose never re-indexes full prose:
+  * Guarantee: a prose file with no extractable comment-like segments yields **0** extracted-prose chunks.
+  * `src/index/build/file-processor.js`:
+    * enforce `segmentsConfig.onlyExtras=true` for `mode === 'extracted-prose'` across all extensions
+    * ensure no fallback path can chunk the full file body into extracted-prose
+  * Add regression tests:
+    * `.md` with only normal prose -> 0 extracted-prose chunks
+    * `.md` with HTML comments (`<!-- ... -->`) -> extracted-prose chunks contain the comment text
+    * comments remain searchable in prose (since they remain in prose) while also appearing in extracted-prose
+
+* [ ] Ensure stats + smoke tests are mode-aware:
+  * Smoke test that builds all modes then runs:
+    * `search.js --mode extracted-prose ...`
+    * `search.js --mode records ...`
+  * Ensure any stats tooling used in CI includes extracted-prose + records counts (non-zero when fixtures contain eligible content).
+
+### 11.2 Comments: single source of truth in extracted-prose, displayed by default
+
+* [ ] Change the indexing contract so comment text is stored in one place:
+  * `extracted-prose` chunk meta contains comment text/tokens/embeddings.
+  * `code` chunk meta stores **references** to comment chunks/spans/IDs (no duplicated tokens).
+
+* [ ] Retrieval join contract (default-on):
+  * `code` results **include** a comment excerpt by default by joining to `extracted-prose` via `(fileId, start, end)` and/or explicit `commentChunkIds`.
+  * Add a flag to disable the join for performance debugging (e.g., `--no-comments` or `--comments=off`).
+  * Ensure joins are lazy and bounded (do not load all extracted-prose chunks eagerly).
+
+* [ ] Implementation (gate behind a compatibility flag only if required):
+  * `src/index/build/file-processor.js` / `src/index/build/file-processor/assemble.js`:
+    * remove `fieldTokens.comment` population in code mode
+    * attach comment references instead
+
+* [ ] Tests:
+  * [ ] Searching in `extracted-prose` finds doc comments for a code fixture.
+  * [ ] Searching in `code` does **not** match solely on comment text.
+  * [ ] Default retrieval output includes a comment excerpt for code results when the reference exists.
+
+### 11.3 Records: detect logs/records anywhere and prevent cross-mode duplication
+
+* [ ] Define “records” as **log/record-like artifacts**, regardless of directory:
+  * examples: build logs, test logs, stack traces, benchmark outputs, crash dumps, tool outputs.
+
+* [ ] Implement records detection + routing:
+  * Add a classifier (path + content heuristics) used during discovery, e.g. `classifyFileKind(entry)`.
+  * Heuristics should include:
+    * extensions: `.log`, `.out`, `.trace`, `.stacktrace`, `.dmp`, `.gcov`, `.lcov`, etc.
+    * path segments: `logs/`, `log/`, `out/`, `artifacts/`, `coverage/`, `tmp/`, `.cache/` (configurable)
+    * lightweight content sniffing (bounded bytes): high timestamp density, stack-trace signatures, test runner prefixes.
+  * Provide config overrides:
+    * `records.detect` (default on)
+    * `records.includeGlobs` / `records.excludeGlobs`
+
+* [ ] Enforce exclusion invariant:
+  * any file classified into `records` is excluded from `code`, `prose`, and `extracted-prose`.
+
+* [ ] Tests:
+  * [ ] Place a log-like file in an arbitrary subdir (not under a dedicated `recordsDir`) and assert it indexes only under `records`.
+  * [ ] Add a regression test that prevents a records file from being double-indexed into `prose`.
+
+### 11.4 Rust/prose mode isolation regression
+
+* [ ] Add a discovery/unit test that asserts `.rs` files are never included in `prose` discovery.
+* [ ] Add an integration smoke test that builds `prose` for a repo containing `.rs` and asserts zero `.rs` chunks exist in the prose index.
+
+### 11.5 Critical dependency reference documentation completeness
+
+* [ ] Define the “critical dependency set” (runtime deps that are native, download/exec, security-sensitive, or historically fragile).
+* [ ] Add a CI-friendly tooling check that verifies each critical dependency has a corresponding reference document under `docs/references/dependency-bundle/deps/`.
+* [ ] For missing entries, add stub docs with:
+  * purpose in PairOfCleats
+  * supported platforms/constraints
+  * security notes (native deps, downloads, binaries)
+  * upstream reference links
+
+### 11.6 Mode surface + observability parity (logs, stats, tooling)
+
+* [ ] Audit every place that enumerates modes (hard-coded `['code', 'prose']`, `code|prose|both|all`, etc.) and ensure:
+  * `extracted-prose` + `records` are included where intended, **or**
+  * the tool explicitly declares it only supports `code`/`prose` (and prints that once, clearly).
+
+  Known call-sites to fix (non-exhaustive; start here):
+  * Build orchestration:
+    * `src/index/build/args.js`
+    * `src/integrations/core/index.js`
+  * Validators / artifact tools:
+    * `src/index/validate.js` (defaults currently fall back to `['code', 'prose']`)
+    * `tools/report-artifacts.js`
+    * `tools/index-validate.js`
+    * `tools/compact-pieces.js`
+    * `tools/shard-census.js`
+    * `tools/triage/context-pack.js`
+  * Storage backend build tools (mode flags):
+    * `tools/build-lmdb-index.js`
+    * `tools/build-sqlite-index/*` (explicitly declare support set if it remains `code`/`prose` only)
+  * Tests that assume only two modes:
+    * `tests/discover.js`
+    * `tests/preprocess-files.js`
+    * `tests/watch-filter.js`
+
+* [ ] Update user-facing stats output to include extracted-prose wherever code/prose are shown:
+  * `src/retrieval/cli/render.js` (`--stats` line): include `extracted-prose chunks=...` and `records chunks=...` when those indexes are present/enabled.
+  * `build-index` final summary: ensure a per-mode summary line exists for all four modes (consistent order/labels).
+
+* [ ] Update tooling that reports/validates artifacts so it includes `extracted-prose` + `records` wherever it already includes `code` + `prose`:
+  * `tools/report-artifacts.js` (validation should cover all built modes)
+  * `tools/index-validate.js` (default should validate all available modes)
+  * `src/index/validate.js` (default mode set)
+  * `tools/shard-census.js` (mode loop)
+  * `tools/triage/context-pack.js` and `tools/triage/ingest.js` (exports should include mode artifacts consistently)
+
+* [ ] Update benchmark reporting to surface these modes consistently:
+  * `tools/bench/language/metrics.js` should either:
+    * report `extracted-prose` + `records` metrics alongside `code` + `prose`, or
+    * explicitly mark them as “not built / not available” (once, not per-row spam).
+
+* [ ] Normalize ordering + labels everywhere:
+  * Stable order: `code`, `prose`, `extracted-prose`, `records`
+  * Ensure all mode-summary lines and tables use the same order and consistent labels.
+
+* [ ] Add a focused smoke test that asserts user-facing output includes the new modes when present:
+  * Build a fixture that contains:
+    * a code comment (should produce `extracted-prose` chunks)
+    * a prose file with an HTML comment (should also produce `extracted-prose` chunks, while remaining in prose)
+    * a log-like file (should produce `records` chunks)
+  * Assert the final build summary mentions both `extracted-prose` and `records`.
+  * Assert `search.js --stats` output includes extracted-prose + records counts.
+
+### 11.7 Prose-edge linking between symbols and comment chunks (deferred)
+
+* [ ] After parity is complete, add a lightweight “prose-edge” mechanism to associate:
+  * files, classes, functions, and symbols
+  * to one-or-more extracted-prose comment chunks
+  * even when not physically adjacent (not necessarily a full graph edge).
+* [ ] Store as a separate artifact (e.g., `comment_links.jsonl`) so it can be recomputed without rewriting core chunk artifacts.
+* [ ] Retrieval should be able to surface linked comment chunks for a symbol/file without duplicating stored text.
 
 **Exit criteria**
-- [ ] Changing any embedding-relevant knob (model path/tokenizer/provider/normalization/pooling/quantization) forces cache miss.
-- [ ] Dims mismatch fails loudly (or deterministically disables embeddings) in **both** build-embeddings and inline index-build paths.
-- [ ] Stub-mode dims are consistent across indexing + retrieval.
+
+* [ ] `build_index.js --mode all` deterministically builds `code`, `prose`, `extracted-prose`, and `records`.
+* [ ] `extracted-prose` contains extracted comment text for code files with comments.
+* [ ] No prose files are indexed into `extracted-prose` (unless explicitly enabled for comment-like segments).
+* [ ] Code index does not duplicate comment text; it references extracted-prose and displays excerpts by default.
+* [ ] Records do not duplicate across modes; records detection works for logs placed anywhere.
+* [ ] Tooling and stats that report per-mode results include `extracted-prose` + `records` (or explicitly mark them unsupported).
+* [ ] CI has a deterministic check for missing critical dependency reference docs.
 
 ---
 
-#### 29.1.2 Determinism (float handling, batching order)
-
-##### Current state (verified)
-- [x] Quantization uses deterministic rounding (`src/index/embedding.js`).
-- [x] Batched embedding retains input ordering in both tooling and index build (`tools/build-embeddings/embed.js`, `src/index/build/file-processor/embeddings.js`).
-
-##### Remaining gaps / action items
-- [ ] **Document and/or enforce determinism requirements for HNSW build**:
-  - HNSW graph structure can vary with insertion order; current insertion order is “file processing order,” which depends on `Map` insertion order derived from chunk meta traversal.
-  - Files: `tools/build-embeddings/run.js`, `tools/build-embeddings/hnsw.js`
-  - Recommendation: ensure vectors are added to HNSW in a stable order (e.g., ascending `chunkIndex`).
-- [ ] **Avoid nondeterministic file sampling in context window estimation**:
-  - `src/index/build/context-window.js` uses the first N files in `files[]`; if upstream file enumeration order is OS-dependent, context window results can change.
-  - Recommendation: sort file paths before sampling (or explicitly document nondeterminism).
-- [ ] **Normalize float types across providers**:
-  - Many paths convert typed arrays into JS arrays; this is deterministic but increases the surface for subtle differences and performance regressions.
-  - Recommendation: standardize on `Float32Array` where feasible and only convert at serialization boundaries.
-
-**Exit criteria**
-- [ ] HNSW build is reproducible across runs given identical artifacts/config (or nondeterminism is clearly documented and accepted).
-- [ ] Context window selection is stable given identical repo state.
-
----
-
-#### 29.1.3 Robust fallback behavior (missing models/extensions/unsupported configs)
-
-##### Current state (verified)
-- [x] Retrieval embedding errors are caught and return `null` (`src/retrieval/embedding.js`), which allows the search pipeline to continue in sparse-only mode.
-- [x] SQLite vector extension usage is guarded and can be disabled via sanitization (`tests/vector-extension-sanitize.js`).
-
-##### Remaining gaps / action items
-- [ ] **ONNX embedder config validation is partially ineffective**:
-  - `src/shared/onnx-embeddings.js:createOnnxEmbedder()` checks `normalizeEmbeddingProvider('onnx') !== 'onnx'` which is a no-op (constant input).
-  - Replace with validation of the *actual* requested provider (or remove the dead check).
-- [ ] **Improve “missing model” errors with clear remediation** (especially for offline envs):
-  - Recommend: explicitly mention `tools/download-models.js` and where the model path is expected.
-  - Files: `src/shared/onnx-embeddings.js`, `src/index/embedding.js`
-- [ ] **HNSW load path should fall back to `.bak` on corrupt primary**, not only when primary is missing:
-  - Today: `src/shared/hnsw.js` only chooses `.bak` if primary missing; it does not retry `.bak` if `readIndexSync()` throws.
-- [ ] **Use HNSW meta for safety checks**:
-  - Retrieval load does not read `dense_vectors_hnsw.meta.json`, so it cannot validate `dims`, `space`, or `model` before querying.
-  - Files: `src/shared/hnsw.js`
-- [ ] **Add explicit tests for “extension missing” fallback**:
-  - Currently there is sanitization coverage, but not “load failure / missing shared library” behavior.
-  - Files/tests: `tools/build-embeddings/sqlite-dense.js` + new test.
-
-**Exit criteria**
-- [ ] Missing/corrupt HNSW artifacts do not crash retrieval; the system degrades gracefully to another ANN backend or sparse-only.
-- [ ] Missing ONNX model artifacts fail with actionable errors (or clean fallback in non-strict modes).
-
----
-
-### 29.2 Batching & scheduling
-
-#### 29.2.1 Batch auto-tuning (memory/CPU/repo size)
-
-##### Current state (verified)
-- [x] Both index-build and build-embeddings tooling implement “auto batch” based on `os.totalmem()` (`src/index/build/runtime/embeddings.js`, `tools/build-embeddings/cli.js`).
-- [x] Language-specific multipliers exist and are tested (`src/index/build/embedding-batch.js`, `tests/embedding-batch-multipliers.js`).
-
-##### Remaining gaps / action items
-- [ ] **Unify and justify auto-batch heuristics**:
-  - Index-build uses `totalGb * 16` with min 16.
-  - build-embeddings tool uses `totalGb * 32` with min 32.
-  - Decide a single policy OR clearly document why they intentionally differ.
-- [ ] **Incorporate CPU oversubscription controls**:
-  - ONNX runtime can be multi-threaded (`threads` option), while the embedding queue can also be concurrent.
-  - Add a policy: e.g., `embeddingConcurrency * onnxThreads <= cpuCount` (or document exceptions).
-  - Files: `src/index/build/runtime/embeddings.js`, `src/shared/onnx-embeddings.js`
-- [ ] **Adapt batch sizing to repo characteristics**:
-  - For tiny repos/files, large batch sizes increase latency without improving throughput.
-  - For huge repos, file-by-file batching underutilizes the accelerator (many small batches).
-  - Recommendation: introduce a global “embedding batcher” that batches across files with:
-    - max batch size,
-    - max tokens/estimated memory per batch,
-    - stable ordering.
-  - Files impacted: `src/index/build/file-processor/embeddings.js`, `tools/build-embeddings/run.js`
-
-**Exit criteria**
-- [ ] Batch sizing + concurrency are predictable and safe across low-memory hosts, multi-core hosts, and both small and large repos.
-- [ ] Default settings do not oversubscribe CPU when ONNX threads are enabled.
-
----
-
-#### 29.2.2 Embedding queues (backpressure, bounded memory)
-
-##### Current state (verified)
-- [x] Service-mode job enqueue provides a `maxQueued` hook (`src/index/build/indexer/embedding-queue.js`).
-
-##### Remaining gaps / action items
-- [ ] **Define and enforce backpressure defaults**:
-  - If `maxQueued` is unset/null, behavior depends on `enqueueJob()` (not in scope here); ensure a safe default exists.
-  - Add explicit documentation + a test that verifies queue growth is bounded.
-- [ ] **Ensure service jobs include enough identity to be safe**:
-  - Job payload includes `{repo, mode}`, but not an embedding identity fingerprint.
-  - Include `embeddingProvider`, model id, and/or a hash of embedding config to prevent mismatched worker configuration from producing incompatible embeddings.
-
-**Exit criteria**
-- [ ] Queue growth is bounded by default; overload produces clear errors and does not OOM the process.
-
----
-
-#### 29.2.3 Session/model reuse
-
-##### Current state (verified)
-- [x] ONNX sessions are cached per normalized config (`src/shared/onnx-embeddings.js`).
-- [x] Retrieval embedder instances are cached in-process (`src/retrieval/embedding.js`).
-
-##### Remaining gaps / action items
-- [ ] **Guard concurrent use of shared ONNX sessions if required**:
-  - If `onnxruntime-node` sessions are not safe for concurrent `run()` calls, add a per-session mutex/queue.
-  - At minimum: document thread-safety assumptions and add a stress test.
-- [ ] **Avoid duplicate pipeline/session loads in index-build**:
-  - `src/index/embedding.js` does not maintain a global cache similar to retrieval; if multiple embedder instances are constructed in one process, models may be loaded multiple times.
-
-**Exit criteria**
-- [ ] A single model/session is loaded once per process per config, and safely shared across all embedding calls.
-
----
-
-### 29.3 ANN correctness
-
-#### 29.3.1 Distance metric correctness (HNSW scoring)
-
-##### Current state (verified)
-- [x] HNSW ranker applies a stable tie-break (`idx`) after converting distances to similarity (`src/shared/hnsw.js`).
-
-##### Remaining gaps / action items
-- [ ] **Confirm and test distance-to-similarity conversion for each HNSW space** (`l2`, `cosine`, `ip`):
-  - Current code treats `ip` the same as `cosine` (`sim = 1 - distance`).
-  - This may be correct or incorrect depending on hnswlib’s distance definition for `ip`.
-  - Required: add unit tests with known vectors and expected distances/similarities and adjust conversion if needed.
-  - Files: `src/shared/hnsw.js`, new test (e.g., `tests/hnsw-distance-metrics.js`).
-
-**Exit criteria**
-- [ ] For each supported space, returned `sim` is monotonic with the true similarity notion used elsewhere in scoring.
-
----
-
-#### 29.3.2 Atomic safety (no torn reads/writes)
-
-##### Current state (verified)
-- [x] Build writes HNSW `.bin` and `.meta.json` via atomic replace with `.bak` retention (`tools/build-embeddings/atomic.js`, `tools/build-embeddings/hnsw.js`).
-- [x] There is a test that asserts `.bak` is created on replace (`tests/hnsw-atomic.js`).
-
-##### Remaining gaps / action items
-- [ ] **HNSW reader should support “corrupt primary” fallback**:
-  - Implement: try primary, and if read fails, try `.bak` before giving up.
-  - Files: `src/shared/hnsw.js`
-- [ ] **Validate `.bin` / `.meta.json` pairing**:
-  - Ensure meta file exists, parseable, and matches expected dims/space/model before using the index.
-  - If mismatch, treat index as unavailable and fall back.
-
-**Exit criteria**
-- [ ] Retrieval never crashes due to a torn/corrupt HNSW file; fallback paths are exercised by tests.
-
----
-
-#### 29.3.3 Candidate set semantics (HNSW + sqlite-vec)
-
-##### Current state (verified)
-- [x] SQLite candidate pushdown behavior is tested for small vs large candidate sets (`tests/sqlite-vec-candidate-set.js`).
-
-##### Remaining gaps / action items
-- [ ] **Handle empty candidate sets explicitly in HNSW path**:
-  - `rankHnswIndex()` currently treats an empty set as “no filter” (because `candidateSet.size` is falsy), which can return results when none are desired.
-  - Files: `src/shared/hnsw.js`
-- [ ] **Document and test candidate-set cap behavior**:
-  - HNSW uses a `candidateSetCap` default of 1000; ensure callers understand whether this can truncate results.
-  - Add tests for:
-    - empty set → empty hits,
-    - small set → only those labels,
-    - very large set → filter still applied and returned hits are subset, with stable ordering.
-- [ ] **Align candidate-set tie-break behavior across backends**:
-  - SQLite ANN tests require deterministic tie-break by `rowid`.
-  - HNSW already tie-breaks by `idx`. Ensure both are consistent with retrieval expectations.
-
-**Exit criteria**
-- [ ] Candidate sets behave identically (semantically) across ANN backends: never return items outside the set, deterministic ordering for ties, predictable truncation rules.
-
----
-
-### 29.4 Performance improvements to prioritize
-
-#### 29.4.1 Float32Array end-to-end (avoid JS arrays of floats)
-- [ ] **Standardize the embedding contract to return `Float32Array`**:
-  - Files: `src/index/embedding.js`, `src/retrieval/embedding.js`, `src/shared/onnx-embeddings.js`, `src/shared/embedding.js`
-- [ ] **Update downstream code to accept typed arrays** (don’t gate on `Array.isArray`):
-  - Files: `src/index/build/file-processor/embeddings.js`, `tools/build-embeddings/embed.js`, `tools/build-embeddings/run.js`, `tools/build-embeddings/hnsw.js`
-- [ ] **Defer conversion to JS arrays only at serialization boundaries** (JSON writing).
-
-#### 29.4.2 Minimize serialization between threads/processes (transferable buffers)
-- [ ] Where embeddings are computed in worker threads/processes (service mode), prefer:
-  - transferring `ArrayBuffer`/`SharedArrayBuffer` instead of JSON arrays,
-  - or using binary packed formats for vectors.
-- [ ] Add an explicit “embedding payload format” version in job payloads so workers and callers stay compatible.
-  - File touchpoints: `src/index/build/indexer/embedding-queue.js` (job payload)
-
-#### 29.4.3 Pre-allocate and reuse buffers
-- [ ] **ONNX embedding path**:
-  - Avoid per-call allocations:
-    - re-use `BigInt64Array` buffers for token ids/masks where shapes are stable,
-    - avoid `Array.from()` conversions for slices.
-  - Files: `src/shared/onnx-embeddings.js`
-- [ ] **Index-build merge path**:
-  - Avoid allocating a new zero vector per chunk in `attachEmbeddings()`.
-  - File: `src/index/build/file-processor/embeddings.js`
-
-#### 29.4.4 Candidate generation tuning
-- [ ] Push sparse filters earlier and reduce dense scoring work:
-  - prefer ANN-restricted candidate sets before dense dot products,
-  - prefer pushing candidate constraints into sqlite-vec queries when small enough (already partially implemented).
-  - (Some of this lives outside the reviewed file list; track as cross-cutting work.)
-
-**Exit criteria**
-- [ ] Embedding pipelines avoid unnecessary conversions/allocations; measurable CPU and memory reductions on large repos.
-- [ ] ANN candidate generation demonstrably reduces dense scoring load for common queries.
-
----
-
-### 29.5 Refactoring goals
-
-#### 29.5.1 Single embedding interface shared by build + retrieval
-- [ ] Create a single shared adapter interface, e.g.:
-  - `embed(texts: string[], opts) => Float32Array[]`
-  - `embedOne(text: string, opts) => Float32Array`
-- [ ] Move provider selection + error handling behind adapters:
-  - `xenova`, `onnx`, `stub`.
-- [ ] Ensure both index-build and retrieval use the same adapter and the same preprocessing defaults.
-
-#### 29.5.2 Centralize normalization & preprocessing
-- [ ] Eliminate duplicated `normalizeVec()` implementations:
-  - `src/index/embedding.js`
-  - `src/shared/onnx-embeddings.js`
-  - `tools/build-embeddings/embed.js` (indirectly uses index/embedding normalization)
-- [ ] Centralize:
-  - pooling strategy,
-  - normalization strategy,
-  - truncation/max_length policy,
-  - doc/code merge policy.
-
-#### 29.5.3 Clear ANN backend adapters
-- [ ] Wrap sqlite-vec and HNSW behind a single “ANN adapter” contract with:
-  - candidate set semantics,
-  - deterministic tie-break contract,
-  - consistent error handling and stats reporting.
-  - (Some of this lives outside the reviewed file list.)
-
-**Exit criteria**
-- [ ] Build + retrieval cannot diverge in embedding shape/normalization/pooling without a deliberate, versioned change.
-- [ ] ANN behavior is consistent regardless of backend.
-
----
-
-### 29.6 Tests
-
-#### 29.6.1 Coverage checklist
-
-##### Already covered (verified)
-- [x] Cache identity/invalidation (baseline) — `tests/embeddings-cache-identity.js`, `tests/embeddings-cache-invalidation.js`
-- [x] Dims mismatch (tooling) — `tests/embeddings-dims-mismatch.js`, `tests/embeddings-dims-validation.js`
-- [x] ANN candidate set correctness (sqlite-vec) — `tests/sqlite-vec-candidate-set.js`
-- [x] HNSW artifacts existence + atomic replace — `tests/hnsw-ann.js`, `tests/hnsw-atomic.js`
-
-##### Missing / needs additions
-- [ ] **Cache identity tests must cover provider-specific knobs**, especially ONNX config:
-  - Add tests proving that changing `onnx.tokenizerId` or `onnx.modelPath` changes identityKey and forces cache miss.
-- [ ] **Add extension missing/fallback tests**:
-  - Simulate vector extension load failure and ensure build/search does not crash and disables vector ANN.
-- [ ] **Add HNSW candidate set tests**:
-  - empty set returns empty hits,
-  - filter does not leak labels,
-  - tie-break stability.
-- [ ] **Add HNSW `.bak` fallback tests**:
-  - corrupt primary index/meta triggers `.bak` load and does not crash.
-- [ ] **Add performance regression test for embedding batching throughput** (required by checklist):
-  - Recommended approach (stable in CI):
-    - Use a synthetic embedder function with a fixed per-call overhead + per-item cost.
-    - Assert that `runBatched()` with batchSize>1 achieves >= X% speedup vs batchSize=1 on a fixed input size.
-    - Use generous thresholds to avoid flakiness; focus on catching *major* regressions (e.g., accidental O(n²) behavior or disabling batching).
-  - Candidate target: `tools/build-embeddings/embed.js:runBatched()` and/or `src/index/build/file-processor/embeddings.js` batching path.
-
-**Exit criteria**
-- [ ] Tests fail if embedding identity changes are not reflected in cache keys.
-- [ ] Tests cover ANN candidate set semantics for both sqlite-vec and HNSW.
-- [ ] At least one performance regression test exists for batching throughput.
-
----
-
-### Appendix A — File-by-file review notes (actionable items)
-
-> The checklist items above are the canonical “what to fix.” This appendix maps concrete file-level changes back to those items.
-
-#### src
-
-##### `src/index/build/context-window.js`
-- [ ] Sort/sanitize file list before sampling to reduce OS-dependent nondeterminism.
-- [ ] Consider documenting that context-window estimation is heuristic and may vary with sampling strategy.
-
-##### `src/index/build/embedding-batch.js`
-- [ ] Consider parsing `baseSize` if it may come from config as a numeric string.
-- [ ] Add explicit documentation for multiplier precedence (fallback vs user config).
-
-##### `src/index/build/file-processor/embeddings.js`
-- [ ] Add dims contract validation (non-empty vectors must share dims; fail fast otherwise).
-- [ ] Support `Float32Array` outputs (don’t rely on `Array.isArray`).
-- [ ] Avoid allocating `new Array(dims).fill(0)` per chunk; reuse a single `zeroVec`.
-- [ ] Validate that `getChunkEmbeddings(texts).length === texts.length`; if not, log + fail or retry with a clear warning.
-- [ ] Ensure doc embedding results are length-aligned with `docPayloads` (currently assumes perfect alignment).
-
-##### `src/index/build/indexer/embedding-queue.js`
-- [ ] Include embedding identity/config hash in job payload to prevent mismatched worker behavior.
-- [ ] Consider switching job IDs to `crypto.randomUUID()` for collision resistance.
-- [ ] Ensure `maxQueued` has a safe default; document backpressure behavior.
-
-##### `src/index/build/runtime/embeddings.js`
-- [ ] Reconcile auto-batch policy with tooling (`tools/build-embeddings/cli.js`).
-- [ ] Consider incorporating ONNX thread settings into concurrency auto-tune to avoid oversubscription.
-
-##### `src/index/embedding.js`
-- [ ] Centralize `normalizeVec`/`quantizeVec` into shared utilities; remove duplication.
-- [ ] Add strict provider validation (unknown provider should error/warn).
-- [ ] Harden `normalizeBatchOutput()` to:
-  - guarantee output length equals input count,
-  - handle unexpected tensor dims more defensively,
-  - avoid returning a single huge vector when output is 3D.
-- [ ] Prefer returning `Float32Array` (or at least accept typed arrays downstream).
-
-##### `src/retrieval/embedding.js`
-- [ ] Use a normalized/fingerprinted ONNX config in the embedder cache key (avoid JSON-order sensitivity).
-- [ ] If retrieval can request embeddings without known dims (ANN-only paths), require dims or ensure consistent default dims.
-- [ ] Consider logging embedder load failures once (rate-limited) to aid debugging.
-
-##### `src/shared/embedding.js`
-- [ ] Unify stub default dims with the rest of the system (recommend 384).
-- [ ] Optionally return `Float32Array` to match the desired end-to-end contract.
-
-##### `src/shared/hnsw.js`
-- [ ] Implement `.bak` fallback when the primary index exists but is corrupt/unreadable.
-- [ ] Read/validate `dense_vectors_hnsw.meta.json` to confirm `dims/space/model` before using the index.
-- [ ] Handle empty candidate sets explicitly by returning `[]`.
-- [ ] Add unit tests for distance conversion across spaces (l2/cosine/ip) and adjust similarity conversion if required.
-
-##### `src/shared/onnx-embeddings.js`
-- [ ] Remove/fix dead provider check (`normalizeEmbeddingProvider('onnx')`).
-- [ ] Add clearer error messaging for missing model artifacts + remediation steps.
-- [ ] Improve performance by avoiding heavy array conversions and by reusing buffers/tensors.
-- [ ] Consider concurrency guards around `session.run()` if onnxruntime sessions are not safe concurrently.
-
----
-
-#### tools
-
-##### `tools/build-embeddings.js`
-- No issues observed beyond those in underlying implementation modules.
-
-##### `tools/build-embeddings/atomic.js`
-- [ ] Consider consolidating atomic replace logic with `src/shared/json-stream.js` to avoid divergence (optional refactor).
-
-##### `tools/build-embeddings/cache.js`
-- [ ] Expand identity schema to include preprocessing and provider-specific config (especially ONNX knobs).
-- [ ] Add a bumpable “identity version” or build-tool version fingerprint.
-
-##### `tools/build-embeddings/chunks.js`
-- [ ] Consider incorporating doc-related signals into the chunk signature (or into identity versioning) so doc embedding caches invalidate when doc extraction logic changes.
-- [ ] Consider normalizing `start/end` to finite numbers before signature generation (avoid stringifying `undefined`).
-
-##### `tools/build-embeddings/cli.js`
-- [ ] Document (or change) the behavior where `mode=service` is coerced to `inline` for this tool.
-- [ ] Unify auto-batch defaults with index-build runtime (or document why they differ).
-
-##### `tools/build-embeddings/embed.js`
-- [ ] Update to accept and return typed arrays (`Float32Array`) instead of insisting on JS arrays.
-- [ ] Consider failing fast on non-vector outputs instead of silently returning `[]` entries (to avoid quietly producing all-zero embeddings).
-
-##### `tools/build-embeddings/hnsw.js`
-- [ ] Ensure stable vector insertion order into HNSW (ascending chunkIndex).
-- [ ] When adding vectors reconstructed from cache (dequantized), consider re-normalizing for cosine space to reduce drift.
-
-##### `tools/build-embeddings/manifest.js`
-- [ ] Consider reading HNSW meta to report accurate `count`/`dims` for ANN piece files, rather than relying on `totalChunks` (defensive correctness).
-
-##### `tools/build-embeddings/run.js`
-- [ ] Make cache writes atomic (optional but recommended).
-- [ ] Use `Number.isFinite()` for chunk start/end to avoid 0/NaN edge cases from `||` coercion.
-- [ ] Apply `ensureVectorArrays()` to embedded doc batches just like code batches.
-- [ ] Make HNSW build deterministic (stable insertion order).
-- [ ] Consider adding a global cross-file batcher for throughput.
-
-##### `tools/build-embeddings/sqlite-dense.js`
-- [ ] Add tests for “vector extension missing/failed to load” fallback behavior.
-- [ ] Consider batching inserts in larger chunks or using prepared statements more aggressively for performance on large vector sets.
-
-##### `tools/compare-models.js`
-- [ ] If comparing ONNX vs xenova providers, ensure the script can capture and report provider config differences (identity) to interpret deltas correctly (minor enhancement).
-
-##### `tools/download-models.js`
-- [ ] Consider supporting explicit download of ONNX model artifacts when users rely on `indexing.embeddings.provider=onnx` and custom `onnx.modelPath`.
-- [ ] Improve output to show where models were cached and what to set in config if needed.
-
----
-
-#### tests
-
-##### `tests/build-embeddings-cache.js`
-- [ ] Extend to assert cache identity changes for ONNX config changes (once identity schema is expanded).
-
-##### `tests/embedding-batch-autotune.js`
-- [ ] Consider loosening or documenting assumptions about minimum batch size on low-memory systems (or adjust runtime min to match test expectations).
-
-##### `tests/embedding-batch-multipliers.js`
-- No issues; good coverage of multiplier normalization.
-
-##### `tests/embeddings-cache-identity.js`
-- [ ] Extend to cover ONNX-specific identity fields (tokenizerId/modelPath/etc).
-
-##### `tests/embeddings-cache-invalidation.js`
-- [ ] Add invalidation scenarios tied to preprocessing knobs (pooling/normalize/max_length) once surfaced in identity.
-
-##### `tests/embeddings-dims-mismatch.js`
-- Good.
-
-##### `tests/embeddings-dims-validation.js`
-- Good.
-
-##### `tests/embeddings-sqlite-dense.js`
-- [ ] Add coverage for vector extension load failure paths (extension missing), not only baseline dense sqlite insertions.
-
-##### `tests/embeddings-validate.js`
-- Good baseline index-state + artifact validation coverage.
-
-##### `tests/hnsw-ann.js`
-- [ ] Add correctness assertions beyond “backend selected”:
-  - candidate set filtering (once exposed),
-  - tie-break determinism,
-  - sanity check of returned ordering for a known query on fixture corpus.
-
-##### `tests/hnsw-atomic.js`
-- [ ] Add test for `.bak` fallback on corrupt primary index/meta (reader-side).
-
-##### `tests/smoke-embeddings.js`
-- Good smoke harness; consider adding new tests to this suite after implementing performance regression and fallback tests.
-
-##### `tests/sqlite-vec-candidate-set.js`
-- [ ] Add a column-name sanitization test (table is covered; column is not).
-
-##### `tests/vector-extension-sanitize.js`
-- Good table sanitization coverage; extend for column sanitization as above.
-
----
-
-## Phase 30 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
-
-**Objective:** Review the Section 4 file set (56 files) and produce a concrete, exhaustive remediation checklist that (1) satisfies the provided Phase 4 checklist (A–G) and (2) captures additional defects, inconsistencies, and improvements found during review.
-
-**Scope:** All files enumerated in `pairofcleats_review_section_4_files_and_checklist.md` (src/tests/docs).  
-**Out of scope:** Implementing fixes in-code (this document is a work plan / punch list).
-
----
-
-### Summary (priority ordered)
-
-#### P0 — Must fix (correctness / crash / schema integrity)
-
-- [ ] **Risk rules regex compilation is currently mis-wired.** `src/index/risk-rules.js` calls `createSafeRegex()` with an incorrect argument signature, so rule regex configuration (flags, limits) is not applied, and invalid patterns can throw and abort normalization.  
-  - Fix in: `src/index/risk-rules.js` (see §B.1).
-- [ ] **Risk analysis can crash indexing on long lines.** `src/index/risk.js` calls SafeRegex `test()` / `exec()` without guarding against SafeRegex input-length exceptions. One long line can throw and fail the whole analysis pass.  
-  - Fix in: `src/index/risk.js` (see §B.2).
-- [ ] **Metadata v2 drops inferred/tooling parameter types (schema data loss).** `src/index/metadata-v2.js` normalizes type maps assuming values are arrays; nested maps (e.g., `inferredTypes.params.<name>[]`) are silently discarded.  
-  - Fix in: `src/index/metadata-v2.js` + tests + schema/docs (see §A.1–A.4).
-
-#### P1 — Should fix (determinism, performance, docs, validation gaps)
-
-- [ ] **`metaV2` validation is far too shallow and does not reflect the actual schema shape.** `src/index/validate.js` only validates a tiny subset of fields and does not traverse nested type maps.  
-- [ ] **Docs drift:** `docs/metadata-schema-v2.md` and `docs/risk-rules.md` do not fully match current code (field names, structures, and configuration).  
-- [ ] **Performance risks:** risk scanning does redundant passes and does not short-circuit meaningfully when capped; markdown parsing is duplicated (inline + fenced); tooling providers re-read files rather than reusing already-loaded text.
-
-#### P2 — Nice to have (quality, maintainability, test depth)
-
-- [ ] Improve signature parsing robustness for complex types (C-like, Python, Swift).
-- [ ] Clarify and standardize naming conventions (chunk naming vs provider symbol naming, “generatedBy”, “embedded” semantics).
-- [ ] Expand tests to cover surrogate pairs (emoji), CRLF offsets, and risk rules/config edge cases.
-
----
-
-### A) Metadata v2: correctness, determinism, and validation
-
-#### Dependency guidance (best choices)
-- `ajv` — encode **metadata-schema-v2** as JSON Schema and validate `metaV2` as a hard gate in `tools/index-validate` (or equivalent).  
-- `semver` — version `metaV2.schemaVersion` independently and gate readers/writers.
-
-#### A.1 `metaV2.types` loses nested inferred/tooling param types (P0)
-
-##### Affected files
-- `src/index/metadata-v2.js`
-- `docs/metadata-schema-v2.md`
-- `src/index/validate.js`
-- `tests/metadata-v2.js`
-
-##### Findings
-- [ ] **Data loss bug:** `normalizeTypeMap()` assumes `raw[key]` is an array of entries. If `raw[key]` is an object map (e.g., `raw.params` where `raw.params.<paramName>` is an array), it is treated as non-array and dropped.  
-  - Evidence: `normalizeTypeMap()` (lines ~78–91) only normalizes `Array.isArray(entries)` shapes.
-- [ ] **Downstream effect:** `splitToolingTypes()` is applied to `docmeta.inferredTypes`; because nested shapes are not handled, **tooling-derived param types will not appear in `metaV2.types.tooling.params`**, and inferred param types will be absent from `metaV2.types.inferred.params`.
-
-##### Required remediation
-- [ ] Update `normalizeTypeMap()` to support nested “param maps” (and any similar nested structures) rather than dropping them. A pragmatic approach:
-  - [ ] If `entries` is an array → normalize as today.
-  - [ ] If `entries` is an object → treat it as a nested map and normalize each subkey:
-    - preserve the nested object shape in output (preferred), or
-    - flatten with a predictable prefix strategy (only if schema explicitly adopts that).
-- [ ] Update `splitToolingTypes()` so it correctly separates tooling vs non-tooling entries **inside nested maps** (e.g., `params.<name>[]`, `locals.<name>[]`).
-- [ ] Update `tests/metadata-v2.js` to assert:
-  - [ ] inferred param types survive into `metaV2.types.inferred.params.<paramName>[]`
-  - [ ] tooling param types survive into `metaV2.types.tooling.params.<paramName>[]`
-  - [ ] non-tooling inferred types do not leak into tooling bucket (and vice versa)
-
-#### A.2 Declared types coverage is incomplete (P1)
-
-##### Findings
-- [ ] `buildDeclaredTypes()` currently only materializes:
-  - param annotations via `docmeta.paramTypes`
-  - return annotation via `docmeta.returnType`  
-  It does **not** cover:
-  - [ ] parameter defaults (`docmeta.paramDefaults`)
-  - [ ] local types (`docmeta.localTypes`)
-  - [ ] any other declared type sources the codebase may already emit
-
-##### Required remediation
-- [ ] Decide which “declared” facets are part of Metadata v2 contract and implement them consistently (and document them):
-  - [ ] `declared.defaults` (if desired)
-  - [ ] `declared.locals` (if desired)
-- [ ] Update `docs/metadata-schema-v2.md` accordingly.
-- [ ] Add tests in `tests/metadata-v2.js` for any newly included declared facets.
-
-#### A.3 Determinism and stable ordering in `metaV2` (P1)
-
-##### Findings
-- [ ] Several arrays are produced via Set insertion order (e.g., `annotations`, `params`, `risk.tags`, `risk.categories`). While *often* stable, they can drift if upstream traversal order changes.
-- [ ] `metaV2` mixes optional `null` vs empty collections inconsistently across fields (some fields null, others empty arrays). This matters for artifact diffs and schema validation.
-
-##### Required remediation
-- [ ] Standardize ordering rules for arrays that are semantically sets:
-  - [ ] Sort `annotations` (lexicographic) before emitting.
-  - [ ] Sort `params` (lexicographic) before emitting.
-  - [ ] Sort risk `tags`/`categories` (lexicographic) before emitting.
-- [ ] Establish a consistent “empty means null” vs “empty means []” policy for v2 and enforce it in `buildMetaV2()` and schema/docs.
-
-#### A.4 `generatedBy` and `embedded` semantics are unclear (P2)
-
-##### Findings
-- [ ] `generatedBy` currently uses `toolInfo?.version` only; if `tooling` already contains `tool` and `version`, this can be redundant and underspecified.
-- [ ] `embedded` is emitted whenever `chunk.segment` exists, even when the segment is not embedded (parentSegmentId may be null). This makes the field name misleading.
-
-##### Required remediation
-- [ ] Decide and document the intended meaning:
-  - [ ] Option A: `generatedBy = "<tool>@<version>"` and keep `tooling` for structured detail.
-  - [ ] Option B: remove `generatedBy` and rely solely on `tooling`.
-- [ ] Restrict `embedded` field to truly-embedded segments only **or** rename the field to something like `segmentContext` / `embedding`.
-
-#### A.5 Validation gaps for Metadata v2 (P1)
-
-##### Findings (in `src/index/validate.js`)
-- [ ] `validateMetaV2()` (lines ~162–206) validates only:
-  - `chunkId` presence
-  - `file` presence
-  - `risk.flows` has `source` and `sink`
-  - type entries have `.type` for a shallow, array-only traversal  
-  It does **not** validate:
-  - [ ] `segment` object shape
-  - [ ] range/start/end types and ordering invariants
-  - [ ] `lang`, `ext`, `kind`, `name` constraints
-  - [ ] nested types map shapes (params/locals)
-  - [ ] `generatedBy`/`tooling` shape and required fields
-  - [ ] cross-field invariants (e.g., range within segment, embedded context consistency)
-
-##### Required remediation
-- [ ] Establish **one canonical validator** for `metaV2` (preferably schema-based):
-  - [ ] Add an explicit JSON Schema for v2 (in docs or tooling directory).
-  - [ ] Validate `metaV2` against the schema in `validateIndexArtifacts()`.
-- [ ] If schema-based validation is not yet possible, expand `validateMetaV2()` to:
-  - [ ] traverse nested `params`/`locals` maps for type entries
-  - [ ] validate `range` numbers, monotonicity, and non-negativity
-  - [ ] validate the presence/type of stable core fields as defined in `docs/metadata-schema-v2.md`
-- [ ] Add tests (or fixtures) that exercise validation failures for each major failure class.
-
-#### A.6 Docs drift: `docs/metadata-schema-v2.md` vs implementation (P1)
-
-##### Findings
-- [ ] The schema doc should be reviewed line-by-line against current `buildMetaV2()` output:
-  - field names
-  - optionality
-  - nesting of `types.*`
-  - risk shapes and analysisStatus shape
-  - relations link formats
-
-##### Required remediation
-- [ ] Update `docs/metadata-schema-v2.md` to reflect the actual emitted shape **or** update `buildMetaV2()` to match the doc (pick one, do not leave them divergent).
-- [ ] Add a “schema change log” section so future modifications don’t silently drift.
-
----
-
-### B) Risk rules and risk analysis
-
-#### Dependency guidance (best choices)
-- `re2`/RE2-based engine (already present via `re2js`) — keep for ReDoS safety, but ensure wrapper behavior cannot crash indexing.
-- `ajv` — validate rule bundle format (ids, patterns, severities, categories, etc.) before compiling.
-
-#### B.1 Risk regex compilation is broken (P0)
-
-##### Affected file
-- `src/index/risk-rules.js`
-
-##### Findings
-- [ ] **Incorrect call signature:** `compilePattern()` calls `createSafeRegex(pattern, flags, regexConfig)` but `createSafeRegex()` accepts `(pattern, config)` (per `src/shared/safe-regex.js`).  
-  Consequences:
-  - `regexConfig` is ignored entirely
-  - the intended default flags (`i`) are not applied
-  - any user-configured safe-regex limits are not applied
-- [ ] **No error shielding:** `compilePattern()` does not catch regex compilation errors. An invalid pattern can throw and abort normalization.
-
-##### Required remediation
-- [ ] Fix `compilePattern()` to call `createSafeRegex(pattern, safeRegexConfig)` (or a merged config object).
-- [ ] Wrap compilation in `try/catch` and return `null` on failure (or record a validation error) so rule bundles cannot crash indexing.
-- [ ] Add tests that verify:
-  - [ ] configured flags (e.g., `i`) actually take effect
-  - [ ] invalid patterns do not crash normalization and are surfaced as actionable diagnostics
-  - [ ] configured `maxInputLength` and other safety controls are honored
-
-#### B.2 Risk analysis can crash on long inputs (P0)
-
-##### Affected file
-- `src/index/risk.js`
-
-##### Findings
-- [ ] `matchRuleOnLine()` calls SafeRegex `test()` and `exec()` without guarding against exceptions thrown by SafeRegex input validation (e.g., when line length exceeds `maxInputLength`).  
-  - This is a hard failure mode: one long line can abort analysis for the entire file (or build, depending on call site error handling).
-
-##### Required remediation
-- [ ] Ensure **risk analysis never throws** due to regex evaluation. Options:
-  - [ ] Add `try/catch` around `rule.requires.test(...)`, `rule.excludes.test(...)`, and `pattern.exec(...)` to treat failures as “no match”.
-  - [ ] Alternatively (or additionally), change the SafeRegex wrapper to return `false/null` instead of throwing for overlong input.
-  - [ ] Add a deterministic “line too long” cap behavior:
-    - skip risk evaluation for that line
-    - optionally record `analysisStatus.exceeded` includes `maxLineLength` (or similar)
-
-#### B.3 `scope` and cap semantics need tightening (P1)
-
-##### Findings
-- [ ] `scope === 'file'` currently evaluates only `lineIdx === 0` (first line). This is likely not the intended meaning of “file scope”.
-- [ ] `maxMatchesPerFile` currently caps **number of matching lines**, not number of matches (variable name implies match-count cap).
-
-##### Required remediation
-- [ ] Define (in docs + code) what `scope: "file"` means:
-  - [ ] “pattern evaluated against entire file text” (recommended), or
-  - [ ] “pattern evaluated once per file via a representative subset”
-- [ ] Implement `maxMatchesPerFile` as an actual match-count cap (or rename it to `maxMatchingLines`).
-- [ ] Add tests for both behaviors.
-
-#### B.4 Performance: redundant scanning and weak short-circuiting (P1)
-
-##### Findings
-- [ ] Risk analysis scans the same text repeatedly (sources, sinks, sanitizers are scanned in separate loops).
-- [ ] When caps are exceeded (bytes/lines), flows are skipped, but line scanning for matches still proceeds across the entire file, which defeats the purpose of caps for large/minified files.
-
-##### Required remediation
-- [ ] Add an early-exit path when `maxBytes`/`maxLines` caps are exceeded:
-  - either skip all analysis and return `analysisStatus: capped`
-  - or scan only a bounded prefix/suffix and clearly mark that results are partial
-- [ ] Consider a single-pass scanner per line that evaluates all rule categories in one traversal.
-- [ ] Add a prefilter stage for candidate files/lines (cheap substring checks) before SafeRegex evaluation.
-
-#### B.5 Actionability and determinism of outputs (P1)
-
-##### Findings
-- [ ] `dedupeMatches()` collapses evidence to one match per rule id (may not be sufficient for remediation).
-- [ ] Time-based caps (`maxMs`) can introduce nondeterminism across machines/runs (what gets included depends on wall clock).
-
-##### Required remediation
-- [ ] Preserve up to N distinct match locations per rule (configurable) rather than only first hit.
-- [ ] Prefer deterministic caps (maxBytes/maxLines/maxNodes/maxEdges) over time caps; if `maxMs` remains, ensure it cannot cause nondeterministic partial outputs without clearly indicating partiality.
-- [ ] Sort emitted matches/flows deterministically (by line/col, rule id) before output.
-
-#### B.6 Docs drift: `docs/risk-rules.md` vs implementation (P1)
-
-##### Findings
-- [ ] `docs/risk-rules.md` should be updated to reflect:
-  - actual rule bundle fields supported (`requires`, `excludes`, `scope`, `maxMatchesPerLine`, `maxMatchesPerFile`, etc.)
-  - actual emitted `risk.analysisStatus` shape (object vs string)
-  - actual matching semantics (line-based vs file-based)
-
-##### Required remediation
-- [ ] Update the doc to match current behavior (or update code to match doc), then add tests that lock it in.
-
----
-
-### C) Git signals (metadata + blame-derived authorship)
-
-#### Dependency guidance (best choices)
-- `simple-git` (already used) — ensure it’s called in a way that scales: batching where feasible, caching aggressively, and defaulting expensive paths off unless explicitly enabled.
-
-#### C.1 Default blame behavior and cost control (P1)
-
-##### Affected file
-- `src/index/git.js`
-
-##### Findings
-- [ ] `blameEnabled` defaults to **true** (`options.blame !== false`). If a caller forgets to pass `blame:false`, indexing will run `git blame` per file (very expensive).
-- [ ] `git log` + `git log --numstat` are executed per file; caching helps within a run but does not avoid the O(files) subprocess cost.
-
-##### Required remediation
-- [ ] Make blame opt-in by default:
-  - [ ] change default to `options.blame === true`, **or**
-  - [ ] ensure all call sites pass `blame:false` unless explicitly requested via config
-- [ ] Consider adding a global “gitSignalsPolicy” (or reuse existing policy object) that centrally controls:
-  - blame on/off
-  - churn computation on/off
-  - commit log depth
-- [ ] Performance optimization options (choose based on ROI):
-  - [ ] batch `git log` queries when indexing many files (e.g., per repo, not per file)
-  - [ ] compute churn only when needed for ranking/filtering
-  - [ ] support “recent churn only” explicitly in docs (currently it’s “last 10 commits”)
-
-#### C.2 Minor correctness and maintainability issues (P2)
-
-##### Findings
-- [ ] Misleading JSDoc: `parseLineAuthors()` is documented as “Compute churn from git numstat output” (it parses blame authors, not churn). This can mislead future maintenance.
-
-##### Required remediation
-- [ ] Fix the JSDoc to match the function purpose and parameter type.
-
-#### C.3 Tests improvements (P1)
-
-##### Affected tests
-- `tests/git-blame-range.js`
-- `tests/git-meta.js`
-- `tests/churn-filter.js`
-- `tests/git-hooks.js`
-
-##### Findings
-- [ ] No tests assert “blame is off by default” (or the intended default policy).
-- [ ] No tests cover rename-following semantics (`--follow`) or untracked files.
-- [ ] Caching behavior is not validated (e.g., “git blame called once per file even if many chunks”).
-
-##### Required remediation
-- [ ] Add tests that explicitly validate the intended default blame policy.
-- [ ] Add a caching-focused test that ensures repeated `getGitMeta()` calls for the same file do not spawn repeated git commands (can be validated via mocking or by instrumenting wrapper counts).
-- [ ] Decide whether rename-following is required and add tests if so.
-
----
-
-### D) Type inference (local + cross-file + tooling providers)
-
-#### Dependency guidance (best choices)
-- LSP-based providers (clangd/sourcekit/pyright) — keep optional and guarded; correctness should degrade gracefully.
-- TypeScript compiler API — keep optional and isolated; add caching/incremental compilation for large repos.
-
-#### D.1 Provider lifecycle and resilience (P1)
-
-##### Affected files
-- `src/index/type-inference-crossfile/tooling.js`
-- `src/index/tooling/*.js`
-- `src/integrations/tooling/lsp/client.js`
-- `src/integrations/tooling/providers/lsp.js`
-- `src/integrations/tooling/providers/shared.js`
-
-##### Findings
-- [ ] `createLspClient().request()` can leave pending requests forever if a caller forgets to supply `timeoutMs` (pending map leak). Current provider code *usually* supplies a timeout, but this is not enforced.
-- [ ] Diagnostics timing: providers request symbols immediately after `didOpen` and then `didClose` quickly; some servers publish diagnostics asynchronously and may not emit before close, leading to inconsistent diagnostic capture.
-
-##### Required remediation
-- [ ] Enforce a default request timeout in `createLspClient.request()` if none is provided.
-- [ ] For diagnostics collection, consider:
-  - [ ] waiting a bounded time for initial diagnostics after `didOpen`, or
-  - [ ] explicitly requesting diagnostics if server supports it (varies), or
-  - [ ] documenting that diagnostics are “best effort” and may be incomplete
-
-#### D.2 Unicode/offset correctness: add stronger guarantees (P1)
-
-##### Affected files
-- `src/integrations/tooling/lsp/positions.js`
-- `src/shared/lines.js` (supporting)
-- `tests/type-inference-lsp-enrichment.js`
-- `tests/segment-pipeline.js` + fixtures
-
-##### Findings
-- [ ] `positions.js` JSDoc claims “1-based line/column”; column is actually treated as 0-based (correct for LSP), but the doc comment is misleading.
-- [ ] Test coverage does not explicitly include surrogate pairs (emoji), which are the common failure mode when mixing code-point vs UTF-16 offsets.
-
-##### Required remediation
-- [ ] Fix the JSDoc to reflect actual behavior (LSP: 0-based character offsets; line converted to 1-based for internal helpers).
-- [ ] Add tests with:
-  - [ ] emoji in identifiers and/or strings before symbol definitions
-  - [ ] CRLF line endings fixtures (if Windows compatibility is required)
-
-#### D.3 Generic LSP provider chunk matching is weaker than clangd provider (P2)
-
-##### Affected file
-- `src/integrations/tooling/providers/lsp.js`
-
-##### Findings
-- [ ] `findChunkForOffsets()` requires strict containment (symbol range must be within chunk range). clangd-provider uses overlap scoring, which is more robust.
-
-##### Required remediation
-- [ ] Update generic provider to use overlap scoring like clangd-provider to reduce missed matches.
-
-#### D.4 TypeScript provider issues (P2/P1 depending on usage)
-
-##### Affected file
-- `src/index/tooling/typescript-provider.js`
-
-##### Findings
-- [ ] `loadTypeScript()` resolve order includes keys that are not implemented (`global`) and duplicates (`cache` vs `tooling`).
-- [ ] Parameter name extraction uses `getText()` which can produce non-identifiers for destructuring params (bad keys for `params` map).
-- [ ] Naming convention risk: provider writes keys like `Class.method` which may not match chunk naming conventions; if mismatched, types will not attach.
-
-##### Required remediation
-- [ ] Fix the resolution order logic and document each lookup path purpose.
-- [ ] Only record parameter names for identifiers; skip or normalize destructuring params.
-- [ ] Validate chunk naming alignment (structural chunk naming vs provider symbol naming) and add a test for a class method mapping end-to-end.
-
-#### D.5 Cross-file inference merge determinism and evidence (P2)
-
-##### Affected files
-- `src/index/type-inference-crossfile/apply.js`
-- `src/index/type-inference-crossfile/pipeline.js`
-
-##### Findings
-- [ ] `mergeTypeList()` dedupes by `type|source` but drops evidence differences; confidence merging strategy is simplistic.
-- [ ] Output ordering is not explicitly sorted after merges.
-
-##### Required remediation
-- [ ] Decide how to treat evidence in merges (keep first, merge arrays, keep highest confidence).
-- [ ] Sort merged type lists deterministically (confidence desc, type asc, source asc).
-
-#### D.6 Signature parsing robustness (P2)
-
-##### Affected files
-- `src/index/tooling/signature-parse/clike.js`
-- `src/index/tooling/signature-parse/python.js`
-- `src/index/tooling/signature-parse/swift.js`
-
-##### Findings
-- [ ] Parsers are intentionally lightweight, but they will fail on common real-world signatures:
-  - C++ templates, function pointers, references
-  - Python `*args/**kwargs`, keyword-only params, nested generics
-  - Swift closures and attributes
-
-##### Required remediation
-- [ ] Add test fixtures covering at least one “hard” signature per language.
-- [ ] Consider using tooling hover text more consistently (already used as fallback in clangd-provider) or integrate a minimal parser that handles nested generics and defaults.
-
----
-
-### E) Performance improvements to prioritize (cross-cutting)
-
-#### E.1 Risk analysis hot path (P1)
-- [ ] Single-pass line scan for sources/sinks/sanitizers.
-- [ ] Early return on caps (maxBytes/maxLines) rather than scanning the whole file anyway.
-- [ ] Cheap prefilter before SafeRegex evaluation.
-- [ ] Avoid per-line SafeRegex exceptions (see §B.2).
-
-#### E.2 Markdown segmentation duplication (P2)
-- [ ] `segments.js` parses markdown twice (inline code spans + fenced blocks). Consider extracting both from one micromark event stream.
-
-#### E.3 Tooling providers I/O duplication (P2)
-- [ ] Providers re-read file text from disk; if indexing already has the content in memory, pass it through (where feasible) to reduce I/O.
-
----
-
-### F) Refactoring goals (maintainability / policy centralization)
-
-- [ ] Consolidate analysis feature toggles into a single `analysisPolicy` object that is passed to:
-  - metadata v2 builder
-  - risk analysis
-  - git analysis
-  - type inference (local + cross-file + tooling)
-- [ ] Centralize schema versioning and validation:
-  - one metadata v2 schema
-  - one risk rule bundle schema
-  - one place that validates both as part of artifact validation
-
----
-
-### G) Tests: required additions and upgrades
-
-#### Existing tests reviewed (from the provided list)
-- `tests/metadata-v2.js`
-- `tests/churn-filter.js`
-- `tests/git-blame-range.js`
-- `tests/git-hooks.js`
-- `tests/git-meta.js`
-- `tests/minhash-parity.js`
-- `tests/segment-pipeline.js` (+ fixtures)
-- `tests/type-inference-crossfile*.js`
-- `tests/type-inference-lsp-enrichment.js`
-- `tests/type-inference-*-provider-no-*.js` (clangd/sourcekit)
-
-#### Required test upgrades (P1/P0 where noted)
-- [ ] **P0:** Add tests for metadata v2 nested inferred/tooling param types (see §A.1).
-- [ ] **P0:** Add tests for risk rule compilation config correctness (flags honored, invalid patterns handled) (see §B.1).
-- [ ] **P0:** Add risk analysis “long line” test to ensure no crashes (see §B.2).
-- [ ] **P1:** Add unicode offset tests that include surrogate pairs (emoji) for:
-  - LSP position mapping
-  - chunk start offsets around unicode
-- [ ] **P1:** Add git caching/policy tests (default blame policy + no repeated subprocess calls where caching is intended).
-
----
-
-**Deliverables**
-- This remediation checklist (this document)
-- Updated `docs/metadata-schema-v2.md` and `docs/risk-rules.md` that match implementation
-- Expanded test suite that locks in:
-  - metaV2 types correctness (including nested)
-  - risk rule compilation correctness and non-crashing evaluation
-  - unicode offset correctness (including surrogate pairs)
-  - intended git blame policy and caching
-
-**Exit criteria**
-- All P0 items are fixed and covered by tests.
-- Metadata v2 output matches the schema doc, and `validateIndexArtifacts()` validates it meaningfully.
-- Risk analysis and tooling passes are “best-effort”: they may skip/partial, but they never crash indexing.
-
-## Phase 31 — Language handlers & chunking review (Section 5)
-
-**Objective:** Make language detection, per-language chunking, tree-sitter integration, and ingestion tooling *deterministic, robust on real-world code*, and *well-tested* — with clear fallback behavior, predictable chunk boundaries, and guardrails against performance/pathological inputs.
-
-**Scope reference:** Review Section 5 file list + checklist (see the attached “review section 5 files and checklist” markdown).
-
-### Note
-While generating the markdown deliverable, I noticed one small wording issue in the YAML section of the produced document: it currently describes the tab bug using code spans that don’t clearly distinguish '\t' vs '\\t' (because Markdown code spans visually collapse some intent). The underlying identified bug is correct and the remediation tasks are correct, but that one wording line could be clarified to explicitly contrast '\\t' (backslash+t) vs '\t' (actual tab).
-
----
-
-### 31.0 Priority findings summary (what must be fixed first)
-
-#### P0 — Breaks correctness, tests, or core workflows
-- [ ] **Fix YAML tab handling + Windows path normalization bugs** in `src/index/chunking/formats/yaml.js` (tabs currently checked as the literal string `"\t"`; Windows paths normalized with the wrong regex).  
-  - Affects: skipping list items / indentation detection; GitHub Actions workflow detection on Windows-style paths.
-- [ ] **Fix C-like docstring/attribute extraction off-by-one** in `src/lang/clike.js` (doc comment extraction currently skips the line immediately above declarations).  
-  - Affects: docstring/attributes in C/C++/ObjC chunks (and downstream docmeta / fidelity).
-- [ ] **Fix broken test syntax** in `tests/language-registry/collectors.test.js` (invalid escaped quotes).  
-  - Affects: test suite execution.
-- [ ] **Fix ingestion tools writing output before ensuring directory exists** in:
-  - `tools/ctags-ingest.js`
-  - `tools/gtags-ingest.js`
-  - `tools/lsif-ingest.js`
-  - `tools/scip-ingest.js`  
-  Creating the write stream before `ensureOutputDir()` can fail when the output directory does not exist.
-- [ ] **Fix SQL statement splitting for standard SQL escaping (`''` / `""`)** in `src/lang/sql.js`.  
-  Current quote toggling assumes backslash-escaping and will mis-split statements containing doubled quotes.
-
-#### P1 — Tree-sitter quality/perf gaps that will surface at scale
-- [ ] **Fix `findNameNode` traversal depth bug** in `src/lang/tree-sitter/chunking.js` (depth increments per node instead of per level; the search stops after ~4 iterations).  
-  - Affects: chunk naming quality and method/class qualification.
-- [ ] **Make tree-sitter worker path functional and deterministic** (`src/lang/workers/tree-sitter-worker.js` + `src/lang/tree-sitter/chunking.js`).  
-  - Worker currently does not preload/init grammars; `buildTreeSitterChunksAsync()` treats a `null` worker result as “success” and does not fall back.
-
-#### P2 — Cleanup, clarity, and long-term maintainability
-- [ ] **Remove or use unused imports** (e.g., `parseTypeScriptSignature` in `src/lang/typescript/chunks-babel.js`).
-- [ ] **Add missing/edge-case tests** (Windows paths, tabs, unicode identifiers, SQL quoting, tree-sitter worker behavior, etc.).
-- [ ] **Document chunk metadata semantics** (particularly `meta.endLine` inclusivity and byte vs. code-unit offsets) in `docs/contracts/chunking.md` (and/or a new contract doc).
-
----
-
-### 31.1 Chunking pipeline: mapping, fallback, limits, determinism
-
-#### 31.1.1 Fallback behavior and deterministic output
-- [ ] **Audit & document** the full fallback chain in `src/index/chunking/dispatch.js`:
-  - code chunker → code-format chunker → prose chunker → root chunk (prose extensions) → fixed-size blob fallback.
-- [ ] **Add regression tests** that verify:
-  - A failed code chunker returns `null` and the dispatcher properly falls back.
-  - “Prose mode” behavior for `.md/.rst/.adoc/.txt/.mdx` is stable (chunk headings when possible; otherwise single chunk).
-  - “Code mode” for prose files intentionally uses blob fallback (or adjust if that’s not desired).
-
-#### 31.1.2 Limits: correctness + performance under large inputs
-- [ ] **Add tests for multi-byte UTF-8 boundaries** in `applyChunkingLimits()` (`src/index/chunking/limits.js`):
-  - Ensure splits never create invalid surrogate pairs.
-  - Ensure byte limits are enforced correctly with emoji / non-ASCII identifiers.
-- [ ] **Performance review:** `resolveByteBoundary()` currently calls `Buffer.byteLength(text.slice(0, mid))` repeatedly.
-  - [ ] Consider a faster strategy (e.g., pre-encoding once to a `Buffer`, or maintaining cumulative byte counts per line) to avoid repeated substring allocations.
-- [ ] **Clarify contract semantics** for:
-  - Whether `chunk.end` is exclusive (it is treated as exclusive almost everywhere).
-  - Whether `meta.endLine` is “line containing end offset” vs “last included line”.  
-    (Many language chunkers use `offsetToLine(end)` vs `offsetToLine(end - 1)`; this should be intentional and documented.)
-  - Update `docs/contracts/chunking.md` accordingly and add examples.
-
----
-
-### 31.2 Format chunkers: YAML, JSON, XML, INI/TOML, Markdown, RST/Asciidoc
-
-#### 31.2.1 YAML (`src/index/chunking/formats/yaml.js`)
-**Bugs**
-- [ ] **Fix tab detection** in `chunkYamlTopLevel()` and list-item skipping:
-  - Current code checks `line.startsWith("\t")` (literal backslash + t) instead of `line.startsWith("\t")` as a tab character.
-  - Locations:
-    - line ~60: `line.startsWith('\t')` in list-item skip condition
-    - line ~92: `line.startsWith('\t')` in indentation calculation
-- [ ] **Fix Windows path normalization** in `chunkYaml()`:
-  - Current: `normalizedPath = relPath.replace(/\\\\/g, '/')`  
-    This matches *double* backslashes; typical Windows paths contain single backslashes.
-  - Should be: `relPath.replace(/\\/g, '/')` (single backslash regex)
-
-**Hardening / improvements**
-- [ ] **Add YAML tests** covering:
-  - Tab-indented YAML (even if discouraged, tools may produce it).
-  - Workflow path detection for both `".github/workflows/foo.yml"` and `".github\\workflows\\foo.yml"`.
-  - A workflow file with `jobs:` where indentation is not 2 spaces (ensure graceful behavior).
-- [ ] **Document YAML chunker limitations** (top-level-only + heuristics for GH Actions) in the chunking contract or a dedicated “format chunkers” doc section.
-
-#### 31.2.2 JSON (`src/index/chunking/formats/json.js`)
-- [ ] **Test hygiene:** Fix test calls that pass arguments in the wrong positions (e.g., `chunkJson(jsonText, {})` in `tests/chunking/json.test.js` currently passes `{}` as `relPath`).  
-  Update to `chunkJson(jsonText, null, {})` for clarity and future-proofing.
-- [ ] **Optional robustness improvement:** consider using `jsonc-parser` for tolerant parsing (trailing commas/comments) *if desired*.
-  - If adopted, ensure invalid JSON still cleanly falls back (i.e., return `null`).
-
-#### 31.2.3 XML (`src/index/chunking/formats/xml.js`)
-- [ ] Add tests for:
-  - Nested tags with attributes + self-closing tags.
-  - CDATA blocks and processing instructions.
-  - Malformed tag recovery (should return `null`, triggering fallback, rather than producing broken chunks).
-
-#### 31.2.4 Markdown (`src/index/chunking/formats/markdown.js`)
-- [ ] Add tests for:
-  - Headings inside fenced blocks (should not create chunks; current `inFence` logic covers ``` and ~~~).
-  - Setext headings vs horizontal rules (ensure `---` under a paragraph is treated correctly).
-
-#### 31.2.5 RST/Asciidoc (`src/index/chunking/formats/rst-asciidoc.js`)
-- [ ] Add tests for:
-  - RST overline+underline headings and nested sectioning.
-  - Asciidoc `==` headings inside code/list blocks to avoid false positives.
-
-#### 31.2.6 INI/TOML (`src/index/chunking/formats/ini-toml.js`)
-- [ ] Add tests for:
-  - TOML array-of-tables (`[[table]]`).
-  - INI sections with unusual whitespace and comments.
-
----
-
-### 31.3 Language registry: selection, options, and collector mapping
-
-#### 31.3.1 Registry correctness (`src/index/language-registry/registry.js`)
-- [ ] **Confirm and document intentional grouping** of C/C++/ObjC into `id: 'clike'`:
-  - Ensure docs and tests consistently reflect that `.c/.h/.cpp/.hpp/.m/.mm` map to the same language id.
-  - Update language-fidelity expectations and/or docs if users expect separate ids.
-
-- [ ] Expand `tests/language-registry/selection.test.js` to cover:
-  - C/C++/ObjC extensions: `.c`, `.h`, `.cpp`, `.hpp`, `.m`, `.mm`
-  - Ambiguous extensions and “special names”:
-    - `Dockerfile`, `dockerfile`, `*.Dockerfile`
-    - `Makefile`, `makefile`
-    - `CMakeLists.txt`
-    - `.gitignore`-style config names (if supported elsewhere)
-
-#### 31.3.2 Import collectors map (`tests/language-registry/collectors.test.js`)
-- [ ] **Fix syntax error** at the Dart fixture entry:
-  - Replace `text: "import 'package:foo/bar.dart';",` with a valid JS string literal:
-    - `text: "import 'package:foo/bar.dart';",`
-
-- [ ] Add edge-case import collector tests for:
-  - Multiline imports (where applicable).
-  - Imports inside comments (should be ignored where the collector claims to ignore comments).
-  - Duplicate imports / whitespace variants (ensure normalization works).
-
----
-
-### 31.4 Tree-sitter backbone: wasm init, language loading, chunk extraction, workers
-
-#### 31.4.1 Name extraction (`src/lang/tree-sitter/chunking.js`)
-- [ ] **Fix `findNameNode()` depth logic**:
-  - Current implementation increments `depth` per dequeued node, not per BFS level.
-  - Result: the search stops after ~4 processed nodes and often fails to find a name.
-  - Expected: traverse up to N levels or up to a node-count budget (explicitly), and return the first plausible identifier.
-
-- [ ] Add tests that assert:
-  - Function and class chunk names are extracted correctly across multiple language grammars.
-  - Member/method names are found for nested AST shapes where the `name` field is not a direct child.
-
-#### 31.4.2 Worker-mode tree-sitter chunking (`src/lang/workers/tree-sitter-worker.js`, `src/lang/tree-sitter/chunking.js`)
-- [ ] **Initialize and preload grammars inside the worker** (or add a per-worker lazy-init path):
-  - Today, the worker calls `buildTreeSitterChunks()` without ensuring tree-sitter wasm + language grammar are loaded in that worker thread.
-  - Proposed fix:
-    - In the worker, resolve language id from `ext`/`languageId`, then `await preloadTreeSitterLanguages([resolvedId], treeSitterOptions)` before parsing.
-- [ ] **Make `buildTreeSitterChunksAsync()` treat `null` results as a failure signal** and fall back to in-thread parsing (or to non-tree-sitter chunking), at least when worker-mode is enabled.
-- [ ] Add tests that explicitly enable worker-mode and assert that:
-  - Chunks are returned (not `null`) for a known fixture.
-  - The result matches non-worker behavior (same chunk boundaries, or documented acceptable differences).
-  - If a grammar is missing/unavailable, it falls back cleanly and deterministically.
-
-#### 31.4.3 Configuration normalization (`src/lang/tree-sitter/options.js`)
-- [ ] Improve boolean normalization:
-  - Current `normalizeEnabled()` only recognizes `false` and the literal string `'off'`.
-  - Expand to treat `'false'`, `'0'`, `'no'` (case-insensitive) as disabled, and `'true'`, `'1'`, `'yes'`, `'on'` as enabled.
-- [ ] Add tests for config parsing from environment/JSON where booleans may be strings.
-
-#### 31.4.4 Offsets: bytes vs JS string indices
-- [ ] Add an explicit contract note and tests around offset units used by:
-  - tree-sitter (`node.startIndex/endIndex`)
-  - parse5 and other JS parsers
-  - Python AST (line/col from Python runtime)  
-  Ensure all chunk `start/end` offsets are consistent with JS string slicing expectations, particularly with non-BMP unicode characters.
-
----
-
-### 31.5 Language handlers: correctness fixes & hardening
-
-#### 31.5.1 C-like (`src/lang/clike.js`)
-- [ ] **Fix docstring extraction index** for functions and ObjC methods:
-  - Current:
-    - ObjC method chunk meta: `extractDocComment(lines, i - 1, ...)` and `collectAttributes(lines, i - 1, ...)`
-    - C-like functions: `extractDocComment(lines, i - 1)`
-  - This skips the immediate preceding line.  
-  - Fix: pass `i` (0-based declaration start line) instead of `i - 1`.
-  - Locations:
-    - ~417–418, ~463 in `src/lang/clike.js`
-
-- [ ] Add tests for C-like doc comment capture:
-  - A `/** ... */` or `// ...` directly above a `struct`, `class`, `enum`, and `function`.
-  - ObjC method with `///` doc comment above it.
-
-#### 31.5.2 SQL (`src/lang/sql.js`)
-- [ ] **Fix quote handling** in both `stripSqlComments()` and `splitSqlStatements()`:
-  - SQL escaping commonly uses doubled quotes:
-    - `'It''s fine'`
-    - `"a ""quoted"" identifier"`
-  - Current logic toggles on every `'`/`"` not preceded by backslash, which breaks on doubled quotes.
-
-- [ ] Add tests that include:
-  - Semicolons inside strings with doubled quotes.
-  - PostgreSQL dollar-quoted strings combined with single-quoted strings.
-  - MySQL delimiter blocks that contain semicolons.
-
-#### 31.5.3 CSS (`src/lang/css.js`)
-- [ ] Add guardrails to prevent pathological chunk explosion when using the CSS tree-sitter parser:
-  - Options:
-    - Enforce a max node/chunk count (consistent with tree-sitter default maxChunkNodes behavior).
-    - Or switch to `buildTreeSitterChunks()` and its existing limits.
-- [ ] Add tests for:
-  - Nested `@media` with many rules (ensure performance and deterministic chunk output).
-  - Files exceeding the max node threshold (ensure fallback to heuristic).
-
-#### 31.5.4 TypeScript (`src/lang/typescript/chunks-babel.js`)
-- [ ] Remove or use unused import `parseTypeScriptSignature` (currently imported but not referenced).
-- [ ] Add/extend tests ensuring:
-  - Babel-based TS chunker produces signatures and types consistently where expected.
-  - Worker/non-worker tree-sitter paths do not regress TS chunking (when enabled).
-
----
-
-### 31.6 Imports, relations, and control-flow metrics
-
-#### 31.6.1 Import collectors
-- [ ] Add test coverage for:
-  - Normalization rules (`normalizeImportToken()` behavior).
-  - Edge cases per language (e.g., JS `import type`, TS `import("x")`, Python relative imports).
-- [ ] Validate that collectors return stable, sorted output (dedupe + order determinism), or document if order is intentionally non-deterministic.
-
-#### 31.6.2 Relations builders (`src/index/language-registry/simple-relations.js`, per-language `relations.js`)
-- [ ] Add a small integration test that:
-  - Runs `collectLanguageImports()` and `buildLanguageRelations()` for a multi-language fixture set.
-  - Verifies the resulting `imports`, `exports`, `calls`, and `usages` sets match expectations.
-
----
-
-### 31.7 Ingestion tools: ctags / gtags / lsif / scip
-
-#### 31.7.1 Output directory creation order
-- [ ] Move `await ensureOutputDir()` to occur *before* `fs.createWriteStream(outputPath, ...)` in:
-  - `tools/ctags-ingest.js` (write stream is created before the dir is ensured)
-  - `tools/gtags-ingest.js`
-  - `tools/lsif-ingest.js`
-  - `tools/scip-ingest.js`
-
-#### 31.7.2 Robustness improvements
-- [ ] Add tests / smoke scripts that verify:
-  - Tools succeed when output directory doesn’t exist.
-  - Tools correctly handle empty input streams.
-  - Tools fail with actionable errors on malformed JSON lines.
-
-- [ ] Add optional flags/docs for:
-  - Strict vs tolerant ingest behavior (skip malformed lines vs fail-fast).
-  - Path normalization expectations (repo-root relative vs absolute).
-
----
-
-### 31.8 Docs and test suite alignment
-
-#### 31.8.1 Fix broken / missing documentation references
-- [ ] The Section 5 checklist references docs that are *not present* in this repo snapshot (e.g., `docs/contracts/language-registry.md`, `docs/contracts/ast.md`, and `docs/optional/*`).  
-  Decide whether to:
-  - Create these docs, or
-  - Update the checklist to point to existing docs (`docs/language-handler-imports.md`, `docs/language-fidelity.md`, etc.).
-
-#### 31.8.2 Update existing docs for discovered behavior
-- [ ] Update `docs/contracts/chunking.md` to include:
-  - Chunk offset semantics (exclusive `end`, unicode considerations).
-  - `meta.startLine/endLine` semantics and examples.
-  - Expected behavior for overlapping chunks (if allowed) vs non-overlapping (if required).
-- [ ] Update `docs/language-fidelity.md` if docstring expectations for C-like currently fail due to the off-by-one bug.
-
-#### 31.8.3 Add a “known limitations” section (recommended)
-- [ ] Document known heuristic limitations for:
-  - SQL parsing (heuristic statement splitting vs full parser).
-  - YAML parsing (line-based, top-level heuristics).
-  - Language relations (regex-based calls/usages for some languages).
-
----
-
-### Deliverables
-- [ ] All P0/P1 fixes implemented with unit tests.
-- [ ] Updated docs reflecting chunk semantics and configuration.
-- [ ] A focused regression test pack covering:
-  - YAML tabs + Windows workflow paths
-  - C-like doc comments
-  - SQL doubled-quote handling
-  - Tree-sitter worker-mode functionality
-  - Chunking limits with unicode/multi-byte text
-
----
-
-### Exit criteria
-- [ ] `npm test` (or the project’s test runner) executes without syntax errors (including `collectors.test.js`).
-- [ ] Format chunkers are robust against malformed inputs and fall back deterministically.
-- [ ] Tree-sitter worker-mode returns real chunks for supported languages and falls back when grammars are missing.
-- [ ] Chunk metadata semantics are documented and consistent across chunkers (or differences are explicitly justified).
-- [ ] Ingestion tools succeed when output directories are missing and produce valid NDJSON outputs.
-
-## Phase 32 — (Review) — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
-
-### Objective
-
-Validate and improve the **retrieval pipeline**, **services surfaces (API + MCP)**, and **benchmark/eval tooling** so that:
-
-* Search semantics are correct and contract-aligned (query parsing, filters, ranking, explain output, context expansion).
-* Backends behave consistently (memory / sqlite / sqlite-fts / lmdb) and performance paths are not accidentally disabled.
-* Services are robust (streaming behavior, cancellation, backpressure, security posture).
-* Benchmarks and eval harnesses are actionable, reproducible, and can enforce latency/quality budgets.
-
-### Scope
-
-Reviewed the complete Section 8 list from the attached markdown checklist document fileciteturn0file0, including:
-
-* Retrieval CLI + pipeline + filters + output formatting
-* SQLite/LMDB helpers and cache layers
-* Core integrations used by tools/services
-* API server (router + SSE) and MCP transport/tools
-* Benchmark harnesses (micro + language) and query tooling
-* Eval harness
-* Related docs + tests + fixtures
-
-(Where files referenced other modules not in the Section 8 list, I noted mismatches and dependency risks, but the primary focus remains the Section 8 scope.)
-
----
-
-### Exit Criteria (What “Done” Looks Like)
-
-#### Correctness & Contracts
-
-* [ ] Query parsing supports required constructs (operators/quoting/negation/precedence) or docs/contracts explicitly define the simplified grammar.
-* [ ] Filters are correctly detected as “active” and do not disable backend fast-paths accidentally.
-* [ ] Explain output matches actual scoring math and is emitted only when requested (or contracts updated to reflect always-present fields).
-
-#### Performance & Latency
-
-* [ ] SQLite FTS fast-path is not disabled by default (especially for large indexes).
-* [ ] Context expansion avoids repeated O(N) scans per query (or is cached/optimized).
-* [ ] Benchmarks can write baselines reliably and optionally enforce budgets.
-
-#### Services Robustness
-
-* [ ] API streaming handles backpressure and connection close without hanging.
-* [ ] API/MCP support cancellation/timeout propagation to stop expensive work.
-* [ ] CORS/security posture is explicitly intentional and documented.
-
-#### Tests & Tooling
-
-* [ ] Tests cover discovered regressions and add missing edge cases (FTS eligibility, extracted-prose query caching, MCP id=0, etc.).
-* [ ] Bench/eval docs match actual behavior and command usage.
-
----
-
-## Findings & Required Work
-
-### 8.A — Retrieval Semantics, Explain, Context Expansion
-
-#### A1 — **Critical: Filter “active” detection is wrong (breaks performance paths)**
-
-**Files:**
-
-* `src/retrieval/filters.js`
-* `src/retrieval/cli.js`
-* `src/retrieval/pipeline.js`
-* `src/retrieval/sqlite-helpers.js` (indirect impact via CLI choices)
-
-**What I found:**
-`hasActiveFilters()` treats *any non-empty object* as “active,” which causes `filtersActive` to be true even when no user filters are set, because the CLI always includes internal objects like `filePrefilter`.
-
-**Impact:**
-
-* Forces filter pass on every query.
-* Can disable SQLite FTS eligibility for large indexes because allowed-id pushdown cannot be used when the “allowed set” becomes huge.
-* Prevents “lazy chunk loading” decisions that should apply when there are no real filters.
-* Creates major, silent performance regressions at scale.
-
-**Action items:**
-
-* [ ] Fix `hasActiveFilters()` to ignore internal/config-only keys (e.g., `filePrefilter`) and only count user-constraining filters.
-* [ ] Add unit tests for `hasActiveFilters()` default filter object and typical combinations.
-* [ ] Add an integration test ensuring sqlite-fts remains eligible on a large index when no filters are set (or at least verify the path selection in stats/debug output).
-
----
-
-#### A2 — **Context expansion does repeated O(N) indexing work per query**
-
-**Files:**
-
-* `src/retrieval/context-expansion.js`
-* `src/retrieval/cli.js` (enables context expansion)
-* `src/retrieval/pipeline.js`
-
-**What I found:**
-`buildContextIndex()` rebuilds `byName` and `byFile` maps every query.
-
-**Impact:**
-
-* For large repos, this adds noticeable latency per query.
-* Violates checklist intent: “avoids repeated file reads / expensive rebuilds.”
-
-**Action items:**
-
-* [ ] Cache context index per loaded index signature (store on the loaded index object or in `index-cache.js`).
-* [ ] Add tests to ensure expansions are stable and do not cross branch/filters (if applicable).
-* [ ] Document the intended semantic boundaries of context expansion (same file vs cross-file, name matching rules, etc.).
-
----
-
-#### A3 — Explain output / scoring contract alignment is ambiguous
-
-**Files:**
-
-* `src/retrieval/pipeline.js`
-* `src/retrieval/output/explain.js`
-* `src/retrieval/cli/render-output.js`
-* Docs: `docs/contracts/retrieval-ranking.md` (very high-level)
-
-**What I found:**
-The pipeline always builds `scoreBreakdown` objects, even if explain is not requested; compact JSON hides it, but full JSON may expose it unintentionally.
-
-**Action items:**
-
-* [ ] Decide contract behavior:
-
-  * Option 1: Only compute/attach `scoreBreakdown` when explain requested.
-  * Option 2: Always include but document it (and remove `--explain` implication of optionality).
-* [ ] Add snapshot tests asserting the presence/absence of explain fields by mode/output format.
-* [ ] Ensure explain’s boost attribution matches scoring math (phrase + symbol boosts currently depend on the already-boosted score; document or adjust).
-
----
-
-### 8.B — Query Parsing & Filtering
-
-#### B1 — Query parsing does not satisfy checklist requirements
-
-**Files:**
-
-* `src/retrieval/query.js`
-* `src/retrieval/query-parse.js`
-* Tests/docs indirectly
-
-**What I found:**
-Parsing supports:
-
-* quoted phrases (`"..."`)
-* negation via `-token` and `-"phrase"`
-
-It does **not** support:
-
-* boolean operators (AND/OR/NOT) semantics
-* precedence / parentheses
-* actionable errors for malformed queries (unbalanced quotes become literal tokens)
-
-**Action items:**
-
-* [ ] Either implement full operator parsing & precedence or explicitly constrain and document the query grammar.
-* [ ] Add detection + actionable error messages for unbalanced quotes and invalid constructs.
-* [ ] Add tests for negated phrases, nested quotes, malformed input, and operator tokens.
-
----
-
-#### B2 — Filtering: performance and correctness concerns
-
-**Files:**
-
-* `src/retrieval/output/filters.js`
-* `src/retrieval/filter-index.js`
-
-**Key improvements:**
-
-* [ ] Ensure case-sensitive file filters don’t lose correctness through normalization shortcuts (currently used for prefiltering; confirm final checks are strict).
-* [ ] Consider memory growth of filter index structures; document expected footprint and add soft limits/metrics.
-
----
-
-### 8.C — Ranking Determinism & Tie-Breaking
-
-#### C1 — Dense ranking should defensively validate embedding dimensionality
-
-**Files:**
-
-* `src/retrieval/rankers.js`
-* `src/retrieval/embedding.js`
-* `src/retrieval/sqlite-helpers.js`
-
-**What I found:**
-`rankDenseVectors()` assumes query embedding length matches index vector dimension. If not, dot-products can become NaN and ranking becomes unstable.
-
-**Action items:**
-
-* [ ] Validate query embedding length vs index dims; if mismatch, either truncate safely or skip dense scoring with a clear warning.
-* [ ] Add tests for dims mismatch (stub embeddings + configured dims is a good harness).
-
----
-
-#### C2 — SQLite dense vector scale fallback looks unsafe
-
-**Files:**
-
-* `src/retrieval/sqlite-helpers.js`
-* Related: `src/storage/sqlite/vector.js` (quantization uses 2/255)
-
-**What I found:**
-If `dense_meta.scale` is missing for any reason, sqlite helper defaults scale to **1.0**, which would break score normalization badly for uint8 quantized vectors.
-
-**Action items:**
-
-* [ ] Change fallback scale default to `2/255` (and minVal to `-1` consistent with vector quantization).
-* [ ] Add a regression test ensuring dense scoring remains bounded even when meta is missing/corrupt (or fail loudly).
-
----
-
-### 8.D — Services: API Server & MCP
-
-#### D1 — SSE backpressure “drain wait” can hang indefinitely on closed connections
-
-**Files:**
-
-* `tools/api/sse.js`
-
-**What I found:**
-If `res.write()` returns false, the code awaits `'drain'` only. If the client disconnects before drain fires, that promise may never resolve.
-
-**Action items:**
-
-* [ ] Replace `await once('drain')` with `Promise.race([drain, close, error])`.
-* [ ] Add tests simulating backpressure + early disconnect (larger payload / forced write buffering).
-
----
-
-#### D2 — Streaming contracts/docs do not match actual /search/stream behavior
-
-**Files:**
-
-* `tools/api/router.js`
-* Docs: `docs/api-server.md`, `docs/contracts/api-mcp.md`
-
-**What I found:**
-`/search/stream` only emits:
-
-* `start`
-* `result` OR `error`
-* `done`
-
-Docs/contracts claim progress streaming and/or richer semantics.
-
-**Action items:**
-
-* [ ] Decide: implement progress events (pipeline milestones) OR revise docs/contracts to match current behavior.
-* [ ] If implementing progress: add hooks from retrieval CLI/pipeline → core API → router SSE.
-
----
-
-#### D3 — Cancellation/timeout propagation is missing end-to-end
-
-**Files:**
-
-* `tools/api/router.js`
-* `tools/mcp/transport.js`
-* `tools/mcp/tools.js`
-* `src/integrations/core/index.js`
-* `src/retrieval/cli.js` (currently no signal handling)
-
-**What I found:**
-Timeouts exist in MCP wrapper, but they do not abort underlying work. API does not abort search on client disconnect. Retrieval does not consume `AbortSignal`.
-
-**Action items:**
-
-* [ ] Introduce `AbortController` per request/tool call.
-* [ ] Wire close events (`req.on('close')`) and timeout timers to `abort()`.
-* [ ] Teach retrieval pipeline / embedding fetch to check `signal.aborted` and throw a consistent cancellation error.
-* [ ] Add tests:
-
-  * API stream abort stops work early (not just stops writing).
-  * MCP tool timeout aborts the underlying work, not just returns an error.
-
----
-
-#### D4 — Security posture: permissive CORS is risky
-
-**Files:**
-
-* `tools/api/router.js`
-* Docs: `docs/api-server.md`
-
-**What I found:**
-CORS is `*` by default. Even though server defaults to localhost, permissive CORS enables untrusted sites to read responses from a local service in a browser context.
-
-**Action items:**
-
-* [ ] Default CORS to disabled or restricted (require explicit `--cors` enablement).
-* [ ] Document threat model: local-only, trusted environment, or add token-based auth.
-* [ ] Add tests for CORS behavior (preflight, allowed origins).
-
----
-
-### 8.E — Benchmarks & Latency Budgets
-
-#### E1 — Microbench “dense” vs “hybrid” distinction is not actually implemented
-
-**Files:**
-
-* `tools/bench/micro/run.js`
-* `tools/bench/micro/search.js`
-* `tools/bench/micro/tinybench.js`
-* Docs: `docs/benchmarks.md`
-
-**What I found:**
-Bench tasks labeled “dense” and “hybrid” do not reliably enforce different scoring regimes. Some of the logic implies profiles/env-driven behavior that isn’t applied.
-
-**Action items:**
-
-* [ ] Implement explicit scoring strategy selection (via args/env/profile) for sparse vs dense vs hybrid.
-* [ ] Confirm the benchmark measures what it claims (esp. hybrid weighting).
-* [ ] Add “sanity asserts” in benchmark output to record which strategy actually ran.
-
----
-
-#### E2 — Baseline writing can fail because directories don’t exist
-
-**Files:**
-
-* `tools/bench/micro/tinybench.js`
-* Docs: `docs/benchmarks.md`
-
-**What I found:**
-`--write-baseline` writes to `benchmarks/baselines/...` but does not create the directory first.
-
-**Action items:**
-
-* [ ] Ensure baseline directory exists via `fs.mkdirSync(..., { recursive:true })`.
-* [ ] Add a test for `--write-baseline` success on a clean repo checkout.
-* [ ] Update docs to clarify how baselines are created and stored.
-
----
-
-#### E3 — SQLite cache reuse is missing in benchmark harnesses
-
-**Files:**
-
-* `tools/bench/micro/run.js`
-* `tools/bench/micro/tinybench.js`
-
-**What I found:**
-Bench harnesses often pass `sqliteCache = null`, which may force repeated DB opens and distort warm-run measurements.
-
-**Action items:**
-
-* [ ] Instantiate and reuse `createSqliteDbCache()` across runs for warm scenarios.
-* [ ] Record cache reuse status in benchmark output for transparency.
-
----
-
-#### E4 — Latency “budgets” are described but not enforceable
-
-**Files:**
-
-* `docs/benchmarks.md`
-* Tests: existing bench tests do not enforce budgets
-
-**Action items:**
-
-* [ ] Define target budgets (p50/p95) for representative queries and backends.
-* [ ] Add CI-friendly “perf smoke” tests that fail if budgets regress beyond thresholds (with generous margins and stable fixtures).
-* [ ] Document environment assumptions for benchmarks (CPU, disk, warmup, etc.).
-
----
-
-### 8.F — Eval Harness
-
-#### F1 — Matching logic is permissive and may inflate scores
-
-**Files:**
-
-* `tools/eval/run.js`
-* Docs: `docs/eval.md`
-
-**What I found:**
-Expected match uses `hit.name.includes(expected.name)`; that may treat `foo` as matching `foobar`.
-
-**Action items:**
-
-* [ ] Decide strictness: exact name match vs substring vs regex.
-* [ ] Add dataset option `matchMode` or per-expected matcher configuration.
-* [ ] Add tests for false-positive matching cases.
-
----
-
-## Additional Concrete Bugs Found (Non-Checklist)
-
-### G1 — Retrieval output summary “word count” logic uses character length
-
-**Files:**
-
-* `src/retrieval/output/format.js`
-
-**What I found:**
-The summary logic compares `.length` of the string (characters) to a “maxWords” variable and uses it to adjust `maxWords`. This is unit-inconsistent and likely incorrect behavior.
-
-**Action items:**
-
-* [ ] Fix to track word count, not character length.
-* [ ] Avoid calling `getBodySummary()` twice.
-* [ ] Add tests for summary length behavior.
-
----
-
-### G2 — Parity test references missing benchmark query file path
-
-**Files:**
-
-* `tests/parity.js`
-* Existing file: `tests/parity-queries.txt`
-
-**What I found:**
-`tests/parity.js` reads from `benchmarks/queries/parity-queries.txt`, but the queries file exists under `tests/parity-queries.txt`.
-
-**Action items:**
-
-* [ ] Update parity test to load from `tests/parity-queries.txt` (or move file to benchmarks).
-* [ ] Add a guard assertion that query file exists with a clear message.
-
----
-
-### G3 — Language benchmark progress renderer imports wrong relative paths
-
-**Files:**
-
-* `tools/bench/language/progress/render.js`
-
-**What I found:**
-Imports reference `../../../src/shared/...` but need one more `../` to reach repo root. As written, this resolves to `tools/src/shared/...` which doesn’t exist.
-
-**Action items:**
-
-* [ ] Fix import paths to `../../../../src/shared/...`.
-* [ ] Add a smoke test that loads the module (ensures no runtime import failures).
-
----
-
-### G4 — MCP transport drops valid JSON-RPC ids when id = 0
-
-**Files:**
-
-* `tools/mcp/transport.js`
-
-**What I found:**
-`if (!id) return;` treats `0` as falsy and drops responses/notifications. JSON-RPC allows `id: 0`.
-
-**Action items:**
-
-* [ ] Change checks to `(id === null || id === undefined)`.
-* [ ] Add MCP tests sending `id: 0`.
-
----
-
-### G5 — Bench query generator emits invalid CLI fragments (and lacks quoting)
-
-**Files:**
-
-* `tools/bench-query-generator.js`
-
-**What I found:**
-At least one strategy emits `--signature` without a value. Additionally, values with spaces (authors, types) are not quoted, which will break shell parsing.
-
-**Action items:**
-
-* [ ] Fix signature strategy to emit `--signature "<value>"`.
-* [ ] Quote/escape all flag values safely.
-* [ ] Clarify intended consumer (CLI vs internal harness) and ensure output format matches it.
-
----
-
-## Test Coverage Additions (Highly Recommended)
-
-### New/Expanded Tests
-
-* [ ] `hasActiveFilters()` default object returns false; internal config-only objects don’t activate filters.
-* [ ] sqlite-fts eligibility remains enabled for unfiltered queries on large (>900 chunks) indexes.
-* [ ] Query cache includes extracted-prose payloads and validates required fields when mode enabled.
-* [ ] SSE backpressure + client disconnect doesn’t hang.
-* [ ] API abort cancels search work (requires AbortSignal support).
-* [ ] MCP id=0 support.
-* [ ] `--write-baseline` creates directories and succeeds.
-
----
-
-## Documentation Corrections Required
-
-* [ ] `docs/api-server.md`: align stream behavior (progress vs start/result/done), update security/CORS discussion.
-* [ ] `docs/contracts/api-mcp.md`: align `/search/stream` contract to actual behavior or update implementation.
-* [ ] `docs/benchmarks.md`: document baseline creation and ensure code supports it (mkdir); clarify dense/hybrid distinctions.
-* [ ] `docs/mcp-server.md`: appears outdated vs actual transport implementation; update to match current code.
-
-## Phase 33 — Review Section 7 — Storage backends (SQLite + LMDB)
+## Phase 12 — Storage backends (SQLite + LMDB)
 
 **Objective:** Perform an audit of the storage backends (SQLite + LMDB) and their supporting tooling (build, validation, compaction, incremental updates, ANN extension management, and backend selection). Identify *all* correctness bugs, edge cases, documentation drift, missing tests, and performance/refactoring opportunities, aligned to the provided checklist.
 
@@ -4685,78 +2886,3075 @@ The following items should be completed to consider “Review Section 7” fully
 
 ---
 
+## Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
+
+### Objective
+
+Validate and improve the **retrieval pipeline**, **services surfaces (API + MCP)**, and **benchmark/eval tooling** so that:
+
+* Search semantics are correct and contract-aligned (query parsing, filters, ranking, explain output, context expansion).
+* Backends behave consistently (memory / sqlite / sqlite-fts / lmdb) and performance paths are not accidentally disabled.
+* Services are robust (streaming behavior, cancellation, backpressure, security posture).
+* Benchmarks and eval harnesses are actionable, reproducible, and can enforce latency/quality budgets.
+
+### Scope
+
+Reviewed the complete Section 8 list from the attached markdown checklist document, including:
+
+* Retrieval CLI + pipeline + filters + output formatting
+* SQLite/LMDB helpers and cache layers
+* Core integrations used by tools/services
+* API server (router + SSE) and MCP transport/tools
+* Benchmark harnesses (micro + language) and query tooling
+* Eval harness
+* Related docs + tests + fixtures
+
+(Where files referenced other modules not in the Section 8 list, I noted mismatches and dependency risks, but the primary focus remains the Section 8 scope.)
+
 ---
 
-# Phase 34 — Phase 2/3/4/5/6 verification gates
+### Exit Criteria (What “Done” Looks Like)
 
-**Objective:** run and gate the regression tests that confirm Phase 2 contract alignment, Phase 3 chunking invariants, Phase 4 retrieval semantics, Phase 5 durability, and Phase 6 embeddings correctness.
+#### Correctness & Contracts
 
-## 34.1 CLI flag removal and error handling
-- [ ] `tests/search-removed-flags.js`
-  - [ ] Failure: Expected actionable error for --human.
-  - [ ] Log: `logs/phase-22/search-removed-flags.log:1`
-- [ ] `tests/search-missing-flag-values.js`
-  - [ ] Failure: Expected missing value message for --type.
-  - [ ] Log: `logs/phase-22/search-missing-flag-values.log:1`
+* [ ] Query parsing supports required constructs (operators/quoting/negation/precedence) or docs/contracts explicitly define the simplified grammar.
+* [ ] Filters are correctly detected as “active” and do not disable backend fast-paths accidentally.
+* [ ] Explain output matches actual scoring math and is emitted only when requested (or contracts updated to reflect always-present fields).
 
-## 34.10 Phase 9 CI gating + flaky test recovery
-- [ ] `tests/script-coverage.js`
-  - [ ] Failure: Error: unsafe tar entry: C:/Users/sneak/Development/PairOfCleats_CODEX/tests/.cache/download-extensions/tar/.tmp/extract-1768204937568/vec0.dll
-  - [ ] Log: `tests/.logs/2026-01-12T08-02-14-028Z/download-extensions-test.attempt-3.log:15`
+#### Performance & Latency
 
-## 34.11 Phase 10 modularization regression sweep
-- [ ] `tests/search-help.js`
-  - [ ] Failure: Help output missing flag: --calls.
-  - [ ] Log: `logs/phase-22/search-help.log:1`
+* [ ] SQLite FTS fast-path is not disabled by default (especially for large indexes).
+* [ ] Context expansion avoids repeated O(N) scans per query (or is cached/optimized).
+* [ ] Benchmarks can write baselines reliably and optionally enforce budgets.
 
-## 34.12 Phase 11 docs/help parity checks
-- [ ] `tests/search-help.js`
-  - [ ] Failure: Help output missing flag: --calls.
-  - [ ] Log: `logs/phase-22/search-help.log:1`
-- [ ] `tests/search-removed-flags.js`
-  - [ ] Failure: Expected actionable error for --human.
-  - [ ] Log: `logs/phase-22/search-removed-flags.log:1`
+#### Services Robustness
 
-## 34.29 file processor skip
-- [ ] `tests/file-processor/skip.test.js`
-  - [ ] Failure: Expected binary buffer to skip with reason=binary.
-  - [ ] Log: `logs/phase-22/file-processor-skip.log:1`
+* [ ] API streaming handles backpressure and connection close without hanging.
+* [ ] API/MCP support cancellation/timeout propagation to stop expensive work.
+* [ ] CORS/security posture is explicitly intentional and documented.
 
-## 34.32 lang js chunking
-- [ ] `tests/lang/js-chunking.test.js`
-  - [ ] Failure: Missing exported function chunk (alpha).
-  - [ ] Log: `logs/phase-22/lang-js-chunking.log:1`
+#### Tests & Tooling
 
-## 34.34 lang js relations
-- [ ] `tests/lang/js-relations.test.js`
-  - [ ] Failure: Missing exports for run/default: [].
-  - [ ] Log: `logs/phase-22/lang-js-relations.log:1`
+* [ ] Tests cover discovered regressions and add missing edge cases (FTS eligibility, extracted-prose query caching, MCP id=0, etc.).
+* [ ] Bench/eval docs match actual behavior and command usage.
 
-## 34.38 language registry collectors
-- [ ] `tests/language-registry/collectors.test.js`
-  - [ ] Failure: dockerfile mismatch: ["node:18"] !== ["base","node:18"].
-  - [ ] Log: `logs/phase-22/language-registry-collectors.log:1`
+---
+
+## Findings & Required Work
+
+### 13.A — Retrieval Semantics, Explain, Context Expansion (Review Section 8.A)
+
+#### A1 — **Critical: Filter “active” detection is wrong (breaks performance paths)**
+
+**Files:**
+
+* `src/retrieval/filters.js`
+* `src/retrieval/cli.js`
+* `src/retrieval/pipeline.js`
+* `src/retrieval/sqlite-helpers.js` (indirect impact via CLI choices)
+
+**What I found:**
+`hasActiveFilters()` treats *any non-empty object* as “active,” which causes `filtersActive` to be true even when no user filters are set, because the CLI always includes internal objects like `filePrefilter`.
+
+**Impact:**
+
+* Forces filter pass on every query.
+* Can disable SQLite FTS eligibility for large indexes because allowed-id pushdown cannot be used when the “allowed set” becomes huge.
+* Prevents “lazy chunk loading” decisions that should apply when there are no real filters.
+* Creates major, silent performance regressions at scale.
+
+**Action items:**
+
+* [ ] Fix `hasActiveFilters()` to ignore internal/config-only keys (e.g., `filePrefilter`) and only count user-constraining filters.
+* [ ] Add unit tests for `hasActiveFilters()` default filter object and typical combinations.
+* [ ] Add an integration test ensuring sqlite-fts remains eligible on a large index when no filters are set (or at least verify the path selection in stats/debug output).
+
+---
+
+#### A2 — **Context expansion does repeated O(N) indexing work per query**
+
+**Files:**
+
+* `src/retrieval/context-expansion.js`
+* `src/retrieval/cli.js` (enables context expansion)
+* `src/retrieval/pipeline.js`
+
+**What I found:**
+`buildContextIndex()` rebuilds `byName` and `byFile` maps every query.
+
+**Impact:**
+
+* For large repos, this adds noticeable latency per query.
+* Violates checklist intent: “avoids repeated file reads / expensive rebuilds.”
+
+**Action items:**
+
+* [ ] Cache context index per loaded index signature (store on the loaded index object or in `index-cache.js`).
+* [ ] Add tests to ensure expansions are stable and do not cross branch/filters (if applicable).
+* [ ] Document the intended semantic boundaries of context expansion (same file vs cross-file, name matching rules, etc.).
+
+---
+
+#### A3 — Explain output / scoring contract alignment is ambiguous
+
+**Files:**
+
+* `src/retrieval/pipeline.js`
+* `src/retrieval/output/explain.js`
+* `src/retrieval/cli/render-output.js`
+* Docs: `docs/contracts/retrieval-ranking.md` (very high-level)
+
+**What I found:**
+The pipeline always builds `scoreBreakdown` objects, even if explain is not requested; compact JSON hides it, but full JSON may expose it unintentionally.
+
+**Action items:**
+
+* [ ] Decide contract behavior:
+
+  * Option 1: Only compute/attach `scoreBreakdown` when explain requested.
+  * Option 2: Always include but document it (and remove `--explain` implication of optionality).
+* [ ] Add snapshot tests asserting the presence/absence of explain fields by mode/output format.
+* [ ] Ensure explain’s boost attribution matches scoring math (phrase + symbol boosts currently depend on the already-boosted score; document or adjust).
+
+---
+
+### 13.B — Query Parsing & Filtering (Review Section 8.B)
+
+#### B1 — Query parsing does not satisfy checklist requirements
+
+**Files:**
+
+* `src/retrieval/query.js`
+* `src/retrieval/query-parse.js`
+* Tests/docs indirectly
+
+**What I found:**
+Parsing supports:
+
+* quoted phrases (`"..."`)
+* negation via `-token` and `-"phrase"`
+
+It does **not** support:
+
+* boolean operators (AND/OR/NOT) semantics
+* precedence / parentheses
+* actionable errors for malformed queries (unbalanced quotes become literal tokens)
+
+**Action items:**
+
+* [ ] Either implement full operator parsing & precedence or explicitly constrain and document the query grammar.
+* [ ] Add detection + actionable error messages for unbalanced quotes and invalid constructs.
+* [ ] Add tests for negated phrases, nested quotes, malformed input, and operator tokens.
+
+---
+
+#### B2 — Filtering: performance and correctness concerns
+
+**Files:**
+
+* `src/retrieval/output/filters.js`
+* `src/retrieval/filter-index.js`
+
+**Key improvements:**
+
+* [ ] Ensure case-sensitive file filters don’t lose correctness through normalization shortcuts (currently used for prefiltering; confirm final checks are strict).
+* [ ] Consider memory growth of filter index structures; document expected footprint and add soft limits/metrics.
+
+---
+
+### 13.C — Ranking Determinism & Tie-Breaking (Review Section 8.C)
+
+#### C1 — Dense ranking should defensively validate embedding dimensionality
+
+**Files:**
+
+* `src/retrieval/rankers.js`
+* `src/retrieval/embedding.js`
+* `src/retrieval/sqlite-helpers.js`
+
+**What I found:**
+`rankDenseVectors()` assumes query embedding length matches index vector dimension. If not, dot-products can become NaN and ranking becomes unstable.
+
+**Action items:**
+
+* [ ] Validate query embedding length vs index dims; if mismatch, either truncate safely or skip dense scoring with a clear warning.
+* [ ] Add tests for dims mismatch (stub embeddings + configured dims is a good harness).
+
+---
+
+#### C2 — SQLite dense vector scale fallback looks unsafe
+
+**Files:**
+
+* `src/retrieval/sqlite-helpers.js`
+* Related: `src/storage/sqlite/vector.js` (quantization uses 2/255)
+
+**What I found:**
+If `dense_meta.scale` is missing for any reason, sqlite helper defaults scale to **1.0**, which would break score normalization badly for uint8 quantized vectors.
+
+**Action items:**
+
+* [ ] Change fallback scale default to `2/255` (and minVal to `-1` consistent with vector quantization).
+* [ ] Add a regression test ensuring dense scoring remains bounded even when meta is missing/corrupt (or fail loudly).
+
+---
+
+### 13.D — Services: API Server & MCP (Review Section 8.D)
+
+#### D1 — SSE backpressure “drain wait” can hang indefinitely on closed connections
+
+**Files:**
+
+* `tools/api/sse.js`
+
+**What I found:**
+If `res.write()` returns false, the code awaits `'drain'` only. If the client disconnects before drain fires, that promise may never resolve.
+
+**Action items:**
+
+* [ ] Replace `await once('drain')` with `Promise.race([drain, close, error])`.
+* [ ] Add tests simulating backpressure + early disconnect (larger payload / forced write buffering).
+
+---
+
+#### D2 — Streaming contracts/docs do not match actual /search/stream behavior
+
+**Files:**
+
+* `tools/api/router.js`
+* Docs: `docs/api-server.md`, `docs/contracts/api-mcp.md`
+
+**What I found:**
+`/search/stream` only emits:
+
+* `start`
+* `result` OR `error`
+* `done`
+
+Docs/contracts claim progress streaming and/or richer semantics.
+
+**Action items:**
+
+* [ ] Decide: implement progress events (pipeline milestones) OR revise docs/contracts to match current behavior.
+* [ ] If implementing progress: add hooks from retrieval CLI/pipeline → core API → router SSE.
+
+---
+
+#### D3 — Cancellation/timeout propagation is missing end-to-end
+
+**Files:**
+
+* `tools/api/router.js`
+* `tools/mcp/transport.js`
+* `tools/mcp/tools.js`
+* `src/integrations/core/index.js`
+* `src/retrieval/cli.js` (currently no signal handling)
+
+**What I found:**
+Timeouts exist in MCP wrapper, but they do not abort underlying work. API does not abort search on client disconnect. Retrieval does not consume `AbortSignal`.
+
+**Action items:**
+
+* [ ] Introduce `AbortController` per request/tool call.
+* [ ] Wire close events (`req.on('close')`) and timeout timers to `abort()`.
+* [ ] Teach retrieval pipeline / embedding fetch to check `signal.aborted` and throw a consistent cancellation error.
+* [ ] Add tests:
+
+  * API stream abort stops work early (not just stops writing).
+  * MCP tool timeout aborts the underlying work, not just returns an error.
+
+---
+
+#### D4 — Security posture: permissive CORS is risky
+
+**Files:**
+
+* `tools/api/router.js`
+* Docs: `docs/api-server.md`
+
+**What I found:**
+CORS is `*` by default. Even though server defaults to localhost, permissive CORS enables untrusted sites to read responses from a local service in a browser context.
+
+**Action items:**
+
+* [ ] Default CORS to disabled or restricted (require explicit `--cors` enablement).
+* [ ] Document threat model: local-only, trusted environment, or add token-based auth.
+* [ ] Add tests for CORS behavior (preflight, allowed origins).
+
+---
+
+### 13.E — Benchmarks & Latency Budgets (Review Section 8.E)
+
+#### E1 — Microbench “dense” vs “hybrid” distinction is not actually implemented
+
+**Files:**
+
+* `tools/bench/micro/run.js`
+* `tools/bench/micro/search.js`
+* `tools/bench/micro/tinybench.js`
+* Docs: `docs/benchmarks.md`
+
+**What I found:**
+Bench tasks labeled “dense” and “hybrid” do not reliably enforce different scoring regimes. Some of the logic implies profiles/env-driven behavior that isn’t applied.
+
+**Action items:**
+
+* [ ] Implement explicit scoring strategy selection (via args/env/profile) for sparse vs dense vs hybrid.
+* [ ] Confirm the benchmark measures what it claims (esp. hybrid weighting).
+* [ ] Add “sanity asserts” in benchmark output to record which strategy actually ran.
+
+---
+
+#### E2 — Baseline writing can fail because directories don’t exist
+
+**Files:**
+
+* `tools/bench/micro/tinybench.js`
+* Docs: `docs/benchmarks.md`
+
+**What I found:**
+`--write-baseline` writes to `benchmarks/baselines/...` but does not create the directory first.
+
+**Action items:**
+
+* [ ] Ensure baseline directory exists via `fs.mkdirSync(..., { recursive:true })`.
+* [ ] Add a test for `--write-baseline` success on a clean repo checkout.
+* [ ] Update docs to clarify how baselines are created and stored.
+
+---
+
+#### E3 — SQLite cache reuse is missing in benchmark harnesses
+
+**Files:**
+
+* `tools/bench/micro/run.js`
+* `tools/bench/micro/tinybench.js`
+
+**What I found:**
+Bench harnesses often pass `sqliteCache = null`, which may force repeated DB opens and distort warm-run measurements.
+
+**Action items:**
+
+* [ ] Instantiate and reuse `createSqliteDbCache()` across runs for warm scenarios.
+* [ ] Record cache reuse status in benchmark output for transparency.
+
+---
+
+#### E4 — Latency “budgets” are described but not enforceable
+
+**Files:**
+
+* `docs/benchmarks.md`
+* Tests: existing bench tests do not enforce budgets
+
+**Action items:**
+
+* [ ] Define target budgets (p50/p95) for representative queries and backends.
+* [ ] Add CI-friendly “perf smoke” tests that fail if budgets regress beyond thresholds (with generous margins and stable fixtures).
+* [ ] Document environment assumptions for benchmarks (CPU, disk, warmup, etc.).
+
+---
+
+### 13.F — Eval Harness (Review Section 8.F)
+
+#### F1 — Matching logic is permissive and may inflate scores
+
+**Files:**
+
+* `tools/eval/run.js`
+* Docs: `docs/eval.md`
+
+**What I found:**
+Expected match uses `hit.name.includes(expected.name)`; that may treat `foo` as matching `foobar`.
+
+**Action items:**
+
+* [ ] Decide strictness: exact name match vs substring vs regex.
+* [ ] Add dataset option `matchMode` or per-expected matcher configuration.
+* [ ] Add tests for false-positive matching cases.
+
+---
+
+## Additional Concrete Bugs Found (Non-Checklist)
+
+### G1 — Retrieval output summary “word count” logic uses character length
+
+**Files:**
+
+* `src/retrieval/output/format.js`
+
+**What I found:**
+The summary logic compares `.length` of the string (characters) to a “maxWords” variable and uses it to adjust `maxWords`. This is unit-inconsistent and likely incorrect behavior.
+
+**Action items:**
+
+* [ ] Fix to track word count, not character length.
+* [ ] Avoid calling `getBodySummary()` twice.
+* [ ] Add tests for summary length behavior.
+
+---
+
+### G2 — Parity test references missing benchmark query file path
+
+**Files:**
+
+* `tests/parity.js`
+* Existing file: `tests/parity-queries.txt`
+
+**What I found:**
+`tests/parity.js` reads from `benchmarks/queries/parity-queries.txt`, but the queries file exists under `tests/parity-queries.txt`.
+
+**Action items:**
+
+* [ ] Update parity test to load from `tests/parity-queries.txt` (or move file to benchmarks).
+* [ ] Add a guard assertion that query file exists with a clear message.
+
+---
+
+### G3 — Language benchmark progress renderer imports wrong relative paths
+
+**Files:**
+
+* `tools/bench/language/progress/render.js`
+
+**What I found:**
+Imports reference `../../../src/shared/...` but need one more `../` to reach repo root. As written, this resolves to `tools/src/shared/...` which doesn’t exist.
+
+**Action items:**
+
+* [ ] Fix import paths to `../../../../src/shared/...`.
+* [ ] Add a smoke test that loads the module (ensures no runtime import failures).
+
+---
+
+### G4 — MCP transport drops valid JSON-RPC ids when id = 0
+
+**Files:**
+
+* `tools/mcp/transport.js`
+
+**What I found:**
+`if (!id) return;` treats `0` as falsy and drops responses/notifications. JSON-RPC allows `id: 0`.
+
+**Action items:**
+
+* [ ] Change checks to `(id === null || id === undefined)`.
+* [ ] Add MCP tests sending `id: 0`.
+
+---
+
+### G5 — Bench query generator emits invalid CLI fragments (and lacks quoting)
+
+**Files:**
+
+* `tools/bench-query-generator.js`
+
+**What I found:**
+At least one strategy emits `--signature` without a value. Additionally, values with spaces (authors, types) are not quoted, which will break shell parsing.
+
+**Action items:**
+
+* [ ] Fix signature strategy to emit `--signature "<value>"`.
+* [ ] Quote/escape all flag values safely.
+* [ ] Clarify intended consumer (CLI vs internal harness) and ensure output format matches it.
+
+---
+
+## Test Coverage Additions (Highly Recommended)
+
+### New/Expanded Tests
+
+* [ ] `hasActiveFilters()` default object returns false; internal config-only objects don’t activate filters.
+* [ ] sqlite-fts eligibility remains enabled for unfiltered queries on large (>900 chunks) indexes.
+* [ ] Query cache includes extracted-prose payloads and validates required fields when mode enabled.
+* [ ] SSE backpressure + client disconnect doesn’t hang.
+* [ ] API abort cancels search work (requires AbortSignal support).
+* [ ] MCP id=0 support.
+* [ ] `--write-baseline` creates directories and succeeds.
+
+---
+
+## Documentation Corrections Required
+
+* [ ] `docs/api-server.md`: align stream behavior (progress vs start/result/done), update security/CORS discussion.
+* [ ] `docs/contracts/api-mcp.md`: align `/search/stream` contract to actual behavior or update implementation.
+* [ ] `docs/benchmarks.md`: document baseline creation and ensure code supports it (mkdir); clarify dense/hybrid distinctions.
+* [ ] `docs/mcp-server.md`: appears outdated vs actual transport implementation; update to match current code.
+
+---
+
+## Phase 14 — Documentation and Configuration Hardening
+
+**Objective:** Ensure the fixed behavior is discoverable, configurable, and hard to misconfigure into an unsafe state.
+
+1. **Document security posture and safe defaults**
+
+   * [ ] Document:
+
+     * API server host binding risks (`--host 0.0.0.0`)
+     * CORS policy and how to configure allowed origins
+     * Auth token configuration (if implemented)
+     * RepoPath allowlist behavior
+   * [ ] Add a prominent note: indexing untrusted repos and symlinks policy.
+
+2. **Add configuration schema coverage for new settings**
+
+   * [ ] If adding config keys (CORS/auth/cache TTL), ensure they are:
+
+     * Reflected in whatever config docs you maintain
+     * Validated consistently (even if validation is lightweight)
 
 **Exit criteria**
-- [ ] All verification tests pass.
+
+* [ ] README/docs reflect new defaults and how to safely expose services.
+* [ ] New options are documented and validated enough to prevent silent misconfiguration.
 
 ---
 
-# Phase 35 — Isometric Visual Fidelity (Yoink-derived polish)
+## Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
+
+### 15.1 Extend microbench suite (`tools/bench/micro/`)
+
+* [ ] Add `tools/bench/micro/watch.js`:
+
+  * [ ] Event storm simulation (if feasible) or synthetic scheduler load
+* [ ] Add `tools/bench/micro/regex.js`:
+
+  * [ ] Compare `re2js` vs `re2` on representative patterns/inputs
+* [ ] Add `tools/bench/micro/hash.js`:
+
+  * [ ] Compare wasm vs native checksum throughput
+* [ ] Add `tools/bench/micro/compression.js`:
+
+  * [ ] gzip vs zstd compress/decompress for representative artifact payload sizes
+* [ ] Add `tools/bench/micro/extractors.js`:
+
+  * [ ] PDF/DOCX extraction throughput and memory ceiling
+
+### 15.2 Add “no-regression” assertions where it matters
+
+* [ ] Add deterministic snapshot tests (lightweight, not full golden files):
+
+  * [ ] Ensure chunk IDs stable across backends
+  * [ ] Ensure ordering stable under ties
+* [ ] Add metrics validation:
+
+  * [ ] `index-*.json` metrics reflect new compression/extractor options correctly
+
+### 15.3 Documentation + UX polish
+
+* [ ] Update `README.md`:
+
+  * [ ] Mention PDF/DOCX support and how to enable/disable
+  * [ ] Mention optional performance backends and how `auto` works
+* [ ] Update `docs/external-backends.md` for Tantivy/LanceDB reality (what’s implemented vs planned)
+* [ ] Update `docs/mcp-server.md` for SDK migration
+
+**Exit criteria**
+
+* [ ] Benchmarks show measurable improvement (and are reproducible)
+* [ ] CI remains green on Node 18 + Windows lane
+* [ ] New features are discoverable via config docs + `config_status`
+
+---
+
+## Phase 16 — Artifact compression upgrade: add Zstandard (`zstd`) alongside gzip
+
+### 16.1 Add compression dependency
+
+* [ ] Add `@mongodb-js/zstd` (recommended as optional dependency due to native bindings)
+* [ ] Decide “streaming vs buffer-only” support:
+
+  * [ ] If streaming is supported: implement streaming JSONL writers/readers
+  * [ ] If buffer-only: restrict zstd to JSON object/array artifacts, keep JSONL as gzip (document clearly)
+
+### 16.2 Introduce compression abstraction (avoid sprinkling `if (mode===...)` everywhere)
+
+* [ ] Add `src/shared/compression.js`:
+
+  * [ ] `compressBuffer(mode, buffer, level?)`
+  * [ ] `decompressBuffer(mode, buffer)`
+  * [ ] Optional stream helpers if supported
+* [ ] Update `src/index/build/artifacts/compression.js`:
+
+  * [ ] Expand `mode` validation: `gzip|zstd|none`
+  * [ ] Keep current defaults unchanged (`gzip` or `null` based on existing config)
+* [ ] Update `src/index/build/artifacts.js`:
+
+  * [ ] Replace hard-coded `.json.gz` with extension derived from compression mode
+
+    * [ ] gzip: `.json.gz`
+    * [ ] zstd: `.json.zst` (or `.json.zstd`; pick one and standardize)
+  * [ ] Ensure `compressionKeepRaw` behavior remains correct
+
+### 16.3 Update readers/writers for new extensions
+
+* [ ] Update `src/shared/artifact-io.js`:
+
+  * [ ] Extend `resolveArtifactPath()` to check:
+
+    * [ ] `<name>.json` then `<name>.json.gz` then `<name>.json.zst`
+    * [ ] Also handle `.bak` variants for each
+  * [ ] Extend `readJsonFile()` to decode zstd when applicable
+* [ ] Update `src/shared/json-stream.js`:
+
+  * [ ] Add zstd path for `writeJsonArrayFile()` / `writeJsonObjectFile()` when compression is requested
+  * [ ] If JSONL is to support zstd: update `writeJsonLinesFile()` and `readJsonLinesArraySync()`
+
+### 16.4 Update artifact contract + metrics
+
+* [ ] Update `docs/artifact-contract.md`:
+
+  * [ ] New allowed compression modes
+  * [ ] New filename extensions
+  * [ ] Backward compatibility statement (gzip still readable)
+* [ ] Update `src/index/build/artifacts/metrics.js` to report `compression.mode=zstd`
+* [ ] Update `docs/config-schema.json` to restrict/describe valid modes
+
+### 16.5 Tests
+
+* [ ] Add `tests/artifact-zstd-readwrite.js`:
+
+  * [ ] Write a compressed artifact (zstd) using production writer
+  * [ ] Read it with `readJsonFile()` and assert payload matches
+* [ ] Extend `tests/artifact-bak-recovery.js` with a zstd variant:
+
+  * [ ] `.json.zst` + `.bak` fallback behavior
+* [ ] Add script-coverage action(s)
+
+**Exit criteria**
+
+* [ ] `loadIndex()` can transparently read `.json`, `.json.gz`, and `.json.zst` artifacts
+* [ ] Existing gzip artifacts remain fully compatible
+* [ ] Failure-mode behavior (`.bak` recovery) remains correct for new extensions
+
+---
+
+## Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
+
+### 17.1 Add dependency + unify backend contract
+
+* [x] Add `@node-rs/xxhash` as optional dependency (or hard dep if you accept platform constraints)
+* [x] Create `src/shared/hash/xxhash-backend.js`:
+
+  * [x] `hash64(buffer|string) -> hex16` (exact output format must match existing `checksumString()` + `checksumFile()`)
+  * [x] `hash64Stream(readable) -> hex16` (if supported; otherwise implement chunking in JS)
+* [x] Update `src/shared/hash.js`:
+
+  * [x] Keep `sha1()` unchanged
+  * [x] Route `checksumString()` / `checksumFile()` through the backend contract
+  * [x] Preserve deterministic formatting (`formatXxhashHex`)
+
+### 17.2 Introduce selector + telemetry
+
+* [x] Add `PAIROFCLEATS_XXHASH_BACKEND=auto|native|wasm`
+* [ ] Emit backend choice in verbose logs (once)
+
+### 17.3 Tests
+
+* [x] Add `tests/xxhash-backends.js`:
+
+  * [x] Assert `checksumString('abc')` matches a known baseline (record from current implementation)
+  * [x] Assert `checksumFile()` matches `checksumString()` on same content (via temp file)
+  * [x] If native backend is available, assert native and wasm match exactly
+  * [x] If native is missing, ensure test still passes (skips “native parity” block)
+* [x] Add script-coverage action(s)
+
+**Exit criteria**
+
+* [x] No change to bundle identity semantics (incremental cache stability)
+* [x] `checksumFile()` remains bounded-memory for large files (streaming or chunked reads)
+
+---
+
+## Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
+
+### 18.1 Add dependency + backend wrapper
+
+* [ ] Add `re2` (native) as an optional dependency (recommended)
+* [ ] Refactor `src/shared/safe-regex.js` into a backend-based module:
+
+  * [ ] Keep current behavior as the fallback backend (`re2js`)
+  * [ ] Add `src/shared/safe-regex/backends/re2.js`
+  * [ ] Add `src/shared/safe-regex/backends/re2js.js` (wrap existing usage cleanly)
+* [ ] Preserve existing safety constraints:
+
+  * [ ] `maxPatternLength`
+  * [ ] `maxInputLength`
+  * [ ] Guard flags normalization (only `gimsyu` supported as today)
+
+### 18.2 Integrate selector + compatibility contract
+
+* [ ] Add `createSafeRegex({ engine, ...limits })` selection:
+
+  * [ ] `engine=auto` uses `re2` if available else `re2js`
+  * [ ] `engine=re2` hard-requires native; if missing, returns a clear error (or a warning + fallback if you prefer)
+* [ ] Validate behavioral parity:
+
+  * [ ] Ensure `.exec()` and `.test()` match expectations for `g` and non-`g`
+  * [ ] Ensure `.lastIndex` semantics are either compatible or explicitly *not supported* (and documented)
+
+### 18.3 Update call sites
+
+* [ ] Verify these flows still behave correctly:
+
+  * [ ] `src/retrieval/output/filters.js` (file/path filters)
+  * [ ] `src/retrieval/output/risk-tags.js` (risk tagging)
+  * [ ] Any structural search / rulepack path using regex constraints
+
+### 18.4 Tests
+
+* [ ] Add `tests/safe-regex-engine.js`:
+
+  * [ ] Conformance tests (flags, match groups, global behavior)
+  * [ ] Safety limit tests (pattern length, input length)
+  * [ ] Engine-selection tests (`auto`, forced `re2js`)
+* [ ] Add script-coverage action(s)
+
+**Exit criteria**
+
+* [ ] No user-visible semantic regressions in filtering/risk-tagging
+* [ ] “Engine auto” is safe and silent (no noisy logs) unless verbose
+
+---
+
+## Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
+
+**Objective:** Make libuv threadpool sizing an explicit, validated, and observable runtime control so PairOfCleats I/O concurrency scales predictably across platforms and workloads.
+
+### 19.1 Audit: identify libuv-threadpool-bound hot paths and mismatch points
+
+* [ ] Audit all high-volume async filesystem call sites (these ultimately depend on libuv threadpool behavior):
+
+  * [ ] `src/index/build/file-processor.js` (notably `runIo(() => fs.stat(...))`, `runIo(() => fs.readFile(...))`)
+  * [ ] `src/index/build/file-scan.js` (`fs.open`, `handle.read`)
+  * [ ] `src/index/build/preprocess.js` (file sampling + `countLinesForEntries`)
+  * [ ] `src/shared/file-stats.js` (stream-based reads for line counting)
+* [ ] Audit concurrency derivation points where PairOfCleats may exceed practical libuv parallelism:
+
+  * [ ] `src/shared/threads.js` (`ioConcurrency = ioBase * 4`, cap 32/64)
+  * [ ] `src/index/build/runtime/workers.js` (`createRuntimeQueues` pending limits)
+* [ ] Decide and record the intended precedence rules for threadpool sizing:
+
+  * [ ] Whether PairOfCleats should **respect an already-set `UV_THREADPOOL_SIZE`** (recommended, matching existing `NODE_OPTIONS` behavior where flags aren’t overridden if already present).
+
+### 19.2 Add a first-class runtime setting + env override
+
+* [ ] Add config key (new):
+
+  * [ ] `runtime.uvThreadpoolSize` (number; if unset/invalid => no override)
+* [ ] Add env override (new):
+
+  * [ ] `PAIROFCLEATS_UV_THREADPOOL_SIZE` (number; same parsing rules as other numeric env overrides)
+* [ ] Implement parsing + precedence:
+
+  * [ ] Update `src/shared/env.js`
+
+    * [ ] Add `uvThreadpoolSize: parseNumber(env.PAIROFCLEATS_UV_THREADPOOL_SIZE)`
+  * [ ] Update `tools/dict-utils.js`
+
+    * [ ] Extend `getRuntimeConfig(repoRoot, userConfig)` to resolve `uvThreadpoolSize` with precedence:
+
+      * `userConfig.runtime.uvThreadpoolSize` → else `envConfig.uvThreadpoolSize` → else `null`
+    * [ ] Clamp/normalize: floor to integer; require `> 0`; else `null`
+    * [ ] Update the function’s return shape and JSDoc:
+
+      * from `{ maxOldSpaceMb, nodeOptions }`
+      * to `{ maxOldSpaceMb, nodeOptions, uvThreadpoolSize }`
+
+### 19.3 Propagate `UV_THREADPOOL_SIZE` early enough (launcher + spawned scripts)
+
+* [ ] Update `bin/pairofcleats.js` (critical path)
+
+  * [ ] In `runScript()`:
+
+    * [ ] Resolve `runtimeConfig` as today.
+    * [ ] Build child env as an object (don’t pass `process.env` by reference when you need to conditionally add keys).
+    * [ ] If `runtimeConfig.uvThreadpoolSize` is set and `process.env.UV_THREADPOOL_SIZE` is not set, add:
+
+      * [ ] `UV_THREADPOOL_SIZE = String(runtimeConfig.uvThreadpoolSize)`
+    * [ ] (Optional) If `--verbose` or `PAIROFCLEATS_VERBOSE`, log a one-liner showing the chosen `UV_THREADPOOL_SIZE` for the child process.
+* [ ] Update other scripts that spawn Node subcommands and already apply runtime Node options, so they also carry the threadpool sizing consistently:
+
+  * [ ] `tools/setup.js` (`buildRuntimeEnv()`)
+  * [ ] `tools/bootstrap.js` (`baseEnv`)
+  * [ ] `tools/ci-build-artifacts.js` (`baseEnv`)
+  * [ ] `tools/bench-language-repos.js` (repo child env)
+  * [ ] `tests/bench.js` (bench child env when spawning search/build steps)
+  * [ ] `tools/triage/context-pack.js`, `tools/triage/ingest.js` (where `resolveNodeOptions` is used)
+  * Implementation pattern: wherever you currently do `{ ...process.env, NODE_OPTIONS: resolvedNodeOptions }`, also conditionally set `UV_THREADPOOL_SIZE` from `runtimeConfig.uvThreadpoolSize` if not already present.
+
+> (Optional refactor, if you want to reduce repetition): add a helper in `tools/dict-utils.js` like `resolveRuntimeEnv(runtimeConfig, baseEnv)` and migrate the call sites above to use it.
+
+### 19.4 Observability: surface “configured vs effective” values
+
+* [ ] Update `tools/config-dump.js`
+
+  * [ ] Include in `payload.derived.runtime`:
+
+    * [ ] `uvThreadpoolSize` (configured value from `getRuntimeConfig`)
+    * [ ] `effectiveUvThreadpoolSize` (from `process.env.UV_THREADPOOL_SIZE` or null/undefined if absent)
+* [ ] Add runtime warnings in indexing startup when mismatch is likely:
+
+  * [ ] Update `src/index/build/runtime/workers.js` (in `resolveThreadLimitsConfig`, verbose mode is already supported)
+
+    * [ ] Compute `effectiveUv = Number(process.env.UV_THREADPOOL_SIZE) || null`
+    * [ ] If `effectiveUv` is set and `ioConcurrency` is materially larger, emit a single warning suggesting alignment.
+    * [ ] If `effectiveUv` is not set, consider a *non-fatal* hint when `ioConcurrency` is high (e.g., `>= 16`) and `--verbose` is enabled.
+* [ ] (Services) Emit one-time startup info in long-running modes:
+
+  * [ ] `tools/api-server.js`
+  * [ ] `tools/indexer-service.js`
+  * [ ] `tools/mcp-server.js`
+  * Log: effective `UV_THREADPOOL_SIZE`, and whether it was set by PairOfCleats runtime config or inherited from the environment.
+
+### 19.5 Documentation updates
+
+* [ ] Update env overrides doc:
+
+  * [ ] `docs/env-overrides.md`
+
+    * [ ] Add `PAIROFCLEATS_UV_THREADPOOL_SIZE`
+    * [ ] Explicitly note: libuv threadpool size must be set **before the Node process starts**; PairOfCleats applies it by setting `UV_THREADPOOL_SIZE` in spawned child processes (via `bin/pairofcleats.js` and other tool launchers).
+* [ ] Update config docs:
+
+  * [ ] `docs/config-schema.json` add `runtime.uvThreadpoolSize`
+  * [ ] `docs/config-inventory.md` add `runtime.uvThreadpoolSize (number)`
+  * [ ] `docs/config-inventory.json` add entry for `runtime.uvThreadpoolSize`
+* [ ] Update setup documentation:
+
+  * [ ] `docs/setup.md` add a short “Performance tuning” note:
+
+    * [ ] When indexing large repos or using higher `--threads`, consider setting `runtime.uvThreadpoolSize` (or `PAIROFCLEATS_UV_THREADPOOL_SIZE`) to avoid libuv threadpool becoming the limiting factor.
+* [ ] (Optional) Add a benchmark note:
+
+  * [ ] `docs/benchmarks.md` mention that benchmarking runs should control `UV_THREADPOOL_SIZE` for reproducibility.
+
+### 19.6 Tests: schema validation + env propagation
+
+* [ ] Update config validation tests:
+
+  * [ ] `tests/config-validate.js` ensure `runtime.uvThreadpoolSize` is accepted by schema validation.
+* [ ] Add a focused propagation test:
+
+  * [ ] New: `tests/uv-threadpool-env.js`
+
+    * [ ] Create a temp repo dir with a `.pairofcleats.json` that sets `runtime.uvThreadpoolSize`.
+    * [ ] Run: `node bin/pairofcleats.js config dump --json --repo <temp>`
+    * [ ] Assert:
+
+      * `payload.derived.runtime.uvThreadpoolSize` matches the config
+      * `payload.derived.runtime.effectiveUvThreadpoolSize` matches the propagated env (or check `process.env.UV_THREADPOOL_SIZE` if you expose it directly in the dump)
+* [ ] Add a non-override semantics test (if that’s the decided rule):
+
+  * [ ] New: `tests/uv-threadpool-no-override.js`
+
+    * [ ] Set parent env `UV_THREADPOOL_SIZE=…`
+    * [ ] Also set config `runtime.uvThreadpoolSize` to a different value
+    * [ ] Assert child sees the parent value (i.e., wrapper respects existing env)
+
+**Exit criteria**
+
+* [ ] `runtime.uvThreadpoolSize` is in schema + inventory and validated by `tools/validate-config.js`.
+* [ ] `pairofcleats …` launches propagate `UV_THREADPOOL_SIZE` to child processes when configured.
+* [ ] Users can confirm configured/effective behavior via `pairofcleats config dump --json`.
+* [ ] Docs clearly explain when and how the setting applies.
+
+---
+
+## Phase 20 — Threadpool-aware I/O scheduling guardrails
+
+**Objective:** Reduce misconfiguration risk by aligning PairOfCleats internal I/O scheduling with the effective libuv threadpool size and preventing runaway pending I/O buildup.
+
+### 20.1 Add a “threadpool-aware” cap option for I/O queue sizing
+
+* [ ] Add config (optional, but recommended if you want safer defaults):
+
+  * [ ] `indexing.ioConcurrencyCap` (number) **or** `runtime.ioConcurrencyCap` (number)
+  * Choose the namespace based on your ownership map (`docs/config-inventory-notes.md` suggests runtime is `tools/dict-utils.js`, indexing is build runtime).
+* [ ] Implement in:
+
+  * [ ] `src/shared/threads.js` (preferred, because it’s the canonical concurrency resolver)
+
+    * [ ] After computing `ioConcurrency`, apply:
+
+      * `ioConcurrency = min(ioConcurrency, ioConcurrencyCap)` when configured
+      * (Optional) `ioConcurrency = min(ioConcurrency, effectiveUvThreadpoolSize)` when a new boolean is enabled, e.g. `runtime.threadpoolAwareIo === true`
+  * [ ] `src/index/build/runtime/workers.js`
+
+    * [ ] Adjust `maxIoPending` to scale from the *final* `ioConcurrency`, not the pre-cap value.
+
+### 20.2 Split “filesystem I/O” from “process I/O” (optional, higher impact)
+
+If profiling shows git/tool subprocess work is being unnecessarily throttled by a threadpool-aware cap:
+
+* [ ] Update `src/shared/concurrency.js` to support two queues:
+
+  * [ ] `fs` queue (bounded by threadpool sizing)
+  * [ ] `proc` queue (bounded separately)
+* [ ] Update call sites:
+
+  * [ ] `src/index/build/file-processor.js`
+
+    * [ ] Use `fsQueue` for `fs.stat`, `fs.readFile`, `fs.open`
+    * [ ] Use `procQueue` for `getGitMetaForFile` (and any other spawn-heavy steps)
+  * [ ] `src/index/build/runtime/workers.js` and `src/index/build/indexer/steps/process-files.js`
+
+    * [ ] Wire new queues into runtime and shard runtime creation.
+
+### 20.3 Tests + benchmarks
+
+* [ ] Add tests that validate:
+
+  * [ ] Caps are applied deterministically
+  * [ ] Pending limits remain bounded
+  * [ ] No deadlocks when both queues exist
+* [ ] Update or add a micro-benchmark to show:
+
+  * [ ] Throughput difference when `UV_THREADPOOL_SIZE` and internal `ioConcurrency` are aligned vs misaligned.
+
+**Exit criteria**
+
+* [ ] Internal I/O concurrency cannot silently exceed intended caps.
+* [ ] No regression in incremental/watch mode stability.
+* [ ] Benchmarks show either improved throughput or reduced memory/queue pressure (ideally both).
+
+---
+
+## Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
+
+**Objective:** Only pursue *direct* libuv usage (via a native addon) if profiling demonstrates a material bottleneck that cannot be addressed through configuration and queue hygiene.
+
+### 21.1 Profiling gate and decision record
+
+* [ ] Add a short profiling harness / guidance doc:
+
+  * [ ] `docs/perf-profiling.md` (new) describing how to profile indexing (CPU + I/O wait) and what thresholds justify native work.
+* [ ] Establish decision criteria (example):
+
+  * [ ] If ≥20–30% wall time is spent in JS-level file scanning/reading overhead beyond disk throughput limits, consider native.
+  * [ ] Otherwise, stay in JS + threadpool tuning.
+
+### 21.2 Prototype native module (N-API) using libuv for a specific hot path
+
+* [ ] Only target one narrow, measurable function (examples):
+
+  * [ ] Fast “sample read + binary/minified detection” replacing parts of `src/index/build/file-scan.js`
+  * [ ] Batched `stat + read` pipeline for small files
+* [ ] Provide a clean fallback path to existing JS implementation.
+* [ ] Add CI coverage for:
+
+  * [ ] Linux/macOS/Windows builds (or prebuilds)
+  * [ ] ABI compatibility across supported Node versions
+
+### 21.3 Packaging and docs
+
+* [ ] Update:
+
+  * [ ] `package.json` optionalDependencies/build tooling (node-gyp/prebuildify/etc.)
+  * [ ] `docs/setup.md` to explain native build requirements/fallback behavior
+
+**Exit criteria**
+
+* [ ] Prototype demonstrates measurable improvement on representative repos.
+* [ ] Install friction and cross-platform maintenance cost are explicitly accepted (or the work is abandoned).
+
+#### 18 Bottom line
+
+* **Do not add libuv directly** to this Node codebase.
+* **Do add explicit support for libuv threadpool sizing** (via `UV_THREADPOOL_SIZE`) because the current concurrency model (notably `ioConcurrency` up to 64) strongly suggests you will otherwise hit an invisible throughput ceiling.
+
+---
+
+## Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
+
+**Objective:** harden the embeddings + ANN stack for correctness, determinism (where required), performance, and resilient fallbacks across **index build**, **build-embeddings tooling**, and **retrieval-time ANN execution**.
+
+### 22.1 Correctness
+
+#### 22.1.1 Model identity (cache keys, preprocessing, normalization, dims)
+
+##### Current state (verified)
+- [x] Tooling cache keys include **file hash** + **chunk signature** + **embedding identity** (`tools/build-embeddings/cache.js`, `tools/build-embeddings/run.js`).
+- [x] Tooling includes **dims mismatch guardrails** with explicit hard-fail paths and tests (`tools/build-embeddings/embed.js`, `tests/embeddings-dims-mismatch.js`, `tests/embeddings-dims-validation.js`).
+
+##### Remaining gaps / action items
+- [ ] **Expand embedding identity to include preprocessing + provider-specific knobs**, not just `{modelId, provider, mode, stub, dims, scale}`:
+  - Why: changing `onnx` tokenizer/model path or execution provider can change embeddings without changing `modelId`/`provider`, allowing silent cache reuse.
+  - Files:
+    - `tools/build-embeddings/cache.js` (identity schema)
+    - `tools/build-embeddings/run.js` (identity inputs)
+  - Add fields (at minimum):
+    - ONNX: `onnx.modelPath` (resolved), `onnx.tokenizerId`, `onnx.executionProviders`, `onnx.threads`, `onnx.graphOptimizationLevel`
+    - Common: pooling strategy (mean), `normalize=true`, truncation/max_length policy
+    - Quantization: `minVal/maxVal` (currently fixed -1..1), quantization “version”
+- [ ] **Include a tooling/version fingerprint in cache identity** (or bumpable `identity.version`) so cache invalidates when embedding algorithm changes:
+  - Why: changes to doc extraction, pooling logic, quantization, or merging should invalidate caches even if file hashes are unchanged.
+  - Files: `tools/build-embeddings/cache.js`, optionally `tools/build-embeddings/chunks.js`
+- [ ] **Add strict provider validation**: unknown `indexing.embeddings.provider` should not silently map to `xenova`.
+  - Why: silent fallback can produce “correct-looking” but unintended embeddings and cache identity mismatch.
+  - Files: `src/shared/onnx-embeddings.js` (normalizeEmbeddingProvider), `src/index/embedding.js`, `tools/build-embeddings/cli.js`, `src/retrieval/embedding.js`
+- [ ] **Unify default stub embedding dimensions across build + retrieval + tooling** (currently inconsistent defaults: 384 vs 512).
+  - Why: any code path that calls stub embeddings without an explicit `dims` risks producing query embeddings that cannot match the index dims.
+  - Files: `src/shared/embedding.js` (defaults to 512), `src/index/embedding.js` (defaults to 384), `tools/build-embeddings/run.js` (defaults to 384), `src/retrieval/embedding.js` (passes `dims`, but can pass null in some ANN-only paths).
+  - Recommendation: pick **384** as the single default everywhere OR require dims explicitly in stub mode and fail loudly if missing.
+- [ ] **Index-build (inline) path lacks explicit dims mismatch failure** comparable to build-embeddings tool:
+  - `src/index/build/file-processor/embeddings.js` currently coerces unexpected shapes to empty arrays and proceeds.
+  - Add an explicit “dims contract” check and fail fast (or disable embeddings) if:
+    - vectors are not arrays/typed arrays,
+    - dims are inconsistent across chunks,
+    - batch output length mismatches input length.
+- [ ] **Make per-file embedding cache writes atomic** (cache files are written with `fs.writeFile`):
+  - Why: partial/corrupt cache JSON can cause repeated recompute; while not “poisoning,” it degrades throughput and can mask real failures.
+  - Files: `tools/build-embeddings/run.js` (cache writes), optionally reuse `tools/build-embeddings/atomic.js` or shared atomic writer.
+
+**Exit criteria**
+- [ ] Changing any embedding-relevant knob (model path/tokenizer/provider/normalization/pooling/quantization) forces cache miss.
+- [ ] Dims mismatch fails loudly (or deterministically disables embeddings) in **both** build-embeddings and inline index-build paths.
+- [ ] Stub-mode dims are consistent across indexing + retrieval.
+
+---
+
+#### 22.1.2 Determinism (float handling, batching order)
+
+##### Current state (verified)
+- [x] Quantization uses deterministic rounding (`src/index/embedding.js`).
+- [x] Batched embedding retains input ordering in both tooling and index build (`tools/build-embeddings/embed.js`, `src/index/build/file-processor/embeddings.js`).
+
+##### Remaining gaps / action items
+- [ ] **Document and/or enforce determinism requirements for HNSW build**:
+  - HNSW graph structure can vary with insertion order; current insertion order is “file processing order,” which depends on `Map` insertion order derived from chunk meta traversal.
+  - Files: `tools/build-embeddings/run.js`, `tools/build-embeddings/hnsw.js`
+  - Recommendation: ensure vectors are added to HNSW in a stable order (e.g., ascending `chunkIndex`).
+- [ ] **Avoid nondeterministic file sampling in context window estimation**:
+  - `src/index/build/context-window.js` uses the first N files in `files[]`; if upstream file enumeration order is OS-dependent, context window results can change.
+  - Recommendation: sort file paths before sampling (or explicitly document nondeterminism).
+- [ ] **Normalize float types across providers**:
+  - Many paths convert typed arrays into JS arrays; this is deterministic but increases the surface for subtle differences and performance regressions.
+  - Recommendation: standardize on `Float32Array` where feasible and only convert at serialization boundaries.
+
+**Exit criteria**
+- [ ] HNSW build is reproducible across runs given identical artifacts/config (or nondeterminism is clearly documented and accepted).
+- [ ] Context window selection is stable given identical repo state.
+
+---
+
+#### 22.1.3 Robust fallback behavior (missing models/extensions/unsupported configs)
+
+##### Current state (verified)
+- [x] Retrieval embedding errors are caught and return `null` (`src/retrieval/embedding.js`), which allows the search pipeline to continue in sparse-only mode.
+- [x] SQLite vector extension usage is guarded and can be disabled via sanitization (`tests/vector-extension-sanitize.js`).
+
+##### Remaining gaps / action items
+- [ ] **ONNX embedder config validation is partially ineffective**:
+  - `src/shared/onnx-embeddings.js:createOnnxEmbedder()` checks `normalizeEmbeddingProvider('onnx') !== 'onnx'` which is a no-op (constant input).
+  - Replace with validation of the *actual* requested provider (or remove the dead check).
+- [ ] **Improve “missing model” errors with clear remediation** (especially for offline envs):
+  - Recommend: explicitly mention `tools/download-models.js` and where the model path is expected.
+  - Files: `src/shared/onnx-embeddings.js`, `src/index/embedding.js`
+- [ ] **HNSW load path should fall back to `.bak` on corrupt primary**, not only when primary is missing:
+  - Today: `src/shared/hnsw.js` only chooses `.bak` if primary missing; it does not retry `.bak` if `readIndexSync()` throws.
+- [ ] **Use HNSW meta for safety checks**:
+  - Retrieval load does not read `dense_vectors_hnsw.meta.json`, so it cannot validate `dims`, `space`, or `model` before querying.
+  - Files: `src/shared/hnsw.js`
+- [ ] **Add explicit tests for “extension missing” fallback**:
+  - Currently there is sanitization coverage, but not “load failure / missing shared library” behavior.
+  - Files/tests: `tools/build-embeddings/sqlite-dense.js` + new test.
+
+**Exit criteria**
+- [ ] Missing/corrupt HNSW artifacts do not crash retrieval; the system degrades gracefully to another ANN backend or sparse-only.
+- [ ] Missing ONNX model artifacts fail with actionable errors (or clean fallback in non-strict modes).
+
+---
+
+### 22.2 Batching & scheduling
+
+#### 22.2.1 Batch auto-tuning (memory/CPU/repo size)
+
+##### Current state (verified)
+- [x] Both index-build and build-embeddings tooling implement “auto batch” based on `os.totalmem()` (`src/index/build/runtime/embeddings.js`, `tools/build-embeddings/cli.js`).
+- [x] Language-specific multipliers exist and are tested (`src/index/build/embedding-batch.js`, `tests/embedding-batch-multipliers.js`).
+
+##### Remaining gaps / action items
+- [ ] **Unify and justify auto-batch heuristics**:
+  - Index-build uses `totalGb * 16` with min 16.
+  - build-embeddings tool uses `totalGb * 32` with min 32.
+  - Decide a single policy OR clearly document why they intentionally differ.
+- [ ] **Incorporate CPU oversubscription controls**:
+  - ONNX runtime can be multi-threaded (`threads` option), while the embedding queue can also be concurrent.
+  - Add a policy: e.g., `embeddingConcurrency * onnxThreads <= cpuCount` (or document exceptions).
+  - Files: `src/index/build/runtime/embeddings.js`, `src/shared/onnx-embeddings.js`
+- [ ] **Adapt batch sizing to repo characteristics**:
+  - For tiny repos/files, large batch sizes increase latency without improving throughput.
+  - For huge repos, file-by-file batching underutilizes the accelerator (many small batches).
+  - Recommendation: introduce a global “embedding batcher” that batches across files with:
+    - max batch size,
+    - max tokens/estimated memory per batch,
+    - stable ordering.
+  - Files impacted: `src/index/build/file-processor/embeddings.js`, `tools/build-embeddings/run.js`
+
+**Exit criteria**
+- [ ] Batch sizing + concurrency are predictable and safe across low-memory hosts, multi-core hosts, and both small and large repos.
+- [ ] Default settings do not oversubscribe CPU when ONNX threads are enabled.
+
+---
+
+#### 22.2.2 Embedding queues (backpressure, bounded memory)
+
+##### Current state (verified)
+- [x] Service-mode job enqueue provides a `maxQueued` hook (`src/index/build/indexer/embedding-queue.js`).
+
+##### Remaining gaps / action items
+- [ ] **Define and enforce backpressure defaults**:
+  - If `maxQueued` is unset/null, behavior depends on `enqueueJob()` (not in scope here); ensure a safe default exists.
+  - Add explicit documentation + a test that verifies queue growth is bounded.
+- [ ] **Ensure service jobs include enough identity to be safe**:
+  - Job payload includes `{repo, mode}`, but not an embedding identity fingerprint.
+  - Include `embeddingProvider`, model id, and/or a hash of embedding config to prevent mismatched worker configuration from producing incompatible embeddings.
+
+**Exit criteria**
+- [ ] Queue growth is bounded by default; overload produces clear errors and does not OOM the process.
+
+---
+
+#### 22.2.3 Session/model reuse
+
+##### Current state (verified)
+- [x] ONNX sessions are cached per normalized config (`src/shared/onnx-embeddings.js`).
+- [x] Retrieval embedder instances are cached in-process (`src/retrieval/embedding.js`).
+
+##### Remaining gaps / action items
+- [ ] **Guard concurrent use of shared ONNX sessions if required**:
+  - If `onnxruntime-node` sessions are not safe for concurrent `run()` calls, add a per-session mutex/queue.
+  - At minimum: document thread-safety assumptions and add a stress test.
+- [ ] **Avoid duplicate pipeline/session loads in index-build**:
+  - `src/index/embedding.js` does not maintain a global cache similar to retrieval; if multiple embedder instances are constructed in one process, models may be loaded multiple times.
+
+**Exit criteria**
+- [ ] A single model/session is loaded once per process per config, and safely shared across all embedding calls.
+
+---
+
+### 22.3 ANN correctness
+
+#### 22.3.1 Distance metric correctness (HNSW scoring)
+
+##### Current state (verified)
+- [x] HNSW ranker applies a stable tie-break (`idx`) after converting distances to similarity (`src/shared/hnsw.js`).
+
+##### Remaining gaps / action items
+- [ ] **Confirm and test distance-to-similarity conversion for each HNSW space** (`l2`, `cosine`, `ip`):
+  - Current code treats `ip` the same as `cosine` (`sim = 1 - distance`).
+  - This may be correct or incorrect depending on hnswlib’s distance definition for `ip`.
+  - Required: add unit tests with known vectors and expected distances/similarities and adjust conversion if needed.
+  - Files: `src/shared/hnsw.js`, new test (e.g., `tests/hnsw-distance-metrics.js`).
+
+**Exit criteria**
+- [ ] For each supported space, returned `sim` is monotonic with the true similarity notion used elsewhere in scoring.
+
+---
+
+#### 22.3.2 Atomic safety (no torn reads/writes)
+
+##### Current state (verified)
+- [x] Build writes HNSW `.bin` and `.meta.json` via atomic replace with `.bak` retention (`tools/build-embeddings/atomic.js`, `tools/build-embeddings/hnsw.js`).
+- [x] There is a test that asserts `.bak` is created on replace (`tests/hnsw-atomic.js`).
+
+##### Remaining gaps / action items
+- [ ] **HNSW reader should support “corrupt primary” fallback**:
+  - Implement: try primary, and if read fails, try `.bak` before giving up.
+  - Files: `src/shared/hnsw.js`
+- [ ] **Validate `.bin` / `.meta.json` pairing**:
+  - Ensure meta file exists, parseable, and matches expected dims/space/model before using the index.
+  - If mismatch, treat index as unavailable and fall back.
+
+**Exit criteria**
+- [ ] Retrieval never crashes due to a torn/corrupt HNSW file; fallback paths are exercised by tests.
+
+---
+
+#### 22.3.3 Candidate set semantics (HNSW + sqlite-vec)
+
+##### Current state (verified)
+- [x] SQLite candidate pushdown behavior is tested for small vs large candidate sets (`tests/sqlite-vec-candidate-set.js`).
+
+##### Remaining gaps / action items
+- [ ] **Handle empty candidate sets explicitly in HNSW path**:
+  - `rankHnswIndex()` currently treats an empty set as “no filter” (because `candidateSet.size` is falsy), which can return results when none are desired.
+  - Files: `src/shared/hnsw.js`
+- [ ] **Document and test candidate-set cap behavior**:
+  - HNSW uses a `candidateSetCap` default of 1000; ensure callers understand whether this can truncate results.
+  - Add tests for:
+    - empty set → empty hits,
+    - small set → only those labels,
+    - very large set → filter still applied and returned hits are subset, with stable ordering.
+- [ ] **Align candidate-set tie-break behavior across backends**:
+  - SQLite ANN tests require deterministic tie-break by `rowid`.
+  - HNSW already tie-breaks by `idx`. Ensure both are consistent with retrieval expectations.
+
+**Exit criteria**
+- [ ] Candidate sets behave identically (semantically) across ANN backends: never return items outside the set, deterministic ordering for ties, predictable truncation rules.
+
+---
+
+### 22.4 Performance improvements to prioritize
+
+#### 22.4.1 Float32Array end-to-end (avoid JS arrays of floats)
+- [ ] **Standardize the embedding contract to return `Float32Array`**:
+  - Files: `src/index/embedding.js`, `src/retrieval/embedding.js`, `src/shared/onnx-embeddings.js`, `src/shared/embedding.js`
+- [ ] **Update downstream code to accept typed arrays** (don’t gate on `Array.isArray`):
+  - Files: `src/index/build/file-processor/embeddings.js`, `tools/build-embeddings/embed.js`, `tools/build-embeddings/run.js`, `tools/build-embeddings/hnsw.js`
+- [ ] **Defer conversion to JS arrays only at serialization boundaries** (JSON writing).
+
+#### 22.4.2 Minimize serialization between threads/processes (transferable buffers)
+- [ ] Where embeddings are computed in worker threads/processes (service mode), prefer:
+  - transferring `ArrayBuffer`/`SharedArrayBuffer` instead of JSON arrays,
+  - or using binary packed formats for vectors.
+- [ ] Add an explicit “embedding payload format” version in job payloads so workers and callers stay compatible.
+  - File touchpoints: `src/index/build/indexer/embedding-queue.js` (job payload)
+
+#### 22.4.3 Pre-allocate and reuse buffers
+- [ ] **ONNX embedding path**:
+  - Avoid per-call allocations:
+    - re-use `BigInt64Array` buffers for token ids/masks where shapes are stable,
+    - avoid `Array.from()` conversions for slices.
+  - Files: `src/shared/onnx-embeddings.js`
+- [ ] **Index-build merge path**:
+  - Avoid allocating a new zero vector per chunk in `attachEmbeddings()`.
+  - File: `src/index/build/file-processor/embeddings.js`
+
+#### 22.4.4 Candidate generation tuning
+- [ ] Push sparse filters earlier and reduce dense scoring work:
+  - prefer ANN-restricted candidate sets before dense dot products,
+  - prefer pushing candidate constraints into sqlite-vec queries when small enough (already partially implemented).
+  - (Some of this lives outside the reviewed file list; track as cross-cutting work.)
+
+**Exit criteria**
+- [ ] Embedding pipelines avoid unnecessary conversions/allocations; measurable CPU and memory reductions on large repos.
+- [ ] ANN candidate generation demonstrably reduces dense scoring load for common queries.
+
+---
+
+### 22.5 Refactoring goals
+
+#### 22.5.1 Single embedding interface shared by build + retrieval
+- [ ] Create a single shared adapter interface, e.g.:
+  - `embed(texts: string[], opts) => Float32Array[]`
+  - `embedOne(text: string, opts) => Float32Array`
+- [ ] Move provider selection + error handling behind adapters:
+  - `xenova`, `onnx`, `stub`.
+- [ ] Ensure both index-build and retrieval use the same adapter and the same preprocessing defaults.
+
+#### 22.5.2 Centralize normalization & preprocessing
+- [ ] Eliminate duplicated `normalizeVec()` implementations:
+  - `src/index/embedding.js`
+  - `src/shared/onnx-embeddings.js`
+  - `tools/build-embeddings/embed.js` (indirectly uses index/embedding normalization)
+- [ ] Centralize:
+  - pooling strategy,
+  - normalization strategy,
+  - truncation/max_length policy,
+  - doc/code merge policy.
+
+#### 22.5.3 Clear ANN backend adapters
+- [ ] Wrap sqlite-vec and HNSW behind a single “ANN adapter” contract with:
+  - candidate set semantics,
+  - deterministic tie-break contract,
+  - consistent error handling and stats reporting.
+  - (Some of this lives outside the reviewed file list.)
+
+**Exit criteria**
+- [ ] Build + retrieval cannot diverge in embedding shape/normalization/pooling without a deliberate, versioned change.
+- [ ] ANN behavior is consistent regardless of backend.
+
+---
+
+### 22.6 Tests
+
+#### 22.6.1 Coverage checklist
+
+##### Already covered (verified)
+- [x] Cache identity/invalidation (baseline) — `tests/embeddings-cache-identity.js`, `tests/embeddings-cache-invalidation.js`
+- [x] Dims mismatch (tooling) — `tests/embeddings-dims-mismatch.js`, `tests/embeddings-dims-validation.js`
+- [x] ANN candidate set correctness (sqlite-vec) — `tests/sqlite-vec-candidate-set.js`
+- [x] HNSW artifacts existence + atomic replace — `tests/hnsw-ann.js`, `tests/hnsw-atomic.js`
+
+##### Missing / needs additions
+- [ ] **Cache identity tests must cover provider-specific knobs**, especially ONNX config:
+  - Add tests proving that changing `onnx.tokenizerId` or `onnx.modelPath` changes identityKey and forces cache miss.
+- [ ] **Add extension missing/fallback tests**:
+  - Simulate vector extension load failure and ensure build/search does not crash and disables vector ANN.
+- [ ] **Add HNSW candidate set tests**:
+  - empty set returns empty hits,
+  - filter does not leak labels,
+  - tie-break stability.
+- [ ] **Add HNSW `.bak` fallback tests**:
+  - corrupt primary index/meta triggers `.bak` load and does not crash.
+- [ ] **Add performance regression test for embedding batching throughput** (required by checklist):
+  - Recommended approach (stable in CI):
+    - Use a synthetic embedder function with a fixed per-call overhead + per-item cost.
+    - Assert that `runBatched()` with batchSize>1 achieves >= X% speedup vs batchSize=1 on a fixed input size.
+    - Use generous thresholds to avoid flakiness; focus on catching *major* regressions (e.g., accidental O(n²) behavior or disabling batching).
+  - Candidate target: `tools/build-embeddings/embed.js:runBatched()` and/or `src/index/build/file-processor/embeddings.js` batching path.
+
+**Exit criteria**
+- [ ] Tests fail if embedding identity changes are not reflected in cache keys.
+- [ ] Tests cover ANN candidate set semantics for both sqlite-vec and HNSW.
+- [ ] At least one performance regression test exists for batching throughput.
+
+---
+
+### Appendix A — File-by-file review notes (actionable items)
+
+> The checklist items above are the canonical “what to fix.” This appendix maps concrete file-level changes back to those items.
+
+#### src
+
+##### `src/index/build/context-window.js`
+- [ ] Sort/sanitize file list before sampling to reduce OS-dependent nondeterminism.
+- [ ] Consider documenting that context-window estimation is heuristic and may vary with sampling strategy.
+
+##### `src/index/build/embedding-batch.js`
+- [ ] Consider parsing `baseSize` if it may come from config as a numeric string.
+- [ ] Add explicit documentation for multiplier precedence (fallback vs user config).
+
+##### `src/index/build/file-processor/embeddings.js`
+- [ ] Add dims contract validation (non-empty vectors must share dims; fail fast otherwise).
+- [ ] Support `Float32Array` outputs (don’t rely on `Array.isArray`).
+- [ ] Avoid allocating `new Array(dims).fill(0)` per chunk; reuse a single `zeroVec`.
+- [ ] Validate that `getChunkEmbeddings(texts).length === texts.length`; if not, log + fail or retry with a clear warning.
+- [ ] Ensure doc embedding results are length-aligned with `docPayloads` (currently assumes perfect alignment).
+
+##### `src/index/build/indexer/embedding-queue.js`
+- [ ] Include embedding identity/config hash in job payload to prevent mismatched worker behavior.
+- [ ] Consider switching job IDs to `crypto.randomUUID()` for collision resistance.
+- [ ] Ensure `maxQueued` has a safe default; document backpressure behavior.
+
+##### `src/index/build/runtime/embeddings.js`
+- [ ] Reconcile auto-batch policy with tooling (`tools/build-embeddings/cli.js`).
+- [ ] Consider incorporating ONNX thread settings into concurrency auto-tune to avoid oversubscription.
+
+##### `src/index/embedding.js`
+- [ ] Centralize `normalizeVec`/`quantizeVec` into shared utilities; remove duplication.
+- [ ] Add strict provider validation (unknown provider should error/warn).
+- [ ] Harden `normalizeBatchOutput()` to:
+  - guarantee output length equals input count,
+  - handle unexpected tensor dims more defensively,
+  - avoid returning a single huge vector when output is 3D.
+- [ ] Prefer returning `Float32Array` (or at least accept typed arrays downstream).
+
+##### `src/retrieval/embedding.js`
+- [ ] Use a normalized/fingerprinted ONNX config in the embedder cache key (avoid JSON-order sensitivity).
+- [ ] If retrieval can request embeddings without known dims (ANN-only paths), require dims or ensure consistent default dims.
+- [ ] Consider logging embedder load failures once (rate-limited) to aid debugging.
+
+##### `src/shared/embedding.js`
+- [ ] Unify stub default dims with the rest of the system (recommend 384).
+- [ ] Optionally return `Float32Array` to match the desired end-to-end contract.
+
+##### `src/shared/hnsw.js`
+- [ ] Implement `.bak` fallback when the primary index exists but is corrupt/unreadable.
+- [ ] Read/validate `dense_vectors_hnsw.meta.json` to confirm `dims/space/model` before using the index.
+- [ ] Handle empty candidate sets explicitly by returning `[]`.
+- [ ] Add unit tests for distance conversion across spaces (l2/cosine/ip) and adjust similarity conversion if required.
+
+##### `src/shared/onnx-embeddings.js`
+- [ ] Remove/fix dead provider check (`normalizeEmbeddingProvider('onnx')`).
+- [ ] Add clearer error messaging for missing model artifacts + remediation steps.
+- [ ] Improve performance by avoiding heavy array conversions and by reusing buffers/tensors.
+- [ ] Consider concurrency guards around `session.run()` if onnxruntime sessions are not safe concurrently.
+
+---
+
+#### tools
+
+##### `tools/build-embeddings.js`
+- No issues observed beyond those in underlying implementation modules.
+
+##### `tools/build-embeddings/atomic.js`
+- [ ] Consider consolidating atomic replace logic with `src/shared/json-stream.js` to avoid divergence (optional refactor).
+
+##### `tools/build-embeddings/cache.js`
+- [ ] Expand identity schema to include preprocessing and provider-specific config (especially ONNX knobs).
+- [ ] Add a bumpable “identity version” or build-tool version fingerprint.
+
+##### `tools/build-embeddings/chunks.js`
+- [ ] Consider incorporating doc-related signals into the chunk signature (or into identity versioning) so doc embedding caches invalidate when doc extraction logic changes.
+- [ ] Consider normalizing `start/end` to finite numbers before signature generation (avoid stringifying `undefined`).
+
+##### `tools/build-embeddings/cli.js`
+- [ ] Document (or change) the behavior where `mode=service` is coerced to `inline` for this tool.
+- [ ] Unify auto-batch defaults with index-build runtime (or document why they differ).
+
+##### `tools/build-embeddings/embed.js`
+- [ ] Update to accept and return typed arrays (`Float32Array`) instead of insisting on JS arrays.
+- [ ] Consider failing fast on non-vector outputs instead of silently returning `[]` entries (to avoid quietly producing all-zero embeddings).
+
+##### `tools/build-embeddings/hnsw.js`
+- [ ] Ensure stable vector insertion order into HNSW (ascending chunkIndex).
+- [ ] When adding vectors reconstructed from cache (dequantized), consider re-normalizing for cosine space to reduce drift.
+
+##### `tools/build-embeddings/manifest.js`
+- [ ] Consider reading HNSW meta to report accurate `count`/`dims` for ANN piece files, rather than relying on `totalChunks` (defensive correctness).
+
+##### `tools/build-embeddings/run.js`
+- [ ] Make cache writes atomic (optional but recommended).
+- [ ] Use `Number.isFinite()` for chunk start/end to avoid 0/NaN edge cases from `||` coercion.
+- [ ] Apply `ensureVectorArrays()` to embedded doc batches just like code batches.
+- [ ] Make HNSW build deterministic (stable insertion order).
+- [ ] Consider adding a global cross-file batcher for throughput.
+
+##### `tools/build-embeddings/sqlite-dense.js`
+- [ ] Add tests for “vector extension missing/failed to load” fallback behavior.
+- [ ] Consider batching inserts in larger chunks or using prepared statements more aggressively for performance on large vector sets.
+
+##### `tools/compare-models.js`
+- [ ] If comparing ONNX vs xenova providers, ensure the script can capture and report provider config differences (identity) to interpret deltas correctly (minor enhancement).
+
+##### `tools/download-models.js`
+- [ ] Consider supporting explicit download of ONNX model artifacts when users rely on `indexing.embeddings.provider=onnx` and custom `onnx.modelPath`.
+- [ ] Improve output to show where models were cached and what to set in config if needed.
+
+---
+
+#### tests
+
+##### `tests/build-embeddings-cache.js`
+- [ ] Extend to assert cache identity changes for ONNX config changes (once identity schema is expanded).
+
+##### `tests/embedding-batch-autotune.js`
+- [ ] Consider loosening or documenting assumptions about minimum batch size on low-memory systems (or adjust runtime min to match test expectations).
+
+##### `tests/embedding-batch-multipliers.js`
+- No issues; good coverage of multiplier normalization.
+
+##### `tests/embeddings-cache-identity.js`
+- [ ] Extend to cover ONNX-specific identity fields (tokenizerId/modelPath/etc).
+
+##### `tests/embeddings-cache-invalidation.js`
+- [ ] Add invalidation scenarios tied to preprocessing knobs (pooling/normalize/max_length) once surfaced in identity.
+
+##### `tests/embeddings-dims-mismatch.js`
+- Good.
+
+##### `tests/embeddings-dims-validation.js`
+- Good.
+
+##### `tests/embeddings-sqlite-dense.js`
+- [ ] Add coverage for vector extension load failure paths (extension missing), not only baseline dense sqlite insertions.
+
+##### `tests/embeddings-validate.js`
+- Good baseline index-state + artifact validation coverage.
+
+##### `tests/hnsw-ann.js`
+- [ ] Add correctness assertions beyond “backend selected”:
+  - candidate set filtering (once exposed),
+  - tie-break determinism,
+  - sanity check of returned ordering for a known query on fixture corpus.
+
+##### `tests/hnsw-atomic.js`
+- [ ] Add test for `.bak` fallback on corrupt primary index/meta (reader-side).
+
+##### `tests/smoke-embeddings.js`
+- Good smoke harness; consider adding new tests to this suite after implementing performance regression and fallback tests.
+
+##### `tests/sqlite-vec-candidate-set.js`
+- [ ] Add a column-name sanitization test (table is covered; column is not).
+
+##### `tests/vector-extension-sanitize.js`
+- Good table sanitization coverage; extend for column sanitization as above.
+
+---
+
+## Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
+
+**Objective:** Review the Section 4 file set (56 files) and produce a concrete, exhaustive remediation checklist that (1) satisfies the provided Phase 4 checklist (A–G) and (2) captures additional defects, inconsistencies, and improvements found during review.
+
+**Scope:** All files enumerated in `pairofcleats_review_section_4_files_and_checklist.md` (src/tests/docs).  
+**Out of scope:** Implementing fixes in-code (this document is a work plan / punch list).
+
+---
+
+### Summary (priority ordered)
+
+#### P0 — Must fix (correctness / crash / schema integrity)
+
+- [ ] **Risk rules regex compilation is currently mis-wired.** `src/index/risk-rules.js` calls `createSafeRegex()` with an incorrect argument signature, so rule regex configuration (flags, limits) is not applied, and invalid patterns can throw and abort normalization.  
+  - Fix in: `src/index/risk-rules.js` (see §B.1).
+- [ ] **Risk analysis can crash indexing on long lines.** `src/index/risk.js` calls SafeRegex `test()` / `exec()` without guarding against SafeRegex input-length exceptions. One long line can throw and fail the whole analysis pass.  
+  - Fix in: `src/index/risk.js` (see §B.2).
+- [ ] **Metadata v2 drops inferred/tooling parameter types (schema data loss).** `src/index/metadata-v2.js` normalizes type maps assuming values are arrays; nested maps (e.g., `inferredTypes.params.<name>[]`) are silently discarded.  
+  - Fix in: `src/index/metadata-v2.js` + tests + schema/docs (see §A.1–A.4).
+
+#### P1 — Should fix (determinism, performance, docs, validation gaps)
+
+- [ ] **`metaV2` validation is far too shallow and does not reflect the actual schema shape.** `src/index/validate.js` only validates a tiny subset of fields and does not traverse nested type maps.  
+- [ ] **Docs drift:** `docs/metadata-schema-v2.md` and `docs/risk-rules.md` do not fully match current code (field names, structures, and configuration).  
+- [ ] **Performance risks:** risk scanning does redundant passes and does not short-circuit meaningfully when capped; markdown parsing is duplicated (inline + fenced); tooling providers re-read files rather than reusing already-loaded text.
+
+#### P2 — Nice to have (quality, maintainability, test depth)
+
+- [ ] Improve signature parsing robustness for complex types (C-like, Python, Swift).
+- [ ] Clarify and standardize naming conventions (chunk naming vs provider symbol naming, “generatedBy”, “embedded” semantics).
+- [ ] Expand tests to cover surrogate pairs (emoji), CRLF offsets, and risk rules/config edge cases.
+
+---
+
+### A) Metadata v2: correctness, determinism, and validation
+
+#### Dependency guidance (best choices)
+- `ajv` — encode **metadata-schema-v2** as JSON Schema and validate `metaV2` as a hard gate in `tools/index-validate` (or equivalent).  
+- `semver` — version `metaV2.schemaVersion` independently and gate readers/writers.
+
+#### A.1 `metaV2.types` loses nested inferred/tooling param types (P0)
+
+##### Affected files
+- `src/index/metadata-v2.js`
+- `docs/metadata-schema-v2.md`
+- `src/index/validate.js`
+- `tests/metadata-v2.js`
+
+##### Findings
+- [ ] **Data loss bug:** `normalizeTypeMap()` assumes `raw[key]` is an array of entries. If `raw[key]` is an object map (e.g., `raw.params` where `raw.params.<paramName>` is an array), it is treated as non-array and dropped.  
+  - Evidence: `normalizeTypeMap()` (lines ~78–91) only normalizes `Array.isArray(entries)` shapes.
+- [ ] **Downstream effect:** `splitToolingTypes()` is applied to `docmeta.inferredTypes`; because nested shapes are not handled, **tooling-derived param types will not appear in `metaV2.types.tooling.params`**, and inferred param types will be absent from `metaV2.types.inferred.params`.
+
+##### Required remediation
+- [ ] Update `normalizeTypeMap()` to support nested “param maps” (and any similar nested structures) rather than dropping them. A pragmatic approach:
+  - [ ] If `entries` is an array → normalize as today.
+  - [ ] If `entries` is an object → treat it as a nested map and normalize each subkey:
+    - preserve the nested object shape in output (preferred), or
+    - flatten with a predictable prefix strategy (only if schema explicitly adopts that).
+- [ ] Update `splitToolingTypes()` so it correctly separates tooling vs non-tooling entries **inside nested maps** (e.g., `params.<name>[]`, `locals.<name>[]`).
+- [ ] Update `tests/metadata-v2.js` to assert:
+  - [ ] inferred param types survive into `metaV2.types.inferred.params.<paramName>[]`
+  - [ ] tooling param types survive into `metaV2.types.tooling.params.<paramName>[]`
+  - [ ] non-tooling inferred types do not leak into tooling bucket (and vice versa)
+
+#### A.2 Declared types coverage is incomplete (P1)
+
+##### Findings
+- [ ] `buildDeclaredTypes()` currently only materializes:
+  - param annotations via `docmeta.paramTypes`
+  - return annotation via `docmeta.returnType`  
+  It does **not** cover:
+  - [ ] parameter defaults (`docmeta.paramDefaults`)
+  - [ ] local types (`docmeta.localTypes`)
+  - [ ] any other declared type sources the codebase may already emit
+
+##### Required remediation
+- [ ] Decide which “declared” facets are part of Metadata v2 contract and implement them consistently (and document them):
+  - [ ] `declared.defaults` (if desired)
+  - [ ] `declared.locals` (if desired)
+- [ ] Update `docs/metadata-schema-v2.md` accordingly.
+- [ ] Add tests in `tests/metadata-v2.js` for any newly included declared facets.
+
+#### A.3 Determinism and stable ordering in `metaV2` (P1)
+
+##### Findings
+- [ ] Several arrays are produced via Set insertion order (e.g., `annotations`, `params`, `risk.tags`, `risk.categories`). While *often* stable, they can drift if upstream traversal order changes.
+- [ ] `metaV2` mixes optional `null` vs empty collections inconsistently across fields (some fields null, others empty arrays). This matters for artifact diffs and schema validation.
+
+##### Required remediation
+- [ ] Standardize ordering rules for arrays that are semantically sets:
+  - [ ] Sort `annotations` (lexicographic) before emitting.
+  - [ ] Sort `params` (lexicographic) before emitting.
+  - [ ] Sort risk `tags`/`categories` (lexicographic) before emitting.
+- [ ] Establish a consistent “empty means null” vs “empty means []” policy for v2 and enforce it in `buildMetaV2()` and schema/docs.
+
+#### A.4 `generatedBy` and `embedded` semantics are unclear (P2)
+
+##### Findings
+- [ ] `generatedBy` currently uses `toolInfo?.version` only; if `tooling` already contains `tool` and `version`, this can be redundant and underspecified.
+- [ ] `embedded` is emitted whenever `chunk.segment` exists, even when the segment is not embedded (parentSegmentId may be null). This makes the field name misleading.
+
+##### Required remediation
+- [ ] Decide and document the intended meaning:
+  - [ ] Option A: `generatedBy = "<tool>@<version>"` and keep `tooling` for structured detail.
+  - [ ] Option B: remove `generatedBy` and rely solely on `tooling`.
+- [ ] Restrict `embedded` field to truly-embedded segments only **or** rename the field to something like `segmentContext` / `embedding`.
+
+#### A.5 Validation gaps for Metadata v2 (P1)
+
+##### Findings (in `src/index/validate.js`)
+- [ ] `validateMetaV2()` (lines ~162–206) validates only:
+  - `chunkId` presence
+  - `file` presence
+  - `risk.flows` has `source` and `sink`
+  - type entries have `.type` for a shallow, array-only traversal  
+  It does **not** validate:
+  - [ ] `segment` object shape
+  - [ ] range/start/end types and ordering invariants
+  - [ ] `lang`, `ext`, `kind`, `name` constraints
+  - [ ] nested types map shapes (params/locals)
+  - [ ] `generatedBy`/`tooling` shape and required fields
+  - [ ] cross-field invariants (e.g., range within segment, embedded context consistency)
+
+##### Required remediation
+- [ ] Establish **one canonical validator** for `metaV2` (preferably schema-based):
+  - [ ] Add an explicit JSON Schema for v2 (in docs or tooling directory).
+  - [ ] Validate `metaV2` against the schema in `validateIndexArtifacts()`.
+- [ ] If schema-based validation is not yet possible, expand `validateMetaV2()` to:
+  - [ ] traverse nested `params`/`locals` maps for type entries
+  - [ ] validate `range` numbers, monotonicity, and non-negativity
+  - [ ] validate the presence/type of stable core fields as defined in `docs/metadata-schema-v2.md`
+- [ ] Add tests (or fixtures) that exercise validation failures for each major failure class.
+
+#### A.6 Docs drift: `docs/metadata-schema-v2.md` vs implementation (P1)
+
+##### Findings
+- [ ] The schema doc should be reviewed line-by-line against current `buildMetaV2()` output:
+  - field names
+  - optionality
+  - nesting of `types.*`
+  - risk shapes and analysisStatus shape
+  - relations link formats
+
+##### Required remediation
+- [ ] Update `docs/metadata-schema-v2.md` to reflect the actual emitted shape **or** update `buildMetaV2()` to match the doc (pick one, do not leave them divergent).
+- [ ] Add a “schema change log” section so future modifications don’t silently drift.
+
+---
+
+### B) Risk rules and risk analysis
+
+#### Dependency guidance (best choices)
+- `re2`/RE2-based engine (already present via `re2js`) — keep for ReDoS safety, but ensure wrapper behavior cannot crash indexing.
+- `ajv` — validate rule bundle format (ids, patterns, severities, categories, etc.) before compiling.
+
+#### B.1 Risk regex compilation is broken (P0)
+
+##### Affected file
+- `src/index/risk-rules.js`
+
+##### Findings
+- [ ] **Incorrect call signature:** `compilePattern()` calls `createSafeRegex(pattern, flags, regexConfig)` but `createSafeRegex()` accepts `(pattern, config)` (per `src/shared/safe-regex.js`).  
+  Consequences:
+  - `regexConfig` is ignored entirely
+  - the intended default flags (`i`) are not applied
+  - any user-configured safe-regex limits are not applied
+- [ ] **No error shielding:** `compilePattern()` does not catch regex compilation errors. An invalid pattern can throw and abort normalization.
+
+##### Required remediation
+- [ ] Fix `compilePattern()` to call `createSafeRegex(pattern, safeRegexConfig)` (or a merged config object).
+- [ ] Wrap compilation in `try/catch` and return `null` on failure (or record a validation error) so rule bundles cannot crash indexing.
+- [ ] Add tests that verify:
+  - [ ] configured flags (e.g., `i`) actually take effect
+  - [ ] invalid patterns do not crash normalization and are surfaced as actionable diagnostics
+  - [ ] configured `maxInputLength` and other safety controls are honored
+
+#### B.2 Risk analysis can crash on long inputs (P0)
+
+##### Affected file
+- `src/index/risk.js`
+
+##### Findings
+- [ ] `matchRuleOnLine()` calls SafeRegex `test()` and `exec()` without guarding against exceptions thrown by SafeRegex input validation (e.g., when line length exceeds `maxInputLength`).  
+  - This is a hard failure mode: one long line can abort analysis for the entire file (or build, depending on call site error handling).
+
+##### Required remediation
+- [ ] Ensure **risk analysis never throws** due to regex evaluation. Options:
+  - [ ] Add `try/catch` around `rule.requires.test(...)`, `rule.excludes.test(...)`, and `pattern.exec(...)` to treat failures as “no match”.
+  - [ ] Alternatively (or additionally), change the SafeRegex wrapper to return `false/null` instead of throwing for overlong input.
+  - [ ] Add a deterministic “line too long” cap behavior:
+    - skip risk evaluation for that line
+    - optionally record `analysisStatus.exceeded` includes `maxLineLength` (or similar)
+
+#### B.3 `scope` and cap semantics need tightening (P1)
+
+##### Findings
+- [ ] `scope === 'file'` currently evaluates only `lineIdx === 0` (first line). This is likely not the intended meaning of “file scope”.
+- [ ] `maxMatchesPerFile` currently caps **number of matching lines**, not number of matches (variable name implies match-count cap).
+
+##### Required remediation
+- [ ] Define (in docs + code) what `scope: "file"` means:
+  - [ ] “pattern evaluated against entire file text” (recommended), or
+  - [ ] “pattern evaluated once per file via a representative subset”
+- [ ] Implement `maxMatchesPerFile` as an actual match-count cap (or rename it to `maxMatchingLines`).
+- [ ] Add tests for both behaviors.
+
+#### B.4 Performance: redundant scanning and weak short-circuiting (P1)
+
+##### Findings
+- [ ] Risk analysis scans the same text repeatedly (sources, sinks, sanitizers are scanned in separate loops).
+- [ ] When caps are exceeded (bytes/lines), flows are skipped, but line scanning for matches still proceeds across the entire file, which defeats the purpose of caps for large/minified files.
+
+##### Required remediation
+- [ ] Add an early-exit path when `maxBytes`/`maxLines` caps are exceeded:
+  - either skip all analysis and return `analysisStatus: capped`
+  - or scan only a bounded prefix/suffix and clearly mark that results are partial
+- [ ] Consider a single-pass scanner per line that evaluates all rule categories in one traversal.
+- [ ] Add a prefilter stage for candidate files/lines (cheap substring checks) before SafeRegex evaluation.
+
+#### B.5 Actionability and determinism of outputs (P1)
+
+##### Findings
+- [ ] `dedupeMatches()` collapses evidence to one match per rule id (may not be sufficient for remediation).
+- [ ] Time-based caps (`maxMs`) can introduce nondeterminism across machines/runs (what gets included depends on wall clock).
+
+##### Required remediation
+- [ ] Preserve up to N distinct match locations per rule (configurable) rather than only first hit.
+- [ ] Prefer deterministic caps (maxBytes/maxLines/maxNodes/maxEdges) over time caps; if `maxMs` remains, ensure it cannot cause nondeterministic partial outputs without clearly indicating partiality.
+- [ ] Sort emitted matches/flows deterministically (by line/col, rule id) before output.
+
+#### B.6 Docs drift: `docs/risk-rules.md` vs implementation (P1)
+
+##### Findings
+- [ ] `docs/risk-rules.md` should be updated to reflect:
+  - actual rule bundle fields supported (`requires`, `excludes`, `scope`, `maxMatchesPerLine`, `maxMatchesPerFile`, etc.)
+  - actual emitted `risk.analysisStatus` shape (object vs string)
+  - actual matching semantics (line-based vs file-based)
+
+##### Required remediation
+- [ ] Update the doc to match current behavior (or update code to match doc), then add tests that lock it in.
+
+---
+
+### C) Git signals (metadata + blame-derived authorship)
+
+#### Dependency guidance (best choices)
+- `simple-git` (already used) — ensure it’s called in a way that scales: batching where feasible, caching aggressively, and defaulting expensive paths off unless explicitly enabled.
+
+#### C.1 Default blame behavior and cost control (P1)
+
+##### Affected file
+- `src/index/git.js`
+
+##### Findings
+- [ ] `blameEnabled` defaults to **true** (`options.blame !== false`). If a caller forgets to pass `blame:false`, indexing will run `git blame` per file (very expensive).
+- [ ] `git log` + `git log --numstat` are executed per file; caching helps within a run but does not avoid the O(files) subprocess cost.
+
+##### Required remediation
+- [ ] Make blame opt-in by default:
+  - [ ] change default to `options.blame === true`, **or**
+  - [ ] ensure all call sites pass `blame:false` unless explicitly requested via config
+- [ ] Consider adding a global “gitSignalsPolicy” (or reuse existing policy object) that centrally controls:
+  - blame on/off
+  - churn computation on/off
+  - commit log depth
+- [ ] Performance optimization options (choose based on ROI):
+  - [ ] batch `git log` queries when indexing many files (e.g., per repo, not per file)
+  - [ ] compute churn only when needed for ranking/filtering
+  - [ ] support “recent churn only” explicitly in docs (currently it’s “last 10 commits”)
+
+#### C.2 Minor correctness and maintainability issues (P2)
+
+##### Findings
+- [ ] Misleading JSDoc: `parseLineAuthors()` is documented as “Compute churn from git numstat output” (it parses blame authors, not churn). This can mislead future maintenance.
+
+##### Required remediation
+- [ ] Fix the JSDoc to match the function purpose and parameter type.
+
+#### C.3 Tests improvements (P1)
+
+##### Affected tests
+- `tests/git-blame-range.js`
+- `tests/git-meta.js`
+- `tests/churn-filter.js`
+- `tests/git-hooks.js`
+
+##### Findings
+- [ ] No tests assert “blame is off by default” (or the intended default policy).
+- [ ] No tests cover rename-following semantics (`--follow`) or untracked files.
+- [ ] Caching behavior is not validated (e.g., “git blame called once per file even if many chunks”).
+
+##### Required remediation
+- [ ] Add tests that explicitly validate the intended default blame policy.
+- [ ] Add a caching-focused test that ensures repeated `getGitMeta()` calls for the same file do not spawn repeated git commands (can be validated via mocking or by instrumenting wrapper counts).
+- [ ] Decide whether rename-following is required and add tests if so.
+
+---
+
+### D) Type inference (local + cross-file + tooling providers)
+
+#### Dependency guidance (best choices)
+- LSP-based providers (clangd/sourcekit/pyright) — keep optional and guarded; correctness should degrade gracefully.
+- TypeScript compiler API — keep optional and isolated; add caching/incremental compilation for large repos.
+
+#### D.1 Provider lifecycle and resilience (P1)
+
+##### Affected files
+- `src/index/type-inference-crossfile/tooling.js`
+- `src/index/tooling/*.js`
+- `src/integrations/tooling/lsp/client.js`
+- `src/integrations/tooling/providers/lsp.js`
+- `src/integrations/tooling/providers/shared.js`
+
+##### Findings
+- [ ] `createLspClient().request()` can leave pending requests forever if a caller forgets to supply `timeoutMs` (pending map leak). Current provider code *usually* supplies a timeout, but this is not enforced.
+- [ ] Diagnostics timing: providers request symbols immediately after `didOpen` and then `didClose` quickly; some servers publish diagnostics asynchronously and may not emit before close, leading to inconsistent diagnostic capture.
+
+##### Required remediation
+- [ ] Enforce a default request timeout in `createLspClient.request()` if none is provided.
+- [ ] For diagnostics collection, consider:
+  - [ ] waiting a bounded time for initial diagnostics after `didOpen`, or
+  - [ ] explicitly requesting diagnostics if server supports it (varies), or
+  - [ ] documenting that diagnostics are “best effort” and may be incomplete
+
+#### D.2 Unicode/offset correctness: add stronger guarantees (P1)
+
+##### Affected files
+- `src/integrations/tooling/lsp/positions.js`
+- `src/shared/lines.js` (supporting)
+- `tests/type-inference-lsp-enrichment.js`
+- `tests/segment-pipeline.js` + fixtures
+
+##### Findings
+- [ ] `positions.js` JSDoc claims “1-based line/column”; column is actually treated as 0-based (correct for LSP), but the doc comment is misleading.
+- [ ] Test coverage does not explicitly include surrogate pairs (emoji), which are the common failure mode when mixing code-point vs UTF-16 offsets.
+
+##### Required remediation
+- [ ] Fix the JSDoc to reflect actual behavior (LSP: 0-based character offsets; line converted to 1-based for internal helpers).
+- [ ] Add tests with:
+  - [ ] emoji in identifiers and/or strings before symbol definitions
+  - [ ] CRLF line endings fixtures (if Windows compatibility is required)
+
+#### D.3 Generic LSP provider chunk matching is weaker than clangd provider (P2)
+
+##### Affected file
+- `src/integrations/tooling/providers/lsp.js`
+
+##### Findings
+- [ ] `findChunkForOffsets()` requires strict containment (symbol range must be within chunk range). clangd-provider uses overlap scoring, which is more robust.
+
+##### Required remediation
+- [ ] Update generic provider to use overlap scoring like clangd-provider to reduce missed matches.
+
+#### D.4 TypeScript provider issues (P2/P1 depending on usage)
+
+##### Affected file
+- `src/index/tooling/typescript-provider.js`
+
+##### Findings
+- [ ] `loadTypeScript()` resolve order includes keys that are not implemented (`global`) and duplicates (`cache` vs `tooling`).
+- [ ] Parameter name extraction uses `getText()` which can produce non-identifiers for destructuring params (bad keys for `params` map).
+- [ ] Naming convention risk: provider writes keys like `Class.method` which may not match chunk naming conventions; if mismatched, types will not attach.
+
+##### Required remediation
+- [ ] Fix the resolution order logic and document each lookup path purpose.
+- [ ] Only record parameter names for identifiers; skip or normalize destructuring params.
+- [ ] Validate chunk naming alignment (structural chunk naming vs provider symbol naming) and add a test for a class method mapping end-to-end.
+
+#### D.5 Cross-file inference merge determinism and evidence (P2)
+
+##### Affected files
+- `src/index/type-inference-crossfile/apply.js`
+- `src/index/type-inference-crossfile/pipeline.js`
+
+##### Findings
+- [ ] `mergeTypeList()` dedupes by `type|source` but drops evidence differences; confidence merging strategy is simplistic.
+- [ ] Output ordering is not explicitly sorted after merges.
+
+##### Required remediation
+- [ ] Decide how to treat evidence in merges (keep first, merge arrays, keep highest confidence).
+- [ ] Sort merged type lists deterministically (confidence desc, type asc, source asc).
+
+#### D.6 Signature parsing robustness (P2)
+
+##### Affected files
+- `src/index/tooling/signature-parse/clike.js`
+- `src/index/tooling/signature-parse/python.js`
+- `src/index/tooling/signature-parse/swift.js`
+
+##### Findings
+- [ ] Parsers are intentionally lightweight, but they will fail on common real-world signatures:
+  - C++ templates, function pointers, references
+  - Python `*args/**kwargs`, keyword-only params, nested generics
+  - Swift closures and attributes
+
+##### Required remediation
+- [ ] Add test fixtures covering at least one “hard” signature per language.
+- [ ] Consider using tooling hover text more consistently (already used as fallback in clangd-provider) or integrate a minimal parser that handles nested generics and defaults.
+
+---
+
+### E) Performance improvements to prioritize (cross-cutting)
+
+#### E.1 Risk analysis hot path (P1)
+- [ ] Single-pass line scan for sources/sinks/sanitizers.
+- [ ] Early return on caps (maxBytes/maxLines) rather than scanning the whole file anyway.
+- [ ] Cheap prefilter before SafeRegex evaluation.
+- [ ] Avoid per-line SafeRegex exceptions (see §B.2).
+
+#### E.2 Markdown segmentation duplication (P2)
+- [ ] `segments.js` parses markdown twice (inline code spans + fenced blocks). Consider extracting both from one micromark event stream.
+
+#### E.3 Tooling providers I/O duplication (P2)
+- [ ] Providers re-read file text from disk; if indexing already has the content in memory, pass it through (where feasible) to reduce I/O.
+
+---
+
+### F) Refactoring goals (maintainability / policy centralization)
+
+- [ ] Consolidate analysis feature toggles into a single `analysisPolicy` object that is passed to:
+  - metadata v2 builder
+  - risk analysis
+  - git analysis
+  - type inference (local + cross-file + tooling)
+- [ ] Centralize schema versioning and validation:
+  - one metadata v2 schema
+  - one risk rule bundle schema
+  - one place that validates both as part of artifact validation
+
+---
+
+### G) Tests: required additions and upgrades
+
+#### Existing tests reviewed (from the provided list)
+- `tests/metadata-v2.js`
+- `tests/churn-filter.js`
+- `tests/git-blame-range.js`
+- `tests/git-hooks.js`
+- `tests/git-meta.js`
+- `tests/minhash-parity.js`
+- `tests/segment-pipeline.js` (+ fixtures)
+- `tests/type-inference-crossfile*.js`
+- `tests/type-inference-lsp-enrichment.js`
+- `tests/type-inference-*-provider-no-*.js` (clangd/sourcekit)
+
+#### Required test upgrades (P1/P0 where noted)
+- [ ] **P0:** Add tests for metadata v2 nested inferred/tooling param types (see §A.1).
+- [ ] **P0:** Add tests for risk rule compilation config correctness (flags honored, invalid patterns handled) (see §B.1).
+- [ ] **P0:** Add risk analysis “long line” test to ensure no crashes (see §B.2).
+- [ ] **P1:** Add unicode offset tests that include surrogate pairs (emoji) for:
+  - LSP position mapping
+  - chunk start offsets around unicode
+- [ ] **P1:** Add git caching/policy tests (default blame policy + no repeated subprocess calls where caching is intended).
+
+---
+
+**Deliverables**
+- This remediation checklist (this document)
+- Updated `docs/metadata-schema-v2.md` and `docs/risk-rules.md` that match implementation
+- Expanded test suite that locks in:
+  - metaV2 types correctness (including nested)
+  - risk rule compilation correctness and non-crashing evaluation
+  - unicode offset correctness (including surrogate pairs)
+  - intended git blame policy and caching
+
+**Exit criteria**
+- All P0 items are fixed and covered by tests.
+- Metadata v2 output matches the schema doc, and `validateIndexArtifacts()` validates it meaningfully.
+- Risk analysis and tooling passes are “best-effort”: they may skip/partial, but they never crash indexing.
+
+---
+
+## Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
+
+### 24.1 Add MCP SDK and plan transport layering
+
+* [ ] Add `@modelcontextprotocol/sdk` dependency
+* [ ] Decide migration strategy:
+
+  * [ ] **Option A (recommended):** keep `tools/mcp-server.js` as the entrypoint, but implement server via SDK and keep legacy behind a flag
+  * [ ] Option B: replace legacy entirely (higher risk)
+
+### 24.2 Implement SDK-based server
+
+* [ ] Add `src/integrations/mcp/sdk-server.js` (or similar):
+
+  * [ ] Register tools from `src/integrations/mcp/defs.js`
+  * [ ] Dispatch calls to existing handlers in `tools/mcp/tools.js` (or migrate handlers into `src/` cleanly)
+  * [ ] Preserve progress notifications semantics expected by `tests/mcp-server.js`:
+
+    * [ ] `notifications/progress`
+    * [ ] Include `{ tool: 'build_index', phase, message }` fields (match current tests)
+* [ ] Update `tools/mcp-server.js`:
+
+  * [ ] If `mcp.transport=legacy` or env forces legacy → use current transport
+  * [ ] Else → use SDK transport
+
+### 24.3 Remove or isolate legacy transport surface area
+
+* [ ] Keep `tools/mcp/transport.js` for now, but:
+
+  * [ ] Move to `tools/mcp/legacy/transport.js`
+  * [ ] Update imports accordingly
+  * [ ] Reduce churn risk while you validate parity
+
+### 24.4 Tests
+
+* [ ] Ensure these existing tests continue to pass without rewriting expectations unless protocol mandates it:
+
+  * [ ] `tests/mcp-server.js`
+  * [ ] `tests/mcp-robustness.js`
+  * [ ] `tests/mcp-schema.js`
+* [ ] Add `tests/mcp-transport-selector.js`:
+
+  * [ ] Force `PAIROFCLEATS_MCP_TRANSPORT=legacy` and assert legacy path still works
+  * [ ] Force `...=sdk` and assert SDK path works
+* [ ] Add script-coverage action(s)
+
+**Exit criteria**
+
+* [ ] MCP server behavior is unchanged from the client perspective (tool list, outputs, progress events)
+* [ ] Maintenance burden reduced: eliminate custom framing/parsing where SDK provides it
+
+---
+
+## Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
+
+### 25.1 Add document extraction dependencies
+
+* [ ] Add `pdfjs-dist` (PDF text extraction)
+* [ ] Add `mammoth` (DOCX → text/HTML extraction)
+
+### 25.2 Introduce “extractor” layer in indexing pipeline
+
+* [ ] Create `src/index/build/extractors/`:
+
+  * [ ] `text.js` (wrap existing `readTextFileWithHash` path)
+  * [ ] `pdf.js` (buffer → extracted text; include page separators if possible)
+  * [ ] `docx.js` (buffer → extracted text; preserve headings if possible)
+  * [ ] `index.js` (select extractor by extension + config)
+* [ ] Add a new constant set in `src/index/constants.js`:
+
+  * [ ] `EXTS_EXTRACTABLE_BINARY = new Set(['.pdf', '.docx'])`
+* [ ] Add `.pdf` and `.docx` to `EXTS_PROSE` **only if** extraction is enabled (or add them unconditionally but ensure they don’t get skipped)
+
+### 25.3 Fix binary-skip logic to allow extractable docs
+
+You must handle both “pre-read” scanning and “post-read” binary checks:
+
+* [ ] Update `src/index/build/file-scan.js` / `createFileScanner()`:
+
+  * [ ] If `ext` ∈ `EXTS_EXTRACTABLE_BINARY` and extraction enabled:
+
+    * [ ] Do **not** mark as `{ reason: 'binary' }`
+    * [ ] Still allow minified checks to run when relevant (likely irrelevant for pdf/docx)
+* [ ] Update `src/index/build/file-processor/skip.js`:
+
+  * [ ] If `ext` extractable and extraction enabled, do not return `binarySkip`
+* [ ] Update `src/index/build/file-processor.js`:
+
+  * [ ] Branch early on `ext`:
+
+    * [ ] For `.pdf`/`.docx`: read buffer → extractor → `text`
+    * [ ] For all else: existing text decoding path
+  * [ ] Ensure `hash` still derives from raw bytes (current `sha1(buffer)` behavior is good)
+  * [ ] Ensure `stats.bytes` is still the raw size for guardrails
+
+### 25.4 Chunking strategy for extracted docs
+
+* [ ] Decide on an initial, deterministic chunking approach:
+
+  * [ ] Minimal viable: treat extracted output as prose and let default prose chunking apply
+  * [ ] Better: add dedicated chunkers:
+
+    * [ ] Add `src/index/chunking/prose/pdf.js` to split by page markers
+    * [ ] Add `src/index/chunking/prose/docx.js` to split by headings / paragraph blocks
+* [ ] Update `src/index/chunking/dispatch.js`:
+
+  * [ ] Map `.pdf` and `.docx` to their chunkers (or prose fallback)
+
+### 25.5 Search + metadata integration
+
+* [ ] Ensure extracted docs appear in:
+
+  * [ ] `file_meta.json` (file path + ext)
+  * [ ] `chunk_meta.*` (chunks with correct file associations)
+* [ ] Consider adding a metadata flag for UI filters:
+
+  * [ ] `fileMeta[i].isExtractedDoc = true` (or reuse existing `externalDocs` pattern if appropriate)
+* [ ] Verify retrieval filters treat these files correctly (extension/path filters)
+
+### 25.6 Tests (must include “end-to-end search finds doc content”)
+
+* [ ] Add fixture files under `tests/fixtures/docs/`:
+
+  * [ ] `sample.pdf` with a known unique phrase
+  * [ ] `sample.docx` with a known unique phrase
+* [ ] Add `tests/pdf-docx-extraction.js`:
+
+  * [ ] Unit-level extraction returns expected text
+* [ ] Add `tests/pdf-docx-index-search.js`:
+
+  * [ ] Build prose index for a temp repo that includes the docs
+  * [ ] Run `search.js --mode prose` and assert the phrases match chunks
+* [ ] Add script-coverage action(s)
+
+**Exit criteria**
+
+* [ ] PDF/DOCX are no longer silently dropped as “binary” (when enabled)
+* [ ] Prose search can retrieve content from these formats reliably
+* [ ] No regression to binary detection for non-extractable files
+
+---
+
+## Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
+
+> This phase is intentionally split into “abstraction first” and “backend integration” to keep risk controlled.
+
+### 26.1 Extract a sparse-retrieval interface
+
+* [ ] Create `src/retrieval/sparse/`:
+  * [ ] `types.js` contract: `search({ query, topN, filters, mode }) -> hits[]`
+  * [ ] `providers/sqlite-fts.js` wrapper around existing SQLite FTS ranking
+  * [ ] `providers/js-bm25.js` wrapper around the in-memory BM25 path
+
+* [ ] Update `src/retrieval/pipeline.js` to call the provider rather than direct sqlite/JS branching:
+  * [ ] Keep behavior identical as baseline
+  * [ ] Preserve determinism (stable tie-breaking)
+
+### 26.2 Implement Tantivy integration (choose one operational model)
+
+* [ ] Choose packaging model:
+  * [ ] **Sidecar model:** `tools/tantivy-server` (Rust) + Node client
+  * [ ] **Embedded binding:** Node N-API module
+
+* [ ] Add `src/retrieval/sparse/providers/tantivy.js`:
+  * [ ] Build query → execute → map results to `{ idx, score }`
+  * [ ] Support candidate-set filtering if feasible (or document it as a limitation and handle via post-filtering)
+
+* [ ] Add `tools/build-tantivy-index.js`:
+  * [ ] Consume existing artifacts (`chunk_meta`, token streams) and build tantivy index on disk
+  * [ ] Store alongside other indexes (e.g., under repo cache root)
+  * [ ] Consider incremental updates later; start with full rebuild
+
+### 26.3 Config + CLI integration
+
+* [ ] Add config:
+  * [ ] `tantivy.enabled`
+  * [ ] `tantivy.path` (optional override)
+  * [ ] `tantivy.autoBuild` (optional)
+
+* [ ] Extend backend policy logic (see `src/retrieval/cli/backend-context.js` and backend-policy tests):
+  * [ ] Allow `--backend tantivy` (or `--sparse-backend tantivy`)
+  * [ ] Ensure `auto` fallback behavior remains predictable
+
+### 26.4 Tests (gated if tantivy isn’t always available in CI)
+
+* [ ] Add `tests/tantivy-smoke.js`:
+  * [ ] Builds tantivy index for `tests/fixtures/sample`
+  * [ ] Executes a basic query and asserts hits are non-empty
+
+* [ ] Gate it behind env:
+  * [ ] `PAIROFCLEATS_TEST_TANTIVY=1` to run
+  * [ ] Otherwise test exits 0 with “skipped” message (match existing patterns in repo)
+
+* [ ] Add script-coverage action(s) that run it only when env flag is set (or mark as skipped in coverage if you keep strictness)
+
+**Exit criteria**
+
+* [ ] Tantivy backend can be enabled without changing default behavior
+* [ ] For large repos, sparse retrieval latency is materially improved (benchmarks added in Phase 15)
+
+---
+
+## Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
+
+### 27.1 Extract a vector-ANN provider interface
+
+* [ ] Create `src/retrieval/ann/`:
+  * [ ] `types.js`: `query({ embedding, topN, candidateSet, mode }) -> hits[]`
+  * [ ] `providers/sqlite-vec.js` wrapper around `rankVectorAnnSqlite`
+  * [ ] `providers/hnsw.js` wrapper around `rankHnswIndex`
+
+* [ ] Update `src/retrieval/pipeline.js` to use the provider interface
+
+### 27.2 Implement LanceDB integration (choose operational model)
+
+* [x] Choose packaging model:
+  * [x] Node library integration (`@lancedb/lancedb`)
+  * [ ] Sidecar service (Python) + HTTP
+
+* [x] Add LanceDB ANN ranker/provider (implemented at `src/retrieval/lancedb.js`; wired via `src/retrieval/pipeline.js`):
+  * [x] Query by vector and return `{ idx, sim }`
+  * [x] Handle filtering:
+    * [x] If LanceDB supports “where id IN (…)” efficiently → push down (small candidate sets)
+    * [x] Otherwise → post-filter and overfetch
+  * [ ] (Optional) After 27.1 lands, relocate under `src/retrieval/ann/providers/lancedb.js` to remove special-casing in pipeline
+
+### 27.3 Build tooling for vector index creation
+
+* [x] Build tooling for vector index creation (implemented as part of `tools/build-embeddings`):
+  * [x] Ingest `dense_vectors_*` artifacts
+  * [x] Store LanceDB table in cache (mode-specific) via `dense_vectors.lancedb/` + `dense_vectors.lancedb.meta.json`
+  * [x] Validate dims/model compatibility using existing `index_state.json` semantics (meta dims are checked at query time)
+
+* [ ] (Optional) Add a standalone `tools/build-lancedb-index.js` entrypoint that rebuilds LanceDB tables from existing vector artifacts without re-embedding.
+
+### 27.4 Tests (gated)
+
+* [x] Add `tests/lancedb-ann.js` smoke test:
+  * [x] Build embeddings (stub) → build lancedb table → run a nearest-neighbor query → assert stable result ordering
+
+* [x] Gate test execution so CI does not fail when LanceDB isn’t available:
+  * [x] Current behavior: test self-skips with a clear “skipped” message when `@lancedb/lancedb` is missing
+  * [ ] (Optional) Add explicit `PAIROFCLEATS_TEST_LANCEDB=1` env gating if you want CI to skip even when the dependency is installed
+
+* [x] Add script-coverage action(s):
+  * [x] `tests/script-coverage/actions.js` includes `lancedb-ann-test`
+
+**Exit criteria**
+
+* [ ] LanceDB ANN can be enabled without breaking sqlite/hnsw fallbacks
+* [ ] Demonstrable memory and/or latency win for ANN retrieval at scale
+
+---
+
+## Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
+
+* [x] Packaging rules for ST3 (no compiled Python deps)
+* [ ] Windows/macOS/Linux path + quoting correctness
+  * [x] Sublime runner uses argv arrays (`subprocess.Popen([command] + args)`) to avoid shell quoting issues
+  * [ ] Add/enable a CI gate that actually exercises “path with spaces” end-to-end (current Node test depends on map API endpoints; see Phase 29.1)
+* [x] Document Graphviz optional dependency (for SVG/HTML rendering)
+* [x] Provide minimal “DOT-only mode” documentation
+
+Tests:
+
+* [x] `python -m py_compile` over plugin package
+  - Where: `tests/sublime-pycompile.js`
+* [ ] Cross-platform subprocess quoting tests (Node)
+  - Existing: `tests/subprocess-quoting.js` (currently depends on `/map` API endpoints; see Phase 29.1)
+
+---
+
+## Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
+
+### 29.1 Map endpoints (if service mode is adopted)
+
+* [ ] Extend `api-server` to support:
+  * [ ] `GET /map?scope=...&format=...`
+  * [ ] `GET /map/nodes?filter=...` for quick panels
+
+* [ ] Sublime plugin optionally consumes the API for faster iteration
+  * [x] API client helper exists: `sublime/PairOfCleats/lib/api_client.py` (currently unused by commands)
+  * [ ] Wire map generation to use API when `api_server_url` is configured (fallback to local CLI when unset)
+
+### 29.2 Tests
+
+* [ ] API contract tests for map endpoints
+* [ ] Sublime plugin integration tests (mock HTTP server)
+
+---
+
+## Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
+
+* [x] Parity checklist vs existing extension behaviors (where applicable)
+  - Implemented: `tests/parity.js` (also wired into `tests/script-coverage/actions.js`)
+* [ ] Deterministic outputs for map/search commands
+  * [x] Search determinism is gated: `tests/search-determinism.js`
+  * [ ] Map determinism test exists but is not wired into coverage/CI:
+    - `tests/code-map-determinism.js`
+* [ ] Performance acceptance criteria (map generation with guardrails)
+  * [ ] Guardrails correctness test exists but is not wired into coverage/CI:
+    - `tests/code-map-guardrails.js`
+  * [ ] Add an explicit wall-clock performance budget gate for map generation on a fixture repo
+* [ ] End-to-end smoke suite including:
+  * [ ] index build
+  * [ ] search
+  * [ ] map generation (json + dot)
+  * [ ] optional svg rendering when Graphviz available
+  - Notes:
+    - Map-related building blocks already exist as standalone tests:
+      - `tests/code-map-basic.js`
+      - `tests/code-map-dot.js`
+      - `tests/code-map-graphviz-fallback.js`
+    - Add an explicit `tests/e2e-smoke.js` or wire these into `tests/script-coverage/actions.js`.
+
+---
+
+## Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
 
 **Objective:** fold in proven glass/postprocessing practices from the yoink prototype for higher visual quality without regressing performance.
 
-## 35.1 Glass + environment fidelity
-- [ ] Add HDR env map tone calibration controls (env intensity, exposure) to match yoink reference settings.
-- [ ] Support normal map repeat/scale on glass with clearcoat normal influence.
-- [ ] Add optional clearcoat normal map toggle for glass shells.
+### 31.1 Glass + environment fidelity
 
-## 35.2 Post-processing polish
-- [ ] Add optional UnrealBloomPass with user-controllable threshold/strength/radius.
-- [ ] Provide a toggle to enable/disable post-processing for performance.
+* [ ] Add HDR env map tone calibration controls (env intensity, exposure) to match yoink reference settings.
+  * [x] Env intensity control exists (`visuals.glass.envMapIntensity`) and is applied to glass materials
+  * [ ] Exposure control is still hard-coded (`renderer.toneMappingExposure = 1.9`); add a UI slider + persist to panel state
 
-## 35.3 Rendering calibration
-- [ ] Expose metalness/roughness/transmission/ior/reflectivity/thickness controls as a grouped preset panel.
-- [ ] Add a “studio” preset that mirrors yoink defaults for fast tuning.
+* [x] Support normal map repeat/scale on glass with clearcoat normal influence.
+  - Implemented via: `visuals.glass.normalRepeat`, `visuals.glass.normalScale`, `visuals.glass.clearcoatNormalScale`
+
+* [ ] Add optional clearcoat normal map toggle for glass shells.
+  - Note: setting `clearcoatNormalScale = 0` approximates a toggle, but an explicit boolean that removes `clearcoatNormalMap` would be clearer.
+
+### 31.2 Post-processing polish
+
+* [ ] Add optional UnrealBloomPass with user-controllable threshold/strength/radius.
+* [ ] Provide a toggle to enable/disable post-processing for performance.
+
+### 31.3 Rendering calibration
+
+* [x] Expose metalness/roughness/transmission/ior/reflectivity/thickness controls as a grouped preset panel.
+  - Implemented as UI sliders in `src/map/isometric/client/ui.js` + applied in `src/map/isometric/client/materials.js`
+
+* [ ] Add a “studio” preset that mirrors yoink defaults for fast tuning.
+
+### Dependency leverage and reuse (map viewer)
+
+This map phase is intentionally designed to **maximize reuse** of what the repo already has:
+
+- Existing semantics extraction already provides the key fields you listed:
+  - `imports/exports/usages/importLinks` via relations
+  - `calls/callDetails` + cross-file `callLinks/usageLinks/callSummaries`
+  - `signature/modifiers/returns` via docmeta/functionMeta
+  - `reads/writes/mutations/aliases` via AST dataflow (when enabled)
+  - `controlFlow` counts already present in docmeta/functionMeta
+
+- Existing graph tooling:
+  - `graphology`-backed `graph_relations.json` provides a strong base graph layer
+
+- The missing piece is the **visual model + rendering/export** and **Sublime UX** around it, which the map viewer phases supply.
+---
+
+## Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
+
+**Objective:** Ensure the configuration surface simplification cannot regress during implementation by freezing the contract, introducing budgets, and enforcing them in CI.
+
+**Strategic note:** This is a deliberate **breaking “hard cut”** (no deprecation period, no backwards compatibility layer). Confirm adoption of this contract before doing destructive deletions.
+
+### 32.1 Define the “public surface” allowlists + budgets
+
+* [ ] Create `docs/config-contract.md` with an explicit whitelist of:
+  * public repo config keys
+  * public CLI flags
+  * public env vars (secrets only)
+
+* [ ] In `docs/config-contract.md`, explicitly declare precedence order:
+  * CLI flags > repo config > AutoPolicy > code defaults
+  * env vars are secrets-only and are not in precedence for normal behavior
+
+* [ ] Create `docs/config-budgets.md` documenting numeric budgets + rationale:
+  * config keys target: **2** (`cache.root`, `quality`) (optionally +`service.*` if needed)
+  * env vars target: **1** (`PAIROFCLEATS_API_TOKEN`)
+  * public CLI flags target: **15–25** across core commands
+
+* [ ] Encode naming conventions in the contract docs:
+  * config keys: lowercase + structured (`cache.root`, `quality`)
+  * CLI flags: kebab-case (`--cache-root`, `--explain`)
+  * env vars: uppercase `PAIROFCLEATS_*` (secrets and deployment wiring only)
+
+### 32.2 Make the config inventory actionable in CI
+
+* [ ] Extend `tools/config-inventory.js` to output:
+  * totals (already)
+  * **public vs internal/dev-only** classification for CLI flags (new)
+  * allowlist drift report (new public keys/flags/env vars)
+
+* [ ] Add `npm run config:budget` (or equivalent) and wire into CI to fail when budgets are exceeded.
+
+### 32.3 Enforce governance rules (anti-sprawl guardrails)
+
+* [ ] CI: fail if any `process.env.PAIROFCLEATS_*` is referenced outside the secrets env module (`src/shared/env.js`) in runtime code.
+
+* [ ] CI: fail if `docs/config-schema.json` contains unknown keys beyond the allowlist/budget.
+
+* [ ] CI: fail if the public CLI flag count exceeds budget (using the allowlist + inventory classifier).
+
+* [ ] Lint rule (or CI grep): ban `process.env.PAIROFCLEATS_*` usage outside `src/shared/env.js` (scope runtime, not tests).
+
+* [ ] Runtime: ensure `--explain` prints policy resolution (inputs + derived values) to reduce “why did it do that?” tickets.
+
+### 32.4 “Adding a new knob” gating requirements (process)
+
+* [ ] Add a PR checklist/template requiring any new user-configurable setting to include:
+  * justification (user intent vs tuning)
+  * ownership (module owner)
+  * single-plane design (config **or** CLI **or** env)
+  * tests (unit + integration)
+  * budget impact (must delete another knob if over budget)
+
+**Exit criteria**
+
+* [ ] CI fails if public budgets are exceeded.
+* [ ] `docs/config-contract.md` and `docs/config-budgets.md` exist and match the intended end-state.
 
 ---
+
+## Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
+
+**Objective:** Land the new primitives first: a minimal config schema/loader and an AutoPolicy resolver. Subsequent deletions become “wire to policy” instead of “invent behavior.”
+
+### 33.1 Minimal config schema (repo config)
+
+* [ ] Replace `docs/config-schema.json` with a minimal schema containing only:
+  * `cache.root`
+  * `quality` (`auto|fast|balanced|max`)
+
+* [ ] Unknown keys are **errors** (fail fast).
+
+* [ ] Update config tooling to the minimal schema:
+  * [ ] `tools/validate-config.js` validates only the minimal shape
+  * [ ] `tools/config-reset.js` emits minimal config only
+  * [ ] `tools/config-dump.js` dumps minimal config + derived policy (recommended)
+
+### 33.2 Minimal config load path (centralized IO)
+
+* [ ] Update `tools/dict-utils.js:loadUserConfig()` to:
+  * load `.pairofcleats.json`
+  * validate against the minimal schema
+  * return **only** the minimal config
+  * remove fallback-to-tool-root config (unless explicitly retained and documented)
+
+* [ ] Enforce centralization rule:
+  * only the config loader reads `.pairofcleats.json`
+  * all other modules accept a plain options object (no direct config/env/argv reads)
+
+### 33.3 AutoPolicy (resource-derived decisions)
+
+* [ ] Add `src/shared/auto-policy.js` with:
+  * resource detection: CPU, RAM
+  * fast repo scan: file count + size estimate (early-stop allowed)
+  * capability detection hooks (native modules/extensions present)
+  * outputs for: `quality`, concurrency, feature enablement, backend decisions
+
+* [ ] Implement a quality resolver (example mapping):
+  * `fast` if `mem < 16GB` or `cpu <= 4`
+  * `balanced` if `mem < 48GB` or `cpu < 12`
+  * `max` otherwise
+  * downgrade one level for “huge repos” (e.g., >200k files or >5GB scanned bytes)
+
+* [ ] Wire AutoPolicy creation into central entrypoints (without deleting old config reads yet):
+  * [ ] `tools/dict-utils.js` exports `getAutoPolicy(repoRoot, config)` (or similar)
+  * [ ] `bin/pairofcleats.js` passes policy into child scripts via args (preferred) rather than env
+
+### 33.4 Contract tests
+
+* [ ] Add tests enforcing the new contract:
+  * [ ] unknown config key ⇒ error
+  * [ ] `quality=auto` resolves deterministically with mocked resources/repo metrics
+
+  Suggested:
+  * `tests/config/minimal-schema.test.js`
+  * `tests/config/auto-policy.test.js`
+
+**Exit criteria**
+
+* [ ] `pairofcleats config validate` only accepts minimal config.
+* [ ] AutoPolicy unit tests exist and pass.
+* [ ] No new knobs introduced during Phase 33.
+
+---
+
+## Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
+
+**Objective:** Delete the profile control plane (files + env + flag + merge logic) to remove precedence confusion.
+
+### 34.1 Delete profile artifacts
+
+* [ ] Delete the `profiles/` directory.
+* [ ] Remove profile references in docs (e.g., any “Experimental commands require profile=full”).
+
+### 34.2 Remove profile logic from code
+
+* [ ] In `tools/dict-utils.js`, delete:
+  * `PROFILES_DIR`
+  * `loadProfileConfig`
+  * `applyProfileConfig`
+  * env/config/cli profile selection logic
+
+* [ ] In `src/shared/cli.js`:
+  * [ ] remove `profile` as a shared option
+  * [ ] remove automatic profile default injection
+
+* [ ] In `src/retrieval/cli-args.js`:
+  * [ ] remove `--profile`
+
+### 34.3 Remove env var `PAIROFCLEATS_PROFILE`
+
+* [ ] Remove from `src/shared/env.js`.
+* [ ] Remove/replace any tests relying on profiles.
+
+**Exit criteria**
+
+* [ ] No `profiles/` directory.
+* [ ] No references to `PAIROFCLEATS_PROFILE` or `--profile`.
+* [ ] Help text and docs no longer mention profiles.
+
+---
+
+## Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
+
+**Objective:** Eliminate the “second configuration system” implemented via env vars. Env is secrets/deployment wiring only.
+
+### 35.1 Rewrite env module (secrets-only)
+
+* [ ] Replace `src/shared/env.js` with secrets-only access:
+  * `getSecretsEnv()` returns `{ apiToken }`
+  * remove parsing helpers for booleans/enums/numbers unless needed elsewhere
+
+* [ ] Enforce rule: no runtime behavior depends on env vars except secrets.
+
+### 35.2 Replace `getEnvConfig()` call-sites
+
+* [ ] Remove/replace all call-sites of `getEnvConfig()` across index build, retrieval, tools, and tests.
+
+  Strong checklist (non-exhaustive):
+  * `src/index/build/file-processor.js` (progress flags)
+  * `src/index/build/indexer/pipeline.js`
+  * `src/index/build/indexer/steps/process-files.js`
+  * `src/index/build/runtime/runtime.js`
+  * `src/index/build/watch.js`
+  * `src/integrations/core/index.js`
+  * `src/integrations/core/status.js`
+  * `src/retrieval/cli.js`
+  * `src/retrieval/output/cache.js`
+  * `src/shared/hash.js`
+  * `tools/*` (cache-gc, clean-artifacts, config-dump, vector-extension, services, benches, etc.)
+  * `tests/bench.js`
+
+  Replacement strategy:
+  * debug/diagnostic toggles ⇒ delete or move to `--explain`
+  * perf/resource knobs ⇒ derive in AutoPolicy
+  * behavior toggles (embeddings/backend/fts profile) ⇒ derive in AutoPolicy; delete user override
+
+### 35.3 Delete env documentation
+
+* [ ] Rewrite `docs/env-overrides.md` to “Secrets only: `PAIROFCLEATS_API_TOKEN`.”
+* [ ] Remove mentions of env-driven profiles, embeddings toggles, thread knobs, watcher backends, etc.
+
+### 35.4 Update config hashing determinism
+
+* [ ] Update `tools/dict-utils.js:getEffectiveConfigHash()` to:
+  * exclude env-derived settings from the effective config hash
+  * ensure artifact identity is driven by config + repo content + tool version
+
+**Exit criteria**
+
+* [ ] No `PAIROFCLEATS_*` env vars used for behavior except `PAIROFCLEATS_API_TOKEN`.
+* [ ] `getEffectiveConfigHash()` is not sensitive to random env settings.
+* [ ] Docs reflect secrets-only env.
+
+---
+
+## Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
+
+**Objective:** Remove flag sprawl and duplicated flags across scripts by making the public CLI surface strict and small.
+
+### 36.1 Public command surface (whitelist)
+
+* [ ] Confirm the public commands are restricted to:
+  * `setup`
+  * `bootstrap`
+  * `index build` / `index watch` / `index validate`
+  * `search`
+  * `service api`
+
+* [ ] Collapse the public flags to a whitelist (target contract):
+
+  `pairofcleats index build`
+  * `--repo <path>`
+  * `--mode <code|prose|both>` (default `both`)
+  * `--quality <auto|fast|balanced|max>`
+  * `--watch` (optional)
+
+  `pairofcleats index watch`
+  * `--repo <path>`
+  * `--mode <code|prose|both>`
+  * `--quality <auto|fast|balanced|max>`
+
+  `pairofcleats search "<query>"`
+  * `--repo <path>`
+  * `--mode <code|prose|both>`
+  * `--top <N>` (default 5)
+  * `--json`
+  * `--explain`
+
+  `pairofcleats service api`
+  * `--host <host>` (default 127.0.0.1)
+  * `--port <port>` (default 7345)
+  * optional: `--repo <path>` only if required
+
+### 36.2 Strict CLI dispatch + parsing
+
+* [ ] Update `bin/pairofcleats.js` to:
+  * dispatch only the public commands
+  * reject unknown commands
+  * reject unknown flags
+  * avoid passing through arbitrary args to internal scripts
+
+* [ ] Update per-command option parsing to accept only the whitelist:
+  * [ ] rewrite `src/retrieval/cli-args.js` (search)
+  * [ ] refactor `build_index.js` or `src/index/build/args.js` (index build/watch)
+
+### 36.3 Collapse search filter flags
+
+* [ ] Replace dozens of search CLI flags with either:
+  * query-language filters (preferred), OR
+  * a single `--filter "<expr>"` flag
+
+* [ ] Implement a minimal filter parser (initially):
+  * [ ] `lang`
+  * [ ] `path`
+  * [ ] `type`
+
+* [ ] Remove per-filter CLI flags and simplify `src/retrieval/cli/normalize-options.js` accordingly.
+
+* [ ] Update `docs/search.md` / `docs/search-contract.md` to match the new mechanism.
+
+### 36.4 Delete duplicated options across internal scripts
+
+* [ ] Remove duplicated flags like `--repo`, `--out`, `--json` from internal scripts once the CLI wrapper is strict.
+* [ ] Internal scripts accept explicit parameters from the wrapper (no ad-hoc CLI parsing).
+
+**Exit criteria**
+
+* [ ] `pairofcleats --help` shows only the public commands.
+* [ ] Unknown flags error out.
+* [ ] Search filtering uses query filters or `--filter` (not dozens of flags).
+
+---
+
+## Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
+
+**Objective:** Delete `indexing.*` configurability by deriving values via AutoPolicy and making pipeline decisions internal.
+
+### 37.1 Identify indexing config consumption points
+
+* [ ] Audit and remove config/env reads across (focus list):
+  * `src/index/build/runtime.js`
+  * `src/index/build/runtime/runtime.js`
+  * `src/index/build/runtime/workers.js`
+  * `src/index/build/indexer.js`
+  * `src/index/build/file-processor.js`
+  * `src/index/build/worker-pool.js`
+  * `src/index/build/chunking/*`
+  * `src/index/chunking/limits.js`
+
+### 37.2 Thread policy values through indexing
+
+* [ ] Create an `IndexBuildContext` (or equivalent) that contains:
+  * minimal `config`
+  * derived `policy` (AutoPolicy)
+
+* [ ] Thread this context through build orchestration so downstream modules do not read config/env directly.
+
+* [ ] Delete or ignore now-unused indexing config keys (and remove them from inventory).
+
+Concrete replacements:
+* [ ] Concurrency uses `policy.indexing.concurrency`
+* [ ] Embeddings enablement uses `policy.indexing.embeddings.enabled`
+* [ ] Chunking limits use `policy.indexing.chunking.*`
+* [ ] Worker pool sizing uses `policy.runtime.workerPool.*`
+
+### 37.3 Remove stage toggles
+
+* [ ] Remove env `PAIROFCLEATS_STAGE`.
+* [ ] Remove config `indexing.stage` (and similar).
+* [ ] Make pipeline stage selection deterministic and fixed.
+
+### 37.4 Operational behavior decisions (indexing-adjacent)
+
+* [ ] Ignore behavior is fixed:
+  * always respect `.gitignore`
+  * always respect `.pairofcleatsignore` if present
+  * remove config keys like `useGitignore`, `usePairofcleatsIgnore`, `useDefaultSkips`, `ignoreFiles`, `extraIgnore`
+
+* [ ] Watcher backend is fixed:
+  * default to `chokidar` (or internal auto)
+  * remove `PAIROFCLEATS_WATCHER_BACKEND` and any config keys controlling it
+
+### 37.5 Tests
+
+* [ ] Remove tests that assert behavior of deleted knobs.
+* [ ] Add tests asserting:
+  * policy-derived concurrency is used
+  * embeddings enablement is solely policy-driven
+
+**Exit criteria**
+
+* [ ] No code reads `indexing.*` from user config.
+* [ ] Index build outcome is driven by AutoPolicy + repo inputs.
+* [ ] Test coverage exists for policy-driven decisions.
+
+---
+
+## Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
+
+**Objective:** Delete `search.*` configurability and backend/scoring knobs. Retrieval becomes “one good default pipeline,” with only `--top`, `--json`, `--explain` remaining.
+
+### 38.1 Remove backend selection knobs
+
+* [ ] Make retrieval always use SQLite indexes.
+* [ ] Delete backend selection flags from the public CLI:
+  * `--backend`
+  * `--ann-backend`
+  * `--ann` / `--no-ann`
+
+* [ ] Any ANN usage is auto-detected by capabilities + policy.
+
+### 38.2 Remove scoring knobs
+
+* [ ] Delete user-tunable scoring knobs:
+  * `search.bm25.*` and `--bm25-*`
+  * `--fts-profile`, `--fts-weights`
+  * env `PAIROFCLEATS_FTS_PROFILE`
+
+* [ ] Replace with fixed scoring defaults.
+* [ ] Optional: policy switches by `quality` (fast/balanced/max), but not user-tunable parameters.
+
+### 38.3 Cache knob removal
+
+* [ ] If `docs/query-cache.md` exposes user knobs, collapse to:
+  * internal cache with fixed limits, OR
+  * off-by-default if not essential
+
+### 38.4 Tests
+
+* [ ] Add/adjust tests that assert behavior is policy-driven and does not depend on env/config overrides.
+
+**Exit criteria**
+
+* [ ] No code reads `search.*` from config.
+* [ ] No user-facing backend/scoring knobs remain.
+* [ ] Search works with the default pipeline + optional explain output.
+
+---
+
+## Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
+
+**Objective:** Remove entire feature sets that create configuration branching.
+
+### 39.1 Remove LMDB support (user-visible)
+
+* [ ] Delete:
+  * `tools/build-lmdb-index.js`
+  * LMDB runtime modules (if any)
+  * `pairofcleats lmdb build` dispatch from `bin/pairofcleats.js`
+
+* [ ] Remove docs references (e.g., `docs/external-backends.md`).
+
+* [ ] Optional: keep LMDB as a dev-only internal experiment, but not shipped/public.
+
+### 39.2 Vector extension: auto only
+
+* [ ] Remove env `PAIROFCLEATS_VECTOR_EXTENSION`.
+* [ ] Remove config `sqlite.vectorExtension.*`.
+
+* [ ] Make extension lookup fixed to tool-managed directory:
+  * `tools/download-extensions.js` installs into a known location
+  * runtime checks presence and enables if available
+  * never require user path overrides
+
+* [ ] Rewrite `docs/sqlite-ann-extension.md` to “auto only.”
+
+**Exit criteria**
+
+* [ ] No LMDB code paths are part of the public surface.
+* [ ] Vector extension has no user-configurable paths; enablement is fully auto.
+
+---
+
+## Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
+
+**Objective:** Remove everything that exists only to support deleted knobs and ensure the repo stays simplified.
+
+### 40.1 Dead docs cleanup
+
+* [ ] Delete `docs/config-deprecations.md`.
+* [ ] Rewrite `docs/env-overrides.md` to secrets-only.
+* [ ] Rewrite or delete `docs/external-backends.md`.
+* [ ] Remove any remaining “profile=full required” references in docs.
+
+### 40.2 Trim helper APIs
+
+* [ ] Trim `tools/dict-utils.js` exports to only what the remaining public CLI and build/search paths require.
+* [ ] Delete/move any remaining accessors that expose removed namespaces (`getRuntimeConfig`, `getModelConfig`, etc.).
+
+### 40.3 Re-run and commit inventory
+
+* [ ] Run `node tools/config-inventory.js` and commit updated `docs/config-inventory.*`.
+* [ ] Confirm budgets and enforcement are green.
+
+### 40.4 Add/keep “no new knobs” guardrails
+
+* [ ] CI scan: `PAIROFCLEATS_` usage restricted to secrets module (runtime code).
+* [ ] CI scan: schema key budget enforcement.
+* [ ] CI scan: public CLI flag budget enforcement.
+
+### 40.5 Operational decisions (explicit hard cut)
+
+* [ ] Logging is fixed:
+  * default log level `info`
+  * only per-invocation overrides via `--json` / `--explain`
+  * remove `logging.*` config namespace and env logging controls
+
+* [ ] Compression / hashing / regex engine selection is internal auto:
+  * “best available” selection (native if present) is automatic
+  * remove user knobs for selecting engines
+
+### 40.6 Repeatable validation checklist
+
+* [ ] `pairofcleats index build` works on a representative repo with zero config.
+* [ ] `pairofcleats search "foo"` works and returns results.
+* [ ] `pairofcleats search --explain "foo"` prints derived policy decisions.
+* [ ] `node tools/config-inventory.js` reports:
+  * config keys <= 5
+  * env vars == 1
+  * public CLI flags <= 25
+* [ ] Grep check: no usage of `PAIROFCLEATS_` outside secrets allowlist in runtime code.
+* [ ] CI green.
+
+---
+
+## Phase 41 — Test runner entrypoint: `pairofcleats test` (lanes/selectors/output)
+
+**Objective:** Replace hundreds of ad-hoc `node tests/<file>.js` entrypoints with a single stable runner that can execute existing tests unchanged, while enabling lanes, selectors, retries/timeouts, and structured output.
+
+### 41.1 Choose and wire the canonical entrypoint
+
+* [ ] Implement the canonical public interface (preferred): `pairofcleats test …`
+  * Acceptable alternative: `node tests/run.js …`
+
+* [ ] Wire `npm test` to the canonical entrypoint.
+
+* [ ] Ensure the runner can execute existing tests (initially `tests/*.js`) unchanged (subprocess execution).
+
+### 41.2 Runner CLI interface (selectors + options)
+
+Selection:
+
+* [ ] Support `selectors...` (id/path/name selectors).
+* [ ] `--lane <name>[,<name>...]` (default `ci`).
+* [ ] `--tag <tag>` (repeatable) and `--exclude-tag <tag>` (repeatable).
+* [ ] `--match <pattern>` (repeatable) and `--exclude <pattern>` (repeatable).
+  * pattern forms: substring (case-insensitive) or regex literal `/.../`
+* [ ] `--list` prints resolved tests and exits.
+
+Execution controls:
+
+* [ ] `--jobs <n>` (default 1 initially; increase once isolation improves).
+* [ ] `--retries <n>` (default 0 local, 1–2 CI).
+* [ ] `--timeout-ms <n>` (default 120000).
+* [ ] `--fail-fast`.
+
+Output / reporting:
+
+* [ ] `--quiet` minimal output.
+* [ ] `--json` machine-readable summary to stdout.
+* [ ] `--junit <path>` writes JUnit XML.
+* [ ] `--log-dir <path>` captures per-test stdout/stderr.
+
+Pass-through:
+
+* [ ] Support `-- <args>` pass-through to selected tests.
+
+### 41.3 Environment normalization (runner responsibility)
+
+* [ ] Normalize these env vars (unless explicitly overridden):
+  * `PAIROFCLEATS_TEST_TIMEOUT_MS`
+  * `PAIROFCLEATS_TEST_LOG_DIR`
+  * `PAIROFCLEATS_TEST_RETRIES`
+
+* [ ] Runner must **not** globally force cache roots or embeddings providers.
+
+### 41.4 Discovery model
+
+* [ ] Convention-based discovery (initial):
+  * discover executable Node scripts under `tests/`
+  * exclude `tests/fixtures/**`, `tests/**/helpers/**`, and known orchestrators
+  * id is relative path from `tests/` without extension
+
+* [ ] Manifest-based discovery (recommended long-term):
+  * add `tests/manifest.json` (or `tests/manifest.js`) with `{id, path, tags}`
+  * support stable ids even after refactors
+
+### 41.5 Lanes, determinism, and exit codes
+
+* [ ] Implement lanes:
+  * `smoke`, `unit`, `integration`, `services`, `storage`, `perf`, `ci` (default)
+
+* [ ] Define lane composition (initial):
+  * `ci = unit + integration + services` minus `perf` and minus explicitly flaky/slow tests
+
+* [ ] Exit codes:
+  * `0` all pass
+  * `1` failures
+  * `2` usage error (unknown lane / bad flags)
+
+* [ ] Output format (human):
+  * preamble (lanes/filters/resolved count)
+  * per-test `PASS/FAIL <id> (<duration>)`
+  * final summary (passed/failed/skipped + failure list + log dir)
+
+**Exit criteria**
+
+* [ ] `pairofcleats test` runs the default lane on a clean checkout.
+* [ ] `--lane`, `--match`, and `--list` work and are deterministic.
+* [ ] Runner emits stable human output and optional JSON/JUnit reports.
+
+---
+
+## Phase 42 — Test suite decomposition & regrouping (split monolith tests; folder structure; retire suites)
+
+**Objective:** Make failures easy to triage by enforcing “one responsibility per test file,” and by regrouping the suite into coherent directories aligned with lanes/tags.
+
+### 42.1 Establish the grouping taxonomy (paths + ids)
+
+* [ ] Introduce (or formalize) group folders under `tests/`:
+  * `harness/` — meta-tests and suite controllers
+  * `unit/` — pure logic
+  * `indexing/` — build-time + artifact contracts
+  * `retrieval/` — search semantics + filters + determinism
+  * `storage/` — SQLite/LMDB backends + migrations
+  * `services/` — API + MCP servers
+  * `tooling/` — LSP enrichment, cross-file inference, worker/tool contracts
+  * `lang/` — language/format contracts (per-language invariants and metadata expectations)
+  * `perf/` — benchmarks + perf guardrails
+
+* [ ] Ensure the test runner lane/tag model maps cleanly onto these groups.
+
+### 42.2 Migration Phase 1 — Tag-and-lane only (no file moves)
+
+* [ ] Establish lane membership using a small mapping (runner manifest).
+* [ ] Keep today’s scripts runnable during migration.
+
+### 42.3 Split the largest multi-responsibility tests (priority list)
+
+#### 42.3.1 Split `tests/language-fidelity.js` (split aggressively)
+
+Indexing artifact integrity (`tests/indexing/language-fixture/`):
+
+* [ ] Add `tests/indexing/language-fixture/postings-integrity.test.js`
+* [ ] Add `tests/indexing/language-fixture/chunk-meta-exists.test.js`
+
+Search filter semantics (`tests/retrieval/filters/`):
+
+* [ ] Add `tests/retrieval/filters/control-flow.test.js` (branches)
+* [ ] Add `tests/retrieval/filters/types.test.js` (inferred-type, return-type)
+* [ ] Add `tests/retrieval/filters/behavioral.test.js` (returns, async)
+* [ ] Add `tests/retrieval/filters/file-selector.test.js` (file regex)
+* [ ] Add `tests/retrieval/filters/risk.test.js` (risk tag + risk flow)
+
+Language/format contracts (`tests/lang/contracts/`):
+
+* [ ] Add `tests/lang/contracts/javascript.test.js`
+* [ ] Add `tests/lang/contracts/typescript.test.js`
+* [ ] Add `tests/lang/contracts/python.test.js`
+* [ ] Add `tests/lang/contracts/go.test.js`
+* [ ] Add `tests/lang/contracts/sql.test.js`
+* [ ] Add `tests/lang/contracts/misc-buildfiles.test.js`
+
+#### 42.3.2 Split `tests/fixture-smoke.js` (split by contract area)
+
+Fixture build + artifacts (`tests/indexing/fixtures/`):
+
+* [ ] Add `tests/indexing/fixtures/build-and-artifacts.test.js`
+* [ ] Add `tests/indexing/fixtures/minhash-consistency.test.js`
+
+Search output contracts (`tests/retrieval/contracts/`):
+
+* [ ] Add `tests/retrieval/contracts/result-shape.test.js`
+* [ ] Add `tests/retrieval/contracts/compact-json.test.js`
+
+Fixture-scoped filter semantics (`tests/retrieval/filters/`):
+
+* [ ] Add `tests/retrieval/filters/ext-path.test.js`
+* [ ] Add `tests/retrieval/filters/type-signature-decorator.test.js`
+
+Language spot-checks (fixture sample only) (`tests/lang/fixtures-sample/`):
+
+* [ ] Add `tests/lang/fixtures-sample/python-metadata.test.js`
+* [ ] Add `tests/lang/fixtures-sample/swift-metadata.test.js`
+* [ ] Add `tests/lang/fixtures-sample/rust-metadata.test.js`
+
+#### 42.3.3 Split `tests/sqlite-incremental.js` (split by behavior axis)
+
+`tests/storage/sqlite/incremental/`:
+
+* [ ] Add `tests/storage/sqlite/incremental/file-manifest-updates.test.js`
+* [ ] Add `tests/storage/sqlite/incremental/search-after-update.test.js`
+* [ ] Add `tests/storage/sqlite/incremental/manifest-normalization.test.js`
+
+`tests/storage/sqlite/migrations/`:
+
+* [ ] Add `tests/storage/sqlite/migrations/schema-mismatch-rebuild.test.js`
+
+#### 42.3.4 Split `tests/search-filters.js` (split by filter family)
+
+`tests/retrieval/filters/query-syntax/`:
+
+* [ ] Add `tests/retrieval/filters/query-syntax/negative-terms.test.js`
+* [ ] Add `tests/retrieval/filters/query-syntax/phrases-and-scorebreakdown.test.js`
+
+`tests/retrieval/filters/git-metadata/`:
+
+* [ ] Add `tests/retrieval/filters/git-metadata/chunk-author.test.js`
+* [ ] Add `tests/retrieval/filters/git-metadata/modified-time.test.js`
+* [ ] Add `tests/retrieval/filters/git-metadata/branch.test.js`
+
+`tests/retrieval/filters/file-and-token/`:
+
+* [ ] Add `tests/retrieval/filters/file-and-token/file-selector-case.test.js`
+* [ ] Add `tests/retrieval/filters/file-and-token/token-case.test.js`
+* [ ] Add `tests/retrieval/filters/file-and-token/punctuation-tokenization.test.js`
+
+#### 42.3.5 Split `tests/mcp-server.js` (split by MCP contract areas)
+
+`tests/services/mcp/`:
+
+* [ ] Add `tests/services/mcp/protocol-initialize.test.js`
+* [ ] Add `tests/services/mcp/tools-list.test.js`
+* [ ] Add `tests/services/mcp/tool-index-status.test.js`
+* [ ] Add `tests/services/mcp/tool-config-status.test.js`
+* [ ] Add `tests/services/mcp/tool-build-index-progress.test.js`
+* [ ] Add `tests/services/mcp/tool-search-defaults-and-filters.test.js`
+* [ ] Add `tests/services/mcp/errors.test.js` (missing repo, missing index)
+
+#### 42.3.6 Split `tests/api-server.js` (split by endpoint family)
+
+`tests/services/api/`:
+
+* [ ] Add `tests/services/api/health-and-status.test.js`
+* [ ] Add `tests/services/api/search-happy-path.test.js`
+* [ ] Add `tests/services/api/search-validation.test.js`
+* [ ] Add `tests/services/api/repo-authorization.test.js`
+* [ ] Add `tests/services/api/no-index.test.js`
+
+#### 42.3.7 Split `tests/type-inference-crossfile.js` (unit vs integration)
+
+`tests/tooling/type-inference/`:
+
+* [ ] Add `tests/tooling/type-inference/crossfile-stats.unit.test.js`
+
+`tests/indexing/type-inference/`:
+
+* [ ] Add `tests/indexing/type-inference/crossfile-output.integration.test.js`
+
+#### 42.3.8 Split `tests/triage-records.js` (split by pipeline stage)
+
+`tests/tooling/triage/`:
+
+* [ ] Add `tests/tooling/triage/ingest-generic.exposure.test.js`
+* [ ] Add `tests/tooling/triage/ingest-sources.smoke.test.js`
+* [ ] Add `tests/tooling/triage/decision.test.js`
+* [ ] Add `tests/tooling/triage/records-index-and-search.test.js`
+* [ ] Add `tests/tooling/triage/context-pack.test.js`
+
+#### 42.3.9 Split `tests/bench.js` (move to perf + split scenarios)
+
+`tests/perf/bench/`:
+
+* [ ] Add `tests/perf/bench/run.test.js` (or `run.js` if treated as a tool rather than a test)
+* [ ] Add `tests/perf/bench/scenarios/memory-vs-sqlite.js`
+* [ ] Add `tests/perf/bench/scenarios/sqlite-fts.js`
+* [ ] Add `tests/perf/bench/scenarios/ann-on-off.js`
+* [ ] Add `tests/perf/bench/scenarios/bm25-params.js`
+
+#### 42.3.10 Optional decompositions (as time permits)
+
+* [ ] Split `tests/mcp-robustness.js` into two tests (queue overload vs timeout scenarios).
+* [ ] Consider splitting `tests/mcp-schema.js` by snapshot type (tool schema vs response shape).
+* [ ] Consider splitting `tests/type-inference-crossfile-go.js` similarly to JS cross-file.
+* [ ] Consider splitting `tests/type-inference-lsp-enrichment.js` by language if it remains unstable.
+
+### 42.4 Migration Phase 2 — Move tests into group folders (mechanical)
+
+* [ ] Move remaining tests into `tests/<group>/...` while preserving ids via a manifest.
+* [ ] Create thin compatibility shims only where necessary.
+
+### 42.5 Migration Phase 3 — Remove deprecated suites and script sprawl
+
+* [ ] Remove monolith scripts once split tests cover equivalent assertions.
+* [ ] Collapse `package.json` scripts surface to a small set of lanes (delegate to the test runner).
+
+**Success criteria**
+
+* [ ] A developer can answer “what should I run?” with ~6 lanes.
+* [ ] The largest multi-domain scripts are split so failures point to a subsystem.
+* [ ] CI can run the `ci` lane deterministically with clear logs and minimal flake.
+* [ ] The test tree communicates intent via folder structure and stable ids.

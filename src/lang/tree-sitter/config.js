@@ -36,19 +36,16 @@ const JS_TS_CONFIG = {
   ]),
   memberNodes: new Set([
     'function_declaration',
-    'method_definition',
-    'function',
-    'arrow_function'
+    'method_definition'
   ]),
+  nameFields: ['name'],
   kindMap: {
     class_declaration: 'ClassDeclaration',
     interface_declaration: 'InterfaceDeclaration',
     type_alias_declaration: 'TypeAlias',
     enum_declaration: 'EnumDeclaration',
     function_declaration: 'FunctionDeclaration',
-    method_definition: 'MethodDeclaration',
-    function: 'FunctionDeclaration',
-    arrow_function: 'ArrowFunction'
+    method_definition: 'MethodDeclaration'
   },
   docComments: { linePrefixes: ['//'], blockStarts: ['/**'] }
 };
@@ -96,6 +93,23 @@ const LANG_CONFIG = {
     kindMap: {
       atx_heading: 'Section',
       setext_heading: 'Section'
+    },
+    resolveName: (node, rawText) => {
+      if (!node || typeof rawText !== 'string') return null;
+      if (node.type === 'atx_heading') {
+        const raw = rawText.slice(node.startIndex, node.endIndex);
+        const line = raw.split('\n', 1)[0] || '';
+        let title = line.trim();
+        title = title.replace(/^#{1,6}\s*/, '');
+        title = title.replace(/\s*#+\s*$/, '');
+        return title.trim();
+      }
+      if (node.type === 'setext_heading') {
+        const raw = rawText.slice(node.startIndex, node.endIndex);
+        const firstLine = raw.split('\n', 1)[0] || '';
+        return firstLine.trim();
+      }
+      return null;
     }
   },
   swift: {

@@ -4,9 +4,17 @@ export const disposeMaterial = (material) => {
     material.forEach((entry) => disposeMaterial(entry));
     return;
   }
-  if (material.map) material.map.dispose?.();
-  if (material.normalMap) material.normalMap.dispose?.();
-  if (material.clearcoatNormalMap) material.clearcoatNormalMap.dispose?.();
+
+  const disposeTexture = (texture) => {
+    if (!texture) return;
+    if (texture.userData?.shared) return;
+    texture.dispose?.();
+  };
+
+  disposeTexture(material.map);
+  disposeTexture(material.normalMap);
+  disposeTexture(material.clearcoatNormalMap);
+  disposeTexture(material.envMap);
   material.dispose?.();
 };
 
