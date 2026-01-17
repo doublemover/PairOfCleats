@@ -243,6 +243,15 @@ const resolveNextOrderIndex = (entries) => {
   return maxIndex + 1;
 };
 
+const assignFileIndexes = (entries) => {
+  if (!Array.isArray(entries)) return;
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    if (!entry || typeof entry !== 'object') continue;
+    entry.fileIndex = i + 1;
+  }
+};
+
 const buildTreeSitterEntryBatches = (entries) => {
   const batches = [];
   let current = null;
@@ -406,6 +415,7 @@ export const processFiles = async ({
   applyTreeSitterBatching(entries, runtime.languageOptions?.treeSitter, envConfig, {
     allowReorder: runtime.shards?.enabled !== true
   });
+  assignFileIndexes(entries);
   const orderIndexState = { next: resolveNextOrderIndex(entries) };
   const processEntries = async ({ entries: shardEntries, runtime: runtimeRef, shardMeta = null, stateRef }) => {
     const shardLabel = shardMeta?.label || shardMeta?.id || null;
@@ -469,11 +479,14 @@ export const processFiles = async ({
         runtimeRef.queues.cpu,
         batchEntries,
         async (entry, fileIndex) => {
+          const stableFileIndex = Number.isFinite(entry?.fileIndex)
+            ? entry.fileIndex
+            : (Number.isFinite(fileIndex) ? fileIndex + 1 : null);
           if (showFileProgress) {
             const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
             const shardText = shardLabel ? `shard ${shardLabel}` : 'shard';
             const shardPrefix = `[${shardText}]`;
-            const countText = `${progress.count + 1}/${progress.total}`;
+            const countText = `${stableFileIndex ?? '?'}/${progress.total}`;
             const lineText = Number.isFinite(entry.lines) ? `lines ${entry.lines}` : null;
             const parts = [shardPrefix, countText, lineText, rel].filter(Boolean);
             logLine(parts.join(' '), {
@@ -482,7 +495,7 @@ export const processFiles = async ({
               stage: 'processing',
               shardId: shardMeta?.id || null,
               file: rel,
-              fileIndex: progress.count + 1,
+              fileIndex: stableFileIndex,
               total: progress.total,
               lines: entry.lines || null
             });
@@ -491,20 +504,20 @@ export const processFiles = async ({
             phase: 'processing',
             mode,
             stage: runtimeRef.stage,
-            fileIndex,
+            fileIndex: stableFileIndex,
             total: progress.total,
             file: entry.rel,
             size: entry.stat?.size || null,
             shardId: shardMeta?.id || null
           });
           try {
-            return await processFile(entry, fileIndex);
+            return await processFile(entry, stableFileIndex);
           } catch (err) {
             crashLogger.logError({
               phase: 'processing',
               mode,
               stage: runtimeRef.stage,
-              fileIndex,
+              fileIndex: stableFileIndex,
               total: progress.total,
               file: entry.rel,
               size: entry.stat?.size || null,

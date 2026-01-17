@@ -67,9 +67,9 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ### 2.2 Deterministic shard progress numbering
 
-- [ ] Pre-assign `fileIndex` for each work item **before** concurrent processing begins.
-- [ ] Ensure progress renderer never reuses the same `(index/total)` pair for different files in the same shard run.
-- [ ] Add a regression test that simulates concurrent progress events and asserts monotonically increasing fileIndex (running buildindex on the repo itself briefly should be sufficient to verify this)
+- [x] Pre-assign `fileIndex` for each work item **before** concurrent processing begins.
+- [x] Ensure progress renderer never reuses the same `(index/total)` pair for different files in the same shard run.
+- [x] Add a regression test that simulates concurrent progress events and asserts monotonically increasing fileIndex (running buildindex on the repo itself briefly should be sufficient to verify this)
 
 ### 2.3 Disk-full resilience for SQLite + artifact build steps
 
