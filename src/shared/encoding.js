@@ -30,6 +30,25 @@ const detectEncoding = (buffer) => {
   return { encoding: null, confidence: null };
 };
 
+const hasWindows1252Bytes = (buffer) => {
+  if (!buffer || !buffer.length) return false;
+  for (const byte of buffer) {
+    if (byte >= 0x80 && byte <= 0x9f) return true;
+  }
+  return false;
+};
+
+const hasOnlyWindows1252Controls = (buffer) => {
+  if (!buffer || !buffer.length) return false;
+  let seen = false;
+  for (const byte of buffer) {
+    if (byte < 0x80) continue;
+    if (byte > 0x9f) return false;
+    seen = true;
+  }
+  return seen;
+};
+
 export const decodeTextBuffer = (buffer) => {
   if (!buffer || !buffer.length) {
     return {
@@ -49,6 +68,19 @@ export const decodeTextBuffer = (buffer) => {
   } catch {}
   const { encoding: detected, confidence } = detectEncoding(buffer);
   let encoding = detected || 'latin1';
+  if (encoding === 'utf8' || encoding === 'utf-8') {
+    encoding = 'latin1';
+  }
+  const confidenceScore = Number.isFinite(confidence) ? confidence : null;
+  const preferWindows1252 = hasWindows1252Bytes(buffer) && (
+    encoding === 'latin1'
+    || encoding === 'iso-8859-1'
+    || hasOnlyWindows1252Controls(buffer)
+    || (confidenceScore !== null && confidenceScore < 0.6)
+  );
+  if (preferWindows1252) {
+    encoding = 'windows-1252';
+  }
   if (!iconv.encodingExists(encoding)) {
     encoding = 'latin1';
   }

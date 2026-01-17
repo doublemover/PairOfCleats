@@ -172,22 +172,19 @@
     "queries": "benchmarks/queries/swift.txt",
     "repos": {
       "huge": [
-        "apple/swift",
-        "Alamofire/Alamofire",
-        "apple/swift-package-manager",
-        "apple/swift-corelibs-foundation",
-        "swiftlang/swift"
+        "apple/swift"
       ],
       "large": [
-        "apple/swift-nio",
-        "Alamofire/Alamofire",
-        "apple/swift-collections"
+        "apple/swift-nio"
       ],
-      "typical": [
-        "onevcat/Kingfisher",
-        "SnapKit/SnapKit",
-        "ReactiveX/RxSwift",
-        "apple/swift-argument-parser"
+      "medium": [
+        "Alamofire/Alamofire"
+      ],
+      "normal": [
+        "onevcat/Kingfisher"
+      ],
+      "tiny": [
+        "twostraws/simple-swiftui"
       ]
     }
   },

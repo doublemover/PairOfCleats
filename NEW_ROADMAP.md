@@ -392,12 +392,12 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ### 5.1 Encoding regression suite expansion
 
-- [ ] Add `latin1.js` fixture (from downloads) into `tests/fixtures/encoding/latin1.js` (or equivalent) with known latin1 bytes that are not valid UTF‑8.
-- [ ] Add tests covering:
+- [x] Add `latin1.js` fixture (from downloads) into `tests/fixtures/encoding/latin1.js` (or equivalent) with known latin1 bytes that are not valid UTF‑8.
+- [x] Add tests covering:
   - latin1 decode fallback path (iconv)
   - invalid UTF‑8 does not crash (`TypeError: The encoded data was not valid for encoding utf-8`)
   - JSONL artifact reading/writing always produces valid UTF‑8
-- [ ] Add a decode test matrix for `readTextFileWithHash`:
+- [x] Add a decode test matrix for `readTextFileWithHash`:
   - utf-8 (valid)
   - utf-8 (invalid sequences)
   - latin1 / windows-1252 (detected + decoded)
@@ -405,27 +405,27 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ### 5.2 Swift indexing parity
 
-- [ ] Reproduce “Swift broken” against:
+- [x] Reproduce “Swift broken” against:
   - `tests/fixtures/languages/src/swift_advanced.swift`
   - `tests/fixtures/tree-sitter/swift.swift`
   - at least one real-world Swift repo used in benchmarks
-- [ ] Fix whichever stage is failing (language registry / chunking / docmeta / relations / comment extraction).
-- [ ] Add/extend Swift tests so that:
+- [x] Fix whichever stage is failing (language registry / chunking / docmeta / relations / comment extraction).
+- [x] Add/extend Swift tests so that:
   - chunking extracts expected functions/types
   - extracted-prose comment extraction works
 
 ### 5.3 Tree-sitter maxBytes behavior for JavaScript
 
-- [ ] Clarify and codify behavior when JS files exceed the tree-sitter `maxBytes` cap (e.g., `984433 > 524288`):
+- [x] Clarify and codify behavior when JS files exceed the tree-sitter `maxBytes` cap (e.g., `984433 > 524288`):
   - fall back to heuristic chunking with a clear reason, OR
   - treat as oversize/minified and skip indexing entirely (configurable)
-- [ ] Add tests covering the chosen behavior, including ensuring this path cannot trigger downstream Map-size blowups.
+- [x] Add tests covering the chosen behavior, including ensuring this path cannot trigger downstream Map-size blowups.
 
 **Exit criteria**
 
-- [ ] No encoding-related `TypeError` escapes the file read/decode boundary.
-- [ ] Swift fixtures index correctly (chunking + extracted-prose comments at minimum).
-- [ ] Large JS files do not cause tree-sitter disable → downstream indexer crashes.
+- [x] No encoding-related `TypeError` escapes the file read/decode boundary.
+- [x] Swift fixtures index correctly (chunking + extracted-prose comments at minimum).
+- [x] Large JS files do not cause tree-sitter disable → downstream indexer crashes.
 
 ---
 

@@ -261,9 +261,9 @@ export function buildSwiftChunks(text, options = {}) {
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];
-  const typeRe = /^\s*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(class|struct|enum|protocol|extension|actor)\s+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
-  const funcRe = /^\s*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(func)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
-  const initRe = /^\s*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(init|deinit)\b/gm;
+  const typeRe = /^[ \t]*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(class|struct|enum|protocol|extension|actor)\s+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
+  const funcRe = /^[ \t]*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(func)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
+  const initRe = /^[ \t]*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(init|deinit)\b/gm;
 
   const addDecl = (kindKey, rawName, start, isType) => {
     const startLine = offsetToLine(lineIndex, start);
@@ -398,9 +398,9 @@ export function collectSwiftImports(text) {
 export function buildSwiftRelations(text, allImports) {
   const { imports, usages } = collectSwiftImports(text);
   const exports = new Set();
-  const declRe = /^\s*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(class|struct|enum|protocol|extension|actor|func)\s+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
+  const declRe = /^[ \t]*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(class|struct|enum|protocol|extension|actor|func)\s+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
   for (const match of text.matchAll(declRe)) {
-    const indent = match[0].match(/^\s*/)?.[0] ?? '';
+    const indent = match[0].match(/^[ \t]*/)?.[0] ?? '';
     if (indent.length) continue;
     const name = normalizeSwiftName(match[2]);
     if (name) exports.add(name);

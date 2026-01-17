@@ -287,7 +287,7 @@ function extractSqlLeadingDoc(statementText) {
 
 function classifySqlStatement(statement) {
   let trimmed = statement.trim();
-  trimmed = trimmed.replace(/^(--.*\n)+/g, '');
+  trimmed = trimmed.replace(/^(?:--.*(?:\r?\n|$))+/g, '');
   trimmed = trimmed.replace(/^\/\*[\s\S]*?\*\//, '');
   trimmed = trimmed.trim().replace(/\s+/g, ' ');
   const match = trimmed.match(/^create\s+(?:or\s+replace\s+)?(table|view|materialized\s+view|function|procedure|trigger|index|schema|database)\s+([A-Za-z0-9_\"`\.]+)/i);

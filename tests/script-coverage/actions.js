@@ -180,6 +180,11 @@ const actions = [
     covers: ['tree-sitter-chunks-test']
   },
   {
+    label: 'js-tree-sitter-maxbytes-test',
+    run: () => runNode('js-tree-sitter-maxbytes-test', path.join(root, 'tests', 'js-tree-sitter-maxbytes.js')),
+    covers: ['js-tree-sitter-maxbytes-test']
+  },
+  {
     label: 'type-inference-crossfile-go',
     run: () => runNode('type-inference-crossfile-go', path.join(root, 'tests', 'type-inference-crossfile-go.js')),
     covers: []
@@ -453,6 +458,16 @@ const actions = [
     label: 'encoding-hash-test',
     run: () => runNode('encoding-hash-test', path.join(root, 'tests', 'encoding-hash.js')),
     covers: ['encoding-hash-test']
+  },
+  {
+    label: 'encoding-matrix-test',
+    run: () => runNode('encoding-matrix-test', path.join(root, 'tests', 'encoding-matrix.js')),
+    covers: ['encoding-matrix-test']
+  },
+  {
+    label: 'jsonl-utf8-test',
+    run: () => runNode('jsonl-utf8-test', path.join(root, 'tests', 'jsonl-utf8.js')),
+    covers: ['jsonl-utf8-test']
   },
   {
     label: 'embeddings-cache-identity-test',

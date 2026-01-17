@@ -244,7 +244,23 @@ const LANG_CONFIG = {
       function_declaration: 'FunctionDeclaration',
       method_definition: 'MethodDeclaration'
     },
-    docComments: { linePrefixes: ['///', '//'], blockStarts: ['/**'] }
+    docComments: { linePrefixes: ['///', '//'], blockStarts: ['/**'] },
+    nameFields: ['name'],
+    resolveName: (node, rawText) => {
+      if (!node || typeof rawText !== 'string' || typeof node.childForFieldName !== 'function') return null;
+      const nameNode = node.childForFieldName('name');
+      if (nameNode) {
+        const raw = rawText.slice(nameNode.startIndex, nameNode.endIndex).trim();
+        if (raw) return raw;
+      }
+      const declarator = node.childForFieldName('declarator');
+      if (!declarator) return null;
+      const raw = rawText.slice(declarator.startIndex, declarator.endIndex).trim();
+      if (!raw) return null;
+      const match = raw.match(/([A-Za-z_~][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\(/);
+      if (match) return match[1];
+      return raw.replace(/\s*\(.*$/, '').trim();
+    }
   },
   objc: {
     typeNodes: new Set([
@@ -348,7 +364,8 @@ const LANG_CONFIG = {
       method_declaration: 'MethodDeclaration',
       constructor_declaration: 'ConstructorDeclaration'
     },
-    docComments: { linePrefixes: ['//'], blockStarts: ['/**'] }
+    docComments: { linePrefixes: ['//'], blockStarts: ['/**'] },
+    nameFields: ['name']
   },
   html: {
     typeNodes: new Set([

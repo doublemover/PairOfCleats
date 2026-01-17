@@ -413,7 +413,12 @@ for (const task of tasks) {
     outFile
   ];
   if (indexProfile) benchArgs.push('--index-profile', indexProfile);
-  benchArgs.push('--real-embeddings');
+  if (argv['stub-embeddings']) {
+    benchArgs.push('--stub-embeddings');
+    progress.appendLog('[bench] Stub embeddings enabled; results are not comparable to real-embeddings runs.');
+  } else {
+    benchArgs.push('--real-embeddings');
+  }
   if (argv.build) {
     benchArgs.push('--build');
   } else {
@@ -421,9 +426,6 @@ for (const task of tasks) {
     if (argv['build-sqlite'] || autoBuildSqlite) benchArgs.push('--build-sqlite');
   }
   if (argv.incremental) benchArgs.push('--incremental');
-  if (argv['stub-embeddings']) {
-    progress.appendLog('[bench] Stub embeddings requested; ignored for heavy language benchmarks.');
-  }
   if (argv.ann) benchArgs.push('--ann');
   if (argv['no-ann']) benchArgs.push('--no-ann');
   if (argv.backend) benchArgs.push('--backend', String(argv.backend));

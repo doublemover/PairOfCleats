@@ -524,6 +524,10 @@ const CODE_CHUNKERS = [
     context?.luaChunks || buildLuaChunks(text) },
   { id: 'sql', match: (ext) => isSql(ext), chunk: ({ text, context }) =>
     context?.sqlChunks || buildSqlChunks(text) },
+  { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text }) =>
+    chunkProto(text) },
+  { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql' || ext === '.graphqls', chunk: ({ text }) =>
+    chunkGraphql(text) },
   { id: 'cmake', match: (ext) => CMAKE_EXTS.has(ext), chunk: ({ text }) => chunkCmake(text) },
   { id: 'starlark', match: (ext) => STARLARK_EXTS.has(ext), chunk: ({ text }) => chunkStarlark(text) },
   { id: 'nix', match: (ext) => NIX_EXTS.has(ext), chunk: ({ text }) => chunkNix(text) },

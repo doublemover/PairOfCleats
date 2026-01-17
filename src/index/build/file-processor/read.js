@@ -26,11 +26,29 @@ export const truncateByBytes = (value, maxBytes) => {
     return { text, truncated: false, bytes: Buffer.byteLength(text, 'utf8') };
   }
   const buffer = Buffer.from(text, 'utf8');
-  const sliced = buffer.toString('utf8', 0, limit);
+  const resolveUtf8Boundary = (buf, end) => {
+    let cursor = Math.min(end, buf.length);
+    if (cursor <= 0 || cursor === buf.length) return cursor;
+    let start = cursor;
+    while (start > 0 && (buf[start] & 0xc0) === 0x80) {
+      start -= 1;
+    }
+    if (start === cursor) return cursor;
+    const lead = buf[start];
+    let expected = 1;
+    if ((lead & 0x80) === 0) expected = 1;
+    else if ((lead & 0xe0) === 0xc0) expected = 2;
+    else if ((lead & 0xf0) === 0xe0) expected = 3;
+    else if ((lead & 0xf8) === 0xf0) expected = 4;
+    else return start;
+    return (start + expected <= cursor) ? cursor : start;
+  };
+  const safeEnd = resolveUtf8Boundary(buffer, limit);
+  const sliced = buffer.toString('utf8', 0, safeEnd);
   return {
     text: sliced,
     truncated: true,
-    bytes: Buffer.byteLength(sliced, 'utf8')
+    bytes: safeEnd
   };
 };
 
