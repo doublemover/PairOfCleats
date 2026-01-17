@@ -235,7 +235,7 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 initLog();
 writeLog(`Clone tool: ${cloneTool ? cloneTool.label : 'disabled'}`);
 
-const benchScript = path.join(scriptRoot, 'tests', 'bench.js');
+const benchScript = path.join(scriptRoot, 'tests', 'perf', 'bench', 'run.test.js');
 const results = [];
 const startTime = Date.now();
 let completed = 0;

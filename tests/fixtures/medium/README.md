@@ -12,4 +12,4 @@ Example:
 node tests/fixtures/medium/generate.js --out tests/.cache/fixtures/medium --count 8000
 ```
 
-`tests/fixture-smoke.js` will auto-generate this fixture when it detects `generate.js`.
+Fixture tests under `tests/indexing/fixtures/` will auto-generate this fixture when they detect `generate.js`.

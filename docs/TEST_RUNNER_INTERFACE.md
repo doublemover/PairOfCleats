@@ -121,7 +121,7 @@ The runner needs a stable way to know “what tests exist.” Two compatible app
   - Orchestrators that are not leaf tests (`tests/all.js`, `tests/run.js`, `tests/script-coverage.js`)
   - Internal helpers under `tests/script-coverage/**`
 
-Test **id** is the relative path from `tests/` without extension, e.g. `sqlite-incremental`.
+Test **id** is the relative path from `tests/` without extension, e.g. `storage/sqlite/incremental/file-manifest-updates.test`.
 
 ### B) Manifest-based discovery (recommended long-term)
 
@@ -130,7 +130,7 @@ Maintain `tests/manifest.json` (or `tests/manifest.js`) containing metadata per 
 ```json
 {
   "tests": [
-    {"id": "sqlite/incremental/smoke", "path": "tests/sqlite-incremental.js", "tags": ["sqlite","integration"]}
+    {"id": "storage/sqlite/incremental/file-manifest-updates.test", "path": "tests/storage/sqlite/incremental/file-manifest-updates.test.js", "tags": ["sqlite","integration"]}
   ]
 }
 ```
@@ -208,7 +208,7 @@ pairofcleats test mcp --lane services
 pairofcleats test --lane integration --list
 
 # Pass through args to leaf tests (only if the leaf test supports them)
-pairofcleats test fixture-smoke -- --fixture sample
+pairofcleats test perf/bench/run.test -- --limit 10
 ```
 
 ## Migration plan (runner adoption)

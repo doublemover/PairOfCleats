@@ -50,7 +50,7 @@ if (!skipScriptCoverage) {
 
 if (!skipBench) {
   run('bench', [
-    path.join(root, 'tests', 'bench.js'),
+    path.join(root, 'tests', 'perf', 'bench', 'run.test.js'),
     '--build',
     '--stub-embeddings',
     '--backend',

@@ -172,7 +172,7 @@ Primary call-sites to touch (non-exhaustive, but strongly suggested as a checkli
 - `src/retrieval/output/cache.js`
 - `src/shared/hash.js`
 - `tools/*` (cache-gc, clean-artifacts, config-dump, vector-extension, services, benches, etc.)
-- `tests/bench.js`
+- `tests/perf/bench/run.test.js`
 
 Replacement strategy:
 - If it was a **debug/diagnostic** toggle (progress lines, verbose): delete or move to `--explain` only.

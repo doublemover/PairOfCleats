@@ -10,7 +10,7 @@ const cacheRoots = [
 let failure = null;
 try {
   await cleanup(cacheRoots);
-  runNode('sqlite-incremental', path.join(root, 'tests', 'sqlite-incremental.js'));
+  runNode('sqlite-incremental-manifest', path.join(root, 'tests', 'storage', 'sqlite', 'incremental', 'file-manifest-updates.test.js'));
   runNode('sqlite-ann-fallback', path.join(root, 'tests', 'sqlite-ann-fallback.js'));
 } catch (err) {
   console.error(err?.message || err);

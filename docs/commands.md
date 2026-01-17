@@ -79,8 +79,10 @@ Experimental commands require `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
 
 ## Tests
 - `pairofcleats test`
-- `npm run test-all` / `npm run test-all-no-bench`
+- `npm run test`
+- `npm run test:smoke` / `npm run test:unit` / `npm run test:integration`
+- `npm run test:services` / `npm run test:storage` / `npm run test:perf` / `npm run test:ci`
+- `npm run test:list`
 - `npm run verify`
-- `npm run script-coverage-test`
 
-For the full list of test scripts, see `package.json` or run `npm run`.
+Use `node tests/run.js --list` to see the resolved test IDs for your filters.
