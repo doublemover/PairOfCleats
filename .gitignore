@@ -39,3 +39,4 @@ venv.bak/
 pip-wheel-metadata/
 .pairofcleats/
 worktrees/
+.worktrees/

@@ -148,6 +148,7 @@ export const enqueueChunkMetaArtifacts = async ({
   if (chunkMetaUseJsonl) {
     await removeArtifact(path.join(outDir, 'chunk_meta.json'));
     await removeArtifact(path.join(outDir, 'chunk_meta.json.gz'));
+    await removeArtifact(path.join(outDir, 'chunk_meta.json.zst'));
     if (chunkMetaUseShards) {
       // When writing sharded JSONL output, ensure any prior unsharded JSONL output is removed.
       await removeArtifact(path.join(outDir, 'chunk_meta.jsonl'));

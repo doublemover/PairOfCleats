@@ -73,7 +73,9 @@ export function loadOptional(dir, name) {
   const hasTarget = fs.existsSync(target) || fs.existsSync(`${target}.bak`);
   const hasGz = name.endsWith('.json')
     && (fs.existsSync(`${target}.gz`) || fs.existsSync(`${target}.gz.bak`));
-  if (!hasTarget && !hasGz) {
+  const hasZst = name.endsWith('.json')
+    && (fs.existsSync(`${target}.zst`) || fs.existsSync(`${target}.zst.bak`));
+  if (!hasTarget && !hasGz && !hasZst) {
     return null;
   }
   try {

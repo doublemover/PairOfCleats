@@ -341,15 +341,22 @@ export async function validateIndexArtifacts(input = {}) {
       }
       if (file === 'token_postings') {
         const json = path.join(dir, 'token_postings.json');
+        const gz = `${json}.gz`;
+        const zst = `${json}.zst`;
         const meta = path.join(dir, 'token_postings.meta.json');
         const shardsDir = path.join(dir, 'token_postings.shards');
-        return fs.existsSync(json) || fs.existsSync(meta) || fs.existsSync(shardsDir);
+        return fs.existsSync(json)
+          || fs.existsSync(gz)
+          || fs.existsSync(zst)
+          || fs.existsSync(meta)
+          || fs.existsSync(shardsDir);
       }
       const filePath = path.join(dir, file);
       if (fs.existsSync(filePath)) return true;
       if (file.endsWith('.json')) {
         const gzPath = `${filePath}.gz`;
-        if (fs.existsSync(gzPath)) return true;
+        const zstPath = `${filePath}.zst`;
+        if (fs.existsSync(zstPath) || fs.existsSync(gzPath)) return true;
       }
       return false;
     };

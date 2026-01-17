@@ -55,7 +55,7 @@ Each `index-<mode>/` directory contains:
 - `pieces/manifest.json`
   - Piece inventory with checksums and sizes.
 
-Compressed artifacts may appear as `.json.gz`. When compression is enabled, the JSON payload contains a `compression` field and gzip streams are written via fflate.
+Compressed artifacts may appear as `.json.gz` or `.json.zst`. When compression is enabled, the JSON payload contains a `compression` field and compression is written via fflate (gzip) or @mongodb-js/zstd (zstd).
 
 ## Incremental bundles
 
