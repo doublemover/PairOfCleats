@@ -5,7 +5,7 @@ import { parseBuildArgs } from './src/index/build/args.js';
 import { buildIndex } from './src/integrations/core/index.js';
 import { createDisplay } from './src/shared/cli/display.js';
 import { setProgressHandlers } from './src/shared/progress.js';
-import { resolveRepoRoot } from './tools/dict-utils.js';
+import { getCurrentBuildInfo, getRepoCacheRoot, resolveRepoRoot } from './tools/dict-utils.js';
 
 const { argv, modes } = parseBuildArgs(process.argv.slice(2));
 if (argv.verbose) {
@@ -21,19 +21,34 @@ const display = createDisplay({
 });
 const restoreHandlers = setProgressHandlers(display);
 let result = null;
+const resolvedRoot = rootArg || resolveRepoRoot(process.cwd());
+const repoCacheRoot = getRepoCacheRoot(resolvedRoot);
+const crashLogPath = repoCacheRoot
+  ? path.join(repoCacheRoot, 'logs', 'index-crash.log')
+  : null;
 try {
-  result = await buildIndex(rootArg || resolveRepoRoot(process.cwd()), {
+  result = await buildIndex(resolvedRoot, {
     ...argv,
     modes,
     rawArgv: process.argv
   });
+  const buildInfo = getCurrentBuildInfo(resolvedRoot);
+  const buildStatePath = buildInfo?.buildRoot
+    ? path.join(buildInfo.buildRoot, 'build_state.json')
+    : null;
   if (result?.stage3?.embeddings?.cancelled) {
     display.warn('Index build cancelled during embeddings.');
   } else {
-    display.log('Index build complete.');
+    display.log('Index build done.');
+  }
+  if (buildStatePath) {
+    display.log(`Build state: ${buildStatePath}`);
   }
 } catch (err) {
   display.error(`Index build failed: ${err?.message || err}`);
+  if (crashLogPath) {
+    display.error(`Crash log: ${crashLogPath}`);
+  }
   process.exitCode = 1;
 } finally {
   restoreHandlers();

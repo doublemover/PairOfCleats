@@ -66,6 +66,11 @@ const parsePythonParam = (value) => {
   return { name, type };
 };
 
+const normalizePythonType = (value) => {
+  if (!value) return value;
+  return value.replace(/\b(?:builtins|typing)\./g, '');
+};
+
 export const parsePythonSignature = (detail) => {
   if (!detail || typeof detail !== 'string') return null;
   const candidate = detail.split('\n').find((line) => line.includes('(') && line.includes(')')) || detail;
@@ -81,6 +86,7 @@ export const parsePythonSignature = (detail) => {
   if (arrowIdx !== -1) {
     const tail = after.slice(arrowIdx + 2).trim();
     returnType = tail.replace(/:\s*$/, '').trim() || null;
+    returnType = normalizePythonType(returnType);
   }
 
   const paramTypes = {};
@@ -89,7 +95,7 @@ export const parsePythonSignature = (detail) => {
     const parsed = parsePythonParam(part);
     if (!parsed) continue;
     paramNames.push(parsed.name);
-    if (parsed.type) paramTypes[parsed.name] = parsed.type;
+    if (parsed.type) paramTypes[parsed.name] = normalizePythonType(parsed.type);
   }
 
   if (!returnType && !paramNames.length) return null;
