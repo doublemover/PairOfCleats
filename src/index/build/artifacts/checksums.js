@@ -23,17 +23,36 @@ export const writePiecesManifest = async ({
       let bytes = null;
       let checksum = null;
       let checksumAlgo = null;
+      let statError = null;
+      let checksumError = null;
       try {
         const stat = await fs.stat(absPath);
         bytes = stat.size;
-        const result = await checksumFile(absPath);
-        checksum = result?.value || null;
-        checksumAlgo = result?.algo || null;
-      } catch {}
+      } catch (err) {
+        statError = err?.message || String(err);
+      }
+      if (!statError) {
+        try {
+          const result = await checksumFile(absPath);
+          checksum = result?.value || null;
+          checksumAlgo = result?.algo || null;
+        } catch (err) {
+          checksumError = err?.message || String(err);
+        }
+      }
+      if (statError || checksumError) {
+        const parts = [
+          statError ? `stat=${statError}` : null,
+          checksumError ? `checksum=${checksumError}` : null
+        ].filter(Boolean);
+        log(`[pieces] Failed to read checksum for ${entry.path}: ${parts.join(', ')}`);
+      }
       return {
         ...entry,
         bytes,
-        checksum: checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null
+        checksum: checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null,
+        statError: statError || null,
+        checksumError: checksumError || null
       };
     }
   );

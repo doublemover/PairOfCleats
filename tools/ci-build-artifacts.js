@@ -50,6 +50,21 @@ const codeDir = getIndexDir(root, 'code', userConfig);
 const proseDir = getIndexDir(root, 'prose', userConfig);
 const sqlitePaths = resolveSqlitePaths(root, userConfig);
 
+const sanitizeRemoteUrl = (value) => {
+  if (typeof value !== 'string') return value;
+  if (!value.includes('://')) return value;
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) {
+      url.username = '';
+      url.password = '';
+    }
+    return url.toString();
+  } catch {
+    return value.replace(/\/\/[^@/]+@/g, '//');
+  }
+};
+
 /**
  * Run a command and exit on failure.
  * @param {string} cmd
@@ -172,7 +187,7 @@ const manifest = {
   version: 3,
   generatedAt: new Date().toISOString(),
   repo: {
-    remote,
+    remote: sanitizeRemoteUrl(remote),
     root: path.resolve(root)
   },
   commit,

@@ -12,6 +12,8 @@ import { readCachedImports } from './incremental.js';
 let esModuleInitPromise = null;
 let cjsInitPromise = null;
 
+const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+
 const ensureEsModuleLexer = async () => {
   if (!esModuleInitPromise) esModuleInitPromise = initEsModuleLexer;
   await esModuleInitPromise;
@@ -196,12 +198,12 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
 
   showProgress('Imports', items.length, items.length, progressMeta);
   const dedupedImports = {};
-  for (const [mod, entries] of allImports.entries()) {
-    dedupedImports[mod] = Array.from(entries);
-  }
+  const moduleKeys = Array.from(allImports.keys()).sort(sortStrings);
   let edgeCount = 0;
-  for (const entries of allImports.values()) {
-    edgeCount += entries.size;
+  for (const mod of moduleKeys) {
+    const entries = Array.from(allImports.get(mod) || []).sort(sortStrings);
+    dedupedImports[mod] = entries;
+    edgeCount += entries.length;
   }
   return {
     allImports: dedupedImports,
@@ -233,16 +235,24 @@ export function buildImportLinksFromRelations(fileRelations) {
   }
   const dedupedImports = {};
   let edgeCount = 0;
-  for (const [mod, files] of moduleMap.entries()) {
-    dedupedImports[mod] = Array.from(files);
-    edgeCount += files.size;
+  const moduleKeys = Array.from(moduleMap.keys()).sort(sortStrings);
+  for (const mod of moduleKeys) {
+    const files = Array.from(moduleMap.get(mod) || []).sort(sortStrings);
+    dedupedImports[mod] = files;
+    edgeCount += files.length;
   }
   for (const [file, relations] of fileRelations.entries()) {
     const imports = Array.isArray(relations?.imports) ? relations.imports : [];
-    const importLinks = imports
-      .map((imp) => dedupedImports[imp])
-      .filter(Boolean)
-      .flat();
+    const importLinksSet = new Set();
+    for (const mod of imports) {
+      const files = dedupedImports[mod];
+      if (!Array.isArray(files)) continue;
+      for (const linked of files) {
+        if (linked === file) continue;
+        importLinksSet.add(linked);
+      }
+    }
+    const importLinks = Array.from(importLinksSet).sort(sortStrings);
     fileRelations.set(file, { ...relations, importLinks });
   }
   return {

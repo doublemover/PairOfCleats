@@ -1,6 +1,8 @@
 import { quantizeVec } from '../embedding.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
+const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+
 const resolveTokenCount = (chunk) => (
   Number.isFinite(chunk?.tokenCount)
     ? chunk.tokenCount
@@ -269,7 +271,7 @@ export async function buildPostings(input) {
   let phraseVocab = [];
   let phrasePostings = [];
   if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {
-    phraseVocab = Array.from(phrasePost.keys());
+    phraseVocab = Array.from(phrasePost.keys()).sort(sortStrings);
     phrasePostings = new Array(phraseVocab.length);
     for (let i = 0; i < phraseVocab.length; i += 1) {
       const key = phraseVocab[i];
@@ -283,7 +285,7 @@ export async function buildPostings(input) {
   let chargramVocab = [];
   let chargramPostings = [];
   if (chargramEnabled && triPost && typeof triPost.keys === 'function') {
-    chargramVocab = Array.from(triPost.keys());
+    chargramVocab = Array.from(triPost.keys()).sort(sortStrings);
     chargramPostings = new Array(chargramVocab.length);
     for (let i = 0; i < chargramVocab.length; i += 1) {
       const key = chargramVocab[i];
@@ -294,7 +296,7 @@ export async function buildPostings(input) {
     if (typeof triPost.clear === 'function') triPost.clear();
   }
 
-  const tokenVocab = Array.from(tokenPostings.keys());
+  const tokenVocab = Array.from(tokenPostings.keys()).sort(sortStrings);
   const tokenPostingsList = tokenVocab.map((t) => tokenPostings.get(t));
   const avgDocLen = docLengths.length
     ? docLengths.reduce((sum, len) => sum + len, 0) / docLengths.length
@@ -305,9 +307,11 @@ export async function buildPostings(input) {
   const buildFieldPostings = () => {
     if (!fieldPostings || !fieldDocLengths) return null;
     const fields = {};
-    for (const [field, postingsMap] of Object.entries(fieldPostings)) {
+    const fieldNames = Object.keys(fieldPostings).sort(sortStrings);
+    for (const field of fieldNames) {
+      const postingsMap = fieldPostings[field];
       if (!postingsMap || typeof postingsMap.keys !== 'function') continue;
-      const vocab = Array.from(postingsMap.keys());
+      const vocab = Array.from(postingsMap.keys()).sort(sortStrings);
       const postings = vocab.map((token) => postingsMap.get(token));
       const lengths = fieldDocLengths[field] || [];
       const avgLen = lengths.length

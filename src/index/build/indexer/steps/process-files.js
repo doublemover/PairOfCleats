@@ -377,6 +377,10 @@ export const processFiles = async ({
         if (shardMeta?.id) result.manifestEntry.shard = shardMeta.id;
         incrementalState.manifest.files[result.relKey] = result.manifestEntry;
       }
+      if (result.fileInfo && result.relKey) {
+        if (!stateRef.fileInfoByPath) stateRef.fileInfoByPath = new Map();
+        stateRef.fileInfoByPath.set(result.relKey, result.fileInfo);
+      }
       if (result.fileRelations) {
         stateRef.fileRelations.set(result.relKey, result.fileRelations);
       }

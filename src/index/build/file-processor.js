@@ -89,6 +89,52 @@ const resolveTreeSitterLanguagesForSegments = ({ segments, primaryLanguageId, ex
   return Array.from(languages);
 };
 
+const assertChunkBounds = (chunks, textLength, relPath) => {
+  if (!Array.isArray(chunks)) return;
+  const max = Number.isFinite(textLength) ? textLength : 0;
+  for (let i = 0; i < chunks.length; i += 1) {
+    const chunk = chunks[i];
+    const start = Number(chunk?.start);
+    const end = Number(chunk?.end);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+      throw new Error(
+        `Chunk boundaries invalid for ${relPath} at index ${i}: start=${chunk?.start}, end=${chunk?.end}`
+      );
+    }
+    if (start < 0 || end < start || end > max) {
+      throw new Error(
+        `Chunk boundaries out of range for ${relPath} at index ${i}: start=${start}, end=${end}, max=${max}`
+      );
+    }
+  }
+};
+
+const createLineReader = (text, lineIndex) => {
+  const totalLines = lineIndex.length || 1;
+  const clampLine = (value) => Math.max(1, Math.min(totalLines, Number(value) || 1));
+  const getLine = (lineNumber) => {
+    const line = clampLine(lineNumber);
+    const start = lineIndex[line - 1] ?? 0;
+    const end = lineIndex[line] ?? text.length;
+    let value = text.slice(start, end);
+    if (value.endsWith('\n')) value = value.slice(0, -1);
+    if (value.endsWith('\r')) value = value.slice(0, -1);
+    return value;
+  };
+  const getLines = (startLine, endLine) => {
+    if (!Number.isFinite(startLine) || !Number.isFinite(endLine)) return [];
+    const start = clampLine(startLine);
+    const end = clampLine(endLine);
+    if (end < start) return [];
+    const output = new Array(end - start + 1);
+    for (let line = start, idx = 0; line <= end; line += 1, idx += 1) {
+      output[idx] = getLine(line);
+    }
+    return output;
+  };
+  return { getLines, totalLines };
+};
+
 /**
  * Create a file processor with shared caches.
  * @param {object} options
@@ -423,6 +469,12 @@ export function createFileProcessor(options) {
       if (!fileHash) fileHash = decoded.hash;
     }
 
+    const fileInfo = {
+      size: fileStat.size,
+      hash: fileHash,
+      hashAlgo: fileHash ? 'sha1' : null
+    };
+
     let languageLines = null;
     let languageSetKey = null;
 
@@ -527,15 +579,15 @@ export function createFileProcessor(options) {
       if (languageContext?.pythonAstMetrics?.durationMs) {
         setPythonAstDuration(languageContext.pythonAstMetrics.durationMs);
       }
-      const tokenMode = mode === 'extracted-prose' ? 'prose' : mode;
-      const lineIndex = buildLineIndex(text);
-      const totalLines = lineIndex.length || 1;
-      fileLineCount = totalLines;
-      const fileLines = contextWin > 0 ? text.split('\n') : null;
-      const capsByLanguage = resolveFileCaps(fileCaps, ext, lang?.id);
-      if (capsByLanguage.maxLines && totalLines > capsByLanguage.maxLines) {
-        return {
-          chunks: [],
+        const tokenMode = mode === 'extracted-prose' ? 'prose' : mode;
+        const lineIndex = buildLineIndex(text);
+        const totalLines = lineIndex.length || 1;
+        fileLineCount = totalLines;
+        const lineReader = contextWin > 0 ? createLineReader(text, lineIndex) : null;
+        const capsByLanguage = resolveFileCaps(fileCaps, ext, lang?.id);
+        if (capsByLanguage.maxLines && totalLines > capsByLanguage.maxLines) {
+          return {
+            chunks: [],
           fileRelations: null,
           skip: { reason: 'oversize', lines: totalLines, maxLines: capsByLanguage.maxLines }
         };
@@ -674,12 +726,13 @@ export function createFileProcessor(options) {
           segments,
           lineIndex,
           context: segmentContext,
-          treeSitterConfig: treeSitterConfigForMode
-        }));
-      addParseDuration(Date.now() - parseStart);
-      const chunkLineRanges = sc.map((chunk) => {
-        const startLine = chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
-        const endOffset = chunk.end > chunk.start ? chunk.end - 1 : chunk.start;
+            treeSitterConfig: treeSitterConfigForMode
+          }));
+        assertChunkBounds(sc, text.length, relKey);
+        addParseDuration(Date.now() - parseStart);
+        const chunkLineRanges = sc.map((chunk) => {
+          const startLine = chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
+          const endOffset = chunk.end > chunk.start ? chunk.end - 1 : chunk.start;
         let endLine = chunk.meta?.endLine ?? offsetToLine(lineIndex, endOffset);
         if (endLine < startLine) endLine = startLine;
         return { startLine, endLine };
@@ -995,18 +1048,16 @@ export function createFileProcessor(options) {
         }
 
         let preContext = [], postContext = [];
-        if (contextWin > 0 && fileLines) {
+        if (contextWin > 0 && lineReader) {
           if (ci > 0) {
             const prev = chunkLineRanges[ci - 1];
-            const startIdx = Math.max(0, prev.startLine - 1);
-            const endIdx = Math.min(fileLines.length, prev.endLine);
-            preContext = fileLines.slice(startIdx, endIdx).slice(-contextWin);
+            const startLine = Math.max(prev.endLine - contextWin + 1, prev.startLine);
+            preContext = lineReader.getLines(startLine, prev.endLine);
           }
           if (ci + 1 < sc.length) {
             const next = chunkLineRanges[ci + 1];
-            const startIdx = Math.max(0, next.startLine - 1);
-            const endIdx = Math.min(fileLines.length, next.endLine);
-            postContext = fileLines.slice(startIdx, endIdx).slice(0, contextWin);
+            const endLine = Math.min(next.startLine + contextWin - 1, next.endLine);
+            postContext = lineReader.getLines(next.startLine, endLine);
           }
         }
         const chunkAuthors = lineAuthors
@@ -1126,6 +1177,7 @@ export function createFileProcessor(options) {
       durationMs: fileDurationMs,
       chunks: fileChunks,
       fileRelations,
+      fileInfo,
       manifestEntry,
       fileMetrics
     };

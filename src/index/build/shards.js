@@ -223,11 +223,19 @@ export function planShardBatches(items, batchCount, { resolveWeight } = {}) {
   const count = Number.isFinite(batchCount) ? Math.max(1, Math.floor(batchCount)) : 1;
   if (!list.length) return [];
   if (count <= 1) return [list.slice()];
-  const weights = list.map((item, index) => {
+  const tieBreakScale = list.length > 0 ? (list.length + 1) : 1;
+  const weightedItems = list.map((item, index) => {
     const value = resolveWeight ? resolveWeight(item, index) : 0;
-    return Number.isFinite(value) && value > 0 ? value : 0;
+    const baseWeight = Number.isFinite(value) && value > 0 ? value : 0;
+    const tieBreak = baseWeight > 0 ? ((index + 1) / tieBreakScale) * 1e-6 : 0;
+    return {
+      item,
+      weight: baseWeight,
+      partitionWeight: baseWeight + tieBreak
+    };
   });
-  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  const weights = weightedItems.map((entry) => entry.partitionWeight);
+  const totalWeight = weightedItems.reduce((sum, entry) => sum + entry.weight, 0);
   if (!totalWeight) {
     const buckets = Array.from({ length: count }, () => []);
     list.forEach((item, index) => {
@@ -237,11 +245,11 @@ export function planShardBatches(items, batchCount, { resolveWeight } = {}) {
   }
   const partitions = greedyNumberPartitioning(weights.slice(), count);
   const weightQueues = new Map();
-  list.forEach((item, index) => {
-    const weight = weights[index];
-    const entry = weightQueues.get(weight) || { items: [], offset: 0 };
-    entry.items.push(item);
-    weightQueues.set(weight, entry);
+  weightedItems.forEach((entry) => {
+    const weight = entry.partitionWeight;
+    const bucket = weightQueues.get(weight) || { items: [], offset: 0 };
+    bucket.items.push(entry.item);
+    weightQueues.set(weight, bucket);
   });
   const takeNext = (weight) => {
     const entry = weightQueues.get(weight);
