@@ -45,6 +45,7 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
   const treeSitterConfigChunking = treeSitterConfig.configChunking === true;
   const treeSitterBatchByLanguage = treeSitterConfig.batchByLanguage !== false;
   const treeSitterBatchEmbeddedLanguages = treeSitterConfig.batchEmbeddedLanguages !== false;
+  const treeSitterLanguagePasses = treeSitterConfig.languagePasses !== false;
   const treeSitterDeferMissing = treeSitterConfig.deferMissing !== false;
   const hasDeferMissingMax = Object.prototype.hasOwnProperty.call(treeSitterConfig, 'deferMissingMax');
   const treeSitterDeferMissingMax = hasDeferMissingMax
@@ -78,6 +79,7 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
     treeSitterMaxLoadedLanguages,
     treeSitterBatchByLanguage,
     treeSitterBatchEmbeddedLanguages,
+    treeSitterLanguagePasses,
     treeSitterDeferMissing,
     treeSitterDeferMissingMax,
     treeSitterWorker: treeSitterConfig.worker || null

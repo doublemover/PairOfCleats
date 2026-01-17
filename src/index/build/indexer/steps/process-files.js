@@ -153,6 +153,9 @@ const resolveTreeSitterLanguageForEntry = (entry) => {
 const resolveTreeSitterBatchInfo = (entry, treeSitterOptions) => {
   const primary = resolveTreeSitterLanguageForEntry(entry);
   if (!primary) return { key: 'none', languages: [] };
+  if (treeSitterOptions?.languagePasses !== false) {
+    return { key: primary, languages: [primary] };
+  }
   const languages = new Set([primary]);
   if (treeSitterOptions?.batchEmbeddedLanguages !== false && primary === 'html') {
     const maxLoaded = Number.isFinite(treeSitterOptions?.maxLoadedLanguages)
@@ -182,6 +185,7 @@ const applyTreeSitterBatching = (entries, treeSitterOptions, envConfig, { allowR
     const info = resolveTreeSitterBatchInfo(entry, treeSitterOptions);
     entry.treeSitterBatchKey = info.key;
     entry.treeSitterBatchLanguages = info.languages;
+    entry.treeSitterAllowedLanguages = info.languages;
     batchMeta.set(info.key, info.languages);
   }
 
@@ -216,6 +220,7 @@ const updateEntryTreeSitterBatch = (entry, languages) => {
   const normalized = normalizeTreeSitterLanguages(languages);
   entry.treeSitterBatchLanguages = normalized;
   entry.treeSitterBatchKey = normalized.length ? normalized.join('+') : 'none';
+  entry.treeSitterAllowedLanguages = normalized;
 };
 
 const sortEntriesByTreeSitterBatchKey = (entries) => {

@@ -22,6 +22,19 @@ export function isTreeSitterEnabled(options, languageId) {
   const config = options?.treeSitter || {};
   const enabled = normalizeEnabled(config.enabled);
   if (!enabled) return false;
+  const allowedRaw = config.allowedLanguages;
+  if (Array.isArray(allowedRaw) && allowedRaw.length) {
+    const allowed = new Set(allowedRaw);
+    if (languageId) {
+      if (allowed.has(languageId)) {
+        // allowed
+      } else if ((languageId === 'cpp' || languageId === 'objc') && allowed.has('clike')) {
+        // allow clike gate for cpp/objc
+      } else {
+        return false;
+      }
+    }
+  }
   const langs = config.languages || {};
   if (languageId && Object.prototype.hasOwnProperty.call(langs, languageId)) {
     return normalizeEnabled(langs[languageId]);

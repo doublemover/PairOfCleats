@@ -166,6 +166,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     treeSitterMaxLoadedLanguages,
     treeSitterBatchByLanguage,
     treeSitterBatchEmbeddedLanguages,
+    treeSitterLanguagePasses,
     treeSitterDeferMissing,
     treeSitterDeferMissingMax,
     treeSitterWorker
@@ -460,6 +461,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
       maxLoadedLanguages: treeSitterMaxLoadedLanguages,
       batchByLanguage: treeSitterBatchByLanguage,
       batchEmbeddedLanguages: treeSitterBatchEmbeddedLanguages,
+      languagePasses: treeSitterLanguagePasses,
       deferMissing: treeSitterDeferMissing,
       deferMissingMax: treeSitterDeferMissingMax,
       worker: treeSitterWorker

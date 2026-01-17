@@ -316,9 +316,15 @@ export function createFileProcessor(options) {
     let languageSetKey = null;
 
     const cpuResult = await runCpu(async () => {
-      const treeSitterConfig = fileEntry?.treeSitterDisabled
+      const baseTreeSitterConfig = fileEntry?.treeSitterDisabled
         ? { ...(languageOptions?.treeSitter || {}), enabled: false }
         : languageOptions?.treeSitter;
+      const allowedLanguages = Array.isArray(fileEntry?.treeSitterAllowedLanguages)
+        ? fileEntry.treeSitterAllowedLanguages
+        : null;
+      const treeSitterConfig = allowedLanguages && allowedLanguages.length
+        ? { ...(baseTreeSitterConfig || {}), allowedLanguages }
+        : baseTreeSitterConfig;
       const resolvedSegmentsConfig = mode === 'extracted-prose'
         ? { ...normalizedSegmentsConfig, onlyExtras: true }
         : normalizedSegmentsConfig;
