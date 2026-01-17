@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { createCli } from '../src/shared/cli.js';
 import { createDisplay } from '../src/shared/cli/display.js';
 import {
@@ -17,9 +18,10 @@ import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../src/
 import { getIndexDir, getMetricsDir, loadUserConfig, resolveIndexRoot, resolveLmdbPaths, resolveRepoRoot } from './dict-utils.js';
 import { Packr } from 'msgpackr';
 
+const require = createRequire(import.meta.url);
 let open = null;
 try {
-  ({ open } = await import('lmdb'));
+  ({ open } = require('lmdb'));
 } catch {}
 
 const argv = createCli({
