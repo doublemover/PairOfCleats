@@ -50,6 +50,7 @@
     "api-server": "node tools/api-server.js",
     "mcp-server": "node tools/mcp-server.js",
     "indexer-service": "node tools/indexer-service.js",
+    "test": "node tests/run.js",
     "test-all": "node tests/all.js",
     "test-all-no-bench": "node tests/all.js --skip-bench",
     "verify": "node tests/smoke.js",

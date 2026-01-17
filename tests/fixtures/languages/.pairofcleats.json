@@ -1,5 +1,29 @@
 {
   "indexing": {
-    "typeInference": true
+    "concurrency": 2,
+    "embeddingBatchSize": 128,
+    "embeddings": {
+      "enabled": false
+    },
+    "workerPool": {
+      "enabled": false
+    },
+    "treeSitter": {
+      "enabled": true,
+      "deferMissing": false,
+      "maxLoadedLanguages": 1
+    },
+    "lint": false,
+    "complexity": false,
+    "riskAnalysis": true,
+    "riskAnalysisCrossFile": true,
+    "gitBlame": false,
+    "typeInference": true,
+    "typeInferenceCrossFile": false,
+    "controlFlow": true,
+    "astDataflow": true,
+    "pythonAst": {
+      "enabled": true
+    }
   }
 }

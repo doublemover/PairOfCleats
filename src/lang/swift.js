@@ -261,9 +261,9 @@ export function buildSwiftChunks(text, options = {}) {
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];
-  const typeRe = /^\s*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(class|struct|enum|protocol|extension|actor)\s+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
-  const funcRe = /^\s*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(func)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
-  const initRe = /^\s*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(init|deinit)\b/gm;
+  const typeRe = /^[ \t]*(?:@[\w().,:]+[ \t]+)*(?:[A-Za-z]+[ \t]+)*(class|struct|enum|protocol|extension|actor)[ \t]+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
+  const funcRe = /^[ \t]*(?:@[\w().,:]+[ \t]+)*(?:[A-Za-z]+[ \t]+)*(func)[ \t]+([A-Za-z_][A-Za-z0-9_]*)/gm;
+  const initRe = /^[ \t]*(?:@[\w().,:]+[ \t]+)*(?:[A-Za-z]+[ \t]+)*(init|deinit)\b/gm;
 
   const addDecl = (kindKey, rawName, start, isType) => {
     const startLine = offsetToLine(lineIndex, start);

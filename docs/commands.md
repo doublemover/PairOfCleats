@@ -78,6 +78,7 @@ Experimental commands require `profile=full` (or `PAIROFCLEATS_PROFILE=full`).
   and `--tier <typical|large>` instead.
 
 ## Tests
+- `pairofcleats test`
 - `npm run test-all` / `npm run test-all-no-bench`
 - `npm run verify`
 - `npm run script-coverage-test`

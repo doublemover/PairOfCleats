@@ -22,13 +22,13 @@ This document specifies a **single, stable test entrypoint** and its interface, 
 - Rewriting the entire test suite to a new framework in the first pass.
 - Changing test semantics. The runner orchestrates; tests remain authoritative.
 
-## Proposed entrypoint names
+## Entrypoint names
 
-Choose **one** of the following as the canonical public interface:
+Canonical entrypoints:
 
-- **Preferred:** `pairofcleats test …` (subcommand of the existing CLI)
-- **Acceptable:** `node tests/run.js …` (repo-local runner)
-- **NPM alias:** `npm test` should map to one of the above
+- `pairofcleats test …` (CLI subcommand)
+- `node tests/run.js …` (repo-local runner)
+- `npm test` (wired to `node tests/run.js`)
 
 The docs below describe behavior independent of the concrete executable name.
 
@@ -118,7 +118,8 @@ The runner needs a stable way to know “what tests exist.” Two compatible app
 - Discover tests as executable Node scripts under `tests/`, e.g. `tests/*.js`, excluding:
   - `tests/fixtures/**`
   - `tests/**/helpers/**` (if created)
-  - Orchestrators that are not leaf tests (`tests/all.js`, `tests/script-coverage.js`, etc.)
+  - Orchestrators that are not leaf tests (`tests/all.js`, `tests/run.js`, `tests/script-coverage.js`)
+  - Internal helpers under `tests/script-coverage/**`
 
 Test **id** is the relative path from `tests/` without extension, e.g. `sqlite-incremental`.
 

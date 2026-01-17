@@ -195,8 +195,8 @@ const sanitizeTokenizeResult = (result) => {
   return {
     tokens: normalizeStringArray(result?.tokens),
     seq: normalizeStringArray(result?.seq),
-    ngrams: Array.isArray(result?.ngrams) ? normalizeStringArray(result.ngrams) : null,
-    chargrams: Array.isArray(result?.chargrams) ? normalizeStringArray(result.chargrams) : null,
+    ngrams: Array.isArray(result?.ngrams) ? normalizeStringArray(result.ngrams) : undefined,
+    chargrams: Array.isArray(result?.chargrams) ? normalizeStringArray(result.chargrams) : undefined,
     minhashSig: normalizeNumberArray(result?.minhashSig),
     stats: {
       unique: Number(stats.unique) || 0,
