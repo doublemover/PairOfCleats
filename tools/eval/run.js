@@ -123,7 +123,7 @@ if (!cases.length) {
 }
 
 const results = [];
-const evalTask = display.task('Eval', { total: cases.length, stage: 'eval' });
+const queryTask = display.task('Queries', { total: cases.length, stage: 'queries' });
 let processedCases = 0;
 for (const entry of cases) {
   const query = String(entry?.query || '').trim();
@@ -168,7 +168,7 @@ for (const entry of cases) {
     goldMetrics
   });
   processedCases += 1;
-  evalTask.set(processedCases, cases.length);
+  queryTask.set(processedCases, cases.length);
 }
 
 const aggregate = (field) => {

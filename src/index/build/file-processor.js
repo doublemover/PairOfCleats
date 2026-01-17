@@ -739,6 +739,26 @@ export function createFileProcessor(options) {
       };
       let sc;
       try {
+        if (treeSitterEnabled) {
+          const requiredLanguages = resolveTreeSitterLanguagesForSegments({
+            segments,
+            primaryLanguageId: lang?.id || null,
+            ext,
+            treeSitterConfig: treeSitterConfigForMode
+          });
+          const shouldPreload = treeSitterLanguagePasses === false || requiredLanguages.length <= 1;
+          if (shouldPreload && requiredLanguages.length) {
+            try {
+              await runTreeSitter(() => preloadTreeSitterLanguages(requiredLanguages, {
+                log: languageOptions?.log,
+                parallel: false,
+                maxLoadedLanguages: treeSitterConfigForMode?.maxLoadedLanguages
+              }));
+            } catch {
+              // ignore preload failures; chunking will fall back if needed.
+            }
+          }
+        }
         sc = treeSitterLanguagePasses === false
           ? await runTreeSitter(() => chunkSegments({
             text,

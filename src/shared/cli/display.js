@@ -35,37 +35,29 @@ const formatCount = (value) => {
 const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
 const stripAnsi = (value) => String(value || '').replace(ANSI_PATTERN, '');
 
-const PARTIALS_FINE = ['▏', '▎', '▍', '▌', '▋', '▊', '▉'];
-const PARTIALS_MED = ['▎', '▌', '▊'];
-const PARTIALS_COARSE = ['▌'];
-const BRAILLE_RAMP = ['⡀', '⡄', '⡆', '⡇', '⣇', '⣧', '⣷'];
+const PARTIALS_OVERALL = ['▊', '▋', '▌', '▍', '▎', '▏'];
+const PARTIALS_STAGE = ['▖', '▘', '▝', '▗', '▚', '▞'];
+const PARTIALS_IMPORTS = ['░', '▒', '▓'];
+const PARTIALS_FILES = ['⡀', '⡄', '⡆', '⡇', '⣇', '⣧', '⣷'];
+const PARTIALS_ARTIFACTS = ['⡈', '⡘', '⡸', '⣸'];
+const PARTIALS_REPOS = ['▂', '▃', '▄', '▅', '▆', '▇'];
+const PARTIALS_DEFAULT = ['⡁', '⡃', '⡇', '⡧', '⡷'];
+const EMPTY_PATTERN_DEFAULT = '┈┉';
 
 const BAR_STYLES = {
-  overall: { fill: '⣿', empty: '·', partials: BRAILLE_RAMP },
-  stage: { fill: '▓', empty: '░', partials: PARTIALS_COARSE },
-  files: { fill: '⣿', empty: '·', partials: BRAILLE_RAMP },
-  shard: { fill: '⣿', empty: '·', partials: BRAILLE_RAMP },
-  imports: { fill: '▆', empty: '·', partials: PARTIALS_MED },
-  artifacts: { fill: '▇', empty: '·', partials: PARTIALS_MED },
-  records: { fill: '▅', empty: '·', partials: PARTIALS_MED },
-  embeddings: { fill: '⣿', empty: '·', partials: BRAILLE_RAMP },
-  downloads: { fill: '▇', empty: '·', partials: PARTIALS_MED },
-  ci: { fill: '▓', empty: '░', partials: PARTIALS_COARSE },
-  default: { fill: '⣿', empty: '·', partials: BRAILLE_RAMP }
-};
-
-const BAR_THEMES = {
-  overall: { fill: '38;5;24', edge: '38;5;25', empty: '38;5;238', bracket: '97' },
-  stage: { fill: '38;5;240', edge: '38;5;244', empty: '38;5;238', bracket: '97' },
-  files: { fill: '38;5;22', edge: '38;5;28', empty: '38;5;238', bracket: '97' },
-  shard: { fill: '38;5;23', edge: '38;5;30', empty: '38;5;238', bracket: '97' },
-  imports: { fill: '38;5;58', edge: '38;5;64', empty: '38;5;238', bracket: '97' },
-  artifacts: { fill: '38;5;54', edge: '38;5;55', empty: '38;5;238', bracket: '97' },
-  records: { fill: '38;5;30', edge: '38;5;31', empty: '38;5;238', bracket: '97' },
-  embeddings: { fill: '38;5;60', edge: '38;5;61', empty: '38;5;238', bracket: '97' },
-  downloads: { fill: '38;5;24', edge: '38;5;25', empty: '38;5;238', bracket: '97' },
-  ci: { fill: '38;5;236', edge: '38;5;240', empty: '38;5;238', bracket: '97' },
-  default: { fill: '38;5;24', edge: '38;5;25', empty: '38;5;238', bracket: '97' }
+  overall: { fill: '▉', empty: ' ', partials: PARTIALS_OVERALL },
+  stage: { fill: '█', empty: ' ', partials: PARTIALS_STAGE },
+  imports: { fill: '█', empty: ' ', partials: PARTIALS_IMPORTS },
+  files: { fill: '⣿', empty: ' ', partials: PARTIALS_FILES },
+  artifacts: { fill: '⣿', empty: ' ', partials: PARTIALS_ARTIFACTS },
+  shard: { fill: '⣿', empty: ' ', partials: PARTIALS_FILES },
+  records: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
+  embeddings: { fill: '⣿', empty: ' ', partials: PARTIALS_FILES },
+  downloads: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
+  repos: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
+  queries: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
+  ci: { fill: '█', empty: ' ', partials: PARTIALS_STAGE },
+  default: { fill: '⣿', empty: EMPTY_PATTERN_DEFAULT, partials: PARTIALS_DEFAULT }
 };
 
 const resolveBarVariant = (task) => {
@@ -73,6 +65,8 @@ const resolveBarVariant = (task) => {
   const stage = String(task?.stage || '').toLowerCase();
   if (stage === 'overall' || name === 'overall') return 'overall';
   if (name === 'stage') return 'stage';
+  if (name === 'repos' || stage === 'bench') return 'repos';
+  if (name === 'queries' || stage === 'queries' || stage === 'query') return 'queries';
   if (name === 'files') return 'files';
   if (name === 'shard') return 'shard';
   if (name === 'imports') return 'imports';
@@ -82,6 +76,81 @@ const resolveBarVariant = (task) => {
   if (name === 'embeddings' || stage === 'embeddings') return 'embeddings';
   if (name === 'ci' || stage === 'ci') return 'ci';
   return 'default';
+};
+
+const repeatPattern = (pattern, count) => {
+  if (!pattern || count <= 0) return '';
+  const safe = String(pattern);
+  if (safe.length === 1) return safe.repeat(count);
+  let output = '';
+  for (let i = 0; i < count; i += 1) {
+    output += safe[i % safe.length];
+  }
+  return output;
+};
+
+const clampChannel = (value) => Math.max(0, Math.min(255, Math.round(value)));
+
+const mixChannel = (from, to, t) => clampChannel(from + (to - from) * t);
+
+const mixColor = (from, to, t) => ({
+  r: mixChannel(from.r, to.r, t),
+  g: mixChannel(from.g, to.g, t),
+  b: mixChannel(from.b, to.b, t)
+});
+
+const scaleColor = (color, factor) => ({
+  r: clampChannel(color.r * factor),
+  g: clampChannel(color.g * factor),
+  b: clampChannel(color.b * factor)
+});
+
+const lightenColor = (color, factor) => mixColor(color, { r: 255, g: 255, b: 255 }, factor);
+
+const colorToAnsi = (color, isBackground = false) => {
+  const prefix = isBackground ? '48' : '38';
+  return `${prefix};2;${color.r};${color.g};${color.b}`;
+};
+
+const GRADIENT_STOPS = [
+  { pos: 0, color: { r: 64, g: 42, b: 22 } },   // dark brown
+  { pos: 0.38, color: { r: 44, g: 140, b: 82 } }, // green
+  { pos: 0.72, color: { r: 214, g: 124, b: 48 } }, // orange
+  { pos: 1, color: { r: 236, g: 206, b: 80 } }  // yellow
+];
+
+const resolveGradientColor = (index, total) => {
+  if (!Number.isFinite(total) || total <= 1) return GRADIENT_STOPS[0].color;
+  const t = Math.max(0, Math.min(1, index / (total - 1)));
+  for (let i = 0; i < GRADIENT_STOPS.length - 1; i += 1) {
+    const start = GRADIENT_STOPS[i];
+    const end = GRADIENT_STOPS[i + 1];
+    if (t >= start.pos && t <= end.pos) {
+      const local = (t - start.pos) / (end.pos - start.pos || 1);
+      return mixColor(start.color, end.color, local);
+    }
+  }
+  return GRADIENT_STOPS[GRADIENT_STOPS.length - 1].color;
+};
+
+const PULSE_BRACKET_COLORS = [
+  { r: 170, g: 170, b: 170 },
+  { r: 210, g: 210, b: 210 },
+  { r: 245, g: 245, b: 245 },
+  { r: 210, g: 210, b: 210 }
+];
+
+const resolveBracketColor = (index, total, now, active = true) => {
+  if (!active) return colorToAnsi({ r: 170, g: 170, b: 170 });
+  const step = Math.floor(now / 120);
+  const offset = total > 0 ? index % PULSE_BRACKET_COLORS.length : 0;
+  const pulseIndex = (step + offset) % PULSE_BRACKET_COLORS.length;
+  return colorToAnsi(PULSE_BRACKET_COLORS[pulseIndex]);
+};
+
+const composeColor = (foreground, background) => {
+  if (foreground && background) return `${foreground};${background}`;
+  return foreground || background || '';
 };
 
 const buildBar = (pct, width, style, theme, colorize) => {
@@ -101,14 +170,15 @@ const buildBar = (pct, width, style, theme, colorize) => {
 
   const fillChar = style?.fill || '█';
   const emptyChar = style?.empty || '·';
-  const filledText = fullCount > 0 ? fillChar.repeat(fullCount) : '';
+  const filledText = fullCount > 0 ? repeatPattern(fillChar, fullCount) : '';
   const partialText = hasPartial ? partials[partialIndex - 1] : '';
-  const emptyText = emptyCount > 0 ? emptyChar.repeat(emptyCount) : '';
+  const emptyText = emptyCount > 0 ? repeatPattern(emptyChar, emptyCount) : '';
 
-  const filled = colorize ? colorize(filledText, theme?.fill) : filledText;
-  const partial = colorize ? colorize(partialText, theme?.edge) : partialText;
-  const empty = colorize ? colorize(emptyText, theme?.empty) : emptyText;
-  const bracket = theme?.bracket || '97';
+  const background = theme?.background || '';
+  const filled = colorize ? colorize(filledText, composeColor(theme?.fill, background)) : filledText;
+  const partial = colorize ? colorize(partialText, composeColor(theme?.edge, background)) : partialText;
+  const empty = colorize ? colorize(emptyText, composeColor(theme?.empty, background)) : emptyText;
+  const bracket = theme?.bracket || '';
   const left = colorize ? colorize('[', bracket) : '[';
   const right = colorize ? colorize(']', bracket) : ']';
   return `${left}${filled}${partial}${empty}${right}`;
@@ -174,6 +244,65 @@ const padLabel = (label, width) => {
   if (plain.length < safeWidth) return `${label}${' '.repeat(safeWidth - plain.length)}`;
   if (safeWidth <= 3) return plain.slice(0, safeWidth);
   return `${plain.slice(0, safeWidth - 3)}...`;
+};
+
+const formatDurationShort = (seconds) => {
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  const total = Math.max(1, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  return `${minutes}:${String(secs).padStart(2, '0')}`;
+};
+
+const resolveRateUnit = (task) => {
+  const rawUnit = typeof task?.unit === 'string' ? task.unit.trim().toLowerCase() : '';
+  if (rawUnit) return rawUnit;
+  const name = String(task?.name || '').toLowerCase();
+  if (name.includes('file')) return 'files';
+  if (name.includes('chunk')) return 'chunks';
+  if (name.includes('line')) return 'lines';
+  if (name.includes('query')) return 'queries';
+  if (name.includes('repo')) return 'repos';
+  if (name.includes('import')) return 'imports';
+  if (name.includes('artifact')) return 'artifacts';
+  if (name.includes('record')) return 'records';
+  if (name.includes('shard')) return 'shards';
+  if (name.includes('embedding')) return 'embeddings';
+  if (name.includes('download')) return 'downloads';
+  return '';
+};
+
+const formatRate = (rate) => {
+  if (!Number.isFinite(rate) || rate <= 0) return null;
+  if (rate >= 100) return Math.round(rate).toLocaleString();
+  if (rate >= 10) return rate.toFixed(1);
+  return rate.toFixed(2);
+};
+
+const buildProgressExtras = (task, now) => {
+  if (!task || !Number.isFinite(task.current)) return null;
+  const elapsedMs = Number.isFinite(task.startedAt) ? Math.max(0, now - task.startedAt) : 0;
+  if (!elapsedMs) return null;
+  const current = Math.max(0, task.current);
+  const elapsedSec = elapsedMs / 1000;
+  const rate = current > 0 ? current / elapsedSec : 0;
+  const unit = resolveRateUnit(task);
+  const parts = [];
+  if (rate > 0 && unit) {
+    const rateText = formatRate(rate);
+    if (rateText) parts.push(`${rateText} ${unit}/s`);
+  }
+  if (Number.isFinite(task.total) && task.total > 0 && rate > 0 && current > 0) {
+    const remaining = Math.max(0, task.total - current);
+    const etaSec = remaining / rate;
+    const etaText = formatDurationShort(etaSec);
+    if (etaText) parts.push(`eta ${etaText}`);
+  }
+  return parts.length ? parts.join(' | ') : null;
 };
 
 export function createDisplay(options = {}) {
@@ -279,7 +408,9 @@ export function createDisplay(options = {}) {
       'extracted-prose Stage',
       'extracted-prose Imports',
       'extracted-prose Shard',
-      'records Records'
+      'records Records',
+      'bench Repos',
+      'queries Queries'
     ];
     const maxLabelLength = [...taskLabels, ...baselineLabels]
       .reduce((max, label) => Math.max(max, stripAnsi(label).length), 0);
@@ -306,6 +437,23 @@ export function createDisplay(options = {}) {
       if (name === 'artifacts') tasksByMode.artifacts.set(task.mode, task);
     }
     const overallOverride = computeOverallProgress({ overallTask, tasksByMode });
+    const now = Date.now();
+    const taskColors = new Map();
+    orderedTasks.forEach((task, index) => {
+      taskColors.set(task.id, resolveGradientColor(index, orderedTasks.length));
+    });
+    const resolveBackgroundColor = (task, variant) => {
+      if (!task?.mode) return null;
+      if (variant === 'imports') {
+        const stageTask = tasksByMode.stage.get(task.mode);
+        if (stageTask) return taskColors.get(stageTask.id) || null;
+      }
+      if (variant === 'files') {
+        const importsTask = tasksByMode.imports.get(task.mode);
+        if (importsTask) return taskColors.get(importsTask.id) || null;
+      }
+      return null;
+    };
     const taskLines = orderedTasks.map((task, index) => {
       const total = Number.isFinite(task.total) && task.total > 0 ? task.total : null;
       const current = Number.isFinite(task.current) ? task.current : 0;
@@ -320,12 +468,21 @@ export function createDisplay(options = {}) {
         : null;
       const variant = resolveBarVariant(task);
       const style = BAR_STYLES[variant] || BAR_STYLES.default;
-      const theme = BAR_THEMES[variant] || BAR_THEMES.default;
+      const baseColor = taskColors.get(task.id) || resolveGradientColor(index, orderedTasks.length);
+      const fill = colorToAnsi(baseColor);
+      const edge = colorToAnsi(lightenColor(baseColor, 0.12));
+      const empty = colorToAnsi(scaleColor(baseColor, 0.25));
+      const backgroundColor = resolveBackgroundColor(task, variant);
+      const background = backgroundColor ? colorToAnsi(backgroundColor, true) : '';
+      const bracket = resolveBracketColor(index, orderedTasks.length, now, task.status === 'running');
+      const theme = { fill, edge, empty, bracket, background };
       const bar = total ? buildBar(clampRatio(pct), barWidth, style, theme, colorize) : '[-]';
       const label = padLabel(taskLabels[index] || task.name, labelWidth);
       const status = task.status && task.status !== 'running' ? ` (${task.status})` : '';
+      const extras = buildProgressExtras(task, now);
+      const extraText = extras ? ` | ${extras}` : '';
       const message = task.message ? ` ${task.message}` : '';
-      return `${label} ${bar} ${suffix}${status}${message}`.trim();
+      return `${label} ${bar} ${suffix}${status}${extraText}${message}`.trim();
     });
 
     const logLines = [...state.logLines];
@@ -389,6 +546,7 @@ export function createDisplay(options = {}) {
 
   const ensureTask = (id, name, meta = {}) => {
     if (state.tasks.has(id)) return state.tasks.get(id);
+    const createdAt = Date.now();
     const task = {
       id,
       name: name || id,
@@ -399,7 +557,9 @@ export function createDisplay(options = {}) {
       mode: meta.mode || null,
       status: 'running',
       message: meta.message || null,
-      ephemeral: meta.ephemeral === true
+      ephemeral: meta.ephemeral === true,
+      startedAt: createdAt,
+      lastUpdateMs: createdAt
     };
     state.tasks.set(id, task);
     state.taskOrder.push(id);
@@ -422,6 +582,7 @@ export function createDisplay(options = {}) {
     if (typeof update.message === 'string') task.message = update.message;
     if (typeof update.stage === 'string') task.stage = update.stage;
     if (typeof update.mode === 'string') task.mode = update.mode;
+    task.lastUpdateMs = Date.now();
     if (jsonl) emitTaskEvent('task:progress', task, update.extra || {});
     if (task.ephemeral && (task.status === 'done' || task.status === 'failed')) {
       removeTask(task);
