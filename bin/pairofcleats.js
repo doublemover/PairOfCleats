@@ -8,6 +8,7 @@ const ROOT = resolveToolRoot();
 
 const COMMANDS = new Map([
   ['search', { script: 'search.js', extraArgs: [] }],
+  ['test', { script: 'tests/run.js', extraArgs: [] }],
   ['bootstrap', { script: 'tools/bootstrap.js', extraArgs: [] }],
   ['setup', { script: 'tools/setup.js', extraArgs: [] }],
   ['generate-repo-dict', { script: 'tools/generate-repo-dict.js', extraArgs: [] }],
@@ -438,6 +439,9 @@ Services:
   service api             Run local HTTP JSON API
   service indexer         Run multi-repo indexer service
   service mcp             Run MCP server
+
+Tests:
+  test [selectors...]     Run test runner
 
 Other:
   generate-repo-dict       Build repo-specific dictionary

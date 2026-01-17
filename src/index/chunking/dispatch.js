@@ -181,7 +181,8 @@ const chunkProto = (text) => {
     }
   }
   const chunks = buildChunksFromLineHeadings(text, headings);
-  return chunks || [{ start: 0, end: text.length, name: 'proto', kind: 'Section', meta: { format: 'proto' } }];
+  if (chunks && chunks.length) return applyFormatMeta(chunks, 'proto', 'Section');
+  return [{ start: 0, end: text.length, name: 'proto', kind: 'Section', meta: { format: 'proto' } }];
 };
 
 const chunkGraphql = (text) => {
@@ -211,7 +212,8 @@ const chunkGraphql = (text) => {
     }
   }
   const chunks = buildChunksFromLineHeadings(text, headings);
-  return chunks || [{ start: 0, end: text.length, name: 'graphql', kind: 'Section', meta: { format: 'graphql' } }];
+  if (chunks && chunks.length) return applyFormatMeta(chunks, 'graphql', 'Section');
+  return [{ start: 0, end: text.length, name: 'graphql', kind: 'Section', meta: { format: 'graphql' } }];
 };
 
 const chunkCmake = (text) => chunkByLineRegex(text, /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/, {
@@ -543,7 +545,9 @@ const CODE_FORMAT_CHUNKERS = [
   { id: 'ini', match: (ext) => ['.toml', '.ini', '.cfg', '.conf'].includes(ext), chunk: ({ text, ext, context }) =>
     chunkIniToml(text, ext === '.toml' ? 'toml' : 'ini', context) },
   { id: 'xml', match: (ext) => ext === '.xml', chunk: ({ text }) => chunkXml(text) },
-  { id: 'yaml', match: (ext) => ext === '.yaml' || ext === '.yml', chunk: ({ text, relPath, context }) => chunkYaml(text, relPath, context) }
+  { id: 'yaml', match: (ext) => ext === '.yaml' || ext === '.yml', chunk: ({ text, relPath, context }) => chunkYaml(text, relPath, context) },
+  { id: 'proto', match: (ext) => ext === '.proto', chunk: ({ text }) => chunkProto(text) },
+  { id: 'graphql', match: (ext) => ext === '.graphql' || ext === '.gql', chunk: ({ text }) => chunkGraphql(text) }
 ];
 
 const PROSE_CHUNKERS = [

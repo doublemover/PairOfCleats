@@ -1,0 +1,31 @@
+{
+  "indexing": {
+    "concurrency": 2,
+    "embeddingBatchSize": 128,
+    "embeddings": {
+      "batchSize": 128,
+      "concurrency": 1,
+      "shards": {
+        "enabled": false
+      }
+    },
+    "workerPool": {
+      "enabled": false
+    },
+    "treeSitter": {
+      "enabled": false
+    },
+    "lint": false,
+    "complexity": false,
+    "riskAnalysis": false,
+    "riskAnalysisCrossFile": false,
+    "typeInference": false,
+    "typeInferenceCrossFile": false,
+    "controlFlow": false,
+    "astDataflow": false,
+    "gitBlame": false,
+    "pythonAst": {
+      "enabled": false
+    }
+  }
+}
