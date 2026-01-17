@@ -269,9 +269,13 @@ export async function writeIndexArtifacts(input) {
       await fs.rm(targetPath, { recursive: true, force: true });
     } catch {}
   };
+  const removeCompressedArtifact = async (base) => {
+    await removeArtifact(path.join(outDir, `${base}.json.gz`));
+    await removeArtifact(path.join(outDir, `${base}.json.zst`));
+  };
   if (tokenPostingsUseShards) {
     await removeArtifact(path.join(outDir, 'token_postings.json'));
-    await removeArtifact(path.join(outDir, 'token_postings.json.gz'));
+    await removeCompressedArtifact('token_postings');
     await removeArtifact(path.join(outDir, 'token_postings.shards'));
   } else {
     await removeArtifact(path.join(outDir, 'token_postings.meta.json'));
@@ -314,9 +318,10 @@ export async function writeIndexArtifacts(input) {
     );
     addPieceFile({ type: 'stats', name: 'index_state', format: 'json' }, indexStatePath);
   }
+  const compressedExt = compressionMode === 'zstd' ? 'zst' : 'gz';
   const artifactPath = (base, compressed) => path.join(
     outDir,
-    compressed ? `${base}.json.gz` : `${base}.json`
+    compressed ? `${base}.json.${compressedExt}` : `${base}.json`
   );
   const enqueueJsonObject = (base, payload, { compressible = true, piece = null } = {}) => {
     if (compressionEnabled && compressible && compressibleArtifacts.has(base)) {
@@ -391,11 +396,11 @@ export async function writeIndexArtifacts(input) {
   const denseVectorsEnabled = postings.dims > 0 && postings.quantizedVectors.length;
   if (!denseVectorsEnabled) {
     await removeArtifact(path.join(outDir, 'dense_vectors_uint8.json'));
-    await removeArtifact(path.join(outDir, 'dense_vectors_uint8.json.gz'));
+    await removeCompressedArtifact('dense_vectors_uint8');
     await removeArtifact(path.join(outDir, 'dense_vectors_doc_uint8.json'));
-    await removeArtifact(path.join(outDir, 'dense_vectors_doc_uint8.json.gz'));
+    await removeCompressedArtifact('dense_vectors_doc_uint8');
     await removeArtifact(path.join(outDir, 'dense_vectors_code_uint8.json'));
-    await removeArtifact(path.join(outDir, 'dense_vectors_code_uint8.json.gz'));
+    await removeCompressedArtifact('dense_vectors_code_uint8');
   }
   if (denseVectorsEnabled) {
     enqueueJsonObject('dense_vectors_uint8', {

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { once } from 'node:events';
 import { Transform } from 'node:stream';
 import { Gzip } from 'fflate';
+import { tryRequire } from './optional-deps.js';
 
 const writeChunk = async (stream, chunk) => {
   if (!stream.write(chunk)) {
@@ -47,6 +48,65 @@ const createFflateGzipStream = (options = {}) => {
       stream.push(Buffer.from(chunk));
     }
   };
+  return stream;
+};
+
+const resolveZstd = (options = {}) => {
+  const result = tryRequire('@mongodb-js/zstd', options);
+  if (result.ok) return result.mod;
+  const message = result.reason === 'missing'
+    ? '@mongodb-js/zstd is not installed.'
+    : 'Failed to load @mongodb-js/zstd.';
+  throw new Error(`zstd compression requested but ${message}`);
+};
+
+const normalizeZstdChunkSize = (value) => {
+  const size = Number(value);
+  if (!Number.isFinite(size) || size <= 0) return 256 * 1024;
+  return Math.max(64 * 1024, Math.floor(size));
+};
+
+const toBuffer = (value) => (Buffer.isBuffer(value) ? value : Buffer.from(value));
+
+const createZstdStream = (options = {}) => {
+  const zstd = resolveZstd(options);
+  const level = Number.isFinite(Number(options.level)) ? Math.floor(Number(options.level)) : 3;
+  const chunkSize = normalizeZstdChunkSize(options.chunkSize);
+  let pending = Buffer.alloc(0);
+  let stream;
+  const compressChunk = async (chunk) => {
+    if (!chunk?.length) return;
+    const compressed = await zstd.compress(chunk, level);
+    if (compressed?.length) {
+      stream.push(toBuffer(compressed));
+    }
+  };
+  const drainBuffer = async (flush) => {
+    while (pending.length >= chunkSize || (flush && pending.length)) {
+      const size = flush ? pending.length : chunkSize;
+      const slice = pending.subarray(0, size);
+      pending = pending.subarray(size);
+      await compressChunk(slice);
+    }
+  };
+  stream = new Transform({
+    transform(chunk, encoding, callback) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
+      pending = pending.length ? Buffer.concat([pending, buffer]) : buffer;
+      (async () => {
+        await drainBuffer(false);
+      })()
+        .then(() => callback())
+        .catch(callback);
+    },
+    flush(callback) {
+      (async () => {
+        await drainBuffer(true);
+      })()
+        .then(() => callback())
+        .catch(callback);
+    }
+  });
   return stream;
 };
 
@@ -111,6 +171,25 @@ const createJsonWriteStream = (filePath, options = {}) => {
     return {
       stream: gzip,
       done: Promise.all([waitForFinish(gzip), waitForFinish(fileStream)])
+        .then(async () => {
+          if (atomic) {
+            await replaceFile(targetPath, filePath);
+          }
+        })
+        .catch(async (err) => {
+          if (atomic) {
+            try { await fsPromises.rm(targetPath, { force: true }); } catch {}
+          }
+          throw err;
+        })
+    };
+  }
+  if (compression === 'zstd') {
+    const zstd = createZstdStream(options);
+    zstd.pipe(fileStream);
+    return {
+      stream: zstd,
+      done: Promise.all([waitForFinish(zstd), waitForFinish(fileStream)])
         .then(async () => {
           if (atomic) {
             await replaceFile(targetPath, filePath);

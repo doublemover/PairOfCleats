@@ -3,6 +3,8 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { getHeapStatistics } from 'node:v8';
 import { gunzipSync } from 'node:zlib';
+import { spawnSync } from 'node:child_process';
+import { tryRequire } from './optional-deps.js';
 
 const MAX_JSON_BYTES_ENV = Number(process.env.PAIROFCLEATS_MAX_JSON_BYTES);
 const DEFAULT_MAX_JSON_BYTES = (() => {
@@ -226,6 +228,51 @@ const shouldAbortForHeap = (bytes) => {
   }
 };
 
+let cachedZstdAvailable = null;
+
+const hasZstd = () => {
+  if (cachedZstdAvailable != null) return cachedZstdAvailable;
+  cachedZstdAvailable = tryRequire('@mongodb-js/zstd').ok;
+  return cachedZstdAvailable;
+};
+
+const zstdDecompressSync = (buffer, maxBytes, sourcePath) => {
+  if (!hasZstd()) {
+    throw new Error('zstd artifacts require @mongodb-js/zstd to be installed.');
+  }
+  const script = [
+    'const zstd = require("@mongodb-js/zstd");',
+    'const chunks = [];',
+    'process.stdin.on("data", (d) => chunks.push(d));',
+    'process.stdin.on("end", async () => {',
+    '  try {',
+    '    const input = Buffer.concat(chunks);',
+    '    const out = await zstd.decompress(input);',
+    '    process.stdout.write(out);',
+    '  } catch (err) {',
+    '    console.error(err && err.message ? err.message : String(err));',
+    '    process.exit(2);',
+    '  }',
+    '});'
+  ].join('');
+  const result = spawnSync(process.execPath, ['-e', script], {
+    input: buffer,
+    maxBuffer: maxBytes + 1024
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    const detail = result.stderr ? result.stderr.toString('utf8').trim() : '';
+    throw new Error(`zstd decompress failed: ${detail || 'unknown error'}`);
+  }
+  const outBuffer = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.from(result.stdout || '');
+  if (outBuffer.length > maxBytes || shouldAbortForHeap(outBuffer.length)) {
+    throw toJsonTooLargeError(sourcePath, outBuffer.length);
+  }
+  return outBuffer;
+};
+
 const gunzipWithLimit = (buffer, maxBytes, sourcePath) => {
   try {
     const limit = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
@@ -239,12 +286,51 @@ const gunzipWithLimit = (buffer, maxBytes, sourcePath) => {
   }
 };
 
+const stripBak = (filePath) => (filePath.endsWith('.bak') ? filePath.slice(0, -4) : filePath);
+
+const detectCompression = (filePath) => {
+  const target = stripBak(filePath);
+  if (target.endsWith('.gz')) return 'gzip';
+  if (target.endsWith('.zst')) return 'zstd';
+  return null;
+};
+
+const decompressBuffer = (buffer, compression, maxBytes, sourcePath) => {
+  if (compression === 'gzip') {
+    return gunzipWithLimit(buffer, maxBytes, sourcePath);
+  }
+  if (compression === 'zstd') {
+    return zstdDecompressSync(buffer, maxBytes, sourcePath);
+  }
+  return buffer;
+};
+
 const readBuffer = (targetPath, maxBytes) => {
   const stat = fs.statSync(targetPath);
   if (stat.size > maxBytes) {
     throw toJsonTooLargeError(targetPath, stat.size);
   }
   return fs.readFileSync(targetPath);
+};
+
+const collectCompressedCandidates = (filePath) => {
+  const candidates = [];
+  const addCandidate = (targetPath, compression, cleanup) => {
+    if (!fs.existsSync(targetPath)) return;
+    let mtimeMs = 0;
+    try {
+      mtimeMs = fs.statSync(targetPath).mtimeMs;
+    } catch {}
+    candidates.push({ path: targetPath, compression, cleanup, mtimeMs });
+  };
+  const zstPath = `${filePath}.zst`;
+  const gzPath = `${filePath}.gz`;
+  addCandidate(zstPath, 'zstd', true);
+  addCandidate(getBakPath(zstPath), 'zstd', false);
+  addCandidate(gzPath, 'gzip', true);
+  addCandidate(getBakPath(gzPath), 'gzip', false);
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return candidates;
 };
 
 export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
@@ -257,17 +343,20 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
     }
     try {
       return JSON.parse(buffer.toString('utf8'));
-    } catch (err) {
-      if (shouldTreatAsTooLarge(err)) {
-        throw toJsonTooLargeError(sourcePath, buffer.length);
-      }
-      throw err;
+  } catch (err) {
+    if (shouldTreatAsTooLarge(err)) {
+      throw toJsonTooLargeError(sourcePath, buffer.length);
     }
+    throw err;
+  }
   };
   const tryRead = (targetPath, options = {}) => {
-    const { gzip = false, cleanup = false } = options;
+    const { compression = null, cleanup = false } = options;
     const buffer = readBuffer(targetPath, maxBytes);
-    const parsed = parseBuffer(gzip ? gunzipWithLimit(buffer, maxBytes, targetPath) : buffer, targetPath);
+    const parsed = parseBuffer(
+      decompressBuffer(buffer, compression || detectCompression(targetPath), maxBytes, targetPath),
+      targetPath
+    );
     if (cleanup) cleanupBak(targetPath);
     return parsed;
   };
@@ -283,27 +372,24 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
     }
   }
   if (filePath.endsWith('.json')) {
-    const gzPath = `${filePath}.gz`;
-    const gzBakPath = getBakPath(gzPath);
-    if (fs.existsSync(gzPath)) {
-      try {
-        return tryRead(gzPath, { gzip: true, cleanup: true });
-      } catch (err) {
-        if (fs.existsSync(gzBakPath)) {
-          return tryRead(gzBakPath, { gzip: true });
+    const candidates = collectCompressedCandidates(filePath);
+    if (candidates.length) {
+      let lastErr = null;
+      for (const candidate of candidates) {
+        try {
+          return tryRead(candidate.path, {
+            compression: candidate.compression,
+            cleanup: candidate.cleanup
+          });
+        } catch (err) {
+          lastErr = err;
         }
-        throw err;
       }
+      if (lastErr) throw lastErr;
     }
   }
   if (fs.existsSync(bakPath)) {
     return tryRead(bakPath);
-  }
-  if (filePath.endsWith('.json')) {
-    const gzBakPath = getBakPath(`${filePath}.gz`);
-    if (fs.existsSync(gzBakPath)) {
-      return tryRead(gzBakPath, { gzip: true });
-    }
   }
   throw new Error(`Missing JSON artifact: ${filePath}`);
 };
@@ -417,7 +503,16 @@ const readShardFiles = (dir, prefix) => {
     .map((name) => path.join(dir, name));
 };
 
-const existsOrBak = (filePath) => fs.existsSync(filePath) || fs.existsSync(getBakPath(filePath));
+const existsOrBak = (filePath) => {
+  if (fs.existsSync(filePath) || fs.existsSync(getBakPath(filePath))) return true;
+  if (filePath.endsWith('.json')) {
+    const gzPath = `${filePath}.gz`;
+    const zstPath = `${filePath}.zst`;
+    if (fs.existsSync(gzPath) || fs.existsSync(getBakPath(gzPath))) return true;
+    if (fs.existsSync(zstPath) || fs.existsSync(getBakPath(zstPath))) return true;
+  }
+  return false;
+};
 
 const resolveJsonlArtifactSources = (dir, baseName) => {
   const metaPath = path.join(dir, `${baseName}.meta.json`);

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { readJsonFile } from '../src/shared/artifact-io.js';
 import { writeJsonArrayFile, writeJsonObjectFile } from '../src/shared/json-stream.js';
+import { tryRequire } from '../src/shared/optional-deps.js';
 
 const root = process.cwd();
 const outDir = path.join(root, 'tests', '.cache', 'json-stream');
@@ -42,6 +44,18 @@ if (!Array.isArray(objParsed.vectors) || objParsed.vectors.length !== arrays.vec
 if (!Array.isArray(objParsed.vocab) || objParsed.vocab.length !== arrays.vocab.length) {
   console.error('json-stream object test failed: vocab mismatch.');
   process.exit(1);
+}
+
+const zstdAvailable = tryRequire('@mongodb-js/zstd').ok;
+if (zstdAvailable) {
+  const zstdPath = path.join(outDir, 'array-zstd.json.zst');
+  await writeJsonArrayFile(zstdPath, arrayInput, { compression: 'zstd' });
+  const zstdParsed = readJsonFile(path.join(outDir, 'array-zstd.json'));
+  if (JSON.stringify(zstdParsed) !== JSON.stringify(arrayInput)) {
+    console.error('json-stream zstd test failed: parsed output mismatch.');
+    process.exit(1);
+  }
+  console.log('json-stream zstd test passed');
 }
 
 console.log('json-stream test passed');
