@@ -365,6 +365,13 @@ Completed Phases: `COMPLETED_PHASES.md`
 - The extension download hardening in `tools/download-extensions.js` has multiple safety layers (hash verification support, archive path traversal protection, size/entry limits).
 - LMDB corruption handling has targeted tests (`tests/lmdb-corruption.js`) and tooling integration (`tests/lmdb-report-artifacts.js`).
 
+#### Current test failures (local, after building artifacts/SQLite)
+
+- [x] `tests/lmdb-backend.js`: fixed by scoping the LMDB search to `--mode code` for code-only LMDB build.
+- [x] `tests/sqlite-ann-extension.js`: fixed by disabling bundle workers in test and falling back to artifacts when bundles lack dense vectors (plus `embedding_u8` ingestion).
+- [x] `tests/sqlite-incremental-no-change.js`: fixed by short-circuiting no-change incremental updates before dense metadata checks and softening records-only rebuild messaging.
+- [x] `tests/storage/sqlite/incremental/manifest-normalization.test.js`: fixed via no-change short-circuit when manifest normalization yields zero diffs.
+
 ---
 
 ## Checklist coverage and required follow-ups

@@ -59,10 +59,12 @@ await fsPromises.writeFile(
 const env = {
   ...process.env,
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  PAIROFCLEATS_BUNDLE_THREADS: '1'
 };
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+process.env.PAIROFCLEATS_BUNDLE_THREADS = '1';
 
 function run(args, label) {
   const result = spawnSync(process.execPath, args, {

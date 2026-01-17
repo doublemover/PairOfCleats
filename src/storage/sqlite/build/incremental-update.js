@@ -66,36 +66,6 @@ export async function incrementalUpdateDatabase({
     return { used: false, reason: 'schema missing' };
   }
 
-  const dbDenseMeta = db.prepare(
-    'SELECT dims, scale, model FROM dense_meta WHERE mode = ?'
-  ).get(mode);
-  const dbDims = Number.isFinite(dbDenseMeta?.dims) ? dbDenseMeta.dims : null;
-  const dbModel = dbDenseMeta?.model || null;
-  if ((expectedModel || expectedDims !== null) && !dbDenseMeta) {
-    db.close();
-    return { used: false, reason: 'dense metadata missing' };
-  }
-  if (expectedModel) {
-    if (!dbModel) {
-      db.close();
-      return { used: false, reason: 'dense metadata model missing' };
-    }
-    if (dbModel !== expectedModel) {
-      db.close();
-      return { used: false, reason: `model mismatch (db=${dbModel}, expected=${expectedModel})` };
-    }
-  }
-  if (expectedDims !== null) {
-    if (dbDims === null) {
-      db.close();
-      return { used: false, reason: 'dense metadata dims missing' };
-    }
-    if (dbDims !== expectedDims) {
-      db.close();
-      return { used: false, reason: `dense dims mismatch (db=${dbDims}, expected=${expectedDims})` };
-    }
-  }
-
   const manifestFiles = incrementalData.manifest.files || {};
   const manifestLookup = normalizeManifestFiles(manifestFiles);
   if (!manifestLookup.entries.length) {
@@ -132,6 +102,36 @@ export async function incrementalUpdateDatabase({
   if (!changed.length && !deleted.length) {
     db.close();
     return { used: true, changedFiles: 0, deletedFiles: 0, insertedChunks: 0 };
+  }
+
+  const dbDenseMeta = db.prepare(
+    'SELECT dims, scale, model FROM dense_meta WHERE mode = ?'
+  ).get(mode);
+  const dbDims = Number.isFinite(dbDenseMeta?.dims) ? dbDenseMeta.dims : null;
+  const dbModel = dbDenseMeta?.model || null;
+  if ((expectedModel || expectedDims !== null) && !dbDenseMeta) {
+    db.close();
+    return { used: false, reason: 'dense metadata missing' };
+  }
+  if (expectedModel) {
+    if (!dbModel) {
+      db.close();
+      return { used: false, reason: 'dense metadata model missing' };
+    }
+    if (dbModel !== expectedModel) {
+      db.close();
+      return { used: false, reason: `model mismatch (db=${dbModel}, expected=${expectedModel})` };
+    }
+  }
+  if (expectedDims !== null) {
+    if (dbDims === null) {
+      db.close();
+      return { used: false, reason: 'dense metadata dims missing' };
+    }
+    if (dbDims !== expectedDims) {
+      db.close();
+      return { used: false, reason: `dense dims mismatch (db=${dbDims}, expected=${expectedDims})` };
+    }
   }
 
   const bundles = new Map();
@@ -238,6 +238,9 @@ export async function incrementalUpdateDatabase({
       vectorAnnLoaded = true;
       if (vectorConfig.hasVectorTable(db, vectorAnnTable)) {
         vectorAnnReady = true;
+        insertVectorAnn = db.prepare(
+          `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
+        );
       }
     } else if (emitOutput) {
       console.warn(`[sqlite] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
@@ -419,6 +422,13 @@ export async function incrementalUpdateDatabase({
 
   try {
     applyChanges();
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch (err) {
+      if (emitOutput) {
+        console.warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
+      }
+    }
   } catch (err) {
     db.close();
     if (err instanceof IncrementalSkipError) {

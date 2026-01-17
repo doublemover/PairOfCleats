@@ -7,7 +7,7 @@ import {
   prepareVectorAnnTable
 } from '../build-helpers.js';
 import { CREATE_INDEXES_SQL, CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../schema.js';
-import { normalizeFilePath, readJson, loadOptional } from '../utils.js';
+import { normalizeFilePath, readJson, loadOptional, removeSqliteSidecars } from '../utils.js';
 import { packUint32, packUint8, dequantizeUint8ToFloat32, toVectorId } from '../vector.js';
 import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
 import { normalizeManifestFiles } from './manifest.js';
@@ -571,6 +571,7 @@ export async function buildDatabaseFromArtifacts({
       try {
         fsSync.rmSync(outPath, { force: true });
       } catch {}
+      await removeSqliteSidecars(outPath);
     }
   }
   return count;

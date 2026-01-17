@@ -57,6 +57,16 @@ async function runCli() {
       report.sqlite.issues.forEach((issue) => console.log(`  - ${issue}`));
     }
   }
+  if (report.lmdb?.enabled) {
+    const status = report.lmdb.ok ? 'ok' : 'issues';
+    console.log(`- lmdb: ${status}`);
+    if (report.lmdb.issues.length) {
+      report.lmdb.issues.forEach((issue) => console.log(`  - ${issue}`));
+    }
+    if (report.lmdb.warnings.length) {
+      report.lmdb.warnings.forEach((warning) => console.log(`  - warning: ${warning}`));
+    }
+  }
 
   if (report.warnings.length && report.ok) {
     console.log('Warnings:');

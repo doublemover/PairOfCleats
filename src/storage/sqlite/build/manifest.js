@@ -10,9 +10,11 @@ export function getFileManifest(db, mode) {
   return map;
 }
 
-export function isManifestMatch(entry, dbEntry) {
+export function isManifestMatch(entry, dbEntry, options = {}) {
   if (!dbEntry) return false;
+  const strictHash = options.strictHash === true;
   if (entry?.hash && dbEntry.hash) return entry.hash === dbEntry.hash;
+  if (strictHash && entry?.hash && !dbEntry.hash) return false;
   const mtimeMatch = Number.isFinite(entry?.mtimeMs) && Number.isFinite(dbEntry?.mtimeMs)
     ? entry.mtimeMs === dbEntry.mtimeMs
     : false;
@@ -61,7 +63,7 @@ export function diffFileManifests(manifestEntries, dbFiles) {
     if (!record?.normalized) continue;
     manifestSet.add(record.normalized);
     const dbEntry = dbFiles.get(record.normalized);
-    if (!isManifestMatch(record.entry, dbEntry)) {
+    if (!isManifestMatch(record.entry, dbEntry, { strictHash: true })) {
       changed.push(record);
     }
   }
