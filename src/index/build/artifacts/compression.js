@@ -1,6 +1,18 @@
+import { tryRequire } from '../../../shared/optional-deps.js';
+
+const resolveCompressionMode = (rawMode) => {
+  const normalized = typeof rawMode === 'string' ? rawMode.trim().toLowerCase() : 'auto';
+  if (normalized === 'none') return null;
+  if (normalized === 'gzip') return 'gzip';
+  const zstdAvailable = tryRequire('@mongodb-js/zstd').ok;
+  if (normalized === 'zstd') return zstdAvailable ? 'zstd' : 'gzip';
+  if (normalized === 'auto' || !normalized) return zstdAvailable ? 'zstd' : 'gzip';
+  return null;
+};
+
 export const resolveCompressionConfig = (indexingConfig = {}) => {
   const compressionConfig = indexingConfig.artifactCompression || {};
-  const compressionMode = compressionConfig.mode === 'gzip' ? 'gzip' : null;
+  const compressionMode = resolveCompressionMode(compressionConfig.mode);
   const compressionEnabled = compressionConfig.enabled === true && compressionMode;
   const compressionKeepRaw = compressionConfig.keepRaw === true;
   const compressibleArtifacts = new Set([

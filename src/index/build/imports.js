@@ -12,6 +12,8 @@ import { readCachedImports } from './incremental.js';
 let esModuleInitPromise = null;
 let cjsInitPromise = null;
 
+const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+
 const ensureEsModuleLexer = async () => {
   if (!esModuleInitPromise) esModuleInitPromise = initEsModuleLexer;
   await esModuleInitPromise;
@@ -22,8 +24,6 @@ const ensureCjsLexer = async () => {
   await cjsInitPromise;
 };
 
-const sortLex = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
-
 const normalizeImports = (list) => {
   const set = new Set();
   if (Array.isArray(list)) {
@@ -32,7 +32,7 @@ const normalizeImports = (list) => {
     }
   }
   const output = Array.from(set);
-  output.sort(sortLex);
+  output.sort(sortStrings);
   return output;
 };
 
@@ -210,15 +210,12 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
 
   showProgress('Imports', items.length, items.length, progressMeta);
   const dedupedImports = {};
-  const moduleEntries = Array.from(allImports.entries()).sort((a, b) => sortLex(a[0], b[0]));
-  for (const [mod, entries] of moduleEntries) {
-    const files = Array.from(entries);
-    files.sort(sortLex);
-    dedupedImports[mod] = files;
-  }
+  const moduleKeys = Array.from(allImports.keys()).sort(sortStrings);
   let edgeCount = 0;
-  for (const entries of allImports.values()) {
-    edgeCount += entries.size;
+  for (const mod of moduleKeys) {
+    const entries = Array.from(allImports.get(mod) || []).sort(sortStrings);
+    dedupedImports[mod] = entries;
+    edgeCount += entries.length;
   }
   return {
     allImports: dedupedImports,
@@ -250,24 +247,24 @@ export function buildImportLinksFromRelations(fileRelations) {
   }
   const dedupedImports = {};
   let edgeCount = 0;
-  const moduleEntries = Array.from(moduleMap.entries()).sort((a, b) => sortLex(a[0], b[0]));
-  for (const [mod, files] of moduleEntries) {
-    const list = Array.from(files);
-    list.sort(sortLex);
-    dedupedImports[mod] = list;
-    edgeCount += files.size;
+  const moduleKeys = Array.from(moduleMap.keys()).sort(sortStrings);
+  for (const mod of moduleKeys) {
+    const files = Array.from(moduleMap.get(mod) || []).sort(sortStrings);
+    dedupedImports[mod] = files;
+    edgeCount += files.length;
   }
   for (const [file, relations] of fileRelations.entries()) {
     const imports = Array.isArray(relations?.imports) ? relations.imports : [];
-    const linkSet = new Set();
-    for (const imp of imports) {
-      const linked = dedupedImports[imp];
-      if (!linked) continue;
-      for (const candidate of linked) {
-        if (candidate && candidate !== file) linkSet.add(candidate);
+    const importLinksSet = new Set();
+    for (const mod of imports) {
+      const files = dedupedImports[mod];
+      if (!Array.isArray(files)) continue;
+      for (const linked of files) {
+        if (linked === file) continue;
+        importLinksSet.add(linked);
       }
     }
-    const importLinks = Array.from(linkSet).sort(sortLex);
+    const importLinks = Array.from(importLinksSet).sort(sortStrings);
     fileRelations.set(file, { ...relations, importLinks });
   }
   return {

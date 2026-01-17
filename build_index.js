@@ -7,7 +7,7 @@ import { createDisplay } from './src/shared/cli/display.js';
 import { setProgressHandlers } from './src/shared/progress.js';
 import { resolveRepoRoot } from './tools/dict-utils.js';
 
-const { argv } = parseBuildArgs(process.argv.slice(2));
+const { argv, modes } = parseBuildArgs(process.argv.slice(2));
 if (argv.verbose) {
   process.env.PAIROFCLEATS_VERBOSE = '1';
 }
@@ -23,6 +23,7 @@ const restoreHandlers = setProgressHandlers(display);
 try {
   await buildIndex(rootArg || resolveRepoRoot(process.cwd()), {
     ...argv,
+    modes,
     rawArgv: process.argv
   });
 } finally {

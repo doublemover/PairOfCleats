@@ -11,9 +11,10 @@ export const createArtifactWriter = ({
   compressionKeepRaw,
   compressibleArtifacts
 }) => {
+  const compressedSuffix = compressionMode === 'zstd' ? 'json.zst' : 'json.gz';
   const artifactPath = (base, compressed) => path.join(
     outDir,
-    compressed ? `${base}.json.gz` : `${base}.json`
+    compressed ? `${base}.${compressedSuffix}` : `${base}.json`
   );
 
   const shouldCompress = (base, compressible) => (

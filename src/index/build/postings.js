@@ -1,13 +1,13 @@
 import { quantizeVec } from '../embedding.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
+const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+
 const resolveTokenCount = (chunk) => (
   Number.isFinite(chunk?.tokenCount)
     ? chunk.tokenCount
     : (Array.isArray(chunk?.tokens) ? chunk.tokens.length : 0)
 );
-
-const sortLex = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
 const isSortedIds = (list) => {
   for (let i = 1; i < list.length; i += 1) {
@@ -325,7 +325,7 @@ export async function buildPostings(input) {
   let phraseVocab = [];
   let phrasePostings = [];
   if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {
-    const entries = Array.from(phrasePost.entries()).sort((a, b) => sortLex(a[0], b[0]));
+    const entries = Array.from(phrasePost.entries()).sort((a, b) => sortStrings(a[0], b[0]));
     phraseVocab = new Array(entries.length);
     phrasePostings = new Array(entries.length);
     for (let i = 0; i < entries.length; i += 1) {
@@ -340,7 +340,7 @@ export async function buildPostings(input) {
   let chargramVocab = [];
   let chargramPostings = [];
   if (chargramEnabled && triPost && typeof triPost.keys === 'function') {
-    const entries = Array.from(triPost.entries()).sort((a, b) => sortLex(a[0], b[0]));
+    const entries = Array.from(triPost.entries()).sort((a, b) => sortStrings(a[0], b[0]));
     chargramVocab = new Array(entries.length);
     chargramPostings = new Array(entries.length);
     for (let i = 0; i < entries.length; i += 1) {
@@ -352,7 +352,7 @@ export async function buildPostings(input) {
     if (typeof triPost.clear === 'function') triPost.clear();
   }
 
-  const tokenEntries = Array.from(tokenPostings.entries()).sort((a, b) => sortLex(a[0], b[0]));
+  const tokenEntries = Array.from(tokenPostings.entries()).sort((a, b) => sortStrings(a[0], b[0]));
   const tokenVocab = tokenEntries.map(([token]) => token);
   const tokenPostingsList = tokenEntries.map(([, posting]) => normalizeTfPostingList(posting));
   const avgDocLen = docLengths.length
@@ -364,10 +364,10 @@ export async function buildPostings(input) {
   const buildFieldPostings = () => {
     if (!fieldPostings || !fieldDocLengths) return null;
     const fields = {};
-    const fieldEntries = Object.entries(fieldPostings).sort((a, b) => sortLex(a[0], b[0]));
+    const fieldEntries = Object.entries(fieldPostings).sort((a, b) => sortStrings(a[0], b[0]));
     for (const [field, postingsMap] of fieldEntries) {
       if (!postingsMap || typeof postingsMap.keys !== 'function') continue;
-      const vocab = Array.from(postingsMap.keys()).sort(sortLex);
+      const vocab = Array.from(postingsMap.keys()).sort(sortStrings);
       const postings = vocab.map((token) => normalizeTfPostingList(postingsMap.get(token)));
       const lengths = fieldDocLengths[field] || [];
       const avgLen = lengths.length

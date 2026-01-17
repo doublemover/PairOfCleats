@@ -34,8 +34,14 @@ export function reuseCachedBundle({
     }
   }
   const cachedEntry = incrementalState.manifest?.files?.[relKey] || null;
+  const resolvedHash = fileHash || cachedEntry?.hash || null;
+  const fileInfo = {
+    size: fileStat.size,
+    hash: resolvedHash,
+    hashAlgo: resolvedHash ? 'sha1' : null
+  };
   const manifestEntry = cachedEntry ? {
-    hash: fileHash || cachedEntry.hash || null,
+    hash: resolvedHash,
     mtimeMs: fileStat.mtimeMs,
     size: fileStat.size,
     bundle: cachedEntry.bundle || `${sha1(relKey)}.json`
@@ -89,6 +95,7 @@ export function reuseCachedBundle({
       durationMs: fileDurationMs,
       chunks: updatedChunks,
       manifestEntry,
+      fileInfo,
       fileRelations,
       fileMetrics: {
         languageId: fileLanguageId || cachedLanguage || null,

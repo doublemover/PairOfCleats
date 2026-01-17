@@ -1,4 +1,5 @@
 import Graph from 'graphology';
+import { compareStrings } from '../../shared/sort.js';
 import { resolveChunkId } from '../chunk-id.js';
 
 const GRAPH_MAX_NODES = 200000;
@@ -66,7 +67,7 @@ const serializeGraph = (graph) => {
       in: incoming
     });
   });
-  nodes.sort((a, b) => a.id.localeCompare(b.id));
+  nodes.sort((a, b) => compareStrings(a.id, b.id));
   return {
     nodeCount: graph.order,
     edgeCount: graph.size,

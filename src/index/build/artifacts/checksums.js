@@ -26,6 +26,8 @@ export const writePiecesManifest = async ({
       let bytes = null;
       let checksum = null;
       let checksumAlgo = null;
+      let statError = null;
+      let checksumError = null;
       try {
         const stat = await fs.stat(absPath);
         bytes = stat.size;
@@ -45,7 +47,9 @@ export const writePiecesManifest = async ({
       return {
         ...entry,
         bytes,
-        checksum: checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null
+        checksum: checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null,
+        statError: statError || null,
+        checksumError: checksumError || null
       };
     }
   );

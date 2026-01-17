@@ -19,7 +19,9 @@ if (!fs.existsSync(fixtureRoot)) {
 const cacheRoot = path.join(root, 'tests', '.cache', 'piece-assembly');
 const cacheA = path.join(cacheRoot, 'a');
 const cacheB = path.join(cacheRoot, 'b');
+const outputMono = path.join(cacheRoot, 'assembled-single', 'index-code');
 const outputDir = path.join(cacheRoot, 'assembled', 'index-code');
+const outputDir2 = path.join(cacheRoot, 'assembled-repeat', 'index-code');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
@@ -56,8 +58,24 @@ const indexA = getIndexDir(fixtureRoot, 'code', userConfig);
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheB;
 const indexB = getIndexDir(fixtureRoot, 'code', userConfig);
 
+run('assemble-pieces (single)', [
+  assemblePath,
+  '--repo',
+  fixtureRoot,
+  '--mode',
+  'code',
+  '--out',
+  outputMono,
+  '--input',
+  indexA,
+  '--force'
+], {
+  ...baseEnv,
+  PAIROFCLEATS_CACHE_ROOT: cacheRoot
+});
+
 const assembleStart = Date.now();
-run('assemble-pieces', [
+run('assemble-pieces (merge)', [
   assemblePath,
   '--repo',
   fixtureRoot,
@@ -80,11 +98,32 @@ if (assembleDuration > 30000) {
   process.exit(1);
 }
 
-const chunksA = (await loadChunkMeta(indexA)).length;
+const serializeTokenIndex = (tokenIndex) => JSON.stringify({
+  vocab: tokenIndex?.vocab || [],
+  postings: tokenIndex?.postings || [],
+  docLengths: tokenIndex?.docLengths || []
+});
+
+const chunksAList = await loadChunkMeta(indexA);
+const chunksA = chunksAList.length;
 const chunksB = (await loadChunkMeta(indexB)).length;
-const chunksOut = (await loadChunkMeta(outputDir)).length;
+const chunksOutList = await loadChunkMeta(outputDir);
+const chunksOut = chunksOutList.length;
 if (chunksOut !== chunksA + chunksB) {
   console.error(`Expected merged chunk count ${chunksA + chunksB}, got ${chunksOut}`);
+  process.exit(1);
+}
+
+const chunksMonoList = await loadChunkMeta(outputMono);
+if (JSON.stringify(chunksMonoList) !== JSON.stringify(chunksAList)) {
+  console.error('Assembled single index does not match monolithic chunk_meta.');
+  process.exit(1);
+}
+
+const tokenMono = loadTokenPostings(indexA);
+const tokenSingle = loadTokenPostings(outputMono);
+if (serializeTokenIndex(tokenMono) !== serializeTokenIndex(tokenSingle)) {
+  console.error('Assembled single index does not match monolithic token_postings.');
   process.exit(1);
 }
 
@@ -119,6 +158,35 @@ if (maxDocId < chunksA || maxDocId >= chunksOut) {
 }
 if (minDocId < 0) {
   console.error('Merged token_postings docIds should be non-negative.');
+  process.exit(1);
+}
+
+run('assemble-pieces (repeat)', [
+  assemblePath,
+  '--repo',
+  fixtureRoot,
+  '--mode',
+  'code',
+  '--out',
+  outputDir2,
+  '--input',
+  indexA,
+  '--input',
+  indexB,
+  '--force'
+], {
+  ...baseEnv,
+  PAIROFCLEATS_CACHE_ROOT: cacheRoot
+});
+
+const chunksOutRepeat = await loadChunkMeta(outputDir2);
+if (JSON.stringify(chunksOutRepeat) !== JSON.stringify(chunksOutList)) {
+  console.error('Repeat assembly produced different chunk_meta output.');
+  process.exit(1);
+}
+const tokenIndexRepeat = loadTokenPostings(outputDir2);
+if (serializeTokenIndex(tokenIndexRepeat) !== serializeTokenIndex(tokenIndex)) {
+  console.error('Repeat assembly produced different token_postings output.');
   process.exit(1);
 }
 

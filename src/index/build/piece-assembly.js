@@ -64,9 +64,18 @@ const loadIndexArtifacts = async (dir) => {
   const chunkMeta = await loadChunkMeta(dir);
   const fileMeta = readJsonOptional(dir, 'file_meta.json');
   const fileMetaById = new Map();
+  const fileInfoByPath = new Map();
   if (Array.isArray(fileMeta)) {
     for (const entry of fileMeta) {
       if (entry && entry.id != null) fileMetaById.set(entry.id, entry);
+      if (entry?.file) {
+        const size = Number.isFinite(entry.size) ? entry.size : null;
+        const hash = entry.hash || null;
+        const hashAlgo = entry.hash_algo || entry.hashAlgo || null;
+        if (size !== null || hash || hashAlgo) {
+          fileInfoByPath.set(entry.file, { size, hash, hashAlgo });
+        }
+      }
     }
   }
   for (const chunk of chunkMeta) {
@@ -104,7 +113,8 @@ const loadIndexArtifacts = async (dir) => {
     denseVecDoc: readJsonOptional(dir, 'dense_vectors_doc_uint8.json'),
     denseVecCode: readJsonOptional(dir, 'dense_vectors_code_uint8.json'),
     fileRelations: await loadJsonArrayArtifact(dir, 'file_relations').catch(() => null),
-    indexState: readJsonOptional(dir, 'index_state.json')
+    indexState: readJsonOptional(dir, 'index_state.json'),
+    fileInfoByPath
   };
 };
 
@@ -410,6 +420,14 @@ export async function assembleIndexPieces({
       for (const entry of input.fileRelations) {
         if (!entry?.file) continue;
         state.fileRelations.set(entry.file, entry.relations || null);
+      }
+    }
+    if (input.fileInfoByPath && typeof input.fileInfoByPath.entries === 'function') {
+      if (!state.fileInfoByPath) state.fileInfoByPath = new Map();
+      for (const [file, info] of input.fileInfoByPath.entries()) {
+        if (!state.fileInfoByPath.has(file)) {
+          state.fileInfoByPath.set(file, info);
+        }
       }
     }
   }

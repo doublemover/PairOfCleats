@@ -31,6 +31,8 @@ import {
   resolveTreeSitterLanguageForSegment,
   resolveTreeSitterLanguagesForSegments
 } from './file-processor/tree-sitter.js';
+import { TREE_SITTER_LANGUAGE_IDS } from '../../lang/tree-sitter/config.js';
+import { isTreeSitterEnabled } from '../../lang/tree-sitter/options.js';
 import {
   preloadTreeSitterLanguages,
   pruneTreeSitterLanguages,
@@ -38,6 +40,33 @@ import {
 } from '../../lang/tree-sitter.js';
 import { getLanguageForFile } from '../language-registry.js';
 
+const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
+
+const createLineReader = (text, lineIndex) => {
+  const totalLines = lineIndex.length || 1;
+  const clampLine = (value) => Math.max(1, Math.min(totalLines, Number(value) || 1));
+  const getLine = (lineNumber) => {
+    const line = clampLine(lineNumber);
+    const start = lineIndex[line - 1] ?? 0;
+    const end = lineIndex[line] ?? text.length;
+    let value = text.slice(start, end);
+    if (value.endsWith('\n')) value = value.slice(0, -1);
+    if (value.endsWith('\r')) value = value.slice(0, -1);
+    return value;
+  };
+  const getLines = (startLine, endLine) => {
+    if (!Number.isFinite(startLine) || !Number.isFinite(endLine)) return [];
+    const start = clampLine(startLine);
+    const end = clampLine(endLine);
+    if (end < start) return [];
+    const output = new Array(end - start + 1);
+    for (let line = start, idx = 0; line <= end; line += 1, idx += 1) {
+      output[idx] = getLine(line);
+    }
+    return output;
+  };
+  return { getLines, totalLines };
+};
 /**
  * Create a file processor with shared caches.
  * @param {object} options
@@ -384,6 +413,12 @@ export function createFileProcessor(options) {
       }
     }
 
+    const fileInfo = {
+      size: fileStat.size,
+      hash: fileHash,
+      hashAlgo: fileHash ? 'sha1' : null
+    };
+
     let languageLines = null;
     let languageSetKey = null;
 
@@ -501,10 +536,11 @@ export function createFileProcessor(options) {
         }
         : { relationsEnabled, metricsCollector, filePath: abs, treeSitter: contextTreeSitterConfig };
       const runTreeSitter = shouldSerializeTreeSitter ? runTreeSitterSerial : (fn) => fn();
-      const primaryLanguageId = languageHint?.id || getLanguageForFile(ext, relKey)?.id || null;
-      let languageResult;
+      const primaryLanguageId = languageHint?.id || null;
+      let lang = null;
+      let languageContext = {};
       try {
-        languageResult = await runTreeSitter(async () => {
+        ({ lang, context: languageContext } = await runTreeSitter(async () => {
           if (!treeSitterLanguagePasses
             && treeSitterEnabled
             && primaryLanguageId
@@ -526,12 +562,29 @@ export function createFileProcessor(options) {
             text,
             options: languageContextOptions
           });
-        });
+        }));
       } catch (err) {
-        return failFile('parse-error', 'language-context', err);
+        if (languageOptions?.skipOnParseError) {
+          return {
+            chunks: [],
+            fileRelations: null,
+            skip: {
+              reason: 'parse-error',
+              stage: 'prepare',
+              message: err?.message || String(err)
+            }
+          };
+        }
+        throw err;
       }
-      const { lang, context: languageContext } = languageResult || {};
       fileLanguageId = lang?.id || null;
+      if (!lang && languageOptions?.skipUnknownLanguages) {
+        return {
+          chunks: [],
+          fileRelations: null,
+          skip: { reason: 'unsupported-language' }
+        };
+      }
       if (languageContext?.pythonAstMetrics?.durationMs) {
         setPythonAstDuration(languageContext.pythonAstMetrics.durationMs);
       }
@@ -539,21 +592,7 @@ export function createFileProcessor(options) {
       const lineIndex = buildLineIndex(text);
       const totalLines = lineIndex.length || 1;
       fileLineCount = totalLines;
-      const sliceLineRange = (startLine, endLine) => {
-        const output = [];
-        if (contextWin <= 0) return output;
-        const start = Math.max(1, Number(startLine) || 1);
-        const end = Math.max(start, Number(endLine) || start);
-        for (let line = start; line <= end; line += 1) {
-          const startOffset = lineIndex[line - 1] ?? 0;
-          const endOffset = lineIndex[line] ?? text.length;
-          let lineText = text.slice(startOffset, endOffset);
-          if (lineText.endsWith('\n')) lineText = lineText.slice(0, -1);
-          if (lineText.endsWith('\r')) lineText = lineText.slice(0, -1);
-          output.push(lineText);
-        }
-        return output;
-      };
+      const lineReader = contextWin > 0 ? createLineReader(text, lineIndex) : null;
       const capsByLanguage = resolveFileCaps(fileCaps, ext, lang?.id);
       if (capsByLanguage.maxLines && totalLines > capsByLanguage.maxLines) {
         return {
@@ -716,11 +755,34 @@ export function createFileProcessor(options) {
             treeSitterConfig: treeSitterConfigForMode
           }));
       } catch (err) {
-        return failFile('parse-error', 'chunking', err);
+        if (languageOptions?.skipOnParseError) {
+          return {
+            chunks: [],
+            fileRelations: null,
+            skip: {
+              reason: 'parse-error',
+              stage: 'chunking',
+              message: err?.message || String(err)
+            }
+          };
+        }
+        throw err;
       }
       const chunkIssue = validateChunkBounds(sc, text.length);
       if (chunkIssue) {
-        return failFile('parse-error', 'chunk-bounds', new Error(chunkIssue));
+        const error = new Error(chunkIssue);
+        if (languageOptions?.skipOnParseError) {
+          return {
+            chunks: [],
+            fileRelations: null,
+            skip: {
+              reason: 'parse-error',
+              stage: 'chunk-bounds',
+              message: error.message
+            }
+          };
+        }
+        throw error;
       }
       addParseDuration(Date.now() - parseStart);
       const chunkLineRanges = sc.map((chunk) => {
@@ -1055,14 +1117,16 @@ export function createFileProcessor(options) {
         const lint = fileLint;
 
         let preContext = [], postContext = [];
-        if (contextWin > 0) {
+        if (contextWin > 0 && lineReader) {
           if (ci > 0) {
             const prev = chunkLineRanges[ci - 1];
-            preContext = sliceLineRange(prev.startLine, prev.endLine).slice(-contextWin);
+            const startLine = Math.max(prev.endLine - contextWin + 1, prev.startLine);
+            preContext = lineReader.getLines(startLine, prev.endLine);
           }
           if (ci + 1 < sc.length) {
             const next = chunkLineRanges[ci + 1];
-            postContext = sliceLineRange(next.startLine, next.endLine).slice(0, contextWin);
+            const endLine = Math.min(next.startLine + contextWin - 1, next.endLine);
+            postContext = lineReader.getLines(next.startLine, endLine);
           }
         }
         const chunkAuthors = lineAuthors
@@ -1185,6 +1249,7 @@ export function createFileProcessor(options) {
       durationMs: fileDurationMs,
       chunks: fileChunks,
       fileRelations,
+      fileInfo,
       manifestEntry,
       fileMetrics
     };

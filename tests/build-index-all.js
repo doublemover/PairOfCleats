@@ -16,9 +16,14 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'const alpha = 1;\\n');
 await fsPromises.writeFile(path.join(repoRoot, 'beta.md'), '# Beta\\n');
+await fsPromises.mkdir(path.join(repoRoot, 'triage', 'records'), { recursive: true });
+await fsPromises.writeFile(path.join(repoRoot, 'triage', 'records', 'record-1.md'), '# Record One\\n');
 await fsPromises.writeFile(
   path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify({ indexing: { treeSitter: { enabled: false } } }, null, 2)
+  JSON.stringify({
+    indexing: { treeSitter: { enabled: false } },
+    triage: { recordsDir: 'triage/records' }
+  }, null, 2)
 );
 
 const env = {
@@ -37,8 +42,10 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
+const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(repoRoot);
-const modes = ['code', 'prose', 'extracted-prose'];
+const modes = ['code', 'prose', 'extracted-prose', 'records'];
 const hasChunkMeta = (dir) => (
   fs.existsSync(path.join(dir, 'chunk_meta.json'))
   || fs.existsSync(path.join(dir, 'chunk_meta.jsonl'))
@@ -52,6 +59,12 @@ for (const mode of modes) {
     console.error(`Expected chunk metadata for ${mode} in ${dir}`);
     process.exit(1);
   }
+}
+
+if (previousCacheRoot === undefined) {
+  delete process.env.PAIROFCLEATS_CACHE_ROOT;
+} else {
+  process.env.PAIROFCLEATS_CACHE_ROOT = previousCacheRoot;
 }
 
 console.log('build-index --mode all test passed');

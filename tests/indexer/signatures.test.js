@@ -58,6 +58,7 @@ const runtimeA = {
   embeddingService: false,
   embeddingMode: 'inline',
   embeddingBatchSize: 32,
+  toolInfo: { version: '1.0.0' },
   fileCaps: { default: { maxBytes: 1, maxLines: 2 }, byExt: {}, byLanguage: {} },
   fileScan: { sampleBytes: 64 },
   incrementalBundleFormat: 'json'
@@ -81,6 +82,14 @@ const sigC = buildIncrementalSignature({
 }, 'code', tokenKeyA);
 if (sigA === sigC) {
   fail('buildIncrementalSignature should reflect embedding batch changes.');
+}
+
+const sigD = buildIncrementalSignature({
+  ...runtimeA,
+  toolInfo: { version: '1.0.1' }
+}, 'code', tokenKeyA);
+if (sigA === sigD) {
+  fail('buildIncrementalSignature should reflect tool version changes.');
 }
 
 console.log('indexer signatures tests passed');

@@ -10,6 +10,7 @@ import {
   getRepoCacheRoot,
   getToolVersion,
   getToolingConfig,
+  getTriageConfig,
   loadUserConfig,
   resolveIndexRoot
 } from '../../../../tools/dict-utils.js';
@@ -66,6 +67,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const triageConfig = getTriageConfig(root, userConfig);
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
   const configHash = getEffectiveConfigHash(root, userConfig);
   const contentConfigHash = buildContentConfigHash(userConfig, envConfig);
@@ -97,6 +99,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const gitBlameEnabled = indexingConfig.gitBlame !== false;
   const lintEnabled = indexingConfig.lint !== false;
   const complexityEnabled = indexingConfig.complexity !== false;
+  const skipUnknownLanguages = indexingConfig.skipUnknownLanguages === true;
+  const skipOnParseError = indexingConfig.skipOnParseError === true;
   const yamlChunkingModeRaw = typeof indexingConfig.yamlChunking === 'string'
     ? indexingConfig.yamlChunking.trim().toLowerCase()
     : '';
@@ -215,6 +219,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const embeddingRuntime = await resolveEmbeddingRuntime({
     rootDir: root,
     userConfig,
+    recordsDir: triageConfig.recordsDir,
     indexingConfig,
     envConfig,
     argv,
@@ -446,6 +451,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     rootDir: root,
     astDataflowEnabled,
     controlFlowEnabled,
+    skipUnknownLanguages,
+    skipOnParseError,
     javascript: {
       parser: javascriptParser,
       flow: javascriptFlow

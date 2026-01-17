@@ -181,6 +181,8 @@ export async function getStatus(input = {}) {
       indexIssues.push('index-code chunk_meta.json missing');
     }
     const codeTokenPostings = fs.existsSync(path.join(indexCodeDir, 'token_postings.json'))
+      || fs.existsSync(path.join(indexCodeDir, 'token_postings.json.gz'))
+      || fs.existsSync(path.join(indexCodeDir, 'token_postings.json.zst'))
       || fs.existsSync(path.join(indexCodeDir, 'token_postings.meta.json'))
       || fs.existsSync(path.join(indexCodeDir, 'token_postings.shards'));
     if (!codeTokenPostings) {
@@ -198,6 +200,8 @@ export async function getStatus(input = {}) {
       indexIssues.push('index-prose chunk_meta.json missing');
     }
     const proseTokenPostings = fs.existsSync(path.join(indexProseDir, 'token_postings.json'))
+      || fs.existsSync(path.join(indexProseDir, 'token_postings.json.gz'))
+      || fs.existsSync(path.join(indexProseDir, 'token_postings.json.zst'))
       || fs.existsSync(path.join(indexProseDir, 'token_postings.meta.json'))
       || fs.existsSync(path.join(indexProseDir, 'token_postings.shards'));
     if (!proseTokenPostings) {

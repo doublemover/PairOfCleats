@@ -33,7 +33,7 @@ const cachedBundle = {
       codeRelations: {
         imports: ['dep'],
         exports: ['demo'],
-        calls: [['demo', 'demo']]
+        calls: [['demo', 'dep']]
       },
       docmeta: { signature: 'demo()' },
       tokens: ['demo'],
@@ -63,7 +63,7 @@ const { result, skip } = reuseCachedBundle({
     }
   },
   allImports: {
-    dep: ['cached.js']
+    dep: ['dep.js']
   },
   fileStructural: null,
   toolInfo: null,
@@ -78,8 +78,11 @@ if (skip) {
 if (!result) {
   fail('Expected cached bundle reuse result.');
 }
-if (!result.fileRelations?.importLinks?.length) {
-  fail('Expected importLinks to be rehydrated from allImports.');
+const importLinks = Array.isArray(result.fileRelations?.importLinks)
+  ? result.fileRelations.importLinks
+  : [];
+if (importLinks.length !== 1 || importLinks[0] !== 'dep.js') {
+  fail('Expected importLinks to be rehydrated from allImports with stable targets.');
 }
 const chunk = result.chunks[0];
 if (!chunk?.metaV2?.chunkId) {

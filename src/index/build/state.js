@@ -194,6 +194,7 @@ export function createIndexState() {
     skippedFiles: [],
     totalTokens: 0,
     fileRelations: new Map(),
+    fileInfoByPath: new Map(),
     postingsGuard: {
       phrase: createGuardEntry('phrase', POSTINGS_GUARDS.phrase),
       chargram: createGuardEntry('chargram', POSTINGS_GUARDS.chargram)
@@ -520,6 +521,14 @@ export function mergeIndexState(target, source) {
   if (source.fileRelations && typeof source.fileRelations.entries === 'function') {
     for (const [file, relations] of source.fileRelations.entries()) {
       target.fileRelations.set(file, relations);
+    }
+  }
+  if (source.fileInfoByPath && typeof source.fileInfoByPath.entries === 'function') {
+    if (!target.fileInfoByPath) target.fileInfoByPath = new Map();
+    for (const [file, info] of source.fileInfoByPath.entries()) {
+      if (!target.fileInfoByPath.has(file)) {
+        target.fileInfoByPath.set(file, info);
+      }
     }
   }
 }

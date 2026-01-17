@@ -75,7 +75,7 @@ export const waitForStableFile = async (absPath, { checks, intervalMs }) => {
   return true;
 };
 
-export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCancel, onFire }) {
+export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCancel, onFire, onError }) {
   let timer = null;
   const schedule = () => {
     if (timer) {
@@ -85,7 +85,11 @@ export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCanc
     timer = setTimeout(() => {
       timer = null;
       if (onFire) onFire();
-      onRun();
+      void Promise.resolve()
+        .then(() => onRun())
+        .catch((err) => {
+          if (onError) onError(err);
+        });
     }, debounceMs);
     if (onSchedule) onSchedule();
   };
@@ -98,27 +102,82 @@ export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCanc
   return { schedule, cancel };
 }
 
-export function isIndexablePath({ absPath, root, ignoreMatcher, modes }) {
+const normalizeRoot = (value) => {
+  const resolved = path.resolve(value || '');
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+};
+
+const resolveRecordsRoot = (root, recordsDir) => {
+  if (!recordsDir) return null;
+  const normalizedRoot = normalizeRoot(root);
+  const normalizedRecords = normalizeRoot(recordsDir);
+  if (normalizedRecords === normalizedRoot) return normalizedRecords;
+  if (normalizedRecords.startsWith(`${normalizedRoot}${path.sep}`)) return normalizedRecords;
+  return null;
+};
+
+export function isIndexablePath({ absPath, root, recordsRoot, ignoreMatcher, modes }) {
   const relPosix = toPosix(path.relative(root, absPath));
   if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
+  const normalizedRecordsRoot = recordsRoot ? normalizeRoot(recordsRoot) : null;
+  if (normalizedRecordsRoot) {
+    const normalizedAbs = normalizeRoot(absPath);
+    if (normalizedAbs.startsWith(`${normalizedRecordsRoot}${path.sep}`)) {
+      return modes.includes('records');
+    }
+  }
   if (ignoreMatcher?.ignores(relPosix)) return false;
   const baseName = path.basename(absPath);
   const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
   const isManifest = isManifestFile(baseName);
   const isLock = isLockFile(baseName);
   const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock;
-  const allowCode = modes.includes('code') && (EXTS_CODE.has(ext) || isSpecial);
+  const allowCode = (modes.includes('code') || modes.includes('extracted-prose'))
+    && (EXTS_CODE.has(ext) || isSpecial);
   const allowProse = modes.includes('prose') && EXTS_PROSE.has(ext);
   return allowCode || allowProse;
 }
 
-const scanFiles = async ({ root, modes, ignoreMatcher, maxFileBytes, fileCaps, maxDepth, maxFiles }) => {
+const listRecordsFiles = async (recordsDir) => {
+  if (!recordsDir) return [];
+  try {
+    const entries = await fs.readdir(recordsDir, { withFileTypes: true });
+    const files = [];
+    for (const entry of entries) {
+      const fullPath = path.join(recordsDir, entry.name);
+      if (entry.isDirectory()) {
+        const nested = await listRecordsFiles(fullPath);
+        files.push(...nested);
+      } else if (entry.isFile()) {
+        if (entry.name.endsWith('.md') || entry.name.endsWith('.json')) {
+          files.push(fullPath);
+        }
+      }
+    }
+    return files;
+  } catch {
+    return [];
+  }
+};
+
+const scanFiles = async ({
+  root,
+  modes,
+  recordsDir,
+  ignoreMatcher,
+  maxFileBytes,
+  fileCaps,
+  maxDepth,
+  maxFiles
+}) => {
+  const scanModes = modes.filter((mode) => mode !== 'records');
   const files = new Set();
   const skippedFiles = [];
-  for (const mode of modes) {
+  for (const mode of scanModes) {
     const modeFiles = await discoverFiles({
       root,
       mode,
+      recordsDir,
       ignoreMatcher,
       skippedFiles,
       maxFileBytes,
@@ -127,6 +186,10 @@ const scanFiles = async ({ root, modes, ignoreMatcher, maxFileBytes, fileCaps, m
       maxFiles
     });
     modeFiles.forEach((entry) => files.add(entry.abs || entry));
+  }
+  if (modes.includes('records')) {
+    const recordFiles = await listRecordsFiles(recordsDir);
+    recordFiles.forEach((entry) => files.add(entry));
   }
   return Array.from(files);
 };
@@ -178,6 +241,7 @@ const buildIgnoredMatcher = ({ root, ignoreMatcher }) => (targetPath, stats) => 
  */
 export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
   const root = runtime.root;
+  const recordsRoot = resolveRecordsRoot(root, runtime.recordsDir);
   const ignoreMatcher = runtime.ignoreMatcher;
   const maxFileBytes = runtime.maxFileBytes;
   const fileCaps = runtime.fileCaps;
@@ -279,11 +343,12 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
     onRun: runBuild,
     onSchedule: () => incWatchDebounce('scheduled'),
     onCancel: () => incWatchDebounce('canceled'),
-    onFire: () => incWatchDebounce('fired')
+    onFire: () => incWatchDebounce('fired'),
+    onError: (err) => log(`[watch] Debounced build failed: ${err?.message || err}`)
   });
 
   const recordAddOrChange = async (absPath) => {
-    if (!isIndexablePath({ absPath, root, ignoreMatcher, modes })) return;
+    if (!isIndexablePath({ absPath, root, recordsRoot, ignoreMatcher, modes })) return;
     if (stabilityGuard?.enabled) {
       const stable = await waitForStableFile(absPath, stabilityGuard);
       if (!stable) return;
@@ -300,13 +365,22 @@ export async function watchIndex({ runtime, modes, pollMs, debounceMs }) {
   };
 
   const recordRemove = (absPath) => {
-    if (!isIndexablePath({ absPath, root, ignoreMatcher, modes })) return;
+    if (!isIndexablePath({ absPath, root, recordsRoot, ignoreMatcher, modes })) return;
     pendingPaths.add(absPath);
     setWatchBacklog(pendingPaths.size);
     if (trackedFiles.delete(absPath)) scheduleBuild();
   };
 
-  const initialFiles = await scanFiles({ root, modes, ignoreMatcher, maxFileBytes, fileCaps, maxDepth, maxFiles });
+  const initialFiles = await scanFiles({
+    root,
+    modes,
+    recordsDir: runtime.recordsDir,
+    ignoreMatcher,
+    maxFileBytes,
+    fileCaps,
+    maxDepth,
+    maxFiles
+  });
   initialFiles.forEach((file) => trackedFiles.add(file));
   const backendSelection = resolveWatcherBackend({ runtime, pollMs });
   const pollingEnabled = backendSelection.pollingEnabled;

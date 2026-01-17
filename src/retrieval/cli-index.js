@@ -260,8 +260,13 @@ export function getIndexSignature(options) {
     try {
       let statPath = filePath;
       if (!fsSync.existsSync(statPath) && filePath.endsWith('.json')) {
+        const zstPath = `${filePath}.zst`;
         const gzPath = `${filePath}.gz`;
-        if (fsSync.existsSync(gzPath)) statPath = gzPath;
+        if (fsSync.existsSync(zstPath)) {
+          statPath = zstPath;
+        } else if (fsSync.existsSync(gzPath)) {
+          statPath = gzPath;
+        }
       }
       const stat = fsSync.statSync(statPath);
       return `${stat.size}:${stat.mtimeMs}`;

@@ -1,9 +1,12 @@
 export function buildFileMeta(state) {
-  const fileInfo = new Map();
+  const fileMeta = [];
+  const fileIdByPath = new Map();
+  const fileInfoByPath = state?.fileInfoByPath;
+  const fileDetails = new Map();
   for (const c of state.chunks) {
     if (!c?.file) continue;
-    if (!fileInfo.has(c.file)) {
-      fileInfo.set(c.file, {
+    if (!fileDetails.has(c.file)) {
+      fileDetails.set(c.file, {
         file: c.file,
         ext: c.ext,
         size: Number.isFinite(c.fileSize) ? c.fileSize : null,
@@ -19,7 +22,7 @@ export function buildFileMeta(state) {
       });
       continue;
     }
-    const info = fileInfo.get(c.file);
+    const info = fileDetails.get(c.file);
     if (!info.ext && c.ext) info.ext = c.ext;
     if (!info.size && Number.isFinite(c.fileSize)) info.size = c.fileSize;
     if (!info.hash && c.fileHash) info.hash = c.fileHash;
@@ -28,12 +31,27 @@ export function buildFileMeta(state) {
     if (!info.last_modified && c.last_modified) info.last_modified = c.last_modified;
     if (!info.last_author && c.last_author) info.last_author = c.last_author;
   }
-  const fileMeta = [];
-  const fileIdByPath = new Map();
-  const files = Array.from(fileInfo.keys()).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
-  files.forEach((file, id) => {
+  const files = Array.from(fileDetails.keys()).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+  for (const file of files) {
+    const entry = fileDetails.get(file) || { file };
+    const info = fileInfoByPath?.get?.(file) || null;
+    const id = fileMeta.length;
     fileIdByPath.set(file, id);
-    fileMeta.push({ id, ...fileInfo.get(file) });
-  });
+    fileMeta.push({
+      id,
+      file: entry.file,
+      ext: entry.ext,
+      size: Number.isFinite(info?.size) ? info.size : entry.size,
+      hash: info?.hash || entry.hash || null,
+      hashAlgo: info?.hashAlgo || entry.hashAlgo || null,
+      externalDocs: entry.externalDocs,
+      last_modified: entry.last_modified,
+      last_author: entry.last_author,
+      churn: entry.churn,
+      churn_added: entry.churn_added,
+      churn_deleted: entry.churn_deleted,
+      churn_commits: entry.churn_commits
+    });
+  }
   return { fileMeta, fileIdByPath };
 }
