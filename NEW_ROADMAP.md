@@ -18,30 +18,29 @@ Completed Phases: `COMPLETED_PHASES.md`
 5. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
 6. Phase 14 — Documentation and Configuration Hardening
 7. Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
-8. Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
-9. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
-10. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
-11. Phase 20 — Threadpool-aware I/O scheduling guardrails
-12. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
-13. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
-14. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
-15. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
-16. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
-17. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
-18. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
-19. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
-20. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
-21. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
-22. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
-23. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
-24. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
-25. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
-26. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
-27. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
-28. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
-29. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
-30. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
-31. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
+8. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
+9. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
+10. Phase 20 — Threadpool-aware I/O scheduling guardrails
+11. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
+12. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
+13. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
+14. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
+15. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
+16. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
+17. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
+18. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
+19. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
+20. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
+21. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
+22. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
+23. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
+24. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
+25. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
+26. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
+27. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
+28. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
+29. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
+30. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
 
 ## Phase 2 — Benchmark + build harness reliability (cache hygiene, shard progress determinism, disk-full resilience)
 
@@ -84,8 +83,8 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 **Exit criteria**
 
-- [ ] Bench runs do not accumulate unbounded cache state across repos by default.
-- [ ] Sharded build progress numbering is stable and trustworthy.
+- [x] Bench runs do not accumulate unbounded cache state across repos by default.
+- [x] Sharded build progress numbering is stable and trustworthy.
 - [ ] Disk-full conditions are detected early with actionable messages rather than failing deep in sqlite reads.
 
 ---
@@ -1254,43 +1253,6 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 * [ ] Benchmarks show measurable improvement (and are reproducible)
 * [ ] CI remains green on Node 18 + Windows lane
 * [ ] New features are discoverable via config docs + `config_status`
-
----
-
-## Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
-
-### 17.1 Add dependency + unify backend contract
-
-* [x] Add `@node-rs/xxhash` as optional dependency (or hard dep if you accept platform constraints)
-* [x] Create `src/shared/hash/xxhash-backend.js`:
-
-  * [x] `hash64(buffer|string) -> hex16` (exact output format must match existing `checksumString()` + `checksumFile()`)
-  * [x] `hash64Stream(readable) -> hex16` (if supported; otherwise implement chunking in JS)
-* [x] Update `src/shared/hash.js`:
-
-  * [x] Keep `sha1()` unchanged
-  * [x] Route `checksumString()` / `checksumFile()` through the backend contract
-  * [x] Preserve deterministic formatting (`formatXxhashHex`)
-
-### 17.2 Introduce selector + telemetry
-
-* [x] Add `PAIROFCLEATS_XXHASH_BACKEND=auto|native|wasm`
-* [x] Emit backend choice in verbose logs (once)
-
-### 17.3 Tests
-
-* [x] Add `tests/xxhash-backends.js`:
-
-  * [x] Assert `checksumString('abc')` matches a known baseline (record from current implementation)
-  * [x] Assert `checksumFile()` matches `checksumString()` on same content (via temp file)
-  * [x] If native backend is available, assert native and wasm match exactly
-  * [x] If native is missing, ensure test still passes (skips “native parity” block)
-* [x] Add script-coverage action(s)
-
-**Exit criteria**
-
-* [x] No change to bundle identity semantics (incremental cache stability)
-* [x] `checksumFile()` remains bounded-memory for large files (streaming or chunked reads)
 
 ---
 

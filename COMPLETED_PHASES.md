@@ -59,6 +59,43 @@ Phases 1-4 were completed during the initial Sublime Text plugin and map rollout
 
 ---
 
+## Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
+
+### 17.1 Add dependency + unify backend contract
+
+* [x] Add `@node-rs/xxhash` as optional dependency (or hard dep if you accept platform constraints)
+* [x] Create `src/shared/hash/xxhash-backend.js`:
+
+  * [x] `hash64(buffer|string) -> hex16` (exact output format must match existing `checksumString()` + `checksumFile()`)
+  * [x] `hash64Stream(readable) -> hex16` (if supported; otherwise implement chunking in JS)
+* [x] Update `src/shared/hash.js`:
+
+  * [x] Keep `sha1()` unchanged
+  * [x] Route `checksumString()` / `checksumFile()` through the backend contract
+  * [x] Preserve deterministic formatting (`formatXxhashHex`)
+
+### 17.2 Introduce selector + telemetry
+
+* [x] Add `PAIROFCLEATS_XXHASH_BACKEND=auto|native|wasm`
+* [x] Emit backend choice in verbose logs (once)
+
+### 17.3 Tests
+
+* [x] Add `tests/xxhash-backends.js`:
+
+  * [x] Assert `checksumString('abc')` matches a known baseline (record from current implementation)
+  * [x] Assert `checksumFile()` matches `checksumString()` on same content (via temp file)
+  * [x] If native backend is available, assert native and wasm match exactly
+  * [x] If native is missing, ensure test still passes (skips “native parity” block)
+* [x] Add script-coverage action(s)
+
+**Exit criteria**
+
+* [x] No change to bundle identity semantics (incremental cache stability)
+* [x] `checksumFile()` remains bounded-memory for large files (streaming or chunked reads)
+
+---
+
 
 ## Phase 2 — Sublime Search UX (Queries, Results, Navigation)
 
