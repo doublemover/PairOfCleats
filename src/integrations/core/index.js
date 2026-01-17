@@ -11,7 +11,7 @@ import { promoteBuild } from '../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../index/validate.js';
 import { watchIndex } from '../../index/build/watch.js';
 import { getEnvConfig } from '../../shared/env.js';
-import { log as defaultLog, showProgress } from '../../shared/progress.js';
+import { log as defaultLog, logLine, showProgress } from '../../shared/progress.js';
 import { observeIndexDuration } from '../../shared/metrics.js';
 import { shutdownPythonAstPool } from '../../lang/python.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../index/build/feature-metrics.js';
@@ -197,13 +197,48 @@ const teardownRuntime = async (runtime) => {
 
 const EMBEDDINGS_CANCEL_CODE = 0xC000013A;
 
-const runEmbeddingsTool = (args, extraEnv = null) => new Promise((resolve, reject) => {
+const pipeOutputLines = (stream, onLine) => {
+  if (!stream || !onLine) return () => {};
+  let buffer = '';
+  const flushLine = (line) => {
+    const trimmed = line.trimEnd();
+    if (trimmed) onLine(trimmed);
+  };
+  const onData = (chunk) => {
+    buffer += chunk.toString();
+    const parts = buffer.split(/\r?\n/);
+    buffer = parts.pop() || '';
+    for (const line of parts) flushLine(line);
+  };
+  const onEnd = () => {
+    if (buffer) flushLine(buffer);
+    buffer = '';
+  };
+  stream.on('data', onData);
+  stream.on('end', onEnd);
+  return () => {
+    stream.off('data', onData);
+    stream.off('end', onEnd);
+    if (buffer) flushLine(buffer);
+  };
+};
+
+const runEmbeddingsTool = (args, extraEnv = null, options = {}) => new Promise((resolve, reject) => {
   const child = spawn(process.execPath, args, {
-    stdio: 'inherit',
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: extraEnv ? { ...process.env, ...extraEnv } : process.env
   });
-  child.on('error', reject);
+  const onLine = typeof options.onLine === 'function' ? options.onLine : null;
+  const detachStdout = pipeOutputLines(child.stdout, onLine);
+  const detachStderr = pipeOutputLines(child.stderr, onLine);
+  child.on('error', (err) => {
+    detachStdout();
+    detachStderr();
+    reject(err);
+  });
   child.on('close', (code, signal) => {
+    detachStdout();
+    detachStderr();
     if (code === 0) {
       resolve({ ok: true });
       return;
@@ -292,6 +327,11 @@ export async function buildIndex(repoRoot, options = {}) {
     const lock = await acquireIndexLock({ repoCacheRoot, log });
     if (!lock) throw new Error('Index lock unavailable.');
     try {
+      const embedTotal = embedModes.length;
+      let embedIndex = 0;
+      if (embedTotal) {
+        showProgress('Embeddings', embedIndex, embedTotal, { stage: 'embeddings' });
+      }
       if (embeddingRuntime.embeddingService) {
         const queueDir = embeddingRuntime.queueDir
           ? path.resolve(embeddingRuntime.queueDir)
@@ -318,12 +358,26 @@ export async function buildIndex(repoRoot, options = {}) {
             if (includeEmbeddings && overallProgress?.advance) {
               overallProgress.advance({ message: `${modeItem} embeddings` });
             }
+            if (embedTotal) {
+              embedIndex += 1;
+              showProgress('Embeddings', embedIndex, embedTotal, {
+                stage: 'embeddings',
+                message: modeItem
+              });
+            }
             continue;
           }
           log(`[embeddings] Queued embedding job ${jobId} (${modeItem}).`);
           jobs.push(result.job || { id: jobId, mode: modeItem });
           if (includeEmbeddings && overallProgress?.advance) {
             overallProgress.advance({ message: `${modeItem} embeddings` });
+          }
+          if (embedTotal) {
+            embedIndex += 1;
+            showProgress('Embeddings', embedIndex, embedTotal, {
+              stage: 'embeddings',
+              message: modeItem
+            });
           }
         }
         return recordOk({ modes: embedModes, embeddings: { queued: true, jobs }, repo: root, stage: 'stage3' });
@@ -334,7 +388,10 @@ export async function buildIndex(repoRoot, options = {}) {
           args.push('--dims', String(argv.dims));
         }
         if (embeddingRuntime.useStubEmbeddings) args.push('--stub-embeddings');
-        const embedResult = await runEmbeddingsTool(args);
+        args.push('--progress', 'off');
+        const embedResult = await runEmbeddingsTool(args, null, {
+          onLine: (line) => logLine(line)
+        });
         if (embedResult?.cancelled) {
           log('[embeddings] build-embeddings cancelled; skipping remaining modes.');
           return recordOk({
@@ -352,6 +409,13 @@ export async function buildIndex(repoRoot, options = {}) {
         }
         if (includeEmbeddings && overallProgress?.advance) {
           overallProgress.advance({ message: `${modeItem} embeddings` });
+        }
+        if (embedTotal) {
+          embedIndex += 1;
+          showProgress('Embeddings', embedIndex, embedTotal, {
+            stage: 'embeddings',
+            message: modeItem
+          });
         }
       }
       return recordOk({ modes: embedModes, embeddings: { queued: false, inline: true }, repo: root, stage: 'stage3' });
