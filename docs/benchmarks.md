@@ -67,3 +67,8 @@ each component.
 
 Language benchmarks focus on larger repos and end-to-end indexing + search runs.
 See `docs/language-benchmarks.md` for tiered repo lists and recommended commands.
+
+### Cache policy
+Language benchmarks delete each repo's cache after it finishes (default) to keep disk usage bounded.
+Use `--keep-cache` when you need to inspect artifacts or debug a specific run. The cleanup only removes
+repo-specific caches under `benchmarks/cache/repos/<repo-id>` and does not touch shared downloads/models.

@@ -61,6 +61,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
         'no-clone': { type: 'boolean', default: false },
         'dry-run': { type: 'boolean', default: false },
         'cache-run': { type: 'boolean', default: false },
+        'keep-cache': { type: 'boolean', default: false },
         config: { type: 'string' },
         root: { type: 'string' },
         'cache-root': { type: 'string' },
@@ -98,6 +99,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
 
   const cloneEnabled = argv['no-clone'] ? false : argv.clone !== false;
   const dryRun = argv['dry-run'] === true;
+  const keepCache = argv['keep-cache'] === true;
   const quietMode = argv.quiet === true || argv.json === true;
   const progressMode = argv.progress || 'auto';
 
@@ -139,6 +141,7 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
     logPath,
     cloneEnabled,
     dryRun,
+    keepCache,
     quietMode,
     progressMode,
     logWindowSize,

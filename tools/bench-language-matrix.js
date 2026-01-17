@@ -135,6 +135,7 @@ const configToArgs = (config, outFile, logFile) => {
   if (argv['stub-embeddings']) args.push('--stub-embeddings');
   if (argv['real-embeddings']) args.push('--real-embeddings');
   if (argv['dry-run']) args.push('--dry-run');
+  if (argv['keep-cache']) args.push('--keep-cache');
 
   appendArgs(args, '--config', argv.config);
   appendArgs(args, '--root', argv.root);

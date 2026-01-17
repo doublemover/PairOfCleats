@@ -43,6 +43,7 @@ The matrix runner is now `pairofcleats bench matrix`.
 - `--root <path>`: clone destination root (default `benchmarks/repos`).
 - `--cache-root <path>`: cache root for all benchmark runs (default `benchmarks/cache`).
 - `--cache-suffix <name>` / `--cache-run`: append a suffix or auto-generate a run id to isolate caches per run.
+- `--keep-cache`: preserve per-repo caches after each run (default: cleanup after each repo).
 - `--build`, `--build-index`, `--build-sqlite`: build indexes before search. `--build-sqlite` uses incremental bundles when available; otherwise it will auto-enable `--build-index` to create file-backed indexes.
 - `--backend <csv|all>`: control backends passed to `tests/perf/bench/run.test.js`.
 - `--ann` / `--no-ann`: toggle ANN for dense search.

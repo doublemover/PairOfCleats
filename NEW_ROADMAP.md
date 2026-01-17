@@ -58,12 +58,12 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ### 2.1 Cache cleanup after each benchmarked repo
 
-- [ ] Update benchmark harnesses to **clean the repo cache after each repo** by default:
+- [x] Update benchmark harnesses to **clean the repo cache after each repo** by default:
   - remove repo build directories (including incremental chunk artifacts and shard parts) and sqlite DBs under `benchmarks/cache/repos/...`
   - keep only benchmark results/baselines (and optionally a minimal build summary)
   - do **not** delete shared caches (downloads, extension caches, shared embedding caches); only repo-specific build outputs
-- [ ] Add a `--keep-cache` override for debugging.
-- [ ] Document this in `docs/benchmarks.md` (cache policy + disk sizing expectations).
+- [x] Add a `--keep-cache` override for debugging.
+- [x] Document this in `docs/benchmarks.md` (cache policy + disk sizing expectations).
 
 ### 2.2 Deterministic shard progress numbering
 

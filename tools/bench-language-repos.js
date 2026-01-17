@@ -15,6 +15,7 @@ import {
   resolveRepoCacheRoot,
   resolveRepoDir
 } from './bench/language/repos.js';
+import { isInside, isRootPath } from './path-utils.js';
 import { createProcessRunner } from './bench/language/process.js';
 import {
   buildLineStats,
@@ -46,6 +47,7 @@ const {
   logPath,
   cloneEnabled,
   dryRun,
+  keepCache,
   logWindowSize,
   lockMode,
   lockWaitMs,
@@ -297,265 +299,286 @@ const updateBenchProgress = (label) => {
 };
 updateBenchProgress('pending');
 
+const cleanRepoCache = async ({ repoCacheRoot, repoLabel }) => {
+  if (keepCache || dryRun || !repoCacheRoot) return;
+  try {
+    const resolvedCacheRoot = path.resolve(cacheRoot);
+    const resolvedRepoCacheRoot = path.resolve(repoCacheRoot);
+    if (!isInside(resolvedCacheRoot, resolvedRepoCacheRoot) || isRootPath(resolvedRepoCacheRoot)) {
+      appendLog(`[cache] Skip cleanup; repo cache path not under cache root (${resolvedRepoCacheRoot}).`, 'warn');
+      return;
+    }
+    if (!fs.existsSync(resolvedRepoCacheRoot)) return;
+    await fsPromises.rm(resolvedRepoCacheRoot, { recursive: true, force: true });
+    appendLog(`[cache] Cleaned repo cache for ${repoLabel}.`);
+  } catch (err) {
+    appendLog(`[cache] Failed to clean repo cache for ${repoLabel}: ${err?.message || err}`, 'warn');
+  }
+};
+
 for (const task of tasks) {
   const repoPath = resolveRepoDir({ reposRoot, repo: task.repo, language: task.language });
   await fsPromises.mkdir(path.dirname(repoPath), { recursive: true });
   const repoLabel = `${task.language}/${task.repo}`;
   const phaseLabel = `repo ${repoLabel} (${task.tier})`;
   updateBenchProgress(`starting ${phaseLabel}`);
+  const repoCacheRoot = resolveRepoCacheRoot({ repoPath, cacheRoot });
 
-  if (!fs.existsSync(repoPath)) {
-    if (!cloneEnabled && !dryRun) {
-      display.error(`Missing repo ${task.repo} at ${repoPath}. Re-run with --clone.`);
-      exitWithDisplay(1);
+  try {
+    if (!fs.existsSync(repoPath)) {
+      if (!cloneEnabled && !dryRun) {
+        display.error(`Missing repo ${task.repo} at ${repoPath}. Re-run with --clone.`);
+        exitWithDisplay(1);
+      }
+      updateBenchProgress(`cloning ${phaseLabel}`);
+      if (!dryRun && cloneEnabled && cloneTool) {
+        const args = cloneTool.buildArgs(task.repo, repoPath);
+        const cloneResult = await processRunner.runProcess(`clone ${task.repo}`, cloneTool.label, args, {
+          env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+          continueOnError: true
+        });
+        if (!cloneResult.ok) {
+          appendLog(`[error] Clone failed for ${repoLabel}; continuing to next repo.`, 'error');
+          completed += 1;
+          updateBenchProgress(`failed ${phaseLabel}`);
+          appendLog('[metrics] failed (clone)');
+          results.push({
+            ...task,
+            repoPath,
+            outFile: null,
+            summary: null,
+            failed: true,
+            failureReason: 'clone',
+            failureCode: cloneResult.code ?? null
+          });
+          continue;
+        }
+      }
     }
-    updateBenchProgress(`cloning ${phaseLabel}`);
-    if (!dryRun && cloneEnabled && cloneTool) {
-      const args = cloneTool.buildArgs(task.repo, repoPath);
-      const cloneResult = await processRunner.runProcess(`clone ${task.repo}`, cloneTool.label, args, {
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+
+    const repoUserConfig = loadUserConfig(
+      repoPath,
+      indexProfile ? { profile: indexProfile } : {}
+    );
+    const repoRuntimeConfig = getRuntimeConfig(repoPath, repoUserConfig);
+    let baseNodeOptions = baseEnv.NODE_OPTIONS || '';
+    if (Number.isFinite(heapArg) && heapArg > 0) {
+      baseNodeOptions = stripMaxOldSpaceFlag(baseNodeOptions);
+    }
+    const hasHeapFlag = baseNodeOptions.includes('--max-old-space-size');
+    let heapOverride = null;
+    if (Number.isFinite(heapArg) && heapArg > 0) {
+      heapOverride = heapArg;
+      if (!heapLogged) {
+        appendLog(`[heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) from --heap-mb.`);
+        heapLogged = true;
+      }
+    } else if (
+      !Number.isFinite(repoRuntimeConfig.maxOldSpaceMb)
+      && !envConfig.maxOldSpaceMb
+      && !hasHeapFlag
+    ) {
+      heapOverride = heapRecommendation.recommendedMb;
+      if (!heapLogged) {
+        appendLog(
+          `[auto-heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) for Node heap. `
+            + 'Override with --heap-mb or PAIROFCLEATS_MAX_OLD_SPACE_MB.'
+        );
+        heapLogged = true;
+      }
+    }
+    const runtimeConfigForRun = heapOverride
+      ? { ...repoRuntimeConfig, maxOldSpaceMb: heapOverride }
+      : repoRuntimeConfig;
+
+    const baseEnvForRepo = { ...baseEnv };
+    if (typeof baseEnv.NODE_OPTIONS === 'string' || baseNodeOptions) {
+      baseEnvForRepo.NODE_OPTIONS = baseNodeOptions;
+    }
+    const repoEnvBase = resolveRuntimeEnv(runtimeConfigForRun, baseEnvForRepo);
+    if (suppressProfileEnv && repoEnvBase.PAIROFCLEATS_PROFILE) {
+      delete repoEnvBase.PAIROFCLEATS_PROFILE;
+    }
+    if (heapOverride) {
+      repoEnvBase.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapOverride);
+    }
+    if (indexProfile) {
+      repoEnvBase.PAIROFCLEATS_PROFILE = indexProfile;
+    }
+
+    const outDir = path.join(resultsRoot, task.language);
+    const outFile = path.join(outDir, `${task.repo.replace('/', '__')}.json`);
+    await fsPromises.mkdir(outDir, { recursive: true });
+
+    const wantsMemory = backendList.includes('memory');
+    const missingIndex = needsIndexArtifacts(repoPath);
+    const missingSqlite = wantsSqlite && needsSqliteArtifacts(repoPath);
+    let autoBuildIndex = false;
+    let autoBuildSqlite = false;
+    const buildIndexRequested = argv.build || argv['build-index'];
+    const buildSqliteRequested = argv.build || argv['build-sqlite'];
+    if (buildSqliteRequested && !buildIndexRequested && missingIndex) {
+      autoBuildIndex = true;
+      appendLog('[auto-build] sqlite build requires index artifacts; enabling build-index.');
+    }
+    if (!argv.build && !argv['build-index'] && !argv['build-sqlite']) {
+      if (missingIndex && wantsMemory) autoBuildIndex = true;
+      if (missingSqlite) autoBuildSqlite = true;
+      if (autoBuildSqlite && missingIndex) autoBuildIndex = true;
+      if (autoBuildIndex || autoBuildSqlite) {
+        appendLog(
+          `[auto-build] missing artifacts${autoBuildIndex ? ' index' : ''}${autoBuildSqlite ? ' sqlite' : ''}; enabling build.`
+        );
+      }
+    }
+
+    const shouldBuildIndex = argv.build || argv['build-index'] || autoBuildIndex;
+    if (shouldBuildIndex && !dryRun) {
+      try {
+        appendLog(`[metrics] Collecting line counts for ${repoLabel}...`);
+        const stats = await buildLineStats(repoPath, repoUserConfig);
+        appendLog(
+          `[metrics] Line totals: code=${stats.totals.code.toLocaleString()} prose=${stats.totals.prose.toLocaleString()}`
+        );
+      } catch (err) {
+        appendLog(`[metrics] Line counts unavailable: ${err?.message || err}`);
+      }
+    }
+
+    const lockCheck = await checkIndexLock({
+      repoCacheRoot,
+      repoLabel,
+      lockMode,
+      lockWaitMs,
+      lockStaleMs,
+      onLog: appendLog
+    });
+    if (!lockCheck.ok) {
+      const detail = formatLockDetail(lockCheck.detail);
+      const message = `Skipping ${repoLabel}: index lock held ${detail}`.trim();
+      appendLog(`[lock] ${message}`);
+      if (!quietMode) display.error(message);
+      completed += 1;
+      updateBenchProgress(`skipped ${phaseLabel}`);
+      appendLog('[metrics] skipped (lock)');
+      results.push({
+        ...task,
+        repoPath,
+        outFile,
+        summary: null,
+        skipped: true,
+        skipReason: 'lock',
+        lock: lockCheck.detail || null
+      });
+      continue;
+    }
+
+    const benchArgs = [
+      benchScript,
+      '--repo',
+      repoPath,
+      '--queries',
+      task.queriesPath,
+      '--write-report',
+      '--out',
+      outFile
+    ];
+    if (indexProfile) benchArgs.push('--index-profile', indexProfile);
+    if (argv['stub-embeddings']) {
+      benchArgs.push('--stub-embeddings');
+      progress.appendLog('[bench] Stub embeddings enabled; results are not comparable to real-embeddings runs.');
+    } else {
+      benchArgs.push('--real-embeddings');
+    }
+    if (argv.build) {
+      benchArgs.push('--build');
+    } else {
+      if (argv['build-index'] || autoBuildIndex) benchArgs.push('--build-index');
+      if (argv['build-sqlite'] || autoBuildSqlite) benchArgs.push('--build-sqlite');
+    }
+    if (argv.incremental) benchArgs.push('--incremental');
+    if (argv['stub-embeddings']) {
+      appendLog('[bench] Stub embeddings requested; ignored for heavy language benchmarks.');
+    }
+    if (argv.ann) benchArgs.push('--ann');
+    if (argv['no-ann']) benchArgs.push('--no-ann');
+    if (argv.backend) benchArgs.push('--backend', String(argv.backend));
+    if (argv.top) benchArgs.push('--top', String(argv.top));
+    if (argv.limit) benchArgs.push('--limit', String(argv.limit));
+    if (argv['bm25-k1']) benchArgs.push('--bm25-k1', String(argv['bm25-k1']));
+    if (argv['bm25-b']) benchArgs.push('--bm25-b', String(argv['bm25-b']));
+    if (argv['fts-profile']) benchArgs.push('--fts-profile', String(argv['fts-profile']));
+    if (argv['fts-weights']) benchArgs.push('--fts-weights', String(argv['fts-weights']));
+    if (argv.threads) benchArgs.push('--threads', String(argv.threads));
+    if (argv['no-index-profile']) benchArgs.push('--no-index-profile');
+    const childProgressMode = argv.progress === 'off' ? 'off' : 'jsonl';
+    benchArgs.push('--progress', childProgressMode);
+    if (argv.verbose) benchArgs.push('--verbose');
+    if (argv.quiet || argv.json) benchArgs.push('--quiet');
+
+    updateBenchProgress(`bench ${phaseLabel}`);
+
+    let summary = null;
+    if (dryRun) {
+      appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
+    } else {
+      const benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
+        cwd: scriptRoot,
+        env: {
+          ...repoEnvBase,
+          PAIROFCLEATS_CACHE_ROOT: cacheRoot,
+          ...(Number.isFinite(Number(argv.threads)) && Number(argv.threads) > 0
+            ? { PAIROFCLEATS_THREADS: String(argv.threads) }
+            : {})
+        },
         continueOnError: true
       });
-      if (!cloneResult.ok) {
-        appendLog(`[error] Clone failed for ${repoLabel}; continuing to next repo.`, 'error');
+      if (!benchResult.ok) {
+        appendLog(`[error] Bench failed for ${repoLabel}; continuing to next repo.`, 'error');
         completed += 1;
         updateBenchProgress(`failed ${phaseLabel}`);
-        appendLog('[metrics] failed (clone)');
+        appendLog('[metrics] failed (bench)');
         results.push({
           ...task,
           repoPath,
-          outFile: null,
+          outFile,
           summary: null,
           failed: true,
-          failureReason: 'clone',
-          failureCode: cloneResult.code ?? null
+          failureReason: 'bench',
+          failureCode: benchResult.code ?? null
+        });
+        continue;
+      }
+      try {
+        const raw = await fsPromises.readFile(outFile, 'utf8');
+        summary = JSON.parse(raw).summary || null;
+      } catch (err) {
+        appendLog(`[error] Failed to read bench report for ${repoLabel}; continuing.`, 'error');
+        if (err && err.message) display.error(err.message);
+        completed += 1;
+        updateBenchProgress(`failed ${phaseLabel}`);
+        appendLog('[metrics] failed (report)');
+        results.push({
+          ...task,
+          repoPath,
+          outFile,
+          summary: null,
+          failed: true,
+          failureReason: 'report',
+          failureCode: null
         });
         continue;
       }
     }
-  }
 
-  const repoUserConfig = loadUserConfig(
-    repoPath,
-    indexProfile ? { profile: indexProfile } : {}
-  );
-  const repoRuntimeConfig = getRuntimeConfig(repoPath, repoUserConfig);
-  let baseNodeOptions = baseEnv.NODE_OPTIONS || '';
-  if (Number.isFinite(heapArg) && heapArg > 0) {
-    baseNodeOptions = stripMaxOldSpaceFlag(baseNodeOptions);
-  }
-  const hasHeapFlag = baseNodeOptions.includes('--max-old-space-size');
-  let heapOverride = null;
-  if (Number.isFinite(heapArg) && heapArg > 0) {
-    heapOverride = heapArg;
-    if (!heapLogged) {
-      appendLog(`[heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) from --heap-mb.`);
-      heapLogged = true;
-    }
-  } else if (
-    !Number.isFinite(repoRuntimeConfig.maxOldSpaceMb)
-    && !envConfig.maxOldSpaceMb
-    && !hasHeapFlag
-  ) {
-    heapOverride = heapRecommendation.recommendedMb;
-    if (!heapLogged) {
-      appendLog(
-        `[auto-heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) for Node heap. `
-          + 'Override with --heap-mb or PAIROFCLEATS_MAX_OLD_SPACE_MB.'
-      );
-      heapLogged = true;
-    }
-  }
-  const runtimeConfigForRun = heapOverride
-    ? { ...repoRuntimeConfig, maxOldSpaceMb: heapOverride }
-    : repoRuntimeConfig;
-
-  const baseEnvForRepo = { ...baseEnv };
-  if (typeof baseEnv.NODE_OPTIONS === 'string' || baseNodeOptions) {
-    baseEnvForRepo.NODE_OPTIONS = baseNodeOptions;
-  }
-  const repoEnvBase = resolveRuntimeEnv(runtimeConfigForRun, baseEnvForRepo);
-  if (suppressProfileEnv && repoEnvBase.PAIROFCLEATS_PROFILE) {
-    delete repoEnvBase.PAIROFCLEATS_PROFILE;
-  }
-  if (heapOverride) {
-    repoEnvBase.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapOverride);
-  }
-  if (indexProfile) {
-    repoEnvBase.PAIROFCLEATS_PROFILE = indexProfile;
-  }
-
-  const outDir = path.join(resultsRoot, task.language);
-  const outFile = path.join(outDir, `${task.repo.replace('/', '__')}.json`);
-  await fsPromises.mkdir(outDir, { recursive: true });
-
-  const repoCacheRoot = resolveRepoCacheRoot({ repoPath, cacheRoot });
-  const wantsMemory = backendList.includes('memory');
-  const missingIndex = needsIndexArtifacts(repoPath);
-  const missingSqlite = wantsSqlite && needsSqliteArtifacts(repoPath);
-  let autoBuildIndex = false;
-  let autoBuildSqlite = false;
-  const buildIndexRequested = argv.build || argv['build-index'];
-  const buildSqliteRequested = argv.build || argv['build-sqlite'];
-  if (buildSqliteRequested && !buildIndexRequested && missingIndex) {
-    autoBuildIndex = true;
-    appendLog('[auto-build] sqlite build requires index artifacts; enabling build-index.');
-  }
-  if (!argv.build && !argv['build-index'] && !argv['build-sqlite']) {
-    if (missingIndex && wantsMemory) autoBuildIndex = true;
-    if (missingSqlite) autoBuildSqlite = true;
-    if (autoBuildSqlite && missingIndex) autoBuildIndex = true;
-    if (autoBuildIndex || autoBuildSqlite) {
-      appendLog(
-        `[auto-build] missing artifacts${autoBuildIndex ? ' index' : ''}${autoBuildSqlite ? ' sqlite' : ''}; enabling build.`
-      );
-    }
-  }
-
-  const shouldBuildIndex = argv.build || argv['build-index'] || autoBuildIndex;
-  if (shouldBuildIndex && !dryRun) {
-    try {
-      appendLog(`[metrics] Collecting line counts for ${repoLabel}...`);
-      const stats = await buildLineStats(repoPath, repoUserConfig);
-      appendLog(
-        `[metrics] Line totals: code=${stats.totals.code.toLocaleString()} prose=${stats.totals.prose.toLocaleString()}`
-      );
-    } catch (err) {
-      appendLog(`[metrics] Line counts unavailable: ${err?.message || err}`);
-    }
-  }
-
-  const lockCheck = await checkIndexLock({
-    repoCacheRoot,
-    repoLabel,
-    lockMode,
-    lockWaitMs,
-    lockStaleMs,
-    onLog: appendLog
-  });
-  if (!lockCheck.ok) {
-    const detail = formatLockDetail(lockCheck.detail);
-    const message = `Skipping ${repoLabel}: index lock held ${detail}`.trim();
-    appendLog(`[lock] ${message}`);
-    if (!quietMode) display.error(message);
     completed += 1;
-    updateBenchProgress(`skipped ${phaseLabel}`);
-    appendLog('[metrics] skipped (lock)');
-    results.push({
-      ...task,
-      repoPath,
-      outFile,
-      summary: null,
-      skipped: true,
-      skipReason: 'lock',
-      lock: lockCheck.detail || null
-    });
-    continue;
-  }
+    updateBenchProgress(`finished ${phaseLabel}`);
+    appendLog(`[metrics] ${formatMetricSummary(summary)}`);
 
-  const benchArgs = [
-    benchScript,
-    '--repo',
-    repoPath,
-    '--queries',
-    task.queriesPath,
-    '--write-report',
-    '--out',
-    outFile
-  ];
-  if (indexProfile) benchArgs.push('--index-profile', indexProfile);
-  if (argv['stub-embeddings']) {
-    benchArgs.push('--stub-embeddings');
-    progress.appendLog('[bench] Stub embeddings enabled; results are not comparable to real-embeddings runs.');
-  } else {
-    benchArgs.push('--real-embeddings');
+    results.push({ ...task, repoPath, outFile, summary });
+  } finally {
+    await cleanRepoCache({ repoCacheRoot, repoLabel });
   }
-  if (argv.build) {
-    benchArgs.push('--build');
-  } else {
-    if (argv['build-index'] || autoBuildIndex) benchArgs.push('--build-index');
-    if (argv['build-sqlite'] || autoBuildSqlite) benchArgs.push('--build-sqlite');
-  }
-  if (argv.incremental) benchArgs.push('--incremental');
-  if (argv['stub-embeddings']) {
-    appendLog('[bench] Stub embeddings requested; ignored for heavy language benchmarks.');
-  }
-  if (argv.ann) benchArgs.push('--ann');
-  if (argv['no-ann']) benchArgs.push('--no-ann');
-  if (argv.backend) benchArgs.push('--backend', String(argv.backend));
-  if (argv.top) benchArgs.push('--top', String(argv.top));
-  if (argv.limit) benchArgs.push('--limit', String(argv.limit));
-  if (argv['bm25-k1']) benchArgs.push('--bm25-k1', String(argv['bm25-k1']));
-  if (argv['bm25-b']) benchArgs.push('--bm25-b', String(argv['bm25-b']));
-  if (argv['fts-profile']) benchArgs.push('--fts-profile', String(argv['fts-profile']));
-  if (argv['fts-weights']) benchArgs.push('--fts-weights', String(argv['fts-weights']));
-  if (argv.threads) benchArgs.push('--threads', String(argv.threads));
-  if (argv['no-index-profile']) benchArgs.push('--no-index-profile');
-  const childProgressMode = argv.progress === 'off' ? 'off' : 'jsonl';
-  benchArgs.push('--progress', childProgressMode);
-  if (argv.verbose) benchArgs.push('--verbose');
-  if (argv.quiet || argv.json) benchArgs.push('--quiet');
-
-  updateBenchProgress(`bench ${phaseLabel}`);
-
-  let summary = null;
-  if (dryRun) {
-    appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
-  } else {
-    const benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
-      cwd: scriptRoot,
-      env: {
-        ...repoEnvBase,
-        PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-        ...(Number.isFinite(Number(argv.threads)) && Number(argv.threads) > 0
-          ? { PAIROFCLEATS_THREADS: String(argv.threads) }
-          : {})
-      },
-      continueOnError: true
-    });
-    if (!benchResult.ok) {
-      appendLog(`[error] Bench failed for ${repoLabel}; continuing to next repo.`, 'error');
-      completed += 1;
-      updateBenchProgress(`failed ${phaseLabel}`);
-      appendLog('[metrics] failed (bench)');
-      results.push({
-        ...task,
-        repoPath,
-        outFile,
-        summary: null,
-        failed: true,
-        failureReason: 'bench',
-        failureCode: benchResult.code ?? null
-      });
-      continue;
-    }
-    try {
-      const raw = await fsPromises.readFile(outFile, 'utf8');
-      summary = JSON.parse(raw).summary || null;
-    } catch (err) {
-      appendLog(`[error] Failed to read bench report for ${repoLabel}; continuing.`, 'error');
-      if (err && err.message) display.error(err.message);
-      completed += 1;
-      updateBenchProgress(`failed ${phaseLabel}`);
-      appendLog('[metrics] failed (report)');
-      results.push({
-        ...task,
-        repoPath,
-        outFile,
-        summary: null,
-        failed: true,
-        failureReason: 'report',
-        failureCode: null
-      });
-      continue;
-    }
-  }
-
-  completed += 1;
-  updateBenchProgress(`finished ${phaseLabel}`);
-  appendLog(`[metrics] ${formatMetricSummary(summary)}`);
-
-  results.push({ ...task, repoPath, outFile, summary });
 }
 
 const output = buildReportOutput({
