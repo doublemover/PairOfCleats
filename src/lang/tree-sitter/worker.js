@@ -149,3 +149,15 @@ export const getTreeSitterWorkerPool = async (rawConfig, options = {}) => {
     return null;
   }
 };
+
+export const shutdownTreeSitterWorkerPool = async () => {
+  if (treeSitterState.treeSitterWorkerPool && treeSitterState.treeSitterWorkerPool.destroy) {
+    try {
+      await treeSitterState.treeSitterWorkerPool.destroy();
+    } catch {
+      // ignore destroy failures
+    }
+  }
+  treeSitterState.treeSitterWorkerPool = null;
+  treeSitterState.treeSitterWorkerConfigSignature = null;
+};
