@@ -1,4 +1,5 @@
 import Graph from 'graphology';
+import { compareStrings } from '../../shared/sort.js';
 
 const buildChunkKey = (chunk) => `${chunk.file}::${chunk.name}`;
 
@@ -30,7 +31,7 @@ const serializeGraph = (graph) => {
       in: incoming
     });
   });
-  nodes.sort((a, b) => a.id.localeCompare(b.id));
+  nodes.sort((a, b) => compareStrings(a.id, b.id));
   return {
     nodeCount: graph.order,
     edgeCount: graph.size,

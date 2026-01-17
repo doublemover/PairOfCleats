@@ -14,7 +14,7 @@ export function parseBuildArgs(rawArgs) {
   }).parse();
   validateBuildArgs(argv);
   const modes = argv.mode === 'all'
-    ? ['prose', 'code', 'extracted-prose']
+    ? ['prose', 'code', 'extracted-prose', 'records']
     : [argv.mode];
   return { argv, modes };
 }

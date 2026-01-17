@@ -87,7 +87,7 @@ function *iteratePostingDocIds(posting) {
     return;
   }
   if (typeof posting[Symbol.iterator] === 'function') {
-    // eslint-disable-next-line no-restricted-syntax
+     
     for (const id of posting) yield id;
   }
 }

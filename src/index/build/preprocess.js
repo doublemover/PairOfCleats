@@ -73,6 +73,7 @@ const validateEntries = (entries) => {
 export async function preprocessFiles({
   root,
   modes,
+  recordsDir = null,
   ignoreMatcher,
   maxFileBytes = null,
   fileCaps = null,
@@ -85,6 +86,7 @@ export async function preprocessFiles({
 }) {
   const { entries, skippedCommon } = await discoverEntries({
     root,
+    recordsDir,
     ignoreMatcher,
     maxFileBytes,
     fileCaps,

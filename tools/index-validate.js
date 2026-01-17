@@ -11,7 +11,7 @@ const parseModes = (raw) => {
     .map((token) => token.trim())
     .filter(Boolean);
   const modeSet = new Set(tokens.length ? tokens : ['code', 'prose']);
-  if (modeSet.has('all')) return ['code', 'prose', 'records'];
+  if (modeSet.has('all')) return ['code', 'prose', 'extracted-prose', 'records'];
   return Array.from(modeSet);
 };
 
