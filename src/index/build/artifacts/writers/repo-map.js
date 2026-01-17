@@ -10,8 +10,15 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
     for (const c of chunks) {
       if (!c?.name) continue;
       const exportsSet = fileExportMap.get(c.file) || null;
+      const hasDefault = exportsSet ? exportsSet.has('default') : false;
       const exported = exportsSet
-        ? exportsSet.has(c.name) || exportsSet.has('*') || (c.name === 'default' && exportsSet.has('default'))
+        ? exportsSet.has(c.name)
+          || exportsSet.has('*')
+          || (hasDefault && (
+            c.name === 'default'
+            || c.name === 'module.exports'
+            || (typeof c.kind === 'string' && c.kind.startsWith('ExportDefault'))
+          ))
         : false;
       yield {
         file: c.file,

@@ -104,6 +104,31 @@ const appendAudit = async (indexDir, line) => {
   await fs.appendFile(logPath, `${line}\n`);
 };
 
+const replaceDirAtomic = async (sourceDir, targetDir) => {
+  if (dryRun) return;
+  const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const backupDir = `${targetDir}.bak-${suffix}`;
+  await fs.rm(backupDir, { recursive: true, force: true });
+  const hasTarget = fsSync.existsSync(targetDir);
+  if (hasTarget) {
+    await fs.rename(targetDir, backupDir);
+  }
+  try {
+    await fs.rename(sourceDir, targetDir);
+    if (hasTarget) {
+      await fs.rm(backupDir, { recursive: true, force: true });
+    }
+  } catch (err) {
+    if (hasTarget) {
+      try {
+        await fs.rename(backupDir, targetDir);
+      } catch {}
+      await fs.rm(backupDir, { recursive: true, force: true });
+    }
+    throw err;
+  }
+};
+
 const compactChunkMeta = async (indexDir, targetSize) => {
   const resolved = await resolveChunkMetaParts(indexDir);
   if (!resolved) return null;
@@ -149,8 +174,7 @@ const compactChunkMeta = async (indexDir, targetSize) => {
   }
   await flush();
   if (!dryRun) {
-    await fs.rm(partsDir, { recursive: true, force: true });
-    await fs.rename(tmpDir, partsDir);
+    await replaceDirAtomic(tmpDir, partsDir);
     await writeJsonObjectFile(metaPath, {
       fields: {
         format: 'jsonl',
@@ -223,8 +247,7 @@ const compactTokenPostings = async (indexDir, targetSize) => {
       : 0);
   const vocabCount = newCounts.reduce((sum, count) => sum + count, 0);
   if (!dryRun) {
-    await fs.rm(shardsDir, { recursive: true, force: true });
-    await fs.rename(tmpDir, shardsDir);
+    await replaceDirAtomic(tmpDir, shardsDir);
     await writeJsonObjectFile(metaPath, {
       fields: {
         avgDocLen,

@@ -393,7 +393,10 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
 
     if (node.type === 'ExportDefaultDeclaration') {
       if (node.declaration?.id?.name) exports.add(node.declaration.id.name);
-      else exports.add('default');
+      if (node.declaration?.type === 'Identifier' && node.declaration.name) {
+        exports.add(node.declaration.name);
+      }
+      exports.add('default');
     }
 
     if (node.type === 'TSImportEqualsDeclaration') {

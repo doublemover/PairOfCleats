@@ -514,10 +514,39 @@ const existsOrBak = (filePath) => {
   return false;
 };
 
+const resolveArtifactMtime = (filePath) => {
+  try {
+    return fs.statSync(filePath).mtimeMs;
+  } catch {}
+  try {
+    return fs.statSync(getBakPath(filePath)).mtimeMs;
+  } catch {}
+  return 0;
+};
+
+const resolveDirMtime = (dirPath) => {
+  try {
+    return fs.statSync(dirPath).mtimeMs;
+  } catch {}
+  return 0;
+};
+
 const resolveJsonlArtifactSources = (dir, baseName) => {
   const metaPath = path.join(dir, `${baseName}.meta.json`);
   const partsDir = path.join(dir, `${baseName}.parts`);
-  if (existsOrBak(metaPath) || fs.existsSync(partsDir)) {
+  const jsonlPath = path.join(dir, `${baseName}.jsonl`);
+  const hasJsonl = existsOrBak(jsonlPath);
+  const hasShards = existsOrBak(metaPath) || fs.existsSync(partsDir);
+  if (hasJsonl && hasShards) {
+    const jsonlMtime = resolveArtifactMtime(jsonlPath);
+    const shardMtime = existsOrBak(metaPath)
+      ? resolveArtifactMtime(metaPath)
+      : resolveDirMtime(partsDir);
+    if (jsonlMtime >= shardMtime) {
+      return { format: 'jsonl', paths: [jsonlPath] };
+    }
+  }
+  if (hasShards) {
     let parts = [];
     if (existsOrBak(metaPath)) {
       try {
@@ -532,8 +561,7 @@ const resolveJsonlArtifactSources = (dir, baseName) => {
     }
     return parts.length ? { format: 'jsonl', paths: parts } : null;
   }
-  const jsonlPath = path.join(dir, `${baseName}.jsonl`);
-  if (existsOrBak(jsonlPath)) {
+  if (hasJsonl) {
     return { format: 'jsonl', paths: [jsonlPath] };
   }
   return null;
@@ -653,7 +681,19 @@ export const loadChunkMeta = async (dir, { maxBytes = MAX_JSON_BYTES } = {}) => 
   const metaPath = path.join(dir, 'chunk_meta.meta.json');
   const partsDir = path.join(dir, 'chunk_meta.parts');
   const requiredKeys = resolveJsonlRequiredKeys('chunk_meta');
-  if (existsOrBak(metaPath) || fs.existsSync(partsDir)) {
+  const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
+  const hasJsonl = existsOrBak(jsonlPath);
+  const hasShards = existsOrBak(metaPath) || fs.existsSync(partsDir);
+  if (hasJsonl && hasShards) {
+    const jsonlMtime = resolveArtifactMtime(jsonlPath);
+    const shardMtime = existsOrBak(metaPath)
+      ? resolveArtifactMtime(metaPath)
+      : resolveDirMtime(partsDir);
+    if (jsonlMtime >= shardMtime) {
+      return readJsonLinesArray(jsonlPath, { maxBytes, requiredKeys });
+    }
+  }
+  if (hasShards) {
     const meta = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
     const parts = Array.isArray(meta?.parts) && meta.parts.length
       ? meta.parts.map((name) => path.join(dir, name))
@@ -668,8 +708,7 @@ export const loadChunkMeta = async (dir, { maxBytes = MAX_JSON_BYTES } = {}) => 
     }
     return out;
   }
-  const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
-  if (existsOrBak(jsonlPath)) {
+  if (hasJsonl) {
     return readJsonLinesArray(jsonlPath, { maxBytes, requiredKeys });
   }
   const jsonPath = path.join(dir, 'chunk_meta.json');

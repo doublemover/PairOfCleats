@@ -544,25 +544,18 @@ export async function writeIndexArtifacts(input) {
   });
   if (tokenPostingsUseShards) {
     const shardsDir = path.join(outDir, 'token_postings.shards');
-    await fs.mkdir(shardsDir, { recursive: true });
+    const tempSuffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const shardsTmpDir = path.join(outDir, `token_postings.shards.tmp-${tempSuffix}`);
     const parts = [];
+    const shardPlan = [];
     let shardIndex = 0;
     for (let i = 0; i < postings.tokenVocab.length; i += tokenPostingsShardSize) {
       const end = Math.min(i + tokenPostingsShardSize, postings.tokenVocab.length);
       const partCount = end - i;
       const partName = `token_postings.part-${String(shardIndex).padStart(5, '0')}.json`;
+      parts.push(path.posix.join('token_postings.shards', partName));
+      shardPlan.push({ start: i, end, partCount, partName });
       const partPath = path.join(shardsDir, partName);
-      parts.push(path.join('token_postings.shards', partName));
-      enqueueWrite(
-        formatArtifactLabel(partPath),
-        () => writeJsonObjectFile(partPath, {
-          arrays: {
-            vocab: postings.tokenVocab.slice(i, end),
-            postings: postings.tokenPostingsList.slice(i, end)
-          },
-          atomic: true
-        })
-      );
       addPieceFile({
         type: 'postings',
         name: 'token_postings',
@@ -574,20 +567,41 @@ export async function writeIndexArtifacts(input) {
     const metaPath = path.join(outDir, 'token_postings.meta.json');
     enqueueWrite(
       formatArtifactLabel(metaPath),
-      () => writeJsonObjectFile(metaPath, {
-        fields: {
-          avgDocLen: postings.avgDocLen,
-          totalDocs: state.docLengths.length,
-          format: 'sharded',
-          shardSize: tokenPostingsShardSize,
-          vocabCount: postings.tokenVocab.length,
-          parts
-        },
-        arrays: {
-          docLengths: state.docLengths
-        },
-        atomic: true
-      })
+      async () => {
+        await fs.rm(shardsTmpDir, { recursive: true, force: true });
+        await fs.mkdir(shardsTmpDir, { recursive: true });
+        try {
+          for (const shard of shardPlan) {
+            const partPath = path.join(shardsTmpDir, shard.partName);
+            await writeJsonObjectFile(partPath, {
+              arrays: {
+                vocab: postings.tokenVocab.slice(shard.start, shard.end),
+                postings: postings.tokenPostingsList.slice(shard.start, shard.end)
+              },
+              atomic: true
+            });
+          }
+          await fs.rm(shardsDir, { recursive: true, force: true });
+          await fs.rename(shardsTmpDir, shardsDir);
+        } catch (err) {
+          await fs.rm(shardsTmpDir, { recursive: true, force: true });
+          throw err;
+        }
+        await writeJsonObjectFile(metaPath, {
+          fields: {
+            avgDocLen: postings.avgDocLen,
+            totalDocs: state.docLengths.length,
+            format: 'sharded',
+            shardSize: tokenPostingsShardSize,
+            vocabCount: postings.tokenVocab.length,
+            parts
+          },
+          arrays: {
+            docLengths: state.docLengths
+          },
+          atomic: true
+        });
+      }
     );
     addPieceFile({ type: 'postings', name: 'token_postings_meta', format: 'json' }, metaPath);
   } else {

@@ -12,8 +12,8 @@ This plan tracks the Appendix A tasks from NEW_ROADMAP.md. Update checkboxes as 
 This section enumerates each in-scope file and lists file-specific items to address (beyond cross-cutting tasks already listed above).
 
 ### src/index/build/artifacts.js
-- [ ] (P1) Consider directory-level atomic swap for `token_postings.shards/` (staging dir + rename).
-- [ ] (P1) Normalize shard part paths to POSIX in any meta/manifest structures (avoid OS-separator leakage).
+- [x] (P1) Consider directory-level atomic swap for `token_postings.shards/` (staging dir + rename).
+- [x] (P1) Normalize shard part paths to POSIX in any meta/manifest structures (avoid OS-separator leakage).
 - [ ] (P2) Consider sorting `pieceEntries` by `path` before writing the manifest to reduce diff noise.
 
 ### src/index/build/artifacts/checksums.js
@@ -47,7 +47,7 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Consider JSONL/sharding for very large `file_relations` outputs; add versioning metadata.
 
 ### src/index/build/artifacts/writers/repo-map.js
-- [ ] (P1) Ensure `exported` detection handles default exports correctly (depends on relations schema).
+- [x] (P1) Ensure `exported` detection handles default exports correctly (depends on relations schema).
 - [ ] (P2) Consider sorting output by `{file, name}` for stability.
 
 ### src/index/build/file-processor.js
@@ -55,7 +55,7 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [x] (P1) Replace `split('\n')` with line-scan utility for context extraction.
 - [ ] (P2) Move complexity/lint to per-file scope; avoid repeated per-chunk cache checks.
 - [ ] (P2) Fix possible timing double-counting across parse/relation durations.
-- [ ] (P1) Add explicit unsupported-language and parse-error skip reasons (configurable).
+- [x] (P1) Add explicit unsupported-language and parse-error skip reasons (configurable).
 
 ### src/index/build/file-processor/assemble.js
 - [x] (P1) Ensure field token fields written here (including `comment`) are consistently supported by postings and piece assembly.
@@ -79,7 +79,7 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Consider sorting/deduping relation arrays (imports/exports/usages) for determinism.
 
 ### src/index/build/file-processor/skip.js
-- [ ] (P1) Add explicit unsupported-language skip reason (or document that unknown languages are processed).
+- [x] (P1) Add explicit unsupported-language skip reason (or document that unknown languages are processed).
 - [ ] (P2) Add coverage for `unreadable` and `read-failure` skip paths.
 
 ### src/index/build/file-processor/timings.js
@@ -123,14 +123,14 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Optionally validate `pieces/manifest.json` checksums after restore (fast fail on corrupt artifacts).
 
 ### tools/compact-pieces.js
-- [ ] (P1) Consider directory-level atomic swap semantics (avoid rm+rename window).
+- [x] (P1) Consider directory-level atomic swap semantics (avoid rm+rename window).
 - [ ] (P2) Add perf regression harness and validate output equivalence post-compaction.
 
 ### tests/artifact-bak-recovery.js
 - [ ] (P2) Expand coverage to include: both primary and backup corrupt; json.gz sidecars; and cleanup expectations.
 
 ### tests/artifact-formats.js
-- [ ] (P1) Add explicit precedence test: sharded meta/parts must not override fresh jsonl when shards are stale (post-fix).
+- [x] (P1) Add explicit precedence test: sharded meta/parts must not override fresh jsonl when shards are stale (post-fix).
 
 ### tests/artifact-size-guardrails.js
 - [ ] (P2) Extend to cover: chunkMetaFormat=jsonl with switching shard/no-shard, and cleanup behavior.
@@ -145,7 +145,7 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Consider adding a check that `.bak` files are handled correctly (optional).
 
 ### tests/file-processor/cached-bundle.test.js
-- [ ] (P1) Fix test fixtures to use realistic `allImports` and `codeRelations` shapes, and assert semantic correctness (not only presence).
+- [x] (P1) Fix test fixtures to use realistic `allImports` and `codeRelations` shapes, and assert semantic correctness (not only presence).
 
 ### tests/file-processor/skip.test.js
 - [ ] (P2) Add coverage for `unreadable` and `read-failure` paths (permissions, ENOENT races).
@@ -163,7 +163,7 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Add a second invalidation scenario (e.g., tokenization config changes that affect stemming/synonyms).
 
 ### tests/piece-assembly.js
-- [ ] (P1) Add semantic equivalence test vs monolithic build and add a determinism test (same inputs => identical assembled output).
+- [x] (P1) Add semantic equivalence test vs monolithic build and add a determinism test (same inputs => identical assembled output).
 
 ### tests/postings-quantize.js
 - [ ] (P2) Extend to test scale and dims, and doc/code embedding behavior.
@@ -178,16 +178,16 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Consider adding a non-ASCII tokenization regression case.
 
 ### docs/artifact-contract.md
-- [ ] (P1) Fix compression description (no embedded `compression` field) and clarify `.json.gz` sidecar semantics.
-- [ ] (P1) Add explicit precedence rules (meta/parts vs jsonl vs json).
+- [x] (P1) Fix compression description (no embedded `compression` field) and clarify `.json.gz` sidecar semantics.
+- [x] (P1) Add explicit precedence rules (meta/parts vs jsonl vs json).
 - [ ] (P2) Add schema examples for meta files and `pieces/manifest.json`.
 
 ### docs/contracts/coverage-ledger.md
 - [ ] (P2) Add entries for new/critical tooling: `tools/assemble-pieces.js`, `tools/compact-pieces.js`, and CI artifact scripts.
 
 ### docs/contracts/indexing.md
-- [ ] (P1) Clarify which artifacts are "required" vs "optional/configurable" (e.g., minhash signatures).
-- [ ] (P1) Document sharded meta schema and loader precedence.
+- [x] (P1) Clarify which artifacts are "required" vs "optional/configurable" (e.g., minhash signatures).
+- [x] (P1) Document sharded meta schema and loader precedence.
 
 ---
 

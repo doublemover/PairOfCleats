@@ -55,7 +55,12 @@ Each `index-<mode>/` directory contains:
 - `pieces/manifest.json`
   - Piece inventory with checksums and sizes.
 
-Compressed artifacts may appear as `.json.gz` or `.json.zst`. When compression is enabled, the JSON payload contains a `compression` field and compression is written via fflate (gzip) or @mongodb-js/zstd (zstd).
+Compressed artifacts may appear as `.json.gz` or `.json.zst` sidecars. The JSON payload itself is unchanged (no embedded `compression` field); compression uses fflate (gzip) or @mongodb-js/zstd (zstd).
+
+### Loader precedence (chunk/meta artifacts)
+- `chunk_meta.meta.json` + `chunk_meta.parts/` (sharded JSONL) are preferred unless a newer `chunk_meta.jsonl` exists (e.g., after switching formats).
+- `chunk_meta.jsonl` supersedes `chunk_meta.json`.
+- For `.json` or `.jsonl` artifacts, prefer `.json.zst`/`.json.gz` sidecars over the raw JSON when present.
 
 ## Incremental bundles
 
@@ -66,6 +71,55 @@ Bundles are written as:
 - `*.mpk` (MsgPack envelopes: `{ format: "pairofcleats.bundle", version: 1, checksum: { algo, value }, payload }`).
 
 MsgPack bundles use stable key ordering before encoding, and the checksum covers the normalized payload for deterministic verification.
+
+## Meta file examples
+
+Chunk metadata shards:
+```json
+{
+  "format": "jsonl",
+  "shardSize": 100000,
+  "totalChunks": 250000,
+  "parts": [
+    "chunk_meta.parts/chunk_meta.part-00000.jsonl",
+    "chunk_meta.parts/chunk_meta.part-00001.jsonl"
+  ]
+}
+```
+
+Token postings shards:
+```json
+{
+  "avgDocLen": 42.1,
+  "totalDocs": 250000,
+  "format": "sharded",
+  "shardSize": 50000,
+  "vocabCount": 123456,
+  "parts": [
+    "token_postings.shards/token_postings.part-00000.json"
+  ]
+}
+```
+
+Pieces manifest:
+```json
+{
+  "version": 2,
+  "generatedAt": "2026-01-01T00:00:00Z",
+  "mode": "code",
+  "stage": "stage2",
+  "pieces": [
+    {
+      "type": "chunks",
+      "name": "chunk_meta",
+      "format": "jsonl",
+      "path": "chunk_meta.jsonl",
+      "bytes": 1234,
+      "checksum": "xxh64:deadbeef"
+    }
+  ]
+}
+```
 
 ## SQLite artifacts
 

@@ -550,32 +550,56 @@ export function createFileProcessor(options) {
           treeSitter: contextTreeSitterConfig
         }
         : { relationsEnabled, metricsCollector, filePath: abs, treeSitter: contextTreeSitterConfig };
-      const runTreeSitter = shouldSerializeTreeSitter ? runTreeSitterSerial : (fn) => fn();
-      const primaryLanguageId = getLanguageForFile(ext, relKey)?.id || null;
-      const { lang, context: languageContext } = await runTreeSitter(async () => {
-        if (!treeSitterLanguagePasses
-          && treeSitterEnabled
-          && primaryLanguageId
-          && TREE_SITTER_LANG_IDS.has(primaryLanguageId)) {
-          try {
-            await preloadTreeSitterLanguages([primaryLanguageId], {
-              log: languageOptions?.log,
-              parallel: false,
-              maxLoadedLanguages: treeSitterConfigForMode?.maxLoadedLanguages
+        const runTreeSitter = shouldSerializeTreeSitter ? runTreeSitterSerial : (fn) => fn();
+        const primaryLanguageId = getLanguageForFile(ext, relKey)?.id || null;
+        let lang = null;
+        let languageContext = {};
+        try {
+          ({ lang, context: languageContext } = await runTreeSitter(async () => {
+            if (!treeSitterLanguagePasses
+              && treeSitterEnabled
+              && primaryLanguageId
+              && TREE_SITTER_LANG_IDS.has(primaryLanguageId)) {
+              try {
+                await preloadTreeSitterLanguages([primaryLanguageId], {
+                  log: languageOptions?.log,
+                  parallel: false,
+                  maxLoadedLanguages: treeSitterConfigForMode?.maxLoadedLanguages
+                });
+              } catch {
+                // ignore preload failures; prepare will fall back if needed.
+              }
+            }
+            return buildLanguageContext({
+              ext,
+              relPath: relKey,
+              mode,
+              text,
+              options: languageContextOptions
             });
-          } catch {
-            // ignore preload failures; prepare will fall back if needed.
+          }));
+        } catch (err) {
+          if (languageOptions?.skipOnParseError) {
+            return {
+              chunks: [],
+              fileRelations: null,
+              skip: {
+                reason: 'parse-error',
+                stage: 'prepare',
+                message: err?.message || String(err)
+              }
+            };
           }
+          throw err;
         }
-        return buildLanguageContext({
-          ext,
-          relPath: relKey,
-          mode,
-          text,
-          options: languageContextOptions
-        });
-      });
-      fileLanguageId = lang?.id || null;
+        fileLanguageId = lang?.id || null;
+        if (!lang && languageOptions?.skipUnknownLanguages) {
+          return {
+            chunks: [],
+            fileRelations: null,
+            skip: { reason: 'unsupported-language' }
+          };
+        }
       if (languageContext?.pythonAstMetrics?.durationMs) {
         setPythonAstDuration(languageContext.pythonAstMetrics.durationMs);
       }
@@ -708,26 +732,42 @@ export function createFileProcessor(options) {
         treeSitter: treeSitterConfigForMode,
         log: languageOptions?.log
       };
-      const sc = treeSitterLanguagePasses === false
-        ? await runTreeSitter(() => chunkSegments({
-          text,
-          ext,
-          relPath: relKey,
-          mode,
-          segments,
-          lineIndex,
-          context: segmentContext
-        }))
-      : await runTreeSitter(() => chunkSegmentsWithTreeSitterPasses({
-        text,
-        ext,
-        relPath: relKey,
-        mode,
-        segments,
-        lineIndex,
-        context: segmentContext,
-        treeSitterConfig: treeSitterConfigForMode
-      }));
+        let sc;
+        try {
+          sc = treeSitterLanguagePasses === false
+            ? await runTreeSitter(() => chunkSegments({
+              text,
+              ext,
+              relPath: relKey,
+              mode,
+              segments,
+              lineIndex,
+              context: segmentContext
+            }))
+            : await runTreeSitter(() => chunkSegmentsWithTreeSitterPasses({
+              text,
+              ext,
+              relPath: relKey,
+              mode,
+              segments,
+              lineIndex,
+              context: segmentContext,
+              treeSitterConfig: treeSitterConfigForMode
+            }));
+        } catch (err) {
+          if (languageOptions?.skipOnParseError) {
+            return {
+              chunks: [],
+              fileRelations: null,
+              skip: {
+                reason: 'parse-error',
+                stage: 'chunking',
+                message: err?.message || String(err)
+              }
+            };
+          }
+          throw err;
+        }
     assertChunkBounds(sc, text.length, relKey);
     addParseDuration(Date.now() - parseStart);
     const chunkLineRanges = sc.map((chunk) => {
