@@ -186,7 +186,10 @@ const actions = [
   },
   {
     label: 'type-inference-crossfile-test',
-    run: () => runNode('type-inference-crossfile-test', path.join(root, 'tests', 'type-inference-crossfile.js')),
+    run: () => runNode(
+      'type-inference-crossfile-test',
+      path.join(root, 'tests', 'indexing', 'type-inference', 'crossfile-output.integration.test.js')
+    ),
     covers: ['type-inference-crossfile-test']
   },
   {
