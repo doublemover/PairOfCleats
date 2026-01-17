@@ -3023,3 +3023,78 @@ These are workable, but they heighten the importance of clear contracts/invarian
 * [ ] Failure-mode behavior (`.bak` recovery) remains correct for new extensions
 
 ---
+
+## Phase 1 — Test Gate Stabilization and Determinism
+
+**Objective:** Make the current test suite reliable (non-flaky) and green, so subsequent refactors (security, caching, RPC hardening) have a trustworthy safety net.
+
+1. **Fix failing Phase 22 gate: `type-inference-lsp-enrichment` (Python tooling return type missing)**
+
+   * [x] **Broaden hover fallback conditions in LSP tooling providers so missing return types are recovered even when parameter types are present.**
+
+     * **Why:** All three LSP tooling providers currently only fetch hover when *both* `returnType` is missing *and* `paramTypes` is empty. If a provider can parse param types from `documentSymbol.detail` but that string omits return type (a plausible LSP behavior), it will never attempt hover and will miss return types (exact symptom reported by the failing test).
+     * **Where:**
+
+       * `src/index/tooling/pyright-provider.js`
+
+         * Current gating (too strict):
+           `if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) { ... hover ... }`
+       * `src/index/tooling/clangd-provider.js` (same pattern)
+       * `src/index/tooling/sourcekit-provider.js` (same pattern)
+     * **Fix:**
+
+       * Change hover fallback gating to trigger when **either** return type is missing **or** param types are missing, e.g.:
+
+         * `if (!info || !info.returnType || !Object.keys(info.paramTypes || {}).length) { ... }`
+       * Keep a small timeout override (already present) and consider a per-file/per-symbol hover cap if you want to prevent worst-case hover storms.
+     * **Tests:**
+
+       * Keep `tests/type-inference-lsp-enrichment.js` as the regression gate.
+       * Add/adjust a focused unit/integration test fixture path where `documentSymbol.detail` omits return type but hover includes it (this directly validates the new behavior rather than relying on chance).
+   * [x] **Validate stored tooling return types match exact expectations for Python (`str`)**
+
+     * **Why:** The test asserts `entry.type === 'str'` (exact string match). Any normalization differences (e.g., `builtins.str`, `str:`) will fail.
+     * **Where:** Return type extraction path:
+
+       * `src/index/tooling/signature-parse/python.js` (`parsePythonSignature`)
+       * `src/index/tooling/pyright-provider.js` (populating `entry.returns`)
+       * `src/index/type-inference-crossfile/apply.js` (`addInferredReturn`)
+     * **Fix:** Ensure the Python return type passed into `addInferredReturn()` is the normalized “plain” name the project expects (currently looks intended to already be `str`, but explicitly confirm by tests).
+
+2. **Fix failing Phase 22 gate: `embeddings-dims-mismatch` (test is flaky due to cache file selection)**
+
+   * [x] **Make the test select a cache entry that matches the identity it intends to mutate.**
+
+     * **Why:** The cache directory can contain *multiple* caches for the same file hash/signature but different identity keys (e.g., stub embeddings default dims 384 from `build_index` stage vs. a subsequent `build-embeddings --dims 8`). The test currently mutates an arbitrary first file returned by `readdir`, which is OS/filesystem-order dependent, causing nondeterministic behavior (observed in `tests/phase22-logs/embeddings-dims-mismatch.js.log`).
+     * **Where:** `tests/embeddings-dims-mismatch.js`
+
+       * Current behavior: `const targetFile = cacheFiles[0];` (no filtering)
+     * **Fix (recommended):**
+
+       * Read all cache files, parse JSON, and select one whose `cacheMeta.identity.dims === 8` **and** `cacheMeta.identity.stub === true` (or match `cacheMeta.identityKey` computed from `buildCacheIdentity`).
+       * Sort `cacheFiles` for determinism even after filtering.
+     * **Tests:** The test itself is the gate; ensure it passes consistently on Windows/macOS/Linux.
+
+3. **De-flake related embeddings cache test to prevent future intermittent failures**
+
+   * [x] Apply the same deterministic cache selection strategy to `tests/embeddings-cache-identity.js`.
+
+     * **Why:** It uses the same “first file” selection pattern and can fail depending on directory enumeration order and presence of other identity caches.
+     * **Where:** `tests/embeddings-cache-identity.js`
+     * **Fix:** Filter for identity matching the run’s intended dims/provider/stub flags (same as above), and sort before selecting.
+
+4. **Add a “Phase 22 gate” smoke runner (optional but strongly recommended)**
+
+   * [x] Create a single script to run only the gate tests and report failures clearly.
+
+     * **Why:** Reduces time-to-signal and encourages frequent local verification during refactors.
+     * **Where:** e.g., `tools/run-phase22-gates.js` or `npm run test:phase22`
+     * **Exit expectation:** One command that deterministically reproduces CI gate results.
+
+**Exit criteria**
+
+* [X] `tests/type-inference-lsp-enrichment.js` passes.
+* [X] `tests/embeddings-dims-mismatch.js` passes deterministically (no filesystem-order dependence).
+* [X] `tests/embeddings-cache-identity.js` passes deterministically.
+
+---

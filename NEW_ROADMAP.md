@@ -11,114 +11,38 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ## Roadmap order (stability/performance frontloaded)
 
-1. Phase 1 — Test Gate Stabilization and Determinism
-2. Phase 2 — Benchmark + build harness reliability (cache hygiene, shard progress determinism, disk-full resilience)
-3. Phase 4 — Regression gate sweep (fix current failing tests)
-4. Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
-5. Phase 11 — Extracted-Prose + Records end-to-end parity (build/search/stats/tests)
-6. Phase 12 — Storage backends (SQLite + LMDB)
-7. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
-8. Phase 14 — Documentation and Configuration Hardening
-9. Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
-10. Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
-11. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
-12. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
-13. Phase 20 — Threadpool-aware I/O scheduling guardrails
-14. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
-15. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
-16. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
-17. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
-18. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
-19. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
-20. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
-21. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
-22. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
-23. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
-24. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
-25. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
-26. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
-27. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
-28. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
-29. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
-30. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
-31. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
-32. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
-33. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
-
-## Phase 1 — Test Gate Stabilization and Determinism
-
-**Objective:** Make the current test suite reliable (non-flaky) and green, so subsequent refactors (security, caching, RPC hardening) have a trustworthy safety net.
-
-1. **Fix failing Phase 22 gate: `type-inference-lsp-enrichment` (Python tooling return type missing)**
-
-   * [x] **Broaden hover fallback conditions in LSP tooling providers so missing return types are recovered even when parameter types are present.**
-
-     * **Why:** All three LSP tooling providers currently only fetch hover when *both* `returnType` is missing *and* `paramTypes` is empty. If a provider can parse param types from `documentSymbol.detail` but that string omits return type (a plausible LSP behavior), it will never attempt hover and will miss return types (exact symptom reported by the failing test).
-     * **Where:**
-
-       * `src/index/tooling/pyright-provider.js`
-
-         * Current gating (too strict):
-           `if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) { ... hover ... }`
-       * `src/index/tooling/clangd-provider.js` (same pattern)
-       * `src/index/tooling/sourcekit-provider.js` (same pattern)
-     * **Fix:**
-
-       * Change hover fallback gating to trigger when **either** return type is missing **or** param types are missing, e.g.:
-
-         * `if (!info || !info.returnType || !Object.keys(info.paramTypes || {}).length) { ... }`
-       * Keep a small timeout override (already present) and consider a per-file/per-symbol hover cap if you want to prevent worst-case hover storms.
-     * **Tests:**
-
-       * Keep `tests/type-inference-lsp-enrichment.js` as the regression gate.
-       * Add/adjust a focused unit/integration test fixture path where `documentSymbol.detail` omits return type but hover includes it (this directly validates the new behavior rather than relying on chance).
-   * [x] **Validate stored tooling return types match exact expectations for Python (`str`)**
-
-     * **Why:** The test asserts `entry.type === 'str'` (exact string match). Any normalization differences (e.g., `builtins.str`, `str:`) will fail.
-     * **Where:** Return type extraction path:
-
-       * `src/index/tooling/signature-parse/python.js` (`parsePythonSignature`)
-       * `src/index/tooling/pyright-provider.js` (populating `entry.returns`)
-       * `src/index/type-inference-crossfile/apply.js` (`addInferredReturn`)
-     * **Fix:** Ensure the Python return type passed into `addInferredReturn()` is the normalized “plain” name the project expects (currently looks intended to already be `str`, but explicitly confirm by tests).
-
-2. **Fix failing Phase 22 gate: `embeddings-dims-mismatch` (test is flaky due to cache file selection)**
-
-   * [x] **Make the test select a cache entry that matches the identity it intends to mutate.**
-
-     * **Why:** The cache directory can contain *multiple* caches for the same file hash/signature but different identity keys (e.g., stub embeddings default dims 384 from `build_index` stage vs. a subsequent `build-embeddings --dims 8`). The test currently mutates an arbitrary first file returned by `readdir`, which is OS/filesystem-order dependent, causing nondeterministic behavior (observed in `tests/phase22-logs/embeddings-dims-mismatch.js.log`).
-     * **Where:** `tests/embeddings-dims-mismatch.js`
-
-       * Current behavior: `const targetFile = cacheFiles[0];` (no filtering)
-     * **Fix (recommended):**
-
-       * Read all cache files, parse JSON, and select one whose `cacheMeta.identity.dims === 8` **and** `cacheMeta.identity.stub === true` (or match `cacheMeta.identityKey` computed from `buildCacheIdentity`).
-       * Sort `cacheFiles` for determinism even after filtering.
-     * **Tests:** The test itself is the gate; ensure it passes consistently on Windows/macOS/Linux.
-
-3. **De-flake related embeddings cache test to prevent future intermittent failures**
-
-   * [x] Apply the same deterministic cache selection strategy to `tests/embeddings-cache-identity.js`.
-
-     * **Why:** It uses the same “first file” selection pattern and can fail depending on directory enumeration order and presence of other identity caches.
-     * **Where:** `tests/embeddings-cache-identity.js`
-     * **Fix:** Filter for identity matching the run’s intended dims/provider/stub flags (same as above), and sort before selecting.
-
-4. **Add a “Phase 22 gate” smoke runner (optional but strongly recommended)**
-
-   * [x] Create a single script to run only the gate tests and report failures clearly.
-
-     * **Why:** Reduces time-to-signal and encourages frequent local verification during refactors.
-     * **Where:** e.g., `tools/run-phase22-gates.js` or `npm run test:phase22`
-     * **Exit expectation:** One command that deterministically reproduces CI gate results.
-
-**Exit criteria**
-
-* [X] `tests/type-inference-lsp-enrichment.js` passes.
-* [X] `tests/embeddings-dims-mismatch.js` passes deterministically (no filesystem-order dependence).
-* [X] `tests/embeddings-cache-identity.js` passes deterministically.
-
----
+1. Phase 2 — Benchmark + build harness reliability (cache hygiene, shard progress determinism, disk-full resilience)
+2. Phase 4 — Regression gate sweep (fix current failing tests)
+3. Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
+4. Phase 11 — Extracted-Prose + Records end-to-end parity (build/search/stats/tests)
+5. Phase 12 — Storage backends (SQLite + LMDB)
+6. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
+7. Phase 14 — Documentation and Configuration Hardening
+8. Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
+9. Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
+10. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
+11. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
+12. Phase 20 — Threadpool-aware I/O scheduling guardrails
+13. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
+14. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
+15. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
+16. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
+17. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
+18. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
+19. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
+20. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
+21. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
+22. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
+23. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
+24. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
+25. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
+26. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
+27. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
+28. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
+29. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
+30. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
+31. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
+32. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
 
 ## Phase 2 — Benchmark + build harness reliability (cache hygiene, shard progress determinism, disk-full resilience)
 
