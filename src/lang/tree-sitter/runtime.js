@@ -312,6 +312,45 @@ export async function preloadTreeSitterLanguages(languageIds = TREE_SITTER_LANGU
   return true;
 }
 
+export function pruneTreeSitterLanguages(keepLanguages = [], options = {}) {
+  if (!treeSitterState.TreeSitter) return { removed: 0, kept: 0 };
+  const keepIds = new Set();
+  for (const id of keepLanguages || []) {
+    const resolved = resolveLanguageId(id);
+    if (resolved) keepIds.add(resolved);
+  }
+  const activeLangId = treeSitterState.sharedParserLanguageId;
+  if (activeLangId) keepIds.add(activeLangId);
+
+  const keepWasmKeys = new Set();
+  for (const langId of keepIds) {
+    const wasmKey = LANGUAGE_WASM_FILES[langId];
+    if (wasmKey) keepWasmKeys.add(wasmKey);
+  }
+
+  for (const langId of treeSitterState.languageCache.keys()) {
+    const wasmKey = LANGUAGE_WASM_FILES[langId];
+    if (!wasmKey || !keepWasmKeys.has(wasmKey)) {
+      treeSitterState.languageCache.delete(langId);
+    }
+  }
+
+  let removed = 0;
+  for (const [wasmKey, entry] of treeSitterState.wasmLanguageCache.entries()) {
+    if (keepWasmKeys.has(wasmKey)) continue;
+    treeSitterState.wasmLanguageCache.delete(wasmKey);
+    removeLanguageCacheEntriesForWasmKey(wasmKey);
+    disposeWasmLanguageEntry(entry);
+    removed += 1;
+  }
+
+  if (options?.log && removed > 0) {
+    options.log(`[tree-sitter] Pruned ${removed} WASM grammars from cache.`);
+  }
+
+  return { removed, kept: treeSitterState.wasmLanguageCache.size };
+}
+
 function touchParserCacheEntry(languageId) {
   // Map iteration order is insertion order; re-insert to mark as most-recently-used.
   if (!treeSitterState.parserCache.has(languageId)) return;

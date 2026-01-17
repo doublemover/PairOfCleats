@@ -5,7 +5,11 @@ import { getEnvConfig } from '../../../../shared/env.js';
 import { fileExt, toPosix } from '../../../../shared/files.js';
 import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress.js';
-import { preloadTreeSitterLanguages, TREE_SITTER_LANGUAGE_IDS } from '../../../../lang/tree-sitter.js';
+import {
+  preloadTreeSitterLanguages,
+  pruneTreeSitterLanguages,
+  TREE_SITTER_LANGUAGE_IDS
+} from '../../../../lang/tree-sitter.js';
 import { createBuildCheckpoint } from '../../build-state.js';
 import { createFileProcessor } from '../../file-processor.js';
 import { getLanguageForFile } from '../../../language-registry.js';
@@ -488,6 +492,9 @@ export const processFiles = async ({
         const entryBatches = buildTreeSitterEntryBatches(pendingEntries);
         const deferred = [];
         for (const batch of entryBatches) {
+          if (treeSitterOptions?.enabled !== false && Array.isArray(batch.languages) && batch.languages.length) {
+            pruneTreeSitterLanguages(batch.languages, { log });
+          }
           await preloadTreeSitterBatch({ languages: batch.languages, treeSitter: treeSitterOptions, log });
           await runEntryBatch(batch.entries, deferred);
         }
