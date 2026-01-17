@@ -938,38 +938,38 @@ This makes post-hoc debugging harder:
 
 **Remaining work**
 
-- [ ] **Document offset units** for `start`/`end` (recommendation: define as UTF‑16 code-unit offsets, because that is what JS uses), and add at least one non‑ASCII regression test that validates:
-  - [ ] `text.slice(start, end)` reproduces the chunk text
-  - [ ] `offsetToLine()` aligns with `startLine/endLine` for multi-byte characters  
+- [x] **Document offset units** for `start`/`end` (recommendation: define as UTF‑16 code-unit offsets, because that is what JS uses), and add at least one non‑ASCII regression test that validates:
+  - [x] `text.slice(start, end)` reproduces the chunk text
+  - [x] `offsetToLine()` aligns with `startLine/endLine` for multi-byte characters  
   (Files: `src/index/build/file-processor.js`, `docs/artifact-contract.md`, `docs/contracts/indexing.md`, plus a new/extended test)
 
-- [ ] Add **boundary asserts** (behind a dev/test flag if needed) after chunking:
-  - [ ] in-range checks (`0..text.length`)
-  - [ ] monotonic chunk ordering
-  - [ ] overlap detection (only allow configured overlap)  
+- [x] Add **boundary asserts** (behind a dev/test flag if needed) after chunking:
+  - [x] in-range checks (`0..text.length`)
+  - [x] monotonic chunk ordering
+  - [x] overlap detection (only allow configured overlap)  
   (File: `src/index/build/file-processor.js`)
 
-- [ ] Make **unsupported-language** behavior explicit and test-covered:
-  - [ ] decide: skip with reason `unsupported-language` vs. treat as `unknown` with generic chunking
-  - [ ] add test coverage for the chosen behavior  
+- [x] Make **unsupported-language** behavior explicit and test-covered:
+  - [x] decide: skip with reason `unsupported-language` vs. treat as `unknown` with generic chunking
+  - [x] add test coverage for the chosen behavior  
   (Files: `src/index/build/file-processor.js`, `src/index/build/file-processor/skip.js`, tests under `tests/file-processor/`)
 
-- [ ] Add **parse-error** (and relation-error) per-file skip handling:
-  - [ ] catch and record failures from `lang.chunk`, `lang.buildRelations`, `lang.extractDocMeta`, `flow()`, etc.
-  - [ ] ensure the build can proceed when a single file fails (configurable)  
+- [x] Add **parse-error** (and relation-error) per-file skip handling:
+  - [x] catch and record failures from `lang.chunk`, `lang.buildRelations`, `lang.extractDocMeta`, `flow()`, etc.
+  - [x] ensure the build can proceed when a single file fails (configurable)  
   (File: `src/index/build/file-processor.js`)
 
-- [ ] Add **file-level content hash** to `file_meta.json` (and optionally, to each chunk’s `metaV2`):
-  - [ ] store `hash` and `hashAlgo`
-  - [ ] ensure incremental and non-incremental builds agree  
+- [x] Add **file-level content hash** to `file_meta.json` (and optionally, to each chunk’s `metaV2`):
+  - [x] store `hash` and `hashAlgo`
+  - [x] ensure incremental and non-incremental builds agree  
   (Files: `src/index/build/file-processor.js`, `src/index/build/artifacts/file-meta.js`, `docs/artifact-contract.md`)
 
-- [ ] Fix the comment boundary condition in `assignCommentsToChunks()`:
-  - [ ] consider `<=` for boundary tests, or implement overlap-based assignment using comment `(start,end)`  
+- [x] Fix the comment boundary condition in `assignCommentsToChunks()`:
+  - [x] consider `<=` for boundary tests, or implement overlap-based assignment using comment `(start,end)`  
   (File: `src/index/build/file-processor/chunk.js`)
 
-- [ ] Audit and correct **timing double-counting** in `createTimingsTracker()` usage:
-  - [ ] ensure parseMs reflects one pass, and relation/flow have separate counters if desired  
+- [x] Audit and correct **timing double-counting** in `createTimingsTracker()` usage:
+  - [x] ensure parseMs reflects one pass, and relation/flow have separate counters if desired  
   (Files: `src/index/build/file-processor.js`, `src/index/build/file-processor/timings.js`)
 
 ---
@@ -1026,35 +1026,35 @@ This is not always fatal if readers rely solely on `meta.parts`, but it violates
 
 **Remaining work**
 
-- [ ] **Fix chunk-meta cleanup** when `chunkMetaUseJsonl && !chunkMetaUseShards`:
-  - [ ] remove `chunk_meta.meta.json` if present
-  - [ ] remove `chunk_meta.parts/` if present  
+- [x] **Fix chunk-meta cleanup** when `chunkMetaUseJsonl && !chunkMetaUseShards`:
+  - [x] remove `chunk_meta.meta.json` if present
+  - [x] remove `chunk_meta.parts/` if present  
   (File: `src/index/build/artifacts/writers/chunk-meta.js`)
 
-- [ ] Ensure shard writes do not accumulate orphan files:
-  - [ ] delete `chunk_meta.parts/` before writing new sharded parts (or write to staging dir + rename)
-  - [ ] confirm `token_postings.shards/` cleanup is complete on all branches  
+- [x] Ensure shard writes do not accumulate orphan files:
+  - [x] delete `chunk_meta.parts/` before writing new sharded parts (or write to staging dir + rename)
+  - [x] confirm `token_postings.shards/` cleanup is complete on all branches  
   (Files: `src/index/build/artifacts/writers/chunk-meta.js`, `src/index/build/artifacts.js`)
 
-- [ ] Implement **directory-level atomicity** for sharded artifacts:
-  - [ ] write shards to `*.tmp/` directory
-  - [ ] atomically swap into place via rename (and optionally keep a directory-level `.bak`)  
+- [x] Implement **directory-level atomicity** for sharded artifacts:
+  - [x] write shards to `*.tmp/` directory
+  - [x] atomically swap into place via rename (and optionally keep a directory-level `.bak`)  
   (Files: `src/index/build/artifacts/writers/chunk-meta.js`, `src/index/build/artifacts.js`)
 
-- [ ] Make manifest generation strict for required artifacts:
-  - [ ] either (a) fail the build on checksum/stat failure, or (b) record an `error` field and ensure validation tooling treats it as failure  
+- [x] Make manifest generation strict for required artifacts:
+  - [x] either (a) fail the build on checksum/stat failure, or (b) record an `error` field and ensure validation tooling treats it as failure  
   (File: `src/index/build/artifacts/checksums.js`)
 
-- [ ] Update docs to match implementation:
-  - [ ] remove/adjust claim about `compression` field
-  - [ ] add schema examples for meta files (fields/arrays/legacy)
-  - [ ] document precedence rules for readers  
+- [x] Update docs to match implementation:
+  - [x] remove/adjust claim about `compression` field
+  - [x] add schema examples for meta files (fields/arrays/legacy)
+  - [x] document precedence rules for readers  
   (Files: `docs/artifact-contract.md`, `docs/contracts/indexing.md`)
 
-- [ ] Add a regression test that explicitly covers the stale chunk-meta shard override:
-  - [ ] build A: sharded chunk meta written
-  - [ ] build B: non-sharded jsonl written, ensure shards removed or ignored
-  - [ ] loader reads build B’s jsonl, not build A’s shards  
+- [x] Add a regression test that explicitly covers the stale chunk-meta shard override:
+  - [x] build A: sharded chunk meta written
+  - [x] build B: non-sharded jsonl written, ensure shards removed or ignored
+  - [x] loader reads build B’s jsonl, not build A’s shards  
   (New test; or extend `tests/artifact-formats.js` / `tests/artifact-size-guardrails.js`)
 
 ---
@@ -1104,61 +1104,61 @@ Reviewed:
 
 #### Shard planning
 
-- [ ] Add explicit tie-breakers in shard batching and balancing when weights are equal:
-  - [ ] include `label` or `id` in comparator
-  - [ ] document determinism guarantees  
+- [x] Add explicit tie-breakers in shard batching and balancing when weights are equal:
+  - [x] include `label` or `id` in comparator
+  - [x] document determinism guarantees  
   (File: `src/index/build/shards.js`)
 
-- [ ] Add a “very large repo” synthetic shard-plan test:
-  - [ ] verifies bounded memory and time
-  - [ ] verifies stable shard labels/IDs across runs  
+- [x] Add a “very large repo” synthetic shard-plan test:
+  - [x] verifies bounded memory and time
+  - [x] verifies stable shard labels/IDs across runs  
   (New test; extend `tests/shard-plan.js`)
 
 #### Postings / tokenization
 
-- [ ] Canonicalize vocab ordering for stability:
-  - [ ] define canonical sort order (lexicographic; or localeCompare with explicit locale; or bytewise)
-  - [ ] apply consistently to token vocab, phrase vocab, chargram vocab, and field vocabs  
+- [x] Canonicalize vocab ordering for stability:
+  - [x] define canonical sort order (lexicographic; or localeCompare with explicit locale; or bytewise)
+  - [x] apply consistently to token vocab, phrase vocab, chargram vocab, and field vocabs  
   (File: `src/index/build/postings.js` and any upstream postings-map builders)
 
-- [ ] Canonicalize and/or validate postings ordering:
-  - [ ] assert postings doc IDs are strictly increasing per token (or stable canonical order)
-  - [ ] assert vocab/postings arrays align and lengths match  
+- [x] Canonicalize and/or validate postings ordering:
+  - [x] assert postings doc IDs are strictly increasing per token (or stable canonical order)
+  - [x] assert vocab/postings arrays align and lengths match  
   (File: `src/index/build/postings.js`; plus tests)
 
-- [ ] Expand quantization tests to include:
-  - [ ] scale correctness
-  - [ ] dims mismatch handling
-  - [ ] doc/code embeddings “fallback to main embedding” behavior  
+- [x] Expand quantization tests to include:
+  - [x] scale correctness
+  - [x] dims mismatch handling
+  - [x] doc/code embeddings “fallback to main embedding” behavior  
   (File: `tests/postings-quantize.js`)
 
 #### Piece assembly
 
-- [ ] Fix `validateLengths()` to fail when expected > 0 and list is empty or mismatched:
-  - [ ] treat `[]` as invalid when `expected > 0`
-  - [ ] include artifact name + input dir in error message for fast triage  
+- [x] Fix `validateLengths()` to fail when expected > 0 and list is empty or mismatched:
+  - [x] treat `[]` as invalid when `expected > 0`
+  - [x] include artifact name + input dir in error message for fast triage  
   (File: `src/index/build/piece-assembly.js`)
 
-- [ ] Merge **all field postings present in inputs**, including `comment` (and any future fields):
-  - [ ] do not hardcode `name/signature/doc/body`
-  - [ ] merge based on keys present in `field_postings.json` / `field_tokens.json` or config  
+- [x] Merge **all field postings present in inputs**, including `comment` (and any future fields):
+  - [x] do not hardcode `name/signature/doc/body`
+  - [x] merge based on keys present in `field_postings.json` / `field_tokens.json` or config  
   (File: `src/index/build/piece-assembly.js`)
 
-- [ ] Determinize assembly:
-  - [ ] sort `inputs` deterministically by path (or require stable input ordering and document it)
-  - [ ] sort merged vocabs (or guarantee stable order via canonicalization)
-  - [ ] ensure assembled output is byte-for-byte stable for same inputs  
+- [x] Determinize assembly:
+  - [x] sort `inputs` deterministically by path (or require stable input ordering and document it)
+  - [x] sort merged vocabs (or guarantee stable order via canonicalization)
+  - [x] ensure assembled output is byte-for-byte stable for same inputs  
   (Files: `tools/assemble-pieces.js`, `src/index/build/piece-assembly.js`)
 
-- [ ] Add a regression test: **assembled output equals monolithic output** for the same fixture:
-  - [ ] build monolithic index
-  - [ ] build two partial indexes (or reuse shards) and assemble
-  - [ ] compare chunk_meta + token_postings + manifest semantics  
+- [x] Add a regression test: **assembled output equals monolithic output** for the same fixture:
+  - [x] build monolithic index
+  - [x] build two partial indexes (or reuse shards) and assemble
+  - [x] compare chunk_meta + token_postings + manifest semantics  
   (New test; extend `tests/piece-assembly.js`)
 
-- [ ] Verify manifests list all required parts:
-  - [ ] ensure meta files are included and checksummed
-  - [ ] ensure shard part counts match meta.parts and manifest counts match meta totals  
+- [x] Verify manifests list all required parts:
+  - [x] ensure meta files are included and checksummed
+  - [x] ensure shard part counts match meta.parts and manifest counts match meta totals  
   (Files: `src/index/build/artifacts/checksums.js`, tests)
 
 ---
@@ -1178,7 +1178,7 @@ The current implementation is functional and reasonably structured, but several 
 #### Avoid “build huge arrays then serialize”
 
 - `buildPostings()` currently materializes large `vocab` and `postings` arrays in memory.
-  - [ ] Add a streaming/sharded writer path that writes postings shards incrementally as postings are built (or at least allows releasing intermediate Maps earlier).
+  - [x] Add a streaming/sharded writer path that writes postings shards incrementally as postings are built (or at least allows releasing intermediate Maps earlier).
 - `chunk_meta` estimation uses JSON.stringify samples, which is OK, but writing sharded JSONL still relies on iterators that materialize per-entry objects.
   - [ ] Consider a “lightweight entry view” or direct JSONL streaming that avoids building large intermediate objects for fields not needed.
 
@@ -1199,11 +1199,11 @@ The current implementation is functional and reasonably structured, but several 
 
 **Remaining work**
 
-- [ ] Replace `split('\n')` usage in `src/index/build/file-processor.js` with a targeted line-scan helper.  
-- [ ] Move complexity/lint computation outside the per-chunk loop in `file-processor.js`.  
-- [ ] Reduce transient array concatenations in comment token aggregation.  
-- [ ] Explore a streaming postings writer for very large repos (phase-level refactor).  
-- [ ] Add at least one micro-benchmark or perf regression test covering:
+- [x] Replace `split('\n')` usage in `src/index/build/file-processor.js` with a targeted line-scan helper.  
+- [x] Move complexity/lint computation outside the per-chunk loop in `file-processor.js`.  
+- [x] Reduce transient array concatenations in comment token aggregation.  
+- [x] Explore a streaming postings writer for very large repos (phase-level refactor).  
+- [x] Add at least one micro-benchmark or perf regression test covering:
   - piece assembly (`src/index/build/piece-assembly.js`)
   - piece compaction (`tools/compact-pieces.js`)
 
@@ -1220,20 +1220,20 @@ Current state:
 
 **Remaining work**
 
-- [ ] Introduce a single “artifact writer” abstraction with a consistent interface:
-  - [ ] `write(name, payload | iterator, { format, sharded, compression, pieceType })`
-  - [ ] built-in cleanup rules and directory-level atomic swaps
-  - [ ] standard metadata (version, generatedAt, schemaVersion)  
+- [x] Introduce a single “artifact writer” abstraction with a consistent interface:
+  - [x] `write(name, payload | iterator, { format, sharded, compression, pieceType })`
+  - [x] built-in cleanup rules and directory-level atomic swaps
+  - [x] standard metadata (version, generatedAt, schemaVersion)  
   (Impacts: `src/index/build/artifacts.js`, `src/index/build/artifacts/writers/*`)
 
-- [ ] Separate schema definitions from I/O:
-  - [ ] define schemas for artifacts in a central module (even if only via JS object contracts + comments)
-  - [ ] ensure docs mirror those schema definitions  
+- [x] Separate schema definitions from I/O:
+  - [x] define schemas for artifacts in a central module (even if only via JS object contracts + comments)
+  - [x] ensure docs mirror those schema definitions  
   (Impacts: `docs/artifact-contract.md`, `docs/contracts/indexing.md`)
 
-- [ ] Create a single canonical chunk-id generator and use it everywhere:
-  - [ ] prefer `metaV2.chunkId` (content-based) for graphs/relations keys instead of ad-hoc `file::name`
-  - [ ] ensure assembled and non-assembled builds produce identical chunkIds  
+- [x] Create a single canonical chunk-id generator and use it everywhere:
+  - [x] prefer `metaV2.chunkId` (content-based) for graphs/relations keys instead of ad-hoc `file::name`
+  - [x] ensure assembled and non-assembled builds produce identical chunkIds  
   (Impacts: `src/index/build/graphs.js`, and any code producing chunk identifiers)
 
 ---
@@ -1283,13 +1283,13 @@ However, multiple tests are still existence/shape-heavy and do not verify semant
   - [ ] ensure bounded memory / time
   - [ ] ensure canonical ordering remains correct under stress
 
-- [ ] Add at least one perf regression test:
-  - [ ] compaction: `tools/compact-pieces.js`
-  - [ ] assembly: `src/index/build/piece-assembly.js`
+- [x] Add at least one perf regression test:
+  - [x] compaction: `tools/compact-pieces.js`
+  - [x] assembly: `src/index/build/piece-assembly.js`
 
-- [ ] Fix `tests/file-processor/cached-bundle.test.js` to use realistic shapes:
-  - [ ] `allImports` should be `{ [moduleName: string]: string[] }`
-  - [ ] `codeRelations.calls/usages` should match the real structure used by `buildRelationGraphs()` / `buildCallIndex()`  
+- [x] Fix `tests/file-processor/cached-bundle.test.js` to use realistic shapes:
+  - [x] `allImports` should be `{ [moduleName: string]: string[] }`
+  - [x] `codeRelations.calls/usages` should match the real structure used by `buildRelationGraphs()` / `buildCallIndex()`  
   (File: `tests/file-processor/cached-bundle.test.js`)
 
 ---
@@ -1299,20 +1299,20 @@ However, multiple tests are still existence/shape-heavy and do not verify semant
 This section enumerates each in-scope file and lists file-specific items to address (beyond cross-cutting tasks already listed above).
 
 ### src/index/build/artifacts.js
-- [ ] (P1) Consider directory-level atomic swap for `token_postings.shards/` (staging dir + rename).
-- [ ] (P1) Normalize shard part paths to POSIX in any meta/manifest structures (avoid OS-separator leakage).
-- [ ] (P2) Consider sorting `pieceEntries` by `path` before writing the manifest to reduce diff noise.
+- [x] (P1) Consider directory-level atomic swap for `token_postings.shards/` (staging dir + rename).
+- [x] (P1) Normalize shard part paths to POSIX in any meta/manifest structures (avoid OS-separator leakage).
+- [x] (P2) Consider sorting `pieceEntries` by `path` before writing the manifest to reduce diff noise.
 
 ### src/index/build/artifacts/checksums.js
-- [ ] (P1) Do not silently accept checksum/stat failures for required pieces; fail or record errors explicitly.
+- [x] (P1) Do not silently accept checksum/stat failures for required pieces; fail or record errors explicitly.
 
 ### src/index/build/artifacts/compression.js
-- [ ] (P2) Update docs to clarify that gzip is a sidecar (`.json` and `.json.gz` both exist).
+- [x] (P2) Update docs to clarify that gzip is a sidecar (`.json` and `.json.gz` both exist).
 - [ ] (P2) Consider extending compression to sharded artifacts (optional future work).
 
 ### src/index/build/artifacts/file-meta.js
-- [ ] (P1) Make file ID assignment stable by sorting unique file paths before assigning IDs.
-- [ ] (P1) Add file content hash (and algo) and file size to `file_meta.json`.
+- [x] (P1) Make file ID assignment stable by sorting unique file paths before assigning IDs.
+- [x] (P1) Add file content hash (and algo) and file size to `file_meta.json`.
 - [ ] (P2) Remove or rename `chunk_authors` in file meta (currently derived from the first chunk and not file-level).
 
 ### src/index/build/artifacts/filter-index.js
@@ -1325,9 +1325,9 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Make parsing more robust (case-insensitive modes; integer parsing + clamping).
 
 ### src/index/build/artifacts/writers/chunk-meta.js
-- [ ] (P0) Remove stale `chunk_meta.meta.json` and `chunk_meta.parts/` when writing non-sharded JSONL.
-- [ ] (P1) Clear or stage-swap `chunk_meta.parts/` when writing sharded output.
-- [ ] (P1) Normalize `meta.parts` entries to POSIX paths.
+- [x] (P0) Remove stale `chunk_meta.meta.json` and `chunk_meta.parts/` when writing non-sharded JSONL.
+- [x] (P1) Clear or stage-swap `chunk_meta.parts/` when writing sharded output.
+- [x] (P1) Normalize `meta.parts` entries to POSIX paths.
 - [ ] (P2) Consider normalizing field naming conventions (`chunk_authors` vs `startLine/endLine`).
 
 ### src/index/build/artifacts/writers/file-relations.js
@@ -1338,73 +1338,73 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Consider sorting output by `{file, name}` for stability.
 
 ### src/index/build/file-processor.js
-- [ ] (P1) Add explicit boundary asserts for chunks after chunking.
-- [ ] (P1) Replace `split('\n')` with line-scan utility for context extraction.
-- [ ] (P2) Move complexity/lint to per-file scope; avoid repeated per-chunk cache checks.
-- [ ] (P2) Fix possible timing double-counting across parse/relation durations.
-- [ ] (P1) Add explicit unsupported-language and parse-error skip reasons (configurable).
+- [x] (P1) Add explicit boundary asserts for chunks after chunking.
+- [x] (P1) Replace `split('\n')` with line-scan utility for context extraction.
+- [x] (P2) Move complexity/lint to per-file scope; avoid repeated per-chunk cache checks.
+- [x] (P2) Fix possible timing double-counting across parse/relation durations.
+- [x] (P1) Add explicit unsupported-language and parse-error skip reasons (configurable).
 
 ### src/index/build/file-processor/assemble.js
-- [ ] (P1) Ensure field token fields written here (including `comment`) are consistently supported by postings and piece assembly.
+- [x] (P1) Ensure field token fields written here (including `comment`) are consistently supported by postings and piece assembly.
 
 ### src/index/build/file-processor/cached-bundle.js
 - [ ] (P2) Validate cached bundle shapes more strictly; ensure importLinks shape is consistent.
 
 ### src/index/build/file-processor/chunk.js
-- [ ] (P2) Adjust comment-to-chunk assignment at boundary (`chunk.end === comment.start`) and consider overlap-based assignment.
+- [x] (P2) Adjust comment-to-chunk assignment at boundary (`chunk.end === comment.start`) and consider overlap-based assignment.
 
 ### src/index/build/file-processor/incremental.js
 - [ ] (P2) Ensure cache invalidation includes schema/version changes for any artifact-impacting changes.
 
 ### src/index/build/file-processor/meta.js
-- [ ] (P2) Deduplicate `externalDocs` outputs; consider ordering for determinism.
+- [x] (P2) Deduplicate `externalDocs` outputs; consider ordering for determinism.
 
 ### src/index/build/file-processor/read.js
 - [ ] (P2) Consider UTF-8 safe truncation (avoid splitting multi-byte sequences mid-codepoint).
 
 ### src/index/build/file-processor/relations.js
-- [ ] (P2) Consider sorting/deduping relation arrays (imports/exports/usages) for determinism.
+- [x] (P2) Consider sorting/deduping relation arrays (imports/exports/usages) for determinism.
 
 ### src/index/build/file-processor/skip.js
-- [ ] (P1) Add explicit unsupported-language skip reason (or document that unknown languages are processed).
+- [x] (P1) Add explicit unsupported-language skip reason (or document that unknown languages are processed).
 - [ ] (P2) Add coverage for `unreadable` and `read-failure` skip paths.
 
 ### src/index/build/file-processor/timings.js
-- [ ] (P2) Validate that parse/token/embed durations are not double-counted; document semantics.
+- [x] (P2) Validate that parse/token/embed durations are not double-counted; document semantics.
 
 ### src/index/build/graphs.js
-- [ ] (P2) Prefer canonical `chunkId` keys where possible instead of `file::name` to avoid collisions.
+- [x] (P2) Prefer canonical `chunkId` keys where possible instead of `file::name` to avoid collisions.
 - [ ] (P2) Sort serialized node lists for full determinism (neighbors are already sorted).
 
 ### src/index/build/imports.js
-- [ ] (P0) Fix `es-module-lexer` import record handling (`entry.d` is not a specifier string).
-- [ ] (P1) Sort and dedupe `importLinks` deterministically; exclude self-links unless explicitly desired.
-- [ ] (P1) Ensure concurrency does not affect output ordering (sort module keys and file arrays before serialization).
+- [x] (P0) Fix `es-module-lexer` import record handling (`entry.d` is not a specifier string).
+- [x] (P1) Sort and dedupe `importLinks` deterministically; exclude self-links unless explicitly desired.
+- [x] (P1) Ensure concurrency does not affect output ordering (sort module keys and file arrays before serialization).
 
 ### src/index/build/piece-assembly.js
-- [ ] (P0) Make `validateLengths()` strict when `expected > 0`.
-- [ ] (P0) Merge all field postings (including `comment`) and docLengths based on actual input keys.
-- [ ] (P1) Canonicalize vocab ordering in assembled outputs.
+- [x] (P0) Make `validateLengths()` strict when `expected > 0`.
+- [x] (P0) Merge all field postings (including `comment`) and docLengths based on actual input keys.
+- [x] (P1) Canonicalize vocab ordering in assembled outputs.
 - [ ] (P2) Remove redundant filterIndex construction (avoid double work; rely on writeIndexArtifacts).
 
 ### src/index/build/postings.js
-- [ ] (P1) Canonicalize vocab ordering (token/phrase/chargram/field) explicitly.
-- [ ] (P2) Validate docLengths are finite and consistent; avoid NaN avgDocLen.
-- [ ] (P2) Sort Object.entries() iteration for field postings and weights for deterministic output.
+- [x] (P1) Canonicalize vocab ordering (token/phrase/chargram/field) explicitly.
+- [x] (P2) Validate docLengths are finite and consistent; avoid NaN avgDocLen.
+- [x] (P2) Sort Object.entries() iteration for field postings and weights for deterministic output.
 
 ### src/index/build/shards.js
-- [ ] (P1) Add explicit tie-breakers in weight-based sorts/batching for determinism across runtimes.
+- [x] (P1) Add explicit tie-breakers in weight-based sorts/batching for determinism across runtimes.
 - [ ] (P2) Document heuristic thresholds (minFilesForSubdir, hugeThreshold, tenth-largest targets).
 
 ### src/index/build/tokenization.js
 - [ ] (P2) Review buffer reuse effectiveness (arrays are still cloned); consider pre-sizing and reducing transient allocations further.
 
 ### tools/assemble-pieces.js
-- [ ] (P1) Sort `inputDirs` by default (or add `--sort`) to ensure deterministic assembled output.
+- [x] (P1) Sort `inputDirs` by default (or add `--sort`) to ensure deterministic assembled output.
 - [ ] (P2) When `--force` is used, consider cleaning the output dir first to avoid stale artifacts.
 
 ### tools/ci-build-artifacts.js
-- [ ] (P1) Sanitize remote URLs before writing them to `manifest.json` to avoid leaking credentials.
+- [x] (P1) Sanitize remote URLs before writing them to `manifest.json` to avoid leaking credentials.
 
 ### tools/ci-restore-artifacts.js
 - [ ] (P2) Optionally validate `pieces/manifest.json` checksums after restore (fast fail on corrupt artifacts).

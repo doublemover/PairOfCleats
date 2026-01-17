@@ -33,7 +33,7 @@ const cachedBundle = {
       codeRelations: {
         imports: ['dep'],
         exports: ['demo'],
-        calls: ['demo']
+        calls: [['demo', 'demo']]
       },
       docmeta: { signature: 'demo()' },
       tokens: ['demo'],
@@ -51,6 +51,7 @@ const { result, skip } = reuseCachedBundle({
   fileIndex: 0,
   fileStat: stat,
   fileHash: 'hash',
+  fileHashAlgo: 'sha1',
   ext: '.js',
   fileCaps: {},
   cachedBundle,
@@ -62,7 +63,7 @@ const { result, skip } = reuseCachedBundle({
     }
   },
   allImports: {
-    dep: [{ source: 'cached.js', target: 'dep.js' }]
+    dep: ['cached.js']
   },
   fileStructural: null,
   toolInfo: null,
@@ -83,6 +84,9 @@ if (!result.fileRelations?.importLinks?.length) {
 const chunk = result.chunks[0];
 if (!chunk?.metaV2?.chunkId) {
   fail('Expected cached chunk to have metaV2 chunkId.');
+}
+if (chunk?.metaV2?.fileHash !== 'hash' || chunk?.metaV2?.fileHashAlgo !== 'sha1') {
+  fail('Expected cached chunk to include file hash metadata.');
 }
 if (!Array.isArray(chunk?.codeRelations?.calls)) {
   fail('Expected cached chunk to preserve non-file relation fields.');

@@ -56,6 +56,7 @@ const indexA = getIndexDir(fixtureRoot, 'code', userConfig);
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheB;
 const indexB = getIndexDir(fixtureRoot, 'code', userConfig);
 
+const assembleStart = Date.now();
 run('assemble-pieces', [
   assemblePath,
   '--repo',
@@ -73,6 +74,11 @@ run('assemble-pieces', [
   ...baseEnv,
   PAIROFCLEATS_CACHE_ROOT: cacheRoot
 });
+const assembleDuration = Date.now() - assembleStart;
+if (assembleDuration > 30000) {
+  console.error(`assemble-pieces took too long (${assembleDuration}ms).`);
+  process.exit(1);
+}
 
 const chunksA = (await loadChunkMeta(indexA)).length;
 const chunksB = (await loadChunkMeta(indexB)).length;
@@ -122,4 +128,128 @@ if (!fs.existsSync(manifestPath)) {
   process.exit(1);
 }
 
-console.log('Piece assembly test passed');
+const equivalenceRoot = path.join(cacheRoot, 'equivalence');
+const repoAll = path.join(equivalenceRoot, 'repo-all');
+const repoA = path.join(equivalenceRoot, 'repo-a');
+const repoB = path.join(equivalenceRoot, 'repo-b');
+const cacheAll = path.join(equivalenceRoot, 'cache-all');
+const cacheA2 = path.join(equivalenceRoot, 'cache-a');
+const cacheB2 = path.join(equivalenceRoot, 'cache-b');
+const assembledEquiv = path.join(equivalenceRoot, 'assembled', 'index-code');
+
+await fsPromises.rm(equivalenceRoot, { recursive: true, force: true });
+await fsPromises.mkdir(equivalenceRoot, { recursive: true });
+
+const sampleSrc = path.join(fixtureRoot, 'src');
+const sampleFiles = (await fsPromises.readdir(sampleSrc))
+  .filter((file) => file.endsWith('.js'))
+  .sort();
+if (sampleFiles.length < 2) {
+  console.error('Piece assembly equivalence test requires at least two sample files.');
+  process.exit(1);
+}
+const splitIndex = Math.max(1, Math.floor(sampleFiles.length / 2));
+const filesA = sampleFiles.slice(0, splitIndex);
+const filesB = sampleFiles.slice(splitIndex);
+
+const copyRepoFiles = async (destRoot, files) => {
+  const destSrc = path.join(destRoot, 'src');
+  await fsPromises.mkdir(destSrc, { recursive: true });
+  for (const file of files) {
+    const sourcePath = path.join(sampleSrc, file);
+    const destPath = path.join(destSrc, file);
+    await fsPromises.copyFile(sourcePath, destPath);
+  }
+};
+
+await copyRepoFiles(repoAll, sampleFiles);
+await copyRepoFiles(repoA, filesA);
+await copyRepoFiles(repoB, filesB);
+
+run('build_index (monolithic)', [buildIndexPath, '--stub-embeddings', '--mode', 'code', '--repo', repoAll], {
+  ...baseEnv,
+  PAIROFCLEATS_CACHE_ROOT: cacheAll
+});
+run('build_index (part A)', [buildIndexPath, '--stub-embeddings', '--mode', 'code', '--repo', repoA], {
+  ...baseEnv,
+  PAIROFCLEATS_CACHE_ROOT: cacheA2
+});
+run('build_index (part B)', [buildIndexPath, '--stub-embeddings', '--mode', 'code', '--repo', repoB], {
+  ...baseEnv,
+  PAIROFCLEATS_CACHE_ROOT: cacheB2
+});
+
+const userConfigAll = loadUserConfig(repoAll);
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheAll;
+const indexAll = getIndexDir(repoAll, 'code', userConfigAll);
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheA2;
+const indexA2 = getIndexDir(repoA, 'code', loadUserConfig(repoA));
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheB2;
+const indexB2 = getIndexDir(repoB, 'code', loadUserConfig(repoB));
+
+const assembleEquivStart = Date.now();
+run('assemble-pieces (equivalence)', [
+  assemblePath,
+  '--repo',
+  repoAll,
+  '--mode',
+  'code',
+  '--out',
+  assembledEquiv,
+  '--input',
+  indexA2,
+  '--input',
+  indexB2,
+  '--force'
+], {
+  ...baseEnv,
+  PAIROFCLEATS_CACHE_ROOT: equivalenceRoot
+});
+const assembleEquivDuration = Date.now() - assembleEquivStart;
+if (assembleEquivDuration > 30000) {
+  console.error(`assemble-pieces (equivalence) took too long (${assembleEquivDuration}ms).`);
+  process.exit(1);
+}
+
+const chunksAll = await loadChunkMeta(indexAll);
+const chunksEquiv = await loadChunkMeta(assembledEquiv);
+if (JSON.stringify(chunksAll) !== JSON.stringify(chunksEquiv)) {
+  console.error('Piece assembly equivalence failed: chunk_meta mismatch.');
+  process.exit(1);
+}
+
+const postingsAll = loadTokenPostings(indexAll);
+const postingsEquiv = loadTokenPostings(assembledEquiv);
+if (JSON.stringify(postingsAll) !== JSON.stringify(postingsEquiv)) {
+  console.error('Piece assembly equivalence failed: token_postings mismatch.');
+  process.exit(1);
+}
+
+const manifestAll = JSON.parse(await fsPromises.readFile(path.join(indexAll, 'pieces', 'manifest.json'), 'utf8'));
+const manifestEquiv = JSON.parse(await fsPromises.readFile(path.join(assembledEquiv, 'pieces', 'manifest.json'), 'utf8'));
+const piecesAll = Array.isArray(manifestAll.pieces) ? manifestAll.pieces : [];
+const piecesEquiv = Array.isArray(manifestEquiv.pieces) ? manifestEquiv.pieces : [];
+const stripManifestEntries = (pieces) => pieces.filter((entry) => !(
+  (entry?.type === 'stats' && entry?.name === 'filelists')
+  || (entry?.type === 'stats' && entry?.name === 'index_state')
+  || (entry?.type === 'relations' && entry?.name === 'graph_relations')
+));
+if (JSON.stringify(stripManifestEntries(piecesAll)) !== JSON.stringify(stripManifestEntries(piecesEquiv))) {
+  console.error('Piece assembly equivalence failed: pieces manifest mismatch.');
+  process.exit(1);
+}
+
+const graphAll = JSON.parse(
+  await fsPromises.readFile(path.join(indexAll, 'graph_relations.json'), 'utf8')
+);
+const graphEquiv = JSON.parse(
+  await fsPromises.readFile(path.join(assembledEquiv, 'graph_relations.json'), 'utf8')
+);
+delete graphAll.generatedAt;
+delete graphEquiv.generatedAt;
+if (JSON.stringify(graphAll) !== JSON.stringify(graphEquiv)) {
+  console.error('Piece assembly equivalence failed: graph_relations mismatch.');
+  process.exit(1);
+}
+
+console.log('Piece assembly tests passed');

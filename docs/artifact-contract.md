@@ -2,6 +2,8 @@
 
 This document defines the on-disk artifact layout, formats, and invariants for PairOfCleats index builds.
 
+Canonical schema field lists live in `src/index/build/artifacts/schema.js` and are kept in sync with this document.
+
 ## Build layout
 
 Artifacts live under the per-repo cache and are promoted atomically via a current pointer.
@@ -23,13 +25,15 @@ Artifacts live under the per-repo cache and are promoted atomically via a curren
 
 Each `index-<mode>/` directory contains:
 
-- `chunk_meta.json` (or `chunk_meta.jsonl` or sharded `chunk_meta.parts/` + `chunk_meta.meta.json`)
-  - Array or JSONL of chunk metadata entries.
+- `chunk_meta.json` (or `chunk_meta.jsonl`, or sharded `chunk_meta.parts/` + `chunk_meta.meta.json`)
+  - Array/JSONL of chunk metadata entries.
   - Each entry includes `id`, `fileId`, `start`, `end`, `startLine`, `endLine`, `kind`, `name`, plus optional metadata.
+  - Sharded meta (`chunk_meta.meta.json`) fields: `format`, `shardSize`, `totalChunks`, `parts` (relative paths).
 - `file_meta.json`
-  - Array of `{ id, file, ext, ... }` describing files referenced by `chunk_meta`.
+  - Array of `{ id, file, ext, size, hash, hashAlgo, ... }` describing files referenced by `chunk_meta`.
 - `token_postings.json` (or sharded `token_postings.shards/` + `token_postings.meta.json`)
   - Token vocabulary and postings lists.
+  - Sharded meta (`token_postings.meta.json`) fields: `format`, `shardSize`, `vocabCount`, `parts`, plus `docLengths`.
 - `repo_map.json`
   - Flattened symbol list for repo map output.
 - `file_relations.json` (optional)
@@ -55,7 +59,15 @@ Each `index-<mode>/` directory contains:
 - `pieces/manifest.json`
   - Piece inventory with checksums and sizes.
 
-Compressed artifacts may appear as `.json.gz`. When compression is enabled, the JSON payload contains a `compression` field and gzip streams are written via fflate.
+Compressed artifacts may appear as `.json.gz`. When compression is enabled, writers emit gzip-compressed JSON streams (optionally alongside the raw `.json` when `keepRaw` is set). The JSON payload itself is unchanged; compression is indicated by the file extension.
+
+## Format precedence
+
+Readers resolve formats in this order:
+
+- `chunk_meta`: `chunk_meta.meta.json` + `chunk_meta.parts/` → `chunk_meta.jsonl` → `chunk_meta.json`
+- `token_postings`: `token_postings.meta.json` + `token_postings.shards/` → `token_postings.json`
+- If a `*.json` file is missing but `*.json.gz` exists, readers load the gzip sidecar; when both exist, raw `*.json` wins.
 
 ## Incremental bundles
 

@@ -10,6 +10,7 @@ export function reuseCachedBundle({
   fileIndex,
   fileStat,
   fileHash,
+  fileHashAlgo,
   ext,
   fileCaps,
   cachedBundle,
@@ -43,22 +44,26 @@ export function reuseCachedBundle({
   if (!fileRelations) {
     const sample = cachedBundle.chunks.find((chunk) => chunk?.codeRelations);
     if (sample?.codeRelations) {
-      fileRelations = buildFileRelations(sample.codeRelations);
+      fileRelations = buildFileRelations(sample.codeRelations, relKey);
     }
   }
   if (fileRelations?.imports) {
     const importLinks = fileRelations.imports
       .map((i) => allImports[i])
       .filter((x) => !!x)
-      .flat();
+      .flat()
+      .filter((entry) => entry && entry !== relKey);
     fileRelations = { ...fileRelations, importLinks };
   }
   const updatedChunks = cachedBundle.chunks.map((cachedChunk) => {
     const updatedChunk = { ...cachedChunk };
+    if (!updatedChunk.fileHash && fileHash) updatedChunk.fileHash = fileHash;
+    if (!updatedChunk.fileHashAlgo && fileHashAlgo) updatedChunk.fileHashAlgo = fileHashAlgo;
     if (updatedChunk.codeRelations) {
       updatedChunk.codeRelations = stripFileRelations(updatedChunk.codeRelations);
     }
-    if (!updatedChunk.metaV2?.chunkId) {
+    const metaNeedsHash = fileHash && !updatedChunk.metaV2?.fileHash;
+    if (!updatedChunk.metaV2?.chunkId || metaNeedsHash) {
       updatedChunk.metaV2 = buildMetaV2({
         chunk: updatedChunk,
         docmeta: updatedChunk.docmeta,

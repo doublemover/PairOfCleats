@@ -218,7 +218,7 @@ const buildShardId = (mode, label) => {
   return `s-${sha1(key).slice(0, 12)}`;
 };
 
-export function planShardBatches(items, batchCount, { resolveWeight } = {}) {
+export function planShardBatches(items, batchCount, { resolveWeight, resolveTieBreaker } = {}) {
   const list = Array.isArray(items) ? items : [];
   const count = Number.isFinite(batchCount) ? Math.max(1, Math.floor(batchCount)) : 1;
   if (!list.length) return [];
@@ -236,17 +236,29 @@ export function planShardBatches(items, batchCount, { resolveWeight } = {}) {
     return buckets.filter((bucket) => bucket.length);
   }
   const partitions = greedyNumberPartitioning(weights.slice(), count);
+  const resolveTie = resolveTieBreaker
+    ? (item, index) => resolveTieBreaker(item, index)
+    : (item, index) => index;
   const weightQueues = new Map();
   list.forEach((item, index) => {
     const weight = weights[index];
     const entry = weightQueues.get(weight) || { items: [], offset: 0 };
-    entry.items.push(item);
+    entry.items.push({ item, tie: resolveTie(item, index) });
     weightQueues.set(weight, entry);
   });
+  for (const entry of weightQueues.values()) {
+    entry.items.sort((a, b) => {
+      const aKey = a.tie ?? '';
+      const bKey = b.tie ?? '';
+      if (aKey < bKey) return -1;
+      if (aKey > bKey) return 1;
+      return 0;
+    });
+  }
   const takeNext = (weight) => {
     const entry = weightQueues.get(weight);
     if (!entry || entry.offset >= entry.items.length) return null;
-    const item = entry.items[entry.offset];
+    const item = entry.items[entry.offset].item;
     entry.offset += 1;
     return item;
   };
@@ -263,7 +275,7 @@ export function planShardBatches(items, batchCount, { resolveWeight } = {}) {
     const remainder = [];
     for (const entry of weightQueues.values()) {
       for (let i = entry.offset; i < entry.items.length; i += 1) {
-        remainder.push(entry.items[i]);
+        remainder.push(entry.items[i].item);
       }
     }
     if (remainder.length) {
@@ -278,7 +290,8 @@ const balanceShardsGreedy = (shards, targetCount, mode) => {
   if (!Number.isFinite(targetCount) || targetCount <= 0) return shards;
   if (shards.length <= targetCount) return shards;
   const batches = planShardBatches(shards, Math.floor(targetCount), {
-    resolveWeight: (shard) => shard.costMs || shard.lineCount || shard.entries.length || 0
+    resolveWeight: (shard) => shard.costMs || shard.lineCount || shard.entries.length || 0,
+    resolveTieBreaker: (shard) => shard.label || shard.id || ''
   });
   return batches
     .filter((batch) => batch.length)

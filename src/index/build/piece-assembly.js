@@ -2,9 +2,11 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { loadChunkMeta, loadTokenPostings, readJsonFile } from '../../shared/artifact-io.js';
 import { buildFilterIndex, serializeFilterIndex } from '../../retrieval/filter-index.js';
+import { applyCrossFileInference } from '../type-inference-crossfile.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { log as defaultLog } from '../../shared/progress.js';
 import { createIndexState } from './state.js';
+import { buildRelationGraphs } from './graphs.js';
 import { writeIndexArtifacts } from './artifacts.js';
 
 const STAGE_ORDER = {
@@ -68,6 +70,9 @@ const loadIndexArtifacts = async (dir) => {
     if (!meta) continue;
     if (!chunk.file) chunk.file = meta.file;
     if (!chunk.ext) chunk.ext = meta.ext;
+    if (!chunk.fileSize && Number.isFinite(meta.size)) chunk.fileSize = meta.size;
+    if (!chunk.fileHash && meta.hash) chunk.fileHash = meta.hash;
+    if (!chunk.fileHashAlgo && meta.hashAlgo) chunk.fileHashAlgo = meta.hashAlgo;
     if (!chunk.externalDocs) chunk.externalDocs = meta.externalDocs;
     if (!chunk.last_modified) chunk.last_modified = meta.last_modified;
     if (!chunk.last_author) chunk.last_author = meta.last_author;
@@ -162,10 +167,91 @@ const computeBm25 = (docLengths) => {
   return { avgChunkLen, k1, b };
 };
 
-const validateLengths = (label, list, expected) => {
-  if (!Array.isArray(list)) return;
+const validateLengths = (label, list, expected, dir, { allowMissing = false } = {}) => {
+  const location = dir ? ` in ${dir}` : '';
+  if (!Array.isArray(list)) {
+    if (!allowMissing && expected > 0) {
+      throw new Error(`${label} missing (${expected} expected)${location}`);
+    }
+    return;
+  }
+  if (expected > 0 && list.length === 0) {
+    throw new Error(`${label} empty (${expected} expected)${location}`);
+  }
   if (list.length !== expected) {
-    throw new Error(`${label} length mismatch (${list.length} !== ${expected})`);
+    throw new Error(`${label} length mismatch (${list.length} !== ${expected})${location}`);
+  }
+};
+
+const normalizeIdList = (list) => {
+  if (!Array.isArray(list)) return [];
+  const filtered = list.filter((value) => Number.isFinite(value));
+  if (filtered.length <= 1) return filtered;
+  filtered.sort((a, b) => a - b);
+  const deduped = [];
+  let last = null;
+  for (const value of filtered) {
+    if (value !== last) deduped.push(value);
+    last = value;
+  }
+  return deduped;
+};
+
+const normalizeTfPostings = (list) => {
+  if (!Array.isArray(list)) return [];
+  if (list.length <= 1) return list;
+  const filtered = list.filter((entry) => Array.isArray(entry) && Number.isFinite(entry[0]));
+  filtered.sort((a, b) => {
+    const delta = a[0] - b[0];
+    return delta || ((a[1] || 0) - (b[1] || 0));
+  });
+  return filtered;
+};
+
+const buildChunkOrdering = (chunks) => {
+  const entries = chunks.map((chunk, index) => {
+    const startRaw = Number(chunk?.start);
+    const endRaw = Number(chunk?.end);
+    return {
+      chunk,
+      oldId: index,
+      file: typeof chunk?.file === 'string' ? chunk.file : '',
+      start: Number.isFinite(startRaw) ? startRaw : 0,
+      end: Number.isFinite(endRaw) ? endRaw : 0
+    };
+  });
+  entries.sort((a, b) => {
+    if (a.file !== b.file) return a.file < b.file ? -1 : 1;
+    if (a.start !== b.start) return a.start - b.start;
+    if (a.end !== b.end) return a.end - b.end;
+    return a.oldId - b.oldId;
+  });
+  return entries;
+};
+
+const remapTfPostings = (map, docMap) => {
+  for (const [token, list] of map.entries()) {
+    if (!Array.isArray(list)) continue;
+    const remapped = list.map((entry) => {
+      if (!Array.isArray(entry)) return entry;
+      const docId = entry[0];
+      const nextId = Number.isFinite(docId) ? docMap[docId] : null;
+      if (!Number.isFinite(nextId)) return entry;
+      const nextEntry = entry.slice();
+      nextEntry[0] = nextId;
+      return nextEntry;
+    });
+    map.set(token, remapped);
+  }
+};
+
+const remapIdPostings = (map, docMap) => {
+  for (const [token, list] of map.entries()) {
+    if (!Array.isArray(list)) continue;
+    const remapped = list
+      .map((docId) => (Number.isFinite(docId) ? docMap[docId] : null))
+      .filter((docId) => Number.isFinite(docId));
+    map.set(token, remapped);
   }
 };
 
@@ -184,20 +270,8 @@ export async function assembleIndexPieces({
   const assembledStage = normalizeStage(stage);
   const state = createIndexState();
   const mergedTokenPostings = new Map();
-  const mergedFieldPostings = {
-    name: new Map(),
-    signature: new Map(),
-    doc: new Map(),
-    comment: new Map(),
-    body: new Map()
-  };
-  const mergedFieldDocLengths = {
-    name: [],
-    signature: [],
-    doc: [],
-    comment: [],
-    body: []
-  };
+  const mergedFieldPostings = new Map();
+  const mergedFieldDocLengths = new Map();
   const mergedPhrasePostings = new Map();
   const mergedChargramPostings = new Map();
   const mergedMinhash = [];
@@ -211,13 +285,16 @@ export async function assembleIndexPieces({
   let fieldTokensSeen = false;
   const stageInputs = [];
 
-  for (const dir of inputs) {
+  const sortedInputs = inputs
+    .map((dir) => path.resolve(dir))
+    .sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+  for (const dir of sortedInputs) {
     const input = await loadIndexArtifacts(dir);
     const chunks = Array.isArray(input.chunkMeta) ? input.chunkMeta : [];
     const docLengths = Array.isArray(input.tokenPostings?.docLengths)
       ? input.tokenPostings.docLengths
       : [];
-    validateLengths('docLengths', docLengths, chunks.length);
+    validateLengths('docLengths', docLengths, chunks.length, dir);
     const docOffset = state.chunks.length;
     stageInputs.push({ indexState: input.indexState, chunkCount: chunks.length });
     for (let i = 0; i < chunks.length; i += 1) {
@@ -237,25 +314,31 @@ export async function assembleIndexPieces({
       mergeTfPostings(mergedTokenPostings, vocab[i], postings[i], docOffset);
     }
 
-    const fieldPostings = input.fieldPostings?.fields;
+    const rawFieldPostings = input.fieldPostings;
+    const fieldPostings = rawFieldPostings?.fields && typeof rawFieldPostings.fields === 'object'
+      ? rawFieldPostings.fields
+      : (rawFieldPostings && typeof rawFieldPostings === 'object' ? rawFieldPostings : null);
     if (fieldPostings && typeof fieldPostings === 'object') {
       for (const [field, entry] of Object.entries(fieldPostings)) {
         const fieldVocab = Array.isArray(entry?.vocab) ? entry.vocab : [];
         const fieldPosting = Array.isArray(entry?.postings) ? entry.postings : [];
         const fieldDocLengths = Array.isArray(entry?.docLengths) ? entry.docLengths : [];
-        validateLengths(`fieldDocLengths:${field}`, fieldDocLengths, chunks.length);
-        if (mergedFieldDocLengths[field]) {
-          mergedFieldDocLengths[field].push(...fieldDocLengths);
-        }
-        const destMap = mergedFieldPostings[field] || null;
-        if (!destMap) continue;
+        validateLengths(`fieldDocLengths:${field}`, fieldDocLengths, chunks.length, dir);
+        const lengths = mergedFieldDocLengths.get(field) || [];
+        lengths.push(...fieldDocLengths);
+        mergedFieldDocLengths.set(field, lengths);
+        const destMap = mergedFieldPostings.get(field) || new Map();
         for (let i = 0; i < fieldVocab.length; i += 1) {
           mergeTfPostings(destMap, fieldVocab[i], fieldPosting[i], docOffset);
         }
+        mergedFieldPostings.set(field, destMap);
       }
     }
 
     const fieldTokens = Array.isArray(input.fieldTokens) ? input.fieldTokens : null;
+    if (input.fieldTokens) {
+      validateLengths('fieldTokens', fieldTokens, chunks.length, dir);
+    }
     if (fieldTokens && fieldTokens.length) {
       fieldTokensSeen = true;
       for (let i = 0; i < chunks.length; i += 1) {
@@ -268,9 +351,9 @@ export async function assembleIndexPieces({
     }
 
     const minhash = readArray(input.minhash, 'signatures');
-    if (minhash.length) {
-      validateLengths('minhash', minhash, chunks.length);
-      mergedMinhash.push(...minhash);
+    if (input.minhash) {
+      validateLengths('minhash', minhash, chunks.length, dir, { allowMissing: false });
+      if (minhash.length) mergedMinhash.push(...minhash);
     }
 
     const phraseVocab = readArray(input.phraseNgrams, 'vocab');
@@ -291,7 +374,7 @@ export async function assembleIndexPieces({
     const inputDims = Number(readField(input.denseVec, 'dims')) || 0;
     const inputModel = readField(input.denseVec, 'model');
     const inputScale = readField(input.denseVec, 'scale');
-    if (denseVec.length) {
+    if (input.denseVec) {
       embeddingsSeen = true;
       if (denseDims && inputDims && denseDims !== inputDims) {
         throw new Error(`Embedding dims mismatch (${denseDims} !== ${inputDims})`);
@@ -305,15 +388,15 @@ export async function assembleIndexPieces({
       denseDims = denseDims || inputDims;
       denseModel = denseModel || inputModel || null;
       denseScale = denseScale || inputScale || null;
-      validateLengths('dense vectors', denseVec, chunks.length);
-      mergedDense.push(...denseVec);
-      if (denseVecDoc.length) {
-        validateLengths('dense doc vectors', denseVecDoc, chunks.length);
-        mergedDenseDoc.push(...denseVecDoc);
+      validateLengths('dense vectors', denseVec, chunks.length, dir);
+      if (denseVec.length) mergedDense.push(...denseVec);
+      if (input.denseVecDoc) {
+        validateLengths('dense doc vectors', denseVecDoc, chunks.length, dir);
+        if (denseVecDoc.length) mergedDenseDoc.push(...denseVecDoc);
       }
-      if (denseVecCode.length) {
-        validateLengths('dense code vectors', denseVecCode, chunks.length);
-        mergedDenseCode.push(...denseVecCode);
+      if (input.denseVecCode) {
+        validateLengths('dense code vectors', denseVecCode, chunks.length, dir);
+        if (denseVecCode.length) mergedDenseCode.push(...denseVecCode);
       }
     }
 
@@ -330,34 +413,105 @@ export async function assembleIndexPieces({
     throw new Error('assembleIndexPieces found no chunks to merge.');
   }
 
+  const ordering = buildChunkOrdering(state.chunks);
+  const needsRemap = ordering.some((entry, index) => entry.oldId !== index);
+  if (needsRemap) {
+    const docMap = new Array(ordering.length);
+    const newChunks = new Array(ordering.length);
+    const newDocLengths = new Array(ordering.length);
+    const newFieldTokens = fieldTokensSeen ? new Array(ordering.length) : null;
+    const newMinhash = mergedMinhash.length ? new Array(ordering.length) : null;
+    const newDense = mergedDense.length ? new Array(ordering.length) : null;
+    const newDenseDoc = mergedDenseDoc.length ? new Array(ordering.length) : null;
+    const newDenseCode = mergedDenseCode.length ? new Array(ordering.length) : null;
+
+    for (let newId = 0; newId < ordering.length; newId += 1) {
+      const { chunk, oldId } = ordering[newId];
+      docMap[oldId] = newId;
+      newChunks[newId] = { ...chunk, id: newId };
+      newDocLengths[newId] = state.docLengths[oldId] ?? 0;
+      if (newFieldTokens) newFieldTokens[newId] = state.fieldTokens[oldId] ?? null;
+      if (newMinhash) newMinhash[newId] = mergedMinhash[oldId];
+      if (newDense) newDense[newId] = mergedDense[oldId];
+      if (newDenseDoc) newDenseDoc[newId] = mergedDenseDoc[oldId];
+      if (newDenseCode) newDenseCode[newId] = mergedDenseCode[oldId];
+    }
+
+    state.chunks = newChunks;
+    state.docLengths = newDocLengths;
+    if (newFieldTokens) state.fieldTokens = newFieldTokens;
+    if (newMinhash) mergedMinhash.splice(0, mergedMinhash.length, ...newMinhash);
+    if (newDense) mergedDense.splice(0, mergedDense.length, ...newDense);
+    if (newDenseDoc) mergedDenseDoc.splice(0, mergedDenseDoc.length, ...newDenseDoc);
+    if (newDenseCode) mergedDenseCode.splice(0, mergedDenseCode.length, ...newDenseCode);
+
+    for (const [field, lengths] of mergedFieldDocLengths.entries()) {
+      if (!Array.isArray(lengths) || lengths.length !== ordering.length) continue;
+      const next = new Array(ordering.length);
+      for (let newId = 0; newId < ordering.length; newId += 1) {
+        const oldId = ordering[newId].oldId;
+        next[newId] = lengths[oldId];
+      }
+      mergedFieldDocLengths.set(field, next);
+    }
+
+    remapTfPostings(mergedTokenPostings, docMap);
+    for (const map of mergedFieldPostings.values()) {
+      remapTfPostings(map, docMap);
+    }
+    remapIdPostings(mergedPhrasePostings, docMap);
+    remapIdPostings(mergedChargramPostings, docMap);
+  }
+
+  const indexingConfig = userConfig?.indexing || {};
+  const typeInferenceEnabled = indexingConfig.typeInference === true;
+  const typeInferenceCrossFileEnabled = indexingConfig.typeInferenceCrossFile === true;
+  const riskAnalysisEnabled = indexingConfig.riskAnalysis === true;
+  const riskAnalysisCrossFileEnabled = indexingConfig.riskAnalysisCrossFile === true;
+  if (typeInferenceCrossFileEnabled || riskAnalysisCrossFileEnabled) {
+    await applyCrossFileInference({
+      rootDir: root,
+      chunks: state.chunks,
+      enabled: true,
+      log,
+      useTooling: false,
+      enableTypeInference: typeInferenceEnabled,
+      enableRiskCorrelation: riskAnalysisEnabled && riskAnalysisCrossFileEnabled,
+      fileRelations: state.fileRelations
+    });
+  }
+
   if (embeddingsSeen) {
-    validateLengths('merged dense vectors', mergedDense, state.chunks.length);
+    validateLengths('merged dense vectors', mergedDense, state.chunks.length, outDir);
     if (mergedDenseDoc.length) {
-      validateLengths('merged dense doc vectors', mergedDenseDoc, state.chunks.length);
+      validateLengths('merged dense doc vectors', mergedDenseDoc, state.chunks.length, outDir);
     }
     if (mergedDenseCode.length) {
-      validateLengths('merged dense code vectors', mergedDenseCode, state.chunks.length);
+      validateLengths('merged dense code vectors', mergedDenseCode, state.chunks.length, outDir);
     }
   }
   if (mergedMinhash.length) {
-    validateLengths('merged minhash', mergedMinhash, state.chunks.length);
+    validateLengths('merged minhash', mergedMinhash, state.chunks.length, outDir);
   }
 
   const sortKey = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
   const tokenVocab = Array.from(mergedTokenPostings.keys()).sort(sortKey);
-  const tokenPostingsList = tokenVocab.map((token) => mergedTokenPostings.get(token));
+  const tokenPostingsList = tokenVocab.map((token) => normalizeTfPostings(mergedTokenPostings.get(token)));
   const phraseVocab = Array.from(mergedPhrasePostings.keys()).sort(sortKey);
-  const phrasePostings = phraseVocab.map((token) => mergedPhrasePostings.get(token));
+  const phrasePostings = phraseVocab.map((token) => normalizeIdList(mergedPhrasePostings.get(token)));
   const chargramVocab = Array.from(mergedChargramPostings.keys()).sort(sortKey);
-  const chargramPostings = chargramVocab.map((token) => mergedChargramPostings.get(token));
+  const chargramPostings = chargramVocab.map((token) => normalizeIdList(mergedChargramPostings.get(token)));
   const fieldPostings = {};
-  const fieldNames = Object.keys(mergedFieldPostings).sort(sortKey);
+  const fieldNames = Array.from(new Set([
+    ...mergedFieldPostings.keys(),
+    ...mergedFieldDocLengths.keys()
+  ])).sort(sortKey);
   for (const field of fieldNames) {
-    const map = mergedFieldPostings[field];
+    const map = mergedFieldPostings.get(field) || new Map();
     const vocab = Array.from(map.keys()).sort(sortKey);
-    if (!vocab.length) continue;
-    const postings = vocab.map((token) => map.get(token));
-    const lengths = mergedFieldDocLengths[field] || [];
+    const postings = vocab.map((token) => normalizeTfPostings(map.get(token)));
+    const lengths = mergedFieldDocLengths.get(field) || [];
+    if (!vocab.length && !lengths.length) continue;
     const avgLen = lengths.length
       ? lengths.reduce((sum, len) => sum + (Number.isFinite(len) ? len : 0), 0) / lengths.length
       : 0;
@@ -402,11 +556,18 @@ export async function assembleIndexPieces({
   const filterIndex = serializeFilterIndex(buildFilterIndex(state.chunks, {
     includeBitmaps: false
   }));
+  const graphRelations = mode === 'code'
+    ? buildRelationGraphs({ chunks: state.chunks, fileRelations: state.fileRelations })
+    : null;
   state.fileRelations = state.fileRelations || new Map();
   state.scannedFilesTimes = [];
   state.scannedFiles = [];
   state.skippedFiles = [];
-  state.fieldDocLengths = mergedFieldDocLengths;
+  const fieldDocLengths = {};
+  for (const [field, lengths] of mergedFieldDocLengths.entries()) {
+    fieldDocLengths[field] = lengths;
+  }
+  state.fieldDocLengths = fieldDocLengths;
 
   const pickIndexState = () => {
     if (!stageInputs.length) return {};
@@ -452,7 +613,8 @@ export async function assembleIndexPieces({
     userConfig,
     incrementalEnabled: false,
     fileCounts: { candidates: uniqueFiles.size },
-    indexState: assembledIndexState
+    indexState: assembledIndexState,
+    graphRelations
   });
 
   log(`Assembled index from ${inputs.length} piece set(s) into ${outDir}.`);

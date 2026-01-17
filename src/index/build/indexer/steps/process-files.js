@@ -723,7 +723,12 @@ export const processFiles = async ({
     let shardBatches = planShardBatches(shardWorkPlan, shardConcurrency, {
       resolveWeight: (workItem) => Number.isFinite(workItem.predictedCostMs)
         ? workItem.predictedCostMs
-        : (workItem.shard.costMs || workItem.shard.lineCount || workItem.entries.length || 0)
+        : (workItem.shard.costMs || workItem.shard.lineCount || workItem.entries.length || 0),
+      resolveTieBreaker: (workItem) => {
+        const shardId = workItem.shard?.id || workItem.shard?.label || '';
+        const part = Number.isFinite(workItem.partIndex) ? workItem.partIndex : 0;
+        return `${shardId}:${part}`;
+      }
     });
     if (!shardBatches.length && shardWorkPlan.length) {
       shardBatches = [shardWorkPlan.slice()];
@@ -796,6 +801,15 @@ export const processFiles = async ({
   showProgress('Files', progress.total, progress.total);
   checkpoint.finish();
   timing.processMs = Date.now() - processStart;
+  const parseSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'parse-error').length;
+  const relationSkipCount = state.skippedFiles.filter((entry) => entry?.reason === 'relation-error').length;
+  const skipTotal = parseSkipCount + relationSkipCount;
+  if (skipTotal > 0) {
+    const parts = [];
+    if (parseSkipCount) parts.push(`parse=${parseSkipCount}`);
+    if (relationSkipCount) parts.push(`relations=${relationSkipCount}`);
+    log(`Warning: skipped ${skipTotal} files due to parse/relations errors (${parts.join(', ')}).`);
+  }
 
   return { tokenizationStats, shardSummary, shardPlan };
 };

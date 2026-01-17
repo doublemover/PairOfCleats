@@ -11,6 +11,7 @@ import { buildFileMeta } from './artifacts/file-meta.js';
 import { buildSerializedFilterIndex } from './artifacts/filter-index.js';
 import { writeIndexMetrics } from './artifacts/metrics.js';
 import { resolveTokenMode } from './artifacts/token-mode.js';
+import { createArtifactWriter } from './artifacts/writer.js';
 import { enqueueFileRelationsArtifacts } from './artifacts/writers/file-relations.js';
 import { createRepoMapIterator } from './artifacts/writers/repo-map.js';
 import {
@@ -246,79 +247,16 @@ export async function writeIndexArtifacts(input) {
     );
     addPieceFile({ type: 'stats', name: 'index_state', format: 'json' }, indexStatePath);
   }
-  const artifactPath = (base, compressed) => path.join(
+  const { enqueueJsonObject, enqueueJsonArray } = createArtifactWriter({
     outDir,
-    compressed ? `${base}.json.gz` : `${base}.json`
-  );
-  const enqueueJsonObject = (base, payload, { compressible = true, piece = null } = {}) => {
-    if (compressionEnabled && compressible && compressibleArtifacts.has(base)) {
-      const gzPath = artifactPath(base, true);
-      enqueueWrite(
-        formatArtifactLabel(gzPath),
-        () => writeJsonObjectFile(gzPath, {
-          ...payload,
-          compression: compressionMode,
-          atomic: true
-        })
-      );
-      if (piece) {
-        addPieceFile({ ...piece, format: 'json', compression: compressionMode }, gzPath);
-      }
-      if (compressionKeepRaw) {
-        const rawPath = artifactPath(base, false);
-        enqueueWrite(
-          formatArtifactLabel(rawPath),
-          () => writeJsonObjectFile(rawPath, { ...payload, atomic: true })
-        );
-        if (piece) {
-          addPieceFile({ ...piece, format: 'json' }, rawPath);
-        }
-      }
-      return;
-    }
-    const rawPath = artifactPath(base, false);
-    enqueueWrite(
-      formatArtifactLabel(rawPath),
-      () => writeJsonObjectFile(rawPath, { ...payload, atomic: true })
-    );
-    if (piece) {
-      addPieceFile({ ...piece, format: 'json' }, rawPath);
-    }
-  };
-  const enqueueJsonArray = (base, items, { compressible = true, piece = null } = {}) => {
-    if (compressionEnabled && compressible && compressibleArtifacts.has(base)) {
-      const gzPath = artifactPath(base, true);
-      enqueueWrite(
-        formatArtifactLabel(gzPath),
-        () => writeJsonArrayFile(gzPath, items, {
-          compression: compressionMode,
-          atomic: true
-        })
-      );
-      if (piece) {
-        addPieceFile({ ...piece, format: 'json', compression: compressionMode }, gzPath);
-      }
-      if (compressionKeepRaw) {
-        const rawPath = artifactPath(base, false);
-        enqueueWrite(
-          formatArtifactLabel(rawPath),
-          () => writeJsonArrayFile(rawPath, items, { atomic: true })
-        );
-        if (piece) {
-          addPieceFile({ ...piece, format: 'json' }, rawPath);
-        }
-      }
-      return;
-    }
-    const rawPath = artifactPath(base, false);
-    enqueueWrite(
-      formatArtifactLabel(rawPath),
-      () => writeJsonArrayFile(rawPath, items, { atomic: true })
-    );
-    if (piece) {
-      addPieceFile({ ...piece, format: 'json' }, rawPath);
-    }
-  };
+    enqueueWrite,
+    addPieceFile,
+    formatArtifactLabel,
+    compressionEnabled,
+    compressionMode,
+    compressionKeepRaw,
+    compressibleArtifacts
+  });
 
   const denseVectorsEnabled = postings.dims > 0 && postings.quantizedVectors.length;
   if (!denseVectorsEnabled) {
@@ -400,52 +338,65 @@ export async function writeIndexArtifacts(input) {
   });
   if (tokenPostingsUseShards) {
     const shardsDir = path.join(outDir, 'token_postings.shards');
-    await fs.mkdir(shardsDir, { recursive: true });
     const parts = [];
+    const shardPlan = [];
     let shardIndex = 0;
     for (let i = 0; i < postings.tokenVocab.length; i += tokenPostingsShardSize) {
       const end = Math.min(i + tokenPostingsShardSize, postings.tokenVocab.length);
       const partCount = end - i;
       const partName = `token_postings.part-${String(shardIndex).padStart(5, '0')}.json`;
-      const partPath = path.join(shardsDir, partName);
-      parts.push(path.join('token_postings.shards', partName));
-      enqueueWrite(
-        formatArtifactLabel(partPath),
-        () => writeJsonObjectFile(partPath, {
-          arrays: {
-            vocab: postings.tokenVocab.slice(i, end),
-            postings: postings.tokenPostingsList.slice(i, end)
-          },
-          atomic: true
-        })
-      );
+      parts.push(path.posix.join('token_postings.shards', partName));
+      shardPlan.push({ start: i, end, partCount, partName });
       addPieceFile({
         type: 'postings',
         name: 'token_postings',
         format: 'json',
         count: partCount
-      }, partPath);
+      }, path.join(shardsDir, partName));
       shardIndex += 1;
     }
     const metaPath = path.join(outDir, 'token_postings.meta.json');
-    enqueueWrite(
-      formatArtifactLabel(metaPath),
-      () => writeJsonObjectFile(metaPath, {
-        fields: {
-          avgDocLen: postings.avgDocLen,
-          totalDocs: state.docLengths.length,
-          format: 'sharded',
-          shardSize: tokenPostingsShardSize,
-          vocabCount: postings.tokenVocab.length,
-          parts
-        },
-        arrays: {
-          docLengths: state.docLengths
-        },
-        atomic: true
-      })
-    );
     addPieceFile({ type: 'postings', name: 'token_postings_meta', format: 'json' }, metaPath);
+    enqueueWrite(
+      formatArtifactLabel(shardsDir),
+      async () => {
+        const tempDir = `${shardsDir}.tmp-${Date.now()}`;
+        const backupDir = `${shardsDir}.bak`;
+        await fs.rm(tempDir, { recursive: true, force: true });
+        await fs.mkdir(tempDir, { recursive: true });
+        for (const part of shardPlan) {
+          const partPath = path.join(tempDir, part.partName);
+          await writeJsonObjectFile(partPath, {
+            arrays: {
+              vocab: postings.tokenVocab.slice(part.start, part.end),
+              postings: postings.tokenPostingsList.slice(part.start, part.end)
+            },
+            atomic: true
+          });
+        }
+        await fs.rm(backupDir, { recursive: true, force: true });
+        try {
+          await fs.stat(shardsDir);
+          await fs.rename(shardsDir, backupDir);
+        } catch {}
+        await fs.rename(tempDir, shardsDir);
+        await fs.rm(backupDir, { recursive: true, force: true });
+        await writeJsonObjectFile(metaPath, {
+          fields: {
+            avgDocLen: postings.avgDocLen,
+            totalDocs: state.docLengths.length,
+            format: 'sharded',
+            shardSize: tokenPostingsShardSize,
+            vocabCount: postings.tokenVocab.length,
+            parts
+          },
+          arrays: {
+            docLengths: state.docLengths
+          },
+          atomic: true
+        });
+      }
+    );
   } else {
     enqueueJsonObject('token_postings', {
       fields: {

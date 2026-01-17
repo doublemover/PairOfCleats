@@ -348,7 +348,8 @@ const LANG_CONFIG = {
       method_declaration: 'MethodDeclaration',
       constructor_declaration: 'ConstructorDeclaration'
     },
-    docComments: { linePrefixes: ['//'], blockStarts: ['/**'] }
+    docComments: { linePrefixes: ['//'], blockStarts: ['/**'] },
+    nameFields: ['name']
   },
   html: {
     typeNodes: new Set([

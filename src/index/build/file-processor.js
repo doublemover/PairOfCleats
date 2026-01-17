@@ -27,67 +27,16 @@ import { buildCallIndex, buildFileRelations } from './file-processor/relations.j
 import { resolveBinarySkip, resolvePreReadSkip } from './file-processor/skip.js';
 import { createFileTimingTracker } from './file-processor/timings.js';
 import { resolveExt, resolveFileCaps, truncateByBytes } from './file-processor/read.js';
-import { TREE_SITTER_LANGUAGE_IDS } from '../../lang/tree-sitter/config.js';
-import { isTreeSitterEnabled } from '../../lang/tree-sitter/options.js';
+import {
+  resolveTreeSitterLanguageForSegment,
+  resolveTreeSitterLanguagesForSegments
+} from './file-processor/tree-sitter.js';
 import {
   preloadTreeSitterLanguages,
   pruneTreeSitterLanguages,
   resetTreeSitterParser
 } from '../../lang/tree-sitter.js';
 import { getLanguageForFile } from '../language-registry.js';
-
-const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
-
-const resolveTreeSitterLanguageForExt = (languageId, ext) => {
-  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
-  if (normalizedExt === '.tsx') return 'tsx';
-  if (normalizedExt === '.jsx') return 'jsx';
-  if (normalizedExt === '.ts' || normalizedExt === '.cts' || normalizedExt === '.mts') return 'typescript';
-  if (normalizedExt === '.js' || normalizedExt === '.mjs' || normalizedExt === '.cjs' || normalizedExt === '.jsm') {
-    return 'javascript';
-  }
-  if (normalizedExt === '.py') return 'python';
-  if (normalizedExt === '.json') return 'json';
-  if (normalizedExt === '.yaml' || normalizedExt === '.yml') return 'yaml';
-  if (normalizedExt === '.toml') return 'toml';
-  if (normalizedExt === '.md' || normalizedExt === '.mdx') return 'markdown';
-  if (!normalizedExt) return languageId;
-  if (normalizedExt === '.m' || normalizedExt === '.mm') return 'objc';
-  if (normalizedExt === '.cpp' || normalizedExt === '.cc' || normalizedExt === '.cxx'
-    || normalizedExt === '.hpp' || normalizedExt === '.hh' || normalizedExt === '.hxx') return 'cpp';
-  if (normalizedExt === '.c' || normalizedExt === '.h') return 'clike';
-  return languageId;
-};
-
-const resolveTreeSitterLanguageForSegment = (languageId, ext) => {
-  const normalizedExt = typeof ext === 'string' ? ext.toLowerCase() : '';
-  if (languageId === 'typescript' && normalizedExt === '.tsx') return 'tsx';
-  if (languageId === 'javascript' && normalizedExt === '.jsx') return 'jsx';
-  if (languageId === 'clike' || languageId === 'objc' || languageId === 'cpp') {
-    return resolveTreeSitterLanguageForExt(languageId, ext);
-  }
-  if (languageId) return languageId;
-  return resolveTreeSitterLanguageForExt(languageId, ext);
-};
-
-const resolveTreeSitterLanguagesForSegments = ({ segments, primaryLanguageId, ext, treeSitterConfig }) => {
-  if (!treeSitterConfig || treeSitterConfig.enabled === false) return [];
-  const options = { treeSitter: treeSitterConfig };
-  const languages = new Set();
-  const add = (languageId) => {
-    if (!languageId || !TREE_SITTER_LANG_IDS.has(languageId)) return;
-    if (!isTreeSitterEnabled(options, languageId)) return;
-    languages.add(languageId);
-  };
-  add(resolveTreeSitterLanguageForSegment(primaryLanguageId, ext));
-  if (Array.isArray(segments)) {
-    for (const segment of segments) {
-      if (!segment || segment.type !== 'embedded') continue;
-      add(resolveTreeSitterLanguageForSegment(segment.languageId, ext));
-    }
-  }
-  return Array.from(languages);
-};
 
 /**
  * Create a file processor with shared caches.
@@ -325,7 +274,8 @@ export function createFileProcessor(options) {
     const fileStructural = structuralMatches?.get(relKey) || null;
     if (seenFiles) seenFiles.add(relKey);
     const ext = resolveExt(abs);
-    let fileLanguageId = null;
+    const languageHint = getLanguageForFile(ext, relKey);
+    let fileLanguageId = languageHint?.id || null;
     let fileLineCount = 0;
     let fileStat;
     try {
@@ -358,6 +308,7 @@ export function createFileProcessor(options) {
     let cachedBundle = null;
     let text = null;
     let fileHash = null;
+    let fileHashAlgo = null;
     let fileBuffer = null;
     const cachedResult = await loadCachedBundleForFile({
       runIo,
@@ -368,6 +319,7 @@ export function createFileProcessor(options) {
     });
     cachedBundle = cachedResult.cachedBundle;
     fileHash = cachedResult.fileHash;
+    if (fileHash) fileHashAlgo = 'sha1';
     fileBuffer = cachedResult.buffer;
 
     const cachedOutcome = reuseCachedBundle({
@@ -376,6 +328,7 @@ export function createFileProcessor(options) {
       fileIndex,
       fileStat,
       fileHash,
+      fileHashAlgo,
       ext,
       fileCaps,
       cachedBundle,
@@ -394,6 +347,11 @@ export function createFileProcessor(options) {
     }
     if (cachedOutcome?.result) {
       return cachedOutcome.result;
+    }
+
+    if (!fileLanguageId && mode === 'code') {
+      recordSkip(abs, 'unsupported-language', { ext });
+      return null;
     }
 
     if (!fileBuffer) {
@@ -420,13 +378,52 @@ export function createFileProcessor(options) {
     if (!text || !fileHash) {
       const decoded = await readTextFileWithHash(abs, { buffer: fileBuffer, stat: fileStat });
       if (!text) text = decoded.text;
-      if (!fileHash) fileHash = decoded.hash;
+      if (!fileHash) {
+        fileHash = decoded.hash;
+        fileHashAlgo = 'sha1';
+      }
     }
 
     let languageLines = null;
     let languageSetKey = null;
 
     const cpuResult = await runCpu(async () => {
+      const failFile = (reason, stage, err, extra = {}) => ({
+        chunks: [],
+        fileRelations: null,
+        skip: {
+          reason,
+          stage,
+          message: formatError(err),
+          ...extra
+        }
+      });
+      const validateChunkBounds = (chunks, textLength) => {
+        if (!Array.isArray(chunks)) return 'chunk list missing';
+        let lastStart = -1;
+        let lastEnd = -1;
+        for (let i = 0; i < chunks.length; i += 1) {
+          const chunk = chunks[i];
+          if (!chunk) return `chunk ${i} missing`;
+          const start = Number(chunk.start);
+          const end = Number(chunk.end);
+          if (!Number.isFinite(start) || !Number.isFinite(end)) {
+            return `chunk ${i} missing offsets`;
+          }
+          if (start < 0 || end < 0 || start > end || end > textLength) {
+            return `chunk ${i} out of bounds`;
+          }
+          if (start < lastStart) {
+            return `chunk ${i} out of order`;
+          }
+          if (start < lastEnd) {
+            return `chunk ${i} overlaps previous`;
+          }
+          lastStart = start;
+          lastEnd = end;
+        }
+        return null;
+      };
       const baseTreeSitterConfig = fileEntry?.treeSitterDisabled
         ? { ...(languageOptions?.treeSitter || {}), enabled: false }
         : languageOptions?.treeSitter;
@@ -456,16 +453,21 @@ export function createFileProcessor(options) {
         if (deferrals < treeSitterDeferMissingMax) {
           const languageHint = getLanguageForFile(ext, relKey);
           const languageIdHint = languageHint?.id || null;
-          const segmentHint = discoverSegments({
-            text,
-            ext,
-            relPath: relKey,
-            mode,
-            languageId: languageIdHint,
-            context: null,
-            segmentsConfig: resolvedSegmentsConfig,
-            extraSegments: []
-          });
+          let segmentHint;
+          try {
+            segmentHint = discoverSegments({
+              text,
+              ext,
+              relPath: relKey,
+              mode,
+              languageId: languageIdHint,
+              context: null,
+              segmentsConfig: resolvedSegmentsConfig,
+              extraSegments: []
+            });
+          } catch (err) {
+            return failFile('parse-error', 'segments', err);
+          }
           const requiredLanguages = resolveTreeSitterLanguagesForSegments({
             segments: segmentHint,
             primaryLanguageId: languageIdHint,
@@ -499,30 +501,36 @@ export function createFileProcessor(options) {
         }
         : { relationsEnabled, metricsCollector, filePath: abs, treeSitter: contextTreeSitterConfig };
       const runTreeSitter = shouldSerializeTreeSitter ? runTreeSitterSerial : (fn) => fn();
-      const primaryLanguageId = getLanguageForFile(ext, relKey)?.id || null;
-      const { lang, context: languageContext } = await runTreeSitter(async () => {
-        if (!treeSitterLanguagePasses
-          && treeSitterEnabled
-          && primaryLanguageId
-          && TREE_SITTER_LANG_IDS.has(primaryLanguageId)) {
-          try {
-            await preloadTreeSitterLanguages([primaryLanguageId], {
-              log: languageOptions?.log,
-              parallel: false,
-              maxLoadedLanguages: treeSitterConfigForMode?.maxLoadedLanguages
-            });
-          } catch {
-            // ignore preload failures; prepare will fall back if needed.
+      const primaryLanguageId = languageHint?.id || getLanguageForFile(ext, relKey)?.id || null;
+      let languageResult;
+      try {
+        languageResult = await runTreeSitter(async () => {
+          if (!treeSitterLanguagePasses
+            && treeSitterEnabled
+            && primaryLanguageId
+            && TREE_SITTER_LANG_IDS.has(primaryLanguageId)) {
+            try {
+              await preloadTreeSitterLanguages([primaryLanguageId], {
+                log: languageOptions?.log,
+                parallel: false,
+                maxLoadedLanguages: treeSitterConfigForMode?.maxLoadedLanguages
+              });
+            } catch {
+              // ignore preload failures; prepare will fall back if needed.
+            }
           }
-        }
-        return buildLanguageContext({
-          ext,
-          relPath: relKey,
-          mode,
-          text,
-          options: languageContextOptions
+          return buildLanguageContext({
+            ext,
+            relPath: relKey,
+            mode,
+            text,
+            options: languageContextOptions
+          });
         });
-      });
+      } catch (err) {
+        return failFile('parse-error', 'language-context', err);
+      }
+      const { lang, context: languageContext } = languageResult || {};
       fileLanguageId = lang?.id || null;
       if (languageContext?.pythonAstMetrics?.durationMs) {
         setPythonAstDuration(languageContext.pythonAstMetrics.durationMs);
@@ -531,7 +539,21 @@ export function createFileProcessor(options) {
       const lineIndex = buildLineIndex(text);
       const totalLines = lineIndex.length || 1;
       fileLineCount = totalLines;
-      const fileLines = contextWin > 0 ? text.split('\n') : null;
+      const sliceLineRange = (startLine, endLine) => {
+        const output = [];
+        if (contextWin <= 0) return output;
+        const start = Math.max(1, Number(startLine) || 1);
+        const end = Math.max(start, Number(endLine) || start);
+        for (let line = start; line <= end; line += 1) {
+          const startOffset = lineIndex[line - 1] ?? 0;
+          const endOffset = lineIndex[line] ?? text.length;
+          let lineText = text.slice(startOffset, endOffset);
+          if (lineText.endsWith('\n')) lineText = lineText.slice(0, -1);
+          if (lineText.endsWith('\r')) lineText = lineText.slice(0, -1);
+          output.push(lineText);
+        }
+        return output;
+      };
       const capsByLanguage = resolveFileCaps(fileCaps, ext, lang?.id);
       if (capsByLanguage.maxLines && totalLines > capsByLanguage.maxLines) {
         return {
@@ -542,16 +564,21 @@ export function createFileProcessor(options) {
       }
       let lastLineLogged = 0;
       let lastLineLogMs = 0;
-      const rawRelations = (mode === 'code' && relationsEnabled && lang && typeof lang.buildRelations === 'function')
-        ? lang.buildRelations({
-          text,
-          relPath: relKey,
-          allImports,
-          context: languageContext,
-          options: languageOptions
-        })
-        : null;
-      const fileRelations = relationsEnabled ? buildFileRelations(rawRelations) : null;
+      let rawRelations = null;
+      if (mode === 'code' && relationsEnabled && lang && typeof lang.buildRelations === 'function') {
+        try {
+          rawRelations = lang.buildRelations({
+            text,
+            relPath: relKey,
+            allImports,
+            context: languageContext,
+            options: languageOptions
+          });
+        } catch (err) {
+          return failFile('relation-error', 'relations', err);
+        }
+      }
+      const fileRelations = relationsEnabled ? buildFileRelations(rawRelations, relKey) : null;
       const callIndex = relationsEnabled ? buildCallIndex(rawRelations) : null;
       const gitStart = Date.now();
       const gitMeta = await runIo(() => getGitMetaForFile(relKey, {
@@ -570,15 +597,20 @@ export function createFileProcessor(options) {
       const commentSegmentsEnabled = mode === 'extracted-prose'
         || (mode === 'code' && normalizedCommentsConfig.includeInCode === true);
       const parseStart = Date.now();
-      const commentData = commentsEnabled
-        ? extractComments({
-          text,
-          ext,
-          languageId: lang?.id || null,
-          lineIndex,
-          config: normalizedCommentsConfig
-        })
-        : { comments: [], configSegments: [] };
+      let commentData;
+      try {
+        commentData = commentsEnabled
+          ? extractComments({
+            text,
+            ext,
+            languageId: lang?.id || null,
+            lineIndex,
+            config: normalizedCommentsConfig
+          })
+          : { comments: [], configSegments: [] };
+      } catch (err) {
+        return failFile('parse-error', 'comments', err);
+      }
       const commentEntries = [];
       const commentSegments = [];
       if (commentsEnabled && Array.isArray(commentData.comments)) {
@@ -637,16 +669,21 @@ export function createFileProcessor(options) {
           });
         }
       }
-      const segments = discoverSegments({
-        text,
-        ext,
-        relPath: relKey,
-        mode,
-        languageId: lang?.id || null,
-        context: languageContext,
-        segmentsConfig: resolvedSegmentsConfig,
-        extraSegments
-      });
+      let segments;
+      try {
+        segments = discoverSegments({
+          text,
+          ext,
+          relPath: relKey,
+          mode,
+          languageId: lang?.id || null,
+          context: languageContext,
+          segmentsConfig: resolvedSegmentsConfig,
+          extraSegments
+        });
+      } catch (err) {
+        return failFile('parse-error', 'segments', err);
+      }
       const segmentContext = {
         ...languageContext,
         yamlChunking: languageOptions?.yamlChunking,
@@ -656,26 +693,35 @@ export function createFileProcessor(options) {
         treeSitter: treeSitterConfigForMode,
         log: languageOptions?.log
       };
-      const sc = treeSitterLanguagePasses === false
-        ? await runTreeSitter(() => chunkSegments({
-          text,
-          ext,
-          relPath: relKey,
-          mode,
-          segments,
-          lineIndex,
-          context: segmentContext
-        }))
-        : await runTreeSitter(() => chunkSegmentsWithTreeSitterPasses({
-          text,
-          ext,
-          relPath: relKey,
-          mode,
-          segments,
-          lineIndex,
-          context: segmentContext,
-          treeSitterConfig: treeSitterConfigForMode
-        }));
+      let sc;
+      try {
+        sc = treeSitterLanguagePasses === false
+          ? await runTreeSitter(() => chunkSegments({
+            text,
+            ext,
+            relPath: relKey,
+            mode,
+            segments,
+            lineIndex,
+            context: segmentContext
+          }))
+          : await runTreeSitter(() => chunkSegmentsWithTreeSitterPasses({
+            text,
+            ext,
+            relPath: relKey,
+            mode,
+            segments,
+            lineIndex,
+            context: segmentContext,
+            treeSitterConfig: treeSitterConfigForMode
+          }));
+      } catch (err) {
+        return failFile('parse-error', 'chunking', err);
+      }
+      const chunkIssue = validateChunkBounds(sc, text.length);
+      if (chunkIssue) {
+        return failFile('parse-error', 'chunk-bounds', new Error(chunkIssue));
+      }
       addParseDuration(Date.now() - parseStart);
       const chunkLineRanges = sc.map((chunk) => {
         const startLine = chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
@@ -695,6 +741,38 @@ export function createFileProcessor(options) {
         && workerPool.shouldUseForFile
         ? workerPool.shouldUseForFile(fileStat.size)
         : false;
+      let fileComplexity = {};
+      let fileLint = [];
+      if (isJsLike(ext) && mode === 'code') {
+        if (complexityEnabled) {
+          const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
+          let cachedComplexity = complexityCache.get(cacheKey);
+          if (!cachedComplexity) {
+            const enrichStart = Date.now();
+            const fullCode = text;
+            const compResult = await analyzeComplexity(fullCode, rel);
+            complexityCache.set(cacheKey, compResult);
+            cachedComplexity = compResult;
+            const enrichDurationMs = Date.now() - enrichStart;
+            addComplexityDuration(enrichDurationMs);
+          }
+          fileComplexity = cachedComplexity || {};
+        }
+        if (lintEnabled) {
+          const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
+          let cachedLint = lintCache.get(cacheKey);
+          if (!cachedLint) {
+            const enrichStart = Date.now();
+            const fullCode = text;
+            const lintResult = await lintChunk(fullCode, rel);
+            lintCache.set(cacheKey, lintResult);
+            cachedLint = lintResult;
+            const enrichDurationMs = Date.now() - enrichStart;
+            addLintDuration(enrichDurationMs);
+          }
+          fileLint = cachedLint || [];
+        }
+      }
 
       for (let ci = 0; ci < sc.length; ++ci) {
         const c = sc[ci];
@@ -721,49 +799,61 @@ export function createFileProcessor(options) {
         let codeRelations = {}, docmeta = {};
         if (mode === 'code') {
           const relationStart = Date.now();
-          docmeta = lang && typeof lang.extractDocMeta === 'function'
-            ? lang.extractDocMeta({
-              text,
-              chunk: c,
-              fileRelations,
-              context: languageContext,
-              options: languageOptions
-            })
-            : {};
+          try {
+            docmeta = lang && typeof lang.extractDocMeta === 'function'
+              ? lang.extractDocMeta({
+                text,
+                chunk: c,
+                fileRelations,
+                context: languageContext,
+                options: languageOptions
+              })
+              : {};
+          } catch (err) {
+            return failFile('parse-error', 'docmeta', err);
+          }
           if (relationsEnabled && fileRelations) {
-            codeRelations = buildChunkRelations({
-              lang,
-              chunk: c,
-              fileRelations,
-              callIndex
-            });
+            try {
+              codeRelations = buildChunkRelations({
+                lang,
+                chunk: c,
+                fileRelations,
+                callIndex
+              });
+            } catch (err) {
+              return failFile('relation-error', 'chunk-relations', err);
+            }
           }
           let flowMeta = null;
           if (lang && typeof lang.flow === 'function') {
-            const flowStart = Date.now();
-            flowMeta = lang.flow({
-              text,
-              chunk: c,
-              context: languageContext,
-              options: languageOptions
-            });
-            const flowDurationMs = Date.now() - flowStart;
-            if (flowDurationMs > 0) {
-              const flowTargets = [];
-              if (astDataflowEnabled) flowTargets.push('astDataflow');
-              if (controlFlowEnabled) flowTargets.push('controlFlow');
-              const flowShareMs = flowTargets.length
-                ? flowDurationMs / flowTargets.length
-                : 0;
-              for (const flowTarget of flowTargets) {
-                addSettingMetric(flowTarget, chunkLanguageId, chunkLineCount, flowShareMs);
+            try {
+              const flowStart = Date.now();
+              flowMeta = lang.flow({
+                text,
+                chunk: c,
+                context: languageContext,
+                options: languageOptions
+              });
+              const flowDurationMs = Date.now() - flowStart;
+              if (flowDurationMs > 0) {
+                const flowTargets = [];
+                if (astDataflowEnabled) flowTargets.push('astDataflow');
+                if (controlFlowEnabled) flowTargets.push('controlFlow');
+                const flowShareMs = flowTargets.length
+                  ? flowDurationMs / flowTargets.length
+                  : 0;
+                for (const flowTarget of flowTargets) {
+                  addSettingMetric(flowTarget, chunkLanguageId, chunkLineCount, flowShareMs);
+                }
               }
+            } catch (err) {
+              return failFile('relation-error', 'flow', err);
             }
           }
           if (flowMeta) {
-          docmeta = mergeFlowMeta(docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled });
+            docmeta = mergeFlowMeta(docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled });
           }
-          addParseDuration(Date.now() - relationStart);
+          addEnrichDuration(Date.now() - relationStart);
           if (typeInferenceEnabled) {
             const enrichStart = Date.now();
             const inferredTypes = inferTypeMetadata({
@@ -954,52 +1044,18 @@ export function createFileProcessor(options) {
 
         const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
 
-        let complexity = {}, lint = [];
-        if (isJsLike(ext) && mode === 'code') {
-          if (complexityEnabled) {
-            const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
-            let cachedComplexity = complexityCache.get(cacheKey);
-            if (!cachedComplexity) {
-              const enrichStart = Date.now();
-              const fullCode = text;
-              const compResult = await analyzeComplexity(fullCode, rel);        
-              complexityCache.set(cacheKey, compResult);
-              cachedComplexity = compResult;
-              const enrichDurationMs = Date.now() - enrichStart;
-              addComplexityDuration(enrichDurationMs);
-            }
-            complexity = cachedComplexity || {};
-          }
-
-          if (lintEnabled) {
-            const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
-            let cachedLint = lintCache.get(cacheKey);
-            if (!cachedLint) {
-              const enrichStart = Date.now();
-              const fullCode = text;
-              const lintResult = await lintChunk(fullCode, rel);
-              lintCache.set(cacheKey, lintResult);
-              cachedLint = lintResult;
-              const enrichDurationMs = Date.now() - enrichStart;
-              addLintDuration(enrichDurationMs);
-            }
-            lint = cachedLint || [];
-          }
-        }
+        const complexity = fileComplexity;
+        const lint = fileLint;
 
         let preContext = [], postContext = [];
-        if (contextWin > 0 && fileLines) {
+        if (contextWin > 0) {
           if (ci > 0) {
             const prev = chunkLineRanges[ci - 1];
-            const startIdx = Math.max(0, prev.startLine - 1);
-            const endIdx = Math.min(fileLines.length, prev.endLine);
-            preContext = fileLines.slice(startIdx, endIdx).slice(-contextWin);
+            preContext = sliceLineRange(prev.startLine, prev.endLine).slice(-contextWin);
           }
           if (ci + 1 < sc.length) {
             const next = chunkLineRanges[ci + 1];
-            const startIdx = Math.max(0, next.startLine - 1);
-            const endIdx = Math.min(fileLines.length, next.endLine);
-            postContext = fileLines.slice(startIdx, endIdx).slice(0, contextWin);
+            postContext = sliceLineRange(next.startLine, next.endLine).slice(0, contextWin);
           }
         }
         const chunkAuthors = lineAuthors
@@ -1016,6 +1072,9 @@ export function createFileProcessor(options) {
           relKey,
           ext,
           languageId: fileLanguageId || lang?.id || null,
+          fileHash,
+          fileHashAlgo,
+          fileSize: fileStat.size,
           tokens,
           seq,
           codeRelations,

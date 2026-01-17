@@ -24,13 +24,25 @@ export const buildCallIndex = (relations) => {
   return { callsByCaller, callDetailsByCaller };
 };
 
-export const buildFileRelations = (relations) => {
+export const buildFileRelations = (relations, relKey = null) => {
   if (!relations) return null;
+  const normalizeList = (list, exclude = null) => {
+    const set = new Set();
+    if (Array.isArray(list)) {
+      for (const entry of list) {
+        if (typeof entry === 'string' && entry) set.add(entry);
+      }
+    }
+    if (exclude) set.delete(exclude);
+    const output = Array.from(set);
+    output.sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+    return output;
+  };
   return {
-    imports: Array.isArray(relations.imports) ? relations.imports : [],
-    exports: Array.isArray(relations.exports) ? relations.exports : [],
-    usages: Array.isArray(relations.usages) ? relations.usages : [],
-    importLinks: Array.isArray(relations.importLinks) ? relations.importLinks : [],
+    imports: normalizeList(relations.imports),
+    exports: normalizeList(relations.exports),
+    usages: normalizeList(relations.usages),
+    importLinks: normalizeList(relations.importLinks, relKey),
     functionMeta: relations.functionMeta && typeof relations.functionMeta === 'object'
       ? relations.functionMeta
       : {},

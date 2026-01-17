@@ -145,6 +145,44 @@ export const enqueueChunkMetaArtifacts = async ({
       await fs.rm(targetPath, { recursive: true, force: true });
     } catch {}
   };
+  const buildShardPlan = () => {
+    const plan = [];
+    let partIndex = 0;
+    for (let i = 0; i < state.chunks.length; i += chunkMetaShardSize) {
+      const end = Math.min(i + chunkMetaShardSize, state.chunks.length);
+      const partCount = end - i;
+      const partName = `chunk_meta.part-${String(partIndex).padStart(5, '0')}.jsonl`;
+      plan.push({ start: i, end, partCount, partName });
+      partIndex += 1;
+    }
+    return plan;
+  };
+  const writeShardedOutput = async ({ partsDir, metaPath, parts, plan }) => {
+    const tempDir = `${partsDir}.tmp-${Date.now()}`;
+    const backupDir = `${partsDir}.bak`;
+    await fs.rm(tempDir, { recursive: true, force: true });
+    await fs.mkdir(tempDir, { recursive: true });
+    for (const part of plan) {
+      const partPath = path.join(tempDir, part.partName);
+      await writeJsonLinesFile(partPath, chunkMetaIterator(part.start, part.end), { atomic: true });
+    }
+    await fs.rm(backupDir, { recursive: true, force: true });
+    try {
+      await fs.stat(partsDir);
+      await fs.rename(partsDir, backupDir);
+    } catch {}
+    await fs.rename(tempDir, partsDir);
+    await fs.rm(backupDir, { recursive: true, force: true });
+    await writeJsonObjectFile(metaPath, {
+      fields: {
+        format: 'jsonl',
+        shardSize: chunkMetaShardSize,
+        totalChunks: chunkMetaCount,
+        parts
+      },
+      atomic: true
+    });
+  };
   if (chunkMetaUseJsonl) {
     await removeArtifact(path.join(outDir, 'chunk_meta.json'));
     await removeArtifact(path.join(outDir, 'chunk_meta.json.gz'));
@@ -169,35 +207,20 @@ export const enqueueChunkMetaArtifacts = async ({
     chunkMetaPlan.chunkMetaUseShards = useShards;
     if (useShards) {
       const partsDir = path.join(outDir, 'chunk_meta.parts');
-      await fs.rm(partsDir, { recursive: true, force: true });
-      await fs.mkdir(partsDir, { recursive: true });
       const parts = [];
-      let partIndex = 0;
-      for (let i = 0; i < state.chunks.length; i += chunkMetaShardSize) {
-        const end = Math.min(i + chunkMetaShardSize, state.chunks.length);
-        const partCount = end - i;
-        const partName = `chunk_meta.part-${String(partIndex).padStart(5, '0')}.jsonl`;
-        const partPath = path.join(partsDir, partName);
-        parts.push(path.posix.join('chunk_meta.parts', partName));
-        await writeJsonLinesFile(partPath, chunkMetaIterator(i, end), { atomic: true });
+      const plan = buildShardPlan();
+      for (const part of plan) {
+        const partPath = path.join(partsDir, part.partName);
+        parts.push(path.posix.join('chunk_meta.parts', part.partName));
         addPieceFile({
           type: 'chunks',
           name: 'chunk_meta',
           format: 'jsonl',
-          count: partCount
+          count: part.partCount
         }, partPath);
-        partIndex += 1;
       }
       const metaPath = path.join(outDir, 'chunk_meta.meta.json');
-      await writeJsonObjectFile(metaPath, {
-        fields: {
-          format: 'jsonl',
-          shardSize: chunkMetaShardSize,
-          totalChunks: chunkMetaCount,
-          parts
-        },
-        atomic: true
-      });
+      await writeShardedOutput({ partsDir, metaPath, parts, plan });
       addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
       return;
     }
@@ -214,44 +237,22 @@ export const enqueueChunkMetaArtifacts = async ({
   if (chunkMetaUseJsonl) {
     if (chunkMetaUseShards) {
       const partsDir = path.join(outDir, 'chunk_meta.parts');
-      await fs.rm(partsDir, { recursive: true, force: true });
-      await fs.mkdir(partsDir, { recursive: true });
       const parts = [];
-      let partIndex = 0;
-      for (let i = 0; i < state.chunks.length; i += chunkMetaShardSize) {
-        const end = Math.min(i + chunkMetaShardSize, state.chunks.length);
-        const partCount = end - i;
-        const partName = `chunk_meta.part-${String(partIndex).padStart(5, '0')}.jsonl`;
-        const partPath = path.join(partsDir, partName);
-        parts.push(path.posix.join('chunk_meta.parts', partName));
-        enqueueWrite(
-          formatArtifactLabel(partPath),
-          () => writeJsonLinesFile(
-            partPath,
-            chunkMetaIterator(i, end),
-            { atomic: true }
-          )
-        );
+      const plan = buildShardPlan();
+      for (const part of plan) {
+        const partPath = path.join(partsDir, part.partName);
+        parts.push(path.posix.join('chunk_meta.parts', part.partName));
         addPieceFile({
           type: 'chunks',
           name: 'chunk_meta',
           format: 'jsonl',
-          count: partCount
+          count: part.partCount
         }, partPath);
-        partIndex += 1;
       }
       const metaPath = path.join(outDir, 'chunk_meta.meta.json');
       enqueueWrite(
-        formatArtifactLabel(metaPath),
-        () => writeJsonObjectFile(metaPath, {
-          fields: {
-            format: 'jsonl',
-            shardSize: chunkMetaShardSize,
-            totalChunks: chunkMetaCount,
-            parts
-          },
-          atomic: true
-        })
+        formatArtifactLabel(partsDir),
+        () => writeShardedOutput({ partsDir, metaPath, parts, plan })
       );
       addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
     } else {

@@ -67,6 +67,7 @@ if (beforeChunkParts < 2) {
   process.exit(1);
 }
 
+const compactStart = Date.now();
 runNode('compact-pieces', [
   compactPiecesPath,
   '--repo',
@@ -78,6 +79,11 @@ runNode('compact-pieces', [
   '--token-postings-size',
   '10'
 ]);
+const compactDuration = Date.now() - compactStart;
+if (compactDuration > 30000) {
+  console.error(`compact-pieces took too long (${compactDuration}ms).`);
+  process.exit(1);
+}
 
 const afterChunkParts = fs.existsSync(chunkPartsDir) ? fs.readdirSync(chunkPartsDir).length : 0;
 const afterTokenParts = fs.existsSync(tokenPartsDir) ? fs.readdirSync(tokenPartsDir).length : 0;

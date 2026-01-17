@@ -1,5 +1,7 @@
 import PQueue from 'p-queue';
 
+const queueErrorHandlers = new WeakSet();
+
 /**
  * Create shared task queues for IO, CPU, and embeddings work.
  * @param {{ioConcurrency:number,cpuConcurrency:number,embeddingConcurrency?:number,ioPendingLimit?:number,cpuPendingLimit?:number,embeddingPendingLimit?:number}} input
@@ -39,6 +41,10 @@ export function createTaskQueues({
  */
 export async function runWithQueue(queue, items, worker, options = {}) {        
   if (!items.length) return options.collectResults === false ? null : [];       
+  if (queue && typeof queue.on === 'function' && !queueErrorHandlers.has(queue)) {
+    queue.on('error', () => {});
+    queueErrorHandlers.add(queue);
+  }
   const collectResults = options.collectResults !== false;
   const onResult = typeof options.onResult === 'function' ? options.onResult : null;
   const retries = Number.isFinite(Number(options.retries)) ? Math.max(0, Math.floor(Number(options.retries))) : 0;
@@ -72,7 +78,9 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     return result;
     });
     pending.add(task);
-    task.finally(() => pending.delete(task));
+    void task.catch(() => {});
+    const cleanup = task.finally(() => pending.delete(task));
+    void cleanup.catch(() => {});
   };
   for (let index = 0; index < items.length; index += 1) {
     await enqueue(items[index], index);

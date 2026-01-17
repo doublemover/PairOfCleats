@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { createCli } from '../src/shared/cli.js';
 import { loadChunkMeta, loadTokenPostings, readJsonFile, MAX_JSON_BYTES } from '../src/shared/artifact-io.js';
 import { writeJsonObjectFile } from '../src/shared/json-stream.js';
@@ -10,9 +11,10 @@ import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../src/
 import { getIndexDir, getMetricsDir, loadUserConfig, resolveIndexRoot, resolveLmdbPaths, resolveRepoRoot } from './dict-utils.js';
 import { Packr } from 'msgpackr';
 
+const require = createRequire(import.meta.url);
 let open = null;
 try {
-  ({ open } = await import('lmdb'));
+  ({ open } = require('lmdb'));
 } catch {}
 
 const argv = createCli({
@@ -153,7 +155,7 @@ const storeArtifacts = (db, meta, artifacts) => {
   });
 };
 
-const loadArtifactsForMode = (indexDir, mode) => {
+const loadArtifactsForMode = async (indexDir, mode) => {
   const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES });
   const tokenPostings = loadTokenPostings(indexDir, { maxBytes: MAX_JSON_BYTES });
   const fileMeta = readJsonOptional(path.join(indexDir, 'file_meta.json'));
@@ -223,7 +225,7 @@ for (const mode of modes) {
   });
 
   const readStart = Date.now();
-  const { meta, artifacts, stats } = loadArtifactsForMode(indexDir, mode);
+  const { meta, artifacts, stats } = await loadArtifactsForMode(indexDir, mode);
   const readMs = Date.now() - readStart;
   const writeStart = Date.now();
   const db = open({ path: targetPath, readOnly: false });
