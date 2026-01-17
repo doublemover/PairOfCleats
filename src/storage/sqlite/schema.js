@@ -155,6 +155,7 @@ export const CREATE_TABLES_BASE_SQL = `
 
 export const CREATE_INDEXES_SQL = `
   CREATE INDEX idx_chunks_file ON chunks (mode, file);
+  CREATE INDEX idx_chunks_file_id ON chunks (mode, file, id);
   CREATE INDEX idx_token_postings_token ON token_postings (mode, token_id);
   CREATE INDEX idx_phrase_postings_phrase ON phrase_postings (mode, phrase_id);
   CREATE INDEX idx_chargram_postings_gram ON chargram_postings (mode, gram_id);

@@ -24,8 +24,13 @@ Update SQLite indexes in-place by touching only the files that changed since the
 6. Recompute `token_stats` from `doc_lengths`.
 
 ## Doc ID Strategy
-- Incremental updates assign new `doc_id` values by appending after the current max.
-- This leaves gaps when files are deleted; a full rebuild compacts IDs.
+- Incremental updates reuse existing `doc_id` values for files that changed.
+- Freed `doc_id` values from deleted files are reused before appending after the current max.
+- A full rebuild or compaction still produces the densest possible ID range.
+
+## WAL Policy
+- Incremental updates run `wal_checkpoint(TRUNCATE)` after applying changes to avoid long-lived WAL growth.
+- The DB remains in WAL mode; conversion back to a single-file DB (`journal_mode=DELETE`) is deferred to a later maintenance/compaction phase.
 
 ## Usage
 - Build incremental cache: `pairofcleats index build --incremental`.
@@ -45,6 +50,10 @@ Full rebuilds also trigger when:
 - Vocab growth exceeds maintenance limits for token/phrase/chargram tables.
 - Dense vector metadata (model or dims) mismatches the incoming bundles.
 - Bundle files are missing or invalid.
+
+## Schema Mismatch Behavior
+- Incremental updates refuse to modify SQLite DBs with a schema version mismatch and request a rebuild.
+- SQLite readers fail closed on schema mismatch. If SQLite is forced, a clear error is raised; otherwise, the runtime falls back to file-backed indexes.
 
 ## Limitations
 - Vocabulary tables keep old tokens/grams; they are not pruned on deletes.

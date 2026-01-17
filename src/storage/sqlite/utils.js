@@ -128,7 +128,7 @@ export async function loadIndex(dir, modelId) {
 
 const SQLITE_SIDECARS = ['-wal', '-shm'];
 
-async function removeSqliteSidecars(basePath) {
+export async function removeSqliteSidecars(basePath) {
   await Promise.all(SQLITE_SIDECARS.map(async (suffix) => {
     try {
       await fsPromises.rm(`${basePath}${suffix}`, { force: true });

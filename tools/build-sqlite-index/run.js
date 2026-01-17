@@ -298,7 +298,10 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
         return { ...result, incremental: true };
       }
       if (result.reason) {
-        warn(`[sqlite] Incremental ${mode} update skipped (${result.reason}); rebuilding full index.`);
+        const rebuildLabel = mode === 'records' && result.reason === 'missing incremental manifest'
+          ? 'building records index.'
+          : 'rebuilding full index.';
+        warn(`[sqlite] Incremental ${mode} update skipped (${result.reason}); ${rebuildLabel}`);
       }
     }
     if (hasBundles) {
@@ -319,6 +322,13 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
           modelConfig,
           workerPath
         });
+        const requiresDense = vectorConfig?.enabled === true
+          && Array.isArray(index?.denseVec?.vectors)
+          && index.denseVec.vectors.length > 0;
+        if (bundleResult.count && requiresDense && !bundleResult.denseCount) {
+          warn('[sqlite] Bundle build skipped (missing dense vectors); falling back to file-backed artifacts.');
+          bundleResult = { ...bundleResult, count: 0, reason: 'missing dense vectors' };
+        }
         if (bundleResult.count) {
           await replaceSqliteDatabase(tempPath, targetPath, { keepBackup: true });
         } else {

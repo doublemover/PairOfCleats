@@ -80,7 +80,7 @@ db.close();
 
 const searchResult = spawnSync(
   process.execPath,
-  [path.join(root, 'search.js'), 'alpha', '--json', '--backend', 'lmdb', '--no-ann', '--repo', repoRoot],
+  [path.join(root, 'search.js'), 'alpha', '--json', '--backend', 'lmdb', '--mode', 'code', '--no-ann', '--repo', repoRoot],
   { encoding: 'utf8', env }
 );
 if (searchResult.status !== 0) {

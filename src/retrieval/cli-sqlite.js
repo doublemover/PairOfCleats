@@ -1,6 +1,7 @@
 import { hasVectorTable, loadVectorExtension, resolveVectorExtensionPath } from '../../tools/vector-extension.js';
 
 import { parseEnvBool } from '../shared/env.js';
+import { SCHEMA_VERSION } from '../storage/sqlite/schema.js';
 
 /**
  * Initialize SQLite connections for search.
@@ -118,6 +119,16 @@ export async function createSqliteBackend(options) {
       db.close();
       return null;
     }
+    const schemaVersion = db.pragma('user_version', { simple: true });
+    if (schemaVersion !== SCHEMA_VERSION) {
+      const message = `SQLite schema mismatch for ${label} (expected ${SCHEMA_VERSION}, found ${schemaVersion ?? 'unknown'}).`;
+      if (backendForcedSqlite) {
+        throw new Error(message);
+      }
+      console.warn(`${message} Falling back to file-backed indexes.`);
+      db.close();
+      return null;
+    }
     if (dbCache?.set) dbCache.set(dbPath, db);
     return db;
   };
@@ -179,6 +190,9 @@ export async function getSqliteChunkCount(dbPath, mode) {
   let db;
   try {
     db = new Database(dbPath, { readonly: true });
+    const manifestRow = db.prepare('SELECT SUM(chunk_count) as count FROM file_manifest WHERE mode = ?')
+      .get(mode);
+    if (Number.isFinite(manifestRow?.count)) return manifestRow.count;
     const row = db.prepare('SELECT COUNT(*) as count FROM chunks WHERE mode = ?').get(mode);
     return typeof row?.count === 'number' ? row.count : null;
   } catch {

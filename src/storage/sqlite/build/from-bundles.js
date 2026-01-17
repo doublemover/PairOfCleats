@@ -2,8 +2,8 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { buildChunkRow, buildTokenFrequency } from '../build-helpers.js';
 import { CREATE_INDEXES_SQL, CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../schema.js';
-import { normalizeFilePath } from '../utils.js';
-import { packUint32, packUint8, quantizeVec, toVectorId } from '../vector.js';
+import { normalizeFilePath, removeSqliteSidecars } from '../utils.js';
+import { dequantizeUint8ToFloat32, packUint32, packUint8, quantizeVec, toVectorId } from '../vector.js';
 import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
 import { normalizeManifestFiles } from './manifest.js';
 import { validateSqliteDatabase } from './validate.js';
@@ -24,13 +24,13 @@ export async function buildDatabaseFromBundles({
   workerPath
 }) {
   if (!incrementalData?.manifest) {
-    return { count: 0, reason: 'missing incremental manifest' };
+    return { count: 0, denseCount: 0, reason: 'missing incremental manifest' };
   }
   const manifestFiles = incrementalData.manifest.files || {};
   const manifestLookup = normalizeManifestFiles(manifestFiles);
   const manifestEntries = manifestLookup.entries;
   if (!manifestEntries.length) {
-    return { count: 0, reason: 'incremental manifest empty' };
+    return { count: 0, denseCount: 0, reason: 'incremental manifest empty' };
   }
   if (emitOutput && manifestLookup.conflicts.length) {
     console.warn(`[sqlite] Manifest path conflicts for ${mode}; using normalized entries.`);
@@ -106,7 +106,6 @@ export async function buildDatabaseFromBundles({
     const encodeVector = vectorConfig?.encodeVector;
     let denseMetaSet = false;
     let denseDims = null;
-    let denseWarned = false;
     let vectorAnnLoaded = false;
     let vectorAnnReady = false;
     let vectorAnnTable = vectorExtension.table || 'dense_vectors_ann';
@@ -118,6 +117,9 @@ export async function buildDatabaseFromBundles({
         vectorAnnLoaded = true;
         if (vectorConfig.hasVectorTable(db, vectorAnnTable)) {
           vectorAnnReady = true;
+          insertVectorAnn = db.prepare(
+            `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
+          );
         }
       } else {
         console.warn(`[sqlite] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
@@ -187,17 +189,21 @@ export async function buildDatabaseFromBundles({
           validationStats.minhash += 1;
         }
 
-        if (Array.isArray(chunk.embedding) && chunk.embedding.length) {
-          const dims = chunk.embedding.length;
+        const hasFloatEmbedding = Array.isArray(chunk.embedding) && chunk.embedding.length;
+        const u8Embedding = chunk?.embedding_u8;
+        const u8Length = u8Embedding && typeof u8Embedding.length === 'number' ? u8Embedding.length : 0;
+        const hasU8Embedding = u8Length > 0;
+        if (hasFloatEmbedding || hasU8Embedding) {
+          const dims = hasFloatEmbedding ? chunk.embedding.length : u8Length;
           if (!denseMetaSet) {
             insertDenseMeta.run(mode, dims, 1.0, modelConfig.id || null);
             denseMetaSet = true;
             denseDims = dims;
-          } else if (denseDims !== null && dims !== denseDims && !denseWarned) {
-            console.warn(`Dense vector dims mismatch for ${mode}: expected ${denseDims}, got ${dims}`);
-            denseWarned = true;
+          } else if (denseDims !== null && dims !== denseDims) {
+            throw new Error(`Dense vector dims mismatch for ${mode}: expected ${denseDims}, got ${dims}`);
           }
-          insertDense.run(mode, docId, packUint8(quantizeVec(chunk.embedding)));
+          const denseVector = hasFloatEmbedding ? quantizeVec(chunk.embedding) : u8Embedding;
+          insertDense.run(mode, docId, packUint8(denseVector));
           validationStats.dense += 1;
           if (vectorAnnLoaded) {
             if (!vectorAnnReady) {
@@ -212,7 +218,10 @@ export async function buildDatabaseFromBundles({
               }
             }
             if (vectorAnnReady && insertVectorAnn && encodeVector) {
-              const encoded = encodeVector(chunk.embedding, vectorExtension);
+              const floatVec = hasFloatEmbedding
+                ? chunk.embedding
+                : dequantizeUint8ToFloat32(u8Embedding);
+              const encoded = floatVec ? encodeVector(floatVec, vectorExtension) : null;
               if (encoded) insertVectorAnn.run(toVectorId(docId), encoded);
             }
           }
@@ -244,7 +253,12 @@ export async function buildDatabaseFromBundles({
           break;
         }
         for (const result of results) {
-          insertBundle(result.bundle, result.file);
+          try {
+            insertBundle(result.bundle, result.file);
+          } catch (err) {
+            bundleFailure = err?.message || 'bundle insert failed';
+            break;
+          }
           count += result.bundle.chunks.length;
           processedFiles += 1;
           logBundleProgress(result.file, processedFiles === totalFiles);
@@ -259,7 +273,7 @@ export async function buildDatabaseFromBundles({
       if (emitOutput) {
         console.warn(`[sqlite] Bundle build failed for ${mode}: ${bundleFailure}.`);
       }
-      return { count: 0, reason: bundleFailure };
+      return { count: 0, denseCount: 0, reason: bundleFailure };
     }
 
     validationStats.chunks = count;
@@ -288,7 +302,7 @@ export async function buildDatabaseFromBundles({
       emitOutput
     });
     succeeded = true;
-    return { count };
+    return { count, denseCount: validationStats.dense };
   } finally {
     restoreBuildPragmas(db);
     db.close();
@@ -296,6 +310,7 @@ export async function buildDatabaseFromBundles({
       try {
         fsSync.rmSync(outPath, { force: true });
       } catch {}
+      await removeSqliteSidecars(outPath);
     }
   }
 }

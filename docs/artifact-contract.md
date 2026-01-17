@@ -173,6 +173,7 @@ HNSW binary indexes remain in the file-backed index directory (`index-<mode>/den
 LanceDB indexes and metadata remain in the file-backed index directory (`index-<mode>/dense_vectors*.lancedb`).
 
 LMDB stores are rebuilt from file-backed artifacts via `pairofcleats lmdb build`.
+`pairofcleats index validate` performs a lightweight LMDB check (schema version, mode, and required artifact keys).
 
 ## LMDB migration rules
 
