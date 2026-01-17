@@ -431,6 +431,7 @@ export function createFileProcessor(options) {
       const treeSitterDeferMissing = treeSitterConfig?.deferMissing !== false;
       const treeSitterLanguagePasses = treeSitterConfig?.languagePasses !== false;
       const treeSitterEnabled = treeSitterConfig?.enabled !== false;
+      const shouldSerializeTreeSitter = treeSitterEnabled && mode === 'code';
       const treeSitterDeferMissingMax = Number.isFinite(treeSitterConfig?.deferMissingMax)
         ? Math.max(0, Math.floor(treeSitterConfig.deferMissingMax))
         : 0;
@@ -469,13 +470,25 @@ export function createFileProcessor(options) {
           }
         }
       }
+      const contextTreeSitterConfig = treeSitterLanguagePasses
+        ? { ...(treeSitterConfig || {}), enabled: false }
+        : treeSitterConfig;
       const languageContextOptions = languageOptions && typeof languageOptions === 'object'
-        ? { ...languageOptions, relationsEnabled, metricsCollector, filePath: abs, treeSitter: treeSitterConfig }
-        : { relationsEnabled, metricsCollector, filePath: abs, treeSitter: treeSitterConfig };
-      const runTreeSitter = treeSitterEnabled ? runTreeSitterSerial : (fn) => fn();
+        ? {
+          ...languageOptions,
+          relationsEnabled,
+          metricsCollector,
+          filePath: abs,
+          treeSitter: contextTreeSitterConfig
+        }
+        : { relationsEnabled, metricsCollector, filePath: abs, treeSitter: contextTreeSitterConfig };
+      const runTreeSitter = shouldSerializeTreeSitter ? runTreeSitterSerial : (fn) => fn();
       const primaryLanguageId = getLanguageForFile(ext, relKey)?.id || null;
       const { lang, context: languageContext } = await runTreeSitter(async () => {
-        if (treeSitterEnabled && primaryLanguageId && TREE_SITTER_LANG_IDS.has(primaryLanguageId)) {
+        if (!treeSitterLanguagePasses
+          && treeSitterEnabled
+          && primaryLanguageId
+          && TREE_SITTER_LANG_IDS.has(primaryLanguageId)) {
           try {
             await preloadTreeSitterLanguages([primaryLanguageId], {
               log: languageOptions?.log,
