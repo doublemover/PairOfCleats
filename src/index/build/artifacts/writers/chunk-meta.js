@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { log } from '../../../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../../../shared/artifact-io.js';
+import { ensureDiskSpace } from '../../../../shared/disk-space.js';
 import {
   writeJsonLinesFile,
   writeJsonLinesSharded,
@@ -125,6 +126,7 @@ export const resolveChunkMetaPlan = ({
 
 export const enqueueChunkMetaArtifacts = async ({
   outDir,
+  mode,
   chunkMetaIterator,
   chunkMetaPlan,
   maxJsonBytes = MAX_JSON_BYTES,
@@ -184,6 +186,12 @@ export const enqueueChunkMetaArtifacts = async ({
   }
   chunkMetaPlan.chunkMetaUseJsonl = resolvedUseJsonl;
   chunkMetaPlan.chunkMetaUseShards = resolvedUseShards;
+  const requiredBytes = resolvedUseJsonl ? measured.totalJsonlBytes : measured.totalJsonBytes;
+  await ensureDiskSpace({
+    targetPath: outDir,
+    requiredBytes,
+    label: mode ? `${mode} chunk_meta` : 'chunk_meta'
+  });
 
   if (resolvedUseJsonl) {
     await removeArtifact(path.join(outDir, 'chunk_meta.json'));

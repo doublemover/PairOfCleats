@@ -11,83 +11,35 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ## Roadmap order (stability/performance frontloaded)
 
-1. Phase 2 — Benchmark + build harness reliability (cache hygiene, shard progress determinism, disk-full resilience)
-2. Phase 4 — Regression gate sweep (fix current failing tests)
-3. Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
-4. Phase 12 — Storage backends (SQLite + LMDB)
-5. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
-6. Phase 14 — Documentation and Configuration Hardening
-7. Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
-8. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
-9. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
-10. Phase 20 — Threadpool-aware I/O scheduling guardrails
-11. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
-12. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
-13. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
-14. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
-15. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
-16. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
-17. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
-18. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
-19. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
-20. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
-21. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
-22. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
-23. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
-24. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
-25. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
-26. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
-27. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
+1. Phase 4 — Regression gate sweep (fix current failing tests)
+2. Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
+3. Phase 12 — Storage backends (SQLite + LMDB)
+4. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
+5. Phase 14 — Documentation and Configuration Hardening
+6. Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
+7. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
+8. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
+9. Phase 20 — Threadpool-aware I/O scheduling guardrails
+10. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
+11. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
+12. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
+13. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
+14. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
+15. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
+16. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
+17. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
+18. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
+19. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
+20. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
+21. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
+22. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
+23. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
+24. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
+25. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
+26. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
 28. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
 29. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
 30. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
-
-## Phase 2 — Benchmark + build harness reliability (cache hygiene, shard progress determinism, disk-full resilience)
-
-**Objective:** Make benchmark runs reproducible and prevent disk/memory blowups by managing caches, improving progress determinism, and failing fast with actionable diagnostics when the environment is insufficient.
-
-### Observed failures driving this phase
-
-- Duplicate/late progress counters during sharded builds, e.g.:
-  - `[shard] 268/638 src/storage/sqlite/build-helpers.js`
-  - `[shard] 268/638 src/storage/sqlite/incremental.js`
-- `SqliteError: database or disk is full` during benchmark search/load.
-- Benchmark cache growth causing giant artifact files and disk exhaustion.
-
-### 2.1 Cache cleanup after each benchmarked repo
-
-- [x] Update benchmark harnesses to **clean the repo cache after each repo** by default:
-  - remove repo build directories (including incremental chunk artifacts and shard parts) and sqlite DBs under `benchmarks/cache/repos/...`
-  - keep only benchmark results/baselines (and optionally a minimal build summary)
-  - do **not** delete shared caches (downloads, extension caches, shared embedding caches); only repo-specific build outputs
-- [x] Add a `--keep-cache` override for debugging.
-- [x] Document this in `docs/benchmarks.md` (cache policy + disk sizing expectations).
-
-### 2.2 Deterministic shard progress numbering
-
-- [x] Pre-assign `fileIndex` for each work item **before** concurrent processing begins.
-- [x] Ensure progress renderer never reuses the same `(index/total)` pair for different files in the same shard run.
-- [x] Add a regression test that simulates concurrent progress events and asserts monotonically increasing fileIndex (running buildindex on the repo itself briefly should be sufficient to verify this)
-
-### 2.3 Disk-full resilience for SQLite + artifact build steps
-
-- [ ] Add a preflight free-disk-space check before:
-  - building sqlite indexes
-  - copying/compacting sqlite DBs
-  - writing large artifacts/shards
-- [ ] On insufficient space, fail fast with:
-  - required bytes estimate (best-effort)
-  - current free bytes
-  - remediation steps (change cache dir, enable cleanup, reduce modes, reduce token retention)
-- [ ] Optional: if a repo fails due to disk full during benchmark runs, record failure and continue to next repo.
-
-**Exit criteria**
-
-- [x] Bench runs do not accumulate unbounded cache state across repos by default.
-- [x] Sharded build progress numbering is stable and trustworthy.
-- [ ] Disk-full conditions are detected early with actionable messages rather than failing deep in sqlite reads.
-
----
 
 ## Phase 4 — Regression gate sweep (fix current failing tests)
 
