@@ -62,4 +62,13 @@ assert.ok(forcedLmdb.error, 'expected lmdb error when forced and missing');
 assert.ok(forcedLmdb.error.message.includes('LMDB backend requested'), 'expected lmdb error message');
 assert.ok(forcedLmdb.error.message.includes('code=lmdb-code'), 'expected lmdb missing path in message');
 
+const forcedTantivy = await resolveBackendSelection({
+  ...base,
+  backendArg: 'tantivy'
+});
+assert.equal(forcedTantivy.useSqlite, false, 'expected tantivy to avoid sqlite');
+assert.equal(forcedTantivy.useLmdb, false, 'expected tantivy to avoid lmdb');
+assert.equal(forcedTantivy.backendPolicy.backendLabel, 'tantivy', 'expected tantivy backend label');
+assert.equal(forcedTantivy.backendForcedTantivy, true, 'expected tantivy backend flag');
+
 console.log('retrieval backend policy test passed');

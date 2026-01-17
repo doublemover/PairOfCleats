@@ -133,7 +133,7 @@ export function getSearchUsage() {
     'Options:',
     '  --repo <path>',
     '  --mode code|prose|both|records|all|extracted-prose',
-    '  --backend auto|memory|sqlite|sqlite-fts|lmdb',
+    '  --backend auto|memory|sqlite|sqlite-fts|lmdb|tantivy',
     '  --top N, --context N',
     '  --json | --json-compact | --stats',
     '  --ann | --no-ann',

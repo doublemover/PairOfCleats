@@ -5,6 +5,10 @@ export const DEFAULT_USER_CONFIG = {
   lmdb: {
     use: true
   },
+  tantivy: {
+    enabled: false,
+    autoBuild: false
+  },
   search: {
     annDefault: true,
     annBackend: 'lancedb',

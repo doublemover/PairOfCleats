@@ -2886,56 +2886,56 @@ You must handle both “pre-read” scanning and “post-read” binary checks:
 
 ### 26.1 Extract a sparse-retrieval interface
 
-* [ ] Create `src/retrieval/sparse/`:
-  * [ ] `types.js` contract: `search({ query, topN, filters, mode }) -> hits[]`
-  * [ ] `providers/sqlite-fts.js` wrapper around existing SQLite FTS ranking
-  * [ ] `providers/js-bm25.js` wrapper around the in-memory BM25 path
+* [x] Create `src/retrieval/sparse/`:
+  * [x] `types.js` contract: `search({ query, topN, filters, mode }) -> hits[]`
+  * [x] `providers/sqlite-fts.js` wrapper around existing SQLite FTS ranking
+  * [x] `providers/js-bm25.js` wrapper around the in-memory BM25 path
 
-* [ ] Update `src/retrieval/pipeline.js` to call the provider rather than direct sqlite/JS branching:
-  * [ ] Keep behavior identical as baseline
-  * [ ] Preserve determinism (stable tie-breaking)
+* [x] Update `src/retrieval/pipeline.js` to call the provider rather than direct sqlite/JS branching:
+  * [x] Keep behavior identical as baseline
+  * [x] Preserve determinism (stable tie-breaking)
 
 ### 26.2 Implement Tantivy integration (choose one operational model)
 
-* [ ] Choose packaging model:
+* [x] Choose packaging model:
   * [ ] **Sidecar model:** `tools/tantivy-server` (Rust) + Node client
-  * [ ] **Embedded binding:** Node N-API module
+  * [x] **Embedded binding:** Node N-API module
 
-* [ ] Add `src/retrieval/sparse/providers/tantivy.js`:
-  * [ ] Build query → execute → map results to `{ idx, score }`
-  * [ ] Support candidate-set filtering if feasible (or document it as a limitation and handle via post-filtering)
+* [x] Add `src/retrieval/sparse/providers/tantivy.js`:
+  * [x] Build query → execute → map results to `{ idx, score }`
+  * [x] Support candidate-set filtering if feasible (or document it as a limitation and handle via post-filtering)
 
-* [ ] Add `tools/build-tantivy-index.js`:
-  * [ ] Consume existing artifacts (`chunk_meta`, token streams) and build tantivy index on disk
-  * [ ] Store alongside other indexes (e.g., under repo cache root)
-  * [ ] Consider incremental updates later; start with full rebuild
+* [x] Add `tools/build-tantivy-index.js`:
+  * [x] Consume existing artifacts (`chunk_meta`, token streams) and build tantivy index on disk
+  * [x] Store alongside other indexes (e.g., under repo cache root)
+  * [x] Consider incremental updates later; start with full rebuild
 
 ### 26.3 Config + CLI integration
 
-* [ ] Add config:
-  * [ ] `tantivy.enabled`
-  * [ ] `tantivy.path` (optional override)
-  * [ ] `tantivy.autoBuild` (optional)
+* [x] Add config:
+  * [x] `tantivy.enabled`
+  * [x] `tantivy.path` (optional override)
+  * [x] `tantivy.autoBuild` (optional)
 
-* [ ] Extend backend policy logic (see `src/retrieval/cli/backend-context.js` and backend-policy tests):
-  * [ ] Allow `--backend tantivy` (or `--sparse-backend tantivy`)
-  * [ ] Ensure `auto` fallback behavior remains predictable
+* [x] Extend backend policy logic (see `src/retrieval/cli/backend-context.js` and backend-policy tests):
+  * [x] Allow `--backend tantivy` (or `--sparse-backend tantivy`)
+  * [x] Ensure `auto` fallback behavior remains predictable
 
 ### 26.4 Tests (gated if tantivy isn’t always available in CI)
 
-* [ ] Add `tests/tantivy-smoke.js`:
-  * [ ] Builds tantivy index for `tests/fixtures/sample`
-  * [ ] Executes a basic query and asserts hits are non-empty
+* [x] Add `tests/tantivy-smoke.js`:
+  * [x] Builds tantivy index for `tests/fixtures/sample`
+  * [x] Executes a basic query and asserts hits are non-empty
 
-* [ ] Gate it behind env:
-  * [ ] `PAIROFCLEATS_TEST_TANTIVY=1` to run
-  * [ ] Otherwise test exits 0 with “skipped” message (match existing patterns in repo)
+* [x] Gate it behind env:
+  * [x] `PAIROFCLEATS_TEST_TANTIVY=1` to run
+  * [x] Otherwise test exits 0 with “skipped” message (match existing patterns in repo)
 
-* [ ] Add script-coverage action(s) that run it only when env flag is set (or mark as skipped in coverage if you keep strictness)
+* [x] Add script-coverage action(s) that run it only when env flag is set (or mark as skipped in coverage if you keep strictness)
 
 **Exit criteria**
 
-* [ ] Tantivy backend can be enabled without changing default behavior
+* [x] Tantivy backend can be enabled without changing default behavior
 * [ ] For large repos, sparse retrieval latency is materially improved (benchmarks added in Phase 15)
 
 ---

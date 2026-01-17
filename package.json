@@ -32,6 +32,7 @@
     "import-scan-test": "node tests/import-scan.js",
     "build-sqlite-index": "node tools/build-sqlite-index.js",
     "build-lmdb-index": "node tools/build-lmdb-index.js",
+    "build-tantivy-index": "node tools/build-tantivy-index.js",
     "report-artifacts": "node tools/report-artifacts.js",
     "map-iso": "node tools/map-iso-serve.js",
     "index-validate": "node tools/index-validate.js",

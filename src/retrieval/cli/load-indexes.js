@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import {
   hasIndexMeta,
   loadFileRelations,
@@ -11,6 +13,9 @@ import { loadIndex, requireIndexDir, resolveIndexDir } from '../cli-index.js';
 import { resolveModelIds } from './model-ids.js';
 import { MAX_JSON_BYTES, readJsonFile } from '../../shared/artifact-io.js';
 import { resolveLanceDbPaths, resolveLanceDbTarget } from '../../shared/lancedb.js';
+import { tryRequire } from '../../shared/optional-deps.js';
+import { normalizeTantivyConfig, resolveTantivyPaths } from '../../shared/tantivy.js';
+import { resolveToolRoot } from '../../../tools/dict-utils.js';
 
 const EMPTY_INDEX = { chunkMeta: [], denseVec: null, minhash: null };
 
@@ -30,11 +35,14 @@ export async function loadSearchIndexes({
   filtersActive,
   contextExpansionEnabled,
   sqliteFtsRequested,
+  backendLabel,
+  backendForcedTantivy,
   indexCache,
   modelIdDefault,
   fileChargramN,
   hnswConfig,
   lancedbConfig,
+  tantivyConfig,
   loadIndexFromSqlite,
   loadIndexFromLmdb,
   resolvedDenseVectorMode
@@ -53,6 +61,48 @@ export async function loadSearchIndexes({
   const recordsDir = runRecords
     ? requireIndexDir(rootDir, 'records', userConfig, { emitOutput, exitOnError })
     : null;
+
+  const resolvedTantivyConfig = normalizeTantivyConfig(tantivyConfig || userConfig.tantivy || {});
+  const tantivyRequired = backendLabel === 'tantivy' || backendForcedTantivy === true;
+  const tantivyEnabled = resolvedTantivyConfig.enabled || tantivyRequired;
+  if (tantivyRequired) {
+    const dep = tryRequire('tantivy');
+    if (!dep.ok) {
+      throw new Error('Tantivy backend requested but the optional "tantivy" module is not available.');
+    }
+  }
+
+  const resolveTantivyAvailability = (mode, indexDir) => {
+    if (!tantivyEnabled || !indexDir) {
+      return { dir: null, metaPath: null, meta: null, available: false };
+    }
+    const paths = resolveTantivyPaths(indexDir, mode, resolvedTantivyConfig);
+    let meta = null;
+    if (paths.metaPath && fs.existsSync(paths.metaPath)) {
+      try {
+        meta = readJsonFile(paths.metaPath, { maxBytes: MAX_JSON_BYTES });
+      } catch {}
+    }
+    const available = Boolean(meta && paths.dir && fs.existsSync(paths.dir));
+    return { ...paths, meta, available };
+  };
+
+  const ensureTantivyIndex = (mode, indexDir) => {
+    const availability = resolveTantivyAvailability(mode, indexDir);
+    if (availability.available) return availability;
+    if (!tantivyRequired || !resolvedTantivyConfig.autoBuild) return availability;
+    const toolRoot = resolveToolRoot();
+    const scriptPath = path.join(toolRoot, 'tools', 'build-tantivy-index.js');
+    const result = spawnSync(
+      process.execPath,
+      [scriptPath, '--mode', mode, '--repo', rootDir],
+      { stdio: emitOutput ? 'inherit' : 'ignore' }
+    );
+    if (result.status !== 0) {
+      throw new Error(`Tantivy index build failed for mode=${mode}.`);
+    }
+    return resolveTantivyAvailability(mode, indexDir);
+  };
 
   const loadIndexCachedLocal = async (dir, includeHnsw = true) => loadIndexCached({
     indexCache,
@@ -195,6 +245,36 @@ export async function loadSearchIndexes({
   attachLanceDb(idxCode, 'code', codeIndexDir);
   attachLanceDb(idxProse, 'prose', proseIndexDir);
   attachLanceDb(idxExtractedProse, 'extracted-prose', extractedProseDir);
+
+  const attachTantivy = (idx, mode, dir) => {
+    if (!idx || !dir || !tantivyEnabled) return null;
+    const availability = ensureTantivyIndex(mode, dir);
+    idx.tantivy = {
+      dir: availability.dir,
+      metaPath: availability.metaPath,
+      meta: availability.meta,
+      available: availability.available
+    };
+    return idx.tantivy;
+  };
+
+  attachTantivy(idxCode, 'code', codeIndexDir);
+  attachTantivy(idxProse, 'prose', proseIndexDir);
+  attachTantivy(idxExtractedProse, 'extracted-prose', extractedProseDir);
+  attachTantivy(idxRecords, 'records', recordsDir);
+
+  if (tantivyRequired) {
+    const missingModes = [];
+    if (runCode && !idxCode?.tantivy?.available) missingModes.push('code');
+    if (runProse && !idxProse?.tantivy?.available) missingModes.push('prose');
+    if (resolvedRunExtractedProse && !idxExtractedProse?.tantivy?.available) {
+      missingModes.push('extracted-prose');
+    }
+    if (runRecords && !idxRecords?.tantivy?.available) missingModes.push('records');
+    if (missingModes.length) {
+      throw new Error(`Tantivy index missing for mode(s): ${missingModes.join(', ')}.`);
+    }
+  }
 
   const lanceAnnState = {
     code: {

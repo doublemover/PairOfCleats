@@ -81,6 +81,9 @@ export const resolveBackendSelection = async ({
   if (!needsSqlite && backendPolicy.backendForcedLmdb) {
     onWarn?.('LMDB backend requested, but records-only mode selected; using file-backed records index.');
   }
+  if (!needsSqlite && backendPolicy.backendForcedTantivy) {
+    onWarn?.('Tantivy backend requested, but records-only mode selected; using file-backed records index.');
+  }
   if (backendPolicy.backendDisabled) {
     onWarn?.(`Unknown backend "${backendArg}". Falling back to memory.`);
   }
@@ -91,12 +94,14 @@ export const resolveBackendSelection = async ({
     useSqlite = false;
   }
 
+  const backendForcedTantivy = backendPolicy.backendForcedTantivy && needsSqlite;
   return {
     backendPolicy,
     useSqlite,
     useLmdb,
     sqliteFtsRequested: backendPolicy.sqliteFtsRequested,
     backendForcedSqlite: backendPolicy.backendForcedSqlite,
-    backendForcedLmdb: backendPolicy.backendForcedLmdb
+    backendForcedLmdb: backendPolicy.backendForcedLmdb,
+    backendForcedTantivy
   };
 };

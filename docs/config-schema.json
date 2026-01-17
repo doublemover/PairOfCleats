@@ -212,6 +212,15 @@
         "proseDbPath": { "type": "string" }
       }
     },
+    "tantivy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string" },
+        "autoBuild": { "type": "boolean" }
+      }
+    },
     "search": {
       "type": "object",
       "additionalProperties": false,
