@@ -40,4 +40,22 @@ expect(
   `Expected ObjC greet docstring to include "Greets from ObjC", got: ${JSON.stringify(objcGreet.meta?.docstring || '')}`
 );
 
+const cppText = [
+  '/**',
+  ' * Adds template values.',
+  ' */',
+  'template <typename T>',
+  'T addValues(T a, T b) {',
+  '  return a + b;',
+  '}'
+].join('\n');
+
+const cppChunks = buildCLikeChunks(cppText, '.cpp', { treeSitter: { enabled: false }, log: () => {} }) || [];
+const cppAdd = cppChunks.find((chunk) => chunk.kind === 'FunctionDeclaration' && chunk.name === 'addValues');
+expect(!!cppAdd, 'Expected to find a C++ template function chunk for addValues.');
+expect(
+  String(cppAdd.meta?.docstring || '').includes('Adds template values'),
+  `Expected addValues docstring to include "Adds template values", got: ${JSON.stringify(cppAdd.meta?.docstring || '')}`
+);
+
 console.log('C-like doc comment extraction test passed.');

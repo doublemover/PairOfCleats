@@ -121,7 +121,7 @@ export function buildRubyChunks(text) {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    if (trimmed === 'end') {
+    if (/^end\b/.test(trimmed)) {
       const block = blockStack.pop();
       if (!block) continue;
       if (block.kind === 'class' || block.kind === 'module') {
