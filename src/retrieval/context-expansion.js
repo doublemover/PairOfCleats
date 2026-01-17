@@ -5,37 +5,22 @@ const pushIds = (acc, ids, reason) => {
   }
 };
 
-export function expandContext({
-  hits,
-  chunkMeta,
-  fileRelations,
-  repoMap,
-  options = {},
-  allowedIds = null
-}) {
-  if (!Array.isArray(hits) || !hits.length || !Array.isArray(chunkMeta)) {
-    return [];
-  }
-  const maxPerHit = Number.isFinite(Number(options.maxPerHit)) ? Math.max(0, Number(options.maxPerHit)) : 4;
-  const maxTotal = Number.isFinite(Number(options.maxTotal)) ? Math.max(0, Number(options.maxTotal)) : 40;
-  const includeCalls = options.includeCalls !== false;
-  const includeImports = options.includeImports !== false;
-  const includeExports = options.includeExports === true;
-  const includeUsages = options.includeUsages === true;
-
+export function buildContextIndex({ chunkMeta, repoMap }) {
   const byName = new Map();
   const byFile = new Map();
-  for (const chunk of chunkMeta) {
-    if (!chunk) continue;
-    if (chunk.name) {
-      const list = byName.get(chunk.name) || [];
-      list.push(chunk.id);
-      byName.set(chunk.name, list);
-    }
-    if (chunk.file) {
-      const list = byFile.get(chunk.file) || [];
-      list.push(chunk.id);
-      byFile.set(chunk.file, list);
+  if (Array.isArray(chunkMeta)) {
+    for (const chunk of chunkMeta) {
+      if (!chunk) continue;
+      if (chunk.name) {
+        const list = byName.get(chunk.name) || [];
+        list.push(chunk.id);
+        byName.set(chunk.name, list);
+      }
+      if (chunk.file) {
+        const list = byFile.get(chunk.file) || [];
+        list.push(chunk.id);
+        byFile.set(chunk.file, list);
+      }
     }
   }
 
@@ -48,6 +33,31 @@ export function expandContext({
       repoMapByName.set(entry.name, list);
     }
   }
+
+  return { byName, byFile, repoMapByName, chunkMeta, repoMap };
+}
+
+export function expandContext({
+  hits,
+  chunkMeta,
+  fileRelations,
+  repoMap,
+  options = {},
+  allowedIds = null,
+  contextIndex = null
+}) {
+  if (!Array.isArray(hits) || !hits.length || !Array.isArray(chunkMeta)) {
+    return [];
+  }
+  const maxPerHit = Number.isFinite(Number(options.maxPerHit)) ? Math.max(0, Number(options.maxPerHit)) : 4;
+  const maxTotal = Number.isFinite(Number(options.maxTotal)) ? Math.max(0, Number(options.maxTotal)) : 40;
+  const includeCalls = options.includeCalls !== false;
+  const includeImports = options.includeImports !== false;
+  const includeExports = options.includeExports === true;
+  const includeUsages = options.includeUsages === true;
+
+  const resolvedIndex = contextIndex || buildContextIndex({ chunkMeta, repoMap });
+  const { byName, byFile, repoMapByName } = resolvedIndex;
 
   const primaryIds = new Set(hits.map((hit) => hit?.id).filter((id) => id != null));
   const addedIds = new Set();

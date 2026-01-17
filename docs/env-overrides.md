@@ -26,6 +26,7 @@ PairOfCleats supports a small set of environment variables for advanced override
 - `PAIROFCLEATS_STAGE`: force indexing stage (`stage1` sparse without relations/imports, `stage2` enrichment, `stage3` embeddings pass, `stage4` sqlite/ANN pass).
 - `PAIROFCLEATS_WORKER_POOL`: control worker pool (`on`/`off`/`auto`).
 - `PAIROFCLEATS_VERBOSE`: enable verbose logging.
+- `PAIROFCLEATS_XXHASH_BACKEND`: select `auto|native|wasm` for xxhash backend selection.
 - `PAIROFCLEATS_PROGRESS_FILES`: show file progress during indexing.
 - `PAIROFCLEATS_PROGRESS_LINES`: show line progress during indexing.
 - `PAIROFCLEATS_MAX_JSON_BYTES`: override JSON artifact size guardrails (bytes).

@@ -4,7 +4,7 @@ import { incCacheEvent } from '../../shared/metrics.js';
 import { createSearchPipeline } from '../pipeline.js';
 import { buildQueryCacheKey, getIndexSignature } from '../cli-index.js';
 import { getQueryEmbedding } from '../embedding.js';
-import { expandContext } from '../context-expansion.js';
+import { buildContextIndex, expandContext } from '../context-expansion.js';
 import { loadQueryCache, pruneQueryCache } from '../query-cache.js';
 import { filterChunks } from '../output.js';
 import { runSearchByMode } from './search-runner.js';
@@ -276,6 +276,16 @@ export async function runSearchSession({
     'extracted-prose': 0,
     records: 0
   };
+  const getContextIndex = (idx) => {
+    if (!idx?.chunkMeta?.length) return null;
+    const cached = idx.contextIndex;
+    if (cached && cached.chunkMeta === idx.chunkMeta && cached.repoMap === idx.repoMap) {
+      return cached;
+    }
+    const next = buildContextIndex({ chunkMeta: idx.chunkMeta, repoMap: idx.repoMap });
+    idx.contextIndex = next;
+    return next;
+  };
   const expandModeHits = (mode, idx, hits) => {
     if (!contextExpansionEnabled || !hits.length || !idx?.chunkMeta?.length) {
       return { hits, contextHits: [] };
@@ -292,7 +302,8 @@ export async function runSearchSession({
       fileRelations: idx.fileRelations,
       repoMap: idx.repoMap,
       options: contextExpansionOptions,
-      allowedIds
+      allowedIds,
+      contextIndex: getContextIndex(idx)
     });
     contextExpansionStats[mode] = contextHits.length;
     return { hits: hits.concat(contextHits), contextHits };
