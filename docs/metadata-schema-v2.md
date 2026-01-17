@@ -14,6 +14,8 @@ These fields identify the chunk and its location.
 
 - `chunkId` (string): Stable chunk identifier (derived from file + segment + range + content hash rules).
 - `file` (string): Repo-relative file path.
+- `fileHash` (string|null): Hash of the source file contents for this chunk.
+- `fileHashAlgo` (string|null): Hash algorithm identifier (e.g. `sha1`).
 - `segment` (object):
   - `segmentId` (string)
   - `type` (code|prose|config|comment|embedded)

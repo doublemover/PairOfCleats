@@ -5,6 +5,8 @@ import { buildMetaV2 } from '../src/index/metadata-v2.js';
 const chunk = {
   file: 'src/example.js',
   ext: '.js',
+  fileHash: 'deadbeef',
+  fileHashAlgo: 'sha1',
   start: 10,
   end: 42,
   startLine: 2,
@@ -44,6 +46,8 @@ const meta = buildMetaV2({
 assert.ok(meta, 'expected metaV2 output');
 assert.ok(meta.chunkId, 'expected metaV2 chunkId');
 assert.equal(meta.file, 'src/example.js');
+assert.equal(meta.fileHash, 'deadbeef');
+assert.equal(meta.fileHashAlgo, 'sha1');
 assert.equal(meta.segment?.segmentId, 'seg-1');
 assert.equal(meta.signature, 'makeWidget(opts)');
 assert.equal(meta.returns, 'Widget');

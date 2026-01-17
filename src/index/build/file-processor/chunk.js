@@ -20,7 +20,7 @@ export const assignCommentsToChunks = (comments, chunks) => {
   }
   let chunkIdx = 0;
   for (const comment of comments) {
-    while (chunkIdx < chunks.length && chunks[chunkIdx].end < comment.start) {
+    while (chunkIdx < chunks.length && chunks[chunkIdx].end <= comment.start) {
       chunkIdx += 1;
     }
     const target = chunkIdx < chunks.length ? chunkIdx : chunks.length - 1;

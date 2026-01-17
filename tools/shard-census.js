@@ -210,7 +210,8 @@ const censusRepo = async (repoPath, label) => {
     }
     if (shardConfig.maxWorkers) {
       const shardBatches = planShardBatches(shards, shardConfig.maxWorkers, {
-        resolveWeight: (shard) => shard.costMs || shard.lineCount || shard.entries.length || 0
+        resolveWeight: (shard) => shard.costMs || shard.lineCount || shard.entries.length || 0,
+        resolveTieBreaker: (shard) => shard.label || shard.id || ''
       });
       if (shardBatches.length) {
         console.log(`Batch plan (${shardBatches.length} workers):`);

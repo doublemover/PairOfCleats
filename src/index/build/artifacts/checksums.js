@@ -12,12 +12,15 @@ export const writePiecesManifest = async ({
   indexState
 }) => {
   if (!pieceEntries.length) return;
+  const sortedEntries = pieceEntries
+    .slice()
+    .sort((a, b) => (a.path < b.path ? -1 : (a.path > b.path ? 1 : 0)));
   const piecesDir = path.join(outDir, 'pieces');
   await fs.mkdir(piecesDir, { recursive: true });
   const manifestPath = path.join(piecesDir, 'manifest.json');
   const normalizedEntries = await runWithConcurrency(
-    pieceEntries,
-    Math.min(4, pieceEntries.length),
+    sortedEntries,
+    Math.min(4, sortedEntries.length),
     async (entry) => {
       const absPath = path.join(outDir, entry.path.split('/').join(path.sep));
       let bytes = null;
@@ -26,10 +29,19 @@ export const writePiecesManifest = async ({
       try {
         const stat = await fs.stat(absPath);
         bytes = stat.size;
+      } catch (err) {
+        throw new Error(`Pieces manifest failed to stat ${entry.path}: ${err?.message || err}`);
+      }
+      try {
         const result = await checksumFile(absPath);
         checksum = result?.value || null;
         checksumAlgo = result?.algo || null;
-      } catch {}
+      } catch (err) {
+        throw new Error(`Pieces manifest failed to checksum ${entry.path}: ${err?.message || err}`);
+      }
+      if (!checksum || !checksumAlgo) {
+        throw new Error(`Pieces manifest missing checksum for ${entry.path}`);
+      }
       return {
         ...entry,
         bytes,

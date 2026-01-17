@@ -31,6 +31,7 @@ runGit(['config', 'user.email', 'tests@example.com']);
 runGit(['config', 'user.name', 'Tests']);
 
 await fs.writeFile(path.join(tempRoot, 'src', 'app.js'), 'console.log("hi")\n');
+await fs.writeFile(path.join(tempRoot, 'src', 'lib.rs'), 'fn main() {}\n');
 await fs.writeFile(path.join(tempRoot, 'src', 'deep', 'nested', 'too-deep.js'), 'console.log("deep")\n');
 await fs.writeFile(path.join(tempRoot, 'docs', 'readme.md'), '# Hello\n');
 await fs.writeFile(path.join(tempRoot, 'Dockerfile.dev'), 'FROM node:20\n');
@@ -90,7 +91,9 @@ const byMode = await discoverFilesForModes({
   maxFileBytes: null
 });
 assert.ok(byMode.code.some((entry) => entry.rel === 'src/app.js'), 'code mode missing app.js');
+assert.ok(byMode.code.some((entry) => entry.rel === 'src/lib.rs'), 'code mode missing lib.rs');
 assert.ok(byMode.prose.some((entry) => entry.rel === 'docs/readme.md'), 'prose mode missing readme');
+assert.ok(!byMode.prose.some((entry) => entry.rel === 'src/lib.rs'), 'prose mode should not include Rust files');
 assert.ok(!byMode.code.some((entry) => entry.rel === 'src/untracked.js'), 'untracked file should not appear');
 assert.ok(byMode.code.every((entry) => entry.stat), 'code entries missing stat');
 assert.ok(byMode.prose.every((entry) => entry.stat), 'prose entries missing stat');

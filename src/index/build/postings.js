@@ -7,6 +7,23 @@ const resolveTokenCount = (chunk) => (
     : (Array.isArray(chunk?.tokens) ? chunk.tokens.length : 0)
 );
 
+const sortLex = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+
+const isSortedIds = (list) => {
+  for (let i = 1; i < list.length; i += 1) {
+    if (list[i] < list[i - 1]) return false;
+  }
+  return true;
+};
+
+const isSortedPostings = (list) => {
+  for (let i = 1; i < list.length; i += 1) {
+    if (!Array.isArray(list[i - 1]) || !Array.isArray(list[i])) return false;
+    if (list[i][0] < list[i - 1][0]) return false;
+  }
+  return true;
+};
+
 const tuneBM25Params = (chunks) => {
   const avgLen = chunks.reduce((s, c) => s + resolveTokenCount(c), 0) / chunks.length;
   const b = avgLen > 800 ? 0.6 : 0.8;
@@ -104,6 +121,23 @@ export async function buildPostings(input) {
     if (typeof value[Symbol.iterator] === 'function') return Array.from(value);
     return [];
   };
+  const normalizeIdList = (value) => {
+    const list = normalizeDocIdList(value).filter((entry) => Number.isFinite(entry));
+    if (list.length <= 1 || isSortedIds(list)) return list;
+    const sorted = Array.from(new Set(list));
+    sorted.sort((a, b) => a - b);
+    return sorted;
+  };
+  const normalizeTfPostingList = (value) => {
+    if (!Array.isArray(value)) return [];
+    if (value.length <= 1 || isSortedPostings(value)) return value;
+    const next = value.filter((entry) => Array.isArray(entry) && Number.isFinite(entry[0]));
+    next.sort((a, b) => {
+      const delta = a[0] - b[0];
+      return delta || ((a[1] || 0) - (b[1] || 0));
+    });
+    return next;
+  };
 
   let dims = 0;
   let quantizedVectors = [];
@@ -148,6 +182,30 @@ export async function buildPostings(input) {
     const ZERO_QUANT = 128;
     const zeroU8 = new Uint8Array(dims);
     zeroU8.fill(ZERO_QUANT);
+    const zeroVec = new Array(dims).fill(0);
+
+    const normalizeFloatVector = (vec) => {
+      if (!Array.isArray(vec)) return zeroVec;
+      if (vec.length === dims) return vec;
+      if (vec.length > dims) return vec.slice(0, dims);
+      const out = vec.slice();
+      while (out.length < dims) out.push(0);
+      return out;
+    };
+
+    const normalizeByteVector = (vec, { emptyIsZero = false } = {}) => {
+      if (!isByteVector(vec)) return null;
+      if (!vec.length && emptyIsZero) return zeroU8;
+      if (vec.length === dims) return vec;
+      const out = new Uint8Array(dims);
+      if (vec.length >= dims) {
+        out.set(vec.subarray(0, dims));
+      } else {
+        out.set(vec);
+        out.fill(ZERO_QUANT, vec.length);
+      }
+      return out;
+    };
 
     const hasPreQuantized = chunks.some((chunk) => {
       const v = chunk?.embedding_u8;
@@ -165,27 +223,18 @@ export async function buildPostings(input) {
         const chunk = chunks[i];
 
         const merged = chunk?.embedding_u8;
-        const mergedVec = isByteVector(merged) && merged.length ? merged : zeroU8;
+        const mergedVec = normalizeByteVector(merged, { emptyIsZero: true }) || zeroU8;
 
         // Doc vectors: an empty marker means "no doc", which should behave like
         // a zero-vector so doc-only dense search doesn't surface code-only chunks.
         const doc = chunk?.embed_doc_u8;
-        let docVec = null;
-        if (isByteVector(doc)) {
-          docVec = doc.length ? doc : zeroU8;
-        } else {
-          // If doc vector wasn't provided, fall back to merged.
-          docVec = mergedVec;
-        }
+        let docVec = normalizeByteVector(doc, { emptyIsZero: true });
+        if (!docVec) docVec = mergedVec;
 
         // Code vectors: when missing, fall back to merged.
         const code = chunk?.embed_code_u8;
-        let codeVec = null;
-        if (isByteVector(code) && code.length) {
-          codeVec = code;
-        } else {
-          codeVec = mergedVec;
-        }
+        let codeVec = normalizeByteVector(code);
+        if (!codeVec) codeVec = mergedVec;
 
         quantizedVectors[i] = mergedVec;
         quantizedDocVectors[i] = docVec;
@@ -193,22 +242,29 @@ export async function buildPostings(input) {
       }
     } else {
       // Legacy path: quantize from float embeddings.
-      const zeroVec = new Array(dims).fill(0);
       const selectEmbedding = (chunk) => (
-        Array.isArray(chunk?.embedding) && chunk.embedding.length ? chunk.embedding : zeroVec
+        Array.isArray(chunk?.embedding) && chunk.embedding.length
+          ? normalizeFloatVector(chunk.embedding)
+          : zeroVec
       );
       const selectDocEmbedding = (chunk) => {
         // `embed_doc: []` is used as an explicit marker for "no doc embedding" to
         // avoid allocating a full dims-length zero vector per chunk.
         if (Array.isArray(chunk?.embed_doc)) {
-          return chunk.embed_doc.length ? chunk.embed_doc : zeroVec;
+          return chunk.embed_doc.length ? normalizeFloatVector(chunk.embed_doc) : zeroVec;
         }
-        if (Array.isArray(chunk?.embedding) && chunk.embedding.length) return chunk.embedding;
+        if (Array.isArray(chunk?.embedding) && chunk.embedding.length) {
+          return normalizeFloatVector(chunk.embedding);
+        }
         return zeroVec;
       };
       const selectCodeEmbedding = (chunk) => {
-        if (Array.isArray(chunk?.embed_code) && chunk.embed_code.length) return chunk.embed_code;
-        if (Array.isArray(chunk?.embedding) && chunk.embedding.length) return chunk.embedding;
+        if (Array.isArray(chunk?.embed_code) && chunk.embed_code.length) {
+          return normalizeFloatVector(chunk.embed_code);
+        }
+        if (Array.isArray(chunk?.embedding) && chunk.embedding.length) {
+          return normalizeFloatVector(chunk.embedding);
+        }
         return zeroVec;
       };
       const quantizeWorker = quantizePool || workerPool;
@@ -269,12 +325,13 @@ export async function buildPostings(input) {
   let phraseVocab = [];
   let phrasePostings = [];
   if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {
-    phraseVocab = Array.from(phrasePost.keys());
-    phrasePostings = new Array(phraseVocab.length);
-    for (let i = 0; i < phraseVocab.length; i += 1) {
-      const key = phraseVocab[i];
-      const posting = phrasePost.get(key);
-      phrasePostings[i] = normalizeDocIdList(posting);
+    const entries = Array.from(phrasePost.entries()).sort((a, b) => sortLex(a[0], b[0]));
+    phraseVocab = new Array(entries.length);
+    phrasePostings = new Array(entries.length);
+    for (let i = 0; i < entries.length; i += 1) {
+      const [key, posting] = entries[i];
+      phraseVocab[i] = key;
+      phrasePostings[i] = normalizeIdList(posting);
       phrasePost.delete(key);
     }
     if (typeof phrasePost.clear === 'function') phrasePost.clear();
@@ -283,19 +340,21 @@ export async function buildPostings(input) {
   let chargramVocab = [];
   let chargramPostings = [];
   if (chargramEnabled && triPost && typeof triPost.keys === 'function') {
-    chargramVocab = Array.from(triPost.keys());
-    chargramPostings = new Array(chargramVocab.length);
-    for (let i = 0; i < chargramVocab.length; i += 1) {
-      const key = chargramVocab[i];
-      const posting = triPost.get(key);
-      chargramPostings[i] = normalizeDocIdList(posting);
+    const entries = Array.from(triPost.entries()).sort((a, b) => sortLex(a[0], b[0]));
+    chargramVocab = new Array(entries.length);
+    chargramPostings = new Array(entries.length);
+    for (let i = 0; i < entries.length; i += 1) {
+      const [key, posting] = entries[i];
+      chargramVocab[i] = key;
+      chargramPostings[i] = normalizeIdList(posting);
       triPost.delete(key);
     }
     if (typeof triPost.clear === 'function') triPost.clear();
   }
 
-  const tokenVocab = Array.from(tokenPostings.keys());
-  const tokenPostingsList = tokenVocab.map((t) => tokenPostings.get(t));
+  const tokenEntries = Array.from(tokenPostings.entries()).sort((a, b) => sortLex(a[0], b[0]));
+  const tokenVocab = tokenEntries.map(([token]) => token);
+  const tokenPostingsList = tokenEntries.map(([, posting]) => normalizeTfPostingList(posting));
   const avgDocLen = docLengths.length
     ? docLengths.reduce((sum, len) => sum + len, 0) / docLengths.length
     : 0;
@@ -305,13 +364,14 @@ export async function buildPostings(input) {
   const buildFieldPostings = () => {
     if (!fieldPostings || !fieldDocLengths) return null;
     const fields = {};
-    for (const [field, postingsMap] of Object.entries(fieldPostings)) {
+    const fieldEntries = Object.entries(fieldPostings).sort((a, b) => sortLex(a[0], b[0]));
+    for (const [field, postingsMap] of fieldEntries) {
       if (!postingsMap || typeof postingsMap.keys !== 'function') continue;
-      const vocab = Array.from(postingsMap.keys());
-      const postings = vocab.map((token) => postingsMap.get(token));
+      const vocab = Array.from(postingsMap.keys()).sort(sortLex);
+      const postings = vocab.map((token) => normalizeTfPostingList(postingsMap.get(token)));
       const lengths = fieldDocLengths[field] || [];
       const avgLen = lengths.length
-        ? lengths.reduce((sum, len) => sum + len, 0) / lengths.length
+        ? lengths.reduce((sum, len) => sum + (Number.isFinite(len) ? len : 0), 0) / lengths.length
         : 0;
       fields[field] = {
         vocab,

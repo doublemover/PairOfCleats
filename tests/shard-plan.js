@@ -70,4 +70,32 @@ const splitParts = shardsC.filter((shard) => shard.label.startsWith('./javascrip
 assert.equal(splitParts.length, 10, 'expected split shards for large group');
 assert.ok(splitParts.every((shard) => shard.splitFrom === './javascript'));
 
+const entriesD = [];
+const lineCountsD = new Map();
+for (let i = 0; i < 50; i += 1) {
+  for (let j = 0; j < 20; j += 1) {
+    const rel = `src/pkg${String(i).padStart(2, '0')}/file${String(j).padStart(2, '0')}.js`;
+    entriesD.push(makeEntry(rel));
+    lineCountsD.set(rel, 10 + (i % 5));
+  }
+}
+const shardsD1 = planShards(entriesD, {
+  mode: 'code',
+  dirDepth: 2,
+  lineCounts: lineCountsD,
+  maxShards: 200
+});
+const shardsD2 = planShards(entriesD, {
+  mode: 'code',
+  dirDepth: 2,
+  lineCounts: lineCountsD,
+  maxShards: 200
+});
+assert.equal(shardsD1.length, shardsD2.length, 'expected stable shard counts for large input');
+assert.deepEqual(
+  shardsD1.map((shard) => shard.id),
+  shardsD2.map((shard) => shard.id),
+  'expected deterministic shard IDs for large input'
+);
+
 console.log('shard-plan test passed.');

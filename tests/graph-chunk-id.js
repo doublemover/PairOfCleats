@@ -16,8 +16,9 @@ const chunks = [
 ];
 
 const graphs = buildRelationGraphs({ chunks, fileRelations: new Map() });
-const node = graphs.callGraph.nodes.find((entry) => entry.id === 'src/graph.js::buildWidget');
+const node = graphs.callGraph.nodes.find((entry) => entry.id === stableChunkId);
 assert.ok(node, 'expected call graph node');
 assert.equal(node.chunkId, stableChunkId, 'expected stable chunkId in graph output');
+assert.equal(node.legacyKey, 'src/graph.js::buildWidget', 'expected legacy key to be preserved');
 
 console.log('graph chunk id test passed');

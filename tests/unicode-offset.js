@@ -85,4 +85,14 @@ if (!/^\s*function second/.test(snippet)) {
   process.exit(1);
 }
 
+const startLine = raw.slice(0, targetChunk.start).split('\n').length;
+if (targetChunk.startLine !== startLine) {
+  console.error(`Unicode startLine mismatch (${targetChunk.startLine} !== ${startLine}).`);
+  process.exit(1);
+}
+if (targetChunk.endLine < targetChunk.startLine) {
+  console.error('Unicode endLine should not precede startLine.');
+  process.exit(1);
+}
+
 console.log('Unicode offset test passed');

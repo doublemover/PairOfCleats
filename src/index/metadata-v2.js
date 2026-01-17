@@ -1,4 +1,4 @@
-import { sha1 } from '../shared/hash.js';
+import { buildChunkId } from './chunk-id.js';
 
 const normalizeString = (value) => {
   if (value === null || value === undefined) return null;
@@ -15,19 +15,6 @@ const normalizeStringArray = (value) => {
 };
 
 const unique = (values) => Array.from(new Set(values.filter(Boolean)));
-
-const buildChunkId = (chunk) => {
-  if (!chunk) return null;
-  const key = [
-    chunk.file || '',
-    chunk.segment?.segmentId || '',
-    chunk.start ?? '',
-    chunk.end ?? '',
-    chunk.kind || '',
-    chunk.name || ''
-  ].join('|');
-  return `chunk_${sha1(key)}`;
-};
 
 const normalizeEntries = (entries) => {
   if (!Array.isArray(entries)) return [];
@@ -123,6 +110,8 @@ export function buildMetaV2({ chunk, docmeta, toolInfo }) {
   const metadata = {
     chunkId,
     file: normalizeString(chunk.file),
+    fileHash: normalizeString(chunk.fileHash),
+    fileHashAlgo: normalizeString(chunk.fileHashAlgo),
     segment: segment
       ? {
         segmentId: normalizeString(segment.segmentId),

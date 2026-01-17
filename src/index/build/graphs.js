@@ -1,10 +1,11 @@
 import Graph from 'graphology';
+import { resolveChunkId } from '../chunk-id.js';
 
 const GRAPH_MAX_NODES = 200000;
 const GRAPH_MAX_EDGES = 500000;
 const GRAPH_SAMPLE_LIMIT = 5;
 
-const buildChunkKey = (chunk) => `${chunk.file}::${chunk.name}`;
+const buildLegacyChunkKey = (chunk) => `${chunk.file}::${chunk.name}`;
 
 const recordGraphSample = (guard, context) => {
   if (!guard || !context) return;
@@ -80,52 +81,78 @@ export function buildRelationGraphs({ chunks = [], fileRelations = null } = {}) 
   const callGuard = createGraphGuard('callGraph');
   const usageGuard = createGraphGuard('usageGraph');
   const importGuard = createGraphGuard('importGraph');
+  const chunkById = new Map();
+  const chunkIdByKey = new Map();
 
   for (const chunk of chunks) {
     if (!chunk?.file || !chunk?.name) continue;
-    const key = buildChunkKey(chunk);
-    const context = { file: chunk.file, chunkId: chunk.metaV2?.chunkId || null };
+    const legacyKey = buildLegacyChunkKey(chunk);
+    const chunkId = resolveChunkId(chunk);
+    const nodeId = chunkId || legacyKey;
+    if (!nodeId) continue;
+    chunkById.set(nodeId, chunk);
+    if (legacyKey) {
+      chunkIdByKey.set(legacyKey, nodeId);
+    }
+    const context = { file: chunk.file, chunkId: chunkId || chunk.metaV2?.chunkId || null };
     const attrs = {
       file: chunk.file,
       name: chunk.name,
       kind: chunk.kind || null,
-      chunkId: chunk.metaV2?.chunkId || null
+      chunkId: chunkId || null,
+      legacyKey
     };
-    mergeNode(callGraph, key, attrs, callGuard, context);
-    mergeNode(usageGraph, key, attrs, usageGuard, context);
+    mergeNode(callGraph, nodeId, attrs, callGuard, context);
+    mergeNode(usageGraph, nodeId, attrs, usageGuard, context);
   }
+
+  const resolveNodeId = (file, name) => {
+    if (!file || !name) return null;
+    const legacyKey = `${file}::${name}`;
+    return chunkIdByKey.get(legacyKey) || legacyKey;
+  };
+
+  const resolveNodeAttrs = (nodeId, fallback) => {
+    const chunk = chunkById.get(nodeId);
+    if (!chunk) return fallback;
+    const legacyKey = buildLegacyChunkKey(chunk);
+    return {
+      file: chunk.file,
+      name: chunk.name,
+      kind: chunk.kind || null,
+      chunkId: resolveChunkId(chunk) || null,
+      legacyKey
+    };
+  };
 
   for (const chunk of chunks) {
     if (!chunk?.file || !chunk?.name) continue;
-    const sourceKey = buildChunkKey(chunk);
-    const context = { file: chunk.file, chunkId: chunk.metaV2?.chunkId || null };
+    const legacyKey = buildLegacyChunkKey(chunk);
+    const sourceKey = chunkIdByKey.get(legacyKey) || legacyKey;
+    const context = { file: chunk.file, chunkId: resolveChunkId(chunk) || null };
     const relations = chunk.codeRelations || {};
     if (Array.isArray(relations.callLinks)) {
       for (const link of relations.callLinks) {
-        const targetKey = link?.file && link?.target
-          ? `${link.file}::${link.target}`
-          : null;
+        const targetKey = resolveNodeId(link?.file, link?.target);
         if (!targetKey) continue;
-        mergeNode(callGraph, targetKey, {
+        mergeNode(callGraph, targetKey, resolveNodeAttrs(targetKey, {
           file: link.file || null,
           name: link.target || null,
           kind: link.kind || null
-        }, callGuard, context);
+        }), callGuard, context);
         addDirectedEdge(callGraph, sourceKey, targetKey, callGuard, context);
         if (callGuard.disabled) break;
       }
     }
     if (Array.isArray(relations.usageLinks)) {
       for (const link of relations.usageLinks) {
-        const targetKey = link?.file && link?.target
-          ? `${link.file}::${link.target}`
-          : null;
+        const targetKey = resolveNodeId(link?.file, link?.target);
         if (!targetKey) continue;
-        mergeNode(usageGraph, targetKey, {
+        mergeNode(usageGraph, targetKey, resolveNodeAttrs(targetKey, {
           file: link.file || null,
           name: link.target || null,
           kind: link.kind || null
-        }, usageGuard, context);
+        }), usageGuard, context);
         addDirectedEdge(usageGraph, sourceKey, targetKey, usageGuard, context);
         if (usageGuard.disabled) break;
       }

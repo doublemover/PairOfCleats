@@ -23,8 +23,8 @@ export const mergeFlowMeta = (docmeta, flowMeta, { astDataflowEnabled, controlFl
 };
 
 export const buildExternalDocs = (ext, imports) => {
-  const externalDocs = [];
-  if (!imports || !imports.length) return externalDocs;
+  const externalDocs = new Set();
+  if (!imports || !imports.length) return [];
   const isPython = ext === '.py';
   const isNode = isJsLike(ext);
   const isGoLang = isGo(ext);
@@ -32,18 +32,18 @@ export const buildExternalDocs = (ext, imports) => {
     if (mod.startsWith('.')) continue;
     if (isPython) {
       const base = mod.split('.')[0];
-      if (base) externalDocs.push(`https://pypi.org/project/${base}`);
+      if (base) externalDocs.add(`https://pypi.org/project/${base}`);
     } else if (isNode) {
       const encoded = mod
         .split('/')
         .map((segment) => encodeURIComponent(segment).replace(/%40/g, '@'))
         .join('/');
-      externalDocs.push(`https://www.npmjs.com/package/${encoded}`);
+      externalDocs.add(`https://www.npmjs.com/package/${encoded}`);
     } else if (isGoLang) {
-      externalDocs.push(`https://pkg.go.dev/${mod}`);
+      externalDocs.add(`https://pkg.go.dev/${mod}`);
     }
   }
-  return externalDocs;
+  return Array.from(externalDocs).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
 };
 
 const normalizeEmptyMessage = (value) => {

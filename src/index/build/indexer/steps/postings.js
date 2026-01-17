@@ -192,6 +192,11 @@ export const buildIndexPostings = async ({ runtime, state }) => {
   for (const warning of guardWarnings) {
     sharedLog(warning);
   }
+  if (state?.tokenPostings?.clear) state.tokenPostings.clear();
+  if (state?.phrasePost?.clear) state.phrasePost.clear();
+  if (state?.triPost?.clear) state.triPost.clear();
+  if (state?.fieldPostings?.clear) state.fieldPostings.clear();
+  if (state?.df?.clear) state.df.clear();
 
   return postings;
 };

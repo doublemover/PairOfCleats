@@ -22,6 +22,20 @@ const ensureCjsLexer = async () => {
   await cjsInitPromise;
 };
 
+const sortLex = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
+
+const normalizeImports = (list) => {
+  const set = new Set();
+  if (Array.isArray(list)) {
+    for (const entry of list) {
+      if (typeof entry === 'string' && entry) set.add(entry);
+    }
+  }
+  const output = Array.from(set);
+  output.sort(sortLex);
+  return output;
+};
+
 const collectModuleImportsFast = async ({ text, ext }) => {
   if (!isJsLike(ext) && !isTypeScript(ext)) return null;
   const imports = new Set();
@@ -55,7 +69,7 @@ const collectModuleImportsFast = async ({ text, ext }) => {
       if (match[1]) imports.add(match[1]);
     }
   }
-  return success ? Array.from(imports) : null;
+  return success ? normalizeImports(Array.from(imports)) : null;
 };
 
 export function sortImportScanItems(items, cachedImportCounts) {
@@ -174,7 +188,7 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
         return;
       }
       const fastImports = await collectModuleImportsFast({ text, ext });
-      const imports = Array.isArray(fastImports)
+      const imports = normalizeImports(Array.isArray(fastImports)
         ? fastImports
         : collectLanguageImports({
           ext,
@@ -182,7 +196,7 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
           text,
           mode,
           options: languageOptions
-        });
+        }));
       if (imports.length > 0) filesWithImports += 1;
       for (const mod of imports) {
         if (!allImports.has(mod)) allImports.set(mod, new Set());
@@ -196,8 +210,11 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
 
   showProgress('Imports', items.length, items.length, progressMeta);
   const dedupedImports = {};
-  for (const [mod, entries] of allImports.entries()) {
-    dedupedImports[mod] = Array.from(entries);
+  const moduleEntries = Array.from(allImports.entries()).sort((a, b) => sortLex(a[0], b[0]));
+  for (const [mod, entries] of moduleEntries) {
+    const files = Array.from(entries);
+    files.sort(sortLex);
+    dedupedImports[mod] = files;
   }
   let edgeCount = 0;
   for (const entries of allImports.values()) {
@@ -233,16 +250,24 @@ export function buildImportLinksFromRelations(fileRelations) {
   }
   const dedupedImports = {};
   let edgeCount = 0;
-  for (const [mod, files] of moduleMap.entries()) {
-    dedupedImports[mod] = Array.from(files);
+  const moduleEntries = Array.from(moduleMap.entries()).sort((a, b) => sortLex(a[0], b[0]));
+  for (const [mod, files] of moduleEntries) {
+    const list = Array.from(files);
+    list.sort(sortLex);
+    dedupedImports[mod] = list;
     edgeCount += files.size;
   }
   for (const [file, relations] of fileRelations.entries()) {
     const imports = Array.isArray(relations?.imports) ? relations.imports : [];
-    const importLinks = imports
-      .map((imp) => dedupedImports[imp])
-      .filter(Boolean)
-      .flat();
+    const linkSet = new Set();
+    for (const imp of imports) {
+      const linked = dedupedImports[imp];
+      if (!linked) continue;
+      for (const candidate of linked) {
+        if (candidate && candidate !== file) linkSet.add(candidate);
+      }
+    }
+    const importLinks = Array.from(linkSet).sort(sortLex);
     fileRelations.set(file, { ...relations, importLinks });
   }
   return {

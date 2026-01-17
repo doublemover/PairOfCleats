@@ -59,12 +59,20 @@ if (!relB || !Array.isArray(relB.importLinks)) {
   process.exit(1);
 }
 
-const expected = new Set(['src/a.js', 'src/b.js']);
-for (const file of expected) {
-  if (!relA.importLinks.includes(file)) {
-    console.error(`import-links test failed: a.js missing link to ${file}`);
-    process.exit(1);
-  }
+const expectedA = ['src/b.js'];
+const expectedB = ['src/a.js'];
+const sortLinks = (links) => (Array.isArray(links) ? links.slice().sort() : []);
+if (JSON.stringify(sortLinks(relA.importLinks)) !== JSON.stringify(expectedA)) {
+  console.error(`import-links test failed: a.js links ${JSON.stringify(relA.importLinks)} !== ${JSON.stringify(expectedA)}`);
+  process.exit(1);
+}
+if (JSON.stringify(sortLinks(relB.importLinks)) !== JSON.stringify(expectedB)) {
+  console.error(`import-links test failed: b.js links ${JSON.stringify(relB.importLinks)} !== ${JSON.stringify(expectedB)}`);
+  process.exit(1);
+}
+if (relA.importLinks.includes('src/a.js')) {
+  console.error('import-links test failed: a.js should not link to itself');
+  process.exit(1);
 }
 if (relA.importLinks.includes('src/c.js')) {
   console.error('import-links test failed: a.js should not link to c.js');
