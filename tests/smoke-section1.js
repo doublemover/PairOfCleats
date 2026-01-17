@@ -4,14 +4,14 @@ import { cleanup, runNode, root } from './smoke-utils.js';
 
 const cacheRoots = [
   path.join(root, 'tests', '.cache', 'core-api'),
-  path.join(root, 'tests', '.cache', 'api-server')
+  path.join(root, 'tests', '.cache', 'api-health-status')
 ];
 
 let failure = null;
 try {
   await cleanup(cacheRoots);
   runNode('core-api', path.join(root, 'tests', 'core-api.js'));
-  runNode('api-server', path.join(root, 'tests', 'api-server.js'));
+  runNode('api-health-status', path.join(root, 'tests', 'services', 'api', 'health-and-status.test.js'));
 } catch (err) {
   console.error(err?.message || err);
   failure = err;

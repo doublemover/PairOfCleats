@@ -2,12 +2,16 @@
 import path from 'node:path';
 import { cleanup, runNode, root } from './smoke-utils.js';
 
-const cacheRoots = [path.join(root, 'tests', '.cache', 'mcp-server')];
+const cacheRoots = [
+  path.join(root, 'tests', '.cache', 'mcp-protocol-init'),
+  path.join(root, 'tests', '.cache', 'api-health-status')
+];
 
 let failure = null;
 try {
   await cleanup(cacheRoots);
-  runNode('mcp-server', path.join(root, 'tests', 'mcp-server.js'));
+  runNode('mcp-protocol-init', path.join(root, 'tests', 'services', 'mcp', 'protocol-initialize.test.js'));
+  runNode('api-health-status', path.join(root, 'tests', 'services', 'api', 'health-and-status.test.js'));
 } catch (err) {
   console.error(err?.message || err);
   failure = err;

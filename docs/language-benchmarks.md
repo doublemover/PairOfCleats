@@ -27,10 +27,10 @@ The old `bench-language:*` npm scripts were removed; use `pairofcleats bench lan
 The matrix runner is now `pairofcleats bench matrix`.
 
 ## Output
-- Per-repo reports are written under `benchmarks/results/<language>/` (JSON payload from `tests/bench.js`).
+- Per-repo reports are written under `benchmarks/results/<language>/` (JSON payload from `tests/perf/bench/run.test.js`).
 - Summary output is printed to stdout; use `--json` and/or `--out` for a machine-readable aggregate.
 - Progress/logging renders to stderr via the unified CLI display. Use `--progress=auto|off|jsonl` (default `auto`).
-- TTY runs show the interactive progress UI; non-TTY runs emit periodic single-line progress summaries. Use `--log-lines <n>` (3-50, default 20) to change the log window height.
+- TTY runs show the interactive progress UI with a log window; non-TTY runs emit periodic single-line progress summaries. Use `--log-lines <n>` (3-50, default 20) to change the log window height.
 - Use `--verbose` for per-file/line progress and shard detail; `--quiet` suppresses non-error logs while still printing the final summary.
 - A run log is written to `benchmarks/results/logs/bench-language/<timestamp>.log` by default (override with `--log <file>`).
 - Runs now log start/finish, termination signals, and in-progress indexing counters with elapsed time, rate, and ETA, plus recent file names during indexing (expect larger logs on large repos).
@@ -44,7 +44,7 @@ The matrix runner is now `pairofcleats bench matrix`.
 - `--cache-root <path>`: cache root for all benchmark runs (default `benchmarks/cache`).
 - `--cache-suffix <name>` / `--cache-run`: append a suffix or auto-generate a run id to isolate caches per run.
 - `--build`, `--build-index`, `--build-sqlite`: build indexes before search. `--build-sqlite` uses incremental bundles when available; otherwise it will auto-enable `--build-index` to create file-backed indexes.
-- `--backend <csv|all>`: control backends passed to `tests/bench.js`.
+- `--backend <csv|all>`: control backends passed to `tests/perf/bench/run.test.js`.
 - `--ann` / `--no-ann`: toggle ANN for dense search.
 - `--index-profile <name>` / `--no-index-profile`: apply a configuration profile for indexing during benchmarks (default `full`; bench-* profiles are ignored for language runs).
 - `--lock-mode <fail-fast|wait|stale-clear>`: handle existing index locks (default `fail-fast`).
@@ -55,7 +55,7 @@ The matrix runner is now `pairofcleats bench matrix`.
 - `--out <file>`: write aggregate JSON summary.
 
 ## Notes
-- `tests/bench.js` is the underlying runner and supports extra tuning flags (`--bm25-k1`, `--bm25-b`, `--fts-profile`, `--fts-weights`).
+- `tests/perf/bench/run.test.js` is the underlying runner and supports extra tuning flags (`--bm25-k1`, `--bm25-b`, `--fts-profile`, `--fts-weights`).
 - Queries are plain text, one query per line; lines starting with `#` are ignored.
 - Language benchmarks run with the `full` profile by default to keep all enrichment steps enabled; use `--no-index-profile` if you want the repo's base config instead.
 - The runner uses `execa` for child processes and terminates trees via `taskkill` on Windows and `SIGTERM` elsewhere; we avoid `tree-kill` due to past Windows command-injection advisories and only pass trusted PIDs.

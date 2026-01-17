@@ -55,7 +55,7 @@ const actions = [
   },
   ...(skipSqliteIncremental ? [] : [{
     label: 'sqlite-incremental-test',
-    run: () => runNode('sqlite-incremental-test', path.join(root, 'tests', 'sqlite-incremental.js')),
+    run: () => runNode('sqlite-incremental-test', path.join(root, 'tests', 'storage', 'sqlite', 'incremental', 'file-manifest-updates.test.js')),
     covers: ['sqlite-incremental-test']
   }]),
   ...(skipSqliteIncremental ? [] : [{
@@ -156,7 +156,7 @@ const actions = [
   },
   {
     label: 'language-fidelity-test',
-    run: () => runNode('language-fidelity-test', path.join(root, 'tests', 'language-fidelity.js')),
+    run: () => runNode('language-fidelity-test', path.join(root, 'tests', 'lang', 'contracts', 'javascript.test.js')),
     covers: ['language-fidelity-test']
   },
   {
@@ -201,7 +201,10 @@ const actions = [
   },
   {
     label: 'type-inference-crossfile-test',
-    run: () => runNode('type-inference-crossfile-test', path.join(root, 'tests', 'type-inference-crossfile.js')),
+    run: () => runNode(
+      'type-inference-crossfile-test',
+      path.join(root, 'tests', 'indexing', 'type-inference', 'crossfile-output.integration.test.js')
+    ),
     covers: ['type-inference-crossfile-test']
   },
   {
@@ -351,12 +354,12 @@ const actions = [
   },
   {
     label: 'triage-test',
-    run: () => runNode('triage-test', path.join(root, 'tests', 'triage-records.js')),
+    run: () => runNode('triage-test', path.join(root, 'tests', 'tooling', 'triage', 'records-index-and-search.test.js')),
     covers: ['triage-test']
   },
   {
     label: 'mcp-server-test',
-    run: () => runNode('mcp-server-test', path.join(root, 'tests', 'mcp-server.js')),
+    run: () => runNode('mcp-server-test', path.join(root, 'tests', 'services', 'mcp', 'tools-list.test.js')),
     covers: ['mcp-server-test', 'mcp-server']
   },
   {
@@ -371,7 +374,7 @@ const actions = [
   },
   {
     label: 'api-server-test',
-    run: () => runNode('api-server-test', path.join(root, 'tests', 'api-server.js')),
+    run: () => runNode('api-server-test', path.join(root, 'tests', 'services', 'api', 'search-happy-path.test.js')),
     covers: ['api-server-test', 'api-server']
   },
   {
@@ -411,7 +414,7 @@ const actions = [
   },
   {
     label: 'search-filters-test',
-    run: () => runNode('search-filters-test', path.join(root, 'tests', 'search-filters.js')),
+    run: () => runNode('search-filters-test', path.join(root, 'tests', 'retrieval', 'filters', 'query-syntax', 'negative-terms.test.js')),
     covers: ['search-filters-test']
   },
   {
@@ -895,7 +898,7 @@ const actions = [
   },
   {
     label: 'fixture-smoke',
-    run: () => runNode('fixture-smoke', path.join(root, 'tests', 'fixture-smoke.js')),
+    run: () => runNode('fixture-smoke', path.join(root, 'tests', 'indexing', 'fixtures', 'build-and-artifacts.test.js')),
     covers: ['fixture-smoke', 'build-index', 'build-sqlite-index', 'search'],
     coversTierB: ['build-index', 'build-sqlite-index']
   },

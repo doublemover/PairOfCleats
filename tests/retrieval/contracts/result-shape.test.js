@@ -1,0 +1,30 @@
+#!/usr/bin/env node
+import { ensureFixtureIndex, runSearch } from '../../helpers/fixture-index.js';
+
+const { fixtureRoot, env } = await ensureFixtureIndex({
+  fixtureName: 'sample',
+  cacheName: 'fixture-sample'
+});
+
+const payload = runSearch({
+  fixtureRoot,
+  env,
+  query: 'message',
+  mode: 'code'
+});
+const hit = (payload.code || [])[0];
+if (!hit) {
+  console.error('Result shape test returned no hits.');
+  process.exit(1);
+}
+if (typeof hit.score !== 'number' || !hit.scoreType) {
+  console.error('Result shape missing score or scoreType.');
+  process.exit(1);
+}
+const breakdown = hit.scoreBreakdown || {};
+if (!breakdown.selected) {
+  console.error('Result shape missing scoreBreakdown.selected.');
+  process.exit(1);
+}
+
+console.log('Retrieval result shape ok.');

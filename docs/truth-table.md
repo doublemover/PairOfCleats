@@ -6,7 +6,7 @@ This document maps user-visible behavior to implementation, configuration switch
 - Claim: `build_index.js --mode code|prose|records|extracted-prose|all` builds mode-specific indexes under the repo cache; `all` expands to `code`, `prose`, and `extracted-prose`.
   - Implementation: `build_index.js` (entrypoint), `src/index/build/args.js` (`parseBuildArgs`), `src/integrations/core/index.js` (`buildIndex`), `src/index/build/indexer.js` (`buildIndexForMode`), `tools/dict-utils.js` (`resolveIndexRoot`, `getIndexDir`).
   - Config: CLI `--mode`, `--repo`, `--index-root`; environment `PAIROFCLEATS_CACHE_ROOT`.
-  - Tests: `tests/fixture-smoke.js`, `tests/extracted-prose.js`, `tests/triage-records.js`, `tests/build-index-all.js`.
+  - Tests: `tests/indexing/fixtures/build-and-artifacts.test.js`, `tests/extracted-prose.js`, `tests/tooling/triage/records-index-and-search.test.js`, `tests/build-index-all.js`.
   - Limitations: `records` requires triage record inputs; `all` does not include `records`.
 
 - Claim: stage flags gate enrichment (`stage1` sparse, `stage2` relations, `stage3` embeddings, `stage4` sqlite).
@@ -18,7 +18,7 @@ This document maps user-visible behavior to implementation, configuration switch
 - Claim: `index_state.json` gates readers on pending stage outputs (embeddings/sqlite/lmdb).
   - Implementation: `src/index/build/artifacts.js` (`writeIndexArtifacts`), `tools/build-embeddings.js` (index_state updates), `tools/build-sqlite-index.js` (index_state updates), `tools/build-lmdb-index.js` (`updateLmdbState`), `src/retrieval/cli.js` (pending warnings), `src/retrieval/cli/index-loader.js` (`warnPendingState`).
   - Config: `indexing.twoStage.*`, `indexing.embeddings.*`, `sqlite.use`, `lmdb.use`.
-  - Tests: `tests/two-stage-state.js`, `tests/embeddings-validate.js`, `tests/sqlite-incremental.js`, `tests/lmdb-backend.js`.
+  - Tests: `tests/two-stage-state.js`, `tests/embeddings-validate.js`, `tests/storage/sqlite/incremental/file-manifest-updates.test.js`, `tests/lmdb-backend.js`.
   - Limitations: manual edits can override gating.
 
 ## Backend selection
@@ -82,7 +82,7 @@ This document maps user-visible behavior to implementation, configuration switch
 - Claim: search filters support type/kind, signature, decorator, path/ext, and language constraints.
   - Implementation: `src/retrieval/filters.js` (`parseMetaFilters`, `normalizeExtFilter`, `normalizeLangFilter`), `src/retrieval/output/filters.js` (`filterChunks`), `src/retrieval/cli.js` (flag parsing).
   - Config: CLI `--type`, `--signature`, `--decorator`, `--path`, `--ext`, `--lang`.
-  - Tests: `tests/search-filters.js`, `tests/fixture-smoke.js`, `tests/lang-filter.js`, `tests/ext-filter.js`.
+  - Tests: `tests/retrieval/filters/query-syntax/negative-terms.test.js`, `tests/retrieval/filters/ext-path.test.js`, `tests/lang-filter.js`, `tests/ext-filter.js`.
   - Limitations: filters depend on metadata availability per language.
 
 - Claim: restrictive filters are applied early so `--top N` returns N results when available.
@@ -94,7 +94,7 @@ This document maps user-visible behavior to implementation, configuration switch
 - Claim: risk filters narrow results by tags, sources, sinks, and flow identifiers.
   - Implementation: `src/index/risk.js` (`detectRiskSignals`), `src/index/type-inference-crossfile.js` (`addRiskFlow`), `src/retrieval/output/filters.js` (`filterChunks`).
   - Config: `indexing.riskAnalysis`, `indexing.riskAnalysisCrossFile`, CLI `--risk*` flags.
-  - Tests: `tests/language-fidelity.js`, `tests/type-inference-crossfile.js`.
+  - Tests: `tests/retrieval/filters/risk.test.js`, `tests/indexing/type-inference/crossfile-output.integration.test.js`.
   - Limitations: risk data is best-effort and may be empty for unsupported languages.
 
 - Claim: explain output includes score breakdowns and backend policy hints.
@@ -137,7 +137,7 @@ This document maps user-visible behavior to implementation, configuration switch
 - Claim: API server exposes build/search endpoints and streams responses when requested.
   - Implementation: `tools/api-server.js` (server entry), `tools/api/router.js` (`createApiRouter`), `tools/api/validation.js` (`validateSearchPayload`).
   - Config: CLI `--repo`; environment `PAIROFCLEATS_*` config values.
-  - Tests: `tests/api-server.js`, `tests/api-server-stream.js`.
+  - Tests: `tests/services/api/health-and-status.test.js`, `tests/services/api/search-happy-path.test.js`, `tests/api-server-stream.js`.
   - Limitations: streaming requires clients to handle SSE backpressure.
 
 - Claim: MCP server enforces per-tool timeouts and queue limits.
@@ -149,7 +149,7 @@ This document maps user-visible behavior to implementation, configuration switch
 - Claim: MCP server advertises core resources and tool actions using repo-scoped config.
   - Implementation: `tools/mcp-server.js` (tool defs), `src/integrations/mcp/defs.js` (`getToolDefs`).
   - Config: CLI `--repo`; environment `PAIROFCLEATS_*` config values.
-  - Tests: `tests/mcp-server.js`.
+  - Tests: `tests/services/mcp/tools-list.test.js`.
   - Limitations: tools are limited to configured repo root.
 
 ## Determinism and provenance

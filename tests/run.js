@@ -17,14 +17,22 @@ const EXCLUDED_FILES = new Set(['run.js', 'all.js', 'script-coverage.js']);
 const KNOWN_LANES = new Set(['smoke', 'unit', 'integration', 'services', 'storage', 'perf', 'ci']);
 
 const LANE_RULES = [
-  { lane: 'perf', match: [/^bench/, /-perf-/, /^kotlin-perf-guard/] },
-  { lane: 'smoke', match: [/^smoke(?:-|$)/] },
-  { lane: 'services', match: [/^api-server/, /^mcp/, /^indexer-service/, /^service-queue/] },
-  { lane: 'storage', match: [/^sqlite/, /^lmdb/, /^vector-extension/] },
-  { lane: 'unit', match: [/^jsonrpc-/, /^json-stream/, /^tokenize-/, /^tokenization-/, /^dict-/, /^cache-lru/, /^build-runtime\//, /^test-runner$/] }
+  { lane: 'perf', match: [/^perf\//, /^bench/, /-perf-/, /^kotlin-perf-guard/] },
+  { lane: 'smoke', match: [/^smoke(?:-|$)/, /^harness\/smoke\//] },
+  { lane: 'services', match: [/^services\//, /^api-server/, /^mcp/, /^indexer-service/, /^service-queue/] },
+  { lane: 'storage', match: [/^storage\//, /^sqlite/, /^lmdb/, /^vector-extension/] },
+  { lane: 'unit', match: [/^unit\//, /\.unit(\.|$)/, /^harness\//, /^jsonrpc-/, /^json-stream/, /^tokenize-/, /^tokenization-/, /^dict-/, /^cache-lru/, /^build-runtime\//, /^test-runner$/] }
 ];
 
 const TAG_RULES = [
+  { tag: 'perf', match: /^perf\// },
+  { tag: 'services', match: /^services\// },
+  { tag: 'storage', match: /^storage\// },
+  { tag: 'indexing', match: /^indexing\// },
+  { tag: 'retrieval', match: /^retrieval\// },
+  { tag: 'lang', match: /^lang\// },
+  { tag: 'tooling', match: /^tooling\// },
+  { tag: 'harness', match: /^harness\// },
   { tag: 'bench', match: /^bench/ },
   { tag: 'smoke', match: /^smoke/ },
   { tag: 'sqlite', match: /sqlite/ },
