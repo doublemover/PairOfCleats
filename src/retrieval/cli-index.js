@@ -7,6 +7,7 @@ import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import {
   MAX_JSON_BYTES,
   loadChunkMeta,
+  loadJsonArrayArtifact,
   loadTokenPostings,
   readJsonFile
 } from '../shared/artifact-io.js';
@@ -73,8 +74,20 @@ export async function loadIndex(dir, options) {
       if (!chunk.churn_commits) chunk.churn_commits = meta.churn_commits;
     }
   }
-  const fileRelationsRaw = loadOptional('file_relations.json');
-  const repoMap = loadOptional('repo_map.json');
+  const loadOptionalArray = async (baseName) => {
+    try {
+      return await loadJsonArrayArtifact(dir, baseName, { maxBytes: MAX_JSON_BYTES });
+    } catch (err) {
+      if (err?.code === 'ERR_JSON_TOO_LARGE') {
+        console.warn(
+          `[search] Skipping ${baseName}: ${err.message} Use sqlite backend for large repos.`
+        );
+      }
+      return null;
+    }
+  };
+  const fileRelationsRaw = await loadOptionalArray('file_relations');
+  const repoMap = await loadOptionalArray('repo_map');
   let fileRelations = null;
   if (Array.isArray(fileRelationsRaw)) {
     const map = new Map();
@@ -256,6 +269,30 @@ export function getIndexSignature(options) {
       return null;
     }
   };
+  const jsonlArtifactSignature = (dirPath, baseName) => {
+    const jsonPath = path.join(dirPath, `${baseName}.json`);
+    const jsonSig = fileSignature(jsonPath);
+    if (jsonSig) return jsonSig;
+    const jsonlPath = path.join(dirPath, `${baseName}.jsonl`);
+    const jsonlSig = fileSignature(jsonlPath);
+    if (jsonlSig) return jsonlSig;
+    const metaPath = path.join(dirPath, `${baseName}.meta.json`);
+    const metaSig = fileSignature(metaPath);
+    const partsDir = path.join(dirPath, `${baseName}.parts`);
+    if (metaSig) return metaSig;
+    if (fsSync.existsSync(partsDir)) {
+      try {
+        const entries = fsSync.readdirSync(partsDir).sort();
+        if (!entries.length) return null;
+        return entries
+          .map((entry) => fileSignature(path.join(partsDir, entry)) || 'missing')
+          .join(',');
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  };
 
   const extractedProseDir = runExtractedProse
     ? resolveIndexDir(root, 'extracted-prose', userConfig)
@@ -271,8 +308,8 @@ export function getIndexSignature(options) {
   if (useSqlite) {
     const codeDir = resolveIndexDir(root, 'code', userConfig);
     const proseDir = resolveIndexDir(root, 'prose', userConfig);
-    const codeRelations = path.join(codeDir, 'file_relations.json');
-    const proseRelations = path.join(proseDir, 'file_relations.json');
+    const codeRelations = jsonlArtifactSignature(codeDir, 'file_relations');
+    const proseRelations = jsonlArtifactSignature(proseDir, 'file_relations');
     const codeLanceMeta = path.join(codeDir, 'dense_vectors.lancedb.meta.json');
     const codeLanceDocMeta = path.join(codeDir, 'dense_vectors_doc.lancedb.meta.json');
     const codeLanceCodeMeta = path.join(codeDir, 'dense_vectors_code.lancedb.meta.json');
@@ -286,8 +323,8 @@ export function getIndexSignature(options) {
       backend: backendLabel,
       code: fileSignature(sqliteCodePath),
       prose: fileSignature(sqliteProsePath),
-      codeRelations: fileSignature(codeRelations),
-      proseRelations: fileSignature(proseRelations),
+      codeRelations,
+      proseRelations,
       codeLanceMeta: fileSignature(codeLanceMeta),
       codeLanceDocMeta: fileSignature(codeLanceDocMeta),
       codeLanceCodeMeta: fileSignature(codeLanceCodeMeta),
@@ -322,8 +359,8 @@ export function getIndexSignature(options) {
   const proseLanceMeta = path.join(proseDir, 'dense_vectors.lancedb.meta.json');
   const proseLanceDocMeta = path.join(proseDir, 'dense_vectors_doc.lancedb.meta.json');
   const proseLanceCodeMeta = path.join(proseDir, 'dense_vectors_code.lancedb.meta.json');
-  const codeRelations = path.join(codeDir, 'file_relations.json');
-  const proseRelations = path.join(proseDir, 'file_relations.json');
+  const codeRelations = jsonlArtifactSignature(codeDir, 'file_relations');
+  const proseRelations = jsonlArtifactSignature(proseDir, 'file_relations');
   const recordDir = runRecords ? resolveIndexDir(root, 'records', userConfig) : null;
   const recordMeta = recordDir ? path.join(recordDir, 'chunk_meta.json') : null;
   const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
@@ -345,8 +382,8 @@ export function getIndexSignature(options) {
     proseLanceMeta: fileSignature(proseLanceMeta),
     proseLanceDocMeta: fileSignature(proseLanceDocMeta),
     proseLanceCodeMeta: fileSignature(proseLanceCodeMeta),
-    codeRelations: fileSignature(codeRelations),
-    proseRelations: fileSignature(proseRelations),
+    codeRelations,
+    proseRelations,
     extractedProse: extractedProseMeta ? fileSignature(extractedProseMeta) : null,
     extractedProseDense: extractedProseDense ? fileSignature(extractedProseDense) : null,
     extractedProseHnswMeta: extractedProseHnswMeta ? fileSignature(extractedProseHnswMeta) : null,

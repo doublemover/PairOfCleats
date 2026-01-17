@@ -120,5 +120,21 @@ export const runCrossFileInference = async ({
       fileRelations: state.fileRelations
     })
     : null;
+  if (graphRelations?.caps) {
+    const formatSamples = (samples) => (samples || [])
+      .map((sample) => {
+        const file = sample?.file || 'unknown';
+        const chunkId = sample?.chunkId ? `#${sample.chunkId}` : '';
+        return `${file}${chunkId}`;
+      })
+      .filter(Boolean)
+      .join(', ');
+    for (const [label, cap] of Object.entries(graphRelations.caps)) {
+      if (!cap?.reason) continue;
+      const sampleText = formatSamples(cap.samples);
+      const suffix = sampleText ? ` Examples: ${sampleText}` : '';
+      log(`[relations] ${label} capped (${cap.reason}).${suffix}`);
+    }
+  }
   return { crossFileEnabled, graphRelations };
 };

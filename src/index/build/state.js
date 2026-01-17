@@ -3,6 +3,31 @@ import { normalizePostingsConfig } from '../../shared/postings-config.js';
 
 const DEFAULT_POSTINGS_CONFIG = normalizePostingsConfig();
 const TOKEN_RETENTION_MODES = new Set(['full', 'sample', 'none']);
+const POSTINGS_GUARD_SAMPLES = 5;
+const POSTINGS_GUARDS = {
+  phrase: { maxUnique: 1000000, maxPerChunk: 20000 },
+  chargram: { maxUnique: 2000000, maxPerChunk: 50000 }
+};
+
+const createGuardEntry = (label, limits) => ({
+  label,
+  maxUnique: limits.maxUnique,
+  maxPerChunk: limits.maxPerChunk,
+  disabled: false,
+  reason: null,
+  dropped: 0,
+  truncatedChunks: 0,
+  samples: []
+});
+
+const recordGuardSample = (guard, context) => {
+  if (!guard || !context) return;
+  if (guard.samples.length >= POSTINGS_GUARD_SAMPLES) return;
+  guard.samples.push({
+    file: context.file || null,
+    chunkId: context.chunkId ?? null
+  });
+};
 
 // Postings maps can be extremely large (especially phrase n-grams and chargrams).
 // Storing posting lists as `Set`s is extremely memory-expensive when the vast
@@ -13,10 +38,18 @@ const TOKEN_RETENTION_MODES = new Set(['full', 'sample', 'none']);
 //   - number[]: a list of docIds in insertion order (typically increasing)
 //
 // This avoids allocating one `Set` per term.
-function appendDocIdToPostingsMap(map, key, docId) {
+function appendDocIdToPostingsMap(map, key, docId, guard = null, context = null) {
   if (!map) return;
+  if (guard?.disabled) return;
   const current = map.get(key);
   if (current === undefined) {
+    if (guard?.maxUnique && map.size >= guard.maxUnique) {
+      guard.disabled = true;
+      guard.reason = guard.reason || 'max-unique';
+      guard.dropped += 1;
+      recordGuardSample(guard, context);
+      return;
+    }
     map.set(key, docId);
     return;
   }
@@ -42,8 +75,8 @@ function appendDocIdToPostingsMap(map, key, docId) {
  * This significantly reduces transient allocation pressure compared to
  * `extractNgrams(...)`, especially for long token sequences.
  */
-function appendPhraseNgramsToPostingsMap(map, tokens, docId, minN, maxN) {
-  if (!map) return;
+function appendPhraseNgramsToPostingsMap(map, tokens, docId, minN, maxN, guard = null, context = null) {
+  if (!map || guard?.disabled) return;
   if (!Array.isArray(tokens) || tokens.length === 0) return;
   const min = Number.isFinite(minN) ? minN : 2;
   const max = Number.isFinite(maxN) ? maxN : 4;
@@ -56,6 +89,8 @@ function appendPhraseNgramsToPostingsMap(map, tokens, docId, minN, maxN) {
   const sep = '\u0001';
   const maxSpan = Math.min(max, len);
 
+  let emitted = 0;
+  const maxPerChunk = guard?.maxPerChunk || 0;
   for (let i = 0; i < len; i += 1) {
     // Build incrementally: token[i], token[i]␁token[i+1], ...
     let key = '';
@@ -70,7 +105,13 @@ function appendPhraseNgramsToPostingsMap(map, tokens, docId, minN, maxN) {
       }
       key = key ? `${key}${sep}${tok}` : String(tok);
       if (n >= min) {
-        appendDocIdToPostingsMap(map, key, docId);
+        if (maxPerChunk && emitted >= maxPerChunk) {
+          guard.truncatedChunks += 1;
+          recordGuardSample(guard, context);
+          return;
+        }
+        appendDocIdToPostingsMap(map, key, docId, guard, context);
+        emitted += 1;
       }
     }
   }
@@ -87,7 +128,7 @@ function *iteratePostingDocIds(posting) {
     return;
   }
   if (typeof posting[Symbol.iterator] === 'function') {
-    // eslint-disable-next-line no-restricted-syntax
+     
     for (const id of posting) yield id;
   }
 }
@@ -152,7 +193,11 @@ export function createIndexState() {
     scannedFilesTimes: [],
     skippedFiles: [],
     totalTokens: 0,
-    fileRelations: new Map()
+    fileRelations: new Map(),
+    postingsGuard: {
+      phrase: createGuardEntry('phrase', POSTINGS_GUARDS.phrase),
+      chargram: createGuardEntry('chargram', POSTINGS_GUARDS.chargram)
+    }
   };
 }
 
@@ -188,23 +233,34 @@ export function appendChunk(
     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
 
   state.totalTokens += seq.length;
+  const chunkId = state.chunks.length;
+  const guardContext = { file: chunk.file, chunkId };
+  const phraseGuard = state.postingsGuard?.phrase || null;
+  const chargramGuard = state.postingsGuard?.chargram || null;
 
   const charSet = new Set();
   if (chargramEnabled) {
+    const maxChargramsPerChunk = chargramGuard?.maxPerChunk || 0;
     const chargrams = Array.isArray(chunk.chargrams) && chunk.chargrams.length
       ? chunk.chargrams
       : null;
     if (chargrams) {
-      chargrams.forEach((g) => charSet.add(g));
+      for (const g of chargrams) {
+        if (maxChargramsPerChunk && charSet.size >= maxChargramsPerChunk) break;
+        charSet.add(g);
+      }
     } else {
       const addFromTokens = (tokenList) => {
         if (!Array.isArray(tokenList) || !tokenList.length) return;
-        tokenList.forEach((w) => {
+        for (const w of tokenList) {
           if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) return;
           for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) {
-            tri(w, n).forEach((g) => charSet.add(g));
+            for (const g of tri(w, n)) {
+              if (maxChargramsPerChunk && charSet.size >= maxChargramsPerChunk) return;
+              charSet.add(g);
+            }
           }
-        });
+        }
       };
 
       if (chargramSource === 'fields' && chunk.fieldTokens && typeof chunk.fieldTokens === 'object') {
@@ -229,7 +285,6 @@ export function appendChunk(
   tokens.forEach((t) => {
     freq.set(t, (freq.get(t) || 0) + 1);
   });
-  const chunkId = state.chunks.length;
 
   state.docLengths[chunkId] = tokens.length;
   for (const [tok, count] of freq.entries()) {
@@ -243,7 +298,15 @@ export function appendChunk(
 
   if (phraseEnabled) {
     if (phraseSource === 'full') {
-      appendPhraseNgramsToPostingsMap(state.phrasePost, seq, chunkId, phraseMinN, phraseMaxN);
+      appendPhraseNgramsToPostingsMap(
+        state.phrasePost,
+        seq,
+        chunkId,
+        phraseMinN,
+        phraseMaxN,
+        phraseGuard,
+        guardContext
+      );
     } else {
       const fields = chunk.fieldTokens || {};
       // IMPORTANT: Do not fall back to the full token stream here. The entire
@@ -253,13 +316,32 @@ export function appendChunk(
       for (const field of phraseFields) {
         const fieldTokens = Array.isArray(fields[field]) ? fields[field] : null;
         if (!fieldTokens || !fieldTokens.length) continue;
-        appendPhraseNgramsToPostingsMap(state.phrasePost, fieldTokens, chunkId, phraseMinN, phraseMaxN);
+        appendPhraseNgramsToPostingsMap(
+          state.phrasePost,
+          fieldTokens,
+          chunkId,
+          phraseMinN,
+          phraseMaxN,
+          phraseGuard,
+          guardContext
+        );
       }
     }
   }
   if (chargramEnabled) {
+    const maxChargrams = chargramGuard?.maxPerChunk || 0;
+    let added = 0;
     for (const tg of charSet) {
-      appendDocIdToPostingsMap(state.triPost, tg, chunkId);
+      if (chargramGuard?.disabled) break;
+      if (maxChargrams && added >= maxChargrams) {
+        if (chargramGuard) {
+          chargramGuard.truncatedChunks += 1;
+          recordGuardSample(chargramGuard, guardContext);
+        }
+        break;
+      }
+      appendDocIdToPostingsMap(state.triPost, tg, chunkId, chargramGuard, guardContext);
+      added += 1;
     }
   }
 
@@ -440,4 +522,35 @@ export function mergeIndexState(target, source) {
       target.fileRelations.set(file, relations);
     }
   }
+}
+
+const formatGuardSample = (sample) => {
+  if (!sample) return null;
+  const file = sample.file || 'unknown';
+  const chunkId = Number.isFinite(sample.chunkId) ? `#${sample.chunkId}` : '';
+  return `${file}${chunkId}`;
+};
+
+export function getPostingsGuardWarnings(state) {
+  const guards = state?.postingsGuard;
+  if (!guards) return [];
+  const warnings = [];
+  for (const guard of Object.values(guards)) {
+    if (!guard) continue;
+    const samples = (guard.samples || [])
+      .map(formatGuardSample)
+      .filter(Boolean);
+    const sampleSuffix = samples.length ? ` Examples: ${samples.join(', ')}` : '';
+    if (guard.disabled && guard.maxUnique) {
+      warnings.push(
+        `[postings] ${guard.label} postings capped at ${guard.maxUnique} unique terms; further entries skipped.${sampleSuffix}`
+      );
+    }
+    if (guard.truncatedChunks && guard.maxPerChunk) {
+      warnings.push(
+        `[postings] ${guard.label} postings truncated for ${guard.truncatedChunks} chunk(s) (limit ${guard.maxPerChunk} per chunk).${sampleSuffix}`
+      );
+    }
+  }
+  return warnings;
 }

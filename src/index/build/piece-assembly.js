@@ -1,6 +1,11 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { loadChunkMeta, loadTokenPostings, readJsonFile } from '../../shared/artifact-io.js';
+import {
+  loadChunkMeta,
+  loadJsonArrayArtifact,
+  loadTokenPostings,
+  readJsonFile
+} from '../../shared/artifact-io.js';
 import { buildFilterIndex, serializeFilterIndex } from '../../retrieval/filter-index.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { log as defaultLog } from '../../shared/progress.js';
@@ -93,7 +98,7 @@ const loadIndexArtifacts = async (dir) => {
     denseVec: readJsonOptional(dir, 'dense_vectors_uint8.json'),
     denseVecDoc: readJsonOptional(dir, 'dense_vectors_doc_uint8.json'),
     denseVecCode: readJsonOptional(dir, 'dense_vectors_code_uint8.json'),
-    fileRelations: readJsonOptional(dir, 'file_relations.json'),
+    fileRelations: await loadJsonArrayArtifact(dir, 'file_relations').catch(() => null),
     indexState: readJsonOptional(dir, 'index_state.json')
   };
 };

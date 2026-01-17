@@ -8,7 +8,13 @@ import {
   resolveSqlitePaths
 } from '../../tools/dict-utils.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
-import { loadChunkMeta, loadTokenPostings, readJsonFile } from '../shared/artifact-io.js';
+import {
+  loadChunkMeta,
+  loadGraphRelations,
+  loadJsonArrayArtifact,
+  loadTokenPostings,
+  readJsonFile
+} from '../shared/artifact-io.js';
 import { checksumFile, sha1File } from '../shared/hash.js';
 import { validateArtifact } from '../shared/artifact-schemas.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../shared/lancedb.js';
@@ -339,6 +345,23 @@ export async function validateIndexArtifacts(input = {}) {
         const partsDir = path.join(dir, 'chunk_meta.parts');
         return fs.existsSync(json) || fs.existsSync(jsonl) || fs.existsSync(meta) || fs.existsSync(partsDir);
       }
+      const hasJsonlArtifact = (baseName) => {
+        const json = path.join(dir, `${baseName}.json`);
+        const jsonl = path.join(dir, `${baseName}.jsonl`);
+        const meta = path.join(dir, `${baseName}.meta.json`);
+        const partsDir = path.join(dir, `${baseName}.parts`);
+        if (fs.existsSync(json) || fs.existsSync(`${json}.gz`)) return true;
+        return fs.existsSync(jsonl) || fs.existsSync(meta) || fs.existsSync(partsDir);
+      };
+      if (file === 'file_relations.json') {
+        return hasJsonlArtifact('file_relations');
+      }
+      if (file === 'graph_relations.json') {
+        return hasJsonlArtifact('graph_relations');
+      }
+      if (file === 'repo_map.json') {
+        return hasJsonlArtifact('repo_map');
+      }
       if (file === 'token_postings') {
         const json = path.join(dir, 'token_postings.json');
         const meta = path.join(dir, 'token_postings.meta.json');
@@ -424,15 +447,13 @@ export async function validateIndexArtifacts(input = {}) {
         }
       }
 
-      const repoMapPath = path.join(dir, 'repo_map.json');
-      if (fs.existsSync(repoMapPath) || fs.existsSync(`${repoMapPath}.gz`)) {
-        const repoMap = readJsonFile(repoMapPath);
+      const repoMap = await loadJsonArrayArtifact(dir, 'repo_map').catch(() => null);
+      if (repoMap) {
         validateSchema(report, mode, 'repo_map', repoMap, 'Rebuild index artifacts for this mode.');
       }
 
-      const graphPath = path.join(dir, 'graph_relations.json');
-      if (fs.existsSync(graphPath) || fs.existsSync(`${graphPath}.gz`)) {
-        const graphRelations = readJsonFile(graphPath);
+      const graphRelations = await loadGraphRelations(dir).catch(() => null);
+      if (graphRelations) {
         validateSchema(report, mode, 'graph_relations', graphRelations, 'Rebuild index artifacts for this mode.');
       }
 
@@ -452,9 +473,8 @@ export async function validateIndexArtifacts(input = {}) {
         validateSchema(report, mode, 'index_state', indexState, 'Rebuild index artifacts for this mode.');
       }
 
-      const relationsPath = path.join(dir, 'file_relations.json');
-      if (fs.existsSync(relationsPath)) {
-        const relations = readJsonFile(relationsPath);
+      const relations = await loadJsonArrayArtifact(dir, 'file_relations').catch(() => null);
+      if (relations) {
         validateSchema(report, mode, 'file_relations', relations, 'Rebuild index artifacts for this mode.');
       }
 

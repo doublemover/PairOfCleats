@@ -80,6 +80,138 @@ const shouldTreatAsTooLarge = (err) => {
   return message.includes('Invalid string length');
 };
 
+const formatJsonlPreview = (value, limit = 160) => {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (trimmed.length <= limit) return trimmed;
+  return `${trimmed.slice(0, limit)}...`;
+};
+
+const JSONL_REQUIRED_KEYS = Object.freeze({
+  chunk_meta: ['id', 'start', 'end'],
+  repo_map: ['file', 'name'],
+  file_relations: ['file', 'relations'],
+  graph_relations: ['graph', 'node']
+});
+
+export const resolveJsonlRequiredKeys = (baseName) => {
+  const keys = JSONL_REQUIRED_KEYS[baseName];
+  return Array.isArray(keys) && keys.length ? keys : null;
+};
+
+const GRAPH_RELATION_GRAPHS = Object.freeze(['callGraph', 'usageGraph', 'importGraph']);
+
+const createGraphPayload = (meta) => ({
+  nodeCount: Number.isFinite(meta?.nodeCount) ? meta.nodeCount : null,
+  edgeCount: Number.isFinite(meta?.edgeCount) ? meta.edgeCount : null,
+  nodes: []
+});
+
+const finalizeGraphPayload = (payload) => {
+  if (!Number.isFinite(payload.nodeCount)) {
+    payload.nodeCount = payload.nodes.length;
+  }
+  if (!Number.isFinite(payload.edgeCount)) {
+    let edgeCount = 0;
+    for (const node of payload.nodes) {
+      if (Array.isArray(node?.out)) edgeCount += node.out.length;
+    }
+    payload.edgeCount = edgeCount;
+  }
+  return payload;
+};
+
+const createGraphRelationsShell = (meta) => {
+  const graphsMeta = meta?.graphs || {};
+  const generatedAt = typeof meta?.generatedAt === 'string'
+    ? meta.generatedAt
+    : new Date().toISOString();
+  const version = Number.isFinite(meta?.version) ? meta.version : 1;
+  const payload = {
+    version,
+    generatedAt,
+    callGraph: createGraphPayload(graphsMeta.callGraph),
+    usageGraph: createGraphPayload(graphsMeta.usageGraph),
+    importGraph: createGraphPayload(graphsMeta.importGraph)
+  };
+  if (meta?.caps != null) payload.caps = meta.caps;
+  return payload;
+};
+
+const appendGraphRelationsEntries = (payload, entries, sourceLabel) => {
+  if (!Array.isArray(entries)) return;
+  for (const entry of entries) {
+    if (!entry) continue;
+    const graphName = entry.graph;
+    if (!GRAPH_RELATION_GRAPHS.includes(graphName)) {
+      const err = new Error(
+        `Invalid graph_relations entry in ${sourceLabel}: unknown graph "${graphName}"`
+      );
+      err.code = 'ERR_JSONL_INVALID';
+      throw err;
+    }
+    const node = entry.node;
+    if (!node || typeof node !== 'object' || Array.isArray(node)) {
+      const err = new Error(`Invalid graph_relations entry in ${sourceLabel}: node must be an object`);
+      err.code = 'ERR_JSONL_INVALID';
+      throw err;
+    }
+    payload[graphName].nodes.push(node);
+  }
+};
+
+const finalizeGraphRelations = (payload) => {
+  finalizeGraphPayload(payload.callGraph);
+  finalizeGraphPayload(payload.usageGraph);
+  finalizeGraphPayload(payload.importGraph);
+  return payload;
+};
+
+const toJsonlError = (filePath, lineNumber, line, detail) => {
+  const preview = formatJsonlPreview(line);
+  const suffix = preview ? ` Preview: ${preview}` : '';
+  const err = new Error(
+    `Invalid JSONL at ${filePath}:${lineNumber}: ${detail}.${suffix}`
+  );
+  err.code = 'ERR_JSONL_INVALID';
+  return err;
+};
+
+export const parseJsonlLine = (line, targetPath, lineNumber, maxBytes, requiredKeys = null) => {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  const byteLength = Buffer.byteLength(trimmed, 'utf8');
+  if (byteLength > maxBytes) {
+    throw toJsonTooLargeError(targetPath, byteLength);
+  }
+  const firstChar = trimmed[0];
+  if (firstChar === '[' || firstChar === ']') {
+    throw toJsonlError(targetPath, lineNumber, trimmed, 'JSON array fragments are not valid JSONL entries');
+  }
+  let parsed = null;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (err) {
+    throw toJsonlError(targetPath, lineNumber, trimmed, err?.message || 'JSON parse error');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw toJsonlError(targetPath, lineNumber, trimmed, 'JSONL entries must be objects');
+  }
+  if (Array.isArray(requiredKeys) && requiredKeys.length) {
+    const missingKeys = requiredKeys.filter((key) => !Object.prototype.hasOwnProperty.call(parsed, key));
+    if (missingKeys.length) {
+      throw toJsonlError(
+        targetPath,
+        lineNumber,
+        trimmed,
+        `Missing required keys: ${missingKeys.join(', ')}`
+      );
+    }
+  }
+  return parsed;
+};
+
 const shouldAbortForHeap = (bytes) => {
   try {
     const stats = getHeapStatistics();
@@ -176,22 +308,10 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   throw new Error(`Missing JSON artifact: ${filePath}`);
 };
 
-export const readJsonLinesArray = async (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
-  const parseLine = (line, targetPath) => {
-    const trimmed = line.trim();
-    if (!trimmed) return null;
-    if (trimmed.length > maxBytes) {
-      throw toJsonTooLargeError(targetPath, trimmed.length);
-    }
-    try {
-      return JSON.parse(trimmed);
-    } catch (err) {
-      if (shouldTreatAsTooLarge(err)) {
-        throw toJsonTooLargeError(targetPath, trimmed.length);
-      }
-      throw err;
-    }
-  };
+export const readJsonLinesArray = async (
+  filePath,
+  { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
+) => {
   const tryRead = async (targetPath, cleanup = false) => {
     const stat = fs.statSync(targetPath);
     if (stat.size > maxBytes) {
@@ -200,9 +320,11 @@ export const readJsonLinesArray = async (filePath, { maxBytes = MAX_JSON_BYTES }
     const parsed = [];
     const stream = fs.createReadStream(targetPath, { encoding: 'utf8' });
     const rl = createInterface({ input: stream, crlfDelay: Infinity });
+    let lineNumber = 0;
     try {
       for await (const line of rl) {
-        const entry = parseLine(line, targetPath);
+        lineNumber += 1;
+        const entry = parseJsonlLine(line, targetPath, lineNumber, maxBytes, requiredKeys);
         if (entry !== null) parsed.push(entry);
       }
     } catch (err) {
@@ -234,9 +356,15 @@ export const readJsonLinesArray = async (filePath, { maxBytes = MAX_JSON_BYTES }
   throw new Error(`Missing JSONL artifact: ${filePath}`);
 };
 
-export const readJsonLinesArraySync = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
-  const cached = readCache(filePath);
-  if (cached) return cached;
+export const readJsonLinesArraySync = (
+  filePath,
+  { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
+) => {
+  const useCache = !requiredKeys;
+  if (useCache) {
+    const cached = readCache(filePath);
+    if (cached) return cached;
+  }
   const tryRead = (targetPath, cleanup = false) => {
     const stat = fs.statSync(targetPath);
     if (stat.size > maxBytes) {
@@ -252,12 +380,15 @@ export const readJsonLinesArraySync = (filePath, { maxBytes = MAX_JSON_BYTES } =
       throw err;
     }
     if (!raw.trim()) return [];
-    const parsed = raw
-      .split(/\r?\n/)
-      .filter((line) => line.trim().length > 0)
-      .map((line) => JSON.parse(line));
+    const parsed = [];
+    const lines = raw.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i += 1) {
+      const lineNumber = i + 1;
+      const entry = parseJsonlLine(lines[i], targetPath, lineNumber, maxBytes, requiredKeys);
+      if (entry !== null) parsed.push(entry);
+    }
     if (cleanup) cleanupBak(targetPath);
-    writeCache(targetPath, parsed);
+    if (useCache) writeCache(targetPath, parsed);
     return parsed;
   };
   const bakPath = getBakPath(filePath);
@@ -288,9 +419,145 @@ const readShardFiles = (dir, prefix) => {
 
 const existsOrBak = (filePath) => fs.existsSync(filePath) || fs.existsSync(getBakPath(filePath));
 
+const resolveJsonlArtifactSources = (dir, baseName) => {
+  const metaPath = path.join(dir, `${baseName}.meta.json`);
+  const partsDir = path.join(dir, `${baseName}.parts`);
+  if (existsOrBak(metaPath) || fs.existsSync(partsDir)) {
+    let parts = [];
+    if (existsOrBak(metaPath)) {
+      try {
+        const meta = readJsonFile(metaPath, { maxBytes: MAX_JSON_BYTES });
+        if (Array.isArray(meta?.parts) && meta.parts.length) {
+          parts = meta.parts.map((name) => path.join(dir, name));
+        }
+      } catch {}
+    }
+    if (!parts.length) {
+      parts = readShardFiles(partsDir, `${baseName}.part-`);
+    }
+    return parts.length ? { format: 'jsonl', paths: parts } : null;
+  }
+  const jsonlPath = path.join(dir, `${baseName}.jsonl`);
+  if (existsOrBak(jsonlPath)) {
+    return { format: 'jsonl', paths: [jsonlPath] };
+  }
+  return null;
+};
+
+export const loadJsonArrayArtifact = async (
+  dir,
+  baseName,
+  { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
+) => {
+  const sources = resolveJsonlArtifactSources(dir, baseName);
+  const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
+  if (sources?.paths?.length) {
+    const out = [];
+    for (const partPath of sources.paths) {
+      const part = await readJsonLinesArray(partPath, { maxBytes, requiredKeys: resolvedKeys });
+      for (const entry of part) out.push(entry);
+    }
+    return out;
+  }
+  const jsonPath = path.join(dir, `${baseName}.json`);
+  if (existsOrBak(jsonPath)) {
+    return readJsonFile(jsonPath, { maxBytes });
+  }
+  throw new Error(`Missing index artifact: ${baseName}.json`);
+};
+
+export const loadJsonArrayArtifactSync = (
+  dir,
+  baseName,
+  { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
+) => {
+  const sources = resolveJsonlArtifactSources(dir, baseName);
+  const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
+  if (sources?.paths?.length) {
+    const out = [];
+    for (const partPath of sources.paths) {
+      const part = readJsonLinesArraySync(partPath, { maxBytes, requiredKeys: resolvedKeys });
+      for (const entry of part) out.push(entry);
+    }
+    return out;
+  }
+  const jsonPath = path.join(dir, `${baseName}.json`);
+  if (existsOrBak(jsonPath)) {
+    return readJsonFile(jsonPath, { maxBytes });
+  }
+  throw new Error(`Missing index artifact: ${baseName}.json`);
+};
+
+export const loadGraphRelations = async (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
+  const metaPath = path.join(dir, 'graph_relations.meta.json');
+  const partsDir = path.join(dir, 'graph_relations.parts');
+  const requiredKeys = resolveJsonlRequiredKeys('graph_relations');
+  if (existsOrBak(metaPath) || fs.existsSync(partsDir)) {
+    const meta = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
+    const parts = Array.isArray(meta?.parts) && meta.parts.length
+      ? meta.parts.map((name) => path.join(dir, name))
+      : readShardFiles(partsDir, 'graph_relations.part-');
+    if (!parts.length) {
+      throw new Error(`Missing graph_relations shard files in ${partsDir}`);
+    }
+    const payload = createGraphRelationsShell(meta);
+    for (const partPath of parts) {
+      const entries = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
+      appendGraphRelationsEntries(payload, entries, partPath);
+    }
+    return finalizeGraphRelations(payload);
+  }
+  const jsonlPath = path.join(dir, 'graph_relations.jsonl');
+  if (existsOrBak(jsonlPath)) {
+    const payload = createGraphRelationsShell(null);
+    const entries = await readJsonLinesArray(jsonlPath, { maxBytes, requiredKeys });
+    appendGraphRelationsEntries(payload, entries, jsonlPath);
+    return finalizeGraphRelations(payload);
+  }
+  const jsonPath = path.join(dir, 'graph_relations.json');
+  if (existsOrBak(jsonPath)) {
+    return readJsonFile(jsonPath, { maxBytes });
+  }
+  throw new Error('Missing index artifact: graph_relations.json');
+};
+
+export const loadGraphRelationsSync = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
+  const metaPath = path.join(dir, 'graph_relations.meta.json');
+  const partsDir = path.join(dir, 'graph_relations.parts');
+  const requiredKeys = resolveJsonlRequiredKeys('graph_relations');
+  if (existsOrBak(metaPath) || fs.existsSync(partsDir)) {
+    const meta = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
+    const parts = Array.isArray(meta?.parts) && meta.parts.length
+      ? meta.parts.map((name) => path.join(dir, name))
+      : readShardFiles(partsDir, 'graph_relations.part-');
+    if (!parts.length) {
+      throw new Error(`Missing graph_relations shard files in ${partsDir}`);
+    }
+    const payload = createGraphRelationsShell(meta);
+    for (const partPath of parts) {
+      const entries = readJsonLinesArraySync(partPath, { maxBytes, requiredKeys });
+      appendGraphRelationsEntries(payload, entries, partPath);
+    }
+    return finalizeGraphRelations(payload);
+  }
+  const jsonlPath = path.join(dir, 'graph_relations.jsonl');
+  if (existsOrBak(jsonlPath)) {
+    const payload = createGraphRelationsShell(null);
+    const entries = readJsonLinesArraySync(jsonlPath, { maxBytes, requiredKeys });
+    appendGraphRelationsEntries(payload, entries, jsonlPath);
+    return finalizeGraphRelations(payload);
+  }
+  const jsonPath = path.join(dir, 'graph_relations.json');
+  if (existsOrBak(jsonPath)) {
+    return readJsonFile(jsonPath, { maxBytes });
+  }
+  throw new Error('Missing index artifact: graph_relations.json');
+};
+
 export const loadChunkMeta = async (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const metaPath = path.join(dir, 'chunk_meta.meta.json');
   const partsDir = path.join(dir, 'chunk_meta.parts');
+  const requiredKeys = resolveJsonlRequiredKeys('chunk_meta');
   if (existsOrBak(metaPath) || fs.existsSync(partsDir)) {
     const meta = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
     const parts = Array.isArray(meta?.parts) && meta.parts.length
@@ -301,14 +568,14 @@ export const loadChunkMeta = async (dir, { maxBytes = MAX_JSON_BYTES } = {}) => 
     }
     const out = [];
     for (const partPath of parts) {
-      const part = await readJsonLinesArray(partPath, { maxBytes });
+      const part = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
       for (const entry of part) out.push(entry);
     }
     return out;
   }
   const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
   if (existsOrBak(jsonlPath)) {
-    return readJsonLinesArray(jsonlPath, { maxBytes });
+    return readJsonLinesArray(jsonlPath, { maxBytes, requiredKeys });
   }
   const jsonPath = path.join(dir, 'chunk_meta.json');
   if (existsOrBak(jsonPath)) {

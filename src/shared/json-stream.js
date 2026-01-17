@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
+import path from 'node:path';
 import { once } from 'node:events';
 import { Transform } from 'node:stream';
 import { Gzip } from 'fflate';
@@ -231,6 +232,83 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
   }
   stream.end();
   await done;
+}
+
+/**
+ * Stream JSON lines into sharded JSONL files.
+ * @param {{dir:string,partsDirName:string,partPrefix:string,items:Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean}} input
+ * @returns {Promise<{parts:string[],counts:number[],total:number,totalBytes:number,partsDir:string}>}
+ */
+export async function writeJsonLinesSharded(input) {
+  const {
+    dir,
+    partsDirName,
+    partPrefix,
+    items,
+    maxBytes,
+    maxItems = 0,
+    atomic = false
+  } = input || {};
+  const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
+  const resolvedMaxItems = Number.isFinite(Number(maxItems)) ? Math.max(0, Math.floor(Number(maxItems))) : 0;
+  const partsDir = path.join(dir, partsDirName);
+  await fsPromises.rm(partsDir, { recursive: true, force: true });
+  await fsPromises.mkdir(partsDir, { recursive: true });
+
+  const parts = [];
+  const counts = [];
+  let total = 0;
+  let totalBytes = 0;
+  let partIndex = -1;
+  let partCount = 0;
+  let partBytes = 0;
+  let current = null;
+
+  const closePart = async () => {
+    if (!current) return;
+    current.stream.end();
+    await current.done;
+    current = null;
+  };
+
+  const openPart = () => {
+    partIndex += 1;
+    partCount = 0;
+    partBytes = 0;
+    const partName = `${partPrefix}${String(partIndex).padStart(5, '0')}.jsonl`;
+    const absPath = path.join(partsDir, partName);
+    const relPath = path.posix.join(partsDirName, partName);
+    parts.push(relPath);
+    counts.push(0);
+    current = createJsonWriteStream(absPath, { atomic });
+  };
+
+  for (const item of items) {
+    const line = JSON.stringify(item);
+    const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
+    if (resolvedMaxBytes && lineBytes > resolvedMaxBytes) {
+      throw new Error(
+        `JSONL entry exceeds maxBytes (${lineBytes} > ${resolvedMaxBytes}) in ${partsDirName}`
+      );
+    }
+    const needsNewPart = current
+      && ((resolvedMaxItems && partCount >= resolvedMaxItems)
+        || (resolvedMaxBytes && (partBytes + lineBytes) > resolvedMaxBytes));
+    if (!current || needsNewPart) {
+      await closePart();
+      openPart();
+    }
+    await writeChunk(current.stream, line);
+    await writeChunk(current.stream, '\n');
+    partCount += 1;
+    partBytes += lineBytes;
+    total += 1;
+    totalBytes += lineBytes;
+    counts[counts.length - 1] = partCount;
+  }
+  await closePart();
+
+  return { parts, counts, total, totalBytes, partsDir };
 }
 
 /**

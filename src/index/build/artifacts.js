@@ -2,7 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { log } from '../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io.js';
-import { writeJsonArrayFile, writeJsonObjectFile } from '../../shared/json-stream.js';
+import {
+  writeJsonArrayFile,
+  writeJsonLinesSharded,
+  writeJsonObjectFile
+} from '../../shared/json-stream.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { resolveCompressionConfig } from './artifacts/compression.js';
@@ -93,6 +97,70 @@ export async function writeIndexArtifacts(input) {
     chunks: state.chunks,
     fileRelations: state.fileRelations
   });
+  const graphRelationGraphs = ['callGraph', 'usageGraph', 'importGraph'];
+  const createGraphRelationsIterator = (relations) => function* graphRelationsIterator() {
+    if (!relations || typeof relations !== 'object') return;
+    for (const graphName of graphRelationGraphs) {
+      const graph = relations[graphName];
+      const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+      for (const node of nodes) {
+        if (!node || typeof node !== 'object' || Array.isArray(node)) continue;
+        yield { graph: graphName, node };
+      }
+    }
+  };
+  const measureGraphRelations = (relations) => {
+    if (!relations || typeof relations !== 'object') return null;
+    const graphs = {};
+    const graphSizes = {};
+    let totalJsonlBytes = 0;
+    let totalEntries = 0;
+    for (const graphName of graphRelationGraphs) {
+      const graph = relations[graphName] || {};
+      const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+      const nodeCount = Number.isFinite(graph.nodeCount) ? graph.nodeCount : nodes.length;
+      const edgeCount = Number.isFinite(graph.edgeCount)
+        ? graph.edgeCount
+        : nodes.reduce((sum, node) => sum + (Array.isArray(node?.out) ? node.out.length : 0), 0);
+      graphs[graphName] = { nodeCount, edgeCount };
+      let nodesBytes = 0;
+      for (let i = 0; i < nodes.length; i += 1) {
+        const node = nodes[i];
+        const nodeJson = JSON.stringify(node);
+        nodesBytes += Buffer.byteLength(nodeJson, 'utf8') + (i > 0 ? 1 : 0);
+        const line = JSON.stringify({ graph: graphName, node });
+        const lineBytes = Buffer.byteLength(line, 'utf8');
+        if (maxJsonBytes && (lineBytes + 1) > maxJsonBytes) {
+          throw new Error(`graph_relations entry exceeds max JSON size (${lineBytes} bytes).`);
+        }
+        totalJsonlBytes += lineBytes + 1;
+        totalEntries += 1;
+      }
+      const baseGraphBytes = Buffer.byteLength(
+        JSON.stringify({ nodeCount, edgeCount, nodes: [] }),
+        'utf8'
+      );
+      graphSizes[graphName] = baseGraphBytes + nodesBytes;
+    }
+    const version = Number.isFinite(relations.version) ? relations.version : 1;
+    const generatedAt = typeof relations.generatedAt === 'string'
+      ? relations.generatedAt
+      : new Date().toISOString();
+    const basePayload = {
+      version,
+      generatedAt,
+      callGraph: {},
+      usageGraph: {},
+      importGraph: {}
+    };
+    if (relations.caps !== undefined) basePayload.caps = relations.caps;
+    const baseBytes = Buffer.byteLength(JSON.stringify(basePayload), 'utf8');
+    const totalJsonBytes = baseBytes
+      + graphSizes.callGraph - 2
+      + graphSizes.usageGraph - 2
+      + graphSizes.importGraph - 2;
+    return { totalJsonBytes, totalJsonlBytes, totalEntries, graphs, version, generatedAt };
+  };
 
   const fileListConfig = userConfig?.indexing || {};
   const debugFileLists = fileListConfig.debugFileLists === true;
@@ -381,10 +449,81 @@ export async function writeIndexArtifacts(input) {
     addPieceFile,
     formatArtifactLabel
   });
-  enqueueJsonArray('repo_map', repoMapIterator(), {
-    compressible: false,
-    piece: { type: 'chunks', name: 'repo_map' }
-  });
+  const repoMapMeasurement = (() => {
+    let totalEntries = 0;
+    let totalBytes = 2;
+    let totalJsonlBytes = 0;
+    for (const entry of repoMapIterator()) {
+      const line = JSON.stringify(entry);
+      const lineBytes = Buffer.byteLength(line, 'utf8');
+      if (maxJsonBytes && (lineBytes + 1) > maxJsonBytes) {
+        throw new Error(`repo_map entry exceeds max JSON size (${lineBytes} bytes).`);
+      }
+      totalBytes += lineBytes + (totalEntries > 0 ? 1 : 0);
+      totalJsonlBytes += lineBytes + 1;
+      totalEntries += 1;
+    }
+    return { totalEntries, totalBytes, totalJsonlBytes };
+  })();
+  const useRepoMapJsonl = repoMapMeasurement.totalEntries
+    && maxJsonBytes
+    && repoMapMeasurement.totalBytes > maxJsonBytes;
+  const repoMapPath = path.join(outDir, 'repo_map.json');
+  const repoMapJsonlPath = path.join(outDir, 'repo_map.jsonl');
+  const repoMapMetaPath = path.join(outDir, 'repo_map.meta.json');
+  const repoMapPartsDir = path.join(outDir, 'repo_map.parts');
+  if (!useRepoMapJsonl) {
+    enqueueWrite(
+      formatArtifactLabel(repoMapPath),
+      async () => {
+        await removeArtifact(repoMapJsonlPath);
+        await removeArtifact(repoMapMetaPath);
+        await removeArtifact(repoMapPartsDir);
+        await writeJsonArrayFile(repoMapPath, repoMapIterator(), { atomic: true });
+      }
+    );
+    addPieceFile({ type: 'chunks', name: 'repo_map', format: 'json' }, repoMapPath);
+  } else {
+    log(`repo_map ~${Math.round(repoMapMeasurement.totalJsonlBytes / 1024)}KB; writing JSONL shards.`);
+    enqueueWrite(
+      formatArtifactLabel(repoMapMetaPath),
+      async () => {
+        await removeArtifact(repoMapPath);
+        await removeArtifact(repoMapJsonlPath);
+        const result = await writeJsonLinesSharded({
+          dir: outDir,
+          partsDirName: 'repo_map.parts',
+          partPrefix: 'repo_map.part-',
+          items: repoMapIterator(),
+          maxBytes: maxJsonBytes,
+          atomic: true
+        });
+        const shardSize = result.counts.length
+          ? Math.max(...result.counts)
+          : null;
+        await writeJsonObjectFile(repoMapMetaPath, {
+          fields: {
+            format: 'jsonl',
+            shardSize,
+            totalEntries: result.total,
+            parts: result.parts
+          },
+          atomic: true
+        });
+        for (let i = 0; i < result.parts.length; i += 1) {
+          const relPath = result.parts[i];
+          const absPath = path.join(outDir, relPath.split('/').join(path.sep));
+          addPieceFile({
+            type: 'chunks',
+            name: 'repo_map',
+            format: 'jsonl',
+            count: result.counts[i] || 0
+          }, absPath);
+        }
+        addPieceFile({ type: 'chunks', name: 'repo_map_meta', format: 'json' }, repoMapMetaPath);
+      }
+    );
+  }
   if (filterIndex) {
     enqueueJsonObject('filter_index', { fields: filterIndex }, {
       compressible: false,
@@ -474,15 +613,80 @@ export async function writeIndexArtifacts(input) {
   enqueueFileRelationsArtifacts({
     state,
     outDir,
+    maxJsonBytes,
+    log,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel
   });
   if (graphRelations && typeof graphRelations === 'object') {
-    enqueueJsonObject('graph_relations', { fields: graphRelations }, {
-      compressible: false,
-      piece: { type: 'relations', name: 'graph_relations' }
-    });
+    const graphMeasurement = measureGraphRelations(graphRelations);
+    if (graphMeasurement) {
+      const graphPath = path.join(outDir, 'graph_relations.json');
+      const graphJsonlPath = path.join(outDir, 'graph_relations.jsonl');
+      const graphMetaPath = path.join(outDir, 'graph_relations.meta.json');
+      const graphPartsDir = path.join(outDir, 'graph_relations.parts');
+      const useGraphJsonl = maxJsonBytes && graphMeasurement.totalJsonBytes > maxJsonBytes;
+      if (!useGraphJsonl) {
+        enqueueWrite(
+          formatArtifactLabel(graphPath),
+          async () => {
+            await removeArtifact(graphJsonlPath);
+            await removeArtifact(graphMetaPath);
+            await removeArtifact(graphPartsDir);
+            await writeJsonObjectFile(graphPath, { fields: graphRelations, atomic: true });
+          }
+        );
+        addPieceFile({ type: 'relations', name: 'graph_relations', format: 'json' }, graphPath);
+      } else {
+        log(
+          `graph_relations ~${Math.round(graphMeasurement.totalJsonlBytes / 1024)}KB; ` +
+          'writing JSONL shards.'
+        );
+        enqueueWrite(
+          formatArtifactLabel(graphMetaPath),
+          async () => {
+            await removeArtifact(graphPath);
+            await removeArtifact(graphJsonlPath);
+            const result = await writeJsonLinesSharded({
+              dir: outDir,
+              partsDirName: 'graph_relations.parts',
+              partPrefix: 'graph_relations.part-',
+              items: createGraphRelationsIterator(graphRelations)(),
+              maxBytes: maxJsonBytes,
+              atomic: true
+            });
+            const shardSize = result.counts.length
+              ? Math.max(...result.counts)
+              : null;
+            await writeJsonObjectFile(graphMetaPath, {
+              fields: {
+                format: 'jsonl',
+                version: graphMeasurement.version,
+                generatedAt: graphMeasurement.generatedAt,
+                graphs: graphMeasurement.graphs,
+                caps: graphRelations.caps ?? null,
+                shardSize,
+                totalEntries: result.total,
+                parts: result.parts
+              },
+              atomic: true
+            });
+            for (let i = 0; i < result.parts.length; i += 1) {
+              const relPath = result.parts[i];
+              const absPath = path.join(outDir, relPath.split('/').join(path.sep));
+              addPieceFile({
+                type: 'relations',
+                name: 'graph_relations',
+                format: 'jsonl',
+                count: result.counts[i] || 0
+              }, absPath);
+            }
+            addPieceFile({ type: 'relations', name: 'graph_relations_meta', format: 'json' }, graphMetaPath);
+          }
+        );
+      }
+    }
   }
   if (resolvedConfig.enablePhraseNgrams !== false) {
     enqueueJsonObject('phrase_ngrams', {

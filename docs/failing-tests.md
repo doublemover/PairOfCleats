@@ -17,3 +17,11 @@ This file tracks tests that are currently gated due to failures.
 - Context: occurs after worker tokenization fallback in the languages fixture while indexing code files.
 - Logs: `tests/.logs/2026-01-03T03-29-47-495Z/fixture-parity.attempt-1.log`
 - Next steps: capture crash stack with `node --trace-uncaught` and isolate worker pool/tokenization failure in language fixture.
+
+## sqlite-build-indexes-test
+- Status: flaky (non-gated); observed hang during stage2 build.
+- First seen: 2026-01-17
+- Symptom: `tests/sqlite-build-indexes.js` stalls with `build_state.json` showing `stage2` running and heartbeat advancing.
+- Context: repro when running full `build_index.js` prior to SQLite build; stage1-only run completes quickly.
+- Logs: `tests/.cache/sqlite-build-indexes/cache/repos/.../build_state.json`
+- Next steps: keep stage1-only setup in the test; investigate stage2 stall separately if it recurs.

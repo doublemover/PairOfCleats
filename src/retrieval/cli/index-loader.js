@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadIndexWithCache } from '../index-cache.js';
-import { MAX_JSON_BYTES, readJsonFile } from '../../shared/artifact-io.js';
+import { MAX_JSON_BYTES, loadJsonArrayArtifactSync } from '../../shared/artifact-io.js';
 import { resolveIndexDir } from '../cli-index.js';
 
 export function hasLmdbStore(storePath) {
@@ -71,9 +71,7 @@ export function resolveDenseVector(idx, mode, denseVectorMode) {
 export function loadFileRelations(rootDir, userConfig, mode) {
   try {
     const dir = resolveIndexDir(rootDir, mode, userConfig);
-    const relPath = path.join(dir, 'file_relations.json');
-    if (!fs.existsSync(relPath)) return null;
-    const raw = readJsonFile(relPath, { maxBytes: MAX_JSON_BYTES });
+    const raw = loadJsonArrayArtifactSync(dir, 'file_relations', { maxBytes: MAX_JSON_BYTES });
     if (!Array.isArray(raw)) return null;
     const map = new Map();
     for (const entry of raw) {
@@ -89,9 +87,7 @@ export function loadFileRelations(rootDir, userConfig, mode) {
 export function loadRepoMap(rootDir, userConfig, mode) {
   try {
     const dir = resolveIndexDir(rootDir, mode, userConfig);
-    const mapPath = path.join(dir, 'repo_map.json');
-    if (!fs.existsSync(mapPath)) return null;
-    const raw = readJsonFile(mapPath, { maxBytes: MAX_JSON_BYTES });
+    const raw = loadJsonArrayArtifactSync(dir, 'repo_map', { maxBytes: MAX_JSON_BYTES });
     return Array.isArray(raw) ? raw : null;
   } catch {
     return null;
