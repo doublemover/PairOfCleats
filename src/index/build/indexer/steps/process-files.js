@@ -8,6 +8,7 @@ import { log, logLine, showProgress } from '../../../../shared/progress.js';
 import {
   preloadTreeSitterLanguages,
   pruneTreeSitterLanguages,
+  resetTreeSitterParser,
   TREE_SITTER_LANGUAGE_IDS
 } from '../../../../lang/tree-sitter.js';
 import { createBuildCheckpoint } from '../../build-state.js';
@@ -493,6 +494,7 @@ export const processFiles = async ({
         const deferred = [];
         for (const batch of entryBatches) {
           if (treeSitterOptions?.enabled !== false && Array.isArray(batch.languages) && batch.languages.length) {
+            resetTreeSitterParser({ hard: true });
             pruneTreeSitterLanguages(batch.languages, { log });
           }
           await preloadTreeSitterBatch({ languages: batch.languages, treeSitter: treeSitterOptions, log });

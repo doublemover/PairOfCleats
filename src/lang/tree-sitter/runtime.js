@@ -351,6 +351,24 @@ export function pruneTreeSitterLanguages(keepLanguages = [], options = {}) {
   return { removed, kept: treeSitterState.wasmLanguageCache.size };
 }
 
+export function resetTreeSitterParser({ hard = false } = {}) {
+  if (!treeSitterState.sharedParser) return;
+  try {
+    treeSitterState.sharedParser.reset?.();
+  } catch {
+    // ignore reset failures
+  }
+  if (hard) {
+    try {
+      treeSitterState.sharedParser.delete?.();
+    } catch {
+      // ignore delete failures
+    }
+    treeSitterState.sharedParser = null;
+    treeSitterState.sharedParserLanguageId = null;
+  }
+}
+
 function touchParserCacheEntry(languageId) {
   // Map iteration order is insertion order; re-insert to mark as most-recently-used.
   if (!treeSitterState.parserCache.has(languageId)) return;

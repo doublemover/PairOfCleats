@@ -3,6 +3,7 @@ export {
   initTreeSitterWasm,
   preloadTreeSitterLanguages,
   pruneTreeSitterLanguages,
+  resetTreeSitterParser,
   getTreeSitterParser
 } from './tree-sitter/runtime.js';
 export { shutdownTreeSitterWorkerPool } from './tree-sitter/worker.js';
