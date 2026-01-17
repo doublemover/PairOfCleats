@@ -9,6 +9,7 @@ import {
 } from './caps.js';
 
 const DEFAULT_MAX_LOADED_LANGUAGES = 3;
+const DEFAULT_MAX_LOADED_LANGUAGES_WITH_PASSES = 1;
 const DEFAULT_DEFER_MISSING_MAX = 2;
 
 const normalizePreloadMode = (raw) => {
@@ -62,9 +63,12 @@ export const resolveTreeSitterRuntime = (indexingConfig) => {
   // Optional cap for the number of loaded WASM grammars retained in memory.
   // When null, the tree-sitter runtime will use its conservative internal defaults.
   const hasMaxLoadedLanguages = Object.prototype.hasOwnProperty.call(treeSitterConfig, 'maxLoadedLanguages');
+  const defaultMaxLoadedLanguages = treeSitterLanguagePasses
+    ? DEFAULT_MAX_LOADED_LANGUAGES_WITH_PASSES
+    : DEFAULT_MAX_LOADED_LANGUAGES;
   const treeSitterMaxLoadedLanguages = hasMaxLoadedLanguages
     ? normalizeOptionalLimit(treeSitterConfig.maxLoadedLanguages)
-    : DEFAULT_MAX_LOADED_LANGUAGES;
+    : defaultMaxLoadedLanguages;
 
   return {
     treeSitterEnabled,
