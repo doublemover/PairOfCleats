@@ -250,6 +250,23 @@ function readSignatureLines(lines, startLine) {
   return { signature, endLine, hasBody };
 }
 
+function findCLikeDocStartLine(lines, startLineIdx) {
+  let idx = startLineIdx;
+  while (idx > 0) {
+    const prev = (lines[idx - 1] || '').trim();
+    if (!prev) {
+      idx--;
+      continue;
+    }
+    if (/^template\b/.test(prev) || /^\[\[/.test(prev) || /^__attribute__\b/.test(prev)) {
+      idx--;
+      continue;
+    }
+    break;
+  }
+  return idx;
+}
+
 /**
  * Collect #include imports from C-like source.
  * @param {string} text
@@ -328,6 +345,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
     const end = bounds.bodyEnd > start ? bounds.bodyEnd : bounds.bodyStart;
     const endLine = offsetToLine(lineIndex, end);
     const kind = CLIKE_TYPE_MAP[match[2]] || 'ClassDeclaration';
+    const docLine = findCLikeDocStartLine(lines, startLine - 1);
     addDecl({
       start,
       end,
@@ -338,7 +356,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
         endLine,
         signature,
         modifiers: extractCLikeModifiers(signature),
-        docstring: extractDocComment(lines, startLine - 1),
+        docstring: extractDocComment(lines, docLine),
         conforms: extractObjcConforms(signature)
       }
     }, true);
@@ -355,6 +373,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
       const name = normalizeCLikeTypeName(match[2]);
       if (!name) continue;
       const kind = OBJC_TYPE_MAP[match[1]] || 'InterfaceDeclaration';
+      const docLine = findCLikeDocStartLine(lines, startLine - 1);
       addDecl({
         start,
         end: end > start ? end : start,
@@ -364,7 +383,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
           startLine,
           endLine,
           signature,
-          docstring: extractDocComment(lines, startLine - 1),
+          docstring: extractDocComment(lines, docLine),
           conforms: extractObjcConforms(signature)
         }
       }, true);
@@ -404,6 +423,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
       const parent = findParent(start, new Set(['InterfaceDeclaration', 'ImplementationDeclaration', 'ProtocolDeclaration']));
       const name = parent && parent.name ? `${parent.name}.${selector}` : selector;
       const modifiers = trimmed.startsWith('+') ? ['class'] : [];
+      const docLine = findCLikeDocStartLine(lines, i);
       addDecl({
         start,
         end,
@@ -415,7 +435,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
           signature,
           params: extractObjcParams(signature),
           returns: extractObjcReturns(signature),
-          docstring: extractDocComment(lines, i),
+          docstring: extractDocComment(lines, docLine),
           attributes: collectAttributes(lines, i, signature),
           modifiers
         }
@@ -449,6 +469,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
     if (parent && parent.name && !name.includes('::')) {
       name = `${parent.name}.${name}`;
     }
+    const docLine = findCLikeDocStartLine(lines, i);
     addDecl({
       start,
       end,
@@ -461,7 +482,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
         params: extractCLikeParams(signature),
         returns,
         modifiers: extractCLikeModifiers(signature),
-        docstring: extractDocComment(lines, i)
+        docstring: extractDocComment(lines, docLine)
       }
     });
     i = endLine;

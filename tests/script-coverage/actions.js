@@ -230,6 +230,16 @@ const actions = [
     covers: []
   },
   {
+    label: 'ruby-end-comment-test',
+    run: () => runNode('ruby-end-comment-test', path.join(root, 'tests', 'ruby-end-comment.js')),
+    covers: []
+  },
+  {
+    label: 'php-methods-unique-test',
+    run: () => runNode('php-methods-unique-test', path.join(root, 'tests', 'php-methods-unique.js')),
+    covers: []
+  },
+  {
     label: 'segment-pipeline-test',
     run: () => runNode('segment-pipeline-test', path.join(root, 'tests', 'segment-pipeline.js')),
     covers: []

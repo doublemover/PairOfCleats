@@ -162,6 +162,10 @@ export function buildPhpChunks(text) {
   const lines = text.split('\n');
   const decls = [];
   const typeDecls = [];
+  const isInsideType = (offset) => typeDecls.some((entry) =>
+    Number.isFinite(entry?.start) && Number.isFinite(entry?.end) &&
+    entry.start < offset && entry.end > offset
+  );
 
   const typeRe = /^\s*(?:#[^\n]*\s*)?(?:(?:abstract|final|public|protected|private)\s+)*(class|interface|trait)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   const funcRe = /^\s*(?:#[^\n]*\s*)?(?:(?:public|protected|private|static)\s+)*function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
@@ -201,6 +205,7 @@ export function buildPhpChunks(text) {
     match = trimmed.match(funcRe);
     if (match) {
       const start = lineIndex[i] + line.indexOf(match[0]);
+      if (isInsideType(start)) continue;
       const { signature, endLine, hasBody } = readSignatureLines(lines, i);
       const bounds = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
       const end = bounds.bodyEnd > start ? bounds.bodyEnd : lineIndex[endLine] + lines[endLine].length;
