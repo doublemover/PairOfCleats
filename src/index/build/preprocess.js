@@ -7,6 +7,7 @@ import { toPosix } from '../../shared/files.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import { createFileScanner, readFileSample } from './file-scan.js';
 import { discoverEntries } from './discover.js';
+import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
 
 const normalizeLimit = (value, fallback) => {
   const parsed = Number(value);
@@ -45,8 +46,11 @@ const resolveMaxLines = ({ ext, lang }, fileCaps) => {
 const isSupportedEntry = (entry, mode) => {
   if (!entry) return false;
   if (mode === 'code') return EXTS_CODE.has(entry.ext) || entry.isSpecial;
-  if (mode === 'extracted-prose') return EXTS_CODE.has(entry.ext) || entry.isSpecial;
+  if (mode === 'extracted-prose') {
+    return EXTS_CODE.has(entry.ext) || EXTS_PROSE.has(entry.ext) || entry.isSpecial;
+  }
   if (mode === 'prose') return EXTS_PROSE.has(entry.ext);
+  if (mode === 'records') return !!entry.record;
   return false;
 };
 
@@ -75,6 +79,7 @@ export async function preprocessFiles({
   root,
   modes,
   recordsDir = null,
+  recordsConfig = null,
   ignoreMatcher,
   maxFileBytes = null,
   fileCaps = null,
@@ -88,6 +93,7 @@ export async function preprocessFiles({
   const { entries, skippedCommon } = await discoverEntries({
     root,
     recordsDir,
+    recordsConfig,
     ignoreMatcher,
     maxFileBytes,
     fileCaps,
@@ -95,6 +101,8 @@ export async function preprocessFiles({
     maxFiles
   });
   const fileScanner = createFileScanner(fileScan);
+  const recordsClassifier = createRecordsClassifier({ root, config: recordsConfig });
+  const recordSniffBytes = recordsClassifier?.config?.sniffBytes ?? 0;
   const scanSkips = [];
   await runWithConcurrency(
     entries,
@@ -111,6 +119,31 @@ export async function preprocessFiles({
         entry.skip = scanResult.skip;
         scanSkips.push({ file: entry.abs, reason: scanResult.skip.reason, ...scanResult.skip });
         return;
+      }
+      if (recordsClassifier && !entry.record) {
+        let sampleText = null;
+        let sampleBuffer = scanResult?.sampleBuffer || null;
+        if (!sampleBuffer && recordSniffBytes > 0 && shouldSniffRecordContent(entry.ext)) {
+          try {
+            sampleBuffer = await readFileSample(entry.abs, recordSniffBytes);
+          } catch {
+            sampleBuffer = null;
+          }
+        }
+        if (sampleBuffer) {
+          try {
+            sampleText = sampleBuffer.toString('utf8');
+          } catch {
+            sampleText = null;
+          }
+        }
+        const record = recordsClassifier.classify({
+          absPath: entry.abs,
+          relPath: entry.rel,
+          ext: entry.ext,
+          sampleText
+        });
+        if (record) entry.record = record;
       }
       entry.scan = {
         checkedBinary: scanResult?.checkedBinary === true,
@@ -143,12 +176,20 @@ export async function preprocessFiles({
     const modeSkipped = [...skippedCommon];
     const modeEntries = [];
     for (const entry of entries) {
+      if (entry.record && mode !== 'records') {
+        modeSkipped.push({
+          file: entry.abs,
+          reason: 'records',
+          recordType: entry.record.recordType || null
+        });
+        continue;
+      }
       if (!isSupportedEntry(entry, mode)) {
         modeSkipped.push({ file: entry.abs, reason: 'unsupported' });
         continue;
       }
       if (entry.skip) continue;
-      const lang = mode === 'code'
+      const lang = (mode === 'code' || mode === 'extracted-prose')
         ? getLanguageForFile(entry.ext, entry.rel)?.id || null
         : null;
       const maxLines = resolveMaxLines({ ext: entry.ext, lang }, fileCaps);
@@ -167,7 +208,8 @@ export async function preprocessFiles({
         stat: entry.stat,
         ext: entry.ext,
         lines: entry.lines,
-        scan: entry.scan
+        scan: entry.scan,
+        ...(entry.record ? { record: entry.record } : {})
       });
     }
     entriesByMode[mode] = modeEntries;

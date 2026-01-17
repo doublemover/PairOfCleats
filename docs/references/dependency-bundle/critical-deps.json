@@ -1,0 +1,20 @@
+{
+  "generated": "2026-01-17T06:05:00.000Z",
+  "packages": [
+    { "package": "@xenova/transformers", "reason": "Embeddings models and tokenizers." },
+    { "package": "onnxruntime-node", "reason": "Local embedding inference runtime." },
+    { "package": "lmdb", "reason": "Primary on-disk index store." },
+    { "package": "better-sqlite3", "reason": "SQLite backend for retrieval." },
+    { "package": "hnswlib-node", "reason": "HNSW vector index for ANN." },
+    { "package": "@lancedb/lancedb", "reason": "LanceDB ANN backend and vector storage." },
+    { "package": "msgpackr", "reason": "Chunk/artifact serialization." },
+    { "package": "@mongodb-js/zstd", "reason": "Artifact compression support." },
+    { "package": "micromark", "reason": "Markdown parsing for prose chunking." },
+    { "package": "parse5", "reason": "HTML parsing with source locations." },
+    { "package": "yaml", "reason": "Config parsing with positional fidelity." },
+    { "package": "@vscode/ripgrep", "reason": "Fast text-search fallback." },
+    { "package": "fdir", "reason": "Filesystem crawling and discovery." },
+    { "package": "ignore", "reason": "Gitignore-compatible filters." },
+    { "package": "piscina", "reason": "Worker pool for indexing." }
+  ]
+}

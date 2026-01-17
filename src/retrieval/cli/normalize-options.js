@@ -84,6 +84,7 @@ export function normalizeSearchOptions({
     runExtractedProse: runExtractedProseRaw
   } = searchModeInfo;
   const runExtractedProse = runExtractedProseRaw;
+  const commentsEnabled = argv.comments !== false;
 
   const bm25Config = userConfig.search?.bm25 || {};
   const bm25K1Arg = normalizeOptionalNumber(argv['bm25-k1']);
@@ -209,6 +210,7 @@ export function normalizeSearchOptions({
     runProse,
     runRecords,
     runExtractedProse,
+    commentsEnabled,
     embeddingsConfig,
     embeddingProvider,
     embeddingOnnx,

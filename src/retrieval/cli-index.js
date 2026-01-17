@@ -253,6 +253,7 @@ export function getIndexSignature(options) {
     sqliteProsePath,
     runRecords,
     runExtractedProse,
+    includeExtractedProse,
     root,
     userConfig
   } = options;
@@ -299,7 +300,8 @@ export function getIndexSignature(options) {
     return null;
   };
 
-  const extractedProseDir = runExtractedProse
+  const needsExtractedProse = includeExtractedProse ?? runExtractedProse;
+  const extractedProseDir = needsExtractedProse
     ? resolveIndexDir(root, 'extracted-prose', userConfig)
     : null;
   const extractedProseMeta = extractedProseDir ? path.join(extractedProseDir, 'chunk_meta.json') : null;

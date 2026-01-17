@@ -3,7 +3,7 @@ const buildCombinedFileRegex = /^\s*Files\s+(\d+)\/(\d+)\s+\((\d+(?:\.\d+)?)%\)\
 const buildFileOnlyRegex = /^\s*(?:\[(.+?)\]\s+)?(?:File\s+)?(\d+)\/(\d+)(?:\s+lines\s+[0-9,\.]+)?\s+(.+)$/i;
 const buildShardRegex = /^\s*(?:\u2192|->)\s+Shard\s+(\d+)\/(\d+):\s+([^\r\n\[]+?)(?:\s+\[[^\]]+\])?\s+\((\d+)\s+files\)/i;
 const buildImportStatsRegex = /^\s*\u2192\s*Imports:\s+modules=(\d+),\s*edges=(\d+),\s*files=(\d+)/i;
-const buildScanRegex = /Scanning\s+(code|prose)/i;
+const buildScanRegex = /Scanning\s+(code|prose|extracted-prose|records)/i;
 const buildLineRegex = /^\s*Line\s+(\d+)\s*\/\s*(\d+)/i;
 
 export const normalizeShardLabel = (raw) => {

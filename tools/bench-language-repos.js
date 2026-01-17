@@ -437,9 +437,14 @@ for (const task of tasks) {
       try {
         appendLog(`[metrics] Collecting line counts for ${repoLabel}...`);
         const stats = await buildLineStats(repoPath, repoUserConfig);
-        appendLog(
-          `[metrics] Line totals: code=${stats.totals.code.toLocaleString()} prose=${stats.totals.prose.toLocaleString()}`
-        );
+        const totals = stats.totals || {};
+        const parts = [
+          `code=${Number(totals.code || 0).toLocaleString()}`,
+          `prose=${Number(totals.prose || 0).toLocaleString()}`,
+          `extracted-prose=${Number(totals['extracted-prose'] || 0).toLocaleString()}`,
+          `records=${Number(totals.records || 0).toLocaleString()}`
+        ];
+        appendLog(`[metrics] Line totals: ${parts.join(' ')}`);
       } catch (err) {
         appendLog(`[metrics] Line counts unavailable: ${err?.message || err}`);
       }

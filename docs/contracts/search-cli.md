@@ -6,6 +6,7 @@
 - Filters include file/path, extension, language, type, author, import, calls/uses, and risk tags.
 - ANN backend selection via `--ann-backend` (auto/lancedb/sqlite-vector/hnsw/js).
 - `--explain` / `--why` toggle human-readable score breakdowns.
+- Comment excerpts for code results are enabled by default; disable with `--no-comments`.
 - `--top` applies after ranking within each mode; it may return fewer results when filters or candidate sets are too small.
 
 ## Outputs

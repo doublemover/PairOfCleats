@@ -7,10 +7,20 @@ const createBuildProgressState = () => ({
   lastPct: 0,
   label: '',
   mode: null,
-  lineTotals: { code: 0, prose: 0 },
-  linesProcessed: { code: 0, prose: 0 },
-  linesByFile: { code: new Map(), prose: new Map() },
-  filesSeen: { code: new Set(), prose: new Set() },
+  lineTotals: { code: 0, prose: 0, 'extracted-prose': 0, records: 0 },
+  linesProcessed: { code: 0, prose: 0, 'extracted-prose': 0, records: 0 },
+  linesByFile: {
+    code: new Map(),
+    prose: new Map(),
+    'extracted-prose': new Map(),
+    records: new Map()
+  },
+  filesSeen: {
+    code: new Set(),
+    prose: new Set(),
+    'extracted-prose': new Set(),
+    records: new Set()
+  },
   currentFile: null,
   currentLine: 0,
   currentLineTotal: 0,

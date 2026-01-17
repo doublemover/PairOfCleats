@@ -207,6 +207,17 @@ export function formatFullChunk({
   if (chunk.docmeta?.signature) {
     out += c.cyan('   Signature: ') + chunk.docmeta.signature + '\n';
   }
+  const commentEntries = Array.isArray(chunk.docmeta?.commentExcerpts)
+    ? chunk.docmeta.commentExcerpts
+    : null;
+  const commentText = (commentEntries && commentEntries.length)
+    ? commentEntries[0]?.text
+    : chunk.docmeta?.commentExcerpt;
+  if (commentText) {
+    const normalized = String(commentText).replace(/\s+/g, ' ').trim();
+    const snippet = normalized.length > 240 ? `${normalized.slice(0, 240)}...` : normalized;
+    out += c.gray('   Comment: ') + snippet + '\n';
+  }
   const modifiers = chunk.docmeta?.modifiers || null;
   const modifierParts = [];
   if (chunk.docmeta?.async || modifiers?.async) modifierParts.push('async');

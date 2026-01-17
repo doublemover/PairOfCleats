@@ -20,6 +20,7 @@ export async function loadSearchIndexes({
   searchMode,
   runProse,
   runExtractedProse,
+  loadExtractedProse = false,
   runCode,
   runRecords,
   useSqlite,
@@ -66,16 +67,18 @@ export async function loadSearchIndexes({
 
   let extractedProseDir = null;
   let resolvedRunExtractedProse = runExtractedProse;
-  if (resolvedRunExtractedProse) {
-    if (searchMode === 'extracted-prose' || searchMode === 'default') {
+  let resolvedLoadExtractedProse = runExtractedProse || loadExtractedProse;
+  if (resolvedLoadExtractedProse) {
+    if (resolvedRunExtractedProse && (searchMode === 'extracted-prose' || searchMode === 'default')) {
       extractedProseDir = requireIndexDir(rootDir, 'extracted-prose', userConfig, { emitOutput, exitOnError });
     } else {
       extractedProseDir = resolveIndexDir(rootDir, 'extracted-prose', userConfig);
       if (!hasIndexMeta(extractedProseDir)) {
-        resolvedRunExtractedProse = false;
-        if (emitOutput) {
+        if (resolvedRunExtractedProse && emitOutput) {
           console.warn('[search] extracted-prose index not found; skipping.');
         }
+        resolvedRunExtractedProse = false;
+        resolvedLoadExtractedProse = false;
       }
     }
   }
@@ -93,8 +96,8 @@ export async function loadSearchIndexes({
       includeFilterIndex: filtersActive
     }) : await loadIndexCachedLocal(proseDir, annActive)))
     : { ...EMPTY_INDEX };
-  const idxExtractedProse = resolvedRunExtractedProse
-    ? await loadIndexCachedLocal(extractedProseDir, annActive)
+  const idxExtractedProse = resolvedLoadExtractedProse
+    ? await loadIndexCachedLocal(extractedProseDir, annActive && resolvedRunExtractedProse)
     : { ...EMPTY_INDEX };
   const idxCode = runCode
     ? (useSqlite ? loadIndexFromSqlite('code', {
@@ -150,7 +153,7 @@ export async function loadSearchIndexes({
       idxProse.repoMap = loadRepoMap(rootDir, userConfig, 'prose');
     }
   }
-  if (resolvedRunExtractedProse) {
+  if (resolvedLoadExtractedProse) {
     idxExtractedProse.denseVec = resolveDenseVector(
       idxExtractedProse,
       'extracted-prose',
@@ -231,6 +234,7 @@ export async function loadSearchIndexes({
     runCode,
     runProse,
     runExtractedProse: resolvedRunExtractedProse,
+    extractedProseLoaded: resolvedLoadExtractedProse,
     runRecords,
     idxCode,
     idxProse,
@@ -244,6 +248,7 @@ export async function loadSearchIndexes({
     idxCode,
     idxRecords,
     runExtractedProse: resolvedRunExtractedProse,
+    extractedProseLoaded: resolvedLoadExtractedProse,
     hnswAnnState,
     hnswAnnUsed,
     lanceAnnState,

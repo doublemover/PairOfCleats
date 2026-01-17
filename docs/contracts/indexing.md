@@ -7,6 +7,13 @@
 - Stage4 (sqlite): sqlite index build plus optional ANN tables.
 - Modes: `code`, `prose`, `extracted-prose`, `records`. Mode `all` builds the enabled set.
 
+## Mode semantics
+- `code` indexes code bodies + structural metadata; comments are not indexed as searchable text and only reference extracted-prose spans.
+- `prose` indexes documentation/prose files (Markdown, text, etc.). Comments inside prose files remain part of prose.
+- `extracted-prose` indexes only extracted segments (comments/docstrings/config comments). It must not fall back to indexing the full file body.
+- `records` indexes log/record artifacts and excludes those files from other modes.
+- `all` == `{code, prose, extracted-prose, records}`.
+
 ## Artifact minimum set
 Required (baseline search):
 - `chunk_meta.json` (or `chunk_meta.jsonl` / sharded `chunk_meta.parts` + `chunk_meta.meta.json`).

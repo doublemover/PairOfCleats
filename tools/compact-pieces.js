@@ -23,7 +23,7 @@ const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
 const modeArg = (argv.mode || 'code').toLowerCase();
-const modes = modeArg === 'all' ? ['code', 'prose'] : [modeArg];
+const modes = modeArg === 'all' ? ['code', 'prose', 'extracted-prose', 'records'] : [modeArg];
 const dryRun = argv['dry-run'] === true;
 
 const listShardFiles = (dir, prefix) => {

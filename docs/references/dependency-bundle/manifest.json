@@ -1,8 +1,8 @@
 {
-  "generated": "2026-01-08T07:26:06.037986Z",
+  "generated": "2026-01-17T06:05:00.000Z",
   "project": "https://github.com/doublemover/PairOfCleats",
-  "package_count": 57,
-  "link_count": 117,
+  "package_count": 60,
+  "link_count": 122,
   "packages": [
     {
       "package": "@ast-grep/napi",
@@ -90,6 +90,18 @@
       ]
     },
     {
+      "package": "@lancedb/lancedb",
+      "area": "External vector search backend",
+      "sheet": "deps/lancedb.md",
+      "links": [
+        {
+          "package": "@lancedb/lancedb",
+          "desc": "README",
+          "url": "https://github.com/lancedb/lancedb#readme"
+        }
+      ]
+    },
+    {
       "package": "@mdx-js/mdx",
       "area": "MDX parsing/compilation",
       "sheet": "deps/mdx-js-mdx.md",
@@ -108,6 +120,18 @@
           "package": "@mdx-js/mdx",
           "desc": "remark-mdx syntax plugin docs (MDX syntax inside unified)",
           "url": "https://mdxjs.com/packages/remark-mdx/"
+        }
+      ]
+    },
+    {
+      "package": "@mongodb-js/zstd",
+      "area": "Compression / zip artifacts",
+      "sheet": "deps/mongodb-js-zstd.md",
+      "links": [
+        {
+          "package": "@mongodb-js/zstd",
+          "desc": "README",
+          "url": "https://github.com/mongodb-js/zstd#readme"
         }
       ]
     },
@@ -186,6 +210,28 @@
           "package": "@vue/compiler-sfc",
           "desc": "Source: compileScript() (script setup transforms; binding metadata)",
           "url": "https://github.com/vuejs/core/blob/main/packages/compiler-sfc/src/compileScript.ts"
+        }
+      ]
+    },
+    {
+      "package": "@xenova/transformers",
+      "area": "Embeddings and transformer inference (Transformers.js)",
+      "sheet": "deps/xenova-transformers.md",
+      "links": [
+        {
+          "package": "@xenova/transformers",
+          "desc": "README and usage overview",
+          "url": "https://github.com/xenova/transformers.js#readme"
+        },
+        {
+          "package": "@xenova/transformers",
+          "desc": "API reference (pipelines, model loading)",
+          "url": "https://xenova.github.io/transformers.js/"
+        },
+        {
+          "package": "@xenova/transformers",
+          "desc": "Model catalog (Xenova namespace)",
+          "url": "https://huggingface.co/Xenova"
         }
       ]
     },

@@ -298,7 +298,7 @@ export const createProgressRenderer = ({
   const handleBuildMode = (line) => {
     const mode = parseScanMode(line);
     if (!mode) return;
-    if (mode === 'code' || mode === 'prose') {
+    if (mode === 'code' || mode === 'prose' || mode === 'extracted-prose' || mode === 'records') {
       state.build.mode = mode;
     }
   };
@@ -307,6 +307,8 @@ export const createProgressRenderer = ({
     if (!rel) return null;
     if (state.build.linesByFile.code?.has(rel)) return 'code';
     if (state.build.linesByFile.prose?.has(rel)) return 'prose';
+    if (state.build.linesByFile['extracted-prose']?.has(rel)) return 'extracted-prose';
+    if (state.build.linesByFile.records?.has(rel)) return 'records';
     return null;
   };
 

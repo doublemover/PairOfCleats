@@ -152,18 +152,20 @@ const formatNumber = (value) => value.toLocaleString('en-US');
 const censusRepo = async (repoPath, label) => {
   const userConfig = loadUserConfig(repoPath);
   const triageConfig = getTriageConfig(repoPath, userConfig);
+  const recordsConfig = userConfig.records || null;
   const indexingConfig = userConfig.indexing || {};
   const maxFileBytes = resolveMaxFileBytes(indexingConfig);
   const fileCaps = resolveFileCaps(indexingConfig);
   const shardConfig = resolveShardConfig(indexingConfig);
   const { ignoreMatcher } = await buildIgnoreMatcher({ root: repoPath, userConfig });
 
-  const modes = ['code', 'prose'];
-  const skippedByMode = { code: [], prose: [] };
+  const modes = ['code', 'prose', 'extracted-prose', 'records'];
+  const skippedByMode = { code: [], prose: [], 'extracted-prose': [], records: [] };
   const entriesByMode = await discoverFilesForModes({
     root: repoPath,
     modes,
     recordsDir: triageConfig.recordsDir,
+    recordsConfig,
     ignoreMatcher,
     skippedByMode,
     maxFileBytes,

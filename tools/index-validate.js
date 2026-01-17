@@ -1,16 +1,35 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
-import { resolveRepoRoot } from './dict-utils.js';
+import { getIndexDir, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { validateIndexArtifacts } from '../src/index/validate.js';
 
-const parseModes = (raw) => {
+const hasIndexMeta = (dir) => {
+  if (!dir) return false;
+  const meta = path.join(dir, 'chunk_meta.json');
+  const jsonl = path.join(dir, 'chunk_meta.jsonl');
+  const metaParts = path.join(dir, 'chunk_meta.meta.json');
+  const partsDir = path.join(dir, 'chunk_meta.parts');
+  return fs.existsSync(meta) || fs.existsSync(jsonl) || fs.existsSync(metaParts) || fs.existsSync(partsDir);
+};
+
+const resolveAvailableModes = (root, userConfig) => {
+  const modes = ['code', 'prose', 'extracted-prose', 'records'];
+  return modes.filter((mode) => hasIndexMeta(getIndexDir(root, mode, userConfig)));
+};
+
+const parseModes = (raw, root, userConfig) => {
   const tokens = String(raw || '')
     .split(/[,\s]+/)
     .map((token) => token.trim())
     .filter(Boolean);
-  const modeSet = new Set(tokens.length ? tokens : ['code', 'prose']);
+  if (!tokens.length) {
+    const available = resolveAvailableModes(root, userConfig);
+    return available.length ? available : ['code', 'prose', 'extracted-prose', 'records'];
+  }
+  const modeSet = new Set(tokens);
   if (modeSet.has('all')) return ['code', 'prose', 'extracted-prose', 'records'];
   return Array.from(modeSet);
 };
@@ -29,7 +48,8 @@ async function runCli() {
   const rootArg = argv.repo ? path.resolve(argv.repo) : null;
   const root = rootArg || resolveRepoRoot(process.cwd());
   const indexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
-  const modes = parseModes(argv.mode);
+  const userConfig = loadUserConfig(root);
+  const modes = parseModes(argv.mode, root, userConfig);
   const report = await validateIndexArtifacts({ root, indexRoot, modes });
 
   if (argv.json) {

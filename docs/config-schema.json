@@ -343,6 +343,26 @@
         }
       }
     },
+    "records": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "detect": { "type": "boolean" },
+        "includeGlobs": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "excludeGlobs": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "sniffBytes": { "type": "number" }
+      }
+    },
     "indexing": {
       "type": "object",
       "additionalProperties": false,

@@ -19,6 +19,8 @@ export async function runSearchSession({
   runProse,
   runExtractedProse,
   runRecords,
+  commentsEnabled,
+  extractedProseLoaded,
   topN,
   useSqlite,
   annEnabled,
@@ -128,6 +130,7 @@ export async function runSearchSession({
       sqliteProsePath,
       runRecords,
       runExtractedProse,
+      includeExtractedProse: extractedProseLoaded || commentsEnabled,
       root: rootDir,
       userConfig
     });
@@ -150,6 +153,7 @@ export async function runSearchSession({
       sqliteFtsNormalize,
       sqliteFtsProfile,
       sqliteFtsWeights,
+      comments: { enabled: commentsEnabled },
       models: modelIds,
       embeddings: {
         provider: embeddingProvider,
@@ -269,6 +273,80 @@ export async function runSearchSession({
     queryEmbeddingRecords
   });
 
+  const joinComments = commentsEnabled && runCode && extractedProseLoaded;
+  const commentLookup = (() => {
+    if (!joinComments || !idxExtractedProse?.chunkMeta?.length) return null;
+    const map = new Map();
+    for (const chunk of idxExtractedProse.chunkMeta) {
+      if (!chunk?.file) continue;
+      const comments = chunk.docmeta?.comments;
+      if (!Array.isArray(comments) || !comments.length) continue;
+      for (const comment of comments) {
+        if (!comment || !comment.text) continue;
+        const start = Number(comment.start);
+        const end = Number(comment.end);
+        if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+        const key = `${chunk.file}:${start}:${end}`;
+        const list = map.get(key) || [];
+        list.push(comment);
+        map.set(key, list);
+      }
+    }
+    return map.size ? map : null;
+  })();
+
+  const attachCommentExcerpts = (hits) => {
+    if (!commentLookup || !Array.isArray(hits) || !hits.length) return;
+    for (const hit of hits) {
+      if (!hit?.file) continue;
+      const docmeta = hit.docmeta && typeof hit.docmeta === 'object' ? hit.docmeta : {};
+      if (docmeta.commentExcerpts || docmeta.commentExcerpt) continue;
+      const refs = docmeta.commentRefs;
+      if (!Array.isArray(refs) || !refs.length) continue;
+      const excerpts = [];
+      for (const ref of refs) {
+        const start = Number(ref?.start);
+        const end = Number(ref?.end);
+        if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+        const matches = commentLookup.get(`${hit.file}:${start}:${end}`);
+        if (!matches?.length) continue;
+        for (const match of matches) {
+          if (!match?.text) continue;
+          excerpts.push({
+            type: ref?.type || match.type || null,
+            style: ref?.style || match.style || null,
+            languageId: ref?.languageId || match.languageId || null,
+            start,
+            end,
+            startLine: ref?.startLine ?? match.startLine ?? null,
+            endLine: ref?.endLine ?? match.endLine ?? null,
+            text: match.text,
+            truncated: match.truncated || false,
+            indexed: match.indexed !== false
+          });
+        }
+      }
+      if (!excerpts.length) continue;
+      const unique = [];
+      const seen = new Set();
+      for (const entry of excerpts) {
+        const key = `${entry.start}:${entry.end}:${entry.text}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(entry);
+      }
+      if (!unique.length) continue;
+      const limited = unique.slice(0, 3);
+      hit.docmeta = {
+        ...docmeta,
+        commentExcerpts: limited,
+        commentExcerpt: limited[0]?.text || null
+      };
+    }
+  };
+
+  attachCommentExcerpts(codeHits);
+
   const contextExpansionStats = {
     enabled: contextExpansionEnabled,
     code: 0,
@@ -309,6 +387,8 @@ export async function runSearchSession({
   const recordExpanded = runRecords
     ? expandModeHits('records', idxRecords, recordHits)
     : { hits: recordHits, contextHits: [] };
+
+  attachCommentExcerpts(codeExpanded.hits);
 
   const hnswActive = Object.values(hnswAnnUsed).some(Boolean);
   const lanceActive = Object.values(lanceAnnUsed).some(Boolean);

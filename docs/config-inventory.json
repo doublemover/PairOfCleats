@@ -1,9 +1,13 @@
 {
-  "generatedAt": "2026-01-14T06:25:43.391Z",
+  "generatedAt": "2026-01-17T10:40:20.947Z",
   "configSchema": {
     "path": "docs/config-schema.json",
-    "totalKeys": 427,
+    "totalKeys": 442,
     "topLevel": [
+      {
+        "key": "api",
+        "count": 8
+      },
       {
         "key": "cache",
         "count": 22
@@ -26,7 +30,7 @@
       },
       {
         "key": "indexing",
-        "count": 241
+        "count": 243
       },
       {
         "key": "lmdb",
@@ -47,6 +51,10 @@
       {
         "key": "profile",
         "count": 1
+      },
+      {
+        "key": "records",
+        "count": 5
       },
       {
         "key": "runtime",
@@ -91,6 +99,46 @@
     ]
   },
   "configKeys": [
+    {
+      "path": "api",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "api.allowedRepoRoots",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "api.auth",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "api.auth.allowUnauthenticated",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "api.cors",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "api.cors.allowAnyOrigin",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "api.cors.allowedOrigins",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "api.maxBodyBytes",
+      "type": "number",
+      "enum": null
+    },
     {
       "path": "cache",
       "type": "object",
@@ -1012,19 +1060,19 @@
       "type": "boolean",
       "enum": null
     },
-      {
-        "path": "indexing.pythonAst.maxQueued",
-        "type": "number",
-        "enum": null
-      },
-      {
-        "path": "indexing.pythonAst.maxTextBytes",
-        "type": "number",
-        "enum": null
-      },
-      {
-        "path": "indexing.pythonAst.maxRetries",
-        "type": "number",
+    {
+      "path": "indexing.pythonAst.maxQueued",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst.maxRetries",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.pythonAst.maxTextBytes",
+      "type": "number",
       "enum": null
     },
     {
@@ -1175,6 +1223,11 @@
     {
       "path": "indexing.shards.minFiles",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.symlinks",
+      "type": null,
       "enum": null
     },
     {
@@ -1666,6 +1719,31 @@
     {
       "path": "profile",
       "type": "string",
+      "enum": null
+    },
+    {
+      "path": "records",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "records.detect",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "records.excludeGlobs",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "records.includeGlobs",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "records.sniffBytes",
+      "type": "number",
       "enum": null
     },
     {
@@ -2348,6 +2426,15 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_BENCH_RUN",
+      "files": [
+        "tests/perf/bench/scenarios/ann-on-off.js",
+        "tests/perf/bench/scenarios/bm25-params.js",
+        "tests/perf/bench/scenarios/memory-vs-sqlite.js",
+        "tests/perf/bench/scenarios/sqlite-fts.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_BREAKING",
       "files": [
         "tools/release-check.js"
@@ -2364,7 +2451,6 @@
       "files": [
         "src/shared/env.js",
         "tests/api-server-stream.js",
-        "tests/api-server.js",
         "tests/artifact-size-guardrails.js",
         "tests/build-embeddings-cache.js",
         "tests/build-index-all.js",
@@ -2376,6 +2462,7 @@
         "tests/code-map-dot.js",
         "tests/code-map-graphviz-fallback.js",
         "tests/code-map-guardrails.js",
+        "tests/comment-join.js",
         "tests/compact-pieces.js",
         "tests/core-api.js",
         "tests/embedding-batch-autotune.js",
@@ -2392,9 +2479,13 @@
         "tests/fixture-empty.js",
         "tests/fixture-eval.js",
         "tests/fixture-parity.js",
-        "tests/fixture-smoke.js",
         "tests/format-fidelity.js",
         "tests/git-blame-range.js",
+        "tests/helpers/fixture-index.js",
+        "tests/helpers/mcp-client.js",
+        "tests/helpers/search-filters-repo.js",
+        "tests/helpers/sqlite-incremental.js",
+        "tests/helpers/triage.js",
         "tests/hnsw-ann.js",
         "tests/hnsw-atomic.js",
         "tests/import-links.js",
@@ -2403,17 +2494,18 @@
         "tests/incremental-tokenization-cache.js",
         "tests/index-lifecycle-contract.js",
         "tests/index-validate.js",
+        "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/js-tree-sitter-maxbytes.js",
         "tests/lancedb-ann.js",
-        "tests/language-fidelity.js",
         "tests/lmdb-backend.js",
         "tests/lmdb-corruption.js",
         "tests/lmdb-report-artifacts.js",
         "tests/mcp-robustness.js",
         "tests/mcp-schema.js",
-        "tests/mcp-server.js",
         "tests/piece-assembly.js",
         "tests/prose-skip-imports.js",
         "tests/query-cache.js",
+        "tests/records-exclusion.js",
         "tests/repo-root.js",
         "tests/repometrics-dashboard.js",
         "tests/script-coverage.js",
@@ -2421,7 +2513,6 @@
         "tests/search-determinism.js",
         "tests/search-explain-symbol.js",
         "tests/search-explain.js",
-        "tests/search-filters.js",
         "tests/search-missing-index.js",
         "tests/search-rrf.js",
         "tests/search-topn-filters.js",
@@ -2429,6 +2520,7 @@
         "tests/setup-index-detection.js",
         "tests/setup.js",
         "tests/shard-merge.js",
+        "tests/shard-progress-determinism.js",
         "tests/skip-minified-binary.js",
         "tests/smoke-retrieval.js",
         "tests/sqlite-ann-extension.js",
@@ -2438,17 +2530,14 @@
         "tests/sqlite-bundle-missing.js",
         "tests/sqlite-compact.js",
         "tests/sqlite-incremental-no-change.js",
-        "tests/sqlite-incremental.js",
         "tests/sqlite-index-state-fail-closed.js",
         "tests/sqlite-missing-dep.js",
         "tests/sqlite-sidecar-cleanup.js",
         "tests/subprocess-quoting.js",
         "tests/summary-report.js",
         "tests/tool-root.js",
-        "tests/triage-records.js",
         "tests/two-stage-state.js",
         "tests/type-inference-crossfile-go.js",
-        "tests/type-inference-crossfile.js",
         "tests/type-inference-lsp-enrichment.js",
         "tests/unicode-offset.js",
         "tests/uninstall.js",
@@ -2488,9 +2577,7 @@
       "files": [
         "src/shared/env.js",
         "tests/api-server-stream.js",
-        "tests/api-server.js",
         "tests/artifact-size-guardrails.js",
-        "tests/bench.js",
         "tests/build-embeddings-cache.js",
         "tests/build-index-all.js",
         "tests/churn-filter.js",
@@ -2499,6 +2586,7 @@
         "tests/code-map-dot.js",
         "tests/code-map-graphviz-fallback.js",
         "tests/code-map-guardrails.js",
+        "tests/comment-join.js",
         "tests/compact-pieces.js",
         "tests/core-api.js",
         "tests/embeddings-cache-identity.js",
@@ -2514,9 +2602,12 @@
         "tests/fixture-empty.js",
         "tests/fixture-eval.js",
         "tests/fixture-parity.js",
-        "tests/fixture-smoke.js",
         "tests/format-fidelity.js",
         "tests/git-blame-range.js",
+        "tests/helpers/fixture-index.js",
+        "tests/helpers/search-filters-repo.js",
+        "tests/helpers/sqlite-incremental.js",
+        "tests/helpers/triage.js",
         "tests/hnsw-ann.js",
         "tests/hnsw-atomic.js",
         "tests/import-links.js",
@@ -2525,21 +2616,23 @@
         "tests/incremental-tokenization-cache.js",
         "tests/index-lifecycle-contract.js",
         "tests/index-validate.js",
+        "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/js-tree-sitter-maxbytes.js",
         "tests/lancedb-ann.js",
-        "tests/language-fidelity.js",
         "tests/lmdb-backend.js",
         "tests/lmdb-corruption.js",
         "tests/lmdb-report-artifacts.js",
+        "tests/perf/bench/run.test.js",
         "tests/piece-assembly.js",
         "tests/prose-skip-imports.js",
         "tests/query-cache.js",
+        "tests/records-exclusion.js",
         "tests/repo-root.js",
         "tests/script-coverage.js",
         "tests/search-contract.js",
         "tests/search-determinism.js",
         "tests/search-explain-symbol.js",
         "tests/search-explain.js",
-        "tests/search-filters.js",
         "tests/search-missing-index.js",
         "tests/search-rrf.js",
         "tests/search-topn-filters.js",
@@ -2554,17 +2647,14 @@
         "tests/sqlite-bundle-missing.js",
         "tests/sqlite-compact.js",
         "tests/sqlite-incremental-no-change.js",
-        "tests/sqlite-incremental.js",
         "tests/sqlite-index-state-fail-closed.js",
         "tests/sqlite-missing-dep.js",
         "tests/sqlite-sidecar-cleanup.js",
         "tests/subprocess-quoting.js",
         "tests/summary-report.js",
         "tests/tool-root.js",
-        "tests/triage-records.js",
         "tests/two-stage-state.js",
         "tests/type-inference-crossfile-go.js",
-        "tests/type-inference-crossfile.js",
         "tests/type-inference-lsp-enrichment.js",
         "tests/unicode-offset.js",
         "tools/bench-score-strategy.js",
@@ -2598,9 +2688,9 @@
       "name": "PAIROFCLEATS_HOME",
       "files": [
         "src/shared/env.js",
+        "tests/helpers/mcp-client.js",
         "tests/mcp-robustness.js",
         "tests/mcp-schema.js",
-        "tests/mcp-server.js",
         "tests/uninstall.js"
       ]
     },
@@ -2627,9 +2717,9 @@
       "name": "PAIROFCLEATS_MAX_OLD_SPACE_MB",
       "files": [
         "src/shared/env.js",
-        "tests/bench.js",
+        "tests/helpers/sqlite-incremental.js",
+        "tests/perf/bench/run.test.js",
         "tests/sqlite-incremental-no-change.js",
-        "tests/sqlite-incremental.js",
         "tools/bench-language-repos.js"
       ]
     },
@@ -2686,8 +2776,8 @@
         "src/retrieval/cli-args.js",
         "src/shared/cli.js",
         "src/shared/env.js",
-        "tests/bench.js",
         "tests/fixture-parity.js",
+        "tests/perf/bench/run.test.js",
         "tests/profile-config.js",
         "tests/structural-search.js",
         "tests/summary-report.js",
@@ -2701,15 +2791,13 @@
     {
       "name": "PAIROFCLEATS_PROGRESS_FILES",
       "files": [
-        "src/shared/env.js",
-        "tools/bench-language-repos.js"
+        "src/shared/env.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_PROGRESS_LINES",
       "files": [
-        "src/shared/env.js",
-        "tools/bench-language-repos.js"
+        "src/shared/env.js"
       ]
     },
     {
@@ -2765,28 +2853,50 @@
     {
       "name": "PAIROFCLEATS_TEST_LOG_DIR",
       "files": [
+        "tests/helpers/triage.js",
+        "tests/run.js",
         "tests/script-coverage.js",
-        "tests/script-coverage/runner.js",
-        "tests/triage-records.js"
+        "tests/script-coverage/runner.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_MAX_OLD_SPACE_MB",
+      "files": [
+        "tests/run.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_NODE_OPTIONS",
+      "files": [
+        "tests/run.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TEST_RETRIES",
       "files": [
+        "tests/run.js",
         "tests/script-coverage.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_THREADS",
+      "files": [
+        "tests/run.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TEST_TIMEOUT_MS",
       "files": [
-        "tests/type-inference-crossfile.js"
+        "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/run.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_THREADS",
       "files": [
         "src/shared/env.js",
-        "tests/bench.js",
+        "tests/perf/bench/run.test.js",
+        "tests/run.js",
         "tools/bench-language-repos.js"
       ]
     },
@@ -2819,6 +2929,7 @@
       "name": "PAIROFCLEATS_VERBOSE",
       "files": [
         "bin/pairofcleats.js",
+        "build_index.js",
         "src/shared/env.js",
         "src/shared/optional-deps.js"
       ]
@@ -2836,11 +2947,12 @@
         "src/index/build/failure-taxonomy.js",
         "src/shared/env.js",
         "tests/encoding-fallback.js",
-        "tests/language-fidelity.js",
+        "tests/helpers/fixture-index.js",
+        "tests/helpers/sqlite-incremental.js",
+        "tests/js-tree-sitter-maxbytes.js",
         "tests/search-explain-symbol.js",
         "tests/search-windows-path-filter.js",
-        "tests/sqlite-incremental-no-change.js",
-        "tests/sqlite-incremental.js"
+        "tests/sqlite-incremental-no-change.js"
       ]
     },
     {
@@ -2851,7 +2963,7 @@
     }
   ],
   "cliFlags": {
-    "totalFlags": 251,
+    "totalFlags": 256,
     "byFile": [
       {
         "file": "src/integrations/mcp/defs.js",
@@ -2904,6 +3016,7 @@
           "case-tokens",
           "chunk-author",
           "churn",
+          "comments",
           "continues",
           "decorator",
           "explain",
@@ -3003,13 +3116,6 @@
           "fixture",
           "fixtures",
           "timeout-ms"
-        ]
-      },
-      {
-        "file": "tests/fixture-smoke.js",
-        "flags": [
-          "all",
-          "fixture"
         ]
       },
       {
@@ -3153,8 +3259,11 @@
           "dims",
           "index-root",
           "mode",
+          "progress",
+          "quiet",
           "repo",
-          "stub-embeddings"
+          "stub-embeddings",
+          "verbose"
         ]
       },
       {
@@ -3162,7 +3271,10 @@
         "flags": [
           "index-root",
           "mode",
-          "repo"
+          "progress",
+          "quiet",
+          "repo",
+          "verbose"
         ]
       },
       {
@@ -3170,13 +3282,18 @@
         "flags": [
           "code-dir",
           "compact",
+          "extracted-prose-dir",
           "incremental",
           "index-root",
           "mode",
           "out",
+          "progress",
           "prose-dir",
+          "quiet",
+          "records-dir",
           "repo",
-          "validate"
+          "validate",
+          "verbose"
         ]
       },
       {
@@ -3195,9 +3312,12 @@
         "flags": [
           "incremental",
           "out",
+          "progress",
+          "quiet",
           "repo",
           "skip-build",
-          "skip-sqlite"
+          "skip-sqlite",
+          "verbose"
         ]
       },
       {
@@ -3251,7 +3371,10 @@
           "dry-run",
           "keep-backup",
           "mode",
-          "repo"
+          "progress",
+          "quiet",
+          "repo",
+          "verbose"
         ]
       },
       {
@@ -3325,11 +3448,14 @@
           "force",
           "out",
           "platform",
+          "progress",
           "provider",
+          "quiet",
           "repo",
           "sha256",
           "update",
-          "url"
+          "url",
+          "verbose"
         ]
       },
       {
@@ -3348,8 +3474,11 @@
           "dataset",
           "out",
           "pretty",
+          "progress",
+          "quiet",
           "repo",
-          "top"
+          "top",
+          "verbose"
         ]
       },
       {
@@ -3799,6 +3928,20 @@
         ]
       },
       {
+        "flag": "quiet",
+        "count": 8,
+        "files": [
+          "tools/api-server.js",
+          "tools/build-embeddings/cli.js",
+          "tools/build-lmdb-index.js",
+          "tools/build-sqlite-index/cli.js",
+          "tools/ci-build-artifacts.js",
+          "tools/compact-sqlite-index.js",
+          "tools/download-extensions.js",
+          "tools/eval/run.js"
+        ]
+      },
+      {
         "flag": "top",
         "count": 8,
         "files": [
@@ -3836,6 +3979,32 @@
           "tools/compare-models.js",
           "tools/setup.js",
           "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "progress",
+        "count": 7,
+        "files": [
+          "tools/build-embeddings/cli.js",
+          "tools/build-lmdb-index.js",
+          "tools/build-sqlite-index/cli.js",
+          "tools/ci-build-artifacts.js",
+          "tools/compact-sqlite-index.js",
+          "tools/download-extensions.js",
+          "tools/eval/run.js"
+        ]
+      },
+      {
+        "flag": "verbose",
+        "count": 7,
+        "files": [
+          "tools/build-embeddings/cli.js",
+          "tools/build-lmdb-index.js",
+          "tools/build-sqlite-index/cli.js",
+          "tools/ci-build-artifacts.js",
+          "tools/compact-sqlite-index.js",
+          "tools/download-extensions.js",
+          "tools/eval/run.js"
         ]
       },
       {
@@ -3942,16 +4111,6 @@
         ]
       },
       {
-        "flag": "all",
-        "count": 4,
-        "files": [
-          "tests/fixture-parity.js",
-          "tests/fixture-smoke.js",
-          "tools/clean-artifacts.js",
-          "tools/report-artifacts.js"
-        ]
-      },
-      {
         "flag": "dir",
         "count": 4,
         "files": [
@@ -3959,6 +4118,15 @@
           "tools/download-extensions.js",
           "tools/map-iso-serve.js",
           "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "all",
+        "count": 3,
+        "files": [
+          "tests/fixture-parity.js",
+          "tools/clean-artifacts.js",
+          "tools/report-artifacts.js"
         ]
       },
       {
@@ -3995,15 +4163,6 @@
           "tools/indexer-service.js",
           "tools/reset-config.js",
           "tools/validate-config.js"
-        ]
-      },
-      {
-        "flag": "fixture",
-        "count": 3,
-        "files": [
-          "tests/fixture-parity.js",
-          "tests/fixture-smoke.js",
-          "tools/bench-dict-seg.js"
         ]
       },
       {
@@ -4089,6 +4248,14 @@
         "files": [
           "tests/fixtures/medium/generate.js",
           "tools/bench-query-generator.js"
+        ]
+      },
+      {
+        "flag": "fixture",
+        "count": 2,
+        "files": [
+          "tests/fixture-parity.js",
+          "tools/bench-dict-seg.js"
         ]
       },
       {
@@ -4391,10 +4558,11 @@
       "src/index/chunking/formats/yaml.js",
       "src/index/language-registry/registry.js",
       "src/index/tooling/typescript-provider.js",
+      "src/lang/tree-sitter/chunking.js",
       "src/lang/workers/tree-sitter-worker.js",
       "src/map/isometric/client/ui.js",
       "src/retrieval/cli/run-search-session.js",
-      "tests/bench.js",
+      "tests/perf/bench/run.test.js",
       "tools/bench-language-matrix.js",
       "tools/bench/language/cli.js",
       "tools/vector-extension.js"

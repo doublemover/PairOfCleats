@@ -153,7 +153,8 @@ export function createFileScanner(fileScanConfig = {}) {
     const result = {
       checkedBinary: false,
       checkedMinified: false,
-      skip: null
+      skip: null,
+      sampleBuffer: null
     };
     if (!sampleSizeBytes || (!wantsBinary && !wantsMinified && !fileTypeSampleBytes)) return result;
     const sampleBytes = Math.max(fileTypeSampleBytes, wantsBinary || wantsMinified ? sampleSizeBytes : 0);
@@ -164,6 +165,7 @@ export function createFileScanner(fileScanConfig = {}) {
       sampleBuffer = null;
     }
     if (!sampleBuffer) return result;
+    result.sampleBuffer = sampleBuffer;
     const binarySkip = await detectBinary({
       absPath,
       buffer: sampleBuffer,

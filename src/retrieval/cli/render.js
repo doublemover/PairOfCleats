@@ -39,6 +39,7 @@ export function renderSearchOutput({
   fieldWeights,
   contextExpansionStats,
   idxProse,
+  idxExtractedProse,
   idxCode,
   idxRecords,
   showStats,
@@ -73,7 +74,8 @@ export function renderSearchOutput({
         available: {
           code: vectorAnnState.code.available,
           prose: vectorAnnState.prose.available,
-          records: vectorAnnState.records.available
+          records: vectorAnnState.records.available,
+          extractedProse: vectorAnnState['extracted-prose']?.available ?? false
         }
       } : null,
       annLance: lanceAnnState ? {
@@ -305,11 +307,13 @@ export function renderSearchOutput({
     if (showStats) {
       const proseCount = idxProse?.chunkMeta?.length ?? 0;
       const codeCount = idxCode?.chunkMeta?.length ?? 0;
+      const extractedProseCount = idxExtractedProse?.chunkMeta?.length ?? 0;
       const recordsCount = idxRecords?.chunkMeta?.length ?? 0;
       const cacheTag = cacheInfo.enabled ? (cacheInfo.hit ? 'cache=hit' : 'cache=miss') : 'cache=off';
       const statsParts = [
         `prose chunks=${proseCount}`,
         `code chunks=${codeCount}`,
+        runExtractedProse ? `extracted-prose chunks=${extractedProseCount}` : null,
         runRecords ? `records chunks=${recordsCount}` : null,
         `(${cacheTag})`
       ].filter(Boolean);

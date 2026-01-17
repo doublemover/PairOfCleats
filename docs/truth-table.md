@@ -3,11 +3,11 @@
 This document maps user-visible behavior to implementation, configuration switches, tests, and limitations.
 
 ## Build modes and stages
-- Claim: `build_index.js --mode code|prose|records|extracted-prose|all` builds mode-specific indexes under the repo cache; `all` expands to `code`, `prose`, and `extracted-prose`.
+- Claim: `build_index.js --mode code|prose|records|extracted-prose|all` builds mode-specific indexes under the repo cache; `all` expands to `code`, `prose`, `extracted-prose`, and `records`.
   - Implementation: `build_index.js` (entrypoint), `src/index/build/args.js` (`parseBuildArgs`), `src/integrations/core/index.js` (`buildIndex`), `src/index/build/indexer.js` (`buildIndexForMode`), `tools/dict-utils.js` (`resolveIndexRoot`, `getIndexDir`).
   - Config: CLI `--mode`, `--repo`, `--index-root`; environment `PAIROFCLEATS_CACHE_ROOT`.
   - Tests: `tests/indexing/fixtures/build-and-artifacts.test.js`, `tests/extracted-prose.js`, `tests/tooling/triage/records-index-and-search.test.js`, `tests/build-index-all.js`.
-  - Limitations: `records` requires triage record inputs; `all` does not include `records`.
+  - Limitations: `records` requires triage record inputs.
 
 - Claim: stage flags gate enrichment (`stage1` sparse, `stage2` relations, `stage3` embeddings, `stage4` sqlite).
   - Implementation: `src/integrations/core/index.js` (`buildIndex`), `src/index/build/indexer.js` (`buildIndexForMode`), `src/index/build/runtime.js` (`normalizeStage`, `buildStageOverrides`), `tools/build-embeddings.js` (script entrypoint), `tools/build-sqlite-index.js` (script entrypoint).

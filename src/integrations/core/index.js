@@ -15,7 +15,7 @@ import { log as defaultLog, logLine, showProgress } from '../../shared/progress.
 import { observeIndexDuration } from '../../shared/metrics.js';
 import { shutdownPythonAstPool } from '../../lang/python.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../index/build/feature-metrics.js';
-import { getCacheRoot, getMetricsDir, getRepoCacheRoot, getToolVersion, getIndexDir, loadUserConfig, resolveRepoRoot, resolveToolRoot } from '../../../tools/dict-utils.js';
+import { getCacheRoot, getMetricsDir, getRepoCacheRoot, getRepoRoot, getToolVersion, getIndexDir, loadUserConfig, resolveToolRoot } from '../../../tools/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../tools/service/queue.js';
 import { runBuildSqliteIndex } from '../../../tools/build-sqlite-index.js';
 import { shutdownTreeSitterWorkerPool } from '../../lang/tree-sitter.js';
@@ -258,7 +258,7 @@ const runEmbeddingsTool = (args, extraEnv = null, options = {}) => new Promise((
  * @returns {Promise<object>}
  */
 export async function buildIndex(repoRoot, options = {}) {
-  const root = repoRoot ? path.resolve(repoRoot) : resolveRepoRoot(process.cwd());
+  const root = getRepoRoot(repoRoot);
   const defaults = parseBuildArgs([]).argv;
   const baseArgv = { ...defaults, ...options, repo: root };
   const explicitStage = normalizeStage(baseArgv.stage);
@@ -266,7 +266,7 @@ export async function buildIndex(repoRoot, options = {}) {
   const mode = argv.mode || 'all';
   const requestedModes = Array.isArray(options.modes) && options.modes.length ? options.modes : null;
   const modes = requestedModes || (mode === 'all'
-    ? ['prose', 'code', 'extracted-prose', 'records']
+    ? ['code', 'prose', 'extracted-prose', 'records']
     : [mode]);
   const rawArgv = options.rawArgv || buildRawArgs(options);
   const log = typeof options.log === 'function' ? options.log : defaultLog;
@@ -507,7 +507,10 @@ export async function buildIndex(repoRoot, options = {}) {
       await markBuildPhase(runtime.buildRoot, 'discovery', 'running');
       let sharedDiscovery = null;
       const preprocessModes = modes.filter((modeItem) => (
-        modeItem === 'code' || modeItem === 'prose' || modeItem === 'extracted-prose'
+        modeItem === 'code'
+        || modeItem === 'prose'
+        || modeItem === 'extracted-prose'
+        || modeItem === 'records'
       ));
       if (preprocessModes.length) {
         await markBuildPhase(runtime.buildRoot, 'preprocessing', 'running');
@@ -515,6 +518,7 @@ export async function buildIndex(repoRoot, options = {}) {
           root: runtime.root,
           modes: preprocessModes,
           recordsDir: runtime.recordsDir,
+          recordsConfig: runtime.recordsConfig,
           ignoreMatcher: runtime.ignoreMatcher,
           maxFileBytes: runtime.maxFileBytes,
           fileCaps: runtime.fileCaps,
@@ -710,7 +714,7 @@ export async function buildIndex(repoRoot, options = {}) {
  * @returns {Promise<object>}
  */
 export async function buildSqliteIndex(repoRoot, options = {}) {
-  const root = repoRoot ? path.resolve(repoRoot) : resolveRepoRoot(process.cwd());
+  const root = getRepoRoot(repoRoot);
   const rawArgs = Array.isArray(options.args) ? options.args.slice() : [];
   if (!options.args) {
     if (options.mode) rawArgs.push('--mode', String(options.mode));
@@ -758,6 +762,6 @@ export async function search(repoRoot, params = {}) {
  * @returns {Promise<object>}
  */
 export async function status(repoRoot, options = {}) {
-  const root = repoRoot ? path.resolve(repoRoot) : resolveRepoRoot(process.cwd());
+  const root = getRepoRoot(repoRoot);
   return getStatus({ repoRoot: root, includeAll: options.all === true });
 }
