@@ -18,6 +18,11 @@ function normalizeEnabled(value) {
   return true;
 }
 
+const DEFAULT_DISABLED_LANGUAGES = (() => {
+  if (process.platform === 'win32') return new Set(['swift']);
+  return new Set();
+})();
+
 export function isTreeSitterEnabled(options, languageId) {
   const config = options?.treeSitter || {};
   const enabled = normalizeEnabled(config.enabled);
@@ -36,6 +41,11 @@ export function isTreeSitterEnabled(options, languageId) {
     }
   }
   const langs = config.languages || {};
+  if (languageId
+    && DEFAULT_DISABLED_LANGUAGES.has(languageId)
+    && !Object.prototype.hasOwnProperty.call(langs, languageId)) {
+    return false;
+  }
   if (languageId && Object.prototype.hasOwnProperty.call(langs, languageId)) {
     return normalizeEnabled(langs[languageId]);
   }

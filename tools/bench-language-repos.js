@@ -464,7 +464,12 @@ for (const task of tasks) {
     outFile
   ];
   if (indexProfile) benchArgs.push('--index-profile', indexProfile);
-  benchArgs.push('--real-embeddings');
+  if (argv['stub-embeddings']) {
+    benchArgs.push('--stub-embeddings');
+    progress.appendLog('[bench] Stub embeddings enabled; results are not comparable to real-embeddings runs.');
+  } else {
+    benchArgs.push('--real-embeddings');
+  }
   if (argv.build) {
     benchArgs.push('--build');
   } else {

@@ -12,13 +12,18 @@ const sourcePath = path.join(fixtureRoot, 'latin1.js');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const { text, usedFallback } = await readTextFile(sourcePath);
+const { text, usedFallback, encoding } = await readTextFile(sourcePath);
 if (!text.includes('café')) {
   console.error('Encoding fallback did not decode latin1.js correctly.');
   process.exit(1);
 }
 if (!usedFallback) {
   console.error('Expected encoding fallback to be used for latin1.js.');
+  process.exit(1);
+}
+const allowedEncodings = new Set(['latin1', 'iso-8859-1', 'iso-8859-2', 'windows-1252']);
+if (encoding && !allowedEncodings.has(encoding)) {
+  console.error(`Unexpected fallback encoding for latin1.js: ${encoding}`);
   process.exit(1);
 }
 

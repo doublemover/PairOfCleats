@@ -13,6 +13,7 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(srcDir, { recursive: true });
 
 const commentText = 'extracted-prose sentinel phrase';
+const swiftCommentText = 'swift extracted-prose sentinel phrase';
 const source = [
   '/**',
   ` * ${commentText}`,
@@ -21,6 +22,15 @@ const source = [
   ''
 ].join('\n');
 await fsPromises.writeFile(path.join(srcDir, 'sample.js'), source);
+
+const swiftSource = [
+  `/// ${swiftCommentText}`,
+  'struct SwiftSample {',
+  '  func greet() -> String { "hi" }',
+  '}',
+  ''
+].join('\n');
+await fsPromises.writeFile(path.join(srcDir, 'sample.swift'), swiftSource);
 
 await fsPromises.writeFile(
   path.join(repoRoot, '.pairofcleats.json'),
@@ -70,6 +80,31 @@ const hits = Array.isArray(payload.extractedProse) ? payload.extractedProse : []
 const matched = hits.some((hit) => hit?.file === 'src/sample.js');
 if (!matched) {
   console.error('Extracted-prose test failed: expected hit missing.');
+  process.exit(1);
+}
+
+const swiftResult = spawnSync(
+  process.execPath,
+  [path.join(root, 'search.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--json', swiftCommentText],
+  { env, encoding: 'utf8' }
+);
+if (swiftResult.status !== 0) {
+  console.error('Extracted-prose Swift test failed: search error.');
+  if (swiftResult.stderr) console.error(swiftResult.stderr.trim());
+  process.exit(swiftResult.status ?? 1);
+}
+let swiftPayload;
+try {
+  swiftPayload = JSON.parse(swiftResult.stdout || '{}');
+} catch {
+  console.error('Extracted-prose Swift test failed: invalid JSON output.');
+  if (swiftResult.stdout) console.error(swiftResult.stdout.trim());
+  process.exit(1);
+}
+const swiftHits = Array.isArray(swiftPayload.extractedProse) ? swiftPayload.extractedProse : [];
+const swiftMatched = swiftHits.some((hit) => hit?.file === 'src/sample.swift');
+if (!swiftMatched) {
+  console.error('Extracted-prose Swift test failed: expected Swift hit missing.');
   process.exit(1);
 }
 

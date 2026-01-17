@@ -171,6 +171,21 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     treeSitterDeferMissingMax,
     treeSitterWorker
   } = resolveTreeSitterRuntime(indexingConfig);
+  const applyTreeSitterJsCaps = (caps, maxBytes) => {
+    if (!caps || !Number.isFinite(maxBytes) || maxBytes <= 0) return false;
+    const targets = ['.js', '.jsx', '.mjs', '.cjs', '.jsm'];
+    let applied = false;
+    for (const ext of targets) {
+      const current = caps.byExt?.[ext] || {};
+      if (current.maxBytes != null) continue;
+      caps.byExt[ext] = { ...current, maxBytes };
+      applied = true;
+    }
+    return applied;
+  };
+  if (applyTreeSitterJsCaps(fileCaps, treeSitterMaxBytes)) {
+    log(`JS file caps default to tree-sitter maxBytes (${treeSitterMaxBytes}).`);
+  }
   const sqlConfig = userConfig.sql || {};
   const defaultSqlDialects = {
     '.psql': 'postgres',
