@@ -329,10 +329,14 @@ export function createFileProcessor(options) {
         ? { ...normalizedSegmentsConfig, onlyExtras: true }
         : normalizedSegmentsConfig;
       const treeSitterDeferMissing = treeSitterConfig?.deferMissing !== false;
+      const treeSitterLanguagePasses = treeSitterConfig?.languagePasses !== false;
       const treeSitterDeferMissingMax = Number.isFinite(treeSitterConfig?.deferMissingMax)
         ? Math.max(0, Math.floor(treeSitterConfig.deferMissingMax))
         : 0;
-      if (treeSitterDeferMissing && treeSitterDeferMissingMax > 0 && !fileEntry?.treeSitterDisabled) {
+      if (!treeSitterLanguagePasses
+        && treeSitterDeferMissing
+        && treeSitterDeferMissingMax > 0
+        && !fileEntry?.treeSitterDisabled) {
         const deferrals = Number(fileEntry?.treeSitterDeferrals) || 0;
         if (deferrals < treeSitterDeferMissingMax) {
           const languageHint = getLanguageForFile(ext, relKey);
