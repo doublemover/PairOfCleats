@@ -440,14 +440,15 @@ export function createFileProcessor(options) {
       const resolvedSegmentsConfig = mode === 'extracted-prose'
         ? { ...normalizedSegmentsConfig, onlyExtras: true }
         : normalizedSegmentsConfig;
+      const treeSitterEnabled = treeSitterConfig?.enabled !== false && mode === 'code';
+      const treeSitterLanguagePasses = treeSitterEnabled && treeSitterConfig?.languagePasses !== false;
       const treeSitterDeferMissing = treeSitterConfig?.deferMissing !== false;
-      const treeSitterLanguagePasses = treeSitterConfig?.languagePasses !== false;
-      const treeSitterEnabled = treeSitterConfig?.enabled !== false;
       const shouldSerializeTreeSitter = treeSitterEnabled && mode === 'code';
       const treeSitterDeferMissingMax = Number.isFinite(treeSitterConfig?.deferMissingMax)
         ? Math.max(0, Math.floor(treeSitterConfig.deferMissingMax))
         : 0;
       if (!treeSitterLanguagePasses
+        && treeSitterEnabled
         && treeSitterDeferMissing
         && treeSitterDeferMissingMax > 0
         && !fileEntry?.treeSitterDisabled) {
@@ -482,9 +483,12 @@ export function createFileProcessor(options) {
           }
         }
       }
+      const treeSitterConfigForMode = treeSitterEnabled
+        ? treeSitterConfig
+        : { ...(treeSitterConfig || {}), enabled: false };
       const contextTreeSitterConfig = treeSitterLanguagePasses
-        ? { ...(treeSitterConfig || {}), enabled: false }
-        : treeSitterConfig;
+        ? { ...(treeSitterConfigForMode || {}), enabled: false }
+        : treeSitterConfigForMode;
       const languageContextOptions = languageOptions && typeof languageOptions === 'object'
         ? {
           ...languageOptions,
@@ -505,7 +509,7 @@ export function createFileProcessor(options) {
             await preloadTreeSitterLanguages([primaryLanguageId], {
               log: languageOptions?.log,
               parallel: false,
-              maxLoadedLanguages: treeSitterConfig?.maxLoadedLanguages
+              maxLoadedLanguages: treeSitterConfigForMode?.maxLoadedLanguages
             });
           } catch {
             // ignore preload failures; prepare will fall back if needed.
@@ -649,10 +653,10 @@ export function createFileProcessor(options) {
         chunking: languageOptions?.chunking,
         javascript: languageOptions?.javascript,
         typescript: languageOptions?.typescript,
-        treeSitter: treeSitterConfig,
+        treeSitter: treeSitterConfigForMode,
         log: languageOptions?.log
       };
-      const sc = treeSitterConfig?.languagePasses === false
+      const sc = treeSitterLanguagePasses === false
         ? await runTreeSitter(() => chunkSegments({
           text,
           ext,
@@ -670,7 +674,7 @@ export function createFileProcessor(options) {
           segments,
           lineIndex,
           context: segmentContext,
-          treeSitterConfig
+          treeSitterConfig: treeSitterConfigForMode
         }));
       addParseDuration(Date.now() - parseStart);
       const chunkLineRanges = sc.map((chunk) => {
