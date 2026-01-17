@@ -8,7 +8,7 @@ const source = [
   '}',
   'const local = () => run("x");',
   'module.exports = { run };'
-].join('\\n');
+].join('\n');
 
 const rel = buildCodeRelations(source, 'sample.js', { fs: ['fs.js'] }) || {};
 const calls = Array.isArray(rel.calls) ? rel.calls : [];

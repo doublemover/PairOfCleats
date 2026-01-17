@@ -30,19 +30,19 @@ const cases = [
   {
     label: 'dockerfile',
     fn: collectDockerfileImports,
-    text: 'FROM node:18 AS base\\nCOPY --from=base /src /dst',
+    text: 'FROM node:18 AS base\nCOPY --from=base /src /dst',
     expected: ['node:18', 'base']
   },
   {
     label: 'makefile',
     fn: collectMakefileImports,
-    text: 'include shared.mk\\n-include local.mk',
+    text: 'include shared.mk\n-include local.mk',
     expected: ['shared.mk', 'local.mk']
   },
   {
     label: 'proto',
     fn: collectProtoImports,
-    text: 'import \"foo.proto\";\\nimport public \"bar.proto\";',
+    text: 'import \"foo.proto\";\nimport public \"bar.proto\";',
     expected: ['foo.proto', 'bar.proto']
   },
   {
@@ -54,7 +54,7 @@ const cases = [
   {
     label: 'cmake',
     fn: collectCmakeImports,
-    text: 'include(foo)\\nadd_subdirectory(bar)\\nfind_package(Baz)',
+    text: 'include(foo)\nadd_subdirectory(bar)\nfind_package(Baz)',
     expected: ['foo', 'bar', 'Baz']
   },
   {
@@ -66,7 +66,7 @@ const cases = [
   {
     label: 'nix',
     fn: collectNixImports,
-    text: 'import ./module.nix\\ncallPackage ../pkg.nix {}',
+    text: 'import ./module.nix\ncallPackage ../pkg.nix {}',
     expected: ['./module.nix', '../pkg.nix']
   },
   {
@@ -90,7 +90,7 @@ const cases = [
   {
     label: 'r',
     fn: collectRImports,
-    text: 'library(ggplot2)\\nrequire(\"dplyr\")',
+    text: 'library(ggplot2)\nrequire(\"dplyr\")',
     expected: ['ggplot2', 'dplyr']
   },
   {
