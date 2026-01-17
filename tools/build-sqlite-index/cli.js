@@ -18,6 +18,8 @@ export const parseBuildSqliteArgs = (rawArgs, options = {}) => {
     options: {
       'code-dir': { type: 'string' },
       'prose-dir': { type: 'string' },
+      'extracted-prose-dir': { type: 'string' },
+      'records-dir': { type: 'string' },
       out: { type: 'string' },
       mode: { type: 'string', default: 'all' },
       repo: { type: 'string' },

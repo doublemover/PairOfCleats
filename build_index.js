@@ -20,12 +20,21 @@ const display = createDisplay({
   json: argv.json === true
 });
 const restoreHandlers = setProgressHandlers(display);
+let result = null;
 try {
-  await buildIndex(rootArg || resolveRepoRoot(process.cwd()), {
+  result = await buildIndex(rootArg || resolveRepoRoot(process.cwd()), {
     ...argv,
     modes,
     rawArgv: process.argv
   });
+  if (result?.stage3?.embeddings?.cancelled) {
+    display.warn('Index build cancelled during embeddings.');
+  } else {
+    display.log('Index build complete.');
+  }
+} catch (err) {
+  display.error(`Index build failed: ${err?.message || err}`);
+  process.exitCode = 1;
 } finally {
   restoreHandlers();
   display.close();

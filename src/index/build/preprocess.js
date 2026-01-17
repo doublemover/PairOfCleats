@@ -45,6 +45,7 @@ const resolveMaxLines = ({ ext, lang }, fileCaps) => {
 const isSupportedEntry = (entry, mode) => {
   if (!entry) return false;
   if (mode === 'code') return EXTS_CODE.has(entry.ext) || entry.isSpecial;
+  if (mode === 'extracted-prose') return EXTS_CODE.has(entry.ext) || entry.isSpecial;
   if (mode === 'prose') return EXTS_PROSE.has(entry.ext);
   return false;
 };

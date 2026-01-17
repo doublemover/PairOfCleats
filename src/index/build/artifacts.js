@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { log } from '../../shared/progress.js';
+import { log, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io.js';
 import {
   writeJsonArrayFile,
@@ -289,6 +289,7 @@ export async function writeIndexArtifacts(input) {
   let lastWriteLog = 0;
   let lastWriteLabel = '';
   const writeLogIntervalMs = 1000;
+  const writeProgressMeta = { stage: 'write', mode, taskId: `write:${mode}:artifacts` };
   const formatArtifactLabel = (filePath) => path.relative(outDir, filePath).split(path.sep).join('/');
   const pieceEntries = [];
   const addPieceFile = (entry, filePath) => {
@@ -298,6 +299,10 @@ export async function writeIndexArtifacts(input) {
   const logWriteProgress = (label) => {
     completedWrites += 1;
     if (label) lastWriteLabel = label;
+    showProgress('Artifacts', completedWrites, totalWrites, {
+      ...writeProgressMeta,
+      message: label || null
+    });
     const now = Date.now();
     if (completedWrites === totalWrites || completedWrites === 1 || (now - lastWriteLog) >= writeLogIntervalMs) {
       lastWriteLog = now;

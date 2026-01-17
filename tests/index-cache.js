@@ -21,13 +21,13 @@ const loader = () => {
 };
 
 await writeMeta([{ id: 1 }]);
-const first = loadIndexWithCache(cache, indexDir, { modelIdDefault: 'm', fileChargramN: 3 }, loader);
-const second = loadIndexWithCache(cache, indexDir, { modelIdDefault: 'm', fileChargramN: 3 }, loader);
+const first = await loadIndexWithCache(cache, indexDir, { modelIdDefault: 'm', fileChargramN: 3 }, loader);
+const second = await loadIndexWithCache(cache, indexDir, { modelIdDefault: 'm', fileChargramN: 3 }, loader);
 assert.equal(loads, 1, 'cache should prevent reloads');
 assert.equal(first.loaded, second.loaded, 'cached result should match');
 
 await writeMeta([{ id: 2 }]);
-const third = loadIndexWithCache(cache, indexDir, { modelIdDefault: 'm', fileChargramN: 3 }, loader);
+const third = await loadIndexWithCache(cache, indexDir, { modelIdDefault: 'm', fileChargramN: 3 }, loader);
 assert.equal(loads, 2, 'cache should reload after signature change');
 assert.notEqual(third.loaded, first.loaded, 'reloaded result should differ');
 

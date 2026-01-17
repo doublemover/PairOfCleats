@@ -11,7 +11,7 @@ import { promoteBuild } from '../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../index/validate.js';
 import { watchIndex } from '../../index/build/watch.js';
 import { getEnvConfig } from '../../shared/env.js';
-import { log as defaultLog } from '../../shared/progress.js';
+import { log as defaultLog, showProgress } from '../../shared/progress.js';
 import { observeIndexDuration } from '../../shared/metrics.js';
 import { shutdownPythonAstPool } from '../../lang/python.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../index/build/feature-metrics.js';
@@ -24,6 +24,37 @@ import { getStatus } from './status.js';
 
 const toolRoot = resolveToolRoot();
 const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build-embeddings.js');
+
+const createOverallProgress = ({ modes, buildId, includeEmbeddings = false, includeSqlite = false }) => {
+  const stageCounts = {
+    code: 6,
+    prose: 6,
+    'extracted-prose': 6,
+    records: 1
+  };
+  const extraStages = (includeEmbeddings ? 1 : 0) + (includeSqlite ? 1 : 0);
+  const total = modes.reduce((sum, mode) => {
+    const base = stageCounts[mode] || 0;
+    if (!base) return sum;
+    return sum + base + extraStages;
+  }, 0);
+  if (!total) return null;
+  const taskId = `overall:${buildId || 'build'}`;
+  let current = 0;
+  showProgress('Overall', current, total, { taskId, stage: 'overall' });
+  return {
+    total,
+    advance(meta = {}) {
+      if (current >= total) return;
+      current += 1;
+      showProgress('Overall', current, total, {
+        taskId,
+        stage: 'overall',
+        message: meta.message || null
+      });
+    }
+  };
+};
 
 const buildRawArgs = (options = {}) => {
   const args = [];
@@ -164,17 +195,24 @@ const teardownRuntime = async (runtime) => {
   shutdownPythonAstPool();
 };
 
+const EMBEDDINGS_CANCEL_CODE = 0xC000013A;
+
 const runEmbeddingsTool = (args, extraEnv = null) => new Promise((resolve, reject) => {
   const child = spawn(process.execPath, args, {
     stdio: 'inherit',
     env: extraEnv ? { ...process.env, ...extraEnv } : process.env
   });
-  child.on('close', (code) => {
+  child.on('error', reject);
+  child.on('close', (code, signal) => {
     if (code === 0) {
-      resolve();
-    } else {
-      reject(new Error(`build-embeddings exited with code ${code ?? 'unknown'}`));
+      resolve({ ok: true });
+      return;
     }
+    if (signal || code === EMBEDDINGS_CANCEL_CODE) {
+      resolve({ cancelled: true, code: code ?? null, signal: signal || null });
+      return;
+    }
+    reject(new Error(`build-embeddings exited with code ${code ?? 'unknown'}`));
   });
 });
 
@@ -223,7 +261,24 @@ export async function buildIndex(repoRoot, options = {}) {
   const twoStageConfig = userConfig?.indexing?.twoStage || {};
   const twoStageEnabled = twoStageConfig.enabled === true;
   const embeddingRuntime = resolveEmbeddingRuntime({ argv, userConfig, envConfig });
-  const buildEmbedModes = modes.filter((modeItem) => modeItem === 'code' || modeItem === 'prose');
+  const embedModes = modes.filter((modeItem) => (
+    modeItem === 'code'
+    || modeItem === 'prose'
+    || modeItem === 'extracted-prose'
+    || modeItem === 'records'
+  ));
+  const sqliteModes = modes.filter((modeItem) => (
+    modeItem === 'code' || modeItem === 'prose' || modeItem === 'extracted-prose' || modeItem === 'records'
+  ));
+  const sqliteConfigured = userConfig?.sqlite?.use !== false;
+  const shouldBuildSqlite = typeof argv.sqlite === 'boolean' ? argv.sqlite : sqliteConfigured;
+  const includeEmbeddings = (embeddingRuntime.embeddingEnabled || embeddingRuntime.embeddingService)
+    && embedModes.length > 0;
+  const includeSqlite = shouldBuildSqlite && sqliteModes.length > 0;
+  const overallProgressOptions = (!explicitStage && !twoStageEnabled)
+    ? { includeEmbeddings, includeSqlite }
+    : null;
+  let overallProgress = null;
   const runEmbeddingsStage = async () => {
     const started = process.hrtime.bigint();
     const recordOk = (result) => {
@@ -232,7 +287,7 @@ export async function buildIndex(repoRoot, options = {}) {
     };
     if (!embeddingRuntime.embeddingEnabled) {
       log('Embeddings disabled; skipping stage3.');
-      return recordOk({ modes: buildEmbedModes, embeddings: { skipped: true }, repo: root, stage: 'stage3' });
+      return recordOk({ modes: embedModes, embeddings: { skipped: true }, repo: root, stage: 'stage3' });
     }
     const lock = await acquireIndexLock({ repoCacheRoot, log });
     if (!lock) throw new Error('Index lock unavailable.');
@@ -243,7 +298,7 @@ export async function buildIndex(repoRoot, options = {}) {
           : path.join(getCacheRoot(), 'service', 'queue');
         await ensureQueueDir(queueDir);
         const jobs = [];
-        for (const modeItem of buildEmbedModes) {
+        for (const modeItem of embedModes) {
           const jobId = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
           const result = await enqueueJob(
             queueDir,
@@ -260,22 +315,46 @@ export async function buildIndex(repoRoot, options = {}) {
           );
           if (!result.ok) {
             log(`[embeddings] Queue full or unavailable; skipped enqueue (${modeItem}).`);
+            if (includeEmbeddings && overallProgress?.advance) {
+              overallProgress.advance({ message: `${modeItem} embeddings` });
+            }
             continue;
           }
           log(`[embeddings] Queued embedding job ${jobId} (${modeItem}).`);
           jobs.push(result.job || { id: jobId, mode: modeItem });
+          if (includeEmbeddings && overallProgress?.advance) {
+            overallProgress.advance({ message: `${modeItem} embeddings` });
+          }
         }
-        return recordOk({ modes: buildEmbedModes, embeddings: { queued: true, jobs }, repo: root, stage: 'stage3' });
+        return recordOk({ modes: embedModes, embeddings: { queued: true, jobs }, repo: root, stage: 'stage3' });
       }
-      for (const modeItem of buildEmbedModes) {
+      for (const modeItem of embedModes) {
         const args = [buildEmbeddingsPath, '--repo', root, '--mode', modeItem];
         if (Number.isFinite(Number(argv.dims))) {
           args.push('--dims', String(argv.dims));
         }
         if (embeddingRuntime.useStubEmbeddings) args.push('--stub-embeddings');
-        await runEmbeddingsTool(args);
+        const embedResult = await runEmbeddingsTool(args);
+        if (embedResult?.cancelled) {
+          log('[embeddings] build-embeddings cancelled; skipping remaining modes.');
+          return recordOk({
+            modes: embedModes,
+            embeddings: {
+              queued: false,
+              inline: true,
+              cancelled: true,
+              code: embedResult.code ?? null,
+              signal: embedResult.signal ?? null
+            },
+            repo: root,
+            stage: 'stage3'
+          });
+        }
+        if (includeEmbeddings && overallProgress?.advance) {
+          overallProgress.advance({ message: `${modeItem} embeddings` });
+        }
       }
-      return recordOk({ modes: buildEmbedModes, embeddings: { queued: false, inline: true }, repo: root, stage: 'stage3' });
+      return recordOk({ modes: embedModes, embeddings: { queued: false, inline: true }, repo: root, stage: 'stage3' });
     } catch (err) {
       recordIndexMetric('stage3', 'error', started);
       throw err;
@@ -289,23 +368,26 @@ export async function buildIndex(repoRoot, options = {}) {
       recordIndexMetric('stage4', 'ok', started);
       return result;
     };
-    const sqliteConfigured = userConfig?.sqlite?.use !== false;
-    const shouldBuildSqlite = typeof argv.sqlite === 'boolean' ? argv.sqlite : sqliteConfigured;
     if (!shouldBuildSqlite) {
       log('SQLite disabled; skipping stage4.');
-      return recordOk({ modes: buildEmbedModes, sqlite: { skipped: true }, repo: root, stage: 'stage4' });
+      return recordOk({ modes: sqliteModes, sqlite: { skipped: true }, repo: root, stage: 'stage4' });
     }
     const lock = await acquireIndexLock({ repoCacheRoot, log });
     if (!lock) throw new Error('Index lock unavailable.');
     try {
-      if (!buildEmbedModes.length) return recordOk({ modes: buildEmbedModes, sqlite: null, repo: root, stage: 'stage4' });
+      if (!sqliteModes.length) return recordOk({ modes: sqliteModes, sqlite: null, repo: root, stage: 'stage4' });
       const sqliteResult = await buildSqliteIndex(root, {
-        mode: buildEmbedModes.length === 1 ? buildEmbedModes[0] : 'all',
+        mode: sqliteModes.length === 1 ? sqliteModes[0] : 'all',
         incremental: argv.incremental === true,
         emitOutput: options.emitOutput !== false,
         exitOnError: false
       });
-      return recordOk({ modes: buildEmbedModes, sqlite: sqliteResult, repo: root, stage: 'stage4' });
+      if (includeSqlite && overallProgress?.advance) {
+        for (const modeItem of sqliteModes) {
+          overallProgress.advance({ message: `${modeItem} sqlite` });
+        }
+      }
+      return recordOk({ modes: sqliteModes, sqlite: sqliteResult, repo: root, stage: 'stage4' });
     } catch (err) {
       recordIndexMetric('stage4', 'error', started);
       throw err;
@@ -329,6 +411,18 @@ export async function buildIndex(repoRoot, options = {}) {
         repoRoot: runtime.root,
         toolVersion: getToolVersion()
       });
+      if (overallProgressOptions) {
+        if (!overallProgress) {
+          overallProgress = createOverallProgress({
+            modes,
+            buildId: runtime.buildId,
+            ...overallProgressOptions
+          });
+        }
+        runtime.overallProgress = overallProgress;
+      } else {
+        runtime.overallProgress = null;
+      }
       const lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log });
       if (!lock) throw new Error('Index lock unavailable.');
       let sqliteResult = null;
@@ -348,7 +442,9 @@ export async function buildIndex(repoRoot, options = {}) {
       });
       await markBuildPhase(runtime.buildRoot, 'discovery', 'running');
       let sharedDiscovery = null;
-      const preprocessModes = modes.filter((modeItem) => modeItem === 'code' || modeItem === 'prose');
+      const preprocessModes = modes.filter((modeItem) => (
+        modeItem === 'code' || modeItem === 'prose' || modeItem === 'extracted-prose'
+      ));
       if (preprocessModes.length) {
         await markBuildPhase(runtime.buildRoot, 'preprocessing', 'running');
         const preprocess = await preprocessFiles({
@@ -390,13 +486,17 @@ export async function buildIndex(repoRoot, options = {}) {
       }
       await markBuildPhase(runtime.buildRoot, phaseStage, 'done');
       const sqliteConfigured = runtime.userConfig?.sqlite?.use !== false;
-      const sqliteModes = modes.filter((modeItem) => modeItem === 'code' || modeItem === 'prose');
+      const sqliteModes = modes.filter((modeItem) => (
+        modeItem === 'code' || modeItem === 'prose' || modeItem === 'extracted-prose' || modeItem === 'records'
+      ));
       const shouldBuildSqlite = allowSqlite
         && (typeof stageArgv.sqlite === 'boolean' ? stageArgv.sqlite : sqliteConfigured);
       const sqliteEnabledForValidation = shouldBuildSqlite && sqliteModes.length > 0;
       if (shouldBuildSqlite && sqliteModes.length) {
         const codeDir = getIndexDir(root, 'code', runtime.userConfig, { indexRoot: runtime.buildRoot });
         const proseDir = getIndexDir(root, 'prose', runtime.userConfig, { indexRoot: runtime.buildRoot });
+        const extractedProseDir = getIndexDir(root, 'extracted-prose', runtime.userConfig, { indexRoot: runtime.buildRoot });
+        const recordsDir = getIndexDir(root, 'records', runtime.userConfig, { indexRoot: runtime.buildRoot });
         const sqliteOut = path.join(runtime.buildRoot, 'index-sqlite');
         sqliteResult = await buildSqliteIndex(root, {
           mode: sqliteModes.length === 1 ? sqliteModes[0] : 'all',
@@ -404,6 +504,8 @@ export async function buildIndex(repoRoot, options = {}) {
           out: sqliteOut,
           codeDir,
           proseDir,
+          extractedProseDir,
+          recordsDir,
           emitOutput: options.emitOutput !== false,
           exitOnError: false
         });
@@ -479,8 +581,18 @@ export async function buildIndex(repoRoot, options = {}) {
     return runSqliteStage();
   }
 
-  if (explicitStage || !twoStageEnabled) {
+  if (explicitStage) {
     return runStage(explicitStage, { allowSqlite: true });
+  }
+
+  if (!twoStageEnabled) {
+    const stage2Result = await runStage('stage2', { allowSqlite: false });
+    const stage3Result = await runEmbeddingsStage();
+    if (stage3Result?.embeddings?.cancelled) {
+      return { modes, stage2: stage2Result, stage3: stage3Result, repo: root };
+    }
+    const stage4Result = await runSqliteStage();
+    return { modes, stage2: stage2Result, stage3: stage3Result, stage4: stage4Result, repo: root };
   }
 
   const stage1Result = await runStage('stage1', { allowSqlite: false });
@@ -543,6 +655,8 @@ export async function buildSqliteIndex(repoRoot, options = {}) {
     if (options.out) rawArgs.push('--out', String(options.out));
     if (options.codeDir) rawArgs.push('--code-dir', String(options.codeDir));
     if (options.proseDir) rawArgs.push('--prose-dir', String(options.proseDir));
+    if (options.extractedProseDir) rawArgs.push('--extracted-prose-dir', String(options.extractedProseDir));
+    if (options.recordsDir) rawArgs.push('--records-dir', String(options.recordsDir));
   }
   return runBuildSqliteIndex(rawArgs, {
     root,

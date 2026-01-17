@@ -12,7 +12,16 @@ const TESTS_DIR = path.join(ROOT, 'tests');
 const DEFAULT_TIMEOUT_MS = 120000;
 const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
 
-const EXCLUDED_DIRS = new Set(['fixtures', 'script-coverage', 'helpers', '.logs']);
+const EXCLUDED_DIRS = new Set([
+  'fixtures',
+  'script-coverage',
+  'helpers',
+  '.logs',
+  '.cache',
+  '.worktrees',
+  'worktree',
+  'worktrees'
+]);
 const EXCLUDED_FILES = new Set(['run.js', 'all.js', 'script-coverage.js']);
 const KNOWN_LANES = new Set(['smoke', 'unit', 'integration', 'services', 'storage', 'perf', 'ci']);
 

@@ -32,11 +32,86 @@ const formatCount = (value) => {
   return value.toLocaleString();
 };
 
-const buildBar = (pct, width) => {
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
+const stripAnsi = (value) => String(value || '').replace(ANSI_PATTERN, '');
+
+const PARTIALS_FINE = ['▏', '▎', '▍', '▌', '▋', '▊', '▉'];
+const PARTIALS_MED = ['▎', '▌', '▊'];
+const PARTIALS_COARSE = ['▌'];
+const BRAILLE_RAMP = ['⡀', '⡄', '⡆', '⡇', '⣇', '⣧', '⣷'];
+
+const BAR_STYLES = {
+  overall: { fill: '⣿', empty: '·', partials: BRAILLE_RAMP },
+  stage: { fill: '▓', empty: '░', partials: PARTIALS_COARSE },
+  files: { fill: '⣿', empty: '·', partials: BRAILLE_RAMP },
+  shard: { fill: '⣿', empty: '·', partials: BRAILLE_RAMP },
+  imports: { fill: '▆', empty: '·', partials: PARTIALS_MED },
+  artifacts: { fill: '▇', empty: '·', partials: PARTIALS_MED },
+  records: { fill: '▅', empty: '·', partials: PARTIALS_MED },
+  embeddings: { fill: '⣿', empty: '·', partials: BRAILLE_RAMP },
+  downloads: { fill: '▇', empty: '·', partials: PARTIALS_MED },
+  ci: { fill: '▓', empty: '░', partials: PARTIALS_COARSE },
+  default: { fill: '⣿', empty: '·', partials: BRAILLE_RAMP }
+};
+
+const BAR_THEMES = {
+  overall: { fill: '38;5;24', edge: '38;5;25', empty: '38;5;238', bracket: '97' },
+  stage: { fill: '38;5;240', edge: '38;5;244', empty: '38;5;238', bracket: '97' },
+  files: { fill: '38;5;22', edge: '38;5;28', empty: '38;5;238', bracket: '97' },
+  shard: { fill: '38;5;23', edge: '38;5;30', empty: '38;5;238', bracket: '97' },
+  imports: { fill: '38;5;58', edge: '38;5;64', empty: '38;5;238', bracket: '97' },
+  artifacts: { fill: '38;5;54', edge: '38;5;55', empty: '38;5;238', bracket: '97' },
+  records: { fill: '38;5;30', edge: '38;5;31', empty: '38;5;238', bracket: '97' },
+  embeddings: { fill: '38;5;60', edge: '38;5;61', empty: '38;5;238', bracket: '97' },
+  downloads: { fill: '38;5;24', edge: '38;5;25', empty: '38;5;238', bracket: '97' },
+  ci: { fill: '38;5;236', edge: '38;5;240', empty: '38;5;238', bracket: '97' },
+  default: { fill: '38;5;24', edge: '38;5;25', empty: '38;5;238', bracket: '97' }
+};
+
+const resolveBarVariant = (task) => {
+  const name = String(task?.name || '').toLowerCase();
+  const stage = String(task?.stage || '').toLowerCase();
+  if (stage === 'overall' || name === 'overall') return 'overall';
+  if (name === 'stage') return 'stage';
+  if (name === 'files') return 'files';
+  if (name === 'shard') return 'shard';
+  if (name === 'imports') return 'imports';
+  if (name === 'artifacts') return 'artifacts';
+  if (name === 'records') return 'records';
+  if (name === 'downloads') return 'downloads';
+  if (name === 'embeddings' || stage === 'embeddings') return 'embeddings';
+  if (name === 'ci' || stage === 'ci') return 'ci';
+  return 'default';
+};
+
+const buildBar = (pct, width, style, theme, colorize) => {
   const safeWidth = Math.max(4, Math.floor(width));
-  const filled = Math.min(safeWidth, Math.max(0, Math.round(pct * safeWidth)));
-  const empty = safeWidth - filled;
-  return `[${'#'.repeat(filled)}${'-'.repeat(empty)}]`;
+  const clamped = Math.min(1, Math.max(0, pct));
+  const total = clamped * safeWidth;
+  const fullCount = Math.floor(total);
+  const remainder = total - fullCount;
+  const partials = Array.isArray(style?.partials) && style.partials.length
+    ? style.partials
+    : PARTIALS_FINE;
+  let partialIndex = Math.floor(remainder * partials.length);
+  if (remainder > 0 && partialIndex === 0) partialIndex = 1;
+  if (partialIndex >= partials.length) partialIndex = partials.length;
+  const hasPartial = partialIndex > 0 && fullCount < safeWidth;
+  const emptyCount = Math.max(0, safeWidth - fullCount - (hasPartial ? 1 : 0));
+
+  const fillChar = style?.fill || '█';
+  const emptyChar = style?.empty || '·';
+  const filledText = fullCount > 0 ? fillChar.repeat(fullCount) : '';
+  const partialText = hasPartial ? partials[partialIndex - 1] : '';
+  const emptyText = emptyCount > 0 ? emptyChar.repeat(emptyCount) : '';
+
+  const filled = colorize ? colorize(filledText, theme?.fill) : filledText;
+  const partial = colorize ? colorize(partialText, theme?.edge) : partialText;
+  const empty = colorize ? colorize(emptyText, theme?.empty) : emptyText;
+  const bracket = theme?.bracket || '97';
+  const left = colorize ? colorize('[', bracket) : '[';
+  const right = colorize ? colorize(']', bracket) : ']';
+  return `${left}${filled}${partial}${empty}${right}`;
 };
 
 const resolveWidth = (term, stream) => {
@@ -48,9 +123,57 @@ const resolveWidth = (term, stream) => {
 const truncateLine = (line, width) => {
   if (!line) return '';
   const safeWidth = Math.max(1, Math.floor(width));
-  if (line.length <= safeWidth) return line;
-  if (safeWidth <= 3) return line.slice(0, safeWidth);
-  return `${line.slice(0, safeWidth - 3)}...`;
+  const plain = stripAnsi(line);
+  if (plain.length <= safeWidth) return line;
+  if (safeWidth <= 3) return plain.slice(0, safeWidth);
+  return `${plain.slice(0, safeWidth - 3)}...`;
+};
+
+const clampRatio = (value) => Math.min(1, Math.max(0, value));
+
+const progressRatio = (task) => {
+  if (!task || !Number.isFinite(task.total) || task.total <= 0) return 0;
+  const current = Number.isFinite(task.current) ? task.current : 0;
+  return clampRatio(current / task.total);
+};
+
+const computeOverallProgress = ({ overallTask, tasksByMode }) => {
+  if (!overallTask || !Number.isFinite(overallTask.total) || overallTask.total <= 0) return null;
+  let computed = 0;
+  for (const [mode, stageTask] of tasksByMode.stage) {
+    if (!stageTask || !Number.isFinite(stageTask.total) || stageTask.total <= 0) continue;
+    const stageTotal = stageTask.total;
+    if (stageTask.status === 'done') {
+      computed += stageTotal;
+      continue;
+    }
+    const stageIndex = Number.isFinite(stageTask.current) ? stageTask.current : 0;
+    const completed = Math.max(0, Math.min(stageTotal, stageIndex - 1));
+    const stageId = String(stageTask.stage || '').toLowerCase();
+    let fraction = 0;
+    if (stageId === 'imports') {
+      fraction = progressRatio(tasksByMode.imports.get(mode));
+    } else if (stageId === 'processing') {
+      const filesFraction = progressRatio(tasksByMode.files.get(mode));
+      const shardFraction = progressRatio(tasksByMode.shard.get(mode));
+      fraction = Math.max(filesFraction, shardFraction);
+    } else if (stageId === 'write') {
+      fraction = progressRatio(tasksByMode.artifacts.get(mode));
+    }
+    computed += completed + fraction;
+  }
+  const overallCurrent = Number.isFinite(overallTask.current) ? overallTask.current : 0;
+  const effective = Math.max(computed, overallCurrent);
+  return clampRatio(effective / overallTask.total);
+};
+
+const padLabel = (label, width) => {
+  const safeWidth = Math.max(1, Math.floor(width));
+  const plain = stripAnsi(label);
+  if (plain.length === safeWidth) return label;
+  if (plain.length < safeWidth) return `${label}${' '.repeat(safeWidth - plain.length)}`;
+  if (safeWidth <= 3) return plain.slice(0, safeWidth);
+  return `${plain.slice(0, safeWidth - 3)}...`;
 };
 
 export function createDisplay(options = {}) {
@@ -65,6 +188,7 @@ export function createDisplay(options = {}) {
   const progressEnabled = progressMode !== 'off';
   const term = interactive ? resolveTerminal(stream) : null;
   const canRender = !!(term && typeof term.up === 'function' && typeof term.eraseLine === 'function');
+  const colorEnabled = interactive && canRender && !jsonl;
   const logWindowSize = Number.isFinite(options.logWindowSize)
     ? Math.max(3, Math.floor(options.logWindowSize))
     : 6;
@@ -139,19 +263,66 @@ export function createDisplay(options = {}) {
   const render = () => {
     if (!interactive || !canRender) return;
     const width = resolveWidth(term, stream);
-    const taskLines = state.taskOrder.map((id) => {
-      const task = state.tasks.get(id);
-      if (!task) return '';
-      const total = Number.isFinite(task.total) && task.total > 0 ? task.total : null;
-      const current = Number.isFinite(task.current) ? task.current : 0;
-      const pct = total ? current / total : 0;
-      const suffix = total ? `${formatCount(current)}/${formatCount(total)}` : formatCount(current);
-      const barWidth = Math.min(24, Math.max(10, Math.floor(width / 6)));
-      const bar = total ? buildBar(pct, barWidth) : '[-]';
+    const tasks = state.taskOrder.map((id, order) => ({ task: state.tasks.get(id), order }))
+      .filter((entry) => entry.task);
+    tasks.sort((a, b) => b.order - a.order);
+    const orderedTasks = tasks.map((entry) => entry.task);
+    const taskLabels = orderedTasks.map((task) => {
       const labelParts = [];
       if (task.mode) labelParts.push(task.mode);
       labelParts.push(task.name);
-      const label = labelParts.join(' ');
+      return labelParts.join(' ');
+    });
+    const baselineLabels = [
+      'extracted-prose Artifacts',
+      'extracted-prose Files',
+      'extracted-prose Stage',
+      'extracted-prose Imports',
+      'extracted-prose Shard',
+      'records Records'
+    ];
+    const maxLabelLength = [...taskLabels, ...baselineLabels]
+      .reduce((max, label) => Math.max(max, stripAnsi(label).length), 0);
+    const labelWidth = Math.min(maxLabelLength, Math.max(10, Math.floor(width * 0.22)));
+    const tasksByMode = {
+      stage: new Map(),
+      imports: new Map(),
+      files: new Map(),
+      shard: new Map(),
+      artifacts: new Map()
+    };
+    let overallTask = null;
+    for (const task of orderedTasks) {
+      const name = String(task.name || '').toLowerCase();
+      const stage = String(task.stage || '').toLowerCase();
+      if (name === 'overall' || stage === 'overall') {
+        overallTask = task;
+      }
+      if (!task.mode) continue;
+      if (name === 'stage') tasksByMode.stage.set(task.mode, task);
+      if (name === 'imports') tasksByMode.imports.set(task.mode, task);
+      if (name === 'files') tasksByMode.files.set(task.mode, task);
+      if (name === 'shard') tasksByMode.shard.set(task.mode, task);
+      if (name === 'artifacts') tasksByMode.artifacts.set(task.mode, task);
+    }
+    const overallOverride = computeOverallProgress({ overallTask, tasksByMode });
+    const taskLines = orderedTasks.map((task, index) => {
+      const total = Number.isFinite(task.total) && task.total > 0 ? task.total : null;
+      const current = Number.isFinite(task.current) ? task.current : 0;
+      let pct = total ? current / total : 0;
+      if (overallOverride !== null && task === overallTask) {
+        pct = overallOverride;
+      }
+      const suffix = total ? `${formatCount(current)}/${formatCount(total)}` : formatCount(current);
+      const barWidth = Math.min(42, Math.max(16, Math.floor(width / 4)));
+      const colorize = colorEnabled
+        ? (text, code) => (text && code ? `\x1b[${code}m${text}\x1b[0m` : text || '')
+        : null;
+      const variant = resolveBarVariant(task);
+      const style = BAR_STYLES[variant] || BAR_STYLES.default;
+      const theme = BAR_THEMES[variant] || BAR_THEMES.default;
+      const bar = total ? buildBar(clampRatio(pct), barWidth, style, theme, colorize) : '[-]';
+      const label = padLabel(taskLabels[index] || task.name, labelWidth);
       const status = task.status && task.status !== 'running' ? ` (${task.status})` : '';
       const message = task.message ? ` ${task.message}` : '';
       return `${label} ${bar} ${suffix}${status}${message}`.trim();
@@ -159,7 +330,7 @@ export function createDisplay(options = {}) {
 
     const logLines = [...state.logLines];
     while (logLines.length < logWindowSize) logLines.push('');
-    const lines = [...taskLines, ...logLines];
+    const lines = [...logLines, ...taskLines];
     const totalLines = lines.length;
 
     if (!state.rendered) {

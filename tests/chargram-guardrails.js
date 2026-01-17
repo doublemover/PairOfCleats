@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createTokenizationContext, tokenizeChunkText } from '../src/index/build/tokenization.js';
+import { buildChargramsFromTokens, createTokenizationContext, tokenizeChunkText } from '../src/index/build/tokenization.js';
 import { tri } from '../src/shared/tokenize.js';
 
 const context = createTokenizationContext({
@@ -22,7 +22,8 @@ const payload = tokenizeChunkText({
 });
 
 const longGram = tri('veryverylongtoken', 3)[0];
-if (payload.chargrams.includes(longGram)) {
+const chargrams = buildChargramsFromTokens(payload.tokens, context);
+if (chargrams.includes(longGram)) {
   console.error('chargram guardrail test failed: long token chargrams should be skipped.');
   process.exit(1);
 }
@@ -31,15 +32,15 @@ const fieldPayload = tokenizeChunkText({
   text: 'short',
   mode: 'code',
   ext: '.js',
-  context,
-  chargramTokens: ['field']
+  context
 });
 const fieldGram = tri('field', 3)[0];
-if (!fieldPayload.chargrams.includes(fieldGram)) {
+const fieldChargrams = buildChargramsFromTokens(['field'], context);
+if (!fieldChargrams.includes(fieldGram)) {
   console.error('chargram guardrail test failed: field chargrams missing.');
   process.exit(1);
 }
-if (fieldPayload.chargrams.includes(tri('short', 3)[0])) {
+if (fieldChargrams.includes(tri('short', 3)[0])) {
   console.error('chargram guardrail test failed: expected chargrams to use field tokens only.');
   process.exit(1);
 }

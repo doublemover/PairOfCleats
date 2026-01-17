@@ -130,11 +130,18 @@ export async function buildPostings(input) {
   };
   const normalizeTfPostingList = (value) => {
     if (!Array.isArray(value)) return [];
-    if (value.length <= 1 || isSortedPostings(value)) return value;
-    const next = value.filter((entry) => Array.isArray(entry) && Number.isFinite(entry[0]));
+    const next = [];
+    for (const entry of value) {
+      if (!Array.isArray(entry)) continue;
+      const docId = entry[0];
+      const count = entry[1];
+      if (!Number.isFinite(docId) || !Number.isFinite(count)) continue;
+      next.push([docId, Math.trunc(count)]);
+    }
+    if (next.length <= 1 || isSortedPostings(next)) return next;
     next.sort((a, b) => {
       const delta = a[0] - b[0];
-      return delta || ((a[1] || 0) - (b[1] || 0));
+      return delta || (a[1] - b[1]);
     });
     return next;
   };

@@ -52,8 +52,8 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
     : 0;
   if (!embeddingBatchSize) {
     const totalGb = os.totalmem() / (1024 ** 3);
-    const autoBatch = Math.floor(totalGb * 32);
-    embeddingBatchSize = Math.min(128, Math.max(32, autoBatch));
+    const autoBatch = Math.floor(totalGb * 16);
+    embeddingBatchSize = Math.min(128, Math.max(16, autoBatch));
   }
 
   const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;
@@ -69,7 +69,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
   const embedModeRaw = (argv.mode || 'all').toLowerCase();
   const embedMode = embedModeRaw === 'both' ? 'all' : embedModeRaw;
   const modes = embedMode === 'all'
-    ? ['code', 'prose', 'extracted-prose']
+    ? ['code', 'prose', 'extracted-prose', 'records']
     : [embedMode];
 
   return {

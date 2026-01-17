@@ -80,22 +80,6 @@ function run(cmd, args, label) {
   }
 }
 
-function sanitizeRemoteUrl(value) {
-  if (!value) return value;
-  try {
-    const parsed = new URL(value);
-    if (parsed.username || parsed.password) {
-      parsed.username = '';
-      parsed.password = '';
-      const cleaned = parsed.toString();
-      return cleaned.replace(/\/\/@/, '//');
-    }
-    return parsed.toString();
-  } catch {
-    return value.replace(/^(https?:\/\/)[^@/]*@/i, '$1');
-  }
-}
-
 if (!argv['skip-build']) {
   const childProgress = argv.verbose ? (argv.progress || 'auto') : 'off';
   const args = [

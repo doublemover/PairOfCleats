@@ -41,20 +41,33 @@ const resolveOutputPaths = ({ modeArg, outArg, sqlitePaths }) => {
   let outPath = null;
   let codeOutPath = sqlitePaths.codePath;
   let proseOutPath = sqlitePaths.prosePath;
+  let extractedProseOutPath = sqlitePaths.extractedProsePath;
+  let recordsOutPath = sqlitePaths.recordsPath;
   if (outArg) {
     if (modeArg === 'all') {
       const outDir = outArg.endsWith('.db') ? path.dirname(outArg) : outArg;
       codeOutPath = path.join(outDir, 'index-code.db');
       proseOutPath = path.join(outDir, 'index-prose.db');
+      extractedProseOutPath = path.join(outDir, 'index-extracted-prose.db');
+      recordsOutPath = path.join(outDir, 'index-records.db');
     } else {
-      const targetName = modeArg === 'code' ? 'index-code.db' : 'index-prose.db';
+      const targetName = modeArg === 'code'
+        ? 'index-code.db'
+        : (modeArg === 'prose'
+          ? 'index-prose.db'
+          : (modeArg === 'extracted-prose'
+            ? 'index-extracted-prose.db'
+            : 'index-records.db'));
       outPath = outArg.endsWith('.db') ? outArg : path.join(outArg, targetName);
     }
   }
   if (!outPath && modeArg !== 'all') {
-    outPath = modeArg === 'code' ? codeOutPath : proseOutPath;
+    if (modeArg === 'code') outPath = codeOutPath;
+    else if (modeArg === 'prose') outPath = proseOutPath;
+    else if (modeArg === 'extracted-prose') outPath = extractedProseOutPath;
+    else outPath = recordsOutPath;
   }
-  return { outPath, codeOutPath, proseOutPath };
+  return { outPath, codeOutPath, proseOutPath, extractedProseOutPath, recordsOutPath };
 };
 
 export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), options = {}) {
@@ -144,16 +157,24 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
   const proseDir = argv['prose-dir']
     ? path.resolve(argv['prose-dir'])
     : getIndexDir(root, 'prose', userConfig, { indexRoot });
+  const extractedProseDir = argv['extracted-prose-dir']
+    ? path.resolve(argv['extracted-prose-dir'])
+    : getIndexDir(root, 'extracted-prose', userConfig, { indexRoot });
+  const recordsDir = argv['records-dir']
+    ? path.resolve(argv['records-dir'])
+    : getIndexDir(root, 'records', userConfig, { indexRoot });
   const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
   const incrementalRequested = argv.incremental === true;
 
-  if (!['all', 'code', 'prose'].includes(modeArg)) {
-    return bail('Invalid mode. Use --mode all|code|prose');
+  if (!['all', 'code', 'prose', 'extracted-prose', 'records'].includes(modeArg)) {
+    return bail('Invalid mode. Use --mode all|code|prose|extracted-prose|records');
   }
 
   const sqliteStateTargets = [];
   if (modeArg === 'all' || modeArg === 'code') sqliteStateTargets.push(codeDir);
   if (modeArg === 'all' || modeArg === 'prose') sqliteStateTargets.push(proseDir);
+  if (modeArg === 'all' || modeArg === 'extracted-prose') sqliteStateTargets.push(extractedProseDir);
+  if (modeArg === 'all' || modeArg === 'records') sqliteStateTargets.push(recordsDir);
   if (hasBuildState) {
     await markBuildPhase(indexRoot, 'stage4', 'running');
   }
@@ -164,7 +185,7 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
   })));
 
   const outArg = argv.out ? path.resolve(argv.out) : null;
-  const { outPath, codeOutPath, proseOutPath } = resolveOutputPaths({
+  const { outPath, codeOutPath, proseOutPath, extractedProseOutPath, recordsOutPath } = resolveOutputPaths({
     modeArg,
     outArg,
     sqlitePaths
@@ -173,6 +194,8 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
   if (modeArg === 'all') {
     await fs.mkdir(path.dirname(codeOutPath), { recursive: true });
     await fs.mkdir(path.dirname(proseOutPath), { recursive: true });
+    await fs.mkdir(path.dirname(extractedProseOutPath), { recursive: true });
+    await fs.mkdir(path.dirname(recordsOutPath), { recursive: true });
   } else if (outPath) {
     await fs.mkdir(path.dirname(outPath), { recursive: true });
   }
@@ -195,11 +218,25 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
 
   const { index: codeIndex, pieces: codePieces } = await loadIndexSafe(codeDir, 'code');
   const { index: proseIndex, pieces: prosePieces } = await loadIndexSafe(proseDir, 'prose');
+  const { index: extractedProseIndex, pieces: extractedProsePieces } = await loadIndexSafe(extractedProseDir, 'extracted-prose');
+  const { index: recordsIndex, pieces: recordsPieces } = await loadIndexSafe(recordsDir, 'records');
   const incrementalCode = loadIncrementalManifest(repoCacheRoot, 'code');
   const incrementalProse = loadIncrementalManifest(repoCacheRoot, 'prose');
-  if (!codeIndex && !codePieces && !proseIndex && !prosePieces
-    && !incrementalCode?.manifest && !incrementalProse?.manifest) {
-    return bail('No index found. Build index-code/index-prose first.');
+  const incrementalExtractedProse = loadIncrementalManifest(repoCacheRoot, 'extracted-prose');
+  const incrementalRecords = loadIncrementalManifest(repoCacheRoot, 'records');
+  const modeList = modeArg === 'all' ? ['code', 'prose', 'extracted-prose', 'records'] : [modeArg];
+  const hasIndex = (index, pieces, incremental) => !!(index || pieces || incremental?.manifest);
+  const indexByMode = {
+    code: { index: codeIndex, pieces: codePieces, incremental: incrementalCode },
+    prose: { index: proseIndex, pieces: prosePieces, incremental: incrementalProse },
+    'extracted-prose': { index: extractedProseIndex, pieces: extractedProsePieces, incremental: incrementalExtractedProse },
+    records: { index: recordsIndex, pieces: recordsPieces, incremental: incrementalRecords }
+  };
+  if (!modeList.some((mode) => {
+    const entry = indexByMode[mode];
+    return entry && hasIndex(entry.index, entry.pieces, entry.incremental);
+  })) {
+    return bail('No index found. Build index-code/index-prose/index-extracted-prose/index-records first.');
   }
 
   if (sqlitePaths.legacyExists) {
@@ -211,11 +248,17 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     }
   }
 
-  if (modeArg === 'code' && !codeIndex && !codePieces && !incrementalCode?.manifest) {
-    return bail('Code index missing; build index-code first.');
-  }
-  if (modeArg === 'prose' && !proseIndex && !prosePieces && !incrementalProse?.manifest) {
-    return bail('Prose index missing; build index-prose first.');
+  const modeLabels = {
+    code: 'index-code',
+    prose: 'index-prose',
+    'extracted-prose': 'index-extracted-prose',
+    records: 'index-records'
+  };
+  for (const mode of modeList) {
+    const entry = indexByMode[mode];
+    if (!entry || hasIndex(entry.index, entry.pieces, entry.incremental)) continue;
+    const label = modeLabels[mode] || `index-${mode}`;
+    return bail(`${mode} index missing; build ${label} first.`);
   }
 
   const workerPath = fileURLToPath(new URL('../workers/bundle-reader.js', import.meta.url));
@@ -322,7 +365,6 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
   };
 
   const results = {};
-  const modeList = modeArg === 'all' ? ['code', 'prose'] : [modeArg];
   let completedModes = 0;
   const modeTask = display.task('SQLite', { total: modeList.length, stage: 'sqlite' });
   const updateModeProgress = (message) => {
@@ -344,19 +386,59 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     completedModes += 1;
     updateModeProgress('built prose');
   }
+  if (modeArg === 'all' || modeArg === 'extracted-prose') {
+    const targetPath = modeArg === 'all' ? extractedProseOutPath : outPath;
+    const extractedInput = extractedProseIndex || extractedProsePieces;
+    updateModeProgress('building extracted-prose');
+    results['extracted-prose'] = await runMode(
+      'extracted-prose',
+      extractedInput,
+      extractedProseDir,
+      targetPath,
+      incrementalExtractedProse
+    );
+    completedModes += 1;
+    updateModeProgress('built extracted-prose');
+  }
+  if (modeArg === 'all' || modeArg === 'records') {
+    const targetPath = modeArg === 'all' ? recordsOutPath : outPath;
+    const recordsInput = recordsIndex || recordsPieces;
+    updateModeProgress('building records');
+    results.records = await runMode('records', recordsInput, recordsDir, targetPath, incrementalRecords);
+    completedModes += 1;
+    updateModeProgress('built records');
+  }
 
   if (modeArg === 'all') {
     const codeResult = results.code || {};
     const proseResult = results.prose || {};
-    if (codeResult.incremental || proseResult.incremental) {
-      log(`SQLite indexes updated at code=${codeOutPath} prose=${proseOutPath}. ` +
-        `code+${codeResult.insertedChunks || 0} prose+${proseResult.insertedChunks || 0}`);
+    const extractedResult = results['extracted-prose'] || {};
+    const recordsResult = results.records || {};
+    const anyIncremental = codeResult.incremental || proseResult.incremental
+      || extractedResult.incremental || recordsResult.incremental;
+    if (anyIncremental) {
+      log(
+        `SQLite indexes updated at code=${codeOutPath} prose=${proseOutPath} ` +
+        `extracted-prose=${extractedProseOutPath} records=${recordsOutPath}. ` +
+        `code+${codeResult.insertedChunks || 0} prose+${proseResult.insertedChunks || 0} ` +
+        `extracted-prose+${extractedResult.insertedChunks || 0} records+${recordsResult.insertedChunks || 0}`
+      );
     } else {
-      log(`SQLite indexes built at code=${codeOutPath} prose=${proseOutPath}. ` +
-        `code=${codeResult.count || 0} prose=${proseResult.count || 0}`);
+      log(
+        `SQLite indexes built at code=${codeOutPath} prose=${proseOutPath} ` +
+        `extracted-prose=${extractedProseOutPath} records=${recordsOutPath}. ` +
+        `code=${codeResult.count || 0} prose=${proseResult.count || 0} ` +
+        `extracted-prose=${extractedResult.count || 0} records=${recordsResult.count || 0}`
+      );
     }
   } else {
-    const result = modeArg === 'code' ? results.code : results.prose;
+    const result = modeArg === 'code'
+      ? results.code
+      : (modeArg === 'prose'
+        ? results.prose
+        : (modeArg === 'extracted-prose'
+          ? results['extracted-prose']
+          : results.records));
     if (result?.incremental) {
       log(`SQLite ${modeArg} index updated at ${outPath}. +${result.insertedChunks || 0} chunks`);
     } else {
@@ -380,6 +462,8 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     paths: {
       code: codeOutPath,
       prose: proseOutPath,
+      extractedProse: extractedProseOutPath,
+      records: recordsOutPath,
       out: outPath
     }
   };

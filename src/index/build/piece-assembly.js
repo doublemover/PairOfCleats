@@ -215,10 +215,17 @@ const normalizeIdList = (list) => {
 const normalizeTfPostings = (list) => {
   if (!Array.isArray(list)) return [];
   if (list.length <= 1) return list;
-  const filtered = list.filter((entry) => Array.isArray(entry) && Number.isFinite(entry[0]));
+  const filtered = list.reduce((acc, entry) => {
+    if (!Array.isArray(entry)) return acc;
+    const docId = entry[0];
+    const count = entry[1];
+    if (!Number.isFinite(docId) || !Number.isFinite(count)) return acc;
+    acc.push([docId, Math.trunc(count)]);
+    return acc;
+  }, []);
   filtered.sort((a, b) => {
     const delta = a[0] - b[0];
-    return delta || ((a[1] || 0) - (b[1] || 0));
+    return delta || (a[1] - b[1]);
   });
   return filtered;
 };

@@ -63,11 +63,14 @@ const normalize = (vec) => {
 };
 
 const expectedMerged = chunks.map((chunk) => quantizeVec(normalize(chunk.embedding)));
-const expectedDoc = chunks.map((chunk) => (
-  Array.isArray(chunk.embed_doc) && chunk.embed_doc.length
-    ? quantizeVec(normalize(chunk.embed_doc))
-    : quantizeVec(new Array(dims).fill(0))
-));
+const expectedDoc = chunks.map((chunk) => {
+  if (Array.isArray(chunk.embed_doc)) {
+    return chunk.embed_doc.length
+      ? quantizeVec(normalize(chunk.embed_doc))
+      : quantizeVec(new Array(dims).fill(0));
+  }
+  return quantizeVec(normalize(chunk.embedding));
+});
 const expectedCode = chunks.map((chunk) => (
   Array.isArray(chunk.embed_code) && chunk.embed_code.length
     ? quantizeVec(normalize(chunk.embed_code))

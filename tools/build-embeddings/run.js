@@ -12,7 +12,7 @@ import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { resolveHnswPaths } from '../../src/shared/hnsw.js';
 import { normalizeLanceDbConfig } from '../../src/shared/lancedb.js';
 import { createDisplay } from '../../src/shared/cli/display.js';
-import { getIndexDir, getRepoCacheRoot } from '../dict-utils.js';
+import { getIndexDir, getRepoCacheRoot, getTriageConfig } from '../dict-utils.js';
 import { buildCacheIdentity, buildCacheKey, isCacheValid, resolveCacheDir, resolveCacheRoot } from './cache.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
 import {
@@ -121,6 +121,8 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
   const getChunkEmbeddings = embedder.getChunkEmbeddings;
 
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const triageConfig = getTriageConfig(root, userConfig);
+  const recordsDir = triageConfig.recordsDir;
   const buildStatePath = resolveBuildStatePath(indexRoot);
   const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
   const stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage3') : () => {};
@@ -138,7 +140,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
   let completedModes = 0;
 
   for (const mode of modes) {
-    if (!['code', 'prose', 'extracted-prose'].includes(mode)) {
+    if (!['code', 'prose', 'extracted-prose', 'records'].includes(mode)) {
       fail(`Invalid mode: ${mode}`);
     }
     modeTask.set(completedModes, modes.length, { message: `building ${mode}` });
@@ -333,7 +335,15 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
         }
       }
 
-      const absPath = path.resolve(root, normalizedRel.split('/').join(path.sep));
+      const absPath = mode === 'records'
+        ? path.resolve(
+          recordsDir,
+          (normalizedRel.startsWith('triage/records/')
+            ? normalizedRel.slice('triage/records/'.length)
+            : normalizedRel
+          ).split('/').join(path.sep)
+        )
+        : path.resolve(root, normalizedRel.split('/').join(path.sep));
       let textInfo;
       try {
         textInfo = await readTextFileWithHash(absPath);

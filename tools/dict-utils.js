@@ -415,7 +415,7 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
       const ensureExists = (value) => (value && fs.existsSync(value) ? value : null);
       let resolved = preferredMode ? ensureExists(buildRoots[preferredMode]) : null;
       if (!resolved && !preferredMode) {
-        for (const mode of ['code', 'prose', 'records']) {
+        for (const mode of ['code', 'prose', 'extracted-prose', 'records']) {
           resolved = ensureExists(buildRoots[mode]);
           if (resolved) break;
         }
@@ -648,7 +648,7 @@ export function resolveLmdbPaths(repoRoot, userConfig = null, options = {}) {
  * Resolve SQLite database paths for the repo.
  * @param {string} repoRoot
  * @param {object|null} userConfig
- * @returns {{codePath:string,prosePath:string,dbDir:string,legacyPath:string,legacyExists:boolean}}
+ * @returns {{codePath:string,prosePath:string,extractedProsePath:string,recordsPath:string,dbDir:string,legacyPath:string,legacyExists:boolean}}
  */
 export function resolveSqlitePaths(repoRoot, userConfig = null, options = {}) {
   const cfg = userConfig || loadUserConfig(repoRoot);
@@ -664,9 +664,17 @@ export function resolveSqlitePaths(repoRoot, userConfig = null, options = {}) {
   const prosePath = sqlite.proseDbPath
     ? resolvePath(repoRoot, sqlite.proseDbPath)
     : path.join(dbDir, 'index-prose.db');
+  const extractedProsePath = sqlite.extractedProseDbPath
+    ? resolvePath(repoRoot, sqlite.extractedProseDbPath)
+    : path.join(dbDir, 'index-extracted-prose.db');
+  const recordsPath = sqlite.recordsDbPath
+    ? resolvePath(repoRoot, sqlite.recordsDbPath)
+    : path.join(dbDir, 'index-records.db');
   return {
     codePath,
     prosePath,
+    extractedProsePath,
+    recordsPath,
     dbDir,
     legacyPath,
     legacyExists: fs.existsSync(legacyPath)

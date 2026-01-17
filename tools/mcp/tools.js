@@ -79,7 +79,7 @@ export async function buildIndex(args = {}, context = {}) {
   const mode = args.mode || 'all';
   const incremental = args.incremental === true;
   const stubEmbeddings = args.stubEmbeddings === true;
-  const buildSqlite = shouldUseSqlite && mode !== 'records';
+  const buildSqlite = shouldUseSqlite;
   const useArtifacts = args.useArtifacts === true;
   const progress = typeof context.progress === 'function' ? context.progress : null;
 

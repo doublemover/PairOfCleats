@@ -38,6 +38,7 @@ export const ensureFixtureIndex = async ({
   const fixtureRoot = path.join(ROOT, 'tests', 'fixtures', fixtureName);
   const cacheRoot = path.join(ROOT, 'tests', '.cache', cacheName);
   await ensureDir(cacheRoot);
+  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
   const env = createFixtureEnv(cacheRoot, envOverrides);
   const userConfig = loadUserConfig(fixtureRoot);
   const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);

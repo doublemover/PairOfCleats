@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import fs from 'node:fs/promises';
 import util from 'node:util';
 import path from 'node:path';
@@ -378,11 +379,6 @@ export function createFileProcessor(options) {
       return cachedOutcome.result;
     }
 
-    if (!fileLanguageId && mode === 'code') {
-      recordSkip(abs, 'unsupported-language', { ext });
-      return null;
-    }
-
     if (!fileBuffer) {
       try {
         fileBuffer = await runIo(() => fs.readFile(abs));
@@ -436,7 +432,6 @@ export function createFileProcessor(options) {
       const validateChunkBounds = (chunks, textLength) => {
         if (!Array.isArray(chunks)) return 'chunk list missing';
         let lastStart = -1;
-        let lastEnd = -1;
         for (let i = 0; i < chunks.length; i += 1) {
           const chunk = chunks[i];
           if (!chunk) return `chunk ${i} missing`;
@@ -451,13 +446,23 @@ export function createFileProcessor(options) {
           if (start < lastStart) {
             return `chunk ${i} out of order`;
           }
-          if (start < lastEnd) {
-            return `chunk ${i} overlaps previous`;
-          }
           lastStart = start;
-          lastEnd = end;
         }
         return null;
+      };
+      const sanitizeChunkBounds = (chunks, textLength) => {
+        if (!Array.isArray(chunks)) return;
+        const max = Number.isFinite(textLength) ? textLength : 0;
+        for (const chunk of chunks) {
+          if (!chunk) continue;
+          const start = Number(chunk.start);
+          const end = Number(chunk.end);
+          if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+          const clampedStart = Math.max(0, Math.min(start, max));
+          const clampedEnd = Math.max(clampedStart, Math.min(end, max));
+          if (clampedStart !== start) chunk.start = clampedStart;
+          if (clampedEnd !== end) chunk.end = clampedEnd;
+        }
       };
       const baseTreeSitterConfig = fileEntry?.treeSitterDisabled
         ? { ...(languageOptions?.treeSitter || {}), enabled: false }
@@ -768,6 +773,7 @@ export function createFileProcessor(options) {
         }
         throw err;
       }
+      sanitizeChunkBounds(sc, text.length);
       const chunkIssue = validateChunkBounds(sc, text.length);
       if (chunkIssue) {
         const error = new Error(chunkIssue);

@@ -24,7 +24,11 @@ export const buildStageOverrides = (twoStageConfig, stage) => {
       typeInference: false,
       typeInferenceCrossFile: false
     }
-    : stage === 'stage3'
+    : stage === 'stage2'
+      ? {
+        embeddings: { enabled: false, mode: 'off' }
+      }
+      : stage === 'stage3'
       ? {
         treeSitter: { enabled: false },
         lint: false,

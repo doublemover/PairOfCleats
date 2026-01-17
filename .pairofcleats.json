@@ -8,27 +8,27 @@
     "annBackend": "lancedb"
   },
   "indexing": {
-    "embeddingBatchSize": 1024,
+    "embeddingBatchSize": 256,
     "embeddings": {
-      "batchSize": 1024,
-      "concurrency": 16,
+      "batchSize": 256,
+      "concurrency": 8,
       "lancedb": {
         "enabled": true,
         "table": "vectors",
         "idColumn": "id",
         "embeddingColumn": "vector",
         "metric": "cosine",
-        "batchSize": 8192
+        "batchSize": 2048
       },
       "shards": {
         "enabled": true,
-        "maxWorkers": 16,
+        "maxWorkers": 8,
         "dirDepth": 0
       }
     },
     "workerPool": {
       "enabled": true,
-      "maxWorkers": 16
+      "maxWorkers": 12
     },
     "postings": {
       "enablePhraseNgrams": true,
@@ -58,8 +58,11 @@
       "enabled": true
     },
     "runtime": {
-      "uvThreadpoolSize": 32,
+      "uvThreadpoolSize": 16,
       "maxOldSpaceMb": 65536
     }
+  },
+  "runtime": {
+    "maxOldSpaceMb": 65536
   }
 }

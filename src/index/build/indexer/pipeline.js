@@ -40,6 +40,9 @@ const buildFeatureSettings = (runtime, mode) => ({
 export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   if (mode === 'records') {
     await buildRecordsIndexForRepo({ runtime });
+    if (runtime?.overallProgress?.advance) {
+      runtime.overallProgress.advance({ message: 'records' });
+    }
     return;
   }
   const crashLogger = await createCrashLogger({
@@ -97,6 +100,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   const stageTotal = stagePlan.length;
   let stageIndex = 0;
   const advanceStage = (stage) => {
+    if (runtime?.overallProgress?.advance && stageIndex > 0) {
+      const prevStage = stagePlan[stageIndex - 1];
+      runtime.overallProgress.advance({ message: `${mode} ${prevStage.label}` });
+    }
     stageIndex += 1;
     showProgress('Stage', stageIndex, stageTotal, {
       taskId: `stage:${mode}`,
@@ -223,6 +230,10 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     graphRelations,
     shardSummary
   });
+  if (runtime?.overallProgress?.advance) {
+    const finalStage = stagePlan[stagePlan.length - 1];
+    runtime.overallProgress.advance({ message: `${mode} ${finalStage.label}` });
+  }
   await enqueueEmbeddingJob({ runtime, mode });
   crashLogger.updatePhase('done');
   cacheReporter.report();
