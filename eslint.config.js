@@ -10,6 +10,8 @@ export default [
       'benchmarks/cache/**',
       'benchmarks/results/**',
       'tests/.cache/**',
+      '**/.worktrees/**',
+      '**/worktrees/**',
       '**/.git/**',
       '**/docs/phase3-parity-report.json',
       'tests/fixtures/languages/src/javascript_flow.js',
