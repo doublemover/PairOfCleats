@@ -4,11 +4,12 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { createCli } from '../src/shared/cli.js';
-import { loadUserConfig, resolveToolRoot } from './dict-utils.js';
+import { getTriageConfig, loadUserConfig, resolveToolRoot } from './dict-utils.js';
 import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
 import { discoverFilesForModes } from '../src/index/build/discover.js';
 import { planShardBatches, planShards } from '../src/index/build/shards.js';
 import { countLinesForEntries } from '../src/shared/file-stats.js';
+import { compareStrings } from '../src/shared/sort.js';
 
 const argv = createCli({
   scriptName: 'shard-census',
@@ -150,6 +151,7 @@ const formatNumber = (value) => value.toLocaleString('en-US');
 
 const censusRepo = async (repoPath, label) => {
   const userConfig = loadUserConfig(repoPath);
+  const triageConfig = getTriageConfig(repoPath, userConfig);
   const indexingConfig = userConfig.indexing || {};
   const maxFileBytes = resolveMaxFileBytes(indexingConfig);
   const fileCaps = resolveFileCaps(indexingConfig);
@@ -161,6 +163,7 @@ const censusRepo = async (repoPath, label) => {
   const entriesByMode = await discoverFilesForModes({
     root: repoPath,
     modes,
+    recordsDir: triageConfig.recordsDir,
     ignoreMatcher,
     skippedByMode,
     maxFileBytes,
@@ -196,7 +199,7 @@ const censusRepo = async (repoPath, label) => {
     shardStats.sort((a, b) => {
       if (b.lines !== a.lines) return b.lines - a.lines;
       if (b.files !== a.files) return b.files - a.files;
-      return a.label.localeCompare(b.label);
+      return compareStrings(a.label, b.label);
     });
     const totalFiles = entries.length;
     const totalLines = shardStats.reduce((sum, shard) => sum + shard.lines, 0);

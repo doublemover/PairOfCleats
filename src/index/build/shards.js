@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileExt, toPosix } from '../../shared/files.js';
 import { sha1 } from '../../shared/hash.js';
+import { compareStrings } from '../../shared/sort.js';
 import { resolveSpecialCodeExt } from '../constants.js';
 import { getLanguageForFile } from '../language-registry.js';
 import { estimateFileCost } from './perf-profile.js';
@@ -93,7 +94,7 @@ const hasHugeFile = (shard, lineCounts, threshold) => {
 
 const splitShardByLines = (shard, lineCounts, targetLines) => {
   if (!targetLines || targetLines <= 0) return [shard];
-  const entries = [...shard.entries].sort((a, b) => (a.rel || '').localeCompare(b.rel || ''));
+  const entries = [...shard.entries].sort((a, b) => compareStrings(a.rel || '', b.rel || ''));
   if (entries.length <= 1) return [shard];
   const parts = [];
   let current = [];
@@ -154,7 +155,7 @@ const splitShardByCapacity = (shard, lineCounts, options = {}) => {
   const maxBytes = Number.isFinite(options.maxBytes) ? options.maxBytes : null;
   const maxLines = Number.isFinite(options.maxLines) ? options.maxLines : null;
   if (!targetCost && !maxBytes && !maxLines) return [shard];
-  const entries = [...shard.entries].sort((a, b) => (a.rel || '').localeCompare(b.rel || ''));
+  const entries = [...shard.entries].sort((a, b) => compareStrings(a.rel || '', b.rel || ''));
   if (entries.length <= 1) return [shard];
   const parts = [];
   let current = [];
@@ -310,7 +311,7 @@ const balanceShardsGreedy = (shards, targetCount, mode) => {
         dir: 'balanced',
         lang: 'mixed',
         mode,
-        entries: entries.sort((a, b) => (a.rel || '').localeCompare(b.rel || '')),
+        entries: entries.sort((a, b) => compareStrings(a.rel || '', b.rel || '')),
         lineCount,
         byteCount,
         costMs,
@@ -405,7 +406,7 @@ export function planShards(
   }
 
   for (const shard of shards) {
-    shard.entries.sort((a, b) => (a.rel || '').localeCompare(b.rel || ''));     
+    shard.entries.sort((a, b) => compareStrings(a.rel || '', b.rel || ''));
     shard.lineCount = computeShardLineTotal(shard, lineCountMap);
     shard.byteCount = computeShardByteTotal(shard);
     shard.costMs = computeShardCostTotal(shard);
@@ -473,5 +474,5 @@ export function planShards(
     shards = balanceShardsGreedy(shards, Math.floor(maxShards), mode);
   }
 
-  return shards.sort((a, b) => (a.label || a.id).localeCompare(b.label || b.id));
+  return shards.sort((a, b) => compareStrings(a.label || a.id, b.label || b.id));
 }

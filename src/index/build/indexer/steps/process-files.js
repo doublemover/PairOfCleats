@@ -5,6 +5,7 @@ import { getEnvConfig } from '../../../../shared/env.js';
 import { fileExt, toPosix } from '../../../../shared/files.js';
 import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress.js';
+import { compareStrings } from '../../../../shared/sort.js';
 import {
   preloadTreeSitterLanguages,
   pruneTreeSitterLanguages,
@@ -193,9 +194,9 @@ const applyTreeSitterBatching = (entries, treeSitterOptions, envConfig, { allowR
     entries.sort((a, b) => {
       const keyA = a.treeSitterBatchKey || 'none';
       const keyB = b.treeSitterBatchKey || 'none';
-      const keyDelta = keyA.localeCompare(keyB);
+      const keyDelta = compareStrings(keyA, keyB);
       if (keyDelta !== 0) return keyDelta;
-      return (a.rel || '').localeCompare(b.rel || '');
+      return compareStrings(a.rel || '', b.rel || '');
     });
     entries.forEach((entry, index) => {
       entry.orderIndex = index;
@@ -227,9 +228,9 @@ const sortEntriesByTreeSitterBatchKey = (entries) => {
   entries.sort((a, b) => {
     const keyA = a.treeSitterBatchKey || 'none';
     const keyB = b.treeSitterBatchKey || 'none';
-    const keyDelta = keyA.localeCompare(keyB);
+    const keyDelta = compareStrings(keyA, keyB);
     if (keyDelta !== 0) return keyDelta;
-    return (a.rel || '').localeCompare(b.rel || '');
+    return compareStrings(a.rel || '', b.rel || '');
   });
 };
 
@@ -285,6 +286,9 @@ const resolveCheckpointBatchSize = (totalFiles, shardPlan) => {
 };
 
 const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurrency, embeddingConcurrency }) => {
+  const baseWorkerPools = baseRuntime.workerPools;
+  const baseWorkerPool = baseRuntime.workerPool;
+  const baseQuantizePool = baseRuntime.quantizePool;
   const ioConcurrency = Math.max(fileConcurrency, importConcurrency);
   const cpuLimit = Math.max(1, os.cpus().length * 2);
   const cpuConcurrency = Math.max(1, Math.min(cpuLimit, fileConcurrency));
@@ -313,6 +317,14 @@ const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurrency, e
     queues.cpu.clear();
     queues.embedding.clear();
   };
+  const destroy = async () => {
+    await destroyQueues();
+    if (baseWorkerPools && baseWorkerPools !== baseRuntime.workerPools && baseWorkerPools.destroy) {
+      await baseWorkerPools.destroy();
+    } else if (baseWorkerPool && baseWorkerPool !== baseRuntime.workerPool && baseWorkerPool.destroy) {
+      await baseWorkerPool.destroy();
+    }
+  };
   return {
     ...baseRuntime,
     fileConcurrency,
@@ -321,7 +333,11 @@ const createShardRuntime = (baseRuntime, { fileConcurrency, importConcurrency, e
     cpuConcurrency,
     embeddingConcurrency,
     queues,
-    destroyQueues
+    workerPools: baseWorkerPools,
+    workerPool: baseWorkerPool,
+    quantizePool: baseQuantizePool,
+    destroyQueues,
+    destroy
   };
 };
 
@@ -663,7 +679,7 @@ export const processFiles = async ({
       if (lineDelta !== 0) return lineDelta;
       const sizeDelta = b.entries.length - a.entries.length;
       if (sizeDelta !== 0) return sizeDelta;
-      return (a.label || a.id).localeCompare(b.label || b.id);
+      return compareStrings(a.label || a.id, b.label || b.id);
     });
     const shardIndexById = new Map(
       shardExecutionPlan.map((shard, index) => [shard.id, index + 1])
@@ -826,7 +842,7 @@ export const processFiles = async ({
           });
         }
       } finally {
-        await shardRuntime.destroyQueues?.();
+        await shardRuntime.destroy?.();
       }
     };
     await Promise.all(

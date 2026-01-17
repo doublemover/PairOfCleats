@@ -826,6 +826,14 @@ const actions = [
     covers: []
   },
   {
+    label: 'indexer-sort-determinism-test',
+    run: () => runNode(
+      'indexer-sort-determinism-test',
+      path.join(root, 'tests', 'indexer', 'sort-determinism.test.js')
+    ),
+    covers: []
+  },
+  {
     label: 'indexer-incremental-plan-test',
     run: () => runNode(
       'indexer-incremental-plan-test',

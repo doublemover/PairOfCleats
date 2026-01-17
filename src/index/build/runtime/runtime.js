@@ -10,6 +10,7 @@ import {
   getRepoCacheRoot,
   getToolVersion,
   getToolingConfig,
+  getTriageConfig,
   loadUserConfig,
   resolveIndexRoot
 } from '../../../../tools/dict-utils.js';
@@ -66,6 +67,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
     indexingConfig = mergeConfig(indexingConfig, stageOverrides);
   }
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const triageConfig = getTriageConfig(root, userConfig);
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
   const configHash = getEffectiveConfigHash(root, userConfig);
   const contentConfigHash = buildContentConfigHash(userConfig, envConfig);
@@ -215,6 +217,7 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const embeddingRuntime = await resolveEmbeddingRuntime({
     rootDir: root,
     userConfig,
+    recordsDir: triageConfig.recordsDir,
     indexingConfig,
     envConfig,
     argv,

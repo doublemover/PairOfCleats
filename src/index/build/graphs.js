@@ -1,4 +1,5 @@
 import Graph from 'graphology';
+import { compareStrings } from '../../shared/sort.js';
 
 const GRAPH_MAX_NODES = 200000;
 const GRAPH_MAX_EDGES = 500000;
@@ -65,7 +66,7 @@ const serializeGraph = (graph) => {
       in: incoming
     });
   });
-  nodes.sort((a, b) => a.id.localeCompare(b.id));
+  nodes.sort((a, b) => compareStrings(a.id, b.id));
   return {
     nodeCount: graph.order,
     edgeCount: graph.size,

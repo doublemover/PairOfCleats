@@ -20,9 +20,12 @@ export const buildTokenizationKey = (runtime, mode) => {
 
 export const buildIncrementalSignature = (runtime, mode, tokenizationKey) => {
   const languageOptions = runtime.languageOptions || {};
+  // Derived from tool version to invalidate caches across releases.
+  const derivedSchemaVersion = runtime.toolInfo?.version || null;
   const payload = {
     mode,
     tokenizationKey,
+    cacheSchemaVersion: derivedSchemaVersion,
     features: {
       astDataflowEnabled: runtime.astDataflowEnabled,
       controlFlowEnabled: runtime.controlFlowEnabled,

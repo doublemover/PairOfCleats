@@ -1,4 +1,5 @@
 import { log } from '../../../../shared/progress.js';
+import { compareStrings } from '../../../../shared/sort.js';
 import { discoverFiles } from '../../discover.js';
 
 export const runDiscovery = async ({ runtime, mode, discovery, state, timing }) => {
@@ -17,6 +18,7 @@ export const runDiscovery = async ({ runtime, mode, discovery, state, timing }) 
     entries = await runtime.queues.io.add(() => discoverFiles({
       root: runtime.root,
       mode,
+      recordsDir: runtime.recordsDir,
       ignoreMatcher: runtime.ignoreMatcher,
       skippedFiles: state?.skippedFiles || [],
       maxFileBytes: runtime.maxFileBytes,
@@ -25,7 +27,7 @@ export const runDiscovery = async ({ runtime, mode, discovery, state, timing }) 
       maxFiles: runtime.guardrails?.maxFiles ?? null
     }));
   }
-  entries.sort((a, b) => a.rel.localeCompare(b.rel));
+  entries.sort((a, b) => compareStrings(a.rel, b.rel));
   entries.forEach((entry, index) => {
     entry.orderIndex = index;
   });

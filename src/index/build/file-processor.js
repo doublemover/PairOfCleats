@@ -718,25 +718,25 @@ export function createFileProcessor(options) {
           lineIndex,
           context: segmentContext
         }))
-        : await runTreeSitter(() => chunkSegmentsWithTreeSitterPasses({
-          text,
-          ext,
-          relPath: relKey,
-          mode,
-          segments,
-          lineIndex,
-          context: segmentContext,
-            treeSitterConfig: treeSitterConfigForMode
-          }));
-        assertChunkBounds(sc, text.length, relKey);
-        addParseDuration(Date.now() - parseStart);
-        const chunkLineRanges = sc.map((chunk) => {
-          const startLine = chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
-          const endOffset = chunk.end > chunk.start ? chunk.end - 1 : chunk.start;
-        let endLine = chunk.meta?.endLine ?? offsetToLine(lineIndex, endOffset);
-        if (endLine < startLine) endLine = startLine;
-        return { startLine, endLine };
-      });
+      : await runTreeSitter(() => chunkSegmentsWithTreeSitterPasses({
+        text,
+        ext,
+        relPath: relKey,
+        mode,
+        segments,
+        lineIndex,
+        context: segmentContext,
+        treeSitterConfig: treeSitterConfigForMode
+      }));
+    assertChunkBounds(sc, text.length, relKey);
+    addParseDuration(Date.now() - parseStart);
+    const chunkLineRanges = sc.map((chunk) => {
+      const startLine = chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
+      const endOffset = chunk.end > chunk.start ? chunk.end - 1 : chunk.start;
+      let endLine = chunk.meta?.endLine ?? offsetToLine(lineIndex, endOffset);
+      if (endLine < startLine) endLine = startLine;
+      return { startLine, endLine };
+    });
       const commentAssignments = assignCommentsToChunks(commentEntries, sc);
       const chunks = [];
       const tokenBuffers = createTokenizationBuffers();

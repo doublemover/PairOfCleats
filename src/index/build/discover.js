@@ -15,22 +15,38 @@ import { fileExt, toPosix } from '../../shared/files.js';
 
 /**
  * Recursively discover indexable files under a directory.
- * @param {{root:string,mode:'code'|'prose'|'extracted-prose',ignoreMatcher:import('ignore').Ignore,skippedFiles:Array, maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
+ * @param {{root:string,mode:'code'|'prose'|'extracted-prose',recordsDir?:string|null,ignoreMatcher:import('ignore').Ignore,skippedFiles:Array, maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
  * @returns {Promise<Array<{abs:string,rel:string,stat:import('node:fs').Stats}>>}
  */
-export async function discoverFiles({ root, mode, ignoreMatcher, skippedFiles, maxFileBytes = null, fileCaps = null, maxDepth = null, maxFiles = null }) {
-  const { entries, skippedCommon } = await discoverEntries({ root, ignoreMatcher, maxFileBytes, fileCaps, maxDepth, maxFiles });
+export async function discoverFiles({ root, mode, recordsDir = null, ignoreMatcher, skippedFiles, maxFileBytes = null, fileCaps = null, maxDepth = null, maxFiles = null }) {
+  const { entries, skippedCommon } = await discoverEntries({
+    root,
+    recordsDir,
+    ignoreMatcher,
+    maxFileBytes,
+    fileCaps,
+    maxDepth,
+    maxFiles
+  });
   if (skippedFiles) skippedFiles.push(...skippedCommon);
   return filterEntriesByMode(entries, mode, skippedFiles);
 }
 
 /**
  * Discover files for multiple modes in a single traversal.
- * @param {{root:string,modes:Array<'code'|'prose'|'extracted-prose'>,ignoreMatcher:import('ignore').Ignore,skippedByMode:Record<string,Array>,maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
+ * @param {{root:string,modes:Array<'code'|'prose'|'extracted-prose'>,recordsDir?:string|null,ignoreMatcher:import('ignore').Ignore,skippedByMode:Record<string,Array>,maxFileBytes:number|null,fileCaps?:object,maxDepth?:number|null,maxFiles?:number|null}} input
  * @returns {Promise<Record<string,Array<{abs:string,rel:string,stat:import('node:fs').Stats}>>>}
  */
-export async function discoverFilesForModes({ root, modes, ignoreMatcher, skippedByMode, maxFileBytes = null, fileCaps = null, maxDepth = null, maxFiles = null }) {
-  const { entries, skippedCommon } = await discoverEntries({ root, ignoreMatcher, maxFileBytes, fileCaps, maxDepth, maxFiles });
+export async function discoverFilesForModes({ root, modes, recordsDir = null, ignoreMatcher, skippedByMode, maxFileBytes = null, fileCaps = null, maxDepth = null, maxFiles = null }) {
+  const { entries, skippedCommon } = await discoverEntries({
+    root,
+    recordsDir,
+    ignoreMatcher,
+    maxFileBytes,
+    fileCaps,
+    maxDepth,
+    maxFiles
+  });
   const output = {};
   for (const mode of modes) {
     const skipped = skippedByMode && skippedByMode[mode] ? skippedByMode[mode] : null;
@@ -40,7 +56,7 @@ export async function discoverFilesForModes({ root, modes, ignoreMatcher, skippe
   return output;
 }
 
-export async function discoverEntries({ root, ignoreMatcher, maxFileBytes = null, fileCaps = null, maxDepth = null, maxFiles = null }) {
+export async function discoverEntries({ root, recordsDir = null, ignoreMatcher, maxFileBytes = null, fileCaps = null, maxDepth = null, maxFiles = null }) {
   const maxBytes = Number.isFinite(Number(maxFileBytes)) && Number(maxFileBytes) > 0
     ? Number(maxFileBytes)
     : null;
@@ -78,13 +94,20 @@ export async function discoverEntries({ root, ignoreMatcher, maxFileBytes = null
     const resolved = path.resolve(value || '');
     return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
   };
+  const normalizedRoot = normalizeRoot(root);
+  const normalizedRecordsRoot = recordsDir ? normalizeRoot(recordsDir) : null;
+  const recordsRoot = normalizedRecordsRoot
+    && (normalizedRecordsRoot === normalizedRoot
+      || normalizedRecordsRoot.startsWith(`${normalizedRoot}${path.sep}`))
+    ? normalizedRecordsRoot
+    : null;
   const listGitFiles = () => {
     try {
       const rootCheck = spawnSync('git', ['-C', root, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
       if (rootCheck.status !== 0) return null;
       const gitRoot = String(rootCheck.stdout || '').trim();
       if (!gitRoot) return null;
-      if (normalizeRoot(gitRoot) !== normalizeRoot(root)) return null;
+      if (normalizeRoot(gitRoot) !== normalizedRoot) return null;
       const result = spawnSync('git', ['-C', root, 'ls-files', '-z'], { encoding: 'utf8' });
       if (result.status !== 0) return null;
       const output = String(result.stdout || '');
@@ -109,6 +132,13 @@ export async function discoverEntries({ root, ignoreMatcher, maxFileBytes = null
   for (const absPath of candidates) {
     const relPosix = toPosix(path.relative(root, absPath));
     if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) continue;
+    if (recordsRoot) {
+      const normalizedAbs = normalizeRoot(absPath);
+      if (normalizedAbs.startsWith(`${recordsRoot}${path.sep}`)) {
+        recordSkip(absPath, 'records');
+        continue;
+      }
+    }
     if (maxDepthValue != null) {
       const depth = relPosix.split('/').length - 1;
       if (depth > maxDepthValue) {
@@ -180,7 +210,7 @@ export async function discoverEntries({ root, ignoreMatcher, maxFileBytes = null
 function filterEntriesByMode(entries, mode, skippedFiles) {
   const output = [];
   for (const entry of entries) {
-    const isProse = mode === 'prose' || mode === 'extracted-prose';
+    const isProse = mode === 'prose';
     const isCode = mode === 'code' || mode === 'extracted-prose';
     const allowed = (isProse && EXTS_PROSE.has(entry.ext))
       || (isCode && (EXTS_CODE.has(entry.ext) || entry.isSpecial));

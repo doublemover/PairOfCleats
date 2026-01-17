@@ -191,7 +191,10 @@ export async function buildIndex(repoRoot, options = {}) {
   const explicitStage = normalizeStage(baseArgv.stage);
   const argv = explicitStage ? { ...baseArgv, stage: explicitStage } : baseArgv;
   const mode = argv.mode || 'all';
-  const modes = mode === 'all' ? ['prose', 'code', 'extracted-prose'] : [mode];
+  const requestedModes = Array.isArray(options.modes) && options.modes.length ? options.modes : null;
+  const modes = requestedModes || (mode === 'all'
+    ? ['prose', 'code', 'extracted-prose', 'records']
+    : [mode]);
   const rawArgv = options.rawArgv || buildRawArgs(options);
   const log = typeof options.log === 'function' ? options.log : defaultLog;
   const metricsMode = mode || 'all';
@@ -351,6 +354,7 @@ export async function buildIndex(repoRoot, options = {}) {
         const preprocess = await preprocessFiles({
           root: runtime.root,
           modes: preprocessModes,
+          recordsDir: runtime.recordsDir,
           ignoreMatcher: runtime.ignoreMatcher,
           maxFileBytes: runtime.maxFileBytes,
           fileCaps: runtime.fileCaps,
