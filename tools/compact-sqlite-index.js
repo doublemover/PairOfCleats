@@ -5,6 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createCli } from '../src/shared/cli.js';
 import { createDisplay } from '../src/shared/cli/display.js';
+import { ensureDiskSpace } from '../src/shared/disk-space.js';
 import { loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
 import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
@@ -71,6 +72,13 @@ export async function compactDatabase(input) {
     logger.warn(`[compact] ${mode} db missing: ${dbPath}`);
     return { skipped: true };
   }
+  const sourceSize = Number(fs.statSync(dbPath).size) || 0;
+  const requiredBytes = Math.max(sourceSize * 1.2, sourceSize + (96 * 1024 * 1024));
+  await ensureDiskSpace({
+    targetPath: dbPath,
+    requiredBytes,
+    label: `sqlite compact ${mode}`
+  });
 
   const sourceDb = new Database(dbPath, { readonly: true });
   if (!hasRequiredTables(sourceDb, REQUIRED_TABLES)) {

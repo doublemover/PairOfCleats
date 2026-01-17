@@ -9,6 +9,7 @@ import {
 } from '../../shared/json-stream.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
+import { ensureDiskSpace } from '../../shared/disk-space.js';
 import { resolveCompressionConfig } from './artifacts/compression.js';
 import { writePiecesManifest } from './artifacts/checksums.js';
 import { buildFileMeta } from './artifacts/file-meta.js';
@@ -265,6 +266,11 @@ export async function writeIndexArtifacts(input) {
       tokenPostingsShardSize = Math.min(tokenPostingsShardSize, targetShardSize);
     }
   }
+  await ensureDiskSpace({
+    targetPath: outDir,
+    requiredBytes: tokenPostingsEstimate?.estimatedBytes,
+    label: `${mode} token_postings`
+  });
   const removeArtifact = async (targetPath) => {
     try {
       await fs.rm(targetPath, { recursive: true, force: true });
@@ -388,6 +394,7 @@ export async function writeIndexArtifacts(input) {
   await enqueueChunkMetaArtifacts({
     state,
     outDir,
+    mode,
     chunkMetaIterator,
     chunkMetaPlan,
     maxJsonBytes,
@@ -415,6 +422,11 @@ export async function writeIndexArtifacts(input) {
   const useRepoMapJsonl = repoMapMeasurement.totalEntries
     && maxJsonBytes
     && repoMapMeasurement.totalBytes > maxJsonBytes;
+  await ensureDiskSpace({
+    targetPath: outDir,
+    requiredBytes: useRepoMapJsonl ? repoMapMeasurement.totalJsonlBytes : repoMapMeasurement.totalBytes,
+    label: `${mode} repo_map`
+  });
   const repoMapPath = path.join(outDir, 'repo_map.json');
   const repoMapJsonlPath = path.join(outDir, 'repo_map.jsonl');
   const repoMapMetaPath = path.join(outDir, 'repo_map.meta.json');

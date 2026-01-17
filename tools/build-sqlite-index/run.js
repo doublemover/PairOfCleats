@@ -9,6 +9,7 @@ import { updateSqliteState } from './index-state.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { resolveThreadLimits } from '../../src/shared/threads.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../src/index/build/build-state.js';
+import { ensureDiskSpace, estimateDirBytes } from '../../src/shared/disk-space.js';
 import {
   getIndexDir,
   getModelConfig,
@@ -263,12 +264,33 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
 
   const workerPath = fileURLToPath(new URL('../workers/bundle-reader.js', import.meta.url));
 
+  const estimateArtifactsBytes = async (dir) => {
+    const { bytes, truncated } = await estimateDirBytes(dir);
+    return { bytes, truncated };
+  };
+
+  const estimateRequiredBytes = ({ sourceBytes, existingBytes, headroomMb = 64, multiplier = 1.2 }) => {
+    const base = Number.isFinite(sourceBytes) ? sourceBytes : 0;
+    const existing = Number.isFinite(existingBytes) ? existingBytes : 0;
+    const headroom = headroomMb * 1024 * 1024;
+    return Math.max(base * multiplier + existing, base + existing + headroom);
+  };
+
   const runMode = async (mode, index, indexDir, targetPath, incrementalData) => {
     const hasBundles = incrementalData?.manifest?.files
       ? Object.keys(incrementalData.manifest.files).length > 0
       : false;
+    const existingBytes = fsSync.existsSync(targetPath)
+      ? (Number(fsSync.statSync(targetPath).size) || 0)
+      : 0;
 
     if (incrementalRequested) {
+      const requiredBytes = Math.max(existingBytes * 0.25, 128 * 1024 * 1024);
+      await ensureDiskSpace({
+        targetPath,
+        requiredBytes,
+        label: `sqlite incremental ${mode}`
+      });
       const expectedDense = index?.denseVec
         ? { model: index.denseVec.model, dims: index.denseVec.dims }
         : null;
@@ -306,6 +328,19 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     }
     if (hasBundles) {
       log(`[sqlite] Using incremental bundles for ${mode} full rebuild.`);
+      const bundleEstimate = await estimateArtifactsBytes(incrementalData.bundleDir);
+      const requiredBytes = estimateRequiredBytes({
+        sourceBytes: bundleEstimate.bytes,
+        existingBytes,
+        headroomMb: 96,
+        multiplier: 1.3
+      });
+      await ensureDiskSpace({
+        targetPath,
+        requiredBytes,
+        label: `sqlite bundles ${mode}`,
+        estimateNote: bundleEstimate.truncated ? 'estimate' : null
+      });
       const tempPath = createTempPath(targetPath);
       let bundleResult = { count: 0 };
       try {
@@ -354,6 +389,19 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     const tempPath = createTempPath(targetPath);
     let count = 0;
     try {
+      const artifactsEstimate = await estimateArtifactsBytes(indexDir);
+      const requiredBytes = estimateRequiredBytes({
+        sourceBytes: artifactsEstimate.bytes,
+        existingBytes,
+        headroomMb: 96,
+        multiplier: 1.3
+      });
+      await ensureDiskSpace({
+        targetPath,
+        requiredBytes,
+        label: `sqlite artifacts ${mode}`,
+        estimateNote: artifactsEstimate.truncated ? 'estimate' : null
+      });
       count = await buildDatabaseFromArtifacts({
         Database,
         outPath: tempPath,

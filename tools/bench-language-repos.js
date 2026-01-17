@@ -105,6 +105,16 @@ const writeLogSync = (line) => {
 
 const logHistory = [];
 const logHistoryLimit = 50;
+const isDiskFullMessage = (line) => {
+  if (!line) return false;
+  const text = String(line).toLowerCase();
+  return text.includes('no space left on device')
+    || text.includes('disk full')
+    || text.includes('database or disk is full')
+    || text.includes('sqlite_full')
+    || text.includes('enospc')
+    || text.includes('insufficient free space');
+};
 const appendLog = (line, level = 'info') => {
   if (!line) return;
   writeLog(line);
@@ -539,6 +549,10 @@ for (const task of tasks) {
         continueOnError: true
       });
       if (!benchResult.ok) {
+        const diskFull = logHistory.some((line) => isDiskFullMessage(line));
+        if (diskFull) {
+          appendLog(`[error] Disk space exhausted while benchmarking ${repoLabel}; continuing.`, 'error');
+        }
         appendLog(`[error] Bench failed for ${repoLabel}; continuing to next repo.`, 'error');
         completed += 1;
         updateBenchProgress(`failed ${phaseLabel}`);
@@ -549,7 +563,7 @@ for (const task of tasks) {
           outFile,
           summary: null,
           failed: true,
-          failureReason: 'bench',
+          failureReason: diskFull ? 'disk-full' : 'bench',
           failureCode: benchResult.code ?? null
         });
         continue;

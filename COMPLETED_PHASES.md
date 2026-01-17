@@ -3315,4 +3315,49 @@ These are workable, but they heighten the importance of clear contracts/invarian
 * [x] CI has a deterministic check for missing critical dependency reference docs.
 
 ---
+## Phase 2 — Benchmark + build harness reliability (cache hygiene, shard progress determinism, disk-full resilience)
 
+**Objective:** Make benchmark runs reproducible and prevent disk/memory blowups by managing caches, improving progress determinism, and failing fast with actionable diagnostics when the environment is insufficient.
+
+### Observed failures driving this phase
+
+- Duplicate/late progress counters during sharded builds, e.g.:
+  - `[shard] 268/638 src/storage/sqlite/build-helpers.js`
+  - `[shard] 268/638 src/storage/sqlite/incremental.js`
+- `SqliteError: database or disk is full` during benchmark search/load.
+- Benchmark cache growth causing giant artifact files and disk exhaustion.
+
+### 2.1 Cache cleanup after each benchmarked repo
+
+- [x] Update benchmark harnesses to **clean the repo cache after each repo** by default:
+  - remove repo build directories (including incremental chunk artifacts and shard parts) and sqlite DBs under `benchmarks/cache/repos/...`
+  - keep only benchmark results/baselines (and optionally a minimal build summary)
+  - do **not** delete shared caches (downloads, extension caches, shared embedding caches); only repo-specific build outputs
+- [x] Add a `--keep-cache` override for debugging.
+- [x] Document this in `docs/benchmarks.md` (cache policy + disk sizing expectations).
+
+### 2.2 Deterministic shard progress numbering
+
+- [x] Pre-assign `fileIndex` for each work item **before** concurrent processing begins.
+- [x] Ensure progress renderer never reuses the same `(index/total)` pair for different files in the same shard run.
+- [x] Add a regression test that simulates concurrent progress events and asserts monotonically increasing fileIndex (running buildindex on the repo itself briefly should be sufficient to verify this)
+
+### 2.3 Disk-full resilience for SQLite + artifact build steps
+
+- [x] Add a preflight free-disk-space check before:
+  - building sqlite indexes
+  - copying/compacting sqlite DBs
+  - writing large artifacts/shards
+- [x] On insufficient space, fail fast with:
+  - required bytes estimate (best-effort)
+  - current free bytes
+  - remediation steps (change cache dir, enable cleanup, reduce modes, reduce token retention)
+- [x] Optional: if a repo fails due to disk full during benchmark runs, record failure and continue to next repo.
+
+**Exit criteria**
+
+- [x] Bench runs do not accumulate unbounded cache state across repos by default.
+- [x] Sharded build progress numbering is stable and trustworthy.
+- [x] Disk-full conditions are detected early with actionable messages rather than failing deep in sqlite reads.
+
+---
