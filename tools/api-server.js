@@ -56,7 +56,7 @@ if (!allowUnauthenticated && !hostIsLocal && !authToken) {
   );
   process.exit(1);
 }
-const authRequired = !allowUnauthenticated && (!hostIsLocal || authToken);
+const authRequired = !allowUnauthenticated && (!hostIsLocal || Boolean(authToken));
 const corsAllowedOrigins = parseList(argv['cors-allowed-origins']);
 const corsAllowAny = argv['cors-allow-any'] === true;
 const allowedRepoRoots = parseList(argv['allowed-repo-roots']);

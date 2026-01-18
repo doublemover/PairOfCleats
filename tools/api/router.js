@@ -317,7 +317,8 @@ export const createApiRouter = ({
     }
     const output = payload?.output || defaultOutput;
     const useCompact = output !== 'full' && output !== 'json';
-    const searchArgs = [useCompact ? '--json' : '--json', '--repo', repoPath];
+    const searchArgs = ['--json', '--repo', repoPath];
+    if (useCompact) searchArgs.push('--compact');
     const mode = payload?.mode ? String(payload.mode) : null;
     const backend = payload?.backend ? String(payload.backend) : null;
     const ann = payload?.ann;

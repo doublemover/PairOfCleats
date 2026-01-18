@@ -123,10 +123,29 @@ export const ensureSearchFiltersRepo = async () => {
   return { root: ROOT, repoRoot, cacheRoot, env, branchName };
 };
 
-export const runFilterSearch = ({ root = ROOT, repoRoot, env, query, args = [], mode = 'prose' }) => {
+export const runFilterSearch = ({
+  root = ROOT,
+  repoRoot,
+  env,
+  query,
+  args = [],
+  mode = 'prose',
+  backend = 'memory'
+}) => {
   const result = spawnSync(
     process.execPath,
-    [path.join(root, 'search.js'), query, '--mode', mode, '--json', '--no-ann', '--repo', repoRoot, ...args],
+    [
+      path.join(root, 'search.js'),
+      query,
+      '--mode',
+      mode,
+      '--json',
+      '--no-ann',
+      '--repo',
+      repoRoot,
+      ...(backend ? ['--backend', backend] : []),
+      ...args
+    ],
     { cwd: repoRoot, env, encoding: 'utf8' }
   );
   if (result.status !== 0) {
