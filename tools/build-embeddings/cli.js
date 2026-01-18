@@ -1,6 +1,6 @@
-import os from 'node:os';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { resolveAutoEmbeddingBatchSize } from '../../src/shared/embedding-batch.js';
 import { getEnvConfig } from '../../src/shared/env.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig } from '../../src/shared/onnx-embeddings.js';
 import { normalizeHnswConfig } from '../../src/shared/hnsw.js';
@@ -28,7 +28,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
   const envConfig = getEnvConfig();
   const indexingConfig = userConfig.indexing || {};
   const embeddingsConfig = indexingConfig.embeddings || {};
-  const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider);
+  const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
   const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
 
@@ -51,9 +51,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
     ? Math.max(0, Math.floor(embeddingBatchRaw))
     : 0;
   if (!embeddingBatchSize) {
-    const totalGb = os.totalmem() / (1024 ** 3);
-    const autoBatch = Math.floor(totalGb * 16);
-    embeddingBatchSize = Math.min(128, Math.max(16, autoBatch));
+    embeddingBatchSize = resolveAutoEmbeddingBatchSize();
   }
 
   const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;

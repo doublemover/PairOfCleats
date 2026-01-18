@@ -10,8 +10,11 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode }) => {
   let added = 0;
   let expected = 0;
 
+  const isVectorLike = (value) => (
+    Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView))
+  );
   const initHnsw = (vector) => {
-    if (!enabled || index || !Array.isArray(vector) || !vector.length) return;
+    if (!enabled || index || !isVectorLike(vector) || !vector.length) return;
     if (!HierarchicalNSW) return;
     index = new HierarchicalNSW(config.space, vector.length);
     index.initIndex({
@@ -24,7 +27,7 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode }) => {
   };
 
   const addVector = (chunkIndex, vector) => {
-    if (!enabled || !vector || !vector.length) return;
+    if (!enabled || !isVectorLike(vector) || !vector.length) return;
     const data = Array.isArray(vector) ? vector : Array.from(vector);
     initHnsw(data);
     if (!index) return;

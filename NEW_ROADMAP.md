@@ -1539,7 +1539,7 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [x] Tooling includes **dims mismatch guardrails** with explicit hard-fail paths and tests (`tools/build-embeddings/embed.js`, `tests/embeddings-dims-mismatch.js`, `tests/embeddings-dims-validation.js`).
 
 ##### Remaining gaps / action items
-- [ ] **Expand embedding identity to include preprocessing + provider-specific knobs**, not just `{modelId, provider, mode, stub, dims, scale}`:
+- [x] **Expand embedding identity to include preprocessing + provider-specific knobs**, not just `{modelId, provider, mode, stub, dims, scale}`:
   - Why: changing `onnx` tokenizer/model path or execution provider can change embeddings without changing `modelId`/`provider`, allowing silent cache reuse.
   - Files:
     - `tools/build-embeddings/cache.js` (identity schema)
@@ -1548,30 +1548,30 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
     - ONNX: `onnx.modelPath` (resolved), `onnx.tokenizerId`, `onnx.executionProviders`, `onnx.threads`, `onnx.graphOptimizationLevel`
     - Common: pooling strategy (mean), `normalize=true`, truncation/max_length policy
     - Quantization: `minVal/maxVal` (currently fixed -1..1), quantization “version”
-- [ ] **Include a tooling/version fingerprint in cache identity** (or bumpable `identity.version`) so cache invalidates when embedding algorithm changes:
+- [x] **Include a tooling/version fingerprint in cache identity** (or bumpable `identity.version`) so cache invalidates when embedding algorithm changes:
   - Why: changes to doc extraction, pooling logic, quantization, or merging should invalidate caches even if file hashes are unchanged.
   - Files: `tools/build-embeddings/cache.js`, optionally `tools/build-embeddings/chunks.js`
-- [ ] **Add strict provider validation**: unknown `indexing.embeddings.provider` should not silently map to `xenova`.
+- [x] **Add strict provider validation**: unknown `indexing.embeddings.provider` should not silently map to `xenova`.
   - Why: silent fallback can produce “correct-looking” but unintended embeddings and cache identity mismatch.
   - Files: `src/shared/onnx-embeddings.js` (normalizeEmbeddingProvider), `src/index/embedding.js`, `tools/build-embeddings/cli.js`, `src/retrieval/embedding.js`
-- [ ] **Unify default stub embedding dimensions across build + retrieval + tooling** (currently inconsistent defaults: 384 vs 512).
+- [x] **Unify default stub embedding dimensions across build + retrieval + tooling** (currently inconsistent defaults: 384 vs 512).
   - Why: any code path that calls stub embeddings without an explicit `dims` risks producing query embeddings that cannot match the index dims.
   - Files: `src/shared/embedding.js` (defaults to 512), `src/index/embedding.js` (defaults to 384), `tools/build-embeddings/run.js` (defaults to 384), `src/retrieval/embedding.js` (passes `dims`, but can pass null in some ANN-only paths).
   - Recommendation: pick **384** as the single default everywhere OR require dims explicitly in stub mode and fail loudly if missing.
-- [ ] **Index-build (inline) path lacks explicit dims mismatch failure** comparable to build-embeddings tool:
+- [x] **Index-build (inline) path lacks explicit dims mismatch failure** comparable to build-embeddings tool:
   - `src/index/build/file-processor/embeddings.js` currently coerces unexpected shapes to empty arrays and proceeds.
   - Add an explicit “dims contract” check and fail fast (or disable embeddings) if:
     - vectors are not arrays/typed arrays,
     - dims are inconsistent across chunks,
     - batch output length mismatches input length.
-- [ ] **Make per-file embedding cache writes atomic** (cache files are written with `fs.writeFile`):
+- [x] **Make per-file embedding cache writes atomic** (cache files are written with `fs.writeFile`):
   - Why: partial/corrupt cache JSON can cause repeated recompute; while not “poisoning,” it degrades throughput and can mask real failures.
   - Files: `tools/build-embeddings/run.js` (cache writes), optionally reuse `tools/build-embeddings/atomic.js` or shared atomic writer.
 
 **Exit criteria**
-- [ ] Changing any embedding-relevant knob (model path/tokenizer/provider/normalization/pooling/quantization) forces cache miss.
-- [ ] Dims mismatch fails loudly (or deterministically disables embeddings) in **both** build-embeddings and inline index-build paths.
-- [ ] Stub-mode dims are consistent across indexing + retrieval.
+- [x] Changing any embedding-relevant knob (model path/tokenizer/provider/normalization/pooling/quantization) forces cache miss.
+- [x] Dims mismatch fails loudly (or deterministically disables embeddings) in **both** build-embeddings and inline index-build paths.
+- [x] Stub-mode dims are consistent across indexing + retrieval.
 
 ---
 
@@ -1582,20 +1582,20 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [x] Batched embedding retains input ordering in both tooling and index build (`tools/build-embeddings/embed.js`, `src/index/build/file-processor/embeddings.js`).
 
 ##### Remaining gaps / action items
-- [ ] **Document and/or enforce determinism requirements for HNSW build**:
+- [x] **Document and/or enforce determinism requirements for HNSW build**:
   - HNSW graph structure can vary with insertion order; current insertion order is “file processing order,” which depends on `Map` insertion order derived from chunk meta traversal.
   - Files: `tools/build-embeddings/run.js`, `tools/build-embeddings/hnsw.js`
   - Recommendation: ensure vectors are added to HNSW in a stable order (e.g., ascending `chunkIndex`).
-- [ ] **Avoid nondeterministic file sampling in context window estimation**:
+- [x] **Avoid nondeterministic file sampling in context window estimation**:
   - `src/index/build/context-window.js` uses the first N files in `files[]`; if upstream file enumeration order is OS-dependent, context window results can change.
   - Recommendation: sort file paths before sampling (or explicitly document nondeterminism).
-- [ ] **Normalize float types across providers**:
+- [x] **Normalize float types across providers**:
   - Many paths convert typed arrays into JS arrays; this is deterministic but increases the surface for subtle differences and performance regressions.
   - Recommendation: standardize on `Float32Array` where feasible and only convert at serialization boundaries.
 
 **Exit criteria**
-- [ ] HNSW build is reproducible across runs given identical artifacts/config (or nondeterminism is clearly documented and accepted).
-- [ ] Context window selection is stable given identical repo state.
+- [x] HNSW build is reproducible across runs given identical artifacts/config (or nondeterminism is clearly documented and accepted).
+- [x] Context window selection is stable given identical repo state.
 
 ---
 
@@ -1606,24 +1606,24 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [x] SQLite vector extension usage is guarded and can be disabled via sanitization (`tests/vector-extension-sanitize.js`).
 
 ##### Remaining gaps / action items
-- [ ] **ONNX embedder config validation is partially ineffective**:
+- [x] **ONNX embedder config validation is partially ineffective**:
   - `src/shared/onnx-embeddings.js:createOnnxEmbedder()` checks `normalizeEmbeddingProvider('onnx') !== 'onnx'` which is a no-op (constant input).
   - Replace with validation of the *actual* requested provider (or remove the dead check).
-- [ ] **Improve “missing model” errors with clear remediation** (especially for offline envs):
+- [x] **Improve “missing model” errors with clear remediation** (especially for offline envs):
   - Recommend: explicitly mention `tools/download-models.js` and where the model path is expected.
   - Files: `src/shared/onnx-embeddings.js`, `src/index/embedding.js`
-- [ ] **HNSW load path should fall back to `.bak` on corrupt primary**, not only when primary is missing:
+- [x] **HNSW load path should fall back to `.bak` on corrupt primary**, not only when primary is missing:
   - Today: `src/shared/hnsw.js` only chooses `.bak` if primary missing; it does not retry `.bak` if `readIndexSync()` throws.
-- [ ] **Use HNSW meta for safety checks**:
+- [x] **Use HNSW meta for safety checks**:
   - Retrieval load does not read `dense_vectors_hnsw.meta.json`, so it cannot validate `dims`, `space`, or `model` before querying.
   - Files: `src/shared/hnsw.js`
-- [ ] **Add explicit tests for “extension missing” fallback**:
+- [x] **Add explicit tests for “extension missing” fallback**:
   - Currently there is sanitization coverage, but not “load failure / missing shared library” behavior.
   - Files/tests: `tools/build-embeddings/sqlite-dense.js` + new test.
 
 **Exit criteria**
-- [ ] Missing/corrupt HNSW artifacts do not crash retrieval; the system degrades gracefully to another ANN backend or sparse-only.
-- [ ] Missing ONNX model artifacts fail with actionable errors (or clean fallback in non-strict modes).
+- [x] Missing/corrupt HNSW artifacts do not crash retrieval; the system degrades gracefully to another ANN backend or sparse-only.
+- [x] Missing ONNX model artifacts fail with actionable errors (or clean fallback in non-strict modes).
 
 ---
 
@@ -1636,15 +1636,15 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [x] Language-specific multipliers exist and are tested (`src/index/build/embedding-batch.js`, `tests/embedding-batch-multipliers.js`).
 
 ##### Remaining gaps / action items
-- [ ] **Unify and justify auto-batch heuristics**:
+- [x] **Unify and justify auto-batch heuristics**:
   - Index-build uses `totalGb * 16` with min 16.
   - build-embeddings tool uses `totalGb * 32` with min 32.
   - Decide a single policy OR clearly document why they intentionally differ.
-- [ ] **Incorporate CPU oversubscription controls**:
+- [x] **Incorporate CPU oversubscription controls**:
   - ONNX runtime can be multi-threaded (`threads` option), while the embedding queue can also be concurrent.
   - Add a policy: e.g., `embeddingConcurrency * onnxThreads <= cpuCount` (or document exceptions).
   - Files: `src/index/build/runtime/embeddings.js`, `src/shared/onnx-embeddings.js`
-- [ ] **Adapt batch sizing to repo characteristics**:
+- [x] **Adapt batch sizing to repo characteristics**:
   - For tiny repos/files, large batch sizes increase latency without improving throughput.
   - For huge repos, file-by-file batching underutilizes the accelerator (many small batches).
   - Recommendation: introduce a global “embedding batcher” that batches across files with:
@@ -1654,8 +1654,8 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
   - Files impacted: `src/index/build/file-processor/embeddings.js`, `tools/build-embeddings/run.js`
 
 **Exit criteria**
-- [ ] Batch sizing + concurrency are predictable and safe across low-memory hosts, multi-core hosts, and both small and large repos.
-- [ ] Default settings do not oversubscribe CPU when ONNX threads are enabled.
+- [x] Batch sizing + concurrency are predictable and safe across low-memory hosts, multi-core hosts, and both small and large repos.
+- [x] Default settings do not oversubscribe CPU when ONNX threads are enabled.
 
 ---
 
@@ -1665,15 +1665,15 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [x] Service-mode job enqueue provides a `maxQueued` hook (`src/index/build/indexer/embedding-queue.js`).
 
 ##### Remaining gaps / action items
-- [ ] **Define and enforce backpressure defaults**:
+- [x] **Define and enforce backpressure defaults**:
   - If `maxQueued` is unset/null, behavior depends on `enqueueJob()` (not in scope here); ensure a safe default exists.
   - Add explicit documentation + a test that verifies queue growth is bounded.
-- [ ] **Ensure service jobs include enough identity to be safe**:
+- [x] **Ensure service jobs include enough identity to be safe**:
   - Job payload includes `{repo, mode}`, but not an embedding identity fingerprint.
   - Include `embeddingProvider`, model id, and/or a hash of embedding config to prevent mismatched worker configuration from producing incompatible embeddings.
 
 **Exit criteria**
-- [ ] Queue growth is bounded by default; overload produces clear errors and does not OOM the process.
+- [x] Queue growth is bounded by default; overload produces clear errors and does not OOM the process.
 
 ---
 
@@ -1687,11 +1687,11 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [ ] **Guard concurrent use of shared ONNX sessions if required**:
   - If `onnxruntime-node` sessions are not safe for concurrent `run()` calls, add a per-session mutex/queue.
   - At minimum: document thread-safety assumptions and add a stress test.
-- [ ] **Avoid duplicate pipeline/session loads in index-build**:
+- [x] **Avoid duplicate pipeline/session loads in index-build**:
   - `src/index/embedding.js` does not maintain a global cache similar to retrieval; if multiple embedder instances are constructed in one process, models may be loaded multiple times.
 
 **Exit criteria**
-- [ ] A single model/session is loaded once per process per config, and safely shared across all embedding calls.
+- [x] A single model/session is loaded once per process per config, and safely shared across all embedding calls.
 
 ---
 
@@ -1703,14 +1703,14 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [x] HNSW ranker applies a stable tie-break (`idx`) after converting distances to similarity (`src/shared/hnsw.js`).
 
 ##### Remaining gaps / action items
-- [ ] **Confirm and test distance-to-similarity conversion for each HNSW space** (`l2`, `cosine`, `ip`):
+- [x] **Confirm and test distance-to-similarity conversion for each HNSW space** (`l2`, `cosine`, `ip`):
   - Current code treats `ip` the same as `cosine` (`sim = 1 - distance`).
   - This may be correct or incorrect depending on hnswlib’s distance definition for `ip`.
   - Required: add unit tests with known vectors and expected distances/similarities and adjust conversion if needed.
   - Files: `src/shared/hnsw.js`, new test (e.g., `tests/hnsw-distance-metrics.js`).
 
 **Exit criteria**
-- [ ] For each supported space, returned `sim` is monotonic with the true similarity notion used elsewhere in scoring.
+- [x] For each supported space, returned `sim` is monotonic with the true similarity notion used elsewhere in scoring.
 
 ---
 
@@ -1721,15 +1721,15 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [x] There is a test that asserts `.bak` is created on replace (`tests/hnsw-atomic.js`).
 
 ##### Remaining gaps / action items
-- [ ] **HNSW reader should support “corrupt primary” fallback**:
+- [x] **HNSW reader should support “corrupt primary” fallback**:
   - Implement: try primary, and if read fails, try `.bak` before giving up.
   - Files: `src/shared/hnsw.js`
-- [ ] **Validate `.bin` / `.meta.json` pairing**:
+- [x] **Validate `.bin` / `.meta.json` pairing**:
   - Ensure meta file exists, parseable, and matches expected dims/space/model before using the index.
   - If mismatch, treat index as unavailable and fall back.
 
 **Exit criteria**
-- [ ] Retrieval never crashes due to a torn/corrupt HNSW file; fallback paths are exercised by tests.
+- [x] Retrieval never crashes due to a torn/corrupt HNSW file; fallback paths are exercised by tests.
 
 ---
 
@@ -1739,32 +1739,32 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [x] SQLite candidate pushdown behavior is tested for small vs large candidate sets (`tests/sqlite-vec-candidate-set.js`).
 
 ##### Remaining gaps / action items
-- [ ] **Handle empty candidate sets explicitly in HNSW path**:
+- [x] **Handle empty candidate sets explicitly in HNSW path**:
   - `rankHnswIndex()` currently treats an empty set as “no filter” (because `candidateSet.size` is falsy), which can return results when none are desired.
   - Files: `src/shared/hnsw.js`
-- [ ] **Document and test candidate-set cap behavior**:
+- [x] **Document and test candidate-set cap behavior**:
   - HNSW uses a `candidateSetCap` default of 1000; ensure callers understand whether this can truncate results.
   - Add tests for:
     - empty set → empty hits,
     - small set → only those labels,
     - very large set → filter still applied and returned hits are subset, with stable ordering.
-- [ ] **Align candidate-set tie-break behavior across backends**:
+- [x] **Align candidate-set tie-break behavior across backends**:
   - SQLite ANN tests require deterministic tie-break by `rowid`.
   - HNSW already tie-breaks by `idx`. Ensure both are consistent with retrieval expectations.
 
 **Exit criteria**
-- [ ] Candidate sets behave identically (semantically) across ANN backends: never return items outside the set, deterministic ordering for ties, predictable truncation rules.
+- [x] Candidate sets behave identically (semantically) across ANN backends: never return items outside the set, deterministic ordering for ties, predictable truncation rules.
 
 ---
 
 ### 22.4 Performance improvements to prioritize
 
 #### 22.4.1 Float32Array end-to-end (avoid JS arrays of floats)
-- [ ] **Standardize the embedding contract to return `Float32Array`**:
+- [x] **Standardize the embedding contract to return `Float32Array`**:
   - Files: `src/index/embedding.js`, `src/retrieval/embedding.js`, `src/shared/onnx-embeddings.js`, `src/shared/embedding.js`
-- [ ] **Update downstream code to accept typed arrays** (don’t gate on `Array.isArray`):
+- [x] **Update downstream code to accept typed arrays** (don’t gate on `Array.isArray`):
   - Files: `src/index/build/file-processor/embeddings.js`, `tools/build-embeddings/embed.js`, `tools/build-embeddings/run.js`, `tools/build-embeddings/hnsw.js`
-- [ ] **Defer conversion to JS arrays only at serialization boundaries** (JSON writing).
+- [x] **Defer conversion to JS arrays only at serialization boundaries** (JSON writing).
 
 #### 22.4.2 Minimize serialization between threads/processes (transferable buffers)
 - [ ] Where embeddings are computed in worker threads/processes (service mode), prefer:
@@ -1779,7 +1779,7 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
     - re-use `BigInt64Array` buffers for token ids/masks where shapes are stable,
     - avoid `Array.from()` conversions for slices.
   - Files: `src/shared/onnx-embeddings.js`
-- [ ] **Index-build merge path**:
+- [x] **Index-build merge path**:
   - Avoid allocating a new zero vector per chunk in `attachEmbeddings()`.
   - File: `src/index/build/file-processor/embeddings.js`
 
@@ -1840,17 +1840,17 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [x] HNSW artifacts existence + atomic replace — `tests/hnsw-ann.js`, `tests/hnsw-atomic.js`
 
 ##### Missing / needs additions
-- [ ] **Cache identity tests must cover provider-specific knobs**, especially ONNX config:
+- [x] **Cache identity tests must cover provider-specific knobs**, especially ONNX config:
   - Add tests proving that changing `onnx.tokenizerId` or `onnx.modelPath` changes identityKey and forces cache miss.
-- [ ] **Add extension missing/fallback tests**:
+- [x] **Add extension missing/fallback tests**:
   - Simulate vector extension load failure and ensure build/search does not crash and disables vector ANN.
-- [ ] **Add HNSW candidate set tests**:
+- [x] **Add HNSW candidate set tests**:
   - empty set returns empty hits,
   - filter does not leak labels,
   - tie-break stability.
-- [ ] **Add HNSW `.bak` fallback tests**:
+- [x] **Add HNSW `.bak` fallback tests**:
   - corrupt primary index/meta triggers `.bak` load and does not crash.
-- [ ] **Add performance regression test for embedding batching throughput** (required by checklist):
+- [x] **Add performance regression test for embedding batching throughput** (required by checklist):
   - Recommended approach (stable in CI):
     - Use a synthetic embedder function with a fixed per-call overhead + per-item cost.
     - Assert that `runBatched()` with batchSize>1 achieves >= X% speedup vs batchSize=1 on a fixed input size.
@@ -1858,9 +1858,9 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
   - Candidate target: `tools/build-embeddings/embed.js:runBatched()` and/or `src/index/build/file-processor/embeddings.js` batching path.
 
 **Exit criteria**
-- [ ] Tests fail if embedding identity changes are not reflected in cache keys.
-- [ ] Tests cover ANN candidate set semantics for both sqlite-vec and HNSW.
-- [ ] At least one performance regression test exists for batching throughput.
+- [x] Tests fail if embedding identity changes are not reflected in cache keys.
+- [x] Tests cover ANN candidate set semantics for both sqlite-vec and HNSW.
+- [x] At least one performance regression test exists for batching throughput.
 
 ---
 

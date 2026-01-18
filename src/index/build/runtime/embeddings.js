@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import { DEFAULT_MODEL_ID, getModelConfig } from '../../../../tools/dict-utils.js';
 import { createEmbedder } from '../../embedding.js';
-import { normalizeEmbeddingProvider, normalizeOnnxConfig } from '../../../shared/onnx-embeddings.js';
+import { resolveAutoEmbeddingBatchSize } from '../../../shared/embedding-batch.js';
+import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../shared/embedding-identity.js';
+import { resolveStubDims } from '../../../shared/embedding.js';
+import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../../shared/onnx-embeddings.js';
 
 export const resolveEmbeddingRuntime = async ({
   rootDir,
@@ -18,11 +20,9 @@ export const resolveEmbeddingRuntime = async ({
     ? Math.max(0, Math.floor(embeddingBatchRaw))
     : 0;
   if (!embeddingBatchSize) {
-    const totalGb = os.totalmem() / (1024 ** 3);
-    const autoBatch = Math.floor(totalGb * 16);
-    embeddingBatchSize = Math.min(128, Math.max(16, autoBatch));
+    embeddingBatchSize = resolveAutoEmbeddingBatchSize();
   }
-  const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider);
+  const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
   const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const embeddingQueueConfig = embeddingsConfig.queue || {};
   const embeddingCacheConfig = embeddingsConfig.cache || {};
@@ -35,7 +35,7 @@ export const resolveEmbeddingRuntime = async ({
   const embeddingQueueMaxRaw = Number(embeddingQueueConfig.maxQueued);
   const embeddingQueueMaxQueued = Number.isFinite(embeddingQueueMaxRaw)
     ? Math.max(0, Math.floor(embeddingQueueMaxRaw))
-    : null;
+    : 10;
   const embeddingCacheDir = typeof embeddingCacheConfig.dir === 'string'
     ? embeddingCacheConfig.dir.trim()
     : '';
@@ -50,6 +50,17 @@ export const resolveEmbeddingRuntime = async ({
     embeddingConcurrency = Math.max(1, defaultEmbedding);
   }
   embeddingConcurrency = Math.max(1, Math.min(embeddingConcurrency, cpuConcurrency));
+  if (embeddingProvider === 'onnx') {
+    const onnxThreads = Math.max(
+      1,
+      Number(embeddingOnnx.intraOpNumThreads) || 0,
+      Number(embeddingOnnx.interOpNumThreads) || 0
+    );
+    const maxConcurrency = Math.max(1, Math.floor(cpuConcurrency / onnxThreads));
+    if (embeddingConcurrency > maxConcurrency) {
+      embeddingConcurrency = maxConcurrency;
+    }
+  }
   const baseStubEmbeddings = argv['stub-embeddings'] === true
     || envConfig.embeddings === 'stub';
   const normalizedEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(embeddingModeRaw)
@@ -89,6 +100,38 @@ export const resolveEmbeddingRuntime = async ({
     getChunkEmbeddings = embedder.getChunkEmbeddings;
   }
 
+  const resolvedOnnxModelPath = embeddingProvider === 'onnx'
+    ? resolveOnnxModelPath({
+      rootDir,
+      modelPath: embeddingOnnx.modelPath,
+      modelsDir,
+      modelId
+    })
+    : null;
+  const embeddingIdentity = buildEmbeddingIdentity({
+    modelId,
+    provider: embeddingProvider,
+    mode: resolvedEmbeddingMode,
+    stub: useStubEmbeddings,
+    dims: useStubEmbeddings ? resolveStubDims(argv.dims) : (Number.isFinite(Number(argv.dims)) ? Math.floor(Number(argv.dims)) : null),
+    scale: 2 / 255,
+    pooling: 'mean',
+    normalize: true,
+    truncation: 'truncate',
+    maxLength: null,
+    quantization: {
+      version: 1,
+      minVal: -1,
+      maxVal: 1,
+      levels: 256
+    },
+    onnx: embeddingProvider === 'onnx' ? {
+      ...embeddingOnnx,
+      resolvedModelPath: resolvedOnnxModelPath
+    } : null
+  });
+  const embeddingIdentityKey = buildEmbeddingIdentityKey(embeddingIdentity);
+
   return {
     embeddingBatchSize,
     embeddingConcurrency,
@@ -101,6 +144,8 @@ export const resolveEmbeddingRuntime = async ({
       dir: embeddingQueueDir || null,
       maxQueued: embeddingQueueMaxQueued
     },
+    embeddingIdentity,
+    embeddingIdentityKey,
     embeddingCache: {
       dir: embeddingCacheDir || null
     },

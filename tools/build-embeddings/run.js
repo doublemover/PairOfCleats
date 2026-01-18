@@ -12,6 +12,8 @@ import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { resolveHnswPaths } from '../../src/shared/hnsw.js';
 import { normalizeLanceDbConfig } from '../../src/shared/lancedb.js';
 import { createDisplay } from '../../src/shared/cli/display.js';
+import { DEFAULT_STUB_DIMS, resolveStubDims } from '../../src/shared/embedding.js';
+import { resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { getIndexDir, getRepoCacheRoot, getTriageConfig } from '../dict-utils.js';
 import { buildCacheIdentity, buildCacheKey, isCacheValid, resolveCacheDir, resolveCacheRoot } from './cache.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
@@ -28,6 +30,7 @@ import { createHnswBuilder } from './hnsw.js';
 import { writeLanceDbIndex } from './lancedb.js';
 import { updatePieceManifest } from './manifest.js';
 import { updateSqliteDense } from './sqlite-dense.js';
+import { createTempPath, replaceFile } from './atomic.js';
 import { parseBuildEmbeddingsArgs } from './cli.js';
 
 let Database = null;
@@ -90,6 +93,22 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     closeDisplay();
     process.exit(code);
   };
+  const writeCacheEntry = async (targetPath, payload) => {
+    const tempPath = createTempPath(targetPath);
+    try {
+      await fs.writeFile(tempPath, JSON.stringify(payload));
+      await replaceFile(tempPath, targetPath);
+    } catch (err) {
+      try {
+        await fs.rm(tempPath, { force: true });
+      } catch {}
+      throw err;
+    }
+  };
+  const isVectorLike = (value) => {
+    if (Array.isArray(value)) return true;
+    return ArrayBuffer.isView(value) && !(value instanceof DataView);
+  };
   const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
 
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
@@ -99,14 +118,36 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
   }
 
   const denseScale = 2 / 255;
-  const cacheDims = useStubEmbeddings ? (configuredDims || 384) : configuredDims;
+  const cacheDims = useStubEmbeddings ? resolveStubDims(configuredDims) : configuredDims;
+  const resolvedOnnxModelPath = embeddingProvider === 'onnx'
+    ? resolveOnnxModelPath({
+      rootDir: root,
+      modelPath: embeddingOnnx?.modelPath,
+      modelsDir,
+      modelId
+    })
+    : null;
   const { identity: cacheIdentity, key: cacheIdentityKey } = buildCacheIdentity({
     modelId,
     provider: embeddingProvider,
     mode: resolvedEmbeddingMode,
     stub: useStubEmbeddings,
     dims: cacheDims,
-    scale: denseScale
+    scale: denseScale,
+    pooling: 'mean',
+    normalize: true,
+    truncation: 'truncate',
+    maxLength: null,
+    quantization: {
+      version: 1,
+      minVal: -1,
+      maxVal: 1,
+      levels: 256
+    },
+    onnx: embeddingProvider === 'onnx' ? {
+      ...embeddingOnnx,
+      resolvedModelPath: resolvedOnnxModelPath
+    } : null
   });
 
   const embedder = createEmbedder({
@@ -282,7 +323,146 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       mode,
       ephemeral: true
     });
-    for (const [relPath, items] of chunksByFile.entries()) {
+    const fileEntries = Array.from(chunksByFile.entries())
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+    const batchTarget = Number.isFinite(embeddingBatchSize) && embeddingBatchSize > 0
+      ? embeddingBatchSize
+      : 0;
+    const pending = [];
+    let pendingChunks = 0;
+
+    const processFileEmbeddings = async (entry, codeEmbeds, docVectorsRaw) => {
+      if (!Array.isArray(codeEmbeds) || codeEmbeds.length !== entry.items.length) {
+        throw new Error(
+          `[embeddings] ${mode} code batch size mismatch (expected ${entry.items.length}, got ${codeEmbeds?.length ?? 0}).`
+        );
+      }
+      if (!Array.isArray(docVectorsRaw) || docVectorsRaw.length !== entry.items.length) {
+        throw new Error(
+          `[embeddings] ${mode} doc batch size mismatch (expected ${entry.items.length}, got ${docVectorsRaw?.length ?? 0}).`
+        );
+      }
+      const fileCodeEmbeds = ensureVectorArrays(codeEmbeds, entry.items.length);
+      for (const vec of fileCodeEmbeds) {
+        if (isVectorLike(vec) && vec.length) assertDims(vec.length);
+      }
+      for (const vec of docVectorsRaw) {
+        if (isVectorLike(vec) && vec.length) assertDims(vec.length);
+      }
+
+      const dims = dimsValidator.getDims();
+      const zeroVec = dims ? new Float32Array(dims) : new Float32Array(0);
+
+      const cachedCodeVectors = [];
+      const cachedDocVectors = [];
+      const cachedMergedVectors = [];
+      for (let i = 0; i < entry.items.length; i += 1) {
+        const chunkIndex = entry.items[i].index;
+        const embedCode = isVectorLike(fileCodeEmbeds[i]) ? fileCodeEmbeds[i] : [];
+        const embedDoc = isVectorLike(docVectorsRaw[i]) ? docVectorsRaw[i] : zeroVec;
+        const quantized = buildQuantizedVectors({
+          chunkIndex,
+          codeVector: embedCode,
+          docVector: embedDoc,
+          zeroVector: zeroVec,
+          addHnswVector: hnswConfig.enabled ? hnswBuilder.addVector : null
+        });
+        codeVectors[chunkIndex] = quantized.quantizedCode;
+        docVectors[chunkIndex] = quantized.quantizedDoc;
+        mergedVectors[chunkIndex] = quantized.quantizedMerged;
+        cachedCodeVectors.push(quantized.quantizedCode);
+        cachedDocVectors.push(quantized.quantizedDoc);
+        cachedMergedVectors.push(quantized.quantizedMerged);
+      }
+
+      if (entry.cachePath) {
+        try {
+          await writeCacheEntry(entry.cachePath, {
+            key: entry.cacheKey,
+            file: entry.normalizedRel,
+            hash: entry.fileHash,
+            chunkSignature: entry.chunkSignature,
+            cacheMeta: {
+              identityKey: cacheIdentityKey,
+              identity: cacheIdentity,
+              createdAt: new Date().toISOString()
+            },
+            codeVectors: cachedCodeVectors,
+            docVectors: cachedDocVectors,
+            mergedVectors: cachedMergedVectors
+          });
+        } catch {
+          // Ignore cache write failures.
+        }
+      }
+
+      processedFiles += 1;
+      if (processedFiles % 50 === 0 || processedFiles === chunksByFile.size) {
+        fileTask.set(processedFiles, chunksByFile.size, { message: `${processedFiles}/${chunksByFile.size} files` });
+        log(`[embeddings] ${mode}: processed ${processedFiles}/${chunksByFile.size} files`);
+      }
+    };
+
+    const flushPending = async () => {
+      if (!pending.length) return;
+      const combinedCodeTexts = [];
+      const codeRanges = [];
+      for (const entry of pending) {
+        const start = combinedCodeTexts.length;
+        combinedCodeTexts.push(...entry.codeTexts);
+        codeRanges.push({ start, count: entry.codeTexts.length });
+      }
+      const codeEmbeds = await runBatched({
+        texts: combinedCodeTexts,
+        batchSize: embeddingBatchSize,
+        embed: getChunkEmbeddings
+      });
+      if (!Array.isArray(codeEmbeds) || codeEmbeds.length !== combinedCodeTexts.length) {
+        throw new Error(
+          `[embeddings] ${mode} code batch size mismatch (expected ${combinedCodeTexts.length}, got ${codeEmbeds?.length ?? 0}).`
+        );
+      }
+
+      const docPayloads = [];
+      const docMappings = [];
+      for (let i = 0; i < pending.length; i += 1) {
+        const entry = pending[i];
+        entry.docVectorsRaw = new Array(entry.items.length).fill(null);
+        for (let j = 0; j < entry.docTexts.length; j += 1) {
+          if (entry.docTexts[j]) {
+            docMappings.push({ entryIndex: i, chunkOffset: j });
+            docPayloads.push(entry.docTexts[j]);
+          }
+        }
+      }
+      if (docPayloads.length) {
+        const docEmbeds = await runBatched({
+          texts: docPayloads,
+          batchSize: embeddingBatchSize,
+          embed: getChunkEmbeddings
+        });
+        if (!Array.isArray(docEmbeds) || docEmbeds.length !== docPayloads.length) {
+          throw new Error(
+            `[embeddings] ${mode} doc batch size mismatch (expected ${docPayloads.length}, got ${docEmbeds?.length ?? 0}).`
+          );
+        }
+        for (let i = 0; i < docMappings.length; i += 1) {
+          const mapping = docMappings[i];
+          pending[mapping.entryIndex].docVectorsRaw[mapping.chunkOffset] = docEmbeds[i] || null;
+        }
+      }
+
+      for (let i = 0; i < pending.length; i += 1) {
+        const entry = pending[i];
+        const range = codeRanges[i];
+        const fileCodeEmbeds = codeEmbeds.slice(range.start, range.start + range.count);
+        await processFileEmbeddings(entry, fileCodeEmbeds, entry.docVectorsRaw || []);
+      }
+
+      pending.length = 0;
+      pendingChunks = 0;
+    };
+    for (const [relPath, items] of fileEntries) {
       const normalizedRel = relPath.replace(/\\/g, '/');
       const chunkSignature = buildChunkSignature(items);
       const manifestEntry = manifestFiles[normalizedRel] || null;
@@ -410,92 +590,22 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
         const docText = typeof chunk.docmeta?.doc === 'string' ? chunk.docmeta.doc : '';
         docTexts.push(docText.trim() ? docText : '');
       }
-
-      let codeEmbeds = await runBatched({
-        texts: codeTexts,
-        batchSize: embeddingBatchSize,
-        embed: getChunkEmbeddings
+      pending.push({
+        normalizedRel,
+        items,
+        cacheKey,
+        cachePath,
+        fileHash,
+        chunkSignature,
+        codeTexts,
+        docTexts
       });
-      codeEmbeds = ensureVectorArrays(codeEmbeds, codeTexts.length);
-      for (const vec of codeEmbeds) {
-        if (Array.isArray(vec) && vec.length) assertDims(vec.length);
-      }
-
-      const docVectorsRaw = new Array(items.length).fill(null);
-      const docIndexes = [];
-      const docPayloads = [];
-      for (let i = 0; i < docTexts.length; i += 1) {
-        if (docTexts[i]) {
-          docIndexes.push(i);
-          docPayloads.push(docTexts[i]);
-        }
-      }
-      if (docPayloads.length) {
-        const embeddedDocs = await runBatched({
-          texts: docPayloads,
-          batchSize: embeddingBatchSize,
-          embed: getChunkEmbeddings
-        });
-        for (let i = 0; i < docIndexes.length; i += 1) {
-          docVectorsRaw[docIndexes[i]] = embeddedDocs[i] || null;
-        }
-      }
-      for (const vec of docVectorsRaw) {
-        if (Array.isArray(vec) && vec.length) assertDims(vec.length);
-      }
-
-      const dims = dimsValidator.getDims();
-      const zeroVec = dims ? Array.from({ length: dims }, () => 0) : [];
-
-      const cachedCodeVectors = [];
-      const cachedDocVectors = [];
-      const cachedMergedVectors = [];
-      for (let i = 0; i < items.length; i += 1) {
-        const chunkIndex = items[i].index;
-        const embedCode = Array.isArray(codeEmbeds[i]) ? codeEmbeds[i] : [];
-        const embedDoc = Array.isArray(docVectorsRaw[i]) ? docVectorsRaw[i] : zeroVec;
-        const quantized = buildQuantizedVectors({
-          chunkIndex,
-          codeVector: embedCode,
-          docVector: embedDoc,
-          zeroVector: zeroVec,
-          addHnswVector: hnswConfig.enabled ? hnswBuilder.addVector : null
-        });
-        codeVectors[chunkIndex] = quantized.quantizedCode;
-        docVectors[chunkIndex] = quantized.quantizedDoc;
-        mergedVectors[chunkIndex] = quantized.quantizedMerged;
-        cachedCodeVectors.push(quantized.quantizedCode);
-        cachedDocVectors.push(quantized.quantizedDoc);
-        cachedMergedVectors.push(quantized.quantizedMerged);
-      }
-
-      if (cachePath) {
-        try {
-          await fs.writeFile(cachePath, JSON.stringify({
-            key: cacheKey,
-            file: normalizedRel,
-            hash: fileHash,
-            chunkSignature,
-            cacheMeta: {
-              identityKey: cacheIdentityKey,
-              identity: cacheIdentity,
-              createdAt: new Date().toISOString()
-            },
-            codeVectors: cachedCodeVectors,
-            docVectors: cachedDocVectors,
-            mergedVectors: cachedMergedVectors
-          }));
-        } catch {
-          // Ignore cache write failures.
-        }
-      }
-
-      processedFiles += 1;
-      if (processedFiles % 50 === 0 || processedFiles === chunksByFile.size) {
-        fileTask.set(processedFiles, chunksByFile.size, { message: `${processedFiles}/${chunksByFile.size} files` });
-        log(`[embeddings] ${mode}: processed ${processedFiles}/${chunksByFile.size} files`);
+      pendingChunks += items.length;
+      if (!batchTarget || pendingChunks >= batchTarget) {
+        await flushPending();
       }
     }
+    await flushPending();
 
     const observedDims = dimsValidator.getDims();
     if (configuredDims && observedDims && configuredDims !== observedDims) {
@@ -503,7 +613,9 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
         `[embeddings] ${mode} embedding dims mismatch (configured=${configuredDims}, observed=${observedDims}).`
       );
     }
-    const finalDims = observedDims || configuredDims || 384;
+    const finalDims = observedDims
+      || configuredDims
+      || (useStubEmbeddings ? resolveStubDims(configuredDims) : DEFAULT_STUB_DIMS);
     fillMissingVectors(codeVectors, finalDims);
     fillMissingVectors(docVectors, finalDims);
     fillMissingVectors(mergedVectors, finalDims);

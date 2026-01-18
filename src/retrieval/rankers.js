@@ -250,7 +250,9 @@ export function rankMinhash(idx, tokens, topN, candidateSet = null) {
  */
 export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
   const vectors = idx.denseVec?.vectors;
-  if (!queryEmbedding || !Array.isArray(vectors) || !vectors.length) return [];
+  const isVectorLike = Array.isArray(queryEmbedding)
+    || (ArrayBuffer.isView(queryEmbedding) && !(queryEmbedding instanceof DataView));
+  if (!isVectorLike || !Array.isArray(vectors) || !vectors.length) return [];
   const dims = idx.denseVec?.dims || queryEmbedding.length;
   const minVal = -1;
   const scale = Number.isFinite(idx.denseVec?.scale)

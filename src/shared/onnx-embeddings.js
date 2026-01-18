@@ -11,9 +11,10 @@ const PROVIDER_ALIASES = new Map([
 ]);
 
 const normalizeProvider = (value) => {
-  if (typeof value !== 'string') return 'xenova';
+  if (typeof value !== 'string') return null;
   const trimmed = value.trim().toLowerCase();
-  return PROVIDER_ALIASES.get(trimmed) || 'xenova';
+  if (!trimmed) return null;
+  return PROVIDER_ALIASES.get(trimmed) || null;
 };
 
 const normalizeProviders = (value) => {
@@ -61,8 +62,15 @@ export function normalizeOnnxConfig(raw = {}) {
   };
 }
 
-export function normalizeEmbeddingProvider(raw) {
-  return normalizeProvider(raw);
+export function normalizeEmbeddingProvider(raw, { strict = false } = {}) {
+  if (raw === undefined || raw === null || raw === '') return 'xenova';
+  const normalized = normalizeProvider(raw);
+  if (normalized) return normalized;
+  if (strict) {
+    const candidates = Array.from(new Set(PROVIDER_ALIASES.values())).sort().join(', ');
+    throw new Error(`[embeddings] Unknown provider "${raw}". Expected one of: ${candidates}.`);
+  }
+  return 'xenova';
 }
 
 export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId }) {
@@ -111,10 +119,19 @@ export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId })
 const onnxCache = new Map();
 
 const normalizeVec = (vec) => {
-  if (!Array.isArray(vec) || vec.length === 0) return vec || [];
-  const norm = Math.sqrt(vec.reduce((sum, v) => sum + v * v, 0));
-  if (!Number.isFinite(norm) || norm === 0) return vec;
-  return vec.map((v) => v / norm);
+  const length = vec && typeof vec.length === 'number' ? vec.length : 0;
+  if (!length) return new Float32Array(0);
+  const out = Float32Array.from(vec);
+  let norm = 0;
+  for (let i = 0; i < out.length; i += 1) {
+    norm += out[i] * out[i];
+  }
+  norm = Math.sqrt(norm);
+  if (!Number.isFinite(norm) || norm === 0) return out;
+  for (let i = 0; i < out.length; i += 1) {
+    out[i] = out[i] / norm;
+  }
+  return out;
 };
 
 const normalizeExecutionProviders = (providers, lowMemory) => {
@@ -204,7 +221,7 @@ const meanPool = (tensor, attentionMask) => {
   const flatMask = attentionMask ? attentionMask.flat() : new Array(batch * seq).fill(1);
   const output = new Array(batch).fill(null);
   for (let b = 0; b < batch; b += 1) {
-    const vec = new Array(hidden).fill(0);
+    const vec = new Float32Array(hidden);
     let count = 0;
     for (let t = 0; t < seq; t += 1) {
       const maskVal = Number(flatMask[b * seq + t] ?? 0);
@@ -233,16 +250,12 @@ const rowsFromTensor = (tensor) => {
   const out = new Array(rows);
   for (let r = 0; r < rows; r += 1) {
     const start = r * cols;
-    out[r] = normalizeVec(Array.from(data.slice(start, start + cols)));
+    out[r] = normalizeVec(data.slice(start, start + cols));
   }
   return out;
 };
 
 export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig }) {
-  const normalizedProvider = normalizeEmbeddingProvider('onnx');
-  if (normalizedProvider !== 'onnx') {
-    throw new Error('ONNX embedder misconfigured.');
-  }
   const normalized = normalizeOnnxConfig(onnxConfig);
   const resolvedModelPath = resolveOnnxModelPath({
     rootDir,
@@ -251,7 +264,10 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig }) 
     modelId
   });
   if (!resolvedModelPath) {
-    throw new Error('ONNX model path not found. Set indexing.embeddings.onnx.modelPath.');
+    const basePath = normalized.modelPath || (modelsDir ? path.join(modelsDir, modelId || '') : '');
+    throw new Error(
+      `ONNX model path not found. Set indexing.embeddings.onnx.modelPath or run tools/download-models.js (expected near ${basePath || 'models dir'}).`
+    );
   }
   const modelSize = statSize(resolvedModelPath);
   const lowMemory = Number.isFinite(modelSize) && modelSize >= LARGE_MODEL_BYTES;

@@ -10,7 +10,7 @@ export const enqueueEmbeddingJob = async ({ runtime, mode }) => {
     : path.join(getCacheRoot(), 'service', 'queue');
   const maxQueued = Number.isFinite(runtime.embeddingQueue?.maxQueued)
     ? runtime.embeddingQueue.maxQueued
-    : null;
+    : 10;
   const jobId = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
   await ensureQueueDir(queueDir);
   const result = await enqueueJob(
@@ -20,7 +20,9 @@ export const enqueueEmbeddingJob = async ({ runtime, mode }) => {
       createdAt: new Date().toISOString(),
       repo: runtime.root,
       mode,
-      reason: 'embeddings'
+      reason: 'embeddings',
+      embeddingIdentity: runtime.embeddingIdentity || null,
+      embeddingIdentityKey: runtime.embeddingIdentityKey || null
     },
     maxQueued,
     'embeddings'

@@ -1,5 +1,10 @@
 import { normalizeVec, quantizeVec } from '../../src/index/embedding.js';
 
+const isVectorLike = (value) => {
+  if (Array.isArray(value)) return true;
+  return ArrayBuffer.isView(value) && !(value instanceof DataView);
+};
+
 export const runBatched = async ({ texts, batchSize, embed }) => {
   if (!texts.length) return [];
   if (!batchSize || texts.length <= batchSize) {
@@ -18,7 +23,7 @@ export const ensureVectorArrays = (vectors, count) => {
   if (Array.isArray(vectors) && vectors.length === count) return vectors;
   const out = [];
   for (let i = 0; i < count; i += 1) {
-    out.push(Array.isArray(vectors?.[i]) ? vectors[i] : []);
+    out.push(isVectorLike(vectors?.[i]) ? vectors[i] : []);
   }
   return out;
 };
@@ -49,7 +54,7 @@ export const isDimsMismatch = (err) =>
 export const validateCachedDims = ({ vectors, expectedDims, mode }) => {
   if (!expectedDims || !Array.isArray(vectors)) return;
   for (const vec of vectors) {
-    if (!Array.isArray(vec) || !vec.length) continue;
+    if (!isVectorLike(vec) || !vec.length) continue;
     if (vec.length !== expectedDims) {
       throw new Error(
         `[embeddings] ${mode} embedding dims mismatch (configured=${expectedDims}, observed=${vec.length}).`
@@ -65,11 +70,19 @@ export const buildQuantizedVectors = ({
   zeroVector,
   addHnswVector
 }) => {
-  const embedCode = Array.isArray(codeVector) ? codeVector : [];
-  const embedDoc = Array.isArray(docVector) ? docVector : zeroVector;
-  const merged = embedCode.length
-    ? embedCode.map((value, idx) => (value + (embedDoc[idx] ?? 0)) / 2)
-    : embedDoc;
+  const embedCode = isVectorLike(codeVector) ? codeVector : [];
+  const embedDoc = isVectorLike(docVector) ? docVector : zeroVector;
+  const length = embedCode.length || embedDoc.length || 0;
+  const merged = length ? new Float32Array(length) : new Float32Array(0);
+  if (embedCode.length) {
+    for (let i = 0; i < merged.length; i += 1) {
+      merged[i] = (embedCode[i] + (embedDoc[i] ?? 0)) / 2;
+    }
+  } else if (embedDoc.length) {
+    for (let i = 0; i < merged.length; i += 1) {
+      merged[i] = embedDoc[i] ?? 0;
+    }
+  }
   const normalized = normalizeVec(merged);
   if (addHnswVector && normalized.length) {
     addHnswVector(chunkIndex, normalized);
@@ -83,7 +96,7 @@ export const buildQuantizedVectors = ({
 export const fillMissingVectors = (vectorList, dims) => {
   const fallback = new Array(dims).fill(0);
   for (let i = 0; i < vectorList.length; i += 1) {
-    if (!Array.isArray(vectorList[i]) || vectorList[i].length !== dims) {
+    if (!isVectorLike(vectorList[i]) || vectorList[i].length !== dims) {
       vectorList[i] = fallback;
     }
   }
