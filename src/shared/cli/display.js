@@ -60,6 +60,11 @@ const BAR_STYLES = {
   default: { fill: '⣿', empty: EMPTY_PATTERN_DEFAULT, partials: PARTIALS_DEFAULT }
 };
 
+const OFF_WHITE = { r: 235, g: 236, b: 238 };
+const BLACK = { r: 0, g: 0, b: 0 };
+const CHECK_BG_OK = { r: 36, g: 110, b: 58 };
+const CHECK_BG_FAIL = { r: 142, g: 36, b: 36 };
+
 const resolveBarVariant = (task) => {
   const name = String(task?.name || '').toLowerCase();
   const stage = String(task?.stage || '').toLowerCase();
@@ -112,45 +117,66 @@ const colorToAnsi = (color, isBackground = false) => {
   return `${prefix};2;${color.r};${color.g};${color.b}`;
 };
 
-const GRADIENT_STOPS = [
-  { pos: 0, color: { r: 64, g: 42, b: 22 } },   // dark brown
-  { pos: 0.38, color: { r: 44, g: 140, b: 82 } }, // green
-  { pos: 0.72, color: { r: 214, g: 124, b: 48 } }, // orange
-  { pos: 1, color: { r: 236, g: 206, b: 80 } }  // yellow
+const PALETTE = [
+  { r: 41, g: 86, b: 70 },
+  { r: 43, g: 95, b: 87 },
+  { r: 44, g: 99, b: 104 },
+  { r: 45, g: 93, b: 113 },
+  { r: 46, g: 84, b: 122 },
+  { r: 46, g: 71, b: 132 },
+  { r: 47, g: 53, b: 142 },
+  { r: 62, g: 47, b: 152 },
+  { r: 88, g: 46, b: 162 },
+  { r: 118, g: 46, b: 173 },
+  { r: 154, g: 45, b: 184 },
+  { r: 195, g: 44, b: 195 },
+  { r: 207, g: 43, b: 172 },
+  { r: 215, g: 45, b: 143 },
+  { r: 220, g: 50, b: 111 },
+  { r: 224, g: 56, b: 81 },
+  { r: 228, g: 73, b: 62 },
+  { r: 232, g: 115, b: 69 },
+  { r: 236, g: 155, b: 75 },
+  { r: 239, g: 193, b: 82 },
+  { r: 242, g: 230, b: 89 },
+  { r: 225, g: 245, b: 96 },
+  { r: 197, g: 248, b: 104 },
+  { r: 172, g: 250, b: 112 }
 ];
 
-const resolveGradientColor = (index, total) => {
-  if (!Number.isFinite(total) || total <= 1) return GRADIENT_STOPS[0].color;
-  const t = Math.max(0, Math.min(1, index / (total - 1)));
-  for (let i = 0; i < GRADIENT_STOPS.length - 1; i += 1) {
-    const start = GRADIENT_STOPS[i];
-    const end = GRADIENT_STOPS[i + 1];
-    if (t >= start.pos && t <= end.pos) {
-      const local = (t - start.pos) / (end.pos - start.pos || 1);
-      return mixColor(start.color, end.color, local);
-    }
-  }
-  return GRADIENT_STOPS[GRADIENT_STOPS.length - 1].color;
+const resolvePaletteSlot = (index, total, offset = 0, step = 1) => {
+  if (!Number.isFinite(total) || total <= 1) return offset;
+  return offset + index * step;
 };
 
-const PULSE_BRACKET_COLORS = [
-  { r: 170, g: 170, b: 170 },
-  { r: 210, g: 210, b: 210 },
-  { r: 245, g: 245, b: 245 },
-  { r: 210, g: 210, b: 210 }
-];
+const paletteColorAt = (slot) => {
+  const clamped = Math.max(0, Math.min(PALETTE.length - 1, slot));
+  const lower = Math.floor(clamped);
+  const upper = Math.min(PALETTE.length - 1, lower + 1);
+  const local = clamped - lower;
+  return mixColor(PALETTE[lower], PALETTE[upper], local);
+};
 
-const resolveBracketColor = (index, total, now, active = true) => {
-  if (!active) return colorToAnsi({ r: 170, g: 170, b: 170 });
-  const step = Math.floor(now / 120);
-  const offset = total > 0 ? index % PULSE_BRACKET_COLORS.length : 0;
-  const pulseIndex = (step + offset) % PULSE_BRACKET_COLORS.length;
-  return colorToAnsi(PULSE_BRACKET_COLORS[pulseIndex]);
+const resolveGradientColor = (index, total, offset = 0, step = 1) => {
+  const slot = resolvePaletteSlot(index, total, offset, step);
+  return paletteColorAt(slot);
 };
 
 const composeColor = (foreground, background) => {
   if (foreground && background) return `${foreground};${background}`;
   return foreground || background || '';
+};
+
+const buildGradientText = (count, char, gradient, colorize, background) => {
+  if (!count || !gradient || !colorize) return char.repeat(count);
+  let output = '';
+  for (let i = 0; i < count; i += 1) {
+    const color = gradient(i, count);
+    const fg = color ? colorToAnsi(color) : null;
+    const code = composeColor(fg, background);
+    output += colorize(char, code);
+  }
+  return output;
 };
 
 const buildBar = (pct, width, style, theme, colorize, options = {}) => {
@@ -181,12 +207,19 @@ const buildBar = (pct, width, style, theme, colorize, options = {}) => {
   const emptyText = emptyCount > 0 ? repeatPattern(emptyChar, emptyCount) : '';
 
   const background = theme?.background || '';
-  const filled = colorize ? colorize(filledText, composeColor(theme?.fill, background)) : filledText;
+  let filled = filledText;
+  if (colorize && options.fillGradient && fullCount > 0) {
+    filled = buildGradientText(fullCount, fillChar, options.fillGradient, colorize, background);
+  } else if (colorize) {
+    filled = colorize(filledText, composeColor(theme?.fill, background));
+  }
   const partial = colorize ? colorize(partialText, composeColor(theme?.edge, background)) : partialText;
   const empty = colorize ? colorize(emptyText, composeColor(theme?.empty, background)) : emptyText;
-  const bracket = theme?.bracket || '';
-  const left = colorize ? colorize('[', bracket) : '[';
-  const right = colorize ? colorize(']', bracket) : ']';
+  const bracketFg = theme?.bracketFg || theme?.bracket || '';
+  const bracketBg = theme?.bracketBg || '';
+  const bracketCode = composeColor(bracketFg, bracketBg);
+  const left = colorize ? colorize('[', bracketCode) : '[';
+  const right = colorize ? colorize(']', bracketCode) : ']';
   return `${left}${filled}${partial}${empty}${right}`;
 };
 
@@ -480,7 +513,8 @@ export function createDisplay(options = {}) {
     rendered: false,
     renderLines: 0,
     lastRenderMs: 0,
-    lastProgressLogMs: 0
+    lastProgressLogMs: 0,
+    paletteOffset: null
   };
 
   const writeJsonLog = (level, message, meta) => {
@@ -621,18 +655,43 @@ export function createDisplay(options = {}) {
     const overallOverride = computeOverallProgress({ overallTask, tasksByMode });
     const now = Date.now();
     const taskColors = new Map();
+    const taskAccents = new Map();
+    const paletteStep = Math.min(
+      1,
+      (PALETTE.length - 1) / Math.max(1, displayTasks.length - 1)
+    );
+    const maxOffset = Math.max(
+      0,
+      (PALETTE.length - 1) - paletteStep * Math.max(0, displayTasks.length - 1)
+    );
+    if (!Number.isFinite(state.paletteOffset)) {
+      state.paletteOffset = maxOffset > 0 ? Math.random() * maxOffset : 0;
+    } else if (state.paletteOffset > maxOffset) {
+      state.paletteOffset = maxOffset;
+    }
+    const paletteOffset = state.paletteOffset || 0;
     displayTasks.forEach((task, index) => {
-      taskColors.set(task.id, resolveGradientColor(index, displayTasks.length));
+      const slot = resolvePaletteSlot(index, displayTasks.length, paletteOffset, paletteStep);
+      const base = paletteColorAt(slot);
+      const accent = paletteColorAt(Math.min(PALETTE.length - 1, slot + 0.9));
+      taskColors.set(task.id, base);
+      taskAccents.set(task.id, accent);
     });
     const resolveBackgroundColor = (task, variant) => {
       if (!task?.mode) return null;
       if (variant === 'imports') {
         const stageTask = tasksByMode.stage.get(task.mode);
-        if (stageTask) return taskColors.get(stageTask.id) || null;
+        if (stageTask) {
+          const base = taskColors.get(stageTask.id) || null;
+          return base ? scaleColor(base, 0.22) : null;
+        }
       }
       if (variant === 'files') {
         const importsTask = tasksByMode.imports.get(task.mode);
-        if (importsTask) return taskColors.get(importsTask.id) || null;
+        if (importsTask) {
+          const base = taskColors.get(importsTask.id) || null;
+          return base ? scaleColor(base, 0.22) : null;
+        }
       }
       return null;
     };
@@ -648,6 +707,21 @@ export function createDisplay(options = {}) {
       return `${value}${' '.repeat(maxSuffixLength - plainLength)}`;
     };
     const extrasByTask = displayTasks.map((task) => buildProgressExtras(task, now));
+    const benchPrefixes = displayTasks.map((task, index) => {
+      if (String(task?.stage || '').toLowerCase() !== 'bench') return '';
+      const elapsedSec = extrasByTask[index]?.elapsedSec;
+      if (!Number.isFinite(elapsedSec) || elapsedSec <= 0) return '';
+      const parts = splitDurationParts(elapsedSec);
+      return `⌛ ${formatDurationCompact(parts)}`;
+    });
+    const maxBenchPrefixLength = benchPrefixes.reduce(
+      (max, value) => Math.max(max, stripAnsi(value || '').length),
+      0
+    );
+    const padBenchPrefix = (value) => {
+      if (!maxBenchPrefixLength) return value || '';
+      return padVisibleStart(value || '', maxBenchPrefixLength);
+    };
     const rateTexts = extrasByTask.map((entry) => entry?.rateText || '');
     const maxRateLength = rateTexts.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
     const padRate = (value) => {
@@ -729,41 +803,101 @@ export function createDisplay(options = {}) {
     });
     const maxMessageLength = messageTexts.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
     const padMessage = (value) => padVisible(value || '', maxMessageLength);
-    const statusDone = colorEnabled
-      ? '\x1b[97m[\x1b[92m✓\x1b[97m]\x1b[0m'
-      : '[✓]';
+    const buildStatusDone = () => {
+      if (!colorEnabled) return '[✓]';
+      const fg = colorToAnsi(OFF_WHITE);
+      const bgBracket = colorToAnsi(BLACK, true);
+      const bgCheck = colorToAnsi(CHECK_BG_OK, true);
+      const left = `\x1b[${composeColor(fg, bgBracket)}m[\x1b[0m`;
+      const check = `\x1b[${composeColor(fg, bgCheck)}m✓\x1b[0m`;
+      const right = `\x1b[${composeColor(fg, bgBracket)}m]\x1b[0m`;
+      return `${left}${check}${right}`;
+    };
+    const buildStatusFail = () => {
+      if (!colorEnabled) return '[!]';
+      const fg = colorToAnsi(OFF_WHITE);
+      const bgBracket = colorToAnsi(BLACK, true);
+      const bgCheck = colorToAnsi(CHECK_BG_FAIL, true);
+      const left = `\x1b[${composeColor(fg, bgBracket)}m[\x1b[0m`;
+      const check = `\x1b[${composeColor(fg, bgCheck)}m!\x1b[0m`;
+      const right = `\x1b[${composeColor(fg, bgBracket)}m]\x1b[0m`;
+      return `${left}${check}${right}`;
+    };
+    const statusDone = buildStatusDone();
     const statusWidth = Math.max(
       3,
       displayTasks.reduce((max, task) => {
         if (!task?.status || task.status === 'running') return max;
-        const text = task.status === 'done' ? statusDone : `(${task.status})`;
+        const text = task.status === 'done'
+          ? statusDone
+          : task.status === 'failed'
+            ? buildStatusFail()
+            : `(${task.status})`;
         return Math.max(max, stripAnsi(text).length);
       }, 0)
     );
     const BAR_MAX = 42;
     const BAR_MID = 21;
     const BAR_MIN = 7;
-    const tryLayout = ({ showSuffix, showRate, showDetail, showMessage, minBar }) => {
+    const tryLayout = ({ showSuffix, showRate, showDetail, showMessage, showTimePrefix, minBar }) => {
       const suffixLen = showSuffix ? maxSuffixLength : 0;
       const rateLen = showRate ? maxRateLength : 0;
       const detailLen = showDetail ? detailWidth : 0;
       const messageLen = showMessage ? maxMessageLength : 0;
+      const timePrefixLen = showTimePrefix ? Math.max(0, maxBenchPrefixLength) : 0;
       let extraLen = 0;
       if (showRate && showDetail && showMessage) extraLen = 3 + rateLen + 3 + detailLen + 3 + messageLen;
       else if (showRate && showDetail) extraLen = 3 + rateLen + 3 + detailLen;
       else if (showRate) extraLen = 3 + rateLen;
       else if (showDetail) extraLen = 3 + detailLen;
-      const reserved = labelWidth + 1 + 2 + 1 + suffixLen + 1 + statusWidth + extraLen;
+      const reserved = labelWidth + 1 + (timePrefixLen ? timePrefixLen + 1 : 0) + 2 + 1 + suffixLen + 1 + statusWidth + extraLen;
       const available = width - reserved;
       if (available < minBar) return null;
       const barWidth = Math.min(BAR_MAX, Math.max(minBar, available));
-      return { showSuffix, showRate, showDetail, showMessage, barWidth };
+      return { showSuffix, showRate, showDetail, showMessage, showTimePrefix, barWidth };
     };
-    const layout = tryLayout({ showSuffix: true, showRate: true, showDetail: true, showMessage: maxMessageLength > 0, minBar: BAR_MID })
-      || tryLayout({ showSuffix: false, showRate: true, showDetail: true, showMessage: maxMessageLength > 0, minBar: BAR_MID })
-      || tryLayout({ showSuffix: false, showRate: false, showDetail: true, showMessage: maxMessageLength > 0, minBar: Math.floor(BAR_MID * 2 / 3) })
-      || tryLayout({ showSuffix: false, showRate: false, showDetail: false, showMessage: false, minBar: BAR_MIN })
-      || { showSuffix: false, showRate: false, showDetail: false, showMessage: false, barWidth: BAR_MIN };
+    const showTimePrefix = maxBenchPrefixLength > 0;
+    const layout = tryLayout({
+      showSuffix: true,
+      showRate: true,
+      showDetail: true,
+      showMessage: maxMessageLength > 0,
+      showTimePrefix,
+      minBar: BAR_MID
+    })
+      || tryLayout({
+        showSuffix: false,
+        showRate: true,
+        showDetail: true,
+        showMessage: maxMessageLength > 0,
+        showTimePrefix,
+        minBar: BAR_MID
+      })
+      || tryLayout({
+        showSuffix: false,
+        showRate: false,
+        showDetail: true,
+        showMessage: maxMessageLength > 0,
+        showTimePrefix,
+        minBar: Math.floor(BAR_MID * 2 / 3)
+      })
+      || tryLayout({
+        showSuffix: false,
+        showRate: false,
+        showDetail: false,
+        showMessage: false,
+        showTimePrefix,
+        minBar: BAR_MIN
+      })
+      || {
+        showSuffix: false,
+        showRate: false,
+        showDetail: false,
+        showMessage: false,
+        showTimePrefix,
+        barWidth: BAR_MIN
+      };
+    const hueShiftVariants = new Set(['files', 'imports', 'artifacts', 'records', 'embeddings', 'shard']);
     const taskLines = displayTasks.map((task, index) => {
       const total = Number.isFinite(task.total) && task.total > 0 ? task.total : null;
       const current = Number.isFinite(task.current) ? task.current : 0;
@@ -776,44 +910,80 @@ export function createDisplay(options = {}) {
       const colorize = colorEnabled
         ? (text, code) => (text && code ? `\x1b[${code}m${text}\x1b[0m` : text || '')
         : null;
+      const tintText = (text) => {
+        if (!colorEnabled || !text) return text || '';
+        if (text.includes('\x1b')) return text;
+        return colorize(text, colorToAnsi(OFF_WHITE));
+      };
       const variant = resolveBarVariant(task);
       const style = BAR_STYLES[variant] || BAR_STYLES.default;
-      const baseColor = taskColors.get(task.id) || resolveGradientColor(index, orderedTasks.length);
-      const fill = colorToAnsi(baseColor);
-      const edge = colorToAnsi(lightenColor(baseColor, 0.12));
-      const empty = colorToAnsi(scaleColor(baseColor, 0.25));
-      const backgroundColor = resolveBackgroundColor(task, variant);
-      const background = backgroundColor ? colorToAnsi(backgroundColor, true) : '';
-      const bracket = resolveBracketColor(index, orderedTasks.length, now, task.status === 'running');
-      const theme = { fill, edge, empty, bracket, background };
+      const baseColor = taskColors.get(task.id)
+        || resolveGradientColor(index, orderedTasks.length, paletteOffset, paletteStep);
+      const accentColor = taskAccents.get(task.id) || baseColor;
+      const fillColor = lightenColor(baseColor, 0.12);
+      const edgeColor = lightenColor(baseColor, 0.25);
+      const emptyColor = scaleColor(baseColor, 0.18);
+      const fill = colorToAnsi(fillColor);
+      const edge = colorToAnsi(edgeColor);
+      const empty = colorToAnsi(emptyColor);
+      const backgroundColor = resolveBackgroundColor(task, variant) || scaleColor(baseColor, 0.12);
+      const background = colorToAnsi(backgroundColor, true);
+      const bracketFg = colorToAnsi(OFF_WHITE);
+      const bracketBg = colorToAnsi(BLACK, true);
+      const theme = {
+        fill,
+        edge,
+        empty,
+        bracketFg,
+        bracketBg,
+        background
+      };
       if (variant === 'files') {
         theme.edge = fill;
       }
       const animateEdge = task.status === 'running' && variant === 'stage' && current > 0;
       const animateIndex = animateEdge ? Math.floor(now / 320) : null;
-      const bar = buildBar(clampRatio(pct), barWidth, style, theme, colorize, { animateIndex });
-      const label = padLabel(taskLabels[index] || task.name, labelWidth);
+      const fillGradient = hueShiftVariants.has(variant)
+        ? (pos, count) => mixColor(baseColor, accentColor, count > 1 ? pos / (count - 1) : 0)
+        : null;
+      const bar = buildBar(clampRatio(pct), barWidth, style, theme, colorize, {
+        animateIndex,
+        fillGradient
+      });
+      const label = tintText(padLabel(taskLabels[index] || task.name, labelWidth));
+      const timePrefix = layout.showTimePrefix ? tintText(padBenchPrefix(benchPrefixes[index])) : '';
+      const timeText = timePrefix ? `${timePrefix} ` : '';
       let status = '';
       if (task.status && task.status !== 'running') {
-        status = task.status === 'done' ? statusDone : `(${task.status})`;
+        status = task.status === 'done'
+          ? statusDone
+          : task.status === 'failed'
+            ? buildStatusFail()
+            : `(${task.status})`;
       }
-      status = ` ${padVisible(status, statusWidth)}`;
+      status = ` ${tintText(padVisible(status, statusWidth))}`;
       const extras = extrasByTask[index];
-      const detail = layout.showDetail ? padDetail(task, detailTexts[index] || '') : '';
-      const message = layout.showMessage ? padMessage(messageTexts[index] || '') : '';
-      const rate = layout.showRate ? padRate(extras?.rateText || '') : '';
-      let extraText = '';
-      if (layout.showRate && layout.showDetail && layout.showMessage) {
-        extraText = ` | ${rate} | ${detail} | ${message}`.trimEnd();
-      } else if (layout.showRate && layout.showDetail) {
-        extraText = ` | ${rate} | ${detail}`.trimEnd();
-      } else if (layout.showRate) {
-        extraText = ` | ${rate}`.trimEnd();
-      } else if (layout.showDetail) {
-        extraText = ` | ${detail}`.trimEnd();
+      let detail = layout.showDetail ? padDetail(task, detailTexts[index] || '') : '';
+      if (detail && colorEnabled && task.status === 'running') {
+        const fg = colorToAnsi(OFF_WHITE);
+        const progress = total ? clampRatio(current / total) : 0;
+        const shade = Math.max(0.7, Math.min(1, 1 - 0.3 * progress));
+        const etaBg = colorToAnsi(scaleColor(baseColor, shade), true);
+        detail = `\x1b[${composeColor(fg, etaBg)}m${detail}\x1b[0m`;
       }
-      const suffixText = suffix ? ` ${suffix}` : '';
-      return `${label} ${bar}${suffixText}${status}${extraText}`.trimEnd();
+      if (detail) detail = tintText(detail);
+      const message = layout.showMessage ? tintText(padMessage(messageTexts[index] || '')) : '';
+      const rate = layout.showRate ? tintText(padRate(extras?.rateText || '')) : '';
+      const separator = colorEnabled
+        ? `\x1b[${composeColor(colorToAnsi(accentColor), colorToAnsi(BLACK, true))}m | \x1b[0m`
+        : ' | ';
+      const parts = [];
+      if (layout.showRate) parts.push(rate);
+      if (layout.showDetail) parts.push(detail);
+      if (layout.showMessage) parts.push(message);
+      const extraText = parts.length ? `${separator}${parts.join(separator)}`.trimEnd() : '';
+      const suffixText = suffix ? ` ${tintText(suffix)}` : '';
+      return `${label} ${timeText}${bar}${suffixText}${status}${extraText}`.trimEnd();
     });
 
     const statusLine = state.statusLine;

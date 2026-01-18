@@ -773,6 +773,8 @@ export function createFileProcessor(options) {
         treeSitter: treeSitterConfigForMode,
         log: languageOptions?.log
       };
+      const treeSitterMissingLanguages = new Set();
+      segmentContext.treeSitterMissingLanguages = treeSitterMissingLanguages;
       let sc;
       try {
         if (treeSitterEnabled) {
@@ -828,6 +830,17 @@ export function createFileProcessor(options) {
           };
         }
         throw err;
+      }
+      if (
+        treeSitterEnabled
+        && treeSitterDeferMissing
+        && treeSitterMissingLanguages.size > 0
+        && !fileEntry?.treeSitterDisabled
+      ) {
+        return {
+          defer: true,
+          missingLanguages: Array.from(treeSitterMissingLanguages)
+        };
       }
       sanitizeChunkBounds(sc, text.length);
       const chunkIssue = validateChunkBounds(sc, text.length);
