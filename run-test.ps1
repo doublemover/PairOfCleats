@@ -27,6 +27,7 @@ $relativePath = $testFullPath
 if ($testFullPath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
   $relativePath = $testFullPath.Substring($repoRoot.Length).TrimStart('\', '/')
 }
+$tick = [char]96
 
 $timesPath = Join-Path $repoRoot 'TEST_TIMES.md'
 $slowPath = Join-Path $repoRoot 'SLOW_TESTS.md'
@@ -39,7 +40,7 @@ $ensureTemplate = {
       '## Setup Checklist',
       '- [x] Write a little helper .ps1 (powershell 7) script that allows you to run a single test in your worktree without messing anything up',
       '  - [x] This helper script will add a line to TEST_TIMES.md containing the path/filename of the test if it does not exist already, and then log how long it took to run that test',
-      '  - [x] Use this helper every time we have to run a test for this work, if a test takes longer than 10 seconds while you are doing this, cancel that specific test or end that specific process if you\'re absolutely sure you have to, and then add that test\'s path/filename to a SLOW_TESTS.md list',
+      '  - [x] Use this helper every time we have to run a test for this work, if a test takes longer than 10 seconds while you are doing this, cancel that specific test or end that specific process if you''re absolutely sure you have to, and then add that test''s path/filename to a SLOW_TESTS.md list',
       '',
       '## Tracked Tests',
       '<!-- TESTS:START -->',
@@ -56,7 +57,7 @@ $ensureTemplate = {
 & $ensureTemplate
 
 $lines = Get-Content -Path $timesPath
-$testLine = "- `$relativePath`"
+$testLine = "- $tick$relativePath$tick"
 $testStart = [Array]::IndexOf($lines, '<!-- TESTS:START -->')
 $testEnd = [Array]::IndexOf($lines, '<!-- TESTS:END -->')
 if ($testStart -ge 0 -and $testEnd -gt $testStart) {
@@ -71,7 +72,12 @@ if ($testStart -ge 0 -and $testEnd -gt $testStart) {
 Set-Content -Path $timesPath -Value $lines
 
 $start = Get-Date
-$process = Start-Process -FilePath 'node' -ArgumentList @($testFullPath) + $Args -WorkingDirectory $repoRoot -NoNewWindow -PassThru
+$argList = @($testFullPath) + $Args
+$process = Start-Process -FilePath 'node' -ArgumentList $argList -WorkingDirectory $repoRoot -NoNewWindow -PassThru
+if (-not $process) {
+  Write-Error 'Failed to start test process.'
+  exit 1
+}
 $completed = $process.WaitForExit([Math]::Max(1, $TimeoutSeconds) * 1000)
 $timedOut = -not $completed
 if ($timedOut) {
@@ -82,7 +88,7 @@ $elapsed = $end - $start
 $durationSeconds = [Math]::Round($elapsed.TotalSeconds, 2)
 $timestamp = $end.ToString('yyyy-MM-dd HH:mm:ss')
 $exitLabel = if ($timedOut) { 'timeout' } else { "exit $($process.ExitCode)" }
-$runLine = "- $timestamp | `$relativePath` | ${durationSeconds}s | $exitLabel"
+$runLine = "- $timestamp | $tick$relativePath$tick | ${durationSeconds}s | $exitLabel"
 
 $lines = Get-Content -Path $timesPath
 $runStart = [Array]::IndexOf($lines, '<!-- RUNS:START -->')

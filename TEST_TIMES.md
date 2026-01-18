@@ -7,8 +7,10 @@
 
 ## Tracked Tests
 <!-- TESTS:START -->
+- `tests\git-blame-range.js`
 <!-- TESTS:END -->
 
 ## Runs
 <!-- RUNS:START -->
+- 2026-01-18 07:01:28 | `tests\git-blame-range.js` | 8.79s | exit 0
 <!-- RUNS:END -->
