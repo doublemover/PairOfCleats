@@ -1,6 +1,6 @@
 # Completed Phases
 
-Phases 1-4 were completed during the initial Sublime Text plugin and map rollout. Phases 11-12 and 14-15 were completed as the cache/perf and optional-deps groundwork.
+Completed phase snapshots are archived here after being removed from NEW_ROADMAP.md. Some phase numbers are reused across roadmap revisions; section titles are authoritative.
 
 ## Phase 1 — Sublime Text 3 Plugin Foundation (Parity + Plumbing)
 
@@ -3359,5 +3359,108 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - [x] Bench runs do not accumulate unbounded cache state across repos by default.
 - [x] Sharded build progress numbering is stable and trustworthy.
 - [x] Disk-full conditions are detected early with actionable messages rather than failing deep in sqlite reads.
+
+---
+
+## Phase 4 — Regression gate sweep (fix current failing tests)
+
+**Objective:** Clear the currently failing regression gates so subsequent refactors (scalability, mode separation, security) have trustworthy signal.
+
+**Status:** Phase archived; remaining failing tests and exit criteria moved to Phase 30 (Verification Gates).
+
+---
+
+## Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
+
+### 15.1 Extend microbench suite (`tools/bench/micro/`)
+
+* [x] Add `tools/bench/micro/watch.js`:
+  * [x] Event storm simulation (if feasible) or synthetic scheduler load
+* [x] Add `tools/bench/micro/regex.js`:
+  * [x] Compare `re2js` vs `re2` on representative patterns/inputs
+* [x] Add `tools/bench/micro/hash.js`:
+  * [x] Compare wasm vs native checksum throughput
+* [x] Add `tools/bench/micro/compression.js`:
+  * [x] gzip vs zstd compress/decompress for representative artifact payload sizes
+* [x] Add `tools/bench/micro/extractors.js`:
+  * [x] PDF/DOCX extraction throughput and memory ceiling
+
+### 15.2 Add “no-regression” assertions where it matters
+
+* [x] Add deterministic snapshot tests (lightweight, not full golden files):
+  * [x] Ensure chunk IDs stable across backends
+  * [x] Ensure ordering stable under ties
+* [x] Add metrics validation:
+  * [x] `index-*.json` metrics reflect new compression/extractor options correctly
+
+### 15.3 Documentation + UX polish
+
+* [x] Update `README.md`:
+  * [x] Mention PDF/DOCX support and how to enable/disable
+  * [x] Mention optional performance backends and how `auto` works
+* [x] Update `docs/external-backends.md` for Tantivy/LanceDB reality (what’s implemented vs planned)
+* [x] Update `docs/mcp-server.md` for SDK migration
+
+**Exit criteria**
+
+* [x] Remaining verification gates moved to Phase 30 (Verification Gates).
+
+---
+
+## Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
+
+> This phase is intentionally split into “abstraction first” and “backend integration” to keep risk controlled.
+
+### 26.1 Extract a sparse-retrieval interface
+
+* [x] Create `src/retrieval/sparse/`:
+  * [x] `types.js` contract: `search({ query, topN, filters, mode }) -> hits[]`
+  * [x] `providers/sqlite-fts.js` wrapper around existing SQLite FTS ranking
+  * [x] `providers/js-bm25.js` wrapper around the in-memory BM25 path
+
+* [x] Update `src/retrieval/pipeline.js` to call the provider rather than direct sqlite/JS branching:
+  * [x] Keep behavior identical as baseline
+  * [x] Preserve determinism (stable tie-breaking)
+
+### 26.2 Implement Tantivy integration (choose one operational model)
+
+* [x] Choose packaging model (selected embedded N-API; sidecar deferred)
+
+* [x] Add `src/retrieval/sparse/providers/tantivy.js`:
+  * [x] Build query → execute → map results to `{ idx, score }`
+  * [x] Support candidate-set filtering if feasible (or document it as a limitation and handle via post-filtering)
+
+* [x] Add `tools/build-tantivy-index.js`:
+  * [x] Consume existing artifacts (`chunk_meta`, token streams) and build tantivy index on disk
+  * [x] Store alongside other indexes (e.g., under repo cache root)
+  * [x] Consider incremental updates later; start with full rebuild
+
+### 26.3 Config + CLI integration
+
+* [x] Add config:
+  * [x] `tantivy.enabled`
+  * [x] `tantivy.path` (optional override)
+  * [x] `tantivy.autoBuild` (optional)
+
+* [x] Extend backend policy logic (see `src/retrieval/cli/backend-context.js` and backend-policy tests):
+  * [x] Allow `--backend tantivy` (or `--sparse-backend tantivy`)
+  * [x] Ensure `auto` fallback behavior remains predictable
+
+### 26.4 Tests (gated if tantivy isn’t always available in CI)
+
+* [x] Add `tests/tantivy-smoke.js`:
+  * [x] Builds tantivy index for `tests/fixtures/sample`
+  * [x] Executes a basic query and asserts hits are non-empty
+
+* [x] Gate it behind env:
+  * [x] `PAIROFCLEATS_TEST_TANTIVY=1` to run
+  * [x] Otherwise test exits 0 with “skipped” message (match existing patterns in repo)
+
+* [x] Add script-coverage action(s) that run it only when env flag is set (or mark as skipped in coverage if you keep strictness)
+
+**Exit criteria**
+
+* [x] Tantivy backend can be enabled without changing default behavior
+* [x] Remaining performance gate moved to Phase 30 (Verification Gates).
 
 ---

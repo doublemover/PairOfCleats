@@ -11,107 +11,32 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ## Roadmap order (stability/performance frontloaded)
 
-1. Phase 4 — Regression gate sweep (fix current failing tests)
-2. Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
-3. Phase 12 — Storage backends (SQLite + LMDB)
-4. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
-5. Phase 14 — Documentation and Configuration Hardening
-6. Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
-7. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
-8. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
-9. Phase 20 — Threadpool-aware I/O scheduling guardrails
-10. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
-11. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
-12. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
-13. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
-14. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
-15. Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
-16. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
-17. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
-18. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
-19. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
-20. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
-21. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
-22. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
-23. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
-24. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
-25. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
-26. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
-28. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
-29. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
-30. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
-
-## Phase 4 — Regression gate sweep (fix current failing tests)
-
-**Objective:** Clear the currently failing regression gates so subsequent refactors (scalability, mode separation, security) have trustworthy signal.
-
-### Current npm test failures (2026-01-17)
-
-* [ ] `tests/api-server-stream.js` — api-server stream returned no results
-* [ ] `tests/code-map-basic.js` — missing dataflow/controlFlow metadata
-* [ ] `tests/git-blame-range.js` — expected alpha author in chunk authors
-* [ ] `tests/lang/fixtures-sample/python-metadata.test.js` — missing signature metadata
-* [ ] `tests/mcp-schema.js` — MCP schema snapshot mismatch
-* [ ] `tests/piece-assembly.js` — pieces manifest mismatch (equivalence)
-* [ ] `tests/retrieval/filters/git-metadata/chunk-author.test.js` — chunk author filter failed (Alice)
-* [ ] `tests/retrieval/filters/git-metadata/modified-time.test.js` — modified-after filter failed
-* [ ] `tests/retrieval/filters/query-syntax/negative-terms.test.js` — negative phrase filter failed
-* [ ] `tests/retrieval/filters/query-syntax/phrases-and-scorebreakdown.test.js` — expected phrase score breakdown missing
-* [ ] `tests/services/api/health-and-status.test.js` — expected auth rejection
-* [ ] `tests/services/api/no-index.test.js` — expected NO_INDEX status
-* [ ] `tests/services/api/search-happy-path.test.js` — /search returned no results
-* [ ] `tests/services/api/search-validation.test.js` — socket hang up
-* [ ] `tests/services/mcp/tool-search-defaults-and-filters.test.js` — riskTag filter did not change results
-* [ ] `tests/subprocess-quoting.js` — /map did not return a map model
-
-### CLI flag removal and missing-value errors
-
-* [ ] `tests/search-removed-flags.js`
-  * [ ] Failure: expected actionable error for `--human`
-  * [ ] Log: `logs/phase-22/search-removed-flags.log:1`
-* [ ] `tests/search-missing-flag-values.js`
-  * [ ] Failure: expected missing value message for `--type`
-  * [ ] Log: `logs/phase-22/search-missing-flag-values.log:1`
-
-### Help output parity
-
-* [ ] `tests/search-help.js`
-  * [ ] Failure: help output missing flag `--calls`
-  * [ ] Log: `logs/phase-22/search-help.log:1`
-
-### Download / extraction safety (tar)
-
-* [ ] `tests/script-coverage.js`
-  * [ ] Failure: unsafe tar entry detected (e.g., `vec0.dll`)
-  * [ ] Log: `tests/.logs/2026-01-12T08-02-14-028Z/download-extensions-test.attempt-3.log:15`
-  * [ ] Requirement: extraction must fail-closed on unsafe entries (path traversal, absolute paths, invalid drive prefixes, etc.).
-
-### File processor skip behavior
-
-* [ ] `tests/file-processor/skip.test.js`
-  * [ ] Failure: expected binary buffer to skip with `reason=binary`
-  * [ ] Log: `logs/phase-22/file-processor-skip.log:1`
-
-### JavaScript chunking + relations
-
-* [ ] `tests/lang/js-chunking.test.js`
-  * [ ] Failure: missing exported function chunk (alpha)
-  * [ ] Log: `logs/phase-22/lang-js-chunking.log:1`
-* [ ] `tests/lang/js-relations.test.js`
-  * [ ] Failure: missing exports for `run/default: []`
-  * [ ] Log: `logs/phase-22/lang-js-relations.log:1`
-
-### Language registry collectors
-
-* [ ] `tests/language-registry/collectors.test.js`
-  * [ ] Failure: dockerfile mismatch (e.g., `["node:18"] !== ["base","node:18"]`)
-  * [ ] Log: `logs/phase-22/language-registry-collectors.log:1`
-
-**Exit criteria**
-
-* [ ] All targeted failing tests above pass deterministically (at least 3 repeated local runs).
-
----
+1. Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
+2. Phase 12 — Storage backends (SQLite + LMDB)
+3. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
+4. Phase 14 — Documentation and Configuration Hardening
+5. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
+6. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
+7. Phase 20 — Threadpool-aware I/O scheduling guardrails
+8. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
+9. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
+10. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
+11. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
+12. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
+13. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
+14. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
+15. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
+16. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
+17. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
+18. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
+19. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
+20. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
+21. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
+22. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
+23. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
+24. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
+25. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
+26. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
 
 ## Phase 12 — Storage backends (SQLite + LMDB)
 
@@ -127,17 +52,17 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 #### Top P0 / correctness items
 
-- [ ] **(P0) SQLite ANN table is not updated when it already exists** in:
+- [x] **(P0) SQLite ANN table is not updated when it already exists** in:
   - `src/storage/sqlite/build/from-bundles.js` (vector table existence sets `vectorAnnReady = true` but **does not** prepare `insertVectorAnn`) — see around L120.
   - `src/storage/sqlite/build/incremental-update.js` (same pattern) — see around L240.
 
   **Impact:** when the ANN virtual table already exists (most importantly during incremental updates), deleted rows *can* be removed (because deletes run via `deleteDocIds(...)`), but replacement vectors for changed chunks are **not reinserted**, leaving the ANN table sparse/out-of-sync with `dense_vectors`. This can silently degrade or break ANN-based retrieval depending on how the extension is queried.
 
-- [ ] **(P0) Retrieval-side fail-closed is incomplete for SQLite schema versions.**
+- [x] **(P0) Retrieval-side fail-closed is incomplete for SQLite schema versions.**
 
   `src/retrieval/cli-sqlite.js` validates required table *names* but does **not** enforce `PRAGMA user_version == SCHEMA_VERSION` (or otherwise fail-closed on schema mismatch). This violates the checklist requirement (“readers fail closed on unknown versions”) for the SQLite reader path.
 
-- [ ] **(P0) Bundle-build path does not hard-fail on embedding dimension mismatches** (`src/storage/sqlite/build/from-bundles.js`).
+- [x] **(P0) Bundle-build path does not hard-fail on embedding dimension mismatches** (`src/storage/sqlite/build/from-bundles.js`).
 
   The code currently *warns once* on a dims mismatch but continues (and may still insert inconsistent vectors). This risks producing an index with an internally inconsistent dense-vector corpus (which can cause downstream errors or silent relevance regressions).
 
@@ -146,7 +71,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 - [ ] **WAL / sidecar handling is inconsistent across build vs incremental update paths.**  
   Full rebuild paths use `replaceSqliteDatabase(...)` which removes sidecars, but incremental updates modify the DB in-place under WAL mode and do not explicitly checkpoint/truncate. If later tooling removes sidecars without a checkpoint, this can create “single-file DB” assumptions that do not hold.
 
-- [ ] **Indexing for hot maintenance queries can be improved**: `chunks(mode, file)` exists, but multiple maintenance queries order by `id` and would benefit from `(mode, file, id)`.
+- [x] **Indexing for hot maintenance queries can be improved**: `chunks(mode, file)` exists, but multiple maintenance queries order by `id` and would benefit from `(mode, file, id)`.
 
 - [ ] **Docs drift:** `docs/sqlite-incremental-updates.md` (and a few related docs) describe doc-id behavior and operational details that do not match current implementation (doc-id reuse/free-list behavior; ratio guard details; and operational caveats).
 
@@ -177,11 +102,11 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 **Gaps / issues**
 
-- [ ] **Fail-closed at read time:** Add a `user_version` gate to the SQLite reader path (at minimum in `src/retrieval/cli-sqlite.js` / sqlite backend creation).
+- [x] **Fail-closed at read time:** Add a `user_version` gate to the SQLite reader path (at minimum in `src/retrieval/cli-sqlite.js` / sqlite backend creation).
   - Desired behavior:  
     - If backend is *forced* to SQLite: throw a clear error (“SQLite schema mismatch: expected X, found Y”).
     - If backend is not forced (auto): treat SQLite as unavailable and fall back to the file-backed backend, with a warning.
-- [ ] **Index alignment with hot predicates:** Consider adding `CREATE INDEX idx_chunks_file_id ON chunks(mode, file, id)` to support:
+- [x] **Index alignment with hot predicates:** Consider adding `CREATE INDEX idx_chunks_file_id ON chunks(mode, file, id)` to support:
   - `SELECT id FROM chunks WHERE mode=? AND file=? ORDER BY id`
   - `SELECT file, id FROM chunks WHERE mode=? ORDER BY file, id` (incremental update id reuse scan)
 - [ ] **Document upgrade path explicitly:** The system is effectively “rebuild on schema bump”. Ensure docs and user-facing error messaging make that explicit (and fail closed rather than attempting to limp on).
@@ -199,16 +124,16 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 **Gaps / issues**
 
-- [ ] **(P0) Fix ANN insert statement preparation when the ANN table already exists:**
+- [x] **(P0) Fix ANN insert statement preparation when the ANN table already exists:**
   - In `src/storage/sqlite/build/from-bundles.js`:
     - When `hasVectorTable` is true (L120), prepare `insertVectorAnn` immediately (same SQL as the “created table” path near L209).
   - In `src/storage/sqlite/build/incremental-update.js`:
     - When `vectorAnnReady` is set based on `hasVectorTable` (L240), prepare `insertVectorAnn` as well.
   - Add a CI-friendly unit test that does not require a real sqlite-vec binary (see “Tests” section below).
-- [ ] **(P0) Enforce embedding dims consistency in bundle builds.**
+- [x] **(P0) Enforce embedding dims consistency in bundle builds.**
   - Recommendation: pre-scan each bundle (or the whole manifest) to ensure all embeddings are either absent or have a single consistent dimension; then hard-fail the build if mismatched.
   - Current behavior: warns once around L197 and continues; this should be tightened to match the artifacts build path which throws on mismatch.
-- [ ] **Failure cleanup should include SQLite sidecars** (`.db-wal`, `.db-shm`) in:
+- [x] **Failure cleanup should include SQLite sidecars** (`.db-wal`, `.db-shm`) in:
   - `src/storage/sqlite/build/from-artifacts.js`
   - `src/storage/sqlite/build/from-bundles.js`
 
@@ -244,15 +169,15 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 **Gaps / issues**
 
-- [ ] **(P0) ANN table insertion bug** (same as in section B) must be fixed for incremental updates.
-- [ ] **WAL lifecycle:** after an in-place incremental update, run:
+- [x] **(P0) ANN table insertion bug** (same as in section B) must be fixed for incremental updates.
+- [x] **WAL lifecycle:** after an in-place incremental update, run:
   - `PRAGMA wal_checkpoint(TRUNCATE);`
   - optionally `PRAGMA journal_mode = DELETE;` (if the project prefers single-file DBs)
 
   This ensures the on-disk DB is not “dependent on sidecars” after the update and reduces the likelihood of later tooling accidentally discarding uncheckpointed state.
 - [ ] **Manifest match logic:** `isManifestMatch(...)` falls back to mtime/size when one side has a hash and the other does not.
   - Consider tightening: if an incremental manifest provides a hash but the DB manifest row does not, treat as “changed” and update the DB row hash (this gradually converges the DB to the stronger invariant).
-- [ ] **Performance of doc-id reuse scan:** the “scan all chunks ordered by file,id” approach is correct but can be expensive; if it becomes a bottleneck, consider either:
+- [x] **Performance of doc-id reuse scan:** the “scan all chunks ordered by file,id” approach is correct but can be expensive; if it becomes a bottleneck, consider either:
   - adding `(mode,file,id)` index, and/or
   - materializing file→docId list in a side table (only if necessary).
 
@@ -269,7 +194,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 - [ ] **Avoid repeated `COUNT(*)` scans** for backend auto-selection where possible (`src/storage/backend-policy.js`).
   - Options: use `file_manifest` sum, maintain a meta counter, or store chunk count in `index_state.json`.
-- [ ] **Improve maintenance query performance** via `(mode,file,id)` index as noted above.
+- [x] **Improve maintenance query performance** via `(mode,file,id)` index as noted above.
 - [ ] **Reduce query-time statement re-preparation** in `src/retrieval/sqlite-helpers.js` (`chunkArray(...)` creates fresh SQL each time); consider caching by chunk size.
 - [ ] **Add at least one p95 query latency regression test** using a stable fixture DB (details below).
 
@@ -295,7 +220,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ### Must-add tests (CI-friendly)
 
-- [ ] **Unit test: ANN insertion when the ANN table already exists** (no real extension binary required).
+- [x] **Unit test: ANN insertion when the ANN table already exists** (no real extension binary required).
   - Approach:
     - Create a temporary SQLite DB with all required tables plus a *plain* `dense_vectors_ann` table (not virtual) matching the schema used by insert/delete (`rowid` + `embedding` BLOB column).
     - Pass a mocked `vectorConfig` into `incrementalUpdateDatabase(...)` with:
@@ -305,13 +230,13 @@ Completed Phases: `COMPLETED_PHASES.md`
     - Run an incremental update that modifies at least one file and assert that:
       - rows are deleted for removed docIds
       - rows are inserted/replaced for changed docIds
-- [ ] **Unit test: bundle-build dims mismatch hard failure**
+- [x] **Unit test: bundle-build dims mismatch hard failure**
   - Create two bundle files in the incremental bundle dir: one with embedding length N, one with embedding length N+1.
   - Assert build fails (or returns count 0 with a clear reason) rather than “warn and continue”.
 
 ### Additional recommended tests
 
-- [ ] **Reader fail-closed test:** Provide a DB with `user_version != SCHEMA_VERSION` and confirm:
+- [x] **Reader fail-closed test:** Provide a DB with `user_version != SCHEMA_VERSION` and confirm:
   - forced SQLite backend errors clearly
   - auto backend falls back without using SQLite.
 - [ ] **Incremental WAL checkpoint test** (if WAL checkpointing is implemented): verify that after incremental update:
@@ -369,23 +294,23 @@ Completed Phases: `COMPLETED_PHASES.md`
   - add JSONL support for token-postings shards (if they can be JSONL in practice).
 - [ ] Consider inserting `dense_meta` inside the same transaction as the first dense-vector batch (atomicity / consistency).
 - [ ] For `chunkMeta` ingestion (non-piece path), avoid building a single giant `rows` array in memory if the artifact can be large; use chunked batching as done in `ingestChunkMetaPieces(...)`.
-- [ ] Failure cleanup: remove sidecars (`outPath-wal`, `outPath-shm`) as well as `outPath` on failure.
+- [x] Failure cleanup: remove sidecars (`outPath-wal`, `outPath-shm`) as well as `outPath` on failure.
 
 ### `src/storage/sqlite/build/from-bundles.js`
 
-- [ ] **(P0) Prepare `insertVectorAnn` even when the ANN table already exists** (see around L120).  
+- [x] **(P0) Prepare `insertVectorAnn` even when the ANN table already exists** (see around L120).  
   The “table exists” branch sets `vectorAnnReady = true` but does not prepare the insert statement, so embeddings are not inserted into ANN.
-- [ ] **(P0) Make embedding dims mismatch a hard failure.**  
+- [x] **(P0) Make embedding dims mismatch a hard failure.**  
   Current warning-only behavior (around L197) can produce inconsistent dense vectors.
 - [ ] Guard against malformed bundles: `count += result.bundle.chunks.length` should handle missing/invalid `chunks` gracefully (use `?.length || 0`).
 - [ ] Remove unused import (`path` is currently imported but not used).
-- [ ] Failure cleanup should remove SQLite sidecars, not just the DB file.
+- [x] Failure cleanup should remove SQLite sidecars, not just the DB file.
 
 ### `src/storage/sqlite/build/incremental-update.js`
 
-- [ ] **(P0) Prepare `insertVectorAnn` when the ANN table already exists** (see around L240).  
+- [x] **(P0) Prepare `insertVectorAnn` when the ANN table already exists** (see around L240).  
   Without this, incremental updates delete ANN rows but do not reinsert replacement vectors.
-- [ ] Add explicit WAL checkpointing/truncation at the end of a successful update (to keep the DB self-contained and avoid large WAL growth).
+- [x] Add explicit WAL checkpointing/truncation at the end of a successful update (to keep the DB self-contained and avoid large WAL growth).
 - [ ] Consider tightening `isManifestMatch(...)` semantics when hashes are available on only one side (to converge DB manifest quality).
 - [ ] Performance: consider `(mode,file,id)` index or other optimization for `getDocIdsForFile(...)` scanning and per-file id lists.
 - [ ] Remove (or convert to assertion) the redundant “dims mismatch warn” path inside applyChanges; dims mismatch should already be rejected earlier.
@@ -402,7 +327,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ### `src/storage/sqlite/build/statements.js`
 
-- [ ] Consider adding `idx_chunks_file_id` (see schema/index alignment notes).
+- [x] Consider adding `idx_chunks_file_id` (see schema/index alignment notes).
 - [ ] Reduce confusion: `buildChunkRowWithMeta(...)` populates fields not present in the schema (e.g., `churn_added`, `churn_deleted`, `churn_commits`). Either:
   - add these columns to the schema if they are intended, or
   - stop emitting them to avoid “looks supported but isn’t”.
@@ -425,7 +350,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ### `src/storage/sqlite/schema.js`
 
-- [ ] Consider adding `(mode,file,id)` index for maintenance queries.
+- [x] Consider adding `(mode,file,id)` index for maintenance queries.
 - [ ] Ensure docs (`docs/sqlite-index-schema.md`) stay in sync when schema changes.
 
 ### `src/storage/sqlite/utils.js`
@@ -537,7 +462,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 #### `tests/sqlite-ann-extension.js`
 
-- [ ] Add a CI-friendly companion test that does not require the real extension binary (mock vectorConfig approach described above) to ensure ANN insert/delete invariants are enforced in CI.
+- [x] Add a CI-friendly companion test that does not require the real extension binary (mock vectorConfig approach described above) to ensure ANN insert/delete invariants are enforced in CI.
 
 #### `tests/sqlite-ann-fallback.js`
 
@@ -646,11 +571,11 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 The following items should be completed to consider “Review Section 7” fully addressed:
 
-- [ ] ANN insert-preparation bug fixed in both bundle-build and incremental-update code paths.
-- [ ] Reader-side schema version fail-closed behavior implemented and tested.
-- [ ] Bundle-build embedding dims mismatch becomes a hard failure (with tests).
+- [x] ANN insert-preparation bug fixed in both bundle-build and incremental-update code paths.
+- [x] Reader-side schema version fail-closed behavior implemented and tested.
+- [x] Bundle-build embedding dims mismatch becomes a hard failure (with tests).
 - [ ] WAL/sidecar policy is explicitly decided, implemented consistently, and documented (at minimum for incremental updates).
-- [ ] At least one CI-friendly test covers ANN table sync invariants without requiring a real extension binary.
+- [x] At least one CI-friendly test covers ANN table sync invariants without requiring a real extension binary.
 - [ ] At least one fixture-based p95 latency regression test is added (or an equivalent deterministic perf guard).
 
 ---
@@ -1177,53 +1102,6 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 
 * [ ] README/docs reflect new defaults and how to safely expose services.
 * [ ] New options are documented and validated enough to prevent silent misconfiguration.
-
----
-
-## Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
-
-### 15.1 Extend microbench suite (`tools/bench/micro/`)
-
-* [x] Add `tools/bench/micro/watch.js`:
-
-  * [x] Event storm simulation (if feasible) or synthetic scheduler load
-* [x] Add `tools/bench/micro/regex.js`:
-
-  * [x] Compare `re2js` vs `re2` on representative patterns/inputs
-* [x] Add `tools/bench/micro/hash.js`:
-
-  * [x] Compare wasm vs native checksum throughput
-* [x] Add `tools/bench/micro/compression.js`:
-
-  * [x] gzip vs zstd compress/decompress for representative artifact payload sizes
-* [x] Add `tools/bench/micro/extractors.js`:
-
-  * [x] PDF/DOCX extraction throughput and memory ceiling
-
-### 15.2 Add “no-regression” assertions where it matters
-
-* [x] Add deterministic snapshot tests (lightweight, not full golden files):
-
-  * [x] Ensure chunk IDs stable across backends
-  * [x] Ensure ordering stable under ties
-* [x] Add metrics validation:
-
-  * [x] `index-*.json` metrics reflect new compression/extractor options correctly
-
-### 15.3 Documentation + UX polish
-
-* [x] Update `README.md`:
-
-  * [x] Mention PDF/DOCX support and how to enable/disable
-  * [x] Mention optional performance backends and how `auto` works
-* [x] Update `docs/external-backends.md` for Tantivy/LanceDB reality (what’s implemented vs planned)
-* [x] Update `docs/mcp-server.md` for SDK migration
-
-**Exit criteria**
-
-* [ ] Benchmarks show measurable improvement (and are reproducible)
-* [ ] CI remains green on Node 18 + Windows lane
-* [ ] New features are discoverable via config docs + `config_status`
 
 ---
 
@@ -1871,7 +1749,7 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 #### src
 
 ##### `src/index/build/context-window.js`
-- [ ] Sort/sanitize file list before sampling to reduce OS-dependent nondeterminism.
+- [x] Sort/sanitize file list before sampling to reduce OS-dependent nondeterminism.
 - [ ] Consider documenting that context-window estimation is heuristic and may vary with sampling strategy.
 
 ##### `src/index/build/embedding-batch.js`
@@ -1879,29 +1757,29 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [ ] Add explicit documentation for multiplier precedence (fallback vs user config).
 
 ##### `src/index/build/file-processor/embeddings.js`
-- [ ] Add dims contract validation (non-empty vectors must share dims; fail fast otherwise).
-- [ ] Support `Float32Array` outputs (don’t rely on `Array.isArray`).
-- [ ] Avoid allocating `new Array(dims).fill(0)` per chunk; reuse a single `zeroVec`.
-- [ ] Validate that `getChunkEmbeddings(texts).length === texts.length`; if not, log + fail or retry with a clear warning.
-- [ ] Ensure doc embedding results are length-aligned with `docPayloads` (currently assumes perfect alignment).
+- [x] Add dims contract validation (non-empty vectors must share dims; fail fast otherwise).
+- [x] Support `Float32Array` outputs (don’t rely on `Array.isArray`).
+- [x] Avoid allocating `new Array(dims).fill(0)` per chunk; reuse a single `zeroVec`.
+- [x] Validate that `getChunkEmbeddings(texts).length === texts.length`; if not, log + fail or retry with a clear warning.
+- [x] Ensure doc embedding results are length-aligned with `docPayloads` (currently assumes perfect alignment).
 
 ##### `src/index/build/indexer/embedding-queue.js`
-- [ ] Include embedding identity/config hash in job payload to prevent mismatched worker behavior.
+- [x] Include embedding identity/config hash in job payload to prevent mismatched worker behavior.
 - [ ] Consider switching job IDs to `crypto.randomUUID()` for collision resistance.
-- [ ] Ensure `maxQueued` has a safe default; document backpressure behavior.
+- [x] Ensure `maxQueued` has a safe default; document backpressure behavior.
 
 ##### `src/index/build/runtime/embeddings.js`
-- [ ] Reconcile auto-batch policy with tooling (`tools/build-embeddings/cli.js`).
-- [ ] Consider incorporating ONNX thread settings into concurrency auto-tune to avoid oversubscription.
+- [x] Reconcile auto-batch policy with tooling (`tools/build-embeddings/cli.js`).
+- [x] Consider incorporating ONNX thread settings into concurrency auto-tune to avoid oversubscription.
 
 ##### `src/index/embedding.js`
 - [ ] Centralize `normalizeVec`/`quantizeVec` into shared utilities; remove duplication.
-- [ ] Add strict provider validation (unknown provider should error/warn).
+- [x] Add strict provider validation (unknown provider should error/warn).
 - [ ] Harden `normalizeBatchOutput()` to:
   - guarantee output length equals input count,
   - handle unexpected tensor dims more defensively,
   - avoid returning a single huge vector when output is 3D.
-- [ ] Prefer returning `Float32Array` (or at least accept typed arrays downstream).
+- [x] Prefer returning `Float32Array` (or at least accept typed arrays downstream).
 
 ##### `src/retrieval/embedding.js`
 - [ ] Use a normalized/fingerprinted ONNX config in the embedder cache key (avoid JSON-order sensitivity).
@@ -1909,18 +1787,18 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [ ] Consider logging embedder load failures once (rate-limited) to aid debugging.
 
 ##### `src/shared/embedding.js`
-- [ ] Unify stub default dims with the rest of the system (recommend 384).
-- [ ] Optionally return `Float32Array` to match the desired end-to-end contract.
+- [x] Unify stub default dims with the rest of the system (recommend 384).
+- [x] Optionally return `Float32Array` to match the desired end-to-end contract.
 
 ##### `src/shared/hnsw.js`
-- [ ] Implement `.bak` fallback when the primary index exists but is corrupt/unreadable.
+- [x] Implement `.bak` fallback when the primary index exists but is corrupt/unreadable.
 - [ ] Read/validate `dense_vectors_hnsw.meta.json` to confirm `dims/space/model` before using the index.
-- [ ] Handle empty candidate sets explicitly by returning `[]`.
-- [ ] Add unit tests for distance conversion across spaces (l2/cosine/ip) and adjust similarity conversion if required.
+- [x] Handle empty candidate sets explicitly by returning `[]`.
+- [x] Add unit tests for distance conversion across spaces (l2/cosine/ip) and adjust similarity conversion if required.
 
 ##### `src/shared/onnx-embeddings.js`
-- [ ] Remove/fix dead provider check (`normalizeEmbeddingProvider('onnx')`).
-- [ ] Add clearer error messaging for missing model artifacts + remediation steps.
+- [x] Remove/fix dead provider check (`normalizeEmbeddingProvider('onnx')`).
+- [x] Add clearer error messaging for missing model artifacts + remediation steps.
 - [ ] Improve performance by avoiding heavy array conversions and by reusing buffers/tensors.
 - [ ] Consider concurrency guards around `session.run()` if onnxruntime sessions are not safe concurrently.
 
@@ -1935,8 +1813,8 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [ ] Consider consolidating atomic replace logic with `src/shared/json-stream.js` to avoid divergence (optional refactor).
 
 ##### `tools/build-embeddings/cache.js`
-- [ ] Expand identity schema to include preprocessing and provider-specific config (especially ONNX knobs).
-- [ ] Add a bumpable “identity version” or build-tool version fingerprint.
+- [x] Expand identity schema to include preprocessing and provider-specific config (especially ONNX knobs).
+- [x] Add a bumpable “identity version” or build-tool version fingerprint.
 
 ##### `tools/build-embeddings/chunks.js`
 - [ ] Consider incorporating doc-related signals into the chunk signature (or into identity versioning) so doc embedding caches invalidate when doc extraction logic changes.
@@ -1944,10 +1822,10 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 
 ##### `tools/build-embeddings/cli.js`
 - [ ] Document (or change) the behavior where `mode=service` is coerced to `inline` for this tool.
-- [ ] Unify auto-batch defaults with index-build runtime (or document why they differ).
+- [x] Unify auto-batch defaults with index-build runtime (or document why they differ).
 
 ##### `tools/build-embeddings/embed.js`
-- [ ] Update to accept and return typed arrays (`Float32Array`) instead of insisting on JS arrays.
+- [x] Update to accept and return typed arrays (`Float32Array`) instead of insisting on JS arrays.
 - [ ] Consider failing fast on non-vector outputs instead of silently returning `[]` entries (to avoid quietly producing all-zero embeddings).
 
 ##### `tools/build-embeddings/hnsw.js`
@@ -1958,14 +1836,14 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [ ] Consider reading HNSW meta to report accurate `count`/`dims` for ANN piece files, rather than relying on `totalChunks` (defensive correctness).
 
 ##### `tools/build-embeddings/run.js`
-- [ ] Make cache writes atomic (optional but recommended).
+- [x] Make cache writes atomic (optional but recommended).
 - [ ] Use `Number.isFinite()` for chunk start/end to avoid 0/NaN edge cases from `||` coercion.
-- [ ] Apply `ensureVectorArrays()` to embedded doc batches just like code batches.
+- [x] Apply `ensureVectorArrays()` to embedded doc batches just like code batches.
 - [ ] Make HNSW build deterministic (stable insertion order).
 - [ ] Consider adding a global cross-file batcher for throughput.
 
 ##### `tools/build-embeddings/sqlite-dense.js`
-- [ ] Add tests for “vector extension missing/failed to load” fallback behavior.
+- [x] Add tests for “vector extension missing/failed to load” fallback behavior.
 - [ ] Consider batching inserts in larger chunks or using prepared statements more aggressively for performance on large vector sets.
 
 ##### `tools/compare-models.js`
@@ -2001,7 +1879,7 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - Good.
 
 ##### `tests/embeddings-sqlite-dense.js`
-- [ ] Add coverage for vector extension load failure paths (extension missing), not only baseline dense sqlite insertions.
+- [x] Add coverage for vector extension load failure paths (extension missing), not only baseline dense sqlite insertions.
 
 ##### `tests/embeddings-validate.js`
 - Good baseline index-state + artifact validation coverage.
@@ -2013,7 +1891,7 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
   - sanity check of returned ordering for a known query on fixture corpus.
 
 ##### `tests/hnsw-atomic.js`
-- [ ] Add test for `.bak` fallback on corrupt primary index/meta (reader-side).
+- [x] Add test for `.bak` fallback on corrupt primary index/meta (reader-side).
 
 ##### `tests/smoke-embeddings.js`
 - Good smoke harness; consider adding new tests to this suite after implementing performance regression and fallback tests.
@@ -2641,66 +2519,6 @@ You must handle both “pre-read” scanning and “post-read” binary checks:
 
 ---
 
-## Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
-
-> This phase is intentionally split into “abstraction first” and “backend integration” to keep risk controlled.
-
-### 26.1 Extract a sparse-retrieval interface
-
-* [x] Create `src/retrieval/sparse/`:
-  * [x] `types.js` contract: `search({ query, topN, filters, mode }) -> hits[]`
-  * [x] `providers/sqlite-fts.js` wrapper around existing SQLite FTS ranking
-  * [x] `providers/js-bm25.js` wrapper around the in-memory BM25 path
-
-* [x] Update `src/retrieval/pipeline.js` to call the provider rather than direct sqlite/JS branching:
-  * [x] Keep behavior identical as baseline
-  * [x] Preserve determinism (stable tie-breaking)
-
-### 26.2 Implement Tantivy integration (choose one operational model)
-
-* [x] Choose packaging model:
-  * [ ] **Sidecar model:** `tools/tantivy-server` (Rust) + Node client
-  * [x] **Embedded binding:** Node N-API module
-
-* [x] Add `src/retrieval/sparse/providers/tantivy.js`:
-  * [x] Build query → execute → map results to `{ idx, score }`
-  * [x] Support candidate-set filtering if feasible (or document it as a limitation and handle via post-filtering)
-
-* [x] Add `tools/build-tantivy-index.js`:
-  * [x] Consume existing artifacts (`chunk_meta`, token streams) and build tantivy index on disk
-  * [x] Store alongside other indexes (e.g., under repo cache root)
-  * [x] Consider incremental updates later; start with full rebuild
-
-### 26.3 Config + CLI integration
-
-* [x] Add config:
-  * [x] `tantivy.enabled`
-  * [x] `tantivy.path` (optional override)
-  * [x] `tantivy.autoBuild` (optional)
-
-* [x] Extend backend policy logic (see `src/retrieval/cli/backend-context.js` and backend-policy tests):
-  * [x] Allow `--backend tantivy` (or `--sparse-backend tantivy`)
-  * [x] Ensure `auto` fallback behavior remains predictable
-
-### 26.4 Tests (gated if tantivy isn’t always available in CI)
-
-* [x] Add `tests/tantivy-smoke.js`:
-  * [x] Builds tantivy index for `tests/fixtures/sample`
-  * [x] Executes a basic query and asserts hits are non-empty
-
-* [x] Gate it behind env:
-  * [x] `PAIROFCLEATS_TEST_TANTIVY=1` to run
-  * [x] Otherwise test exits 0 with “skipped” message (match existing patterns in repo)
-
-* [x] Add script-coverage action(s) that run it only when env flag is set (or mark as skipped in coverage if you keep strictness)
-
-**Exit criteria**
-
-* [x] Tantivy backend can be enabled without changing default behavior
-* [ ] For large repos, sparse retrieval latency is materially improved (benchmarks added in Phase 15)
-
----
-
 ## Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
 
 ### 27.1 Extract a vector-ANN provider interface
@@ -2813,6 +2631,83 @@ Tests:
       - `tests/code-map-dot.js`
       - `tests/code-map-graphviz-fallback.js`
     - Add an explicit `tests/e2e-smoke.js` or wire these into `tests/script-coverage/actions.js`.
+
+### 30.1 Regression gate sweep backlog (moved from Phase 4)
+
+**Objective:** Clear the remaining regression gate failures that were moved out of Phase 4.
+
+#### Current npm test failures (2026-01-17)
+
+* [ ] `tests/api-server-stream.js` — api-server stream returned no results
+* [ ] `tests/code-map-basic.js` — missing dataflow/controlFlow metadata
+* [ ] `tests/git-blame-range.js` — expected alpha author in chunk authors
+* [ ] `tests/lang/fixtures-sample/python-metadata.test.js` — missing signature metadata
+* [ ] `tests/mcp-schema.js` — MCP schema snapshot mismatch
+* [ ] `tests/piece-assembly.js` — pieces manifest mismatch (equivalence)
+* [ ] `tests/retrieval/filters/git-metadata/chunk-author.test.js` — chunk author filter failed (Alice)
+* [ ] `tests/retrieval/filters/git-metadata/modified-time.test.js` — modified-after filter failed
+* [ ] `tests/retrieval/filters/query-syntax/negative-terms.test.js` — negative phrase filter failed
+* [ ] `tests/retrieval/filters/query-syntax/phrases-and-scorebreakdown.test.js` — expected phrase score breakdown missing
+* [ ] `tests/services/api/health-and-status.test.js` — expected auth rejection
+* [ ] `tests/services/api/no-index.test.js` — expected NO_INDEX status
+* [ ] `tests/services/api/search-happy-path.test.js` — /search returned no results
+* [ ] `tests/services/api/search-validation.test.js` — socket hang up
+* [ ] `tests/services/mcp/tool-search-defaults-and-filters.test.js` — riskTag filter did not change results
+* [ ] `tests/subprocess-quoting.js` — /map did not return a map model
+
+#### CLI flag removal and missing-value errors
+
+* [ ] `tests/search-removed-flags.js`
+  * [ ] Failure: expected actionable error for `--human`
+  * [ ] Log: `logs/phase-22/search-removed-flags.log:1`
+* [ ] `tests/search-missing-flag-values.js`
+  * [ ] Failure: expected missing value message for `--type`
+  * [ ] Log: `logs/phase-22/search-missing-flag-values.log:1`
+
+#### Help output parity
+
+* [ ] `tests/search-help.js`
+  * [ ] Failure: help output missing flag `--calls`
+  * [ ] Log: `logs/phase-22/search-help.log:1`
+
+#### Download / extraction safety (tar)
+
+* [ ] `tests/script-coverage.js`
+  * [ ] Failure: unsafe tar entry detected (e.g., `vec0.dll`)
+  * [ ] Log: `tests/.logs/2026-01-12T08-02-14-028Z/download-extensions-test.attempt-3.log:15`
+  * [ ] Requirement: extraction must fail-closed on unsafe entries (path traversal, absolute paths, invalid drive prefixes, etc.).
+
+#### File processor skip behavior
+
+* [ ] `tests/file-processor/skip.test.js`
+  * [ ] Failure: expected binary buffer to skip with `reason=binary`
+  * [ ] Log: `logs/phase-22/file-processor-skip.log:1`
+
+#### JavaScript chunking + relations
+
+* [ ] `tests/lang/js-chunking.test.js`
+  * [ ] Failure: missing exported function chunk (alpha)
+  * [ ] Log: `logs/phase-22/lang-js-chunking.log:1`
+* [ ] `tests/lang/js-relations.test.js`
+  * [ ] Failure: missing exports for `run/default: []`
+  * [ ] Log: `logs/phase-22/lang-js-relations.log:1`
+
+#### Language registry collectors
+
+* [ ] `tests/language-registry/collectors.test.js`
+  * [ ] Failure: dockerfile mismatch (e.g., `["node:18"] !== ["base","node:18"]`)
+  * [ ] Log: `logs/phase-22/language-registry-collectors.log:1`
+
+**Exit criteria**
+
+* [ ] All targeted failing tests above pass deterministically (at least 3 repeated local runs).
+
+### 30.2 Benchmark + release gates (moved from Phase 15/26)
+
+* [ ] Benchmarks show measurable improvement (and are reproducible)
+* [ ] CI remains green on Node 18 + Windows lane
+* [ ] New features are discoverable via config docs + `config_status`
+* [ ] For large repos, sparse retrieval latency is materially improved (benchmarks added in Phase 15)
 
 ---
 

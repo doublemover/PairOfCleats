@@ -135,7 +135,6 @@
     "uv-threadpool-env-test": "node tests/uv-threadpool-env.js",
     "uv-threadpool-no-override-test": "node tests/uv-threadpool-no-override.js",
     "io-concurrency-cap-test": "node tests/io-concurrency-cap.js",
-    "profile-config-test": "node tests/profile-config.js",
     "backend-policy-test": "node tests/backend-policy.js",
     "dict-adaptive-test": "node tests/dict-adaptive.js",
     "chargram-guardrails-test": "node tests/chargram-guardrails.js",
