@@ -1,6 +1,7 @@
 import { getVectorExtensionConfig } from '../../../tools/vector-extension.js';
 import { normalizeHnswConfig } from '../../shared/hnsw.js';
 import { normalizeLanceDbConfig } from '../../shared/lancedb.js';
+import { normalizeTantivyConfig } from '../../shared/tantivy.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig } from '../../shared/onnx-embeddings.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { resolveFtsWeights } from '../fts.js';
@@ -52,6 +53,7 @@ export function normalizeSearchOptions({
   const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
   const lancedbConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
+  const tantivyConfig = normalizeTantivyConfig(userConfig.tantivy || {});
 
   const sqliteConfig = userConfig.sqlite || {};
   const sqliteAutoChunkThresholdRaw = userConfig.search?.sqliteAutoChunkThreshold;
@@ -194,6 +196,7 @@ export function normalizeSearchOptions({
     : 'merged';
 
   const backendArg = typeof argv.backend === 'string' ? argv.backend.toLowerCase() : '';
+  const sparseBackend = backendArg === 'tantivy' ? 'tantivy' : 'auto';
 
   return {
     jsonCompact,
@@ -264,6 +267,8 @@ export function normalizeSearchOptions({
     explain,
     denseVectorMode,
     backendArg,
-    lancedbConfig
+    lancedbConfig,
+    tantivyConfig,
+    sparseBackend
   };
 }

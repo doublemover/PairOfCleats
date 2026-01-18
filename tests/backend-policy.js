@@ -46,6 +46,18 @@ assert.equal(forcedMemory.useSqlite, false);
 assert.equal(forcedMemory.useLmdb, false);
 assert.equal(forcedMemory.backendLabel, 'memory');
 
+const forcedTantivy = resolveBackendPolicy({
+  backendArg: 'tantivy',
+  sqliteConfigured: true,
+  sqliteAvailable: true,
+  lmdbAvailable: true,
+  needsSqlite: true
+});
+assert.equal(forcedTantivy.useSqlite, false);
+assert.equal(forcedTantivy.useLmdb, false);
+assert.equal(forcedTantivy.backendLabel, 'tantivy');
+assert.equal(forcedTantivy.backendForcedTantivy, true);
+
 const forcedSqliteMissing = resolveBackendPolicy({
   backendArg: 'sqlite',
   sqliteConfigured: true,

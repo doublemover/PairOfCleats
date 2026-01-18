@@ -1,6 +1,9 @@
 import { filterChunks } from './output.js';
 import { hasActiveFilters } from './filters.js';
 import { rankBM25, rankBM25Fields, rankDenseVectors, rankMinhash } from './rankers.js';
+import { createJsBm25Provider } from './sparse/providers/js-bm25.js';
+import { createSqliteFtsProvider } from './sparse/providers/sqlite-fts.js';
+import { createTantivyProvider } from './sparse/providers/tantivy.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
 import { rankHnswIndex } from '../shared/hnsw.js';
 import { rankLanceDb } from './lancedb.js';
@@ -34,6 +37,7 @@ export function createSearchPipeline(context) {
     annBackend,
     scoreBlend,
     minhashMaxDocs,
+    sparseBackend,
     vectorAnnState,
     vectorAnnUsed,
     hnswAnnState,
@@ -78,6 +82,15 @@ export function createSearchPipeline(context) {
     && Object.values(fieldWeights).some((value) => (
       Number.isFinite(Number(value)) && Number(value) > 0
     ));
+  const normalizedSparseBackend = typeof sparseBackend === 'string'
+    ? sparseBackend.trim().toLowerCase()
+    : 'auto';
+  const sqliteFtsProvider = createSqliteFtsProvider({
+    rankSqliteFts,
+    normalizeScores: sqliteFtsNormalize
+  });
+  const bm25Provider = createJsBm25Provider({ rankBM25, rankBM25Fields });
+  const tantivyProvider = createTantivyProvider();
 
   const isDefinitionKind = (kind) => typeof kind === 'string'
     && /Declaration|Definition|Initializer|Deinitializer/.test(kind);
@@ -249,44 +262,51 @@ export function createSearchPipeline(context) {
     const sqliteFtsEligible = sqliteEnabledForMode
       && sqliteFtsRequested
       && (!filtersEnabled || sqliteFtsCanPushdown);
-    if (sqliteFtsEligible) {
-      bmHits = rankSqliteFts(
+    const wantsTantivy = normalizedSparseBackend === 'tantivy';
+    if (wantsTantivy) {
+      const tantivyResult = tantivyProvider.search({
         idx,
         queryTokens,
         mode,
-        expandedTopN,
-        sqliteFtsNormalize,
-        sqliteFtsCanPushdown ? sqliteFtsAllowed : null
-      );
+        topN: expandedTopN,
+        allowedIds: allowedIdx
+      });
+      bmHits = tantivyResult.hits;
+      sparseType = tantivyResult.type;
+      if (bmHits.length) {
+        candidates = new Set(bmHits.map((h) => h.idx));
+      }
+    } else if (sqliteFtsEligible) {
+      const ftsResult = sqliteFtsProvider.search({
+        idx,
+        queryTokens,
+        mode,
+        topN: expandedTopN,
+        allowedIds: sqliteFtsCanPushdown ? sqliteFtsAllowed : null
+      });
+      bmHits = ftsResult.hits;
       sqliteFtsUsed = bmHits.length > 0;
       if (sqliteFtsUsed) {
-        sparseType = 'fts';
+        sparseType = ftsResult.type;
         candidates = new Set(bmHits.map((h) => h.idx));
       }
     }
-    if (!bmHits.length) {
+    if (!bmHits.length && !wantsTantivy) {
       const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode) : null;
       candidates = buildCandidateSet(idx, queryTokens, mode);
-      bmHits = fieldWeightsEnabled
-        ? rankBM25Fields({
-          idx,
-          tokens: queryTokens,
-          topN: expandedTopN,
-          fieldWeights,
-          allowedIdx,
-          k1: bm25K1,
-          b: bm25B
-        })
-        : rankBM25({
-          idx,
-          tokens: queryTokens,
-          topN: expandedTopN,
-          tokenIndexOverride,
-          allowedIdx,
-          k1: bm25K1,
-          b: bm25B
-        });
-      sparseType = fieldWeightsEnabled ? 'bm25-fielded' : 'bm25';
+      const bm25Result = bm25Provider.search({
+        idx,
+        queryTokens,
+        mode,
+        topN: expandedTopN,
+        allowedIds: allowedIdx,
+        fieldWeights,
+        k1: bm25K1,
+        b: bm25B,
+        tokenIndexOverride
+      });
+      bmHits = bm25Result.hits;
+      sparseType = bm25Result.type;
       sqliteFtsUsed = false;
     }
 

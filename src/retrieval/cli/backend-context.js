@@ -15,6 +15,7 @@ export const createBackendContext = async ({
   sqliteFtsRequested,
   backendForcedSqlite,
   backendForcedLmdb,
+  backendForcedTantivy,
   vectorExtension,
   vectorAnnEnabled,
   dbCache,
@@ -69,9 +70,11 @@ export const createBackendContext = async ({
 
   const vectorAnnState = sqliteBackend.vectorAnnState;
   const vectorAnnUsed = sqliteBackend.vectorAnnUsed;
-  const backendLabel = useSqlite
-    ? (sqliteFtsRequested ? 'sqlite-fts' : 'sqlite')
-    : (useLmdb ? 'lmdb' : 'memory');
+  const backendLabel = backendForcedTantivy
+    ? 'tantivy'
+    : (useSqlite
+      ? (sqliteFtsRequested ? 'sqlite-fts' : 'sqlite')
+      : (useLmdb ? 'lmdb' : 'memory'));
   const backendPolicyInfo = backendPolicy ? { ...backendPolicy, backendLabel } : { backendLabel };
 
   const getSqliteDb = (mode) => {

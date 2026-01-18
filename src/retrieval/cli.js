@@ -217,7 +217,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       explain,
       denseVectorMode,
       backendArg,
-      lancedbConfig
+      lancedbConfig,
+      tantivyConfig,
+      sparseBackend
     } = normalized;
 
     if (!query) {
@@ -294,7 +296,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       useLmdb: useLmdbSelection,
       sqliteFtsRequested,
       backendForcedSqlite,
-      backendForcedLmdb
+      backendForcedLmdb,
+      backendForcedTantivy
     } = backendSelection;
 
     const backendContext = await createBackendContext({
@@ -308,6 +311,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       sqliteFtsRequested,
       backendForcedSqlite,
       backendForcedLmdb,
+      backendForcedTantivy,
       vectorExtension,
       vectorAnnEnabled,
       dbCache: sqliteCache,
@@ -447,11 +451,14 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       filtersActive: queryPlan.filtersActive,
       contextExpansionEnabled,
       sqliteFtsRequested,
+      backendLabel,
+      backendForcedTantivy,
       indexCache,
       modelIdDefault,
       fileChargramN,
       hnswConfig,
       lancedbConfig,
+      tantivyConfig,
       loadIndexFromSqlite,
       loadIndexFromLmdb,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
@@ -522,6 +529,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         k: rrfK
       },
       minhashMaxDocs,
+      sparseBackend,
       buildCandidateSetSqlite,
       getTokenIndexForQuery,
       rankSqliteFts,

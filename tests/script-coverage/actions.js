@@ -145,6 +145,11 @@ const actions = [
     covers: ['lancedb-ann-test']
   },
   {
+    label: 'tantivy-smoke-test',
+    run: () => runNode('tantivy-smoke-test', path.join(root, 'tests', 'tantivy-smoke.js')),
+    covers: ['tantivy-smoke-test']
+  },
+  {
     label: 'hnsw-atomic-test',
     run: () => runNode('hnsw-atomic-test', path.join(root, 'tests', 'hnsw-atomic.js')),
     covers: ['hnsw-atomic-test']

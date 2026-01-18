@@ -13,6 +13,16 @@ export const DEFAULT_USER_CONFIG_TEMPLATE = `{
     // Speed impact: enabling adds some indexing time and disk usage.
     "use": true
   },
+  // Enable Tantivy sparse backend support.
+  // Speed impact: adds Tantivy index build time and disk usage when used.
+  "tantivy": {
+    // Toggle Tantivy backend enablement.
+    "enabled": false,
+    // Optional override for Tantivy index root (use {mode} placeholder if needed).
+    "path": "",
+    // Auto-build Tantivy index if missing when backend is requested.
+    "autoBuild": false
+  },
   // Search defaults for query-time behavior.
   // Speed impact: no direct impact on indexing speed.
   "search": {
