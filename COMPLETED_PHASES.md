@@ -3996,3 +3996,60 @@ Note: LMDB kept and remains opt-in; vector extension config removed.
 - `docs/artifact-contract.md`: (P2) Add schema examples for meta files and `pieces/manifest.json`.
 - `docs/contracts/indexing.md`: (P1) Clarify which artifacts are "required" vs "optional/configurable" (e.g., minhash signatures).
 - `docs/contracts/indexing.md`: (P1) Document sharded meta schema and loader precedence.
+
+## Phase 18 - Safe regex acceleration: optional native RE2 (re2) with re2js fallback
+
+### 18.1 Add dependency + backend wrapper
+
+* [x] Add re2 (native) as an optional dependency (recommended)
+* [x] Refactor src/shared/safe-regex.js into a backend-based module:
+  * [x] Keep current behavior as the fallback backend (re2js)
+  * [x] Add src/shared/safe-regex/backends/re2.js
+  * [x] Add src/shared/safe-regex/backends/re2js.js (wrap existing usage cleanly)
+* [x] Preserve existing safety constraints:
+  * [x] maxPatternLength
+  * [x] maxInputLength
+  * [x] Guard flags normalization (only gimsyu supported as today)
+
+### 18.2 Integrate selector + compatibility contract
+
+* [x] Add createSafeRegex({ engine, ...limits }) selection:
+  * [x] engine=auto uses re2 if available else re2js
+  * [x] engine=re2 hard-requires native; if missing, warning + fallback to re2js
+* [x] Validate behavioral parity:
+  * [x] Ensure .exec() and .test() match expectations for g and non-g
+  * [x] Ensure .lastIndex semantics are compatible
+
+### 18.3 Update call sites
+
+* [x] Verify these flows still behave correctly:
+  * [x] src/retrieval/output/filters.js (file/path filters)
+  * [x] src/retrieval/output/risk-tags.js (risk tagging)
+  * [x] Any structural search / rulepack path using regex constraints
+
+### 18.4 Tests
+
+* [x] Add tests/safe-regex-engine.js:
+  * [x] Conformance tests (flags, match groups, global behavior)
+  * [x] Safety limit tests (pattern length, input length)
+  * [x] Engine-selection tests (auto, forced re2js)
+* [x] Add script-coverage action(s)
+
+**Exit criteria**
+
+* [x] No user-visible semantic regressions in filtering/risk-tagging
+* [x] Engine auto is safe and silent (no noisy logs) unless verbose
+
+---
+
+## Phase 43 - Targeted test failures (manual run 2026-01-18)
+**Objective:** Record failures from the targeted test run so they can be addressed once, then re-run.
+### 43.1 Incremental cache signature
+* [x] `tests/incremental-cache-signature.js`: resolved by switching the test-only config change to `indexing.lint` so the config signature changes without reintroducing removed knobs.
+### 43.2 Incremental tokenization cache
+* [x] `tests/incremental-tokenization-cache.js`: resolved by toggling `indexing.postings.enablePhraseNgrams` in the test-only config so the tokenization key changes without touching removed config knobs.
+### 43.3 Smoke retrieval
+* [x] `tests/smoke-retrieval.js`: updated help flag expectations and replaced RRF assertions with ANN presence checks for the new contract.
+
+---
+
