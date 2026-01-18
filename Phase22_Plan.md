@@ -96,13 +96,13 @@
 - [ ] `src/index/build/file-processor/cached-bundle.js` (P2) Validate cached bundle shapes more strictly; ensure importLinks shape is consistent.
 - [ ] `src/index/build/file-processor/chunk.js` (P2) Adjust comment-to-chunk assignment at boundary (`chunk.end === comment.start`) and consider overlap-based assignment.
 - [ ] `src/index/build/file-processor/incremental.js` (P2) Ensure cache invalidation includes schema/version changes for any artifact-impacting changes.
-- [ ] `src/index/build/file-processor/meta.js` (P2) Deduplicate `externalDocs` outputs; consider ordering for determinism.
-- [ ] `src/index/build/file-processor/read.js` (P2) UTF-8 safe truncation (avoid splitting multi-byte sequences mid-codepoint).
-- [ ] `src/index/build/file-processor/relations.js` (P2) Sorting/deduping relation arrays (imports/exports/usages) for determinism.
+- [x] `src/index/build/file-processor/meta.js` (P2) Deduplicate `externalDocs` outputs; consider ordering for determinism.
+- [x] `src/index/build/file-processor/read.js` (P2) UTF-8 safe truncation (avoid splitting multi-byte sequences mid-codepoint).
+- [x] `src/index/build/file-processor/relations.js` (P2) Sorting/deduping relation arrays (imports/exports/usages) for determinism.
 - [ ] `src/index/build/file-processor/skip.js` (P2) Add coverage for `unreadable` and `read-failure` skip paths.
 - [ ] `src/index/build/file-processor/timings.js` (P2) Validate that parse/token/embed durations are not double-counted; document semantics.
-- [ ] `src/index/build/graphs.js` (P2) Prefer canonical `chunkId` keys where possible instead of `file::name` to avoid collisions.
-  - [ ] (P2) Sort serialized node lists for full determinism (neighbors are already sorted).
+- [x] `src/index/build/graphs.js` (P2) Prefer canonical `chunkId` keys where possible instead of `file::name` to avoid collisions.
+  - [x] (P2) Sort serialized node lists for full determinism (neighbors are already sorted).
 - [ ] `src/index/build/piece-assembly.js` (P2) Remove redundant filterIndex construction (avoid double work; rely on writeIndexArtifacts).
 - [ ] `src/index/build/postings.js` (P2) Validate docLengths are finite and consistent; avoid NaN avgDocLen.
   - [ ] (P2) Sort Object.entries() iteration for field postings and weights for deterministic output.
