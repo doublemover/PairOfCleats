@@ -14,7 +14,6 @@ Completed Phases: `COMPLETED_PHASES.md`
 2. Phase 12 — Storage backends (SQLite + LMDB)
 3. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
 4. Phase 14 — Documentation and Configuration Hardening
-5. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
 6. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
 7. Phase 20 — Threadpool-aware I/O scheduling guardrails
 8. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
@@ -1099,56 +1098,6 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 
 ---
 
-## Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
-
-### 18.1 Add dependency + backend wrapper
-
-* [ ] Add `re2` (native) as an optional dependency (recommended)
-* [ ] Refactor `src/shared/safe-regex.js` into a backend-based module:
-
-  * [ ] Keep current behavior as the fallback backend (`re2js`)
-  * [ ] Add `src/shared/safe-regex/backends/re2.js`
-  * [ ] Add `src/shared/safe-regex/backends/re2js.js` (wrap existing usage cleanly)
-* [ ] Preserve existing safety constraints:
-
-  * [ ] `maxPatternLength`
-  * [ ] `maxInputLength`
-  * [ ] Guard flags normalization (only `gimsyu` supported as today)
-
-### 18.2 Integrate selector + compatibility contract
-
-* [ ] Add `createSafeRegex({ engine, ...limits })` selection:
-
-  * [ ] `engine=auto` uses `re2` if available else `re2js`
-  * [ ] `engine=re2` hard-requires native; if missing, returns a clear error (or a warning + fallback if you prefer)
-* [ ] Validate behavioral parity:
-
-  * [ ] Ensure `.exec()` and `.test()` match expectations for `g` and non-`g`
-  * [ ] Ensure `.lastIndex` semantics are either compatible or explicitly *not supported* (and documented)
-
-### 18.3 Update call sites
-
-* [ ] Verify these flows still behave correctly:
-
-  * [ ] `src/retrieval/output/filters.js` (file/path filters)
-  * [ ] `src/retrieval/output/risk-tags.js` (risk tagging)
-  * [ ] Any structural search / rulepack path using regex constraints
-
-### 18.4 Tests
-
-* [ ] Add `tests/safe-regex-engine.js`:
-
-  * [ ] Conformance tests (flags, match groups, global behavior)
-  * [ ] Safety limit tests (pattern length, input length)
-  * [ ] Engine-selection tests (`auto`, forced `re2js`)
-* [ ] Add script-coverage action(s)
-
-**Exit criteria**
-
-* [ ] No user-visible semantic regressions in filtering/risk-tagging
-* [ ] “Engine auto” is safe and silent (no noisy logs) unless verbose
-
----
 
 ## Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
 
