@@ -1,8 +1,6 @@
 import { state } from './state.js';
 import { applyHeightFog, updateFlowLights } from './materials.js';
 
-const quantize = (value) => Number(value.toFixed(3));
-
 export const buildEdges = () => {
   const {
     THREE,
@@ -26,7 +24,16 @@ export const buildEdges = () => {
   const routingPadding = layoutMetrics.routingPadding;
   const routingStep = layoutMetrics.routingStep;
 
-  const allowFlowLights = visuals.enableFlowLights !== false;
+  const edgeCount = edges.length;
+  const fastMode = edgeCount > 5000;
+  const ultraMode = edgeCount > 15000;
+  const quantizeStep = ultraMode ? 0.5 : (fastMode ? 0.25 : 0.001);
+  const allowFlowLights = visuals.enableFlowLights !== false && !fastMode;
+  const allowEdgeSegments = !fastMode;
+  const allowEndpointDots = !fastMode;
+  const useMemberAnchors = !fastMode;
+  const useRouting = !fastMode;
+  const curveEdges = !fastMode && visuals.curveEdges === true;
 
   const normalizeMemberId = (value) => {
     if (value === null || value === undefined || value === '') return null;
@@ -66,30 +73,36 @@ export const buildEdges = () => {
   let maxX = -Infinity;
   let minZ = Infinity;
   let maxZ = -Infinity;
-  for (const fileLayout of allFiles) {
-    const fileId = fileLayout.node.path || fileLayout.node.name || null;
-    if (!fileId) continue;
-    const bounds = {
-      file: fileId,
-      minX: fileLayout.x - fileLayout.width / 2 - routingPadding,
-      maxX: fileLayout.x + fileLayout.width / 2 + routingPadding,
-      minZ: fileLayout.z - fileLayout.depth / 2 - routingPadding,
-      maxZ: fileLayout.z + fileLayout.depth / 2 + routingPadding
-    };
-    obstacles.push(bounds);
-    minX = Math.min(minX, bounds.minX);
-    maxX = Math.max(maxX, bounds.maxX);
-    minZ = Math.min(minZ, bounds.minZ);
-    maxZ = Math.max(maxZ, bounds.maxZ);
+  if (useRouting) {
+    for (const fileLayout of allFiles) {
+      const fileId = fileLayout.node.path || fileLayout.node.name || null;
+      if (!fileId) continue;
+      const bounds = {
+        file: fileId,
+        minX: fileLayout.x - fileLayout.width / 2 - routingPadding,
+        maxX: fileLayout.x + fileLayout.width / 2 + routingPadding,
+        minZ: fileLayout.z - fileLayout.depth / 2 - routingPadding,
+        maxZ: fileLayout.z + fileLayout.depth / 2 + routingPadding
+      };
+      obstacles.push(bounds);
+      minX = Math.min(minX, bounds.minX);
+      maxX = Math.max(maxX, bounds.maxX);
+      minZ = Math.min(minZ, bounds.minZ);
+      maxZ = Math.max(maxZ, bounds.maxZ);
+    }
   }
 
-  const resolveAnchor = (endpoint) => {
+  const resolveAnchor = (endpoint, fileOverride) => {
     if (!endpoint) return null;
-    const memberKey = normalizeMemberId(endpoint.member);
-    if (memberKey && memberAnchors.has(memberKey)) return memberAnchors.get(memberKey);
-    if (endpoint.member !== undefined && endpoint.member !== null && memberAnchors.has(endpoint.member)) return memberAnchors.get(endpoint.member);
+    if (useMemberAnchors) {
+      const memberKey = normalizeMemberId(endpoint.member);
+      if (memberKey && memberAnchors.has(memberKey)) return memberAnchors.get(memberKey);
+      if (endpoint.member !== undefined && endpoint.member !== null && memberAnchors.has(endpoint.member)) {
+        return memberAnchors.get(endpoint.member);
+      }
+    }
     if (endpoint.file && fileAnchors.has(endpoint.file)) return fileAnchors.get(endpoint.file);
-    const fileKey = resolveEdgeFile(endpoint);
+    const fileKey = fileOverride || resolveEdgeFile(endpoint);
     if (fileKey && fileAnchors.has(fileKey)) return fileAnchors.get(fileKey);
     return null;
   };
@@ -191,10 +204,11 @@ export const buildEdges = () => {
     return points;
   };
 
-  const useHexRouting = layoutStyle === 'hex';
+  const useHexRouting = useRouting && layoutStyle === 'hex';
   const hexSize = Math.max(routingStep, (layoutMetrics.baseSize || 1) * 0.6);
 
   const findRoute = (start, end, ignoreFiles) => {
+    if (!useRouting) return [start, end];
     let bestPoints = null;
     let bestDistance = Infinity;
     const tryPath = (points) => {
@@ -249,7 +263,7 @@ export const buildEdges = () => {
   };
 
   const flowSegmentsByType = new Map();
-  const flowLightCandidates = [];
+  const flowLightCandidates = allowFlowLights ? [] : null;
   const edgeStyles = state.map.legend?.edgeStyles || {};
   const edgeTypeAliases = state.map.legend?.edgeTypes || {};
   const resolveEdgeType = (type) => (edgeStyles[type] ? type : (edgeTypeAliases[type] || type));
@@ -267,14 +281,19 @@ export const buildEdges = () => {
     }
   };
 
+  const quantizeValue = (value) => {
+    if (quantizeStep <= 0.001) return Number(value.toFixed(3));
+    return Number((Math.round(value / quantizeStep) * quantizeStep).toFixed(3));
+  };
+
   const addFlowSegment = (type, x1, y1, z1, x2, y2, z2, weight, color, dir, edge) => {
     if (Math.abs(x1 - x2) < 0.0001 && Math.abs(y1 - y2) < 0.0001 && Math.abs(z1 - z2) < 0.0001) return;
-    const nx1 = quantize(x1);
-    const ny1 = quantize(y1);
-    const nz1 = quantize(z1);
-    const nx2 = quantize(x2);
-    const ny2 = quantize(y2);
-    const nz2 = quantize(z2);
+    const nx1 = quantizeValue(x1);
+    const ny1 = quantizeValue(y1);
+    const nz1 = quantizeValue(z1);
+    const nx2 = quantizeValue(x2);
+    const ny2 = quantizeValue(y2);
+    const nz2 = quantizeValue(z2);
     const swap = nx1 > nx2 || (nx1 === nx2 && (ny1 > ny2 || (ny1 === ny2 && nz1 > nz2)));
     const ax1 = swap ? nx2 : nx1;
     const ay1 = swap ? ny2 : ny1;
@@ -320,7 +339,7 @@ export const buildEdges = () => {
   const edgeHighlight = new THREE.Color('#ffffff');
   const endpointDots = new Map();
   const planeY = edgePlane + Math.max(0.08, (layoutMetrics.memberGap || 0) * 0.3);
-  const curveEdges = visuals.curveEdges === true;
+  const trackEndpoints = !fastMode;
   const addEndpointDot = (key, anchor, color) => {
     if (!key || !anchor) return;
     const entry = endpointDots.get(key) || {
@@ -364,27 +383,79 @@ export const buildEdges = () => {
     }
   };
 
-  for (const edge of edges) {
-    const startAnchor = resolveAnchor(edge.from);
-    const endAnchor = resolveAnchor(edge.to);
+  const aggregateEdges = () => {
+    const buckets = new Map();
+    for (const edge of edges) {
+      if (!edge) continue;
+      const rawType = edge.type || 'other';
+      const type = resolveEdgeType(rawType);
+      const fromFile = resolveEdgeFile(edge.from);
+      const toFile = resolveEdgeFile(edge.to);
+      if (!fromFile || !toFile) continue;
+      const key = `${type}:${fromFile}->${toFile}`;
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = {
+          type,
+          fromFile,
+          toFile,
+          weight: 0,
+          color: new THREE.Color(0, 0, 0),
+          colorWeight: 0
+        };
+        buckets.set(key, bucket);
+      }
+      bucket.weight += edgeWeights[type] || edgeWeights[rawType] || 1;
+      const fromColor = fileColorByPath.get(fromFile);
+      const toColor = fileColorByPath.get(toFile);
+      const mixedColor = fromColor && toColor
+        ? fromColor.clone().lerp(toColor, 0.5)
+        : (fromColor || toColor || null);
+      if (mixedColor) {
+        bucket.color.add(mixedColor);
+        bucket.colorWeight += 1;
+      }
+    }
+    return Array.from(buckets.values()).map((bucket) => ({
+      edge: { from: { file: bucket.fromFile }, to: { file: bucket.toFile }, type: bucket.type },
+      type: bucket.type,
+      fromFile: bucket.fromFile,
+      toFile: bucket.toFile,
+      weight: bucket.weight,
+      edgeColor: bucket.colorWeight
+        ? bucket.color.clone().multiplyScalar(1 / bucket.colorWeight)
+        : null
+    }));
+  };
+
+  const edgeEntries = fastMode
+    ? aggregateEdges()
+    : edges.map((edge) => ({ edge }));
+
+  for (const entry of edgeEntries) {
+    const edge = entry.edge || entry;
+    const rawType = entry.type || edge?.type || 'other';
+    const type = entry.type || resolveEdgeType(rawType);
+    const weight = entry.weight ?? (edgeWeights[type] || edgeWeights[rawType] || 1);
+    const fromFile = entry.fromFile ?? resolveEdgeFile(edge?.from);
+    const toFile = entry.toFile ?? resolveEdgeFile(edge?.to);
+    const startAnchor = entry.startAnchor ?? resolveAnchor(edge?.from, fromFile);
+    const endAnchor = entry.endAnchor ?? resolveAnchor(edge?.to, toFile);
     if (!startAnchor || !endAnchor) continue;
-    const fromFile = resolveEdgeFile(edge.from);
-    const toFile = resolveEdgeFile(edge.to);
     const ignoreFiles = new Set([fromFile, toFile].filter(Boolean));
     const start = { x: startAnchor.x, z: startAnchor.z };
     const end = { x: endAnchor.x, z: endAnchor.z };
-    const routePoints = findRoute(start, end, ignoreFiles);
-    const rawType = edge.type || 'other';
-    const type = resolveEdgeType(rawType);
+    const routePoints = useRouting ? findRoute(start, end, ignoreFiles) : [start, end];
     const style = resolveEdgeStyle(type);
-    const weight = edgeWeights[type] || edgeWeights[rawType] || 1;
-    const fromColor = resolveEdgeColor(edge.from);
-    const toColor = resolveEdgeColor(edge.to);
-    let edgeColor = null;
-    if (fromColor && toColor) {
-      edgeColor = fromColor.clone().lerp(toColor, 0.5);
-    } else {
-      edgeColor = fromColor || toColor || new THREE.Color(style.color || '#9aa0a6');
+    const fromColor = entry.edgeColor ? null : resolveEdgeColor(edge?.from);
+    const toColor = entry.edgeColor ? null : resolveEdgeColor(edge?.to);
+    let edgeColor = entry.edgeColor || null;
+    if (!edgeColor) {
+      if (fromColor && toColor) {
+        edgeColor = fromColor.clone().lerp(toColor, 0.5);
+      } else {
+        edgeColor = fromColor || toColor || new THREE.Color(style.color || '#9aa0a6');
+      }
     }
     const pathPoints = [];
     addPathPoints(pathPoints, startAnchor, endAnchor, routePoints);
@@ -404,15 +475,15 @@ export const buildEdges = () => {
       const dir = dominant === Math.abs(dx)
         ? Math.sign(dx)
         : (dominant === Math.abs(dy) ? Math.sign(dy) : Math.sign(dz));
-      addFlowSegment(type, a.x, a.y, a.z, b.x, b.y, b.z, weight, edgeColor, dir, edge);
+      addFlowSegment(type, a.x, a.y, a.z, b.x, b.y, b.z, weight, edgeColor, dir, trackEndpoints ? edge : null);
     }
-    if (edgeColor) {
-      const fromMemberKey = normalizeMemberId(edge.from?.member);
-      const toMemberKey = normalizeMemberId(edge.to?.member);
+    if (allowEndpointDots && edgeColor) {
+      const fromMemberKey = normalizeMemberId(edge?.from?.member);
+      const toMemberKey = normalizeMemberId(edge?.to?.member);
       if (fromMemberKey) addEndpointDot(`member:${fromMemberKey}`, startAnchor, edgeColor);
-      if (edge.from?.file) addEndpointDot(`file:${edge.from.file}`, startAnchor, edgeColor);
+      if (edge?.from?.file) addEndpointDot(`file:${edge.from.file}`, startAnchor, edgeColor);
       if (toMemberKey) addEndpointDot(`member:${toMemberKey}`, endAnchor, edgeColor);
-      if (edge.to?.file) addEndpointDot(`file:${edge.to.file}`, endAnchor, edgeColor);
+      if (edge?.to?.file) addEndpointDot(`file:${edge.to.file}`, endAnchor, edgeColor);
     }
   }
 
@@ -504,24 +575,28 @@ export const buildEdges = () => {
       mesh.setColorAt(index, brightColor);
       baseColors[index] = brightColor;
       highlightColors[index] = highlightColor;
-      state.edgeSegments.push({
-        mesh,
-        index,
-        endpoints: entry.endpoints,
-        edgeColor: brightColor,
-        highlightColor
-      });
-      if (allowFlowLights) flowLightCandidates.push({
-        x: dummy.position.x,
-        y: dummy.position.y,
-        z: dummy.position.z,
-        color: brightColor,
-        weight: entry.weight,
-        phase: (entry.x1 + entry.x2 + entry.z1 + entry.z2) * 0.18,
-        speed: typeProfile.speed || 1,
-        offset: typeProfile.phase || 0,
-        dir: flowDirection
-      });
+      if (allowEdgeSegments) {
+        state.edgeSegments.push({
+          mesh,
+          index,
+          endpoints: entry.endpoints,
+          edgeColor: brightColor,
+          highlightColor
+        });
+      }
+      if (allowFlowLights && flowLightCandidates) {
+        flowLightCandidates.push({
+          x: dummy.position.x,
+          y: dummy.position.y,
+          z: dummy.position.z,
+          color: brightColor,
+          weight: entry.weight,
+          phase: (entry.x1 + entry.x2 + entry.z1 + entry.z2) * 0.18,
+          speed: typeProfile.speed || 1,
+          offset: typeProfile.phase || 0,
+          dir: flowDirection
+        });
+      }
     });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
@@ -533,7 +608,7 @@ export const buildEdges = () => {
     state.edgeMeshes.push(mesh);
   }
 
-  if (allowFlowLights && flowLightCandidates.length) {
+  if (allowFlowLights && flowLightCandidates && flowLightCandidates.length) {
     flowLightCandidates.sort((a, b) => b.weight - a.weight);
     const maxLights = Math.min(32, flowLightCandidates.length);
     for (let i = 0; i < maxLights; i += 1) {

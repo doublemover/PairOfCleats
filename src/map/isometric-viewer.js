@@ -77,6 +77,10 @@ export function renderIsometricHtml({
       <div class="section" id="menu-controls"></div>
     </details>
     <details>
+      <summary>Performance</summary>
+      <div class="section" id="menu-performance"></div>
+    </details>
+    <details>
       <summary>Edges</summary>
       <div class="section" id="menu-edges"></div>
     </details>

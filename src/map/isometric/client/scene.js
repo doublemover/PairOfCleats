@@ -39,6 +39,19 @@ export const initScene = async () => {
   dirLight.position.set(50, 80, 30);
   dirLight.castShadow = visuals.enableShadows === true;
   scene.add(dirLight);
+  const purpleSun = new THREE.DirectionalLight(0x8f6bff, 2.6);
+  purpleSun.position.set(220, 12, -190);
+  purpleSun.castShadow = visuals.enableShadows === true;
+  purpleSun.shadow.mapSize.set(2048, 2048);
+  purpleSun.shadow.bias = -0.00015;
+  purpleSun.shadow.normalBias = 0.02;
+  purpleSun.shadow.camera.near = 1;
+  purpleSun.shadow.camera.far = 600;
+  purpleSun.shadow.camera.left = -220;
+  purpleSun.shadow.camera.right = 220;
+  purpleSun.shadow.camera.top = 220;
+  purpleSun.shadow.camera.bottom = -220;
+  scene.add(purpleSun);
   const hemiLight = new THREE.HemisphereLight(0x6fb1ff, 0x2b2f3a, 0.8);
   scene.add(hemiLight);
   const fillLight = new THREE.PointLight(0x9fd3ff, 1.0, 260);
@@ -130,6 +143,7 @@ export const initScene = async () => {
     cameraInitialized: false,
     extraLights,
     mainLight: dirLight,
+    sunLight: purpleSun,
     fileGroup,
     memberGroup,
     labelGroup,
@@ -149,7 +163,7 @@ export const initScene = async () => {
 
 
 export const applyRendererSettings = () => {
-  const { renderer, visuals, visualDefaults, getViewport, mainLight } = state;
+  const { renderer, visuals, visualDefaults, getViewport, mainLight, sunLight } = state;
   if (!renderer || !getViewport) return;
 
   const viewport = getViewport();
@@ -160,6 +174,7 @@ export const applyRendererSettings = () => {
   const enableShadows = visuals.enableShadows === true;
   renderer.shadowMap.enabled = enableShadows;
   if (mainLight) mainLight.castShadow = enableShadows;
+  if (sunLight) sunLight.castShadow = enableShadows;
 
   // Update existing meshes without requiring a full rebuild.
   const toggleShadow = (mesh) => {

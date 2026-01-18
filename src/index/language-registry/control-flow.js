@@ -1,4 +1,4 @@
-import { summarizeControlFlow } from '../../lang/flow.js';
+import { hasReturnValue, summarizeControlFlow } from '../../lang/flow.js';
 
 export const JS_CONTROL_FLOW = {
   branchKeywords: ['if', 'else', 'switch', 'case', 'catch', 'try'],
@@ -19,6 +19,6 @@ export const buildControlFlowOnly = (text, chunk, options, keywords) => {
     throws: [],
     awaits: [],
     yields: false,
-    returnsValue: false
+    returnsValue: hasReturnValue(slice)
   };
 };

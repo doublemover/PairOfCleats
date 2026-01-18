@@ -881,3 +881,7 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 * [ ] Determine which native module fails to load (onnxruntime/onnxruntime-node/etc.) and verify binary compatibility with current Node/OS; capture a minimal repro and fix path.
 * [x] Add a clear error message with module name + remediation hint (reinstall provider, switch provider alias, or disable embeddings) before exiting.
 * [x] If load failure persists, implement a safe fallback behavior (skip embeddings with explicit warning) so build-index completes.
+
+## Phase 33 — Optional vector-only indexing (drop token artifacts)
+
+* [ ] figure out later

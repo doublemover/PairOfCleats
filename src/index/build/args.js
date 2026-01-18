@@ -10,6 +10,7 @@ export function parseBuildArgs(rawArgs) {
   const argv = createCli({
     scriptName: 'build-index',
     argv: ['node', 'build-index.js', ...rawArgs],
+    usage: 'usage: build-index [options]',
     options: INDEX_BUILD_OPTIONS
   }).parse();
   validateBuildArgs(argv);

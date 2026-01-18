@@ -39,12 +39,6 @@ if (fakeHits.length !== 2 || fakeHits[0].idx !== 1 || fakeHits[1].idx !== 2) {
   process.exit(1);
 }
 
-const nodeMajor = Number(String(process.versions.node || '').split('.')[0]);
-if (Number.isFinite(nodeMajor) && nodeMajor >= 24) {
-  console.log(`Skipping HNSW ANN integration test on Node ${process.versions.node}.`);
-  process.exit(0);
-}
-
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
@@ -94,7 +88,19 @@ if (!fs.existsSync(proseIndex) || !fs.existsSync(proseMeta)) {
 
 const searchResult = spawnSync(
   process.execPath,
-  [path.join(root, 'search.js'), 'index', '--backend', 'memory', '--json', '--ann', '--repo', repoRoot],
+  [
+    path.join(root, 'search.js'),
+    'index',
+    '--backend',
+    'memory',
+    '--json',
+    '--stats',
+    '--ann',
+    '--ann-backend',
+    'hnsw',
+    '--repo',
+    repoRoot
+  ],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (searchResult.status !== 0) {

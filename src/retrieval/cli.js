@@ -93,7 +93,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
     if (emitOutput) {
       if (jsonOutput) {
-        console.log(JSON.stringify({ ok: false, code: ERROR_CODES.INVALID_REQUEST, message }, null, 2));
+        console.log(JSON.stringify({ ok: false, code: ERROR_CODES.INVALID_REQUEST, message }));
       } else {
         console.error(message);
       }
@@ -715,7 +715,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     if (emitOutput && jsonOutput && !err?.emitted) {
       const message = err?.message || 'Search failed.';
       const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
-      console.log(JSON.stringify({ ok: false, code, message }, null, 2));
+      console.log(JSON.stringify({ ok: false, code, message }));
       if (err) err.emitted = true;
     }
     throw err;

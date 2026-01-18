@@ -72,12 +72,6 @@ if (meta.count !== chunkMeta.length) {
   process.exit(1);
 }
 
-const nodeMajor = Number(String(process.versions?.node || '').split('.')[0]);
-if (Number.isFinite(nodeMajor) && nodeMajor >= 24) {
-  console.log('hnsw atomic tests passed (fallback check skipped on Node >= 24)');
-  process.exit(0);
-}
-
 const hnswConfig = normalizeHnswConfig(userConfig.indexing?.embeddings?.hnsw || {});
 await fsPromises.writeFile(hnswIndexPath, 'corrupt');
 const fallbackIndex = loadHnswIndex({

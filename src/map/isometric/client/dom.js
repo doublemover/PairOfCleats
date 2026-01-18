@@ -9,6 +9,11 @@ export const mergeConfig = (base, override) => {
   merged.scoring = { ...(base.scoring || {}), ...(override.scoring || {}) };
   merged.visuals = { ...(base.visuals || {}), ...(override.visuals || {}) };
   merged.assets = { ...(base.assets || {}), ...(override.assets || {}) };
+  merged.performance = { ...(base.performance || {}), ...(override.performance || {}) };
+  merged.performance.displayLimits = {
+    ...(base.performance?.displayLimits || {}),
+    ...(override.performance?.displayLimits || {})
+  };
   return merged;
 };
 
@@ -28,6 +33,7 @@ export const loadDomConfig = () => {
     menuColorMode: document.getElementById('menu-color-mode'),
     menuVisuals: document.getElementById('menu-visuals'),
     menuEffects: document.getElementById('menu-effects'),
+    menuPerformance: document.getElementById('menu-performance'),
     menuActions: document.getElementById('menu-actions')
   };
 

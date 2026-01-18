@@ -8,12 +8,6 @@ import {
   shutdownTreeSitterWorkerPool
 } from '../src/lang/tree-sitter.js';
 
-const nodeMajor = Number.parseInt(process.versions.node.split('.')[0] || '0', 10);
-if (process.platform === 'win32' && nodeMajor >= 24 && !process.env.POC_TREE_SITTER_FORCE) {
-  console.log('tree-sitter test skipped on win32 Node 24+ (runtime shutdown OOM).');
-  process.exit(0);
-}
-
 const root = path.resolve('tests', 'fixtures', 'tree-sitter');
 const fixtures = [
   { id: 'swift', file: 'swift.swift', languageId: 'swift', expect: ['Widget', 'Widget.greet'] },

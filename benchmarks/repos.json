@@ -4,11 +4,9 @@
     "queries": "benchmarks/queries/lua.txt",
     "repos": {
       "large": [
-        "Kong/kong",
         "torch/torch7",
         "luals/lua-language-server",
         "openresty/lua-nginx-module",
-        "luarocks/luarocks"
       ],
       "typical": [
         "luarocks/luarocks",
@@ -29,13 +27,11 @@
     "repos": {
       "large": [
         "bestpractical/rt",
-        "metacpan/metacpan-web",
         "mojolicious/mojo",
         "ocpi/openscap"
       ],
       "typical": [
         "Perl-Critic/Perl-Critic",
-        "Dancer2/Dancer2",
         "perl-carton/carton",
         "gugod/App-perlbrew"
       ],
@@ -51,8 +47,6 @@
     "queries": "benchmarks/queries/shell.txt",
     "repos": {
       "large": [
-        "ohmyzsh/ohmyzsh",
-        "nvm-sh/nvm",
         "Homebrew/brew",
         "asdf-vm/asdf",
         "pyenv/pyenv"
@@ -81,10 +75,8 @@
         "discourse/discourse",
         "spree/spree",
         "chef/chef",
-        "jekyll/jekyll"
       ],
       "typical": [
-        "jekyll/jekyll",
         "fastlane/fastlane",
         "sidekiq/sidekiq",
         "rspec/rspec",
@@ -117,7 +109,6 @@
       "typical": [
         "slimphp/Slim",
         "guzzle/guzzle",
-        "phpunit/phpunit",
         "nikic/PHP-Parser"
       ]
     }
@@ -141,7 +132,6 @@
         "dbt-labs/jaffle_shop",
         "ankane/pghero",
         "Graphile/graphile-engine",
-        "dbt-labs/jaffle-shop"
       ]
     }
   },

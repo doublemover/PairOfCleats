@@ -4,25 +4,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-const parseNodeMajor = () => {
-  const raw = process.versions?.node || '';
-  const major = Number(String(raw).split('.')[0]);
-  return Number.isFinite(major) ? major : null;
-};
-
-const supportsHnswRuntime = () => {
-  const major = parseNodeMajor();
-  if (!Number.isFinite(major)) return true;
-  return major < 24;
-};
-
-let warnedRuntimeUnsupported = false;
 let warnedLoadFailure = false;
-const warnRuntimeUnsupported = () => {
-  if (warnedRuntimeUnsupported) return;
-  warnedRuntimeUnsupported = true;
-  console.warn(`[ann] HNSW disabled on Node ${process.versions.node}; use Node 20/22 or disable embeddings.hnsw.`);
-};
 
 const warnLoadFailure = (message) => {
   if (warnedLoadFailure) return;
@@ -31,10 +13,6 @@ const warnLoadFailure = (message) => {
 };
 
 const resolveHnswLib = () => {
-  if (!supportsHnswRuntime()) {
-    warnRuntimeUnsupported();
-    return null;
-  }
   try {
     return require('hnswlib-node');
   } catch {

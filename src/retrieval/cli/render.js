@@ -52,16 +52,33 @@ export function renderSearchOutput({
   const codeHitsFinal = expandedHits.code.hits;
   const recordHitsFinal = expandedHits.records.hits;
 
-  const memory = process.memoryUsage();
+  const stripTokens = (hit) => {
+    if (!hit || typeof hit !== 'object') return hit;
+    const { tokens, ...rest } = hit;
+    if (Array.isArray(rest.context)) {
+      rest.context = rest.context.map(stripTokens);
+    }
+    if (Array.isArray(rest.contextHits)) {
+      rest.contextHits = rest.contextHits.map(stripTokens);
+    }
+    return rest;
+  };
+  const sanitize = (hits) => (jsonOutput && !jsonCompact ? hits.map(stripTokens) : hits);
+
+  const includeStats = showStats || explain;
+  const memory = includeStats ? process.memoryUsage() : null;
   const payload = {
     backend: backendLabel,
-    prose: jsonCompact ? proseHitsFinal.map((hit) => compactHit(hit, explain)) : proseHitsFinal,
+    prose: jsonCompact ? proseHitsFinal.map((hit) => compactHit(hit, explain)) : sanitize(proseHitsFinal),
     extractedProse: jsonCompact
       ? extractedProseHitsFinal.map((hit) => compactHit(hit, explain))
-      : extractedProseHitsFinal,
-    code: jsonCompact ? codeHitsFinal.map((hit) => compactHit(hit, explain)) : codeHitsFinal,
-    records: jsonCompact ? recordHitsFinal.map((hit) => compactHit(hit, explain)) : recordHitsFinal,
-    stats: {
+      : sanitize(extractedProseHitsFinal),
+    code: jsonCompact ? codeHitsFinal.map((hit) => compactHit(hit, explain)) : sanitize(codeHitsFinal),
+    records: jsonCompact ? recordHitsFinal.map((hit) => compactHit(hit, explain)) : sanitize(recordHitsFinal)
+  };
+
+  if (includeStats) {
+    payload.stats = {
       elapsedMs,
       annEnabled,
       annActive,
@@ -113,17 +130,20 @@ export function renderSearchOutput({
         hit: cacheInfo.hit,
         key: cacheInfo.key
       },
-      memory: {
-        rss: memory.rss,
-        heapTotal: memory.heapTotal,
-        heapUsed: memory.heapUsed,
-        external: memory.external,
-        arrayBuffers: memory.arrayBuffers
-      }
-    }
-  };
+      memory: memory
+        ? {
+          rss: memory.rss,
+          heapTotal: memory.heapTotal,
+          heapUsed: memory.heapUsed,
+          external: memory.external,
+          arrayBuffers: memory.arrayBuffers
+        }
+        : null
+    };
+  }
 
   if (explain) {
+    payload.stats = payload.stats || {};
     payload.stats.intent = {
       ...intentInfo,
       denseVectorMode: resolvedDenseVectorMode,
@@ -133,7 +153,7 @@ export function renderSearchOutput({
   }
 
   if (emitOutput && jsonOutput) {
-    console.log(JSON.stringify(payload, null, 2));
+    console.log(JSON.stringify(payload));
   }
 
   if (emitOutput && !jsonOutput) {

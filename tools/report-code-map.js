@@ -55,6 +55,17 @@ const scope = String(argv.scope || 'repo').toLowerCase();
 const focus = argv.focus ? String(argv.focus) : '';
 const formatRaw = String(argv.format || 'json').toLowerCase();
 const format = formatRaw === 'iso' ? 'html-iso' : formatRaw;
+const isIso = format === 'html-iso';
+const isoDisplayLimits = { maxFiles: 60, maxMembersPerFile: 20, maxEdges: 400 };
+
+const resolveLimit = (value, fallback) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+};
+
+const resolvedMaxFiles = resolveLimit(argv['max-files'], undefined);
+const resolvedMaxMembers = resolveLimit(argv['max-members-per-file'], undefined);
+const resolvedMaxEdges = resolveLimit(argv['max-edges'], undefined);
 
 const viewerControls = {
   wasd: {
@@ -73,13 +84,24 @@ const buildOptions = {
   include: argv.include,
   onlyExported: argv['only-exported'] === true,
   collapse: argv.collapse,
-  maxFiles: argv['max-files'],
-  maxMembersPerFile: argv['max-members-per-file'],
-  maxEdges: argv['max-edges'],
+  maxFiles: resolvedMaxFiles,
+  maxMembersPerFile: resolvedMaxMembers,
+  maxEdges: resolvedMaxEdges,
   topKByDegree: argv['top-k-by-degree'] === true,
   viewer: {
     controls: viewerControls,
-    openUriTemplate: argv['open-uri-template'] || null
+    openUriTemplate: argv['open-uri-template'] || null,
+    ...(isIso
+      ? {
+          performance: {
+            displayLimits: {
+              maxFiles: resolvedMaxFiles ?? isoDisplayLimits.maxFiles,
+              maxMembersPerFile: resolvedMaxMembers ?? isoDisplayLimits.maxMembersPerFile,
+              maxEdges: resolvedMaxEdges ?? isoDisplayLimits.maxEdges
+            }
+          }
+        }
+      : {})
   }
 };
 

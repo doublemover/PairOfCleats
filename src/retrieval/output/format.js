@@ -164,17 +164,8 @@ export function formatFullChunk({
     if (usageStr.length) out += c.cyan('   Usages: ') + usageStr + '\n';
   }
 
-  const uniqueTokens = [...new Set((chunk.tokens || []).map((t) => t.trim()).filter((t) => t))];
-  if (uniqueTokens.length) {
-    out += c.magenta('   Tokens: ') + uniqueTokens.slice(0, 10).join(', ') + '\n';
-  }
-
-  if (matched && queryTokens.length) {
-    const matchedTokens = queryTokens.filter((tok) =>
-      (chunk.tokens && chunk.tokens.includes(tok)) ||
-      (chunk.ngrams && chunk.ngrams.includes(tok)) ||
-      (chunk.headline && chunk.headline.includes(tok))
-    );
+  if (matched && queryTokens.length && chunk.headline) {
+    const matchedTokens = queryTokens.filter((tok) => chunk.headline.includes(tok));
     if (matchedTokens.length) {
       out += c.gray('   Matched: ') + matchedTokens.join(', ') + '\n';
     }
@@ -408,16 +399,12 @@ export function formatShortChunk({
   }
   if (chunk.last_author) out += color.green(` by ${chunk.last_author}`);
   if (chunk.headline) out += ` - ${color.underline(chunk.headline)}`;
-  else if (chunk.tokens && chunk.tokens.length && rx) {
-    out += ' - ' + chunk.tokens.slice(0, 10).join(' ').replace(rx, (m) => color.bold(color.yellow(m)));
+  else if (chunk.headline && rx) {
+    out += ' - ' + chunk.headline.replace(rx, (m) => color.bold(color.yellow(m)));
   }
 
-  if (matched && queryTokens.length) {
-    const matchedTokens = queryTokens.filter((tok) =>
-      (chunk.tokens && chunk.tokens.includes(tok)) ||
-      (chunk.ngrams && chunk.ngrams.includes(tok)) ||
-      (chunk.headline && chunk.headline.includes(tok))
-    );
+  if (matched && queryTokens.length && chunk.headline) {
+    const matchedTokens = queryTokens.filter((tok) => chunk.headline.includes(tok));
     if (matchedTokens.length) {
       out += color.gray(` Matched: ${matchedTokens.join(', ')}`);
     }

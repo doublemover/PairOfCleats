@@ -104,9 +104,9 @@ export const rebuildScene = () => {
   const groundGeometry = new THREE.PlaneGeometry(gridSize, gridSize);
   const groundMaterial = new THREE.MeshStandardMaterial({
     color: 0x1a1f26,
-    metalness: 1,
-    roughness: 1,
-    envMapIntensity: visuals.glass.envMapIntensity
+    metalness: 0.55,
+    roughness: 0.6,
+    envMapIntensity: Math.min(1.6, visuals.glass.envMapIntensity * 0.25)
   });
   applyHeightFog(groundMaterial);
   state.grid = new THREE.Mesh(groundGeometry, groundMaterial);

@@ -93,7 +93,7 @@ export const controlDefaults = {
   panSensitivity: 1.5,
   zoomSensitivity: 18,
   zoomDamping: 0.9,
-  zoomMin: 1,
+  zoomMin: 0.05,
   zoomMax: 80,
   wasd: {
     sensitivity: 40000,
@@ -101,6 +101,12 @@ export const controlDefaults = {
     maxSpeed: 120000,
     drag: 6
   }
+};
+
+export const displayDefaults = {
+  maxFiles: 60,
+  maxMembersPerFile: 20,
+  maxEdges: 400
 };
 
 export const flowWaveLayers = [

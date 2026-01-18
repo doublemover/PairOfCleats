@@ -15,6 +15,7 @@ import { applyRendererSettings } from './scene.js';
 import { scheduleRebuild } from './rebuild.js';
 import { renderSelectionDetails } from './selection.js';
 import { clearGroup } from './scene-utils.js';
+import { displayDefaults } from './defaults.js';
 
 const getNested = (obj, path) => {
   const parts = path.split('.');
@@ -126,7 +127,8 @@ const persistPanelState = (() => {
         scoring: state.panelState.scoring,
         colors: state.panelState.colors,
         controls: state.panelState.controls,
-        visuals: state.panelState.visuals
+        visuals: state.panelState.visuals,
+        performance: state.panelState.performance
       };
       try {
         window.localStorage.setItem(storageKey, JSON.stringify(payload));
@@ -200,12 +202,23 @@ export const initUi = () => {
     edgeGroup
   } = state;
 
+  const displayLimits = state.map?.summary?.limits
+    || state.config?.performance?.displayLimits
+    || displayDefaults;
+
   state.panelState = {
     layout: { ...layout },
     scoring: { ...scoring },
     colors: { ...colors },
     controls: { ...controls, wasd: { ...(controls.wasd || {}) } },
-    visuals: { ...visuals, glass: { ...visuals.glass } }
+    visuals: { ...visuals, glass: { ...visuals.glass } },
+    performance: {
+      displayLimits: {
+        maxFiles: Number(displayLimits.maxFiles ?? displayDefaults.maxFiles),
+        maxMembersPerFile: Number(displayLimits.maxMembersPerFile ?? displayDefaults.maxMembersPerFile),
+        maxEdges: Number(displayLimits.maxEdges ?? displayDefaults.maxEdges)
+      }
+    }
   };
 
   state.edgeVisibility = state.edgeVisibility || new Map();
@@ -240,11 +253,59 @@ export const initUi = () => {
   createSlider(dom.menuControls, { label: 'Pan sensitivity', path: 'controls.panSensitivity', min: 0.2, max: 4, step: 0.1, defaultValue: controlDefaults.panSensitivity, rebuild: false });
   createSlider(dom.menuControls, { label: 'Zoom sensitivity', path: 'controls.zoomSensitivity', min: 0.5, max: 40, step: 0.5, defaultValue: controlDefaults.zoomSensitivity, rebuild: false });
   createSlider(dom.menuControls, { label: 'Zoom damping', path: 'controls.zoomDamping', min: 0.6, max: 0.98, step: 0.01, defaultValue: controlDefaults.zoomDamping, format: (value) => value.toFixed(2), rebuild: false });
+  createSlider(dom.menuControls, { label: 'Zoom min', path: 'controls.zoomMin', min: 0.02, max: 1, step: 0.01, defaultValue: controlDefaults.zoomMin, format: (value) => value.toFixed(2), rebuild: false });
   createSlider(dom.menuControls, { label: 'Zoom max', path: 'controls.zoomMax', min: 4, max: 120, step: 1, defaultValue: controlDefaults.zoomMax, rebuild: false });
   createSlider(dom.menuControls, { label: 'WASD sensitivity', path: 'controls.wasd.sensitivity', min: 100, max: 50000, step: 100, defaultValue: controlDefaults.wasd.sensitivity, rebuild: false });
   createSlider(dom.menuControls, { label: 'WASD accel', path: 'controls.wasd.acceleration', min: 100, max: 20000, step: 100, defaultValue: controlDefaults.wasd.acceleration, rebuild: false });
   createSlider(dom.menuControls, { label: 'WASD max', path: 'controls.wasd.maxSpeed', min: 100, max: 60000, step: 500, defaultValue: controlDefaults.wasd.maxSpeed, rebuild: false });
   createSlider(dom.menuControls, { label: 'WASD drag', path: 'controls.wasd.drag', min: 1, max: 20, step: 0.5, defaultValue: controlDefaults.wasd.drag, rebuild: false });
+
+  const scheduleLimitRefresh = (() => {
+    let timer = null;
+    return (delayMs = 300) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        if (typeof state.applyDisplayLimitsFromPanel === 'function') {
+          state.applyDisplayLimitsFromPanel({ delayMs: 80 });
+        }
+        persistPanelState();
+      }, delayMs);
+    };
+  })();
+
+  if (dom.menuPerformance) {
+    createSlider(dom.menuPerformance, {
+      label: 'Max files',
+      path: 'performance.displayLimits.maxFiles',
+      min: 20,
+      max: 2000,
+      step: 10,
+      defaultValue: displayDefaults.maxFiles,
+      rebuild: false,
+      onInput: () => scheduleLimitRefresh()
+    });
+    createSlider(dom.menuPerformance, {
+      label: 'Max members/file',
+      path: 'performance.displayLimits.maxMembersPerFile',
+      min: 5,
+      max: 400,
+      step: 2,
+      defaultValue: displayDefaults.maxMembersPerFile,
+      rebuild: false,
+      onInput: () => scheduleLimitRefresh()
+    });
+    createSlider(dom.menuPerformance, {
+      label: 'Max edges',
+      path: 'performance.displayLimits.maxEdges',
+      min: 50,
+      max: 1800,
+      step: 10,
+      defaultValue: displayDefaults.maxEdges,
+      rebuild: false,
+      onInput: () => scheduleLimitRefresh()
+    });
+  }
 
   createSelect(dom.menuLayout, {
     label: 'Layout style',

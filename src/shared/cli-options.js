@@ -2,21 +2,21 @@ import { validateConfig } from '../config/validate.js';
 import { DEFAULT_STUB_DIMS } from './embedding.js';
 
 export const INDEX_BUILD_OPTIONS = {
-  mode: { type: 'string', default: 'all' },
+  mode: { type: 'string', default: 'all', describe: 'code|prose|extracted-prose|records|all' },
   quality: { type: 'string' },
-  stage: { type: 'string' },
+  stage: { type: 'string', describe: 'start at a specific stage (e.g. 1,2,3,4)' },
   dims: { type: 'number', default: DEFAULT_STUB_DIMS },
   threads: { type: 'number' },
   incremental: { type: 'boolean', default: false, alias: 'i' },
-  'stub-embeddings': { type: 'boolean', default: false },
+  'stub-embeddings': { type: 'boolean', default: false, describe: 'use stub embeddings for faster builds' },
   watch: { type: 'boolean', default: false },
   'watch-poll': { type: 'number', default: 2000 },
   'watch-debounce': { type: 'number', default: 500 },
-  sqlite: { type: 'boolean' },
+  sqlite: { type: 'boolean', describe: 'enable sqlite index build' },
   'debug-crash': { type: 'boolean', default: false },
   model: { type: 'string' },
-  repo: { type: 'string' },
-  progress: { type: 'string', default: 'auto' },
+  repo: { type: 'string', describe: 'repo root (defaults to cwd or repo root)' },
+  progress: { type: 'string', default: 'auto', describe: 'auto|tty|json|jsonl|off' },
   verbose: { type: 'boolean', default: false },
   quiet: { type: 'boolean', default: false }
 };
