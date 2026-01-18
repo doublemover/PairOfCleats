@@ -1,69 +1,44 @@
-import terminalKitModule from 'terminal-kit';
 import { writeProgressEvent } from './progress-events.js';
-
-const terminalKit = terminalKitModule?.default || terminalKitModule;
-
-const normalizeProgressMode = (value) => {
-  if (value === false || value === 'false' || value === 'off' || value === 'none') return 'off';
-  if (value === 'jsonl' || value === 'json') return 'jsonl';
-  return 'auto';
-};
-
-const resolveTerminal = (stream) => {
-  if (!terminalKit) return null;
-  if (typeof terminalKit.createTerminal === 'function') {
-    return terminalKit.createTerminal({
-      stdin: process.stdin,
-      stdout: stream,
-      stderr: stream
-    });
-  }
-  if (terminalKit.terminal) {
-    const term = terminalKit.terminal;
-    if (term.stdout && term.stdout !== stream) term.stdout = stream;
-    if (term.outputStream && term.outputStream !== stream) term.outputStream = stream;
-    return term;
-  }
-  return null;
-};
-
-const formatCount = (value) => {
-  if (!Number.isFinite(value)) return '?';
-  return value.toLocaleString();
-};
-
-const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
-const stripAnsi = (value) => String(value || '').replace(ANSI_PATTERN, '');
-
-const PARTIALS_OVERALL = ['▊', '▋', '▌', '▍', '▎', '▏'];
-const PARTIALS_STAGE = ['▖', '▘', '▝', '▗', '▚', '▞'];
-const PARTIALS_IMPORTS = ['░', '▒', '▓'];
-const PARTIALS_FILES = ['⠁', '⠃', '⠇', '⡇', '⡏', '⡟', '⡿'];
-const PARTIALS_ARTIFACTS = ['⡈', '⡘', '⡸', '⣸'];
-const PARTIALS_REPOS = ['▂', '▃', '▄', '▅', '▆', '▇'];
-const PARTIALS_DEFAULT = ['⡁', '⡃', '⡇', '⡧', '⡷'];
-const EMPTY_PATTERN_DEFAULT = '┈┉';
-
-const BAR_STYLES = {
-  overall: { fill: '▉', empty: ' ', partials: PARTIALS_OVERALL },
-  stage: { fill: '█', empty: ' ', partials: PARTIALS_STAGE },
-  imports: { fill: '█', empty: ' ', partials: PARTIALS_IMPORTS },
-  files: { fill: '⣿', empty: ' ', partials: PARTIALS_FILES },
-  artifacts: { fill: '⣿', empty: ' ', partials: PARTIALS_ARTIFACTS },
-  shard: { fill: '⣿', empty: ' ', partials: PARTIALS_FILES },
-  records: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
-  embeddings: { fill: '█', empty: ' ', partials: PARTIALS_STAGE },
-  downloads: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
-  repos: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
-  queries: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
-  ci: { fill: '█', empty: ' ', partials: PARTIALS_STAGE },
-  default: { fill: '⣿', empty: EMPTY_PATTERN_DEFAULT, partials: PARTIALS_DEFAULT }
-};
-
-const OFF_WHITE = { r: 235, g: 236, b: 238 };
-const BLACK = { r: 0, g: 0, b: 0 };
-const CHECK_FG_OK = { r: 84, g: 196, b: 108 };
-const CHECK_FG_FAIL = { r: 220, g: 96, b: 96 };
+import { normalizeProgressMode, resolveTerminal, resolveWidth } from './display/terminal.js';
+import { BAR_STYLES, buildBar } from './display/bar.js';
+import {
+  BLACK,
+  STATUS_BRACKET_FG,
+  CHECK_FG_OK,
+  CHECK_FG_FAIL,
+  PALETTE,
+  clampBackgroundColor,
+  makeTextForeground,
+  makeBarForeground,
+  buildShadeScale,
+  shiftHue,
+  hashUnit,
+  extractExtension,
+  colorToAnsi,
+  composeColor,
+  mixColor,
+  scaleColor,
+  resolveGradientColor,
+  paletteColorAt
+} from './display/colors.js';
+import {
+  stripAnsi,
+  formatCount,
+  padLabel,
+  padVisible,
+  padVisibleStart,
+  truncateLine,
+  resolveRateUnit,
+  formatRate,
+  titleCaseUnit,
+  formatSecondsPerUnit,
+  splitDurationParts,
+  formatDurationCompact,
+  formatDurationEtaCompact,
+  formatDurationAligned
+} from './display/text.js';
+const LINE_PREFIX_TRANSPARENT = ' ';
+const LINE_PREFIX_SHADED = ' ';
 
 const resolveBarVariant = (task) => {
   const name = String(task?.name || '').toLowerCase();
@@ -83,189 +58,7 @@ const resolveBarVariant = (task) => {
   return 'default';
 };
 
-const repeatPattern = (pattern, count) => {
-  if (!pattern || count <= 0) return '';
-  const safe = String(pattern);
-  if (safe.length === 1) return safe.repeat(count);
-  let output = '';
-  for (let i = 0; i < count; i += 1) {
-    output += safe[i % safe.length];
-  }
-  return output;
-};
-
-const clampChannel = (value) => Math.max(0, Math.min(255, Math.round(value)));
-
-const mixChannel = (from, to, t) => clampChannel(from + (to - from) * t);
-
-const mixColor = (from, to, t) => ({
-  r: mixChannel(from.r, to.r, t),
-  g: mixChannel(from.g, to.g, t),
-  b: mixChannel(from.b, to.b, t)
-});
-
-const scaleColor = (color, factor) => ({
-  r: clampChannel(color.r * factor),
-  g: clampChannel(color.g * factor),
-  b: clampChannel(color.b * factor)
-});
-
-const lightenColor = (color, factor) => mixColor(color, { r: 255, g: 255, b: 255 }, factor);
-
-const toLinear = (value) => {
-  const v = value / 255;
-  return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-};
-
-const relativeLuminance = (color) => {
-  const r = toLinear(color.r);
-  const g = toLinear(color.g);
-  const b = toLinear(color.b);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-};
-
-const clampBackgroundColor = (color, maxLuma = 0.6) => {
-  const lum = relativeLuminance(color);
-  if (lum <= maxLuma) return color;
-  const factor = maxLuma / (lum || 1);
-  return scaleColor(color, factor);
-};
-
-const buildShadeScale = (base) => {
-  const light = clampBackgroundColor(lightenColor(base, 0.3));
-  const dark = clampBackgroundColor(scaleColor(base, 0.7));
-  const shades = [];
-  for (let i = 0; i <= 25; i += 1) {
-    shades.push(clampBackgroundColor(mixColor(light, dark, i / 25)));
-  }
-  return shades;
-};
-
-const colorToAnsi = (color, isBackground = false) => {
-  const prefix = isBackground ? '48' : '38';
-  return `${prefix};2;${color.r};${color.g};${color.b}`;
-};
-
-const PALETTE = [
-  { r: 41, g: 86, b: 70 },
-  { r: 43, g: 95, b: 87 },
-  { r: 44, g: 99, b: 104 },
-  { r: 45, g: 93, b: 113 },
-  { r: 46, g: 84, b: 122 },
-  { r: 46, g: 71, b: 132 },
-  { r: 47, g: 53, b: 142 },
-  { r: 62, g: 47, b: 152 },
-  { r: 88, g: 46, b: 162 },
-  { r: 118, g: 46, b: 173 },
-  { r: 154, g: 45, b: 184 },
-  { r: 195, g: 44, b: 195 },
-  { r: 207, g: 43, b: 172 },
-  { r: 215, g: 45, b: 143 },
-  { r: 220, g: 50, b: 111 },
-  { r: 224, g: 56, b: 81 },
-  { r: 228, g: 73, b: 62 },
-  { r: 232, g: 115, b: 69 },
-  { r: 236, g: 155, b: 75 },
-  { r: 239, g: 193, b: 82 },
-  { r: 242, g: 230, b: 89 },
-  { r: 225, g: 245, b: 96 },
-  { r: 197, g: 248, b: 104 },
-  { r: 172, g: 250, b: 112 }
-];
-
-const resolvePaletteSlot = (index, total, offset = 0, step = 1) => {
-  if (!Number.isFinite(total) || total <= 1) return offset;
-  return offset + index * step;
-};
-
-const paletteColorAt = (slot) => {
-  const clamped = Math.max(0, Math.min(PALETTE.length - 1, slot));
-  const lower = Math.floor(clamped);
-  const upper = Math.min(PALETTE.length - 1, lower + 1);
-  const local = clamped - lower;
-  return mixColor(PALETTE[lower], PALETTE[upper], local);
-};
-
-const resolveGradientColor = (index, total, offset = 0, step = 1) => {
-  const slot = resolvePaletteSlot(index, total, offset, step);
-  return paletteColorAt(slot);
-};
-
-const composeColor = (foreground, background) => {
-  if (foreground && background) return `${foreground};${background}`;
-  return foreground || background || '';
-};
-
-const buildGradientText = (count, char, gradient, colorize, background) => {
-  if (!count || !gradient || !colorize) return char.repeat(count);
-  let output = '';
-  for (let i = 0; i < count; i += 1) {
-    const color = gradient(i, count);
-    const fg = color ? colorToAnsi(color) : null;
-    const code = composeColor(fg, background);
-    output += colorize(char, code);
-  }
-  return output;
-};
-
-const buildBar = (pct, width, style, theme, colorize, options = {}) => {
-  const safeWidth = Math.max(4, Math.floor(width));
-  const clamped = Math.min(1, Math.max(0, pct));
-  const total = clamped * safeWidth;
-  const fullCount = Math.floor(total);
-  const remainder = total - fullCount;
-  const partials = Array.isArray(style?.partials) && style.partials.length
-    ? style.partials
-    : PARTIALS_FINE;
-  let partialIndex = Math.floor(remainder * partials.length);
-  if (remainder > 0 && partialIndex === 0) partialIndex = 1;
-  if (partialIndex >= partials.length) partialIndex = partials.length;
-  let hasPartial = partialIndex > 0 && fullCount < safeWidth;
-  const animateIndex = Number.isFinite(options.animateIndex) ? options.animateIndex : null;
-  if (animateIndex !== null && clamped < 1 && fullCount < safeWidth) {
-    const animated = (Math.floor(animateIndex) % partials.length) + 1;
-    partialIndex = animated;
-    hasPartial = true;
-  }
-  const emptyCount = Math.max(0, safeWidth - fullCount - (hasPartial ? 1 : 0));
-
-  const fillChar = style?.fill || '█';
-  const emptyChar = style?.empty || '·';
-  const filledText = fullCount > 0 ? repeatPattern(fillChar, fullCount) : '';
-  const partialText = hasPartial ? partials[partialIndex - 1] : '';
-  const emptyText = emptyCount > 0 ? repeatPattern(emptyChar, emptyCount) : '';
-
-  const background = theme?.background || '';
-  let filled = filledText;
-  if (colorize && options.fillGradient && fullCount > 0) {
-    filled = buildGradientText(fullCount, fillChar, options.fillGradient, colorize, background);
-  } else if (colorize) {
-    filled = colorize(filledText, composeColor(theme?.fill, background));
-  }
-  const partial = colorize ? colorize(partialText, composeColor(theme?.edge, background)) : partialText;
-  const empty = colorize ? colorize(emptyText, composeColor(theme?.empty, background)) : emptyText;
-  const bracketFg = theme?.bracketFg || theme?.bracket || '';
-  const bracketBg = theme?.bracketBg || '';
-  const bracketCode = composeColor(bracketFg, bracketBg);
-  const left = colorize ? colorize('[', bracketCode) : '[';
-  const right = colorize ? colorize(']', bracketCode) : ']';
-  return `${left}${filled}${partial}${empty}${right}`;
-};
-
-const resolveWidth = (term, stream) => {
-  if (term && Number.isFinite(term.width)) return term.width;
-  if (stream && Number.isFinite(stream.columns)) return stream.columns;
-  return 120;
-};
-
-const truncateLine = (line, width) => {
-  if (!line) return '';
-  const safeWidth = Math.max(1, Math.floor(width));
-  const plain = stripAnsi(line);
-  if (plain.length <= safeWidth) return line;
-  if (safeWidth <= 3) return plain.slice(0, safeWidth);
-  return `${plain.slice(0, safeWidth - 3)}...`;
-};
+// Helpers moved to ./display modules.
 
 const clampRatio = (value) => Math.min(1, Math.max(0, value));
 
@@ -303,175 +96,6 @@ const computeOverallProgress = ({ overallTask, tasksByMode }) => {
   const overallCurrent = Number.isFinite(overallTask.current) ? overallTask.current : 0;
   const effective = Math.max(computed, overallCurrent);
   return clampRatio(effective / overallTask.total);
-};
-
-const padLabel = (label, width) => {
-  const safeWidth = Math.max(1, Math.floor(width));
-  const plain = stripAnsi(label);
-  if (plain.length === safeWidth) return label;
-  if (plain.length < safeWidth) return `${label}${' '.repeat(safeWidth - plain.length)}`;
-  if (safeWidth <= 3) return plain.slice(0, safeWidth);
-  return `${plain.slice(0, safeWidth - 3)}...`;
-};
-
-const padVisible = (text, width) => {
-  const value = String(text ?? '');
-  const plainLength = stripAnsi(value).length;
-  if (plainLength >= width) return value;
-  return `${value}${' '.repeat(width - plainLength)}`;
-};
-
-const padVisibleStart = (text, width) => {
-  const value = String(text ?? '');
-  const plainLength = stripAnsi(value).length;
-  if (plainLength >= width) return value;
-  return `${' '.repeat(width - plainLength)}${value}`;
-};
-
-const formatDurationShort = (seconds) => {
-  if (!Number.isFinite(seconds) || seconds <= 0) return null;
-  const total = Math.max(1, Math.round(seconds));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const secs = total % 60;
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  }
-  return `${minutes}:${String(secs).padStart(2, '0')}`;
-};
-
-const resolveRateUnit = (task) => {
-  const rawUnit = typeof task?.unit === 'string' ? task.unit.trim().toLowerCase() : '';
-  if (rawUnit) return rawUnit;
-  const name = String(task?.name || '').toLowerCase();
-  if (name.includes('file')) return 'files';
-  if (name.includes('chunk')) return 'chunks';
-  if (name.includes('line')) return 'lines';
-  if (name.includes('query')) return 'queries';
-  if (name.includes('repo')) return 'repos';
-  if (name.includes('import')) return 'imports';
-  if (name.includes('artifact')) return 'artifacts';
-  if (name.includes('record')) return 'records';
-  if (name.includes('shard')) return 'shards';
-  if (name.includes('embedding')) return 'embeddings';
-  if (name.includes('download')) return 'downloads';
-  return '';
-};
-
-const formatRate = (rate) => {
-  if (!Number.isFinite(rate) || rate <= 0) return null;
-  if (rate >= 1000) {
-    const scaled = rate / 1000;
-    const value = scaled >= 10 ? Math.round(scaled) : Number(scaled.toFixed(1));
-    return `${value}k`;
-  }
-  if (rate >= 100) return Math.round(rate).toLocaleString();
-  if (rate >= 10) return rate.toFixed(1);
-  return rate.toFixed(2);
-};
-
-const singularizeUnit = (unit) => {
-  if (!unit) return '';
-  return unit.endsWith('s') ? unit.slice(0, -1) : unit;
-};
-
-const titleCaseUnit = (unit) => {
-  if (!unit) return '';
-  return String(unit)
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() || ''}${part.slice(1)}`)
-    .join('');
-};
-
-const formatSecondsPerUnit = (seconds, unit) => {
-  if (!Number.isFinite(seconds) || seconds <= 0) return null;
-  const safeUnit = titleCaseUnit(singularizeUnit(unit)) || 'Item';
-  let value = '';
-  if (seconds >= 100) value = Math.round(seconds).toLocaleString();
-  else if (seconds >= 10) value = seconds.toFixed(1);
-  else if (seconds >= 1) value = seconds.toFixed(2);
-  else value = seconds.toFixed(3);
-  return `${value}s/${safeUnit}`;
-};
-
-const splitDurationParts = (seconds) => {
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return { days: 0, hours: 0, minutes: 0, seconds: 0, ms: 0, totalSeconds: 0 };
-  }
-  if (seconds < 1) {
-    return { days: 0, hours: 0, minutes: 0, seconds: 0, ms: Math.max(1, Math.round(seconds * 1000)), totalSeconds: seconds };
-  }
-  const total = Math.floor(seconds);
-  const days = Math.floor(total / 86400);
-  const hours = Math.floor((total % 86400) / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const secs = total % 60;
-  return { days, hours, minutes, seconds: secs, ms: 0, totalSeconds: seconds };
-};
-
-const formatDurationCompact = (parts) => {
-  if (parts.ms) return `${parts.ms}ms`;
-  if (parts.days > 0 || parts.hours > 0) {
-    const pieces = [];
-    if (parts.days > 0) pieces.push(`${parts.days}d`);
-    if (parts.hours > 0) pieces.push(`${parts.hours}h`);
-    if (parts.minutes > 0) pieces.push(`${parts.minutes}m`);
-    if (parts.seconds > 0) pieces.push(`${parts.seconds}s`);
-    return pieces.join(' ');
-  }
-  if (parts.minutes > 0) {
-    return parts.seconds > 0 ? `${parts.minutes}m${parts.seconds}s` : `${parts.minutes}m`;
-  }
-  if (parts.seconds > 0) return `${parts.seconds}s`;
-  return '0s';
-};
-
-const formatDurationEtaCompact = (parts) => {
-  if (parts.ms) return `${parts.ms}ms`;
-  if (parts.days > 0 || parts.hours > 0) {
-    const pieces = [];
-    if (parts.days > 0) pieces.push(`${parts.days}d`);
-    if (parts.hours > 0) pieces.push(`${parts.hours}h`);
-    if (parts.minutes > 0) pieces.push(`${parts.minutes}m`);
-    if (parts.seconds > 0) pieces.push(`${parts.seconds}s`);
-    return pieces.join('');
-  }
-  if (parts.minutes > 0) {
-    if (parts.seconds > 0) {
-      const spacer = parts.minutes >= 10 ? ' ' : '';
-      return `${parts.minutes}m${spacer}${parts.seconds}s`;
-    }
-    return parts.minutes >= 10 ? `${parts.minutes}m   ` : `${parts.minutes}m`;
-  }
-  if (parts.seconds > 0) return `${parts.seconds}s`;
-  return '0s';
-};
-
-const formatDurationAligned = (parts, layout) => {
-  const cols = [];
-  if (layout.days > 0) {
-    cols.push(parts.days > 0 ? `${parts.days}d` : '');
-  }
-  if (layout.hours > 0) {
-    cols.push(parts.hours > 0 ? `${parts.hours}h` : '');
-  }
-  if (layout.minutes > 0) {
-    const showZero = parts.minutes === 0 && parts.seconds > 0 && parts.hours > 0;
-    cols.push((parts.minutes > 0 || showZero) ? `${parts.minutes}m` : '');
-  }
-  if (layout.seconds > 0) {
-    let value = '';
-    if (parts.ms) value = `${parts.ms}ms`;
-    else if (parts.seconds > 0) value = `${parts.seconds}s`;
-    cols.push(value);
-  }
-  const padded = cols.map((value, index) => {
-    const width = layout.widths[index] || 0;
-    if (!width) return value;
-    return padVisibleStart(value, width);
-  });
-  return padded.join(' ').trimEnd();
 };
 
 const buildProgressExtras = (task, now) => {
@@ -547,7 +171,9 @@ export function createDisplay(options = {}) {
     paletteScheme: null,
     paletteStep: null,
     paletteSlots: new Map(),
-    paletteOrder: []
+    paletteOrder: [],
+    rateMaxByTask: new Map(),
+    hueShiftByTask: new Map()
   };
 
   const writeJsonLog = (level, message, meta) => {
@@ -629,6 +255,15 @@ export function createDisplay(options = {}) {
       return current <= 0 && (!total || total <= 0);
     };
     const displayTasks = orderedTasks.filter((task) => !shouldHideTask(task));
+    const now = Date.now();
+    const extrasByTask = displayTasks.map((task) => buildProgressExtras(task, now));
+    const benchPrefixes = displayTasks.map((task, index) => {
+      if (String(task?.stage || '').toLowerCase() !== 'bench') return '';
+      const elapsedSec = extrasByTask[index]?.elapsedSec;
+      if (!Number.isFinite(elapsedSec) || elapsedSec <= 0) return '';
+      const parts = splitDurationParts(elapsedSec);
+      return `⌛ ${formatDurationCompact(parts)}`;
+    });
     const formatModeLabel = (mode) => {
       if (!mode) return '';
       return String(mode)
@@ -661,9 +296,17 @@ export function createDisplay(options = {}) {
       'bench Repos',
       'queries Queries'
     ];
-    const maxLabelLength = [...taskLabels, ...baselineLabels]
+    // extrasByTask and benchPrefixes are computed earlier to size labels.
+    const baseLabelLength = [...taskLabels, ...baselineLabels]
       .reduce((max, label) => Math.max(max, stripAnsi(label).length), 0);
-    const labelWidth = Math.min(maxLabelLength, Math.max(10, Math.floor(width * 0.22)));
+    const benchLabelLength = taskLabels.reduce((max, label, index) => {
+      const prefix = benchPrefixes[index] || '';
+      if (!prefix) return max;
+      const length = stripAnsi(label).length + 1 + stripAnsi(prefix).length;
+      return Math.max(max, length);
+    }, 0);
+    const maxLabelLength = Math.max(baseLabelLength, benchLabelLength);
+    const labelWidth = Math.min(maxLabelLength, Math.max(12, Math.floor(width * 0.32)));
     const tasksByMode = {
       stage: new Map(),
       imports: new Map(),
@@ -686,15 +329,14 @@ export function createDisplay(options = {}) {
       if (name === 'artifacts') tasksByMode.artifacts.set(task.mode, task);
     }
     const overallOverride = computeOverallProgress({ overallTask, tasksByMode });
-    const now = Date.now();
     const taskColors = new Map();
     const taskAccents = new Map();
     const taskShades = new Map();
     const schemes = [
-      { name: 'forward', stepFactor: 0.8, mode: 'linear', direction: 1 },
-      { name: 'reverse', stepFactor: 0.8, mode: 'linear', direction: -1 },
-      { name: 'drift', stepFactor: 0.6, mode: 'linear', direction: 1 },
-      { name: 'pulse', stepFactor: 0.7, mode: 'triangle', span: Math.min(8, PALETTE.length - 1) }
+      { name: 'forward', stepFactor: 0.9, mode: 'linear', direction: 1 },
+      { name: 'reverse', stepFactor: 0.9, mode: 'linear', direction: -1 },
+      { name: 'drift', stepFactor: 1.05, mode: 'linear', direction: 1 },
+      { name: 'pulse', stepFactor: 0.95, mode: 'triangle', span: Math.min(10, PALETTE.length - 1) }
     ];
     if (!state.paletteScheme) {
       state.paletteScheme = schemes[Math.floor(Math.random() * schemes.length)];
@@ -738,11 +380,26 @@ export function createDisplay(options = {}) {
         state.paletteOrder.push(task.id);
       }
     }
+    const resolveHueShiftForTask = (task, variant) => {
+      const extra = task?.extra && typeof task.extra === 'object' ? task.extra : {};
+      const langHint = extra.languageId || extra.language || extra.lang || extra.extension || '';
+      const messageExt = extractExtension(task?.message || '');
+      const typeHint = langHint || messageExt;
+      const key = `${task?.mode || ''}:${variant || ''}:${typeHint || ''}:${task?.name || ''}`;
+      if (!state.hueShiftByTask.has(key)) {
+        const unit = hashUnit(key);
+        state.hueShiftByTask.set(key, (unit - 0.5) * 30);
+      }
+      return state.hueShiftByTask.get(key) || 0;
+    };
     displayTasks.forEach((task) => {
       const slot = state.paletteSlots.get(task.id) ?? paletteOffset;
       const baseRaw = paletteColorAt(slot);
-      const base = clampBackgroundColor(baseRaw);
-      const accent = paletteColorAt(Math.min(PALETTE.length - 1, slot + 0.9));
+      const accentRaw = paletteColorAt(Math.min(PALETTE.length - 1, slot + 0.9));
+      const variant = resolveBarVariant(task);
+      const hueShift = resolveHueShiftForTask(task, variant);
+      const base = clampBackgroundColor(shiftHue(baseRaw, hueShift), 0.5);
+      const accent = clampBackgroundColor(shiftHue(accentRaw, hueShift), 0.5);
       taskColors.set(task.id, base);
       taskAccents.set(task.id, accent);
       taskShades.set(task.id, buildShadeScale(base));
@@ -753,14 +410,14 @@ export function createDisplay(options = {}) {
         const stageTask = tasksByMode.stage.get(task.mode);
         if (stageTask) {
           const base = taskColors.get(stageTask.id) || null;
-          return base ? scaleColor(base, 0.22) : null;
+          return base ? scaleColor(base, 0.28) : null;
         }
       }
       if (variant === 'files') {
         const importsTask = tasksByMode.imports.get(task.mode);
         if (importsTask) {
           const base = taskColors.get(importsTask.id) || null;
-          return base ? scaleColor(base, 0.22) : null;
+          return base ? scaleColor(base, 0.28) : null;
         }
       }
       return null;
@@ -776,22 +433,7 @@ export function createDisplay(options = {}) {
       if (plainLength >= maxSuffixLength) return value;
       return `${value}${' '.repeat(maxSuffixLength - plainLength)}`;
     };
-    const extrasByTask = displayTasks.map((task) => buildProgressExtras(task, now));
-    const benchPrefixes = displayTasks.map((task, index) => {
-      if (String(task?.stage || '').toLowerCase() !== 'bench') return '';
-      const elapsedSec = extrasByTask[index]?.elapsedSec;
-      if (!Number.isFinite(elapsedSec) || elapsedSec <= 0) return '';
-      const parts = splitDurationParts(elapsedSec);
-      return `⌛ ${formatDurationCompact(parts)}`;
-    });
-    const maxBenchPrefixLength = benchPrefixes.reduce(
-      (max, value) => Math.max(max, stripAnsi(value || '').length),
-      0
-    );
-    const padBenchPrefix = (value) => {
-      if (!maxBenchPrefixLength) return value || '';
-      return padVisible(value || '', maxBenchPrefixLength);
-    };
+    // extrasByTask and benchPrefixes already computed above.
     const rateTexts = extrasByTask.map((entry) => entry?.rateText || '');
     const maxRateLength = rateTexts.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
     const padRate = (value) => {
@@ -875,20 +517,26 @@ export function createDisplay(options = {}) {
     const padMessage = (value) => padVisible(value || '', maxMessageLength);
     const buildStatusDone = () => {
       if (!colorEnabled) return '[✓]';
-      const fg = colorToAnsi(CHECK_FG_OK);
+      const bracketFg = colorToAnsi(STATUS_BRACKET_FG);
+      const checkFg = colorToAnsi(CHECK_FG_OK);
       const bgBracket = colorToAnsi(BLACK, true);
-      const left = `\x1b[${composeColor(fg, bgBracket)}m[\x1b[0m`;
-      const check = `\x1b[${composeColor(fg, bgBracket)}m✓\x1b[0m`;
-      const right = `\x1b[${composeColor(fg, bgBracket)}m]\x1b[0m`;
+      const bracketCode = composeColor(bracketFg, bgBracket);
+      const bracketBold = `1;${bracketCode}`;
+      const left = `\x1b[${bracketBold}m[\x1b[0m`;
+      const check = `\x1b[${composeColor(checkFg, bgBracket)}m✓\x1b[0m`;
+      const right = `\x1b[${bracketBold}m]\x1b[0m`;
       return `${left}${check}${right}`;
     };
     const buildStatusFail = () => {
       if (!colorEnabled) return '[!]';
-      const fg = colorToAnsi(CHECK_FG_FAIL);
+      const bracketFg = colorToAnsi(STATUS_BRACKET_FG);
+      const checkFg = colorToAnsi(CHECK_FG_FAIL);
       const bgBracket = colorToAnsi(BLACK, true);
-      const left = `\x1b[${composeColor(fg, bgBracket)}m[\x1b[0m`;
-      const check = `\x1b[${composeColor(fg, bgBracket)}m!\x1b[0m`;
-      const right = `\x1b[${composeColor(fg, bgBracket)}m]\x1b[0m`;
+      const bracketCode = composeColor(bracketFg, bgBracket);
+      const bracketBold = `1;${bracketCode}`;
+      const left = `\x1b[${bracketBold}m[\x1b[0m`;
+      const check = `\x1b[${composeColor(checkFg, bgBracket)}m!\x1b[0m`;
+      const right = `\x1b[${bracketBold}m]\x1b[0m`;
       return `${left}${check}${right}`;
     };
     const statusDone = buildStatusDone();
@@ -904,33 +552,33 @@ export function createDisplay(options = {}) {
         return Math.max(max, stripAnsi(text).length);
       }, 0)
     );
+    const indentWidth = stripAnsi(`${LINE_PREFIX_TRANSPARENT}${LINE_PREFIX_SHADED}`).length;
     const BAR_MAX = 42;
     const BAR_MID = 21;
     const BAR_MIN = 7;
-    const tryLayout = ({ showSuffix, showRate, showDetail, showMessage, showTimePrefix, minBar }) => {
+    const tryLayout = ({ showSuffix, showRate, showDetail, showMessage, minBar }) => {
       const suffixLen = showSuffix ? maxSuffixLength : 0;
       const rateLen = showRate ? maxRateLength : 0;
       const detailLen = showDetail ? detailWidth : 0;
       const messageLen = showMessage ? maxMessageLength : 0;
-      const timePrefixLen = showTimePrefix ? Math.max(0, maxBenchPrefixLength) : 0;
+      const timePrefixLen = 0;
       let extraLen = 0;
       if (showRate && showDetail && showMessage) extraLen = 3 + rateLen + 3 + detailLen + 3 + messageLen;
       else if (showRate && showDetail) extraLen = 3 + rateLen + 3 + detailLen;
       else if (showRate) extraLen = 3 + rateLen;
       else if (showDetail) extraLen = 3 + detailLen;
-      const reserved = labelWidth + 1 + (timePrefixLen ? timePrefixLen + 1 : 0) + 2 + 1 + suffixLen + 1 + statusWidth + extraLen;
+      const barGuardWidth = 0;
+      const reserved = indentWidth + labelWidth + (timePrefixLen ? timePrefixLen + 1 : 0) + barGuardWidth + 2 + 1 + suffixLen + 1 + statusWidth + extraLen;
       const available = width - reserved;
       if (available < minBar) return null;
       const barWidth = Math.min(BAR_MAX, Math.max(minBar, available));
-      return { showSuffix, showRate, showDetail, showMessage, showTimePrefix, barWidth };
+      return { showSuffix, showRate, showDetail, showMessage, barWidth };
     };
-    const showTimePrefix = maxBenchPrefixLength > 0;
     const layout = tryLayout({
       showSuffix: true,
       showRate: true,
       showDetail: true,
       showMessage: maxMessageLength > 0,
-      showTimePrefix,
       minBar: BAR_MID
     })
       || tryLayout({
@@ -938,7 +586,6 @@ export function createDisplay(options = {}) {
         showRate: true,
         showDetail: true,
         showMessage: maxMessageLength > 0,
-        showTimePrefix,
         minBar: BAR_MID
       })
       || tryLayout({
@@ -946,7 +593,6 @@ export function createDisplay(options = {}) {
         showRate: false,
         showDetail: true,
         showMessage: maxMessageLength > 0,
-        showTimePrefix,
         minBar: Math.floor(BAR_MID * 2 / 3)
       })
       || tryLayout({
@@ -954,7 +600,6 @@ export function createDisplay(options = {}) {
         showRate: false,
         showDetail: false,
         showMessage: false,
-        showTimePrefix,
         minBar: BAR_MIN
       })
       || {
@@ -962,7 +607,6 @@ export function createDisplay(options = {}) {
         showRate: false,
         showDetail: false,
         showMessage: false,
-        showTimePrefix,
         barWidth: BAR_MIN
       };
     const hueShiftVariants = new Set(['files', 'imports', 'artifacts', 'records', 'embeddings', 'shard']);
@@ -978,36 +622,48 @@ export function createDisplay(options = {}) {
       const colorize = colorEnabled
         ? (text, code) => (text && code ? `\x1b[${code}m${text}\x1b[0m` : text || '')
         : null;
-      const tintText = (text, background = null) => {
-        if (!colorEnabled || !text) return text || '';
-        if (text.includes('\x1b')) return text;
-        const fg = colorToAnsi(OFF_WHITE);
-        const bg = background ? colorToAnsi(background, true) : null;
-        return colorize(text, composeColor(fg, bg));
-      };
       const variant = resolveBarVariant(task);
       const style = BAR_STYLES[variant] || BAR_STYLES.default;
       const baseColor = taskColors.get(task.id)
         || resolveGradientColor(index, orderedTasks.length, paletteOffset, paletteStep);
       const accentColor = taskAccents.get(task.id) || baseColor;
+      const foregroundColor = makeTextForeground(baseColor, 0.6);
+      const accentForeground = makeTextForeground(accentColor, 0.55);
+      const tintText = (text, background = null, foreground = foregroundColor) => {
+        if (!colorEnabled || !text) return text || '';
+        if (text.includes('\x1b')) return text;
+        const fg = colorToAnsi(foreground);
+        const bg = background ? colorToAnsi(background, true) : null;
+        return colorize(text, composeColor(fg, bg));
+      };
       const shades = taskShades.get(task.id) || buildShadeScale(baseColor);
       const shadeAt = (shadeIndex) => shades[Math.max(0, Math.min(25, shadeIndex))] || baseColor;
       const shadeBar = shadeAt(3);
-      const fillColor = lightenColor(baseColor, 0.12);
-      const edgeColor = lightenColor(baseColor, 0.25);
-      const emptyColor = scaleColor(baseColor, 0.18);
-      const fill = colorToAnsi(fillColor);
-      const edge = colorToAnsi(edgeColor);
-      const empty = colorToAnsi(emptyColor);
-      const backgroundColor = resolveBackgroundColor(task, variant) || shadeBar;
+      const backgroundColor = clampBackgroundColor(resolveBackgroundColor(task, variant) || shadeBar, 0.5);
+      const barForeground = makeBarForeground(backgroundColor, 0.4);
+      const barEdge = makeBarForeground(backgroundColor, 0.55);
+      const barEmpty = scaleColor(barForeground, 0.45);
+      const fill = colorToAnsi(barForeground);
+      const edge = colorToAnsi(barEdge);
+      const empty = colorToAnsi(barEmpty);
       const background = colorToAnsi(backgroundColor, true);
-      const bracketFg = colorToAnsi(OFF_WHITE);
       const extras = extrasByTask[index];
       const rawRate = Number(extras?.rawRate) || 0;
-      const speedNormalized = Math.min(1, Math.log10(rawRate + 1) / 2);
-      const bracketMinIndex = 6;
-      const bracketIndex = Math.round(25 - (25 - bracketMinIndex) * speedNormalized);
-      const bracketBg = colorToAnsi(shadeAt(bracketIndex), true);
+      let rateMax = state.rateMaxByTask.get(task.id) || 0;
+      if (rawRate > rateMax) {
+        rateMax = rawRate;
+        state.rateMaxByTask.set(task.id, rateMax);
+      }
+      const speedNormalized = rateMax > 0 ? Math.min(1, rawRate / rateMax) : 0;
+      const waveSpeed = 0.25 + speedNormalized * 1.35;
+      const wavePhase = (now / 1000) * waveSpeed * Math.PI * 2;
+      const wave = (Math.sin(wavePhase) + 1) / 2;
+      const baseIndex = Math.round(6 + speedNormalized * 8);
+      const waveSpan = 5 + Math.round(speedNormalized * 6);
+      const bracketIndex = Math.round(Math.max(0, Math.min(25, baseIndex + (wave - 0.5) * waveSpan)));
+      const bracketShade = shadeAt(bracketIndex);
+      const bracketBg = '';
+      const bracketFg = colorToAnsi(makeTextForeground(bracketShade, 0.6));
       const theme = {
         fill,
         edge,
@@ -1022,21 +678,52 @@ export function createDisplay(options = {}) {
       const animateEdge = task.status === 'running' && variant === 'stage' && current > 0;
       const animateIndex = animateEdge ? Math.floor(now / 320) : null;
       const fillGradient = hueShiftVariants.has(variant)
-        ? (pos, count) => mixColor(baseColor, accentColor, count > 1 ? pos / (count - 1) : 0)
+        ? (pos, count) => {
+          const from = makeBarForeground(backgroundColor, 0.38);
+          const to = makeBarForeground(clampBackgroundColor(accentColor, 0.5), 0.45);
+          return mixColor(from, to, count > 1 ? pos / (count - 1) : 0);
+        }
         : null;
-      const bar = buildBar(clampRatio(pct), barWidth, style, theme, colorize, {
-        animateIndex,
-        fillGradient
-      });
       const shadeLabel = shadeAt(0);
       const shadeTime = shadeAt(1);
       const shadeSuffix = shadeAt(2);
       const shadeRate = shadeAt(4);
       const shadeMessage = shadeAt(5);
 
-      const label = tintText(padLabel(taskLabels[index] || task.name, labelWidth), shadeLabel);
-      const timePrefix = layout.showTimePrefix ? tintText(padBenchPrefix(benchPrefixes[index]), shadeTime) : '';
-      const timeText = timePrefix ? `${timePrefix}` : '';
+      const labelFg = makeTextForeground(shadeLabel, 0.6);
+      const timeFg = makeTextForeground(shadeTime, 0.6);
+      const suffixFg = makeTextForeground(shadeSuffix, 0.55);
+      const rateFg = makeTextForeground(shadeRate, 0.55);
+      const messageFg = makeTextForeground(shadeMessage, 0.55);
+      const bar = buildBar(clampRatio(pct), barWidth, style, theme, colorize, {
+        animateIndex,
+        fillGradient
+      });
+      const progress = total ? clampRatio(current / total) : 0;
+
+      const indent = `${LINE_PREFIX_TRANSPARENT}${tintText(LINE_PREFIX_SHADED, shadeAt(3), labelFg)}`;
+      const timeText = benchPrefixes[index] || '';
+      const barPrefix = '';
+      const barSuffix = '';
+      let label;
+      if (timeText) {
+        const timeLen = stripAnsi(timeText).length;
+        if (labelWidth > timeLen) {
+          const labelSpace = Math.max(1, labelWidth - timeLen);
+          const baseLabel = padLabel(taskLabels[index] || task.name, labelSpace);
+          const labelPart = tintText(baseLabel, shadeLabel, labelFg);
+          const timePart = tintText(timeText, shadeTime, timeFg);
+          label = `${labelPart}${timePart}`;
+        } else {
+          label = tintText(
+            padLabel(`${taskLabels[index] || task.name}${timeText}`, labelWidth),
+            shadeLabel,
+            labelFg
+          );
+        }
+      } else {
+        label = tintText(padLabel(taskLabels[index] || task.name, labelWidth), shadeLabel, labelFg);
+      }
       let status = '';
       if (task.status && task.status !== 'running') {
         status = task.status === 'done'
@@ -1045,29 +732,34 @@ export function createDisplay(options = {}) {
             ? buildStatusFail()
             : `(${task.status})`;
       }
-      status = ` ${tintText(padVisible(status, statusWidth), shadeSuffix)}`;
+      {
+        const statusBody = padVisible(status, statusWidth);
+        const statusPrefix = tintText(' ', shadeSuffix, suffixFg);
+        const statusTint = tintText(statusBody, shadeSuffix, suffixFg);
+        status = `${statusPrefix}${statusTint}`;
+      }
       let detail = layout.showDetail ? padDetail(task, detailTexts[index] || '') : '';
       if (detail && colorEnabled && task.status === 'running') {
-        const fg = colorToAnsi(OFF_WHITE);
-        const progress = total ? clampRatio(current / total) : 0;
+        const fg = colorToAnsi(rateFg);
         const etaStartIndex = 10;
         const etaIndex = Math.round(etaStartIndex + (25 - etaStartIndex) * progress);
         const etaBg = colorToAnsi(shadeAt(etaIndex), true);
         detail = `\x1b[${composeColor(fg, etaBg)}m${detail}\x1b[0m`;
       }
-      if (detail) detail = tintText(detail, shadeRate);
-      const message = layout.showMessage ? tintText(padMessage(messageTexts[index] || ''), shadeMessage) : '';
-      const rate = layout.showRate ? tintText(padRate(extras?.rateText || ''), shadeRate) : '';
+      if (detail) detail = tintText(detail, shadeRate, rateFg);
+      const message = layout.showMessage ? tintText(padMessage(messageTexts[index] || ''), shadeMessage, messageFg) : '';
+      const rate = layout.showRate ? tintText(padRate(extras?.rateText || ''), shadeRate, rateFg) : '';
       const separator = colorEnabled
-        ? `\x1b[${composeColor(colorToAnsi(accentColor), colorToAnsi(BLACK, true))}m | \x1b[0m`
+        ? `\x1b[${composeColor(colorToAnsi(accentForeground), colorToAnsi(BLACK, true))}m | \x1b[0m`
         : ' | ';
       const parts = [];
       if (layout.showRate) parts.push(rate);
       if (layout.showDetail) parts.push(detail);
       if (layout.showMessage) parts.push(message);
       const extraText = parts.length ? `${separator}${parts.join(separator)}`.trimEnd() : '';
-      const suffixText = suffix ? ` ${tintText(suffix, shadeSuffix)}` : '';
-      return `${label} ${timeText}${bar}${suffixText}${status}${extraText}`.trimEnd();
+      const suffixPad = tintText(' ', shadeAt(Math.round(progress * 18)), labelFg);
+      const suffixText = suffix ? `${suffixPad}${tintText(suffix, shadeSuffix, suffixFg)}` : suffixPad;
+      return `${indent}${label}${barPrefix}${bar}${barSuffix}${suffixText}${status}${extraText}`.trimEnd();
     });
 
     const statusLine = state.statusLine;
@@ -1172,6 +864,7 @@ export function createDisplay(options = {}) {
     if (typeof update.message === 'string') task.message = update.message;
     if (typeof update.stage === 'string') task.stage = update.stage;
     if (typeof update.mode === 'string') task.mode = update.mode;
+    if (update.extra && typeof update.extra === 'object') task.extra = update.extra;
     if (task.status === 'running' && update.status) task.endedAt = null;
     if ((task.status === 'done' || task.status === 'failed') && !Number.isFinite(task.endedAt)) {
       task.endedAt = Date.now();

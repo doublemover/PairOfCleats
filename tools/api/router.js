@@ -294,6 +294,9 @@ export const createApiRouter = ({
     const resolvedRoot = value ? resolveRepoRoot(candidateReal) : candidateReal;
     const resolvedReal = normalizePath(await toRealPathAsync(resolvedRoot));
     if (value && !isAllowedRepoPath(resolvedReal)) {
+      if (isAllowedRepoPath(candidateReal)) {
+        return candidateReal;
+      }
       const err = new Error('Resolved repo root not permitted by server configuration.');
       err.code = ERROR_CODES.FORBIDDEN;
       throw err;
@@ -448,22 +451,24 @@ export const createApiRouter = ({
   };
 
   const handleRequest = async (req, res) => {
-    const requestUrl = new URL(req.url || '/', `http://${host}`);
-    const corsHeaders = resolveCorsHeaders(req);
-    const origin = req?.headers?.origin ? String(req.headers.origin) : '';
-    if (origin && !corsHeaders) {
-      sendError(res, 403, ERROR_CODES.FORBIDDEN, 'Origin not allowed.', {}, {});
-      return;
-    }
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204, corsHeaders || {});
-      res.end();
-      return;
-    }
-    if (!isAuthorized(req)) {
-      sendError(res, 401, ERROR_CODES.UNAUTHORIZED, 'Missing or invalid API token.', {}, corsHeaders || {});
-      return;
-    }
+    let corsHeaders = null;
+    try {
+      const requestUrl = new URL(req.url || '/', `http://${host}`);
+      corsHeaders = resolveCorsHeaders(req);
+      const origin = req?.headers?.origin ? String(req.headers.origin) : '';
+      if (origin && !corsHeaders) {
+        sendError(res, 403, ERROR_CODES.FORBIDDEN, 'Origin not allowed.', {}, {});
+        return;
+      }
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, corsHeaders || {});
+        res.end();
+        return;
+      }
+      if (!isAuthorized(req)) {
+        sendError(res, 401, ERROR_CODES.UNAUTHORIZED, 'Missing or invalid API token.', {}, corsHeaders || {});
+        return;
+      }
 
     if (requestUrl.pathname === '/health' && req.method === 'GET') {
       sendJson(res, 200, { ok: true, uptimeMs: Math.round(process.uptime() * 1000) }, corsHeaders || {});
@@ -698,7 +703,18 @@ export const createApiRouter = ({
       return;
     }
 
-    sendError(res, 404, ERROR_CODES.NOT_FOUND, 'Not found.', {}, corsHeaders || {});
+      sendError(res, 404, ERROR_CODES.NOT_FOUND, 'Not found.', {}, corsHeaders || {});
+    } catch (err) {
+      if (res.writableEnded) return;
+      sendError(
+        res,
+        500,
+        ERROR_CODES.INTERNAL,
+        'Unhandled server error.',
+        { error: err?.message || String(err) },
+        corsHeaders || {}
+      );
+    }
   };
 
   return {

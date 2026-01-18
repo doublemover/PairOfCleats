@@ -67,6 +67,13 @@ export function getSearchUsage() {
     '  --top N',
     '  --json',
     '  --explain',
+    '  --calls',
+    '  --uses',
+    '  --author "<name>"',
+    '  --chunk-author "<name>"',
+    '  --import "<path>"',
+    '  --modified-after <iso-date>',
+    '  --modified-since <days>',
     '  --filter "<expr>"'
   ].join('\n');
 }
@@ -87,19 +94,21 @@ export function resolveSearchMode(modeRaw) {
       runExtractedProse: true
     };
   }
-  const allowedModes = new Set(['code', 'prose', 'both']);
+  const allowedModes = new Set(['code', 'prose', 'both', 'extracted-prose', 'records', 'all']);
   if (!allowedModes.has(normalized)) {
-    const error = new Error(`Invalid --mode ${normalized}. Use code|prose|both.`);
+    const error = new Error(`Invalid --mode ${normalized}. Use code|prose|both|extracted-prose|records|all.`);
     error.code = 'INVALID_MODE';
     throw error;
   }
-  const runCode = normalized === 'code' || normalized === 'both';
-  const runProse = normalized === 'prose' || normalized === 'both';
+  const runCode = normalized === 'code' || normalized === 'both' || normalized === 'all';
+  const runProse = normalized === 'prose' || normalized === 'both' || normalized === 'all';
+  const runRecords = normalized === 'records' || normalized === 'all';
+  const runExtractedProse = normalized === 'extracted-prose' || runProse;
   return {
     searchMode: normalized,
     runCode,
     runProse,
-    runRecords: false,
-    runExtractedProse: runProse
+    runRecords,
+    runExtractedProse
   };
 }
