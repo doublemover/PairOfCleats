@@ -22,11 +22,7 @@ Completed Phases: `COMPLETED_PHASES.md`
 9.  Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
 10.  Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
 11.  Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
-12.  Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
 13.  Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
-14.  Phase 41 — Test runner reframe (split lanes + per-lane gating)
-15.  Phase 42 — Storage regression splits (sqlite/lmdb/vector extension)
-16.  Phase 44 — Merge Phase 32-40 test followups (streaming, extracted-prose, code map)
 
 ## Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
 
@@ -1107,23 +1103,23 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 
 #### Appendix A - Artifacts, indexing, and build pipeline (remaining)
 
-- [ ] `src/index/build/artifacts.js` (P2) Consider sorting `pieceEntries` by `path` before writing the manifest to reduce diff noise.
-- [ ] `src/index/build/artifacts/compression.js` (P2) Consider extending compression to sharded artifacts (optional future work).
-- [ ] `src/index/build/artifacts/file-meta.js` (P2) Remove or rename `chunk_authors` in file meta (currently derived from the first chunk and not file-level).
-- [ ] `src/index/build/artifacts/filter-index.js` (P2) Consider persisting schema version/config hash in the filter index artifact for easier debugging.
+- [ ] `src/index/build/artifacts.js` (P2) Sort `pieceEntries` by `path` before writing the manifest to reduce diff noise.
+- [ ] `src/index/build/artifacts/compression.js` (P2) Extending compression to sharded artifacts.
+- [ ] `src/index/build/artifacts/file-meta.js` (P2) Rename `chunk_authors` in file meta (currently derived from the first chunk and not file-level).
+- [ ] `src/index/build/artifacts/filter-index.js` (P2) Persist schema version/config hash in the filter index artifact for easier debugging.
 - [ ] `src/index/build/artifacts/metrics.js` (P2) Do not swallow metrics write errors silently (log or propagate based on severity).
 - [ ] `src/index/build/artifacts/token-mode.js` (P2) Make parsing more robust (case-insensitive modes; integer parsing + clamping).
-- [ ] `src/index/build/artifacts/writers/chunk-meta.js` (P2) Consider normalizing field naming conventions (`chunk_authors` vs `startLine/endLine`).
-- [ ] `src/index/build/artifacts/writers/file-relations.js` (P2) Consider JSONL/sharding for very large `file_relations` outputs; add versioning metadata.
-- [ ] `src/index/build/artifacts/writers/repo-map.js` (P2) Consider sorting output by `{file, name}` for stability.
+- [ ] `src/index/build/artifacts/writers/chunk-meta.js` (P2) Normalize field naming conventions (`chunk_authors` vs `startLine/endLine`).
+- [ ] `src/index/build/artifacts/writers/file-relations.js` (P2) JSONL/sharding for very large `file_relations` outputs; add versioning metadata.
+- [ ] `src/index/build/artifacts/writers/repo-map.js` (P2) Sort output by `{file, name}` for stability.
 - [ ] `src/index/build/file-processor.js` (P2) Move complexity/lint to per-file scope; avoid repeated per-chunk cache checks.
   - [ ] (P2) Fix possible timing double-counting across parse/relation durations.
 - [ ] `src/index/build/file-processor/cached-bundle.js` (P2) Validate cached bundle shapes more strictly; ensure importLinks shape is consistent.
 - [ ] `src/index/build/file-processor/chunk.js` (P2) Adjust comment-to-chunk assignment at boundary (`chunk.end === comment.start`) and consider overlap-based assignment.
 - [ ] `src/index/build/file-processor/incremental.js` (P2) Ensure cache invalidation includes schema/version changes for any artifact-impacting changes.
 - [ ] `src/index/build/file-processor/meta.js` (P2) Deduplicate `externalDocs` outputs; consider ordering for determinism.
-- [ ] `src/index/build/file-processor/read.js` (P2) Consider UTF-8 safe truncation (avoid splitting multi-byte sequences mid-codepoint).
-- [ ] `src/index/build/file-processor/relations.js` (P2) Consider sorting/deduping relation arrays (imports/exports/usages) for determinism.
+- [ ] `src/index/build/file-processor/read.js` (P2) UTF-8 safe truncation (avoid splitting multi-byte sequences mid-codepoint).
+- [ ] `src/index/build/file-processor/relations.js` (P2) Sorting/deduping relation arrays (imports/exports/usages) for determinism.
 - [ ] `src/index/build/file-processor/skip.js` (P2) Add coverage for `unreadable` and `read-failure` skip paths.
 - [ ] `src/index/build/file-processor/timings.js` (P2) Validate that parse/token/embed durations are not double-counted; document semantics.
 - [ ] `src/index/build/graphs.js` (P2) Prefer canonical `chunkId` keys where possible instead of `file::name` to avoid collisions.
@@ -1155,10 +1151,10 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 
 ##### `src/index/build/context-window.js`
 - [x] Sort/sanitize file list before sampling to reduce OS-dependent nondeterminism.
-- [ ] Consider documenting that context-window estimation is heuristic and may vary with sampling strategy.
+- [ ] Document that context-window estimation is heuristic and may vary with sampling strategy.
 
 ##### `src/index/build/embedding-batch.js`
-- [ ] Consider parsing `baseSize` if it may come from config as a numeric string.
+- [ ] Parse `baseSize` if it may come from config as a numeric string.
 - [ ] Add explicit documentation for multiplier precedence (fallback vs user config).
 
 ##### `src/index/build/file-processor/embeddings.js`
@@ -1170,7 +1166,7 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 
 ##### `src/index/build/indexer/embedding-queue.js`
 - [x] Include embedding identity/config hash in job payload to prevent mismatched worker behavior.
-- [ ] Consider switching job IDs to `crypto.randomUUID()` for collision resistance.
+- [ ] Switching job IDs to `crypto.randomUUID()` for collision resistance.
 - [x] Ensure `maxQueued` has a safe default; document backpressure behavior.
 
 ##### `src/index/build/runtime/embeddings.js`
@@ -1189,7 +1185,7 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 ##### `src/retrieval/embedding.js`
 - [ ] Use a normalized/fingerprinted ONNX config in the embedder cache key (avoid JSON-order sensitivity).
 - [ ] If retrieval can request embeddings without known dims (ANN-only paths), require dims or ensure consistent default dims.
-- [ ] Consider logging embedder load failures once (rate-limited) to aid debugging.
+- [ ] Log embedder load failures once to aid debugging.
 
 ##### `src/shared/embedding.js`
 - [x] Unify stub default dims with the rest of the system (recommend 384).
@@ -1205,7 +1201,7 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [x] Remove/fix dead provider check (`normalizeEmbeddingProvider('onnx')`).
 - [x] Add clearer error messaging for missing model artifacts + remediation steps.
 - [ ] Improve performance by avoiding heavy array conversions and by reusing buffers/tensors.
-- [ ] Consider concurrency guards around `session.run()` if onnxruntime sessions are not safe concurrently.
+- [ ] Concurrency guards around `session.run()` if onnxruntime sessions are not safe concurrently.
 
 ---
 
@@ -1215,18 +1211,18 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - No issues observed beyond those in underlying implementation modules.
 
 ##### `tools/build-embeddings/atomic.js`
-- [ ] Consider consolidating atomic replace logic with `src/shared/json-stream.js` to avoid divergence (optional refactor).
+- [ ] Consolidating atomic replace logic with `src/shared/json-stream.js` to avoid divergence (optional refactor).
 
 ##### `tools/build-embeddings/cache.js`
 - [x] Expand identity schema to include preprocessing and provider-specific config (especially ONNX knobs).
 - [x] Add a bumpable “identity version” or build-tool version fingerprint.
 
 ##### `tools/build-embeddings/chunks.js`
-- [ ] Consider incorporating doc-related signals into the chunk signature (or into identity versioning) so doc embedding caches invalidate when doc extraction logic changes.
-- [ ] Consider normalizing `start/end` to finite numbers before signature generation (avoid stringifying `undefined`).
+- [ ] Incorporating doc-related signals into the chunk signature (or into identity versioning) so doc embedding caches invalidate when doc extraction logic changes.
+- [ ] Normalize `start/end` to finite numbers before signature generation (avoid stringifying `undefined`).
 
 ##### `tools/build-embeddings/cli.js`
-- [ ] Document (or change) the behavior where `mode=service` is coerced to `inline` for this tool.
+- [ ] Document the behavior where `mode=service` is coerced to `inline` for this tool.
 - [x] Unify auto-batch defaults with index-build runtime (or document why they differ).
 
 ##### `tools/build-embeddings/embed.js`
@@ -1245,17 +1241,17 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [ ] Use `Number.isFinite()` for chunk start/end to avoid 0/NaN edge cases from `||` coercion.
 - [x] Apply `ensureVectorArrays()` to embedded doc batches just like code batches.
 - [ ] Make HNSW build deterministic (stable insertion order).
-- [ ] Consider adding a global cross-file batcher for throughput.
+- [ ] Adding a global cross-file batcher for throughput.
 
 ##### `tools/build-embeddings/sqlite-dense.js`
 - [x] Add tests for “vector extension missing/failed to load” fallback behavior.
-- [ ] Consider batching inserts in larger chunks or using prepared statements more aggressively for performance on large vector sets.
+- [ ] Batching inserts in larger chunks or using prepared statements more aggressively for performance on large vector sets.
 
 ##### `tools/compare-models.js`
 - [ ] If comparing ONNX vs xenova providers, ensure the script can capture and report provider config differences (identity) to interpret deltas correctly (minor enhancement).
 
 ##### `tools/download-models.js`
-- [ ] Consider supporting explicit download of ONNX model artifacts when users rely on `indexing.embeddings.provider=onnx` and custom `onnx.modelPath`.
+- [ ] Support explicit download of ONNX model artifacts when users rely on `indexing.embeddings.provider=onnx` and custom `onnx.modelPath`.
 - [ ] Improve output to show where models were cached and what to set in config if needed.
 
 ---
@@ -1266,7 +1262,7 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [ ] Extend to assert cache identity changes for ONNX config changes (once identity schema is expanded).
 
 ##### `tests/embedding-batch-autotune.js`
-- [ ] Consider loosening or documenting assumptions about minimum batch size on low-memory systems (or adjust runtime min to match test expectations).
+- [ ] Loosen or documenting assumptions about minimum batch size on low-memory systems (or adjust runtime min to match test expectations).
 
 ##### `tests/embeddings-cache-identity.js`
 - [ ] Extend to cover ONNX-specific identity fields (tokenizerId/modelPath/etc).
@@ -1946,111 +1942,6 @@ Tests:
 
 ---
 
-## Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
-
-- [ ] While working on Phases 30, 41, 42, 44, create a document called "TEST_TIMES.md"
-  - [ ] Write a little helper .ps1 (powershell 7) script that allows you to run a single test in your worktree without messing anything up
-    - [ ] This helper script will add a line to TEST_TIMES.md containing the path/filename of the test if it does not exist already, and then log how long it took to run that test
-    - [ ] Use this helper every time we have to run a test for this work, if a test takes longer than 10 seconds while you are doing this, cancel that specific test or end that specific process if you're absolutely sure you have to, and then add that test's path/filename to a "SLOW_TESTS.md" list
-* [x] Parity checklist vs existing extension behaviors (where applicable)
-  - Implemented: `tests/parity.js` (also wired into `tests/script-coverage/actions.js`)
-* [ ] Deterministic outputs for map/search commands
-  * [x] Search determinism is gated: `tests/search-determinism.js`
-  * [ ] Map determinism test exists but is not wired into coverage/CI:
-    - `tests/code-map-determinism.js`
-* [ ] Performance acceptance criteria (map generation with guardrails)
-  * [ ] Guardrails correctness test exists but is not wired into coverage/CI:
-    - `tests/code-map-guardrails.js`
-  * [ ] Add an explicit wall-clock performance budget gate for map generation on a fixture repo
-* [ ] End-to-end smoke suite including:
-  * [ ] index build
-  * [ ] search
-  * [ ] map generation (json + dot)
-  * [ ] optional svg rendering when Graphviz available
-  - Notes:
-    - Map-related building blocks already exist as standalone tests:
-      - `tests/code-map-basic.js`
-      - `tests/code-map-dot.js`
-      - `tests/code-map-graphviz-fallback.js`
-    - Add an explicit `tests/e2e-smoke.js` or wire these into `tests/script-coverage/actions.js`.
-
-### 30.1 Regression gate sweep backlog 
-
-**Objective:** Clear the remaining regression gate failures that were moved out of Phase 4.
-
-#### Current npm test failures
-
-* [ ] `tests/git-blame-range.js` — expected alpha author in chunk authors
-* [ ] `tests/lang/fixtures-sample/python-metadata.test.js` — missing signature metadata
-* [ ] `tests/piece-assembly.js` — pieces manifest mismatch (equivalence)
-* [ ] `tests/retrieval/filters/git-metadata/chunk-author.test.js` — chunk author filter failed (Alice)
-* [ ] `tests/retrieval/filters/git-metadata/modified-time.test.js` — modified-after filter failed
-* [ ] `tests/retrieval/filters/query-syntax/negative-terms.test.js` — negative phrase filter failed
-* [ ] `tests/retrieval/filters/query-syntax/phrases-and-scorebreakdown.test.js` — expected phrase score breakdown missing
-* [ ] `tests/services/api/no-index.test.js` — expected NO_INDEX status
-* [ ] `tests/services/api/search-happy-path.test.js` — /search returned no results
-* [ ] `tests/services/api/search-validation.test.js` — socket hang up
-* [ ] `tests/services/mcp/tool-search-defaults-and-filters.test.js` — riskTag filter did not change results
-* [ ] `tests/subprocess-quoting.js` — /map did not return a map model
-
-Note: merge-followup failures for api-server streaming, code-map basics, MCP schema, and api health/auth are tracked in Phase 44.
-
-#### CLI flag removal and missing-value errors
-
-* [ ] `tests/search-removed-flags.js`
-  * [ ] Failure: expected actionable error for `--human`
-  * [ ] Log: `logs/phase-22/search-removed-flags.log:1`
-* [ ] `tests/search-missing-flag-values.js`
-  * [ ] Failure: expected missing value message for `--type`
-  * [ ] Log: `logs/phase-22/search-missing-flag-values.log:1`
-
-#### Help output parity
-
-* [ ] `tests/search-help.js`
-  * [ ] Failure: help output missing flag `--calls`
-  * [ ] Log: `logs/phase-22/search-help.log:1`
-
-#### Download / extraction safety (tar)
-
-* [ ] `tests/script-coverage.js`
-  * [ ] Failure: unsafe tar entry detected (e.g., `vec0.dll`)
-  * [ ] Log: `tests/.logs/2026-01-12T08-02-14-028Z/download-extensions-test.attempt-3.log:15`
-  * [ ] Requirement: extraction must fail-closed on unsafe entries (path traversal, absolute paths, invalid drive prefixes, etc.).
-
-#### File processor skip behavior
-
-* [ ] `tests/file-processor/skip.test.js`
-  * [ ] Failure: expected binary buffer to skip with `reason=binary`
-  * [ ] Log: `logs/phase-22/file-processor-skip.log:1`
-
-#### JavaScript chunking + relations
-
-* [ ] `tests/lang/js-chunking.test.js`
-  * [ ] Failure: missing exported function chunk (alpha)
-  * [ ] Log: `logs/phase-22/lang-js-chunking.log:1`
-* [ ] `tests/lang/js-relations.test.js`
-  * [ ] Failure: missing exports for `run/default: []`
-  * [ ] Log: `logs/phase-22/lang-js-relations.log:1`
-
-#### Language registry collectors
-
-* [ ] `tests/language-registry/collectors.test.js`
-  * [ ] Failure: dockerfile mismatch (e.g., `["node:18"] !== ["base","node:18"]`)
-  * [ ] Log: `logs/phase-22/language-registry-collectors.log:1`
-
-**Exit criteria**
-
-* [ ] All targeted failing tests above pass deterministically (at least 3 repeated local runs).
-
-### 30.2 Benchmark + release gates (moved from Phase 15/26)
-
-* [ ] Benchmarks show measurable improvement (and are reproducible)
-* [ ] CI remains green on Node 18 + Windows lane
-* [ ] New features are discoverable via config docs + `config_status`
-* [ ] For large repos, sparse retrieval latency is materially improved (benchmarks added in Phase 15)
-
----
-
 ## Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
 
 **Objective:** fold in proven glass/postprocessing practices from the yoink prototype for higher visual quality without regressing performance.
@@ -2092,57 +1983,3 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 - The missing piece is the **visual model + rendering/export** and **Sublime UX** around it, which the map viewer phases supply.
 ---
-
-## Phase 41 - Deep validation failures (integration run 2026-01-18)
-
-**Objective:** Log failing tests from the deep validation run so they can be fixed once, then re-run.
-
-### 41.1 Config schema fallout, CLI surface mismatch, Backend policy expectation
-
-* [ ] `tests/build-embeddings-cache.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
-* [ ] `tests/build-index-all.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` + `triage` keys (now disallowed).
-* [ ] `tests/code-map-determinism.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
-* [ ] `tests/embedding-batch-autotune.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
-* [ ] `tests/cli.js`: fails on `pairofcleats config validate` (command removed from public CLI). Update the test to call `node tools/validate-config.js` or adjust CLI expectations.
-* [ ] `tests/backend-policy.js`: assertion at line 25 expects auto backend to disable sqlite when `sqliteAutoChunkThreshold` is set; auto thresholds were removed, so update expectations or remove the threshold-specific cases.
-* [ ] `tests/services/api/no-index.test.js`: `api-server should return NO_INDEX when indexes are missing` failure (status/response contract drift).
-
----
-
-## Phase 42 - Storage test failures
-
-**Objective:** Log `npm run test:storage` failures once; fix each test at most 1–2 tries, then move on.
-
-### 42.1 Config schema fallout, Behavioral drift
-
-* [ ] `tests/lmdb-backend.js`: writes `.pairofcleats.json` with `indexing.treeSitter` (disallowed). Update test to avoid config keys or move control to allowed env/CLI.
-* [ ] `tests/lmdb-corruption.js`: writes `.pairofcleats.json` with `sqlite.use` (disallowed). Update test to rely on defaults or internal test env overrides.
-* [ ] `tests/lmdb-report-artifacts.js`: writes `.pairofcleats.json` with `sqlite.use` (disallowed). Update test to rely on defaults or internal test env overrides.
-* [ ] `tests/sqlite-ann-extension.js`: writes `.pairofcleats.json` with `cache`, `search`, `sqlite`, `dictionary` keys (disallowed). Remove config file and rely on defaults; replace vector extension settings with auto-only behavior.
-* [ ] `tests/sqlite-ann-fallback.js`: writes `.pairofcleats.json` with `cache`, `dictionary`, `search`, `sqlite` (disallowed). Update to defaults and rework expectations to match auto-only extension handling.
-* [ ] `tests/sqlite-auto-backend.js`: writes `.pairofcleats.json` with `sqlite` + `search.sqliteAutoChunkThreshold` (disallowed) and expects threshold-based backend flips. Update or remove threshold-based expectations.
-* [ ] `tests/sqlite-build-indexes.js`: writes `.pairofcleats.json` with `indexing.*` (disallowed) and uses removed `--stage` flags. Update to new pipeline outputs and defaults.
-* [ ] `tests/sqlite-missing-dep.js`: writes `.pairofcleats.json` with `sqlite` + `search` (disallowed) and uses `PAIROFCLEATS_SQLITE_DISABLED` (removed). Update test to new backend selection policy and missing dependency handling.
-* [ ] `tests/sqlite-incremental-no-change.js`: fails with `Expected no full rebuild for no-change run` (output indicates rebuild or updated messaging). Align expectation with new incremental logic or adjust output assertions.
-
----
-
-## Phase 44 - Merge Phase 32-40 test followups
-
-**Objective:** Track failures/hangs from `npm run test` after merging phase32-40, and re-enable skipped tests once fixed.
-
-### 44.1 Services (streaming + MCP + auth), Map lane, Artifacts, Prose
-
-* [X] ALWAYS SKIP `tests/api-server-stream.js`: hangs during `npm run test`; temporarily excluded from `tests/run.js`. Investigate stream lifecycle and re-enable the test in the suite.
-* [ ] `tests/mcp-robustness.js`: `Expected queue overload error response.` Repro: `node tests/mcp-robustness.js`. Verify overload handling and response schema.
-* [ ] `tests/mcp-schema.js`: `MCP schema snapshot mismatch.` Repro: `node tests/mcp-schema.js`. Update schema output or snapshot expectation after policy changes.
-* [ ] `tests/services/api/health-and-status.test.js`: `api-server should reject missing auth.` Repro: `node tests/services/api/health-and-status.test.js`. Check auth defaults for API server in new config contract.
-* [ ] `tests/code-map-basic.js`: `Failed: expected dataflow/controlFlow metadata`. Repro: `node tests/code-map-basic.js`. Likely tied to auto policy disabling AST dataflow/control flow; adjust expectations or policy overrides for tests.
-* [ ] `tests/code-map-dot.js`: `Failed: dot output missing import style`. Repro: `node tests/code-map-dot.js`. Confirm dot output formatting changes after hard cut and update expectations.
-* [ ] `tests/artifact-size-guardrails.js`: `Expected chunk_meta sharding when max JSON bytes is small.` Build reported `Found 0 files.` Repro: `node tests/artifact-size-guardrails.js`. Investigate why discovery returns zero files and why sharding is not triggered under `PAIROFCLEATS_TEST_MAX_JSON_BYTES=4096`.
-* [ ] `tests/compact-pieces.js`: build fails with `chunk_meta entry exceeds max JSON size (2187 bytes)` under small JSON cap. Repro: `node tests/compact-pieces.js`. Evaluate sharding thresholds/estimates vs hard error.
-* [ ] `tests/comment-join.js`: `comment join test failed: extracted-prose search error.` Repro: `node tests/comment-join.js`. Investigate extracted-prose search path/policy defaults.
-* [ ] `tests/extracted-prose.js`: `Extracted-prose test failed: search error.` Repro: `node tests/extracted-prose.js`. Check extracted-prose index availability and policy defaults.
-
----
-
