@@ -3,29 +3,20 @@
 This plan tracks the Appendix A tasks from NEW_ROADMAP.md. Update checkboxes as items are completed.
 
 ## Setup
-- [x] Create worktree: worktrees/appendix-a-sundial
-- [x] Remove GIGAROAD/ROADMAP.md
-- [x] Keep this plan updated after each completed task
 
 ## Appendix A - Artifacts, indexing, and build pipeline
 
 This section enumerates each in-scope file and lists file-specific items to address (beyond cross-cutting tasks already listed above).
 
 ### src/index/build/artifacts.js
-- [x] (P1) Consider directory-level atomic swap for `token_postings.shards/` (staging dir + rename).
-- [x] (P1) Normalize shard part paths to POSIX in any meta/manifest structures (avoid OS-separator leakage).
 - [ ] (P2) Consider sorting `pieceEntries` by `path` before writing the manifest to reduce diff noise.
 
 ### src/index/build/artifacts/checksums.js
-- [x] (P1) Do not silently accept checksum/stat failures for required pieces; fail or record errors explicitly.
 
 ### src/index/build/artifacts/compression.js
-- [ ] (P2) Update docs to clarify that gzip is a sidecar (`.json` and `.json.gz` both exist).
 - [ ] (P2) Consider extending compression to sharded artifacts (optional future work).
 
 ### src/index/build/artifacts/file-meta.js
-- [x] (P1) Make file ID assignment stable by sorting unique file paths before assigning IDs.
-- [x] (P1) Add file content hash (and algo) and file size to `file_meta.json`.
 - [ ] (P2) Remove or rename `chunk_authors` in file meta (currently derived from the first chunk and not file-level).
 
 ### src/index/build/artifacts/filter-index.js
@@ -38,27 +29,19 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Make parsing more robust (case-insensitive modes; integer parsing + clamping).
 
 ### src/index/build/artifacts/writers/chunk-meta.js
-- [x] (P0) Remove stale `chunk_meta.meta.json` and `chunk_meta.parts/` when writing non-sharded JSONL.
-- [x] (P1) Clear or stage-swap `chunk_meta.parts/` when writing sharded output.
-- [x] (P1) Normalize `meta.parts` entries to POSIX paths.
 - [ ] (P2) Consider normalizing field naming conventions (`chunk_authors` vs `startLine/endLine`).
 
 ### src/index/build/artifacts/writers/file-relations.js
 - [ ] (P2) Consider JSONL/sharding for very large `file_relations` outputs; add versioning metadata.
 
 ### src/index/build/artifacts/writers/repo-map.js
-- [x] (P1) Ensure `exported` detection handles default exports correctly (depends on relations schema).
 - [ ] (P2) Consider sorting output by `{file, name}` for stability.
 
 ### src/index/build/file-processor.js
-- [x] (P1) Add explicit boundary asserts for chunks after chunking.
-- [x] (P1) Replace `split('\n')` with line-scan utility for context extraction.
 - [ ] (P2) Move complexity/lint to per-file scope; avoid repeated per-chunk cache checks.
 - [ ] (P2) Fix possible timing double-counting across parse/relation durations.
-- [x] (P1) Add explicit unsupported-language and parse-error skip reasons (configurable).
 
 ### src/index/build/file-processor/assemble.js
-- [x] (P1) Ensure field token fields written here (including `comment`) are consistently supported by postings and piece assembly.
 
 ### src/index/build/file-processor/cached-bundle.js
 - [ ] (P2) Validate cached bundle shapes more strictly; ensure importLinks shape is consistent.
@@ -79,7 +62,6 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Consider sorting/deduping relation arrays (imports/exports/usages) for determinism.
 
 ### src/index/build/file-processor/skip.js
-- [x] (P1) Add explicit unsupported-language skip reason (or document that unknown languages are processed).
 - [ ] (P2) Add coverage for `unreadable` and `read-failure` skip paths.
 
 ### src/index/build/file-processor/timings.js
@@ -90,53 +72,40 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Sort serialized node lists for full determinism (neighbors are already sorted).
 
 ### src/index/build/imports.js
-- [x] (P0) Fix `es-module-lexer` import record handling (`entry.d` is not a specifier string).
-- [x] (P1) Sort and dedupe `importLinks` deterministically; exclude self-links unless explicitly desired.
-- [x] (P1) Ensure concurrency does not affect output ordering (sort module keys and file arrays before serialization).
 
 ### src/index/build/piece-assembly.js
-- [x] (P0) Make `validateLengths()` strict when `expected > 0`.
-- [x] (P0) Merge all field postings (including `comment`) and docLengths based on actual input keys.
-- [x] (P1) Canonicalize vocab ordering in assembled outputs.
 - [ ] (P2) Remove redundant filterIndex construction (avoid double work; rely on writeIndexArtifacts).
 
 ### src/index/build/postings.js
-- [x] (P1) Canonicalize vocab ordering (token/phrase/chargram/field) explicitly.
 - [ ] (P2) Validate docLengths are finite and consistent; avoid NaN avgDocLen.
 - [ ] (P2) Sort Object.entries() iteration for field postings and weights for deterministic output.
 
 ### src/index/build/shards.js
-- [x] (P1) Add explicit tie-breakers in weight-based sorts/batching for determinism across runtimes.
 - [ ] (P2) Document heuristic thresholds (minFilesForSubdir, hugeThreshold, tenth-largest targets).
 
 ### src/index/build/tokenization.js
 - [ ] (P2) Review buffer reuse effectiveness (arrays are still cloned); consider pre-sizing and reducing transient allocations further.
 
 ### tools/assemble-pieces.js
-- [x] (P1) Sort `inputDirs` by default (or add `--sort`) to ensure deterministic assembled output.
 - [ ] (P2) When `--force` is used, consider cleaning the output dir first to avoid stale artifacts.
 
 ### tools/ci-build-artifacts.js
-- [x] (P1) Sanitize remote URLs before writing them to `manifest.json` to avoid leaking credentials.
 
 ### tools/ci-restore-artifacts.js
 - [ ] (P2) Optionally validate `pieces/manifest.json` checksums after restore (fast fail on corrupt artifacts).
 
 ### tools/compact-pieces.js
-- [x] (P1) Consider directory-level atomic swap semantics (avoid rm+rename window).
 - [ ] (P2) Add perf regression harness and validate output equivalence post-compaction.
 
 ### tests/artifact-bak-recovery.js
 - [ ] (P2) Expand coverage to include: both primary and backup corrupt; json.gz sidecars; and cleanup expectations.
 
 ### tests/artifact-formats.js
-- [x] (P1) Add explicit precedence test: sharded meta/parts must not override fresh jsonl when shards are stale (post-fix).
 
 ### tests/artifact-size-guardrails.js
 - [ ] (P2) Extend to cover: chunkMetaFormat=jsonl with switching shard/no-shard, and cleanup behavior.
 
 ### tests/artifacts/file-meta.test.js
-- [x] (P1) Update test if file ID assignment is changed to sorted-by-path; assert stability across different chunk orders.
 
 ### tests/artifacts/token-mode.test.js
 - [ ] (P2) Add coverage for invalid modes, case-insensitive parsing, and maxTokens/maxFiles parsing edge cases.
@@ -145,7 +114,6 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Consider adding a check that `.bak` files are handled correctly (optional).
 
 ### tests/file-processor/cached-bundle.test.js
-- [x] (P1) Fix test fixtures to use realistic `allImports` and `codeRelations` shapes, and assert semantic correctness (not only presence).
 
 ### tests/file-processor/skip.test.js
 - [ ] (P2) Add coverage for `unreadable` and `read-failure` paths (permissions, ENOENT races).
@@ -163,7 +131,6 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Add a second invalidation scenario (e.g., tokenization config changes that affect stemming/synonyms).
 
 ### tests/piece-assembly.js
-- [x] (P1) Add semantic equivalence test vs monolithic build and add a determinism test (same inputs => identical assembled output).
 
 ### tests/postings-quantize.js
 - [ ] (P2) Extend to test scale and dims, and doc/code embedding behavior.
@@ -178,16 +145,11 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [ ] (P2) Consider adding a non-ASCII tokenization regression case.
 
 ### docs/artifact-contract.md
-- [x] (P1) Fix compression description (no embedded `compression` field) and clarify `.json.gz` sidecar semantics.
-- [x] (P1) Add explicit precedence rules (meta/parts vs jsonl vs json).
-- [ ] (P2) Add schema examples for meta files and `pieces/manifest.json`.
 
 ### docs/contracts/coverage-ledger.md
 - [ ] (P2) Add entries for new/critical tooling: `tools/assemble-pieces.js`, `tools/compact-pieces.js`, and CI artifact scripts.
 
 ### docs/contracts/indexing.md
-- [x] (P1) Clarify which artifacts are "required" vs "optional/configurable" (e.g., minhash signatures).
-- [x] (P1) Document sharded meta schema and loader precedence.
 
 ---
 

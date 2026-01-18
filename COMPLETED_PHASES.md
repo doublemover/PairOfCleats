@@ -3954,3 +3954,45 @@ Note: LMDB kept and remains opt-in; vector extension config removed.
 * [x] CI green.
 
 ---
+
+
+## Appendix A — Completed items (from PLAN_APPENDIX_A)
+
+- setup: Create worktree: worktrees/appendix-a-sundial
+- setup: Remove GIGAROAD/ROADMAP.md
+- setup: Keep this plan updated after each completed task
+- `src/index/build/artifacts.js`: (P1) Consider directory-level atomic swap for `token_postings.shards/` (staging dir + rename).
+- `src/index/build/artifacts.js`: (P1) Normalize shard part paths to POSIX in any meta/manifest structures (avoid OS-separator leakage).
+- `src/index/build/artifacts/checksums.js`: (P1) Do not silently accept checksum/stat failures for required pieces; fail or record errors explicitly.
+- `src/index/build/artifacts/compression.js`: (P2) Update docs to clarify that gzip is a sidecar (`.json` and `.json.gz` both exist).
+- `src/index/build/artifacts/file-meta.js`: (P1) Make file ID assignment stable by sorting unique file paths before assigning IDs.
+- `src/index/build/artifacts/file-meta.js`: (P1) Add file content hash (and algo) and file size to `file_meta.json`.
+- `src/index/build/artifacts/writers/chunk-meta.js`: (P0) Remove stale `chunk_meta.meta.json` and `chunk_meta.parts/` when writing non-sharded JSONL.
+- `src/index/build/artifacts/writers/chunk-meta.js`: (P1) Clear or stage-swap `chunk_meta.parts/` when writing sharded output.
+- `src/index/build/artifacts/writers/chunk-meta.js`: (P1) Normalize `meta.parts` entries to POSIX paths.
+- `src/index/build/artifacts/writers/repo-map.js`: (P1) Ensure `exported` detection handles default exports correctly (depends on relations schema).
+- `src/index/build/file-processor.js`: (P1) Add explicit boundary asserts for chunks after chunking.
+- `src/index/build/file-processor.js`: (P1) Replace `split('\n')` with line-scan utility for context extraction.
+- `src/index/build/file-processor.js`: (P1) Add explicit unsupported-language and parse-error skip reasons (configurable).
+- `src/index/build/file-processor/assemble.js`: (P1) Ensure field token fields written here (including `comment`) are consistently supported by postings and piece assembly.
+- `src/index/build/file-processor/skip.js`: (P1) Add explicit unsupported-language skip reason (or document that unknown languages are processed).
+- `src/index/build/imports.js`: (P0) Fix `es-module-lexer` import record handling (`entry.d` is not a specifier string).
+- `src/index/build/imports.js`: (P1) Sort and dedupe `importLinks` deterministically; exclude self-links unless explicitly desired.
+- `src/index/build/imports.js`: (P1) Ensure concurrency does not affect output ordering (sort module keys and file arrays before serialization).
+- `src/index/build/piece-assembly.js`: (P0) Make `validateLengths()` strict when `expected > 0`.
+- `src/index/build/piece-assembly.js`: (P0) Merge all field postings (including `comment`) and docLengths based on actual input keys.
+- `src/index/build/piece-assembly.js`: (P1) Canonicalize vocab ordering in assembled outputs.
+- `src/index/build/postings.js`: (P1) Canonicalize vocab ordering (token/phrase/chargram/field) explicitly.
+- `src/index/build/shards.js`: (P1) Add explicit tie-breakers in weight-based sorts/batching for determinism across runtimes.
+- `tools/assemble-pieces.js`: (P1) Sort `inputDirs` by default (or add `--sort`) to ensure deterministic assembled output.
+- `tools/ci-build-artifacts.js`: (P1) Sanitize remote URLs before writing them to `manifest.json` to avoid leaking credentials.
+- `tools/compact-pieces.js`: (P1) Consider directory-level atomic swap semantics (avoid rm+rename window).
+- `tests/artifact-formats.js`: (P1) Add explicit precedence test: sharded meta/parts must not override fresh jsonl when shards are stale (post-fix).
+- `tests/artifacts/file-meta.test.js`: (P1) Update test if file ID assignment is changed to sorted-by-path; assert stability across different chunk orders.
+- `tests/file-processor/cached-bundle.test.js`: (P1) Fix test fixtures to use realistic `allImports` and `codeRelations` shapes, and assert semantic correctness (not only presence).
+- `tests/piece-assembly.js`: (P1) Add semantic equivalence test vs monolithic build and add a determinism test (same inputs => identical assembled output).
+- `docs/artifact-contract.md`: (P1) Fix compression description (no embedded `compression` field) and clarify `.json.gz` sidecar semantics.
+- `docs/artifact-contract.md`: (P1) Add explicit precedence rules (meta/parts vs jsonl vs json).
+- `docs/artifact-contract.md`: (P2) Add schema examples for meta files and `pieces/manifest.json`.
+- `docs/contracts/indexing.md`: (P1) Clarify which artifacts are "required" vs "optional/configurable" (e.g., minhash signatures).
+- `docs/contracts/indexing.md`: (P1) Document sharded meta schema and loader precedence.

@@ -579,6 +579,13 @@ export async function buildDatabaseFromArtifacts({
     });
     succeeded = true;
   } finally {
+    if (succeeded) {
+      try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+      } catch (err) {
+        warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
+      }
+    }
     restoreBuildPragmas(db);
     db.close();
     if (!succeeded) {
