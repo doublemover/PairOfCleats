@@ -62,8 +62,8 @@ const BAR_STYLES = {
 
 const OFF_WHITE = { r: 235, g: 236, b: 238 };
 const BLACK = { r: 0, g: 0, b: 0 };
-const CHECK_BG_OK = { r: 36, g: 110, b: 58 };
-const CHECK_BG_FAIL = { r: 142, g: 36, b: 36 };
+const CHECK_FG_OK = { r: 84, g: 196, b: 108 };
+const CHECK_FG_FAIL = { r: 220, g: 96, b: 96 };
 
 const resolveBarVariant = (task) => {
   const name = String(task?.name || '').toLowerCase();
@@ -111,6 +111,35 @@ const scaleColor = (color, factor) => ({
 });
 
 const lightenColor = (color, factor) => mixColor(color, { r: 255, g: 255, b: 255 }, factor);
+
+const toLinear = (value) => {
+  const v = value / 255;
+  return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+};
+
+const relativeLuminance = (color) => {
+  const r = toLinear(color.r);
+  const g = toLinear(color.g);
+  const b = toLinear(color.b);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+const clampBackgroundColor = (color, maxLuma = 0.6) => {
+  const lum = relativeLuminance(color);
+  if (lum <= maxLuma) return color;
+  const factor = maxLuma / (lum || 1);
+  return scaleColor(color, factor);
+};
+
+const buildShadeScale = (base) => {
+  const light = clampBackgroundColor(lightenColor(base, 0.3));
+  const dark = clampBackgroundColor(scaleColor(base, 0.7));
+  const shades = [];
+  for (let i = 0; i <= 25; i += 1) {
+    shades.push(clampBackgroundColor(mixColor(light, dark, i / 25)));
+  }
+  return shades;
+};
 
 const colorToAnsi = (color, isBackground = false) => {
   const prefix = isBackground ? '48' : '38';
@@ -476,7 +505,7 @@ const buildProgressExtras = (task, now) => {
     etaSec = remaining / rate;
   }
   if (!rateText && !etaSec && !elapsedSec) return null;
-  return { rateText, etaSec, elapsedSec };
+  return { rateText, etaSec, elapsedSec, rawRate: rate };
 };
 
 export function createDisplay(options = {}) {
@@ -660,6 +689,7 @@ export function createDisplay(options = {}) {
     const now = Date.now();
     const taskColors = new Map();
     const taskAccents = new Map();
+    const taskShades = new Map();
     const schemes = [
       { name: 'forward', stepFactor: 0.8, mode: 'linear', direction: 1 },
       { name: 'reverse', stepFactor: 0.8, mode: 'linear', direction: -1 },
@@ -710,10 +740,12 @@ export function createDisplay(options = {}) {
     }
     displayTasks.forEach((task) => {
       const slot = state.paletteSlots.get(task.id) ?? paletteOffset;
-      const base = paletteColorAt(slot);
+      const baseRaw = paletteColorAt(slot);
+      const base = clampBackgroundColor(baseRaw);
       const accent = paletteColorAt(Math.min(PALETTE.length - 1, slot + 0.9));
       taskColors.set(task.id, base);
       taskAccents.set(task.id, accent);
+      taskShades.set(task.id, buildShadeScale(base));
     });
     const resolveBackgroundColor = (task, variant) => {
       if (!task?.mode) return null;
@@ -843,21 +875,19 @@ export function createDisplay(options = {}) {
     const padMessage = (value) => padVisible(value || '', maxMessageLength);
     const buildStatusDone = () => {
       if (!colorEnabled) return '[✓]';
-      const fg = colorToAnsi(OFF_WHITE);
+      const fg = colorToAnsi(CHECK_FG_OK);
       const bgBracket = colorToAnsi(BLACK, true);
-      const bgCheck = colorToAnsi(CHECK_BG_OK, true);
       const left = `\x1b[${composeColor(fg, bgBracket)}m[\x1b[0m`;
-      const check = `\x1b[${composeColor(fg, bgCheck)}m✓\x1b[0m`;
+      const check = `\x1b[${composeColor(fg, bgBracket)}m✓\x1b[0m`;
       const right = `\x1b[${composeColor(fg, bgBracket)}m]\x1b[0m`;
       return `${left}${check}${right}`;
     };
     const buildStatusFail = () => {
       if (!colorEnabled) return '[!]';
-      const fg = colorToAnsi(OFF_WHITE);
+      const fg = colorToAnsi(CHECK_FG_FAIL);
       const bgBracket = colorToAnsi(BLACK, true);
-      const bgCheck = colorToAnsi(CHECK_BG_FAIL, true);
       const left = `\x1b[${composeColor(fg, bgBracket)}m[\x1b[0m`;
-      const check = `\x1b[${composeColor(fg, bgCheck)}m!\x1b[0m`;
+      const check = `\x1b[${composeColor(fg, bgBracket)}m!\x1b[0m`;
       const right = `\x1b[${composeColor(fg, bgBracket)}m]\x1b[0m`;
       return `${left}${check}${right}`;
     };
@@ -948,26 +978,36 @@ export function createDisplay(options = {}) {
       const colorize = colorEnabled
         ? (text, code) => (text && code ? `\x1b[${code}m${text}\x1b[0m` : text || '')
         : null;
-      const tintText = (text) => {
+      const tintText = (text, background = null) => {
         if (!colorEnabled || !text) return text || '';
         if (text.includes('\x1b')) return text;
-        return colorize(text, colorToAnsi(OFF_WHITE));
+        const fg = colorToAnsi(OFF_WHITE);
+        const bg = background ? colorToAnsi(background, true) : null;
+        return colorize(text, composeColor(fg, bg));
       };
       const variant = resolveBarVariant(task);
       const style = BAR_STYLES[variant] || BAR_STYLES.default;
       const baseColor = taskColors.get(task.id)
         || resolveGradientColor(index, orderedTasks.length, paletteOffset, paletteStep);
       const accentColor = taskAccents.get(task.id) || baseColor;
+      const shades = taskShades.get(task.id) || buildShadeScale(baseColor);
+      const shadeAt = (shadeIndex) => shades[Math.max(0, Math.min(25, shadeIndex))] || baseColor;
+      const shadeBar = shadeAt(3);
       const fillColor = lightenColor(baseColor, 0.12);
       const edgeColor = lightenColor(baseColor, 0.25);
       const emptyColor = scaleColor(baseColor, 0.18);
       const fill = colorToAnsi(fillColor);
       const edge = colorToAnsi(edgeColor);
       const empty = colorToAnsi(emptyColor);
-      const backgroundColor = resolveBackgroundColor(task, variant) || scaleColor(baseColor, 0.12);
+      const backgroundColor = resolveBackgroundColor(task, variant) || shadeBar;
       const background = colorToAnsi(backgroundColor, true);
       const bracketFg = colorToAnsi(OFF_WHITE);
-      const bracketBg = colorToAnsi(BLACK, true);
+      const extras = extrasByTask[index];
+      const rawRate = Number(extras?.rawRate) || 0;
+      const speedNormalized = Math.min(1, Math.log10(rawRate + 1) / 2);
+      const bracketMinIndex = 6;
+      const bracketIndex = Math.round(25 - (25 - bracketMinIndex) * speedNormalized);
+      const bracketBg = colorToAnsi(shadeAt(bracketIndex), true);
       const theme = {
         fill,
         edge,
@@ -988,9 +1028,15 @@ export function createDisplay(options = {}) {
         animateIndex,
         fillGradient
       });
-      const label = tintText(padLabel(taskLabels[index] || task.name, labelWidth));
-      const timePrefix = layout.showTimePrefix ? tintText(padBenchPrefix(benchPrefixes[index])) : '';
-      const timeText = timePrefix ? `${timePrefix} ` : '';
+      const shadeLabel = shadeAt(0);
+      const shadeTime = shadeAt(1);
+      const shadeSuffix = shadeAt(2);
+      const shadeRate = shadeAt(4);
+      const shadeMessage = shadeAt(5);
+
+      const label = tintText(padLabel(taskLabels[index] || task.name, labelWidth), shadeLabel);
+      const timePrefix = layout.showTimePrefix ? tintText(padBenchPrefix(benchPrefixes[index]), shadeTime) : '';
+      const timeText = timePrefix ? `${timePrefix}` : '';
       let status = '';
       if (task.status && task.status !== 'running') {
         status = task.status === 'done'
@@ -999,19 +1045,19 @@ export function createDisplay(options = {}) {
             ? buildStatusFail()
             : `(${task.status})`;
       }
-      status = ` ${tintText(padVisible(status, statusWidth))}`;
-      const extras = extrasByTask[index];
+      status = ` ${tintText(padVisible(status, statusWidth), shadeSuffix)}`;
       let detail = layout.showDetail ? padDetail(task, detailTexts[index] || '') : '';
       if (detail && colorEnabled && task.status === 'running') {
         const fg = colorToAnsi(OFF_WHITE);
         const progress = total ? clampRatio(current / total) : 0;
-        const shade = Math.max(0.7, Math.min(1, 1 - 0.3 * progress));
-        const etaBg = colorToAnsi(scaleColor(baseColor, shade), true);
+        const etaStartIndex = 10;
+        const etaIndex = Math.round(etaStartIndex + (25 - etaStartIndex) * progress);
+        const etaBg = colorToAnsi(shadeAt(etaIndex), true);
         detail = `\x1b[${composeColor(fg, etaBg)}m${detail}\x1b[0m`;
       }
-      if (detail) detail = tintText(detail);
-      const message = layout.showMessage ? tintText(padMessage(messageTexts[index] || '')) : '';
-      const rate = layout.showRate ? tintText(padRate(extras?.rateText || '')) : '';
+      if (detail) detail = tintText(detail, shadeRate);
+      const message = layout.showMessage ? tintText(padMessage(messageTexts[index] || ''), shadeMessage) : '';
+      const rate = layout.showRate ? tintText(padRate(extras?.rateText || ''), shadeRate) : '';
       const separator = colorEnabled
         ? `\x1b[${composeColor(colorToAnsi(accentColor), colorToAnsi(BLACK, true))}m | \x1b[0m`
         : ' | ';
@@ -1020,7 +1066,7 @@ export function createDisplay(options = {}) {
       if (layout.showDetail) parts.push(detail);
       if (layout.showMessage) parts.push(message);
       const extraText = parts.length ? `${separator}${parts.join(separator)}`.trimEnd() : '';
-      const suffixText = suffix ? ` ${tintText(suffix)}` : '';
+      const suffixText = suffix ? ` ${tintText(suffix, shadeSuffix)}` : '';
       return `${label} ${timeText}${bar}${suffixText}${status}${extraText}`.trimEnd();
     });
 
