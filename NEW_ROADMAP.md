@@ -2461,58 +2461,6 @@ You must handle both “pre-read” scanning and “post-read” binary checks:
 
 ---
 
-## Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
-
-### 27.1 Extract a vector-ANN provider interface
-
-* [ ] Create `src/retrieval/ann/`:
-  * [ ] `types.js`: `query({ embedding, topN, candidateSet, mode }) -> hits[]`
-  * [ ] `providers/sqlite-vec.js` wrapper around `rankVectorAnnSqlite`
-  * [ ] `providers/hnsw.js` wrapper around `rankHnswIndex`
-
-* [ ] Update `src/retrieval/pipeline.js` to use the provider interface
-
-### 27.2 Implement LanceDB integration (choose operational model)
-
-* [x] Choose packaging model:
-  * [x] Node library integration (`@lancedb/lancedb`)
-  * [ ] Sidecar service (Python) + HTTP
-
-* [x] Add LanceDB ANN ranker/provider (implemented at `src/retrieval/lancedb.js`; wired via `src/retrieval/pipeline.js`):
-  * [x] Query by vector and return `{ idx, sim }`
-  * [x] Handle filtering:
-    * [x] If LanceDB supports “where id IN (…)” efficiently → push down (small candidate sets)
-    * [x] Otherwise → post-filter and overfetch
-  * [ ] (Optional) After 27.1 lands, relocate under `src/retrieval/ann/providers/lancedb.js` to remove special-casing in pipeline
-
-### 27.3 Build tooling for vector index creation
-
-* [x] Build tooling for vector index creation (implemented as part of `tools/build-embeddings`):
-  * [x] Ingest `dense_vectors_*` artifacts
-  * [x] Store LanceDB table in cache (mode-specific) via `dense_vectors.lancedb/` + `dense_vectors.lancedb.meta.json`
-  * [x] Validate dims/model compatibility using existing `index_state.json` semantics (meta dims are checked at query time)
-
-* [ ] (Optional) Add a standalone `tools/build-lancedb-index.js` entrypoint that rebuilds LanceDB tables from existing vector artifacts without re-embedding.
-
-### 27.4 Tests (gated)
-
-* [x] Add `tests/lancedb-ann.js` smoke test:
-  * [x] Build embeddings (stub) → build lancedb table → run a nearest-neighbor query → assert stable result ordering
-
-* [x] Gate test execution so CI does not fail when LanceDB isn’t available:
-  * [x] Current behavior: test self-skips with a clear “skipped” message when `@lancedb/lancedb` is missing
-  * [ ] (Optional) Add explicit `PAIROFCLEATS_TEST_LANCEDB=1` env gating if you want CI to skip even when the dependency is installed
-
-* [x] Add script-coverage action(s):
-  * [x] `tests/script-coverage/actions.js` includes `lancedb-ann-test`
-
-**Exit criteria**
-
-* [ ] LanceDB ANN can be enabled without breaking sqlite/hnsw fallbacks
-* [ ] Demonstrable memory and/or latency win for ANN retrieval at scale
-
----
-
 ## Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
 
 * [x] Packaging rules for ST3 (no compiled Python deps)

@@ -1,12 +1,15 @@
 import { filterChunks } from './output.js';
 import { hasActiveFilters } from './filters.js';
-import { rankBM25, rankBM25Fields, rankDenseVectors, rankMinhash } from './rankers.js';
+import { rankBM25, rankBM25Fields, rankMinhash } from './rankers.js';
 import { createJsBm25Provider } from './sparse/providers/js-bm25.js';
 import { createSqliteFtsProvider } from './sparse/providers/sqlite-fts.js';
 import { createTantivyProvider } from './sparse/providers/tantivy.js';
+import { createDenseAnnProvider } from './ann/providers/dense.js';
+import { createHnswAnnProvider } from './ann/providers/hnsw.js';
+import { createLanceDbAnnProvider } from './ann/providers/lancedb.js';
+import { createSqliteVectorAnnProvider } from './ann/providers/sqlite-vec.js';
+import { ANN_PROVIDER_IDS } from './ann/types.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
-import { rankHnswIndex } from '../shared/hnsw.js';
-import { rankLanceDb } from './lancedb.js';
 
 const SQLITE_IN_LIMIT = 900;
 
@@ -219,29 +222,68 @@ export function createSearchPipeline(context) {
   }
 
   const normalizeAnnBackend = (value) => {
-    if (typeof value !== 'string') return 'lancedb';
+    if (typeof value !== 'string') return ANN_PROVIDER_IDS.LANCEDB;
     const trimmed = value.trim().toLowerCase();
-    if (!trimmed) return 'lancedb';
-    if (trimmed === 'sqlite' || trimmed === 'sqlite-extension') return 'sqlite-vector';
-    if (trimmed === 'dense') return 'js';
+    if (!trimmed) return ANN_PROVIDER_IDS.LANCEDB;
+    if (trimmed === 'sqlite' || trimmed === 'sqlite-extension') {
+      return ANN_PROVIDER_IDS.SQLITE_VECTOR;
+    }
+    if (trimmed === 'dense') return ANN_PROVIDER_IDS.DENSE;
     return trimmed;
   };
 
   const resolveAnnOrder = (value) => {
     switch (normalizeAnnBackend(value)) {
-      case 'lancedb':
-        return ['lancedb', 'sqlite-vector', 'hnsw', 'js'];
-      case 'sqlite-vector':
-        return ['sqlite-vector', 'lancedb', 'hnsw', 'js'];
-      case 'hnsw':
-        return ['hnsw', 'lancedb', 'sqlite-vector', 'js'];
-      case 'js':
-        return ['js'];
+      case ANN_PROVIDER_IDS.LANCEDB:
+        return [
+          ANN_PROVIDER_IDS.LANCEDB,
+          ANN_PROVIDER_IDS.SQLITE_VECTOR,
+          ANN_PROVIDER_IDS.HNSW,
+          ANN_PROVIDER_IDS.DENSE
+        ];
+      case ANN_PROVIDER_IDS.SQLITE_VECTOR:
+        return [
+          ANN_PROVIDER_IDS.SQLITE_VECTOR,
+          ANN_PROVIDER_IDS.LANCEDB,
+          ANN_PROVIDER_IDS.HNSW,
+          ANN_PROVIDER_IDS.DENSE
+        ];
+      case ANN_PROVIDER_IDS.HNSW:
+        return [
+          ANN_PROVIDER_IDS.HNSW,
+          ANN_PROVIDER_IDS.LANCEDB,
+          ANN_PROVIDER_IDS.SQLITE_VECTOR,
+          ANN_PROVIDER_IDS.DENSE
+        ];
+      case ANN_PROVIDER_IDS.DENSE:
+        return [ANN_PROVIDER_IDS.DENSE];
       case 'auto':
       default:
-        return ['lancedb', 'sqlite-vector', 'hnsw', 'js'];
+        return [
+          ANN_PROVIDER_IDS.LANCEDB,
+          ANN_PROVIDER_IDS.SQLITE_VECTOR,
+          ANN_PROVIDER_IDS.HNSW,
+          ANN_PROVIDER_IDS.DENSE
+        ];
     }
   };
+
+  const annProviders = new Map([
+    [
+      ANN_PROVIDER_IDS.LANCEDB,
+      createLanceDbAnnProvider({ lancedbConfig, lanceAnnState, lanceAnnUsed })
+    ],
+    [
+      ANN_PROVIDER_IDS.SQLITE_VECTOR,
+      createSqliteVectorAnnProvider({
+        rankVectorAnnSqlite,
+        vectorAnnState,
+        vectorAnnUsed
+      })
+    ],
+    [ANN_PROVIDER_IDS.HNSW, createHnswAnnProvider({ hnswAnnState, hnswAnnUsed })],
+    [ANN_PROVIDER_IDS.DENSE, createDenseAnnProvider()]
+  ]);
 
   const annOrder = resolveAnnOrder(annBackend);
 
@@ -344,78 +386,28 @@ export function createSearchPipeline(context) {
     let annSource = null;
     const annCandidates = intersectCandidateSet(candidates, allowedIdx);
     const annFallback = candidates && allowedIdx ? allowedIdx : null;
-    const annCandidatesEmpty = annCandidates && annCandidates.size === 0;
+    const runAnnQuery = async (provider, candidateSet) => {
+      if (!provider || typeof provider.query !== 'function') return [];
+      if (!provider.isAvailable({ idx, mode, embedding: queryEmbedding })) return [];
+      const hits = await provider.query({
+        idx,
+        mode,
+        embedding: queryEmbedding,
+        topN: expandedTopN,
+        candidateSet
+      });
+      return Array.isArray(hits) ? hits : [];
+    };
     if (annEnabled) {
       for (const backend of annOrder) {
-        if (!queryEmbedding && backend !== 'js') continue;
-        if (backend === 'lancedb') {
-          if (lancedbConfig?.enabled !== false
-            && (idx.lancedb?.available || lanceAnnState?.[mode]?.available)) {
-            if (!annCandidatesEmpty) {
-              annHits = await rankLanceDb({
-                lancedbInfo: idx.lancedb,
-                queryEmbedding,
-                topN: expandedTopN,
-                candidateSet: annCandidates,
-                config: lancedbConfig
-              });
-            }
-            if (!annHits.length && annFallback) {
-              annHits = await rankLanceDb({
-                lancedbInfo: idx.lancedb,
-                queryEmbedding,
-                topN: expandedTopN,
-                candidateSet: annFallback,
-                config: lancedbConfig
-              });
-            }
-            if (annHits.length) {
-              if (lanceAnnUsed && mode in lanceAnnUsed) lanceAnnUsed[mode] = true;
-              annSource = 'lancedb';
-              break;
-            }
-          }
-        } else if (backend === 'sqlite-vector') {
-          if (queryEmbedding && vectorAnnState?.[mode]?.available) {
-            if (!annCandidatesEmpty) {
-              annHits = rankVectorAnnSqlite(mode, queryEmbedding, expandedTopN, annCandidates);
-            }
-            if (!annHits.length && annFallback) {
-              annHits = rankVectorAnnSqlite(mode, queryEmbedding, expandedTopN, annFallback);
-            }
-            if (annHits.length) {
-              if (vectorAnnUsed && mode in vectorAnnUsed) vectorAnnUsed[mode] = true;
-              annSource = 'sqlite-vector';
-              break;
-            }
-          }
-        } else if (backend === 'hnsw') {
-          if (queryEmbedding && (idx.hnsw?.available || hnswAnnState?.[mode]?.available)) {
-            if (!annCandidatesEmpty) {
-              annHits = rankHnswIndex(idx.hnsw || {}, queryEmbedding, expandedTopN, annCandidates);
-            }
-            if (!annHits.length && annFallback) {
-              annHits = rankHnswIndex(idx.hnsw || {}, queryEmbedding, expandedTopN, annFallback);
-            }
-            if (annHits.length) {
-              if (hnswAnnUsed && mode in hnswAnnUsed) hnswAnnUsed[mode] = true;
-              annSource = 'hnsw';
-              break;
-            }
-          }
-        } else if (backend === 'js') {
-          if (queryEmbedding && idx.denseVec?.vectors?.length) {
-            if (!annCandidatesEmpty) {
-              annHits = rankDenseVectors(idx, queryEmbedding, expandedTopN, annCandidates);
-            }
-            if (!annHits.length && annFallback) {
-              annHits = rankDenseVectors(idx, queryEmbedding, expandedTopN, annFallback);
-            }
-            if (annHits.length) {
-              annSource = 'js';
-              break;
-            }
-          }
+        const provider = annProviders.get(backend);
+        annHits = await runAnnQuery(provider, annCandidates);
+        if (!annHits.length && annFallback) {
+          annHits = await runAnnQuery(provider, annFallback);
+        }
+        if (annHits.length) {
+          annSource = provider?.id || backend;
+          break;
         }
       }
       if (!annHits.length) {

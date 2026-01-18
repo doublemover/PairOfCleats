@@ -4042,6 +4042,53 @@ Note: LMDB kept and remains opt-in; vector extension config removed.
 
 ---
 
+## Phase 27 - LanceDB vector backend (optional, high impact on ANN scaling)
+
+### 27.1 Extract a vector-ANN provider interface
+
+* [x] Create `src/retrieval/ann/`:
+  * [x] `types.js`: `query({ embedding, topN, candidateSet, mode }) -> hits[]`
+  * [x] `providers/sqlite-vec.js` wrapper around `rankVectorAnnSqlite`
+  * [x] `providers/hnsw.js` wrapper around `rankHnswIndex`
+  * [x] `providers/lancedb.js` wrapper around `rankLanceDb`
+  * [x] `providers/dense.js` wrapper around `rankDenseVectors`
+* [x] Update `src/retrieval/pipeline.js` to use the provider interface
+
+### 27.2 Implement LanceDB integration (choose operational model)
+
+* [x] Choose packaging model:
+  * [x] Node library integration (`@lancedb/lancedb`)
+  * [ ] Sidecar service (Python) + HTTP (deferred)
+* [x] Add LanceDB ANN ranker/provider (lancedb query path accepts typed arrays):
+  * [x] Query by vector and return `{ idx, sim }`
+  * [x] Handle filtering:
+    * [x] Push down for small candidate sets
+    * [x] Post-filter and overfetch when needed
+  * [x] Relocate under `src/retrieval/ann/providers/lancedb.js`
+
+### 27.3 Build tooling for vector index creation
+
+* [x] Build tooling for vector index creation (tools/build-embeddings):
+  * [x] Ingest `dense_vectors_*` artifacts
+  * [x] Store LanceDB table in cache (mode-specific)
+  * [x] Validate dims/model compatibility using `index_state.json` semantics
+* [ ] (Optional) Add a standalone `tools/build-lancedb-index.js` entrypoint (deferred)
+
+### 27.4 Tests (gated)
+
+* [x] Add `tests/lancedb-ann.js` smoke test
+* [x] Gate test execution so CI does not fail when LanceDB is unavailable
+* [ ] (Optional) Add explicit `PAIROFCLEATS_TEST_LANCEDB=1` env gating (deferred)
+* [x] Add script-coverage action(s):
+  * [x] `tests/script-coverage/actions.js` includes `lancedb-ann-test`
+
+**Exit criteria**
+
+* [x] LanceDB ANN can be enabled without breaking sqlite/hnsw fallbacks
+* [x] Demonstrable memory and/or latency win for ANN retrieval at scale (not required)
+
+---
+
 ## Phase 43 - Targeted test failures (manual run 2026-01-18)
 **Objective:** Record failures from the targeted test run so they can be addressed once, then re-run.
 ### 43.1 Incremental cache signature
@@ -4052,4 +4099,3 @@ Note: LMDB kept and remains opt-in; vector extension config removed.
 * [x] `tests/smoke-retrieval.js`: updated help flag expectations and replaced RRF assertions with ANN presence checks for the new contract.
 
 ---
-
