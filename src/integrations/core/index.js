@@ -803,6 +803,7 @@ export async function search(repoRoot, params = {}) {
     sqliteCache: params.sqliteCache,
     signal: params.signal,
     scoreMode: params.scoreMode ?? null
+    signal: params.signal || null
   });
 }
 

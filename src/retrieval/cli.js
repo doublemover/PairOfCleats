@@ -76,6 +76,11 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     return { jsonOutput };
   };
 
+  if (signal?.aborted) {
+    const err = createError(ERROR_CODES.INVALID_REQUEST, 'Search aborted.');
+    err.code = 'ERR_ABORTED';
+    throw err;
+  }
   let argv;
   try {
     argv = parseSearchArgs(rawArgs);

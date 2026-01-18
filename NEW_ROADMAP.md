@@ -1982,6 +1982,7 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
   - `graphology`-backed `graph_relations.json` provides a strong base graph layer
 
 - The missing piece is the **visual model + rendering/export** and **Sublime UX** around it, which the map viewer phases supply.
+- 
 ---
 
 ## Phase 32 - Merge Fixes

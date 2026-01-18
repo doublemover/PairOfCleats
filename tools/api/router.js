@@ -551,6 +551,11 @@ export const createApiRouter = ({
 
     if (requestUrl.pathname === '/search/stream' && req.method === 'POST') {
       const sse = createSseResponder(req, res, { headers: corsHeaders || {} });
+      const abortController = new AbortController();
+      const abort = () => abortController.abort();
+      req.on('aborted', abort);
+      res.on('close', abort);
+      res.on('error', abort);
       let raw;
       try {
         raw = await parseJsonBody(req);
@@ -608,6 +613,7 @@ export const createApiRouter = ({
       const caches = getRepoCaches(repoPath);
       await refreshBuildPointer(caches);
       try {
+        await sse.sendEvent('progress', { ok: true, phase: 'search', message: 'Running search.' });
         const body = await search(repoPath, {
           args: searchParams.args,
           query: searchParams.query,
@@ -639,6 +645,11 @@ export const createApiRouter = ({
     }
 
     if (requestUrl.pathname === '/search' && req.method === 'POST') {
+      const abortController = new AbortController();
+      const abort = () => abortController.abort();
+      req.on('aborted', abort);
+      res.on('close', abort);
+      res.on('error', abort);
       let payload = null;
       try {
         payload = await parseJsonBody(req);
@@ -699,7 +710,7 @@ export const createApiRouter = ({
           exitOnError: false,
           indexCache: caches.indexCache,
           sqliteCache: caches.sqliteCache,
-          signal: controller.signal
+          signal: abortController.signal
         });
         sendJson(res, 200, { ok: true, repo: repoPath, result: body }, corsHeaders || {});
       } catch (err) {
