@@ -27,15 +27,10 @@ Completed Phases: `COMPLETED_PHASES.md`
 15. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
 16. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
 17. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
-18. Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
-19. Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
-20. Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
-21. Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
-22. Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
-23. Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
-24. Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
-25. Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
-26. Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
+18. Phase 41 — Test runner reframe (split lanes + per-lane gating)
+19. Phase 42 — Storage regression splits (sqlite/lmdb/vector extension)
+20. Phase 43 — Targeted test fixes (incremental caches, smoke retrieval)
+21. Phase 44 — Merge Phase 32-40 test followups (streaming, extracted-prose, code map)
 
 ## Phase 12 — Storage backends (SQLite + LMDB)
 
@@ -2755,496 +2750,6 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 - The missing piece is the **visual model + rendering/export** and **Sublime UX** around it, which the map viewer phases supply.
 ---
 
-## Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
-
-**Objective:** Ensure the configuration surface simplification cannot regress during implementation by freezing the contract, introducing budgets, and enforcing them in CI.
-
-**Strategic note:** This is a deliberate **breaking “hard cut”** (no deprecation period, no backwards compatibility layer). Confirm adoption of this contract before doing destructive deletions.
-
-### 32.1 Define the “public surface” allowlists + budgets
-
-* [ ] Create `docs/config-contract.md` with an explicit whitelist of:
-  * public repo config keys
-  * public CLI flags
-  * public env vars (secrets only)
-
-* [ ] In `docs/config-contract.md`, explicitly declare precedence order:
-  * CLI flags > repo config > AutoPolicy > code defaults
-  * env vars are secrets-only and are not in precedence for normal behavior
-
-* [ ] Create `docs/config-budgets.md` documenting numeric budgets + rationale:
-  * config keys target: **2** (`cache.root`, `quality`) (optionally +`service.*` if needed)
-  * env vars target: **1** (`PAIROFCLEATS_API_TOKEN`)
-  * public CLI flags target: **15–25** across core commands
-
-* [ ] Encode naming conventions in the contract docs:
-  * config keys: lowercase + structured (`cache.root`, `quality`)
-  * CLI flags: kebab-case (`--cache-root`, `--explain`)
-  * env vars: uppercase `PAIROFCLEATS_*` (secrets and deployment wiring only)
-
-### 32.2 Make the config inventory actionable in CI
-
-* [ ] Extend `tools/config-inventory.js` to output:
-  * totals (already)
-  * **public vs internal/dev-only** classification for CLI flags (new)
-  * allowlist drift report (new public keys/flags/env vars)
-
-* [ ] Add `npm run config:budget` (or equivalent) and wire into CI to fail when budgets are exceeded.
-
-### 32.3 Enforce governance rules (anti-sprawl guardrails)
-
-* [ ] CI: fail if any `process.env.PAIROFCLEATS_*` is referenced outside the secrets env module (`src/shared/env.js`) in runtime code.
-
-* [ ] CI: fail if `docs/config-schema.json` contains unknown keys beyond the allowlist/budget.
-
-* [ ] CI: fail if the public CLI flag count exceeds budget (using the allowlist + inventory classifier).
-
-* [ ] Lint rule (or CI grep): ban `process.env.PAIROFCLEATS_*` usage outside `src/shared/env.js` (scope runtime, not tests).
-
-* [ ] Runtime: ensure `--explain` prints policy resolution (inputs + derived values) to reduce “why did it do that?” tickets.
-
-### 32.4 “Adding a new knob” gating requirements (process)
-
-* [ ] Add a PR checklist/template requiring any new user-configurable setting to include:
-  * justification (user intent vs tuning)
-  * ownership (module owner)
-  * single-plane design (config **or** CLI **or** env)
-  * tests (unit + integration)
-  * budget impact (must delete another knob if over budget)
-
-**Exit criteria**
-
-* [ ] CI fails if public budgets are exceeded.
-* [ ] `docs/config-contract.md` and `docs/config-budgets.md` exist and match the intended end-state.
-
----
-
-## Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
-
-**Objective:** Land the new primitives first: a minimal config schema/loader and an AutoPolicy resolver. Subsequent deletions become “wire to policy” instead of “invent behavior.”
-
-### 33.1 Minimal config schema (repo config)
-
-* [ ] Replace `docs/config-schema.json` with a minimal schema containing only:
-  * `cache.root`
-  * `quality` (`auto|fast|balanced|max`)
-
-* [ ] Unknown keys are **errors** (fail fast).
-
-* [ ] Update config tooling to the minimal schema:
-  * [ ] `tools/validate-config.js` validates only the minimal shape
-  * [ ] `tools/config-reset.js` emits minimal config only
-  * [ ] `tools/config-dump.js` dumps minimal config + derived policy (recommended)
-
-### 33.2 Minimal config load path (centralized IO)
-
-* [ ] Update `tools/dict-utils.js:loadUserConfig()` to:
-  * load `.pairofcleats.json`
-  * validate against the minimal schema
-  * return **only** the minimal config
-  * remove fallback-to-tool-root config (unless explicitly retained and documented)
-
-* [ ] Enforce centralization rule:
-  * only the config loader reads `.pairofcleats.json`
-  * all other modules accept a plain options object (no direct config/env/argv reads)
-
-### 33.3 AutoPolicy (resource-derived decisions)
-
-* [ ] Add `src/shared/auto-policy.js` with:
-  * resource detection: CPU, RAM
-  * fast repo scan: file count + size estimate (early-stop allowed)
-  * capability detection hooks (native modules/extensions present)
-  * outputs for: `quality`, concurrency, feature enablement, backend decisions
-
-* [ ] Implement a quality resolver (example mapping):
-  * `fast` if `mem < 16GB` or `cpu <= 4`
-  * `balanced` if `mem < 48GB` or `cpu < 12`
-  * `max` otherwise
-  * downgrade one level for “huge repos” (e.g., >200k files or >5GB scanned bytes)
-
-* [ ] Wire AutoPolicy creation into central entrypoints (without deleting old config reads yet):
-  * [ ] `tools/dict-utils.js` exports `getAutoPolicy(repoRoot, config)` (or similar)
-  * [ ] `bin/pairofcleats.js` passes policy into child scripts via args (preferred) rather than env
-
-### 33.4 Contract tests
-
-* [ ] Add tests enforcing the new contract:
-  * [ ] unknown config key ⇒ error
-  * [ ] `quality=auto` resolves deterministically with mocked resources/repo metrics
-
-  Suggested:
-  * `tests/config/minimal-schema.test.js`
-  * `tests/config/auto-policy.test.js`
-
-**Exit criteria**
-
-* [ ] `pairofcleats config validate` only accepts minimal config.
-* [ ] AutoPolicy unit tests exist and pass.
-* [ ] No new knobs introduced during Phase 33.
-
----
-
-## Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
-
-**Objective:** Delete the profile control plane (files + env + flag + merge logic) to remove precedence confusion.
-
-### 34.1 Delete profile artifacts
-
-* [ ] Delete the `profiles/` directory.
-* [ ] Remove profile references in docs (e.g., any “Experimental commands require profile=full”).
-
-### 34.2 Remove profile logic from code
-
-* [ ] In `tools/dict-utils.js`, delete:
-  * `PROFILES_DIR`
-  * `loadProfileConfig`
-  * `applyProfileConfig`
-  * env/config/cli profile selection logic
-
-* [ ] In `src/shared/cli.js`:
-  * [ ] remove `profile` as a shared option
-  * [ ] remove automatic profile default injection
-
-* [ ] In `src/retrieval/cli-args.js`:
-  * [ ] remove `--profile`
-
-### 34.3 Remove env var `PAIROFCLEATS_PROFILE`
-
-* [ ] Remove from `src/shared/env.js`.
-* [ ] Remove/replace any tests relying on profiles.
-
-**Exit criteria**
-
-* [ ] No `profiles/` directory.
-* [ ] No references to `PAIROFCLEATS_PROFILE` or `--profile`.
-* [ ] Help text and docs no longer mention profiles.
-
----
-
-## Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
-
-**Objective:** Eliminate the “second configuration system” implemented via env vars. Env is secrets/deployment wiring only.
-
-### 35.1 Rewrite env module (secrets-only)
-
-* [ ] Replace `src/shared/env.js` with secrets-only access:
-  * `getSecretsEnv()` returns `{ apiToken }`
-  * remove parsing helpers for booleans/enums/numbers unless needed elsewhere
-
-* [ ] Enforce rule: no runtime behavior depends on env vars except secrets.
-
-### 35.2 Replace `getEnvConfig()` call-sites
-
-* [ ] Remove/replace all call-sites of `getEnvConfig()` across index build, retrieval, tools, and tests.
-
-  Strong checklist (non-exhaustive):
-  * `src/index/build/file-processor.js` (progress flags)
-  * `src/index/build/indexer/pipeline.js`
-  * `src/index/build/indexer/steps/process-files.js`
-  * `src/index/build/runtime/runtime.js`
-  * `src/index/build/watch.js`
-  * `src/integrations/core/index.js`
-  * `src/integrations/core/status.js`
-  * `src/retrieval/cli.js`
-  * `src/retrieval/output/cache.js`
-  * `src/shared/hash.js`
-  * `tools/*` (cache-gc, clean-artifacts, config-dump, vector-extension, services, benches, etc.)
-  * `tests/bench.js`
-
-  Replacement strategy:
-  * debug/diagnostic toggles ⇒ delete or move to `--explain`
-  * perf/resource knobs ⇒ derive in AutoPolicy
-  * behavior toggles (embeddings/backend/fts profile) ⇒ derive in AutoPolicy; delete user override
-
-### 35.3 Delete env documentation
-
-* [ ] Rewrite `docs/env-overrides.md` to “Secrets only: `PAIROFCLEATS_API_TOKEN`.”
-* [ ] Remove mentions of env-driven profiles, embeddings toggles, thread knobs, watcher backends, etc.
-
-### 35.4 Update config hashing determinism
-
-* [ ] Update `tools/dict-utils.js:getEffectiveConfigHash()` to:
-  * exclude env-derived settings from the effective config hash
-  * ensure artifact identity is driven by config + repo content + tool version
-
-**Exit criteria**
-
-* [ ] No `PAIROFCLEATS_*` env vars used for behavior except `PAIROFCLEATS_API_TOKEN`.
-* [ ] `getEffectiveConfigHash()` is not sensitive to random env settings.
-* [ ] Docs reflect secrets-only env.
-
----
-
-## Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
-
-**Objective:** Remove flag sprawl and duplicated flags across scripts by making the public CLI surface strict and small.
-
-### 36.1 Public command surface (whitelist)
-
-* [ ] Confirm the public commands are restricted to:
-  * `setup`
-  * `bootstrap`
-  * `index build` / `index watch` / `index validate`
-  * `search`
-  * `service api`
-
-* [ ] Collapse the public flags to a whitelist (target contract):
-
-  `pairofcleats index build`
-  * `--repo <path>`
-  * `--mode <code|prose|both>` (default `both`)
-  * `--quality <auto|fast|balanced|max>`
-  * `--watch` (optional)
-
-  `pairofcleats index watch`
-  * `--repo <path>`
-  * `--mode <code|prose|both>`
-  * `--quality <auto|fast|balanced|max>`
-
-  `pairofcleats search "<query>"`
-  * `--repo <path>`
-  * `--mode <code|prose|both>`
-  * `--top <N>` (default 5)
-  * `--json`
-  * `--explain`
-
-  `pairofcleats service api`
-  * `--host <host>` (default 127.0.0.1)
-  * `--port <port>` (default 7345)
-  * optional: `--repo <path>` only if required
-
-### 36.2 Strict CLI dispatch + parsing
-
-* [ ] Update `bin/pairofcleats.js` to:
-  * dispatch only the public commands
-  * reject unknown commands
-  * reject unknown flags
-  * avoid passing through arbitrary args to internal scripts
-
-* [ ] Update per-command option parsing to accept only the whitelist:
-  * [ ] rewrite `src/retrieval/cli-args.js` (search)
-  * [ ] refactor `build_index.js` or `src/index/build/args.js` (index build/watch)
-
-### 36.3 Collapse search filter flags
-
-* [ ] Replace dozens of search CLI flags with either:
-  * query-language filters (preferred), OR
-  * a single `--filter "<expr>"` flag
-
-* [ ] Implement a minimal filter parser (initially):
-  * [ ] `lang`
-  * [ ] `path`
-  * [ ] `type`
-
-* [ ] Remove per-filter CLI flags and simplify `src/retrieval/cli/normalize-options.js` accordingly.
-
-* [ ] Update `docs/search.md` / `docs/search-contract.md` to match the new mechanism.
-
-### 36.4 Delete duplicated options across internal scripts
-
-* [ ] Remove duplicated flags like `--repo`, `--out`, `--json` from internal scripts once the CLI wrapper is strict.
-* [ ] Internal scripts accept explicit parameters from the wrapper (no ad-hoc CLI parsing).
-
-**Exit criteria**
-
-* [ ] `pairofcleats --help` shows only the public commands.
-* [ ] Unknown flags error out.
-* [ ] Search filtering uses query filters or `--filter` (not dozens of flags).
-
----
-
-## Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
-
-**Objective:** Delete `indexing.*` configurability by deriving values via AutoPolicy and making pipeline decisions internal.
-
-### 37.1 Identify indexing config consumption points
-
-* [ ] Audit and remove config/env reads across (focus list):
-  * `src/index/build/runtime.js`
-  * `src/index/build/runtime/runtime.js`
-  * `src/index/build/runtime/workers.js`
-  * `src/index/build/indexer.js`
-  * `src/index/build/file-processor.js`
-  * `src/index/build/worker-pool.js`
-  * `src/index/build/chunking/*`
-  * `src/index/chunking/limits.js`
-
-### 37.2 Thread policy values through indexing
-
-* [ ] Create an `IndexBuildContext` (or equivalent) that contains:
-  * minimal `config`
-  * derived `policy` (AutoPolicy)
-
-* [ ] Thread this context through build orchestration so downstream modules do not read config/env directly.
-
-* [ ] Delete or ignore now-unused indexing config keys (and remove them from inventory).
-
-Concrete replacements:
-* [ ] Concurrency uses `policy.indexing.concurrency`
-* [ ] Embeddings enablement uses `policy.indexing.embeddings.enabled`
-* [ ] Chunking limits use `policy.indexing.chunking.*`
-* [ ] Worker pool sizing uses `policy.runtime.workerPool.*`
-
-### 37.3 Remove stage toggles
-
-* [ ] Remove env `PAIROFCLEATS_STAGE`.
-* [ ] Remove config `indexing.stage` (and similar).
-* [ ] Make pipeline stage selection deterministic and fixed.
-
-### 37.4 Operational behavior decisions (indexing-adjacent)
-
-* [ ] Ignore behavior is fixed:
-  * always respect `.gitignore`
-  * always respect `.pairofcleatsignore` if present
-  * remove config keys like `useGitignore`, `usePairofcleatsIgnore`, `useDefaultSkips`, `ignoreFiles`, `extraIgnore`
-
-* [ ] Watcher backend is fixed:
-  * default to `chokidar` (or internal auto)
-  * remove `PAIROFCLEATS_WATCHER_BACKEND` and any config keys controlling it
-
-### 37.5 Tests
-
-* [ ] Remove tests that assert behavior of deleted knobs.
-* [ ] Add tests asserting:
-  * policy-derived concurrency is used
-  * embeddings enablement is solely policy-driven
-
-**Exit criteria**
-
-* [ ] No code reads `indexing.*` from user config.
-* [ ] Index build outcome is driven by AutoPolicy + repo inputs.
-* [ ] Test coverage exists for policy-driven decisions.
-
----
-
-## Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
-
-**Objective:** Delete `search.*` configurability and backend/scoring knobs. Retrieval becomes “one good default pipeline,” with only `--top`, `--json`, `--explain` remaining.
-
-### 38.1 Remove backend selection knobs
-
-* [ ] Make retrieval always use SQLite indexes.
-* [ ] Delete backend selection flags from the public CLI:
-  * `--backend`
-  * `--ann-backend`
-  * `--ann` / `--no-ann`
-
-* [ ] Any ANN usage is auto-detected by capabilities + policy.
-
-### 38.2 Remove scoring knobs
-
-* [ ] Delete user-tunable scoring knobs:
-  * `search.bm25.*` and `--bm25-*`
-  * `--fts-profile`, `--fts-weights`
-  * env `PAIROFCLEATS_FTS_PROFILE`
-
-* [ ] Replace with fixed scoring defaults.
-* [ ] Optional: policy switches by `quality` (fast/balanced/max), but not user-tunable parameters.
-
-### 38.3 Cache knob removal
-
-* [ ] If `docs/query-cache.md` exposes user knobs, collapse to:
-  * internal cache with fixed limits, OR
-  * off-by-default if not essential
-
-### 38.4 Tests
-
-* [ ] Add/adjust tests that assert behavior is policy-driven and does not depend on env/config overrides.
-
-**Exit criteria**
-
-* [ ] No code reads `search.*` from config.
-* [ ] No user-facing backend/scoring knobs remain.
-* [ ] Search works with the default pipeline + optional explain output.
-
----
-
-## Phase 39 — Config Hard Cut: Backend + extension simplification (remove LMDB + vector-extension config)
-
-**Objective:** Remove entire feature sets that create configuration branching.
-
-### 39.1 Remove LMDB support (user-visible)
-
-* [ ] Delete:
-  * `tools/build-lmdb-index.js`
-  * LMDB runtime modules (if any)
-  * `pairofcleats lmdb build` dispatch from `bin/pairofcleats.js`
-
-* [ ] Remove docs references (e.g., `docs/external-backends.md`).
-
-* [ ] Optional: keep LMDB as a dev-only internal experiment, but not shipped/public.
-
-### 39.2 Vector extension: auto only
-
-* [ ] Remove env `PAIROFCLEATS_VECTOR_EXTENSION`.
-* [ ] Remove config `sqlite.vectorExtension.*`.
-
-* [ ] Make extension lookup fixed to tool-managed directory:
-  * `tools/download-extensions.js` installs into a known location
-  * runtime checks presence and enables if available
-  * never require user path overrides
-
-* [ ] Rewrite `docs/sqlite-ann-extension.md` to “auto only.”
-
-**Exit criteria**
-
-* [ ] No LMDB code paths are part of the public surface.
-* [ ] Vector extension has no user-configurable paths; enablement is fully auto.
-
----
-
-## Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
-
-**Objective:** Remove everything that exists only to support deleted knobs and ensure the repo stays simplified.
-
-### 40.1 Dead docs cleanup
-
-* [ ] Delete `docs/config-deprecations.md`.
-* [ ] Rewrite `docs/env-overrides.md` to secrets-only.
-* [ ] Rewrite or delete `docs/external-backends.md`.
-* [ ] Remove any remaining “profile=full required” references in docs.
-
-### 40.2 Trim helper APIs
-
-* [ ] Trim `tools/dict-utils.js` exports to only what the remaining public CLI and build/search paths require.
-* [ ] Delete/move any remaining accessors that expose removed namespaces (`getRuntimeConfig`, `getModelConfig`, etc.).
-
-### 40.3 Re-run and commit inventory
-
-* [ ] Run `node tools/config-inventory.js` and commit updated `docs/config-inventory.*`.
-* [ ] Confirm budgets and enforcement are green.
-
-### 40.4 Add/keep “no new knobs” guardrails
-
-* [ ] CI scan: `PAIROFCLEATS_` usage restricted to secrets module (runtime code).
-* [ ] CI scan: schema key budget enforcement.
-* [ ] CI scan: public CLI flag budget enforcement.
-
-### 40.5 Operational decisions (explicit hard cut)
-
-* [ ] Logging is fixed:
-  * default log level `info`
-  * only per-invocation overrides via `--json` / `--explain`
-  * remove `logging.*` config namespace and env logging controls
-
-* [ ] Compression / hashing / regex engine selection is internal auto:
-  * “best available” selection (native if present) is automatic
-  * remove user knobs for selecting engines
-
-### 40.6 Repeatable validation checklist
-
-* [ ] `pairofcleats index build` works on a representative repo with zero config.
-* [ ] `pairofcleats search "foo"` works and returns results.
-* [ ] `pairofcleats search --explain "foo"` prints derived policy decisions.
-* [ ] `node tools/config-inventory.js` reports:
-  * config keys <= 5
-  * env vars == 1
-  * public CLI flags <= 25
-* [ ] Grep check: no usage of `PAIROFCLEATS_` outside secrets allowlist in runtime code.
-* [ ] CI green.
-
----
-
 ## Phase 41 - Deep validation failures (integration run 2026-01-18)
 
 **Objective:** Log failing tests from the deep validation run so they can be fixed once, then re-run.
@@ -3334,5 +2839,41 @@ Concrete replacements:
 ### 44.1 Streaming test hang
 
 * [ ] `tests/api-server-stream.js`: hangs during `npm run test`; temporarily excluded from `tests/run.js`. Investigate stream lifecycle and re-enable the test in the suite.
+
+### 44.2 Artifact guardrails
+
+* [ ] `tests/artifact-size-guardrails.js`: `Expected chunk_meta sharding when max JSON bytes is small.` Build reported `Found 0 files.` Repro: `node tests/artifact-size-guardrails.js`. Investigate why discovery returns zero files and why sharding isn’t triggered under `PAIROFCLEATS_TEST_MAX_JSON_BYTES=4096`.
+
+### 44.3 Code map basics
+
+* [ ] `tests/code-map-basic.js`: `Failed: expected dataflow/controlFlow metadata`. Repro: `node tests/code-map-basic.js`. Likely tied to auto policy disabling AST dataflow/control flow; adjust expectations or policy overrides for tests.
+
+### 44.4 Code map dot output
+
+* [ ] `tests/code-map-dot.js`: `Failed: dot output missing import style`. Repro: `node tests/code-map-dot.js`. Confirm dot output formatting changes after hard cut and update expectations.
+
+### 44.5 Comment join extracted-prose
+
+* [ ] `tests/comment-join.js`: `comment join test failed: extracted-prose search error.` Repro: `node tests/comment-join.js`. Investigate extracted-prose search path/policy defaults.
+
+### 44.6 Compact pieces guardrail
+
+* [ ] `tests/compact-pieces.js`: build fails with `chunk_meta entry exceeds max JSON size (2187 bytes)` under small JSON cap. Repro: `node tests/compact-pieces.js`. Evaluate sharding thresholds/estimates vs hard error.
+
+### 44.7 Extracted prose search
+
+* [ ] `tests/extracted-prose.js`: `Extracted-prose test failed: search error.` Repro: `node tests/extracted-prose.js`. Check extracted-prose index availability and policy defaults.
+
+### 44.8 MCP robustness
+
+* [ ] `tests/mcp-robustness.js`: `Expected queue overload error response.` Repro: `node tests/mcp-robustness.js`. Verify overload handling and response schema.
+
+### 44.9 MCP schema snapshot
+
+* [ ] `tests/mcp-schema.js`: `MCP schema snapshot mismatch.` Repro: `node tests/mcp-schema.js`. Update schema output or snapshot expectation after policy changes.
+
+### 44.10 API health/status auth
+
+* [ ] `tests/services/api/health-and-status.test.js`: `api-server should reject missing auth.` Repro: `node tests/services/api/health-and-status.test.js`. Check auth defaults for API server in new config contract.
 
 ---
