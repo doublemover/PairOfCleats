@@ -22,7 +22,8 @@ export const enqueueEmbeddingJob = async ({ runtime, mode }) => {
       mode,
       reason: 'embeddings',
       embeddingIdentity: runtime.embeddingIdentity || null,
-      embeddingIdentityKey: runtime.embeddingIdentityKey || null
+      embeddingIdentityKey: runtime.embeddingIdentityKey || null,
+      embeddingPayloadFormatVersion: 1
     },
     maxQueued,
     'embeddings'

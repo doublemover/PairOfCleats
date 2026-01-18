@@ -703,6 +703,17 @@ export async function writeIndexArtifacts(input) {
     `📦  ${mode.padEnd(5)}: ${state.chunks.length.toLocaleString()} chunks, ${postings.tokenVocab.length.toLocaleString()} tokens, dims=${postings.dims}`
   );
 
+  pieceEntries.sort((a, b) => {
+    const pathA = String(a?.path || '');
+    const pathB = String(b?.path || '');
+    if (pathA !== pathB) return pathA.localeCompare(pathB);
+    const typeA = String(a?.type || '');
+    const typeB = String(b?.type || '');
+    if (typeA !== typeB) return typeA.localeCompare(typeB);
+    const nameA = String(a?.name || '');
+    const nameB = String(b?.name || '');
+    return nameA.localeCompare(nameB);
+  });
   await writePiecesManifest({
     pieceEntries,
     outDir,

@@ -107,6 +107,9 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
       stage: job.stage || null,
       embeddingIdentity: job.embeddingIdentity || null,
       embeddingIdentityKey: job.embeddingIdentityKey || null,
+      embeddingPayloadFormatVersion: Number.isFinite(Number(job.embeddingPayloadFormatVersion))
+        ? Math.max(1, Math.floor(Number(job.embeddingPayloadFormatVersion)))
+        : null,
       args: Array.isArray(job.args) && job.args.length ? job.args : null,
       attempts: 0,
       maxRetries,

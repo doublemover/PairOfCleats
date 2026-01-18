@@ -118,20 +118,24 @@ export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId })
 
 const onnxCache = new Map();
 
+const normalizeVecInPlace = (vec) => {
+  let norm = 0;
+  for (let i = 0; i < vec.length; i += 1) {
+    norm += vec[i] * vec[i];
+  }
+  norm = Math.sqrt(norm);
+  if (!Number.isFinite(norm) || norm === 0) return vec;
+  for (let i = 0; i < vec.length; i += 1) {
+    vec[i] = vec[i] / norm;
+  }
+  return vec;
+};
+
 const normalizeVec = (vec) => {
   const length = vec && typeof vec.length === 'number' ? vec.length : 0;
   if (!length) return new Float32Array(0);
-  const out = Float32Array.from(vec);
-  let norm = 0;
-  for (let i = 0; i < out.length; i += 1) {
-    norm += out[i] * out[i];
-  }
-  norm = Math.sqrt(norm);
-  if (!Number.isFinite(norm) || norm === 0) return out;
-  for (let i = 0; i < out.length; i += 1) {
-    out[i] = out[i] / norm;
-  }
-  return out;
+  const out = vec instanceof Float32Array ? new Float32Array(vec) : Float32Array.from(vec);
+  return normalizeVecInPlace(out);
 };
 
 const normalizeExecutionProviders = (providers, lowMemory) => {
@@ -170,17 +174,35 @@ const buildSessionOptions = (config, { lowMemory = false } = {}) => {
   return Object.keys(options).length ? options : undefined;
 };
 
-const flatten = (nested) => nested.flatMap((row) => row.map((value) => BigInt(value)));
+const fillInt64Buffer = (rows, width, buffer) => {
+  let offset = 0;
+  for (let r = 0; r < rows.length; r += 1) {
+    const row = rows[r] || [];
+    for (let c = 0; c < width; c += 1) {
+      buffer[offset] = BigInt(row[c] ?? 0);
+      offset += 1;
+    }
+  }
+};
 
-const toTensor = (TensorCtor, rows) => {
+const ensureInt64Scratch = (scratch, size) => {
+  if (!scratch.data || scratch.data.length < size) {
+    scratch.data = new BigInt64Array(size);
+  }
+  return scratch.data.subarray(0, size);
+};
+
+const toTensor = (TensorCtor, rows, scratch) => {
   const batch = rows.length;
   const width = rows[0]?.length || 0;
   if (!batch || !width) return null;
-  const data = BigInt64Array.from(flatten(rows));
+  const size = batch * width;
+  const data = ensureInt64Scratch(scratch, size);
+  fillInt64Buffer(rows, width, data);
   return new TensorCtor('int64', data, [batch, width]);
 };
 
-const buildFeeds = (session, encoded, TensorCtor) => {
+const buildFeeds = (session, encoded, TensorCtor, scratch) => {
   const inputNames = Array.isArray(session.inputNames) ? session.inputNames : [];
   const feeds = {};
   const inputs = {
@@ -191,7 +213,7 @@ const buildFeeds = (session, encoded, TensorCtor) => {
   for (const name of inputNames) {
     const values = inputs[name];
     if (!values) continue;
-    const tensor = toTensor(TensorCtor, values);
+    const tensor = toTensor(TensorCtor, values, scratch);
     if (tensor) feeds[name] = tensor;
   }
   return feeds;
@@ -218,13 +240,15 @@ const meanPool = (tensor, attentionMask) => {
   if (dims.length !== 3) return [];
   const [batch, seq, hidden] = dims;
   const data = tensor.data || [];
-  const flatMask = attentionMask ? attentionMask.flat() : new Array(batch * seq).fill(1);
+  const flatMask = attentionMask
+    ? attentionMask
+    : Array.from({ length: batch }, () => new Array(seq).fill(1));
   const output = new Array(batch).fill(null);
   for (let b = 0; b < batch; b += 1) {
     const vec = new Float32Array(hidden);
     let count = 0;
     for (let t = 0; t < seq; t += 1) {
-      const maskVal = Number(flatMask[b * seq + t] ?? 0);
+      const maskVal = Number(flatMask[b]?.[t] ?? 0);
       if (!maskVal) continue;
       count += 1;
       const offset = (b * seq + t) * hidden;
@@ -237,7 +261,7 @@ const meanPool = (tensor, attentionMask) => {
         vec[h] = vec[h] / count;
       }
     }
-    output[b] = normalizeVec(vec);
+    output[b] = normalizeVecInPlace(vec);
   }
   return output;
 };
@@ -247,10 +271,19 @@ const rowsFromTensor = (tensor) => {
   if (dims.length !== 2) return [];
   const [rows, cols] = dims;
   const data = tensor.data || [];
+  const hasSubarray = data && typeof data.subarray === 'function';
   const out = new Array(rows);
   for (let r = 0; r < rows; r += 1) {
     const start = r * cols;
-    out[r] = normalizeVec(data.slice(start, start + cols));
+    const vec = new Float32Array(cols);
+    if (hasSubarray) {
+      vec.set(data.subarray(start, start + cols));
+    } else {
+      for (let c = 0; c < cols; c += 1) {
+        vec[c] = data[start + c] ?? 0;
+      }
+    }
+    out[r] = normalizeVecInPlace(vec);
   }
   return out;
 };
@@ -306,6 +339,13 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig }) 
     onnxCache.set(cacheKey, promise);
   }
   const embedderPromise = onnxCache.get(cacheKey);
+  const runScratch = { data: null };
+  let runQueue = Promise.resolve();
+  const queueSessionRun = (runStep) => {
+    const next = runQueue.then(runStep, runStep);
+    runQueue = next.catch(() => {});
+    return next;
+  };
   const getEmbeddings = async (texts) => {
     const list = Array.isArray(texts) ? texts : [];
     if (!list.length) return [];
@@ -318,9 +358,12 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig }) 
       return_tensor: false,
       return_token_type_ids: wantsTokenTypeIds
     });
-    const feeds = buildFeeds(session, encoded, Tensor);
-    if (!Object.keys(feeds).length) return Array.from({ length: list.length }, () => []);
-    const outputs = await session.run(feeds);
+    const outputs = await queueSessionRun(() => {
+      const feeds = buildFeeds(session, encoded, Tensor, runScratch);
+      if (!Object.keys(feeds).length) return null;
+      return session.run(feeds);
+    });
+    if (!outputs) return Array.from({ length: list.length }, () => []);
     const mainOutput = findOutput(outputs);
     if (!mainOutput) return Array.from({ length: list.length }, () => []);
     if (Array.isArray(mainOutput?.dims) && mainOutput.dims.length === 2) {

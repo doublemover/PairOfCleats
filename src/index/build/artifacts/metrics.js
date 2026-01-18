@@ -130,5 +130,8 @@ export const writeIndexMetrics = async ({
         { fields: perfProfile, atomic: true }
       );
     }
-  } catch {}
+  } catch (err) {
+    const message = err?.message || String(err);
+    console.warn(`[metrics] Failed to write metrics for ${mode}: ${message}`);
+  }
 };

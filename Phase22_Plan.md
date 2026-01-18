@@ -9,8 +9,8 @@
 
 ##### Remaining gaps / action items
 - [ ] **Guard concurrent use of shared ONNX sessions if required**:
-  - If `onnxruntime-node` sessions are not safe for concurrent `run()` calls, add a per-session mutex/queue.
-  - At minimum: document thread-safety assumptions and add a stress test.
+  - [x] Add a per-session mutex/queue around `session.run()` to avoid concurrent use.
+  - [ ] Document thread-safety assumptions and add a stress test.
 
 ---
 
@@ -20,11 +20,11 @@
 - [ ] Where embeddings are computed in worker threads/processes (service mode), prefer:
   - transferring `ArrayBuffer`/`SharedArrayBuffer` instead of JSON arrays,
   - or using binary packed formats for vectors.
-- [ ] Add an explicit “embedding payload format” version in job payloads so workers and callers stay compatible.
+- [x] Add an explicit “embedding payload format” version in job payloads so workers and callers stay compatible.
   - File touchpoints: `src/index/build/indexer/embedding-queue.js` (job payload)
 
 #### 22.4.3 Pre-allocate and reuse buffers
-- [ ] **ONNX embedding path**:
+- [x] **ONNX embedding path**:
   - Avoid per-call allocations:
     - re-use `BigInt64Array` buffers for token ids/masks where shapes are stable,
     - avoid `Array.from()` conversions for slices.
@@ -82,15 +82,15 @@
 
 #### Appendix A - Artifacts, indexing, and build pipeline (remaining)
 
-- [ ] `src/index/build/artifacts.js` (P2) Sort `pieceEntries` by `path` before writing the manifest to reduce diff noise.
+- [x] `src/index/build/artifacts.js` (P2) Sort `pieceEntries` by `path` before writing the manifest to reduce diff noise.
 - [ ] `src/index/build/artifacts/compression.js` (P2) Extending compression to sharded artifacts.
 - [ ] `src/index/build/artifacts/file-meta.js` (P2) Rename `chunk_authors` in file meta (currently derived from the first chunk and not file-level).
 - [ ] `src/index/build/artifacts/filter-index.js` (P2) Persist schema version/config hash in the filter index artifact for easier debugging.
-- [ ] `src/index/build/artifacts/metrics.js` (P2) Do not swallow metrics write errors silently (log or propagate based on severity).
-- [ ] `src/index/build/artifacts/token-mode.js` (P2) Make parsing more robust (case-insensitive modes; integer parsing + clamping).
+- [x] `src/index/build/artifacts/metrics.js` (P2) Do not swallow metrics write errors silently (log or propagate based on severity).
+- [x] `src/index/build/artifacts/token-mode.js` (P2) Make parsing more robust (case-insensitive modes; integer parsing + clamping).
 - [ ] `src/index/build/artifacts/writers/chunk-meta.js` (P2) Normalize field naming conventions (`chunk_authors` vs `startLine/endLine`).
 - [ ] `src/index/build/artifacts/writers/file-relations.js` (P2) JSONL/sharding for very large `file_relations` outputs; add versioning metadata.
-- [ ] `src/index/build/artifacts/writers/repo-map.js` (P2) Sort output by `{file, name}` for stability.
+- [x] `src/index/build/artifacts/writers/repo-map.js` (P2) Sort output by `{file, name}` for stability.
 - [ ] `src/index/build/file-processor.js` (P2) Move complexity/lint to per-file scope; avoid repeated per-chunk cache checks.
   - [ ] (P2) Fix possible timing double-counting across parse/relation durations.
 - [ ] `src/index/build/file-processor/cached-bundle.js` (P2) Validate cached bundle shapes more strictly; ensure importLinks shape is consistent.

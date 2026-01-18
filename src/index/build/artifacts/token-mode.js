@@ -1,19 +1,23 @@
 import { log } from '../../../shared/progress.js';
 
 export function resolveTokenMode({ indexingConfig = {}, state, fileCounts }) {
-  const tokenModeRaw = indexingConfig.chunkTokenMode || 'auto';
+  const tokenModeRaw = typeof indexingConfig.chunkTokenMode === 'string'
+    ? indexingConfig.chunkTokenMode.trim().toLowerCase()
+    : 'auto';
   const tokenMode = ['auto', 'full', 'sample', 'none'].includes(tokenModeRaw)
     ? tokenModeRaw
     : 'auto';
-  const tokenMaxFiles = Number.isFinite(Number(indexingConfig.chunkTokenMaxFiles))
-    ? Math.max(0, Number(indexingConfig.chunkTokenMaxFiles))
+  const tokenMaxFilesRaw = Number(indexingConfig.chunkTokenMaxFiles);
+  const tokenMaxFiles = Number.isFinite(tokenMaxFilesRaw)
+    ? Math.max(0, Math.floor(tokenMaxFilesRaw))
     : 5000;
   const tokenMaxTotalRaw = Number(indexingConfig.chunkTokenMaxTokens);
   const tokenMaxTotal = Number.isFinite(tokenMaxTotalRaw) && tokenMaxTotalRaw > 0
     ? Math.floor(tokenMaxTotalRaw)
     : 5000000;
-  const tokenSampleSize = Number.isFinite(Number(indexingConfig.chunkTokenSampleSize))
-    ? Math.max(1, Math.floor(Number(indexingConfig.chunkTokenSampleSize)))
+  const tokenSampleRaw = Number(indexingConfig.chunkTokenSampleSize);
+  const tokenSampleSize = Number.isFinite(tokenSampleRaw)
+    ? Math.max(1, Math.floor(tokenSampleRaw))
     : 32;
   let resolvedTokenMode = tokenMode === 'auto'
     ? ((fileCounts?.candidates ?? 0) <= tokenMaxFiles ? 'full' : 'sample')
