@@ -31,7 +31,7 @@
   - Files: `src/shared/onnx-embeddings.js`
 
 #### 22.4.4 Candidate generation tuning
-- [ ] Push sparse filters earlier and reduce dense scoring work:
+- [x] Push sparse filters earlier and reduce dense scoring work:
   - prefer ANN-restricted candidate sets before dense dot products,
   - prefer pushing candidate constraints into sqlite-vec queries when small enough (already partially implemented).
   - (Some of this lives outside the reviewed file list; track as cross-cutting work.)
@@ -45,26 +45,26 @@
 ### 22.5 Refactoring goals
 
 #### 22.5.1 Single embedding interface shared by build + retrieval
-- [ ] Create a single shared adapter interface, e.g.:
+- [x] Create a single shared adapter interface, e.g.:
   - `embed(texts: string[], opts) => Float32Array[]`
   - `embedOne(text: string, opts) => Float32Array`
-- [ ] Move provider selection + error handling behind adapters:
+- [x] Move provider selection + error handling behind adapters:
   - `xenova`, `onnx`, `stub`.
-- [ ] Ensure both index-build and retrieval use the same adapter and the same preprocessing defaults.
+- [x] Ensure both index-build and retrieval use the same adapter and the same preprocessing defaults.
 
 #### 22.5.2 Centralize normalization & preprocessing
-- [ ] Eliminate duplicated `normalizeVec()` implementations:
+- [x] Eliminate duplicated `normalizeVec()` implementations:
   - `src/index/embedding.js`
   - `src/shared/onnx-embeddings.js`
   - `tools/build-embeddings/embed.js` (indirectly uses index/embedding normalization)
-- [ ] Centralize:
+- [x] Centralize:
   - pooling strategy,
   - normalization strategy,
   - truncation/max_length policy,
   - doc/code merge policy.
 
 #### 22.5.3 Clear ANN backend adapters
-- [ ] Wrap sqlite-vec and HNSW behind a single “ANN adapter” contract with:
+- [x] Wrap sqlite-vec and HNSW behind a single “ANN adapter” contract with:
   - candidate set semantics,
   - deterministic tie-break contract,
   - consistent error handling and stats reporting.

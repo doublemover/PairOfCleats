@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { DEFAULT_EMBEDDING_TRUNCATION, normalizeEmbeddingVectorInPlace } from './embedding-utils.js';
 
 const GRAPH_LEVELS = new Set(['disabled', 'basic', 'extended', 'all']);
 const PROVIDER_ALIASES = new Map([
@@ -118,25 +119,7 @@ export function resolveOnnxModelPath({ rootDir, modelPath, modelsDir, modelId })
 
 const onnxCache = new Map();
 
-const normalizeVecInPlace = (vec) => {
-  let norm = 0;
-  for (let i = 0; i < vec.length; i += 1) {
-    norm += vec[i] * vec[i];
-  }
-  norm = Math.sqrt(norm);
-  if (!Number.isFinite(norm) || norm === 0) return vec;
-  for (let i = 0; i < vec.length; i += 1) {
-    vec[i] = vec[i] / norm;
-  }
-  return vec;
-};
-
-const normalizeVec = (vec) => {
-  const length = vec && typeof vec.length === 'number' ? vec.length : 0;
-  if (!length) return new Float32Array(0);
-  const out = vec instanceof Float32Array ? new Float32Array(vec) : Float32Array.from(vec);
-  return normalizeVecInPlace(out);
-};
+const normalizeVecInPlace = normalizeEmbeddingVectorInPlace;
 
 const normalizeExecutionProviders = (providers, lowMemory) => {
   if (!providers || !lowMemory) return providers;
@@ -354,7 +337,7 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig }) 
       && session.inputNames.includes('token_type_ids');
     const encoded = tokenizer(list, {
       padding: true,
-      truncation: true,
+      truncation: DEFAULT_EMBEDDING_TRUNCATION,
       return_tensor: false,
       return_token_type_ids: wantsTokenTypeIds
     });

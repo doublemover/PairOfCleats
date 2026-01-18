@@ -1,4 +1,5 @@
-import { normalizeVec, quantizeVec } from '../../src/index/embedding.js';
+import { quantizeVec } from '../../src/index/embedding.js';
+import { mergeEmbeddingVectors, normalizeEmbeddingVector } from '../../src/shared/embedding-utils.js';
 import { resolveQuantizationParams } from '../../src/storage/sqlite/vector.js';
 
 const isVectorLike = (value) => {
@@ -75,18 +76,8 @@ export const buildQuantizedVectors = ({
   const embedCode = isVectorLike(codeVector) ? codeVector : [];
   const embedDoc = isVectorLike(docVector) ? docVector : zeroVector;
   const resolved = resolveQuantizationParams(quantization);
-  const length = embedCode.length || embedDoc.length || 0;
-  const merged = length ? new Float32Array(length) : new Float32Array(0);
-  if (embedCode.length) {
-    for (let i = 0; i < merged.length; i += 1) {
-      merged[i] = (embedCode[i] + (embedDoc[i] ?? 0)) / 2;
-    }
-  } else if (embedDoc.length) {
-    for (let i = 0; i < merged.length; i += 1) {
-      merged[i] = embedDoc[i] ?? 0;
-    }
-  }
-  const normalized = normalizeVec(merged);
+  const merged = mergeEmbeddingVectors({ codeVector: embedCode, docVector: embedDoc });
+  const normalized = normalizeEmbeddingVector(merged);
   if (addHnswVector && normalized.length) {
     addHnswVector(chunkIndex, normalized);
   }

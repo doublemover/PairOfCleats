@@ -432,19 +432,32 @@ export function createSearchPipeline(context) {
     // MinHash (embedding) ANN, if requested
     let annHits = [];
     let annSource = null;
-    const annCandidates = intersectCandidateSet(candidates, allowedIdx);
-    const annFallback = candidates && allowedIdx ? allowedIdx : null;
+    const annCandidateBase = candidates
+      || (bmHits.length ? new Set(bmHits.map((h) => h.idx)) : null);
+    const annCandidates = intersectCandidateSet(annCandidateBase, allowedIdx);
+    const annFallback = annCandidateBase && allowedIdx ? allowedIdx : null;
+    const normalizeAnnHits = (hits) => {
+      if (!Array.isArray(hits)) return [];
+      return hits
+        .filter((hit) => Number.isFinite(hit?.idx) && Number.isFinite(hit?.sim))
+        .sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx));
+    };
+
     const runAnnQuery = async (provider, candidateSet) => {
       if (!provider || typeof provider.query !== 'function') return [];
       if (!provider.isAvailable({ idx, mode, embedding: queryEmbedding })) return [];
-      const hits = await provider.query({
-        idx,
-        mode,
-        embedding: queryEmbedding,
-        topN: expandedTopN,
-        candidateSet
-      });
-      return Array.isArray(hits) ? hits : [];
+      try {
+        const hits = await provider.query({
+          idx,
+          mode,
+          embedding: queryEmbedding,
+          topN: expandedTopN,
+          candidateSet
+        });
+        return normalizeAnnHits(hits);
+      } catch {
+        return [];
+      }
     };
     if (annEnabled) {
       for (const backend of annOrder) {
@@ -459,7 +472,7 @@ export function createSearchPipeline(context) {
         }
       }
       if (!annHits.length) {
-        const minhashBase = candidates || (bmHits.length ? new Set(bmHits.map((h) => h.idx)) : null);
+        const minhashBase = annCandidateBase;
         const minhashCandidates = intersectCandidateSet(minhashBase, allowedIdx);
         const minhashFallback = minhashBase && allowedIdx ? allowedIdx : null;
         const minhashCandidatesEmpty = minhashCandidates && minhashCandidates.size === 0;
