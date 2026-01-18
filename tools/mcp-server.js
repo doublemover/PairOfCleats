@@ -26,11 +26,22 @@ const DEFAULT_TOOL_TIMEOUTS = {
 };
 
 const baseConfigRoot = resolveRepoRoot(process.cwd());
-loadUserConfig(baseConfigRoot);
-const queueMax = DEFAULT_MCP_QUEUE_MAX;
-const maxBufferBytes = DEFAULT_MCP_MAX_BUFFER_BYTES;
+const userConfig = loadUserConfig(baseConfigRoot);
+const mcpConfig = userConfig?.mcp && typeof userConfig.mcp === 'object' ? userConfig.mcp : {};
+const parseIntEnv = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
+};
+const envQueueMax = parseIntEnv(process.env.PAIROFCLEATS_MCP_QUEUE_MAX);
+const envMaxBuffer = parseIntEnv(process.env.PAIROFCLEATS_MCP_MAX_BUFFER_BYTES);
+const envToolTimeoutMs = parseTimeoutMs(process.env.PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS);
+const configQueueMax = parseIntEnv(mcpConfig.queueMax);
+const configMaxBuffer = parseIntEnv(mcpConfig.maxBufferBytes);
+const queueMax = envQueueMax ?? configQueueMax ?? DEFAULT_MCP_QUEUE_MAX;
+const maxBufferBytes = envMaxBuffer ?? configMaxBuffer ?? DEFAULT_MCP_MAX_BUFFER_BYTES;
 
 const resolveTimeout = (name, args) => resolveToolTimeoutMs(name, args, {
+  envToolTimeoutMs,
   defaultToolTimeoutMs: DEFAULT_TOOL_TIMEOUT_MS,
   defaultToolTimeouts: DEFAULT_TOOL_TIMEOUTS
 });

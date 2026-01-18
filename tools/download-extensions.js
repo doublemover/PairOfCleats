@@ -613,6 +613,11 @@ async function downloadSource(source, index) {
       throw new Error(`No extension binary found in ${downloadPath}`);
     }
     await fs.copyFile(extractedPath, outputPath);
+    if (process.platform !== 'win32') {
+      try {
+        await fs.chmod(outputPath, 0o755);
+      } catch {}
+    }
     try { await fs.chmod(outputPath, FILE_MODE); } catch {}
     extractedFrom = path.relative(extensionDir, extractedPath);
     await fs.rm(extractDir, { recursive: true, force: true });

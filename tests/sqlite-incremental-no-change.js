@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -114,13 +114,16 @@ const beforeCounts = {
     .get('code', 'src/index.js') || {}).hash || null
 };
 dbBefore.close();
+const codeIndexDir = getIndexDir(repoRoot, 'code', userConfig);
+const statePath = path.join(codeIndexDir, 'index_state.json');
+const stateBefore = JSON.parse(await fsPromises.readFile(statePath, 'utf8'));
 
 const noChangeResult = runCapture(
   [path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--repo', repoRoot],
   'build sqlite index (no change)'
 );
 const noChangeOutput = `${noChangeResult.stdout || ''}\n${noChangeResult.stderr || ''}`;
-if (!noChangeOutput.includes('SQLite indexes updated')) {
+if (!noChangeOutput.toLowerCase().includes('sqlite indexes updated')) {
   console.error('Expected incremental sqlite update output for no-change run.');
   process.exit(1);
 }
@@ -134,6 +137,11 @@ const afterCounts = {
     .get('code', 'src/index.js') || {}).hash || null
 };
 dbAfter.close();
+const stateAfter = JSON.parse(await fsPromises.readFile(statePath, 'utf8'));
+if (stateBefore?.sqlite) {
+  assert.equal(stateAfter.sqlite?.ready, stateBefore.sqlite.ready, 'expected sqlite ready to remain stable');
+  assert.equal(stateAfter.sqlite?.pending, stateBefore.sqlite.pending, 'expected sqlite pending to remain stable');
+}
 
 assert.equal(afterCounts.chunks, beforeCounts.chunks, 'expected chunk counts to remain stable');
 assert.equal(afterCounts.files, beforeCounts.files, 'expected file manifest counts to remain stable');

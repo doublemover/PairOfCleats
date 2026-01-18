@@ -32,6 +32,7 @@ import { loadIndex, replaceSqliteDatabase } from '../../src/storage/sqlite/utils
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../src/storage/sqlite/build/from-artifacts.js';
 import { buildDatabaseFromBundles } from '../../src/storage/sqlite/build/from-bundles.js';
 import { incrementalUpdateDatabase } from '../../src/storage/sqlite/build/incremental-update.js';
+import { SCHEMA_VERSION } from '../../src/storage/sqlite/schema.js';
 
 let Database = null;
 try {
@@ -135,78 +136,85 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
   };
   if (!Database) return bail('better-sqlite3 is required. Run npm install first.');
 
-  const rootArg = options.root ? path.resolve(options.root) : (argv.repo ? path.resolve(argv.repo) : null);
-  const root = rootArg || resolveRepoRoot(process.cwd());
-  const envConfig = getEnvConfig();
-  const userConfig = loadUserConfig(root);
-  const indexRoot = argv['index-root']
-    ? path.resolve(argv['index-root'])
-    : resolveIndexRoot(root, userConfig);
-  const buildStatePath = resolveBuildStatePath(indexRoot);
-  const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
-  stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage4') : () => {};
-  const threadLimits = resolveThreadLimits({
-    argv,
-    rawArgv: parsedRawArgs,
-    envConfig,
-    configConcurrency: userConfig?.indexing?.concurrency,
-    importConcurrencyConfig: userConfig?.indexing?.importConcurrency
-  });
-  if (emitOutput && argv.verbose === true) {
-    log(
-      `[sqlite] Thread limits (${threadLimits.source}): ` +
-      `cpu=${threadLimits.cpuCount}, cap=${threadLimits.maxConcurrencyCap}, ` +
-      `files=${threadLimits.fileConcurrency}, imports=${threadLimits.importConcurrency}, ` +
-      `io=${threadLimits.ioConcurrency}, cpuWork=${threadLimits.cpuConcurrency}.`
-    );
-  }
-  const modelConfig = getModelConfig(root, userConfig);
-  const vectorExtension = getVectorExtensionConfig(root, userConfig);
-  const vectorAnnEnabled = vectorExtension.enabled;
-  const vectorConfig = {
-    enabled: vectorAnnEnabled,
-    extension: vectorExtension,
-    encodeVector,
-    hasVectorTable,
-    loadVectorExtension,
-    ensureVectorTable
-  };
-  const repoCacheRoot = getRepoCacheRoot(root, userConfig);
-  const compactFlag = argv.compact;
-  const compactOnIncremental = compactFlag === true
-    || (compactFlag !== false && userConfig?.sqlite?.compactOnIncremental === true);
-  const codeDir = argv['code-dir']
-    ? path.resolve(argv['code-dir'])
-    : getIndexDir(root, 'code', userConfig, { indexRoot });
-  const proseDir = argv['prose-dir']
-    ? path.resolve(argv['prose-dir'])
-    : getIndexDir(root, 'prose', userConfig, { indexRoot });
-  const extractedProseDir = argv['extracted-prose-dir']
-    ? path.resolve(argv['extracted-prose-dir'])
-    : getIndexDir(root, 'extracted-prose', userConfig, { indexRoot });
-  const recordsDir = argv['records-dir']
-    ? path.resolve(argv['records-dir'])
-    : getIndexDir(root, 'records', userConfig, { indexRoot });
-  const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
-  const incrementalRequested = argv.incremental === true;
+  try {
+    const rootArg = options.root ? path.resolve(options.root) : (argv.repo ? path.resolve(argv.repo) : null);
+    const root = rootArg || resolveRepoRoot(process.cwd());
+    const envConfig = getEnvConfig();
+    const userConfig = loadUserConfig(root);
+    const indexRoot = argv['index-root']
+      ? path.resolve(argv['index-root'])
+      : resolveIndexRoot(root, userConfig);
+    const buildStatePath = resolveBuildStatePath(indexRoot);
+    const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
+    stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage4') : () => {};
+    const threadLimits = resolveThreadLimits({
+      argv,
+      rawArgv: parsedRawArgs,
+      envConfig,
+      configConcurrency: userConfig?.indexing?.concurrency,
+      importConcurrencyConfig: userConfig?.indexing?.importConcurrency
+    });
+    if (emitOutput && argv.verbose === true) {
+      log(
+        `[sqlite] Thread limits (${threadLimits.source}): ` +
+        `cpu=${threadLimits.cpuCount}, cap=${threadLimits.maxConcurrencyCap}, ` +
+        `files=${threadLimits.fileConcurrency}, imports=${threadLimits.importConcurrency}, ` +
+        `io=${threadLimits.ioConcurrency}, cpuWork=${threadLimits.cpuConcurrency}.`
+      );
+    }
+    if (argv.compact && argv['no-compact']) {
+      return bail('Cannot use --compact and --no-compact together.');
+    }
+    const modelConfig = getModelConfig(root, userConfig);
+    const vectorExtension = getVectorExtensionConfig(root, userConfig);
+    const vectorAnnEnabled = vectorExtension.enabled;
+    const vectorConfig = {
+      enabled: vectorAnnEnabled,
+      extension: vectorExtension,
+      encodeVector,
+      hasVectorTable,
+      loadVectorExtension,
+      ensureVectorTable
+    };
+    const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+    const compactFlag = argv['no-compact'] ? false : argv.compact;
+    const compactOnIncremental = compactFlag === true
+      || (compactFlag !== false && userConfig?.sqlite?.compactOnIncremental === true);
+    const codeDir = argv['code-dir']
+      ? path.resolve(argv['code-dir'])
+      : getIndexDir(root, 'code', userConfig, { indexRoot });
+    const proseDir = argv['prose-dir']
+      ? path.resolve(argv['prose-dir'])
+      : getIndexDir(root, 'prose', userConfig, { indexRoot });
+    const extractedProseDir = argv['extracted-prose-dir']
+      ? path.resolve(argv['extracted-prose-dir'])
+      : getIndexDir(root, 'extracted-prose', userConfig, { indexRoot });
+    const recordsDir = argv['records-dir']
+      ? path.resolve(argv['records-dir'])
+      : getIndexDir(root, 'records', userConfig, { indexRoot });
+    const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
+    const incrementalRequested = argv.incremental === true;
 
-  if (!['all', 'code', 'prose', 'extracted-prose', 'records'].includes(modeArg)) {
-    return bail('Invalid mode. Use --mode all|code|prose|extracted-prose|records');
-  }
+    if (!['all', 'code', 'prose', 'extracted-prose', 'records'].includes(modeArg)) {
+      return bail('Invalid mode. Use --mode all|code|prose|extracted-prose|records');
+    }
 
-  const sqliteStateTargets = [];
-  if (modeArg === 'all' || modeArg === 'code') sqliteStateTargets.push(codeDir);
-  if (modeArg === 'all' || modeArg === 'prose') sqliteStateTargets.push(proseDir);
-  if (modeArg === 'all' || modeArg === 'extracted-prose') sqliteStateTargets.push(extractedProseDir);
-  if (modeArg === 'all' || modeArg === 'records') sqliteStateTargets.push(recordsDir);
-  if (hasBuildState) {
-    await markBuildPhase(indexRoot, 'stage4', 'running');
-  }
-  await Promise.all(sqliteStateTargets.map((dir) => updateSqliteState(dir, {
-    enabled: true,
-    ready: false,
-    pending: true
-  })));
+    const sqliteStateTargets = [];
+    if (modeArg === 'all' || modeArg === 'code') sqliteStateTargets.push({ dir: codeDir, mode: 'code' });
+    if (modeArg === 'all' || modeArg === 'prose') sqliteStateTargets.push({ dir: proseDir, mode: 'prose' });
+    if (modeArg === 'all' || modeArg === 'extracted-prose') {
+      sqliteStateTargets.push({ dir: extractedProseDir, mode: 'extracted-prose' });
+    }
+    if (modeArg === 'all' || modeArg === 'records') sqliteStateTargets.push({ dir: recordsDir, mode: 'records' });
+    if (hasBuildState) {
+      await markBuildPhase(indexRoot, 'stage4', 'running');
+    }
+    await Promise.all(sqliteStateTargets.map(({ dir }) => updateSqliteState(dir, {
+      enabled: true,
+      ready: false,
+      pending: true,
+      schemaVersion: SCHEMA_VERSION
+    })));
 
   const outArg = argv.out ? path.resolve(argv.out) : null;
   const { outPath, codeOutPath, proseOutPath, extractedProseOutPath, recordsOutPath } = resolveOutputPaths({
@@ -347,7 +355,13 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
         const rebuildLabel = mode === 'records' && result.reason === 'missing incremental manifest'
           ? 'building records index.'
           : 'rebuilding full index.';
-        warn(`[sqlite] Incremental ${mode} update skipped (${result.reason}); ${rebuildLabel}`);
+        const changeStats = [];
+        if (Number.isFinite(result.changedFiles)) changeStats.push(`changed=${result.changedFiles}`);
+        if (Number.isFinite(result.deletedFiles)) changeStats.push(`deleted=${result.deletedFiles}`);
+        if (Number.isFinite(result.manifestUpdates)) changeStats.push(`manifestUpdates=${result.manifestUpdates}`);
+        if (Number.isFinite(result.totalFiles)) changeStats.push(`total=${result.totalFiles}`);
+        const statsSuffix = changeStats.length ? `; ${changeStats.join(', ')}` : '';
+        warn(`[sqlite] Incremental ${mode} update skipped (${result.reason}${statsSuffix}); ${rebuildLabel}`);
       }
     }
     if (hasBundles) {
@@ -390,7 +404,7 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
           bundleResult = { ...bundleResult, count: 0, reason: 'missing dense vectors' };
         }
         if (bundleResult.count) {
-          await replaceSqliteDatabase(tempPath, targetPath, { keepBackup: true });
+          await replaceSqliteDatabase(tempPath, targetPath, { keepBackup: true, logger: { log, warn } });
         } else {
           await fs.rm(tempPath, { force: true });
         }
@@ -440,7 +454,7 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
         modelConfig,
         logger: { log, warn, error }
       });
-      await replaceSqliteDatabase(tempPath, targetPath, { keepBackup: true });
+      await replaceSqliteDatabase(tempPath, targetPath, { keepBackup: true, logger: { log, warn } });
     } catch (err) {
       try { await fs.rm(tempPath, { force: true }); } catch {}
       throw err;
@@ -614,25 +628,35 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     }
   }
 
-  await Promise.all(sqliteStateTargets.map((dir) => updateSqliteState(dir, {
+  const buildModes = {
+    code: results.code?.incremental ? 'incremental' : 'full',
+    prose: results.prose?.incremental ? 'incremental' : 'full',
+    'extracted-prose': results['extracted-prose']?.incremental ? 'incremental' : 'full',
+    records: results.records?.incremental ? 'incremental' : 'full'
+  };
+  await Promise.all(sqliteStateTargets.map(({ dir, mode }) => updateSqliteState(dir, {
     enabled: true,
     ready: true,
-    pending: false
+    pending: false,
+    schemaVersion: SCHEMA_VERSION,
+    buildMode: buildModes[mode] || (incrementalRequested ? 'incremental' : 'full')
   })));
-  if (hasBuildState) {
-    await markBuildPhase(indexRoot, 'stage4', 'done');
-  }
-  finalize();
-
-  return {
-    mode: modeArg,
-    results,
-    paths: {
-      code: codeOutPath,
-      prose: proseOutPath,
-      extractedProse: extractedProseOutPath,
-      records: recordsOutPath,
-      out: outPath
+    if (hasBuildState) {
+      await markBuildPhase(indexRoot, 'stage4', 'done');
     }
-  };
+
+    return {
+      mode: modeArg,
+      results,
+      paths: {
+        code: codeOutPath,
+        prose: proseOutPath,
+        extractedProse: extractedProseOutPath,
+        records: recordsOutPath,
+        out: outPath
+      }
+    };
+  } finally {
+    finalize();
+  }
 }

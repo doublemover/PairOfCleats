@@ -5,6 +5,7 @@ import { resolveAutoEmbeddingBatchSize } from '../../../shared/embedding-batch.j
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../shared/embedding-identity.js';
 import { resolveStubDims } from '../../../shared/embedding.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../../shared/onnx-embeddings.js';
+import { resolveQuantizationParams } from '../../../storage/sqlite/vector.js';
 
 export const resolveEmbeddingRuntime = async ({
   rootDir,
@@ -24,6 +25,7 @@ export const resolveEmbeddingRuntime = async ({
   }
   const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
   const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
+  const quantization = resolveQuantizationParams(embeddingsConfig.quantization);
   const embeddingQueueConfig = embeddingsConfig.queue || {};
   const embeddingCacheConfig = embeddingsConfig.cache || {};
   const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
@@ -108,22 +110,27 @@ export const resolveEmbeddingRuntime = async ({
       modelId
     })
     : null;
+  const quantRange = quantization.maxVal - quantization.minVal;
+  const quantLevels = Number.isFinite(quantization.levels) ? quantization.levels : 256;
+  const denseScale = quantLevels > 1 && Number.isFinite(quantRange) && quantRange !== 0
+    ? quantRange / (quantLevels - 1)
+    : 2 / 255;
   const embeddingIdentity = buildEmbeddingIdentity({
     modelId,
     provider: embeddingProvider,
     mode: resolvedEmbeddingMode,
     stub: useStubEmbeddings,
     dims: useStubEmbeddings ? resolveStubDims(argv.dims) : (Number.isFinite(Number(argv.dims)) ? Math.floor(Number(argv.dims)) : null),
-    scale: 2 / 255,
+    scale: denseScale,
     pooling: 'mean',
     normalize: true,
     truncation: 'truncate',
     maxLength: null,
     quantization: {
       version: 1,
-      minVal: -1,
-      maxVal: 1,
-      levels: 256
+      minVal: quantization.minVal,
+      maxVal: quantization.maxVal,
+      levels: quantization.levels
     },
     onnx: embeddingProvider === 'onnx' ? {
       ...embeddingOnnx,

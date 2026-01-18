@@ -18,7 +18,6 @@ import { isInside, isRootPath } from './path-utils.js';
 import { createProcessRunner } from './bench/language/process.js';
 import {
   buildLineStats,
-  formatDuration,
   formatGb,
   formatMetricSummary,
   getRecommendedHeapMb,
@@ -310,18 +309,22 @@ let completed = 0;
 const formatBenchTierTag = (tier) => {
   if (!tier) return '';
   const label = String(tier).trim().toLowerCase();
-  return label ? `bench-${label}` : '';
+  return label || '';
 };
+const formatBenchRepoLabel = (repo) => {
+  if (!repo) return 'Benching';
+  const repoName = String(repo).split('/').filter(Boolean).pop() || repo;
+  return `Benching ${repoName}`;
+};
+
 let benchTierTag = '';
 let benchRepoLabel = '';
 const benchTask = display.task('Repos', { total: tasks.length, stage: 'bench' });
-const updateBenchProgress = (label) => {
-  const elapsed = formatDuration(Date.now() - startTime);
-  const message = label ? `${label} | elapsed ${elapsed}` : `elapsed ${elapsed}`;
+const updateBenchProgress = () => {
   const reposLabel = benchTierTag ? `Repos (${benchTierTag})` : 'Repos';
-  benchTask.set(completed, tasks.length, { message, name: reposLabel });
+  benchTask.set(completed, tasks.length, { name: reposLabel });
 };
-updateBenchProgress('pending');
+updateBenchProgress();
 
 const cleanRepoCache = async ({ repoCacheRoot, repoLabel }) => {
   if (keepCache || dryRun || !repoCacheRoot) return;
@@ -346,11 +349,8 @@ for (const task of tasks) {
   const repoLabel = `${task.language}/${task.repo}`;
   const tierLabel = String(task.tier || '').trim();
   benchTierTag = formatBenchTierTag(tierLabel) || benchTierTag;
-  benchRepoLabel = tierLabel
-    ? `bench repo ${repoLabel} (${tierLabel})`
-    : `bench repo ${repoLabel}`;
-  const phaseLabel = `repo ${repoLabel} (${task.tier})`;
-  updateBenchProgress(`starting ${phaseLabel}`);
+  benchRepoLabel = formatBenchRepoLabel(task.repo);
+  updateBenchProgress();
   const repoCacheRoot = resolveRepoCacheRoot({ repoPath, cacheRoot });
 
   try {
@@ -359,7 +359,7 @@ for (const task of tasks) {
         display.error(`Missing repo ${task.repo} at ${repoPath}. Re-run with --clone.`);
         exitWithDisplay(1);
       }
-      updateBenchProgress(`cloning ${phaseLabel}`);
+      updateBenchProgress();
       if (!dryRun && cloneEnabled && cloneTool) {
         const args = cloneTool.buildArgs(task.repo, repoPath);
         const cloneResult = await processRunner.runProcess(`clone ${task.repo}`, cloneTool.label, args, {
@@ -369,7 +369,7 @@ for (const task of tasks) {
         if (!cloneResult.ok) {
           appendLog(`[error] Clone failed for ${repoLabel}; continuing to next repo.`, 'error');
           completed += 1;
-          updateBenchProgress(`failed ${phaseLabel}`);
+          updateBenchProgress();
           appendLog('[metrics] failed (clone)');
           results.push({
             ...task,
@@ -486,7 +486,7 @@ for (const task of tasks) {
       appendLog(`[lock] ${message}`);
       if (!quietMode) display.error(message);
       completed += 1;
-      updateBenchProgress(`skipped ${phaseLabel}`);
+      updateBenchProgress();
       appendLog('[metrics] skipped (lock)');
       results.push({
         ...task,
@@ -537,7 +537,7 @@ for (const task of tasks) {
     if (argv.verbose) benchArgs.push('--verbose');
     if (argv.quiet || argv.json) benchArgs.push('--quiet');
 
-    updateBenchProgress(`bench ${phaseLabel}`);
+    updateBenchProgress();
 
     let summary = null;
     if (dryRun) {
@@ -557,7 +557,7 @@ for (const task of tasks) {
         }
         appendLog(`[error] Bench failed for ${repoLabel}; continuing to next repo.`, 'error');
         completed += 1;
-        updateBenchProgress(`failed ${phaseLabel}`);
+        updateBenchProgress();
         appendLog('[metrics] failed (bench)');
         results.push({
           ...task,
@@ -577,7 +577,7 @@ for (const task of tasks) {
         appendLog(`[error] Failed to read bench report for ${repoLabel}; continuing.`, 'error');
         if (err && err.message) display.error(err.message);
         completed += 1;
-        updateBenchProgress(`failed ${phaseLabel}`);
+        updateBenchProgress();
         appendLog('[metrics] failed (report)');
         results.push({
           ...task,
@@ -593,7 +593,7 @@ for (const task of tasks) {
     }
 
     completed += 1;
-    updateBenchProgress(`finished ${phaseLabel}`);
+    updateBenchProgress();
     appendLog(`[metrics] ${formatMetricSummary(summary)}`);
 
     results.push({ ...task, repoPath, outFile, summary });

@@ -51,6 +51,25 @@ assert.equal(result.skip, true, 'expected vocab growth to be skipped');
 const afterCount = db.prepare('SELECT COUNT(*) AS total FROM token_vocab WHERE mode = ?').get('code').total;
 assert.equal(afterCount, beforeCount, 'expected vocab size to remain unchanged');
 
+const startLargeCount = afterCount;
+const bigTokens = Array.from({ length: 1200 }, (_, idx) => `token_${idx}`);
+result = ensureVocabIds(
+  db,
+  'code',
+  'token_vocab',
+  'token_id',
+  'token',
+  bigTokens,
+  insertStmt
+);
+assert.equal(result.inserted, bigTokens.length, 'expected large token batch to insert');
+const endLargeCount = db.prepare('SELECT COUNT(*) AS total FROM token_vocab WHERE mode = ?').get('code').total;
+assert.equal(
+  endLargeCount,
+  startLargeCount + bigTokens.length,
+  'expected vocab size to include large token batch'
+);
+
 db.close();
 
 console.log('sqlite build vocab test passed');

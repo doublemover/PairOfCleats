@@ -60,6 +60,11 @@ pairofcleats sqlite build
 When the extension loads successfully, the build creates `dense_vectors_ann` and
 stores float32 embeddings for ANN queries.
 
+## Incremental updates
+- Incremental SQLite updates delete and reinsert ANN rows for changed chunks.
+- When the extension is unavailable, incremental updates proceed without the
+  ANN table and emit a warning (ANN falls back to JS until rebuilt).
+
 ## Search
 ```
 pairofcleats search --backend sqlite "query"
@@ -78,3 +83,5 @@ Candidate set behavior:
 - The extension table is optional and not required for SQLite to work.
 - `dense_vectors_ann` stores float32 embeddings, which increases SQLite size.
 - `dense_vectors_ann` uses `rowid` = `doc_id` for lookups.
+- `dense_vectors` and `dense_vectors_ann` should have matching row counts per
+  mode when ANN is enabled (no orphaned ANN rows).

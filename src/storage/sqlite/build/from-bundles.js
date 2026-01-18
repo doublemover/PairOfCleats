@@ -1,9 +1,15 @@
 import fsSync from 'node:fs';
-import path from 'node:path';
-import { buildChunkRow, buildTokenFrequency } from '../build-helpers.js';
+import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../build-helpers.js';
 import { CREATE_INDEXES_SQL, CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../schema.js';
 import { normalizeFilePath, removeSqliteSidecars } from '../utils.js';
-import { dequantizeUint8ToFloat32, packUint32, packUint8, quantizeVec, toVectorId } from '../vector.js';
+import {
+  dequantizeUint8ToFloat32,
+  packUint32,
+  packUint8,
+  quantizeVec,
+  resolveQuantizationParams,
+  toSqliteRowId
+} from '../vector.js';
 import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
 import { normalizeManifestFiles } from './manifest.js';
 import { validateSqliteDatabase } from './validate.js';
@@ -122,35 +128,31 @@ export async function buildDatabaseFromBundles({
       fileCounts.set(record.normalized, 0);
     }
 
-    const vectorExtension = vectorConfig?.extension || {};
-    const vectorAnnEnabled = vectorConfig?.enabled === true;
-    const encodeVector = vectorConfig?.encodeVector;
+  const vectorExtension = vectorConfig?.extension || {};
+  const vectorAnnEnabled = vectorConfig?.enabled === true;
+  const encodeVector = vectorConfig?.encodeVector;
+  const quantization = resolveQuantizationParams(vectorConfig?.quantization);
     let denseMetaSet = false;
     let denseDims = null;
-    let vectorAnnLoaded = false;
-    let vectorAnnReady = false;
-    let vectorAnnTable = vectorExtension.table || 'dense_vectors_ann';
-    let vectorAnnColumn = vectorExtension.column || 'embedding';
-    let insertVectorAnn = null;
+    let vectorAnnWarned = false;
+    let vectorAnn = null;
     if (vectorAnnEnabled) {
-      const loadResult = vectorConfig.loadVectorExtension(db, vectorExtension, `sqlite ${mode}`);
-      if (loadResult.ok) {
-        vectorAnnLoaded = true;
-        if (vectorConfig.hasVectorTable(db, vectorAnnTable)) {
-          vectorAnnReady = true;
-          insertVectorAnn = db.prepare(
-            `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
-          );
-        }
-      } else {
-        warn(`[sqlite] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
+      vectorAnn = prepareVectorAnnInsert({ db, mode, vectorConfig });
+      if (vectorAnn.loaded === false && vectorAnn.reason) {
+        warn(`[sqlite] Vector extension unavailable for ${mode}: ${vectorAnn.reason}`);
+        vectorAnnWarned = true;
       }
     }
 
     const insertBundle = db.transaction((bundle, fileKey) => {
+      const chunks = Array.isArray(bundle?.chunks) ? bundle.chunks : null;
+      if (!chunks) {
+        warn(`[sqlite] Bundle missing chunks for ${fileKey}; skipping.`);
+        return;
+      }
       const normalizedFile = normalizeFilePath(fileKey);
       let chunkCount = 0;
-      for (const chunk of bundle.chunks || []) {
+      for (const chunk of chunks) {
         const docId = nextDocId;
         nextDocId += 1;
 
@@ -217,33 +219,51 @@ export async function buildDatabaseFromBundles({
         if (hasFloatEmbedding || hasU8Embedding) {
           const dims = hasFloatEmbedding ? chunk.embedding.length : u8Length;
           if (!denseMetaSet) {
-            insertDenseMeta.run(mode, dims, 1.0, modelConfig.id || null);
+            insertDenseMeta.run(
+              mode,
+              dims,
+              1.0,
+              modelConfig.id || null,
+              quantization.minVal,
+              quantization.maxVal,
+              quantization.levels
+            );
             denseMetaSet = true;
             denseDims = dims;
           } else if (denseDims !== null && dims !== denseDims) {
             throw new Error(`Dense vector dims mismatch for ${mode}: expected ${denseDims}, got ${dims}`);
           }
-          const denseVector = hasFloatEmbedding ? quantizeVec(chunk.embedding) : u8Embedding;
+          const denseVector = hasFloatEmbedding
+            ? quantizeVec(
+              chunk.embedding,
+              quantization.minVal,
+              quantization.maxVal,
+              quantization.levels
+            )
+            : u8Embedding;
           insertDense.run(mode, docId, packUint8(denseVector));
           validationStats.dense += 1;
-          if (vectorAnnLoaded) {
-            if (!vectorAnnReady) {
-              const created = vectorConfig.ensureVectorTable(db, vectorExtension, dims);
-              if (created.ok) {
-                vectorAnnReady = true;
-                vectorAnnTable = created.tableName;
-                vectorAnnColumn = created.column;
-                insertVectorAnn = db.prepare(
-                  `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
-                );
+          if (vectorAnn?.loaded) {
+            if (!vectorAnn.ready) {
+              const created = prepareVectorAnnInsert({ db, mode, vectorConfig, dims });
+              if (created.ready) {
+                vectorAnn = created;
+              } else if (created.reason && !vectorAnnWarned) {
+                warn(`[sqlite] Failed to prepare vector table for ${mode}: ${created.reason}`);
+                vectorAnnWarned = true;
               }
             }
-            if (vectorAnnReady && insertVectorAnn && encodeVector) {
+            if (vectorAnn.ready && vectorAnn.insert && encodeVector) {
               const floatVec = hasFloatEmbedding
                 ? chunk.embedding
-                : dequantizeUint8ToFloat32(u8Embedding);
+                : dequantizeUint8ToFloat32(
+                  u8Embedding,
+                  quantization.minVal,
+                  quantization.maxVal,
+                  quantization.levels
+                );
               const encoded = floatVec ? encodeVector(floatVec, vectorExtension) : null;
-              if (encoded) insertVectorAnn.run(toVectorId(docId), encoded);
+              if (encoded) vectorAnn.insert.run(toSqliteRowId(docId), encoded);
             }
           }
         }
@@ -256,9 +276,10 @@ export async function buildDatabaseFromBundles({
 
     let count = 0;
     let bundleFailure = null;
-    const batchSize = useBundleWorkers
-      ? Math.max(1, Math.min(totalFiles, Math.max(1, bundleThreads * 2)))
+    const maxInFlightBundles = useBundleWorkers
+      ? Math.max(1, Math.min(totalFiles, Math.max(1, bundleThreads * 2), 64))
       : 1;
+    const batchSize = maxInFlightBundles;
     try {
       for (let i = 0; i < manifestEntries.length; i += batchSize) {
         const batch = manifestEntries.slice(i, i + batchSize);
@@ -280,7 +301,8 @@ export async function buildDatabaseFromBundles({
             bundleFailure = err?.message || 'bundle insert failed';
             break;
           }
-          count += result.bundle.chunks.length;
+          const chunkCount = Array.isArray(result.bundle?.chunks) ? result.bundle.chunks.length : 0;
+          count += chunkCount;
           processedFiles += 1;
           logBundleProgress(result.file, processedFiles === totalFiles);
         }
@@ -321,11 +343,22 @@ export async function buildDatabaseFromBundles({
       validateMode,
       expected: validationStats,
       emitOutput,
-      logger
+      logger,
+      dbPath: outPath
     });
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch {}
     succeeded = true;
     return { count, denseCount: validationStats.dense };
   } finally {
+    if (succeeded) {
+      try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+      } catch (err) {
+        warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
+      }
+    }
     restoreBuildPragmas(db);
     db.close();
     if (!succeeded) {
@@ -336,3 +369,4 @@ export async function buildDatabaseFromBundles({
     }
   }
 }
+

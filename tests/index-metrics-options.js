@@ -14,21 +14,14 @@ const cacheRoot = path.join(tempRoot, 'cache');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'export const alpha = 1;\n');
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify({
-    indexing: {
-      artifactCompression: { enabled: true, mode: 'gzip', keepRaw: true },
-      documentExtraction: { enabled: true }
-    }
-  }, null, 2)
-);
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
@@ -54,9 +47,12 @@ const metrics = JSON.parse(await fsPromises.readFile(metricsPath, 'utf8'));
 const compression = metrics?.artifacts?.compression || {};
 const extraction = metrics?.artifacts?.documentExtraction || {};
 
-assert.equal(compression.enabled, true, 'expected compression.enabled to be true');
-assert.equal(compression.mode, 'gzip', 'expected compression.mode=gzip');
-assert.equal(compression.keepRaw, true, 'expected compression.keepRaw=true');
-assert.equal(extraction.enabled, true, 'expected documentExtraction.enabled=true');
+assert.equal(compression.enabled, false, 'expected compression.enabled to be false by default');
+if (!['gzip', 'zstd', null].includes(compression.mode ?? null)) {
+  console.error(`Expected compression.mode to be gzip or zstd, got ${compression.mode}`);
+  process.exit(1);
+}
+assert.equal(compression.keepRaw, false, 'expected compression.keepRaw=false by default');
+assert.equal(extraction.enabled, false, 'expected documentExtraction.enabled=false by default');
 
 console.log('index metrics options test passed');

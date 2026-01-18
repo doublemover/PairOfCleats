@@ -1,64 +1,44 @@
-import terminalKitModule from 'terminal-kit';
 import { writeProgressEvent } from './progress-events.js';
-
-const terminalKit = terminalKitModule?.default || terminalKitModule;
-
-const normalizeProgressMode = (value) => {
-  if (value === false || value === 'false' || value === 'off' || value === 'none') return 'off';
-  if (value === 'jsonl' || value === 'json') return 'jsonl';
-  return 'auto';
-};
-
-const resolveTerminal = (stream) => {
-  if (!terminalKit) return null;
-  if (typeof terminalKit.createTerminal === 'function') {
-    return terminalKit.createTerminal({
-      stdin: process.stdin,
-      stdout: stream,
-      stderr: stream
-    });
-  }
-  if (terminalKit.terminal) {
-    const term = terminalKit.terminal;
-    if (term.stdout && term.stdout !== stream) term.stdout = stream;
-    if (term.outputStream && term.outputStream !== stream) term.outputStream = stream;
-    return term;
-  }
-  return null;
-};
-
-const formatCount = (value) => {
-  if (!Number.isFinite(value)) return '?';
-  return value.toLocaleString();
-};
-
-const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
-const stripAnsi = (value) => String(value || '').replace(ANSI_PATTERN, '');
-
-const PARTIALS_OVERALL = ['▊', '▋', '▌', '▍', '▎', '▏'];
-const PARTIALS_STAGE = ['▖', '▘', '▝', '▗', '▚', '▞'];
-const PARTIALS_IMPORTS = ['░', '▒', '▓'];
-const PARTIALS_FILES = ['⠁', '⠃', '⠇', '⡇', '⡏', '⡟', '⡿'];
-const PARTIALS_ARTIFACTS = ['⡈', '⡘', '⡸', '⣸'];
-const PARTIALS_REPOS = ['▂', '▃', '▄', '▅', '▆', '▇'];
-const PARTIALS_DEFAULT = ['⡁', '⡃', '⡇', '⡧', '⡷'];
-const EMPTY_PATTERN_DEFAULT = '┈┉';
-
-const BAR_STYLES = {
-  overall: { fill: '▉', empty: ' ', partials: PARTIALS_OVERALL },
-  stage: { fill: '█', empty: ' ', partials: PARTIALS_STAGE },
-  imports: { fill: '█', empty: ' ', partials: PARTIALS_IMPORTS },
-  files: { fill: '⣿', empty: ' ', partials: PARTIALS_FILES },
-  artifacts: { fill: '⣿', empty: ' ', partials: PARTIALS_ARTIFACTS },
-  shard: { fill: '⣿', empty: ' ', partials: PARTIALS_FILES },
-  records: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
-  embeddings: { fill: '█', empty: ' ', partials: PARTIALS_STAGE },
-  downloads: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
-  repos: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
-  queries: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
-  ci: { fill: '█', empty: ' ', partials: PARTIALS_STAGE },
-  default: { fill: '⣿', empty: EMPTY_PATTERN_DEFAULT, partials: PARTIALS_DEFAULT }
-};
+import { normalizeProgressMode, resolveTerminal, resolveWidth } from './display/terminal.js';
+import { BAR_STYLES, buildBar } from './display/bar.js';
+import {
+  BLACK,
+  STATUS_BRACKET_FG,
+  CHECK_FG_OK,
+  CHECK_FG_FAIL,
+  PALETTE,
+  clampBackgroundColor,
+  makeTextForeground,
+  makeBarForeground,
+  buildShadeScale,
+  shiftHue,
+  hashUnit,
+  extractExtension,
+  colorToAnsi,
+  composeColor,
+  mixColor,
+  scaleColor,
+  resolveGradientColor,
+  paletteColorAt
+} from './display/colors.js';
+import {
+  stripAnsi,
+  formatCount,
+  padLabel,
+  padVisible,
+  padVisibleStart,
+  truncateLine,
+  resolveRateUnit,
+  formatRate,
+  titleCaseUnit,
+  formatSecondsPerUnit,
+  splitDurationParts,
+  formatDurationCompact,
+  formatDurationEtaCompact,
+  formatDurationAligned
+} from './display/text.js';
+const LINE_PREFIX_TRANSPARENT = ' ';
+const LINE_PREFIX_SHADED = ' ';
 
 const resolveBarVariant = (task) => {
   const name = String(task?.name || '').toLowerCase();
@@ -78,132 +58,7 @@ const resolveBarVariant = (task) => {
   return 'default';
 };
 
-const repeatPattern = (pattern, count) => {
-  if (!pattern || count <= 0) return '';
-  const safe = String(pattern);
-  if (safe.length === 1) return safe.repeat(count);
-  let output = '';
-  for (let i = 0; i < count; i += 1) {
-    output += safe[i % safe.length];
-  }
-  return output;
-};
-
-const clampChannel = (value) => Math.max(0, Math.min(255, Math.round(value)));
-
-const mixChannel = (from, to, t) => clampChannel(from + (to - from) * t);
-
-const mixColor = (from, to, t) => ({
-  r: mixChannel(from.r, to.r, t),
-  g: mixChannel(from.g, to.g, t),
-  b: mixChannel(from.b, to.b, t)
-});
-
-const scaleColor = (color, factor) => ({
-  r: clampChannel(color.r * factor),
-  g: clampChannel(color.g * factor),
-  b: clampChannel(color.b * factor)
-});
-
-const lightenColor = (color, factor) => mixColor(color, { r: 255, g: 255, b: 255 }, factor);
-
-const colorToAnsi = (color, isBackground = false) => {
-  const prefix = isBackground ? '48' : '38';
-  return `${prefix};2;${color.r};${color.g};${color.b}`;
-};
-
-const GRADIENT_STOPS = [
-  { pos: 0, color: { r: 64, g: 42, b: 22 } },   // dark brown
-  { pos: 0.38, color: { r: 44, g: 140, b: 82 } }, // green
-  { pos: 0.72, color: { r: 214, g: 124, b: 48 } }, // orange
-  { pos: 1, color: { r: 236, g: 206, b: 80 } }  // yellow
-];
-
-const resolveGradientColor = (index, total) => {
-  if (!Number.isFinite(total) || total <= 1) return GRADIENT_STOPS[0].color;
-  const t = Math.max(0, Math.min(1, index / (total - 1)));
-  for (let i = 0; i < GRADIENT_STOPS.length - 1; i += 1) {
-    const start = GRADIENT_STOPS[i];
-    const end = GRADIENT_STOPS[i + 1];
-    if (t >= start.pos && t <= end.pos) {
-      const local = (t - start.pos) / (end.pos - start.pos || 1);
-      return mixColor(start.color, end.color, local);
-    }
-  }
-  return GRADIENT_STOPS[GRADIENT_STOPS.length - 1].color;
-};
-
-const PULSE_BRACKET_COLORS = [
-  { r: 170, g: 170, b: 170 },
-  { r: 210, g: 210, b: 210 },
-  { r: 245, g: 245, b: 245 },
-  { r: 210, g: 210, b: 210 }
-];
-
-const resolveBracketColor = (index, total, now, active = true) => {
-  if (!active) return colorToAnsi({ r: 170, g: 170, b: 170 });
-  const step = Math.floor(now / 120);
-  const offset = total > 0 ? index % PULSE_BRACKET_COLORS.length : 0;
-  const pulseIndex = (step + offset) % PULSE_BRACKET_COLORS.length;
-  return colorToAnsi(PULSE_BRACKET_COLORS[pulseIndex]);
-};
-
-const composeColor = (foreground, background) => {
-  if (foreground && background) return `${foreground};${background}`;
-  return foreground || background || '';
-};
-
-const buildBar = (pct, width, style, theme, colorize, options = {}) => {
-  const safeWidth = Math.max(4, Math.floor(width));
-  const clamped = Math.min(1, Math.max(0, pct));
-  const total = clamped * safeWidth;
-  const fullCount = Math.floor(total);
-  const remainder = total - fullCount;
-  const partials = Array.isArray(style?.partials) && style.partials.length
-    ? style.partials
-    : PARTIALS_FINE;
-  let partialIndex = Math.floor(remainder * partials.length);
-  if (remainder > 0 && partialIndex === 0) partialIndex = 1;
-  if (partialIndex >= partials.length) partialIndex = partials.length;
-  let hasPartial = partialIndex > 0 && fullCount < safeWidth;
-  const animateIndex = Number.isFinite(options.animateIndex) ? options.animateIndex : null;
-  if (animateIndex !== null && clamped < 1 && fullCount < safeWidth) {
-    const animated = (Math.floor(animateIndex) % partials.length) + 1;
-    partialIndex = animated;
-    hasPartial = true;
-  }
-  const emptyCount = Math.max(0, safeWidth - fullCount - (hasPartial ? 1 : 0));
-
-  const fillChar = style?.fill || '█';
-  const emptyChar = style?.empty || '·';
-  const filledText = fullCount > 0 ? repeatPattern(fillChar, fullCount) : '';
-  const partialText = hasPartial ? partials[partialIndex - 1] : '';
-  const emptyText = emptyCount > 0 ? repeatPattern(emptyChar, emptyCount) : '';
-
-  const background = theme?.background || '';
-  const filled = colorize ? colorize(filledText, composeColor(theme?.fill, background)) : filledText;
-  const partial = colorize ? colorize(partialText, composeColor(theme?.edge, background)) : partialText;
-  const empty = colorize ? colorize(emptyText, composeColor(theme?.empty, background)) : emptyText;
-  const bracket = theme?.bracket || '';
-  const left = colorize ? colorize('[', bracket) : '[';
-  const right = colorize ? colorize(']', bracket) : ']';
-  return `${left}${filled}${partial}${empty}${right}`;
-};
-
-const resolveWidth = (term, stream) => {
-  if (term && Number.isFinite(term.width)) return term.width;
-  if (stream && Number.isFinite(stream.columns)) return stream.columns;
-  return 120;
-};
-
-const truncateLine = (line, width) => {
-  if (!line) return '';
-  const safeWidth = Math.max(1, Math.floor(width));
-  const plain = stripAnsi(line);
-  if (plain.length <= safeWidth) return line;
-  if (safeWidth <= 3) return plain.slice(0, safeWidth);
-  return `${plain.slice(0, safeWidth - 3)}...`;
-};
+// Helpers moved to ./display modules.
 
 const clampRatio = (value) => Math.min(1, Math.max(0, value));
 
@@ -243,175 +98,6 @@ const computeOverallProgress = ({ overallTask, tasksByMode }) => {
   return clampRatio(effective / overallTask.total);
 };
 
-const padLabel = (label, width) => {
-  const safeWidth = Math.max(1, Math.floor(width));
-  const plain = stripAnsi(label);
-  if (plain.length === safeWidth) return label;
-  if (plain.length < safeWidth) return `${label}${' '.repeat(safeWidth - plain.length)}`;
-  if (safeWidth <= 3) return plain.slice(0, safeWidth);
-  return `${plain.slice(0, safeWidth - 3)}...`;
-};
-
-const padVisible = (text, width) => {
-  const value = String(text ?? '');
-  const plainLength = stripAnsi(value).length;
-  if (plainLength >= width) return value;
-  return `${value}${' '.repeat(width - plainLength)}`;
-};
-
-const padVisibleStart = (text, width) => {
-  const value = String(text ?? '');
-  const plainLength = stripAnsi(value).length;
-  if (plainLength >= width) return value;
-  return `${' '.repeat(width - plainLength)}${value}`;
-};
-
-const formatDurationShort = (seconds) => {
-  if (!Number.isFinite(seconds) || seconds <= 0) return null;
-  const total = Math.max(1, Math.round(seconds));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const secs = total % 60;
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  }
-  return `${minutes}:${String(secs).padStart(2, '0')}`;
-};
-
-const resolveRateUnit = (task) => {
-  const rawUnit = typeof task?.unit === 'string' ? task.unit.trim().toLowerCase() : '';
-  if (rawUnit) return rawUnit;
-  const name = String(task?.name || '').toLowerCase();
-  if (name.includes('file')) return 'files';
-  if (name.includes('chunk')) return 'chunks';
-  if (name.includes('line')) return 'lines';
-  if (name.includes('query')) return 'queries';
-  if (name.includes('repo')) return 'repos';
-  if (name.includes('import')) return 'imports';
-  if (name.includes('artifact')) return 'artifacts';
-  if (name.includes('record')) return 'records';
-  if (name.includes('shard')) return 'shards';
-  if (name.includes('embedding')) return 'embeddings';
-  if (name.includes('download')) return 'downloads';
-  return '';
-};
-
-const formatRate = (rate) => {
-  if (!Number.isFinite(rate) || rate <= 0) return null;
-  if (rate >= 1000) {
-    const scaled = rate / 1000;
-    const value = scaled >= 10 ? Math.round(scaled) : Number(scaled.toFixed(1));
-    return `${value}k`;
-  }
-  if (rate >= 100) return Math.round(rate).toLocaleString();
-  if (rate >= 10) return rate.toFixed(1);
-  return rate.toFixed(2);
-};
-
-const singularizeUnit = (unit) => {
-  if (!unit) return '';
-  return unit.endsWith('s') ? unit.slice(0, -1) : unit;
-};
-
-const titleCaseUnit = (unit) => {
-  if (!unit) return '';
-  return String(unit)
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() || ''}${part.slice(1)}`)
-    .join('');
-};
-
-const formatSecondsPerUnit = (seconds, unit) => {
-  if (!Number.isFinite(seconds) || seconds <= 0) return null;
-  const safeUnit = titleCaseUnit(singularizeUnit(unit)) || 'Item';
-  let value = '';
-  if (seconds >= 100) value = Math.round(seconds).toLocaleString();
-  else if (seconds >= 10) value = seconds.toFixed(1);
-  else if (seconds >= 1) value = seconds.toFixed(2);
-  else value = seconds.toFixed(3);
-  return `${value}s/${safeUnit}`;
-};
-
-const splitDurationParts = (seconds) => {
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return { days: 0, hours: 0, minutes: 0, seconds: 0, ms: 0, totalSeconds: 0 };
-  }
-  if (seconds < 1) {
-    return { days: 0, hours: 0, minutes: 0, seconds: 0, ms: Math.max(1, Math.round(seconds * 1000)), totalSeconds: seconds };
-  }
-  const total = Math.floor(seconds);
-  const days = Math.floor(total / 86400);
-  const hours = Math.floor((total % 86400) / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const secs = total % 60;
-  return { days, hours, minutes, seconds: secs, ms: 0, totalSeconds: seconds };
-};
-
-const formatDurationCompact = (parts) => {
-  if (parts.ms) return `${parts.ms}ms`;
-  if (parts.days > 0 || parts.hours > 0) {
-    const pieces = [];
-    if (parts.days > 0) pieces.push(`${parts.days}d`);
-    if (parts.hours > 0) pieces.push(`${parts.hours}h`);
-    if (parts.minutes > 0) pieces.push(`${parts.minutes}m`);
-    if (parts.seconds > 0) pieces.push(`${parts.seconds}s`);
-    return pieces.join(' ');
-  }
-  if (parts.minutes > 0) {
-    return parts.seconds > 0 ? `${parts.minutes}m${parts.seconds}s` : `${parts.minutes}m`;
-  }
-  if (parts.seconds > 0) return `${parts.seconds}s`;
-  return '0s';
-};
-
-const formatDurationEtaCompact = (parts) => {
-  if (parts.ms) return `${parts.ms}ms`;
-  if (parts.days > 0 || parts.hours > 0) {
-    const pieces = [];
-    if (parts.days > 0) pieces.push(`${parts.days}d`);
-    if (parts.hours > 0) pieces.push(`${parts.hours}h`);
-    if (parts.minutes > 0) pieces.push(`${parts.minutes}m`);
-    if (parts.seconds > 0) pieces.push(`${parts.seconds}s`);
-    return pieces.join('');
-  }
-  if (parts.minutes > 0) {
-    if (parts.seconds > 0) {
-      const spacer = parts.minutes >= 10 ? ' ' : '';
-      return `${parts.minutes}m${spacer}${parts.seconds}s`;
-    }
-    return parts.minutes >= 10 ? `${parts.minutes}m   ` : `${parts.minutes}m`;
-  }
-  if (parts.seconds > 0) return `${parts.seconds}s`;
-  return '0s';
-};
-
-const formatDurationAligned = (parts, layout) => {
-  const cols = [];
-  if (layout.days > 0) {
-    cols.push(parts.days > 0 ? `${parts.days}d` : '');
-  }
-  if (layout.hours > 0) {
-    cols.push(parts.hours > 0 ? `${parts.hours}h` : '');
-  }
-  if (layout.minutes > 0) {
-    const showZero = parts.minutes === 0 && parts.seconds > 0 && parts.hours > 0;
-    cols.push((parts.minutes > 0 || showZero) ? `${parts.minutes}m` : '');
-  }
-  if (layout.seconds > 0) {
-    let value = '';
-    if (parts.ms) value = `${parts.ms}ms`;
-    else if (parts.seconds > 0) value = `${parts.seconds}s`;
-    cols.push(value);
-  }
-  const padded = cols.map((value, index) => {
-    const width = layout.widths[index] || 0;
-    if (!width) return value;
-    return padVisibleStart(value, width);
-  });
-  return padded.join(' ').trimEnd();
-};
-
 const buildProgressExtras = (task, now) => {
   if (!task || !Number.isFinite(task.current)) return null;
   const endAt = (task.status === 'done' || task.status === 'failed')
@@ -443,7 +129,7 @@ const buildProgressExtras = (task, now) => {
     etaSec = remaining / rate;
   }
   if (!rateText && !etaSec && !elapsedSec) return null;
-  return { rateText, etaSec, elapsedSec };
+  return { rateText, etaSec, elapsedSec, rawRate: rate };
 };
 
 export function createDisplay(options = {}) {
@@ -480,7 +166,14 @@ export function createDisplay(options = {}) {
     rendered: false,
     renderLines: 0,
     lastRenderMs: 0,
-    lastProgressLogMs: 0
+    lastProgressLogMs: 0,
+    paletteOffset: null,
+    paletteScheme: null,
+    paletteStep: null,
+    paletteSlots: new Map(),
+    paletteOrder: [],
+    rateMaxByTask: new Map(),
+    hueShiftByTask: new Map()
   };
 
   const writeJsonLog = (level, message, meta) => {
@@ -562,6 +255,15 @@ export function createDisplay(options = {}) {
       return current <= 0 && (!total || total <= 0);
     };
     const displayTasks = orderedTasks.filter((task) => !shouldHideTask(task));
+    const now = Date.now();
+    const extrasByTask = displayTasks.map((task) => buildProgressExtras(task, now));
+    const benchPrefixes = displayTasks.map((task, index) => {
+      if (String(task?.stage || '').toLowerCase() !== 'bench') return '';
+      const elapsedSec = extrasByTask[index]?.elapsedSec;
+      if (!Number.isFinite(elapsedSec) || elapsedSec <= 0) return '';
+      const parts = splitDurationParts(elapsedSec);
+      return `⌛ ${formatDurationCompact(parts)}`;
+    });
     const formatModeLabel = (mode) => {
       if (!mode) return '';
       return String(mode)
@@ -594,9 +296,17 @@ export function createDisplay(options = {}) {
       'bench Repos',
       'queries Queries'
     ];
-    const maxLabelLength = [...taskLabels, ...baselineLabels]
+    // extrasByTask and benchPrefixes are computed earlier to size labels.
+    const baseLabelLength = [...taskLabels, ...baselineLabels]
       .reduce((max, label) => Math.max(max, stripAnsi(label).length), 0);
-    const labelWidth = Math.min(maxLabelLength, Math.max(10, Math.floor(width * 0.22)));
+    const benchLabelLength = taskLabels.reduce((max, label, index) => {
+      const prefix = benchPrefixes[index] || '';
+      if (!prefix) return max;
+      const length = stripAnsi(label).length + 1 + stripAnsi(prefix).length;
+      return Math.max(max, length);
+    }, 0);
+    const maxLabelLength = Math.max(baseLabelLength, benchLabelLength);
+    const labelWidth = Math.min(maxLabelLength, Math.max(12, Math.floor(width * 0.32)));
     const tasksByMode = {
       stage: new Map(),
       imports: new Map(),
@@ -619,20 +329,96 @@ export function createDisplay(options = {}) {
       if (name === 'artifacts') tasksByMode.artifacts.set(task.mode, task);
     }
     const overallOverride = computeOverallProgress({ overallTask, tasksByMode });
-    const now = Date.now();
     const taskColors = new Map();
-    displayTasks.forEach((task, index) => {
-      taskColors.set(task.id, resolveGradientColor(index, displayTasks.length));
+    const taskAccents = new Map();
+    const taskShades = new Map();
+    const schemes = [
+      { name: 'forward', stepFactor: 0.9, mode: 'linear', direction: 1 },
+      { name: 'reverse', stepFactor: 0.9, mode: 'linear', direction: -1 },
+      { name: 'drift', stepFactor: 1.05, mode: 'linear', direction: 1 },
+      { name: 'pulse', stepFactor: 0.95, mode: 'triangle', span: Math.min(10, PALETTE.length - 1) }
+    ];
+    if (!state.paletteScheme) {
+      state.paletteScheme = schemes[Math.floor(Math.random() * schemes.length)];
+    }
+    const paletteSpan = Math.max(1, displayTasks.length - 1);
+    if (!Number.isFinite(state.paletteStep)) {
+      const baseStep = Math.min(0.9, (PALETTE.length - 1) / paletteSpan);
+      state.paletteStep = baseStep * (state.paletteScheme.stepFactor || 1);
+    }
+    const paletteStep = state.paletteStep || 0.7;
+    const maxOffset = Math.max(0, (PALETTE.length - 1) - paletteStep * paletteSpan);
+    if (!Number.isFinite(state.paletteOffset)) {
+      state.paletteOffset = maxOffset > 0 ? Math.random() * maxOffset : 0;
+    } else if (state.paletteOffset > maxOffset) {
+      state.paletteOffset = maxOffset;
+    }
+    const paletteOffset = state.paletteOffset || 0;
+    const normalizeSlot = (slot) => {
+      const span = PALETTE.length - 1;
+      if (span <= 0) return 0;
+      const wrapped = ((slot % span) + span) % span;
+      return wrapped;
+    };
+    const resolveSlotForIndex = (index) => {
+      const scheme = state.paletteScheme || schemes[0];
+      if (scheme.mode === 'triangle') {
+        const span = Math.max(2, scheme.span || 6);
+        const period = (span - 1) * 2;
+        const pos = period > 0 ? index % period : 0;
+        const wave = pos < span ? pos : period - pos;
+        return normalizeSlot(paletteOffset + wave * paletteStep);
+      }
+      const direction = scheme.direction || 1;
+      return normalizeSlot(paletteOffset + direction * index * paletteStep);
+    };
+    for (const task of displayTasks) {
+      if (!state.paletteSlots.has(task.id)) {
+        const index = state.paletteOrder.length;
+        const slot = resolveSlotForIndex(index);
+        state.paletteSlots.set(task.id, slot);
+        state.paletteOrder.push(task.id);
+      }
+    }
+    const resolveHueShiftForTask = (task, variant) => {
+      const extra = task?.extra && typeof task.extra === 'object' ? task.extra : {};
+      const langHint = extra.languageId || extra.language || extra.lang || extra.extension || '';
+      const messageExt = extractExtension(task?.message || '');
+      const typeHint = langHint || messageExt;
+      const key = `${task?.mode || ''}:${variant || ''}:${typeHint || ''}:${task?.name || ''}`;
+      if (!state.hueShiftByTask.has(key)) {
+        const unit = hashUnit(key);
+        state.hueShiftByTask.set(key, (unit - 0.5) * 30);
+      }
+      return state.hueShiftByTask.get(key) || 0;
+    };
+    displayTasks.forEach((task) => {
+      const slot = state.paletteSlots.get(task.id) ?? paletteOffset;
+      const baseRaw = paletteColorAt(slot);
+      const accentRaw = paletteColorAt(Math.min(PALETTE.length - 1, slot + 0.9));
+      const variant = resolveBarVariant(task);
+      const hueShift = resolveHueShiftForTask(task, variant);
+      const base = clampBackgroundColor(shiftHue(baseRaw, hueShift), 0.5);
+      const accent = clampBackgroundColor(shiftHue(accentRaw, hueShift), 0.5);
+      taskColors.set(task.id, base);
+      taskAccents.set(task.id, accent);
+      taskShades.set(task.id, buildShadeScale(base));
     });
     const resolveBackgroundColor = (task, variant) => {
       if (!task?.mode) return null;
       if (variant === 'imports') {
         const stageTask = tasksByMode.stage.get(task.mode);
-        if (stageTask) return taskColors.get(stageTask.id) || null;
+        if (stageTask) {
+          const base = taskColors.get(stageTask.id) || null;
+          return base ? scaleColor(base, 0.28) : null;
+        }
       }
       if (variant === 'files') {
         const importsTask = tasksByMode.imports.get(task.mode);
-        if (importsTask) return taskColors.get(importsTask.id) || null;
+        if (importsTask) {
+          const base = taskColors.get(importsTask.id) || null;
+          return base ? scaleColor(base, 0.28) : null;
+        }
       }
       return null;
     };
@@ -647,7 +433,7 @@ export function createDisplay(options = {}) {
       if (plainLength >= maxSuffixLength) return value;
       return `${value}${' '.repeat(maxSuffixLength - plainLength)}`;
     };
-    const extrasByTask = displayTasks.map((task) => buildProgressExtras(task, now));
+    // extrasByTask and benchPrefixes already computed above.
     const rateTexts = extrasByTask.map((entry) => entry?.rateText || '');
     const maxRateLength = rateTexts.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
     const padRate = (value) => {
@@ -729,17 +515,44 @@ export function createDisplay(options = {}) {
     });
     const maxMessageLength = messageTexts.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
     const padMessage = (value) => padVisible(value || '', maxMessageLength);
-    const statusDone = colorEnabled
-      ? '\x1b[97m[\x1b[92m✓\x1b[97m]\x1b[0m'
-      : '[✓]';
+    const buildStatusDone = () => {
+      if (!colorEnabled) return '[✓]';
+      const bracketFg = colorToAnsi(STATUS_BRACKET_FG);
+      const checkFg = colorToAnsi(CHECK_FG_OK);
+      const bgBracket = colorToAnsi(BLACK, true);
+      const bracketCode = composeColor(bracketFg, bgBracket);
+      const bracketBold = `1;${bracketCode}`;
+      const left = `\x1b[${bracketBold}m[\x1b[0m`;
+      const check = `\x1b[${composeColor(checkFg, bgBracket)}m✓\x1b[0m`;
+      const right = `\x1b[${bracketBold}m]\x1b[0m`;
+      return `${left}${check}${right}`;
+    };
+    const buildStatusFail = () => {
+      if (!colorEnabled) return '[!]';
+      const bracketFg = colorToAnsi(STATUS_BRACKET_FG);
+      const checkFg = colorToAnsi(CHECK_FG_FAIL);
+      const bgBracket = colorToAnsi(BLACK, true);
+      const bracketCode = composeColor(bracketFg, bgBracket);
+      const bracketBold = `1;${bracketCode}`;
+      const left = `\x1b[${bracketBold}m[\x1b[0m`;
+      const check = `\x1b[${composeColor(checkFg, bgBracket)}m!\x1b[0m`;
+      const right = `\x1b[${bracketBold}m]\x1b[0m`;
+      return `${left}${check}${right}`;
+    };
+    const statusDone = buildStatusDone();
     const statusWidth = Math.max(
       3,
       displayTasks.reduce((max, task) => {
         if (!task?.status || task.status === 'running') return max;
-        const text = task.status === 'done' ? statusDone : `(${task.status})`;
+        const text = task.status === 'done'
+          ? statusDone
+          : task.status === 'failed'
+            ? buildStatusFail()
+            : `(${task.status})`;
         return Math.max(max, stripAnsi(text).length);
       }, 0)
     );
+    const indentWidth = stripAnsi(`${LINE_PREFIX_TRANSPARENT}${LINE_PREFIX_SHADED}`).length;
     const BAR_MAX = 42;
     const BAR_MID = 21;
     const BAR_MIN = 7;
@@ -748,22 +561,55 @@ export function createDisplay(options = {}) {
       const rateLen = showRate ? maxRateLength : 0;
       const detailLen = showDetail ? detailWidth : 0;
       const messageLen = showMessage ? maxMessageLength : 0;
+      const timePrefixLen = 0;
       let extraLen = 0;
       if (showRate && showDetail && showMessage) extraLen = 3 + rateLen + 3 + detailLen + 3 + messageLen;
       else if (showRate && showDetail) extraLen = 3 + rateLen + 3 + detailLen;
       else if (showRate) extraLen = 3 + rateLen;
       else if (showDetail) extraLen = 3 + detailLen;
-      const reserved = labelWidth + 1 + 2 + 1 + suffixLen + 1 + statusWidth + extraLen;
+      const barGuardWidth = 0;
+      const reserved = indentWidth + labelWidth + (timePrefixLen ? timePrefixLen + 1 : 0) + barGuardWidth + 2 + 1 + suffixLen + 1 + statusWidth + extraLen;
       const available = width - reserved;
       if (available < minBar) return null;
       const barWidth = Math.min(BAR_MAX, Math.max(minBar, available));
       return { showSuffix, showRate, showDetail, showMessage, barWidth };
     };
-    const layout = tryLayout({ showSuffix: true, showRate: true, showDetail: true, showMessage: maxMessageLength > 0, minBar: BAR_MID })
-      || tryLayout({ showSuffix: false, showRate: true, showDetail: true, showMessage: maxMessageLength > 0, minBar: BAR_MID })
-      || tryLayout({ showSuffix: false, showRate: false, showDetail: true, showMessage: maxMessageLength > 0, minBar: Math.floor(BAR_MID * 2 / 3) })
-      || tryLayout({ showSuffix: false, showRate: false, showDetail: false, showMessage: false, minBar: BAR_MIN })
-      || { showSuffix: false, showRate: false, showDetail: false, showMessage: false, barWidth: BAR_MIN };
+    const layout = tryLayout({
+      showSuffix: true,
+      showRate: true,
+      showDetail: true,
+      showMessage: maxMessageLength > 0,
+      minBar: BAR_MID
+    })
+      || tryLayout({
+        showSuffix: false,
+        showRate: true,
+        showDetail: true,
+        showMessage: maxMessageLength > 0,
+        minBar: BAR_MID
+      })
+      || tryLayout({
+        showSuffix: false,
+        showRate: false,
+        showDetail: true,
+        showMessage: maxMessageLength > 0,
+        minBar: Math.floor(BAR_MID * 2 / 3)
+      })
+      || tryLayout({
+        showSuffix: false,
+        showRate: false,
+        showDetail: false,
+        showMessage: false,
+        minBar: BAR_MIN
+      })
+      || {
+        showSuffix: false,
+        showRate: false,
+        showDetail: false,
+        showMessage: false,
+        barWidth: BAR_MIN
+      };
+    const hueShiftVariants = new Set(['files', 'imports', 'artifacts', 'records', 'embeddings', 'shard']);
     const taskLines = displayTasks.map((task, index) => {
       const total = Number.isFinite(task.total) && task.total > 0 ? task.total : null;
       const current = Number.isFinite(task.current) ? task.current : 0;
@@ -778,42 +624,142 @@ export function createDisplay(options = {}) {
         : null;
       const variant = resolveBarVariant(task);
       const style = BAR_STYLES[variant] || BAR_STYLES.default;
-      const baseColor = taskColors.get(task.id) || resolveGradientColor(index, orderedTasks.length);
-      const fill = colorToAnsi(baseColor);
-      const edge = colorToAnsi(lightenColor(baseColor, 0.12));
-      const empty = colorToAnsi(scaleColor(baseColor, 0.25));
-      const backgroundColor = resolveBackgroundColor(task, variant);
-      const background = backgroundColor ? colorToAnsi(backgroundColor, true) : '';
-      const bracket = resolveBracketColor(index, orderedTasks.length, now, task.status === 'running');
-      const theme = { fill, edge, empty, bracket, background };
+      const baseColor = taskColors.get(task.id)
+        || resolveGradientColor(index, orderedTasks.length, paletteOffset, paletteStep);
+      const accentColor = taskAccents.get(task.id) || baseColor;
+      const foregroundColor = makeTextForeground(baseColor, 0.6);
+      const accentForeground = makeTextForeground(accentColor, 0.55);
+      const tintText = (text, background = null, foreground = foregroundColor) => {
+        if (!colorEnabled || !text) return text || '';
+        if (text.includes('\x1b')) return text;
+        const fg = colorToAnsi(foreground);
+        const bg = background ? colorToAnsi(background, true) : null;
+        return colorize(text, composeColor(fg, bg));
+      };
+      const shades = taskShades.get(task.id) || buildShadeScale(baseColor);
+      const shadeAt = (shadeIndex) => shades[Math.max(0, Math.min(25, shadeIndex))] || baseColor;
+      const shadeBar = shadeAt(3);
+      const backgroundColor = clampBackgroundColor(resolveBackgroundColor(task, variant) || shadeBar, 0.5);
+      const barForeground = makeBarForeground(backgroundColor, 0.4);
+      const barEdge = makeBarForeground(backgroundColor, 0.55);
+      const barEmpty = scaleColor(barForeground, 0.45);
+      const fill = colorToAnsi(barForeground);
+      const edge = colorToAnsi(barEdge);
+      const empty = colorToAnsi(barEmpty);
+      const background = colorToAnsi(backgroundColor, true);
+      const extras = extrasByTask[index];
+      const rawRate = Number(extras?.rawRate) || 0;
+      let rateMax = state.rateMaxByTask.get(task.id) || 0;
+      if (rawRate > rateMax) {
+        rateMax = rawRate;
+        state.rateMaxByTask.set(task.id, rateMax);
+      }
+      const speedNormalized = rateMax > 0 ? Math.min(1, rawRate / rateMax) : 0;
+      const waveSpeed = 0.25 + speedNormalized * 1.35;
+      const wavePhase = (now / 1000) * waveSpeed * Math.PI * 2;
+      const wave = (Math.sin(wavePhase) + 1) / 2;
+      const baseIndex = Math.round(6 + speedNormalized * 8);
+      const waveSpan = 5 + Math.round(speedNormalized * 6);
+      const bracketIndex = Math.round(Math.max(0, Math.min(25, baseIndex + (wave - 0.5) * waveSpan)));
+      const bracketShade = shadeAt(bracketIndex);
+      const bracketBg = '';
+      const bracketFg = colorToAnsi(makeTextForeground(bracketShade, 0.6));
+      const theme = {
+        fill,
+        edge,
+        empty,
+        bracketFg,
+        bracketBg,
+        background
+      };
       if (variant === 'files') {
         theme.edge = fill;
       }
       const animateEdge = task.status === 'running' && variant === 'stage' && current > 0;
       const animateIndex = animateEdge ? Math.floor(now / 320) : null;
-      const bar = buildBar(clampRatio(pct), barWidth, style, theme, colorize, { animateIndex });
-      const label = padLabel(taskLabels[index] || task.name, labelWidth);
+      const fillGradient = hueShiftVariants.has(variant)
+        ? (pos, count) => {
+          const from = makeBarForeground(backgroundColor, 0.38);
+          const to = makeBarForeground(clampBackgroundColor(accentColor, 0.5), 0.45);
+          return mixColor(from, to, count > 1 ? pos / (count - 1) : 0);
+        }
+        : null;
+      const shadeLabel = shadeAt(0);
+      const shadeTime = shadeAt(1);
+      const shadeSuffix = shadeAt(2);
+      const shadeRate = shadeAt(4);
+      const shadeMessage = shadeAt(5);
+
+      const labelFg = makeTextForeground(shadeLabel, 0.6);
+      const timeFg = makeTextForeground(shadeTime, 0.6);
+      const suffixFg = makeTextForeground(shadeSuffix, 0.55);
+      const rateFg = makeTextForeground(shadeRate, 0.55);
+      const messageFg = makeTextForeground(shadeMessage, 0.55);
+      const bar = buildBar(clampRatio(pct), barWidth, style, theme, colorize, {
+        animateIndex,
+        fillGradient
+      });
+      const progress = total ? clampRatio(current / total) : 0;
+
+      const indent = `${LINE_PREFIX_TRANSPARENT}${tintText(LINE_PREFIX_SHADED, shadeAt(3), labelFg)}`;
+      const timeText = benchPrefixes[index] || '';
+      const barPrefix = '';
+      const barSuffix = '';
+      let label;
+      if (timeText) {
+        const timeLen = stripAnsi(timeText).length;
+        if (labelWidth > timeLen) {
+          const labelSpace = Math.max(1, labelWidth - timeLen);
+          const baseLabel = padLabel(taskLabels[index] || task.name, labelSpace);
+          const labelPart = tintText(baseLabel, shadeLabel, labelFg);
+          const timePart = tintText(timeText, shadeTime, timeFg);
+          label = `${labelPart}${timePart}`;
+        } else {
+          label = tintText(
+            padLabel(`${taskLabels[index] || task.name}${timeText}`, labelWidth),
+            shadeLabel,
+            labelFg
+          );
+        }
+      } else {
+        label = tintText(padLabel(taskLabels[index] || task.name, labelWidth), shadeLabel, labelFg);
+      }
       let status = '';
       if (task.status && task.status !== 'running') {
-        status = task.status === 'done' ? statusDone : `(${task.status})`;
+        status = task.status === 'done'
+          ? statusDone
+          : task.status === 'failed'
+            ? buildStatusFail()
+            : `(${task.status})`;
       }
-      status = ` ${padVisible(status, statusWidth)}`;
-      const extras = extrasByTask[index];
-      const detail = layout.showDetail ? padDetail(task, detailTexts[index] || '') : '';
-      const message = layout.showMessage ? padMessage(messageTexts[index] || '') : '';
-      const rate = layout.showRate ? padRate(extras?.rateText || '') : '';
-      let extraText = '';
-      if (layout.showRate && layout.showDetail && layout.showMessage) {
-        extraText = ` | ${rate} | ${detail} | ${message}`.trimEnd();
-      } else if (layout.showRate && layout.showDetail) {
-        extraText = ` | ${rate} | ${detail}`.trimEnd();
-      } else if (layout.showRate) {
-        extraText = ` | ${rate}`.trimEnd();
-      } else if (layout.showDetail) {
-        extraText = ` | ${detail}`.trimEnd();
+      {
+        const statusBody = padVisible(status, statusWidth);
+        const statusPrefix = tintText(' ', shadeSuffix, suffixFg);
+        const statusTint = tintText(statusBody, shadeSuffix, suffixFg);
+        status = `${statusPrefix}${statusTint}`;
       }
-      const suffixText = suffix ? ` ${suffix}` : '';
-      return `${label} ${bar}${suffixText}${status}${extraText}`.trimEnd();
+      let detail = layout.showDetail ? padDetail(task, detailTexts[index] || '') : '';
+      if (detail && colorEnabled && task.status === 'running') {
+        const fg = colorToAnsi(rateFg);
+        const etaStartIndex = 10;
+        const etaIndex = Math.round(etaStartIndex + (25 - etaStartIndex) * progress);
+        const etaBg = colorToAnsi(shadeAt(etaIndex), true);
+        detail = `\x1b[${composeColor(fg, etaBg)}m${detail}\x1b[0m`;
+      }
+      if (detail) detail = tintText(detail, shadeRate, rateFg);
+      const message = layout.showMessage ? tintText(padMessage(messageTexts[index] || ''), shadeMessage, messageFg) : '';
+      const rate = layout.showRate ? tintText(padRate(extras?.rateText || ''), shadeRate, rateFg) : '';
+      const separator = colorEnabled
+        ? `\x1b[${composeColor(colorToAnsi(accentForeground), colorToAnsi(BLACK, true))}m | \x1b[0m`
+        : ' | ';
+      const parts = [];
+      if (layout.showRate) parts.push(rate);
+      if (layout.showDetail) parts.push(detail);
+      if (layout.showMessage) parts.push(message);
+      const extraText = parts.length ? `${separator}${parts.join(separator)}`.trimEnd() : '';
+      const suffixPad = tintText(' ', shadeAt(Math.round(progress * 18)), labelFg);
+      const suffixText = suffix ? `${suffixPad}${tintText(suffix, shadeSuffix, suffixFg)}` : suffixPad;
+      return `${indent}${label}${barPrefix}${bar}${barSuffix}${suffixText}${status}${extraText}`.trimEnd();
     });
 
     const statusLine = state.statusLine;
@@ -918,6 +864,7 @@ export function createDisplay(options = {}) {
     if (typeof update.message === 'string') task.message = update.message;
     if (typeof update.stage === 'string') task.stage = update.stage;
     if (typeof update.mode === 'string') task.mode = update.mode;
+    if (update.extra && typeof update.extra === 'object') task.extra = update.extra;
     if (task.status === 'running' && update.status) task.endedAt = null;
     if ((task.status === 'done' || task.status === 'failed') && !Number.isFinite(task.endedAt)) {
       task.endedAt = Date.now();

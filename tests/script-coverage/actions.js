@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
@@ -32,6 +33,11 @@ const actions = [
     label: 'xxhash-backends-test',
     run: () => runNode('xxhash-backends-test', path.join(root, 'tests', 'xxhash-backends.js')),
     covers: ['xxhash-backends-test']
+  },
+  {
+    label: 'safe-regex-engine-test',
+    run: () => runNode('safe-regex-engine-test', path.join(root, 'tests', 'safe-regex-engine.js')),
+    covers: ['safe-regex-engine-test']
   },
   {
     label: 'tooling-detect-test',
@@ -87,6 +93,41 @@ const actions = [
     label: 'chunking-guardrails-test',
     run: () => runNode('chunking-guardrails-test', path.join(root, 'tests', 'chunking-guardrails.js')),
     covers: ['chunking-guardrails-test']
+  },
+  {
+    label: 'code-map-basic-test',
+    run: () => runNode('code-map-basic-test', path.join(root, 'tests', 'code-map-basic.js')),
+    covers: ['code-map-basic-test']
+  },
+  {
+    label: 'code-map-dot-test',
+    run: () => runNode('code-map-dot-test', path.join(root, 'tests', 'code-map-dot.js')),
+    covers: ['code-map-dot-test']
+  },
+  {
+    label: 'code-map-graphviz-fallback-test',
+    run: () => runNode('code-map-graphviz-fallback-test', path.join(root, 'tests', 'code-map-graphviz-fallback.js')),
+    covers: ['code-map-graphviz-fallback-test']
+  },
+  {
+    label: 'code-map-determinism-test',
+    run: () => runNode('code-map-determinism-test', path.join(root, 'tests', 'code-map-determinism.js')),
+    covers: ['code-map-determinism-test']
+  },
+  {
+    label: 'code-map-guardrails-test',
+    run: () => runNode('code-map-guardrails-test', path.join(root, 'tests', 'code-map-guardrails.js')),
+    covers: ['code-map-guardrails-test']
+  },
+  {
+    label: 'code-map-performance-test',
+    run: () => runNode('code-map-performance-test', path.join(root, 'tests', 'code-map-performance.js')),
+    covers: ['code-map-performance-test']
+  },
+  {
+    label: 'e2e-smoke-test',
+    run: () => runNode('e2e-smoke-test', path.join(root, 'tests', 'e2e-smoke.js')),
+    covers: ['e2e-smoke-test']
   },
   {
     label: 'jsonl-validation-test',

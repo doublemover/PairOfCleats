@@ -122,6 +122,18 @@ function normalizeUserConfig(baseConfig) {
     const quality = baseConfig.quality.trim();
     if (quality) normalized.quality = quality;
   }
+  if (isPlainObject(baseConfig.search)) {
+    const search = {};
+    const chunkThreshold = Number(baseConfig.search.sqliteAutoChunkThreshold);
+    const artifactBytes = Number(baseConfig.search.sqliteAutoArtifactBytes);
+    if (Number.isFinite(chunkThreshold)) {
+      search.sqliteAutoChunkThreshold = Math.max(0, Math.floor(chunkThreshold));
+    }
+    if (Number.isFinite(artifactBytes)) {
+      search.sqliteAutoArtifactBytes = Math.max(0, Math.floor(artifactBytes));
+    }
+    if (Object.keys(search).length) normalized.search = search;
+  }
   return normalized;
 }
 

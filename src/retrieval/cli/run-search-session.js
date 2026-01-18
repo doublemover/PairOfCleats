@@ -1,10 +1,18 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { incCacheEvent } from '../../shared/metrics.js';
+import { MAX_JSON_BYTES, readJsonFile } from '../../shared/artifact-io.js';
 import { createSearchPipeline } from '../pipeline.js';
 import { buildQueryCacheKey, getIndexSignature } from '../cli-index.js';
 import { getQueryEmbedding } from '../embedding.js';
-import { buildContextIndex, expandContext } from '../context-expansion.js';
+import { buildIndexSignature } from '../index-cache.js';
+import {
+  buildContextIndex,
+  expandContext,
+  serializeContextIndex,
+  hydrateContextIndex
+} from '../context-expansion.js';
 import { loadQueryCache, pruneQueryCache } from '../query-cache.js';
 import { filterChunks } from '../output.js';
 import { runSearchByMode } from './search-runner.js';
@@ -47,11 +55,13 @@ export async function runSearchSession({
   fieldWeights,
   postingsConfig,
   queryTokens,
+  queryAst,
   phraseNgramSet,
   phraseRange,
   symbolBoost,
   filters,
   filtersActive,
+  explain,
   scoreBlend,
   rrf,
   minhashMaxDocs,
@@ -92,11 +102,13 @@ export async function runSearchSession({
     fieldWeights,
     postingsConfig,
     queryTokens,
+    queryAst,
     phraseNgramSet,
     phraseRange,
     symbolBoost,
     filters,
     filtersActive,
+    explain,
     topN,
     annEnabled: annActive,
     annBackend,
@@ -356,14 +368,55 @@ export async function runSearchSession({
     'extracted-prose': 0,
     records: 0
   };
+  const loadContextIndexCache = (idx) => {
+    if (!idx?.indexDir) return null;
+    const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
+    const dataPath = path.join(idx.indexDir, 'context_index.json');
+    if (!fsSync.existsSync(metaPath) || !fsSync.existsSync(dataPath)) return null;
+    let meta = null;
+    try {
+      meta = readJsonFile(metaPath, { maxBytes: MAX_JSON_BYTES });
+    } catch {
+      return null;
+    }
+    if (!meta?.signature || meta.version !== 1) return null;
+    const signature = buildIndexSignature(idx.indexDir);
+    if (signature !== meta.signature) return null;
+    try {
+      const raw = readJsonFile(dataPath, { maxBytes: MAX_JSON_BYTES });
+      return hydrateContextIndex(raw);
+    } catch {
+      return null;
+    }
+  };
+  const persistContextIndexCache = (idx, contextIndex) => {
+    if (!idx?.indexDir || !contextIndex) return;
+    const signature = buildIndexSignature(idx.indexDir);
+    const payload = serializeContextIndex(contextIndex);
+    if (!signature || !payload) return;
+    const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
+    const dataPath = path.join(idx.indexDir, 'context_index.json');
+    try {
+      fsSync.writeFileSync(dataPath, `${JSON.stringify(payload)}\n`);
+      fsSync.writeFileSync(metaPath, `${JSON.stringify({ version: 1, signature })}\n`);
+    } catch {}
+  };
   const getContextIndex = (idx) => {
     if (!idx?.chunkMeta?.length) return null;
     const cached = idx.contextIndex;
     if (cached && cached.chunkMeta === idx.chunkMeta && cached.repoMap === idx.repoMap) {
       return cached;
     }
-    const next = buildContextIndex({ chunkMeta: idx.chunkMeta, repoMap: idx.repoMap });
+    let next = loadContextIndexCache(idx);
+    if (next) {
+      next.chunkMeta = idx.chunkMeta;
+      next.repoMap = idx.repoMap;
+      idx.contextIndex = next;
+      return next;
+    }
+    next = buildContextIndex({ chunkMeta: idx.chunkMeta, repoMap: idx.repoMap });
     idx.contextIndex = next;
+    persistContextIndexCache(idx, next);
     return next;
   };
   const expandModeHits = (mode, idx, hits) => {

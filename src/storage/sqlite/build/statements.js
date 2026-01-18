@@ -4,12 +4,13 @@ export const createInsertStatements = (db) => {
       id, chunk_id, mode, file, start, end, startLine, endLine, ext, kind, name,
       headline, preContext, postContext, weight, tokens, ngrams, codeRelations,
       docmeta, stats, complexity, lint, externalDocs, last_modified, last_author,
-      churn, chunk_authors
+      churn, churn_added, churn_deleted, churn_commits, chunk_authors
     ) VALUES (
       @id, @chunk_id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind,
       @name, @headline, @preContext, @postContext, @weight, @tokens, @ngrams,
       @codeRelations, @docmeta, @stats, @complexity, @lint, @externalDocs,
-      @last_modified, @last_author, @churn, @chunk_authors
+      @last_modified, @last_author, @churn, @churn_added, @churn_deleted, @churn_commits,
+      @chunk_authors
     );
   `);
 
@@ -49,7 +50,7 @@ export const createInsertStatements = (db) => {
     'INSERT OR REPLACE INTO dense_vectors (mode, doc_id, vector) VALUES (?, ?, ?)'
   );
   const insertDenseMeta = db.prepare(
-    'INSERT OR REPLACE INTO dense_meta (mode, dims, scale, model) VALUES (?, ?, ?, ?)'
+    'INSERT OR REPLACE INTO dense_meta (mode, dims, scale, model, min_val, max_val, levels) VALUES (?, ?, ?, ?, ?, ?, ?)'
   );
   const insertFileManifest = db.prepare(
     'INSERT OR REPLACE INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'

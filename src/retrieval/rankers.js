@@ -253,7 +253,20 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
   const isVectorLike = Array.isArray(queryEmbedding)
     || (ArrayBuffer.isView(queryEmbedding) && !(queryEmbedding instanceof DataView));
   if (!isVectorLike || !Array.isArray(vectors) || !vectors.length) return [];
-  const dims = idx.denseVec?.dims || queryEmbedding.length;
+  const queryDims = queryEmbedding.length || 0;
+  const reportedDims = Number.isFinite(idx.denseVec?.dims) ? idx.denseVec.dims : queryDims;
+  let dims = reportedDims;
+  if (queryDims && reportedDims && queryDims !== reportedDims) {
+    dims = Math.min(queryDims, reportedDims);
+    if (!idx.denseVec?._dimMismatchWarned) {
+      idx.denseVec._dimMismatchWarned = true;
+      console.warn(
+        `[search] dense embeddings dimension mismatch (query=${queryDims}, index=${reportedDims}); ` +
+        `using ${dims} dims.`
+      );
+    }
+  }
+  if (!dims || dims <= 0) return [];
   const minVal = -1;
   const scale = Number.isFinite(idx.denseVec?.scale)
     ? idx.denseVec.scale
@@ -264,7 +277,7 @@ export function rankDenseVectors(idx, queryEmbedding, topN, candidateSet) {
   for (const id of ids) {
     const vec = vectors[id];
     const isArrayLike = Array.isArray(vec) || ArrayBuffer.isView(vec);
-    if (!isArrayLike || vec.length !== dims) continue;
+    if (!isArrayLike || vec.length < dims) continue;
     let dot = 0;
     for (let i = 0; i < dims; i++) {
       const v = vec[i] * scale + minVal;

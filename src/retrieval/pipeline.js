@@ -1,12 +1,15 @@
 import { filterChunks } from './output.js';
 import { hasActiveFilters } from './filters.js';
-import { rankBM25, rankBM25Fields, rankDenseVectors, rankMinhash } from './rankers.js';
+import { rankBM25, rankBM25Fields, rankMinhash } from './rankers.js';
 import { createJsBm25Provider } from './sparse/providers/js-bm25.js';
 import { createSqliteFtsProvider } from './sparse/providers/sqlite-fts.js';
 import { createTantivyProvider } from './sparse/providers/tantivy.js';
+import { createDenseAnnProvider } from './ann/providers/dense.js';
+import { createHnswAnnProvider } from './ann/providers/hnsw.js';
+import { createLanceDbAnnProvider } from './ann/providers/lancedb.js';
+import { createSqliteVectorAnnProvider } from './ann/providers/sqlite-vec.js';
+import { ANN_PROVIDER_IDS } from './ann/types.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
-import { rankHnswIndex } from '../shared/hnsw.js';
-import { rankLanceDb } from './lancedb.js';
 
 const SQLITE_IN_LIMIT = 900;
 
@@ -27,8 +30,10 @@ export function createSearchPipeline(context) {
     fieldWeights,
     postingsConfig,
     queryTokens,
+    queryAst,
     phraseNgramSet,
     phraseRange,
+    explain,
     symbolBoost,
     filters,
     filtersActive,
@@ -170,49 +175,153 @@ export function createSearchPipeline(context) {
     return false;
   }
 
+  const resolvePhraseRange = (phraseSet) => {
+    if (phraseRange?.min && phraseRange?.max) return phraseRange;
+    if (!phraseSet || !phraseSet.size) return null;
+    let min = null;
+    let max = null;
+    for (const phrase of phraseSet) {
+      const len = String(phrase || '').split('_').filter(Boolean).length;
+      if (len < 2) continue;
+      min = min == null ? len : Math.min(min, len);
+      max = max == null ? len : Math.max(max, len);
+    }
+    return min && max ? { min, max } : null;
+  };
+  const resolvedPhraseRange = resolvePhraseRange(phraseNgramSet);
+
+  const matchesQueryAst = (idx, chunkId, chunk) => {
+    if (!queryAst) return true;
+    const tokens = Array.isArray(chunk?.tokens)
+      ? chunk.tokens
+      : (Array.isArray(idx.chunkMeta?.[chunkId]?.tokens) ? idx.chunkMeta[chunkId].tokens : []);
+    const tokenSet = tokens.length ? new Set(tokens) : null;
+    const evalNode = (node) => {
+      if (!node) return true;
+      switch (node.type) {
+        case 'term': {
+          if (!node.tokens || !node.tokens.length) return false;
+          if (!tokenSet) return false;
+          return node.tokens.some((tok) => tokenSet.has(tok));
+        }
+        case 'phrase': {
+          if (node.ngramSet && node.ngramSet.size) {
+            const matchInfo = getPhraseMatchInfo(idx, chunkId, node.ngramSet, tokens);
+            return matchInfo.matches > 0;
+          }
+          if (!node.tokens || !node.tokens.length) return false;
+          if (!tokenSet) return false;
+          return node.tokens.some((tok) => tokenSet.has(tok));
+        }
+        case 'not':
+          return !evalNode(node.child);
+        case 'and':
+          return evalNode(node.left) && evalNode(node.right);
+        case 'or':
+          return evalNode(node.left) || evalNode(node.right);
+        default:
+          return true;
+      }
+    };
+    return evalNode(queryAst);
+  };
+
   // Phrase postings are the authoritative source of phrase membership.
   // Do NOT rely on per-chunk ngram arrays: they are optional, often sampled,
   // and (in memory-constrained builds) may not be present at all.
-  function getPhraseMatchInfo(idx, chunkId, phraseSet) {
+  function getPhraseMatchInfo(idx, chunkId, phraseSet, chunkTokens) {
     if (!phraseSet || !phraseSet.size || !idx) return { matches: 0 };
     const phraseIndex = idx.phraseNgrams;
-    if (!phraseIndex || !phraseIndex.vocab || !phraseIndex.postings) return { matches: 0 };
-    const vocabIndex = phraseIndex.vocabIndex
-      || (phraseIndex.vocabIndex = new Map(phraseIndex.vocab.map((t, i) => [t, i])));
+    if (phraseIndex && phraseIndex.vocab && phraseIndex.postings) {
+      const vocabIndex = phraseIndex.vocabIndex
+        || (phraseIndex.vocabIndex = new Map(phraseIndex.vocab.map((t, i) => [t, i])));
+      let matches = 0;
+      for (const ng of phraseSet) {
+        const hit = vocabIndex.get(ng);
+        if (hit === undefined) continue;
+        const posting = phraseIndex.postings[hit] || [];
+        if (postingIncludesDocId(posting, chunkId)) matches += 1;
+      }
+      if (matches) return { matches };
+      if (phraseIndex.vocab.length || phraseIndex.postings.length) return { matches: 0 };
+    }
+    const tokens = Array.isArray(chunkTokens)
+      ? chunkTokens
+      : (Array.isArray(idx.chunkMeta?.[chunkId]?.tokens) ? idx.chunkMeta[chunkId].tokens : []);
+    if (!tokens.length || !resolvedPhraseRange?.min || !resolvedPhraseRange?.max) return { matches: 0 };
+    const ngrams = extractNgrams(tokens, resolvedPhraseRange.min, resolvedPhraseRange.max);
+    if (!ngrams.length) return { matches: 0 };
+    const ngramSet = new Set(ngrams);
     let matches = 0;
     for (const ng of phraseSet) {
-      const hit = vocabIndex.get(ng);
-      if (hit === undefined) continue;
-      const posting = phraseIndex.postings[hit] || [];
-      if (postingIncludesDocId(posting, chunkId)) matches += 1;
+      if (ngramSet.has(ng)) matches += 1;
     }
     return { matches };
   }
 
   const normalizeAnnBackend = (value) => {
-    if (typeof value !== 'string') return 'lancedb';
+    if (typeof value !== 'string') return ANN_PROVIDER_IDS.LANCEDB;
     const trimmed = value.trim().toLowerCase();
-    if (!trimmed) return 'lancedb';
-    if (trimmed === 'sqlite' || trimmed === 'sqlite-extension') return 'sqlite-vector';
-    if (trimmed === 'dense') return 'js';
+    if (!trimmed) return ANN_PROVIDER_IDS.LANCEDB;
+    if (trimmed === 'sqlite' || trimmed === 'sqlite-extension') {
+      return ANN_PROVIDER_IDS.SQLITE_VECTOR;
+    }
+    if (trimmed === 'dense') return ANN_PROVIDER_IDS.DENSE;
     return trimmed;
   };
 
   const resolveAnnOrder = (value) => {
     switch (normalizeAnnBackend(value)) {
-      case 'lancedb':
-        return ['lancedb', 'sqlite-vector', 'hnsw', 'js'];
-      case 'sqlite-vector':
-        return ['sqlite-vector', 'lancedb', 'hnsw', 'js'];
-      case 'hnsw':
-        return ['hnsw', 'lancedb', 'sqlite-vector', 'js'];
-      case 'js':
-        return ['js'];
+      case ANN_PROVIDER_IDS.LANCEDB:
+        return [
+          ANN_PROVIDER_IDS.LANCEDB,
+          ANN_PROVIDER_IDS.SQLITE_VECTOR,
+          ANN_PROVIDER_IDS.HNSW,
+          ANN_PROVIDER_IDS.DENSE
+        ];
+      case ANN_PROVIDER_IDS.SQLITE_VECTOR:
+        return [
+          ANN_PROVIDER_IDS.SQLITE_VECTOR,
+          ANN_PROVIDER_IDS.LANCEDB,
+          ANN_PROVIDER_IDS.HNSW,
+          ANN_PROVIDER_IDS.DENSE
+        ];
+      case ANN_PROVIDER_IDS.HNSW:
+        return [
+          ANN_PROVIDER_IDS.HNSW,
+          ANN_PROVIDER_IDS.LANCEDB,
+          ANN_PROVIDER_IDS.SQLITE_VECTOR,
+          ANN_PROVIDER_IDS.DENSE
+        ];
+      case ANN_PROVIDER_IDS.DENSE:
+        return [ANN_PROVIDER_IDS.DENSE];
       case 'auto':
       default:
-        return ['lancedb', 'sqlite-vector', 'hnsw', 'js'];
+        return [
+          ANN_PROVIDER_IDS.LANCEDB,
+          ANN_PROVIDER_IDS.SQLITE_VECTOR,
+          ANN_PROVIDER_IDS.HNSW,
+          ANN_PROVIDER_IDS.DENSE
+        ];
     }
   };
+
+  const annProviders = new Map([
+    [
+      ANN_PROVIDER_IDS.LANCEDB,
+      createLanceDbAnnProvider({ lancedbConfig, lanceAnnState, lanceAnnUsed })
+    ],
+    [
+      ANN_PROVIDER_IDS.SQLITE_VECTOR,
+      createSqliteVectorAnnProvider({
+        rankVectorAnnSqlite,
+        vectorAnnState,
+        vectorAnnUsed
+      })
+    ],
+    [ANN_PROVIDER_IDS.HNSW, createHnswAnnProvider({ hnswAnnState, hnswAnnUsed })],
+    [ANN_PROVIDER_IDS.DENSE, createDenseAnnProvider()]
+  ]);
 
   const annOrder = resolveAnnOrder(annBackend);
 
@@ -315,78 +424,28 @@ export function createSearchPipeline(context) {
     let annSource = null;
     const annCandidates = intersectCandidateSet(candidates, allowedIdx);
     const annFallback = candidates && allowedIdx ? allowedIdx : null;
-    const annCandidatesEmpty = annCandidates && annCandidates.size === 0;
+    const runAnnQuery = async (provider, candidateSet) => {
+      if (!provider || typeof provider.query !== 'function') return [];
+      if (!provider.isAvailable({ idx, mode, embedding: queryEmbedding })) return [];
+      const hits = await provider.query({
+        idx,
+        mode,
+        embedding: queryEmbedding,
+        topN: expandedTopN,
+        candidateSet
+      });
+      return Array.isArray(hits) ? hits : [];
+    };
     if (annEnabled) {
       for (const backend of annOrder) {
-        if (!queryEmbedding && backend !== 'js') continue;
-        if (backend === 'lancedb') {
-          if (lancedbConfig?.enabled !== false
-            && (idx.lancedb?.available || lanceAnnState?.[mode]?.available)) {
-            if (!annCandidatesEmpty) {
-              annHits = await rankLanceDb({
-                lancedbInfo: idx.lancedb,
-                queryEmbedding,
-                topN: expandedTopN,
-                candidateSet: annCandidates,
-                config: lancedbConfig
-              });
-            }
-            if (!annHits.length && annFallback) {
-              annHits = await rankLanceDb({
-                lancedbInfo: idx.lancedb,
-                queryEmbedding,
-                topN: expandedTopN,
-                candidateSet: annFallback,
-                config: lancedbConfig
-              });
-            }
-            if (annHits.length) {
-              if (lanceAnnUsed && mode in lanceAnnUsed) lanceAnnUsed[mode] = true;
-              annSource = 'lancedb';
-              break;
-            }
-          }
-        } else if (backend === 'sqlite-vector') {
-          if (queryEmbedding && vectorAnnState?.[mode]?.available) {
-            if (!annCandidatesEmpty) {
-              annHits = rankVectorAnnSqlite(mode, queryEmbedding, expandedTopN, annCandidates);
-            }
-            if (!annHits.length && annFallback) {
-              annHits = rankVectorAnnSqlite(mode, queryEmbedding, expandedTopN, annFallback);
-            }
-            if (annHits.length) {
-              if (vectorAnnUsed && mode in vectorAnnUsed) vectorAnnUsed[mode] = true;
-              annSource = 'sqlite-vector';
-              break;
-            }
-          }
-        } else if (backend === 'hnsw') {
-          if (queryEmbedding && (idx.hnsw?.available || hnswAnnState?.[mode]?.available)) {
-            if (!annCandidatesEmpty) {
-              annHits = rankHnswIndex(idx.hnsw || {}, queryEmbedding, expandedTopN, annCandidates);
-            }
-            if (!annHits.length && annFallback) {
-              annHits = rankHnswIndex(idx.hnsw || {}, queryEmbedding, expandedTopN, annFallback);
-            }
-            if (annHits.length) {
-              if (hnswAnnUsed && mode in hnswAnnUsed) hnswAnnUsed[mode] = true;
-              annSource = 'hnsw';
-              break;
-            }
-          }
-        } else if (backend === 'js') {
-          if (queryEmbedding && idx.denseVec?.vectors?.length) {
-            if (!annCandidatesEmpty) {
-              annHits = rankDenseVectors(idx, queryEmbedding, expandedTopN, annCandidates);
-            }
-            if (!annHits.length && annFallback) {
-              annHits = rankDenseVectors(idx, queryEmbedding, expandedTopN, annFallback);
-            }
-            if (annHits.length) {
-              annSource = 'js';
-              break;
-            }
-          }
+        const provider = annProviders.get(backend);
+        annHits = await runAnnQuery(provider, annCandidates);
+        if (!annHits.length && annFallback) {
+          annHits = await runAnnQuery(provider, annFallback);
+        }
+        if (annHits.length) {
+          annSource = provider?.id || backend;
+          break;
         }
       }
       if (!annHits.length) {
@@ -503,6 +562,7 @@ export function createSearchPipeline(context) {
         }
         const chunk = meta[idxVal];
         if (!chunk) return null;
+        if (!matchesQueryAst(idx, idxVal, chunk)) return null;
         const fileRelations = idx.fileRelations
           ? (typeof idx.fileRelations.get === 'function'
             ? idx.fileRelations.get(chunk.file)
@@ -521,7 +581,7 @@ export function createSearchPipeline(context) {
         let phraseBoost = 0;
         let phraseFactor = 0;
         if (phraseNgramSet && phraseNgramSet.size) {
-          const matchInfo = getPhraseMatchInfo(idx, idxVal, phraseNgramSet);
+          const matchInfo = getPhraseMatchInfo(idx, idxVal, phraseNgramSet, chunk?.tokens);
           phraseMatches = matchInfo.matches;
           if (phraseMatches) {
             phraseFactor = Math.min(0.5, phraseMatches * 0.1);
@@ -550,7 +610,7 @@ export function createSearchPipeline(context) {
             boost: symbolBoost
           };
         }
-        const scoreBreakdown = {
+        const scoreBreakdown = explain ? {
           sparse: sparseScore != null ? {
             type: sparseTypeValue,
             score: sparseScore,
@@ -578,7 +638,7 @@ export function createSearchPipeline(context) {
             type: scoreType,
             score
           }
-        };
+        } : null;
         return {
           idx: idxVal,
           score,

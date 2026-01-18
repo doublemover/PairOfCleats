@@ -1996,7 +1996,7 @@ The current implementation is functional and reasonably structured, but several 
 - `buildPostings()` currently materializes large `vocab` and `postings` arrays in memory.
   - [x] Add a streaming/sharded writer path that writes postings shards incrementally as postings are built (or at least allows releasing intermediate Maps earlier).
 - `chunk_meta` estimation uses JSON.stringify samples, which is OK, but writing sharded JSONL still relies on iterators that materialize per-entry objects.
-  - [ ] Consider a “lightweight entry view” or direct JSONL streaming that avoids building large intermediate objects for fields not needed.
+  - [X] Consider a “lightweight entry view” or direct JSONL streaming that avoids building large intermediate objects for fields not needed.
 
 #### Reduce repeated parsing/enrichment passes
 
@@ -2082,22 +2082,22 @@ However, multiple tests are still existence/shape-heavy and do not verify semant
 
 **Remaining work**
 
-- [ ] Strengthen artifact format tests to assert semantic meaning:
-  - [ ] verify loader precedence (meta/parts vs jsonl vs json) in more combinations
-  - [ ] verify meta.parts path normalization and correctness
+- [X] Strengthen artifact format tests to assert semantic meaning:
+  - [X] verify loader precedence (meta/parts vs jsonl vs json) in more combinations
+  - [X] verify meta.parts path normalization and correctness
 
-- [ ] Add regression tests for atomic write failures:
-  - [ ] simulate rename failures (via dependency injection or controlled FS behavior)
-  - [ ] assert `.bak` fallback and cleanup behavior
+- [X] Add regression tests for atomic write failures:
+  - [X] simulate rename failures (via dependency injection or controlled FS behavior)
+  - [X] assert `.bak` fallback and cleanup behavior
 
-- [ ] Add regression tests for partial shard writes:
-  - [ ] parts written, meta missing
-  - [ ] meta references missing parts
-  - [ ] stale orphan parts do not affect reads
+- [X] Add regression tests for partial shard writes:
+  - [X] parts written, meta missing
+  - [X] meta references missing parts
+  - [X] stale orphan parts do not affect reads
 
-- [ ] Add stress fixtures for large token/postings sets:
-  - [ ] ensure bounded memory / time
-  - [ ] ensure canonical ordering remains correct under stress
+- [X] Add stress fixtures for large token/postings sets:
+  - [X] ensure bounded memory / time
+  - [X] ensure canonical ordering remains correct under stress
 
 - [x] Add at least one perf regression test:
   - [x] compaction: `tools/compact-pieces.js`
@@ -2124,34 +2124,34 @@ This section enumerates each in-scope file and lists file-specific items to addr
 
 ### src/index/build/artifacts/compression.js
 - [x] (P2) Update docs to clarify that gzip is a sidecar (`.json` and `.json.gz` both exist).
-- [ ] (P2) Consider extending compression to sharded artifacts (optional future work).
+- [X] (P2) Consider extending compression to sharded artifacts (optional future work).
 
 ### src/index/build/artifacts/file-meta.js
 - [x] (P1) Make file ID assignment stable by sorting unique file paths before assigning IDs.
 - [x] (P1) Add file content hash (and algo) and file size to `file_meta.json`.
-- [ ] (P2) Remove or rename `chunk_authors` in file meta (currently derived from the first chunk and not file-level).
+- [X] (P2) Remove or rename `chunk_authors` in file meta (currently derived from the first chunk and not file-level).
 
 ### src/index/build/artifacts/filter-index.js
-- [ ] (P2) Consider persisting schema version/config hash in the filter index artifact for easier debugging.
+- [X] (P2) Consider persisting schema version/config hash in the filter index artifact for easier debugging.
 
 ### src/index/build/artifacts/metrics.js
-- [ ] (P2) Do not swallow metrics write errors silently (log or propagate based on severity).
+- [X] (P2) Do not swallow metrics write errors silently (log or propagate based on severity).
 
 ### src/index/build/artifacts/token-mode.js
-- [ ] (P2) Make parsing more robust (case-insensitive modes; integer parsing + clamping).
+- [X] (P2) Make parsing more robust (case-insensitive modes; integer parsing + clamping).
 
 ### src/index/build/artifacts/writers/chunk-meta.js
 - [x] (P0) Remove stale `chunk_meta.meta.json` and `chunk_meta.parts/` when writing non-sharded JSONL.
 - [x] (P1) Clear or stage-swap `chunk_meta.parts/` when writing sharded output.
 - [x] (P1) Normalize `meta.parts` entries to POSIX paths.
-- [ ] (P2) Consider normalizing field naming conventions (`chunk_authors` vs `startLine/endLine`).
+- [X] (P2) Consider normalizing field naming conventions (`chunk_authors` vs `startLine/endLine`).
 
 ### src/index/build/artifacts/writers/file-relations.js
-- [ ] (P2) Consider JSONL/sharding for very large `file_relations` outputs; add versioning metadata.
+- [X] (P2) Consider JSONL/sharding for very large `file_relations` outputs; add versioning metadata.
 
 ### src/index/build/artifacts/writers/repo-map.js
-- [ ] (P1) Ensure `exported` detection handles default exports correctly (depends on relations schema).
-- [ ] (P2) Consider sorting output by `{file, name}` for stability.
+- [X] (P1) Ensure `exported` detection handles default exports correctly (depends on relations schema).
+- [X] (P2) Consider sorting output by `{file, name}` for stability.
 
 ### src/index/build/file-processor.js
 - [x] (P1) Add explicit boundary asserts for chunks after chunking.
@@ -2164,33 +2164,33 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [x] (P1) Ensure field token fields written here (including `comment`) are consistently supported by postings and piece assembly.
 
 ### src/index/build/file-processor/cached-bundle.js
-- [ ] (P2) Validate cached bundle shapes more strictly; ensure importLinks shape is consistent.
+- [X] (P2) Validate cached bundle shapes more strictly; ensure importLinks shape is consistent.
 
 ### src/index/build/file-processor/chunk.js
 - [x] (P2) Adjust comment-to-chunk assignment at boundary (`chunk.end === comment.start`) and consider overlap-based assignment.
 
 ### src/index/build/file-processor/incremental.js
-- [ ] (P2) Ensure cache invalidation includes schema/version changes for any artifact-impacting changes.
+- [X] (P2) Ensure cache invalidation includes schema/version changes for any artifact-impacting changes.
 
 ### src/index/build/file-processor/meta.js
 - [x] (P2) Deduplicate `externalDocs` outputs; consider ordering for determinism.
 
 ### src/index/build/file-processor/read.js
-- [ ] (P2) Consider UTF-8 safe truncation (avoid splitting multi-byte sequences mid-codepoint).
+- [X] (P2) Consider UTF-8 safe truncation (avoid splitting multi-byte sequences mid-codepoint).
 
 ### src/index/build/file-processor/relations.js
 - [x] (P2) Consider sorting/deduping relation arrays (imports/exports/usages) for determinism.
 
 ### src/index/build/file-processor/skip.js
 - [x] (P1) Add explicit unsupported-language skip reason (or document that unknown languages are processed).
-- [ ] (P2) Add coverage for `unreadable` and `read-failure` skip paths.
+- [X] (P2) Add coverage for `unreadable` and `read-failure` skip paths.
 
 ### src/index/build/file-processor/timings.js
 - [x] (P2) Validate that parse/token/embed durations are not double-counted; document semantics.
 
 ### src/index/build/graphs.js
 - [x] (P2) Prefer canonical `chunkId` keys where possible instead of `file::name` to avoid collisions.
-- [ ] (P2) Sort serialized node lists for full determinism (neighbors are already sorted).
+- [X] (P2) Sort serialized node lists for full determinism (neighbors are already sorted).
 
 ### src/index/build/imports.js
 - [x] (P0) Fix `es-module-lexer` import record handling (`entry.d` is not a specifier string).
@@ -2201,7 +2201,7 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [x] (P0) Make `validateLengths()` strict when `expected > 0`.
 - [x] (P0) Merge all field postings (including `comment`) and docLengths based on actual input keys.
 - [x] (P1) Canonicalize vocab ordering in assembled outputs.
-- [ ] (P2) Remove redundant filterIndex construction (avoid double work; rely on writeIndexArtifacts).
+- [X] (P2) Remove redundant filterIndex construction (avoid double work; rely on writeIndexArtifacts).
 
 ### src/index/build/postings.js
 - [x] (P1) Canonicalize vocab ordering (token/phrase/chargram/field) explicitly.
@@ -2210,87 +2210,87 @@ This section enumerates each in-scope file and lists file-specific items to addr
 
 ### src/index/build/shards.js
 - [x] (P1) Add explicit tie-breakers in weight-based sorts/batching for determinism across runtimes.
-- [ ] (P2) Document heuristic thresholds (minFilesForSubdir, hugeThreshold, tenth-largest targets).
+- [X] (P2) Document heuristic thresholds (minFilesForSubdir, hugeThreshold, tenth-largest targets).
 
 ### src/index/build/tokenization.js
-- [ ] (P2) Review buffer reuse effectiveness (arrays are still cloned); consider pre-sizing and reducing transient allocations further.
+- [X] (P2) Review buffer reuse effectiveness (arrays are still cloned); consider pre-sizing and reducing transient allocations further.
 
 ### tools/assemble-pieces.js
 - [x] (P1) Sort `inputDirs` by default (or add `--sort`) to ensure deterministic assembled output.
-- [ ] (P2) When `--force` is used, consider cleaning the output dir first to avoid stale artifacts.
+- [X] (P2) When `--force` is used, consider cleaning the output dir first to avoid stale artifacts.
 
 ### tools/ci-build-artifacts.js
 - [x] (P1) Sanitize remote URLs before writing them to `manifest.json` to avoid leaking credentials.
 
 ### tools/ci-restore-artifacts.js
-- [ ] (P2) Optionally validate `pieces/manifest.json` checksums after restore (fast fail on corrupt artifacts).
+- [X] (P2) Optionally validate `pieces/manifest.json` checksums after restore (fast fail on corrupt artifacts).
 
 ### tools/compact-pieces.js
-- [ ] (P1) Consider directory-level atomic swap semantics (avoid rm+rename window).
-- [ ] (P2) Add perf regression harness and validate output equivalence post-compaction.
+- [X] (P1) Consider directory-level atomic swap semantics (avoid rm+rename window).
+- [X] (P2) Add perf regression harness and validate output equivalence post-compaction.
 
 ### tests/artifact-bak-recovery.js
-- [ ] (P2) Expand coverage to include: both primary and backup corrupt; json.gz sidecars; and cleanup expectations.
+- [X] (P2) Expand coverage to include: both primary and backup corrupt; json.gz sidecars; and cleanup expectations.
 
 ### tests/artifact-formats.js
-- [ ] (P1) Add explicit precedence test: sharded meta/parts must not override fresh jsonl when shards are stale (post-fix).
+- [X] (P1) Add explicit precedence test: sharded meta/parts must not override fresh jsonl when shards are stale (post-fix).
 
 ### tests/artifact-size-guardrails.js
-- [ ] (P2) Extend to cover: chunkMetaFormat=jsonl with switching shard/no-shard, and cleanup behavior.
+- [X] (P2) Extend to cover: chunkMetaFormat=jsonl with switching shard/no-shard, and cleanup behavior.
 
 ### tests/artifacts/file-meta.test.js
-- [ ] (P1) Update test if file ID assignment is changed to sorted-by-path; assert stability across different chunk orders.
+- [X] (P1) Update test if file ID assignment is changed to sorted-by-path; assert stability across different chunk orders.
 
 ### tests/artifacts/token-mode.test.js
-- [ ] (P2) Add coverage for invalid modes, case-insensitive parsing, and maxTokens/maxFiles parsing edge cases.
+- [X] (P2) Add coverage for invalid modes, case-insensitive parsing, and maxTokens/maxFiles parsing edge cases.
 
 ### tests/clean-artifacts.js
-- [ ] (P2) Consider adding a check that `.bak` files are handled correctly (optional).
+- [X] (P2) Consider adding a check that `.bak` files are handled correctly (optional).
 
 ### tests/file-processor/cached-bundle.test.js
-- [ ] (P1) Fix test fixtures to use realistic `allImports` and `codeRelations` shapes, and assert semantic correctness (not only presence).
+- [X] (P1) Fix test fixtures to use realistic `allImports` and `codeRelations` shapes, and assert semantic correctness (not only presence).
 
 ### tests/file-processor/skip.test.js
-- [ ] (P2) Add coverage for `unreadable` and `read-failure` paths (permissions, ENOENT races).
+- [X] (P2) Add coverage for `unreadable` and `read-failure` paths (permissions, ENOENT races).
 
 ### tests/filter-index-artifact.js
-- [ ] (P2) Add a schema assertion for filter_index fields/versioning to prevent drift.
+- [X] (P2) Add a schema assertion for filter_index fields/versioning to prevent drift.
 
 ### tests/filter-index.js
-- [ ] (P2) Consider adding a determinism check for serialized filter index (same inputs => same output).
+- [X] (P2) Consider adding a determinism check for serialized filter index (same inputs => same output).
 
 ### tests/graph-chunk-id.js
-- [ ] (P2) Add a collision regression test for graph keys, or migrate to chunkId-based keys.
+- [X] (P2) Add a collision regression test for graph keys, or migrate to chunkId-based keys.
 
 ### tests/incremental-tokenization-cache.js
-- [ ] (P2) Add a second invalidation scenario (e.g., tokenization config changes that affect stemming/synonyms).
+- [X] (P2) Add a second invalidation scenario (e.g., tokenization config changes that affect stemming/synonyms).
 
 ### tests/piece-assembly.js
-- [ ] (P1) Add semantic equivalence test vs monolithic build and add a determinism test (same inputs => identical assembled output).
+- [X] (P1) Add semantic equivalence test vs monolithic build and add a determinism test (same inputs => identical assembled output).
 
 ### tests/postings-quantize.js
-- [ ] (P2) Extend to test scale and dims, and doc/code embedding behavior.
+- [X] (P2) Extend to test scale and dims, and doc/code embedding behavior.
 
 ### tests/shard-merge.js
-- [ ] (P2) Consider adding checksum and manifest equivalence checks as well.
+- [X] (P2) Consider adding checksum and manifest equivalence checks as well.
 
 ### tests/shard-plan.js
-- [ ] (P2) Add stress case coverage (many files, equal weights, perfProfile enabled).
+- [X] (P2) Add stress case coverage (many files, equal weights, perfProfile enabled).
 
 ### tests/tokenization-buffering.js
-- [ ] (P2) Consider adding a non-ASCII tokenization regression case.
+- [X] (P2) Consider adding a non-ASCII tokenization regression case.
 
 ### docs/artifact-contract.md
-- [ ] (P1) Fix compression description (no embedded `compression` field) and clarify `.json.gz` sidecar semantics.
-- [ ] (P1) Add explicit precedence rules (meta/parts vs jsonl vs json).
-- [ ] (P2) Add schema examples for meta files and `pieces/manifest.json`.
+- [X] (P1) Fix compression description (no embedded `compression` field) and clarify `.json.gz` sidecar semantics.
+- [X] (P1) Add explicit precedence rules (meta/parts vs jsonl vs json).
+- [X] (P2) Add schema examples for meta files and `pieces/manifest.json`.
 
 ### docs/contracts/coverage-ledger.md
-- [ ] (P2) Add entries for new/critical tooling: `tools/assemble-pieces.js`, `tools/compact-pieces.js`, and CI artifact scripts.
+- [X] (P2) Add entries for new/critical tooling: `tools/assemble-pieces.js`, `tools/compact-pieces.js`, and CI artifact scripts.
 
 ### docs/contracts/indexing.md
-- [ ] (P1) Clarify which artifacts are “required” vs “optional/configurable” (e.g., minhash signatures).
-- [ ] (P1) Document sharded meta schema and loader precedence.
+- [X] (P1) Clarify which artifacts are “required” vs “optional/configurable” (e.g., minhash signatures).
+- [X] (P1) Document sharded meta schema and loader precedence.
 
 ---
 
@@ -2300,23 +2300,23 @@ This section enumerates each in-scope file and lists file-specific items to addr
 
 #### Correctness / functional
 
-- [ ] **Sharding path creates fresh worker pools + queues per shard work item, with no explicit teardown.**  
+- [X] **Sharding path creates fresh worker pools + queues per shard work item, with no explicit teardown.**  
   This is very likely to cause thread/resource leaks, excessive pool creation overhead, and/or a build process that does not exit cleanly.  
   _Primary file:_ `src/index/build/indexer/steps/process-files.js`  
   _Related:_ `src/index/build/runtime/workers.js`, `src/index/build/worker-pool.js`
 
-- [ ] **`--mode all` behavior is inconsistent with “extracted-prose” + `records` expectations (tests + CLI surface).**  
+- [X] **`--mode all` behavior is inconsistent with “extracted-prose” + `records` expectations (tests + CLI surface).**  
   `tests/build-index-all.js` expects an `extracted-prose` index (and should be extended to expect a `records` index) to be produced for `--mode all`. `parseBuildArgs(...)` already resolves `modes` to include `extracted-prose` and must be updated to include `records`; however the CLI entry (`build_index.js`) discards the computed `modes` and delegates to the core build entry, which (in the current tree) resolves “all” differently.  
   _Primary file(s) in scope:_ `build_index.js`, `src/index/build/args.js`, `tests/build-index-all.js`  
   _Note:_ the root cause may live outside this section’s file list, but the mismatch is observable from the files in scope and should be corrected at the boundary.
 
-- [ ] **Watch debounce scheduler does not safely handle async `onRun` errors (risk of unhandled promise rejection).**  
+- [X] **Watch debounce scheduler does not safely handle async `onRun` errors (risk of unhandled promise rejection).**  
   `createDebouncedScheduler(...)` calls `onRun()` without `await`/`.catch(...)`. In `watchIndex(...)`, `onRun` is async. Any unexpected throw/rejection (e.g., from lock release, filesystem exceptions) can become an unhandled rejection.  
   _Primary file:_ `src/index/build/watch.js`
 
 #### Determinism / reproducibility
 
-- [ ] **Locale-dependent sorts in ordering-critical paths (`localeCompare`) should be replaced with deterministic lexicographic compares.**  
+- [X] **Locale-dependent sorts in ordering-critical paths (`localeCompare`) should be replaced with deterministic lexicographic compares.**  
   Ordering drives chunk IDs, manifest key ordering, and shard planning stability; `localeCompare` can vary by ICU/locale.  
   _Primary files:_  
   - `src/index/build/indexer/steps/discover.js`  
@@ -2325,7 +2325,7 @@ This section enumerates each in-scope file and lists file-specific items to addr
 
 #### Incremental correctness across versions
 
-- [ ] **Incremental cache signature likely needs a “tool/build schema version” component.**  
+- [X] **Incremental cache signature likely needs a “tool/build schema version” component.**  
   Today, signature invalidation is strongly config-based. If tokenization/chunk schema/postings semantics change across releases without config changes, the cache can be reused incorrectly.  
   _Primary file:_ `src/index/build/indexer/signatures.js`  
   _Related:_ `src/index/build/incremental.js`, `tests/incremental-*.js`
@@ -2415,9 +2415,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Normalize paths consistently (POSIX rel keys).
 
 **Remaining work**
-- [ ] Replace locale-dependent sorting in `indexer/steps/discover.js` with deterministic compare (and document determinism requirement).
-- [ ] Consider adding `stat.isFile()` checks (defensive) before admitting entries (especially for non-git discovery paths).
-- [ ] Consider making “tracked-only” behavior explicit at the API boundary (discover uses `git ls-files` when root is a git repo root) and ensure watch mode semantics align (see Watch section).
+- [X] Replace locale-dependent sorting in `indexer/steps/discover.js` with deterministic compare (and document determinism requirement).
+- [X] Consider adding `stat.isFile()` checks (defensive) before admitting entries (especially for non-git discovery paths).
+- [X] Consider making “tracked-only” behavior explicit at the API boundary (discover uses `git ls-files` when root is a git repo root) and ensure watch mode semantics align (see Watch section).
 
 ---
 
@@ -2458,9 +2458,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Manifest writing should be stable in structure and ordering (even if JSON object key order is mostly stable in practice).
 
 **Remaining work**
-- [ ] Add an explicit “cache schema / tool version” component to `cacheSignature` (or a separate `cacheSchemaVersion` field checked alongside it).
-- [ ] Treat `manifest.version` as a compatibility gate (migrate or reset when unsupported); ensure `manifest.files` is validated as a *plain object* (not an array).
-- [ ] Decide whether whole-index reuse should allow hash fallback (currently it is strict on mtime/size) — if yes, add an opt-in and tests.
+- [X] Add an explicit “cache schema / tool version” component to `cacheSignature` (or a separate `cacheSchemaVersion` field checked alongside it).
+- [X] Treat `manifest.version` as a compatibility gate (migrate or reset when unsupported); ensure `manifest.files` is validated as a *plain object* (not an array).
+- [X] Decide whether whole-index reuse should allow hash fallback (currently it is strict on mtime/size) — if yes, add an opt-in and tests.
 
 ---
 
@@ -2507,9 +2507,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Any feature that modifies existing chunks (token retention “auto”, cross-file inference update) must be deterministic given the same inputs.
 
 **Remaining work**
-- [ ] Fix sharding runtime lifecycle (see Section C/D): avoid creating worker pools per shard item; ensure explicit teardown; ensure sharding does not leak threads/handles.
-- [ ] Replace localeCompare usage in shard plan sorting with deterministic ordering.
-- [ ] Consider exposing and testing a “deterministic build mode” in which timestamps/build IDs do not affect artifact contents (at least for core artifacts).
+- [X] Fix sharding runtime lifecycle (see Section C/D): avoid creating worker pools per shard item; ensure explicit teardown; ensure sharding does not leak threads/handles.
+- [X] Replace localeCompare usage in shard plan sorting with deterministic ordering.
+- [X] Consider exposing and testing a “deterministic build mode” in which timestamps/build IDs do not affect artifact contents (at least for core artifacts).
 
 ---
 
@@ -2548,8 +2548,8 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Graph construction should be stable (avoid hash/map iteration nondeterminism in serialization).
 
 **Remaining work**
-- [ ] Add tests ensuring cross-file inference updates are persisted into incremental bundles when enabled.
-- [ ] Clarify the artifact contract for `graphRelations` in `index_state.json` and ensure it is versioned.
+- [X] Add tests ensuring cross-file inference updates are persisted into incremental bundles when enabled.
+- [X] Clarify the artifact contract for `graphRelations` in `index_state.json` and ensure it is versioned.
 
 ---
 
@@ -2579,7 +2579,7 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - DF computation must not depend on processing order (it currently does not, provided chunk order is deterministic).
 
 **Remaining work**
-- [ ] Add/verify tests around token retention “auto” switching (sample vs none) to ensure artifact stability and correctness.
+- [X] Add/verify tests around token retention “auto” switching (sample vs none) to ensure artifact stability and correctness.
 
 ---
 
@@ -2618,8 +2618,8 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Promotion pointer must not “flip” to a partial build.
 
 **Remaining work**
-- [ ] Validate that `promotion.js` cannot write a `current.json` pointer that escapes the intended cache root (path traversal hardening).
-- [ ] Consider making build_state updates resilient to concurrent writes (or explicitly “best effort” with documentation).
+- [X] Validate that `promotion.js` cannot write a `current.json` pointer that escapes the intended cache root (path traversal hardening).
+- [X] Consider making build_state updates resilient to concurrent writes (or explicitly “best effort” with documentation).
 
 ---
 
@@ -2645,20 +2645,20 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 **Remaining work (correctness + durability)**
 
-- [ ] **Cache invalidation across tool updates:** include a “tool version / schema version / algorithm version” in the incremental signature.  
+- [X] **Cache invalidation across tool updates:** include a “tool version / schema version / algorithm version” in the incremental signature.  
   Suggested approach:
   - Add a `runtime.cacheSchemaVersion` constant (bumped on any semantic change), and include it in `buildIncrementalSignature(...)`.
   - Or include `runtime.toolInfo.version` (and document that caches are invalidated across versions).
-- [ ] **Manifest version compatibility:** enforce `manifest.version` compatibility explicitly; if unsupported, reset (and optionally delete bundles).  
+- [X] **Manifest version compatibility:** enforce `manifest.version` compatibility explicitly; if unsupported, reset (and optionally delete bundles).  
   Also validate `manifest.files` is a plain object: `loaded.files && typeof loaded.files === 'object' && !Array.isArray(loaded.files)`.
-- [ ] **Bundle cleanup on invalidation:** when signature/tokenizationKey mismatches, consider deleting the bundles directory (or moving aside) to avoid disk bloat.
-- [ ] **Whole-index reuse strictness:** decide if whole-index reuse should support content-hash fallback for stat mismatch (opt-in).  
+- [X] **Bundle cleanup on invalidation:** when signature/tokenizationKey mismatches, consider deleting the bundles directory (or moving aside) to avoid disk bloat.
+- [X] **Whole-index reuse strictness:** decide if whole-index reuse should support content-hash fallback for stat mismatch (opt-in).  
   If not, document that mtime/size must match exactly, and why (performance vs safety).
-- [ ] **Stage interactions:** confirm and test that:
+- [X] **Stage interactions:** confirm and test that:
   - stage1 builds do not reuse stage2 caches (signature should differ, but confirm)
   - stage2 builds do not reuse stage1 caches
   - stage4 behaviors are consistent (if stage4 writes different artifact sets)
-- [ ] **RelKey normalization:** ensure relKey generation is consistently POSIX and case-handled on Windows for both discovery and watch paths.
+- [X] **RelKey normalization:** ensure relKey generation is consistently POSIX and case-handled on Windows for both discovery and watch paths.
 
 ---
 
@@ -2674,9 +2674,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
   - optional wait/poll to acquire lock
 
 **Remaining work**
-- [ ] Ensure the lock file handle is closed even if `writeFile(...)` fails (use try/finally around the acquired `handle`).
-- [ ] Consider including `buildId` and `mode(s)` in the lock file payload to improve observability/debugging.
-- [ ] Add a test that simulates write failure during lock acquisition (can be done by injecting a stubbed fs layer, or by creating a read-only directory).
+- [X] Ensure the lock file handle is closed even if `writeFile(...)` fails (use try/finally around the acquired `handle`).
+- [X] Consider including `buildId` and `mode(s)` in the lock file payload to improve observability/debugging.
+- [X] Add a test that simulates write failure during lock acquisition (can be done by injecting a stubbed fs layer, or by creating a read-only directory).
 
 #### C.2 Sharding + queues + worker pools
 
@@ -2686,13 +2686,13 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Sharding aims to distribute work based on line counts / cost predictions, while preserving deterministic output ordering via an ordered appender.
 
 **Remaining work (critical)**
-- [ ] **Do not create worker pools per shard item.**  
+- [X] **Do not create worker pools per shard item.**  
   Options (choose one):
   1) **Preferred:** share the parent runtime’s worker pools across all shards; only shard the scheduling/queueing.  
   2) If per-shard pools are required: create **one** shard runtime per shard worker (batch), reuse it for all work items in that batch, and **always** `destroy()` pools and tear down queues in a `finally`.
-- [ ] Add a regression test / harness that runs a sharded build and asserts the process exits promptly (no lingering worker threads).  
+- [X] Add a regression test / harness that runs a sharded build and asserts the process exits promptly (no lingering worker threads).  
   Practical approach: spawn `node build_index.js ...` with `--shards.enabled` and ensure it exits within a timeout; also enable `--verbose` to detect repeated pool creation.
-- [ ] Audit `maxPending` sizing on queues in shard runtime creation; ensure it cannot exceed a safe bound when shard concurrency is high.
+- [X] Audit `maxPending` sizing on queues in shard runtime creation; ensure it cannot exceed a safe bound when shard concurrency is high.
 
 #### C.3 Watch mode robustness
 
@@ -2703,13 +2703,13 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - It always enables incremental to avoid full reindexing on every change.
 
 **Remaining work**
-- [ ] Make `createDebouncedScheduler(...)` safe for async `onRun`:
+- [X] Make `createDebouncedScheduler(...)` safe for async `onRun`:
   - wrap `onRun()` in `Promise.resolve(...).catch(...)`
   - optionally provide an `onError` callback
-- [ ] Ensure “extracted-prose only” watch mode is supported:
+- [X] Ensure “extracted-prose only” watch mode is supported:
   - update `isIndexablePath(...)` to treat `extracted-prose` as **code-only** for extension filtering (do **not** treat as prose; `extracted-prose` must not re-index normal prose)
   - add coverage in `tests/watch-filter.js` (including a `.md` change that should *not* trigger when `modes=['extracted-prose']`)
-- [ ] Decide how to handle untracked file changes in git repos (discover is tracked-only):
+- [X] Decide how to handle untracked file changes in git repos (discover is tracked-only):
   - either document that watch will trigger rebuilds but new untracked files will not be indexed
   - or add an optional “include untracked” mode for watch builds (with tests)
 
@@ -2726,9 +2726,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Preprocess stage can scan file headers to detect binary/minified, and optionally count lines.
 
 **Remaining work**
-- [ ] Parallelize `fs.stat` in discovery with a concurrency limit (e.g., 32) to reduce wall-clock time on large repos.
-- [ ] Consider using fdir’s `withStats()` to avoid a separate stat syscall for non-git discovery paths.
-- [ ] Ensure file-type detection does not misclassify common text types as binary (treat certain `application/*` mimes as text if needed).
+- [X] Parallelize `fs.stat` in discovery with a concurrency limit (e.g., 32) to reduce wall-clock time on large repos.
+- [X] Consider using fdir’s `withStats()` to avoid a separate stat syscall for non-git discovery paths.
+- [X] Ensure file-type detection does not misclassify common text types as binary (treat certain `application/*` mimes as text if needed).
 
 #### D.2 Sharding overhead
 
@@ -2738,9 +2738,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Shard planning uses predicted cost from perf profiles when available.
 
 **Remaining work**
-- [ ] Add an option to avoid full line counting when perf profile is available and sufficiently fresh (approximate weights).
-- [ ] Revisit per-shard file concurrency hard cap (`min(2, ...)`) — it can underutilize configured `runtime.fileConcurrency` on larger machines.
-- [ ] Avoid per-shard runtime creation (performance + correctness; see Section C).
+- [X] Add an option to avoid full line counting when perf profile is available and sufficiently fresh (approximate weights).
+- [X] Revisit per-shard file concurrency hard cap (`min(2, ...)`) — it can underutilize configured `runtime.fileConcurrency` on larger machines.
+- [X] Avoid per-shard runtime creation (performance + correctness; see Section C).
 
 #### D.3 Worker pool overhead
 
@@ -2750,9 +2750,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Worker pool supports restart/backoff, and permanent disable on repeated opaque failures.
 
 **Remaining work**
-- [ ] Gate cloneability validation behind a debug flag or environment variable; keep it on by default in CI/tests, off in production, or vice versa (choose explicitly).
-- [ ] Consider using transfer lists for large typed arrays in quantize tasks to reduce cloning overhead.
-- [ ] Add metrics to quantify:
+- [X] Gate cloneability validation behind a debug flag or environment variable; keep it on by default in CI/tests, off in production, or vice versa (choose explicitly).
+- [X] Consider using transfer lists for large typed arrays in quantize tasks to reduce cloning overhead.
+- [X] Add metrics to quantify:
   - pool restart frequency
   - clone-check overhead
   - task latency distribution
@@ -2772,18 +2772,18 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Ordering uses both explicit `<` comparisons and `localeCompare` in different places.
 
 **Remaining work**
-- [ ] Centralize “max bytes per extension” and “cap normalization” logic into a single helper module (likely `runtime/caps.js` or a shared `file-caps.js`) and reuse across discover/watch/tools.
-- [ ] Standardize ordering comparisons: provide a shared `compareRelPaths(a, b)` helper that is locale-independent and (optionally) Windows-case-aware.
-- [ ] Run formatter / lint pass on files with inconsistent indentation (not functionally wrong, but increases diff noise and review friction).
+- [X] Centralize “max bytes per extension” and “cap normalization” logic into a single helper module (likely `runtime/caps.js` or a shared `file-caps.js`) and reuse across discover/watch/tools.
+- [X] Standardize ordering comparisons: provide a shared `compareRelPaths(a, b)` helper that is locale-independent and (optionally) Windows-case-aware.
+- [X] Run formatter / lint pass on files with inconsistent indentation (not functionally wrong, but increases diff noise and review friction).
 
 #### E.2 Tests to add or strengthen
 
 **Remaining work**
-- [ ] **Build all modes:** Ensure `tests/build-index-all.js` reliably enforces that `--mode all` produces `code`, `prose`, `extracted-prose`, and `records` artifacts (and fix the orchestration boundary if currently inconsistent).
-- [ ] **Watch extracted-prose:** add a case to `tests/watch-filter.js` where `modes=['extracted-prose']` and confirm indexable file changes trigger scheduling.
-- [ ] **Watch async error safety:** add a test that uses an async `onRun` that rejects once, and assert no `unhandledRejection` occurs (attach a listener in the test).
-- [ ] **Sharding teardown:** add a harness test that enables sharding and asserts no lingering worker threads prevent exit.
-- [ ] **Incremental schema version:** add a test that simulates a tool version/schema version change and confirms caches are invalidated.
+- [X] **Build all modes:** Ensure `tests/build-index-all.js` reliably enforces that `--mode all` produces `code`, `prose`, `extracted-prose`, and `records` artifacts (and fix the orchestration boundary if currently inconsistent).
+- [X] **Watch extracted-prose:** add a case to `tests/watch-filter.js` where `modes=['extracted-prose']` and confirm indexable file changes trigger scheduling.
+- [X] **Watch async error safety:** add a test that uses an async `onRun` that rejects once, and assert no `unhandledRejection` occurs (attach a listener in the test).
+- [X] **Sharding teardown:** add a harness test that enables sharding and asserts no lingering worker threads prevent exit.
+- [X] **Incremental schema version:** add a test that simulates a tool version/schema version change and confirms caches are invalidated.
 
 ---
 
@@ -2793,26 +2793,26 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `build_index.js`
 
-- [ ] Pass the resolved `modes` from `parseBuildArgs(...)` through to the build orchestrator (or otherwise guarantee that `--mode all` resolves identically at every boundary and includes `records`).  
+- [X] Pass the resolved `modes` from `parseBuildArgs(...)` through to the build orchestrator (or otherwise guarantee that `--mode all` resolves identically at every boundary and includes `records`).  
   _Why:_ prevents drift between CLI arg parsing and internal orchestration; aligns with `tests/build-index-all.js`.
 
 #### `src/index/build/args.js`
 
-- [ ] Consider adding `argv.modes` (or similar) so downstream layers do not need to re-derive the “all → modes” mapping (and so the CLI entry can pass a single object).
+- [X] Consider adding `argv.modes` (or similar) so downstream layers do not need to re-derive the “all → modes” mapping (and so the CLI entry can pass a single object).
 
 #### `src/index/build/build-state.js`
 
-- [ ] Document that `build_state.json` is best-effort and may lose updates under concurrent writers; or introduce an append-only/event model to prevent lost updates.
-- [ ] Consider `timer.unref()` on heartbeat interval for cases where build-state heartbeat should not keep the process alive (optional).
+- [X] Document that `build_state.json` is best-effort and may lose updates under concurrent writers; or introduce an append-only/event model to prevent lost updates.
+- [X] Consider `timer.unref()` on heartbeat interval for cases where build-state heartbeat should not keep the process alive (optional).
 
 #### `src/index/build/crash-log.js`
 
-- [ ] Consider throttling `updateFile(...)` writes when debug crash logging is enabled (currently potentially writes state on every file).
+- [X] Consider throttling `updateFile(...)` writes when debug crash logging is enabled (currently potentially writes state on every file).
 
 #### `src/index/build/discover.js`
 
-- [ ] Add concurrency-limited parallel statting for large repos.
-- [ ] Add defensive `stat.isFile()` gating for non-git crawls.
+- [X] Add concurrency-limited parallel statting for large repos.
+- [X] Add defensive `stat.isFile()` gating for non-git crawls.
 
 #### `src/index/build/failure-taxonomy.js`
 
@@ -2824,16 +2824,16 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `src/index/build/file-scan.js`
 
-- [ ] Treat certain `file-type` “application/*” results (e.g., json/xml) as potentially text, or ensure `file-type` is only advisory and always confirm with istextorbinary when in doubt.
+- [X] Treat certain `file-type` “application/*” results (e.g., json/xml) as potentially text, or ensure `file-type` is only advisory and always confirm with istextorbinary when in doubt.
 #### `src/index/build/ignore.js`
 
-- [ ] Consider supporting nested `.gitignore` semantics for non-git discovery paths (optional, but improves parity with developer expectations).
+- [X] Consider supporting nested `.gitignore` semantics for non-git discovery paths (optional, but improves parity with developer expectations).
 
 #### `src/index/build/incremental.js`
 
-- [ ] Validate `manifest.files` is a plain object; reset if array/invalid.
-- [ ] Enforce manifest version compatibility; reset or migrate.
-- [ ] Consider deleting stale bundles on signature/tokenizationKey mismatch to avoid disk bloat.
+- [X] Validate `manifest.files` is a plain object; reset if array/invalid.
+- [X] Enforce manifest version compatibility; reset or migrate.
+- [X] Consider deleting stale bundles on signature/tokenizationKey mismatch to avoid disk bloat.
 
 #### `src/index/build/indexer.js`
 
@@ -2841,49 +2841,49 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `src/index/build/indexer/pipeline.js`
 
-- [ ] Ensure any ordering-critical sorts remain locale-independent (primary issue is in discover step; pipeline relies on it).
-- [ ] Consider explicitly documenting the per-mode stage graph and how it maps to artifacts and cache signature components.
+- [X] Ensure any ordering-critical sorts remain locale-independent (primary issue is in discover step; pipeline relies on it).
+- [X] Consider explicitly documenting the per-mode stage graph and how it maps to artifacts and cache signature components.
 
 #### `src/index/build/indexer/signatures.js`
 
-- [ ] Add cache schema / tool version component to `buildIncrementalSignature(...)`.
-- [ ] Consider adding explicit versions for:
+- [X] Add cache schema / tool version component to `buildIncrementalSignature(...)`.
+- [X] Consider adding explicit versions for:
   - chunk schema
   - postings schema
   - relations graph schema
 
 #### `src/index/build/indexer/steps/discover.js`
 
-- [ ] Replace `localeCompare` sort with deterministic compare.
-- [ ] Avoid mutating shared entry objects if discovery is reused across modes (optional; low risk today, but cleaner).
+- [X] Replace `localeCompare` sort with deterministic compare.
+- [X] Avoid mutating shared entry objects if discovery is reused across modes (optional; low risk today, but cleaner).
 
 #### `src/index/build/indexer/steps/incremental.js`
 
-- [ ] Add more granular status reporting (e.g., why reuse rejected) for observability; currently logs are decent but could be structured.
+- [X] Add more granular status reporting (e.g., why reuse rejected) for observability; currently logs are decent but could be structured.
 
 #### `src/index/build/indexer/steps/postings.js`
 
-- [ ] Add tests for token retention “auto” switching correctness and stability.
+- [X] Add tests for token retention “auto” switching correctness and stability.
 
 #### `src/index/build/indexer/steps/process-files.js`
 
-- [ ] Fix sharding runtime lifecycle (do not create per-work-item pools; ensure teardown).
-- [ ] Replace localeCompare in shard plan sorting with deterministic compare.
-- [ ] Revisit per-shard concurrency cap (min(2, ...)).
-- [ ] Consider hoisting shard runtime creation outside the inner work-item loop if per-shard runtime instances remain desired.
+- [X] Fix sharding runtime lifecycle (do not create per-work-item pools; ensure teardown).
+- [X] Replace localeCompare in shard plan sorting with deterministic compare.
+- [X] Revisit per-shard concurrency cap (min(2, ...)).
+- [X] Consider hoisting shard runtime creation outside the inner work-item loop if per-shard runtime instances remain desired.
 
 #### `src/index/build/indexer/steps/relations.js`
 
-- [ ] Add tests ensuring cross-file inference updates are persisted into incremental bundles when enabled.
-- [ ] Clarify error strategy for import scan failures (degrade vs abort) and encode it in tests/config.
+- [X] Add tests ensuring cross-file inference updates are persisted into incremental bundles when enabled.
+- [X] Clarify error strategy for import scan failures (degrade vs abort) and encode it in tests/config.
 
 #### `src/index/build/indexer/steps/write.js`
 
-- [ ] Ensure `index_state.json` always includes the correct cache signature / tokenizationKey values used for the build (especially when any runtime config is adapted per mode).
+- [X] Ensure `index_state.json` always includes the correct cache signature / tokenizationKey values used for the build (especially when any runtime config is adapted per mode).
 
 #### `src/index/build/lock.js`
 
-- [ ] Close file handle in a `finally` if write fails during lock acquisition.
+- [X] Close file handle in a `finally` if write fails during lock acquisition.
 
 #### `src/index/build/perf-profile.js`
 
@@ -2891,11 +2891,11 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `src/index/build/preprocess.js`
 
-- [ ] Document that preprocess is currently for `code` + `prose` only (or extend support to `extracted-prose` explicitly if desired).
+- [X] Document that preprocess is currently for `code` + `prose` only (or extend support to `extracted-prose` explicitly if desired).
 
 #### `src/index/build/promotion.js`
 
-- [ ] Harden path handling so `current.json` cannot point outside `repoCacheRoot` even if inputs are malformed.
+- [X] Harden path handling so `current.json` cannot point outside `repoCacheRoot` even if inputs are malformed.
 
 #### `src/index/build/runtime.js`
 
@@ -2915,8 +2915,8 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `src/index/build/runtime/runtime.js`
 
-- [ ] Consider making the “tracked-only discovery” behavior visible in logs when git is used (helps users understand why new files may not be indexed).
-- [ ] Consider ensuring any per-mode adaptive config does not bleed across modes (currently low risk, but worth documenting).
+- [X] Consider making the “tracked-only discovery” behavior visible in logs when git is used (helps users understand why new files may not be indexed).
+- [X] Consider ensuring any per-mode adaptive config does not bleed across modes (currently low risk, but worth documenting).
 
 #### `src/index/build/runtime/stage.js`
 
@@ -2928,7 +2928,7 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `src/index/build/runtime/workers.js`
 
-- [ ] Review queue pending-limit sizing with sharding enabled; ensure worst-case bounds are safe.
+- [X] Review queue pending-limit sizing with sharding enabled; ensure worst-case bounds are safe.
 
 #### `src/index/build/state.js`
 
@@ -2936,34 +2936,34 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `src/index/build/watch.js`
 
-- [ ] Make debounce scheduler safe for async `onRun` (catch rejections).
-- [ ] Support `extracted-prose` as a mode for indexable path filtering.
-- [ ] Consider reducing rebuild churn from untracked files (optional).
+- [X] Make debounce scheduler safe for async `onRun` (catch rejections).
+- [X] Support `extracted-prose` as a mode for indexable path filtering.
+- [X] Consider reducing rebuild churn from untracked files (optional).
 
 #### `src/index/build/worker-pool.js`
 
-- [ ] Consider exposing a “debug clone checks” toggle (ties into worker validation overhead discussion).
-- [ ] Add optional transferList support for quantize tasks.
+- [X] Consider exposing a “debug clone checks” toggle (ties into worker validation overhead discussion).
+- [X] Add optional transferList support for quantize tasks.
 
 #### `src/index/build/workers/indexer-worker.js`
 
-- [ ] Gate cloneability validation behind a debug/config toggle if performance becomes an issue.
+- [X] Gate cloneability validation behind a debug/config toggle if performance becomes an issue.
 
 #### `tools/shard-census.js`
 
-- [ ] Replace `localeCompare` with deterministic compare for stable reporting.
-- [ ] Consider reusing shared cap/normalization utilities rather than duplicating.
+- [X] Replace `localeCompare` with deterministic compare for stable reporting.
+- [X] Consider reusing shared cap/normalization utilities rather than duplicating.
 
 #### Tests
 
 ##### `tests/build-index-all.js`
 
-- [ ] Ensure the build orchestration actually builds `extracted-prose` **and `records`** for `--mode all` (fix boundary mismatch if needed).
+- [X] Ensure the build orchestration actually builds `extracted-prose` **and `records`** for `--mode all` (fix boundary mismatch if needed).
 
 ##### `tests/watch-filter.js`
 
-- [ ] Add an `extracted-prose`-only mode coverage case.
-- [ ] Add an async debounce safety test (unhandled rejection prevention).
+- [X] Add an `extracted-prose`-only mode coverage case.
+- [X] Add an async debounce safety test (unhandled rejection prevention).
 
 ##### `tests/worker-pool*.js`
 
@@ -2973,19 +2973,19 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 ### Deliverables
 
-- [ ] Fix sharding runtime lifecycle and add regression coverage.
-- [ ] Resolve “mode all” / extracted-prose / records mismatch and ensure `tests/build-index-all.js` passes reliably.
-- [ ] Harden watch debounce scheduling against async rejection.
-- [ ] Replace localeCompare sorts in ordering-critical paths.
-- [ ] Add a cache schema/tool version component to incremental signature and add a test for invalidation.
+- [X] Fix sharding runtime lifecycle and add regression coverage.
+- [X] Resolve “mode all” / extracted-prose / records mismatch and ensure `tests/build-index-all.js` passes reliably.
+- [X] Harden watch debounce scheduling against async rejection.
+- [X] Replace localeCompare sorts in ordering-critical paths.
+- [X] Add a cache schema/tool version component to incremental signature and add a test for invalidation.
 
 ### Exit criteria
 
-- [ ] Sharded builds do not leak worker threads/handles and the process exits cleanly.
-- [ ] `--mode all` produces `code`, `prose`, `extracted-prose`, and `records` indices; validated by test.
-- [ ] Watch mode does not emit unhandled promise rejections under forced error paths.
-- [ ] Deterministic ordering is documented and enforced (no locale-dependent sorts in critical ordering paths).
-- [ ] Incremental cache reuse is safe across code releases (explicit schema/version invalidation).
+- [X] Sharded builds do not leak worker threads/handles and the process exits cleanly.
+- [X] `--mode all` produces `code`, `prose`, `extracted-prose`, and `records` indices; validated by test.
+- [X] Watch mode does not emit unhandled promise rejections under forced error paths.
+- [X] Deterministic ordering is documented and enforced (no locale-dependent sorts in critical ordering paths).
+- [X] Incremental cache reuse is safe across code releases (explicit schema/version invalidation).
 
 ---
 
@@ -3954,3 +3954,689 @@ Note: LMDB kept and remains opt-in; vector extension config removed.
 * [x] CI green.
 
 ---
+
+
+## Appendix A — Completed items (from PLAN_APPENDIX_A)
+
+- setup: Create worktree: worktrees/appendix-a-sundial
+- setup: Remove GIGAROAD/ROADMAP.md
+- setup: Keep this plan updated after each completed task
+- `src/index/build/artifacts.js`: (P1) Consider directory-level atomic swap for `token_postings.shards/` (staging dir + rename).
+- `src/index/build/artifacts.js`: (P1) Normalize shard part paths to POSIX in any meta/manifest structures (avoid OS-separator leakage).
+- `src/index/build/artifacts/checksums.js`: (P1) Do not silently accept checksum/stat failures for required pieces; fail or record errors explicitly.
+- `src/index/build/artifacts/compression.js`: (P2) Update docs to clarify that gzip is a sidecar (`.json` and `.json.gz` both exist).
+- `src/index/build/artifacts/file-meta.js`: (P1) Make file ID assignment stable by sorting unique file paths before assigning IDs.
+- `src/index/build/artifacts/file-meta.js`: (P1) Add file content hash (and algo) and file size to `file_meta.json`.
+- `src/index/build/artifacts/writers/chunk-meta.js`: (P0) Remove stale `chunk_meta.meta.json` and `chunk_meta.parts/` when writing non-sharded JSONL.
+- `src/index/build/artifacts/writers/chunk-meta.js`: (P1) Clear or stage-swap `chunk_meta.parts/` when writing sharded output.
+- `src/index/build/artifacts/writers/chunk-meta.js`: (P1) Normalize `meta.parts` entries to POSIX paths.
+- `src/index/build/artifacts/writers/repo-map.js`: (P1) Ensure `exported` detection handles default exports correctly (depends on relations schema).
+- `src/index/build/file-processor.js`: (P1) Add explicit boundary asserts for chunks after chunking.
+- `src/index/build/file-processor.js`: (P1) Replace `split('\n')` with line-scan utility for context extraction.
+- `src/index/build/file-processor.js`: (P1) Add explicit unsupported-language and parse-error skip reasons (configurable).
+- `src/index/build/file-processor/assemble.js`: (P1) Ensure field token fields written here (including `comment`) are consistently supported by postings and piece assembly.
+- `src/index/build/file-processor/skip.js`: (P1) Add explicit unsupported-language skip reason (or document that unknown languages are processed).
+- `src/index/build/imports.js`: (P0) Fix `es-module-lexer` import record handling (`entry.d` is not a specifier string).
+- `src/index/build/imports.js`: (P1) Sort and dedupe `importLinks` deterministically; exclude self-links unless explicitly desired.
+- `src/index/build/imports.js`: (P1) Ensure concurrency does not affect output ordering (sort module keys and file arrays before serialization).
+- `src/index/build/piece-assembly.js`: (P0) Make `validateLengths()` strict when `expected > 0`.
+- `src/index/build/piece-assembly.js`: (P0) Merge all field postings (including `comment`) and docLengths based on actual input keys.
+- `src/index/build/piece-assembly.js`: (P1) Canonicalize vocab ordering in assembled outputs.
+- `src/index/build/postings.js`: (P1) Canonicalize vocab ordering (token/phrase/chargram/field) explicitly.
+- `src/index/build/shards.js`: (P1) Add explicit tie-breakers in weight-based sorts/batching for determinism across runtimes.
+- `tools/assemble-pieces.js`: (P1) Sort `inputDirs` by default (or add `--sort`) to ensure deterministic assembled output.
+- `tools/ci-build-artifacts.js`: (P1) Sanitize remote URLs before writing them to `manifest.json` to avoid leaking credentials.
+- `tools/compact-pieces.js`: (P1) Consider directory-level atomic swap semantics (avoid rm+rename window).
+- `tests/artifact-formats.js`: (P1) Add explicit precedence test: sharded meta/parts must not override fresh jsonl when shards are stale (post-fix).
+- `tests/artifacts/file-meta.test.js`: (P1) Update test if file ID assignment is changed to sorted-by-path; assert stability across different chunk orders.
+- `tests/file-processor/cached-bundle.test.js`: (P1) Fix test fixtures to use realistic `allImports` and `codeRelations` shapes, and assert semantic correctness (not only presence).
+- `tests/piece-assembly.js`: (P1) Add semantic equivalence test vs monolithic build and add a determinism test (same inputs => identical assembled output).
+- `docs/artifact-contract.md`: (P1) Fix compression description (no embedded `compression` field) and clarify `.json.gz` sidecar semantics.
+- `docs/artifact-contract.md`: (P1) Add explicit precedence rules (meta/parts vs jsonl vs json).
+- `docs/artifact-contract.md`: (P2) Add schema examples for meta files and `pieces/manifest.json`.
+- `docs/contracts/indexing.md`: (P1) Clarify which artifacts are "required" vs "optional/configurable" (e.g., minhash signatures).
+- `docs/contracts/indexing.md`: (P1) Document sharded meta schema and loader precedence.
+
+## Phase 43 - Targeted test failures (manual run 2026-01-18)
+**Objective:** Record failures from the targeted test run so they can be addressed once, then re-run.
+### 43.1 Incremental cache signature
+* [x] `tests/incremental-cache-signature.js`: resolved by switching the test-only config change to `indexing.lint` so the config signature changes without reintroducing removed knobs.
+### 43.2 Incremental tokenization cache
+* [x] `tests/incremental-tokenization-cache.js`: resolved by toggling `indexing.postings.enablePhraseNgrams` in the test-only config so the tokenization key changes without touching removed config knobs.
+### 43.3 Smoke retrieval
+* [x] `tests/smoke-retrieval.js`: updated help flag expectations and replaced RRF assertions with ANN presence checks for the new contract.
+
+---
+
+## Phase 12 — Storage backends (SQLite + LMDB)
+
+**Objective:** Perform an audit of the storage backends (SQLite + LMDB) and their supporting tooling (build, validation, compaction, incremental updates, ANN extension management, and backend selection). Identify *all* correctness bugs, edge cases, documentation drift, missing tests, and performance/refactoring opportunities, aligned to the provided checklist.
+
+#### Out-of-scope (not deeply reviewed, but referenced when necessary)
+
+- Non-listed call-sites (e.g. retrieval query code) were spot-checked only when needed to validate schema/index/query alignment.
+
+---
+
+### Executive summary
+
+#### Top P0 / correctness items
+
+- [x] **(P0) SQLite ANN table is not updated when it already exists** in:
+  - `src/storage/sqlite/build/from-bundles.js` (vector table existence sets `vectorAnnReady = true` but **does not** prepare `insertVectorAnn`) — see around L120.
+  - `src/storage/sqlite/build/incremental-update.js` (same pattern) — see around L240.
+
+  **Impact:** when the ANN virtual table already exists (most importantly during incremental updates), deleted rows *can* be removed (because deletes run via `deleteDocIds(...)`), but replacement vectors for changed chunks are **not reinserted**, leaving the ANN table sparse/out-of-sync with `dense_vectors`. This can silently degrade or break ANN-based retrieval depending on how the extension is queried.
+
+- [x] **(P0) Retrieval-side fail-closed is incomplete for SQLite schema versions.**
+
+  `src/retrieval/cli-sqlite.js` validates required table *names* but does **not** enforce `PRAGMA user_version == SCHEMA_VERSION` (or otherwise fail-closed on schema mismatch). This violates the checklist requirement (“readers fail closed on unknown versions”) for the SQLite reader path.
+
+- [x] **(P0) Bundle-build path does not hard-fail on embedding dimension mismatches** (`src/storage/sqlite/build/from-bundles.js`).
+
+  The code currently *warns once* on a dims mismatch but continues (and may still insert inconsistent vectors). This risks producing an index with an internally inconsistent dense-vector corpus (which can cause downstream errors or silent relevance regressions).
+
+#### High-signal P1 / robustness items
+
+- [x] **WAL / sidecar handling is inconsistent across build vs incremental update paths.**  
+  Full rebuild paths use `replaceSqliteDatabase(...)` which removes sidecars, but incremental updates modify the DB in-place under WAL mode and do not explicitly checkpoint/truncate. If later tooling removes sidecars without a checkpoint, this can create “single-file DB” assumptions that do not hold.
+
+- [x] **Indexing for hot maintenance queries can be improved**: `chunks(mode, file)` exists, but multiple maintenance queries order by `id` and would benefit from `(mode, file, id)`.
+
+- [x] **Docs drift:** `docs/sqlite-incremental-updates.md` (and a few related docs) describe doc-id behavior and operational details that do not match current implementation (doc-id reuse/free-list behavior; ratio guard details; and operational caveats).
+
+#### “Good news” / items that look solid already
+
+- Most bulk write paths are transactional (build ingest, compaction copy, incremental applyChanges).
+- The extension download hardening in `tools/download-extensions.js` has multiple safety layers (hash verification support, archive path traversal protection, size/entry limits).
+- LMDB corruption handling has targeted tests (`tests/lmdb-corruption.js`) and tooling integration (`tests/lmdb-report-artifacts.js`).
+
+#### Current test failures (local, after building artifacts/SQLite)
+
+- [x] `tests/lmdb-backend.js`: fixed by scoping the LMDB search to `--mode code` for code-only LMDB build.
+- [x] `tests/sqlite-ann-extension.js`: fixed by disabling bundle workers in test and falling back to artifacts when bundles lack dense vectors (plus `embedding_u8` ingestion).
+- [x] `tests/sqlite-incremental-no-change.js`: fixed by short-circuiting no-change incremental updates before dense metadata checks and softening records-only rebuild messaging.
+- [x] `tests/storage/sqlite/incremental/manifest-normalization.test.js`: fixed via no-change short-circuit when manifest normalization yields zero diffs.
+
+---
+
+## Checklist coverage and required follow-ups
+
+### A) Schema & migrations
+
+**Audit**
+
+- SQLite schema is versioned via `PRAGMA user_version` with `SCHEMA_VERSION = 7` (`src/storage/sqlite/schema.js`).
+- Incremental update explicitly checks schema version and required tables before mutating (`src/storage/sqlite/build/incremental-update.js`).
+- Table-level constraints are generally well-defined (primary keys per (mode, …), plus supporting indexes for vocab/postings).
+
+**Gaps / issues**
+
+- [x] **Fail-closed at read time:** Add a `user_version` gate to the SQLite reader path (at minimum in `src/retrieval/cli-sqlite.js` / sqlite backend creation).
+  - Desired behavior:  
+    - If backend is *forced* to SQLite: throw a clear error (“SQLite schema mismatch: expected X, found Y”).
+    - If backend is not forced (auto): treat SQLite as unavailable and fall back to the file-backed backend, with a warning.
+- [x] **Index alignment with hot predicates:** Consider adding `CREATE INDEX idx_chunks_file_id ON chunks(mode, file, id)` to support:
+  - `SELECT id FROM chunks WHERE mode=? AND file=? ORDER BY id`
+  - `SELECT file, id FROM chunks WHERE mode=? ORDER BY file, id` (incremental update id reuse scan)
+- [x] **Document upgrade path explicitly:** The system is effectively “rebuild on schema bump”. Ensure docs and user-facing error messaging make that explicit (and fail closed rather than attempting to limp on).
+- [x] **Consider column-level schema validation for critical tables** (optional but recommended): required-table-name checks do not catch incompatible column changes if a user provides an arbitrary SQLite file containing tables with the right names.
+
+---
+
+### B) SQLite build pipeline
+
+**Audit**
+
+- Build-from-artifacts path uses bulk inserts and creates secondary indexes after ingest (`src/storage/sqlite/build/from-artifacts.js`).
+- Build-from-bundles supports a fast-path using bundle workers (`src/storage/sqlite/build/from-bundles.js` + `bundle-loader.js`).
+- Validation includes `PRAGMA integrity_check` (full) and cross-table count consistency checks (`src/storage/sqlite/build/validate.js`).
+
+**Gaps / issues**
+
+- [x] **(P0) Fix ANN insert statement preparation when the ANN table already exists:**
+  - In `src/storage/sqlite/build/from-bundles.js`:
+    - When `hasVectorTable` is true (L120), prepare `insertVectorAnn` immediately (same SQL as the “created table” path near L209).
+  - In `src/storage/sqlite/build/incremental-update.js`:
+    - When `vectorAnnReady` is set based on `hasVectorTable` (L240), prepare `insertVectorAnn` as well.
+  - Add a CI-friendly unit test that does not require a real sqlite-vec binary (see “Tests” section below).
+- [x] **(P0) Enforce embedding dims consistency in bundle builds.**
+  - Recommendation: pre-scan each bundle (or the whole manifest) to ensure all embeddings are either absent or have a single consistent dimension; then hard-fail the build if mismatched.
+  - Current behavior: warns once around L197 and continues; this should be tightened to match the artifacts build path which throws on mismatch.
+- [x] **Failure cleanup should include SQLite sidecars** (`.db-wal`, `.db-shm`) in:
+  - `src/storage/sqlite/build/from-artifacts.js`
+  - `src/storage/sqlite/build/from-bundles.js`
+
+  Today they remove only `outPath` on failure. If WAL/SHM exist, they can be left behind as confusing debris and can interfere with subsequent runs.
+- [x] **Consider ensuring the produced DB is “single-file”** after build by checkpointing/truncating WAL (or switching journal mode back), rather than relying on implicit behavior.
+- [x] **Prepared statement churn:** `deleteDocIds(...)` dynamically prepares multiple statements per chunk; consider statement caching keyed by chunk size to reduce overhead during large deletes.
+
+---
+
+### C) LMDB backend
+
+**Audit**
+
+- LMDB has a clear key-space separation (`meta:*`, `artifact:*`) and an explicit schema version (`src/storage/lmdb/schema.js`).
+- LMDB build tool stores artifacts plus metadata into LMDB (`tools/build-lmdb-index.js`).
+- Corruption handling is at least partially validated via tests (`tests/lmdb-corruption.js`, `tests/lmdb-report-artifacts.js`).
+
+**Gaps / issues**
+
+- [x] Ensure the LMDB *reader* path (not in this checklist set) fails closed on schema mismatch the same way SQLite incremental update does (explicit schema version check; clear error messaging).
+- [x] Consider adding a lightweight “LMDB quick check” command in tooling (or enhancing `tools/index-validate.js`) that validates the presence of all required keys (schema version, chunk meta, vocab, postings, etc.) and reports missing keys explicitly.
+- [x] Document LMDB key invariants and expected artifact presence (which artifacts are mandatory vs optional).
+
+---
+
+### D) Incremental updates
+
+**Audit**
+
+- Incremental update gating exists (requires incremental manifest, rejects schema mismatch, rejects high change ratios) (`src/storage/sqlite/build/incremental-update.js`).
+- It preserves doc-id stability per-file by reusing IDs for changed files and reusing free IDs from deletions.
+- Deletes are applied across all relevant tables using `deleteDocIds(...)` with consistent table lists.
+
+**Gaps / issues**
+
+- [x] **(P0) ANN table insertion bug** (same as in section B) must be fixed for incremental updates.
+- [x] **WAL lifecycle:** after an in-place incremental update, run:
+  - `PRAGMA wal_checkpoint(TRUNCATE);`
+  - optionally `PRAGMA journal_mode = DELETE;` (if the project prefers single-file DBs)
+
+  This ensures the on-disk DB is not “dependent on sidecars” after the update and reduces the likelihood of later tooling accidentally discarding uncheckpointed state.
+- [x] **Manifest match logic:** `isManifestMatch(...)` falls back to mtime/size when one side has a hash and the other does not.
+  - Consider tightening: if an incremental manifest provides a hash but the DB manifest row does not, treat as “changed” and update the DB row hash (this gradually converges the DB to the stronger invariant).
+- [x] **Performance of doc-id reuse scan:** the “scan all chunks ordered by file,id” approach is correct but can be expensive; if it becomes a bottleneck, consider either:
+  - adding `(mode,file,id)` index, and/or
+  - materializing file→docId list in a side table (only if necessary).
+
+---
+
+### E) Performance
+
+**Audit**
+
+- Build pragmas in `src/storage/sqlite/build/pragmas.js` are set to favor build throughput (WAL + relaxed synchronous) and are restored (partially).
+- Compaction tool is designed to reduce doc-id sparsity and reclaim file size (`tools/compact-sqlite-index.js`).
+
+**Gaps / issues**
+
+- [x] **Avoid repeated `COUNT(*)` scans** for backend auto-selection where possible (`src/storage/backend-policy.js`).
+  - Options: use `file_manifest` sum, maintain a meta counter, or store chunk count in `index_state.json`.
+- [x] **Improve maintenance query performance** via `(mode,file,id)` index as noted above.
+- [x] **Reduce query-time statement re-preparation** in `src/retrieval/sqlite-helpers.js` (`chunkArray(...)` creates fresh SQL each time); consider caching by chunk size.
+- [x] **Add at least one p95 query latency regression test** using a stable fixture DB (details below).
+
+---
+
+### F) Refactoring goals
+
+**Audit**
+
+- The codebase already separates schema SQL, prepared statements, and build/validate logic into dedicated modules.
+
+**Gaps / issues**
+
+- [x] **De-duplicate shared helpers:**
+  - `updateIndexStateManifest(...)` exists in both `tools/build-lmdb-index.js` and `tools/build-sqlite-index/index-state.js`.
+  - `chunkArray(...)` exists in both build and retrieval code (or adjacent helpers).
+- [x] **Centralize ANN table setup logic** so that “table exists” vs “table created” paths always prepare the insert statement (avoid the current drift between `prepareVectorAnnTable(...)` and the bundle/incremental paths).
+- [x] **Clarify naming:** `toSqliteRowId(...)` is currently a “coerce to BigInt” helper; consider renaming to reflect that it does not encode/transform the id.
+
+---
+
+## Tests and benchmarks — required additions
+
+### Must-add tests (CI-friendly)
+
+- [x] **Unit test: ANN insertion when the ANN table already exists** (no real extension binary required).
+  - Approach:
+    - Create a temporary SQLite DB with all required tables plus a *plain* `dense_vectors_ann` table (not virtual) matching the schema used by insert/delete (`rowid` + `embedding` BLOB column).
+    - Pass a mocked `vectorConfig` into `incrementalUpdateDatabase(...)` with:
+      - `loadVectorExtension: () => ({ ok: true })`
+      - `hasVectorTable: () => true`
+      - `encodeVector: () => Buffer.from([0])` (or similar stable stub)
+    - Run an incremental update that modifies at least one file and assert that:
+      - rows are deleted for removed docIds
+      - rows are inserted/replaced for changed docIds
+- [x] **Unit test: bundle-build dims mismatch hard failure**
+  - Create two bundle files in the incremental bundle dir: one with embedding length N, one with embedding length N+1.
+  - Assert build fails (or returns count 0 with a clear reason) rather than “warn and continue”.
+
+### Additional recommended tests
+
+- [x] **Reader fail-closed test:** Provide a DB with `user_version != SCHEMA_VERSION` and confirm:
+  - forced SQLite backend errors clearly
+  - auto backend falls back without using SQLite.
+- [x] **Incremental WAL checkpoint test** (if WAL checkpointing is implemented): verify that after incremental update:
+  - no `*.db-wal` / `*.db-shm` remain (or WAL is truncated to a small size, depending on desired policy).
+
+### Benchmark / regression testing
+
+- [x] **p95 query latency regression guard (fixture-based)**
+  - Add a small but non-trivial fixture SQLite DB (or build it deterministically during test setup) and run a representative query workload:
+    - candidate generation (ngrams)
+    - FTS ranking (if enabled)
+    - dense vector scoring (if enabled)
+  - Measure per-query durations and assert p95 stays under a budget (or does not regress beyond a tolerance vs a baseline).
+  - Keep it deterministic: single-threaded, warm cache (or explicit warm-up iterations), fixed query set, fixed limits.
+
+---
+
+## File-by-file findings and action items
+
+> This section lists concrete issues and improvement opportunities per reviewed file.  
+> Items are written as actionable checkboxes; severity tags (P0/P1/P2) are included where appropriate.
+
+### `src/storage/backend-policy.js`
+
+- [x] Clarify threshold semantics for `autoSqliteThresholdChunks` / `autoSqliteThresholdBytes` when set to `0` (current code uses `> 0`, so `0` behaves like “disabled” rather than “always use SQLite”).
+- [x] Consider avoiding expensive `COUNT(*)` scans for auto-selection; store chunk count in a meta table or `index_state.json` and read that instead (or sum `file_manifest.chunk_count`).
+- [x] Consider logging/telemetry: when auto-select declines SQLite due to missing/invalid thresholds, surface that decision (currently it is silent except for return fields).
+
+### `src/storage/lmdb/schema.js`
+
+- [x] Add brief inline documentation describing key-space expectations (which keys must exist for a usable LMDB index).
+- [x] Consider adding a helper to enumerate expected artifact keys for validation tooling (to avoid drift).
+
+### `src/storage/sqlite/build-helpers.js`
+
+- [x] Ensure `vectorConfig.extension.table` / `.column` are always sanitized before being interpolated into SQL (call-site currently depends on the caller to sanitize).
+- [x] Consider making `buildChunkRow(...)` treat empty strings/arrays consistently (e.g., avoid turning `''` into `null` unintentionally for fields where empty-string is meaningful).
+- [x] Consider reducing confusion: `buildChunkRow(...)` returns fields (`signature`, `doc`) that are not inserted into `chunks` but only into `chunks_fts`.
+
+### `src/storage/sqlite/build/bundle-loader.js`
+
+- [x] Ensure loader failures return actionable error messages (bundle path, reason). (Current errors are decent; confirm `readBundleFile(...)` includes enough context.)
+- [x] Consider exposing a small “max in-flight bundles” safeguard if worker threads are enabled (to avoid memory spikes on extremely large bundles).
+
+### `src/storage/sqlite/build/delete.js`
+
+- [x] Cache delete statements by chunk size to reduce repeated `db.prepare(...)` overhead when deleting many docIds.
+- [x] Consider supporting a temp table approach (`CREATE TEMP TABLE ids(...)`) if deletion performance becomes a bottleneck for large deletes.
+- [x] Verify that the `vectorDeleteTargets` contract remains consistent across callers (column name `rowid` vs explicit id columns).
+
+### `src/storage/sqlite/build/from-artifacts.js`
+
+- [x] Tighten shard discovery: `listShardFiles(...)` includes `.jsonl` but ingestion reads shards via `readJson(...)`; either:
+  - restrict token-postings shards to `.json`, or
+  - add JSONL support for token-postings shards (if they can be JSONL in practice).
+- [x] Consider inserting `dense_meta` inside the same transaction as the first dense-vector batch (atomicity / consistency).
+- [x] For `chunkMeta` ingestion (non-piece path), avoid building a single giant `rows` array in memory if the artifact can be large; use chunked batching as done in `ingestChunkMetaPieces(...)`.
+- [x] Failure cleanup: remove sidecars (`outPath-wal`, `outPath-shm`) as well as `outPath` on failure.
+
+### `src/storage/sqlite/build/from-bundles.js`
+
+- [x] **(P0) Prepare `insertVectorAnn` even when the ANN table already exists** (see around L120).  
+  The “table exists” branch sets `vectorAnnReady = true` but does not prepare the insert statement, so embeddings are not inserted into ANN.
+- [x] **(P0) Make embedding dims mismatch a hard failure.**  
+  Current warning-only behavior (around L197) can produce inconsistent dense vectors.
+- [x] Guard against malformed bundles: `count += result.bundle.chunks.length` should handle missing/invalid `chunks` gracefully (use `?.length || 0`).
+- [x] Remove unused import (`path` is currently imported but not used).
+- [x] Failure cleanup should remove SQLite sidecars, not just the DB file.
+
+### `src/storage/sqlite/build/incremental-update.js`
+
+- [x] **(P0) Prepare `insertVectorAnn` when the ANN table already exists** (see around L240).  
+  Without this, incremental updates delete ANN rows but do not reinsert replacement vectors.
+- [x] Add explicit WAL checkpointing/truncation at the end of a successful update (to keep the DB self-contained and avoid large WAL growth).
+- [x] Consider tightening `isManifestMatch(...)` semantics when hashes are available on only one side (to converge DB manifest quality).
+- [x] Performance: consider `(mode,file,id)` index or other optimization for `getDocIdsForFile(...)` scanning and per-file id lists.
+- [x] Remove (or convert to assertion) the redundant “dims mismatch warn” path inside applyChanges; dims mismatch should already be rejected earlier.
+
+### `src/storage/sqlite/build/manifest.js`
+
+- [x] De-duplicate `conflicts` output (currently can include repeated normalized paths).
+- [x] Consider strict hash preference: if `entry.hash` is present but `dbEntry.hash` is null, treat as mismatch and update DB hash (do not silently match on mtime/size).
+
+### `src/storage/sqlite/build/pragmas.js`
+
+- [x] Consider restoring `journal_mode` (or explicitly checkpointing) after build to ensure “single-file DB” invariants if the project expects that.
+- [x] Consider surfacing pragma failures (currently swallowed silently).
+
+### `src/storage/sqlite/build/statements.js`
+
+- [x] Consider adding `idx_chunks_file_id` (see schema/index alignment notes).
+- [x] Reduce confusion: `buildChunkRowWithMeta(...)` populates fields not present in the schema (e.g., `churn_added`, `churn_deleted`, `churn_commits`). Either:
+  - add these columns to the schema if they are intended, or
+  - stop emitting them to avoid “looks supported but isn’t”.
+
+### `src/storage/sqlite/build/validate.js`
+
+- [x] Consider validating ANN invariants when ANN is enabled:
+  - `dense_vectors_ann` row count should match `dense_vectors` row count for the mode (or at least have no orphans).
+- [x] Consider making full `integrity_check` optional for very large DBs (it can be expensive); provide a quick-check mode and/or configurable validation levels.
+
+### `src/storage/sqlite/build/vocab.js`
+
+- [x] Consider caching prepared statements by chunk size (similar to delete/vocab fetch) to reduce repeated SQL compilation overhead.
+- [x] Error messaging: if `missing.length` is huge, cap printed missing values in the thrown error and include only a sample plus counts (to avoid megabyte-scale exception strings).
+
+### `src/storage/sqlite/incremental.js`
+
+- [x] Document the on-disk incremental manifest contract and failure modes (missing manifest, conflicts, ratio guard).
+- [x] Consider adding a small helper to validate the incremental manifest shape early, with clearer error output.
+
+### `src/storage/sqlite/schema.js`
+
+- [x] Consider adding `(mode,file,id)` index for maintenance queries.
+- [x] Ensure docs (`docs/sqlite-index-schema.md`) stay in sync when schema changes.
+
+### `src/storage/sqlite/utils.js`
+
+- [x] `normalizeFilePath(...)` returns the input unchanged when it is not a string; consider returning `null` instead to reduce accidental “undefined as key” behavior.
+- [x] `replaceSqliteDatabase(...)`: consider logging when fallback rename/remove paths are taken (debuggability of replacement failures).
+
+### `src/storage/sqlite/vector.js`
+
+- [x] `toSqliteRowId(...)` is effectively “coerce to BigInt”; consider renaming to reflect that (e.g., `toSqliteRowidInt64(...)`) to avoid implying a non-trivial mapping.
+- [x] Consider making quantization parameters (`minVal`, `maxVal`) configurable or derived from embedding model metadata (avoid silent saturation if embeddings are out of range).
+
+---
+
+### Tooling files
+
+#### `tools/build-lmdb-index.js`
+
+- [x] Consider a `--validate` option that checks required artifacts exist before writing LMDB (fail early, clearer errors).
+- [x] Consider writing a small LMDB “manifest” key listing which artifacts were written (enables tool-side validation and reduces drift).
+
+#### `tools/build-sqlite-index.js`
+
+- [x] Consider exit codes and messaging consistency across build modes (full rebuild vs incremental vs skipped).
+
+#### `tools/build-sqlite-index/cli.js`
+
+- [x] Consider validating incompatible flag combinations early (e.g., `--bundle-workers` without a bundle dir).
+- [x] Consider adding `--no-compact` / `--compact` clarity in CLI help (if not already covered elsewhere).
+
+#### `tools/build-sqlite-index/index-state.js`
+
+- [x] De-duplicate `updateIndexStateManifest(...)` with the LMDB equivalent; extract to a shared helper module.
+- [x] Consider including schema version and build mode (full vs incremental) in `index_state.json` for observability.
+
+#### `tools/build-sqlite-index/run.js`
+
+- [x] Ensure `stopHeartbeat()` is always invoked via `try/finally` (avoid leaking an interval on error when `exitOnError=false`).
+- [x] After incremental updates, consider forcing WAL checkpoint/truncate (see incremental update section).
+- [x] Consider making the “incremental fallback to rebuild” reason more explicit in output (currently logged, but could include key stats: changedFiles, deletedFiles, ratio).
+
+#### `tools/build-sqlite-index/temp-path.js`
+
+- [x] Consider a “same filesystem guarantee” note: temp DB path must be on same filesystem for atomic rename (current implementation uses same directory, which is good; document this).
+
+#### `tools/clean-artifacts.js`
+
+- [x] Consider adding a `--dry-run` option that prints what would be deleted without deleting it (safety for new users).
+
+#### `tools/compact-sqlite-index.js`
+
+- [x] If vector extension is enabled but cannot be loaded, consider warning that compaction may drop ANN acceleration (and suggest remediation, e.g. rerun embeddings rebuild once extension is available).
+- [x] Consider recording pre/post compaction stats into `index_state.json` (bytes, row counts) for observability.
+
+#### `tools/download-extensions.js`
+
+- [x] Consider streaming zip extraction rather than buffering each entry into memory (`adm-zip` forces buffer extraction; if large binaries become common, consider a streaming zip library).
+- [x] Consider setting file permissions for extracted binaries explicitly per-platform conventions (e.g., preserve exec bit if needed, although shared libraries typically do not require it).
+
+#### `tools/index-validate.js`
+
+- [x] Consider including actionable remediation hints per failure mode (e.g., “run build-index”, “run build-sqlite-index”, “run download-extensions”).
+
+#### `tools/report-artifacts.js`
+
+- [x] Consider clarifying the units in output when printing both formatted size and raw bytes (currently raw bytes are printed in parentheses without a label).
+
+#### `tools/vector-extension.js`
+
+- [x] Consider keying `loadCache` by (db, config) rather than only db (avoids surprising behavior if config changes during a long-lived process).
+- [x] Consider restoring prior `trusted_schema` value after `ensureVectorTable(...)` (minimize global DB setting changes).
+
+#### `tools/verify-extensions.js`
+
+- [x] Consider adding a quick “smoke query” that verifies the ANN table can be created and queried (optional).
+
+---
+
+### Test files
+
+#### `tests/backend-policy.js`
+
+- [x] Add coverage for threshold edge cases (e.g., `autoSqliteThresholdChunks=0` semantics).
+- [x] Add a test case where SQLite exists but artifact metadata cannot be read (ensure fallback behavior is correct and reason is surfaced).
+
+#### `tests/compact-pieces.js`
+
+- [x] No issues noted (acts as a compaction functional check for artifact pieces).
+
+#### `tests/lmdb-backend.js`
+
+- [x] Consider adding schema version mismatch coverage (fail closed when schema version differs).
+
+#### `tests/lmdb-corruption.js`
+
+- [x] Consider asserting on error message content to ensure corruption reporting remains actionable.
+
+#### `tests/lmdb-report-artifacts.js`
+
+- [x] Consider adding a test for “missing required key” vs “corruption” differentiation (if validation tooling can distinguish).
+
+#### `tests/retrieval-backend-policy.js`
+
+- [x] Add coverage for schema version mismatch fallback (once reader-side user_version check exists).
+
+#### `tests/smoke-sqlite.js`
+
+- [x] Add coverage for `user_version` mismatch behavior once implemented.
+
+#### `tests/sqlite-ann-extension.js`
+
+- [x] Add a CI-friendly companion test that does not require the real extension binary (mock vectorConfig approach described above) to ensure ANN insert/delete invariants are enforced in CI.
+
+#### `tests/sqlite-ann-fallback.js`
+
+- [x] Consider adding explicit coverage that fallback ANN search never returns out-of-range docIds (robustness guard).
+
+#### `tests/sqlite-auto-backend.js`
+
+- [x] Add a test that covers the “SQLite present but too small” path + verifies reason reporting is stable.
+
+#### `tests/sqlite-build-delete.js`
+
+- [x] Add coverage for deleting from an ANN table using `rowid` column and BigInt inputs (ensures `toSqliteRowId(...)` conversion remains correct).
+
+#### `tests/sqlite-build-indexes.js`
+
+- [x] Add coverage for any new maintenance index (e.g., `(mode,file,id)`), if introduced.
+
+#### `tests/sqlite-build-manifest.js`
+
+- [x] Add a test for “manifest has hash but DB does not” semantics (once tightened).
+
+#### `tests/sqlite-build-vocab.js`
+
+- [x] Add stress coverage for token sets larger than SQLite’s `IN` limit (ensuring chunking logic remains correct).
+
+#### `tests/sqlite-bundle-missing.js`
+
+- [x] Add bundle-shape validation coverage (missing `chunks` field should not crash build loop).
+
+#### `tests/sqlite-cache.js`
+
+- [x] No issues noted (validates cache path behavior / read path).
+
+#### `tests/sqlite-chunk-id.js`
+
+- [x] No issues noted (docId/chunkId behavior).
+#### `tests/sqlite-compact.js`
+
+- [x] Consider adding coverage for compaction with ANN enabled but extension mocked (ensures dense_vectors_ann remains consistent after compaction).
+
+#### `tests/sqlite-incremental-no-change.js`
+
+- [x] Consider verifying `index_state.json` is unchanged (or only updated timestamp changes), depending on desired policy.
+
+#### `tests/sqlite-incremental.js`
+
+- [x] Add coverage for doc-id reuse behavior (free-list) to prevent accidental regression to “always append”.
+
+#### `tests/sqlite-index-state-fail-closed.js`
+
+- [x] Consider adding coverage that “pending” flips back to false on successful build (already implied but could be explicit).
+
+#### `tests/sqlite-missing-dep.js`
+
+- [x] No issues noted (validates better-sqlite3 missing behavior).
+#### `tests/sqlite-sidecar-cleanup.js`
+
+- [x] Add incremental-update sidecar cleanup coverage if WAL checkpointing/truncation is implemented.
+
+---
+
+### Documentation files
+
+#### `docs/contracts/sqlite.md`
+
+- [x] Explicitly document the `user_version` contract and the “fail closed / rebuild on mismatch” behavior.
+- [x] Ensure the list of required tables aligns with the actual reader/build code paths (and clearly separate “core” vs “optional” tables).
+
+#### `docs/external-backends.md`
+
+- [x] Consider updating to reflect current backend-policy behavior (auto selection thresholds, forced backend semantics).
+
+#### `docs/model-compare-sqlite.json`, `docs/parity-sqlite-ann.json`, `docs/parity-sqlite-fts-ann.json`
+
+- [x] Ensure these reports are either generated artifacts (and documented as such) or kept in sync with the current schema/tooling versions (otherwise they can mislead).
+
+#### `docs/references/dependency-bundle/deps/better-sqlite3.md`
+
+- [x] Confirm documented behavior matches current runtime expectations (particularly around extension loading, platform binaries, and supported SQLite features).
+
+#### `docs/sqlite-ann-extension.md`
+
+- [x] Document the invariant that `dense_vectors_ann` must remain consistent with `dense_vectors` (no orphans; same cardinality per mode when enabled).
+- [x] Document how incremental updates maintain the ANN table (and note limitations when extension is not available).
+
+#### `docs/sqlite-compaction.md`
+
+- [x] Clarify how compaction interacts with the ANN extension table (and the remediation path if ANN is temporarily unavailable during compaction).
+
+#### `docs/sqlite-incremental-updates.md`
+
+- [x] Update doc-id behavior description to match implementation (per-file id reuse + free-list reuse rather than always appending).
+- [x] Document the ratio guard behavior and fallback to full rebuild more explicitly.
+- [x] Document WAL/sidecar expectations for incremental updates (single-file vs WAL sidecars).
+
+#### `docs/sqlite-index-schema.md`
+
+- [x] Reconfirm schema matches `SCHEMA_VERSION = 7` (columns, indexes, optional extension table).
+- [x] If `(mode,file,id)` index is added, document it as a maintenance/performance index.
+
+---
+
+## Exit criteria for this review section
+
+The following items should be completed to consider “Review Section 7” fully addressed:
+
+- [x] ANN insert-preparation bug fixed in both bundle-build and incremental-update code paths.
+- [x] Reader-side schema version fail-closed behavior implemented and tested.
+- [x] Bundle-build embedding dims mismatch becomes a hard failure (with tests).
+- [x] WAL/sidecar policy is explicitly decided, implemented consistently, and documented (at minimum for incremental updates).
+- [x] At least one CI-friendly test covers ANN table sync invariants without requiring a real extension binary.
+- [x] At least one fixture-based p95 latency regression test is added (or an equivalent deterministic perf guard).
+
+---
+
+## Phase 18 - Safe regex acceleration: optional native RE2 (re2) with re2js fallback
+
+### 18.1 Add dependency + backend wrapper
+
+* [x] Add re2 (native) as an optional dependency (recommended)
+* [x] Refactor src/shared/safe-regex.js into a backend-based module:
+  * [x] Keep current behavior as the fallback backend (re2js)
+  * [x] Add src/shared/safe-regex/backends/re2.js
+  * [x] Add src/shared/safe-regex/backends/re2js.js (wrap existing usage cleanly)
+* [x] Preserve existing safety constraints:
+  * [x] maxPatternLength
+  * [x] maxInputLength
+  * [x] Guard flags normalization (only gimsyu supported as today)
+
+### 18.2 Integrate selector + compatibility contract
+
+* [x] Add createSafeRegex({ engine, ...limits }) selection:
+  * [x] engine=auto uses re2 if available else re2js
+  * [x] engine=re2 hard-requires native; if missing, warning + fallback to re2js
+* [x] Validate behavioral parity:
+  * [x] Ensure .exec() and .test() match expectations for g and non-g
+  * [x] Ensure .lastIndex semantics are compatible
+
+### 18.3 Update call sites
+
+* [x] Verify these flows still behave correctly:
+  * [x] src/retrieval/output/filters.js (file/path filters)
+  * [x] src/retrieval/output/risk-tags.js (risk tagging)
+  * [x] Any structural search / rulepack path using regex constraints
+
+### 18.4 Tests
+
+* [x] Add tests/safe-regex-engine.js:
+  * [x] Conformance tests (flags, match groups, global behavior)
+  * [x] Safety limit tests (pattern length, input length)
+  * [x] Engine-selection tests (auto, forced re2js)
+* [x] Add script-coverage action(s)
+
+**Exit criteria**
+
+* [x] No user-visible semantic regressions in filtering/risk-tagging
+* [x] Engine auto is safe and silent (no noisy logs) unless verbose
+
+---
+
+## Phase 27 - LanceDB vector backend (optional, high impact on ANN scaling)
+
+### 27.1 Extract a vector-ANN provider interface
+
+* [x] Create `src/retrieval/ann/`:
+  * [x] `types.js`: `query({ embedding, topN, candidateSet, mode }) -> hits[]`
+  * [x] `providers/sqlite-vec.js` wrapper around `rankVectorAnnSqlite`
+  * [x] `providers/hnsw.js` wrapper around `rankHnswIndex`
+  * [x] `providers/lancedb.js` wrapper around `rankLanceDb`
+  * [x] `providers/dense.js` wrapper around `rankDenseVectors`
+* [x] Update `src/retrieval/pipeline.js` to use the provider interface
+
+### 27.2 Implement LanceDB integration (choose operational model)
+
+* [x] Choose packaging model:
+  * [x] Node library integration (`@lancedb/lancedb`)
+* [x] Sidecar service (Python) + HTTP (deferred)
+* [x] Add LanceDB ANN ranker/provider (lancedb query path accepts typed arrays):
+  * [x] Query by vector and return `{ idx, sim }`
+  * [x] Handle filtering:
+    * [x] Push down for small candidate sets
+    * [x] Post-filter and overfetch when needed
+  * [x] Relocate under `src/retrieval/ann/providers/lancedb.js`
+
+### 27.3 Build tooling for vector index creation
+
+* [x] Build tooling for vector index creation (tools/build-embeddings):
+  * [x] Ingest `dense_vectors_*` artifacts
+  * [x] Store LanceDB table in cache (mode-specific)
+  * [x] Validate dims/model compatibility using `index_state.json` semantics
+* [x] (Optional) Add a standalone `tools/build-lancedb-index.js` entrypoint (deferred)
+
+### 27.4 Tests (gated)
+
+* [x] Add `tests/lancedb-ann.js` smoke test
+* [x] Gate test execution so CI does not fail when LanceDB is unavailable
+* [x] (Optional) Add explicit `PAIROFCLEATS_TEST_LANCEDB=1` env gating (deferred)
+* [x] Add script-coverage action(s):
+  * [x] `tests/script-coverage/actions.js` includes `lancedb-ann-test`
+
+**Exit criteria**
+
+* [x] LanceDB ANN can be enabled without breaking sqlite/hnsw fallbacks
+* [x] Demonstrable memory and/or latency win for ANN retrieval at scale (not required)
+
+---
+

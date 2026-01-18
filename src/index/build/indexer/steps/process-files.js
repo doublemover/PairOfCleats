@@ -226,6 +226,9 @@ const updateEntryTreeSitterBatch = (entry, languages) => {
 
 const sortEntriesByTreeSitterBatchKey = (entries) => {
   entries.sort((a, b) => {
+    const deferA = a.treeSitterDeferredToEnd ? 1 : 0;
+    const deferB = b.treeSitterDeferredToEnd ? 1 : 0;
+    if (deferA !== deferB) return deferA - deferB;
     const keyA = a.treeSitterBatchKey || 'none';
     const keyB = b.treeSitterBatchKey || 'none';
     const keyDelta = compareStrings(keyA, keyB);
@@ -594,6 +597,7 @@ export const processFiles = async ({
             continue;
           }
           if (missingLanguages.length) {
+            entry.treeSitterDeferredToEnd = true;
             const merged = normalizeTreeSitterLanguages([
               ...(Array.isArray(entry.treeSitterBatchLanguages) ? entry.treeSitterBatchLanguages : []),
               ...missingLanguages

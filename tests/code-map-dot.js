@@ -46,7 +46,15 @@ if (buildResult.status !== 0) {
 
 const mapResult = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'report-code-map.js'), '--format', 'dot', '--repo', repoRoot],
+  [
+    path.join(root, 'tools', 'report-code-map.js'),
+    '--format',
+    'dot',
+    '--include',
+    'imports,calls',
+    '--repo',
+    repoRoot
+  ],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 

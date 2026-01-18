@@ -26,7 +26,7 @@ This document maps user-visible behavior to implementation, configuration switch
   - Implementation: `src/storage/backend-policy.js` (`resolveBackendPolicy`), `src/retrieval/cli.js` (`resolveBackendPolicy` usage), `src/retrieval/cli-sqlite.js` (`createSqliteBackend`).
   - Config: CLI `--backend`; `search.sqliteAutoChunkThreshold`, `search.sqliteAutoArtifactBytes`, `sqlite.use`; environment `PAIROFCLEATS_SQLITE_DISABLED` (tests).
   - Tests: `tests/sqlite-auto-backend.js`, `tests/sqlite-missing-dep.js`, `tests/backend-policy.js`.
-  - Limitations: sqlite requires `better-sqlite3` (and optional ANN extension).
+  - Limitations: sqlite requires `better-sqlite3` (and optional ANN extension); auto thresholds are disabled when set to `0`, and missing stats trigger a warning + memory fallback.
 
 - Claim: `--backend lmdb` uses LMDB stores when present; auto fallback selects LMDB when sqlite is unavailable.
   - Implementation: `src/storage/backend-policy.js` (`resolveBackendPolicy`), `src/retrieval/cli-lmdb.js` (`createLmdbBackend`), `tools/build-lmdb-index.js` (LMDB build entrypoint).

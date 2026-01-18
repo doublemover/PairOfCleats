@@ -1,4 +1,5 @@
 import { normalizeVec, quantizeVec } from '../../src/index/embedding.js';
+import { resolveQuantizationParams } from '../../src/storage/sqlite/vector.js';
 
 const isVectorLike = (value) => {
   if (Array.isArray(value)) return true;
@@ -68,10 +69,12 @@ export const buildQuantizedVectors = ({
   codeVector,
   docVector,
   zeroVector,
-  addHnswVector
+  addHnswVector,
+  quantization
 }) => {
   const embedCode = isVectorLike(codeVector) ? codeVector : [];
   const embedDoc = isVectorLike(docVector) ? docVector : zeroVector;
+  const resolved = resolveQuantizationParams(quantization);
   const length = embedCode.length || embedDoc.length || 0;
   const merged = length ? new Float32Array(length) : new Float32Array(0);
   if (embedCode.length) {
@@ -87,9 +90,15 @@ export const buildQuantizedVectors = ({
   if (addHnswVector && normalized.length) {
     addHnswVector(chunkIndex, normalized);
   }
-  const quantizedCode = embedCode.length ? quantizeVec(embedCode) : [];
-  const quantizedDoc = embedDoc.length ? quantizeVec(embedDoc) : [];
-  const quantizedMerged = normalized.length ? quantizeVec(normalized) : [];
+  const quantizedCode = embedCode.length
+    ? quantizeVec(embedCode, resolved.minVal, resolved.maxVal, resolved.levels)
+    : [];
+  const quantizedDoc = embedDoc.length
+    ? quantizeVec(embedDoc, resolved.minVal, resolved.maxVal, resolved.levels)
+    : [];
+  const quantizedMerged = normalized.length
+    ? quantizeVec(normalized, resolved.minVal, resolved.maxVal, resolved.levels)
+    : [];
   return { quantizedCode, quantizedDoc, quantizedMerged };
 };
 

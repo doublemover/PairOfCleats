@@ -1,5 +1,6 @@
 {
   "generatedAt": "2025-12-31T00:40:00.318Z",
+  "note": "Snapshot report; regenerate after schema or scoring changes.",
   "repo": {
     "root": "C:\\Users\\sneak\\Development\\PairOfCleats_CODEX",
     "repoId": "8c76cec86f7d90e372915a640348d0c6b3263422"

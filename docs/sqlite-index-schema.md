@@ -21,6 +21,7 @@ Columns:
 - codeRelations, docmeta, stats, complexity, lint, externalDocs (TEXT JSON)
 - last_modified, last_author (TEXT)
 - churn (REAL)
+- churn_added, churn_deleted, churn_commits (INTEGER)
 - chunk_authors (TEXT JSON)
 
 ### chunks_fts (FTS5)
@@ -89,6 +90,7 @@ Packed quantized dense vectors per doc.
 ### dense_meta
 Per-mode dense vector metadata.
 - mode, dims, scale, model (TEXT)
+- min_val, max_val (REAL), levels (INTEGER)
 
 ### dense_vectors_ann (optional)
 Optional vector extension table for SQLite-only ANN search (requires a loadable
@@ -103,3 +105,4 @@ SQLite vector extension).
 - File paths in SQLite are normalized to use `/`.
 - When `chunk_meta.json` stores `fileId` instead of `file`, `build-sqlite-index` uses `file_meta.json` to resolve file paths, extensions, and external docs, and to populate `file_manifest`.
 - When incremental bundles are present (manifest exists), SQLite rebuilds stream bundle files from `<cache>/repos/<repoId>/incremental/<mode>/files` instead of loading `chunk_meta.json`.
+- Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION` (currently 9); mismatches require a full rebuild.

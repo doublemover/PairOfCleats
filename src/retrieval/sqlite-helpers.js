@@ -1,4 +1,5 @@
 import { extractNgrams, tri } from '../shared/tokenize.js';
+import { chunkArray } from '../storage/sqlite/utils.js';
 import { parseArrayField, parseJson } from './query-cache.js';
 import { buildFtsBm25Expr } from './fts.js';
 import { buildFilterIndex } from './filter-index.js';
@@ -37,6 +38,23 @@ export function createSqliteHelpers(options) {
     tokenStats: new Map(),
     docLengths: new Map()
   };
+  const statementCache = new WeakMap();
+
+  const getCachedStatement = (db, key, sql) => {
+    let dbCache = statementCache.get(db);
+    if (!dbCache) {
+      dbCache = new Map();
+      statementCache.set(db, dbCache);
+    }
+    let stmt = dbCache.get(key);
+    if (!stmt) {
+      stmt = db.prepare(sql);
+      dbCache.set(key, stmt);
+    }
+    return stmt;
+  };
+
+  const buildPlaceholders = (count) => Array.from({ length: count }, () => '?').join(',');
 
   /**
    * Decode a packed uint32 buffer into an array.
@@ -102,6 +120,9 @@ export function createSqliteHelpers(options) {
       last_modified: row.last_modified,
       last_author: row.last_author,
       churn: row.churn,
+      churn_added: row.churn_added,
+      churn_deleted: row.churn_deleted,
+      churn_commits: row.churn_commits,
       chunk_authors: parseJson(row.chunk_authors, null)
     };
   }
@@ -166,7 +187,8 @@ export function createSqliteHelpers(options) {
       denseVec = vectors.length ? {
         model: denseMeta.model || modelIdDefault,
         dims: denseMeta.dims || (fallbackVec ? fallbackVec.length : 0),
-        scale: typeof denseMeta.scale === 'number' ? denseMeta.scale : 1.0,
+        scale: typeof denseMeta.scale === 'number' ? denseMeta.scale : (2 / 255),
+        minVal: -1,
         vectors
       } : null;
     }
@@ -180,19 +202,6 @@ export function createSqliteHelpers(options) {
     };
   }
 
-  /**
-   * Split a list into smaller chunks for SQLite IN limits.
-   * @param {Array<any>} items
-   * @param {number} [size]
-   * @returns {Array<Array<any>>}
-   */
-  function chunkArray(items, size = SQLITE_IN_LIMIT) {
-    const chunks = [];
-    for (let i = 0; i < items.length; i += size) {
-      chunks.push(items.slice(i, i + size));
-    }
-    return chunks;
-  }
 
   /**
    * Load chunk metadata rows for a list of ids.
@@ -207,9 +216,11 @@ export function createSqliteHelpers(options) {
     const unique = Array.from(new Set(ids.filter((id) => Number.isFinite(id))));
     if (!unique.length) return target || [];
     const out = target || [];
-    for (const chunk of chunkArray(unique)) {
-      const placeholders = chunk.map(() => '?').join(',');
-      const stmt = db.prepare(
+    for (const chunk of chunkArray(unique, SQLITE_IN_LIMIT)) {
+      const placeholders = buildPlaceholders(chunk.length);
+      const stmt = getCachedStatement(
+        db,
+        `chunks:${chunk.length}`,
         `SELECT * FROM chunks WHERE mode = ? AND id IN (${placeholders})`
       );
       const rows = stmt.all(mode, ...chunk);
@@ -232,10 +243,13 @@ export function createSqliteHelpers(options) {
     if (!db || !values.length) return [];
     const unique = Array.from(new Set(values));
     const rows = [];
-    for (const chunk of chunkArray(unique)) {
-      const placeholders = chunk.map(() => '?').join(',');
-      const stmt = db.prepare(
-        `SELECT ${idColumn} AS id, ${valueColumn} AS value FROM ${table} WHERE mode = ? AND ${valueColumn} IN (${placeholders})`
+    for (const chunk of chunkArray(unique, SQLITE_IN_LIMIT)) {
+      const placeholders = buildPlaceholders(chunk.length);
+      const stmt = getCachedStatement(
+        db,
+        `vocab:${table}:${idColumn}:${valueColumn}:${chunk.length}`,
+        `SELECT ${idColumn} AS id, ${valueColumn} AS value FROM ${table} ` +
+          `WHERE mode = ? AND ${valueColumn} IN (${placeholders})`
       );
       rows.push(...stmt.all(mode, ...chunk));
     }
@@ -257,12 +271,15 @@ export function createSqliteHelpers(options) {
     const unique = Array.from(new Set(ids));
     const rows = [];
     for (const chunk of chunkArray(unique)) {
-      const placeholders = chunk.map(() => '?').join(',');
+      const placeholders = buildPlaceholders(chunk.length);
       const selectCols = includeTf
         ? `${idColumn} AS id, doc_id, tf`
         : `${idColumn} AS id, doc_id`;
-      const stmt = db.prepare(
-        `SELECT ${selectCols} FROM ${table} WHERE mode = ? AND ${idColumn} IN (${placeholders}) ORDER BY ${idColumn}, doc_id`
+      const stmt = getCachedStatement(
+        db,
+        `postings:${table}:${idColumn}:${includeTf ? 'tf' : 'no-tf'}:${chunk.length}`,
+        `SELECT ${selectCols} FROM ${table} WHERE mode = ? AND ${idColumn} IN (${placeholders}) ` +
+          `ORDER BY ${idColumn}, doc_id`
       );
       rows.push(...stmt.all(mode, ...chunk));
     }

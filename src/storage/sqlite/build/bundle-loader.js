@@ -57,23 +57,28 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
     }
     const bundlePath = path.join(bundleDir, bundleName);
     if (!fsSync.existsSync(bundlePath)) {
-      return { file, ok: false, reason: 'bundle file missing' };
+      return { file, ok: false, reason: `bundle file missing (${bundlePath})` };
     }
     try {
       if (pool) {
         const result = await pool.run({ bundlePath });
         if (!result?.ok) {
-          return { file, ok: false, reason: result?.reason || 'invalid bundle' };
+          const reason = result?.reason || 'invalid bundle';
+          return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${reason}` };
         }
         return { file, ok: true, bundle: result.bundle };
       }
       const result = await readBundleFile(bundlePath);
       if (!result.ok) {
-        return { file, ok: false, reason: result.reason || 'invalid bundle' };
+        return {
+          file,
+          ok: false,
+          reason: `bundle read failed (${bundlePath}): ${result.reason || 'invalid bundle'}`
+        };
       }
       return { file, ok: true, bundle: result.bundle };
     } catch (err) {
-      return { file, ok: false, reason: err?.message || String(err) };
+      return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${err?.message || err}` };
     }
   };
 

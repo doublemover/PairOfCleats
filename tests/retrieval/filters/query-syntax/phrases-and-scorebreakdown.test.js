@@ -6,7 +6,12 @@ if (!context) process.exit(0);
 
 const { repoRoot, env } = context;
 
-const phraseSearch = runFilterSearch({ repoRoot, env, query: '"alpha beta"' });
+const phraseSearch = runFilterSearch({
+  repoRoot,
+  env,
+  query: '"alpha beta"',
+  args: ['--explain']
+});
 const phraseHits = phraseSearch.prose || [];
 if (!phraseHits.length) {
   console.error('Phrase search returned no results.');

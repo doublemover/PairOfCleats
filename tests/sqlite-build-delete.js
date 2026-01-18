@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { deleteDocIds } from '../src/storage/sqlite/build/delete.js';
+import { toSqliteRowId } from '../src/storage/sqlite/vector.js';
 
 let Database;
 try {
@@ -21,12 +22,14 @@ db.exec(`
   CREATE TABLE dense_vectors (doc_id INTEGER, mode TEXT);
   CREATE TABLE doc_lengths (doc_id INTEGER, mode TEXT);
   CREATE TABLE dense_vectors_ann (id INTEGER PRIMARY KEY, embedding BLOB);
+  CREATE TABLE dense_vectors_ann_rowid (embedding BLOB);
 `);
 
 const insertChunk = db.prepare('INSERT INTO chunks (id, mode) VALUES (?, ?)');
 const insertChunkFts = db.prepare('INSERT INTO chunks_fts (rowid, mode) VALUES (?, ?)');
 const insertDoc = (table) => db.prepare(`INSERT INTO ${table} (doc_id, mode) VALUES (?, ?)`);
 const insertAnn = db.prepare('INSERT INTO dense_vectors_ann (id, embedding) VALUES (?, ?)');
+const insertAnnRowid = db.prepare('INSERT INTO dense_vectors_ann_rowid (rowid, embedding) VALUES (?, ?)');
 
 for (const id of [1, 2]) {
   insertChunk.run(id, 'code');
@@ -45,8 +48,16 @@ insertChunkFts.run(1, 'prose');
 insertDoc('token_postings').run(1, 'prose');
 insertDoc('doc_lengths').run(1, 'prose');
 insertAnn.run(3, Buffer.from('y'));
+const bigRowId = 9007199254740991n;
+insertAnnRowid.run(bigRowId, Buffer.from('z'));
 
 deleteDocIds(db, 'code', [1, 2], [{ table: 'dense_vectors_ann', column: 'id', withMode: false }]);
+deleteDocIds(
+  db,
+  'code',
+  [bigRowId],
+  [{ table: 'dense_vectors_ann_rowid', column: 'rowid', withMode: false, transform: toSqliteRowId }]
+);
 
 const remainingCodeChunks = db.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode = ?').get('code').total;
 assert.equal(remainingCodeChunks, 0, 'expected code chunks to be removed');
@@ -61,6 +72,9 @@ assert.equal(remainingAnn, 1, 'expected ANN rows to be removed for deleted ids')
 
 const remainingAnnRow = db.prepare('SELECT id FROM dense_vectors_ann').get();
 assert.equal(remainingAnnRow.id, 3, 'expected ANN row for other ids to remain');
+
+const remainingAnnRowid = db.prepare('SELECT COUNT(*) AS total FROM dense_vectors_ann_rowid').get().total;
+assert.equal(remainingAnnRowid, 0, 'expected rowid-based ANN delete to remove BigInt id');
 
 db.close();
 
