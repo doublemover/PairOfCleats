@@ -45,6 +45,25 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 **Objective:** Clear the currently failing regression gates so subsequent refactors (scalability, mode separation, security) have trustworthy signal.
 
+### Current npm test failures (2026-01-17)
+
+* [ ] `tests/api-server-stream.js` — api-server stream returned no results
+* [ ] `tests/code-map-basic.js` — missing dataflow/controlFlow metadata
+* [ ] `tests/git-blame-range.js` — expected alpha author in chunk authors
+* [ ] `tests/lang/fixtures-sample/python-metadata.test.js` — missing signature metadata
+* [ ] `tests/mcp-schema.js` — MCP schema snapshot mismatch
+* [ ] `tests/piece-assembly.js` — pieces manifest mismatch (equivalence)
+* [ ] `tests/retrieval/filters/git-metadata/chunk-author.test.js` — chunk author filter failed (Alice)
+* [ ] `tests/retrieval/filters/git-metadata/modified-time.test.js` — modified-after filter failed
+* [ ] `tests/retrieval/filters/query-syntax/negative-terms.test.js` — negative phrase filter failed
+* [ ] `tests/retrieval/filters/query-syntax/phrases-and-scorebreakdown.test.js` — expected phrase score breakdown missing
+* [ ] `tests/services/api/health-and-status.test.js` — expected auth rejection
+* [ ] `tests/services/api/no-index.test.js` — expected NO_INDEX status
+* [ ] `tests/services/api/search-happy-path.test.js` — /search returned no results
+* [ ] `tests/services/api/search-validation.test.js` — socket hang up
+* [ ] `tests/services/mcp/tool-search-defaults-and-filters.test.js` — riskTag filter did not change results
+* [ ] `tests/subprocess-quoting.js` — /map did not return a map model
+
 ### CLI flag removal and missing-value errors
 
 * [ ] `tests/search-removed-flags.js`

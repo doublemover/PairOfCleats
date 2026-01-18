@@ -8,27 +8,27 @@
     "annBackend": "lancedb"
   },
   "indexing": {
-    "embeddingBatchSize": 256,
+    "embeddingBatchSize": 16,
     "embeddings": {
-      "batchSize": 256,
-      "concurrency": 8,
+      "batchSize": 16,
+      "concurrency": 16,
       "lancedb": {
         "enabled": true,
         "table": "vectors",
         "idColumn": "id",
         "embeddingColumn": "vector",
         "metric": "cosine",
-        "batchSize": 2048
+        "batchSize": 1024
       },
       "shards": {
         "enabled": true,
-        "maxWorkers": 8,
+        "maxWorkers": 16,
         "dirDepth": 0
       }
     },
     "workerPool": {
       "enabled": true,
-      "maxWorkers": 12
+      "maxWorkers": 16
     },
     "postings": {
       "enablePhraseNgrams": true,
@@ -48,7 +48,7 @@
     "riskAnalysisCrossFile": true,
     "typeInference": true,
     "typeInferenceCrossFile": true,
-    "gitBlame": true,
+    "gitBlame": false,
     "lint": true,
     "complexity": true,
     "pythonAst": {
