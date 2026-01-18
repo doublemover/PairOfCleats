@@ -35,6 +35,11 @@ const actions = [
     covers: ['xxhash-backends-test']
   },
   {
+    label: 'safe-regex-engine-test',
+    run: () => runNode('safe-regex-engine-test', path.join(root, 'tests', 'safe-regex-engine.js')),
+    covers: ['safe-regex-engine-test']
+  },
+  {
     label: 'tooling-detect-test',
     run: () => runNode('tooling-detect-test', path.join(root, 'tests', 'tooling-detect.js')),
     covers: ['tooling-detect', 'tooling-detect-test']
