@@ -138,9 +138,7 @@ Reviewed the complete Section 8 list from the attached markdown checklist docume
 ---
 
 #### A3 — Explain output / scoring contract alignment is ambiguous
-
 **Files:**
-
 * `src/retrieval/pipeline.js`
 * `src/retrieval/output/explain.js`
 * `src/retrieval/cli/render-output.js`
@@ -150,22 +148,16 @@ Reviewed the complete Section 8 list from the attached markdown checklist docume
 The pipeline always builds `scoreBreakdown` objects, even if explain is not requested; compact JSON hides it, but full JSON may expose it unintentionally.
 
 **Action items:**
-
-* [ ] Decide contract behavior:
-
-  * Option 1: Only compute/attach `scoreBreakdown` when explain requested.
-  * Option 2: Always include but document it (and remove `--explain` implication of optionality).
+* [ ] Only compute/attach `scoreBreakdown` when explain requested.
 * [ ] Add snapshot tests asserting the presence/absence of explain fields by mode/output format.
-* [ ] Ensure explain’s boost attribution matches scoring math (phrase + symbol boosts currently depend on the already-boosted score; document or adjust).
+* [ ] Ensure explain’s boost attribution matches scoring math (phrase + symbol boosts currently depend on the already-boosted score; document).
 
 ---
 
 ### 13.B — Query Parsing & Filtering (Review Section 8.B)
 
 #### B1 — Query parsing does not satisfy checklist requirements
-
 **Files:**
-
 * `src/retrieval/query.js`
 * `src/retrieval/query-parse.js`
 * Tests/docs indirectly
@@ -193,7 +185,6 @@ It does **not** support:
 #### B2 — Filtering: performance and correctness concerns
 
 **Files:**
-
 * `src/retrieval/output/filters.js`
 * `src/retrieval/filter-index.js`
 
@@ -209,7 +200,6 @@ It does **not** support:
 #### C1 — Dense ranking should defensively validate embedding dimensionality
 
 **Files:**
-
 * `src/retrieval/rankers.js`
 * `src/retrieval/embedding.js`
 * `src/retrieval/sqlite-helpers.js`
@@ -227,7 +217,6 @@ It does **not** support:
 #### C2 — SQLite dense vector scale fallback looks unsafe
 
 **Files:**
-
 * `src/retrieval/sqlite-helpers.js`
 * Related: `src/storage/sqlite/vector.js` (quantization uses 2/255)
 
@@ -246,7 +235,6 @@ If `dense_meta.scale` is missing for any reason, sqlite helper defaults scale to
 #### D1 — SSE backpressure “drain wait” can hang indefinitely on closed connections
 
 **Files:**
-
 * `tools/api/sse.js`
 
 **What I found:**
@@ -262,22 +250,21 @@ If `res.write()` returns false, the code awaits `'drain'` only. If the client di
 #### D2 — Streaming contracts/docs do not match actual /search/stream behavior
 
 **Files:**
-
 * `tools/api/router.js`
-* Docs: `docs/api-server.md`, `docs/contracts/api-mcp.md`
+**Docs:**
+* `docs/api-server.md`
+* `docs/contracts/api-mcp.md`
 
 **What I found:**
 `/search/stream` only emits:
-
-* `start`
-* `result` OR `error`
-* `done`
+  * `start`
+  * `result` OR `error`
+  * `done`
 
 Docs/contracts claim progress streaming and/or richer semantics.
 
 **Action items:**
-
-* [ ] Decide: implement progress events (pipeline milestones) OR revise docs/contracts to match current behavior.
+* [ ] Decide: implement progress events (pipeline milestones)
 * [ ] If implementing progress: add hooks from retrieval CLI/pipeline → core API → router SSE.
 
 ---
@@ -285,7 +272,6 @@ Docs/contracts claim progress streaming and/or richer semantics.
 #### D3 — Cancellation/timeout propagation is missing end-to-end
 
 **Files:**
-
 * `tools/api/router.js`
 * `tools/mcp/transport.js`
 * `tools/mcp/tools.js`
@@ -301,7 +287,6 @@ Timeouts exist in MCP wrapper, but they do not abort underlying work. API does n
 * [ ] Wire close events (`req.on('close')`) and timeout timers to `abort()`.
 * [ ] Teach retrieval pipeline / embedding fetch to check `signal.aborted` and throw a consistent cancellation error.
 * [ ] Add tests:
-
   * API stream abort stops work early (not just stops writing).
   * MCP tool timeout aborts the underlying work, not just returns an error.
 
@@ -310,7 +295,6 @@ Timeouts exist in MCP wrapper, but they do not abort underlying work. API does n
 #### D4 — Security posture: permissive CORS is risky
 
 **Files:**
-
 * `tools/api/router.js`
 * Docs: `docs/api-server.md`
 
@@ -330,7 +314,6 @@ CORS is `*` by default. Even though server defaults to localhost, permissive COR
 #### E1 — Microbench “dense” vs “hybrid” distinction is not actually implemented
 
 **Files:**
-
 * `tools/bench/micro/run.js`
 * `tools/bench/micro/search.js`
 * `tools/bench/micro/tinybench.js`
@@ -350,7 +333,6 @@ Bench tasks labeled “dense” and “hybrid” do not reliably enforce differe
 #### E2 — Baseline writing can fail because directories don’t exist
 
 **Files:**
-
 * `tools/bench/micro/tinybench.js`
 * Docs: `docs/benchmarks.md`
 
@@ -368,7 +350,6 @@ Bench tasks labeled “dense” and “hybrid” do not reliably enforce differe
 #### E3 — SQLite cache reuse is missing in benchmark harnesses
 
 **Files:**
-
 * `tools/bench/micro/run.js`
 * `tools/bench/micro/tinybench.js`
 
