@@ -12,7 +12,8 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
   exit 1
 }
 
-$repoRoot = $PSScriptRoot
+$scriptRoot = $PSScriptRoot
+$repoRoot = Split-Path $scriptRoot -Parent
 $testFullPath = if ([System.IO.Path]::IsPathRooted($TestPath)) {
   $TestPath
 } else {
@@ -31,9 +32,11 @@ if ($testFullPath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnore
 }
 $tick = [char]96
 
-$timesPath = Join-Path $repoRoot 'TEST_TIMES.md'
-$slowPath = Join-Path $repoRoot 'SLOW_TESTS.md'
-$shortPath = Join-Path $repoRoot 'SHORT_TESTS.md'
+$timesDir = Join-Path $scriptRoot 'test_times'
+$timesPath = Join-Path $timesDir 'TEST_TIMES.md'
+$slowPath = Join-Path $timesDir 'SLOW_TESTS.md'
+$shortPath = Join-Path $timesDir 'SHORT_TESTS.md'
+$null = New-Item -ItemType Directory -Path $timesDir -Force
 
 $ensureTemplate = {
   if (-not (Test-Path -LiteralPath $timesPath)) {
@@ -93,7 +96,7 @@ if ($testStart -ge 0 -and $testEnd -gt $testStart) {
 
 $start = Get-Date
 $argList = @($testFullPath) + $Args
-$errorPath = Join-Path $repoRoot 'TEST_ERRORS.md'
+$errorPath = Join-Path $timesDir 'TEST_ERRORS.md'
 $stderrPath = Join-Path $env:TEMP ("poc-test-stderr-{0}.log" -f ([guid]::NewGuid().ToString('N')))
 $process = Start-Process -FilePath 'node' -ArgumentList $argList -WorkingDirectory $repoRoot -NoNewWindow -PassThru -RedirectStandardError $stderrPath
 if (-not $process) {

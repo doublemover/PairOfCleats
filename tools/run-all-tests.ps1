@@ -11,8 +11,22 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
   exit 1
 }
 
-$repoRoot = $PSScriptRoot
-$listFullPath = if ([System.IO.Path]::IsPathRooted($ListPath)) { $ListPath } else { Join-Path $repoRoot $ListPath }
+$scriptRoot = $PSScriptRoot
+$repoRoot = Split-Path $scriptRoot -Parent
+$listDir = Join-Path $scriptRoot 'test_times'
+
+$resolvePath = {
+  param([string]$InputPath)
+  if ([System.IO.Path]::IsPathRooted($InputPath)) {
+    return $InputPath
+  }
+  if ($InputPath -match '[\\/]' ) {
+    return (Join-Path $scriptRoot $InputPath)
+  }
+  return (Join-Path $listDir $InputPath)
+}
+
+$listFullPath = & $resolvePath $ListPath
 if (-not (Test-Path -LiteralPath $listFullPath)) {
   Write-Error "Test list not found: $listFullPath"
   exit 1
@@ -20,7 +34,7 @@ if (-not (Test-Path -LiteralPath $listFullPath)) {
 
 $passListFullPath = ''
 if ($PassListPath) {
-  $passListFullPath = if ([System.IO.Path]::IsPathRooted($PassListPath)) { $PassListPath } else { Join-Path $repoRoot $PassListPath }
+  $passListFullPath = & $resolvePath $PassListPath
   Remove-Item -LiteralPath $passListFullPath -ErrorAction SilentlyContinue
 }
 
@@ -38,7 +52,7 @@ foreach ($raw in $tests) {
     Write-Host "Skipping $path (blocked)."
     continue
   }
-  $script = Join-Path $repoRoot 'run-test.ps1'
+  $script = Join-Path $scriptRoot 'run-test.ps1'
   if ($GenShort) {
     & $script -TestPath $path -TimeoutSeconds $TimeoutSeconds -GenShort
   } else {
