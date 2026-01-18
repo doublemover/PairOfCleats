@@ -1,0 +1,201 @@
+# Phase 23 Plan
+
+All unfinished Phase 23 items from NEW_ROADMAP.md (appendix items after Phase 23 included if present).
+
+## Tasks
+- [ ] **Risk rules regex compilation is currently mis-wired.** `src/index/risk-rules.js` calls `createSafeRegex()` with an incorrect argument signature, so rule regex configuration (flags, limits) is not applied, and invalid patterns can throw and abort normalization.
+  - Fix in: `src/index/risk-rules.js` (see sec B.1).
+- [ ] **Risk analysis can crash indexing on long lines.** `src/index/risk.js` calls SafeRegex `test()` / `exec()` without guarding against SafeRegex input-length exceptions. One long line can throw and fail the whole analysis pass.
+  - Fix in: `src/index/risk.js` (see sec B.2).
+- [ ] **Metadata v2 drops inferred/tooling parameter types (schema data loss).** `src/index/metadata-v2.js` normalizes type maps assuming values are arrays; nested maps (e.g., `inferredTypes.params.<name>[]`) are silently discarded.
+  - Fix in: `src/index/metadata-v2.js` + tests + schema/docs (see sec A.1-A.4).
+- [ ] **`metaV2` validation is far too shallow and does not reflect the actual schema shape.** `src/index/validate.js` only validates a tiny subset of fields and does not traverse nested type maps.
+- [ ] **Docs drift:** `docs/metadata-schema-v2.md` and `docs/risk-rules.md` do not fully match current code (field names, structures, and configuration).
+- [ ] **Performance risks:** risk scanning does redundant passes and does not short-circuit meaningfully when capped; markdown parsing is duplicated (inline + fenced); tooling providers re-read files rather than reusing already-loaded text.
+- [ ] Improve signature parsing robustness for complex types (C-like, Python, Swift).
+- [ ] Clarify and standardize naming conventions (chunk naming vs provider symbol naming, "generatedBy", "embedded" semantics).
+- [ ] Expand tests to cover surrogate pairs (emoji), CRLF offsets, and risk rules/config edge cases.
+- [ ] **Data loss bug:** `normalizeTypeMap()` assumes `raw[key]` is an array of entries. If `raw[key]` is an object map (e.g., `raw.params` where `raw.params.<paramName>` is an array), it is treated as non-array and dropped.
+  - Evidence: `normalizeTypeMap()` (lines ~78-91) only normalizes `Array.isArray(entries)` shapes.
+- [ ] **Downstream effect:** `splitToolingTypes()` is applied to `docmeta.inferredTypes`; because nested shapes are not handled, **tooling-derived param types will not appear in `metaV2.types.tooling.params`**, and inferred param types will be absent from `metaV2.types.inferred.params`.
+- [ ] Update `normalizeTypeMap()` to support nested "param maps" (and any similar nested structures) rather than dropping them. A pragmatic approach:
+  - [ ] If `entries` is an array -> normalize as today.
+  - [ ] If `entries` is an object -> treat it as a nested map and normalize each subkey:
+    - preserve the nested object shape in output (preferred), or
+    - flatten with a predictable prefix strategy (only if schema explicitly adopts that).
+- [ ] Update `splitToolingTypes()` so it correctly separates tooling vs non-tooling entries **inside nested maps** (e.g., `params.<name>[]`, `locals.<name>[]`).
+- [ ] Update `tests/metadata-v2.js` to assert:
+  - [ ] inferred param types survive into `metaV2.types.inferred.params.<paramName>[]`
+  - [ ] tooling param types survive into `metaV2.types.tooling.params.<paramName>[]`
+  - [ ] non-tooling inferred types do not leak into tooling bucket (and vice versa)
+- [ ] `buildDeclaredTypes()` currently only materializes:
+  - param annotations via `docmeta.paramTypes`
+  - return annotation via `docmeta.returnType`
+  It does **not** cover:
+  - [ ] parameter defaults (`docmeta.paramDefaults`)
+  - [ ] local types (`docmeta.localTypes`)
+  - [ ] any other declared type sources the codebase may already emit
+- [ ] Decide which "declared" facets are part of Metadata v2 contract and implement them consistently (and document them):
+  - [ ] `declared.defaults` (if desired)
+  - [ ] `declared.locals` (if desired)
+- [ ] Update `docs/metadata-schema-v2.md` accordingly.
+- [ ] Add tests in `tests/metadata-v2.js` for any newly included declared facets.
+- [ ] Several arrays are produced via Set insertion order (e.g., `annotations`, `params`, `risk.tags`, `risk.categories`). While *often* stable, they can drift if upstream traversal order changes.
+- [ ] `metaV2` mixes optional `null` vs empty collections inconsistently across fields (some fields null, others empty arrays). This matters for artifact diffs and schema validation.
+- [ ] Standardize ordering rules for arrays that are semantically sets:
+  - [ ] Sort `annotations` (lexicographic) before emitting.
+  - [ ] Sort `params` (lexicographic) before emitting.
+  - [ ] Sort risk `tags`/`categories` (lexicographic) before emitting.
+- [ ] Establish a consistent "empty means null" vs "empty means []" policy for v2 and enforce it in `buildMetaV2()` and schema/docs.
+- [ ] `generatedBy` currently uses `toolInfo?.version` only; if `tooling` already contains `tool` and `version`, this can be redundant and underspecified.
+- [ ] `embedded` is emitted whenever `chunk.segment` exists, even when the segment is not embedded (parentSegmentId may be null). This makes the field name misleading.
+- [ ] Decide and document the intended meaning:
+  - [ ] Option A: `generatedBy = "<tool>@<version>"` and keep `tooling` for structured detail.
+  - [ ] Option B: remove `generatedBy` and rely solely on `tooling`.
+- [ ] Restrict `embedded` field to truly-embedded segments only **or** rename the field to something like `segmentContext` / `embedding`.
+- [ ] `validateMetaV2()` (lines ~162-206) validates only:
+  - `chunkId` presence
+  - `file` presence
+  - `risk.flows` has `source` and `sink`
+  - type entries have `.type` for a shallow, array-only traversal
+  It does **not** validate:
+  - [ ] `segment` object shape
+  - [ ] range/start/end types and ordering invariants
+  - [ ] `lang`, `ext`, `kind`, `name` constraints
+  - [ ] nested types map shapes (params/locals)
+  - [ ] `generatedBy`/`tooling` shape and required fields
+  - [ ] cross-field invariants (e.g., range within segment, embedded context consistency)
+- [ ] Establish **one canonical validator** for `metaV2` (preferably schema-based):
+  - [ ] Add an explicit JSON Schema for v2 (in docs or tooling directory).
+  - [ ] Validate `metaV2` against the schema in `validateIndexArtifacts()`.
+- [ ] If schema-based validation is not yet possible, expand `validateMetaV2()` to:
+  - [ ] traverse nested `params`/`locals` maps for type entries
+  - [ ] validate `range` numbers, monotonicity, and non-negativity
+  - [ ] validate the presence/type of stable core fields as defined in `docs/metadata-schema-v2.md`
+- [ ] Add tests (or fixtures) that exercise validation failures for each major failure class.
+- [ ] The schema doc should be reviewed line-by-line against current `buildMetaV2()` output:
+  - field names
+  - optionality
+  - nesting of `types.*`
+  - risk shapes and analysisStatus shape
+  - relations link formats
+- [ ] Update `docs/metadata-schema-v2.md` to reflect the actual emitted shape **or** update `buildMetaV2()` to match the doc (pick one, do not leave them divergent).
+- [ ] Add a "schema change log" section so future modifications don't silently drift.
+- [ ] **Incorrect call signature:** `compilePattern()` calls `createSafeRegex(pattern, flags, regexConfig)` but `createSafeRegex()` accepts `(pattern, config)` (per `src/shared/safe-regex.js`).
+  Consequences:
+  - `regexConfig` is ignored entirely
+  - the intended default flags (`i`) are not applied
+  - any user-configured safe-regex limits are not applied
+- [ ] **No error shielding:** `compilePattern()` does not catch regex compilation errors. An invalid pattern can throw and abort normalization.
+- [ ] Fix `compilePattern()` to call `createSafeRegex(pattern, safeRegexConfig)` (or a merged config object).
+- [ ] Wrap compilation in `try/catch` and return `null` on failure (or record a validation error) so rule bundles cannot crash indexing.
+- [ ] Add tests that verify:
+  - [ ] configured flags (e.g., `i`) actually take effect
+  - [ ] invalid patterns do not crash normalization and are surfaced as actionable diagnostics
+  - [ ] configured `maxInputLength` and other safety controls are honored
+- [ ] `matchRuleOnLine()` calls SafeRegex `test()` and `exec()` without guarding against exceptions thrown by SafeRegex input validation (e.g., when line length exceeds `maxInputLength`).
+  - This is a hard failure mode: one long line can abort analysis for the entire file (or build, depending on call site error handling).
+- [ ] Ensure **risk analysis never throws** due to regex evaluation. Options:
+  - [ ] Add `try/catch` around `rule.requires.test(...)`, `rule.excludes.test(...)`, and `pattern.exec(...)` to treat failures as "no match".
+  - [ ] Alternatively (or additionally), change the SafeRegex wrapper to return `false/null` instead of throwing for overlong input.
+  - [ ] Add a deterministic "line too long" cap behavior:
+    - skip risk evaluation for that line
+    - optionally record `analysisStatus.exceeded` includes `maxLineLength` (or similar)
+- [ ] `scope === 'file'` currently evaluates only `lineIdx === 0` (first line). This is likely not the intended meaning of "file scope".
+- [ ] `maxMatchesPerFile` currently caps **number of matching lines**, not number of matches (variable name implies match-count cap).
+- [ ] Define (in docs + code) what `scope: "file"` means:
+  - [ ] "pattern evaluated against entire file text" (recommended), or
+  - [ ] "pattern evaluated once per file via a representative subset"
+- [ ] Implement `maxMatchesPerFile` as an actual match-count cap (or rename it to `maxMatchingLines`).
+- [ ] Add tests for both behaviors.
+- [ ] Risk analysis scans the same text repeatedly (sources, sinks, sanitizers are scanned in separate loops).
+- [ ] When caps are exceeded (bytes/lines), flows are skipped, but line scanning for matches still proceeds across the entire file, which defeats the purpose of caps for large/minified files.
+- [ ] Add an early-exit path when `maxBytes`/`maxLines` caps are exceeded:
+  - either skip all analysis and return `analysisStatus: capped`
+  - or scan only a bounded prefix/suffix and clearly mark that results are partial
+- [ ] Consider a single-pass scanner per line that evaluates all rule categories in one traversal.
+- [ ] Add a prefilter stage for candidate files/lines (cheap substring checks) before SafeRegex evaluation.
+- [ ] `dedupeMatches()` collapses evidence to one match per rule id (may not be sufficient for remediation).
+- [ ] Time-based caps (`maxMs`) can introduce nondeterminism across machines/runs (what gets included depends on wall clock).
+- [ ] Preserve up to N distinct match locations per rule (configurable) rather than only first hit.
+- [ ] Prefer deterministic caps (maxBytes/maxLines/maxNodes/maxEdges) over time caps; if `maxMs` remains, ensure it cannot cause nondeterministic partial outputs without clearly indicating partiality.
+- [ ] Sort emitted matches/flows deterministically (by line/col, rule id) before output.
+- [ ] `docs/risk-rules.md` should be updated to reflect:
+  - actual rule bundle fields supported (`requires`, `excludes`, `scope`, `maxMatchesPerLine`, `maxMatchesPerFile`, etc.)
+  - actual emitted `risk.analysisStatus` shape (object vs string)
+  - actual matching semantics (line-based vs file-based)
+- [ ] Update the doc to match current behavior (or update code to match doc), then add tests that lock it in.
+- [ ] `blameEnabled` defaults to **true** (`options.blame !== false`). If a caller forgets to pass `blame:false`, indexing will run `git blame` per file (very expensive).
+- [ ] `git log` + `git log --numstat` are executed per file; caching helps within a run but does not avoid the O(files) subprocess cost.
+- [ ] Make blame opt-in by default:
+  - [ ] change default to `options.blame === true`, **or**
+  - [ ] ensure all call sites pass `blame:false` unless explicitly requested via config
+- [ ] Consider adding a global "gitSignalsPolicy" (or reuse existing policy object) that centrally controls:
+  - blame on/off
+  - churn computation on/off
+  - commit log depth
+- [ ] Performance optimization options (choose based on ROI):
+  - [ ] batch `git log` queries when indexing many files (e.g., per repo, not per file)
+  - [ ] compute churn only when needed for ranking/filtering
+  - [ ] support "recent churn only" explicitly in docs (currently it's "last 10 commits")
+- [ ] Misleading JSDoc: `parseLineAuthors()` is documented as "Compute churn from git numstat output" (it parses blame authors, not churn). This can mislead future maintenance.
+- [ ] Fix the JSDoc to match the function purpose and parameter type.
+- [ ] No tests assert "blame is off by default" (or the intended default policy).
+- [ ] No tests cover rename-following semantics (`--follow`) or untracked files.
+- [ ] Caching behavior is not validated (e.g., "git blame called once per file even if many chunks").
+- [ ] Add tests that explicitly validate the intended default blame policy.
+- [ ] Add a caching-focused test that ensures repeated `getGitMeta()` calls for the same file do not spawn repeated git commands (can be validated via mocking or by instrumenting wrapper counts).
+- [ ] Decide whether rename-following is required and add tests if so.
+- [ ] `createLspClient().request()` can leave pending requests forever if a caller forgets to supply `timeoutMs` (pending map leak). Current provider code *usually* supplies a timeout, but this is not enforced.
+- [ ] Diagnostics timing: providers request symbols immediately after `didOpen` and then `didClose` quickly; some servers publish diagnostics asynchronously and may not emit before close, leading to inconsistent diagnostic capture.
+- [ ] Enforce a default request timeout in `createLspClient.request()` if none is provided.
+- [ ] For diagnostics collection, consider:
+  - [ ] waiting a bounded time for initial diagnostics after `didOpen`, or
+  - [ ] explicitly requesting diagnostics if server supports it (varies), or
+  - [ ] documenting that diagnostics are "best effort" and may be incomplete
+- [ ] `positions.js` JSDoc claims "1-based line/column"; column is actually treated as 0-based (correct for LSP), but the doc comment is misleading.
+- [ ] Test coverage does not explicitly include surrogate pairs (emoji), which are the common failure mode when mixing code-point vs UTF-16 offsets.
+- [ ] Fix the JSDoc to reflect actual behavior (LSP: 0-based character offsets; line converted to 1-based for internal helpers).
+- [ ] Add tests with:
+  - [ ] emoji in identifiers and/or strings before symbol definitions
+  - [ ] CRLF line endings fixtures (if Windows compatibility is required)
+- [ ] `findChunkForOffsets()` requires strict containment (symbol range must be within chunk range). clangd-provider uses overlap scoring, which is more robust.
+- [ ] Update generic provider to use overlap scoring like clangd-provider to reduce missed matches.
+- [ ] `loadTypeScript()` resolve order includes keys that are not implemented (`global`) and duplicates (`cache` vs `tooling`).
+- [ ] Parameter name extraction uses `getText()` which can produce non-identifiers for destructuring params (bad keys for `params` map).
+- [ ] Naming convention risk: provider writes keys like `Class.method` which may not match chunk naming conventions; if mismatched, types will not attach.
+- [ ] Fix the resolution order logic and document each lookup path purpose.
+- [ ] Only record parameter names for identifiers; skip or normalize destructuring params.
+- [ ] Validate chunk naming alignment (structural chunk naming vs provider symbol naming) and add a test for a class method mapping end-to-end.
+- [ ] `mergeTypeList()` dedupes by `type|source` but drops evidence differences; confidence merging strategy is simplistic.
+- [ ] Output ordering is not explicitly sorted after merges.
+- [ ] Decide how to treat evidence in merges (keep first, merge arrays, keep highest confidence).
+- [ ] Sort merged type lists deterministically (confidence desc, type asc, source asc).
+- [ ] Parsers are intentionally lightweight, but they will fail on common real-world signatures:
+  - C++ templates, function pointers, references
+  - Python `*args/**kwargs`, keyword-only params, nested generics
+  - Swift closures and attributes
+- [ ] Add test fixtures covering at least one "hard" signature per language.
+- [ ] Consider using tooling hover text more consistently (already used as fallback in clangd-provider) or integrate a minimal parser that handles nested generics and defaults.
+- [ ] Single-pass line scan for sources/sinks/sanitizers.
+- [ ] Early return on caps (maxBytes/maxLines) rather than scanning the whole file anyway.
+- [ ] Cheap prefilter before SafeRegex evaluation.
+- [ ] Avoid per-line SafeRegex exceptions (see sec B.2).
+- [ ] `segments.js` parses markdown twice (inline code spans + fenced blocks). Consider extracting both from one micromark event stream.
+- [ ] Providers re-read file text from disk; if indexing already has the content in memory, pass it through (where feasible) to reduce I/O.
+- [ ] Consolidate analysis feature toggles into a single `analysisPolicy` object that is passed to:
+  - metadata v2 builder
+  - risk analysis
+  - git analysis
+  - type inference (local + cross-file + tooling)
+- [ ] Centralize schema versioning and validation:
+  - one metadata v2 schema
+  - one risk rule bundle schema
+  - one place that validates both as part of artifact validation
+- [ ] **P0:** Add tests for metadata v2 nested inferred/tooling param types (see sec A.1).
+- [ ] **P0:** Add tests for risk rule compilation config correctness (flags honored, invalid patterns handled) (see sec B.1).
+- [ ] **P0:** Add risk analysis "long line" test to ensure no crashes (see sec B.2).
+- [ ] **P1:** Add unicode offset tests that include surrogate pairs (emoji) for:
+  - LSP position mapping
+  - chunk start offsets around unicode
+- [ ] **P1:** Add git caching/policy tests (default blame policy + no repeated subprocess calls where caching is intended).
