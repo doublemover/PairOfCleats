@@ -31,6 +31,7 @@ Update SQLite indexes in-place by touching only the files that changed since the
 ## WAL Policy
 - Incremental updates run `wal_checkpoint(TRUNCATE)` after applying changes to avoid long-lived WAL growth.
 - The DB remains in WAL mode; conversion back to a single-file DB (`journal_mode=DELETE`) is deferred to a later maintenance/compaction phase.
+- Full rebuilds (artifact/bundle builds) also run `wal_checkpoint(TRUNCATE)` before closing the DB to keep sidecars trimmed and consistent with incremental updates.
 
 ## Usage
 - Build incremental cache: `pairofcleats index build --incremental`.

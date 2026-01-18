@@ -1740,6 +1740,52 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 
 > The checklist items above are the canonical “what to fix.” This appendix maps concrete file-level changes back to those items.
 
+#### Appendix A - Artifacts, indexing, and build pipeline (remaining)
+
+- [ ] `src/index/build/artifacts.js` (P2) Consider sorting `pieceEntries` by `path` before writing the manifest to reduce diff noise.
+- [ ] `src/index/build/artifacts/compression.js` (P2) Consider extending compression to sharded artifacts (optional future work).
+- [ ] `src/index/build/artifacts/file-meta.js` (P2) Remove or rename `chunk_authors` in file meta (currently derived from the first chunk and not file-level).
+- [ ] `src/index/build/artifacts/filter-index.js` (P2) Consider persisting schema version/config hash in the filter index artifact for easier debugging.
+- [ ] `src/index/build/artifacts/metrics.js` (P2) Do not swallow metrics write errors silently (log or propagate based on severity).
+- [ ] `src/index/build/artifacts/token-mode.js` (P2) Make parsing more robust (case-insensitive modes; integer parsing + clamping).
+- [ ] `src/index/build/artifacts/writers/chunk-meta.js` (P2) Consider normalizing field naming conventions (`chunk_authors` vs `startLine/endLine`).
+- [ ] `src/index/build/artifacts/writers/file-relations.js` (P2) Consider JSONL/sharding for very large `file_relations` outputs; add versioning metadata.
+- [ ] `src/index/build/artifacts/writers/repo-map.js` (P2) Consider sorting output by `{file, name}` for stability.
+- [ ] `src/index/build/file-processor.js` (P2) Move complexity/lint to per-file scope; avoid repeated per-chunk cache checks.
+  - [ ] (P2) Fix possible timing double-counting across parse/relation durations.
+- [ ] `src/index/build/file-processor/cached-bundle.js` (P2) Validate cached bundle shapes more strictly; ensure importLinks shape is consistent.
+- [ ] `src/index/build/file-processor/chunk.js` (P2) Adjust comment-to-chunk assignment at boundary (`chunk.end === comment.start`) and consider overlap-based assignment.
+- [ ] `src/index/build/file-processor/incremental.js` (P2) Ensure cache invalidation includes schema/version changes for any artifact-impacting changes.
+- [ ] `src/index/build/file-processor/meta.js` (P2) Deduplicate `externalDocs` outputs; consider ordering for determinism.
+- [ ] `src/index/build/file-processor/read.js` (P2) Consider UTF-8 safe truncation (avoid splitting multi-byte sequences mid-codepoint).
+- [ ] `src/index/build/file-processor/relations.js` (P2) Consider sorting/deduping relation arrays (imports/exports/usages) for determinism.
+- [ ] `src/index/build/file-processor/skip.js` (P2) Add coverage for `unreadable` and `read-failure` skip paths.
+- [ ] `src/index/build/file-processor/timings.js` (P2) Validate that parse/token/embed durations are not double-counted; document semantics.
+- [ ] `src/index/build/graphs.js` (P2) Prefer canonical `chunkId` keys where possible instead of `file::name` to avoid collisions.
+  - [ ] (P2) Sort serialized node lists for full determinism (neighbors are already sorted).
+- [ ] `src/index/build/piece-assembly.js` (P2) Remove redundant filterIndex construction (avoid double work; rely on writeIndexArtifacts).
+- [ ] `src/index/build/postings.js` (P2) Validate docLengths are finite and consistent; avoid NaN avgDocLen.
+  - [ ] (P2) Sort Object.entries() iteration for field postings and weights for deterministic output.
+- [ ] `src/index/build/shards.js` (P2) Document heuristic thresholds (minFilesForSubdir, hugeThreshold, tenth-largest targets).
+- [ ] `src/index/build/tokenization.js` (P2) Review buffer reuse effectiveness (arrays are still cloned); consider pre-sizing and reducing transient allocations further.
+- [ ] `tools/assemble-pieces.js` (P2) When `--force` is used, consider cleaning the output dir first to avoid stale artifacts.
+- [ ] `tools/ci-restore-artifacts.js` (P2) Optionally validate `pieces/manifest.json` checksums after restore (fast fail on corrupt artifacts).
+- [ ] `tools/compact-pieces.js` (P2) Add perf regression harness and validate output equivalence post-compaction.
+- [ ] `tests/artifact-bak-recovery.js` (P2) Expand coverage to include: both primary and backup corrupt; json.gz sidecars; and cleanup expectations.
+- [ ] `tests/artifact-size-guardrails.js` (P2) Extend to cover: chunkMetaFormat=jsonl with switching shard/no-shard, and cleanup behavior.
+- [ ] `tests/artifacts/token-mode.test.js` (P2) Add coverage for invalid modes, case-insensitive parsing, and maxTokens/maxFiles parsing edge cases.
+- [ ] `tests/clean-artifacts.js` (P2) Consider adding a check that `.bak` files are handled correctly (optional).
+- [ ] `tests/file-processor/skip.test.js` (P2) Add coverage for `unreadable` and `read-failure` paths (permissions, ENOENT races).
+- [ ] `tests/filter-index-artifact.js` (P2) Add a schema assertion for filter_index fields/versioning to prevent drift.
+- [ ] `tests/filter-index.js` (P2) Consider adding a determinism check for serialized filter index (same inputs => same output).
+- [ ] `tests/graph-chunk-id.js` (P2) Add a collision regression test for graph keys, or migrate to chunkId-based keys.
+- [ ] `tests/incremental-tokenization-cache.js` (P2) Add a second invalidation scenario (e.g., tokenization config changes that affect stemming/synonyms).
+- [ ] `tests/postings-quantize.js` (P2) Extend to test scale and dims, and doc/code embedding behavior.
+- [ ] `tests/shard-merge.js` (P2) Consider adding checksum and manifest equivalence checks as well.
+- [ ] `tests/shard-plan.js` (P2) Add stress case coverage (many files, equal weights, perfProfile enabled).
+- [ ] `tests/tokenization-buffering.js` (P2) Consider adding a non-ASCII tokenization regression case.
+- [ ] `docs/contracts/coverage-ledger.md` (P2) Add entries for new/critical tooling: `tools/assemble-pieces.js`, `tools/compact-pieces.js`, and CI artifact scripts.
+
 #### src
 
 ##### `src/index/build/context-window.js`
@@ -1857,26 +1903,14 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 ##### `tests/embedding-batch-autotune.js`
 - [ ] Consider loosening or documenting assumptions about minimum batch size on low-memory systems (or adjust runtime min to match test expectations).
 
-##### `tests/embedding-batch-multipliers.js`
-- No issues; good coverage of multiplier normalization.
-
 ##### `tests/embeddings-cache-identity.js`
 - [ ] Extend to cover ONNX-specific identity fields (tokenizerId/modelPath/etc).
 
 ##### `tests/embeddings-cache-invalidation.js`
 - [ ] Add invalidation scenarios tied to preprocessing knobs (pooling/normalize/max_length) once surfaced in identity.
 
-##### `tests/embeddings-dims-mismatch.js`
-- Good.
-
-##### `tests/embeddings-dims-validation.js`
-- Good.
-
 ##### `tests/embeddings-sqlite-dense.js`
 - [x] Add coverage for vector extension load failure paths (extension missing), not only baseline dense sqlite insertions.
-
-##### `tests/embeddings-validate.js`
-- Good baseline index-state + artifact validation coverage.
 
 ##### `tests/hnsw-ann.js`
 - [ ] Add correctness assertions beyond “backend selected”:
@@ -1888,13 +1922,10 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [x] Add test for `.bak` fallback on corrupt primary index/meta (reader-side).
 
 ##### `tests/smoke-embeddings.js`
-- Good smoke harness; consider adding new tests to this suite after implementing performance regression and fallback tests.
+- [ ] new tests to this suite after implementing performance regression and fallback tests.
 
 ##### `tests/sqlite-vec-candidate-set.js`
 - [ ] Add a column-name sanitization test (table is covered; column is not).
-
-##### `tests/vector-extension-sanitize.js`
-- Good table sanitization coverage; extend for column sanitization as above.
 
 ---
 
@@ -2632,22 +2663,20 @@ Tests:
 
 #### Current npm test failures (2026-01-17)
 
-* [ ] `tests/api-server-stream.js` — api-server stream returned no results
-* [ ] `tests/code-map-basic.js` — missing dataflow/controlFlow metadata
 * [ ] `tests/git-blame-range.js` — expected alpha author in chunk authors
 * [ ] `tests/lang/fixtures-sample/python-metadata.test.js` — missing signature metadata
-* [ ] `tests/mcp-schema.js` — MCP schema snapshot mismatch
 * [ ] `tests/piece-assembly.js` — pieces manifest mismatch (equivalence)
 * [ ] `tests/retrieval/filters/git-metadata/chunk-author.test.js` — chunk author filter failed (Alice)
 * [ ] `tests/retrieval/filters/git-metadata/modified-time.test.js` — modified-after filter failed
 * [ ] `tests/retrieval/filters/query-syntax/negative-terms.test.js` — negative phrase filter failed
 * [ ] `tests/retrieval/filters/query-syntax/phrases-and-scorebreakdown.test.js` — expected phrase score breakdown missing
-* [ ] `tests/services/api/health-and-status.test.js` — expected auth rejection
 * [ ] `tests/services/api/no-index.test.js` — expected NO_INDEX status
 * [ ] `tests/services/api/search-happy-path.test.js` — /search returned no results
 * [ ] `tests/services/api/search-validation.test.js` — socket hang up
 * [ ] `tests/services/mcp/tool-search-defaults-and-filters.test.js` — riskTag filter did not change results
 * [ ] `tests/subprocess-quoting.js` — /map did not return a map model
+
+Note: merge-followup failures for api-server streaming, code-map basics, MCP schema, and api health/auth are tracked in Phase 44.
 
 #### CLI flag removal and missing-value errors
 
@@ -2756,16 +2785,12 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 ### 41.1 Config schema fallout
 
-* [ ] `tests/artifact-size-guardrails.js`: build_index fails because the test writes `.pairofcleats.json` with `sqlite` + `indexing` keys (now disallowed), leading to `Config errors in .../.pairofcleats.json: #/sqlite is not allowed, #/indexing is not allowed`.
 * [ ] `tests/build-embeddings-cache.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
 * [ ] `tests/build-index-all.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` + `triage` keys (now disallowed).
-* [ ] `tests/code-map-basic.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
 * [ ] `tests/code-map-determinism.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
-* [ ] `tests/code-map-dot.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
-* [ ] `tests/comment-join.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` + `sqlite` keys (now disallowed).
-* [ ] `tests/compact-pieces.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
 * [ ] `tests/embedding-batch-autotune.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
-* [ ] `tests/extracted-prose.js`: build_index fails because the test writes `.pairofcleats.json` with removed keys (expected config validation error; confirm exact keys and update the test).
+
+Note: artifact-size-guardrails, code-map-basic/dot, comment-join, compact-pieces, and extracted-prose followups moved to Phase 44 after config updates.
 
 ### 41.2 CLI surface mismatch
 
@@ -2781,11 +2806,9 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 ### 41.5 Services test failures
 
-* [ ] `tests/api-server-stream.js`: `search stream returned no results` during `npm run test:services` (streaming API likely not returning results with current defaults).
-* [ ] `tests/mcp-robustness.js`: `Expected queue overload error response.` during `npm run test:services` (MCP queue overload behavior changed).
-* [ ] `tests/mcp-schema.js`: `MCP schema snapshot mismatch.` during `npm run test:services` (tool schema changed; update snapshot or adjust schema).
-* [ ] `tests/services/api/health-and-status.test.js`: `api-server should reject missing auth` failure (auth enforcement likely changed).
 * [ ] `tests/services/api/no-index.test.js`: `api-server should return NO_INDEX when indexes are missing` failure (status/response contract drift).
+
+Note: streaming, MCP, and auth failures are tracked in Phase 44.
 
 ---
 
@@ -2836,44 +2859,26 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 **Objective:** Track failures/hangs from `npm run test` after merging phase32-40, and re-enable skipped tests once fixed.
 
-### 44.1 Streaming test hang
+### 44.1 Services lane (streaming + MCP + auth)
 
 * [ ] `tests/api-server-stream.js`: hangs during `npm run test`; temporarily excluded from `tests/run.js`. Investigate stream lifecycle and re-enable the test in the suite.
+* [ ] `tests/mcp-robustness.js`: `Expected queue overload error response.` Repro: `node tests/mcp-robustness.js`. Verify overload handling and response schema.
+* [ ] `tests/mcp-schema.js`: `MCP schema snapshot mismatch.` Repro: `node tests/mcp-schema.js`. Update schema output or snapshot expectation after policy changes.
+* [ ] `tests/services/api/health-and-status.test.js`: `api-server should reject missing auth.` Repro: `node tests/services/api/health-and-status.test.js`. Check auth defaults for API server in new config contract.
 
-### 44.2 Artifact guardrails
-
-* [ ] `tests/artifact-size-guardrails.js`: `Expected chunk_meta sharding when max JSON bytes is small.` Build reported `Found 0 files.` Repro: `node tests/artifact-size-guardrails.js`. Investigate why discovery returns zero files and why sharding isn’t triggered under `PAIROFCLEATS_TEST_MAX_JSON_BYTES=4096`.
-
-### 44.3 Code map basics
+### 44.2 Map lane (code map)
 
 * [ ] `tests/code-map-basic.js`: `Failed: expected dataflow/controlFlow metadata`. Repro: `node tests/code-map-basic.js`. Likely tied to auto policy disabling AST dataflow/control flow; adjust expectations or policy overrides for tests.
-
-### 44.4 Code map dot output
-
 * [ ] `tests/code-map-dot.js`: `Failed: dot output missing import style`. Repro: `node tests/code-map-dot.js`. Confirm dot output formatting changes after hard cut and update expectations.
 
-### 44.5 Comment join extracted-prose
+### 44.3 Artifacts lane (guardrails + compaction)
 
-* [ ] `tests/comment-join.js`: `comment join test failed: extracted-prose search error.` Repro: `node tests/comment-join.js`. Investigate extracted-prose search path/policy defaults.
-
-### 44.6 Compact pieces guardrail
-
+* [ ] `tests/artifact-size-guardrails.js`: `Expected chunk_meta sharding when max JSON bytes is small.` Build reported `Found 0 files.` Repro: `node tests/artifact-size-guardrails.js`. Investigate why discovery returns zero files and why sharding is not triggered under `PAIROFCLEATS_TEST_MAX_JSON_BYTES=4096`.
 * [ ] `tests/compact-pieces.js`: build fails with `chunk_meta entry exceeds max JSON size (2187 bytes)` under small JSON cap. Repro: `node tests/compact-pieces.js`. Evaluate sharding thresholds/estimates vs hard error.
 
-### 44.7 Extracted prose search
+### 44.4 Prose lane (extracted-prose)
 
+* [ ] `tests/comment-join.js`: `comment join test failed: extracted-prose search error.` Repro: `node tests/comment-join.js`. Investigate extracted-prose search path/policy defaults.
 * [ ] `tests/extracted-prose.js`: `Extracted-prose test failed: search error.` Repro: `node tests/extracted-prose.js`. Check extracted-prose index availability and policy defaults.
-
-### 44.8 MCP robustness
-
-* [ ] `tests/mcp-robustness.js`: `Expected queue overload error response.` Repro: `node tests/mcp-robustness.js`. Verify overload handling and response schema.
-
-### 44.9 MCP schema snapshot
-
-* [ ] `tests/mcp-schema.js`: `MCP schema snapshot mismatch.` Repro: `node tests/mcp-schema.js`. Update schema output or snapshot expectation after policy changes.
-
-### 44.10 API health/status auth
-
-* [ ] `tests/services/api/health-and-status.test.js`: `api-server should reject missing auth.` Repro: `node tests/services/api/health-and-status.test.js`. Check auth defaults for API server in new config contract.
 
 ---

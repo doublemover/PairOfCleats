@@ -9,7 +9,6 @@ benchmarks/repos/
 benchmarks/cache/
 benchmarks/results/
 docs/benchmarks.json
-docs/phase3-parity-report.json
 *.db
 *.db-shm
 *.db-wal

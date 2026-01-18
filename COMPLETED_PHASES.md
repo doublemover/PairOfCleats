@@ -1996,7 +1996,7 @@ The current implementation is functional and reasonably structured, but several 
 - `buildPostings()` currently materializes large `vocab` and `postings` arrays in memory.
   - [x] Add a streaming/sharded writer path that writes postings shards incrementally as postings are built (or at least allows releasing intermediate Maps earlier).
 - `chunk_meta` estimation uses JSON.stringify samples, which is OK, but writing sharded JSONL still relies on iterators that materialize per-entry objects.
-  - [ ] Consider a “lightweight entry view” or direct JSONL streaming that avoids building large intermediate objects for fields not needed.
+  - [X] Consider a “lightweight entry view” or direct JSONL streaming that avoids building large intermediate objects for fields not needed.
 
 #### Reduce repeated parsing/enrichment passes
 
@@ -2082,22 +2082,22 @@ However, multiple tests are still existence/shape-heavy and do not verify semant
 
 **Remaining work**
 
-- [ ] Strengthen artifact format tests to assert semantic meaning:
-  - [ ] verify loader precedence (meta/parts vs jsonl vs json) in more combinations
-  - [ ] verify meta.parts path normalization and correctness
+- [X] Strengthen artifact format tests to assert semantic meaning:
+  - [X] verify loader precedence (meta/parts vs jsonl vs json) in more combinations
+  - [X] verify meta.parts path normalization and correctness
 
-- [ ] Add regression tests for atomic write failures:
-  - [ ] simulate rename failures (via dependency injection or controlled FS behavior)
-  - [ ] assert `.bak` fallback and cleanup behavior
+- [X] Add regression tests for atomic write failures:
+  - [X] simulate rename failures (via dependency injection or controlled FS behavior)
+  - [X] assert `.bak` fallback and cleanup behavior
 
-- [ ] Add regression tests for partial shard writes:
-  - [ ] parts written, meta missing
-  - [ ] meta references missing parts
-  - [ ] stale orphan parts do not affect reads
+- [X] Add regression tests for partial shard writes:
+  - [X] parts written, meta missing
+  - [X] meta references missing parts
+  - [X] stale orphan parts do not affect reads
 
-- [ ] Add stress fixtures for large token/postings sets:
-  - [ ] ensure bounded memory / time
-  - [ ] ensure canonical ordering remains correct under stress
+- [X] Add stress fixtures for large token/postings sets:
+  - [X] ensure bounded memory / time
+  - [X] ensure canonical ordering remains correct under stress
 
 - [x] Add at least one perf regression test:
   - [x] compaction: `tools/compact-pieces.js`
@@ -2124,34 +2124,34 @@ This section enumerates each in-scope file and lists file-specific items to addr
 
 ### src/index/build/artifacts/compression.js
 - [x] (P2) Update docs to clarify that gzip is a sidecar (`.json` and `.json.gz` both exist).
-- [ ] (P2) Consider extending compression to sharded artifacts (optional future work).
+- [X] (P2) Consider extending compression to sharded artifacts (optional future work).
 
 ### src/index/build/artifacts/file-meta.js
 - [x] (P1) Make file ID assignment stable by sorting unique file paths before assigning IDs.
 - [x] (P1) Add file content hash (and algo) and file size to `file_meta.json`.
-- [ ] (P2) Remove or rename `chunk_authors` in file meta (currently derived from the first chunk and not file-level).
+- [X] (P2) Remove or rename `chunk_authors` in file meta (currently derived from the first chunk and not file-level).
 
 ### src/index/build/artifacts/filter-index.js
-- [ ] (P2) Consider persisting schema version/config hash in the filter index artifact for easier debugging.
+- [X] (P2) Consider persisting schema version/config hash in the filter index artifact for easier debugging.
 
 ### src/index/build/artifacts/metrics.js
-- [ ] (P2) Do not swallow metrics write errors silently (log or propagate based on severity).
+- [X] (P2) Do not swallow metrics write errors silently (log or propagate based on severity).
 
 ### src/index/build/artifacts/token-mode.js
-- [ ] (P2) Make parsing more robust (case-insensitive modes; integer parsing + clamping).
+- [X] (P2) Make parsing more robust (case-insensitive modes; integer parsing + clamping).
 
 ### src/index/build/artifacts/writers/chunk-meta.js
 - [x] (P0) Remove stale `chunk_meta.meta.json` and `chunk_meta.parts/` when writing non-sharded JSONL.
 - [x] (P1) Clear or stage-swap `chunk_meta.parts/` when writing sharded output.
 - [x] (P1) Normalize `meta.parts` entries to POSIX paths.
-- [ ] (P2) Consider normalizing field naming conventions (`chunk_authors` vs `startLine/endLine`).
+- [X] (P2) Consider normalizing field naming conventions (`chunk_authors` vs `startLine/endLine`).
 
 ### src/index/build/artifacts/writers/file-relations.js
-- [ ] (P2) Consider JSONL/sharding for very large `file_relations` outputs; add versioning metadata.
+- [X] (P2) Consider JSONL/sharding for very large `file_relations` outputs; add versioning metadata.
 
 ### src/index/build/artifacts/writers/repo-map.js
-- [ ] (P1) Ensure `exported` detection handles default exports correctly (depends on relations schema).
-- [ ] (P2) Consider sorting output by `{file, name}` for stability.
+- [X] (P1) Ensure `exported` detection handles default exports correctly (depends on relations schema).
+- [X] (P2) Consider sorting output by `{file, name}` for stability.
 
 ### src/index/build/file-processor.js
 - [x] (P1) Add explicit boundary asserts for chunks after chunking.
@@ -2164,33 +2164,33 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [x] (P1) Ensure field token fields written here (including `comment`) are consistently supported by postings and piece assembly.
 
 ### src/index/build/file-processor/cached-bundle.js
-- [ ] (P2) Validate cached bundle shapes more strictly; ensure importLinks shape is consistent.
+- [X] (P2) Validate cached bundle shapes more strictly; ensure importLinks shape is consistent.
 
 ### src/index/build/file-processor/chunk.js
 - [x] (P2) Adjust comment-to-chunk assignment at boundary (`chunk.end === comment.start`) and consider overlap-based assignment.
 
 ### src/index/build/file-processor/incremental.js
-- [ ] (P2) Ensure cache invalidation includes schema/version changes for any artifact-impacting changes.
+- [X] (P2) Ensure cache invalidation includes schema/version changes for any artifact-impacting changes.
 
 ### src/index/build/file-processor/meta.js
 - [x] (P2) Deduplicate `externalDocs` outputs; consider ordering for determinism.
 
 ### src/index/build/file-processor/read.js
-- [ ] (P2) Consider UTF-8 safe truncation (avoid splitting multi-byte sequences mid-codepoint).
+- [X] (P2) Consider UTF-8 safe truncation (avoid splitting multi-byte sequences mid-codepoint).
 
 ### src/index/build/file-processor/relations.js
 - [x] (P2) Consider sorting/deduping relation arrays (imports/exports/usages) for determinism.
 
 ### src/index/build/file-processor/skip.js
 - [x] (P1) Add explicit unsupported-language skip reason (or document that unknown languages are processed).
-- [ ] (P2) Add coverage for `unreadable` and `read-failure` skip paths.
+- [X] (P2) Add coverage for `unreadable` and `read-failure` skip paths.
 
 ### src/index/build/file-processor/timings.js
 - [x] (P2) Validate that parse/token/embed durations are not double-counted; document semantics.
 
 ### src/index/build/graphs.js
 - [x] (P2) Prefer canonical `chunkId` keys where possible instead of `file::name` to avoid collisions.
-- [ ] (P2) Sort serialized node lists for full determinism (neighbors are already sorted).
+- [X] (P2) Sort serialized node lists for full determinism (neighbors are already sorted).
 
 ### src/index/build/imports.js
 - [x] (P0) Fix `es-module-lexer` import record handling (`entry.d` is not a specifier string).
@@ -2201,7 +2201,7 @@ This section enumerates each in-scope file and lists file-specific items to addr
 - [x] (P0) Make `validateLengths()` strict when `expected > 0`.
 - [x] (P0) Merge all field postings (including `comment`) and docLengths based on actual input keys.
 - [x] (P1) Canonicalize vocab ordering in assembled outputs.
-- [ ] (P2) Remove redundant filterIndex construction (avoid double work; rely on writeIndexArtifacts).
+- [X] (P2) Remove redundant filterIndex construction (avoid double work; rely on writeIndexArtifacts).
 
 ### src/index/build/postings.js
 - [x] (P1) Canonicalize vocab ordering (token/phrase/chargram/field) explicitly.
@@ -2210,87 +2210,87 @@ This section enumerates each in-scope file and lists file-specific items to addr
 
 ### src/index/build/shards.js
 - [x] (P1) Add explicit tie-breakers in weight-based sorts/batching for determinism across runtimes.
-- [ ] (P2) Document heuristic thresholds (minFilesForSubdir, hugeThreshold, tenth-largest targets).
+- [X] (P2) Document heuristic thresholds (minFilesForSubdir, hugeThreshold, tenth-largest targets).
 
 ### src/index/build/tokenization.js
-- [ ] (P2) Review buffer reuse effectiveness (arrays are still cloned); consider pre-sizing and reducing transient allocations further.
+- [X] (P2) Review buffer reuse effectiveness (arrays are still cloned); consider pre-sizing and reducing transient allocations further.
 
 ### tools/assemble-pieces.js
 - [x] (P1) Sort `inputDirs` by default (or add `--sort`) to ensure deterministic assembled output.
-- [ ] (P2) When `--force` is used, consider cleaning the output dir first to avoid stale artifacts.
+- [X] (P2) When `--force` is used, consider cleaning the output dir first to avoid stale artifacts.
 
 ### tools/ci-build-artifacts.js
 - [x] (P1) Sanitize remote URLs before writing them to `manifest.json` to avoid leaking credentials.
 
 ### tools/ci-restore-artifacts.js
-- [ ] (P2) Optionally validate `pieces/manifest.json` checksums after restore (fast fail on corrupt artifacts).
+- [X] (P2) Optionally validate `pieces/manifest.json` checksums after restore (fast fail on corrupt artifacts).
 
 ### tools/compact-pieces.js
-- [ ] (P1) Consider directory-level atomic swap semantics (avoid rm+rename window).
-- [ ] (P2) Add perf regression harness and validate output equivalence post-compaction.
+- [X] (P1) Consider directory-level atomic swap semantics (avoid rm+rename window).
+- [X] (P2) Add perf regression harness and validate output equivalence post-compaction.
 
 ### tests/artifact-bak-recovery.js
-- [ ] (P2) Expand coverage to include: both primary and backup corrupt; json.gz sidecars; and cleanup expectations.
+- [X] (P2) Expand coverage to include: both primary and backup corrupt; json.gz sidecars; and cleanup expectations.
 
 ### tests/artifact-formats.js
-- [ ] (P1) Add explicit precedence test: sharded meta/parts must not override fresh jsonl when shards are stale (post-fix).
+- [X] (P1) Add explicit precedence test: sharded meta/parts must not override fresh jsonl when shards are stale (post-fix).
 
 ### tests/artifact-size-guardrails.js
-- [ ] (P2) Extend to cover: chunkMetaFormat=jsonl with switching shard/no-shard, and cleanup behavior.
+- [X] (P2) Extend to cover: chunkMetaFormat=jsonl with switching shard/no-shard, and cleanup behavior.
 
 ### tests/artifacts/file-meta.test.js
-- [ ] (P1) Update test if file ID assignment is changed to sorted-by-path; assert stability across different chunk orders.
+- [X] (P1) Update test if file ID assignment is changed to sorted-by-path; assert stability across different chunk orders.
 
 ### tests/artifacts/token-mode.test.js
-- [ ] (P2) Add coverage for invalid modes, case-insensitive parsing, and maxTokens/maxFiles parsing edge cases.
+- [X] (P2) Add coverage for invalid modes, case-insensitive parsing, and maxTokens/maxFiles parsing edge cases.
 
 ### tests/clean-artifacts.js
-- [ ] (P2) Consider adding a check that `.bak` files are handled correctly (optional).
+- [X] (P2) Consider adding a check that `.bak` files are handled correctly (optional).
 
 ### tests/file-processor/cached-bundle.test.js
-- [ ] (P1) Fix test fixtures to use realistic `allImports` and `codeRelations` shapes, and assert semantic correctness (not only presence).
+- [X] (P1) Fix test fixtures to use realistic `allImports` and `codeRelations` shapes, and assert semantic correctness (not only presence).
 
 ### tests/file-processor/skip.test.js
-- [ ] (P2) Add coverage for `unreadable` and `read-failure` paths (permissions, ENOENT races).
+- [X] (P2) Add coverage for `unreadable` and `read-failure` paths (permissions, ENOENT races).
 
 ### tests/filter-index-artifact.js
-- [ ] (P2) Add a schema assertion for filter_index fields/versioning to prevent drift.
+- [X] (P2) Add a schema assertion for filter_index fields/versioning to prevent drift.
 
 ### tests/filter-index.js
-- [ ] (P2) Consider adding a determinism check for serialized filter index (same inputs => same output).
+- [X] (P2) Consider adding a determinism check for serialized filter index (same inputs => same output).
 
 ### tests/graph-chunk-id.js
-- [ ] (P2) Add a collision regression test for graph keys, or migrate to chunkId-based keys.
+- [X] (P2) Add a collision regression test for graph keys, or migrate to chunkId-based keys.
 
 ### tests/incremental-tokenization-cache.js
-- [ ] (P2) Add a second invalidation scenario (e.g., tokenization config changes that affect stemming/synonyms).
+- [X] (P2) Add a second invalidation scenario (e.g., tokenization config changes that affect stemming/synonyms).
 
 ### tests/piece-assembly.js
-- [ ] (P1) Add semantic equivalence test vs monolithic build and add a determinism test (same inputs => identical assembled output).
+- [X] (P1) Add semantic equivalence test vs monolithic build and add a determinism test (same inputs => identical assembled output).
 
 ### tests/postings-quantize.js
-- [ ] (P2) Extend to test scale and dims, and doc/code embedding behavior.
+- [X] (P2) Extend to test scale and dims, and doc/code embedding behavior.
 
 ### tests/shard-merge.js
-- [ ] (P2) Consider adding checksum and manifest equivalence checks as well.
+- [X] (P2) Consider adding checksum and manifest equivalence checks as well.
 
 ### tests/shard-plan.js
-- [ ] (P2) Add stress case coverage (many files, equal weights, perfProfile enabled).
+- [X] (P2) Add stress case coverage (many files, equal weights, perfProfile enabled).
 
 ### tests/tokenization-buffering.js
-- [ ] (P2) Consider adding a non-ASCII tokenization regression case.
+- [X] (P2) Consider adding a non-ASCII tokenization regression case.
 
 ### docs/artifact-contract.md
-- [ ] (P1) Fix compression description (no embedded `compression` field) and clarify `.json.gz` sidecar semantics.
-- [ ] (P1) Add explicit precedence rules (meta/parts vs jsonl vs json).
-- [ ] (P2) Add schema examples for meta files and `pieces/manifest.json`.
+- [X] (P1) Fix compression description (no embedded `compression` field) and clarify `.json.gz` sidecar semantics.
+- [X] (P1) Add explicit precedence rules (meta/parts vs jsonl vs json).
+- [X] (P2) Add schema examples for meta files and `pieces/manifest.json`.
 
 ### docs/contracts/coverage-ledger.md
-- [ ] (P2) Add entries for new/critical tooling: `tools/assemble-pieces.js`, `tools/compact-pieces.js`, and CI artifact scripts.
+- [X] (P2) Add entries for new/critical tooling: `tools/assemble-pieces.js`, `tools/compact-pieces.js`, and CI artifact scripts.
 
 ### docs/contracts/indexing.md
-- [ ] (P1) Clarify which artifacts are “required” vs “optional/configurable” (e.g., minhash signatures).
-- [ ] (P1) Document sharded meta schema and loader precedence.
+- [X] (P1) Clarify which artifacts are “required” vs “optional/configurable” (e.g., minhash signatures).
+- [X] (P1) Document sharded meta schema and loader precedence.
 
 ---
 
@@ -2300,23 +2300,23 @@ This section enumerates each in-scope file and lists file-specific items to addr
 
 #### Correctness / functional
 
-- [ ] **Sharding path creates fresh worker pools + queues per shard work item, with no explicit teardown.**  
+- [X] **Sharding path creates fresh worker pools + queues per shard work item, with no explicit teardown.**  
   This is very likely to cause thread/resource leaks, excessive pool creation overhead, and/or a build process that does not exit cleanly.  
   _Primary file:_ `src/index/build/indexer/steps/process-files.js`  
   _Related:_ `src/index/build/runtime/workers.js`, `src/index/build/worker-pool.js`
 
-- [ ] **`--mode all` behavior is inconsistent with “extracted-prose” + `records` expectations (tests + CLI surface).**  
+- [X] **`--mode all` behavior is inconsistent with “extracted-prose” + `records` expectations (tests + CLI surface).**  
   `tests/build-index-all.js` expects an `extracted-prose` index (and should be extended to expect a `records` index) to be produced for `--mode all`. `parseBuildArgs(...)` already resolves `modes` to include `extracted-prose` and must be updated to include `records`; however the CLI entry (`build_index.js`) discards the computed `modes` and delegates to the core build entry, which (in the current tree) resolves “all” differently.  
   _Primary file(s) in scope:_ `build_index.js`, `src/index/build/args.js`, `tests/build-index-all.js`  
   _Note:_ the root cause may live outside this section’s file list, but the mismatch is observable from the files in scope and should be corrected at the boundary.
 
-- [ ] **Watch debounce scheduler does not safely handle async `onRun` errors (risk of unhandled promise rejection).**  
+- [X] **Watch debounce scheduler does not safely handle async `onRun` errors (risk of unhandled promise rejection).**  
   `createDebouncedScheduler(...)` calls `onRun()` without `await`/`.catch(...)`. In `watchIndex(...)`, `onRun` is async. Any unexpected throw/rejection (e.g., from lock release, filesystem exceptions) can become an unhandled rejection.  
   _Primary file:_ `src/index/build/watch.js`
 
 #### Determinism / reproducibility
 
-- [ ] **Locale-dependent sorts in ordering-critical paths (`localeCompare`) should be replaced with deterministic lexicographic compares.**  
+- [X] **Locale-dependent sorts in ordering-critical paths (`localeCompare`) should be replaced with deterministic lexicographic compares.**  
   Ordering drives chunk IDs, manifest key ordering, and shard planning stability; `localeCompare` can vary by ICU/locale.  
   _Primary files:_  
   - `src/index/build/indexer/steps/discover.js`  
@@ -2325,7 +2325,7 @@ This section enumerates each in-scope file and lists file-specific items to addr
 
 #### Incremental correctness across versions
 
-- [ ] **Incremental cache signature likely needs a “tool/build schema version” component.**  
+- [X] **Incremental cache signature likely needs a “tool/build schema version” component.**  
   Today, signature invalidation is strongly config-based. If tokenization/chunk schema/postings semantics change across releases without config changes, the cache can be reused incorrectly.  
   _Primary file:_ `src/index/build/indexer/signatures.js`  
   _Related:_ `src/index/build/incremental.js`, `tests/incremental-*.js`
@@ -2415,9 +2415,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Normalize paths consistently (POSIX rel keys).
 
 **Remaining work**
-- [ ] Replace locale-dependent sorting in `indexer/steps/discover.js` with deterministic compare (and document determinism requirement).
-- [ ] Consider adding `stat.isFile()` checks (defensive) before admitting entries (especially for non-git discovery paths).
-- [ ] Consider making “tracked-only” behavior explicit at the API boundary (discover uses `git ls-files` when root is a git repo root) and ensure watch mode semantics align (see Watch section).
+- [X] Replace locale-dependent sorting in `indexer/steps/discover.js` with deterministic compare (and document determinism requirement).
+- [X] Consider adding `stat.isFile()` checks (defensive) before admitting entries (especially for non-git discovery paths).
+- [X] Consider making “tracked-only” behavior explicit at the API boundary (discover uses `git ls-files` when root is a git repo root) and ensure watch mode semantics align (see Watch section).
 
 ---
 
@@ -2458,9 +2458,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Manifest writing should be stable in structure and ordering (even if JSON object key order is mostly stable in practice).
 
 **Remaining work**
-- [ ] Add an explicit “cache schema / tool version” component to `cacheSignature` (or a separate `cacheSchemaVersion` field checked alongside it).
-- [ ] Treat `manifest.version` as a compatibility gate (migrate or reset when unsupported); ensure `manifest.files` is validated as a *plain object* (not an array).
-- [ ] Decide whether whole-index reuse should allow hash fallback (currently it is strict on mtime/size) — if yes, add an opt-in and tests.
+- [X] Add an explicit “cache schema / tool version” component to `cacheSignature` (or a separate `cacheSchemaVersion` field checked alongside it).
+- [X] Treat `manifest.version` as a compatibility gate (migrate or reset when unsupported); ensure `manifest.files` is validated as a *plain object* (not an array).
+- [X] Decide whether whole-index reuse should allow hash fallback (currently it is strict on mtime/size) — if yes, add an opt-in and tests.
 
 ---
 
@@ -2507,9 +2507,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Any feature that modifies existing chunks (token retention “auto”, cross-file inference update) must be deterministic given the same inputs.
 
 **Remaining work**
-- [ ] Fix sharding runtime lifecycle (see Section C/D): avoid creating worker pools per shard item; ensure explicit teardown; ensure sharding does not leak threads/handles.
-- [ ] Replace localeCompare usage in shard plan sorting with deterministic ordering.
-- [ ] Consider exposing and testing a “deterministic build mode” in which timestamps/build IDs do not affect artifact contents (at least for core artifacts).
+- [X] Fix sharding runtime lifecycle (see Section C/D): avoid creating worker pools per shard item; ensure explicit teardown; ensure sharding does not leak threads/handles.
+- [X] Replace localeCompare usage in shard plan sorting with deterministic ordering.
+- [X] Consider exposing and testing a “deterministic build mode” in which timestamps/build IDs do not affect artifact contents (at least for core artifacts).
 
 ---
 
@@ -2548,8 +2548,8 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Graph construction should be stable (avoid hash/map iteration nondeterminism in serialization).
 
 **Remaining work**
-- [ ] Add tests ensuring cross-file inference updates are persisted into incremental bundles when enabled.
-- [ ] Clarify the artifact contract for `graphRelations` in `index_state.json` and ensure it is versioned.
+- [X] Add tests ensuring cross-file inference updates are persisted into incremental bundles when enabled.
+- [X] Clarify the artifact contract for `graphRelations` in `index_state.json` and ensure it is versioned.
 
 ---
 
@@ -2579,7 +2579,7 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - DF computation must not depend on processing order (it currently does not, provided chunk order is deterministic).
 
 **Remaining work**
-- [ ] Add/verify tests around token retention “auto” switching (sample vs none) to ensure artifact stability and correctness.
+- [X] Add/verify tests around token retention “auto” switching (sample vs none) to ensure artifact stability and correctness.
 
 ---
 
@@ -2618,8 +2618,8 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Promotion pointer must not “flip” to a partial build.
 
 **Remaining work**
-- [ ] Validate that `promotion.js` cannot write a `current.json` pointer that escapes the intended cache root (path traversal hardening).
-- [ ] Consider making build_state updates resilient to concurrent writes (or explicitly “best effort” with documentation).
+- [X] Validate that `promotion.js` cannot write a `current.json` pointer that escapes the intended cache root (path traversal hardening).
+- [X] Consider making build_state updates resilient to concurrent writes (or explicitly “best effort” with documentation).
 
 ---
 
@@ -2645,20 +2645,20 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 **Remaining work (correctness + durability)**
 
-- [ ] **Cache invalidation across tool updates:** include a “tool version / schema version / algorithm version” in the incremental signature.  
+- [X] **Cache invalidation across tool updates:** include a “tool version / schema version / algorithm version” in the incremental signature.  
   Suggested approach:
   - Add a `runtime.cacheSchemaVersion` constant (bumped on any semantic change), and include it in `buildIncrementalSignature(...)`.
   - Or include `runtime.toolInfo.version` (and document that caches are invalidated across versions).
-- [ ] **Manifest version compatibility:** enforce `manifest.version` compatibility explicitly; if unsupported, reset (and optionally delete bundles).  
+- [X] **Manifest version compatibility:** enforce `manifest.version` compatibility explicitly; if unsupported, reset (and optionally delete bundles).  
   Also validate `manifest.files` is a plain object: `loaded.files && typeof loaded.files === 'object' && !Array.isArray(loaded.files)`.
-- [ ] **Bundle cleanup on invalidation:** when signature/tokenizationKey mismatches, consider deleting the bundles directory (or moving aside) to avoid disk bloat.
-- [ ] **Whole-index reuse strictness:** decide if whole-index reuse should support content-hash fallback for stat mismatch (opt-in).  
+- [X] **Bundle cleanup on invalidation:** when signature/tokenizationKey mismatches, consider deleting the bundles directory (or moving aside) to avoid disk bloat.
+- [X] **Whole-index reuse strictness:** decide if whole-index reuse should support content-hash fallback for stat mismatch (opt-in).  
   If not, document that mtime/size must match exactly, and why (performance vs safety).
-- [ ] **Stage interactions:** confirm and test that:
+- [X] **Stage interactions:** confirm and test that:
   - stage1 builds do not reuse stage2 caches (signature should differ, but confirm)
   - stage2 builds do not reuse stage1 caches
   - stage4 behaviors are consistent (if stage4 writes different artifact sets)
-- [ ] **RelKey normalization:** ensure relKey generation is consistently POSIX and case-handled on Windows for both discovery and watch paths.
+- [X] **RelKey normalization:** ensure relKey generation is consistently POSIX and case-handled on Windows for both discovery and watch paths.
 
 ---
 
@@ -2674,9 +2674,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
   - optional wait/poll to acquire lock
 
 **Remaining work**
-- [ ] Ensure the lock file handle is closed even if `writeFile(...)` fails (use try/finally around the acquired `handle`).
-- [ ] Consider including `buildId` and `mode(s)` in the lock file payload to improve observability/debugging.
-- [ ] Add a test that simulates write failure during lock acquisition (can be done by injecting a stubbed fs layer, or by creating a read-only directory).
+- [X] Ensure the lock file handle is closed even if `writeFile(...)` fails (use try/finally around the acquired `handle`).
+- [X] Consider including `buildId` and `mode(s)` in the lock file payload to improve observability/debugging.
+- [X] Add a test that simulates write failure during lock acquisition (can be done by injecting a stubbed fs layer, or by creating a read-only directory).
 
 #### C.2 Sharding + queues + worker pools
 
@@ -2686,13 +2686,13 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Sharding aims to distribute work based on line counts / cost predictions, while preserving deterministic output ordering via an ordered appender.
 
 **Remaining work (critical)**
-- [ ] **Do not create worker pools per shard item.**  
+- [X] **Do not create worker pools per shard item.**  
   Options (choose one):
   1) **Preferred:** share the parent runtime’s worker pools across all shards; only shard the scheduling/queueing.  
   2) If per-shard pools are required: create **one** shard runtime per shard worker (batch), reuse it for all work items in that batch, and **always** `destroy()` pools and tear down queues in a `finally`.
-- [ ] Add a regression test / harness that runs a sharded build and asserts the process exits promptly (no lingering worker threads).  
+- [X] Add a regression test / harness that runs a sharded build and asserts the process exits promptly (no lingering worker threads).  
   Practical approach: spawn `node build_index.js ...` with `--shards.enabled` and ensure it exits within a timeout; also enable `--verbose` to detect repeated pool creation.
-- [ ] Audit `maxPending` sizing on queues in shard runtime creation; ensure it cannot exceed a safe bound when shard concurrency is high.
+- [X] Audit `maxPending` sizing on queues in shard runtime creation; ensure it cannot exceed a safe bound when shard concurrency is high.
 
 #### C.3 Watch mode robustness
 
@@ -2703,13 +2703,13 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - It always enables incremental to avoid full reindexing on every change.
 
 **Remaining work**
-- [ ] Make `createDebouncedScheduler(...)` safe for async `onRun`:
+- [X] Make `createDebouncedScheduler(...)` safe for async `onRun`:
   - wrap `onRun()` in `Promise.resolve(...).catch(...)`
   - optionally provide an `onError` callback
-- [ ] Ensure “extracted-prose only” watch mode is supported:
+- [X] Ensure “extracted-prose only” watch mode is supported:
   - update `isIndexablePath(...)` to treat `extracted-prose` as **code-only** for extension filtering (do **not** treat as prose; `extracted-prose` must not re-index normal prose)
   - add coverage in `tests/watch-filter.js` (including a `.md` change that should *not* trigger when `modes=['extracted-prose']`)
-- [ ] Decide how to handle untracked file changes in git repos (discover is tracked-only):
+- [X] Decide how to handle untracked file changes in git repos (discover is tracked-only):
   - either document that watch will trigger rebuilds but new untracked files will not be indexed
   - or add an optional “include untracked” mode for watch builds (with tests)
 
@@ -2726,9 +2726,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Preprocess stage can scan file headers to detect binary/minified, and optionally count lines.
 
 **Remaining work**
-- [ ] Parallelize `fs.stat` in discovery with a concurrency limit (e.g., 32) to reduce wall-clock time on large repos.
-- [ ] Consider using fdir’s `withStats()` to avoid a separate stat syscall for non-git discovery paths.
-- [ ] Ensure file-type detection does not misclassify common text types as binary (treat certain `application/*` mimes as text if needed).
+- [X] Parallelize `fs.stat` in discovery with a concurrency limit (e.g., 32) to reduce wall-clock time on large repos.
+- [X] Consider using fdir’s `withStats()` to avoid a separate stat syscall for non-git discovery paths.
+- [X] Ensure file-type detection does not misclassify common text types as binary (treat certain `application/*` mimes as text if needed).
 
 #### D.2 Sharding overhead
 
@@ -2738,9 +2738,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Shard planning uses predicted cost from perf profiles when available.
 
 **Remaining work**
-- [ ] Add an option to avoid full line counting when perf profile is available and sufficiently fresh (approximate weights).
-- [ ] Revisit per-shard file concurrency hard cap (`min(2, ...)`) — it can underutilize configured `runtime.fileConcurrency` on larger machines.
-- [ ] Avoid per-shard runtime creation (performance + correctness; see Section C).
+- [X] Add an option to avoid full line counting when perf profile is available and sufficiently fresh (approximate weights).
+- [X] Revisit per-shard file concurrency hard cap (`min(2, ...)`) — it can underutilize configured `runtime.fileConcurrency` on larger machines.
+- [X] Avoid per-shard runtime creation (performance + correctness; see Section C).
 
 #### D.3 Worker pool overhead
 
@@ -2750,9 +2750,9 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Worker pool supports restart/backoff, and permanent disable on repeated opaque failures.
 
 **Remaining work**
-- [ ] Gate cloneability validation behind a debug flag or environment variable; keep it on by default in CI/tests, off in production, or vice versa (choose explicitly).
-- [ ] Consider using transfer lists for large typed arrays in quantize tasks to reduce cloning overhead.
-- [ ] Add metrics to quantify:
+- [X] Gate cloneability validation behind a debug flag or environment variable; keep it on by default in CI/tests, off in production, or vice versa (choose explicitly).
+- [X] Consider using transfer lists for large typed arrays in quantize tasks to reduce cloning overhead.
+- [X] Add metrics to quantify:
   - pool restart frequency
   - clone-check overhead
   - task latency distribution
@@ -2772,18 +2772,18 @@ These are workable, but they heighten the importance of clear contracts/invarian
 - Ordering uses both explicit `<` comparisons and `localeCompare` in different places.
 
 **Remaining work**
-- [ ] Centralize “max bytes per extension” and “cap normalization” logic into a single helper module (likely `runtime/caps.js` or a shared `file-caps.js`) and reuse across discover/watch/tools.
-- [ ] Standardize ordering comparisons: provide a shared `compareRelPaths(a, b)` helper that is locale-independent and (optionally) Windows-case-aware.
-- [ ] Run formatter / lint pass on files with inconsistent indentation (not functionally wrong, but increases diff noise and review friction).
+- [X] Centralize “max bytes per extension” and “cap normalization” logic into a single helper module (likely `runtime/caps.js` or a shared `file-caps.js`) and reuse across discover/watch/tools.
+- [X] Standardize ordering comparisons: provide a shared `compareRelPaths(a, b)` helper that is locale-independent and (optionally) Windows-case-aware.
+- [X] Run formatter / lint pass on files with inconsistent indentation (not functionally wrong, but increases diff noise and review friction).
 
 #### E.2 Tests to add or strengthen
 
 **Remaining work**
-- [ ] **Build all modes:** Ensure `tests/build-index-all.js` reliably enforces that `--mode all` produces `code`, `prose`, `extracted-prose`, and `records` artifacts (and fix the orchestration boundary if currently inconsistent).
-- [ ] **Watch extracted-prose:** add a case to `tests/watch-filter.js` where `modes=['extracted-prose']` and confirm indexable file changes trigger scheduling.
-- [ ] **Watch async error safety:** add a test that uses an async `onRun` that rejects once, and assert no `unhandledRejection` occurs (attach a listener in the test).
-- [ ] **Sharding teardown:** add a harness test that enables sharding and asserts no lingering worker threads prevent exit.
-- [ ] **Incremental schema version:** add a test that simulates a tool version/schema version change and confirms caches are invalidated.
+- [X] **Build all modes:** Ensure `tests/build-index-all.js` reliably enforces that `--mode all` produces `code`, `prose`, `extracted-prose`, and `records` artifacts (and fix the orchestration boundary if currently inconsistent).
+- [X] **Watch extracted-prose:** add a case to `tests/watch-filter.js` where `modes=['extracted-prose']` and confirm indexable file changes trigger scheduling.
+- [X] **Watch async error safety:** add a test that uses an async `onRun` that rejects once, and assert no `unhandledRejection` occurs (attach a listener in the test).
+- [X] **Sharding teardown:** add a harness test that enables sharding and asserts no lingering worker threads prevent exit.
+- [X] **Incremental schema version:** add a test that simulates a tool version/schema version change and confirms caches are invalidated.
 
 ---
 
@@ -2793,26 +2793,26 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `build_index.js`
 
-- [ ] Pass the resolved `modes` from `parseBuildArgs(...)` through to the build orchestrator (or otherwise guarantee that `--mode all` resolves identically at every boundary and includes `records`).  
+- [X] Pass the resolved `modes` from `parseBuildArgs(...)` through to the build orchestrator (or otherwise guarantee that `--mode all` resolves identically at every boundary and includes `records`).  
   _Why:_ prevents drift between CLI arg parsing and internal orchestration; aligns with `tests/build-index-all.js`.
 
 #### `src/index/build/args.js`
 
-- [ ] Consider adding `argv.modes` (or similar) so downstream layers do not need to re-derive the “all → modes” mapping (and so the CLI entry can pass a single object).
+- [X] Consider adding `argv.modes` (or similar) so downstream layers do not need to re-derive the “all → modes” mapping (and so the CLI entry can pass a single object).
 
 #### `src/index/build/build-state.js`
 
-- [ ] Document that `build_state.json` is best-effort and may lose updates under concurrent writers; or introduce an append-only/event model to prevent lost updates.
-- [ ] Consider `timer.unref()` on heartbeat interval for cases where build-state heartbeat should not keep the process alive (optional).
+- [X] Document that `build_state.json` is best-effort and may lose updates under concurrent writers; or introduce an append-only/event model to prevent lost updates.
+- [X] Consider `timer.unref()` on heartbeat interval for cases where build-state heartbeat should not keep the process alive (optional).
 
 #### `src/index/build/crash-log.js`
 
-- [ ] Consider throttling `updateFile(...)` writes when debug crash logging is enabled (currently potentially writes state on every file).
+- [X] Consider throttling `updateFile(...)` writes when debug crash logging is enabled (currently potentially writes state on every file).
 
 #### `src/index/build/discover.js`
 
-- [ ] Add concurrency-limited parallel statting for large repos.
-- [ ] Add defensive `stat.isFile()` gating for non-git crawls.
+- [X] Add concurrency-limited parallel statting for large repos.
+- [X] Add defensive `stat.isFile()` gating for non-git crawls.
 
 #### `src/index/build/failure-taxonomy.js`
 
@@ -2824,16 +2824,16 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `src/index/build/file-scan.js`
 
-- [ ] Treat certain `file-type` “application/*” results (e.g., json/xml) as potentially text, or ensure `file-type` is only advisory and always confirm with istextorbinary when in doubt.
+- [X] Treat certain `file-type` “application/*” results (e.g., json/xml) as potentially text, or ensure `file-type` is only advisory and always confirm with istextorbinary when in doubt.
 #### `src/index/build/ignore.js`
 
-- [ ] Consider supporting nested `.gitignore` semantics for non-git discovery paths (optional, but improves parity with developer expectations).
+- [X] Consider supporting nested `.gitignore` semantics for non-git discovery paths (optional, but improves parity with developer expectations).
 
 #### `src/index/build/incremental.js`
 
-- [ ] Validate `manifest.files` is a plain object; reset if array/invalid.
-- [ ] Enforce manifest version compatibility; reset or migrate.
-- [ ] Consider deleting stale bundles on signature/tokenizationKey mismatch to avoid disk bloat.
+- [X] Validate `manifest.files` is a plain object; reset if array/invalid.
+- [X] Enforce manifest version compatibility; reset or migrate.
+- [X] Consider deleting stale bundles on signature/tokenizationKey mismatch to avoid disk bloat.
 
 #### `src/index/build/indexer.js`
 
@@ -2841,49 +2841,49 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `src/index/build/indexer/pipeline.js`
 
-- [ ] Ensure any ordering-critical sorts remain locale-independent (primary issue is in discover step; pipeline relies on it).
-- [ ] Consider explicitly documenting the per-mode stage graph and how it maps to artifacts and cache signature components.
+- [X] Ensure any ordering-critical sorts remain locale-independent (primary issue is in discover step; pipeline relies on it).
+- [X] Consider explicitly documenting the per-mode stage graph and how it maps to artifacts and cache signature components.
 
 #### `src/index/build/indexer/signatures.js`
 
-- [ ] Add cache schema / tool version component to `buildIncrementalSignature(...)`.
-- [ ] Consider adding explicit versions for:
+- [X] Add cache schema / tool version component to `buildIncrementalSignature(...)`.
+- [X] Consider adding explicit versions for:
   - chunk schema
   - postings schema
   - relations graph schema
 
 #### `src/index/build/indexer/steps/discover.js`
 
-- [ ] Replace `localeCompare` sort with deterministic compare.
-- [ ] Avoid mutating shared entry objects if discovery is reused across modes (optional; low risk today, but cleaner).
+- [X] Replace `localeCompare` sort with deterministic compare.
+- [X] Avoid mutating shared entry objects if discovery is reused across modes (optional; low risk today, but cleaner).
 
 #### `src/index/build/indexer/steps/incremental.js`
 
-- [ ] Add more granular status reporting (e.g., why reuse rejected) for observability; currently logs are decent but could be structured.
+- [X] Add more granular status reporting (e.g., why reuse rejected) for observability; currently logs are decent but could be structured.
 
 #### `src/index/build/indexer/steps/postings.js`
 
-- [ ] Add tests for token retention “auto” switching correctness and stability.
+- [X] Add tests for token retention “auto” switching correctness and stability.
 
 #### `src/index/build/indexer/steps/process-files.js`
 
-- [ ] Fix sharding runtime lifecycle (do not create per-work-item pools; ensure teardown).
-- [ ] Replace localeCompare in shard plan sorting with deterministic compare.
-- [ ] Revisit per-shard concurrency cap (min(2, ...)).
-- [ ] Consider hoisting shard runtime creation outside the inner work-item loop if per-shard runtime instances remain desired.
+- [X] Fix sharding runtime lifecycle (do not create per-work-item pools; ensure teardown).
+- [X] Replace localeCompare in shard plan sorting with deterministic compare.
+- [X] Revisit per-shard concurrency cap (min(2, ...)).
+- [X] Consider hoisting shard runtime creation outside the inner work-item loop if per-shard runtime instances remain desired.
 
 #### `src/index/build/indexer/steps/relations.js`
 
-- [ ] Add tests ensuring cross-file inference updates are persisted into incremental bundles when enabled.
-- [ ] Clarify error strategy for import scan failures (degrade vs abort) and encode it in tests/config.
+- [X] Add tests ensuring cross-file inference updates are persisted into incremental bundles when enabled.
+- [X] Clarify error strategy for import scan failures (degrade vs abort) and encode it in tests/config.
 
 #### `src/index/build/indexer/steps/write.js`
 
-- [ ] Ensure `index_state.json` always includes the correct cache signature / tokenizationKey values used for the build (especially when any runtime config is adapted per mode).
+- [X] Ensure `index_state.json` always includes the correct cache signature / tokenizationKey values used for the build (especially when any runtime config is adapted per mode).
 
 #### `src/index/build/lock.js`
 
-- [ ] Close file handle in a `finally` if write fails during lock acquisition.
+- [X] Close file handle in a `finally` if write fails during lock acquisition.
 
 #### `src/index/build/perf-profile.js`
 
@@ -2891,11 +2891,11 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `src/index/build/preprocess.js`
 
-- [ ] Document that preprocess is currently for `code` + `prose` only (or extend support to `extracted-prose` explicitly if desired).
+- [X] Document that preprocess is currently for `code` + `prose` only (or extend support to `extracted-prose` explicitly if desired).
 
 #### `src/index/build/promotion.js`
 
-- [ ] Harden path handling so `current.json` cannot point outside `repoCacheRoot` even if inputs are malformed.
+- [X] Harden path handling so `current.json` cannot point outside `repoCacheRoot` even if inputs are malformed.
 
 #### `src/index/build/runtime.js`
 
@@ -2915,8 +2915,8 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `src/index/build/runtime/runtime.js`
 
-- [ ] Consider making the “tracked-only discovery” behavior visible in logs when git is used (helps users understand why new files may not be indexed).
-- [ ] Consider ensuring any per-mode adaptive config does not bleed across modes (currently low risk, but worth documenting).
+- [X] Consider making the “tracked-only discovery” behavior visible in logs when git is used (helps users understand why new files may not be indexed).
+- [X] Consider ensuring any per-mode adaptive config does not bleed across modes (currently low risk, but worth documenting).
 
 #### `src/index/build/runtime/stage.js`
 
@@ -2928,7 +2928,7 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `src/index/build/runtime/workers.js`
 
-- [ ] Review queue pending-limit sizing with sharding enabled; ensure worst-case bounds are safe.
+- [X] Review queue pending-limit sizing with sharding enabled; ensure worst-case bounds are safe.
 
 #### `src/index/build/state.js`
 
@@ -2936,34 +2936,34 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 #### `src/index/build/watch.js`
 
-- [ ] Make debounce scheduler safe for async `onRun` (catch rejections).
-- [ ] Support `extracted-prose` as a mode for indexable path filtering.
-- [ ] Consider reducing rebuild churn from untracked files (optional).
+- [X] Make debounce scheduler safe for async `onRun` (catch rejections).
+- [X] Support `extracted-prose` as a mode for indexable path filtering.
+- [X] Consider reducing rebuild churn from untracked files (optional).
 
 #### `src/index/build/worker-pool.js`
 
-- [ ] Consider exposing a “debug clone checks” toggle (ties into worker validation overhead discussion).
-- [ ] Add optional transferList support for quantize tasks.
+- [X] Consider exposing a “debug clone checks” toggle (ties into worker validation overhead discussion).
+- [X] Add optional transferList support for quantize tasks.
 
 #### `src/index/build/workers/indexer-worker.js`
 
-- [ ] Gate cloneability validation behind a debug/config toggle if performance becomes an issue.
+- [X] Gate cloneability validation behind a debug/config toggle if performance becomes an issue.
 
 #### `tools/shard-census.js`
 
-- [ ] Replace `localeCompare` with deterministic compare for stable reporting.
-- [ ] Consider reusing shared cap/normalization utilities rather than duplicating.
+- [X] Replace `localeCompare` with deterministic compare for stable reporting.
+- [X] Consider reusing shared cap/normalization utilities rather than duplicating.
 
 #### Tests
 
 ##### `tests/build-index-all.js`
 
-- [ ] Ensure the build orchestration actually builds `extracted-prose` **and `records`** for `--mode all` (fix boundary mismatch if needed).
+- [X] Ensure the build orchestration actually builds `extracted-prose` **and `records`** for `--mode all` (fix boundary mismatch if needed).
 
 ##### `tests/watch-filter.js`
 
-- [ ] Add an `extracted-prose`-only mode coverage case.
-- [ ] Add an async debounce safety test (unhandled rejection prevention).
+- [X] Add an `extracted-prose`-only mode coverage case.
+- [X] Add an async debounce safety test (unhandled rejection prevention).
 
 ##### `tests/worker-pool*.js`
 
@@ -2973,19 +2973,19 @@ These are workable, but they heighten the importance of clear contracts/invarian
 
 ### Deliverables
 
-- [ ] Fix sharding runtime lifecycle and add regression coverage.
-- [ ] Resolve “mode all” / extracted-prose / records mismatch and ensure `tests/build-index-all.js` passes reliably.
-- [ ] Harden watch debounce scheduling against async rejection.
-- [ ] Replace localeCompare sorts in ordering-critical paths.
-- [ ] Add a cache schema/tool version component to incremental signature and add a test for invalidation.
+- [X] Fix sharding runtime lifecycle and add regression coverage.
+- [X] Resolve “mode all” / extracted-prose / records mismatch and ensure `tests/build-index-all.js` passes reliably.
+- [X] Harden watch debounce scheduling against async rejection.
+- [X] Replace localeCompare sorts in ordering-critical paths.
+- [X] Add a cache schema/tool version component to incremental signature and add a test for invalidation.
 
 ### Exit criteria
 
-- [ ] Sharded builds do not leak worker threads/handles and the process exits cleanly.
-- [ ] `--mode all` produces `code`, `prose`, `extracted-prose`, and `records` indices; validated by test.
-- [ ] Watch mode does not emit unhandled promise rejections under forced error paths.
-- [ ] Deterministic ordering is documented and enforced (no locale-dependent sorts in critical ordering paths).
-- [ ] Incremental cache reuse is safe across code releases (explicit schema/version invalidation).
+- [X] Sharded builds do not leak worker threads/handles and the process exits cleanly.
+- [X] `--mode all` produces `code`, `prose`, `extracted-prose`, and `records` indices; validated by test.
+- [X] Watch mode does not emit unhandled promise rejections under forced error paths.
+- [X] Deterministic ordering is documented and enforced (no locale-dependent sorts in critical ordering paths).
+- [X] Incremental cache reuse is safe across code releases (explicit schema/version invalidation).
 
 ---
 
@@ -3954,3 +3954,45 @@ Note: LMDB kept and remains opt-in; vector extension config removed.
 * [x] CI green.
 
 ---
+
+
+## Appendix A — Completed items (from PLAN_APPENDIX_A)
+
+- setup: Create worktree: worktrees/appendix-a-sundial
+- setup: Remove GIGAROAD/ROADMAP.md
+- setup: Keep this plan updated after each completed task
+- `src/index/build/artifacts.js`: (P1) Consider directory-level atomic swap for `token_postings.shards/` (staging dir + rename).
+- `src/index/build/artifacts.js`: (P1) Normalize shard part paths to POSIX in any meta/manifest structures (avoid OS-separator leakage).
+- `src/index/build/artifacts/checksums.js`: (P1) Do not silently accept checksum/stat failures for required pieces; fail or record errors explicitly.
+- `src/index/build/artifacts/compression.js`: (P2) Update docs to clarify that gzip is a sidecar (`.json` and `.json.gz` both exist).
+- `src/index/build/artifacts/file-meta.js`: (P1) Make file ID assignment stable by sorting unique file paths before assigning IDs.
+- `src/index/build/artifacts/file-meta.js`: (P1) Add file content hash (and algo) and file size to `file_meta.json`.
+- `src/index/build/artifacts/writers/chunk-meta.js`: (P0) Remove stale `chunk_meta.meta.json` and `chunk_meta.parts/` when writing non-sharded JSONL.
+- `src/index/build/artifacts/writers/chunk-meta.js`: (P1) Clear or stage-swap `chunk_meta.parts/` when writing sharded output.
+- `src/index/build/artifacts/writers/chunk-meta.js`: (P1) Normalize `meta.parts` entries to POSIX paths.
+- `src/index/build/artifacts/writers/repo-map.js`: (P1) Ensure `exported` detection handles default exports correctly (depends on relations schema).
+- `src/index/build/file-processor.js`: (P1) Add explicit boundary asserts for chunks after chunking.
+- `src/index/build/file-processor.js`: (P1) Replace `split('\n')` with line-scan utility for context extraction.
+- `src/index/build/file-processor.js`: (P1) Add explicit unsupported-language and parse-error skip reasons (configurable).
+- `src/index/build/file-processor/assemble.js`: (P1) Ensure field token fields written here (including `comment`) are consistently supported by postings and piece assembly.
+- `src/index/build/file-processor/skip.js`: (P1) Add explicit unsupported-language skip reason (or document that unknown languages are processed).
+- `src/index/build/imports.js`: (P0) Fix `es-module-lexer` import record handling (`entry.d` is not a specifier string).
+- `src/index/build/imports.js`: (P1) Sort and dedupe `importLinks` deterministically; exclude self-links unless explicitly desired.
+- `src/index/build/imports.js`: (P1) Ensure concurrency does not affect output ordering (sort module keys and file arrays before serialization).
+- `src/index/build/piece-assembly.js`: (P0) Make `validateLengths()` strict when `expected > 0`.
+- `src/index/build/piece-assembly.js`: (P0) Merge all field postings (including `comment`) and docLengths based on actual input keys.
+- `src/index/build/piece-assembly.js`: (P1) Canonicalize vocab ordering in assembled outputs.
+- `src/index/build/postings.js`: (P1) Canonicalize vocab ordering (token/phrase/chargram/field) explicitly.
+- `src/index/build/shards.js`: (P1) Add explicit tie-breakers in weight-based sorts/batching for determinism across runtimes.
+- `tools/assemble-pieces.js`: (P1) Sort `inputDirs` by default (or add `--sort`) to ensure deterministic assembled output.
+- `tools/ci-build-artifacts.js`: (P1) Sanitize remote URLs before writing them to `manifest.json` to avoid leaking credentials.
+- `tools/compact-pieces.js`: (P1) Consider directory-level atomic swap semantics (avoid rm+rename window).
+- `tests/artifact-formats.js`: (P1) Add explicit precedence test: sharded meta/parts must not override fresh jsonl when shards are stale (post-fix).
+- `tests/artifacts/file-meta.test.js`: (P1) Update test if file ID assignment is changed to sorted-by-path; assert stability across different chunk orders.
+- `tests/file-processor/cached-bundle.test.js`: (P1) Fix test fixtures to use realistic `allImports` and `codeRelations` shapes, and assert semantic correctness (not only presence).
+- `tests/piece-assembly.js`: (P1) Add semantic equivalence test vs monolithic build and add a determinism test (same inputs => identical assembled output).
+- `docs/artifact-contract.md`: (P1) Fix compression description (no embedded `compression` field) and clarify `.json.gz` sidecar semantics.
+- `docs/artifact-contract.md`: (P1) Add explicit precedence rules (meta/parts vs jsonl vs json).
+- `docs/artifact-contract.md`: (P2) Add schema examples for meta files and `pieces/manifest.json`.
+- `docs/contracts/indexing.md`: (P1) Clarify which artifacts are "required" vs "optional/configurable" (e.g., minhash signatures).
+- `docs/contracts/indexing.md`: (P1) Document sharded meta schema and loader precedence.
