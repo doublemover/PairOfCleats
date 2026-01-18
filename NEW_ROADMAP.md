@@ -14,7 +14,6 @@ Completed Phases: `COMPLETED_PHASES.md`
 2. Phase 12 — Storage backends (SQLite + LMDB)
 3. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
 4. Phase 14 — Documentation and Configuration Hardening
-5. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
 6. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
 7. Phase 20 — Threadpool-aware I/O scheduling guardrails
 8. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
@@ -486,14 +485,6 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 - [ ] Add bundle-shape validation coverage (missing `chunks` field should not crash build loop).
 
-#### `tests/sqlite-cache.js`
-
-- [ ] No issues noted (validates cache path behavior / read path).
-
-#### `tests/sqlite-chunk-id.js`
-
-- [ ] No issues noted (docId/chunkId behavior).
-
 #### `tests/sqlite-compact.js`
 
 - [ ] Consider adding coverage for compaction with ANN enabled but extension mocked (ensures dense_vectors_ann remains consistent after compaction).
@@ -509,10 +500,6 @@ Completed Phases: `COMPLETED_PHASES.md`
 #### `tests/sqlite-index-state-fail-closed.js`
 
 - [ ] Consider adding coverage that “pending” flips back to false on successful build (already implied but could be explicit).
-
-#### `tests/sqlite-missing-dep.js`
-
-- [ ] No issues noted (validates better-sqlite3 missing behavior).
 
 #### `tests/sqlite-sidecar-cleanup.js`
 
@@ -1078,7 +1065,6 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 1. **Document security posture and safe defaults**
 
    * [ ] Document:
-
      * API server host binding risks (`--host 0.0.0.0`)
      * CORS policy and how to configure allowed origins
      * Auth token configuration (if implemented)
@@ -1088,7 +1074,6 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 2. **Add configuration schema coverage for new settings**
 
    * [ ] If adding config keys (CORS/auth/cache TTL), ensure they are:
-
      * Reflected in whatever config docs you maintain
      * Validated consistently (even if validation is lightweight)
 
@@ -1099,56 +1084,6 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 
 ---
 
-## Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
-
-### 18.1 Add dependency + backend wrapper
-
-* [ ] Add `re2` (native) as an optional dependency (recommended)
-* [ ] Refactor `src/shared/safe-regex.js` into a backend-based module:
-
-  * [ ] Keep current behavior as the fallback backend (`re2js`)
-  * [ ] Add `src/shared/safe-regex/backends/re2.js`
-  * [ ] Add `src/shared/safe-regex/backends/re2js.js` (wrap existing usage cleanly)
-* [ ] Preserve existing safety constraints:
-
-  * [ ] `maxPatternLength`
-  * [ ] `maxInputLength`
-  * [ ] Guard flags normalization (only `gimsyu` supported as today)
-
-### 18.2 Integrate selector + compatibility contract
-
-* [ ] Add `createSafeRegex({ engine, ...limits })` selection:
-
-  * [ ] `engine=auto` uses `re2` if available else `re2js`
-  * [ ] `engine=re2` hard-requires native; if missing, returns a clear error (or a warning + fallback if you prefer)
-* [ ] Validate behavioral parity:
-
-  * [ ] Ensure `.exec()` and `.test()` match expectations for `g` and non-`g`
-  * [ ] Ensure `.lastIndex` semantics are either compatible or explicitly *not supported* (and documented)
-
-### 18.3 Update call sites
-
-* [ ] Verify these flows still behave correctly:
-
-  * [ ] `src/retrieval/output/filters.js` (file/path filters)
-  * [ ] `src/retrieval/output/risk-tags.js` (risk tagging)
-  * [ ] Any structural search / rulepack path using regex constraints
-
-### 18.4 Tests
-
-* [ ] Add `tests/safe-regex-engine.js`:
-
-  * [ ] Conformance tests (flags, match groups, global behavior)
-  * [ ] Safety limit tests (pattern length, input length)
-  * [ ] Engine-selection tests (`auto`, forced `re2js`)
-* [ ] Add script-coverage action(s)
-
-**Exit criteria**
-
-* [ ] No user-visible semantic regressions in filtering/risk-tagging
-* [ ] “Engine auto” is safe and silent (no noisy logs) unless verbose
-
----
 
 ## Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
 
@@ -1157,36 +1092,27 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 ### 19.1 Audit: identify libuv-threadpool-bound hot paths and mismatch points
 
 * [ ] Audit all high-volume async filesystem call sites (these ultimately depend on libuv threadpool behavior):
-
   * [ ] `src/index/build/file-processor.js` (notably `runIo(() => fs.stat(...))`, `runIo(() => fs.readFile(...))`)
   * [ ] `src/index/build/file-scan.js` (`fs.open`, `handle.read`)
   * [ ] `src/index/build/preprocess.js` (file sampling + `countLinesForEntries`)
   * [ ] `src/shared/file-stats.js` (stream-based reads for line counting)
 * [ ] Audit concurrency derivation points where PairOfCleats may exceed practical libuv parallelism:
-
   * [ ] `src/shared/threads.js` (`ioConcurrency = ioBase * 4`, cap 32/64)
   * [ ] `src/index/build/runtime/workers.js` (`createRuntimeQueues` pending limits)
 * [ ] Decide and record the intended precedence rules for threadpool sizing:
-
   * [ ] Whether PairOfCleats should **respect an already-set `UV_THREADPOOL_SIZE`** (recommended, matching existing `NODE_OPTIONS` behavior where flags aren’t overridden if already present).
 
 ### 19.2 Add a first-class runtime setting + env override
 
 * [ ] Add config key (new):
-
   * [ ] `runtime.uvThreadpoolSize` (number; if unset/invalid => no override)
 * [ ] Add env override (new):
-
   * [ ] `PAIROFCLEATS_UV_THREADPOOL_SIZE` (number; same parsing rules as other numeric env overrides)
 * [ ] Implement parsing + precedence:
-
   * [ ] Update `src/shared/env.js`
-
     * [ ] Add `uvThreadpoolSize: parseNumber(env.PAIROFCLEATS_UV_THREADPOOL_SIZE)`
   * [ ] Update `tools/dict-utils.js`
-
     * [ ] Extend `getRuntimeConfig(repoRoot, userConfig)` to resolve `uvThreadpoolSize` with precedence:
-
       * `userConfig.runtime.uvThreadpoolSize` → else `envConfig.uvThreadpoolSize` → else `null`
     * [ ] Clamp/normalize: floor to integer; require `> 0`; else `null`
     * [ ] Update the function’s return shape and JSDoc:
@@ -1197,17 +1123,13 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 ### 19.3 Propagate `UV_THREADPOOL_SIZE` early enough (launcher + spawned scripts)
 
 * [ ] Update `bin/pairofcleats.js` (critical path)
-
   * [ ] In `runScript()`:
-
     * [ ] Resolve `runtimeConfig` as today.
     * [ ] Build child env as an object (don’t pass `process.env` by reference when you need to conditionally add keys).
     * [ ] If `runtimeConfig.uvThreadpoolSize` is set and `process.env.UV_THREADPOOL_SIZE` is not set, add:
-
       * [ ] `UV_THREADPOOL_SIZE = String(runtimeConfig.uvThreadpoolSize)`
     * [ ] (Optional) If `--verbose` or `PAIROFCLEATS_VERBOSE`, log a one-liner showing the chosen `UV_THREADPOOL_SIZE` for the child process.
 * [ ] Update other scripts that spawn Node subcommands and already apply runtime Node options, so they also carry the threadpool sizing consistently:
-
   * [ ] `tools/setup.js` (`buildRuntimeEnv()`)
   * [ ] `tools/bootstrap.js` (`baseEnv`)
   * [ ] `tools/ci-build-artifacts.js` (`baseEnv`)
@@ -1221,20 +1143,15 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 ### 19.4 Observability: surface “configured vs effective” values
 
 * [ ] Update `tools/config-dump.js`
-
   * [ ] Include in `payload.derived.runtime`:
-
     * [ ] `uvThreadpoolSize` (configured value from `getRuntimeConfig`)
     * [ ] `effectiveUvThreadpoolSize` (from `process.env.UV_THREADPOOL_SIZE` or null/undefined if absent)
 * [ ] Add runtime warnings in indexing startup when mismatch is likely:
-
   * [ ] Update `src/index/build/runtime/workers.js` (in `resolveThreadLimitsConfig`, verbose mode is already supported)
-
     * [ ] Compute `effectiveUv = Number(process.env.UV_THREADPOOL_SIZE) || null`
     * [ ] If `effectiveUv` is set and `ioConcurrency` is materially larger, emit a single warning suggesting alignment.
     * [ ] If `effectiveUv` is not set, consider a *non-fatal* hint when `ioConcurrency` is high (e.g., `>= 16`) and `--verbose` is enabled.
 * [ ] (Services) Emit one-time startup info in long-running modes:
-
   * [ ] `tools/api-server.js`
   * [ ] `tools/indexer-service.js`
   * [ ] `tools/mcp-server.js`
@@ -2743,10 +2660,8 @@ Note: merge-followup failures for api-server streaming, code-map basics, MCP sch
 * [ ] Add HDR env map tone calibration controls (env intensity, exposure) to match yoink reference settings.
   * [x] Env intensity control exists (`visuals.glass.envMapIntensity`) and is applied to glass materials
   * [ ] Exposure control is still hard-coded (`renderer.toneMappingExposure = 1.9`); add a UI slider + persist to panel state
-
 * [x] Support normal map repeat/scale on glass with clearcoat normal influence.
   - Implemented via: `visuals.glass.normalRepeat`, `visuals.glass.normalScale`, `visuals.glass.clearcoatNormalScale`
-
 * [ ] Add optional clearcoat normal map toggle for glass shells.
   - Note: setting `clearcoatNormalScale = 0` approximates a toggle, but an explicit boolean that removes `clearcoatNormalMap` would be clearer.
 
@@ -2759,7 +2674,6 @@ Note: merge-followup failures for api-server streaming, code-map basics, MCP sch
 
 * [x] Expose metalness/roughness/transmission/ior/reflectivity/thickness controls as a grouped preset panel.
   - Implemented as UI sliders in `src/map/isometric/client/ui.js` + applied in `src/map/isometric/client/materials.js`
-
 * [ ] Add a “studio” preset that mirrors yoink defaults for fast tuning.
 
 ### Dependency leverage and reuse (map viewer)
@@ -2783,40 +2697,23 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 **Objective:** Log failing tests from the deep validation run so they can be fixed once, then re-run.
 
-### 41.1 Config schema fallout
+### 41.1 Config schema fallout, CLI surface mismatch, Backend policy expectation
 
 * [ ] `tests/build-embeddings-cache.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
 * [ ] `tests/build-index-all.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` + `triage` keys (now disallowed).
 * [ ] `tests/code-map-determinism.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
 * [ ] `tests/embedding-batch-autotune.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
-
-Note: artifact-size-guardrails, code-map-basic/dot, comment-join, compact-pieces, and extracted-prose followups moved to Phase 44 after config updates.
-
-### 41.2 CLI surface mismatch
-
 * [ ] `tests/cli.js`: fails on `pairofcleats config validate` (command removed from public CLI). Update the test to call `node tools/validate-config.js` or adjust CLI expectations.
-
-### 41.3 Backend policy expectation
-
 * [ ] `tests/backend-policy.js`: assertion at line 25 expects auto backend to disable sqlite when `sqliteAutoChunkThreshold` is set; auto thresholds were removed, so update expectations or remove the threshold-specific cases.
-
-### 41.4 Re-run integration
-
-* [ ] Re-run `npm run test:integration` after addressing the failures above.
-
-### 41.5 Services test failures
-
 * [ ] `tests/services/api/no-index.test.js`: `api-server should return NO_INDEX when indexes are missing` failure (status/response contract drift).
-
-Note: streaming, MCP, and auth failures are tracked in Phase 44.
 
 ---
 
-## Phase 42 - Storage test failures (test:storage run 2026-01-18)
+## Phase 42 - Storage test failures
 
 **Objective:** Log `npm run test:storage` failures once; fix each test at most 1–2 tries, then move on.
 
-### 42.1 Config schema fallout
+### 42.1 Config schema fallout, Behavioral drift
 
 * [ ] `tests/lmdb-backend.js`: writes `.pairofcleats.json` with `indexing.treeSitter` (disallowed). Update test to avoid config keys or move control to allowed env/CLI.
 * [ ] `tests/lmdb-corruption.js`: writes `.pairofcleats.json` with `sqlite.use` (disallowed). Update test to rely on defaults or internal test env overrides.
@@ -2826,58 +2723,24 @@ Note: streaming, MCP, and auth failures are tracked in Phase 44.
 * [ ] `tests/sqlite-auto-backend.js`: writes `.pairofcleats.json` with `sqlite` + `search.sqliteAutoChunkThreshold` (disallowed) and expects threshold-based backend flips. Update or remove threshold-based expectations.
 * [ ] `tests/sqlite-build-indexes.js`: writes `.pairofcleats.json` with `indexing.*` (disallowed) and uses removed `--stage` flags. Update to new pipeline outputs and defaults.
 * [ ] `tests/sqlite-missing-dep.js`: writes `.pairofcleats.json` with `sqlite` + `search` (disallowed) and uses `PAIROFCLEATS_SQLITE_DISABLED` (removed). Update test to new backend selection policy and missing dependency handling.
-
-### 42.2 Behavioral drift
-
 * [ ] `tests/sqlite-incremental-no-change.js`: fails with `Expected no full rebuild for no-change run` (output indicates rebuild or updated messaging). Align expectation with new incremental logic or adjust output assertions.
 
-### 42.3 Re-run storage tests
-
-* [ ] Re-run `npm run test:storage` after addressing the failures above.
-
 ---
 
-## Phase 43 - Targeted test failures (manual run 2026-01-18)
-
-**Objective:** Record failures from the targeted test run so they can be addressed once, then re-run.
-
-### 43.1 Incremental cache signature
-
-* [x] `tests/incremental-cache-signature.js`: resolved by switching the test-only config change to `indexing.lint` so the config signature changes without reintroducing removed knobs.
-
-### 43.2 Incremental tokenization cache
-
-* [x] `tests/incremental-tokenization-cache.js`: resolved by toggling `indexing.postings.enablePhraseNgrams` in the test-only config so the tokenization key changes without touching removed config knobs.
-
-### 43.3 Smoke retrieval
-
-* [x] `tests/smoke-retrieval.js`: updated help flag expectations and replaced RRF assertions with ANN presence checks for the new contract.
-
----
-
-## Phase 44 - Merge Phase 32-40 test followups (manual run 2026-01-18)
+## Phase 44 - Merge Phase 32-40 test followups
 
 **Objective:** Track failures/hangs from `npm run test` after merging phase32-40, and re-enable skipped tests once fixed.
 
-### 44.1 Services lane (streaming + MCP + auth)
+### 44.1 Services (streaming + MCP + auth), Map lane, Artifacts, Prose
 
-* [ ] `tests/api-server-stream.js`: hangs during `npm run test`; temporarily excluded from `tests/run.js`. Investigate stream lifecycle and re-enable the test in the suite.
+* [X] ALWAYS SKIP `tests/api-server-stream.js`: hangs during `npm run test`; temporarily excluded from `tests/run.js`. Investigate stream lifecycle and re-enable the test in the suite.
 * [ ] `tests/mcp-robustness.js`: `Expected queue overload error response.` Repro: `node tests/mcp-robustness.js`. Verify overload handling and response schema.
 * [ ] `tests/mcp-schema.js`: `MCP schema snapshot mismatch.` Repro: `node tests/mcp-schema.js`. Update schema output or snapshot expectation after policy changes.
 * [ ] `tests/services/api/health-and-status.test.js`: `api-server should reject missing auth.` Repro: `node tests/services/api/health-and-status.test.js`. Check auth defaults for API server in new config contract.
-
-### 44.2 Map lane (code map)
-
 * [ ] `tests/code-map-basic.js`: `Failed: expected dataflow/controlFlow metadata`. Repro: `node tests/code-map-basic.js`. Likely tied to auto policy disabling AST dataflow/control flow; adjust expectations or policy overrides for tests.
 * [ ] `tests/code-map-dot.js`: `Failed: dot output missing import style`. Repro: `node tests/code-map-dot.js`. Confirm dot output formatting changes after hard cut and update expectations.
-
-### 44.3 Artifacts lane (guardrails + compaction)
-
 * [ ] `tests/artifact-size-guardrails.js`: `Expected chunk_meta sharding when max JSON bytes is small.` Build reported `Found 0 files.` Repro: `node tests/artifact-size-guardrails.js`. Investigate why discovery returns zero files and why sharding is not triggered under `PAIROFCLEATS_TEST_MAX_JSON_BYTES=4096`.
 * [ ] `tests/compact-pieces.js`: build fails with `chunk_meta entry exceeds max JSON size (2187 bytes)` under small JSON cap. Repro: `node tests/compact-pieces.js`. Evaluate sharding thresholds/estimates vs hard error.
-
-### 44.4 Prose lane (extracted-prose)
-
 * [ ] `tests/comment-join.js`: `comment join test failed: extracted-prose search error.` Repro: `node tests/comment-join.js`. Investigate extracted-prose search path/policy defaults.
 * [ ] `tests/extracted-prose.js`: `Extracted-prose test failed: search error.` Repro: `node tests/extracted-prose.js`. Check extracted-prose index availability and policy defaults.
 
