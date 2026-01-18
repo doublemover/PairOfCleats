@@ -6,10 +6,11 @@ PairOfCleats ships an MCP server that exposes indexing, search, and maintenance 
 - `pairofcleats service mcp`
 
 ## Transport
-- Current transport: legacy JSON-RPC over stdio (`vscode-jsonrpc` framing).
-- `mcp.transport` accepts `auto|legacy|sdk`; SDK transport is planned but not
-  wired yet. If you set `sdk`, ensure `@modelcontextprotocol/sdk` is installed
-  to avoid capability warnings.
+- Content-Length framed JSON-RPC over stdio (vscode-jsonrpc framing + parser).
+- Only stdio transport is supported; `mcp.transport` is currently ignored.
+- Buffer limit defaults to 8MB. Configure via `mcp.maxBufferBytes` or `PAIROFCLEATS_MCP_MAX_BUFFER_BYTES`.
+- Requests are queued (default 64). Configure via `mcp.queueMax` or `PAIROFCLEATS_MCP_QUEUE_MAX`.
+  Overload responses use JSON-RPC error `-32001` with `data.code=QUEUE_OVERLOADED`.
 
 ## Tools
 - `index_status`
@@ -32,8 +33,15 @@ PairOfCleats ships an MCP server that exposes indexing, search, and maintenance 
 
 ## Output
 - `search` defaults to compact JSON payloads. Use `output: "full"` in params to return full JSON.
-- Long-running tools emit `notifications/progress` with `{ id, tool, message, stream, phase }`.
-- Errors return `isError=true` with `{ message, code, stdout, stderr, hint }` when available.
+- Tool responses return `result.content[0].text` as a JSON string payload.
+- Long-running tools emit `notifications/progress` with `{ id, tool, message, stream, phase, ts }`.
+  `id=0` is valid; only `null`/`undefined` is treated as missing.
+- Errors return `isError=true` with `{ message, code, stdout, stderr, hint, timeoutMs }` when available.
+
+## Cancellation and timeouts
+- `$/cancelRequest` aborts in-flight calls by id.
+- Tool timeouts default to 120s (longer for index/build/download tools). Configure via
+  `mcp.toolTimeoutMs`, `mcp.toolTimeouts.<tool>`, or `PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS`.
 
 ## Notes
 - Cache location defaults to the PairOfCleats cache root; override with `cache.root` or `PAIROFCLEATS_CACHE_ROOT`.

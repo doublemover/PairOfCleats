@@ -38,6 +38,13 @@ const rng = seedrandom(seed);
 
 const pick = (list) => list[Math.floor(rng() * list.length)];
 const uniq = (list) => Array.from(new Set(list.filter(Boolean)));
+const formatQueryValue = (value) => {
+  if (!value) return null;
+  const cleaned = String(value).replace(/\s+/g, ' ').trim();
+  if (!cleaned) return null;
+  const escaped = cleaned.replace(/"/g, '\\"');
+  return /\s/.test(escaped) ? `"${escaped}"` : escaped;
+};
 const tokensFromDoc = (text) => {
   if (!text) return [];
   return text.split(/\s+/).map((t) => t.replace(/[^\w-]/g, '')).filter((t) => t.length >= 4);
@@ -51,12 +58,12 @@ const docs = uniq(chunks.flatMap((c) => tokensFromDoc(c.docmeta?.doc || c.metaV2
 const riskTags = uniq(chunks.flatMap((c) => c.docmeta?.risk?.tags || c.metaV2?.risk?.tags || []));
 
 const strategies = [
-  () => (names.length ? `${pick(names)}` : null),
-  () => (signatures.length ? `${pick(signatures)} --signature` : null),
-  () => (names.length && kinds.length ? `${pick(names)} --kind ${pick(kinds)}` : null),
-  () => (returnTypes.length ? `widget --return-type ${pick(returnTypes)}` : null),
-  () => (docs.length ? `${pick(docs)}` : null),
-  () => (riskTags.length ? `exec --risk-tag ${pick(riskTags)}` : null)
+  () => (names.length ? formatQueryValue(pick(names)) : null),
+  () => (signatures.length ? formatQueryValue(pick(signatures)) : null),
+  () => (names.length && kinds.length ? formatQueryValue(`${pick(names)} ${pick(kinds)}`) : null),
+  () => (returnTypes.length ? formatQueryValue(pick(returnTypes)) : null),
+  () => (docs.length ? formatQueryValue(pick(docs)) : null),
+  () => (riskTags.length ? formatQueryValue(pick(riskTags)) : null)
 ];
 
 const seen = new Set();

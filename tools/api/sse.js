@@ -14,10 +14,27 @@ export const createSseResponder = (req, res, options = {}) => {
   res.on('close', markClosed);
   res.on('finish', markClosed);
   res.on('error', markClosed);
+  const waitForDrainOrClose = () => new Promise((resolve) => {
+    const onDone = () => {
+      res.off('drain', onDrain);
+      res.off('close', onClose);
+      res.off('finish', onClose);
+      res.off('error', onClose);
+      req.off('aborted', onClose);
+      resolve();
+    };
+    const onDrain = () => onDone();
+    const onClose = () => onDone();
+    res.once('drain', onDrain);
+    res.once('close', onClose);
+    res.once('finish', onClose);
+    res.once('error', onClose);
+    req.once('aborted', onClose);
+  });
   const writeChunk = async (chunk) => {
     if (closed || res.writableEnded || res.destroyed) return false;
     if (!res.write(chunk)) {
-      await new Promise((resolve) => res.once('drain', resolve));
+      await waitForDrainOrClose();
       if (closed || res.writableEnded || res.destroyed) return false;
     }
     return true;

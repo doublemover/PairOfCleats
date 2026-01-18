@@ -7,7 +7,9 @@ import { hideBin } from 'yargs/helpers';
 import { Bench } from 'tinybench';
 import { build as buildHistogram } from 'hdr-histogram-js';
 import { buildIndex, search } from '../../../src/integrations/core/index.js';
+import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
 import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../dict-utils.js';
+import { writeJsonWithDir } from './utils.js';
 
 const toolRoot = resolveToolRoot();
 const defaultRepo = path.resolve(toolRoot, 'tests', 'fixtures', 'sample');
@@ -115,22 +117,19 @@ const bench = new Bench({
 });
 
 const indexCache = new Map();
-const sqliteCache = null;
-const annConfig = {
-  sparse: false,
-  ann: true,
-  dense: true,
-  hybrid: true
-};
-
+const sqliteCache = createSqliteDbCache();
+const scoreModes = new Set();
 for (const component of components) {
   const normalized = component.toLowerCase();
   if (normalized === 'search-sparse') {
-    bench.add('search-sparse', () => runSearch(false));
+    scoreModes.add('sparse');
+    bench.add('search-sparse', () => runSearch('sparse'));
   } else if (normalized === 'search-ann' || normalized === 'search-dense') {
-    bench.add(normalized, () => runSearch(annConfig.ann));
+    scoreModes.add('dense');
+    bench.add(normalized, () => runSearch('dense'));
   } else if (normalized === 'search-hybrid') {
-    bench.add('search-hybrid', () => runSearch(annConfig.hybrid));
+    scoreModes.add('hybrid');
+    bench.add('search-hybrid', () => runSearch('hybrid'));
   }
 }
 
@@ -139,6 +138,13 @@ if (!bench.tasks.length) {
   process.exit(1);
 }
 
+for (const modeToCheck of scoreModes) {
+  await validateScoreMode(modeToCheck);
+}
+
+if (indexCache?.clear) indexCache.clear();
+if (sqliteCache?.closeAll) sqliteCache.closeAll();
+
 await bench.run();
 
 const results = {
@@ -146,6 +152,9 @@ const results = {
   repoRoot,
   mode,
   backend,
+  cache: {
+    sqliteEntries: sqliteCache.size()
+  },
   bench: {
     iterations: bench.iterations,
     warmupIterations: bench.warmupIterations,
@@ -162,14 +171,12 @@ if (comparison) {
 }
 
 if (argv['write-baseline']) {
-  ensureDir(path.dirname(baselinePath));
-  fs.writeFileSync(baselinePath, `${JSON.stringify(results, null, 2)}\n`);
+  writeJsonWithDir(baselinePath, results);
 }
 
 if (argv.out) {
   const outPath = path.resolve(argv.out);
-  ensureDir(path.dirname(outPath));
-  fs.writeFileSync(outPath, `${JSON.stringify(results, null, 2)}\n`);
+  writeJsonWithDir(outPath, results);
 }
 
 if (argv.json) {
@@ -178,18 +185,64 @@ if (argv.json) {
   printSummary(results, comparison);
 }
 
-async function runSearch(ann) {
+async function runSearch(scoreMode) {
+  const ann = scoreMode !== 'sparse';
   await search(repoRoot, {
     query: argv.query,
     mode,
     backend,
     ann,
+    scoreMode,
     json: true,
     jsonCompact: true,
     emitOutput: false,
     indexCache,
     sqliteCache
   });
+}
+
+async function validateScoreMode(scoreMode) {
+  const ann = scoreMode !== 'sparse';
+  const payload = await search(repoRoot, {
+    query: argv.query,
+    mode,
+    backend,
+    ann,
+    scoreMode,
+    explain: true,
+    json: true,
+    jsonCompact: true,
+    emitOutput: false,
+    indexCache,
+    sqliteCache
+  });
+  const hits = mode === 'prose' ? payload.prose || [] : payload.code || [];
+  const first = hits[0];
+  if (!first) {
+    throw new Error(`tinybench sanity failed: no hits for scoreMode=${scoreMode}`);
+  }
+  if (scoreMode === 'sparse') {
+    if (first.scoreType === 'blend' || first.scoreType === 'ann') {
+      throw new Error(`tinybench sanity failed: expected sparse scoring, saw ${first.scoreType}`);
+    }
+    return;
+  }
+  if (first.scoreType !== 'blend') {
+    throw new Error(`tinybench sanity failed: expected blend scoring, saw ${first.scoreType}`);
+  }
+  const blend = first.scoreBreakdown?.blend;
+  if (!blend) {
+    throw new Error('tinybench sanity failed: missing blend breakdown');
+  }
+  if (scoreMode === 'dense') {
+    if (blend.sparseWeight !== 0 || blend.annWeight <= 0) {
+      throw new Error('tinybench sanity failed: dense weights not applied');
+    }
+  } else if (scoreMode === 'hybrid') {
+    if (blend.sparseWeight === 0 || blend.annWeight === 0) {
+      throw new Error('tinybench sanity failed: hybrid weights not applied');
+    }
+  }
 }
 
 async function maybeBuildIndexes() {
@@ -330,7 +383,3 @@ function printSummary(results, comparison) {
   }
 }
 
-function ensureDir(dir) {
-  if (!dir) return;
-  fs.mkdirSync(dir, { recursive: true });
-}

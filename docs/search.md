@@ -23,6 +23,13 @@ This prefilter is advisory only: it narrows candidates but never skips the final
 - Chargram prefilter is case-insensitive; case-sensitive file filters are still enforced during the final exact match step.
 - Very short substrings (shorter than the configured chargram size) do not benefit from the prefilter.
 
+## Filter index footprint
+
+The filter index is loaded into memory for fast path/file/metadata filters. Its memory footprint is
+roughly proportional to the on-disk `filter_index.json` size. Index metrics report
+`artifacts.filterIndex` (counts + `jsonBytes`) in `repometrics/index-<mode>.json` so large repos can
+track growth. Index builds emit a soft warning when the filter index approaches the JSON size limit.
+
 ## Scoring and Fusion
 
 PairOfCleats treats BM25 as the primary sparse ranker. When SQLite FTS5 is enabled it provides an alternate sparse list, but BM25 remains the reference for defaults and tuning.

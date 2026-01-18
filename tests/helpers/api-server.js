@@ -12,7 +12,9 @@ export const startApiServer = async ({
   env,
   authToken = 'test-token',
   maxBodyBytes = null,
-  allowUnauthenticated = false
+  allowUnauthenticated = false,
+  corsAllowedOrigins = [],
+  corsAllowAny = false
 }) => {
   const serverPath = path.join(ROOT, 'tools', 'api-server.js');
   const args = [
@@ -34,6 +36,12 @@ export const startApiServer = async ({
   }
   if (Number.isFinite(Number(maxBodyBytes))) {
     args.push('--max-body-bytes', String(Math.floor(Number(maxBodyBytes))));
+  }
+  if (Array.isArray(corsAllowedOrigins) && corsAllowedOrigins.length) {
+    args.push('--cors-allowed-origins', corsAllowedOrigins.join(','));
+  }
+  if (corsAllowAny === true) {
+    args.push('--cors-allow-any');
   }
 
   const server = spawn(process.execPath, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -82,7 +90,11 @@ export const startApiServer = async ({
         });
         res.on('end', () => {
           try {
-            resolve({ status: res.statusCode || 0, body: JSON.parse(data || '{}') });
+            resolve({
+              status: res.statusCode || 0,
+              body: JSON.parse(data || '{}'),
+              headers: res.headers || {}
+            });
           } catch (err) {
             reject(err);
           }
@@ -120,7 +132,11 @@ export const startApiServer = async ({
         });
         res.on('end', () => {
           try {
-            resolve({ status: res.statusCode || 0, body: JSON.parse(data || '{}') });
+            resolve({
+              status: res.statusCode || 0,
+              body: JSON.parse(data || '{}'),
+              headers: res.headers || {}
+            });
           } catch (err) {
             reject(err);
           }

@@ -93,6 +93,17 @@ async function runQueueTest() {
 
     send({
       jsonrpc: '2.0',
+      id: 0,
+      method: 'tools/list',
+      params: {}
+    });
+    const idZeroResponse = await readMessage();
+    if (idZeroResponse?.id !== 0) {
+      throw new Error('Expected MCP response to preserve id=0');
+    }
+
+    send({
+      jsonrpc: '2.0',
       id: 2,
       method: 'tools/call',
       params: { name: 'index_status', arguments: { repoPath: root } }

@@ -11,12 +11,12 @@ Complete Phase 13 by fixing retrieval correctness/performance gaps, hardening AP
 [ ] Filters are correctly detected as active and do not disable backend fast paths.
 [ ] Explain output matches scoring math and is emitted only when requested (or docs updated if always on).
 [ ] SQLite FTS fast-path is not disabled by default for large indexes.
-[ ] Benchmarks can write baselines reliably (budgets deferred per request).
+[x] Benchmarks can write baselines reliably (budgets deferred per request).
 [ ] API streaming handles backpressure + close without hanging.
 [ ] API/MCP cancellation and timeout propagation stops work early.
 [ ] CORS/security posture is intentional and documented.
-[ ] Tests cover regressions and edge cases (FTS eligibility, extracted-prose query caching, MCP id=0, etc.).
-[ ] Bench/eval docs match actual behavior and commands.
+[x] Tests cover regressions and edge cases (FTS eligibility, extracted-prose query caching, MCP id=0, etc.).
+[x] Bench/eval docs match actual behavior and commands.
 
 ## 13.A Retrieval Semantics, Explain, Context Expansion
 [ ] A1: Fix `hasActiveFilters()` to ignore internal-only keys (ex: `filePrefilter`). Files: `src/retrieval/filters.js`, `src/retrieval/cli.js`, `src/retrieval/pipeline.js`.
@@ -26,14 +26,14 @@ Complete Phase 13 by fixing retrieval correctness/performance gaps, hardening AP
 [ ] A2: Verify cache boundaries for context expansion (index signature + filters) with tests; ensure no cross-branch bleed.
 [ ] A3: Decide explain-output contract (compute-only-on-explain vs always present). Implement in `src/retrieval/pipeline.js` and `src/retrieval/output/explain.js`.
 [ ] A3: Add snapshot tests for explain presence/absence by output mode (compact/full/json).
-[ ] A3: Verify explain boost attribution matches actual scoring (phrase/symbol boosts) and document if already-boosted score is used.
+[x] A3: Verify explain boost attribution matches actual scoring (phrase/symbol boosts) and document if already-boosted score is used.
 
 ## 13.B Query Parsing & Filtering
 [ ] B1: Implement full boolean parsing with AND/OR/NOT, precedence, and parentheses in `src/retrieval/query.js` + `src/retrieval/query-parse.js`.
 [ ] B1: Add actionable errors for malformed queries (unbalanced quotes, stray operators).
 [ ] B1: Add tests for negated phrases, nested quotes, malformed input, and operator tokens.
 [ ] B2: Ensure case-sensitive file filters remain strict after prefilter normalization. Files: `src/retrieval/output/filters.js`, `src/retrieval/filter-index.js`.
-[ ] B2: Document filter index memory footprint and add soft limits/metrics if needed.
+[x] B2: Document filter index memory footprint and add soft limits/metrics if needed.
 
 ## 13.C Ranking Determinism & Tie-Breaking
 [ ] C1: Validate embedding dims before dense ranking; skip dense scoring with warning or safe truncation. Files: `src/retrieval/rankers.js`, `src/retrieval/embedding.js`, `src/retrieval/sqlite-helpers.js`.
@@ -69,17 +69,17 @@ Complete Phase 13 by fixing retrieval correctness/performance gaps, hardening AP
 ## Tests to add/extend (Phase 13 checklist)
 [ ] `hasActiveFilters()` default object false; internal config keys ignored.
 [ ] sqlite-fts eligibility for large indexes with no filters.
-[ ] Extracted-prose query caching behavior (include payload fields) if applicable.
+[x] Extracted-prose query caching behavior (include payload fields) if applicable.
 [ ] SSE backpressure + disconnect test.
 [ ] API abort cancels search work.
 [ ] MCP id=0 support.
-[ ] `--write-baseline` creates directories and succeeds on clean checkout.
+[x] `--write-baseline` creates directories and succeeds on clean checkout.
 
 ## Documentation updates
 [ ] `docs/api-server.md` for stream behavior, CORS/security defaults, auth posture.
 [ ] `docs/contracts/api-mcp.md` for stream events and cancellation semantics.
-[ ] `docs/benchmarks.md` for dense/hybrid behavior and baseline creation.
-[ ] `docs/mcp-server.md` alignment with transport implementation.
+[x] `docs/benchmarks.md` for dense/hybrid behavior and baseline creation.
+[x] `docs/mcp-server.md` alignment with transport implementation.
 [ ] `docs/contracts/retrieval-ranking.md` (or equivalent) for context expansion semantics and explain contract.
 
 ## Validation

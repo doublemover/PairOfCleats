@@ -138,8 +138,11 @@ export async function buildIndex(args = {}, context = {}) {
  * @param {object} [args]
  * @returns {object}
  */
-export async function runSearch(args = {}) {
+export async function runSearch(args = {}, context = {}) {
   const repoPath = resolveRepoPath(args.repoPath);
+  if (context.signal?.aborted) {
+    throw new Error('Request cancelled.');
+  }
   const query = String(args.query || '').trim();
   if (!query) throw new Error('Query is required.');
 
@@ -272,7 +275,8 @@ export async function runSearch(args = {}) {
     emitOutput: false,
     exitOnError: false,
     indexCache: caches.indexCache,
-    sqliteCache: caches.sqliteCache
+    sqliteCache: caches.sqliteCache,
+    signal: context.signal
   });
 }
 
@@ -645,7 +649,7 @@ export async function handleToolCall(name, args, context = {}) {
     case 'build_index':
       return await buildIndex(args, context);
     case 'search':
-      return await runSearch(args);
+      return await runSearch(args, context);
     case 'download_models':
       return await downloadModels(args, context);
     case 'download_dictionaries':

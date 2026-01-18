@@ -14,6 +14,7 @@ Options:
 - `--backend`: `auto|memory|sqlite|sqlite-fts|lmdb`
 - `--top` (`-n`): top N results to evaluate (default: 10)
 - `--ann` / `--no-ann`: include dense ANN in the run
+- `--match-mode`: `substring` (default) or `exact`
 - `--out`: write JSON report to a file
 - `--pretty`: pretty-print JSON to stdout
 

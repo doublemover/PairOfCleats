@@ -73,6 +73,10 @@ if (missing.length) {
 
 const defaultQueriesPath = path.join(root, 'tests', 'parity-queries.txt');
 const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
+if (argv.queries && !fsSync.existsSync(queriesPath)) {
+  console.error(`Query file not found at ${queriesPath}`);
+  process.exit(1);
+}
 const fallbackQueries = [
   'index',
   'search',

@@ -78,7 +78,7 @@ export const createApiRouter = ({
   const allowedOrigins = Array.isArray(cors.allowedOrigins)
     ? cors.allowedOrigins.map((entry) => String(entry || '').trim()).filter(Boolean)
     : [];
-  const allowLocalOrigins = !allowAnyOrigin && allowedOrigins.length === 0;
+  const allowLocalOrigins = cors.allowLocalOrigin === true;
   const normalizedDefaultRepo = defaultRepo ? path.resolve(defaultRepo) : '';
   const resolvedRepoRoots = [
     normalizedDefaultRepo,
@@ -597,8 +597,14 @@ export const createApiRouter = ({
         );
         return;
       }
+      const controller = new AbortController();
+      const abortRequest = () => controller.abort();
+      req.on('aborted', abortRequest);
+      res.on('close', abortRequest);
+      res.on('error', abortRequest);
       await sse.sendHeaders();
       await sse.sendEvent('start', { ok: true });
+      await sse.sendEvent('progress', { ok: true, phase: 'search', message: 'Searching.' });
       const caches = getRepoCaches(repoPath);
       await refreshBuildPointer(caches);
       try {
@@ -608,13 +614,18 @@ export const createApiRouter = ({
           emitOutput: false,
           exitOnError: false,
           indexCache: caches.indexCache,
-          sqliteCache: caches.sqliteCache
+          sqliteCache: caches.sqliteCache,
+          signal: controller.signal
         });
         if (!sse.isClosed()) {
           await sse.sendEvent('result', { ok: true, repo: repoPath, result: body });
           await sse.sendEvent('done', { ok: true });
         }
       } catch (err) {
+        if (controller.signal.aborted || sse.isClosed()) {
+          sse.end();
+          return;
+        }
         const isNoIndex = isNoIndexError(err);
         await sse.sendEvent('error', {
           ok: false,
@@ -674,6 +685,11 @@ export const createApiRouter = ({
         return;
       }
       try {
+        const controller = new AbortController();
+        const abortRequest = () => controller.abort();
+        req.on('aborted', abortRequest);
+        res.on('close', abortRequest);
+        res.on('error', abortRequest);
         const caches = getRepoCaches(repoPath);
         await refreshBuildPointer(caches);
         const body = await search(repoPath, {
@@ -682,10 +698,12 @@ export const createApiRouter = ({
           emitOutput: false,
           exitOnError: false,
           indexCache: caches.indexCache,
-          sqliteCache: caches.sqliteCache
+          sqliteCache: caches.sqliteCache,
+          signal: controller.signal
         });
         sendJson(res, 200, { ok: true, repo: repoPath, result: body }, corsHeaders || {});
       } catch (err) {
+        if (req.aborted || res.writableEnded) return;
         if (isNoIndexError(err)) {
           sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
             error: err?.message || String(err)

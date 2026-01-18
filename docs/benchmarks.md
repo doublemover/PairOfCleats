@@ -23,18 +23,18 @@ index build plus three search modes.
 
 ### Components
 - Index build (no embeddings): `pairofcleats index build --stub-embeddings` (defaults to code, prose, and extracted-prose).
-- Search sparse-only: `--no-ann`.
-- Search dense-only: `--ann` plus blend weights that fully weight ANN.
-- Search hybrid: `--ann` plus balanced blend weights.
+- Search sparse-only: internal `scoreMode=sparse` (ANN disabled).
+- Search dense-only: internal `scoreMode=dense` (blend weights: sparse=0, ann=1).
+- Search hybrid: internal `scoreMode=hybrid` (blend weights: sparse=0.5, ann=0.5).
 
-Note: dense-only still performs sparse candidate generation; the blend weights
-zero out sparse contributions in scoring. The dense/hybrid presets use the
+Note: dense/hybrid still generate sparse candidates; the blend weights control scoring.
 
 ### Warm vs cold
 - Cold run: first execution after clearing in-process caches.
 - Warm runs: repeated executions in the same process (index cache reused).
 
 The suite reports the cold time and warm p50/p95/p99 stats.
+Results include `cache.sqliteEntries` to indicate SQLite cache reuse.
 
 ### Expected runtime
 With the default fixtures and stub embeddings, the microbench suite should finish
@@ -61,6 +61,8 @@ The runner stores baselines at `benchmarks/baselines/microbench.json` (override
 with `--baseline`). Use `--write-baseline` to capture a new baseline, and `--compare`
 to print deltas against the stored file. It reports p50/p95/p99 latencies for
 each component.
+
+Tinybench creates the baseline/output directory if it is missing.
 
 ## Language benchmarks
 

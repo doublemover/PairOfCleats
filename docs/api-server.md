@@ -99,6 +99,7 @@ matches `/search`.
 
 Events:
 - `start` `{ ok: true }`
+- `progress` `{ ok: true, phase, message }`
 - `result` `{ ok: true, repo, result }`
 - `error` `{ ok: false, code, message }`
 - `done` `{ ok }`
@@ -118,6 +119,6 @@ Notes:
 
 ## Security considerations
 - Auth is required by default; use `--allow-unauthenticated` only when you explicitly want to disable it.
-- CORS is disabled by default; enable with `--cors-allowed-origins` or opt-in to `--cors-allow-any` only if you understand the exposure.
+- CORS is disabled by default; enable with `--cors-allowed-origins` (include localhost explicitly) or opt-in to `--cors-allow-any` only if you understand the exposure.
 - `repoPath` overrides require an explicit allowlist; otherwise the server uses its configured repo only.
 - The server shells out to the CLI on each request. Ensure the repo is trusted.

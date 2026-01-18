@@ -3,6 +3,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { incCacheEvent } from '../../shared/metrics.js';
 import { MAX_JSON_BYTES, readJsonFile } from '../../shared/artifact-io.js';
+import { ERROR_CODES } from '../../shared/error-codes.js';
 import { createSearchPipeline } from '../pipeline.js';
 import { buildQueryCacheKey, getIndexSignature } from '../cli-index.js';
 import { getQueryEmbedding } from '../embedding.js';
@@ -70,6 +71,7 @@ export async function runSearchSession({
   getTokenIndexForQuery,
   rankSqliteFts,
   rankVectorAnnSqlite,
+  sqliteHasFts,
   idxProse,
   idxExtractedProse,
   idxCode,
@@ -89,8 +91,17 @@ export async function runSearchSession({
   queryCacheTtlMs,
   backendLabel,
   resolvedDenseVectorMode,
-  intentInfo
+  intentInfo,
+  signal
 }) {
+  const throwIfAborted = () => {
+    if (!signal?.aborted) return;
+    const error = new Error('Search cancelled.');
+    error.code = ERROR_CODES.CANCELLED;
+    error.cancelled = true;
+    throw error;
+  };
+  throwIfAborted();
   const searchPipeline = createSearchPipeline({
     useSqlite,
     sqliteFtsRequested,
@@ -126,8 +137,11 @@ export async function runSearchSession({
     buildCandidateSetSqlite,
     getTokenIndexForQuery,
     rankSqliteFts,
-    rankVectorAnnSqlite
+    rankVectorAnnSqlite,
+    sqliteHasFts,
+    signal
   });
+  throwIfAborted();
 
   let cacheHit = false;
   let cacheKey = null;
@@ -209,6 +223,7 @@ export async function runSearchSession({
   if (queryCacheEnabled) {
     incCacheEvent({ cache: 'query', result: cacheHit ? 'hit' : 'miss' });
   }
+  throwIfAborted();
 
   const hasAnn = (mode, idx) => Boolean(
     idx?.denseVec?.vectors?.length
@@ -230,6 +245,7 @@ export async function runSearchSession({
   );
   const embeddingCache = new Map();
   const getEmbeddingForModel = async (modelId, dims) => {
+    throwIfAborted();
     if (!modelId) return null;
     const cacheKeyLocal = useStubEmbeddings ? `${modelId}:${dims || 'default'}` : modelId;
     if (embeddingCache.has(cacheKeyLocal)) {
@@ -262,6 +278,7 @@ export async function runSearchSession({
   const queryEmbeddingRecords = needsEmbedding && runRecords && hasAnn('records', idxRecords)
     ? await getEmbeddingForModel(modelIds.records, resolveEmbeddingDims('records', idxRecords))
     : null;
+  throwIfAborted();
 
   const cachedHits = cacheHit && cachedPayload
     ? {
@@ -284,8 +301,10 @@ export async function runSearchSession({
     queryEmbeddingProse,
     queryEmbeddingExtractedProse,
     queryEmbeddingCode,
-    queryEmbeddingRecords
+    queryEmbeddingRecords,
+    signal
   });
+  throwIfAborted();
 
   const joinComments = commentsEnabled && runCode && extractedProseLoaded;
   const commentLookup = (() => {
@@ -455,6 +474,7 @@ export async function runSearchSession({
     : { hits: recordHits, contextHits: [] };
 
   attachCommentExcerpts(codeExpanded.hits);
+  throwIfAborted();
 
   const hnswActive = Object.values(hnswAnnUsed).some(Boolean);
   const lanceActive = Object.values(lanceAnnUsed).some(Boolean);

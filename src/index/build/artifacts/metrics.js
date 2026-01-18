@@ -21,6 +21,7 @@ export const writeIndexMetrics = async ({
   timing,
   perfProfile,
   indexState,
+  filterIndexStats,
   resolvedTokenMode,
   tokenSampleSize,
   tokenMaxFiles,
@@ -102,6 +103,7 @@ export const writeIndexMetrics = async ({
         sampleSize: tokenSampleSize,
         maxFiles: tokenMaxFiles
       },
+      filterIndex: filterIndexStats || null,
       formats: {
         chunkMeta: chunkMetaUseShards ? 'jsonl-sharded' : (chunkMetaUseJsonl ? 'jsonl' : 'json'),
         tokenPostings: tokenPostingsUseShards ? 'sharded' : 'json'

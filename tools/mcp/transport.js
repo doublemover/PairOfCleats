@@ -88,6 +88,7 @@ function sendProgress(id, tool, payload) {
 export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resolveToolTimeoutMs, queueMax, maxBufferBytes }) => {
   let processing = false;
   const queue = [];
+  const inFlight = new Map();
 
   /**
    * Handle a JSON-RPC message from stdin.
@@ -129,26 +130,56 @@ export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resol
       return;
     }
 
+    if (method === '$/cancelRequest') {
+      const cancelId = params?.id;
+      if (cancelId === null || cancelId === undefined) return;
+      const entry = inFlight.get(cancelId);
+      if (entry) {
+        entry.cancelled = true;
+        entry.controller.abort();
+      }
+      return;
+    }
+
     if (method === 'tools/call') {
-      if (!id) return;
+      if (id === null || id === undefined) return;
       const name = params?.name;
       const args = params?.arguments || {};
       const timeoutMs = resolveToolTimeoutMs(name, args);
       try {
+        const controller = new AbortController();
+        const entry = { controller, cancelled: false };
+        inFlight.set(id, entry);
         let timedOut = false;
         const progress = (payload) => {
           if (timedOut) return;
           sendProgress(id, name, payload);
         };
         const result = await withTimeout(
-          handleToolCall(name, args, { progress, toolCallId: id }),
+          handleToolCall(name, args, { progress, toolCallId: id, signal: controller.signal }),
           timeoutMs,
-          { label: name, onTimeout: () => { timedOut = true; } }
+          {
+            label: name,
+            onTimeout: () => {
+              timedOut = true;
+              entry.cancelled = true;
+              controller.abort();
+            }
+          }
         );
+        if (entry.cancelled) return;
         sendResult(id, {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
         });
       } catch (error) {
+        const entry = inFlight.get(id);
+        if (entry?.cancelled && error?.code !== ERROR_CODES.TOOL_TIMEOUT) {
+          sendResult(id, {
+            content: [{ type: 'text', text: JSON.stringify({ code: ERROR_CODES.CANCELLED, message: 'Request cancelled.' }, null, 2) }],
+            isError: true
+          });
+          return;
+        }
         const payload = formatToolError(error);
         if (error?.code === 'TOOL_TIMEOUT' && timeoutMs) {
           payload.timeoutMs = timeoutMs;
@@ -157,11 +188,13 @@ export const createMcpTransport = ({ toolDefs, serverInfo, handleToolCall, resol
           content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
           isError: true
         });
+      } finally {
+        inFlight.delete(id);
       }
       return;
     }
 
-    if (id) {
+    if (id !== null && id !== undefined) {
       sendError(id, -32601, `Method not found: ${method}`);
     }
   }

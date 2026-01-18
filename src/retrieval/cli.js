@@ -64,6 +64,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const exitOnError = options.exitOnError !== false;
   const indexCache = options.indexCache || null;
   const sqliteCache = options.sqliteCache || null;
+  const signal = options.signal || null;
+  const scoreModeOverride = options.scoreMode ?? null;
   const t0 = Date.now();
 
   const inferJsonOutputFromArgs = () => {
@@ -129,8 +131,15 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     error.emitted = true;
     throw error;
   };
+  const throwIfAborted = () => {
+    if (!signal?.aborted) return;
+    const error = createError(ERROR_CODES.CANCELLED, 'Search cancelled.');
+    error.cancelled = true;
+    throw error;
+  };
 
   try {
+    throwIfAborted();
     const missingValueMessages = getMissingFlagMessages(argv, rawArgs);
     if (missingValueMessages.length) {
       return bail(missingValueMessages.join('\n'), 1, ERROR_CODES.INVALID_REQUEST);
@@ -151,10 +160,19 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     } catch (err) {
       return bail(err.message, 1, ERROR_CODES.INVALID_REQUEST);
     }
+    throwIfAborted();
 
     if (normalized.missingValueMessages.length) {
       return bail(normalized.missingValueMessages.join('\n'), 1, ERROR_CODES.INVALID_REQUEST);
     }
+
+    const resolveScoreModeOverride = (value) => {
+      if (value == null) return null;
+      const mode = String(value).trim();
+      if (!mode) return null;
+      if (mode === 'sparse' || mode === 'dense' || mode === 'hybrid') return mode;
+      throw new Error(`Invalid score mode "${mode}". Use sparse|dense|hybrid.`);
+    };
 
     const {
       query,
@@ -195,10 +213,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       branchFilter,
       extFilter,
       metaFilters,
-      annEnabled,
-      scoreBlendEnabled,
-      scoreBlendSparseWeight,
-      scoreBlendAnnWeight,
+      annEnabled: annEnabledRaw,
+      scoreBlendEnabled: scoreBlendEnabledRaw,
+      scoreBlendSparseWeight: scoreBlendSparseWeightRaw,
+      scoreBlendAnnWeight: scoreBlendAnnWeightRaw,
       symbolBoostEnabled,
       symbolBoostDefinitionWeight,
       symbolBoostExportWeight,
@@ -206,7 +224,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       queryCacheEnabled,
       queryCacheMaxEntries,
       queryCacheTtlMs,
-      rrfEnabled,
+      rrfEnabled: rrfEnabledRaw,
       rrfK,
       contextExpansionEnabled,
       contextExpansionOptions,
@@ -222,6 +240,20 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       tantivyConfig,
       sparseBackend
     } = normalized;
+    const scoreMode = resolveScoreModeOverride(scoreModeOverride);
+    const annEnabled = scoreMode ? scoreMode !== 'sparse' : annEnabledRaw;
+    const scoreBlendEnabled = scoreMode ? scoreMode !== 'sparse' : scoreBlendEnabledRaw;
+    const scoreBlendSparseWeight = scoreMode === 'dense'
+      ? 0
+      : scoreMode === 'hybrid'
+        ? 0.5
+        : scoreBlendSparseWeightRaw;
+    const scoreBlendAnnWeight = scoreMode === 'dense'
+      ? 1
+      : scoreMode === 'hybrid'
+        ? 0.5
+        : scoreBlendAnnWeightRaw;
+    const rrfEnabled = scoreMode ? false : rrfEnabledRaw;
 
     if (!query) {
       return bail(getSearchUsage(), 1, ERROR_CODES.INVALID_REQUEST);
@@ -336,6 +368,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         }
       }
     }
+    const sqliteFtsEnabled = sqliteFtsRequested || (autoBackendRequested && useSqliteSelection);
 
     const backendContext = await createBackendContext({
       backendPolicy,
@@ -413,6 +446,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       })
     );
     const { dict } = await loadDictionary(rootDir, dictConfig);
+    throwIfAborted();
 
     const queryPlan = buildQueryPlan({
       query,
@@ -487,7 +521,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       annActive,
       filtersActive: queryPlan.filtersActive,
       contextExpansionEnabled,
-      sqliteFtsRequested,
+      sqliteFtsRequested: sqliteFtsEnabled,
       backendLabel,
       backendForcedTantivy,
       indexCache,
@@ -501,6 +535,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
       loadExtractedProse: joinComments
     });
+    throwIfAborted();
 
     const modelIds = {
       code: modelIdForCode,
@@ -536,7 +571,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       hnswAnnUsed,
       lanceAnnState,
       lanceAnnUsed,
-      sqliteFtsRequested,
+      sqliteFtsRequested: sqliteFtsEnabled,
       sqliteFtsNormalize,
       sqliteFtsProfile,
       sqliteFtsWeights,
@@ -573,6 +608,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       getTokenIndexForQuery,
       rankSqliteFts,
       rankVectorAnnSqlite,
+      sqliteHasFts: sqliteHelpers?.hasFtsTable,
       idxProse,
       idxExtractedProse,
       idxCode,
@@ -592,7 +628,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       queryCacheTtlMs,
       backendLabel,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
-      intentInfo: queryPlan.intentInfo
+      intentInfo: queryPlan.intentInfo,
+      signal
     });
 
     const elapsedMs = Date.now() - t0;

@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { build as buildHistogram } from 'hdr-histogram-js';
 
 const buildLatencyHistogram = (values) => {
@@ -44,4 +46,10 @@ export function formatStats(stats) {
 
 export function hrtimeMs(start) {
   return Number(process.hrtime.bigint() - start) / 1e6;
+}
+
+export function writeJsonWithDir(filePath, payload) {
+  if (!filePath) return;
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`);
 }

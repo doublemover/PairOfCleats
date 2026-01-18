@@ -800,7 +800,9 @@ export async function search(repoRoot, params = {}) {
     emitOutput: params.emitOutput === true,
     exitOnError: params.exitOnError === true,
     indexCache: params.indexCache,
-    sqliteCache: params.sqliteCache
+    sqliteCache: params.sqliteCache,
+    signal: params.signal,
+    scoreMode: params.scoreMode ?? null
   });
 }
 

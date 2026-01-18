@@ -43,6 +43,20 @@ const runSearch = (args, label) => {
   return stripAnsi(`${result.stdout || ''}${result.stderr || ''}`);
 };
 
+const runSearchJson = (args, label) => {
+  const result = spawnSync(
+    process.execPath,
+    [path.join(root, 'search.js'), 'return', '--mode', 'code', '--no-ann', '--repo', fixtureRoot, '--json', ...args],
+    { env, encoding: 'utf8' }
+  );
+  if (result.status !== 0) {
+    console.error(`Failed: ${label}`);
+    if (result.stderr) console.error(result.stderr.trim());
+    process.exit(result.status ?? 1);
+  }
+  return JSON.parse(result.stdout || '{}');
+};
+
 const explainOutput = runSearch(['--explain'], 'explain');
 if (!explainOutput.includes('Score:')) {
   console.error('Explain output missing Score breakdown.');
@@ -56,6 +70,14 @@ if (!explainOutput.includes('Sparse:')) {
 const whyOutput = runSearch(['--why'], 'why');
 if (!whyOutput.includes('Score:')) {
   console.error('Why output missing Score breakdown.');
+  process.exit(1);
+}
+
+const jsonOutput = runSearchJson([], 'json');
+const jsonHits = Array.isArray(jsonOutput.code) ? jsonOutput.code : [];
+const hasExplain = jsonHits.some((hit) => hit && Object.prototype.hasOwnProperty.call(hit, 'scoreBreakdown'));
+if (hasExplain) {
+  console.error('Expected JSON output to omit scoreBreakdown when not requested.');
   process.exit(1);
 }
 

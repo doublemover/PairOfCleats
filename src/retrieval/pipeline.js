@@ -10,6 +10,7 @@ import { createLanceDbAnnProvider } from './ann/providers/lancedb.js';
 import { createSqliteVectorAnnProvider } from './ann/providers/sqlite-vec.js';
 import { ANN_PROVIDER_IDS } from './ann/types.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
+import { createError, ERROR_CODES } from '../shared/error-codes.js';
 
 const SQLITE_IN_LIMIT = 900;
 
@@ -54,6 +55,8 @@ export function createSearchPipeline(context) {
     getTokenIndexForQuery,
     rankSqliteFts,
     rankVectorAnnSqlite,
+    sqliteHasFts,
+    signal,
     rrf
   } = context;
   const blendEnabled = scoreBlend?.enabled === true;
@@ -333,6 +336,11 @@ export function createSearchPipeline(context) {
     * @returns {Promise<Array<object>>}
     */
   return async function runSearch(idx, mode, queryEmbedding) {
+    if (signal?.aborted) {
+      const error = createError(ERROR_CODES.CANCELLED, 'Search cancelled.');
+      error.cancelled = true;
+      throw error;
+    }
     const meta = idx.chunkMeta;
     const sqliteEnabledForMode = useSqlite && (mode === 'code' || mode === 'prose');
     const filtersEnabled = typeof filtersActive === 'boolean'
@@ -343,6 +351,11 @@ export function createSearchPipeline(context) {
     const filteredMeta = filtersEnabled
       ? filterChunks(meta, filters, idx.filterIndex, idx.fileRelations)
       : meta;
+    if (signal?.aborted) {
+      const error = createError(ERROR_CODES.CANCELLED, 'Search cancelled.');
+      error.cancelled = true;
+      throw error;
+    }
     const allowedIdx = filtersEnabled ? new Set(filteredMeta.map((c) => c.id)) : null;
     if (filtersEnabled && (!allowedIdx || allowedIdx.size === 0)) {
       return [];
@@ -370,6 +383,7 @@ export function createSearchPipeline(context) {
     const sqliteFtsCanPushdown = !!(sqliteFtsAllowed && sqliteFtsAllowed.size <= SQLITE_IN_LIMIT);
     const sqliteFtsEligible = sqliteEnabledForMode
       && sqliteFtsRequested
+      && (typeof sqliteHasFts !== 'function' || sqliteHasFts(mode))
       && (!filtersEnabled || sqliteFtsCanPushdown);
     const wantsTantivy = normalizedSparseBackend === 'tantivy';
     if (wantsTantivy) {
@@ -480,6 +494,11 @@ export function createSearchPipeline(context) {
       annHits.forEach((h) => idsToLoad.add(h.idx));
       const missing = Array.from(idsToLoad).filter((id) => !meta[id]);
       if (missing.length) idx.loadChunkMetaByIds(mode, missing, meta);
+    }
+    if (signal?.aborted) {
+      const error = createError(ERROR_CODES.CANCELLED, 'Search cancelled.');
+      error.cancelled = true;
+      throw error;
     }
 
     // Combine and dedup

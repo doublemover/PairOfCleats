@@ -32,6 +32,16 @@ try {
     throw new Error('api-server should reject disallowed CORS origins');
   }
 
+  const preflightBlocked = await requestJson('OPTIONS', '/health', null, serverInfo, {
+    headers: {
+      Origin: 'https://example.com',
+      'Access-Control-Request-Method': 'GET'
+    }
+  });
+  if (preflightBlocked.status !== 403 || preflightBlocked.body?.code !== 'FORBIDDEN') {
+    throw new Error('api-server should reject disallowed CORS preflight');
+  }
+
   const health = await requestJson('GET', '/health', null, serverInfo);
   if (!health.body?.ok || typeof health.body.uptimeMs !== 'number') {
     throw new Error('api-server /health response invalid');

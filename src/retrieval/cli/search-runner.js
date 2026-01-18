@@ -1,3 +1,5 @@
+import { ERROR_CODES } from '../../shared/error-codes.js';
+
 export async function runSearchByMode({
   searchPipeline,
   runProse,
@@ -11,8 +13,17 @@ export async function runSearchByMode({
   queryEmbeddingProse,
   queryEmbeddingExtractedProse,
   queryEmbeddingCode,
-  queryEmbeddingRecords
+  queryEmbeddingRecords,
+  signal
 }) {
+  const throwIfAborted = () => {
+    if (!signal?.aborted) return;
+    const error = new Error('Search cancelled.');
+    error.code = ERROR_CODES.CANCELLED;
+    error.cancelled = true;
+    throw error;
+  };
+  throwIfAborted();
   const prosePromise = runProse
     ? searchPipeline(idxProse, 'prose', queryEmbeddingProse)
     : Promise.resolve([]);
@@ -31,5 +42,6 @@ export async function runSearchByMode({
     codePromise,
     recordsPromise
   ]);
+  throwIfAborted();
   return { proseHits, extractedProseHits, codeHits, recordHits };
 }

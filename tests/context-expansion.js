@@ -34,4 +34,25 @@ if (!ids.has(1) || !ids.has(2)) {
   process.exit(1);
 }
 
+const filteredHits = expandContext({
+  hits,
+  chunkMeta,
+  fileRelations,
+  repoMap: null,
+  contextIndex,
+  allowedIds: new Set([2]),
+  options: {
+    maxPerHit: 5,
+    maxTotal: 10,
+    includeCalls: true,
+    includeImports: true,
+    includeUsages: true
+  }
+});
+const filteredIds = new Set(filteredHits.map((hit) => hit.id));
+if (filteredIds.size !== 1 || !filteredIds.has(2)) {
+  console.error('Expected context expansion to honor allowedIds.');
+  process.exit(1);
+}
+
 console.log('context expansion test passed');

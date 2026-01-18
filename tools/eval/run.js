@@ -5,6 +5,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { createDisplay } from '../../src/shared/cli/display.js';
 import { search as coreSearch } from '../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
+import { matchExpected, resolveMatchMode } from './match.js';
 
 const argv = createCli({
   scriptName: 'eval-run',
@@ -16,6 +17,7 @@ const argv = createCli({
     ann: { type: 'boolean' },
     out: { type: 'string' },
     pretty: { type: 'boolean', default: false },
+    'match-mode': { type: 'string' },
     progress: { type: 'string', default: 'auto' },
     verbose: { type: 'boolean', default: false },
     quiet: { type: 'boolean', default: false }
@@ -45,6 +47,13 @@ const backend = argv.backend ? String(argv.backend) : 'auto';
 const topN = Math.max(1, parseInt(argv.top, 10) || 10);
 const annFlag = typeof argv.ann === 'boolean' ? argv.ann : null;
 const ks = [1, 3, 5, 10].filter((k) => k <= Math.max(10, topN));
+const matchMode = (() => {
+  try {
+    return resolveMatchMode(argv['match-mode']);
+  } catch (err) {
+    fail(err?.message || 'Invalid match mode.', 2);
+  }
+})();
 
 const loadDataset = () => {
   const raw = fs.readFileSync(datasetPath, 'utf8');
@@ -53,20 +62,7 @@ const loadDataset = () => {
   return data;
 };
 
-const matchExpected = (hit, expected) => {
-  if (!hit) return false;
-  if (expected.file && hit.file !== expected.file) return false;
-  if (expected.name) {
-    const hitName = hit.name ? String(hit.name).toLowerCase() : '';
-    if (!hitName.includes(String(expected.name).toLowerCase())) return false;
-  }
-  if (expected.kind) {
-    if (!hit.kind || String(hit.kind).toLowerCase() !== String(expected.kind).toLowerCase()) {
-      return false;
-    }
-  }
-  return true;
-};
+const isMatch = (hit, expected) => matchExpected(hit, expected, matchMode);
 
 const computeRecallAtK = (ranks, totalRelevant, k) => {
   if (!totalRelevant) return 0;
@@ -139,8 +135,8 @@ for (const entry of cases) {
   const goldRanks = [];
   hits.forEach((hit, index) => {
     const rank = index + 1;
-    if (silver.some((exp) => matchExpected(hit, exp))) ranks.push(rank);
-    if (gold.some((exp) => matchExpected(hit, exp))) goldRanks.push(rank);
+    if (silver.some((exp) => isMatch(hit, exp))) ranks.push(rank);
+    if (gold.some((exp) => isMatch(hit, exp))) goldRanks.push(rank);
   });
 
   const metrics = {

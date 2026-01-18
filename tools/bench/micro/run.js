@@ -3,8 +3,9 @@ import path from 'node:path';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import { buildIndex } from '../../../src/integrations/core/index.js';
+import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
 import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../dict-utils.js';
-import { formatMs, formatStats } from './utils.js';
+import { formatMs, formatStats, writeJsonWithDir } from './utils.js';
 import { runIndexBuildBenchmark } from './index-build.js';
 import { runSearchBenchmark } from './search.js';
 
@@ -122,7 +123,7 @@ if (components.includes('index-build')) {
 }
 
 const indexCache = new Map();
-const sqliteCache = null;
+const sqliteCache = createSqliteDbCache();
 
 if (components.includes('sparse')) {
   log('\n[search-sparse]');
@@ -132,6 +133,7 @@ if (components.includes('sparse')) {
     mode,
     backend: argv.backend,
     ann: false,
+    scoreMode: 'sparse',
     warmRuns,
     warmupRuns,
     indexCache,
@@ -152,6 +154,7 @@ if (components.includes('dense')) {
     mode,
     backend: argv.backend,
     ann: true,
+    scoreMode: 'dense',
     warmRuns,
     warmupRuns,
     indexCache,
@@ -172,6 +175,7 @@ if (components.includes('hybrid')) {
     mode,
     backend: argv.backend,
     ann: true,
+    scoreMode: 'hybrid',
     warmRuns,
     warmupRuns,
     indexCache,
@@ -184,9 +188,13 @@ if (components.includes('hybrid')) {
   }
 }
 
+results.cache = {
+  sqliteEntries: sqliteCache.size()
+};
+
 if (argv.out) {
   const outPath = path.resolve(argv.out);
-  fs.writeFileSync(outPath, `${JSON.stringify(results, null, 2)}\n`);
+  writeJsonWithDir(outPath, results);
   log(`\nSaved results to ${outPath}`);
 }
 

@@ -39,6 +39,23 @@ export function createSqliteHelpers(options) {
     docLengths: new Map()
   };
   const statementCache = new WeakMap();
+  const ftsAvailability = new WeakMap();
+
+  const hasFtsTable = (mode) => {
+    const db = getDb(mode);
+    if (!db) return false;
+    const cached = ftsAvailability.get(db);
+    if (cached) return cached.available;
+    let available = false;
+    try {
+      const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='chunks_fts'").get();
+      available = Boolean(row?.name);
+    } catch {
+      available = false;
+    }
+    ftsAvailability.set(db, { available });
+    return available;
+  };
 
   const getCachedStatement = (db, key, sql) => {
     let dbCache = statementCache.get(db);
@@ -518,6 +535,7 @@ export function createSqliteHelpers(options) {
 
   return {
     loadIndexFromSqlite,
+    hasFtsTable,
     getTokenIndexForQuery,
     buildCandidateSetSqlite,
     rankSqliteFts,

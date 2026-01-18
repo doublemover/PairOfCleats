@@ -94,7 +94,45 @@ export async function writeIndexArtifacts(input) {
     const gb = mb / 1024;
     return `${gb.toFixed(1)}GB`;
   };
+  const summarizeFilterIndex = (value) => {
+    if (!value || typeof value !== 'object') return null;
+    const countMap = (map) => {
+      if (!map || typeof map !== 'object') return { keys: 0, entries: 0 };
+      let keys = 0;
+      let entries = 0;
+      for (const list of Object.values(map)) {
+        keys += 1;
+        if (Array.isArray(list)) entries += list.length;
+      }
+      return { keys, entries };
+    };
+    const fileById = Array.isArray(value.fileById) ? value.fileById : [];
+    const fileChunksById = Array.isArray(value.fileChunksById) ? value.fileChunksById : [];
+    const fileChunkRefs = fileChunksById.reduce(
+      (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
+      0
+    );
+    let jsonBytes = null;
+    try {
+      jsonBytes = Buffer.byteLength(JSON.stringify(value), 'utf8');
+    } catch {}
+    return {
+      fileChargramN: Number.isFinite(Number(value.fileChargramN)) ? Number(value.fileChargramN) : null,
+      fileCount: fileById.length,
+      fileChunkRefs,
+      byExt: countMap(value.byExt),
+      byKind: countMap(value.byKind),
+      byAuthor: countMap(value.byAuthor),
+      byChunkAuthor: countMap(value.byChunkAuthor),
+      byVisibility: countMap(value.byVisibility),
+      fileChargrams: countMap(value.fileChargrams),
+      jsonBytes
+    };
+  };
 
+  const maxJsonBytes = MAX_JSON_BYTES;
+  const maxJsonBytesSoft = maxJsonBytes * 0.9;
+  const shardTargetBytes = maxJsonBytes * 0.75;
   const { fileMeta, fileIdByPath } = buildFileMeta(state);
   const repoMapIterator = createRepoMapIterator({
     chunks: state.chunks,
@@ -210,10 +248,14 @@ export async function writeIndexArtifacts(input) {
     resolvedConfig,
     userConfig
   });
+  const filterIndexStats = summarizeFilterIndex(filterIndex);
+  if (filterIndexStats?.jsonBytes && filterIndexStats.jsonBytes > maxJsonBytesSoft) {
+    log(
+      `filter_index ~${formatBytes(filterIndexStats.jsonBytes)}; ` +
+      'large filter indexes increase memory usage (consider sqlite for large repos).'
+    );
+  }
   const denseScale = 2 / 255;
-  const maxJsonBytes = MAX_JSON_BYTES;
-  const maxJsonBytesSoft = maxJsonBytes * 0.9;
-  const shardTargetBytes = maxJsonBytes * 0.75;
   const chunkMetaIterator = createChunkMetaIterator({
     chunks: state.chunks,
     fileIdByPath,
@@ -725,6 +767,7 @@ export async function writeIndexArtifacts(input) {
     timing,
     perfProfile,
     indexState,
+    filterIndexStats,
     resolvedTokenMode,
     tokenSampleSize,
     tokenMaxFiles,
