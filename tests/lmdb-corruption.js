@@ -96,5 +96,9 @@ if (!issues.some((issue) => issue.includes('lmdb/code'))) {
   console.error('Expected LMDB corruption issues for code db.');
   process.exit(1);
 }
+if (!issues.some((issue) => issue.includes('schema mismatch'))) {
+  console.error('Expected LMDB schema mismatch issue after tampering.');
+  process.exit(1);
+}
 
 console.log('lmdb corruption test passed');

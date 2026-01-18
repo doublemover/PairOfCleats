@@ -37,6 +37,43 @@ export function buildContextIndex({ chunkMeta, repoMap }) {
   return { byName, byFile, repoMapByName, chunkMeta, repoMap };
 }
 
+const serializeMap = (map) => {
+  if (!map || typeof map.entries !== 'function') return {};
+  const out = {};
+  for (const [key, value] of map.entries()) {
+    out[key] = Array.isArray(value) ? value : Array.from(value || []);
+  }
+  return out;
+};
+
+const hydrateMap = (raw) => {
+  const map = new Map();
+  if (!raw || typeof raw !== 'object') return map;
+  for (const [key, value] of Object.entries(raw)) {
+    map.set(key, Array.isArray(value) ? value : []);
+  }
+  return map;
+};
+
+export function serializeContextIndex(contextIndex) {
+  if (!contextIndex) return null;
+  return {
+    version: 1,
+    byName: serializeMap(contextIndex.byName),
+    byFile: serializeMap(contextIndex.byFile),
+    repoMapByName: serializeMap(contextIndex.repoMapByName)
+  };
+}
+
+export function hydrateContextIndex(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    byName: hydrateMap(raw.byName),
+    byFile: hydrateMap(raw.byFile),
+    repoMapByName: hydrateMap(raw.repoMapByName)
+  };
+}
+
 export function expandContext({
   hits,
   chunkMeta,

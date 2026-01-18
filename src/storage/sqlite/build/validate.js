@@ -1,3 +1,4 @@
+import fsSync from 'node:fs';
 import { REQUIRED_TABLES } from '../schema.js';
 import { hasRequiredTables } from '../utils.js';
 
@@ -28,7 +29,22 @@ export function validateSqliteDatabase(db, mode, options = {}) {
     errors.push('missing required tables');
   }
 
-  const pragmaName = validateMode === 'full' ? 'integrity_check' : 'quick_check';
+  const resolveMode = () => {
+    if (validateMode !== 'auto') return validateMode;
+    const limit = Number.isFinite(options.fullIntegrityCheckMaxBytes)
+      ? options.fullIntegrityCheckMaxBytes
+      : 512 * 1024 * 1024;
+    if (!options.dbPath) return 'smoke';
+    try {
+      const stat = fsSync.statSync(options.dbPath);
+      if (Number.isFinite(stat.size) && stat.size > limit) return 'smoke';
+    } catch {
+      return 'smoke';
+    }
+    return 'full';
+  };
+  const resolvedMode = resolveMode();
+  const pragmaName = resolvedMode === 'full' ? 'integrity_check' : 'quick_check';
   try {
     const rows = db.prepare(`PRAGMA ${pragmaName}`).all();
     const messages = [];
@@ -65,11 +81,29 @@ export function validateSqliteDatabase(db, mode, options = {}) {
   }
 
   const expectedDense = Number.isFinite(expected.dense) ? expected.dense : null;
-  if (expectedDense !== null) {
-    const denseCount = db.prepare('SELECT COUNT(*) AS total FROM dense_vectors WHERE mode = ?')
+  const annTable = options.vectorAnnTable || 'dense_vectors_ann';
+  const annExists = (() => {
+    try {
+      const row = db.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name = ?"
+      ).get(annTable);
+      return !!row;
+    } catch {
+      return false;
+    }
+  })();
+  let denseCount = null;
+  if (expectedDense !== null || annExists) {
+    denseCount = db.prepare('SELECT COUNT(*) AS total FROM dense_vectors WHERE mode = ?')
       .get(mode)?.total ?? 0;
-    if (denseCount !== expectedDense) {
+    if (expectedDense !== null && denseCount !== expectedDense) {
       errors.push(`dense_vectors=${denseCount} expected=${expectedDense}`);
+    }
+  }
+  if (annExists && denseCount !== null) {
+    const annCount = db.prepare(`SELECT COUNT(*) AS total FROM ${annTable}`).get()?.total ?? 0;
+    if (annCount !== denseCount) {
+      errors.push(`${annTable}=${annCount} expected=${denseCount}`);
     }
   }
 
@@ -84,7 +118,7 @@ export function validateSqliteDatabase(db, mode, options = {}) {
   }
 
   if (errors.length) {
-    throw new Error(`[sqlite] Validation (${validateMode}) failed for ${mode}: ${errors.join(', ')}`);
+    throw new Error(`[sqlite] Validation (${resolvedMode}) failed for ${mode}: ${errors.join(', ')}`);
   }
-  emit(`[sqlite] Validation (${validateMode}) ok for ${mode}.`);
+  emit(`[sqlite] Validation (${resolvedMode}) ok for ${mode}.`);
 }

@@ -29,4 +29,15 @@ assert.equal(matchByHash, true, 'expected hash match to win');
 const matchByMeta = isManifestMatch({ mtimeMs: 5, size: 50 }, { mtimeMs: 5, size: 50 });
 assert.equal(matchByMeta, true, 'expected mtime+size match');
 
+const hashUpgradeEntry = { hash: 'newhash', mtimeMs: 5, size: 50 };
+const dbMissingHash = { mtimeMs: 5, size: 50 };
+const strictMatch = isManifestMatch(hashUpgradeEntry, dbMissingHash, { strictHash: true });
+assert.equal(strictMatch, false, 'expected strict hash mismatch when db hash missing');
+
+const manifestUpgrade = [{ file: 'src/upgrade.js', normalized: 'src/upgrade.js', entry: hashUpgradeEntry }];
+const dbUpgrade = new Map([['src/upgrade.js', dbMissingHash]]);
+const diffUpgrade = diffFileManifests(manifestUpgrade, dbUpgrade);
+assert.equal(diffUpgrade.changed.length, 0, 'expected hash-only upgrade to avoid full rebuild');
+assert.equal(diffUpgrade.manifestUpdates.length, 1, 'expected manifest update to fill missing hash');
+
 console.log('sqlite build manifest test passed');

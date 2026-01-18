@@ -2,6 +2,7 @@ import { hasActiveFilters } from '../filters.js';
 import { buildHighlightRegex } from './highlight.js';
 import {
   buildPhraseNgrams,
+  annotateQueryAst,
   parseQueryInput,
   tokenizePhrase,
   tokenizeQueryTerms
@@ -42,6 +43,7 @@ export function buildQueryPlan({
   branchFilter
 }) {
   const parsedQuery = parseQueryInput(query);
+  const queryAst = annotateQueryAst(parsedQuery.ast, dict, { ...dictConfig, caseSensitive: caseTokens }, postingsConfig);
   const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict, { ...dictConfig, caseSensitive: caseTokens });
   const phraseTokens = parsedQuery.phrases
     .map((phrase) => tokenizePhrase(phrase, dict, { ...dictConfig, caseSensitive: caseTokens }))
@@ -174,6 +176,7 @@ export function buildQueryPlan({
 
   return {
     parsedQuery,
+    queryAst,
     includeTokens,
     phraseTokens,
     phraseNgrams,

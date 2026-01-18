@@ -414,7 +414,9 @@ export function getTreeSitterParser(languageId, options = {}) {
   const entry = treeSitterState.languageCache.get(resolvedId) || null;
   const language = entry?.language || null;
   if (!language) {
-    if (!treeSitterState.loggedMissing.has(resolvedId)) {
+    const suppressMissingLog = options?.suppressMissingLog === true
+      || options?.treeSitter?.deferMissing === true;
+    if (!suppressMissingLog && !treeSitterState.loggedMissing.has(resolvedId)) {
       const reason = entry?.error?.message || 'WASM grammar not loaded';
       if (options?.log) {
         options.log(`[tree-sitter] Missing WASM grammar for ${resolvedId} (${reason}).`);
@@ -474,7 +476,9 @@ export function getTreeSitterParser(languageId, options = {}) {
     treeSitterState.sharedParser = null;
     treeSitterState.sharedParserLanguageId = null;
 
-    if (!treeSitterState.loggedMissing.has(resolvedId)) {
+    const suppressMissingLog = options?.suppressMissingLog === true
+      || options?.treeSitter?.deferMissing === true;
+    if (!suppressMissingLog && !treeSitterState.loggedMissing.has(resolvedId)) {
       const message = err?.message || String(err);
       const log = options?.log || console.warn;
       log(`[tree-sitter] Failed to activate ${resolvedId} WASM grammar: ${message}.`);

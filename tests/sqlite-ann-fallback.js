@@ -2,6 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { loadUserConfig, getIndexDir } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-ann-fallback');
@@ -69,6 +70,18 @@ if (payload?.stats?.annBackend === 'sqlite-extension') {
 if (payload?.stats?.annExtension?.available?.code) {
   console.error('sqlite ann fallback test failed: ann extension should be unavailable');
   process.exit(1);
+}
+
+const userConfig = loadUserConfig(repoRoot);
+const indexDir = getIndexDir(repoRoot, 'code', userConfig);
+const chunkMetaPath = path.join(indexDir, 'chunk_meta.json');
+const chunkMeta = JSON.parse(await fsPromises.readFile(chunkMetaPath, 'utf8'));
+const maxId = Array.isArray(chunkMeta) ? chunkMeta.length - 1 : -1;
+for (const hit of hits) {
+  if (!Number.isFinite(hit?.id) || hit.id < 0 || hit.id > maxId) {
+    console.error(`sqlite ann fallback test failed: out-of-range doc id ${hit?.id}`);
+    process.exit(1);
+  }
 }
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

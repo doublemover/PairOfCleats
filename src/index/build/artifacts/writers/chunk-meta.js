@@ -9,6 +9,14 @@ import {
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
 
+const MIN_CHUNK_META_BYTES = 4096;
+
+const resolveChunkMetaMaxBytes = (maxJsonBytes) => {
+  const parsed = Number(maxJsonBytes);
+  if (!Number.isFinite(parsed) || parsed <= 0) return maxJsonBytes;
+  return Math.max(Math.floor(parsed), MIN_CHUNK_META_BYTES);
+};
+
 const formatBytes = (bytes) => {
   const value = Number(bytes);
   if (!Number.isFinite(value) || value <= 0) return '0B';
@@ -76,8 +84,9 @@ export const resolveChunkMetaPlan = ({
   chunkMetaShardSize,
   maxJsonBytes = MAX_JSON_BYTES
 }) => {
-  const maxJsonBytesSoft = maxJsonBytes * 0.9;
-  const shardTargetBytes = maxJsonBytes * 0.75;
+  const resolvedMaxJsonBytes = resolveChunkMetaMaxBytes(maxJsonBytes);
+  const maxJsonBytesSoft = resolvedMaxJsonBytes * 0.9;
+  const shardTargetBytes = resolvedMaxJsonBytes * 0.75;
   const chunkMetaCount = chunks.length;
   const chunkMetaFormat = chunkMetaFormatConfig
     || (artifactMode === 'jsonl' ? 'jsonl' : (artifactMode === 'json' ? 'json' : 'auto'));
@@ -110,7 +119,7 @@ export const resolveChunkMetaPlan = ({
         const chunkMetaMode = chunkMetaUseShards ? 'jsonl-sharded' : 'jsonl';
         log(
           `Chunk metadata estimate ~${formatBytes(estimatedBytes)}; ` +
-          `using ${chunkMetaMode} to stay under ${formatBytes(maxJsonBytes)}.`
+          `using ${chunkMetaMode} to stay under ${formatBytes(resolvedMaxJsonBytes)}.`
         );
       }
     }
@@ -120,7 +129,8 @@ export const resolveChunkMetaPlan = ({
     chunkMetaFormat,
     chunkMetaUseJsonl,
     chunkMetaUseShards,
-    chunkMetaShardSize: resolvedShardSize
+    chunkMetaShardSize: resolvedShardSize,
+    maxJsonBytes: resolvedMaxJsonBytes
   };
 };
 
@@ -139,8 +149,10 @@ export const enqueueChunkMetaArtifacts = async ({
     chunkMetaUseJsonl,
     chunkMetaUseShards,
     chunkMetaShardSize,
-    chunkMetaCount
+    chunkMetaCount,
+    maxJsonBytes: plannedMaxJsonBytes
   } = chunkMetaPlan;
+  const resolvedMaxJsonBytes = resolveChunkMetaMaxBytes(plannedMaxJsonBytes ?? maxJsonBytes);
   const removeArtifact = async (targetPath) => {
     try {
       await fs.rm(targetPath, { recursive: true, force: true });
@@ -153,7 +165,7 @@ export const enqueueChunkMetaArtifacts = async ({
     for (const entry of chunkMetaIterator()) {
       const line = JSON.stringify(entry);
       const lineBytes = Buffer.byteLength(line, 'utf8');
-      if (maxJsonBytes && (lineBytes + 1) > maxJsonBytes) {
+      if (resolvedMaxJsonBytes && (lineBytes + 1) > resolvedMaxJsonBytes) {
         throw new Error(`chunk_meta entry exceeds max JSON size (${lineBytes} bytes).`);
       }
       totalJsonBytes += lineBytes + (total > 0 ? 1 : 0);
@@ -168,19 +180,19 @@ export const enqueueChunkMetaArtifacts = async ({
     : { totalJsonBytes: 2, totalJsonlBytes: 0, total: 0 };
   let resolvedUseJsonl = chunkMetaUseJsonl;
   let resolvedUseShards = chunkMetaUseShards;
-  if (!resolvedUseJsonl && maxJsonBytes && measured.totalJsonBytes > maxJsonBytes) {
+  if (!resolvedUseJsonl && resolvedMaxJsonBytes && measured.totalJsonBytes > resolvedMaxJsonBytes) {
     resolvedUseJsonl = true;
     resolvedUseShards = true;
     log(
       `Chunk metadata measured ~${formatBytes(measured.totalJsonBytes)}; ` +
-      `using jsonl-sharded to stay under ${formatBytes(maxJsonBytes)}.`
+      `using jsonl-sharded to stay under ${formatBytes(resolvedMaxJsonBytes)}.`
     );
-  } else if (resolvedUseJsonl && maxJsonBytes && measured.totalJsonlBytes > maxJsonBytes) {
+  } else if (resolvedUseJsonl && resolvedMaxJsonBytes && measured.totalJsonlBytes > resolvedMaxJsonBytes) {
     resolvedUseShards = true;
     if (!chunkMetaUseShards) {
       log(
         `Chunk metadata measured ~${formatBytes(measured.totalJsonlBytes)}; ` +
-        `using jsonl-sharded to stay under ${formatBytes(maxJsonBytes)}.`
+        `using jsonl-sharded to stay under ${formatBytes(resolvedMaxJsonBytes)}.`
       );
     }
   }
@@ -223,7 +235,7 @@ export const enqueueChunkMetaArtifacts = async ({
             partsDirName: 'chunk_meta.parts',
             partPrefix: 'chunk_meta.part-',
             items: chunkMetaIterator(),
-            maxBytes: maxJsonBytes,
+            maxBytes: resolvedMaxJsonBytes,
             maxItems: chunkMetaShardSize,
             atomic: true
           });

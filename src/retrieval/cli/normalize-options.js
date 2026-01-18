@@ -53,8 +53,12 @@ export function normalizeSearchOptions({
   const lancedbConfig = normalizeLanceDbConfig({});
 
   const sqliteConfig = {};
-  const sqliteAutoChunkThreshold = 0;
-  const sqliteAutoArtifactBytes = 0;
+  const sqliteAutoChunkThreshold = normalizeOptionalNumber(
+    userConfig?.search?.sqliteAutoChunkThreshold
+  ) ?? 0;
+  const sqliteAutoArtifactBytes = normalizeOptionalNumber(
+    userConfig?.search?.sqliteAutoArtifactBytes
+  ) ?? 0;
 
   const postingsConfig = normalizePostingsConfig({});
   const filePrefilterConfig = {};

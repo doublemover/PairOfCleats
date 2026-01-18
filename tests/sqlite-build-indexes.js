@@ -77,6 +77,12 @@ if (!indexNames.has('idx_token_postings_token')) {
   console.error('Expected idx_token_postings_token to exist');
   process.exit(1);
 }
+const chunkIndexList = db.prepare("PRAGMA index_list('chunks')").all();
+const chunkIndexNames = new Set(chunkIndexList.map((row) => row.name));
+if (!chunkIndexNames.has('idx_chunks_file_id')) {
+  console.error('Expected idx_chunks_file_id to exist');
+  process.exit(1);
+}
 db.close();
 
 console.log('sqlite build indexes test passed');

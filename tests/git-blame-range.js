@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
+import { loadChunkMeta } from '../src/shared/artifact-io.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'git-blame-range');
@@ -70,11 +70,16 @@ if (buildResult.status !== 0) {
 
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-const meta = JSON.parse(fs.readFileSync(path.join(codeDir, 'chunk_meta.json'), 'utf8'));
+const meta = await loadChunkMeta(codeDir);
 
-const findChunk = (name) => meta.find((chunk) => chunk.name === name || String(chunk.name || '').includes(name));
-const alphaChunk = findChunk('alpha');
-const betaChunk = findChunk('beta');
+const findChunkByName = (name) =>
+  meta.find((chunk) => chunk.name === name || String(chunk.name || '').includes(name));
+const findChunkByRange = (startLine, endLine) =>
+  meta.find((chunk) => chunk.startLine === startLine && chunk.endLine === endLine);
+
+const alphaChunk = findChunkByRange(1, 3) || findChunkByName('alpha');
+const betaChunk = meta.find((chunk) => Number(chunk.startLine) >= 4)
+  || findChunkByName('beta');
 if (!alphaChunk || !betaChunk) {
   console.error('Expected alpha and beta chunks in chunk_meta.json');
   process.exit(1);

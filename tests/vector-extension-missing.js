@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { loadUserConfig } from '../tools/dict-utils.js';
 import { updateSqliteDense } from '../tools/build-embeddings/sqlite-dense.js';
 
 let Database = null;
@@ -15,24 +14,13 @@ try {
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'vector-extension-missing');
 const repoRoot = path.join(tempRoot, 'repo');
+const cacheRoot = path.join(tempRoot, 'cache');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
-
-const missingPath = path.join(repoRoot, 'missing-extension.so');
-const configPath = path.join(repoRoot, '.pairofcleats.json');
-await fsPromises.writeFile(
-  configPath,
-  JSON.stringify({
-    sqlite: {
-      vectorExtension: {
-        enabled: true,
-        path: missingPath
-      }
-    }
-  }, null, 2)
-);
-
-const userConfig = loadUserConfig(repoRoot);
+await fsPromises.mkdir(cacheRoot, { recursive: true });
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+const userConfig = { cache: { root: cacheRoot } };
 const dbPath = path.join(repoRoot, 'index.sqlite');
 const db = new Database(dbPath);
 db.exec('CREATE TABLE dense_vectors (mode TEXT, doc_id INTEGER, vector BLOB)');

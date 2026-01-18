@@ -336,8 +336,17 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     const durationMs = Date.now() - metricsStart;
     metricsCollector.add('treeSitter', resolvedId, lineCount, durationMs);
   };
+  const shouldDeferMissing = options?.treeSitterMissingLanguages
+    && options?.treeSitter?.deferMissing !== false;
   const parser = getTreeSitterParser(resolvedId, options);
   if (!parser) {
+    if (shouldDeferMissing) {
+      options.treeSitterMissingLanguages.add(resolvedId);
+      return null;
+    }
+    if (options?.treeSitterMissingLanguages) {
+      options.treeSitterMissingLanguages.add(resolvedId);
+    }
     if (options?.log && !loggedUnavailable.has(resolvedId)) {
       options.log(`Tree-sitter unavailable for ${resolvedId}; falling back to heuristic chunking.`);
       loggedUnavailable.add(resolvedId);

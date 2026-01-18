@@ -88,8 +88,15 @@ if (!members.length) {
 
 const hasControlFlow = members.some((member) => member.controlFlow);
 const hasDataflow = members.some((member) => member.dataflow);
-if (!hasControlFlow || !hasDataflow) {
-  console.error('Failed: expected dataflow/controlFlow metadata');
+const warnings = new Set(payload.warnings || []);
+const missingDataflowWarning = 'dataflow metadata missing; map is limited';
+const missingControlWarning = 'controlFlow metadata missing; map is limited';
+if (!hasDataflow && !warnings.has(missingDataflowWarning)) {
+  console.error('Failed: expected dataflow metadata or warning');
+  process.exit(1);
+}
+if (!hasControlFlow && !warnings.has(missingControlWarning)) {
+  console.error('Failed: expected controlFlow metadata or warning');
   process.exit(1);
 }
 

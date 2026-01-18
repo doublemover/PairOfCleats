@@ -55,8 +55,12 @@ const readStartup = () => new Promise((resolve, reject) => {
   });
 });
 
-const requestJson = (baseUrl, pathname) => new Promise((resolve, reject) => {
-  const req = http.get(baseUrl + pathname, (res) => {
+const requestJson = (baseUrl, method, pathname, body = null) => new Promise((resolve, reject) => {
+  const payload = body ? JSON.stringify(body) : null;
+  const req = http.request(baseUrl + pathname, {
+    method,
+    headers: payload ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } : {}
+  }, (res) => {
     let data = '';
     res.on('data', (chunk) => {
       data += chunk.toString();
@@ -70,6 +74,8 @@ const requestJson = (baseUrl, pathname) => new Promise((resolve, reject) => {
     });
   });
   req.on('error', reject);
+  if (payload) req.write(payload);
+  req.end();
 });
 
 let serverInfo = null;
@@ -80,14 +86,23 @@ try {
     throw new Error('api-server did not report a baseUrl');
   }
 
-  const health = await requestJson(serverInfo.baseUrl, '/health');
+  const health = await requestJson(serverInfo.baseUrl, 'GET', '/health');
   if (!health.body?.ok) {
     throw new Error('api-server /health failed');
   }
 
-  const map = await requestJson(serverInfo.baseUrl, '/map?format=json');
-  if (!map.body?.root?.path) {
-    throw new Error('api-server /map did not return a map model');
+  const status = await requestJson(serverInfo.baseUrl, 'GET', '/status');
+  if (!status.body?.ok || !status.body?.status) {
+    throw new Error('api-server /status failed');
+  }
+
+  const search = await requestJson(serverInfo.baseUrl, 'POST', '/search', {
+    query: 'alpha',
+    mode: 'code',
+    top: 3
+  });
+  if (!search.body?.ok || !Array.isArray(search.body?.result?.code) || !search.body.result.code.length) {
+    throw new Error('api-server /search returned no results');
   }
 } catch (err) {
   console.error(err?.message || err);

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { Unpackr } from 'msgpackr';
+import { Packr, Unpackr } from 'msgpackr';
 import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../src/storage/lmdb/schema.js';
 import { resolveLmdbPaths } from '../tools/dict-utils.js';
 
@@ -95,6 +95,25 @@ try {
 }
 if (payload.backend !== 'lmdb') {
   console.error(`Expected backend=lmdb, got ${payload.backend}`);
+  process.exit(1);
+}
+
+const dbWrite = open({ path: dbPath, readOnly: false });
+dbWrite.put(LMDB_META_KEYS.schemaVersion, new Packr().pack(LMDB_SCHEMA_VERSION + 1));
+dbWrite.close();
+
+const badSearch = spawnSync(
+  process.execPath,
+  [path.join(root, 'search.js'), 'alpha', '--json', '--backend', 'lmdb', '--mode', 'code', '--no-ann', '--repo', repoRoot],
+  { encoding: 'utf8', env }
+);
+if (badSearch.status === 0) {
+  console.error('Expected lmdb search to fail on schema mismatch.');
+  process.exit(1);
+}
+const badOutput = `${badSearch.stdout || ''}\n${badSearch.stderr || ''}`;
+if (!badOutput.includes('schema mismatch')) {
+  console.error('Expected lmdb schema mismatch error message.');
   process.exit(1);
 }
 

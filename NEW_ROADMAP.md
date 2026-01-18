@@ -11,567 +11,22 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ## Roadmap order (stability/performance frontloaded)
 
-2. Phase 12 — Storage backends (SQLite + LMDB)
-3. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
-4. Phase 14 — Documentation and Configuration Hardening
-6. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
-7. Phase 20 — Threadpool-aware I/O scheduling guardrails
-8. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
-9. Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
-10. Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
-11. Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
-12. Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
-13. Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
-14. Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
-15. Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
-16. Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
-17. Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
-18. Phase 41 — Test runner reframe (split lanes + per-lane gating)
-19. Phase 42 — Storage regression splits (sqlite/lmdb/vector extension)
-20. Phase 43 — Targeted test fixes (incremental caches, smoke retrieval)
-21. Phase 44 — Merge Phase 32-40 test followups (streaming, extracted-prose, code map)
-
-## Phase 12 — Storage backends (SQLite + LMDB)
-
-**Objective:** Perform an audit of the storage backends (SQLite + LMDB) and their supporting tooling (build, validation, compaction, incremental updates, ANN extension management, and backend selection). Identify *all* correctness bugs, edge cases, documentation drift, missing tests, and performance/refactoring opportunities, aligned to the provided checklist.
-
-#### Out-of-scope (not deeply reviewed, but referenced when necessary)
-
-- Non-listed call-sites (e.g. retrieval query code) were spot-checked only when needed to validate schema/index/query alignment.
-
----
-
-### Executive summary
-
-#### Top P0 / correctness items
-
-- [x] **(P0) SQLite ANN table is not updated when it already exists** in:
-  - `src/storage/sqlite/build/from-bundles.js` (vector table existence sets `vectorAnnReady = true` but **does not** prepare `insertVectorAnn`) — see around L120.
-  - `src/storage/sqlite/build/incremental-update.js` (same pattern) — see around L240.
-
-  **Impact:** when the ANN virtual table already exists (most importantly during incremental updates), deleted rows *can* be removed (because deletes run via `deleteDocIds(...)`), but replacement vectors for changed chunks are **not reinserted**, leaving the ANN table sparse/out-of-sync with `dense_vectors`. This can silently degrade or break ANN-based retrieval depending on how the extension is queried.
-
-- [x] **(P0) Retrieval-side fail-closed is incomplete for SQLite schema versions.**
-
-  `src/retrieval/cli-sqlite.js` validates required table *names* but does **not** enforce `PRAGMA user_version == SCHEMA_VERSION` (or otherwise fail-closed on schema mismatch). This violates the checklist requirement (“readers fail closed on unknown versions”) for the SQLite reader path.
-
-- [x] **(P0) Bundle-build path does not hard-fail on embedding dimension mismatches** (`src/storage/sqlite/build/from-bundles.js`).
-
-  The code currently *warns once* on a dims mismatch but continues (and may still insert inconsistent vectors). This risks producing an index with an internally inconsistent dense-vector corpus (which can cause downstream errors or silent relevance regressions).
-
-#### High-signal P1 / robustness items
-
-- [ ] **WAL / sidecar handling is inconsistent across build vs incremental update paths.**  
-  Full rebuild paths use `replaceSqliteDatabase(...)` which removes sidecars, but incremental updates modify the DB in-place under WAL mode and do not explicitly checkpoint/truncate. If later tooling removes sidecars without a checkpoint, this can create “single-file DB” assumptions that do not hold.
-
-- [x] **Indexing for hot maintenance queries can be improved**: `chunks(mode, file)` exists, but multiple maintenance queries order by `id` and would benefit from `(mode, file, id)`.
-
-- [ ] **Docs drift:** `docs/sqlite-incremental-updates.md` (and a few related docs) describe doc-id behavior and operational details that do not match current implementation (doc-id reuse/free-list behavior; ratio guard details; and operational caveats).
-
-#### “Good news” / items that look solid already
-
-- Most bulk write paths are transactional (build ingest, compaction copy, incremental applyChanges).
-- The extension download hardening in `tools/download-extensions.js` has multiple safety layers (hash verification support, archive path traversal protection, size/entry limits).
-- LMDB corruption handling has targeted tests (`tests/lmdb-corruption.js`) and tooling integration (`tests/lmdb-report-artifacts.js`).
-
-#### Current test failures (local, after building artifacts/SQLite)
-
-- [x] `tests/lmdb-backend.js`: fixed by scoping the LMDB search to `--mode code` for code-only LMDB build.
-- [x] `tests/sqlite-ann-extension.js`: fixed by disabling bundle workers in test and falling back to artifacts when bundles lack dense vectors (plus `embedding_u8` ingestion).
-- [x] `tests/sqlite-incremental-no-change.js`: fixed by short-circuiting no-change incremental updates before dense metadata checks and softening records-only rebuild messaging.
-- [x] `tests/storage/sqlite/incremental/manifest-normalization.test.js`: fixed via no-change short-circuit when manifest normalization yields zero diffs.
-
----
-
-## Checklist coverage and required follow-ups
-
-### A) Schema & migrations
-
-**Audit**
-
-- SQLite schema is versioned via `PRAGMA user_version` with `SCHEMA_VERSION = 7` (`src/storage/sqlite/schema.js`).
-- Incremental update explicitly checks schema version and required tables before mutating (`src/storage/sqlite/build/incremental-update.js`).
-- Table-level constraints are generally well-defined (primary keys per (mode, …), plus supporting indexes for vocab/postings).
-
-**Gaps / issues**
-
-- [x] **Fail-closed at read time:** Add a `user_version` gate to the SQLite reader path (at minimum in `src/retrieval/cli-sqlite.js` / sqlite backend creation).
-  - Desired behavior:  
-    - If backend is *forced* to SQLite: throw a clear error (“SQLite schema mismatch: expected X, found Y”).
-    - If backend is not forced (auto): treat SQLite as unavailable and fall back to the file-backed backend, with a warning.
-- [x] **Index alignment with hot predicates:** Consider adding `CREATE INDEX idx_chunks_file_id ON chunks(mode, file, id)` to support:
-  - `SELECT id FROM chunks WHERE mode=? AND file=? ORDER BY id`
-  - `SELECT file, id FROM chunks WHERE mode=? ORDER BY file, id` (incremental update id reuse scan)
-- [ ] **Document upgrade path explicitly:** The system is effectively “rebuild on schema bump”. Ensure docs and user-facing error messaging make that explicit (and fail closed rather than attempting to limp on).
-- [ ] **Consider column-level schema validation for critical tables** (optional but recommended): required-table-name checks do not catch incompatible column changes if a user provides an arbitrary SQLite file containing tables with the right names.
-
----
-
-### B) SQLite build pipeline
-
-**Audit**
-
-- Build-from-artifacts path uses bulk inserts and creates secondary indexes after ingest (`src/storage/sqlite/build/from-artifacts.js`).
-- Build-from-bundles supports a fast-path using bundle workers (`src/storage/sqlite/build/from-bundles.js` + `bundle-loader.js`).
-- Validation includes `PRAGMA integrity_check` (full) and cross-table count consistency checks (`src/storage/sqlite/build/validate.js`).
-
-**Gaps / issues**
-
-- [x] **(P0) Fix ANN insert statement preparation when the ANN table already exists:**
-  - In `src/storage/sqlite/build/from-bundles.js`:
-    - When `hasVectorTable` is true (L120), prepare `insertVectorAnn` immediately (same SQL as the “created table” path near L209).
-  - In `src/storage/sqlite/build/incremental-update.js`:
-    - When `vectorAnnReady` is set based on `hasVectorTable` (L240), prepare `insertVectorAnn` as well.
-  - Add a CI-friendly unit test that does not require a real sqlite-vec binary (see “Tests” section below).
-- [x] **(P0) Enforce embedding dims consistency in bundle builds.**
-  - Recommendation: pre-scan each bundle (or the whole manifest) to ensure all embeddings are either absent or have a single consistent dimension; then hard-fail the build if mismatched.
-  - Current behavior: warns once around L197 and continues; this should be tightened to match the artifacts build path which throws on mismatch.
-- [x] **Failure cleanup should include SQLite sidecars** (`.db-wal`, `.db-shm`) in:
-  - `src/storage/sqlite/build/from-artifacts.js`
-  - `src/storage/sqlite/build/from-bundles.js`
-
-  Today they remove only `outPath` on failure. If WAL/SHM exist, they can be left behind as confusing debris and can interfere with subsequent runs.
-- [ ] **Consider ensuring the produced DB is “single-file”** after build by checkpointing/truncating WAL (or switching journal mode back), rather than relying on implicit behavior.
-- [ ] **Prepared statement churn:** `deleteDocIds(...)` dynamically prepares multiple statements per chunk; consider statement caching keyed by chunk size to reduce overhead during large deletes.
-
----
-
-### C) LMDB backend
-
-**Audit**
-
-- LMDB has a clear key-space separation (`meta:*`, `artifact:*`) and an explicit schema version (`src/storage/lmdb/schema.js`).
-- LMDB build tool stores artifacts plus metadata into LMDB (`tools/build-lmdb-index.js`).
-- Corruption handling is at least partially validated via tests (`tests/lmdb-corruption.js`, `tests/lmdb-report-artifacts.js`).
-
-**Gaps / issues**
-
-- [ ] Ensure the LMDB *reader* path (not in this checklist set) fails closed on schema mismatch the same way SQLite incremental update does (explicit schema version check; clear error messaging).
-- [ ] Consider adding a lightweight “LMDB quick check” command in tooling (or enhancing `tools/index-validate.js`) that validates the presence of all required keys (schema version, chunk meta, vocab, postings, etc.) and reports missing keys explicitly.
-- [ ] Document LMDB key invariants and expected artifact presence (which artifacts are mandatory vs optional).
-
----
-
-### D) Incremental updates
-
-**Audit**
-
-- Incremental update gating exists (requires incremental manifest, rejects schema mismatch, rejects high change ratios) (`src/storage/sqlite/build/incremental-update.js`).
-- It preserves doc-id stability per-file by reusing IDs for changed files and reusing free IDs from deletions.
-- Deletes are applied across all relevant tables using `deleteDocIds(...)` with consistent table lists.
-
-**Gaps / issues**
-
-- [x] **(P0) ANN table insertion bug** (same as in section B) must be fixed for incremental updates.
-- [x] **WAL lifecycle:** after an in-place incremental update, run:
-  - `PRAGMA wal_checkpoint(TRUNCATE);`
-  - optionally `PRAGMA journal_mode = DELETE;` (if the project prefers single-file DBs)
-
-  This ensures the on-disk DB is not “dependent on sidecars” after the update and reduces the likelihood of later tooling accidentally discarding uncheckpointed state.
-- [ ] **Manifest match logic:** `isManifestMatch(...)` falls back to mtime/size when one side has a hash and the other does not.
-  - Consider tightening: if an incremental manifest provides a hash but the DB manifest row does not, treat as “changed” and update the DB row hash (this gradually converges the DB to the stronger invariant).
-- [x] **Performance of doc-id reuse scan:** the “scan all chunks ordered by file,id” approach is correct but can be expensive; if it becomes a bottleneck, consider either:
-  - adding `(mode,file,id)` index, and/or
-  - materializing file→docId list in a side table (only if necessary).
-
----
-
-### E) Performance
-
-**Audit**
-
-- Build pragmas in `src/storage/sqlite/build/pragmas.js` are set to favor build throughput (WAL + relaxed synchronous) and are restored (partially).
-- Compaction tool is designed to reduce doc-id sparsity and reclaim file size (`tools/compact-sqlite-index.js`).
-
-**Gaps / issues**
-
-- [ ] **Avoid repeated `COUNT(*)` scans** for backend auto-selection where possible (`src/storage/backend-policy.js`).
-  - Options: use `file_manifest` sum, maintain a meta counter, or store chunk count in `index_state.json`.
-- [x] **Improve maintenance query performance** via `(mode,file,id)` index as noted above.
-- [ ] **Reduce query-time statement re-preparation** in `src/retrieval/sqlite-helpers.js` (`chunkArray(...)` creates fresh SQL each time); consider caching by chunk size.
-- [ ] **Add at least one p95 query latency regression test** using a stable fixture DB (details below).
-
----
-
-### F) Refactoring goals
-
-**Audit**
-
-- The codebase already separates schema SQL, prepared statements, and build/validate logic into dedicated modules.
-
-**Gaps / issues**
-
-- [ ] **De-duplicate shared helpers:**
-  - `updateIndexStateManifest(...)` exists in both `tools/build-lmdb-index.js` and `tools/build-sqlite-index/index-state.js`.
-  - `chunkArray(...)` exists in both build and retrieval code (or adjacent helpers).
-- [ ] **Centralize ANN table setup logic** so that “table exists” vs “table created” paths always prepare the insert statement (avoid the current drift between `prepareVectorAnnTable(...)` and the bundle/incremental paths).
-- [ ] **Clarify naming:** `toVectorId(...)` is currently a “coerce to BigInt” helper; consider renaming to reflect that it does not encode/transform the id.
-
----
-
-## Tests and benchmarks — required additions
-
-### Must-add tests (CI-friendly)
-
-- [x] **Unit test: ANN insertion when the ANN table already exists** (no real extension binary required).
-  - Approach:
-    - Create a temporary SQLite DB with all required tables plus a *plain* `dense_vectors_ann` table (not virtual) matching the schema used by insert/delete (`rowid` + `embedding` BLOB column).
-    - Pass a mocked `vectorConfig` into `incrementalUpdateDatabase(...)` with:
-      - `loadVectorExtension: () => ({ ok: true })`
-      - `hasVectorTable: () => true`
-      - `encodeVector: () => Buffer.from([0])` (or similar stable stub)
-    - Run an incremental update that modifies at least one file and assert that:
-      - rows are deleted for removed docIds
-      - rows are inserted/replaced for changed docIds
-- [x] **Unit test: bundle-build dims mismatch hard failure**
-  - Create two bundle files in the incremental bundle dir: one with embedding length N, one with embedding length N+1.
-  - Assert build fails (or returns count 0 with a clear reason) rather than “warn and continue”.
-
-### Additional recommended tests
-
-- [x] **Reader fail-closed test:** Provide a DB with `user_version != SCHEMA_VERSION` and confirm:
-  - forced SQLite backend errors clearly
-  - auto backend falls back without using SQLite.
-- [ ] **Incremental WAL checkpoint test** (if WAL checkpointing is implemented): verify that after incremental update:
-  - no `*.db-wal` / `*.db-shm` remain (or WAL is truncated to a small size, depending on desired policy).
-
-### Benchmark / regression testing
-
-- [ ] **p95 query latency regression guard (fixture-based)**
-  - Add a small but non-trivial fixture SQLite DB (or build it deterministically during test setup) and run a representative query workload:
-    - candidate generation (ngrams)
-    - FTS ranking (if enabled)
-    - dense vector scoring (if enabled)
-  - Measure per-query durations and assert p95 stays under a budget (or does not regress beyond a tolerance vs a baseline).
-  - Keep it deterministic: single-threaded, warm cache (or explicit warm-up iterations), fixed query set, fixed limits.
-
----
-
-## File-by-file findings and action items
-
-> This section lists concrete issues and improvement opportunities per reviewed file.  
-> Items are written as actionable checkboxes; severity tags (P0/P1/P2) are included where appropriate.
-
-### `src/storage/backend-policy.js`
-
-- [ ] Clarify threshold semantics for `autoSqliteThresholdChunks` / `autoSqliteThresholdBytes` when set to `0` (current code uses `> 0`, so `0` behaves like “disabled” rather than “always use SQLite”).
-- [ ] Consider avoiding expensive `COUNT(*)` scans for auto-selection; store chunk count in a meta table or `index_state.json` and read that instead (or sum `file_manifest.chunk_count`).
-- [ ] Consider logging/telemetry: when auto-select declines SQLite due to missing/invalid thresholds, surface that decision (currently it is silent except for return fields).
-
-### `src/storage/lmdb/schema.js`
-
-- [ ] Add brief inline documentation describing key-space expectations (which keys must exist for a usable LMDB index).
-- [ ] Consider adding a helper to enumerate expected artifact keys for validation tooling (to avoid drift).
-
-### `src/storage/sqlite/build-helpers.js`
-
-- [ ] Ensure `vectorConfig.extension.table` / `.column` are always sanitized before being interpolated into SQL (call-site currently depends on the caller to sanitize).
-- [ ] Consider making `buildChunkRow(...)` treat empty strings/arrays consistently (e.g., avoid turning `''` into `null` unintentionally for fields where empty-string is meaningful).
-- [ ] Consider reducing confusion: `buildChunkRow(...)` returns fields (`signature`, `doc`) that are not inserted into `chunks` but only into `chunks_fts`.
-
-### `src/storage/sqlite/build/bundle-loader.js`
-
-- [ ] Ensure loader failures return actionable error messages (bundle path, reason). (Current errors are decent; confirm `readBundleFile(...)` includes enough context.)
-- [ ] Consider exposing a small “max in-flight bundles” safeguard if worker threads are enabled (to avoid memory spikes on extremely large bundles).
-
-### `src/storage/sqlite/build/delete.js`
-
-- [ ] Cache delete statements by chunk size to reduce repeated `db.prepare(...)` overhead when deleting many docIds.
-- [ ] Consider supporting a temp table approach (`CREATE TEMP TABLE ids(...)`) if deletion performance becomes a bottleneck for large deletes.
-- [ ] Verify that the `vectorDeleteTargets` contract remains consistent across callers (column name `rowid` vs explicit id columns).
-
-### `src/storage/sqlite/build/from-artifacts.js`
-
-- [ ] Tighten shard discovery: `listShardFiles(...)` includes `.jsonl` but ingestion reads shards via `readJson(...)`; either:
-  - restrict token-postings shards to `.json`, or
-  - add JSONL support for token-postings shards (if they can be JSONL in practice).
-- [ ] Consider inserting `dense_meta` inside the same transaction as the first dense-vector batch (atomicity / consistency).
-- [ ] For `chunkMeta` ingestion (non-piece path), avoid building a single giant `rows` array in memory if the artifact can be large; use chunked batching as done in `ingestChunkMetaPieces(...)`.
-- [x] Failure cleanup: remove sidecars (`outPath-wal`, `outPath-shm`) as well as `outPath` on failure.
-
-### `src/storage/sqlite/build/from-bundles.js`
-
-- [x] **(P0) Prepare `insertVectorAnn` even when the ANN table already exists** (see around L120).  
-  The “table exists” branch sets `vectorAnnReady = true` but does not prepare the insert statement, so embeddings are not inserted into ANN.
-- [x] **(P0) Make embedding dims mismatch a hard failure.**  
-  Current warning-only behavior (around L197) can produce inconsistent dense vectors.
-- [ ] Guard against malformed bundles: `count += result.bundle.chunks.length` should handle missing/invalid `chunks` gracefully (use `?.length || 0`).
-- [ ] Remove unused import (`path` is currently imported but not used).
-- [x] Failure cleanup should remove SQLite sidecars, not just the DB file.
-
-### `src/storage/sqlite/build/incremental-update.js`
-
-- [x] **(P0) Prepare `insertVectorAnn` when the ANN table already exists** (see around L240).  
-  Without this, incremental updates delete ANN rows but do not reinsert replacement vectors.
-- [x] Add explicit WAL checkpointing/truncation at the end of a successful update (to keep the DB self-contained and avoid large WAL growth).
-- [ ] Consider tightening `isManifestMatch(...)` semantics when hashes are available on only one side (to converge DB manifest quality).
-- [ ] Performance: consider `(mode,file,id)` index or other optimization for `getDocIdsForFile(...)` scanning and per-file id lists.
-- [ ] Remove (or convert to assertion) the redundant “dims mismatch warn” path inside applyChanges; dims mismatch should already be rejected earlier.
-
-### `src/storage/sqlite/build/manifest.js`
-
-- [ ] De-duplicate `conflicts` output (currently can include repeated normalized paths).
-- [ ] Consider strict hash preference: if `entry.hash` is present but `dbEntry.hash` is null, treat as mismatch and update DB hash (do not silently match on mtime/size).
-
-### `src/storage/sqlite/build/pragmas.js`
-
-- [ ] Consider restoring `journal_mode` (or explicitly checkpointing) after build to ensure “single-file DB” invariants if the project expects that.
-- [ ] Consider surfacing pragma failures (currently swallowed silently).
-
-### `src/storage/sqlite/build/statements.js`
-
-- [x] Consider adding `idx_chunks_file_id` (see schema/index alignment notes).
-- [ ] Reduce confusion: `buildChunkRowWithMeta(...)` populates fields not present in the schema (e.g., `churn_added`, `churn_deleted`, `churn_commits`). Either:
-  - add these columns to the schema if they are intended, or
-  - stop emitting them to avoid “looks supported but isn’t”.
-
-### `src/storage/sqlite/build/validate.js`
-
-- [ ] Consider validating ANN invariants when ANN is enabled:
-  - `dense_vectors_ann` row count should match `dense_vectors` row count for the mode (or at least have no orphans).
-- [ ] Consider making full `integrity_check` optional for very large DBs (it can be expensive); provide a quick-check mode and/or configurable validation levels.
-
-### `src/storage/sqlite/build/vocab.js`
-
-- [ ] Consider caching prepared statements by chunk size (similar to delete/vocab fetch) to reduce repeated SQL compilation overhead.
-- [ ] Error messaging: if `missing.length` is huge, cap printed missing values in the thrown error and include only a sample plus counts (to avoid megabyte-scale exception strings).
-
-### `src/storage/sqlite/incremental.js`
-
-- [ ] Document the on-disk incremental manifest contract and failure modes (missing manifest, conflicts, ratio guard).
-- [ ] Consider adding a small helper to validate the incremental manifest shape early, with clearer error output.
-
-### `src/storage/sqlite/schema.js`
-
-- [x] Consider adding `(mode,file,id)` index for maintenance queries.
-- [ ] Ensure docs (`docs/sqlite-index-schema.md`) stay in sync when schema changes.
-
-### `src/storage/sqlite/utils.js`
-
-- [ ] `normalizeFilePath(...)` returns the input unchanged when it is not a string; consider returning `null` instead to reduce accidental “undefined as key” behavior.
-- [ ] `replaceSqliteDatabase(...)`: consider logging when fallback rename/remove paths are taken (debuggability of replacement failures).
-
-### `src/storage/sqlite/vector.js`
-
-- [ ] `toVectorId(...)` is effectively “coerce to BigInt”; consider renaming to reflect that (e.g., `toSqliteRowidInt64(...)`) to avoid implying a non-trivial mapping.
-- [ ] Consider making quantization parameters (`minVal`, `maxVal`) configurable or derived from embedding model metadata (avoid silent saturation if embeddings are out of range).
-
----
-
-### Tooling files
-
-#### `tools/build-lmdb-index.js`
-
-- [ ] Consider a `--validate` option that checks required artifacts exist before writing LMDB (fail early, clearer errors).
-- [ ] Consider writing a small LMDB “manifest” key listing which artifacts were written (enables tool-side validation and reduces drift).
-
-#### `tools/build-sqlite-index.js`
-
-- [ ] Consider exit codes and messaging consistency across build modes (full rebuild vs incremental vs skipped).
-
-#### `tools/build-sqlite-index/cli.js`
-
-- [ ] Consider validating incompatible flag combinations early (e.g., `--bundle-workers` without a bundle dir).
-- [ ] Consider adding `--no-compact` / `--compact` clarity in CLI help (if not already covered elsewhere).
-
-#### `tools/build-sqlite-index/index-state.js`
-
-- [ ] De-duplicate `updateIndexStateManifest(...)` with the LMDB equivalent; extract to a shared helper module.
-- [ ] Consider including schema version and build mode (full vs incremental) in `index_state.json` for observability.
-
-#### `tools/build-sqlite-index/run.js`
-
-- [ ] Ensure `stopHeartbeat()` is always invoked via `try/finally` (avoid leaking an interval on error when `exitOnError=false`).
-- [ ] After incremental updates, consider forcing WAL checkpoint/truncate (see incremental update section).
-- [ ] Consider making the “incremental fallback to rebuild” reason more explicit in output (currently logged, but could include key stats: changedFiles, deletedFiles, ratio).
-
-#### `tools/build-sqlite-index/temp-path.js`
-
-- [ ] Consider a “same filesystem guarantee” note: temp DB path must be on same filesystem for atomic rename (current implementation uses same directory, which is good; document this).
-
-#### `tools/clean-artifacts.js`
-
-- [ ] Consider adding a `--dry-run` option that prints what would be deleted without deleting it (safety for new users).
-
-#### `tools/compact-sqlite-index.js`
-
-- [ ] If vector extension is enabled but cannot be loaded, consider warning that compaction may drop ANN acceleration (and suggest remediation, e.g. rerun embeddings rebuild once extension is available).
-- [ ] Consider recording pre/post compaction stats into `index_state.json` (bytes, row counts) for observability.
-
-#### `tools/download-extensions.js`
-
-- [ ] Consider streaming zip extraction rather than buffering each entry into memory (`adm-zip` forces buffer extraction; if large binaries become common, consider a streaming zip library).
-- [ ] Consider setting file permissions for extracted binaries explicitly per-platform conventions (e.g., preserve exec bit if needed, although shared libraries typically do not require it).
-
-#### `tools/index-validate.js`
-
-- [ ] Consider including actionable remediation hints per failure mode (e.g., “run build-index”, “run build-sqlite-index”, “run download-extensions”).
-
-#### `tools/report-artifacts.js`
-
-- [ ] Consider clarifying the units in output when printing both formatted size and raw bytes (currently raw bytes are printed in parentheses without a label).
-
-#### `tools/vector-extension.js`
-
-- [ ] Consider keying `loadCache` by (db, config) rather than only db (avoids surprising behavior if config changes during a long-lived process).
-- [ ] Consider restoring prior `trusted_schema` value after `ensureVectorTable(...)` (minimize global DB setting changes).
-
-#### `tools/verify-extensions.js`
-
-- [ ] Consider adding a quick “smoke query” that verifies the ANN table can be created and queried (optional).
-
----
-
-### Test files
-
-#### `tests/backend-policy.js`
-
-- [ ] Add coverage for threshold edge cases (e.g., `autoSqliteThresholdChunks=0` semantics).
-- [ ] Add a test case where SQLite exists but artifact metadata cannot be read (ensure fallback behavior is correct and reason is surfaced).
-
-#### `tests/compact-pieces.js`
-
-- [ ] No issues noted (acts as a compaction functional check for artifact pieces).
-
-#### `tests/lmdb-backend.js`
-
-- [ ] Consider adding schema version mismatch coverage (fail closed when schema version differs).
-
-#### `tests/lmdb-corruption.js`
-
-- [ ] Consider asserting on error message content to ensure corruption reporting remains actionable.
-
-#### `tests/lmdb-report-artifacts.js`
-
-- [ ] Consider adding a test for “missing required key” vs “corruption” differentiation (if validation tooling can distinguish).
-
-#### `tests/retrieval-backend-policy.js`
-
-- [ ] Add coverage for schema version mismatch fallback (once reader-side user_version check exists).
-
-#### `tests/smoke-sqlite.js`
-
-- [ ] Add coverage for `user_version` mismatch behavior once implemented.
-
-#### `tests/sqlite-ann-extension.js`
-
-- [x] Add a CI-friendly companion test that does not require the real extension binary (mock vectorConfig approach described above) to ensure ANN insert/delete invariants are enforced in CI.
-
-#### `tests/sqlite-ann-fallback.js`
-
-- [ ] Consider adding explicit coverage that fallback ANN search never returns out-of-range docIds (robustness guard).
-
-#### `tests/sqlite-auto-backend.js`
-
-- [ ] Add a test that covers the “SQLite present but too small” path + verifies reason reporting is stable.
-
-#### `tests/sqlite-build-delete.js`
-
-- [ ] Add coverage for deleting from an ANN table using `rowid` column and BigInt inputs (ensures `toVectorId(...)` conversion remains correct).
-
-#### `tests/sqlite-build-indexes.js`
-
-- [ ] Add coverage for any new maintenance index (e.g., `(mode,file,id)`), if introduced.
-
-#### `tests/sqlite-build-manifest.js`
-
-- [ ] Add a test for “manifest has hash but DB does not” semantics (once tightened).
-
-#### `tests/sqlite-build-vocab.js`
-
-- [ ] Add stress coverage for token sets larger than SQLite’s `IN` limit (ensuring chunking logic remains correct).
-
-#### `tests/sqlite-bundle-missing.js`
-
-- [ ] Add bundle-shape validation coverage (missing `chunks` field should not crash build loop).
-
-#### `tests/sqlite-cache.js`
-
-- [ ] No issues noted (validates cache path behavior / read path).
-
-#### `tests/sqlite-chunk-id.js`
-
-- [ ] No issues noted (docId/chunkId behavior).
-
-#### `tests/sqlite-compact.js`
-
-- [ ] Consider adding coverage for compaction with ANN enabled but extension mocked (ensures dense_vectors_ann remains consistent after compaction).
-
-#### `tests/sqlite-incremental-no-change.js`
-
-- [ ] Consider verifying `index_state.json` is unchanged (or only updated timestamp changes), depending on desired policy.
-
-#### `tests/sqlite-incremental.js`
-
-- [ ] Add coverage for doc-id reuse behavior (free-list) to prevent accidental regression to “always append”.
-
-#### `tests/sqlite-index-state-fail-closed.js`
-
-- [ ] Consider adding coverage that “pending” flips back to false on successful build (already implied but could be explicit).
-
-#### `tests/sqlite-missing-dep.js`
-
-- [ ] No issues noted (validates better-sqlite3 missing behavior).
-
-#### `tests/sqlite-sidecar-cleanup.js`
-
-- [ ] Add incremental-update sidecar cleanup coverage if WAL checkpointing/truncation is implemented.
-
----
-
-### Documentation files
-
-#### `docs/contracts/sqlite.md`
-
-- [ ] Explicitly document the `user_version` contract and the “fail closed / rebuild on mismatch” behavior.
-- [ ] Ensure the list of required tables aligns with the actual reader/build code paths (and clearly separate “core” vs “optional” tables).
-
-#### `docs/external-backends.md`
-
-- [ ] Consider updating to reflect current backend-policy behavior (auto selection thresholds, forced backend semantics).
-
-#### `docs/model-compare-sqlite.json`, `docs/parity-sqlite-ann.json`, `docs/parity-sqlite-fts-ann.json`
-
-- [ ] Ensure these reports are either generated artifacts (and documented as such) or kept in sync with the current schema/tooling versions (otherwise they can mislead).
-
-#### `docs/references/dependency-bundle/deps/better-sqlite3.md`
-
-- [ ] Confirm documented behavior matches current runtime expectations (particularly around extension loading, platform binaries, and supported SQLite features).
-
-#### `docs/sqlite-ann-extension.md`
-
-- [ ] Document the invariant that `dense_vectors_ann` must remain consistent with `dense_vectors` (no orphans; same cardinality per mode when enabled).
-- [ ] Document how incremental updates maintain the ANN table (and note limitations when extension is not available).
-
-#### `docs/sqlite-compaction.md`
-
-- [ ] Clarify how compaction interacts with the ANN extension table (and the remediation path if ANN is temporarily unavailable during compaction).
-
-#### `docs/sqlite-incremental-updates.md`
-
-- [ ] Update doc-id behavior description to match implementation (per-file id reuse + free-list reuse rather than always appending).
-- [ ] Document the ratio guard behavior and fallback to full rebuild more explicitly.
-- [ ] Document WAL/sidecar expectations for incremental updates (single-file vs WAL sidecars).
-
-#### `docs/sqlite-index-schema.md`
-
-- [ ] Reconfirm schema matches `SCHEMA_VERSION = 7` (columns, indexes, optional extension table).
-- [ ] If `(mode,file,id)` index is added, document it as a maintenance/performance index.
-
----
-
-## Exit criteria for this review section
-
-The following items should be completed to consider “Review Section 7” fully addressed:
-
-- [x] ANN insert-preparation bug fixed in both bundle-build and incremental-update code paths.
-- [x] Reader-side schema version fail-closed behavior implemented and tested.
-- [x] Bundle-build embedding dims mismatch becomes a hard failure (with tests).
-- [ ] WAL/sidecar policy is explicitly decided, implemented consistently, and documented (at minimum for incremental updates).
-- [x] At least one CI-friendly test covers ANN table sync invariants without requiring a real extension binary.
-- [ ] At least one fixture-based p95 latency regression test is added (or an equivalent deterministic perf guard).
-
----
+1.  Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
+2.  Phase 14 — Documentation and Configuration Hardening
+3.  Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
+4.  Phase 20 — Threadpool-aware I/O scheduling guardrails
+5.  Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
+6.  Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
+7.  Phase 23 — Index analysis features (metadata/risk/git/type-inference) — Review findings & remediation checklist
+8.  Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
+9.  Phase 25 — Massive functionality boost: PDF + DOCX ingestion (prose mode)
+10.  Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
+11.  Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflows)
+12.  Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
+13.  Phase 31 — Isometric Visual Fidelity (Yoink-derived polish)
+14.  Phase 41 — Test runner reframe (split lanes + per-lane gating)
+15.  Phase 42 — Storage regression splits (sqlite/lmdb/vector extension)
+16.  Phase 44 — Merge Phase 32-40 test followups (streaming, extracted-prose, code map)
 
 ## Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
 
@@ -683,9 +138,7 @@ Reviewed the complete Section 8 list from the attached markdown checklist docume
 ---
 
 #### A3 — Explain output / scoring contract alignment is ambiguous
-
 **Files:**
-
 * `src/retrieval/pipeline.js`
 * `src/retrieval/output/explain.js`
 * `src/retrieval/cli/render-output.js`
@@ -695,22 +148,16 @@ Reviewed the complete Section 8 list from the attached markdown checklist docume
 The pipeline always builds `scoreBreakdown` objects, even if explain is not requested; compact JSON hides it, but full JSON may expose it unintentionally.
 
 **Action items:**
-
-* [ ] Decide contract behavior:
-
-  * Option 1: Only compute/attach `scoreBreakdown` when explain requested.
-  * Option 2: Always include but document it (and remove `--explain` implication of optionality).
+* [ ] Only compute/attach `scoreBreakdown` when explain requested.
 * [ ] Add snapshot tests asserting the presence/absence of explain fields by mode/output format.
-* [ ] Ensure explain’s boost attribution matches scoring math (phrase + symbol boosts currently depend on the already-boosted score; document or adjust).
+* [ ] Ensure explain’s boost attribution matches scoring math (phrase + symbol boosts currently depend on the already-boosted score; document).
 
 ---
 
 ### 13.B — Query Parsing & Filtering (Review Section 8.B)
 
 #### B1 — Query parsing does not satisfy checklist requirements
-
 **Files:**
-
 * `src/retrieval/query.js`
 * `src/retrieval/query-parse.js`
 * Tests/docs indirectly
@@ -738,7 +185,6 @@ It does **not** support:
 #### B2 — Filtering: performance and correctness concerns
 
 **Files:**
-
 * `src/retrieval/output/filters.js`
 * `src/retrieval/filter-index.js`
 
@@ -754,7 +200,6 @@ It does **not** support:
 #### C1 — Dense ranking should defensively validate embedding dimensionality
 
 **Files:**
-
 * `src/retrieval/rankers.js`
 * `src/retrieval/embedding.js`
 * `src/retrieval/sqlite-helpers.js`
@@ -772,7 +217,6 @@ It does **not** support:
 #### C2 — SQLite dense vector scale fallback looks unsafe
 
 **Files:**
-
 * `src/retrieval/sqlite-helpers.js`
 * Related: `src/storage/sqlite/vector.js` (quantization uses 2/255)
 
@@ -791,7 +235,6 @@ If `dense_meta.scale` is missing for any reason, sqlite helper defaults scale to
 #### D1 — SSE backpressure “drain wait” can hang indefinitely on closed connections
 
 **Files:**
-
 * `tools/api/sse.js`
 
 **What I found:**
@@ -807,22 +250,21 @@ If `res.write()` returns false, the code awaits `'drain'` only. If the client di
 #### D2 — Streaming contracts/docs do not match actual /search/stream behavior
 
 **Files:**
-
 * `tools/api/router.js`
-* Docs: `docs/api-server.md`, `docs/contracts/api-mcp.md`
+**Docs:**
+* `docs/api-server.md`
+* `docs/contracts/api-mcp.md`
 
 **What I found:**
 `/search/stream` only emits:
-
-* `start`
-* `result` OR `error`
-* `done`
+  * `start`
+  * `result` OR `error`
+  * `done`
 
 Docs/contracts claim progress streaming and/or richer semantics.
 
 **Action items:**
-
-* [ ] Decide: implement progress events (pipeline milestones) OR revise docs/contracts to match current behavior.
+* [ ] Decide: implement progress events (pipeline milestones)
 * [ ] If implementing progress: add hooks from retrieval CLI/pipeline → core API → router SSE.
 
 ---
@@ -830,7 +272,6 @@ Docs/contracts claim progress streaming and/or richer semantics.
 #### D3 — Cancellation/timeout propagation is missing end-to-end
 
 **Files:**
-
 * `tools/api/router.js`
 * `tools/mcp/transport.js`
 * `tools/mcp/tools.js`
@@ -846,7 +287,6 @@ Timeouts exist in MCP wrapper, but they do not abort underlying work. API does n
 * [ ] Wire close events (`req.on('close')`) and timeout timers to `abort()`.
 * [ ] Teach retrieval pipeline / embedding fetch to check `signal.aborted` and throw a consistent cancellation error.
 * [ ] Add tests:
-
   * API stream abort stops work early (not just stops writing).
   * MCP tool timeout aborts the underlying work, not just returns an error.
 
@@ -855,7 +295,6 @@ Timeouts exist in MCP wrapper, but they do not abort underlying work. API does n
 #### D4 — Security posture: permissive CORS is risky
 
 **Files:**
-
 * `tools/api/router.js`
 * Docs: `docs/api-server.md`
 
@@ -875,7 +314,6 @@ CORS is `*` by default. Even though server defaults to localhost, permissive COR
 #### E1 — Microbench “dense” vs “hybrid” distinction is not actually implemented
 
 **Files:**
-
 * `tools/bench/micro/run.js`
 * `tools/bench/micro/search.js`
 * `tools/bench/micro/tinybench.js`
@@ -895,7 +333,6 @@ Bench tasks labeled “dense” and “hybrid” do not reliably enforce differe
 #### E2 — Baseline writing can fail because directories don’t exist
 
 **Files:**
-
 * `tools/bench/micro/tinybench.js`
 * Docs: `docs/benchmarks.md`
 
@@ -913,7 +350,6 @@ Bench tasks labeled “dense” and “hybrid” do not reliably enforce differe
 #### E3 — SQLite cache reuse is missing in benchmark harnesses
 
 **Files:**
-
 * `tools/bench/micro/run.js`
 * `tools/bench/micro/tinybench.js`
 
@@ -1077,7 +513,6 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 1. **Document security posture and safe defaults**
 
    * [ ] Document:
-
      * API server host binding risks (`--host 0.0.0.0`)
      * CORS policy and how to configure allowed origins
      * Auth token configuration (if implemented)
@@ -1087,7 +522,6 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 2. **Add configuration schema coverage for new settings**
 
    * [ ] If adding config keys (CORS/auth/cache TTL), ensure they are:
-
      * Reflected in whatever config docs you maintain
      * Validated consistently (even if validation is lightweight)
 
@@ -1106,36 +540,27 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 ### 19.1 Audit: identify libuv-threadpool-bound hot paths and mismatch points
 
 * [ ] Audit all high-volume async filesystem call sites (these ultimately depend on libuv threadpool behavior):
-
   * [ ] `src/index/build/file-processor.js` (notably `runIo(() => fs.stat(...))`, `runIo(() => fs.readFile(...))`)
   * [ ] `src/index/build/file-scan.js` (`fs.open`, `handle.read`)
   * [ ] `src/index/build/preprocess.js` (file sampling + `countLinesForEntries`)
   * [ ] `src/shared/file-stats.js` (stream-based reads for line counting)
 * [ ] Audit concurrency derivation points where PairOfCleats may exceed practical libuv parallelism:
-
   * [ ] `src/shared/threads.js` (`ioConcurrency = ioBase * 4`, cap 32/64)
   * [ ] `src/index/build/runtime/workers.js` (`createRuntimeQueues` pending limits)
 * [ ] Decide and record the intended precedence rules for threadpool sizing:
-
   * [ ] Whether PairOfCleats should **respect an already-set `UV_THREADPOOL_SIZE`** (recommended, matching existing `NODE_OPTIONS` behavior where flags aren’t overridden if already present).
 
 ### 19.2 Add a first-class runtime setting + env override
 
 * [ ] Add config key (new):
-
   * [ ] `runtime.uvThreadpoolSize` (number; if unset/invalid => no override)
 * [ ] Add env override (new):
-
   * [ ] `PAIROFCLEATS_UV_THREADPOOL_SIZE` (number; same parsing rules as other numeric env overrides)
 * [ ] Implement parsing + precedence:
-
   * [ ] Update `src/shared/env.js`
-
     * [ ] Add `uvThreadpoolSize: parseNumber(env.PAIROFCLEATS_UV_THREADPOOL_SIZE)`
   * [ ] Update `tools/dict-utils.js`
-
     * [ ] Extend `getRuntimeConfig(repoRoot, userConfig)` to resolve `uvThreadpoolSize` with precedence:
-
       * `userConfig.runtime.uvThreadpoolSize` → else `envConfig.uvThreadpoolSize` → else `null`
     * [ ] Clamp/normalize: floor to integer; require `> 0`; else `null`
     * [ ] Update the function’s return shape and JSDoc:
@@ -1146,17 +571,13 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 ### 19.3 Propagate `UV_THREADPOOL_SIZE` early enough (launcher + spawned scripts)
 
 * [ ] Update `bin/pairofcleats.js` (critical path)
-
   * [ ] In `runScript()`:
-
     * [ ] Resolve `runtimeConfig` as today.
     * [ ] Build child env as an object (don’t pass `process.env` by reference when you need to conditionally add keys).
     * [ ] If `runtimeConfig.uvThreadpoolSize` is set and `process.env.UV_THREADPOOL_SIZE` is not set, add:
-
       * [ ] `UV_THREADPOOL_SIZE = String(runtimeConfig.uvThreadpoolSize)`
     * [ ] (Optional) If `--verbose` or `PAIROFCLEATS_VERBOSE`, log a one-liner showing the chosen `UV_THREADPOOL_SIZE` for the child process.
 * [ ] Update other scripts that spawn Node subcommands and already apply runtime Node options, so they also carry the threadpool sizing consistently:
-
   * [ ] `tools/setup.js` (`buildRuntimeEnv()`)
   * [ ] `tools/bootstrap.js` (`baseEnv`)
   * [ ] `tools/ci-build-artifacts.js` (`baseEnv`)
@@ -1170,20 +591,15 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 ### 19.4 Observability: surface “configured vs effective” values
 
 * [ ] Update `tools/config-dump.js`
-
   * [ ] Include in `payload.derived.runtime`:
-
     * [ ] `uvThreadpoolSize` (configured value from `getRuntimeConfig`)
     * [ ] `effectiveUvThreadpoolSize` (from `process.env.UV_THREADPOOL_SIZE` or null/undefined if absent)
 * [ ] Add runtime warnings in indexing startup when mismatch is likely:
-
   * [ ] Update `src/index/build/runtime/workers.js` (in `resolveThreadLimitsConfig`, verbose mode is already supported)
-
     * [ ] Compute `effectiveUv = Number(process.env.UV_THREADPOOL_SIZE) || null`
     * [ ] If `effectiveUv` is set and `ioConcurrency` is materially larger, emit a single warning suggesting alignment.
     * [ ] If `effectiveUv` is not set, consider a *non-fatal* hint when `ioConcurrency` is high (e.g., `>= 16`) and `--verbose` is enabled.
 * [ ] (Services) Emit one-time startup info in long-running modes:
-
   * [ ] `tools/api-server.js`
   * [ ] `tools/indexer-service.js`
   * [ ] `tools/mcp-server.js`
@@ -2493,58 +1909,6 @@ You must handle both “pre-read” scanning and “post-read” binary checks:
 
 ---
 
-## Phase 27 — LanceDB vector backend (optional, high impact on ANN scaling)
-
-### 27.1 Extract a vector-ANN provider interface
-
-* [ ] Create `src/retrieval/ann/`:
-  * [ ] `types.js`: `query({ embedding, topN, candidateSet, mode }) -> hits[]`
-  * [ ] `providers/sqlite-vec.js` wrapper around `rankVectorAnnSqlite`
-  * [ ] `providers/hnsw.js` wrapper around `rankHnswIndex`
-
-* [ ] Update `src/retrieval/pipeline.js` to use the provider interface
-
-### 27.2 Implement LanceDB integration (choose operational model)
-
-* [x] Choose packaging model:
-  * [x] Node library integration (`@lancedb/lancedb`)
-  * [ ] Sidecar service (Python) + HTTP
-
-* [x] Add LanceDB ANN ranker/provider (implemented at `src/retrieval/lancedb.js`; wired via `src/retrieval/pipeline.js`):
-  * [x] Query by vector and return `{ idx, sim }`
-  * [x] Handle filtering:
-    * [x] If LanceDB supports “where id IN (…)” efficiently → push down (small candidate sets)
-    * [x] Otherwise → post-filter and overfetch
-  * [ ] (Optional) After 27.1 lands, relocate under `src/retrieval/ann/providers/lancedb.js` to remove special-casing in pipeline
-
-### 27.3 Build tooling for vector index creation
-
-* [x] Build tooling for vector index creation (implemented as part of `tools/build-embeddings`):
-  * [x] Ingest `dense_vectors_*` artifacts
-  * [x] Store LanceDB table in cache (mode-specific) via `dense_vectors.lancedb/` + `dense_vectors.lancedb.meta.json`
-  * [x] Validate dims/model compatibility using existing `index_state.json` semantics (meta dims are checked at query time)
-
-* [ ] (Optional) Add a standalone `tools/build-lancedb-index.js` entrypoint that rebuilds LanceDB tables from existing vector artifacts without re-embedding.
-
-### 27.4 Tests (gated)
-
-* [x] Add `tests/lancedb-ann.js` smoke test:
-  * [x] Build embeddings (stub) → build lancedb table → run a nearest-neighbor query → assert stable result ordering
-
-* [x] Gate test execution so CI does not fail when LanceDB isn’t available:
-  * [x] Current behavior: test self-skips with a clear “skipped” message when `@lancedb/lancedb` is missing
-  * [ ] (Optional) Add explicit `PAIROFCLEATS_TEST_LANCEDB=1` env gating if you want CI to skip even when the dependency is installed
-
-* [x] Add script-coverage action(s):
-  * [x] `tests/script-coverage/actions.js` includes `lancedb-ann-test`
-
-**Exit criteria**
-
-* [ ] LanceDB ANN can be enabled without breaking sqlite/hnsw fallbacks
-* [ ] Demonstrable memory and/or latency win for ANN retrieval at scale
-
----
-
 ## Phase 28 — Distribution Readiness (Package Control + Cross-Platform)
 
 * [x] Packaging rules for ST3 (no compiled Python deps)
@@ -2584,6 +1948,10 @@ Tests:
 
 ## Phase 30 — Verification Gates (Regression + Parity + UX Acceptance)
 
+- [ ] While working on Phases 30, 41, 42, 44, create a document called "TEST_TIMES.md"
+  - [ ] Write a little helper .ps1 (powershell 7) script that allows you to run a single test in your worktree without messing anything up
+    - [ ] This helper script will add a line to TEST_TIMES.md containing the path/filename of the test if it does not exist already, and then log how long it took to run that test
+    - [ ] Use this helper every time we have to run a test for this work, if a test takes longer than 10 seconds while you are doing this, cancel that specific test or end that specific process if you're absolutely sure you have to, and then add that test's path/filename to a "SLOW_TESTS.md" list
 * [x] Parity checklist vs existing extension behaviors (where applicable)
   - Implemented: `tests/parity.js` (also wired into `tests/script-coverage/actions.js`)
 * [ ] Deterministic outputs for map/search commands
@@ -2606,11 +1974,11 @@ Tests:
       - `tests/code-map-graphviz-fallback.js`
     - Add an explicit `tests/e2e-smoke.js` or wire these into `tests/script-coverage/actions.js`.
 
-### 30.1 Regression gate sweep backlog (moved from Phase 4)
+### 30.1 Regression gate sweep backlog 
 
 **Objective:** Clear the remaining regression gate failures that were moved out of Phase 4.
 
-#### Current npm test failures (2026-01-17)
+#### Current npm test failures
 
 * [ ] `tests/git-blame-range.js` — expected alpha author in chunk authors
 * [ ] `tests/lang/fixtures-sample/python-metadata.test.js` — missing signature metadata
@@ -2692,10 +2060,8 @@ Note: merge-followup failures for api-server streaming, code-map basics, MCP sch
 * [ ] Add HDR env map tone calibration controls (env intensity, exposure) to match yoink reference settings.
   * [x] Env intensity control exists (`visuals.glass.envMapIntensity`) and is applied to glass materials
   * [ ] Exposure control is still hard-coded (`renderer.toneMappingExposure = 1.9`); add a UI slider + persist to panel state
-
 * [x] Support normal map repeat/scale on glass with clearcoat normal influence.
   - Implemented via: `visuals.glass.normalRepeat`, `visuals.glass.normalScale`, `visuals.glass.clearcoatNormalScale`
-
 * [ ] Add optional clearcoat normal map toggle for glass shells.
   - Note: setting `clearcoatNormalScale = 0` approximates a toggle, but an explicit boolean that removes `clearcoatNormalMap` would be clearer.
 
@@ -2708,7 +2074,6 @@ Note: merge-followup failures for api-server streaming, code-map basics, MCP sch
 
 * [x] Expose metalness/roughness/transmission/ior/reflectivity/thickness controls as a grouped preset panel.
   - Implemented as UI sliders in `src/map/isometric/client/ui.js` + applied in `src/map/isometric/client/materials.js`
-
 * [ ] Add a “studio” preset that mirrors yoink defaults for fast tuning.
 
 ### Dependency leverage and reuse (map viewer)
@@ -2732,40 +2097,23 @@ This map phase is intentionally designed to **maximize reuse** of what the repo 
 
 **Objective:** Log failing tests from the deep validation run so they can be fixed once, then re-run.
 
-### 41.1 Config schema fallout
+### 41.1 Config schema fallout, CLI surface mismatch, Backend policy expectation
 
 * [ ] `tests/build-embeddings-cache.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
 * [ ] `tests/build-index-all.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` + `triage` keys (now disallowed).
 * [ ] `tests/code-map-determinism.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
 * [ ] `tests/embedding-batch-autotune.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
-
-Note: artifact-size-guardrails, code-map-basic/dot, comment-join, compact-pieces, and extracted-prose followups moved to Phase 44 after config updates.
-
-### 41.2 CLI surface mismatch
-
 * [ ] `tests/cli.js`: fails on `pairofcleats config validate` (command removed from public CLI). Update the test to call `node tools/validate-config.js` or adjust CLI expectations.
-
-### 41.3 Backend policy expectation
-
 * [ ] `tests/backend-policy.js`: assertion at line 25 expects auto backend to disable sqlite when `sqliteAutoChunkThreshold` is set; auto thresholds were removed, so update expectations or remove the threshold-specific cases.
-
-### 41.4 Re-run integration
-
-* [ ] Re-run `npm run test:integration` after addressing the failures above.
-
-### 41.5 Services test failures
-
 * [ ] `tests/services/api/no-index.test.js`: `api-server should return NO_INDEX when indexes are missing` failure (status/response contract drift).
-
-Note: streaming, MCP, and auth failures are tracked in Phase 44.
 
 ---
 
-## Phase 42 - Storage test failures (test:storage run 2026-01-18)
+## Phase 42 - Storage test failures
 
 **Objective:** Log `npm run test:storage` failures once; fix each test at most 1–2 tries, then move on.
 
-### 42.1 Config schema fallout
+### 42.1 Config schema fallout, Behavioral drift
 
 * [ ] `tests/lmdb-backend.js`: writes `.pairofcleats.json` with `indexing.treeSitter` (disallowed). Update test to avoid config keys or move control to allowed env/CLI.
 * [ ] `tests/lmdb-corruption.js`: writes `.pairofcleats.json` with `sqlite.use` (disallowed). Update test to rely on defaults or internal test env overrides.
@@ -2775,59 +2123,26 @@ Note: streaming, MCP, and auth failures are tracked in Phase 44.
 * [ ] `tests/sqlite-auto-backend.js`: writes `.pairofcleats.json` with `sqlite` + `search.sqliteAutoChunkThreshold` (disallowed) and expects threshold-based backend flips. Update or remove threshold-based expectations.
 * [ ] `tests/sqlite-build-indexes.js`: writes `.pairofcleats.json` with `indexing.*` (disallowed) and uses removed `--stage` flags. Update to new pipeline outputs and defaults.
 * [ ] `tests/sqlite-missing-dep.js`: writes `.pairofcleats.json` with `sqlite` + `search` (disallowed) and uses `PAIROFCLEATS_SQLITE_DISABLED` (removed). Update test to new backend selection policy and missing dependency handling.
-
-### 42.2 Behavioral drift
-
 * [ ] `tests/sqlite-incremental-no-change.js`: fails with `Expected no full rebuild for no-change run` (output indicates rebuild or updated messaging). Align expectation with new incremental logic or adjust output assertions.
 
-### 42.3 Re-run storage tests
-
-* [ ] Re-run `npm run test:storage` after addressing the failures above.
-
 ---
 
-## Phase 43 - Targeted test failures (manual run 2026-01-18)
-
-**Objective:** Record failures from the targeted test run so they can be addressed once, then re-run.
-
-### 43.1 Incremental cache signature
-
-* [x] `tests/incremental-cache-signature.js`: resolved by switching the test-only config change to `indexing.lint` so the config signature changes without reintroducing removed knobs.
-
-### 43.2 Incremental tokenization cache
-
-* [x] `tests/incremental-tokenization-cache.js`: resolved by toggling `indexing.postings.enablePhraseNgrams` in the test-only config so the tokenization key changes without touching removed config knobs.
-
-### 43.3 Smoke retrieval
-
-* [x] `tests/smoke-retrieval.js`: updated help flag expectations and replaced RRF assertions with ANN presence checks for the new contract.
-
----
-
-## Phase 44 - Merge Phase 32-40 test followups (manual run 2026-01-18)
+## Phase 44 - Merge Phase 32-40 test followups
 
 **Objective:** Track failures/hangs from `npm run test` after merging phase32-40, and re-enable skipped tests once fixed.
 
-### 44.1 Services lane (streaming + MCP + auth)
+### 44.1 Services (streaming + MCP + auth), Map lane, Artifacts, Prose
 
-* [ ] `tests/api-server-stream.js`: hangs during `npm run test`; temporarily excluded from `tests/run.js`. Investigate stream lifecycle and re-enable the test in the suite.
+* [X] ALWAYS SKIP `tests/api-server-stream.js`: hangs during `npm run test`; temporarily excluded from `tests/run.js`. Investigate stream lifecycle and re-enable the test in the suite.
 * [ ] `tests/mcp-robustness.js`: `Expected queue overload error response.` Repro: `node tests/mcp-robustness.js`. Verify overload handling and response schema.
 * [ ] `tests/mcp-schema.js`: `MCP schema snapshot mismatch.` Repro: `node tests/mcp-schema.js`. Update schema output or snapshot expectation after policy changes.
 * [ ] `tests/services/api/health-and-status.test.js`: `api-server should reject missing auth.` Repro: `node tests/services/api/health-and-status.test.js`. Check auth defaults for API server in new config contract.
-
-### 44.2 Map lane (code map)
-
 * [ ] `tests/code-map-basic.js`: `Failed: expected dataflow/controlFlow metadata`. Repro: `node tests/code-map-basic.js`. Likely tied to auto policy disabling AST dataflow/control flow; adjust expectations or policy overrides for tests.
 * [ ] `tests/code-map-dot.js`: `Failed: dot output missing import style`. Repro: `node tests/code-map-dot.js`. Confirm dot output formatting changes after hard cut and update expectations.
-
-### 44.3 Artifacts lane (guardrails + compaction)
-
 * [ ] `tests/artifact-size-guardrails.js`: `Expected chunk_meta sharding when max JSON bytes is small.` Build reported `Found 0 files.` Repro: `node tests/artifact-size-guardrails.js`. Investigate why discovery returns zero files and why sharding is not triggered under `PAIROFCLEATS_TEST_MAX_JSON_BYTES=4096`.
 * [ ] `tests/compact-pieces.js`: build fails with `chunk_meta entry exceeds max JSON size (2187 bytes)` under small JSON cap. Repro: `node tests/compact-pieces.js`. Evaluate sharding thresholds/estimates vs hard error.
-
-### 44.4 Prose lane (extracted-prose)
-
 * [ ] `tests/comment-join.js`: `comment join test failed: extracted-prose search error.` Repro: `node tests/comment-join.js`. Investigate extracted-prose search path/policy defaults.
 * [ ] `tests/extracted-prose.js`: `Extracted-prose test failed: search error.` Repro: `node tests/extracted-prose.js`. Check extracted-prose index availability and policy defaults.
 
 ---
+

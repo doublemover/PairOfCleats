@@ -28,6 +28,7 @@ export function parseSearchArgs(rawArgs) {
     mode: { type: 'string' },
     top: { type: 'number', default: 5 },
     json: { type: 'boolean', default: false },
+    compact: { type: 'boolean', default: false },
     explain: { type: 'boolean', default: false },
     why: { type: 'boolean', default: false },
     filter: { type: 'string' },
@@ -37,6 +38,16 @@ export function parseSearchArgs(rawArgs) {
     case: { type: 'boolean' },
     'case-file': { type: 'boolean' },
     'case-tokens': { type: 'boolean' },
+    type: { type: 'string' },
+    author: { type: 'string' },
+    import: { type: 'string' },
+    calls: { type: 'string' },
+    uses: { type: 'string' },
+    'chunk-author': { type: 'string' },
+    'modified-after': { type: 'string' },
+    'modified-since': { type: 'string' },
+    risk: { type: 'string' },
+    'risk-tag': { type: 'string' },
     'stub-embeddings': { type: 'boolean' }
   };
 
@@ -63,10 +74,18 @@ export function getSearchUsage() {
     '',
     'Options:',
     '  --repo <path>',
-    '  --mode code|prose|both',
+    '  --mode code|prose|extracted-prose|records|both|all',
     '  --top N',
     '  --json',
+    '  --compact',
     '  --explain',
+    '  --calls',
+    '  --uses',
+    '  --author "<name>"',
+    '  --chunk-author "<name>"',
+    '  --import "<path>"',
+    '  --modified-after <iso-date>',
+    '  --modified-since <days>',
     '  --filter "<expr>"'
   ].join('\n');
 }
@@ -87,19 +106,21 @@ export function resolveSearchMode(modeRaw) {
       runExtractedProse: true
     };
   }
-  const allowedModes = new Set(['code', 'prose', 'both']);
+  const allowedModes = new Set(['code', 'prose', 'both', 'extracted-prose', 'records', 'all']);
   if (!allowedModes.has(normalized)) {
-    const error = new Error(`Invalid --mode ${normalized}. Use code|prose|both.`);
+    const error = new Error(`Invalid --mode ${normalized}. Use code|prose|both|extracted-prose|records|all.`);
     error.code = 'INVALID_MODE';
     throw error;
   }
-  const runCode = normalized === 'code' || normalized === 'both';
-  const runProse = normalized === 'prose' || normalized === 'both';
+  const runCode = normalized === 'code' || normalized === 'both' || normalized === 'all';
+  const runProse = normalized === 'prose' || normalized === 'both' || normalized === 'all';
+  const runRecords = normalized === 'records' || normalized === 'all';
+  const runExtractedProse = normalized === 'extracted-prose' || runProse;
   return {
     searchMode: normalized,
     runCode,
     runProse,
-    runRecords: false,
-    runExtractedProse: runProse
+    runRecords,
+    runExtractedProse
   };
 }

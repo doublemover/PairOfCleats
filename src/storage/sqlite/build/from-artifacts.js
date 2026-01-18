@@ -8,18 +8,27 @@ import {
 } from '../build-helpers.js';
 import { CREATE_INDEXES_SQL, CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../schema.js';
 import { normalizeFilePath, readJson, loadOptional, removeSqliteSidecars } from '../utils.js';
-import { packUint32, packUint8, dequantizeUint8ToFloat32, toVectorId } from '../vector.js';
+import {
+  packUint32,
+  packUint8,
+  dequantizeUint8ToFloat32,
+  resolveQuantizationParams,
+  toSqliteRowId
+} from '../vector.js';
 import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
 import { normalizeManifestFiles } from './manifest.js';
 import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
 import { MAX_JSON_BYTES, parseJsonlLine, resolveJsonlRequiredKeys } from '../../../shared/artifact-io.js';
 
-const listShardFiles = (dir, prefix) => {
+const listShardFiles = (dir, prefix, extensions) => {
   if (!fsSync.existsSync(dir)) return [];
+  const allowed = Array.isArray(extensions) && extensions.length
+    ? extensions
+    : ['.json', '.jsonl'];
   return fsSync
     .readdirSync(dir)
-    .filter((name) => name.startsWith(prefix) && (name.endsWith('.json') || name.endsWith('.jsonl')))
+    .filter((name) => name.startsWith(prefix) && allowed.some((ext) => name.endsWith(ext)))
     .sort()
     .map((name) => path.join(dir, name));
 };
@@ -38,7 +47,7 @@ const resolveChunkMetaSources = (dir) => {
       } catch {}
     }
     if (!parts.length) {
-      parts = listShardFiles(partsDir, 'chunk_meta.part-');
+      parts = listShardFiles(partsDir, 'chunk_meta.part-', ['.jsonl']);
     }
     return parts.length ? { format: 'jsonl', paths: parts } : null;
   }
@@ -67,7 +76,7 @@ const resolveTokenPostingsSources = (dir) => {
     } catch {}
   }
   if (!parts.length) {
-    parts = listShardFiles(shardsDir, 'token_postings.part-');
+    parts = listShardFiles(shardsDir, 'token_postings.part-', ['.json']);
   }
   return parts.length ? { metaPath, parts } : null;
 };
@@ -146,6 +155,7 @@ export async function buildDatabaseFromArtifacts({
   const validationStats = { chunks: 0, dense: 0, minhash: 0 };
   const vectorExtension = vectorConfig?.extension || {};
   const encodeVector = vectorConfig?.encodeVector;
+  const quantization = resolveQuantizationParams(vectorConfig?.quantization);
 
   const db = new Database(outPath);
   applyBuildPragmas(db);
@@ -347,22 +357,30 @@ export async function buildDatabaseFromArtifacts({
 
     function ingestDense(dense, targetMode) {
       if (!dense?.vectors || !dense.vectors.length) return;
-      insertDenseMeta.run(
-        targetMode,
-        dense.dims || null,
-        typeof dense.scale === 'number' ? dense.scale : 1.0,
-        dense.model || modelConfig.id || null
-      );
       const insertTx = db.transaction(() => {
+        insertDenseMeta.run(
+          targetMode,
+          dense.dims || null,
+          typeof dense.scale === 'number' ? dense.scale : 1.0,
+          dense.model || modelConfig.id || null,
+          quantization.minVal,
+          quantization.maxVal,
+          quantization.levels
+        );
         for (let docId = 0; docId < dense.vectors.length; docId += 1) {
           const vec = dense.vectors[docId];
           if (!vec) continue;
           insertDense.run(targetMode, docId, packUint8(vec));
           validationStats.dense += 1;
           if (vectorAnn?.insert && encodeVector) {
-            const floatVec = dequantizeUint8ToFloat32(vec);
+            const floatVec = dequantizeUint8ToFloat32(
+              vec,
+              quantization.minVal,
+              quantization.maxVal,
+              quantization.levels
+            );
             const encoded = encodeVector(floatVec, vectorExtension);
-            if (encoded) vectorAnn.insert.run(toVectorId(docId), encoded);
+            if (encoded) vectorAnn.insert.run(toSqliteRowId(docId), encoded);
           }
         }
       });
@@ -507,6 +525,11 @@ export async function buildDatabaseFromArtifacts({
           }
         });
         const rows = [];
+        const flush = () => {
+          if (!rows.length) return;
+          insert(rows);
+          rows.length = 0;
+        };
         for (let i = 0; i < indexData.chunkMeta.length; i += 1) {
           const chunk = indexData.chunkMeta[i];
           if (!chunk) continue;
@@ -519,8 +542,9 @@ export async function buildDatabaseFromArtifacts({
             fileCounts.set(row.file, (fileCounts.get(row.file) || 0) + 1);
           }
           chunkCount += 1;
+          if (rows.length >= 500) flush();
         }
-        insert(rows);
+        flush();
       }
 
       let tokenIngested = false;
@@ -575,8 +599,12 @@ export async function buildDatabaseFromArtifacts({
       validateMode,
       expected: validationStats,
       emitOutput,
-      logger
+      logger,
+      dbPath: outPath
     });
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch {}
     succeeded = true;
   } finally {
     if (succeeded) {
@@ -597,3 +625,4 @@ export async function buildDatabaseFromArtifacts({
   }
   return count;
 }
+

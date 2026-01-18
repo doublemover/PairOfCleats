@@ -13,6 +13,13 @@ export function quantizeVec(vec, minVal = -1, maxVal = 1, levels = 256) {
   );
 }
 
+export function resolveQuantizationParams(quantization = {}) {
+  const minVal = Number.isFinite(quantization?.minVal) ? Number(quantization.minVal) : -1;
+  const maxVal = Number.isFinite(quantization?.maxVal) ? Number(quantization.maxVal) : 1;
+  const levels = Number.isFinite(quantization?.levels) ? Math.floor(Number(quantization.levels)) : 256;
+  return { minVal, maxVal, levels };
+}
+
 /**
  * Dequantize a uint8 vector to Float32Array.
  * @param {ArrayLike<number>} vec
@@ -36,7 +43,7 @@ export function dequantizeUint8ToFloat32(vec, minVal = -1, maxVal = 1, levels = 
  * @param {string|number|bigint} value
  * @returns {bigint|number|string}
  */
-export function toVectorId(value) {
+export function toSqliteRowId(value) {
   try {
     return BigInt(value);
   } catch {

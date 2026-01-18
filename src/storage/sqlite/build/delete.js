@@ -1,5 +1,22 @@
 import { chunkArray } from '../utils.js';
 
+const deleteStatementCache = new WeakMap();
+const TEMP_DELETE_THRESHOLD = 2000;
+
+const getDeleteStatement = (db, key, sql) => {
+  let dbCache = deleteStatementCache.get(db);
+  if (!dbCache) {
+    dbCache = new Map();
+    deleteStatementCache.set(db, dbCache);
+  }
+  let stmt = dbCache.get(key);
+  if (!stmt) {
+    stmt = db.prepare(sql);
+    dbCache.set(key, stmt);
+  }
+  return stmt;
+};
+
 export function deleteDocIds(db, mode, docIds, extraTables = []) {
   if (!docIds.length) return;
   const deleteTargets = [
@@ -15,6 +32,35 @@ export function deleteDocIds(db, mode, docIds, extraTables = []) {
   for (const extra of extraTables) {
     if (extra?.table && extra?.column) deleteTargets.push(extra);
   }
+  const hasTransforms = deleteTargets.some((target) => typeof target.transform === 'function');
+  if (!hasTransforms && docIds.length >= TEMP_DELETE_THRESHOLD) {
+    const tempTable = 'temp_doc_ids';
+    try {
+      db.exec(`DROP TABLE IF EXISTS ${tempTable}`);
+      db.exec(`CREATE TEMP TABLE ${tempTable} (id INTEGER PRIMARY KEY)`);
+      const insertStmt = db.prepare(`INSERT OR REPLACE INTO ${tempTable} (id) VALUES (?)`);
+      const insertTx = db.transaction((values) => {
+        for (const value of values) insertStmt.run(value);
+      });
+      insertTx(docIds);
+      for (const target of deleteTargets) {
+        const withMode = target.withMode !== false;
+        const where = withMode
+          ? `mode = ? AND ${target.column} IN (SELECT id FROM ${tempTable})`
+          : `${target.column} IN (SELECT id FROM ${tempTable})`;
+        const key = `${target.table}:${target.column}:${withMode ? 'mode' : 'nomode'}:temp`;
+        const stmt = getDeleteStatement(db, key, `DELETE FROM ${target.table} WHERE ${where}`);
+        if (withMode) {
+          stmt.run(mode);
+        } else {
+          stmt.run();
+        }
+      }
+      return;
+    } finally {
+      try { db.exec(`DROP TABLE IF EXISTS ${tempTable}`); } catch {}
+    }
+  }
   for (const chunk of chunkArray(docIds)) {
     const placeholders = chunk.map(() => '?').join(',');
     for (const target of deleteTargets) {
@@ -23,7 +69,8 @@ export function deleteDocIds(db, mode, docIds, extraTables = []) {
       const where = withMode
         ? `mode = ? AND ${target.column} IN (${placeholders})`
         : `${target.column} IN (${placeholders})`;
-      const stmt = db.prepare(`DELETE FROM ${target.table} WHERE ${where}`);
+      const key = `${target.table}:${target.column}:${withMode ? 'mode' : 'nomode'}:${chunk.length}`;
+      const stmt = getDeleteStatement(db, key, `DELETE FROM ${target.table} WHERE ${where}`);
       if (withMode) {
         stmt.run(mode, ...values);
       } else {

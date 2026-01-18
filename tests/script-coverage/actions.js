@@ -95,6 +95,41 @@ const actions = [
     covers: ['chunking-guardrails-test']
   },
   {
+    label: 'code-map-basic-test',
+    run: () => runNode('code-map-basic-test', path.join(root, 'tests', 'code-map-basic.js')),
+    covers: ['code-map-basic-test']
+  },
+  {
+    label: 'code-map-dot-test',
+    run: () => runNode('code-map-dot-test', path.join(root, 'tests', 'code-map-dot.js')),
+    covers: ['code-map-dot-test']
+  },
+  {
+    label: 'code-map-graphviz-fallback-test',
+    run: () => runNode('code-map-graphviz-fallback-test', path.join(root, 'tests', 'code-map-graphviz-fallback.js')),
+    covers: ['code-map-graphviz-fallback-test']
+  },
+  {
+    label: 'code-map-determinism-test',
+    run: () => runNode('code-map-determinism-test', path.join(root, 'tests', 'code-map-determinism.js')),
+    covers: ['code-map-determinism-test']
+  },
+  {
+    label: 'code-map-guardrails-test',
+    run: () => runNode('code-map-guardrails-test', path.join(root, 'tests', 'code-map-guardrails.js')),
+    covers: ['code-map-guardrails-test']
+  },
+  {
+    label: 'code-map-performance-test',
+    run: () => runNode('code-map-performance-test', path.join(root, 'tests', 'code-map-performance.js')),
+    covers: ['code-map-performance-test']
+  },
+  {
+    label: 'e2e-smoke-test',
+    run: () => runNode('e2e-smoke-test', path.join(root, 'tests', 'e2e-smoke.js')),
+    covers: ['e2e-smoke-test']
+  },
+  {
     label: 'jsonl-validation-test',
     run: () => runNode('jsonl-validation-test', path.join(root, 'tests', 'jsonl-validation.js')),
     covers: ['jsonl-validation-test']

@@ -93,7 +93,12 @@ export async function rankLanceDb({
   config
 }) {
   if (!lancedbInfo?.available) return [];
-  if (!Array.isArray(queryEmbedding) || !queryEmbedding.length) return [];
+  const embeddingArray = Array.isArray(queryEmbedding)
+    ? queryEmbedding
+    : (ArrayBuffer.isView(queryEmbedding) && !(queryEmbedding instanceof DataView)
+      ? Array.from(queryEmbedding)
+      : null);
+  if (!embeddingArray || !embeddingArray.length) return [];
   const resolvedConfig = normalizeLanceDbConfig(config);
   if (!resolvedConfig.enabled) return [];
 
@@ -103,7 +108,7 @@ export async function rankLanceDb({
   const embeddingColumn = meta.embeddingColumn || resolvedConfig.embeddingColumn;
   const metric = meta.metric || resolvedConfig.metric;
   const dims = Number.isFinite(Number(meta.dims)) ? Number(meta.dims) : null;
-  if (dims && queryEmbedding.length !== dims) return [];
+  if (dims && embeddingArray.length !== dims) return [];
 
   const dir = lancedbInfo.dir;
   if (!dir || !fs.existsSync(dir)) return [];
@@ -124,9 +129,9 @@ export async function rankLanceDb({
     : limitBase;
   let query;
   if (embeddingColumn !== 'vector' && table.search.length > 1) {
-    query = table.search(queryEmbedding, { vectorColumn: embeddingColumn });
+    query = table.search(embeddingArray, { vectorColumn: embeddingColumn });
   } else {
-    query = table.search(queryEmbedding);
+    query = table.search(embeddingArray);
   }
   if (typeof query?.metricType === 'function') {
     query = query.metricType(metric);
