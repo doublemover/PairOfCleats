@@ -546,6 +546,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       fieldWeights: queryPlan.fieldWeights,
       postingsConfig,
       queryTokens: queryPlan.queryTokens,
+      queryAst: queryPlan.queryAst,
       phraseNgramSet: queryPlan.phraseNgramSet,
       phraseRange: queryPlan.phraseRange,
       symbolBoost: {
@@ -555,6 +556,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       },
       filters: queryPlan.filters,
       filtersActive: queryPlan.filtersActive,
+      explain,
       scoreBlend: {
         enabled: scoreBlendEnabled,
         sparseWeight: scoreBlendSparseWeight,

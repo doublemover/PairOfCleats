@@ -67,6 +67,16 @@ const LANG_EXT_MAP = new Map([
 
 const FILTER_TOKEN_RE = /"([^"]*)"|'([^']*)'|(\S+)/g;
 
+const INTERNAL_FILTER_KEYS = new Set([
+  'filePrefilter',
+  'regexConfig',
+  'caseFile',
+  'caseTokens',
+  'excludeTokens',
+  'excludePhrases',
+  'excludePhraseRange'
+]);
+
 const splitFilterTokens = (raw) => {
   const tokens = [];
   const input = String(raw || '').trim();
@@ -250,7 +260,8 @@ export function parseMetaFilters(metaArg, metaJsonArg) {
  */
 export function hasActiveFilters(filters) {
   if (!filters || typeof filters !== 'object') return false;
-  for (const value of Object.values(filters)) {
+  for (const [key, value] of Object.entries(filters)) {
+    if (INTERNAL_FILTER_KEYS.has(key)) continue;
     if (value == null) continue;
     if (typeof value === 'boolean') {
       if (value) return true;

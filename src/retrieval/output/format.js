@@ -348,11 +348,12 @@ export function formatFullChunk({
       const lessPer = 3;
       maxWords -= (lessPer * index);
       const bodySummary = getBodySummary(rootDir, chunk, maxWords);
+      const summaryWords = bodySummary.split(/\s+/).filter(Boolean).length;
       if (summaryState.lastCount < maxWords) {
-        maxWords = bodySummary.length;
+        maxWords = summaryWords;
       }
-      summaryState.lastCount = bodySummary.length;
-      out += c.gray('   Summary: ') + `${getBodySummary(rootDir, chunk, maxWords)}` + '\n';
+      summaryState.lastCount = summaryWords;
+      out += c.gray('   Summary: ') + bodySummary + '\n';
     }
   }
 

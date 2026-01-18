@@ -187,7 +187,8 @@ export function createSqliteHelpers(options) {
       denseVec = vectors.length ? {
         model: denseMeta.model || modelIdDefault,
         dims: denseMeta.dims || (fallbackVec ? fallbackVec.length : 0),
-        scale: typeof denseMeta.scale === 'number' ? denseMeta.scale : 1.0,
+        scale: typeof denseMeta.scale === 'number' ? denseMeta.scale : (2 / 255),
+        minVal: -1,
         vectors
       } : null;
     }
