@@ -54,7 +54,8 @@ export function createSearchPipeline(context) {
     getTokenIndexForQuery,
     rankSqliteFts,
     rankVectorAnnSqlite,
-    rrf
+    rrf,
+    signal
   } = context;
   const blendEnabled = scoreBlend?.enabled === true;
   const blendSparseWeight = Number.isFinite(Number(scoreBlend?.sparseWeight))
@@ -76,6 +77,13 @@ export function createSearchPipeline(context) {
   const rrfK = Number.isFinite(Number(rrf?.k))
     ? Math.max(1, Number(rrf.k))
     : 60;
+  const abortIfNeeded = () => {
+    if (signal?.aborted) {
+      const err = new Error('Search aborted.');
+      err.code = 'ERR_ABORTED';
+      throw err;
+    }
+  };
   const minhashLimit = Number.isFinite(Number(minhashMaxDocs))
     && Number(minhashMaxDocs) > 0
     ? Number(minhashMaxDocs)
@@ -333,6 +341,7 @@ export function createSearchPipeline(context) {
     * @returns {Promise<Array<object>>}
     */
   return async function runSearch(idx, mode, queryEmbedding) {
+    abortIfNeeded();
     const meta = idx.chunkMeta;
     const sqliteEnabledForMode = useSqlite && (mode === 'code' || mode === 'prose');
     const filtersEnabled = typeof filtersActive === 'boolean'
@@ -347,6 +356,7 @@ export function createSearchPipeline(context) {
     if (filtersEnabled && (!allowedIdx || allowedIdx.size === 0)) {
       return [];
     }
+    abortIfNeeded();
 
     const intersectCandidateSet = (candidateSet, allowedSet) => {
       if (!allowedSet) return candidateSet;
@@ -501,7 +511,8 @@ export function createSearchPipeline(context) {
     const scored = [...allHits.entries()]
       .filter(([idxVal]) => !allowedIdx || allowedIdx.has(idxVal))
       .map(([idxVal, scores]) => {
-          const sparseScore = scores.fts ?? scores.bm25 ?? null;
+        abortIfNeeded();
+        const sparseScore = scores.fts ?? scores.bm25 ?? null;
           const annScore = scores.ann ?? null;
           const sparseTypeValue = scores.fts != null
             ? 'fts'

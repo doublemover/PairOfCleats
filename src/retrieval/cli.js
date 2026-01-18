@@ -64,6 +64,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const exitOnError = options.exitOnError !== false;
   const indexCache = options.indexCache || null;
   const sqliteCache = options.sqliteCache || null;
+  const signal = options.signal || null;
   const t0 = Date.now();
 
   const inferJsonOutputFromArgs = () => {
@@ -74,6 +75,11 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     return { jsonOutput };
   };
 
+  if (signal?.aborted) {
+    const err = createError(ERROR_CODES.INVALID_REQUEST, 'Search aborted.');
+    err.code = 'ERR_ABORTED';
+    throw err;
+  }
   let argv;
   try {
     argv = parseSearchArgs(rawArgs);
@@ -592,7 +598,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       queryCacheTtlMs,
       backendLabel,
       resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
-      intentInfo: queryPlan.intentInfo
+      intentInfo: queryPlan.intentInfo,
+      signal
     });
 
     const elapsedMs = Date.now() - t0;

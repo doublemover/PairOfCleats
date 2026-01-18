@@ -11,8 +11,17 @@ export async function runSearchByMode({
   queryEmbeddingProse,
   queryEmbeddingExtractedProse,
   queryEmbeddingCode,
-  queryEmbeddingRecords
+  queryEmbeddingRecords,
+  signal
 }) {
+  const abortIfNeeded = () => {
+    if (signal?.aborted) {
+      const err = new Error('Search aborted.');
+      err.code = 'ERR_ABORTED';
+      throw err;
+    }
+  };
+  abortIfNeeded();
   const prosePromise = runProse
     ? searchPipeline(idxProse, 'prose', queryEmbeddingProse)
     : Promise.resolve([]);
@@ -31,5 +40,6 @@ export async function runSearchByMode({
     codePromise,
     recordsPromise
   ]);
+  abortIfNeeded();
   return { proseHits, extractedProseHits, codeHits, recordHits };
 }

@@ -126,8 +126,17 @@ export async function runSearchSession({
     buildCandidateSetSqlite,
     getTokenIndexForQuery,
     rankSqliteFts,
-    rankVectorAnnSqlite
+    rankVectorAnnSqlite,
+    signal
   });
+
+  const abortIfNeeded = () => {
+    if (signal?.aborted) {
+      const err = new Error('Search aborted.');
+      err.code = 'ERR_ABORTED';
+      throw err;
+    }
+  };
 
   let cacheHit = false;
   let cacheKey = null;
@@ -135,6 +144,7 @@ export async function runSearchSession({
   let cacheData = null;
   let cachedPayload = null;
 
+  abortIfNeeded();
   const queryCachePath = path.join(metricsDir, 'queryCache.json');
   if (queryCacheEnabled) {
     const signature = getIndexSignature({
@@ -210,6 +220,7 @@ export async function runSearchSession({
     incCacheEvent({ cache: 'query', result: cacheHit ? 'hit' : 'miss' });
   }
 
+  abortIfNeeded();
   const hasAnn = (mode, idx) => Boolean(
     idx?.denseVec?.vectors?.length
     || vectorAnnState?.[mode]?.available
@@ -230,6 +241,7 @@ export async function runSearchSession({
   );
   const embeddingCache = new Map();
   const getEmbeddingForModel = async (modelId, dims) => {
+    abortIfNeeded();
     if (!modelId) return null;
     const cacheKeyLocal = useStubEmbeddings ? `${modelId}:${dims || 'default'}` : modelId;
     if (embeddingCache.has(cacheKeyLocal)) {
@@ -271,6 +283,7 @@ export async function runSearchSession({
       recordHits: cachedPayload.records || []
     }
     : null;
+  abortIfNeeded();
   const { proseHits, extractedProseHits, codeHits, recordHits } = cachedHits || await runSearchByMode({
     searchPipeline,
     runProse,
@@ -284,7 +297,8 @@ export async function runSearchSession({
     queryEmbeddingProse,
     queryEmbeddingExtractedProse,
     queryEmbeddingCode,
-    queryEmbeddingRecords
+    queryEmbeddingRecords,
+    signal
   });
 
   const joinComments = commentsEnabled && runCode && extractedProseLoaded;
