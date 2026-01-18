@@ -309,7 +309,7 @@ let completed = 0;
 const formatBenchTierTag = (tier) => {
   if (!tier) return '';
   const label = String(tier).trim().toLowerCase();
-  return label ? `bench-${label}` : '';
+  return label || '';
 };
 const formatBenchRepoLabel = (repo) => {
   if (!repo) return 'Benching';

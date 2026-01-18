@@ -514,7 +514,11 @@ export function createDisplay(options = {}) {
     renderLines: 0,
     lastRenderMs: 0,
     lastProgressLogMs: 0,
-    paletteOffset: null
+    paletteOffset: null,
+    paletteScheme: null,
+    paletteStep: null,
+    paletteSlots: new Map(),
+    paletteOrder: []
   };
 
   const writeJsonLog = (level, message, meta) => {
@@ -656,22 +660,56 @@ export function createDisplay(options = {}) {
     const now = Date.now();
     const taskColors = new Map();
     const taskAccents = new Map();
-    const paletteStep = Math.min(
-      1,
-      (PALETTE.length - 1) / Math.max(1, displayTasks.length - 1)
-    );
-    const maxOffset = Math.max(
-      0,
-      (PALETTE.length - 1) - paletteStep * Math.max(0, displayTasks.length - 1)
-    );
+    const schemes = [
+      { name: 'forward', stepFactor: 0.8, mode: 'linear', direction: 1 },
+      { name: 'reverse', stepFactor: 0.8, mode: 'linear', direction: -1 },
+      { name: 'drift', stepFactor: 0.6, mode: 'linear', direction: 1 },
+      { name: 'pulse', stepFactor: 0.7, mode: 'triangle', span: Math.min(8, PALETTE.length - 1) }
+    ];
+    if (!state.paletteScheme) {
+      state.paletteScheme = schemes[Math.floor(Math.random() * schemes.length)];
+    }
+    const paletteSpan = Math.max(1, displayTasks.length - 1);
+    if (!Number.isFinite(state.paletteStep)) {
+      const baseStep = Math.min(0.9, (PALETTE.length - 1) / paletteSpan);
+      state.paletteStep = baseStep * (state.paletteScheme.stepFactor || 1);
+    }
+    const paletteStep = state.paletteStep || 0.7;
+    const maxOffset = Math.max(0, (PALETTE.length - 1) - paletteStep * paletteSpan);
     if (!Number.isFinite(state.paletteOffset)) {
       state.paletteOffset = maxOffset > 0 ? Math.random() * maxOffset : 0;
     } else if (state.paletteOffset > maxOffset) {
       state.paletteOffset = maxOffset;
     }
     const paletteOffset = state.paletteOffset || 0;
-    displayTasks.forEach((task, index) => {
-      const slot = resolvePaletteSlot(index, displayTasks.length, paletteOffset, paletteStep);
+    const normalizeSlot = (slot) => {
+      const span = PALETTE.length - 1;
+      if (span <= 0) return 0;
+      const wrapped = ((slot % span) + span) % span;
+      return wrapped;
+    };
+    const resolveSlotForIndex = (index) => {
+      const scheme = state.paletteScheme || schemes[0];
+      if (scheme.mode === 'triangle') {
+        const span = Math.max(2, scheme.span || 6);
+        const period = (span - 1) * 2;
+        const pos = period > 0 ? index % period : 0;
+        const wave = pos < span ? pos : period - pos;
+        return normalizeSlot(paletteOffset + wave * paletteStep);
+      }
+      const direction = scheme.direction || 1;
+      return normalizeSlot(paletteOffset + direction * index * paletteStep);
+    };
+    for (const task of displayTasks) {
+      if (!state.paletteSlots.has(task.id)) {
+        const index = state.paletteOrder.length;
+        const slot = resolveSlotForIndex(index);
+        state.paletteSlots.set(task.id, slot);
+        state.paletteOrder.push(task.id);
+      }
+    }
+    displayTasks.forEach((task) => {
+      const slot = state.paletteSlots.get(task.id) ?? paletteOffset;
       const base = paletteColorAt(slot);
       const accent = paletteColorAt(Math.min(PALETTE.length - 1, slot + 0.9));
       taskColors.set(task.id, base);
@@ -720,7 +758,7 @@ export function createDisplay(options = {}) {
     );
     const padBenchPrefix = (value) => {
       if (!maxBenchPrefixLength) return value || '';
-      return padVisibleStart(value || '', maxBenchPrefixLength);
+      return padVisible(value || '', maxBenchPrefixLength);
     };
     const rateTexts = extrasByTask.map((entry) => entry?.rateText || '');
     const maxRateLength = rateTexts.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
