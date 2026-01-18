@@ -1,0 +1,21 @@
+#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args.includes('--version') || args.includes('--help')) {
+  process.stdout.write('ast-grep stub\n');
+  process.exit(0);
+}
+const payload = {
+  ruleId: 'astgrep.stub',
+  file: 'src/example.ts',
+  matches: [
+    {
+      message: 'stub ast-grep match',
+      range: {
+        start: { line: 4, column: 1 },
+        end: { line: 4, column: 8 }
+      },
+      text: 'eval(x)'
+    }
+  ]
+};
+process.stdout.write(`${JSON.stringify(payload)}\n`);

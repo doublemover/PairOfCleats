@@ -3,16 +3,21 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import ignore from 'ignore';
 import { getDictConfig, getRepoDictPath, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { splitId } from '../src/shared/tokenize.js';
 
-const argv = minimist(process.argv.slice(2), {
-  string: ['out', 'extensions', 'repo'],
-  boolean: ['include-prose'],
-  default: { 'min-count': 3, 'include-prose': false }
-});
+const argv = createCli({
+  scriptName: 'generate-repo-dict',
+  options: {
+    out: { type: 'string' },
+    extensions: { type: 'string' },
+    repo: { type: 'string' },
+    'include-prose': { type: 'boolean', default: false },
+    'min-count': { type: 'number', default: 3 }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const repoRoot = rootArg || resolveRepoRoot(process.cwd());

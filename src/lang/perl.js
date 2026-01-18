@@ -1,7 +1,7 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { findCLikeBodyBounds } from './clike.js';
-import { sliceSignature } from './shared.js';
+import { extractDocComment, sliceSignature } from './shared.js';
 
 /**
  * Perl (lite) language chunking and relations.
@@ -18,20 +18,12 @@ const PERL_USAGE_SKIP = new Set([
   'undef', 'true', 'false'
 ]);
 
-function extractPerlDocComment(lines, startLineIdx) {
-  let i = startLineIdx - 1;
-  while (i >= 0 && lines[i].trim() === '') i--;
-  if (i < 0) return '';
-  const out = [];
-  while (i >= 0) {
-    const trimmed = lines[i].trim();
-    if (!trimmed.startsWith('#')) break;
-    if (trimmed.startsWith('#!')) break;
-    out.unshift(trimmed.replace(/^#\s?/, ''));
-    i--;
-  }
-  return out.join('\n').trim();
-}
+const PERL_DOC_OPTIONS = {
+  linePrefixes: ['#'],
+  blockStarts: [],
+  blockEnd: null,
+  skipLine: (line) => line.startsWith('#!')
+};
 
 function readSignatureLines(lines, startLine) {
   const parts = [];
@@ -135,7 +127,7 @@ export function buildPerlChunks(text) {
       startLine: i + 1,
       endLine: offsetToLine(lineIndex, end),
       signature: trimmed,
-      docstring: extractPerlDocComment(lines, i)
+      docstring: extractDocComment(lines, i, PERL_DOC_OPTIONS)
     };
     decls.push({ start, end, name: match[1], kind: 'PackageDeclaration', meta });
   }
@@ -155,7 +147,7 @@ export function buildPerlChunks(text) {
       startLine: i + 1,
       endLine: offsetToLine(lineIndex, end),
       signature: signatureText,
-      docstring: extractPerlDocComment(lines, i)
+      docstring: extractDocComment(lines, i, PERL_DOC_OPTIONS)
     };
     decls.push({ start, end, name: match[1], kind: 'FunctionDeclaration', meta });
     i = endLine;

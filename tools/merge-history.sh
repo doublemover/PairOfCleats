@@ -15,6 +15,6 @@ if [ ! -f "$THEIRS_FILE" ]; then
   exit 0
 fi
 
-node "$(dirname "$0")/mergeSearchHistory.js" "$THEIRS_FILE" "$OURS_FILE"
+node "$(dirname "$0")/mergeAppendOnly.js" "$THEIRS_FILE" "$OURS_FILE"
 
 exit 0

@@ -2,20 +2,25 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import minimist from 'minimist';
-import { getCacheRoot, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
+import { createCli } from '../src/shared/cli.js';
+import { getEnvConfig } from '../src/shared/env.js';
+import { getCacheRoot, getRepoCacheRoot, loadUserConfig, resolveLmdbPaths, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { isInside, isRootPath } from './path-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['all', 'dry-run'],
-  string: ['repo'],
-  default: { all: false, 'dry-run': false }
-});
+const argv = createCli({
+  scriptName: 'clean-artifacts',
+  options: {
+    all: { type: 'boolean', default: false },
+    'dry-run': { type: 'boolean', default: false },
+    repo: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
-const cacheRoot = (userConfig.cache && userConfig.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+const envConfig = getEnvConfig();
+const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const defaultSqliteDir = path.join(repoCacheRoot, 'index-sqlite');
 const legacyRepoSqliteDir = path.join(root, 'index-sqlite');
@@ -23,6 +28,7 @@ const defaultCodePath = path.join(defaultSqliteDir, 'index-code.db');
 const defaultProsePath = path.join(defaultSqliteDir, 'index-prose.db');
 const defaultLegacyPath = path.join(defaultSqliteDir, 'index.db');
 const sqlitePaths = resolveSqlitePaths(root, userConfig);
+const lmdbPaths = resolveLmdbPaths(root, userConfig);
 
 
 const targets = [];
@@ -58,6 +64,14 @@ if (fs.existsSync(sqlitePaths.legacyPath)) {
 
 if (fs.existsSync(legacyRepoSqliteDir) && !isInside(base, path.resolve(legacyRepoSqliteDir))) {
   targets.push(legacyRepoSqliteDir);
+}
+
+const lmdbDirs = [lmdbPaths.codePath, lmdbPaths.prosePath];
+for (const dir of lmdbDirs) {
+  if (!dir || !fs.existsSync(dir)) continue;
+  if (!isInside(base, path.resolve(dir))) {
+    targets.push(dir);
+  }
 }
 
 const uniqueTargets = Array.from(new Set(targets.map((target) => path.resolve(target))));

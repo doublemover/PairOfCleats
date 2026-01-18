@@ -1,0 +1,23 @@
+#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args.includes('--version') || args.includes('--help')) {
+  process.stdout.write('semgrep stub\n');
+  process.exit(0);
+}
+const payload = {
+  results: [
+    {
+      check_id: 'semgrep.stub',
+      path: 'src/example.js',
+      start: { line: 2, col: 3 },
+      end: { line: 2, col: 10 },
+      extra: {
+        message: 'stub semgrep match',
+        severity: 'WARNING',
+        lines: 'eval("x")',
+        metadata: { tags: ['security'] }
+      }
+    }
+  ]
+};
+process.stdout.write(`${JSON.stringify(payload)}\n`);

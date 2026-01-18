@@ -3,46 +3,74 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import minimist from 'minimist';
-import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/compare/config.js';
+import { execaSync } from 'execa';
+import { createCli } from '../src/shared/cli.js';
+import { getEnvConfig } from '../src/shared/env.js';
+import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../src/shared/onnx-embeddings.js';
+import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/experimental/compare/config.js';
 import {
   DEFAULT_MODEL_ID,
   getCacheRoot,
   getDictConfig,
   getModelConfig,
   getRepoId,
+  getRuntimeConfig,
   loadUserConfig,
+  resolveRuntimeEnv,
   resolveRepoRoot,
-  resolveSqlitePaths
+  resolveSqlitePaths,
+  resolveToolRoot
 } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
-const argv = minimist(rawArgs, {
-  boolean: ['json', 'build', 'build-index', 'build-sqlite', 'incremental', 'stub-embeddings', 'ann', 'no-ann'],
-  string: ['models', 'baseline', 'queries', 'backend', 'out', 'mode', 'cache-root', 'repo'],
-  alias: { n: 'top', q: 'queries' },
-  default: { top: 5, limit: 0 }
-});
+const argv = createCli({
+  scriptName: 'compare-models',
+  options: {
+    json: { type: 'boolean', default: false },
+    build: { type: 'boolean', default: false },
+    'build-index': { type: 'boolean', default: false },
+    'build-sqlite': { type: 'boolean', default: false },
+    incremental: { type: 'boolean', default: false },
+    'stub-embeddings': { type: 'boolean', default: false },
+    ann: { type: 'boolean' },
+    'no-ann': { type: 'boolean' },
+    models: { type: 'string' },
+    baseline: { type: 'string' },
+    queries: { type: 'string' },
+    backend: { type: 'string' },
+    out: { type: 'string' },
+    mode: { type: 'string' },
+    'cache-root': { type: 'string' },
+    repo: { type: 'string' },
+    top: { type: 'number', default: 5 },
+    limit: { type: 'number', default: 0 }
+  },
+  aliases: { n: 'top', q: 'queries' }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
-const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scriptRoot = resolveToolRoot();
 const userConfig = loadUserConfig(root);
+const envConfig = getEnvConfig();
+const runtimeConfig = getRuntimeConfig(root, userConfig);
+const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+const embeddingsConfig = userConfig.indexing?.embeddings || {};
+const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
+const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
 const configCacheRoot = typeof userConfig.cache?.root === 'string' && userConfig.cache.root.trim()
   ? path.resolve(userConfig.cache.root)
   : null;
 const cacheRootBase = argv['cache-root']
   ? path.resolve(argv['cache-root'])
-  : (process.env.PAIROFCLEATS_CACHE_ROOT
-    ? path.resolve(process.env.PAIROFCLEATS_CACHE_ROOT)
+  : (envConfig.cacheRoot
+    ? path.resolve(envConfig.cacheRoot)
     : getCacheRoot());
 const repoId = getRepoId(root);
 const modelConfig = getModelConfig(root, userConfig);
 const dictConfig = getDictConfig(root, userConfig);
-const sharedModelsDir = process.env.PAIROFCLEATS_MODELS_DIR || modelConfig.dir;
-const sharedDictDir = process.env.PAIROFCLEATS_DICT_DIR || dictConfig.dir;
+const sharedModelsDir = envConfig.modelsDir || modelConfig.dir;
+const sharedDictDir = envConfig.dictDir || dictConfig.dir;
 
 const configCompareModels = Array.isArray(userConfig.models?.compare)
   ? userConfig.models.compare
@@ -125,7 +153,7 @@ function getModelCacheRoot(modelId) {
  */
 function buildEnv(modelId, modelCacheRoot) {
   const env = {
-    ...process.env,
+    ...baseEnv,
     PAIROFCLEATS_MODEL: modelId
   };
   if (modelCacheRoot) env.PAIROFCLEATS_CACHE_ROOT = modelCacheRoot;
@@ -142,7 +170,38 @@ function buildEnv(modelId, modelCacheRoot) {
  * @returns {boolean}
  */
 function indexExists(modelCacheRoot, mode) {
-  const metaPath = path.join(modelCacheRoot, 'repos', repoId, `index-${mode}`, 'chunk_meta.json');
+  const repoCacheRoot = path.join(modelCacheRoot, 'repos', repoId);
+  let indexRoot = repoCacheRoot;
+  const currentPath = path.join(repoCacheRoot, 'builds', 'current.json');
+  if (fs.existsSync(currentPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
+      const resolveRoot = (value) => {
+        if (!value) return null;
+        return path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+      };
+      const buildId = typeof data.buildId === 'string' ? data.buildId : null;
+      const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
+      const buildRoot = buildRootRaw
+        ? resolveRoot(buildRootRaw)
+        : (buildId ? path.join(repoCacheRoot, 'builds', buildId) : null);
+      let modeRoot = null;
+      if (data.buildRoots && typeof data.buildRoots === 'object' && !Array.isArray(data.buildRoots)) {
+        const raw = data.buildRoots[mode];
+        if (typeof raw === 'string') {
+          modeRoot = resolveRoot(raw);
+        }
+      } else if (buildRoot && Array.isArray(data.modes) && data.modes.includes(mode)) {
+        modeRoot = buildRoot;
+      }
+      if (modeRoot && fs.existsSync(modeRoot)) {
+        indexRoot = modeRoot;
+      } else if (buildRoot && fs.existsSync(buildRoot)) {
+        indexRoot = buildRoot;
+      }
+    } catch {}
+  }
+  const metaPath = path.join(indexRoot, `index-${mode}`, 'chunk_meta.json');
   return fs.existsSync(metaPath);
 }
 
@@ -166,11 +225,11 @@ function ensureIndex(modelCacheRoot) {
  * @param {string} label
  */
 function runCommand(args, env, label) {
-  const stdio = argv.json ? ['ignore', process.stderr, process.stderr] : 'inherit';
-  const result = spawnSync(process.execPath, args, { env, stdio });
-  if (result.status !== 0) {
+  const stdio = argv.json ? ['ignore', 'ignore', 'ignore'] : 'inherit';
+  const result = execaSync(process.execPath, args, { env, stdio, reject: false });
+  if (result.exitCode !== 0) {
     console.error(`Failed: ${label}`);
-    process.exit(result.status ?? 1);
+    process.exit(result.exitCode ?? 1);
   }
 }
 
@@ -184,24 +243,26 @@ function runSearch(query, env) {
   const args = [
     path.join(scriptRoot, 'search.js'),
     query,
-    '--json-compact',
+    '--json',
     '--stats',
     '--backend',
     backend,
     '-n',
     String(topN),
-    annArg
+    annArg,
+    '--repo',
+    root
   ];
   if (modeArg && modeArg !== 'both') {
     args.push('--mode', modeArg);
   }
   const start = Date.now();
-  const result = spawnSync(process.execPath, args, { env, encoding: 'utf8' });
+  const result = execaSync(process.execPath, args, { env, encoding: 'utf8', reject: false });
   const wallMs = Date.now() - start;
-  if (result.status !== 0) {
+  if (result.exitCode !== 0) {
     console.error(`Search failed for query="${query}" (model=${env.PAIROFCLEATS_MODEL})`);
     if (result.stderr) console.error(result.stderr.trim());
-    process.exit(result.status ?? 1);
+    process.exit(result.exitCode ?? 1);
   }
   const payload = JSON.parse(result.stdout || '{}');
   return { payload, wallMs };
@@ -248,9 +309,8 @@ const limit = Math.max(0, parseInt(argv.limit, 10) || 0);
 const selectedQueries = limit > 0 ? queries.slice(0, limit) : queries;
 
 if (sqliteBackend && buildSqlite) {
-  const sqlitePaths = resolveSqlitePaths(root, userConfig);
-  if (!buildIndex && !fs.existsSync(sqlitePaths.codePath) && !fs.existsSync(sqlitePaths.prosePath)) {
-    console.error('SQLite index missing. Use --build or build the indexes first.');
+  if (!buildIndex && !ensureIndex(getModelCacheRoot(models[0]))) {
+    console.error('Index missing. Use --build or build the index first.');
     process.exit(1);
   }
 }
@@ -266,7 +326,7 @@ for (const modelId of models) {
   }
 
   if (buildIndex) {
-    const args = [path.join(scriptRoot, 'build_index.js')];
+    const args = [path.join(scriptRoot, 'build_index.js'), '--repo', root];
     if (buildIncremental) args.push('--incremental');
     if (stubEmbeddings) args.push('--stub-embeddings');
     runCommand(args, env, `build index (${modelId})`);
@@ -276,7 +336,7 @@ for (const modelId of models) {
   }
 
   if (buildSqlite) {
-    const args = [path.join(scriptRoot, 'tools', 'build-sqlite-index.js')];
+    const args = [path.join(scriptRoot, 'tools', 'build-sqlite-index.js'), '--repo', root];
     if (buildIncremental) args.push('--incremental');
     runCommand(args, env, `build sqlite (${modelId})`);
   } else if (sqliteBackend) {
@@ -408,11 +468,35 @@ for (const modelId of models) {
   const wall = results.map((entry) => entry.runs[modelId]?.wallMs || 0);
   const codeCounts = results.map((entry) => entry.runs[modelId]?.codeCount || 0);
   const proseCounts = results.map((entry) => entry.runs[modelId]?.proseCount || 0);
+  const resolvedOnnxModelPath = embeddingProvider === 'onnx'
+    ? resolveOnnxModelPath({
+      rootDir: root,
+      modelPath: embeddingOnnx.modelPath,
+      modelsDir: sharedModelsDir,
+      modelId
+    })
+    : null;
   summaryByModel[modelId] = {
     elapsedMsAvg: mean(elapsed),
     wallMsAvg: mean(wall),
     codeCountAvg: mean(codeCounts),
-    proseCountAvg: mean(proseCounts)
+    proseCountAvg: mean(proseCounts),
+    embeddingConfig: {
+      provider: embeddingProvider,
+      mode: embeddingsConfig.mode || 'auto',
+      stub: stubEmbeddings,
+      onnx: embeddingProvider === 'onnx'
+        ? {
+          modelPath: embeddingOnnx.modelPath || null,
+          tokenizerId: embeddingOnnx.tokenizerId || null,
+          executionProviders: embeddingOnnx.executionProviders || null,
+          intraOpNumThreads: embeddingOnnx.intraOpNumThreads || null,
+          interOpNumThreads: embeddingOnnx.interOpNumThreads || null,
+          graphOptimizationLevel: embeddingOnnx.graphOptimizationLevel || null,
+          resolvedModelPath: resolvedOnnxModelPath
+        }
+        : null
+    }
   };
 }
 
@@ -473,6 +557,11 @@ const output = {
     models,
     baseline,
     cacheRootBase: configCacheRoot || cacheRootBase,
+    embeddings: {
+      provider: embeddingProvider,
+      mode: embeddingsConfig.mode || 'auto',
+      stub: stubEmbeddings
+    },
     cacheIsolation: !configCacheRoot
   },
   summary: {

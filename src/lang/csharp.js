@@ -2,6 +2,7 @@ import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
 import { extractDocComment, sliceSignature } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * C# language chunking and relations.
@@ -205,7 +206,9 @@ export function collectCSharpImports(text) {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildCSharpChunks(text) {
+export function buildCSharpChunks(text, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'csharp', options });
+  if (treeChunks && treeChunks.length) return treeChunks;
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];

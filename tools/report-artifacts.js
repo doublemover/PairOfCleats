@@ -1,50 +1,99 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import minimist from 'minimist';
-import { getCacheRoot, getDictConfig, getRepoCacheRoot, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
+import { createCli } from '../src/shared/cli.js';
+import { getStatus } from '../src/integrations/core/status.js';
+import { validateIndexArtifacts } from '../src/index/validate.js';
+import { getMetricsDir, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['json', 'all'],
-  string: ['repo'],
-  default: { json: false, all: false }
-});
+const argv = createCli({
+  scriptName: 'report-artifacts',
+  options: {
+    json: { type: 'boolean', default: false },
+    all: { type: 'boolean', default: false },
+    repo: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
-const cacheRoot = (userConfig.cache && userConfig.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
-const repoCacheRoot = getRepoCacheRoot(root, userConfig);
-const dictConfig = getDictConfig(root, userConfig);
-const dictDir = dictConfig.dir;
-const sqlitePaths = resolveSqlitePaths(root, userConfig);
-const sqliteTargets = [
-  { label: 'code', path: sqlitePaths.codePath },
-  { label: 'prose', path: sqlitePaths.prosePath }
-];
+const metricsDir = getMetricsDir(root, userConfig);
+const status = await getStatus({ repoRoot: root, includeAll: argv.all });
 
-/**
- * Recursively compute the size of a file or directory.
- * @param {string} targetPath
- * @returns {Promise<number>}
- */
-async function sizeOfPath(targetPath) {
+const readJson = (targetPath) => {
+  if (!fs.existsSync(targetPath)) return null;
   try {
-    const stat = await fsPromises.lstat(targetPath);
-    if (stat.isSymbolicLink()) return 0;
-    if (stat.isFile()) return stat.size;
-    if (!stat.isDirectory()) return 0;
-
-    const entries = await fsPromises.readdir(targetPath);
-    let total = 0;
-    for (const entry of entries) {
-      total += await sizeOfPath(path.join(targetPath, entry));
-    }
-    return total;
+    return JSON.parse(fs.readFileSync(targetPath, 'utf8'));
   } catch {
-    return 0;
+    return null;
   }
+};
+
+const indexMetrics = {
+  code: readJson(path.join(metricsDir, 'index-code.json')),
+  prose: readJson(path.join(metricsDir, 'index-prose.json')),
+  extractedProse: readJson(path.join(metricsDir, 'index-extracted-prose.json')),
+  records: readJson(path.join(metricsDir, 'index-records.json'))
+};
+const lmdbMetrics = {
+  code: readJson(path.join(metricsDir, 'lmdb-code.json')),
+  prose: readJson(path.join(metricsDir, 'lmdb-prose.json'))
+};
+
+const computeRate = (count, ms) => {
+  const total = Number(count);
+  const elapsed = Number(ms);
+  if (!Number.isFinite(total) || !Number.isFinite(elapsed) || elapsed <= 0) return null;
+  return total / (elapsed / 1000);
+};
+
+const buildThroughput = (mode, metrics, bytes) => {
+  if (!metrics) return null;
+  const totalMs = Number(metrics?.timings?.totalMs);
+  const writeMs = Number(metrics?.timings?.writeMs);
+  const files = Number(metrics?.files?.candidates);
+  const chunks = Number(metrics?.chunks?.total);
+  const tokens = Number(metrics?.tokens?.total);
+  const payload = {
+    mode,
+    totalMs: Number.isFinite(totalMs) ? totalMs : null,
+    writeMs: Number.isFinite(writeMs) ? writeMs : null,
+    files: Number.isFinite(files) ? files : null,
+    chunks: Number.isFinite(chunks) ? chunks : null,
+    tokens: Number.isFinite(tokens) ? tokens : null,
+    bytes: Number.isFinite(Number(bytes)) ? Number(bytes) : null
+  };
+  payload.filesPerSec = computeRate(payload.files, payload.totalMs);
+  payload.chunksPerSec = computeRate(payload.chunks, payload.totalMs);
+  payload.tokensPerSec = computeRate(payload.tokens, payload.totalMs);
+  payload.bytesPerSec = computeRate(payload.bytes, payload.totalMs);
+  payload.writeBytesPerSec = computeRate(payload.bytes, payload.writeMs);
+  return payload;
+};
+
+const throughput = {
+  code: buildThroughput('code', indexMetrics.code, status.repo?.artifacts?.indexCode),
+  prose: buildThroughput('prose', indexMetrics.prose, status.repo?.artifacts?.indexProse),
+  extractedProse: buildThroughput('extracted-prose', indexMetrics.extractedProse, status.repo?.artifacts?.indexExtractedProse),
+  records: buildThroughput('records', indexMetrics.records, status.repo?.artifacts?.indexRecords),
+  lmdb: {
+    code: buildThroughput('lmdb code', lmdbMetrics.code, status.repo?.lmdb?.code?.bytes),
+    prose: buildThroughput('lmdb prose', lmdbMetrics.prose, status.repo?.lmdb?.prose?.bytes)
+  }
+};
+
+const corruption = await validateIndexArtifacts({
+  root,
+  userConfig,
+  modes: ['code', 'prose', 'extracted-prose', 'records']
+});
+status.throughput = throughput;
+status.corruption = corruption;
+
+if (argv.json) {
+  console.log(JSON.stringify(status, null, 2));
+  process.exit(0);
 }
 
 /**
@@ -65,169 +114,98 @@ function formatBytes(bytes) {
   return `${rounded} ${units[unit]}`;
 }
 
-/**
- * Check if a path is contained within another path.
- * @param {string} parent
- * @param {string} child
- * @returns {boolean}
- */
-function isInside(parent, child) {
-  const rel = path.relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-}
-
-const repoArtifacts = {
-  indexCode: path.join(repoCacheRoot, 'index-code'),
-  indexProse: path.join(repoCacheRoot, 'index-prose'),
-  repometrics: path.join(repoCacheRoot, 'repometrics'),
-  incremental: path.join(repoCacheRoot, 'incremental')
+const formatBytesWithRaw = (value) => {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes)) return 'missing';
+  return `${formatBytes(bytes)} (${bytes.toLocaleString()} bytes)`;
 };
 
-const repoCacheSize = await sizeOfPath(repoCacheRoot);
-const repoArtifactSizes = {};
-for (const [name, artifactPath] of Object.entries(repoArtifacts)) {
-  repoArtifactSizes[name] = await sizeOfPath(artifactPath);
-}
-
-const sqliteStats = {};
-let sqliteOutsideCacheSize = 0;
-for (const target of sqliteTargets) {
-  const exists = fs.existsSync(target.path);
-  const size = exists ? await sizeOfPath(target.path) : 0;
-  sqliteStats[target.label] = exists ? { path: target.path, bytes: size } : null;
-  if (exists && !isInside(path.resolve(cacheRoot), target.path)) {
-    sqliteOutsideCacheSize += size;
-  }
-}
-const cacheRootSize = await sizeOfPath(cacheRoot);
-const dictSize = await sizeOfPath(dictDir);
-const overallSize = cacheRootSize + sqliteOutsideCacheSize;
-
-const health = { issues: [], hints: [] };
-const indexIssues = [];
-if (!fs.existsSync(repoArtifacts.indexCode)) {
-  indexIssues.push('index-code directory missing');
-} else {
-  if (!fs.existsSync(path.join(repoArtifacts.indexCode, 'chunk_meta.json'))) {
-    indexIssues.push('index-code chunk_meta.json missing');
-  }
-  if (!fs.existsSync(path.join(repoArtifacts.indexCode, 'token_postings.json'))) {
-    indexIssues.push('index-code token_postings.json missing');
-  }
-}
-if (!fs.existsSync(repoArtifacts.indexProse)) {
-  indexIssues.push('index-prose directory missing');
-} else {
-  if (!fs.existsSync(path.join(repoArtifacts.indexProse, 'chunk_meta.json'))) {
-    indexIssues.push('index-prose chunk_meta.json missing');
-  }
-  if (!fs.existsSync(path.join(repoArtifacts.indexProse, 'token_postings.json'))) {
-    indexIssues.push('index-prose token_postings.json missing');
-  }
-}
-if (indexIssues.length) {
-  health.issues.push(...indexIssues);
-  health.hints.push('Run `npm run build-index` to rebuild file-backed indexes.');
-}
-
-const sqliteIssues = [];
-if (userConfig.sqlite?.use === true) {
-  if (!fs.existsSync(sqlitePaths.codePath)) sqliteIssues.push('sqlite code db missing');
-  if (!fs.existsSync(sqlitePaths.prosePath)) sqliteIssues.push('sqlite prose db missing');
-}
-if (sqliteIssues.length) {
-  health.issues.push(...sqliteIssues);
-  health.hints.push('Run `npm run build-sqlite-index` to rebuild SQLite indexes.');
-}
-
-const repoRollups = [];
-if (argv.all) {
-  const reposRoot = path.join(cacheRoot, 'repos');
-  if (fs.existsSync(reposRoot)) {
-    const entries = await fsPromises.readdir(reposRoot, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const repoPath = path.join(reposRoot, entry.name);
-      const bytes = await sizeOfPath(repoPath);
-      const stat = await fsPromises.stat(repoPath);
-      repoRollups.push({
-        id: entry.name,
-        path: path.resolve(repoPath),
-        bytes,
-        mtime: stat.mtime ? stat.mtime.toISOString() : null
-      });
-    }
-  }
-}
-
-if (argv.json) {
-  const sqlitePayload = {
-    code: sqliteStats.code,
-    prose: sqliteStats.prose,
-    legacy: sqlitePaths.legacyExists ? { path: sqlitePaths.legacyPath } : null
-  };
-  const payload = {
-    repo: {
-      root: path.resolve(repoCacheRoot),
-      totalBytes: repoCacheSize,
-      artifacts: repoArtifactSizes,
-      sqlite: sqlitePayload
-    },
-    health,
-    overall: {
-      cacheRoot: path.resolve(cacheRoot),
-      cacheBytes: cacheRootSize,
-      dictionaryBytes: dictSize,
-      sqliteOutsideCacheBytes: sqliteOutsideCacheSize,
-      totalBytes: overallSize
-    }
-  };
-  if (argv.all) {
-    const totalRepoBytes = repoRollups.reduce((sum, repo) => sum + repo.bytes, 0);
-    payload.allRepos = {
-      root: path.resolve(path.join(cacheRoot, 'repos')),
-      repos: repoRollups,
-      totalBytes: totalRepoBytes
-    };
-  }
-  console.log(JSON.stringify(payload, null, 2));
-  process.exit(0);
-}
+const repo = status.repo;
+const overall = status.overall;
+const code = repo.sqlite?.code;
+const prose = repo.sqlite?.prose;
+const extractedProse = repo.sqlite?.extractedProse;
+const records = repo.sqlite?.records;
+const lmdbCode = repo.lmdb?.code;
+const lmdbProse = repo.lmdb?.prose;
 
 console.log('Repo artifacts');
-console.log(`- cache root: ${formatBytes(repoCacheSize)} (${path.resolve(repoCacheRoot)})`);
-console.log(`- index-code: ${formatBytes(repoArtifactSizes.indexCode)} (${path.resolve(repoArtifacts.indexCode)})`);
-console.log(`- index-prose: ${formatBytes(repoArtifactSizes.indexProse)} (${path.resolve(repoArtifacts.indexProse)})`);
-console.log(`- repometrics: ${formatBytes(repoArtifactSizes.repometrics)} (${path.resolve(repoArtifacts.repometrics)})`);
-console.log(`- incremental: ${formatBytes(repoArtifactSizes.incremental)} (${path.resolve(repoArtifacts.incremental)})`);
-const code = sqliteStats.code;
-const prose = sqliteStats.prose;
-console.log(`- sqlite code db: ${code ? formatBytes(code.bytes) : 'missing'} (${code?.path || sqlitePaths.codePath})`);
-console.log(`- sqlite prose db: ${prose ? formatBytes(prose.bytes) : 'missing'} (${prose?.path || sqlitePaths.prosePath})`);
-if (sqlitePaths.legacyExists) {
-  console.log(`- legacy sqlite db: ${sqlitePaths.legacyPath}`);
+console.log(`- cache root: ${formatBytes(repo.totalBytes)} (${repo.root})`);
+console.log(`- index-code: ${formatBytesWithRaw(repo.artifacts.indexCode)}`);
+console.log(`- index-prose: ${formatBytesWithRaw(repo.artifacts.indexProse)}`);
+console.log(`- index-extracted-prose: ${formatBytesWithRaw(repo.artifacts.indexExtractedProse)}`);
+console.log(`- index-records: ${formatBytesWithRaw(repo.artifacts.indexRecords)}`);
+console.log(`- repometrics: ${formatBytes(repo.artifacts.repometrics)} (${path.join(repo.root, 'repometrics')})`);
+console.log(`- incremental: ${formatBytes(repo.artifacts.incremental)} (${path.join(repo.root, 'incremental')})`);
+console.log(`- sqlite code db: ${code ? formatBytesWithRaw(code.bytes) : 'missing'} (${code?.path || status.repo.sqlite?.code?.path || 'missing'})`);
+console.log(`- sqlite prose db: ${prose ? formatBytesWithRaw(prose.bytes) : 'missing'} (${prose?.path || status.repo.sqlite?.prose?.path || 'missing'})`);
+console.log(`- sqlite extracted-prose db: ${extractedProse ? formatBytesWithRaw(extractedProse.bytes) : 'missing'} (${extractedProse?.path || status.repo.sqlite?.extractedProse?.path || 'missing'})`);
+console.log(`- sqlite records db: ${records ? formatBytesWithRaw(records.bytes) : 'missing'} (${records?.path || status.repo.sqlite?.records?.path || 'missing'})`);
+console.log(`- lmdb code db: ${lmdbCode ? formatBytesWithRaw(lmdbCode.bytes) : 'missing'} (${lmdbCode?.path || status.repo.lmdb?.code?.path || 'missing'})`);
+console.log(`- lmdb prose db: ${lmdbProse ? formatBytesWithRaw(lmdbProse.bytes) : 'missing'} (${lmdbProse?.path || status.repo.lmdb?.prose?.path || 'missing'})`);
+if (repo.sqlite?.legacy) {
+  console.log(`- legacy sqlite db: ${repo.sqlite.legacy.path}`);
 }
 
 console.log('\nOverall');
-console.log(`- cache root: ${formatBytes(cacheRootSize)} (${path.resolve(cacheRoot)})`);
-console.log(`- dictionaries: ${formatBytes(dictSize)} (${path.resolve(dictDir)})`);
-if (sqliteOutsideCacheSize) {
-  console.log(`- sqlite outside cache: ${formatBytes(sqliteOutsideCacheSize)}`);
+console.log(`- cache root: ${formatBytes(overall.cacheBytes)} (${overall.cacheRoot})`);
+console.log(`- dictionaries: ${formatBytes(overall.dictionaryBytes)}`);
+if (overall.sqliteOutsideCacheBytes) {
+  console.log(`- sqlite outside cache: ${formatBytes(overall.sqliteOutsideCacheBytes)}`);
 }
-console.log(`- total: ${formatBytes(overallSize)}`);
+if (overall.lmdbOutsideCacheBytes) {
+  console.log(`- lmdb outside cache: ${formatBytes(overall.lmdbOutsideCacheBytes)}`);
+}
+console.log(`- total: ${formatBytes(overall.totalBytes)}`);
 
-if (health.issues.length) {
+if (status.health?.issues?.length) {
   console.log('\nHealth');
-  health.issues.forEach((issue) => console.log(`- issue: ${issue}`));
-  health.hints.forEach((hint) => console.log(`- hint: ${hint}`));
+  status.health.issues.forEach((issue) => console.log(`- issue: ${issue}`));
+  status.health.hints.forEach((hint) => console.log(`- hint: ${hint}`));
 }
 
-if (argv.all) {
-  const totalRepoBytes = repoRollups.reduce((sum, repo) => sum + repo.bytes, 0);
+if (status.throughput) {
+  const formatRate = (value, unit) => (Number.isFinite(value) ? `${value.toFixed(1)} ${unit}/s` : 'n/a');
+  const formatMs = (value) => (Number.isFinite(value) ? `${value.toFixed(0)} ms` : 'n/a');
+  console.log('\nThroughput');
+  const entries = [
+    ['code', status.throughput.code],
+    ['prose', status.throughput.prose],
+    ['extracted-prose', status.throughput.extractedProse],
+    ['records', status.throughput.records],
+    ['lmdb code', status.throughput.lmdb?.code],
+    ['lmdb prose', status.throughput.lmdb?.prose]
+  ];
+  for (const [mode, entry] of entries) {
+    if (!entry) continue;
+    console.log(
+      `- ${mode}: files ${formatRate(entry.filesPerSec, 'files')}, ` +
+      `chunks ${formatRate(entry.chunksPerSec, 'chunks')}, ` +
+      `tokens ${formatRate(entry.tokensPerSec, 'tokens')}, ` +
+      `bytes ${formatRate(entry.bytesPerSec, 'bytes')} (total ${formatMs(entry.totalMs)})`
+    );
+  }
+}
+
+if (status.corruption) {
+  const validation = status.corruption;
+  const statusLabel = validation.ok ? 'ok' : 'issues';
+  console.log('\nIntegrity');
+  console.log(`- index-validate: ${statusLabel}`);
+  if (!validation.ok && validation.issues?.length) {
+    validation.issues.forEach((issue) => console.log(`- issue: ${issue}`));
+  }
+  if (validation.warnings?.length) {
+    validation.warnings.forEach((warning) => console.log(`- warning: ${warning}`));
+  }
+}
+
+if (status.allRepos) {
+  const repos = status.allRepos.repos.slice().sort((a, b) => b.bytes - a.bytes);
   console.log('\nAll repos');
-  console.log(`- root: ${path.resolve(path.join(cacheRoot, 'repos'))}`);
-  console.log(`- total: ${formatBytes(totalRepoBytes)}`);
-  for (const repo of repoRollups.sort((a, b) => b.bytes - a.bytes)) {
-    console.log(`- ${repo.id}: ${formatBytes(repo.bytes)} (${repo.path})`);
+  console.log(`- root: ${status.allRepos.root}`);
+  console.log(`- total: ${formatBytes(status.allRepos.totalBytes)}`);
+  for (const repoEntry of repos) {
+    console.log(`- ${repoEntry.id}: ${formatBytes(repoEntry.bytes)} (${repoEntry.path})`);
   }
 }

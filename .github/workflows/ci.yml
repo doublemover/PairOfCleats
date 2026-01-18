@@ -26,8 +26,34 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Verify
-        run: npm run verify
+      - name: Config budgets
+        run: npm run config:budget
 
-      - name: Fixture smoke
-        run: npm run fixture-smoke
+      - name: Env usage guardrail
+        run: npm run env:check
+
+      - name: Short tests (no bench)
+        run: npm run test-all-no-bench
+
+  windows:
+    runs-on: windows-latest
+    env:
+      PAIROFCLEATS_EMBEDDINGS: stub
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Windows regression lane
+        run: |
+          node tests/worker-pool-windows.js
+          node tests/search-windows-path-filter.js
+          node tests/fixture-parity.js --fixtures sample

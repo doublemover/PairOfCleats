@@ -1,18 +1,29 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
+import { createError, ERROR_CODES } from '../src/shared/error-codes.js';
 import { getDictConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['update', 'force'],
-  string: ['lang', 'dir', 'url', 'repo'],
-  default: { update: false, force: false }
-});
+const DEFAULT_MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
+
+const argv = createCli({
+  scriptName: 'download-dicts',
+  options: {
+    update: { type: 'boolean', default: false },
+    force: { type: 'boolean', default: false },
+    lang: { type: 'string' },
+    dir: { type: 'string' },
+    url: { type: 'string', array: true },
+    sha256: { type: 'string', array: true },
+    repo: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const repoRoot = rootArg || resolveRepoRoot(process.cwd());
@@ -32,6 +43,90 @@ try {
   manifest = {};
 }
 
+const normalizeHash = (value) => {
+  if (!value) return null;
+  const trimmed = String(value).trim().toLowerCase();
+  if (!trimmed) return null;
+  const normalized = trimmed.startsWith('sha256:') ? trimmed.slice(7) : trimmed;
+  if (!/^[a-f0-9]{64}$/.test(normalized)) return null;
+  return normalized;
+};
+
+const parseHashes = (input) => {
+  if (!input) return {};
+  const items = Array.isArray(input) ? input : [input];
+  const out = {};
+  for (const item of items) {
+    const eq = String(item || '').indexOf('=');
+    if (eq <= 0 || eq >= item.length - 1) continue;
+    const name = item.slice(0, eq);
+    const hash = normalizeHash(item.slice(eq + 1));
+    if (name && hash) out[name] = hash;
+  }
+  return out;
+};
+
+const resolveDownloadPolicy = (cfg) => {
+  const policy = cfg?.security?.downloads || {};
+  const allowlist = policy.allowlist && typeof policy.allowlist === 'object'
+    ? policy.allowlist
+    : {};
+  const maxBytesRaw = Number(policy.maxBytes);
+  const maxBytes = Number.isFinite(maxBytesRaw) && maxBytesRaw > 0
+    ? Math.floor(maxBytesRaw)
+    : DEFAULT_MAX_DOWNLOAD_BYTES;
+  return {
+    requireHash: policy.requireHash === true,
+    warnUnsigned: policy.warnUnsigned !== false,
+    allowlist,
+    maxBytes
+  };
+};
+
+const resolveExpectedHash = (source, policy, overrides) => {
+  const explicit = normalizeHash(source?.sha256 || source?.hash);
+  if (explicit) return explicit;
+  const allowlist = policy?.allowlist || {};
+  const fallback = overrides?.[source?.name]
+    || overrides?.[source?.url]
+    || overrides?.[source?.file]
+    || allowlist[source?.name]
+    || allowlist[source?.url]
+    || allowlist[source?.file];
+  return normalizeHash(fallback);
+};
+
+const verifyDownloadHash = (source, hashHex, expectedHash, policy) => {
+  if (!expectedHash) {
+    if (policy?.requireHash) {
+      throw createError(
+        ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
+        `Download verification requires a sha256 hash (${source?.name || source?.url || 'unknown source'}).`
+      );
+    }
+    if (policy?.warnUnsigned) {
+      console.warn(`[download] Skipping hash verification for ${source?.name || source?.url || 'unknown source'}.`);
+    }
+    return null;
+  }
+  if (!hashHex) {
+    throw createError(
+      ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
+      `Download verification failed for ${source?.name || source?.url || 'unknown source'}.`
+    );
+  }
+  if (hashHex !== expectedHash) {
+    throw createError(
+      ERROR_CODES.DOWNLOAD_VERIFY_FAILED,
+      `Download verification failed for ${source?.name || source?.url || 'unknown source'}.`
+    );
+  }
+  return hashHex;
+};
+
+const hashOverrides = parseHashes(argv.sha256);
+const downloadPolicy = resolveDownloadPolicy(userConfig);
+
 const SOURCES = {
   en: {
     name: 'en',
@@ -45,14 +140,17 @@ const SOURCES = {
  * @param {string|string[]|null} input
  * @returns {Array<{name:string,url:string,file:string}>}
  */
-function parseUrls(input) {
+function parseUrls(input, hashes = null) {
   if (!input) return [];
   const items = Array.isArray(input) ? input : [input];
   const sources = [];
   for (const item of items) {
-    const [name, url] = item.split('=');
-    if (!name || !url) continue;
-    sources.push({ name, url, file: `${name}.txt` });
+    const eq = item.indexOf('=');
+    if (eq <= 0 || eq >= item.length - 1) continue;
+    const name = item.slice(0, eq);
+    const url = item.slice(eq + 1);
+    const sha256 = hashes && hashes[name] ? hashes[name] : null;
+    sources.push({ name, url, file: `${name}.txt`, sha256 });
   }
   return sources;
 }
@@ -80,20 +178,58 @@ function requestUrl(url, headers = {}, redirects = 0) {
         res.resume();
         return resolve(requestUrl(new URL(location, parsed).toString(), headers, redirects + 1));
       }
-      const chunks = [];
-      res.on('data', (chunk) => chunks.push(chunk));
-      res.on('end', () => {
-        resolve({
-          statusCode: res.statusCode,
-          headers: res.headers,
-          body: Buffer.concat(chunks)
-        });
+      resolve({
+        statusCode: res.statusCode,
+        headers: res.headers,
+        stream: res
       });
     });
     req.on('error', reject);
     req.end();
   });
 }
+
+const streamToFile = (stream, outputPath, { maxBytes, expectedHash, policy }) => new Promise((resolve, reject) => {
+  let total = 0;
+  let lastByte = null;
+  let failed = false;
+  const hasher = expectedHash || policy?.requireHash ? crypto.createHash('sha256') : null;
+  const tempPath = `${outputPath}.tmp`;
+  const out = fsSync.createWriteStream(tempPath);
+  const onError = async (err) => {
+    if (failed) return;
+    failed = true;
+    try {
+      out.destroy();
+    } catch {}
+    try {
+      stream.destroy();
+    } catch {}
+    try {
+      await fs.rm(tempPath, { force: true });
+    } catch {}
+    reject(err);
+  };
+  stream.on('data', (chunk) => {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (maxBytes && total > maxBytes) {
+      void onError(new Error(`Download exceeds maximum size (${maxBytes} bytes).`));
+      return;
+    }
+    if (hasher) hasher.update(buffer);
+    lastByte = buffer.length ? buffer[buffer.length - 1] : lastByte;
+    out.write(buffer);
+  });
+  stream.on('error', (err) => { void onError(err); });
+  out.on('error', (err) => { void onError(err); });
+  stream.on('end', () => {
+    out.end(() => {
+      const digest = hasher ? hasher.digest('hex') : null;
+      resolve({ tempPath, bytes: total, lastByte, hashHex: digest });
+    });
+  });
+});
 
 /**
  * Download a dictionary source into the cache.
@@ -116,18 +252,39 @@ async function downloadSource(source) {
 
   const response = await requestUrl(source.url, headers);
   if (response.statusCode === 304) {
+    response.stream?.resume?.();
     return { name: source.name, skipped: true };
   }
   if (response.statusCode !== 200) {
+    response.stream?.resume?.();
     throw new Error(`Failed to download ${source.url}: ${response.statusCode}`);
   }
 
-  const text = response.body.toString('utf8');
-  await fs.writeFile(outputPath, text.endsWith('\n') ? text : `${text}\n`);
+  const expectedHash = resolveExpectedHash(source, downloadPolicy, hashOverrides);
+  const { tempPath, lastByte, hashHex } = await streamToFile(response.stream, outputPath, {
+    maxBytes: downloadPolicy.maxBytes,
+    expectedHash,
+    policy: downloadPolicy
+  });
+  let actualHash = null;
+  try {
+    actualHash = verifyDownloadHash(source, hashHex, expectedHash, downloadPolicy);
+  } catch (err) {
+    await fs.rm(tempPath, { force: true });
+    throw err;
+  }
+
+  if (lastByte !== 10) {
+    await fs.appendFile(tempPath, '\n');
+  }
+  await fs.rm(outputPath, { force: true });
+  await fs.rename(tempPath, outputPath);
 
   manifest[source.name] = {
     url: source.url,
     file: source.file,
+    sha256: actualHash || expectedHash || null,
+    verified: Boolean(expectedHash),
     etag: response.headers.etag || null,
     lastModified: response.headers['last-modified'] || null,
     downloadedAt: new Date().toISOString()
@@ -146,7 +303,7 @@ for (const lang of langs) {
   if (src) sources.push(src);
 }
 
-const urlSources = parseUrls(argv.url);
+const urlSources = parseUrls(argv.url, hashOverrides);
 sources.push(...urlSources);
 
 if (!sources.length) {

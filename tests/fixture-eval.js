@@ -3,14 +3,19 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['json', 'write-report'],
-  string: ['backend', 'out'],
-  alias: { n: 'top' },
-  default: { top: 5, backend: 'memory', json: false, 'write-report': false }
-});
+const argv = createCli({
+  scriptName: 'fixture-eval',
+  options: {
+    json: { type: 'boolean', default: false },
+    'write-report': { type: 'boolean', default: false },
+    backend: { type: 'string', default: 'memory' },
+    out: { type: 'string' },
+    top: { type: 'number', default: 5 }
+  },
+  aliases: { n: 'top' }
+}).parse();
 
 const root = process.cwd();
 const fixturesRoot = path.join(root, 'tests', 'fixtures');

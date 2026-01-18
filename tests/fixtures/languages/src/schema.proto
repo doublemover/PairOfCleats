@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package widgets;
+
+message Widget {
+  string name = 1;
+}
+
+enum State {
+  STATE_UNKNOWN = 0;
+  STATE_ACTIVE = 1;
+}
+
+service WidgetService {
+  rpc GetWidget (WidgetRequest) returns (WidgetResponse);
+}
+
+message WidgetRequest {
+  string id = 1;
+}
+
+message WidgetResponse {
+  Widget widget = 1;
+}

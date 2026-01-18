@@ -23,45 +23,29 @@ await fsPromises.writeFile(
 );
 
 const extensionsDir = getExtensionsDir(repoRoot, null);
-const extensionPath = process.env.PAIROFCLEATS_VECTOR_EXTENSION
-  || path.join(
-    extensionsDir,
-    'sqlite-vec',
-    getPlatformKey(),
-    `vec0${getBinarySuffix()}`
-  );
+const extensionPath = path.join(
+  extensionsDir,
+  'sqlite-vec',
+  getPlatformKey(),
+  `vec0${getBinarySuffix()}`
+);
 
 if (!fs.existsSync(extensionPath)) {
   console.warn(`sqlite ann extension missing; skipping test (${extensionPath})`);
   process.exit(0);
 }
 
-const config = {
-  cache: { root: cacheRoot },
-  sqlite: {
-    use: true,
-    annMode: 'extension',
-    vectorExtension: {
-      path: extensionPath
-    }
-  },
-  dictionary: {
-    languages: ['en']
-  }
-};
-
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify(config, null, 2) + '\n'
-);
-
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  PAIROFCLEATS_BUNDLE_THREADS: '1'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+process.env.PAIROFCLEATS_BUNDLE_THREADS = '1';
 
 function run(args, label) {
   const result = spawnSync(process.execPath, args, {
@@ -116,7 +100,7 @@ db.close();
 
 const searchResult = spawnSync(
   process.execPath,
-  [path.join(root, 'search.js'), 'index', '--backend', 'sqlite', '--json', '--ann', '--repo', repoRoot],
+  [path.join(root, 'search.js'), 'index', '--json', '--ann', '--repo', repoRoot],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (searchResult.status !== 0) {
@@ -144,7 +128,8 @@ await fsPromises.rm(deletableFile, { force: true });
 run([path.join(root, 'build_index.js'), '--incremental', '--stub-embeddings', '--repo', repoRoot], 'build index (incremental)');
 run([path.join(root, 'tools', 'build-sqlite-index.js'), '--incremental', '--mode', 'code', '--repo', repoRoot], 'build sqlite index (incremental)');
 
-const dbAfter = new Database(sqlitePaths.codePath, { readonly: true });
+const sqlitePathsAfter = resolveSqlitePaths(repoRoot, userConfig);
+const dbAfter = new Database(sqlitePathsAfter.codePath, { readonly: true });
 try {
   dbAfter.loadExtension(extensionPath);
 } catch (err) {

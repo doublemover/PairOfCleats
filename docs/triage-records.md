@@ -41,17 +41,17 @@ Defaults:
 ## Ingest findings
 Dependabot:
 ```
-node tools/triage/ingest.js --source dependabot --in dependabot.json --meta service=api --meta env=prod
+pairofcleats triage ingest --source dependabot --in dependabot.json --meta service=api --meta env=prod
 ```
 
 AWS Inspector:
 ```
-node tools/triage/ingest.js --source aws_inspector --in inspector.json --meta service=api --meta env=prod
+pairofcleats triage ingest --source aws_inspector --in inspector.json --meta service=api --meta env=prod
 ```
 
 Generic (already normalized schema):
 ```
-node tools/triage/ingest.js --source generic --in record.json --meta service=api --meta env=prod
+pairofcleats triage ingest --source generic --in record.json --meta service=api --meta env=prod
 ```
 
 Each ingest writes:
@@ -60,7 +60,7 @@ Each ingest writes:
 
 ## Decisions
 ```
-node tools/triage/decision.js --finding <recordId> --status accept --justification "..." --reviewer "..."
+pairofcleats triage decision --finding <recordId> --status accept --justification "..." --reviewer "..."
 ```
 
 ## Exposure metadata
@@ -75,12 +75,12 @@ These render in the record markdown and are included in context packs. You can p
 
 ## Build records index
 ```
-node build_index.js --mode records --incremental
+pairofcleats index build --mode records --incremental
 ```
 
 ## Search records
 ```
-node search.js "CVE-2024-0001" --mode records --meta service=api --meta env=prod --json
+pairofcleats search "CVE-2024-0001" --mode records --meta service=api --meta env=prod --json
 ```
 
 Filters:
@@ -91,7 +91,7 @@ Filters:
 
 ## Context packs
 ```
-node tools/triage/context-pack.js --record <recordId> --out context.json
+pairofcleats triage context-pack --record <recordId> --out context.json
 ```
 
 The context pack includes:
@@ -99,7 +99,7 @@ The context pack includes:
 - `history` (related decisions)
 - `repoEvidence` (code/prose search hits)
 
-Context packs assume code/prose indexes exist (`node build_index.js`) and the records index is built (`node build_index.js --mode records`).
+Context packs assume code/prose indexes exist (`pairofcleats index build`) and the records index is built (`pairofcleats index build --mode records`).
 
 ## MCP tools
 - `triage_ingest` (wraps ingest)

@@ -1,0 +1,94 @@
+[
+  {
+    "caption": "PairOfCleats: Open Settings",
+    "command": "pair_of_cleats_open_settings"
+  },
+  {
+    "caption": "PairOfCleats: Validate Settings",
+    "command": "pair_of_cleats_validate_settings"
+  },
+  {
+    "caption": "PairOfCleats: Search",
+    "command": "pair_of_cleats_search"
+  },
+  {
+    "caption": "PairOfCleats: Search (With Options)",
+    "command": "pair_of_cleats_search_with_options"
+  },
+  {
+    "caption": "PairOfCleats: Search Selection",
+    "command": "pair_of_cleats_search_selection"
+  },
+  {
+    "caption": "PairOfCleats: Search Symbol Under Cursor",
+    "command": "pair_of_cleats_search_symbol_under_cursor"
+  },
+  {
+    "caption": "PairOfCleats: Search History",
+    "command": "pair_of_cleats_search_history"
+  },
+  {
+    "caption": "PairOfCleats: Repeat Last Search",
+    "command": "pair_of_cleats_repeat_last_search"
+  },
+  {
+    "caption": "PairOfCleats: Explain Search",
+    "command": "pair_of_cleats_explain_search"
+  },
+  {
+    "caption": "PairOfCleats: Index Build (Code)",
+    "command": "pair_of_cleats_index_build_code"
+  },
+  {
+    "caption": "PairOfCleats: Index Build (Prose)",
+    "command": "pair_of_cleats_index_build_prose"
+  },
+  {
+    "caption": "PairOfCleats: Index Build (All)",
+    "command": "pair_of_cleats_index_build_all"
+  },
+  {
+    "caption": "PairOfCleats: Index Watch Start",
+    "command": "pair_of_cleats_index_watch_start"
+  },
+  {
+    "caption": "PairOfCleats: Index Watch Stop",
+    "command": "pair_of_cleats_index_watch_stop"
+  },
+  {
+    "caption": "PairOfCleats: Index Validate",
+    "command": "pair_of_cleats_index_validate"
+  },
+  {
+    "caption": "PairOfCleats: Open Index Directory",
+    "command": "pair_of_cleats_open_index_directory"
+  },
+  {
+    "caption": "PairOfCleats: Map (Repo)",
+    "command": "pair_of_cleats_map_repo"
+  },
+  {
+    "caption": "PairOfCleats: Map (Current Folder)",
+    "command": "pair_of_cleats_map_current_folder"
+  },
+  {
+    "caption": "PairOfCleats: Map (Current File)",
+    "command": "pair_of_cleats_map_current_file"
+  },
+  {
+    "caption": "PairOfCleats: Map (Symbol Under Cursor)",
+    "command": "pair_of_cleats_map_symbol_under_cursor"
+  },
+  {
+    "caption": "PairOfCleats: Map (Selection)",
+    "command": "pair_of_cleats_map_selection"
+  },
+  {
+    "caption": "PairOfCleats: Map Jump to Node",
+    "command": "pair_of_cleats_map_jump_to_node"
+  },
+  {
+    "caption": "PairOfCleats: Map Open Last Viewer",
+    "command": "pair_of_cleats_map_open_last_viewer"
+  }
+]

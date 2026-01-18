@@ -14,22 +14,22 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const configPath = path.join(repoRoot, '.pairofcleats.json');
-await fsPromises.writeFile(
-  configPath,
-  JSON.stringify({ indexing: { maxFileBytes: 120 } }, null, 2)
-);
-
 const largePath = path.join(repoRoot, 'big.js');
 const smallPath = path.join(repoRoot, 'small.js');
-await fsPromises.writeFile(largePath, `// big file\n${'x'.repeat(500)}\n`);
+const largeChunk = 'x'.repeat(1024);
+const largeContent = Array.from({ length: 6000 }, () => largeChunk).join('\n');
+await fsPromises.writeFile(largePath, `// big file\n${largeContent}\n`);
 await fsPromises.writeFile(smallPath, 'function ok() { return 1; }\n');
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const buildResult = spawnSync(
   process.execPath,
@@ -44,17 +44,18 @@ if (buildResult.status !== 0) {
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(repoRoot);
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-const skippedPath = path.join(codeDir, '.skippedfiles.json');
-if (!fs.existsSync(skippedPath)) {
-  console.error('Missing .skippedfiles.json');
+const fileListsPath = path.join(codeDir, '.filelists.json');
+if (!fs.existsSync(fileListsPath)) {
+  console.error('Missing .filelists.json');
   process.exit(1);
 }
-const skipped = JSON.parse(await fsPromises.readFile(skippedPath, 'utf8'));
-if (!Array.isArray(skipped)) {
-  console.error('Skipped files payload is not an array');
+const fileLists = JSON.parse(await fsPromises.readFile(fileListsPath, 'utf8'));
+const skippedSample = fileLists?.skipped?.sample;
+if (!Array.isArray(skippedSample)) {
+  console.error('Skipped sample payload is not an array');
   process.exit(1);
 }
-const oversize = skipped.find((entry) => entry?.file && entry.file.endsWith('big.js'));
+const oversize = skippedSample.find((entry) => entry?.file && entry.file.endsWith('big.js'));
 if (!oversize || oversize.reason !== 'oversize') {
   console.error('Expected oversize skip entry for big.js');
   process.exit(1);

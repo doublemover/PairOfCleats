@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { getDictionaryPaths, getDictConfig, getIndexDir, loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
 import { normalizePostingsConfig } from '../src/shared/postings-config.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../tools/vector-extension.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['require-index', 'require-sqlite', 'require-dicts'],
-  default: {
-    'require-index': false,
-    'require-sqlite': false,
-    'require-dicts': false
+const argv = createCli({
+  scriptName: 'verify',
+  options: {
+    'require-index': { type: 'boolean', default: false },
+    'require-sqlite': { type: 'boolean', default: false },
+    'require-dicts': { type: 'boolean', default: false }
   }
-});
+}).parse();
 
 const root = process.cwd();
 let failures = 0;

@@ -1,0 +1,161 @@
+#!/usr/bin/env node
+import { createFramedJsonRpcParser, writeFramedJsonRpc } from '../../../src/shared/jsonrpc.js';
+
+const args = process.argv.slice(2);
+const modeIdx = args.indexOf('--mode');
+const mode = modeIdx !== -1 && args[modeIdx + 1] ? args[modeIdx + 1] : 'clangd';
+const exitOnShutdown = args.includes('--exit-on-shutdown');
+
+const symbolsByMode = {
+  clangd: {
+    name: 'add',
+    detail: 'int add(int a, int b)',
+    kind: 12
+  },
+  sourcekit: {
+    name: 'greet',
+    detail: 'func greet(name: String, count: Int) -> String',
+    kind: 12
+  },
+  pyright: {
+    name: 'greet',
+    detail: 'def greet(name: str) -> str',
+    kind: 12
+  }
+};
+
+const config = symbolsByMode[mode] || symbolsByMode.clangd;
+const pyrightDiagnostic = {
+  message: 'Stub pyright diagnostic',
+  severity: 2,
+  code: 'PYRIGHT_STUB',
+  source: 'pyright',
+  range: {
+    start: { line: 0, character: 0 },
+    end: { line: 0, character: 1 }
+  }
+};
+const documents = new Map();
+
+const send = (payload) => {
+  const pending = writeFramedJsonRpc(process.stdout, payload);
+  if (pending && typeof pending.catch === 'function') {
+    pending.catch(() => {});
+  }
+};
+
+const lineColForIndex = (text, index) => {
+  const before = text.slice(0, Math.max(0, index));
+  const lines = before.split(/\r?\n/);
+  const line = Math.max(0, lines.length - 1);
+  const character = lines.length ? lines[lines.length - 1].length : 0;
+  return { line, character };
+};
+
+const buildSymbol = (text) => {
+  if (mode === 'pyright') {
+    const match = text.match(/^\s*(?:async\s+)?def\s+([A-Za-z_][\w]*)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?\s*:/m);
+    if (match) {
+      const name = match[1];
+      const params = match[2] || '';
+      const returnType = match[3] ? ` -> ${match[3].trim()}` : '';
+      const detail = `def ${name}(${params})${returnType}`.trim();
+      const idx = text.indexOf(name);
+      const start = lineColForIndex(text || '', idx >= 0 ? idx : 0);
+      const end = lineColForIndex(text || '', idx >= 0 ? idx + name.length : 1);
+      return {
+        name,
+        kind: config.kind,
+        detail,
+        range: { start, end },
+        selectionRange: { start, end }
+      };
+    }
+  }
+  const name = config.name;
+  const detail = config.detail;
+  const idx = text ? text.indexOf(name) : -1;
+  const start = lineColForIndex(text || '', idx >= 0 ? idx : 0);
+  const end = lineColForIndex(text || '', idx >= 0 ? idx + name.length : 1);
+  return {
+    name,
+    kind: config.kind,
+    detail,
+    range: { start, end },
+    selectionRange: { start, end }
+  };
+};
+
+const respond = (id, result) => send({ jsonrpc: '2.0', id, result });
+const respondError = (id, message) => send({ jsonrpc: '2.0', id, error: { code: -32601, message } });
+
+const handleRequest = (message) => {
+  const { id, method, params } = message;
+  if (method === 'initialize') {
+    respond(id, {
+      capabilities: {
+        documentSymbolProvider: true,
+        hoverProvider: true
+      }
+    });
+    return;
+  }
+  if (method === 'shutdown') {
+    respond(id, null);
+    if (exitOnShutdown) {
+      setTimeout(() => process.exit(0), 0);
+    }
+    return;
+  }
+  if (method === 'textDocument/documentSymbol') {
+    const uri = params?.textDocument?.uri;
+    const text = documents.get(uri) || '';
+    const symbol = buildSymbol(text);
+    respond(id, symbol ? [symbol] : []);
+    return;
+  }
+  if (method === 'textDocument/hover') {
+    respond(id, {
+      contents: { kind: 'plaintext', value: config.detail }
+    });
+    return;
+  }
+  respondError(id, `Method not supported: ${method}`);
+};
+
+const handleNotification = (message) => {
+  if (!message?.method) return;
+  if (message.method === 'textDocument/didOpen') {
+    const uri = message.params?.textDocument?.uri;
+    const text = message.params?.textDocument?.text || '';
+    if (uri) documents.set(uri, text);
+    if (uri && mode === 'pyright') {
+      send({
+        jsonrpc: '2.0',
+        method: 'textDocument/publishDiagnostics',
+        params: { uri, diagnostics: [pyrightDiagnostic] }
+      });
+    }
+  } else if (message.method === 'textDocument/didClose') {
+    const uri = message.params?.textDocument?.uri;
+    if (uri) documents.delete(uri);
+  } else if (message.method === 'exit') {
+    process.exit(0);
+  }
+};
+
+const parser = createFramedJsonRpcParser({
+  onMessage: (message) => {
+    if (!message || typeof message !== 'object') return;
+    if (Object.prototype.hasOwnProperty.call(message, 'id') && message.method) {
+      handleRequest(message);
+      return;
+    }
+    handleNotification(message);
+  },
+  onError: (err) => {
+    process.stderr.write(`stub lsp parse error: ${err.message}\n`);
+  }
+});
+
+process.stdin.on('data', (chunk) => parser.push(chunk));

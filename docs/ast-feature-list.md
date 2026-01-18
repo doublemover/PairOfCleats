@@ -50,6 +50,9 @@ This document defines the "complete" AST metadata feature set and how each AST-b
 - `indexing.riskAnalysisCrossFile` (default: true) controls cross-file risk correlation.
 - `indexing.typeInference` (default: false) controls whether inferred types are collected.
 - `indexing.typeInferenceCrossFile` (default: false) controls cross-file inference and linking.
+- `indexing.pythonAst.*` controls Python AST worker behavior (enable/disable, worker counts, timeouts).
+- `indexing.kotlin.flowMaxBytes/flowMaxLines` auto-disable Kotlin flow extraction above a file size/line threshold.
+- `indexing.kotlin.relationsMaxBytes/relationsMaxLines` auto-disable Kotlin call/usage scans above a threshold.
 
 ## Per-language coverage
 
@@ -62,6 +65,15 @@ This document defines the "complete" AST metadata feature set and how each AST-b
 - Control-flow: keyword counts (branches/loops/returns/breaks/continues/throws/awaits/yields).
 - Type inference: annotations + defaults + literal assignments (when enabled).
 
+### TypeScript (Compiler AST when available)
+- Declarations: class/interface/enum/type/function/method chunks via the TypeScript compiler API when available; heuristic fallback otherwise.
+- Signatures: params + return annotations from AST when possible, signature text fallback.
+- Modifiers: async/static/visibility/export extracted from signatures.
+- Inheritance: extends/implements from AST (fallback to signature parsing).
+- Dataflow: heuristic reads/writes/mutations/aliases/throws/returns/awaits/yields per function.
+- Control-flow: keyword counts (branches/loops/returns/breaks/continues/throws/awaits/yields).
+- Type inference: tooling-based types from the TypeScript compiler when enabled.
+
 ### Python (stdlib ast)
 - Declarations: function/method/class chunks via AST.
 - Signatures: full args (positional, keyword-only, varargs), defaults, return type annotations.
@@ -73,4 +85,7 @@ This document defines the "complete" AST metadata feature set and how each AST-b
 - Type inference: annotations + defaults + literal assignments (when enabled).
 
 ## Heuristic languages
-- C/C++/ObjC, Rust, Go, Java, Swift, C#, Kotlin, Ruby, PHP, Lua, Perl, Shell include control-flow counts when enabled.
+- C/C++/ObjC and Swift can be enriched with LSP tooling (clangd/sourcekit-lsp) for signatures and types when tooling is enabled; clangd uses compile_commands.json when available and runs best-effort without it.
+- C/C++/ObjC, Rust, Go, Java, Swift, C#, Kotlin, Ruby, PHP, Lua, SQL, Perl, Shell include heuristic dataflow (reads/writes/mutations/aliases/throws/awaits/yields/returns) when enabled.
+- SQL uses node-sql-parser (when available) to extract table usages for richer relations.
+- Control-flow keyword counts (branches/loops/returns/breaks/continues/throws/awaits/yields) are captured when enabled.

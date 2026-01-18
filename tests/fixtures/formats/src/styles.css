@@ -1,0 +1,11 @@
+/* Header styles */
+.page-header {
+  display: flex;
+  align-items: center;
+}
+
+@media screen and (max-width: 900px) {
+  .page-header {
+    flex-direction: column;
+  }
+}

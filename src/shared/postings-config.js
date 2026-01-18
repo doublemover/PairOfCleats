@@ -7,13 +7,34 @@
  *   phraseMinN:number,
  *   phraseMaxN:number,
  *   chargramMinN:number,
- *   chargramMaxN:number
+ *   chargramMaxN:number,
+ *   chargramMaxTokenLength:number|null,
+ *   chargramSource:string,
+ *   phraseSource:string,
+ *   fielded:boolean
  * }}
  */
 export function normalizePostingsConfig(input = {}) {
   const cfg = input && typeof input === 'object' ? input : {};
   const enablePhraseNgrams = cfg.enablePhraseNgrams !== false;
   const enableChargrams = cfg.enableChargrams !== false;
+  const fielded = cfg.fielded !== false;
+
+  // Phrase n-grams are very high-cardinality when derived from the full token
+  // stream of source code. Default to deriving them from low-cardinality fields
+  // (name/signature/doc/comment) unless explicitly requested.
+  const phraseSourceRaw = typeof cfg.phraseSource === 'string'
+    ? cfg.phraseSource.trim().toLowerCase()
+    : '';
+  const phraseSource = ['full', 'fields'].includes(phraseSourceRaw)
+    ? phraseSourceRaw
+    : 'fields';
+  const chargramSourceRaw = typeof cfg.chargramSource === 'string'
+    ? cfg.chargramSource.trim().toLowerCase()
+    : '';
+  const chargramSource = ['full', 'fields'].includes(chargramSourceRaw)
+    ? chargramSourceRaw
+    : 'fields';
 
   const toInt = (value) => {
     const num = Number(value);
@@ -31,13 +52,26 @@ export function normalizePostingsConfig(input = {}) {
 
   const phraseRange = normalizeRange(cfg.phraseMinN, cfg.phraseMaxN, { min: 2, max: 4 });
   const chargramRange = normalizeRange(cfg.chargramMinN, cfg.chargramMaxN, { min: 3, max: 5 });
+  let chargramMaxTokenLength = 48;
+  if (cfg.chargramMaxTokenLength === 0 || cfg.chargramMaxTokenLength === false) {
+    chargramMaxTokenLength = null;
+  } else {
+    const maxTokenRaw = Number(cfg.chargramMaxTokenLength);
+    if (Number.isFinite(maxTokenRaw)) {
+      chargramMaxTokenLength = Math.max(2, Math.floor(maxTokenRaw));
+    }
+  }
 
   return {
     enablePhraseNgrams,
     enableChargrams,
     phraseMinN: phraseRange.min,
     phraseMaxN: phraseRange.max,
+    phraseSource,
     chargramMinN: chargramRange.min,
-    chargramMaxN: chargramRange.max
+    chargramMaxN: chargramRange.max,
+    chargramMaxTokenLength,
+    chargramSource,
+    fielded
   };
 }

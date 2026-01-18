@@ -34,12 +34,15 @@ await fsPromises.mkdir(cacheSqliteDir, { recursive: true });
 await fsPromises.writeFile(path.join(cacheSqliteDir, 'index-code.db'), 'code');
 await fsPromises.writeFile(path.join(cacheSqliteDir, 'index-prose.db'), 'prose');
 await fsPromises.writeFile(path.join(cacheSqliteDir, 'index.db'), 'legacy');
+await fsPromises.writeFile(path.join(cacheSqliteDir, 'index-code.db.bak'), 'code-bak');
+await fsPromises.writeFile(path.join(cacheSqliteDir, 'index.db.bak'), 'legacy-bak');
 
 const legacySqliteDir = path.join(repoRoot, 'index-sqlite');
 await fsPromises.mkdir(legacySqliteDir, { recursive: true });
 await fsPromises.writeFile(path.join(legacySqliteDir, 'index-code.db'), 'legacy-code');
 await fsPromises.writeFile(path.join(legacySqliteDir, 'index-prose.db'), 'legacy-prose');
 await fsPromises.writeFile(path.join(legacySqliteDir, 'index.db'), 'legacy-index');
+await fsPromises.writeFile(path.join(legacySqliteDir, 'index.db.bak'), 'legacy-index-bak');
 
 const modelsDir = path.join(cacheRoot, 'models');
 const dictDir = path.join(cacheRoot, 'dictionaries');
@@ -53,7 +56,7 @@ await fsPromises.writeFile(path.join(extensionsDir, 'ext.bin'), 'ext');
 
 const result = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'clean-artifacts.js')],
+  [path.join(root, 'tools', 'clean-artifacts.js'), '--repo', repoRoot],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 
@@ -65,6 +68,12 @@ if (result.status !== 0) {
 const failures = [];
 if (fs.existsSync(repoCacheRoot)) failures.push(`repo cache root still exists: ${repoCacheRoot}`);
 if (fs.existsSync(legacySqliteDir)) failures.push(`legacy sqlite dir still exists: ${legacySqliteDir}`);
+if (fs.existsSync(path.join(cacheSqliteDir, 'index-code.db.bak'))) {
+  failures.push('sqlite .bak file still exists after clean-artifacts.');
+}
+if (fs.existsSync(path.join(legacySqliteDir, 'index.db.bak'))) {
+  failures.push('legacy sqlite .bak file still exists after clean-artifacts.');
+}
 if (!fs.existsSync(modelsDir)) failures.push('models dir missing after clean-artifacts.');
 if (!fs.existsSync(dictDir)) failures.push('dictionaries dir missing after clean-artifacts.');
 if (!fs.existsSync(extensionsDir)) failures.push('extensions dir missing after clean-artifacts.');
@@ -74,7 +83,7 @@ await fsPromises.writeFile(path.join(repoCacheRoot, 'marker.txt'), 'marker');
 
 const resultAll = spawnSync(
   process.execPath,
-  [path.join(root, 'tools', 'clean-artifacts.js'), '--all'],
+  [path.join(root, 'tools', 'clean-artifacts.js'), '--repo', repoRoot, '--all'],
   { cwd: repoRoot, env, stdio: 'inherit' }
 );
 

@@ -1,5 +1,6 @@
 {
   "generatedAt": "2025-12-29T02:34:30.135Z",
+  "note": "Snapshot report; regenerate after schema or ANN changes.",
   "queryFile": "C:\\Users\\sneak\\Development\\PairOfCleats_CODEX\\tests\\parity-queries.txt",
   "topN": 5,
   "annEnabled": false,

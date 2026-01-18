@@ -19,7 +19,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Decorators, docstrings, params, and returns are captured.
 - Dataclass/attrs field definitions are surfaced in metadata.
 - Imports and calls are captured from AST.
-- Dataflow metadata includes reads/writes/mutations/throws/awaits/yields when enabled.
+- Dataflow metadata includes reads/writes/mutations/aliases/throws/awaits/yields when enabled.
 - Control-flow metadata includes branch/loop/return counts when enabled.
 - Base classes, visibility, and param type/default metadata are present when available.
 
@@ -28,7 +28,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Signatures and params are captured from AST (including defaults).
 - Modifiers include async/generator/static and visibility where detectable.
 - Class inheritance (`extends`) is captured for class declarations.
-- Dataflow metadata includes reads/writes/mutations/throws/awaits/yields when enabled.
+- Dataflow metadata includes reads/writes/mutations/aliases/throws/awaits/yields when enabled.
 - Control-flow metadata includes branch/loop/return counts when enabled.
 
 ## Swift
@@ -37,12 +37,15 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Signatures and modifiers are captured.
 - Generics and where clauses are captured in metadata.
 - Extensions do not break chunking.
+- When sourcekit-lsp is available, signatures and types are enriched from LSP metadata.
 
 ## ObjC/C/C++
 - C-family functions and types are chunked with brace matching.
+- Doc comments above template/attribute lines are captured for C/C++ declarations.
 - ObjC interface/implementation blocks are chunked by @end.
 - ObjC method selectors include the parent type when known.
 - Includes are captured as imports; basic calls/usages are present when possible.
+- When clangd is available, signatures and types are enriched from LSP metadata (best-effort without compile_commands.json; set `tooling.clangd.requireCompilationDatabase` to enforce).
 
 ## Rust
 - struct/enum/trait/mod/impl/fn declarations are chunked.
@@ -71,6 +74,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Doc comments and decorators are captured in metadata.
 - Imports/exports are captured from ES module syntax.
 - Calls/usages are captured for function bodies when possible.
+- Dataflow metadata includes reads/writes/mutations/aliases/throws/awaits/yields when enabled.
 
 ## C#
 - namespace/type declarations are chunked.
@@ -85,6 +89,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - KDoc and annotations are captured in metadata.
 - Imports are captured from import statements.
 - Calls/usages are captured for function bodies when possible.
+- Flow/relations auto-disable above `indexing.kotlin.flowMax*`/`relationsMax*` thresholds.
 
 ## Ruby
 - module/class declarations are chunked.
@@ -111,6 +116,7 @@ Use this checklist to validate chunking and metadata for each language. The goal
 - Statement doc comments are captured from preceding -- or /* */ blocks.
 - Dialect metadata is captured via extension mapping or config overrides.
 - Exports include declared objects when possible.
+- Heuristic dataflow/control-flow metadata is present when enabled.
 
 ## Perl (lite)
 - package declarations and subs are chunked.

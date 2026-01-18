@@ -1,34 +1,35 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { runCommand, runCommandOrExit } from './cli-utils.js';
-import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getToolingConfig, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
+import { getDictionaryPaths, getDictConfig, getRepoCacheRoot, getRuntimeConfig, getToolingConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from './dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from './vector-extension.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['skip-install', 'skip-dicts', 'skip-index', 'with-sqlite', 'incremental', 'skip-artifacts', 'skip-tooling', 'validate-config'],
-  string: ['repo'],
-  alias: { s: 'with-sqlite', i: 'incremental' },
-  default: {
-    'skip-install': false,
-    'skip-dicts': false,
-    'skip-index': false,
-    'with-sqlite': false,
-    'incremental': false,
-    'skip-artifacts': false,
-    'skip-tooling': false,
-    'validate-config': false
-  }
-});
+const argv = createCli({
+  scriptName: 'bootstrap',
+  options: {
+    'skip-install': { type: 'boolean', default: false },
+    'skip-dicts': { type: 'boolean', default: false },
+    'skip-index': { type: 'boolean', default: false },
+    'with-sqlite': { type: 'boolean', default: false },
+    incremental: { type: 'boolean', default: false },
+    'skip-artifacts': { type: 'boolean', default: false },
+    'skip-tooling': { type: 'boolean', default: false },
+    'validate-config': { type: 'boolean', default: false },
+    repo: { type: 'string' }
+  },
+  aliases: { s: 'with-sqlite', i: 'incremental' }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
+const toolRoot = resolveToolRoot();
 const configPath = path.join(root, '.pairofcleats.json');
 if (argv['validate-config'] && fs.existsSync(configPath)) {
   const result = runCommand(
     process.execPath,
-    [path.join('tools', 'validate-config.js'), '--config', configPath],
+    [path.join(toolRoot, 'tools', 'validate-config.js'), '--config', configPath],
     { cwd: root, stdio: 'inherit' }
   );
   if (!result.ok) {
@@ -37,6 +38,8 @@ if (argv['validate-config'] && fs.existsSync(configPath)) {
 }
 
 const userConfig = loadUserConfig(root);
+const runtimeConfig = getRuntimeConfig(root, userConfig);
+const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const vectorExtension = getVectorExtensionConfig(root, userConfig);
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const incrementalCacheRoot = path.join(repoCacheRoot, 'incremental');
@@ -54,7 +57,7 @@ let restoredArtifacts = false;
  * @param {string} label
  */
 function run(cmd, args, label) {
-  runCommandOrExit(label || cmd, cmd, args, { cwd: root, stdio: 'inherit' });
+  runCommandOrExit(label || cmd, cmd, args, { cwd: root, stdio: 'inherit', env: baseEnv });
 }
 
 if (!argv['skip-install']) {
@@ -68,7 +71,7 @@ if (!argv['skip-dicts']) {
   const dictConfig = getDictConfig(root, userConfig);
   const englishPath = path.join(dictConfig.dir, 'en.txt');
   if (!fs.existsSync(englishPath)) {
-    run(process.execPath, [path.join('tools', 'download-dicts.js'), '--lang', 'en'], 'download English dictionary');
+    run(process.execPath, [path.join(toolRoot, 'tools', 'download-dicts.js'), '--lang', 'en'], 'download English dictionary');
   }
   const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
   if (dictionaryPaths.length) {
@@ -91,8 +94,8 @@ if (!argv['skip-tooling']) {
   const toolingConfig = getToolingConfig(root, userConfig);
   const detectResult = runCommand(
     process.execPath,
-    [path.join('tools', 'tooling-detect.js'), '--root', root, '--json'],
-    { cwd: root, encoding: 'utf8', stdio: 'pipe' }
+    [path.join(toolRoot, 'tools', 'tooling-detect.js'), '--root', root, '--json'],
+    { cwd: root, encoding: 'utf8', stdio: 'pipe', env: baseEnv }
   );
   if (detectResult.status === 0 && detectResult.stdout) {
     try {
@@ -101,7 +104,7 @@ if (!argv['skip-tooling']) {
         ? report.tools.filter((tool) => tool && tool.found === false)
         : [];
       if (toolingConfig.autoInstallOnDetect && missingTools.length) {
-        const installArgs = [path.join('tools', 'tooling-install.js'), '--root', root, '--scope', toolingConfig.installScope];
+        const installArgs = [path.join(toolRoot, 'tools', 'tooling-install.js'), '--root', root, '--scope', toolingConfig.installScope];
         if (!toolingConfig.allowGlobalFallback) installArgs.push('--no-fallback');
         run(process.execPath, installArgs, 'install tooling');
       } else if (missingTools.length) {
@@ -118,22 +121,23 @@ if (!argv['skip-tooling']) {
 if (!argv['skip-artifacts'] && fs.existsSync(path.join(artifactsDir, 'manifest.json'))) {
   const result = runCommand(
     process.execPath,
-    [path.join('tools', 'ci-restore-artifacts.js'), '--from', artifactsDir],
-    { cwd: root, stdio: 'inherit' }
+    [path.join(toolRoot, 'tools', 'ci-restore-artifacts.js'), '--from', artifactsDir],
+    { cwd: root, stdio: 'inherit', env: baseEnv }
   );
   restoredArtifacts = result.ok;
 }
 
 if (!argv['skip-index'] && !restoredArtifacts) {
-  const indexArgs = ['build_index.js'];
+  const indexArgs = [path.join(toolRoot, 'build_index.js')];
   if (useIncremental) indexArgs.push('--incremental');
   run(process.execPath, indexArgs, 'build index');
 }
 
 if (argv['with-sqlite']) {
-  const sqliteArgs = [path.join('tools', 'build-sqlite-index.js')];
+  const sqliteArgs = [path.join(toolRoot, 'tools', 'build-sqlite-index.js')];
   if (useIncremental) sqliteArgs.push('--incremental');
   run(process.execPath, sqliteArgs, 'build sqlite index');
 }
 
+console.log('[bootstrap] Tip: run npm run index-validate to verify index artifacts.');
 console.log('\nBootstrap complete.');

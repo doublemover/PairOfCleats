@@ -1,0 +1,4 @@
+{% load static %}
+{% block body %}
+  <img src="{% static 'img.png' %}">
+{% endblock %}

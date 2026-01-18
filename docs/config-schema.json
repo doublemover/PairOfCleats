@@ -4,194 +4,24 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "dictionary": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "dir": { "type": "string" },
-        "languages": { "type": "array", "items": { "type": "string" } },
-        "files": { "type": "array", "items": { "type": "string" } },
-        "includeSlang": { "type": "boolean" },
-        "slangDirs": { "type": "array", "items": { "type": "string" } },
-        "slangFiles": { "type": "array", "items": { "type": "string" } },
-        "enableRepoDictionary": { "type": "boolean" }
-      }
-    },
     "cache": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "root": { "type": "string" },
-        "gc": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "maxBytes": { "type": "number" },
-            "maxGb": { "type": "number" },
-            "maxAgeDays": { "type": "number" }
-          }
-        }
+        "root": { "type": "string" }
       }
     },
-    "sqlite": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "use": { "type": "boolean" },
-        "dbDir": { "type": "string" },
-        "dbPath": { "type": "string" },
-        "codeDbPath": { "type": "string" },
-        "proseDbPath": { "type": "string" },
-        "scoreMode": { "type": "string" },
-        "annMode": { "type": "string" },
-        "compactOnIncremental": { "type": "boolean" },
-        "vectorExtension": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "annMode": { "type": "string" },
-            "provider": { "type": "string" },
-            "module": { "type": "string" },
-            "encoding": { "type": "string" },
-            "table": { "type": "string" },
-            "column": { "type": "string" },
-            "options": { "type": "string" },
-            "dir": { "type": "string" },
-            "filename": { "type": "string" },
-            "path": { "type": "string" },
-            "url": { "type": "string" },
-            "downloads": { "type": "object", "additionalProperties": true },
-            "platform": { "type": "string" },
-            "arch": { "type": "string" }
-          }
-        }
-      }
+    "quality": {
+      "type": "string",
+      "enum": ["auto", "fast", "balanced", "max"]
     },
     "search": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "annDefault": { "type": "boolean" },
-        "sqliteFtsNormalize": { "type": "boolean" },
-        "sqliteFtsProfile": { "type": "string" },
-        "sqliteFtsWeights": {
-          "type": ["array", "object"],
-          "items": { "type": "number" },
-          "additionalProperties": false,
-          "properties": {
-            "file": { "type": "number" },
-            "name": { "type": "number" },
-            "kind": { "type": "number" },
-            "headline": { "type": "number" },
-            "tokens": { "type": "number" }
-          }
-        },
-        "queryCache": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "maxEntries": { "type": "number" },
-            "ttlMs": { "type": "number" }
-          }
-        },
-        "bm25": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "k1": { "type": "number" },
-            "b": { "type": "number" }
-          }
-        }
+        "sqliteAutoChunkThreshold": { "type": "number" },
+        "sqliteAutoArtifactBytes": { "type": "number" }
       }
-    },
-    "triage": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "recordsDir": { "type": "string" },
-        "storeRawPayload": { "type": "boolean" },
-        "promoteFields": { "type": "array", "items": { "type": "string" } },
-        "contextPack": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "maxHistory": { "type": "number" },
-            "maxEvidencePerQuery": { "type": "number" }
-          }
-        }
-      }
-    },
-    "indexing": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "concurrency": { "type": "number" },
-        "importConcurrency": { "type": "number" },
-        "maxFileBytes": { "type": ["number", "boolean"] },
-        "astDataflow": { "type": "boolean" },
-        "controlFlow": { "type": "boolean" },
-        "riskAnalysis": { "type": "boolean" },
-        "riskAnalysisCrossFile": { "type": "boolean" },
-        "typeInference": { "type": "boolean" },
-        "typeInferenceCrossFile": { "type": "boolean" },
-        "gitBlame": { "type": "boolean" },
-        "postings": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enablePhraseNgrams": { "type": "boolean" },
-            "phraseMinN": { "type": "number" },
-            "phraseMaxN": { "type": "number" },
-            "enableChargrams": { "type": "boolean" },
-            "chargramMinN": { "type": "number" },
-            "chargramMaxN": { "type": "number" }
-          }
-        }
-      }
-    },
-    "sql": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "dialect": { "type": "string" },
-        "dialectByExt": {
-          "type": "object",
-          "additionalProperties": { "type": "string" }
-        }
-      }
-    },
-    "models": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "id": { "type": "string" },
-        "dir": { "type": "string" },
-        "compare": { "type": "array", "items": { "type": "string" } }
-      }
-    },
-    "tooling": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "autoInstallOnDetect": { "type": "boolean" },
-        "installScope": { "type": "string" },
-        "allowGlobalFallback": { "type": "boolean" },
-        "dir": { "type": "string" }
-      }
-    },
-    "extensions": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "dir": { "type": "string" }
-      }
-    },
-    "useDefaultSkips": { "type": "boolean" },
-    "useGitignore": { "type": "boolean" },
-    "usePairofcleatsIgnore": { "type": "boolean" },
-    "ignoreFiles": { "type": "array", "items": { "type": "string" } },
-    "extraIgnore": { "type": "array", "items": { "type": "string" } }
+    }
   }
 }

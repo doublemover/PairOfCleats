@@ -1,0 +1,10 @@
+def
+class
+module
+include
+before_action
+scope
+ActiveRecord
+Rails
+render
+concern

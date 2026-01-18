@@ -1,0 +1,10 @@
+shebang bash
+set -e
+function
+case
+trap
+export
+awk
+sed
+curl
+grep

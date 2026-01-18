@@ -3,12 +3,19 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import minimist from 'minimist';
-import { loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
+import { createCli } from '../src/shared/cli.js';
+import { createDisplay } from '../src/shared/cli/display.js';
+import { ensureDiskSpace } from '../src/shared/disk-space.js';
+import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from './vector-extension.js';
-import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/sqlite/schema.js';
-import { hasRequiredTables, normalizeFilePath } from '../src/sqlite/utils.js';
-import { dequantizeUint8ToFloat32, toVectorId } from '../src/sqlite/vector.js';
+import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../src/storage/sqlite/schema.js';
+import { hasRequiredTables, normalizeFilePath, replaceSqliteDatabase } from '../src/storage/sqlite/utils.js';
+import {
+  dequantizeUint8ToFloat32,
+  resolveQuantizationParams,
+  toSqliteRowId
+} from '../src/storage/sqlite/vector.js';
+import { updateSqliteState } from './build-sqlite-index/index-state.js';
 
 let Database;
 try {
@@ -63,19 +70,47 @@ function buildBackupPath(dbPath, keepBackup) {
  * @returns {Promise<{skipped:boolean}>}
  */
 export async function compactDatabase(input) {
-  const { dbPath, mode, vectorExtension, dryRun = false, keepBackup = false } = input || {};
+  const {
+    dbPath,
+    mode,
+    vectorExtension,
+    dryRun = false,
+    keepBackup = false,
+    indexDir = null
+  } = input || {};
+  const logger = input?.logger || console;
   const vectorAnnEnabled = vectorExtension?.enabled === true;
   if (!fs.existsSync(dbPath)) {
-    console.warn(`[compact] ${mode} db missing: ${dbPath}`);
+    logger.warn(`[compact] ${mode} db missing: ${dbPath}`);
     return { skipped: true };
   }
+  const sourceSize = Number(fs.statSync(dbPath).size) || 0;
+  const requiredBytes = Math.max(sourceSize * 1.2, sourceSize + (96 * 1024 * 1024));
+  await ensureDiskSpace({
+    targetPath: dbPath,
+    requiredBytes,
+    label: `sqlite compact ${mode}`
+  });
 
   const sourceDb = new Database(dbPath, { readonly: true });
   if (!hasRequiredTables(sourceDb, REQUIRED_TABLES)) {
     sourceDb.close();
-    console.error(`[compact] ${mode} db missing required tables. Rebuild first.`);
+    logger.error(`[compact] ${mode} db missing required tables. Rebuild first.`);
     process.exit(1);
   }
+  const countRows = (db, table) => {
+    try {
+      const row = db.prepare(`SELECT COUNT(*) AS total FROM ${table} WHERE mode = ?`).get(mode);
+      return Number.isFinite(row?.total) ? row.total : 0;
+    } catch {
+      return 0;
+    }
+  };
+  const beforeStats = {
+    bytes: sourceSize,
+    chunks: countRows(sourceDb, 'chunks'),
+    dense: countRows(sourceDb, 'dense_vectors')
+  };
 
   const tempPath = `${dbPath}.compact`;
   if (fs.existsSync(tempPath)) await fsPromises.rm(tempPath, { force: true });
@@ -105,27 +140,31 @@ export async function compactDatabase(input) {
         );
       }
     } else {
-      console.warn(`[compact] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
+      logger.warn(
+        `[compact] Vector extension unavailable for ${mode}: ${loadResult.reason}. ` +
+        'ANN acceleration may be missing until embeddings are rebuilt with the extension available.'
+      );
     }
   }
 
   const insertChunk = outDb.prepare(`
     INSERT OR REPLACE INTO chunks (
-      id, mode, file, start, end, startLine, endLine, ext, kind, name, headline,
-      preContext, postContext, weight, tokens, ngrams, codeRelations, docmeta,
-      stats, complexity, lint, externalDocs, last_modified, last_author, churn,
-      chunk_authors
+      id, chunk_id, mode, file, start, end, startLine, endLine, ext, kind, name,
+      headline, preContext, postContext, weight, tokens, ngrams, codeRelations,
+      docmeta, stats, complexity, lint, externalDocs, last_modified, last_author,
+      churn, churn_added, churn_deleted, churn_commits, chunk_authors
     ) VALUES (
-      @id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind, @name, @headline,
-      @preContext, @postContext, @weight, @tokens, @ngrams, @codeRelations, @docmeta,
-      @stats, @complexity, @lint, @externalDocs, @last_modified, @last_author, @churn,
+      @id, @chunk_id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind,
+      @name, @headline, @preContext, @postContext, @weight, @tokens, @ngrams,
+      @codeRelations, @docmeta, @stats, @complexity, @lint, @externalDocs,
+      @last_modified, @last_author, @churn, @churn_added, @churn_deleted, @churn_commits,
       @chunk_authors
     );
   `);
 
   const insertFts = outDb.prepare(`
-    INSERT OR REPLACE INTO chunks_fts (rowid, mode, file, name, kind, headline, tokens)
-    VALUES (@id, @mode, @file, @name, @kind, @headline, @tokensText);
+    INSERT OR REPLACE INTO chunks_fts (rowid, mode, file, name, signature, kind, headline, doc, tokens)
+    VALUES (@id, @mode, @file, @name, @signature, @kind, @headline, @doc, @tokensText);
   `);
 
   const insertTokenVocab = outDb.prepare(
@@ -159,7 +198,7 @@ export async function compactDatabase(input) {
     'INSERT OR REPLACE INTO dense_vectors (mode, doc_id, vector) VALUES (?, ?, ?)'
   );
   const insertDenseMeta = outDb.prepare(
-    'INSERT OR REPLACE INTO dense_meta (mode, dims, scale, model) VALUES (?, ?, ?, ?)'
+    'INSERT OR REPLACE INTO dense_meta (mode, dims, scale, model, min_val, max_val, levels) VALUES (?, ?, ?, ?, ?, ?, ?)'
   );
   const insertFileManifest = outDb.prepare(
     'INSERT OR REPLACE INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
@@ -196,13 +235,24 @@ export async function compactDatabase(input) {
       insertChunk.run(chunkRow);
 
       const tokensText = parseTokens(row.tokens).join(' ');
+      let signature = null;
+      let doc = null;
+      if (row.docmeta) {
+        try {
+          const meta = JSON.parse(row.docmeta);
+          signature = typeof meta?.signature === 'string' ? meta.signature : null;
+          doc = typeof meta?.doc === 'string' ? meta.doc : null;
+        } catch {}
+      }
       insertFts.run({
         id: newId,
         mode,
         file: normalizedFile,
         name: row.name,
+        signature,
         kind: row.kind,
         headline: row.headline,
+        doc,
         tokensText
       });
 
@@ -211,13 +261,23 @@ export async function compactDatabase(input) {
   });
   insertChunksTx();
 
-  const denseMeta = sourceDb.prepare('SELECT dims, scale, model FROM dense_meta WHERE mode = ?').get(mode);
+  const denseMeta = sourceDb.prepare(
+    'SELECT dims, scale, model, min_val, max_val, levels FROM dense_meta WHERE mode = ?'
+  ).get(mode);
+  const quantization = resolveQuantizationParams({
+    minVal: denseMeta?.min_val,
+    maxVal: denseMeta?.max_val,
+    levels: denseMeta?.levels
+  });
   if (denseMeta) {
     insertDenseMeta.run(
       mode,
       denseMeta.dims ?? null,
       denseMeta.scale ?? 1.0,
-      denseMeta.model ?? null
+      denseMeta.model ?? null,
+      quantization.minVal,
+      quantization.maxVal,
+      quantization.levels
     );
   }
   const vectorAnnDims = Number.isFinite(denseMeta?.dims) ? denseMeta.dims : null;
@@ -231,7 +291,7 @@ export async function compactDatabase(input) {
         `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
       );
     } else {
-      console.warn(`[compact] Failed to create vector table for ${mode}: ${created.reason}`);
+      logger.warn(`[compact] Failed to create vector table for ${mode}: ${created.reason}`);
     }
   }
 
@@ -262,13 +322,18 @@ export async function compactDatabase(input) {
       if (newId === undefined) continue;
       insertDense.run(mode, newId, row.vector);
       if (vectorAnnLoaded && !vectorAnnReady && !vectorAnnWarned) {
-        console.warn(`[compact] Skipping vector table for ${mode}: missing dense_meta dims.`);
+        logger.warn(`[compact] Skipping vector table for ${mode}: missing dense_meta dims.`);
         vectorAnnWarned = true;
       }
       if (vectorAnnReady && insertVectorAnn) {
-        const floatVec = dequantizeUint8ToFloat32(row.vector);
+        const floatVec = dequantizeUint8ToFloat32(
+          row.vector,
+          quantization.minVal,
+          quantization.maxVal,
+          quantization.levels
+        );
         const encoded = encodeVector(floatVec, vectorExtension);
-        if (encoded) insertVectorAnn.run(toVectorId(newId), encoded);
+        if (encoded) insertVectorAnn.run(toSqliteRowId(newId), encoded);
       }
     }
   });
@@ -377,12 +442,17 @@ export async function compactDatabase(input) {
   insertManifestTx();
 
   outDb.exec('VACUUM');
+  const afterStats = {
+    bytes: Number(fs.statSync(tempPath).size) || 0,
+    chunks: countRows(outDb, 'chunks'),
+    dense: countRows(outDb, 'dense_vectors')
+  };
   outDb.close();
   sourceDb.close();
 
   if (dryRun) {
     await fsPromises.rm(tempPath, { force: true });
-    console.log(`[compact] dry-run: ${mode} would replace ${dbPath}`);
+    logger.log(`[compact] dry-run: ${mode} would replace ${dbPath}`);
     return { skipped: true };
   }
 
@@ -390,12 +460,15 @@ export async function compactDatabase(input) {
   if (!keepBackup && fs.existsSync(backupPath)) {
     await fsPromises.rm(backupPath, { force: true });
   }
-
-  await fsPromises.rename(dbPath, backupPath);
-  await fsPromises.rename(tempPath, dbPath);
-
-  if (!keepBackup) {
-    await fsPromises.rm(backupPath, { force: true });
+  await replaceSqliteDatabase(tempPath, dbPath, { keepBackup, backupPath, logger });
+  if (indexDir) {
+    await updateSqliteState(indexDir, {
+      compaction: {
+        mode,
+        before: beforeStats,
+        after: afterStats
+      }
+    });
   }
 
   return { skipped: false };
@@ -403,15 +476,30 @@ export async function compactDatabase(input) {
 
 const isDirectRun = import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isDirectRun) {
-  const argv = minimist(process.argv.slice(2), {
-    string: ['mode', 'repo'],
-    boolean: ['dry-run', 'keep-backup'],
-    default: {
-      mode: 'all',
-      'dry-run': false,
-      'keep-backup': false
+  const argv = createCli({
+    scriptName: 'compact-sqlite-index',
+    options: {
+      mode: { type: 'string', default: 'all' },
+      repo: { type: 'string' },
+      'dry-run': { type: 'boolean', default: false },
+      'keep-backup': { type: 'boolean', default: false },
+      progress: { type: 'string', default: 'auto' },
+      verbose: { type: 'boolean', default: false },
+      quiet: { type: 'boolean', default: false }
     }
+  }).parse();
+
+  const display = createDisplay({
+    stream: process.stderr,
+    progressMode: argv.progress,
+    verbose: argv.verbose === true,
+    quiet: argv.quiet === true
   });
+  const logger = {
+    log: (message) => display.log(message),
+    warn: (message) => display.warn(message),
+    error: (message) => display.error(message)
+  };
 
   const rootArg = argv.repo ? path.resolve(argv.repo) : null;
   const root = rootArg || resolveRepoRoot(process.cwd());
@@ -421,7 +509,8 @@ if (isDirectRun) {
 
   const modeArg = (argv.mode || 'all').toLowerCase();
   if (!['all', 'code', 'prose'].includes(modeArg)) {
-    console.error('Invalid mode. Use --mode all|code|prose');
+    display.error('Invalid mode. Use --mode all|code|prose (sqlite compaction only supports code/prose).');
+    display.close();
     process.exit(1);
   }
 
@@ -433,15 +522,24 @@ if (isDirectRun) {
     targets.push({ mode: 'prose', path: sqlitePaths.prosePath });
   }
 
+  const modeTask = display.task('SQLite compact', { total: targets.length, stage: 'sqlite' });
+  let completed = 0;
   for (const target of targets) {
+    modeTask.set(completed, targets.length, { message: `compacting ${target.mode}` });
     await compactDatabase({
       dbPath: target.path,
       mode: target.mode,
       vectorExtension,
       dryRun: argv['dry-run'],
-      keepBackup: argv['keep-backup']
+      keepBackup: argv['keep-backup'],
+      indexDir: getIndexDir(root, target.mode, userConfig),
+      logger
     });
+    completed += 1;
+    modeTask.set(completed, targets.length, { message: `compacted ${target.mode}` });
   }
 
-  console.log('SQLite compaction complete.');
+  display.log('SQLite compaction complete.');
+  display.close();
 }
+

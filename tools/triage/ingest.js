@@ -1,24 +1,31 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import minimist from 'minimist';
-import { getTriageConfig, loadUserConfig, resolveRepoRoot } from '../dict-utils.js';
-import { normalizeDependabot } from '../../src/triage/normalize/dependabot.js';
-import { normalizeAwsInspector } from '../../src/triage/normalize/aws-inspector.js';
-import { normalizeGeneric } from '../../src/triage/normalize/generic.js';
-import { renderRecordMarkdown } from '../../src/triage/render.js';
+import { execaSync } from 'execa';
+import { createCli } from '../../src/shared/cli.js';
+import { getRuntimeConfig, getTriageConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveToolRoot } from '../dict-utils.js';
+import { normalizeDependabot } from '../../src/integrations/triage/normalize/dependabot.js';
+import { normalizeAwsInspector } from '../../src/integrations/triage/normalize/aws-inspector.js';
+import { normalizeGeneric } from '../../src/integrations/triage/normalize/generic.js';
+import { renderRecordMarkdown } from '../../src/integrations/triage/render.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['build-index', 'incremental', 'stub-embeddings'],
-  string: ['repo', 'source', 'in', 'meta'],
-  alias: { i: 'in' }
-});
+const argv = createCli({
+  scriptName: 'triage-ingest',
+  options: {
+    'build-index': { type: 'boolean', default: false },
+    incremental: { type: 'boolean', default: false },
+    'stub-embeddings': { type: 'boolean', default: false },
+    repo: { type: 'string' },
+    source: { type: 'string' },
+    in: { type: 'string' },
+    meta: { type: 'string', array: true }
+  },
+  aliases: { i: 'in' }
+}).parse();
 
 const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
 const source = normalizeSource(argv.source);
-const inputPath = argv.in ? path.resolve(argv.in) : null;
+const inputPath = argv.in ? path.resolve(repoRoot, argv.in) : null;
 
 if (!source || !inputPath) {
   console.error('usage: node tools/triage/ingest.js --source dependabot|aws_inspector|generic --in <file> [--repo <path>] [--meta key=value] [--build-index]');
@@ -26,6 +33,8 @@ if (!source || !inputPath) {
 }
 
 const userConfig = loadUserConfig(repoRoot);
+const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
+const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const triageConfig = getTriageConfig(repoRoot, userConfig);
 const meta = parseMeta(argv.meta);
 
@@ -77,12 +86,14 @@ for (let index = 0; index < rawEntries.length; index += 1) {
 }
 
 if (argv['build-index']) {
-  const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const scriptRoot = resolveToolRoot();
   const args = [path.join(scriptRoot, 'build_index.js'), '--mode', 'records', '--repo', repoRoot];
   if (argv.incremental) args.push('--incremental');
   if (argv['stub-embeddings']) args.push('--stub-embeddings');
-  const result = spawnSync(process.execPath, args, { cwd: repoRoot, stdio: 'inherit' });
-  if (result.status !== 0) process.exit(result.status ?? 1);
+  const env = { ...baseEnv };
+  if (argv['stub-embeddings']) env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+  const result = execaSync(process.execPath, args, { cwd: repoRoot, stdio: 'inherit', env, reject: false });
+  if (result.exitCode !== 0) process.exit(result.exitCode ?? 1);
 }
 
 console.log(JSON.stringify(results, null, 2));

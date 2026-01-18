@@ -18,15 +18,22 @@ await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 const env = {
   ...process.env,
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  PAIROFCLEATS_PROFILE: 'full'
 };
 
 const result = spawnSync(
   process.execPath,
   [
     path.join(root, 'tools', 'combined-summary.js'),
+    '--repo',
+    repoRoot,
     '--models',
     'Xenova/all-MiniLM-L12-v2,Xenova/all-MiniLM-L6-v2',
+    '--limit',
+    '5',
+    '--top',
+    '3',
     '--no-ann',
     '--out',
     outPath

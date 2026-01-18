@@ -1,0 +1,6 @@
+{
+  "id": "poct-comby-todo",
+  "language": ".md",
+  "pattern": "TODO:[...]",
+  "message": "TODO marker present."
+}

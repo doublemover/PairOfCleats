@@ -1,0 +1,5 @@
+source 'https://rubygems.org'
+
+def build_widget
+  puts 'gemfile widget'
+end

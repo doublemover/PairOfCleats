@@ -1,7 +1,8 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
-import { sliceSignature } from './shared.js';
+import { extractDocComment, sliceSignature } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * Go language chunking and relations.
@@ -23,46 +24,12 @@ const GO_USAGE_SKIP = new Set([
   'nil', 'true', 'false'
 ]);
 
-function extractGoDocComment(lines, startLineIdx) {
-  let i = startLineIdx - 1;
-  while (i >= 0 && lines[i].trim() === '') i--;
-  if (i < 0) return '';
-  const trimmed = lines[i].trim();
-  if (trimmed.startsWith('//')) {
-    const out = [];
-    while (i >= 0) {
-      const line = lines[i].trim();
-      if (!line.startsWith('//')) break;
-      if (line.startsWith('//go:') || line.startsWith('// +build')) {
-        i--;
-        continue;
-      }
-      out.unshift(line.replace(/^\/\/\s?/, ''));
-      i--;
-    }
-    return out.join('\n').trim();
-  }
-  if (trimmed.includes('*/')) {
-    const raw = [];
-    while (i >= 0) {
-      raw.unshift(lines[i]);
-      if (lines[i].includes('/*')) break;
-      i--;
-    }
-    return raw
-      .map((line) =>
-        line
-          .replace(/^\s*\/\*+/, '')
-          .replace(/\*\/\s*$/, '')
-          .replace(/^\s*\*\s?/, '')
-          .trim()
-      )
-      .filter(Boolean)
-      .join('\n')
-      .trim();
-  }
-  return '';
-}
+const GO_DOC_OPTIONS = {
+  linePrefixes: ['//'],
+  blockStarts: ['/*'],
+  blockEnd: '*/',
+  skipLine: (line) => line.startsWith('//go:') || line.startsWith('// +build')
+};
 
 function readSignatureLines(lines, startLine) {
   const parts = [];
@@ -191,7 +158,23 @@ export function collectGoImports(text) {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildGoChunks(text) {
+export function buildGoChunks(text, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'go', options });
+  if (treeChunks && treeChunks.length) {
+    return treeChunks.map((chunk) => {
+      const meta = chunk.meta || {};
+      const signature = meta.signature || '';
+      return {
+        ...chunk,
+        meta: {
+          ...meta,
+          signature,
+          params: extractGoParams(signature),
+          returns: extractGoReturns(signature)
+        }
+      };
+    });
+  }
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];
@@ -211,13 +194,14 @@ export function buildGoChunks(text) {
       if (bounds.bodyStart === -1) {
         end = lineIndex[i] + line.length;
       }
-      const signature = sliceSignature(text, start, bounds.bodyStart);
+      const signatureEnd = bounds.bodyStart > start ? bounds.bodyStart : end;
+      const signature = sliceSignature(text, start, signatureEnd);
       const kind = match[2] === 'struct' ? 'StructDeclaration' : 'InterfaceDeclaration';
       const meta = {
         startLine: i + 1,
         endLine: offsetToLine(lineIndex, end),
         signature,
-        docstring: extractGoDocComment(lines, i)
+        docstring: extractDocComment(lines, i, GO_DOC_OPTIONS)
       };
       decls.push({ start, end, name: match[1], kind, meta });
       continue;
@@ -230,7 +214,7 @@ export function buildGoChunks(text) {
         startLine: i + 1,
         endLine: offsetToLine(lineIndex, end),
         signature: trimmed,
-        docstring: extractGoDocComment(lines, i)
+        docstring: extractDocComment(lines, i, GO_DOC_OPTIONS)
       };
       decls.push({ start, end, name: aliasMatch[1], kind: 'TypeAliasDeclaration', meta });
     }
@@ -270,7 +254,7 @@ export function buildGoChunks(text) {
       signature: signatureText,
       params: extractGoParams(signature),
       returns: extractGoReturns(signature),
-      docstring: extractGoDocComment(lines, i)
+      docstring: extractDocComment(lines, i, GO_DOC_OPTIONS)
     };
     decls.push({ start, end, name, kind, meta });
     i = endLine;

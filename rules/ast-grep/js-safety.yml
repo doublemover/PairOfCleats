@@ -1,0 +1,6 @@
+rules:
+  - id: poct-astgrep-eval
+    message: Avoid eval() usage.
+    language: javascript
+    rule:
+      pattern: eval($$$ARGS)

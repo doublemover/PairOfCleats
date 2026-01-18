@@ -1,0 +1,19 @@
+#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args.includes('--version') || args.includes('--help')) {
+  process.stdout.write('comby stub\n');
+  process.exit(0);
+}
+const payload = {
+  uri: 'docs/notes.md',
+  matches: [
+    {
+      matched: 'TODO: update',
+      range: {
+        start: { line: 1, col: 1 },
+        end: { line: 1, col: 12 }
+      }
+    }
+  ]
+};
+process.stdout.write(`${JSON.stringify(payload)}\n`);

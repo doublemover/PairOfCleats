@@ -1,6 +1,7 @@
-import { buildLineIndex, offsetToLine } from '../shared/lines.js';
+import { buildLineIndex, lineColToOffset, offsetToLine } from '../shared/lines.js';
 import { collectAttributes, extractDocComment, isCommentLine, sliceSignature } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * Swift language chunking and relations.
@@ -122,7 +123,7 @@ function findSwiftBodyBounds(text, start) {
     }
     if (inString) {
       if (inTripleString) {
-        if (ch === '"' && text.slice(i, i + 3) === '"""') {
+        if (ch === '"' && text.startsWith('"""', i)) {
           inString = false;
           inTripleString = false;
           i += 2;
@@ -149,7 +150,7 @@ function findSwiftBodyBounds(text, start) {
       continue;
     }
     if (ch === '"') {
-      if (text.slice(i, i + 3) === '"""') {
+      if (text.startsWith('"""', i)) {
         inString = true;
         inTripleString = true;
         i += 2;
@@ -185,13 +186,84 @@ function stripSwiftComments(text) {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildSwiftChunks(text) {
+export function buildSwiftChunks(text, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'swift', options });
+  if (treeChunks && treeChunks.length) {
+    const lines = text.split('\n');
+    const lineIndex = buildLineIndex(text);
+    const typeKinds = new Set([
+      'ClassDeclaration',
+      'StructDeclaration',
+      'EnumDeclaration',
+      'ProtocolDeclaration',
+      'ExtensionDeclaration',
+      'ActorDeclaration'
+    ]);
+    const funcSignatureRe = /\b(func|init|deinit)\b/;
+    const typeSignatureRe = /\b(class|struct|enum|protocol|extension|actor)\b/;
+    const resolveSignatureFallback = (startLine, keywordRe) => {
+      const startIdx = Math.max(0, startLine - 1);
+      const maxIdx = Math.min(lines.length, startIdx + 8);
+      for (let i = startIdx; i < maxIdx; i += 1) {
+        const raw = lines[i] || '';
+        const trimmed = raw.trim();
+        if (!trimmed) continue;
+        if (trimmed.startsWith('///') || trimmed.startsWith('//')) continue;
+        if (trimmed.startsWith('@')) continue;
+        if (!keywordRe.test(trimmed)) continue;
+        const offset = lineColToOffset(lineIndex, i + 1, raw.indexOf(trimmed));
+        const bounds = findSwiftBodyBounds(text, offset);
+        return { signature: sliceSignature(text, offset, bounds.bodyStart), line: i + 1 };
+      }
+      return null;
+    };
+    return treeChunks.map((chunk) => {
+      const meta = chunk.meta || {};
+      let signature = meta.signature || '';
+      const startLine = Number.isFinite(meta.startLine) ? meta.startLine : 1;
+      let signatureLine = startLine;
+      const isType = typeKinds.has(chunk.kind);
+      const keywordRe = isType ? typeSignatureRe : funcSignatureRe;
+      if (signature && !keywordRe.test(signature)) {
+        const fallback = resolveSignatureFallback(startLine, keywordRe);
+        if (fallback?.signature) {
+          signature = fallback.signature;
+          signatureLine = fallback.line;
+        }
+      }
+      const modifiers = extractSwiftModifiers(signature);
+      const attributes = collectAttributes(lines, signatureLine - 1, signature);
+      const params = isType ? [] : extractSwiftParams(signature);
+      const returns = isType ? null : extractSwiftReturns(signature);
+      const conforms = isType ? extractSwiftConforms(signature) : [];
+      const generics = extractSwiftGenerics(signature);
+      const whereClause = extractSwiftWhereClause(signature);
+      const extendedType = chunk.kind === 'ExtensionDeclaration'
+        ? extractSwiftExtensionTarget(signature)
+        : null;
+      return {
+        ...chunk,
+        meta: {
+          ...meta,
+          signature,
+          params,
+          returns,
+          modifiers,
+          attributes,
+          conforms,
+          generics,
+          whereClause,
+          extendedType
+        }
+      };
+    });
+  }
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];
-  const typeRe = /^\s*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(class|struct|enum|protocol|extension|actor)\s+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
-  const funcRe = /^\s*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(func)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
-  const initRe = /^\s*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(init|deinit)\b/gm;
+  const typeRe = /^[ \t]*(?:@[\w().,:]+[ \t]+)*(?:[A-Za-z]+[ \t]+)*(class|struct|enum|protocol|extension|actor)[ \t]+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
+  const funcRe = /^[ \t]*(?:@[\w().,:]+[ \t]+)*(?:[A-Za-z]+[ \t]+)*(func)[ \t]+([A-Za-z_][A-Za-z0-9_]*)/gm;
+  const initRe = /^[ \t]*(?:@[\w().,:]+[ \t]+)*(?:[A-Za-z]+[ \t]+)*(init|deinit)\b/gm;
 
   const addDecl = (kindKey, rawName, start, isType) => {
     const startLine = offsetToLine(lineIndex, start);
@@ -326,9 +398,9 @@ export function collectSwiftImports(text) {
 export function buildSwiftRelations(text, allImports) {
   const { imports, usages } = collectSwiftImports(text);
   const exports = new Set();
-  const declRe = /^\s*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(class|struct|enum|protocol|extension|actor|func)\s+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
+  const declRe = /^[ \t]*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(class|struct|enum|protocol|extension|actor|func)\s+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
   for (const match of text.matchAll(declRe)) {
-    const indent = match[0].match(/^\s*/)?.[0] ?? '';
+    const indent = match[0].match(/^[ \t]*/)?.[0] ?? '';
     if (indent.length) continue;
     const name = normalizeSwiftName(match[2]);
     if (name) exports.add(name);

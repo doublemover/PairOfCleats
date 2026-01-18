@@ -1,20 +1,21 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { SKIP_DIRS, SKIP_FILES } from '../src/indexer/constants.js';
+import { execaSync } from 'execa';
+import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../src/index/constants.js';
 import { getToolingConfig } from './dict-utils.js';
 
 const LANGUAGE_EXTENSIONS = {
   javascript: ['.js', '.mjs', '.cjs'],
   typescript: ['.ts', '.tsx', '.mts', '.cts'],
-  python: ['.py'],
+  python: ['.py', '.pyi'],
   c: ['.c', '.h'],
   cpp: ['.cc', '.cpp', '.hpp', '.hh'],
   objc: ['.m', '.mm'],
   rust: ['.rs'],
   go: ['.go'],
   java: ['.java'],
+  swift: ['.swift'],
   shell: ['.sh', '.bash', '.zsh', '.ksh'],
   csharp: ['.cs'],
   kotlin: ['.kt', '.kts'],
@@ -36,19 +37,34 @@ const FORMAT_EXTENSIONS = {
 
 const FORMAT_FILENAMES = {
   dockerfile: ['dockerfile'],
-  makefile: ['makefile']
+  makefile: ['makefile', 'gnumakefile'],
+  manifest: Array.from(MANIFEST_FILES),
+  lockfile: Array.from(LOCK_FILES)
+};
+
+const FORMAT_FILENAME_PREFIXES = {
+  dockerfile: ['dockerfile.'],
+  makefile: ['makefile.']
 };
 
 const TOOL_DOCS = {
   tsserver: 'https://www.typescriptlang.org/',
+  'typescript-language-server': 'https://github.com/typescript-language-server/typescript-language-server',
   clangd: 'https://clangd.llvm.org/installation',
   'rust-analyzer': 'https://rust-analyzer.github.io/',
   gopls: 'https://pkg.go.dev/golang.org/x/tools/gopls',
   jdtls: 'https://github.com/eclipse-jdtls/eclipse.jdt.ls',
+  'sourcekit-lsp': 'https://www.swift.org/download/',
   'kotlin-language-server': 'https://github.com/fwcd/kotlin-language-server',
+  'kotlin-lsp': 'https://kotlinlang.org/docs/',
+  pyright: 'https://github.com/microsoft/pyright',
   omnisharp: 'https://github.com/OmniSharp/omnisharp-roslyn',
+  'csharp-ls': 'https://github.com/razzmatazz/csharp-language-server',
+  'ruby-lsp': 'https://shopify.github.io/ruby-lsp/',
   solargraph: 'https://solargraph.org/',
   phpactor: 'https://phpactor.readthedocs.io/',
+  intelephense: 'https://github.com/bmewburn/intelephense-docs',
+  'bash-language-server': 'https://github.com/bash-lsp/bash-language-server',
   'lua-language-server': 'https://github.com/LuaLS/lua-language-server',
   sqls: 'https://github.com/lighttiger2505/sqls'
 };
@@ -72,14 +88,18 @@ function findBinaryInDirs(name, dirs) {
 }
 
 function canRun(cmd, args = ['--version']) {
-  const result = spawnSync(cmd, args, { encoding: 'utf8' });
-  return result.status === 0;
+  try {
+    const result = execaSync(cmd, args, { encoding: 'utf8', stdio: 'ignore', reject: false });
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
 }
 
 async function scanRepo(root) {
   const extCounts = new Map();
-  const filePaths = [];
   const lowerNames = new Set();
+  let workflowCount = 0;
   const visit = async (dir) => {
     let entries;
     try {
@@ -98,12 +118,16 @@ async function scanRepo(root) {
       if (SKIP_FILES.has(entry.name)) continue;
       const ext = path.extname(entry.name).toLowerCase();
       if (ext) extCounts.set(ext, (extCounts.get(ext) || 0) + 1);
-      filePaths.push(abs);
       lowerNames.add(entry.name.toLowerCase());
+      const normalized = abs.replace(/\\/g, '/').toLowerCase();
+      if (normalized.includes('/.github/workflows/')
+        && (normalized.endsWith('.yml') || normalized.endsWith('.yaml'))) {
+        workflowCount += 1;
+      }
     }
   };
   await visit(root);
-  return { extCounts, filePaths, lowerNames };
+  return { extCounts, lowerNames, workflowCount };
 }
 
 function buildLangHits(extCounts) {
@@ -117,8 +141,16 @@ function buildLangHits(extCounts) {
   return hits;
 }
 
-function buildFormatHits(extCounts, lowerNames, filePaths) {
+function buildFormatHits(extCounts, lowerNames, workflowCount) {
   const hits = {};
+  const hasPrefixName = (prefix) => {
+    const key = prefix.toLowerCase();
+    if (lowerNames.has(key)) return true;
+    for (const name of lowerNames) {
+      if (name.startsWith(key)) return true;
+    }
+    return false;
+  };
   for (const [format, exts] of Object.entries(FORMAT_EXTENSIONS)) {
     const matched = exts.filter((ext) => extCounts.has(ext));
     if (!matched.length) continue;
@@ -126,25 +158,23 @@ function buildFormatHits(extCounts, lowerNames, filePaths) {
     hits[format] = { extensions: matched, files: count };
   }
   for (const [format, names] of Object.entries(FORMAT_FILENAMES)) {
-    if (names.some((name) => lowerNames.has(name))) {
+    const prefixes = FORMAT_FILENAME_PREFIXES[format] || [];
+    const hasExact = names.some((name) => lowerNames.has(name));
+    const hasPrefix = prefixes.some((prefix) => hasPrefixName(prefix));
+    if (hasExact || hasPrefix) {
       hits[format] = { filenames: names, files: names.length };
     }
   }
-  const ghWorkflows = filePaths.filter((filePath) => {
-    const normalized = filePath.replace(/\\/g, '/').toLowerCase();
-    if (!normalized.includes('/.github/workflows/')) return false;
-    return normalized.endsWith('.yml') || normalized.endsWith('.yaml');
-  });
-  if (ghWorkflows.length) {
-    hits['github-actions'] = { extensions: ['.yml', '.yaml'], files: ghWorkflows.length };
+  if (workflowCount) {
+    hits['github-actions'] = { extensions: ['.yml', '.yaml'], files: workflowCount };
   }
   return hits;
 }
 
 export async function detectRepoLanguages(root) {
-  const { extCounts, filePaths, lowerNames } = await scanRepo(root);
+  const { extCounts, lowerNames, workflowCount } = await scanRepo(root);
   const languages = buildLangHits(extCounts);
-  const formats = buildFormatHits(extCounts, lowerNames, filePaths);
+  const formats = buildFormatHits(extCounts, lowerNames, workflowCount);
   return { languages, formats, extCounts };
 }
 
@@ -171,6 +201,17 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       docs: TOOL_DOCS.tsserver
     },
     {
+      id: 'typescript-language-server',
+      label: 'TypeScript language server',
+      languages: ['typescript'],
+      detect: { cmd: 'typescript-language-server', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      install: {
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'typescript-language-server'] },
+        user: { cmd: 'npm', args: ['install', '-g', 'typescript-language-server'] }
+      },
+      docs: TOOL_DOCS['typescript-language-server']
+    },
+    {
       id: 'clangd',
       label: 'clangd',
       languages: ['c', 'cpp', 'objc'],
@@ -179,6 +220,27 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
         manual: true
       },
       docs: TOOL_DOCS.clangd
+    },
+    {
+      id: 'sourcekit-lsp',
+      label: 'SourceKit-LSP',
+      languages: ['swift'],
+      detect: { cmd: 'sourcekit-lsp', args: ['--help'], binDirs: [] },
+      install: {
+        manual: true
+      },
+      docs: TOOL_DOCS['sourcekit-lsp']
+    },
+    {
+      id: 'pyright',
+      label: 'Pyright',
+      languages: ['python'],
+      detect: { cmd: 'pyright', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      install: {
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'pyright'] },
+        user: { cmd: 'npm', args: ['install', '-g', 'pyright'] }
+      },
+      docs: TOOL_DOCS.pyright
     },
     {
       id: 'rust-analyzer',
@@ -222,6 +284,16 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       docs: TOOL_DOCS['kotlin-language-server']
     },
     {
+      id: 'kotlin-lsp',
+      label: 'Kotlin LSP',
+      languages: ['kotlin'],
+      detect: { cmd: 'kotlin-lsp', args: ['--version'], binDirs: [] },
+      install: {
+        manual: true
+      },
+      docs: TOOL_DOCS['kotlin-lsp']
+    },
+    {
       id: 'omnisharp',
       label: 'OmniSharp',
       languages: ['csharp'],
@@ -231,6 +303,28 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
         user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'omnisharp'], requires: 'dotnet' }
       },
       docs: TOOL_DOCS.omnisharp
+    },
+    {
+      id: 'csharp-ls',
+      label: 'C# LSP (Roslyn)',
+      languages: ['csharp'],
+      detect: { cmd: 'csharp-ls', args: ['--version'], binDirs: [dotnetDir] },
+      install: {
+        cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls'], requires: 'dotnet' },
+        user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'csharp-ls'], requires: 'dotnet' }
+      },
+      docs: TOOL_DOCS['csharp-ls']
+    },
+    {
+      id: 'ruby-lsp',
+      label: 'Ruby LSP',
+      languages: ['ruby'],
+      detect: { cmd: 'ruby-lsp', args: ['--version'], binDirs: [binDir] },
+      install: {
+        cache: { cmd: 'gem', args: ['install', '-i', gemsDir, '-n', binDir, 'ruby-lsp'], requires: 'gem' },
+        user: { cmd: 'gem', args: ['install', 'ruby-lsp'], requires: 'gem' }
+      },
+      docs: TOOL_DOCS['ruby-lsp']
     },
     {
       id: 'solargraph',
@@ -255,6 +349,17 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       docs: TOOL_DOCS.phpactor
     },
     {
+      id: 'intelephense',
+      label: 'Intelephense',
+      languages: ['php'],
+      detect: { cmd: 'intelephense', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      install: {
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'intelephense'] },
+        user: { cmd: 'npm', args: ['install', '-g', 'intelephense'] }
+      },
+      docs: TOOL_DOCS.intelephense
+    },
+    {
       id: 'lua-language-server',
       label: 'lua-language-server',
       languages: ['lua'],
@@ -263,6 +368,17 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
         manual: true
       },
       docs: TOOL_DOCS['lua-language-server']
+    },
+    {
+      id: 'bash-language-server',
+      label: 'bash-language-server',
+      languages: ['shell'],
+      detect: { cmd: 'bash-language-server', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      install: {
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'bash-language-server'] },
+        user: { cmd: 'npm', args: ['install', '-g', 'bash-language-server'] }
+      },
+      docs: TOOL_DOCS['bash-language-server']
     },
     {
       id: 'sqls',
@@ -278,16 +394,33 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
   ];
 }
 
-export function resolveToolsForLanguages(languages, toolingRoot, repoRoot) {
-  const languageSet = new Set(languages);
-  const registry = getToolingRegistry(toolingRoot, repoRoot);
-  return registry.filter((tool) => tool.languages.some((lang) => languageSet.has(lang)));
+function filterToolsByConfig(tools, toolingConfig) {
+  const enabled = Array.isArray(toolingConfig?.enabledTools) ? toolingConfig.enabledTools : [];
+  const disabled = Array.isArray(toolingConfig?.disabledTools) ? toolingConfig.disabledTools : [];
+  let filtered = tools;
+  if (enabled.length) {
+    const enabledSet = new Set(enabled);
+    filtered = filtered.filter((tool) => enabledSet.has(tool.id));
+  }
+  if (disabled.length) {
+    const disabledSet = new Set(disabled);
+    filtered = filtered.filter((tool) => !disabledSet.has(tool.id));
+  }
+  return filtered;
 }
 
-export function resolveToolsById(ids, toolingRoot, repoRoot) {
+export function resolveToolsForLanguages(languages, toolingRoot, repoRoot, toolingConfig = null) {
+  const languageSet = new Set(languages);
+  const registry = getToolingRegistry(toolingRoot, repoRoot);
+  const matched = registry.filter((tool) => tool.languages.some((lang) => languageSet.has(lang)));
+  return filterToolsByConfig(matched, toolingConfig);
+}
+
+export function resolveToolsById(ids, toolingRoot, repoRoot, toolingConfig = null) {
   const idSet = new Set(ids);
   const registry = getToolingRegistry(toolingRoot, repoRoot);
-  return registry.filter((tool) => idSet.has(tool.id));
+  const matched = registry.filter((tool) => idSet.has(tool.id));
+  return filterToolsByConfig(matched, toolingConfig);
 }
 
 export function detectTool(tool) {
@@ -317,13 +450,22 @@ export function hasCommand(cmd) {
   return canRun(cmd, ['--version']);
 }
 
-export async function buildToolingReport(root, languageOverride = null) {
+export async function buildToolingReport(root, languageOverride = null, options = {}) {
   const toolingConfig = getToolingConfig(root);
-  const { languages, formats } = await detectRepoLanguages(root);
+  const skipScan = options.skipScan === true;
+  const detected = skipScan ? { languages: {}, formats: {} } : await detectRepoLanguages(root);
+  const languages = detected.languages || {};
+  const formats = detected.formats || {};
   const languageList = languageOverride && languageOverride.length
     ? languageOverride
     : Object.keys(languages);
-  const tools = resolveToolsForLanguages(languageList, toolingConfig.dir, root).map((tool) => {
+  const languageMap = (languageOverride && languageOverride.length && skipScan)
+    ? languageOverride.reduce((acc, lang) => {
+      acc[lang] = { extensions: [], files: 0, override: true };
+      return acc;
+    }, {})
+    : languages;
+  const tools = resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig).map((tool) => {
     const status = detectTool(tool);
     return {
       id: tool.id,
@@ -339,7 +481,7 @@ export async function buildToolingReport(root, languageOverride = null) {
   return {
     root,
     toolingRoot: toolingConfig.dir,
-    languages,
+    languages: languageMap,
     formats,
     tools
   };

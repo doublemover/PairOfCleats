@@ -1,21 +1,24 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import minimist from 'minimist';
-import { fileURLToPath } from 'node:url';
-import { resolveRepoRoot } from './dict-utils.js';
+import { createCli } from '../src/shared/cli.js';
+import { readJsoncFile } from '../src/shared/jsonc.js';
+import { resolveRepoRoot, resolveToolRoot } from './dict-utils.js';
 import { validateConfig } from '../src/config/validate.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['json'],
-  string: ['repo', 'config'],
-  default: { json: false }
-});
+const argv = createCli({
+  scriptName: 'config-validate',
+  options: {
+    json: { type: 'boolean', default: false },
+    repo: { type: 'string' },
+    config: { type: 'string' }
+  }
+}).parse();
 
 const repoArg = argv.repo ? path.resolve(argv.repo) : null;
 const repoRoot = repoArg || resolveRepoRoot(process.cwd());
 const configPath = argv.config ? path.resolve(argv.config) : path.join(repoRoot, '.pairofcleats.json');
-const toolRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const toolRoot = resolveToolRoot();
 const schemaPath = path.join(toolRoot, 'docs', 'config-schema.json');
 
 if (!fs.existsSync(schemaPath)) {
@@ -35,7 +38,7 @@ if (!fs.existsSync(configPath)) {
 
 let config;
 try {
-  config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  config = readJsoncFile(configPath);
 } catch (err) {
   const message = `Failed to parse config: ${err?.message || err}`;
   if (argv.json) {

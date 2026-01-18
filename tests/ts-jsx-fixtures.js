@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildJsChunks } from '../src/lang/javascript.js';
+import { buildJsChunks, collectImports } from '../src/lang/javascript.js';
 import { buildTypeScriptChunks, collectTypeScriptImports } from '../src/lang/typescript.js';
 
 const root = process.cwd();
@@ -50,4 +50,25 @@ if (!jsxHasApp || !jsxHasButton) {
   process.exit(1);
 }
 
-console.log('TS/JSX fixture parsing tests passed');
+const flowText = readFixture('javascript_flow.js');
+const flowChunks = buildJsChunks(flowText, {
+  ext: '.js',
+  javascript: { parser: 'babel', flow: 'auto' },
+  flowMode: 'auto'
+}) || [];
+const flowHasGreet = flowChunks.some((chunk) => chunk.name === 'greet');
+if (!flowHasGreet) {
+  console.error('Expected Flow chunks for greet.');
+  process.exit(1);
+}
+const flowImports = collectImports(flowText, {
+  ext: '.js',
+  javascript: { parser: 'babel', flow: 'auto' },
+  flowMode: 'auto'
+});
+if (!flowImports.includes('flow-parser') || !flowImports.includes('./types')) {
+  console.error('Missing Flow imports in JS parsing.');
+  process.exit(1);
+}
+
+console.log('TS/JSX/Flow fixture parsing tests passed');

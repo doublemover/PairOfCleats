@@ -1,0 +1,23 @@
+# `picomatch`
+
+**Area:** Glob parsing/matching
+
+## Why this matters for PairOfCleats
+Fast glob matching for include/exclude rules and path filters; provides parsing/scanning utilities for diagnostics.
+
+## Implementation notes (practical)
+- Use `scan`/`parse` for debugging and normalizing patterns.
+- Be explicit about Windows path separators and slash handling.
+
+## Where it typically plugs into PairOfCleats
+- Config: allow users to specify include/exclude globs; surface 'why excluded' diagnostics.
+
+## Deep links (implementation-relevant)
+1. README: API (makeRe/parse/scan; extglobs/braces)  https://github.com/micromatch/picomatch#readme
+2. Changelog: scan()/parse() output details (tokens/slashes/parts)  https://github.com/micromatch/picomatch/blob/master/CHANGELOG.md
+
+## Suggested extraction checklist
+- [x] Confirm you can obtain stable node/section ranges (`start/end` offsets or line/column). (Not applicable for AST ranges; this is a glob matcher used for path filtering.)
+- [x] Identify the minimal AST traversal/query approach that yields needed metadata (avoid full transforms unless required). (Use precompiled glob matchers; avoid per-file recompilation.)
+- [x] Decide what becomes chunk metadata vs. what stays as derived indexes (postings/relations). (No chunk metadata; affects discovery include/exclude lists only.)
+- [x] Note any performance pitfalls (per-file program creation, per-node FFI, full-file buffering). (Compile globs once and reuse; minimize backtracking with strict patterns.)

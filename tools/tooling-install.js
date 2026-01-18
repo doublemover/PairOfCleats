@@ -1,14 +1,23 @@
 #!/usr/bin/env node
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
+import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './tooling-utils.js';
 import { getToolingConfig, resolveRepoRoot } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['json', 'dry-run', 'no-fallback'],
-  string: ['root', 'repo', 'scope', 'languages', 'tools'],
-  default: { 'dry-run': false, json: false, 'no-fallback': false }
-});
+const argv = createCli({
+  scriptName: 'tooling-install',
+  options: {
+    json: { type: 'boolean', default: false },
+    'dry-run': { type: 'boolean', default: false },
+    'no-fallback': { type: 'boolean', default: false },
+    root: { type: 'string' },
+    repo: { type: 'string' },
+    scope: { type: 'string' },
+    languages: { type: 'string' },
+    tools: { type: 'string' }
+  }
+}).parse();
 
 const explicitRoot = argv.root || argv.repo;
 const root = explicitRoot ? path.resolve(explicitRoot) : resolveRepoRoot(process.cwd());
@@ -18,11 +27,13 @@ const allowFallback = argv['no-fallback'] ? false : toolingConfig.allowGlobalFal
 const languageOverride = normalizeLanguageList(argv.languages);
 const toolOverride = normalizeLanguageList(argv.tools);
 
-const report = await buildToolingReport(root, languageOverride);
+const report = toolOverride.length
+  ? { languages: {}, formats: {} }
+  : await buildToolingReport(root, languageOverride, { skipScan: languageOverride.length > 0 });
 const languageList = languageOverride.length ? languageOverride : Object.keys(report.languages || {});
 const tools = toolOverride.length
-  ? resolveToolsById(toolOverride, toolingConfig.dir, root)
-  : resolveToolsForLanguages(languageList, toolingConfig.dir, root);
+  ? resolveToolsById(toolOverride, toolingConfig.dir, root, toolingConfig)
+  : resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig);
 
 const actions = [];
 const results = [];

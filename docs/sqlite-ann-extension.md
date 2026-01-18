@@ -11,7 +11,7 @@ back to the JS ANN path when the extension or vector table is unavailable.
 - Place it under the extensions cache (default `<cache>/extensions`), or point
   `sqlite.vectorExtension.path` at the file.
 - Rebuild the SQLite indexes so the `dense_vectors_ann` table is created.
-`download-extensions` can read `sqlite.vectorExtension.downloads` keyed by
+`assets extensions` can read `sqlite.vectorExtension.downloads` keyed by
 `<platform>-<arch>` (for example, `win32-x64`).
 The download helper supports `.zip`, `.tar`, `.tar.gz`, and `.tgz` archives by
 extracting the extension binary (matching the configured filename or platform
@@ -20,20 +20,20 @@ If `vectorExtension.path` is set, it overrides the `dir` + `filename` layout.
 
 Use the helper:
 ```
-npm run download-extensions -- --url vec0.dll=https://example.com/vec0.dll
+pairofcleats assets extensions --url vec0.dll=https://example.com/vec0.dll
 ```
 
 Verify the extension install (presence-only):
 ```
-npm run verify-extensions -- --no-load
+pairofcleats assets extensions-verify --no-load
 ```
 
 ## Configuration
 ```
 {
   "sqlite": {
-    "annMode": "extension",
     "vectorExtension": {
+      "annMode": "extension",
       "provider": "sqlite-vec",
       "dir": "C:/cache/pairofcleats/extensions",
       "path": "",
@@ -55,22 +55,33 @@ metric settings).
 
 ## Build
 ```
-npm run build-sqlite-index
+pairofcleats sqlite build
 ```
 When the extension loads successfully, the build creates `dense_vectors_ann` and
 stores float32 embeddings for ANN queries.
 
+## Incremental updates
+- Incremental SQLite updates delete and reinsert ANN rows for changed chunks.
+- When the extension is unavailable, incremental updates proceed without the
+  ANN table and emit a warning (ANN falls back to JS until rebuilt).
+
 ## Search
 ```
-node .\\search.js --backend sqlite "query"
+pairofcleats search --backend sqlite "query"
 ```
-If the extension or table is missing, `search.js` warns and uses the JS ANN
+If the extension or table is missing, `search.js` warns and uses the JS ANN     
 implementation instead.
+
+Candidate set behavior:
+- When filters provide an ID candidate set, SQLite ANN pushes the set into the query when the set is small (≤ 900 IDs).
+- Larger candidate sets fall back to a best-effort query (over-fetch then filter), with a warning emitted once per run.
 
 ## Notes
 - Extensions are stored outside the repo under the cache root.
 - Environment overrides: `PAIROFCLEATS_EXTENSIONS_DIR`, `PAIROFCLEATS_VECTOR_EXTENSION`.
-- `clean-artifacts` keeps extensions; `npm run uninstall` removes them.
+- `cache clean` keeps extensions; `pairofcleats uninstall` removes them.
 - The extension table is optional and not required for SQLite to work.
 - `dense_vectors_ann` stores float32 embeddings, which increases SQLite size.
 - `dense_vectors_ann` uses `rowid` = `doc_id` for lookups.
+- `dense_vectors` and `dense_vectors_ann` should have matching row counts per
+  mode when ANN is enabled (no orphaned ANN rows).

@@ -66,7 +66,7 @@ const searchPath = path.join(root, 'search.js');
 function runSearch(cwd) {
   const result = spawnSync(
     process.execPath,
-    [searchPath, 'return', '--mode', 'code', '--json-compact', '--no-ann'],
+    [searchPath, 'return', '--mode', 'code', '--json', '--no-ann'],
     { cwd, env, encoding: 'utf8' }
   );
   if (result.status !== 0) {

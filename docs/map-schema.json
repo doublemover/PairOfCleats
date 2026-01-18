@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PairOfCleats Map Model",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "generatedAt", "root", "legend", "nodes", "edges"],
+  "properties": {
+    "version": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "root": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" },
+        "id": { "type": ["string", "null"] }
+      }
+    },
+    "mode": { "type": ["string", "null"] },
+    "options": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "legend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodeTypes", "fileShapes", "functionBadges", "edgeTypes", "edgeStyles"],
+      "properties": {
+        "nodeTypes": { "type": "array", "items": { "type": "string" } },
+        "fileShapes": { "type": "object", "additionalProperties": true },
+        "functionBadges": { "type": "object", "additionalProperties": true },
+        "edgeTypes": { "type": "object", "additionalProperties": true },
+        "edgeStyles": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/fileNode" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/edge" }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "viewer": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "definitions": {
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "startLine": { "type": ["integer", "null"], "minimum": 0 },
+        "endLine": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "name", "kind"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "kind": { "type": ["string", "null"] },
+        "type": { "type": ["string", "null"] },
+        "signature": { "type": ["string", "null"] },
+        "params": { "type": ["array", "null"], "items": { "type": "string" } },
+        "returns": { "type": ["string", "null"] },
+        "modifiers": { "type": ["object", "null"], "additionalProperties": true },
+        "dataflow": { "type": ["object", "null"], "additionalProperties": true },
+        "controlFlow": { "type": ["object", "null"], "additionalProperties": true },
+        "exported": { "type": ["boolean", "null"] },
+        "range": { "$ref": "#/definitions/range" },
+        "port": { "type": ["string", "null"] }
+      }
+    },
+    "fileNode": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "path", "name", "type"],
+      "properties": {
+        "id": { "type": "string" },
+        "path": { "type": "string" },
+        "name": { "type": "string" },
+        "ext": { "type": ["string", "null"] },
+        "category": { "type": ["string", "null"] },
+        "type": { "type": "string", "enum": ["file"] },
+        "members": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/member" }
+        }
+      }
+    },
+    "edgeEndpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": ["string", "null"] },
+        "member": { "type": ["string", "null"] },
+        "port": { "type": ["string", "null"] }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type", "from", "to"],
+      "properties": {
+        "type": { "type": "string" },
+        "label": { "type": ["string", "null"] },
+        "from": { "$ref": "#/definitions/edgeEndpoint" },
+        "to": { "$ref": "#/definitions/edgeEndpoint" }
+      }
+    }
+  }
+}

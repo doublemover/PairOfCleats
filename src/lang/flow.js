@@ -6,6 +6,124 @@ const DEFAULT_ASSIGNMENT_OPERATORS = [
 ];
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const MAX_KEYWORD_MATCHES = 50000;
+const WRITE_REGEX_CACHE = new Map();
+const ALIAS_REGEX_CACHE = new Map();
+const RETURN_REGEX_CACHE = new Map();
+
+const countMatches = (text, re, limit = Infinity) => {
+  re.lastIndex = 0;
+  let count = 0;
+  let match;
+  while ((match = re.exec(text)) !== null) {
+    count += 1;
+    if (!match[0]) re.lastIndex += 1;
+    if (count >= limit) break;
+  }
+  return count;
+};
+
+const countKeywords = (text, keywords) => {
+  const lower = String(text || '').toLowerCase();
+  let total = 0;
+  const unique = Array.isArray(keywords) ? Array.from(new Set(keywords)) : [];
+  for (const keyword of unique) {
+    const normalized = String(keyword || '').trim().toLowerCase();
+    if (!normalized) continue;
+    const re = new RegExp(`\\b${escapeRegExp(normalized)}\\b`, 'g');
+    total += countMatches(lower, re, MAX_KEYWORD_MATCHES);
+  }
+  return total;
+};
+
+const serializeList = (value) => (
+  Array.isArray(value) ? value.map((entry) => String(entry)).join('|') : ''
+);
+
+const getWriteRegexes = ({
+  identifierPattern,
+  memberOperators,
+  assignmentOperators,
+  allowIndex
+}) => {
+  const key = [
+    identifierPattern,
+    serializeList(memberOperators),
+    serializeList(assignmentOperators),
+    allowIndex ? '1' : '0'
+  ].join('::');
+  const cached = WRITE_REGEX_CACHE.get(key);
+  if (cached) return cached;
+  const memberOps = memberOperators.length
+    ? memberOperators.map(escapeRegExp).join('|')
+    : '';
+  const memberPart = memberOps ? `(?:\\s*(?:${memberOps})\\s*${identifierPattern})*` : '';
+  const indexPart = allowIndex ? '(?:\\s*\\[[^\\]]+\\])*' : '';
+  const lhsPattern = `${identifierPattern}${memberPart}${indexPart}`;
+  const operatorPattern = assignmentOperators.map(escapeRegExp).join('|');
+  const assignmentRe = new RegExp(`(${lhsPattern})\\s*(?:${operatorPattern})`, 'g');
+  const updateRe = new RegExp(
+    `(?:\\+\\+|--)\\s*(${lhsPattern})|(${lhsPattern})\\s*(?:\\+\\+|--)`,
+    'g'
+  );
+  const compiled = { assignmentRe, updateRe };
+  WRITE_REGEX_CACHE.set(key, compiled);
+  return compiled;
+};
+
+const getAliasRegex = ({
+  identifierPattern,
+  memberOperators,
+  aliasOperators,
+  declarationKeywords,
+  allowIndex
+}) => {
+  const key = [
+    identifierPattern,
+    serializeList(memberOperators),
+    serializeList(aliasOperators),
+    serializeList(declarationKeywords),
+    allowIndex ? '1' : '0'
+  ].join('::');
+  const cached = ALIAS_REGEX_CACHE.get(key);
+  if (cached) return cached;
+  const memberOps = memberOperators.length
+    ? memberOperators.map(escapeRegExp).join('|')
+    : '';
+  const memberPart = memberOps ? `(?:\\s*(?:${memberOps})\\s*${identifierPattern})*` : '';
+  const indexPart = allowIndex ? '(?:\\s*\\[[^\\]]+\\])*' : '';
+  const lhsPattern = identifierPattern;
+  const rhsPattern = `${identifierPattern}${memberPart}${indexPart}`;
+  const opPattern = aliasOperators.map(escapeRegExp).join('|');
+  const declPrefix = declarationKeywords.length
+    ? `(?:\\b(?:${declarationKeywords.map(escapeRegExp).join('|')})\\b\\s+)*`
+    : '';
+  const aliasRe = new RegExp(`${declPrefix}(${lhsPattern})\\s*(?:${opPattern})\\s*(${rhsPattern})`, 'g');
+  const compiled = { aliasRe };
+  ALIAS_REGEX_CACHE.set(key, compiled);
+  return compiled;
+};
+
+const getReturnRegex = (keyword) => {
+  const normalized = String(keyword || 'return');
+  const cached = RETURN_REGEX_CACHE.get(normalized);
+  if (cached) return cached;
+  const escaped = escapeRegExp(normalized);
+  const compiled = new RegExp(`\\b${escaped}\\b([^;\\n}]*)`, 'g');
+  RETURN_REGEX_CACHE.set(normalized, compiled);
+  return compiled;
+};
+
+const normalizeFlowName = (raw, memberOperators) => {
+  let name = raw.replace(/\s+/g, '');
+  for (const op of memberOperators) {
+    name = name.split(op).join('.');
+  }
+  if (name.includes('[')) {
+    name = name.replace(/\[[^\]]*\]/g, '[]');
+  }
+  return name;
+};
 
 /**
  * Normalize text for flow scanning by removing comparison operators.
@@ -46,33 +164,19 @@ export function extractWritesAndMutations(text, options = {}) {
   const allowIndex = options.allowIndex !== false;
 
   const cleaned = normalizeFlowText(text);
-  const memberOps = memberOperators.length
-    ? memberOperators.map(escapeRegExp).join('|')
-    : '';
-  const memberPart = memberOps ? `(?:\\s*(?:${memberOps})\\s*${identifierPattern})*` : '';
-  const indexPart = allowIndex ? '(?:\\s*\\[[^\\]]+\\])*' : '';
-  const lhsPattern = `${identifierPattern}${memberPart}${indexPart}`;
-  const operatorPattern = assignmentOperators.map(escapeRegExp).join('|');
-  const assignmentRe = new RegExp(`(${lhsPattern})\\s*(?:${operatorPattern})`, 'g');
-  const updateRe = new RegExp(`(?:\\+\\+|--)\\s*(${lhsPattern})|(${lhsPattern})\\s*(?:\\+\\+|--)`, 'g');
+  const { assignmentRe, updateRe } = getWriteRegexes({
+    identifierPattern,
+    memberOperators,
+    assignmentOperators,
+    allowIndex
+  });
 
   const writes = new Set();
   const mutations = new Set();
 
-  const normalizeName = (raw) => {
-    let name = raw.replace(/\s+/g, '');
-    for (const op of memberOperators) {
-      name = name.split(op).join('.');
-    }
-    if (name.includes('[')) {
-      name = name.replace(/\[[^\]]*\]/g, '[]');
-    }
-    return name;
-  };
-
   const recordName = (raw) => {
     if (!raw) return;
-    const normalized = normalizeName(raw);
+    const normalized = normalizeFlowName(raw, memberOperators);
     if (!normalized) return;
     if (normalized.includes('.') || normalized.includes('[]')) {
       mutations.add(normalized);
@@ -81,14 +185,67 @@ export function extractWritesAndMutations(text, options = {}) {
     }
   };
 
-  for (const match of cleaned.matchAll(assignmentRe)) {
+  assignmentRe.lastIndex = 0;
+  let match;
+  while ((match = assignmentRe.exec(cleaned)) !== null) {
     recordName(match[1]);
+    if (!match[0]) assignmentRe.lastIndex += 1;
   }
-  for (const match of cleaned.matchAll(updateRe)) {
+  updateRe.lastIndex = 0;
+  while ((match = updateRe.exec(cleaned)) !== null) {
     recordName(match[1] || match[2]);
+    if (!match[0]) updateRe.lastIndex += 1;
   }
 
   return { writes, mutations };
+}
+
+/**
+ * Extract alias assignments from text (lhs=rhs).
+ * @param {string} text
+ * @param {object} [options]
+ * @param {string} [options.identifierPattern]
+ * @param {string[]} [options.memberOperators]
+ * @param {string[]} [options.aliasOperators]
+ * @param {string[]} [options.declarationKeywords]
+ * @param {boolean} [options.allowIndex]
+ * @returns {Set<string>}
+ */
+export function extractAliases(text, options = {}) {
+  const identifierPattern = options.identifierPattern || '[A-Za-z_][A-Za-z0-9_]*';
+  const memberOperators = Array.isArray(options.memberOperators)
+    ? options.memberOperators
+    : ['.', '->', '::'];
+  const aliasOperators = Array.isArray(options.aliasOperators)
+    ? options.aliasOperators
+    : ['=', ':='];
+  const declarationKeywords = Array.isArray(options.declarationKeywords)
+    ? options.declarationKeywords
+    : ['const', 'let', 'var', 'val', 'mut', 'auto'];
+  const allowIndex = options.allowIndex !== false;
+
+  const cleaned = normalizeFlowText(text);
+  const { aliasRe } = getAliasRegex({
+    identifierPattern,
+    memberOperators,
+    aliasOperators,
+    declarationKeywords,
+    allowIndex
+  });
+
+  const aliases = new Set();
+  aliasRe.lastIndex = 0;
+  let match;
+  while ((match = aliasRe.exec(cleaned)) !== null) {
+    const lhsRaw = match[1];
+    const rhsRaw = match[2];
+    if (!lhsRaw || !rhsRaw) continue;
+    const lhs = normalizeFlowName(lhsRaw, memberOperators);
+    const rhs = normalizeFlowName(rhsRaw, memberOperators);
+    if (!lhs || !rhs) continue;
+    aliases.add(`${lhs}=${rhs}`);
+  }
+  return aliases;
 }
 
 /**
@@ -130,27 +287,15 @@ export function extractIdentifiers(text, options = {}) {
  * @returns {{branches:number,loops:number,returns:number,breaks:number,continues:number,throws:number,awaits:number,yields:number}}
  */
 export function summarizeControlFlow(text, options = {}) {
-  const lower = text.toLowerCase();
-  const countKeywords = (keywords) => {
-    const unique = Array.isArray(keywords) ? Array.from(new Set(keywords)) : [];
-    return unique.reduce((sum, keyword) => {
-      if (!keyword) return sum;
-      const escaped = escapeRegExp(keyword.toLowerCase());
-      const re = new RegExp(`\\b${escaped}\\b`, 'g');
-      const matches = lower.match(re);
-      return sum + (matches ? matches.length : 0);
-    }, 0);
-  };
-
   return {
-    branches: countKeywords(options.branchKeywords),
-    loops: countKeywords(options.loopKeywords),
-    returns: countKeywords(options.returnKeywords || ['return']),
-    breaks: countKeywords(options.breakKeywords || ['break']),
-    continues: countKeywords(options.continueKeywords || ['continue']),
-    throws: countKeywords(options.throwKeywords || ['throw']),
-    awaits: countKeywords(options.awaitKeywords || ['await']),
-    yields: countKeywords(options.yieldKeywords || ['yield'])
+    branches: countKeywords(text, options.branchKeywords),
+    loops: countKeywords(text, options.loopKeywords),
+    returns: countKeywords(text, options.returnKeywords || ['return']),
+    breaks: countKeywords(text, options.breakKeywords || ['break']),
+    continues: countKeywords(text, options.continueKeywords || ['continue']),
+    throws: countKeywords(text, options.throwKeywords || ['throw']),
+    awaits: countKeywords(text, options.awaitKeywords || ['await']),
+    yields: countKeywords(text, options.yieldKeywords || ['yield'])
   };
 }
 
@@ -165,7 +310,7 @@ export function summarizeControlFlow(text, options = {}) {
  * @param {RegExp} [options.identifierRegex]
  * @param {Set<string>} [options.skip]
  * @param {(name:string)=>string} [options.normalize]
- * @returns {{reads:string[],writes:string[],mutations:string[]}}
+ * @returns {{reads:string[],writes:string[],mutations:string[],aliases:string[]}}
  */
 export function buildHeuristicDataflow(text, options = {}) {
   const normalize = typeof options.normalize === 'function' ? options.normalize : (name) => name;
@@ -175,8 +320,16 @@ export function buildHeuristicDataflow(text, options = {}) {
     assignmentOperators: options.assignmentOperators,
     allowIndex: options.allowIndex
   });
+  const rawAliases = extractAliases(text, {
+    identifierPattern: options.identifierPattern,
+    memberOperators: options.memberOperators,
+    aliasOperators: options.aliasOperators,
+    declarationKeywords: options.declarationKeywords,
+    allowIndex: options.allowIndex
+  });
   const writes = new Set();
   const mutations = new Set();
+  const aliases = new Set();
   for (const name of rawWrites) {
     const normalized = normalize(name);
     if (normalized) writes.add(normalized);
@@ -184,6 +337,13 @@ export function buildHeuristicDataflow(text, options = {}) {
   for (const name of rawMutations) {
     const normalized = normalize(name);
     if (normalized) mutations.add(normalized);
+  }
+  for (const alias of rawAliases) {
+    const [lhs, rhs] = alias.split('=');
+    const normalizedLhs = normalize(lhs);
+    const normalizedRhs = normalize(rhs);
+    if (!normalizedLhs || !normalizedRhs) continue;
+    aliases.add(`${normalizedLhs}=${normalizedRhs}`);
   }
   const identifiers = extractIdentifiers(text, {
     regex: options.identifierRegex,
@@ -199,7 +359,8 @@ export function buildHeuristicDataflow(text, options = {}) {
   return {
     reads: sortedUnique(reads),
     writes: sortedUnique(writes),
-    mutations: sortedUnique(mutations)
+    mutations: sortedUnique(mutations),
+    aliases: sortedUnique(aliases)
   };
 }
 
@@ -210,11 +371,13 @@ export function buildHeuristicDataflow(text, options = {}) {
  * @returns {boolean}
  */
 export function hasReturnValue(text, keyword = 'return') {
-  const escaped = escapeRegExp(keyword);
-  const re = new RegExp(`\\b${escaped}\\b([^;\\n}]*)`, 'g');
-  for (const match of text.matchAll(re)) {
+  const re = getReturnRegex(keyword);
+  re.lastIndex = 0;
+  let match;
+  while ((match = re.exec(text)) !== null) {
     const rest = match[1] || '';
     if (rest.trim()) return true;
+    if (!match[0]) re.lastIndex += 1;
   }
   return false;
 }

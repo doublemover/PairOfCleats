@@ -1,7 +1,8 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
-import { sliceSignature } from './shared.js';
+import { extractDocComment, sliceSignature } from './shared.js';
 import { findCLikeBodyBounds } from './clike.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
  * Rust language chunking and relations.
@@ -19,42 +20,11 @@ const RUST_USAGE_SKIP = new Set([
   'f32', 'f64', 'bool', 'str', 'String'
 ]);
 
-function extractRustDocComment(lines, startLineIdx) {
-  let i = startLineIdx - 1;
-  while (i >= 0 && lines[i].trim() === '') i--;
-  if (i < 0) return '';
-  const trimmed = lines[i].trim();
-  if (trimmed.startsWith('///') || trimmed.startsWith('//!')) {
-    const out = [];
-    while (i >= 0) {
-      const line = lines[i].trim();
-      if (!line.startsWith('///') && !line.startsWith('//!')) break;
-      out.unshift(line.replace(/^\/\/[!/]\s?/, ''));
-      i--;
-    }
-    return out.join('\n').trim();
-  }
-  if (trimmed.includes('*/')) {
-    const raw = [];
-    while (i >= 0) {
-      raw.unshift(lines[i]);
-      if (lines[i].includes('/**') || lines[i].includes('/*!')) break;
-      i--;
-    }
-    return raw
-      .map((line) =>
-        line
-          .replace(/^\s*\/\*+!?/, '')
-          .replace(/\*\/\s*$/, '')
-          .replace(/^\s*\*\s?/, '')
-          .trim()
-      )
-      .filter(Boolean)
-      .join('\n')
-      .trim();
-  }
-  return '';
-}
+const RUST_DOC_OPTIONS = {
+  linePrefixes: ['///', '//!'],
+  blockStarts: ['/**', '/*!'],
+  blockEnd: '*/'
+};
 
 function collectRustAttributes(lines, startLineIdx, signature) {
   const attrs = new Set();
@@ -184,7 +154,27 @@ export function collectRustImports(text) {
  * @param {string} text
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
-export function buildRustChunks(text) {
+export function buildRustChunks(text, options = {}) {
+  const treeChunks = buildTreeSitterChunks({ text, languageId: 'rust', options });
+  if (treeChunks && treeChunks.length) {
+    const lines = text.split('\n');
+    return treeChunks.map((chunk) => {
+      const meta = chunk.meta || {};
+      const signature = meta.signature || '';
+      const startLine = Number.isFinite(meta.startLine) ? meta.startLine : 1;
+      return {
+        ...chunk,
+        meta: {
+          ...meta,
+          signature,
+          params: extractRustParams(signature),
+          returns: extractRustReturns(signature),
+          modifiers: extractRustModifiers(signature),
+          attributes: collectRustAttributes(lines, startLine - 1, signature)
+        }
+      };
+    });
+  }
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];
@@ -213,13 +203,14 @@ export function buildRustChunks(text) {
     if (bounds.bodyStart === -1) {
       end = lineIndex[i] + line.length;
     }
-    const signature = sliceSignature(text, start, bounds.bodyStart);
+    const signatureEnd = bounds.bodyStart > start ? bounds.bodyStart : end;
+    const signature = sliceSignature(text, start, signatureEnd);
     const meta = {
       startLine: i + 1,
       endLine: offsetToLine(lineIndex, end),
       signature,
       modifiers: extractRustModifiers(signature),
-      docstring: extractRustDocComment(lines, i),
+      docstring: extractDocComment(lines, i, RUST_DOC_OPTIONS),
       attributes: collectRustAttributes(lines, i, signature)
     };
     const entry = { start, end, name: match[1], kind: 'MacroDeclaration', meta };
@@ -247,13 +238,14 @@ export function buildRustChunks(text) {
       mod: 'ModuleDeclaration'
     };
     const kind = kindMap[match[1]] || 'StructDeclaration';
-    const signature = sliceSignature(text, start, bounds.bodyStart);
+    const signatureEnd = bounds.bodyStart > start ? bounds.bodyStart : end;
+    const signature = sliceSignature(text, start, signatureEnd);
     const meta = {
       startLine: i + 1,
       endLine: offsetToLine(lineIndex, end),
       signature,
       modifiers: extractRustModifiers(signature),
-      docstring: extractRustDocComment(lines, i),
+      docstring: extractDocComment(lines, i, RUST_DOC_OPTIONS),
       attributes: collectRustAttributes(lines, i, signature)
     };
     const entry = { start, end, name: match[2], kind, meta };
@@ -271,7 +263,8 @@ export function buildRustChunks(text) {
     const bounds = findCLikeBodyBounds(text, start);
     if (bounds.bodyStart === -1) continue;
     const end = bounds.bodyEnd > start ? bounds.bodyEnd : bounds.bodyStart;
-    const signature = sliceSignature(text, start, bounds.bodyStart);
+    const signatureEnd = bounds.bodyStart > start ? bounds.bodyStart : end;
+    const signature = sliceSignature(text, start, signatureEnd);
     const typeName = parseRustImplTarget(signature);
     if (!typeName) continue;
     const entry = {
@@ -284,7 +277,7 @@ export function buildRustChunks(text) {
         endLine: offsetToLine(lineIndex, end),
         signature,
         modifiers: extractRustModifiers(signature),
-        docstring: extractRustDocComment(lines, i),
+        docstring: extractDocComment(lines, i, RUST_DOC_OPTIONS),
         attributes: collectRustAttributes(lines, i, signature),
         implFor: typeName
       }
@@ -334,7 +327,7 @@ export function buildRustChunks(text) {
       params: extractRustParams(signature),
       returns: extractRustReturns(signature),
       modifiers: extractRustModifiers(signature),
-      docstring: extractRustDocComment(lines, i),
+      docstring: extractDocComment(lines, i, RUST_DOC_OPTIONS),
       attributes: collectRustAttributes(lines, i, signature)
     };
     decls.push({ start, end, name, kind, meta });

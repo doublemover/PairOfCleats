@@ -1,4 +1,5 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
+import { extractDocComment } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 
 /**
@@ -16,20 +17,12 @@ const RUBY_USAGE_SKIP = new Set([
   'class', 'module', 'def', 'nil', 'true', 'false', 'self'
 ]);
 
-function extractRubyDocComment(lines, startLineIdx) {
-  let i = startLineIdx - 1;
-  while (i >= 0 && lines[i].trim() === '') i--;
-  if (i < 0) return '';
-  const out = [];
-  while (i >= 0) {
-    const trimmed = lines[i].trim();
-    if (!trimmed.startsWith('#')) break;
-    if (trimmed.startsWith('#!')) break;
-    out.unshift(trimmed.replace(/^#\s?/, ''));
-    i--;
-  }
-  return out.join('\n').trim();
-}
+const RUBY_DOC_OPTIONS = {
+  linePrefixes: ['#'],
+  blockStarts: [],
+  blockEnd: null,
+  skipLine: (line) => line.startsWith('#!')
+};
 
 function stripRubyComments(text) {
   return text.replace(/#.*$/gm, ' ');
@@ -128,7 +121,7 @@ export function buildRubyChunks(text) {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    if (trimmed === 'end') {
+    if (/^end\b/.test(trimmed)) {
       const block = blockStack.pop();
       if (!block) continue;
       if (block.kind === 'class' || block.kind === 'module') {
@@ -162,7 +155,7 @@ export function buildRubyChunks(text) {
       const name = match[1];
       const start = lineIndex[i] + rawLine.indexOf(match[0]);
       const signature = rawLine.trim();
-      const docstring = extractRubyDocComment(lines, i);
+      const docstring = extractDocComment(lines, i, RUBY_DOC_OPTIONS);
       scopeStack.push(name);
       blockStack.push({
         kind: 'class',
@@ -183,7 +176,7 @@ export function buildRubyChunks(text) {
       const name = match[1];
       const start = lineIndex[i] + rawLine.indexOf(match[0]);
       const signature = rawLine.trim();
-      const docstring = extractRubyDocComment(lines, i);
+      const docstring = extractDocComment(lines, i, RUBY_DOC_OPTIONS);
       scopeStack.push(name);
       blockStack.push({
         kind: 'module',
@@ -204,7 +197,7 @@ export function buildRubyChunks(text) {
       const start = lineIndex[i] + rawLine.indexOf('def');
       const signature = rawLine.trim();
       const params = parseRubyParams(signature);
-      const docstring = extractRubyDocComment(lines, i);
+      const docstring = extractDocComment(lines, i, RUBY_DOC_OPTIONS);
       let methodName = defName;
       const currentScope = scopeStack[scopeStack.length - 1] || null;
       if (currentScope && !defName.includes('.') && !defName.includes('::')) {

@@ -2,14 +2,18 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
 import { getMetricsDir, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['json'],
-  string: ['out', 'repo'],
-  default: { top: 5 }
-});
+const argv = createCli({
+  scriptName: 'repometrics-dashboard',
+  options: {
+    json: { type: 'boolean', default: false },
+    out: { type: 'string' },
+    repo: { type: 'string' },
+    top: { type: 'number', default: 5 }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());

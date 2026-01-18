@@ -1,4 +1,5 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
+import { extractDocComment } from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 
 /**
@@ -15,23 +16,11 @@ const LUA_USAGE_SKIP = new Set([
   'nil', 'true', 'false', 'self'
 ]);
 
-function extractLuaDocComment(lines, startLineIdx) {
-  let i = startLineIdx - 1;
-  while (i >= 0 && lines[i].trim() === '') i--;
-  if (i < 0) return '';
-  const out = [];
-  while (i >= 0) {
-    const trimmed = lines[i].trim();
-    if (!trimmed.startsWith('--')) break;
-    if (trimmed.startsWith('---')) {
-      out.unshift(trimmed.replace(/^---\s?/, ''));
-    } else {
-      out.unshift(trimmed.replace(/^--\s?/, ''));
-    }
-    i--;
-  }
-  return out.join('\n').trim();
-}
+const LUA_DOC_OPTIONS = {
+  linePrefixes: ['---', '--'],
+  blockStarts: [],
+  blockEnd: null
+};
 
 function stripLuaComments(text) {
   return text.replace(/--\[\[[\s\S]*?\]\]/g, ' ').replace(/--.*$/gm, ' ');
@@ -120,8 +109,10 @@ export function buildLuaChunks(text) {
     const rawLine = lines[i];
     const trimmed = rawLine.trim();
     if (!trimmed) continue;
+    const codeLine = trimmed.replace(/--.*$/, '').trim();
+    if (!codeLine) continue;
 
-    if (trimmed === 'end') {
+    if (codeLine === 'end') {
       const block = blockStack.pop();
       if (!block || !block.isDecl) continue;
       const end = lineIndex[i] + rawLine.length;
@@ -141,7 +132,7 @@ export function buildLuaChunks(text) {
       continue;
     }
 
-    if (/^until\b/.test(trimmed)) {
+    if (/^until\b/.test(codeLine)) {
       const block = blockStack.pop();
       if (block && block.isDecl) {
         const end = lineIndex[i] + rawLine.length;
@@ -162,12 +153,12 @@ export function buildLuaChunks(text) {
       continue;
     }
 
-    const fnName = parseLuaFunctionName(trimmed);
+    const fnName = parseLuaFunctionName(codeLine);
     if (fnName) {
       const start = lineIndex[i] + rawLine.indexOf(trimmed);
-      const signature = rawLine.trim();
+      const signature = codeLine;
       const params = parseLuaParams(signature);
-      const docstring = extractLuaDocComment(lines, i);
+      const docstring = extractDocComment(lines, i, LUA_DOC_OPTIONS);
       const normalized = normalizeLuaName(fnName);
       const kind = normalized && normalized.includes('.') ? 'MethodDeclaration' : 'FunctionDeclaration';
       blockStack.push({
@@ -183,7 +174,7 @@ export function buildLuaChunks(text) {
       continue;
     }
 
-    if (/^(if|for|while|repeat|do)\b/.test(trimmed)) {
+    if (/^(if|for|while|repeat|do)\b/.test(codeLine)) {
       blockStack.push({ isDecl: false });
     }
   }

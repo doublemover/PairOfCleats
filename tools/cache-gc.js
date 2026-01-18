@@ -2,20 +2,28 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import minimist from 'minimist';
+import { createCli } from '../src/shared/cli.js';
+import { getEnvConfig } from '../src/shared/env.js';
 import { getCacheRoot, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 import { isRootPath } from './path-utils.js';
 
-const argv = minimist(process.argv.slice(2), {
-  boolean: ['dry-run', 'json'],
-  string: ['max-bytes', 'max-gb', 'max-age-days', 'repo'],
-  default: { 'dry-run': false, json: false }
-});
+const argv = createCli({
+  scriptName: 'cache-gc',
+  options: {
+    'dry-run': { type: 'boolean', default: false },
+    json: { type: 'boolean', default: false },
+    'max-bytes': { type: 'number' },
+    'max-gb': { type: 'number' },
+    'max-age-days': { type: 'number' },
+    repo: { type: 'string' }
+  }
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
-const cacheRoot = (userConfig.cache && userConfig.cache.root) || process.env.PAIROFCLEATS_CACHE_ROOT || getCacheRoot();
+const envConfig = getEnvConfig();
+const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
 const gcConfig = userConfig.cache?.gc || {};
 
 const parseNumber = (value) => {
@@ -84,17 +92,21 @@ if (!fsSync.existsSync(repoRoot)) {
 
 const entries = await fs.readdir(repoRoot, { withFileTypes: true });
 const repos = [];
+const needsSizeScan = maxBytes != null;
 for (const entry of entries) {
   if (!entry.isDirectory()) continue;
   const repoPath = path.join(repoRoot, entry.name);
   const stat = await fs.stat(repoPath);
-  const bytes = await sizeOfPath(repoPath);
-  repos.push({
+  const repo = {
     id: entry.name,
     path: repoPath,
-    bytes,
+    bytes: null,
     mtimeMs: stat.mtimeMs
-  });
+  };
+  if (needsSizeScan) {
+    repo.bytes = await sizeOfPath(repoPath);
+  }
+  repos.push(repo);
 }
 
 const removals = [];
@@ -123,6 +135,14 @@ if (maxBytes != null) {
   }
 }
 
+if (!needsSizeScan && removals.length) {
+  for (const repo of removals) {
+    if (!Number.isFinite(repo.bytes)) {
+      repo.bytes = await sizeOfPath(repo.path);
+    }
+  }
+}
+
 for (const repo of removals) {
   if (isRootPath(repo.path)) {
     console.error(`refusing to delete root path: ${repo.path}`);
@@ -132,8 +152,11 @@ for (const repo of removals) {
   await fs.rm(repo.path, { recursive: true, force: true });
 }
 
-const totalBytes = repos.reduce((sum, repo) => sum + repo.bytes, 0);
-const freedBytes = removals.reduce((sum, repo) => sum + repo.bytes, 0);
+const hasSizeData = repos.some((repo) => Number.isFinite(repo.bytes));
+const totalBytes = hasSizeData
+  ? repos.reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0)
+  : null;
+const freedBytes = removals.reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0);
 const payload = {
   ok: true,
   dryRun,

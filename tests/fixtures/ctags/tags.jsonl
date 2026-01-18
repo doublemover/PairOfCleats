@@ -1,0 +1,3 @@
+{"_type":"tag","name":"Widget","path":"src/widget.js","kind":"class","line":3,"language":"JavaScript"}
+{"_type":"tag","name":"Widget.render","path":"src/widget.js","kind":"method","line":12,"language":"JavaScript","signature":"render()"}
+{"_type":"tag","name":"util","path":"src/util.js","kind":"function","line":1,"language":"JavaScript"}

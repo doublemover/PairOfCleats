@@ -9,6 +9,7 @@ Stores the full per-chunk metadata used by `search.js`.
 
 Columns:
 - id (INTEGER PRIMARY KEY)
+- chunk_id (TEXT, stable `metaV2.chunkId`)
 - mode (TEXT)
 - file (TEXT)
 - start, end (INTEGER)
@@ -20,6 +21,7 @@ Columns:
 - codeRelations, docmeta, stats, complexity, lint, externalDocs (TEXT JSON)
 - last_modified, last_author (TEXT)
 - churn (REAL)
+- churn_added, churn_deleted, churn_commits (INTEGER)
 - chunk_authors (TEXT JSON)
 
 ### chunks_fts (FTS5)
@@ -27,7 +29,7 @@ Full-text search table for BM25 queries.
 
 Columns:
 - mode (UNINDEXED)
-- file, name, kind, headline, tokens
+- file, name, signature, kind, headline, doc, tokens
 
 ### file_manifest
 Per-file metadata used for incremental SQLite updates.
@@ -88,6 +90,7 @@ Packed quantized dense vectors per doc.
 ### dense_meta
 Per-mode dense vector metadata.
 - mode, dims, scale, model (TEXT)
+- min_val, max_val (REAL), levels (INTEGER)
 
 ### dense_vectors_ann (optional)
 Optional vector extension table for SQLite-only ANN search (requires a loadable
@@ -98,5 +101,8 @@ SQLite vector extension).
 ## Notes
 - `mode` is either `code` or `prose`.
 - Split DBs use per-mode chunk IDs directly (no offsets).
-- `idx_chunks_file` and `idx_file_manifest_mode_file` speed file-level updates.
+- `idx_chunks_file`, `idx_chunks_file_id`, and `idx_file_manifest_mode_file` speed file-level updates.
 - File paths in SQLite are normalized to use `/`.
+- When `chunk_meta.json` stores `fileId` instead of `file`, `build-sqlite-index` uses `file_meta.json` to resolve file paths, extensions, and external docs, and to populate `file_manifest`.
+- When incremental bundles are present (manifest exists), SQLite rebuilds stream bundle files from `<cache>/repos/<repoId>/incremental/<mode>/files` instead of loading `chunk_meta.json`.
+- Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION` (currently 9); mismatches require a full rebuild.

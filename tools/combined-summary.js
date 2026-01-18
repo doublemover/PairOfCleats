@@ -3,27 +3,36 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import minimist from 'minimist';
-import { fileURLToPath } from 'node:url';
-import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/compare/config.js';
-import { DEFAULT_MODEL_ID, getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
+import { createCli } from '../src/shared/cli.js';
+import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/experimental/compare/config.js';
+import { DEFAULT_MODEL_ID, getIndexDir, getRuntimeConfig, loadUserConfig, resolveRepoRoot, resolveRuntimeEnv, resolveSqlitePaths, resolveToolRoot } from './dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
-const argv = minimist(rawArgs, {
-  boolean: ['json', 'build', 'ann', 'no-ann', 'incremental'],
-  string: ['models', 'baseline', 'queries', 'out', 'top', 'limit', 'mode', 'repo'],
-  default: {
-    json: false,
-    build: true,
-    top: 5,
-    limit: 0
+const argv = createCli({
+  scriptName: 'summary-report',
+  options: {
+    json: { type: 'boolean', default: false },
+    build: { type: 'boolean', default: true },
+    ann: { type: 'boolean' },
+    'no-ann': { type: 'boolean' },
+    incremental: { type: 'boolean', default: false },
+    models: { type: 'string' },
+    baseline: { type: 'string' },
+    queries: { type: 'string' },
+    out: { type: 'string' },
+    top: { type: 'number', default: 5 },
+    limit: { type: 'number', default: 0 },
+    mode: { type: 'string' },
+    repo: { type: 'string' }
   }
-});
+}).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(root);
-const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const runtimeConfig = getRuntimeConfig(root, userConfig);
+const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+const scriptRoot = resolveToolRoot();
 
 const configCompare = Array.isArray(userConfig.models?.compare) ? userConfig.models.compare : [];
 const defaultModel = userConfig.models?.id || DEFAULT_MODEL_ID;
@@ -61,7 +70,7 @@ const reportPaths = {
  * @returns {void}
  */
 function runNode(args, label) {
-  const result = spawnSync(process.execPath, args, { stdio: 'inherit' });
+  const result = spawnSync(process.execPath, args, { stdio: 'inherit', cwd: root, env: baseEnv });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);
@@ -95,7 +104,7 @@ function ensureParityIndexes() {
       console.error('Index missing for parity. Re-run with --build.');
       process.exit(1);
     }
-    const args = [path.join(scriptRoot, 'build_index.js')];
+    const args = [path.join(scriptRoot, 'build_index.js'), '--repo', root];
     if (argv.incremental) args.push('--incremental');
     runNode(args, 'build index');
   }
@@ -107,7 +116,7 @@ function ensureParityIndexes() {
       console.error('SQLite index missing for parity. Re-run with --build.');
       process.exit(1);
     }
-    const args = [path.join(scriptRoot, 'tools', 'build-sqlite-index.js')];
+    const args = [path.join(scriptRoot, 'tools', 'build-sqlite-index.js'), '--repo', root];
     if (argv.incremental) args.push('--incremental');
     runNode(args, 'build sqlite index');
   }
@@ -118,9 +127,11 @@ function ensureParityIndexes() {
  * @param {{backend?:string,outPath:string}} params
  * @returns {string[]}
  */
-function buildCompareArgs({ backend, outPath }) {
+function buildCompareArgs({ backend, outPath, buildIndex, buildSqlite }) {
   const args = [
     path.join(scriptRoot, 'tools', 'compare-models.js'),
+    '--repo',
+    root,
     '--models',
     models.join(','),
     '--baseline',
@@ -134,8 +145,8 @@ function buildCompareArgs({ backend, outPath }) {
   if (argv.limit) args.push('--limit', String(argv.limit));
   if (argv.mode) args.push('--mode', argv.mode);
   if (!annEnabled) args.push('--no-ann');
-  if (buildEnabled) args.push('--build');
-  if (buildEnabled && backend === 'sqlite') args.push('--build-sqlite');
+  if (buildIndex) args.push('--build');
+  if (buildSqlite) args.push('--build-sqlite');
   if (argv.incremental) args.push('--incremental');
   return args;
 }
@@ -164,8 +175,14 @@ function buildParityArgs({ backend, outPath }) {
   return args;
 }
 
-runNode(buildCompareArgs({ outPath: reportPaths.compareMemory }), 'compare models (memory)');
-runNode(buildCompareArgs({ outPath: reportPaths.compareSqlite, backend: 'sqlite' }), 'compare models (sqlite)');
+runNode(
+  buildCompareArgs({ outPath: reportPaths.compareMemory, buildIndex: buildEnabled, buildSqlite: false }),
+  'compare models (memory)'
+);
+runNode(
+  buildCompareArgs({ outPath: reportPaths.compareSqlite, backend: 'sqlite', buildIndex: false, buildSqlite: buildEnabled }),
+  'compare models (sqlite)'
+);
 
 ensureParityIndexes();
 runNode(buildParityArgs({ backend: 'sqlite', outPath: reportPaths.paritySqlite }), 'parity sqlite');

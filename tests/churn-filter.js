@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getGitMeta } from '../src/indexer/git.js';
+import { getGitMeta } from '../src/index/git.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'churn-filter');
@@ -64,10 +64,7 @@ const env = {
 };
 const repoArgs = ['--repo', repoRoot];
 
-const originalCwd = process.cwd();
-process.chdir(repoRoot);
-const gitMeta = await getGitMeta('notes.md', 0, 1, { blame: false });
-process.chdir(originalCwd);
+const gitMeta = await getGitMeta('notes.md', 1, 2, { blame: false, baseDir: repoRoot });
 const expectedChurn = 5;
 if (gitMeta.churn !== expectedChurn) {
   console.error(`Expected churn ${expectedChurn}, got ${gitMeta.churn}`);
@@ -89,7 +86,7 @@ const searchPath = path.join(root, 'search.js');
 function runSearch(args, label) {
   const result = spawnSync(
     process.execPath,
-    [searchPath, 'alpha', '--mode', 'prose', '--json-compact', '--no-ann', ...args, ...repoArgs],
+    [searchPath, 'alpha', '--mode', 'prose', '--json', '--no-ann', ...args, ...repoArgs],
     { cwd: repoRoot, env, encoding: 'utf8' }
   );
   if (result.status !== 0) {
@@ -120,7 +117,7 @@ if (Array.isArray(highPayload.prose) && highPayload.prose.length > 0) {
 
 const badResult = spawnSync(
   process.execPath,
-  [searchPath, 'alpha', '--mode', 'prose', '--json-compact', '--churn', 'not-a-number', ...repoArgs],
+  [searchPath, 'alpha', '--mode', 'prose', '--json', '--churn', 'not-a-number', ...repoArgs],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (badResult.status === 0) {

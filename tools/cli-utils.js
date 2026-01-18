@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { execaSync } from 'execa';
 
 /**
  * Run a command and return a normalized result.
@@ -8,10 +8,10 @@ import { spawnSync } from 'node:child_process';
  * @returns {{ok:boolean,status:number|null,stdout?:string,stderr?:string}}
  */
 export function runCommand(cmd, args, options = {}) {
-  const result = spawnSync(cmd, args, options);
+  const result = execaSync(cmd, args, { reject: false, ...options });
   return {
-    ok: result.status === 0,
-    status: result.status,
+    ok: result.exitCode === 0,
+    status: result.exitCode,
     stdout: result.stdout,
     stderr: result.stderr
   };

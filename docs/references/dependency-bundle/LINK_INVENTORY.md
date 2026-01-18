@@ -1,0 +1,63 @@
+# LINK_INVENTORY — all deep links in this bundle
+
+Generated: 2026-01-08 (local build)
+
+| Package | Sheet | Link count | URLs |
+|---|---:|---:|---|
+| `@ast-grep/napi` | [ast-grep-napi.md](deps/ast-grep-napi.md) | 3 | https://ast-grep.github.io/guide/api-usage/js-api.html<br>https://ast-grep.github.io/guide/api-usage/performance-tip.html<br>https://ast-grep.github.io/guide/rule-config.html |
+| `@astrojs/compiler` | [astrojs-compiler.md](deps/astrojs-compiler.md) | 2 | https://github.com/withastro/compiler/blob/main/packages/compiler/README.md<br>https://github.com/withastro/compiler/tree/main/packages/compiler |
+| `@babel/traverse` | [babel-traverse.md](deps/babel-traverse.md) | 2 | https://babeljs.io/docs/babel-traverse<br>https://babeljs.io/docs/en/plugins#plugin-development |
+| `@es-joy/jsdoccomment` | [es-joy-jsdoccomment.md](deps/es-joy-jsdoccomment.md) | 2 | https://github.com/es-joy/jsdoccomment#readme<br>https://github.com/es-joy/jsdoccomment#commentparsertosestree |
+| `@handlebars/parser` | [handlebars-parser.md](deps/handlebars-parser.md) | 1 | https://github.com/handlebars-lang/handlebars.js/blob/master/docs/compiler-api.md |
+| `@mdx-js/mdx` | [mdx-js-mdx.md](deps/mdx-js-mdx.md) | 3 | https://mdxjs.com/packages/mdx/<br>https://mdxjs.com/docs/extending-mdx/<br>https://mdxjs.com/packages/remark-mdx/ |
+| `@swc/core` | [swc-core.md](deps/swc-core.md) | 2 | https://swc.rs/docs/usage/core<br>https://swc.rs/docs/configuration/compilation |
+| `@typescript-eslint/typescript-estree` | [typescript-eslint-typescript-estree.md](deps/typescript-eslint-typescript-estree.md) | 3 | https://typescript-eslint.io/packages/typescript-estree/<br>https://typescript-eslint.io/troubleshooting/typed-linting/<br>https://github.com/typescript-eslint/typescript-eslint/blob/main/packages/typescript-estree/src/parser.ts |
+| `@vscode/ripgrep` | [vscode-ripgrep.md](deps/vscode-ripgrep.md) | 2 | https://github.com/microsoft/vscode-ripgrep#usage-example<br>https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md |
+| `@vue/compiler-sfc` | [vue-compiler-sfc.md](deps/vue-compiler-sfc.md) | 3 | https://vuejs.org/api/sfc-tooling.html<br>https://github.com/vuejs/core/blob/main/packages/compiler-sfc/src/parse.ts<br>https://github.com/vuejs/core/blob/main/packages/compiler-sfc/src/compileScript.ts |
+| `aho-corasick` | [aho-corasick.md](deps/aho-corasick.md) | 2 | https://github.com/spencermountain/aho_corasick#readme<br>https://github.com/BlackGlory/aho-corasick#readme |
+| `ajv` | [ajv.md](deps/ajv.md) | 2 | https://ajv.js.org/options.html<br>https://ajv.js.org/guide/getting-started.html |
+| `better-sqlite3` | [better-sqlite3.md](deps/better-sqlite3.md) | 2 | https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md<br>https://github.com/WiseLibs/better-sqlite3/blob/master/docs/performance.md |
+| `chardet` | [chardet.md](deps/chardet.md) | 1 | https://github.com/runk/node-chardet#readme |
+| `chokidar` | [chokidar.md](deps/chokidar.md) | 2 | https://github.com/paulmillr/chokidar#readme<br>https://github.com/paulmillr/chokidar/issues/513 |
+| `dockerfile-ast` | [dockerfile-ast.md](deps/dockerfile-ast.md) | 2 | https://github.com/rcjsuen/dockerfile-ast#readme<br>https://codesandbox.io/examples/package/dockerfile-ast |
+| `esquery` | [esquery.md](deps/esquery.md) | 2 | https://github.com/estools/esquery#selectors<br>https://github.com/estools/esquery#examples |
+| `execa` | [execa.md](deps/execa.md) | 1 | https://github.com/sindresorhus/execa/blob/main/docs/api.md |
+| `fast-xml-parser` | [fast-xml-parser.md](deps/fast-xml-parser.md) | 2 | https://naturalintelligence.github.io/fast-xml-parser/<br>https://github.com/NaturalIntelligence/fast-xml-parser/blob/master/docs/v4/2.XMLparseOptions.md |
+| `fdir` | [fdir.md](deps/fdir.md) | 1 | https://github.com/thecodrr/fdir#readme |
+| `fflate` | [fflate.md](deps/fflate.md) | 2 | https://github.com/101arrowz/fflate/blob/master/docs/README.md<br>https://github.com/101arrowz/fflate/blob/master/docs/classes/AsyncUnzipInflate.md |
+| `file-type` | [file-type.md](deps/file-type.md) | 1 | https://github.com/sindresorhus/file-type#readme |
+| `graphology` | [graphology.md](deps/graphology.md) | 2 | https://graphology.github.io/<br>https://graphology.github.io/standard-library/ |
+| `graphql` | [graphql.md](deps/graphql.md) | 2 | https://www.graphql-js.org/api-v16/language/<br>https://www.apollographql.com/docs/react/data/document-transforms |
+| `greedy-number-partitioning` | [greedy-number-partitioning.md](deps/greedy-number-partitioning.md) | 1 | https://github.com/dvopalecky/greedy-number-partitioning#readme |
+| `hdr-histogram-js` | [hdr-histogram-js.md](deps/hdr-histogram-js.md) | 2 | https://github.com/HdrHistogram/HdrHistogramJS#record-values-and-retrieve-metrics<br>https://github.com/HdrHistogram/HdrHistogramWidget#readme |
+| `hnswlib-node` | [hnswlib-node.md](deps/hnswlib-node.md) | 2 | https://github.com/yoshoku/hnswlib-node#readme<br>https://github.com/nmslib/hnswlib#readme |
+| `iconv-lite` | [iconv-lite.md](deps/iconv-lite.md) | 2 | https://github.com/ashtuchkin/iconv-lite/wiki/Stream-API<br>https://github.com/ashtuchkin/iconv-lite#readme |
+| `ignore` | [ignore.md](deps/ignore.md) | 2 | https://github.com/kaelzhang/node-ignore#readme<br>https://git-scm.com/docs/gitignore |
+| `istextorbinary` | [istextorbinary.md](deps/istextorbinary.md) | 1 | https://github.com/bevry/istextorbinary#readme |
+| `jsdoc-type-pratt-parser` | [jsdoc-type-pratt-parser.md](deps/jsdoc-type-pratt-parser.md) | 2 | https://jsdoc-type-pratt-parser.js.org/<br>https://github.com/jsdoc-type-pratt-parser/jsdoc-type-pratt-parser#readme |
+| `jsonc-parser` | [jsonc-parser.md](deps/jsonc-parser.md) | 1 | https://github.com/microsoft/node-jsonc-parser#readme |
+| `linguist-languages` | [linguist-languages.md](deps/linguist-languages.md) | 3 | https://github.com/github-linguist/linguist/blob/master/lib/linguist/languages.yml<br>https://github.com/github-linguist/linguist/blob/master/docs/how-linguist-works.md<br>https://github.com/github-linguist/linguist/blob/master/docs/overrides.md |
+| `lmdb` | [lmdb.md](deps/lmdb.md) | 2 | https://github.com/DoctorEvidence/lmdb-js/blob/master/README.md<br>https://dev.doctorevidence.com/lmdb-in-node-29af907aad6e |
+| `lru-cache` | [lru-cache.md](deps/lru-cache.md) | 2 | https://isaacs.github.io/node-lru-cache/interfaces/LRUCache.Options.html<br>https://isaacs.github.io/node-lru-cache/interfaces/LRUCache.FetchOptions.html |
+| `micromark` | [micromark.md](deps/micromark.md) | 3 | https://github.com/micromark/micromark#extensions<br>https://github.com/syntax-tree/mdast-util-from-markdown#readme<br>https://github.com/micromark/micromark-extension-frontmatter#readme |
+| `msgpackr` | [msgpackr.md](deps/msgpackr.md) | 2 | https://github.com/kriszyp/msgpackr/blob/master/README.md<br>https://msgpack.org/index.html |
+| `nunjucks` | [nunjucks.md](deps/nunjucks.md) | 2 | https://mozilla.github.io/nunjucks/api.html#custom-tags<br>https://mozilla.github.io/nunjucks/api.html#precompiling |
+| `onnxruntime-node` | [onnxruntime-node.md](deps/onnxruntime-node.md) | 3 | https://onnxruntime.ai/docs/api/js/interfaces/InferenceSession.SessionOptions.html<br>https://github.com/microsoft/onnxruntime-inference-examples/blob/main/js/api-usage_session-options/README.md<br>https://onnxruntime.ai/docs/performance/tune-performance/iobinding.html |
+| `parse5` | [parse5.md](deps/parse5.md) | 3 | https://parse5.js.org/interfaces/parse5.ParserOptions.html<br>https://parse5.js.org/interfaces/parse5-sax-parser.Comment.html<br>https://github.com/syntax-tree/hast-util-from-parse5#readme |
+| `picomatch` | [picomatch.md](deps/picomatch.md) | 2 | https://github.com/micromatch/picomatch#readme<br>https://github.com/micromatch/picomatch/blob/master/CHANGELOG.md |
+| `pino` | [pino.md](deps/pino.md) | 3 | https://github.com/pinojs/pino/blob/main/docs/transports.md<br>https://getpino.io/#/docs/redaction<br>https://getpino.io/#/docs/api |
+| `pino-pretty` | [pino-pretty.md](deps/pino-pretty.md) | 2 | https://github.com/pinojs/pino-pretty#handling-non-serializable-options<br>https://github.com/pinojs/pino/blob/main/docs/transports.md |
+| `piscina` | [piscina.md](deps/piscina.md) | 3 | https://piscinajs.dev/api-reference/Instance/<br>https://piscinajs.dev/examples/Resource%20Limits/<br>https://github.com/piscinajs/piscina#concurrenttasksperworker |
+| `prom-client` | [prom-client.md](deps/prom-client.md) | 2 | https://github.com/siimon/prom-client#default-metrics<br>https://github.com/siimon/prom-client#histogram |
+| `protobufjs` | [protobufjs.md](deps/protobufjs.md) | 2 | https://protobufjs.github.io/protobuf.js/index.html<br>https://github.com/protobufjs/protobuf.js/blob/master/cli/README.md |
+| `pyright` | [pyright.md](deps/pyright.md) | 2 | https://microsoft.github.io/pyright/#/configuration<br>https://microsoft.github.io/pyright/#/command-line |
+| `re2js` | [re2js.md](deps/re2js.md) | 2 | https://github.com/le0pard/re2js#readme<br>https://github.com/le0pard/re2js#limitations |
+| `roaring-wasm` | [roaring-wasm.md](deps/roaring-wasm.md) | 2 | https://github.com/SalvatorePreviti/roaring-wasm/blob/master/README.md<br>https://github.com/RoaringBitmap/RoaringBitmap#readme |
+| `seedrandom` | [seedrandom.md](deps/seedrandom.md) | 1 | https://github.com/davidbau/seedrandom#readme |
+| `semver` | [semver.md](deps/semver.md) | 3 | https://docs.npmjs.com/cli/v6/using-npm/semver<br>https://semver.org/<br>https://github.com/npm/node-semver#ranges |
+| `smol-toml` | [smol-toml.md](deps/smol-toml.md) | 2 | https://github.com/squirrelchat/smol-toml#readme<br>https://toml.io/en/ |
+| `svelte` | [svelte.md](deps/svelte.md) | 2 | https://svelte.dev/docs/svelte-compiler<br>https://svelte.dev/docs/svelte-compiler#parse |
+| `tinybench` | [tinybench.md](deps/tinybench.md) | 1 | https://github.com/tinylibs/tinybench#readme |
+| `typescript` | [typescript.md](deps/typescript.md) | 3 | https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API<br>https://github.com/microsoft/TypeScript/wiki/Using-the-Language-Service-API<br>https://github.com/microsoft/TypeScript/blob/main/lib/protocol.d.ts |
+| `xxhash-wasm` | [xxhash-wasm.md](deps/xxhash-wasm.md) | 2 | https://github.com/jungomi/xxhash-wasm#readme<br>https://xxhash.com/ |
+| `yaml` | [yaml.md](deps/yaml.md) | 3 | https://eemeli.org/yaml/<br>https://eemeli.org/yaml/#parsing-documents<br>https://github.com/eemeli/yaml#readme |

@@ -1,0 +1,10 @@
+fun
+class
+data
+suspend
+coroutine
+val
+var
+sealed
+object
+when

@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.20)
+project(Widget)
+add_library(widget_lib src/widget.cpp)
+add_executable(widget_cli src/main.cpp)
+include(cmake/Extras.cmake)

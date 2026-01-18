@@ -4,9 +4,9 @@
 Provide a fast console summary of indexing and search metrics, with optional JSON output for external dashboards.
 
 ## Usage
-- `node tools/repometrics-dashboard.js`
-- `node tools/repometrics-dashboard.js --json`
-- `node tools/repometrics-dashboard.js --out repometrics-summary.json`
+- `pairofcleats report repometrics`
+- `pairofcleats report repometrics --json`
+- `pairofcleats report repometrics --out repometrics-summary.json`
 
 ## Summary Fields
 - Index metrics: chunks, tokens, cache hit rate, BM25 params, timings.

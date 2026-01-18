@@ -14,7 +14,7 @@ const invalidPath = path.join(cacheRoot, 'invalid.json');
 
 await fsPromises.writeFile(
   validPath,
-  JSON.stringify({ search: { annDefault: true }, sqlite: { use: true } }, null, 2)
+  JSON.stringify({ quality: 'balanced', cache: { root: 'C:/tmp/pairofcleats' } }, null, 2)
 );
 await fsPromises.writeFile(
   invalidPath,

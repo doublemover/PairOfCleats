@@ -1,2 +1,4 @@
 #!/usr/bin/env node
-import './src/search/cli.js';
+import { search } from './src/integrations/core/index.js';
+
+await search(null, { args: process.argv.slice(2), emitOutput: true, exitOnError: true });
