@@ -29,7 +29,8 @@ export const writeIndexMetrics = async ({
   tokenPostingsUseShards,
   compressionEnabled,
   compressionMode,
-  compressionKeepRaw
+  compressionKeepRaw,
+  documentExtractionEnabled
 }) => {
   const cacheHits = state.scannedFilesTimes.filter((entry) => entry.cached).length;
   const cacheMisses = state.scannedFilesTimes.length - cacheHits;
@@ -109,6 +110,9 @@ export const writeIndexMetrics = async ({
         enabled: Boolean(compressionEnabled),
         mode: compressionMode,
         keepRaw: compressionKeepRaw
+      },
+      documentExtraction: {
+        enabled: Boolean(documentExtractionEnabled)
       }
     },
     timings: timing

@@ -1184,40 +1184,40 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 
 ### 15.1 Extend microbench suite (`tools/bench/micro/`)
 
-* [ ] Add `tools/bench/micro/watch.js`:
+* [x] Add `tools/bench/micro/watch.js`:
 
-  * [ ] Event storm simulation (if feasible) or synthetic scheduler load
-* [ ] Add `tools/bench/micro/regex.js`:
+  * [x] Event storm simulation (if feasible) or synthetic scheduler load
+* [x] Add `tools/bench/micro/regex.js`:
 
-  * [ ] Compare `re2js` vs `re2` on representative patterns/inputs
-* [ ] Add `tools/bench/micro/hash.js`:
+  * [x] Compare `re2js` vs `re2` on representative patterns/inputs
+* [x] Add `tools/bench/micro/hash.js`:
 
-  * [ ] Compare wasm vs native checksum throughput
-* [ ] Add `tools/bench/micro/compression.js`:
+  * [x] Compare wasm vs native checksum throughput
+* [x] Add `tools/bench/micro/compression.js`:
 
-  * [ ] gzip vs zstd compress/decompress for representative artifact payload sizes
-* [ ] Add `tools/bench/micro/extractors.js`:
+  * [x] gzip vs zstd compress/decompress for representative artifact payload sizes
+* [x] Add `tools/bench/micro/extractors.js`:
 
-  * [ ] PDF/DOCX extraction throughput and memory ceiling
+  * [x] PDF/DOCX extraction throughput and memory ceiling
 
 ### 15.2 Add “no-regression” assertions where it matters
 
-* [ ] Add deterministic snapshot tests (lightweight, not full golden files):
+* [x] Add deterministic snapshot tests (lightweight, not full golden files):
 
-  * [ ] Ensure chunk IDs stable across backends
-  * [ ] Ensure ordering stable under ties
-* [ ] Add metrics validation:
+  * [x] Ensure chunk IDs stable across backends
+  * [x] Ensure ordering stable under ties
+* [x] Add metrics validation:
 
-  * [ ] `index-*.json` metrics reflect new compression/extractor options correctly
+  * [x] `index-*.json` metrics reflect new compression/extractor options correctly
 
 ### 15.3 Documentation + UX polish
 
-* [ ] Update `README.md`:
+* [x] Update `README.md`:
 
-  * [ ] Mention PDF/DOCX support and how to enable/disable
-  * [ ] Mention optional performance backends and how `auto` works
-* [ ] Update `docs/external-backends.md` for Tantivy/LanceDB reality (what’s implemented vs planned)
-* [ ] Update `docs/mcp-server.md` for SDK migration
+  * [x] Mention PDF/DOCX support and how to enable/disable
+  * [x] Mention optional performance backends and how `auto` works
+* [x] Update `docs/external-backends.md` for Tantivy/LanceDB reality (what’s implemented vs planned)
+* [x] Update `docs/mcp-server.md` for SDK migration
 
 **Exit criteria**
 
