@@ -22,12 +22,6 @@ export function createCli(input = {}) {
   } = input;
   const name = scriptName || path.basename(argv[1] || 'cli');
   const mergedOptions = { ...options };
-  if (!Object.prototype.hasOwnProperty.call(mergedOptions, 'profile')) {
-    mergedOptions.profile = {
-      type: 'string',
-      describe: 'Profile name from profiles/*.json'
-    };
-  }
   const parser = yargs(hideBin(argv))
     .scriptName(name)
     .parserConfiguration(DEFAULT_PARSER_CONFIG)
@@ -38,10 +32,5 @@ export function createCli(input = {}) {
   if (usage) parser.usage(usage);
   if (Object.keys(mergedOptions).length) parser.options(mergedOptions);
   if (Object.keys(aliases).length) parser.alias(aliases);
-  parser.middleware((args) => {
-    if (args.profile) {
-      process.env.PAIROFCLEATS_PROFILE = String(args.profile).trim();
-    }
-  });
   return parser;
 }

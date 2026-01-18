@@ -25,18 +25,6 @@ const pythonAvailable = hasPython();
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 
-const config = {
-  indexing: {
-    typeInference: true,
-    typeInferenceCrossFile: true
-  },
-  sqlite: { use: false }
-};
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify(config, null, 2)
-);
-
 await fsPromises.writeFile(
   path.join(repoRoot, 'src', 'widget.go'),
   `package sample
@@ -134,9 +122,17 @@ def build_py_widget() -> PyWidget:
 }
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
+  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+    indexing: {
+      typeInference: true,
+      typeInferenceCrossFile: true
+    }
+  }),
   PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
 

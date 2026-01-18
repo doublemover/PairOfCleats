@@ -23,45 +23,26 @@ await fsPromises.writeFile(
 );
 
 const extensionsDir = getExtensionsDir(repoRoot, null);
-const extensionPath = process.env.PAIROFCLEATS_VECTOR_EXTENSION
-  || path.join(
-    extensionsDir,
-    'sqlite-vec',
-    getPlatformKey(),
-    `vec0${getBinarySuffix()}`
-  );
+const extensionPath = path.join(
+  extensionsDir,
+  'sqlite-vec',
+  getPlatformKey(),
+  `vec0${getBinarySuffix()}`
+);
 
 if (!fs.existsSync(extensionPath)) {
   console.warn(`sqlite ann extension missing; skipping test (${extensionPath})`);
   process.exit(0);
 }
 
-const config = {
-  cache: { root: cacheRoot },
-  search: { annBackend: 'sqlite-vector' },
-  sqlite: {
-    use: true,
-    vectorExtension: {
-      annMode: 'extension',
-      path: extensionPath
-    }
-  },
-  dictionary: {
-    languages: ['en']
-  }
-};
-
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify(config, null, 2) + '\n'
-);
-
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub',
   PAIROFCLEATS_BUNDLE_THREADS: '1'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 process.env.PAIROFCLEATS_BUNDLE_THREADS = '1';
@@ -119,7 +100,7 @@ db.close();
 
 const searchResult = spawnSync(
   process.execPath,
-  [path.join(root, 'search.js'), 'index', '--backend', 'sqlite', '--json', '--ann', '--repo', repoRoot],
+  [path.join(root, 'search.js'), 'index', '--json', '--ann', '--repo', repoRoot],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (searchResult.status !== 0) {

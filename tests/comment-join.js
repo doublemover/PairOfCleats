@@ -20,16 +20,15 @@ const source = [
 ].join('\n');
 await fsPromises.writeFile(path.join(srcDir, 'sample.js'), source);
 
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify({ indexing: { treeSitter: { enabled: false } }, sqlite: { use: false } }, null, 2)
-);
-
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = path.join(tempRoot, 'cache');
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const buildResult = spawnSync(
   process.execPath,

@@ -13,25 +13,11 @@ const cacheRoot = path.join(tempRoot, 'cache');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
-
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify({
-    indexing: {
-      twoStage: {
-        enabled: true,
-        stage2: {
-          embeddings: { enabled: false, mode: 'off' }
-        }
-      },
-      treeSitter: { enabled: false }
-    }
-  }, null, 2)
-);
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'const alpha = 1;\n');
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };

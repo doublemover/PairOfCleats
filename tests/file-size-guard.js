@@ -14,22 +14,22 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const configPath = path.join(repoRoot, '.pairofcleats.json');
-await fsPromises.writeFile(
-  configPath,
-  JSON.stringify({ indexing: { maxFileBytes: 120, fileListSampleSize: 10 } }, null, 2)
-);
-
 const largePath = path.join(repoRoot, 'big.js');
 const smallPath = path.join(repoRoot, 'small.js');
-await fsPromises.writeFile(largePath, `// big file\n${'x'.repeat(500)}\n`);
+const largeChunk = 'x'.repeat(1024);
+const largeContent = Array.from({ length: 6000 }, () => largeChunk).join('\n');
+await fsPromises.writeFile(largePath, `// big file\n${largeContent}\n`);
 await fsPromises.writeFile(smallPath, 'function ok() { return 1; }\n');
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const buildResult = spawnSync(
   process.execPath,

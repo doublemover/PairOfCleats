@@ -13,16 +13,14 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify({ sqlite: { use: false } }, null, 2)
-);
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 

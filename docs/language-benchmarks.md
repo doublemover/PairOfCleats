@@ -47,7 +47,6 @@ The matrix runner is now `pairofcleats bench matrix`.
 - `--build`, `--build-index`, `--build-sqlite`: build indexes before search. `--build-sqlite` uses incremental bundles when available; otherwise it will auto-enable `--build-index` to create file-backed indexes.
 - `--backend <csv|all>`: control backends passed to `tests/perf/bench/run.test.js`.
 - `--ann` / `--no-ann`: toggle ANN for dense search.
-- `--index-profile <name>` / `--no-index-profile`: apply a configuration profile for indexing during benchmarks (default `full`; bench-* profiles are ignored for language runs).
 - `--lock-mode <fail-fast|wait|stale-clear>`: handle existing index locks (default `fail-fast`).
 - `--lock-wait-ms <ms>` / `--lock-stale-ms <ms>`: tune wait and stale thresholds when lock mode is `wait`/`stale-clear`.
 - `--stub-embeddings`: ignored for language benchmarks (always uses real embeddings).
@@ -56,9 +55,7 @@ The matrix runner is now `pairofcleats bench matrix`.
 - `--out <file>`: write aggregate JSON summary.
 
 ## Notes
-- `tests/perf/bench/run.test.js` is the underlying runner and supports extra tuning flags (`--bm25-k1`, `--bm25-b`, `--fts-profile`, `--fts-weights`).
 - Queries are plain text, one query per line; lines starting with `#` are ignored.
-- Language benchmarks run with the `full` profile by default to keep all enrichment steps enabled; use `--no-index-profile` if you want the repo's base config instead.
 - The runner uses `execa` for child processes and terminates trees via `taskkill` on Windows and `SIGTERM` elsewhere; we avoid `tree-kill` due to past Windows command-injection advisories and only pass trusted PIDs.
 - Use `--verbose` to emit shard plan diagnostics (top shard sizes and split summaries) during builds.
 - Shard planning uses line counts: subdirs with <3 files merge unless a file is at least half the size of the 10th largest shard (by lines), and oversized shards are split by line totals for balance.

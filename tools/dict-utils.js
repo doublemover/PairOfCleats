@@ -6,15 +6,15 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../src/shared/cache.js';
+import { buildAutoPolicy } from '../src/shared/auto-policy.js';
+import { getTestEnvConfig } from '../src/shared/env.js';
 import { readJsoncFile } from '../src/shared/jsonc.js';
 import { isPlainObject, mergeConfig } from '../src/shared/config.js';
-import { getEnvConfig } from '../src/shared/env.js';
+import { validateConfig } from '../src/config/validate.js';
 import { stableStringify } from '../src/shared/stable-json.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TOOL_ROOT = path.resolve(__dirname, '..');
-const PROFILES_DIR = path.resolve(TOOL_ROOT, 'profiles');
-const profileWarnings = new Set();
 let toolVersionCache = null;
 const DEFAULT_DP_MAX_BY_FILE_COUNT = [
   { maxFiles: 5000, dpMaxTokenLength: 32 },
@@ -41,33 +41,31 @@ export const DEFAULT_TRIAGE_PROMOTE_FIELDS = [
 ];
 
 /**
- * Load repo-local configuration from .pairofcleats.json and apply profiles.
+ * Load repo-local configuration from .pairofcleats.json.
  * @param {string} repoRoot
- * @param {{profile?:string,fallbackRoot?:string,fallbackConfigPath?:string}} [options]
  * @returns {object}
  */
-export function loadUserConfig(repoRoot, options = {}) {
-  try {
-    const configPath = path.join(repoRoot, '.pairofcleats.json');
-    if (fs.existsSync(configPath)) {
-      const base = readJsoncFile(configPath) || {};
-      return normalizeUserConfig(applyProfileConfig(base, options.profile));
-    }
-    const fallbackPath = options.fallbackConfigPath
-      || (options.fallbackRoot ? path.join(options.fallbackRoot, '.pairofcleats.json') : null);
-    if (fallbackPath && fs.existsSync(fallbackPath)) {
-      const base = readJsoncFile(fallbackPath) || {};
-      return normalizeUserConfig(applyProfileConfig(base, options.profile));
-    }
-    const defaultPath = path.join(TOOL_ROOT, '.pairofcleats.json');
-    if (defaultPath !== configPath && fs.existsSync(defaultPath)) {
-      const base = readJsoncFile(defaultPath) || {};
-      return normalizeUserConfig(applyProfileConfig(base, options.profile));
-    }
-    return normalizeUserConfig(applyProfileConfig({}, options.profile));
-  } catch {
-    return {};
+export function loadUserConfig(repoRoot) {
+  const configPath = path.join(repoRoot, '.pairofcleats.json');
+  const applyTestOverrides = (baseConfig) => {
+    const testEnv = getTestEnvConfig();
+    if (!testEnv.testing || !testEnv.config) return baseConfig;
+    return mergeConfig(baseConfig, testEnv.config);
+  };
+  if (!fs.existsSync(configPath)) return applyTestOverrides(normalizeUserConfig({}));
+  const base = readJsoncFile(configPath);
+  if (!isPlainObject(base)) {
+    throw new Error('Config root must be a JSON object.');
   }
+  const schemaPath = path.join(TOOL_ROOT, 'docs', 'config-schema.json');
+  const schemaRaw = fs.readFileSync(schemaPath, 'utf8');
+  const schema = JSON.parse(schemaRaw);
+  const result = validateConfig(schema, base);
+  if (!result.ok) {
+    const details = result.errors.map((err) => `- ${err}`).join('\n');
+    throw new Error(`Config errors in ${configPath}:\n${details}`);
+  }
+  return applyTestOverrides(normalizeUserConfig(base));
 }
 
 /**
@@ -102,61 +100,29 @@ export function getToolVersion() {
  */
 export function getEffectiveConfigHash(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const env = getEnvConfig();
-  const payload = { config: cfg, env };
+  const payload = { config: cfg };
   const json = stableStringify(payload);
   return crypto.createHash('sha1').update(json).digest('hex');
 }
 
+export async function getAutoPolicy(repoRoot, userConfig = null, options = {}) {
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  return buildAutoPolicy({ repoRoot, config: cfg, scanLimits: options.scanLimits });
+}
+
 
 function normalizeUserConfig(baseConfig) {
-  if (!isPlainObject(baseConfig)) return baseConfig || {};
-
-  return baseConfig;
-}
-
-
-function loadProfileConfig(profileName) {
-  if (!profileName) return { config: {}, path: null, error: null };
-  const profileFile = `${profileName}.json`;
-  const profilePath = path.join(PROFILES_DIR, profileFile);
-  if (!fs.existsSync(profilePath)) {
-    return {
-      config: {},
-      path: profilePath,
-      error: `Profile not found: ${profilePath}`
-    };
+  if (!isPlainObject(baseConfig)) return {};
+  const normalized = {};
+  if (isPlainObject(baseConfig.cache)) {
+    const root = typeof baseConfig.cache.root === 'string' ? baseConfig.cache.root.trim() : '';
+    if (root) normalized.cache = { root };
   }
-  try {
-    const config = JSON.parse(fs.readFileSync(profilePath, 'utf8')) || {};
-    if (isPlainObject(config)) delete config.profile;
-    return { config, path: profilePath, error: null };
-  } catch (error) {
-    return {
-      config: {},
-      path: profilePath,
-      error: `Failed to parse profile ${profilePath}: ${error?.message || error}`
-    };
+  if (typeof baseConfig.quality === 'string') {
+    const quality = baseConfig.quality.trim();
+    if (quality) normalized.quality = quality;
   }
-}
-
-function applyProfileConfig(baseConfig, profileOverride) {
-  const overrideName = typeof profileOverride === 'string' ? profileOverride.trim() : '';
-  const envProfile = getEnvConfig().profile || '';
-  const configProfile = typeof baseConfig?.profile === 'string' ? baseConfig.profile.trim() : '';
-  const profileName = overrideName || envProfile || configProfile;
-  if (!profileName) return baseConfig || {};
-  const { config: profileConfig, path: profilePath, error } = loadProfileConfig(profileName);
-  if (error) {
-    const key = `${profileName}:${profilePath}`;
-    if (!profileWarnings.has(key)) {
-      profileWarnings.add(key);
-      console.error(`[config] ${error}`);
-    }
-  }
-  const merged = mergeConfig(profileConfig, baseConfig || {});
-  merged.profile = profileName;
-  return merged;
+  return normalized;
 }
 
 /**
@@ -164,11 +130,18 @@ function applyProfileConfig(baseConfig, profileOverride) {
  * @returns {string}
  */
 export function getCacheRoot() {
-  const envConfig = getEnvConfig();
-  if (envConfig.home) return envConfig.home;
+  const testRoot = resolveTestCacheRoot(process.env);
+  if (testRoot) return testRoot;
   if (process.env.LOCALAPPDATA) return path.join(process.env.LOCALAPPDATA, 'PairOfCleats');
   if (process.env.XDG_CACHE_HOME) return path.join(process.env.XDG_CACHE_HOME, 'pairofcleats');
   return path.join(os.homedir(), '.cache', 'pairofcleats');
+}
+
+function resolveTestCacheRoot(env) {
+  const testing = env?.PAIROFCLEATS_TESTING === '1' || env?.PAIROFCLEATS_TESTING === 'true';
+  if (!testing) return '';
+  const raw = typeof env.PAIROFCLEATS_CACHE_ROOT === 'string' ? env.PAIROFCLEATS_CACHE_ROOT.trim() : '';
+  return raw || '';
 }
 
 /**
@@ -180,12 +153,11 @@ export function getCacheRoot() {
 export function getDictConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const dict = cfg.dictionary || {};
-  const envConfig = getEnvConfig();
   const dpMaxTokenLengthByFileCount = normalizeDpMaxTokenLengthByFileCount(
     dict.dpMaxTokenLengthByFileCount
   );
   return {
-    dir: dict.dir || envConfig.dictDir || path.join(getCacheRoot(), 'dictionaries'),
+    dir: dict.dir || path.join(getCacheRoot(), 'dictionaries'),
     languages: Array.isArray(dict.languages) ? dict.languages : ['en'],
     files: Array.isArray(dict.files) ? dict.files : [],
     includeSlang: dict.includeSlang !== false,
@@ -316,8 +288,7 @@ function findConfigRoot(startPath) {
  */
 export function getRepoCacheRoot(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const envConfig = getEnvConfig();
-  const cacheRoot = (cfg.cache && cfg.cache.root) || envConfig.cacheRoot || getCacheRoot();
+  const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot();
   const repoId = getRepoId(repoRoot);
   const repoCacheRoot = path.join(cacheRoot, 'repos', repoId);
   const legacyRoot = path.join(cacheRoot, 'repos', getLegacyRepoId(repoRoot));
@@ -441,8 +412,7 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
 export function getModelConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const models = cfg.models || {};
-  const envConfig = getEnvConfig();
-  const id = envConfig.model || models.id || DEFAULT_MODEL_ID;
+  const id = models.id || DEFAULT_MODEL_ID;
   return {
     id,
     dir: getModelsDir(repoRoot, cfg)
@@ -456,26 +426,8 @@ export function getModelConfig(repoRoot, userConfig = null) {
  * @returns {{maxOldSpaceMb:number|null,nodeOptions:string,uvThreadpoolSize:number|null}}
  */
 export function getRuntimeConfig(repoRoot, userConfig = null) {
-  const cfg = userConfig || loadUserConfig(repoRoot);
-  const runtime = cfg.runtime || {};
-  const envConfig = getEnvConfig();
-
-  const rawMaxOldSpace = runtime.maxOldSpaceMb ?? envConfig.maxOldSpaceMb;
-  const parsedMaxOldSpace = Number(rawMaxOldSpace);
-  const maxOldSpaceMb = Number.isFinite(parsedMaxOldSpace) && parsedMaxOldSpace > 0
-    ? parsedMaxOldSpace
-    : null;
-
-  const nodeOptionsRaw = runtime.nodeOptions ?? envConfig.nodeOptions;
-  const nodeOptions = typeof nodeOptionsRaw === 'string' ? nodeOptionsRaw.trim() : '';
-
-  const rawUvThreadpoolSize = runtime.uvThreadpoolSize ?? envConfig.uvThreadpoolSize;
-  const parsedUvThreadpoolSize = Number(rawUvThreadpoolSize);
-  const uvThreadpoolSize = Number.isFinite(parsedUvThreadpoolSize) && parsedUvThreadpoolSize > 0
-    ? Math.max(1, Math.min(128, Math.floor(parsedUvThreadpoolSize)))
-    : null;
-
-  return { maxOldSpaceMb, nodeOptions, uvThreadpoolSize };
+  loadUserConfig(repoRoot);
+  return { maxOldSpaceMb: null, nodeOptions: '', uvThreadpoolSize: null };
 }
 
 /**
@@ -694,10 +646,9 @@ export function resolveSqlitePaths(repoRoot, userConfig = null, options = {}) {
  */
 export function getModelsDir(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const envConfig = getEnvConfig();
-  const cacheRoot = (cfg.cache && cfg.cache.root) || envConfig.cacheRoot || getCacheRoot();
+  const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot();
   const models = cfg.models || {};
-  return models.dir || envConfig.modelsDir || path.join(cacheRoot, 'models');
+  return models.dir || path.join(cacheRoot, 'models');
 }
 
 /**
@@ -708,10 +659,9 @@ export function getModelsDir(repoRoot, userConfig = null) {
  */
 export function getToolingDir(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const envConfig = getEnvConfig();
-  const cacheRoot = (cfg.cache && cfg.cache.root) || envConfig.cacheRoot || getCacheRoot();
+  const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot();
   const tooling = cfg.tooling || {};
-  return tooling.dir || envConfig.toolingDir || path.join(cacheRoot, 'tooling');
+  return tooling.dir || path.join(cacheRoot, 'tooling');
 }
 
 /**
@@ -725,12 +675,11 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const tooling = cfg.tooling || {};
   const typescript = tooling.typescript || {};
   const clangd = tooling.clangd || {};
-  const envConfig = getEnvConfig();
-  const timeoutMs = Number(tooling.timeoutMs ?? envConfig.toolingTimeoutMs);
-  const maxRetries = Number(tooling.maxRetries ?? envConfig.toolingMaxRetries);
-  const breakerThreshold = Number(tooling.circuitBreakerThreshold ?? envConfig.toolingCircuitBreaker);
+  const timeoutMs = Number(tooling.timeoutMs);
+  const maxRetries = Number(tooling.maxRetries);
+  const breakerThreshold = Number(tooling.circuitBreakerThreshold);
   const logDir = typeof tooling.logDir === 'string' ? tooling.logDir : '';
-  const installScope = (tooling.installScope || envConfig.toolingInstallScope || 'cache').toLowerCase();
+  const installScope = (tooling.installScope || 'cache').toLowerCase();
   const normalizeOrder = (value) => {
     if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
     if (typeof value === 'string') {
@@ -783,13 +732,11 @@ export function getToolingConfig(repoRoot, userConfig = null) {
  */
 export function getExtensionsDir(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const envConfig = getEnvConfig();
-  const cacheRoot = (cfg.cache && cfg.cache.root) || envConfig.cacheRoot || getCacheRoot();
+  const cacheRoot = (cfg.cache && cfg.cache.root) || getCacheRoot();
   const extensions = cfg.extensions || {};
   const sqliteVector = cfg.sqlite?.vectorExtension || {};
   return extensions.dir
     || sqliteVector.dir
-    || envConfig.extensionsDir
     || path.join(cacheRoot, 'extensions');
 }
 

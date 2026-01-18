@@ -111,7 +111,7 @@ curl -N http://127.0.0.1:7345/search/stream \
 ```
 
 Notes:
-- By default, `output` is `compact` (same as `--json-compact` in the CLI).      
+- By default, `output` is `compact` (same as `--json` in the CLI).      
 - Missing indexes return `409 NO_INDEX` with a JSON error payload.
 - `Content-Type: application/json` is required for POST payloads.
 - `repoPath` overrides are **disabled by default** and only allowed when `--allowed-repo-roots` (or `api.allowedRepoRoots`) is set.

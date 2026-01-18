@@ -15,7 +15,6 @@ const argv = createCli({
       backend: { type: 'string' },
       backends: { type: 'string' },
       'ann-modes': { type: 'string' },
-      'fts-profiles': { type: 'string' },
       config: { type: 'string' },
       root: { type: 'string' },
       'cache-root': { type: 'string' },
@@ -27,7 +26,6 @@ const argv = createCli({
       languages: { type: 'string' },
       repos: { type: 'string' },
       only: { type: 'string' },
-      'fts-weights': { type: 'string' },
       'dry-run': { type: 'boolean', default: false },
       'fail-fast': { type: 'boolean', default: false },
       'lock-mode': { type: 'string' },
@@ -48,8 +46,6 @@ const outRoot = path.join(runRoot, 'runs');
 
 const ALL_BACKENDS = ['sqlite-fts', 'sqlite', 'memory'];
 const DEFAULT_ANN_MODES = ['auto', 'on', 'off'];
-const DEFAULT_FTS_PROFILES = ['balanced', 'headline', 'name'];
-
 const parseList = (value) => {
   if (!value) return [];
   return String(value)
@@ -76,11 +72,6 @@ const resolveAnnModes = () => {
   return list.length ? list : DEFAULT_ANN_MODES.slice();
 };
 
-const resolveFtsProfiles = () => {
-  const list = parseList(argv['fts-profiles']).map((entry) => entry.toLowerCase());
-  return list.length ? list : DEFAULT_FTS_PROFILES.slice();
-};
-
 const toSafeName = (value) => String(value || '')
   .replace(/[^a-z0-9-_]+/gi, '_')
   .replace(/^_+|_+$/g, '')
@@ -90,22 +81,15 @@ const buildConfigs = () => {
   const configs = [];
   const backends = resolveBackends();
   const annModes = resolveAnnModes();
-  const ftsProfiles = resolveFtsProfiles();
   for (const backend of backends) {
-    const usesFts = backend === 'sqlite-fts' || backend === 'fts';
-    const profiles = usesFts ? ftsProfiles : [null];
     for (const annMode of annModes) {
-      for (const profile of profiles) {
-        const idParts = [backend, annMode];
-        if (profile) idParts.push(profile);
-        const id = toSafeName(idParts.join('-'));
-        configs.push({
-          id,
-          backend,
-          annMode,
-          ftsProfile: profile
-        });
-      }
+      const idParts = [backend, annMode];
+      const id = toSafeName(idParts.join('-'));
+      configs.push({
+        id,
+        backend,
+        annMode
+      });
     }
   }
   return configs;
@@ -126,7 +110,6 @@ const configToArgs = (config, outFile, logFile) => {
 
   if (config.annMode === 'on') args.push('--ann');
   if (config.annMode === 'off') args.push('--no-ann');
-  if (config.ftsProfile) appendArgs(args, '--fts-profile', config.ftsProfile);
 
   if (argv.build) args.push('--build');
   if (argv['build-index']) args.push('--build-index');
@@ -142,8 +125,6 @@ const configToArgs = (config, outFile, logFile) => {
   appendArgs(args, '--cache-root', argv['cache-root']);
   appendArgs(args, '--cache-suffix', argv['cache-suffix']);
   appendArgs(args, '--results', argv.results);
-  appendArgs(args, '--index-profile', argv['index-profile']);
-  if (argv['no-index-profile']) args.push('--no-index-profile');
   appendArgs(args, '--language', argv.language);
   appendArgs(args, '--languages', argv.languages);
   appendArgs(args, '--repos', argv.repos);
@@ -151,16 +132,12 @@ const configToArgs = (config, outFile, logFile) => {
   appendArgs(args, '--queries', argv.queries);
   appendArgs(args, '--top', argv.top);
   appendArgs(args, '--limit', argv.limit);
-  appendArgs(args, '--bm25-k1', argv['bm25-k1']);
-  appendArgs(args, '--bm25-b', argv['bm25-b']);
-  appendArgs(args, '--fts-weights', argv['fts-weights']);
   appendArgs(args, '--threads', argv.threads);
   appendArgs(args, '--heap-mb', argv['heap-mb']);
   appendArgs(args, '--lock-mode', argv['lock-mode']);
   appendArgs(args, '--lock-wait-ms', argv['lock-wait-ms']);
   appendArgs(args, '--lock-stale-ms', argv['lock-stale-ms']);
 
-  if (argv['no-index-profile']) args.push('--no-index-profile');
   return args;
 };
 
@@ -176,7 +153,7 @@ async function main() {
 
   const results = [];
   for (const config of configs) {
-    const label = `${config.backend}/${config.annMode}${config.ftsProfile ? `/${config.ftsProfile}` : ''}`;
+    const label = `${config.backend}/${config.annMode}`;
     const outFile = path.join(outRoot, `${config.id}.json`);
     const logFile = path.join(logRoot, `${config.id}.log`);
     const args = configToArgs(config, outFile, logFile);

@@ -26,6 +26,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Config budgets
+        run: npm run config:budget
+
+      - name: Env usage guardrail
+        run: npm run env:check
+
       - name: Short tests (no bench)
         run: npm run test-all-no-bench
 

@@ -12,9 +12,9 @@ const cacheRoot = path.join(tempRoot, 'cache');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
-await fsPromises.writeFile(path.join(repoRoot, '.pairofcleats.json'), '{}');
 await fsPromises.writeFile(path.join(repoRoot, 'README.md'), 'setup detection fixture\n');
 
 const userConfig = loadUserConfig(repoRoot);

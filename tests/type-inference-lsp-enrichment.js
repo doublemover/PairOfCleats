@@ -22,22 +22,12 @@ await fsPromises.writeFile(path.join(srcDir, 'sample.cpp'), cppSource);
 await fsPromises.writeFile(path.join(srcDir, 'sample.swift'), swiftSource);
 await fsPromises.writeFile(path.join(srcDir, 'sample.py'), pythonSource);
 
-const config = {
+const testConfig = {
   indexing: {
     typeInference: true,
     typeInferenceCrossFile: true
-  },
-  sqlite: {
-    use: false
-  },
-  tooling: {
-    autoEnableOnDetect: true
   }
 };
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify(config, null, 2)
-);
 
 for (const binName of ['clangd', 'sourcekit-lsp', 'pyright-langserver']) {
   try {
@@ -47,10 +37,13 @@ for (const binName of ['clangd', 'sourcekit-lsp', 'pyright-langserver']) {
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
+  PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig),
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub',
   PATH: `${binRoot}${path.delimiter}${process.env.PATH || ''}`
 };
+process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 

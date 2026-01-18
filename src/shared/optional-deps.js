@@ -1,13 +1,7 @@
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
-
-const isVerbose = (options = {}) => {
-  if (options.verbose === true) return true;
-  const raw = String(process.env.PAIROFCLEATS_VERBOSE || '').trim().toLowerCase();
-  return TRUE_VALUES.has(raw);
-};
+const isVerbose = (options = {}) => options.verbose === true;
 
 const normalizeErrorReason = (err) => {
   const code = err?.code;

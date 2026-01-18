@@ -61,27 +61,6 @@ if (!config || typeof config !== 'object' || Array.isArray(config)) {
 
 const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
 const result = validateConfig(schema, config);
-const profileErrors = [];
-const profileName = typeof config.profile === 'string' ? config.profile.trim() : '';
-if (profileName) {
-  const profilePath = path.join(toolRoot, 'profiles', `${profileName}.json`);
-  if (!fs.existsSync(profilePath)) {
-    profileErrors.push(`Profile not found: ${profilePath}`);
-  } else {
-    try {
-      const profileRaw = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
-      if (!profileRaw || typeof profileRaw !== 'object' || Array.isArray(profileRaw)) {
-        profileErrors.push(`Profile must be a JSON object: ${profilePath}`);
-      }
-    } catch (err) {
-      profileErrors.push(`Failed to parse profile ${profilePath}: ${err?.message || err}`);
-    }
-  }
-}
-if (profileErrors.length) {
-  result.ok = false;
-  result.errors = result.errors.concat(profileErrors);
-}
 if (argv.json) {
   console.log(JSON.stringify({ ok: result.ok, found: true, configPath, errors: result.errors }, null, 2));
 } else if (result.ok) {

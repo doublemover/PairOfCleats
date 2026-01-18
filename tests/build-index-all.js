@@ -16,21 +16,18 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'const alpha = 1;\\n');
 await fsPromises.writeFile(path.join(repoRoot, 'beta.md'), '# Beta\\n');
-await fsPromises.mkdir(path.join(repoRoot, 'triage', 'records'), { recursive: true });
-await fsPromises.writeFile(path.join(repoRoot, 'triage', 'records', 'record-1.md'), '# Record One\\n');
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify({
-    indexing: { treeSitter: { enabled: false } },
-    triage: { recordsDir: 'triage/records' }
-  }, null, 2)
-);
+await fsPromises.mkdir(path.join(repoRoot, 'logs'), { recursive: true });
+await fsPromises.writeFile(path.join(repoRoot, 'logs', 'record-1.log'), '2024-01-01 00:00:00 log line\\n');
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const result = spawnSync(
   process.execPath,

@@ -10,7 +10,7 @@ await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 const configPath = path.join(cacheRoot, 'config.json');
-await fsPromises.writeFile(configPath, JSON.stringify({ search: { annDefault: true } }, null, 2));
+await fsPromises.writeFile(configPath, JSON.stringify({ quality: 'auto' }, null, 2));
 
 const binPath = path.join(root, 'bin', 'pairofcleats.js');
 if (!fs.existsSync(binPath)) {
@@ -43,11 +43,11 @@ if (!String(helpResult.stdout || '').includes('Usage: pairofcleats')) {
 
 const configResult = spawnSync(
   process.execPath,
-  [binPath, 'config', 'validate', '--config', configPath, '--json'],
+  [path.join(root, 'tools', 'validate-config.js'), '--config', configPath, '--json'],
   { encoding: 'utf8' }
 );
 if (configResult.status !== 0) {
-  console.error('cli config validate failed');
+  console.error('validate-config failed');
   process.exit(configResult.status ?? 1);
 }
 

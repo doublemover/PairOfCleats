@@ -1,21 +1,13 @@
 export function resolveBackendPolicy({
   backendArg,
-  sqliteScoreModeConfig = false,
-  sqliteConfigured = true,
   sqliteAvailable = false,
-  lmdbConfigured = true,
   lmdbAvailable = false,
-  sqliteAutoChunkThreshold = 0,
-  sqliteAutoArtifactBytes = 0,
   needsSqlite = true,
-  chunkCounts = [],
-  artifactBytes = []
+  defaultBackend = 'sqlite'
 } = {}) {
   const normalized = typeof backendArg === 'string' ? backendArg.toLowerCase() : '';
   const backendAuto = !normalized || normalized === 'auto';
-  const sqliteFtsRequested = normalized === 'sqlite-fts'
-    || normalized === 'fts'
-    || (backendAuto && sqliteScoreModeConfig === true);
+  const sqliteFtsRequested = normalized === 'sqlite-fts' || normalized === 'fts';
   const backendForcedSqlite = normalized === 'sqlite' || sqliteFtsRequested;
   const backendForcedLmdb = normalized === 'lmdb';
   const backendForcedMemory = normalized === 'memory';
@@ -25,25 +17,11 @@ export function resolveBackendPolicy({
     && !backendForcedLmdb
     && !backendForcedMemory;
 
-  const counts = Array.isArray(chunkCounts)
-    ? chunkCounts.filter((count) => Number.isFinite(count))
-    : [];
-  const maxChunkCount = counts.length ? Math.max(...counts) : null;
-  const byteTotals = Array.isArray(artifactBytes)
-    ? artifactBytes.filter((count) => Number.isFinite(count))
-    : [];
-  const totalArtifactBytes = byteTotals.length
-    ? byteTotals.reduce((sum, next) => sum + next, 0)
-    : null;
-
   const policy = {
     requested: normalized || 'auto',
-    sqliteAutoChunkThreshold,
-    sqliteAutoArtifactBytes,
-    maxChunkCount,
-    totalArtifactBytes,
-    lmdbAvailable,
-    lmdbConfigured
+    defaultBackend,
+    sqliteAvailable,
+    lmdbAvailable
   };
 
   if (backendDisabled) {
@@ -153,60 +131,30 @@ export function resolveBackendPolicy({
     };
   }
 
-  if (!sqliteConfigured || !sqliteAvailable) {
-    if (lmdbConfigured && lmdbAvailable) {
-      return {
-        useSqlite: false,
-        useLmdb: true,
-        backendLabel: 'lmdb',
-        sqliteFtsRequested: false,
-        backendForcedSqlite: false,
-        backendForcedLmdb: false,
-        backendForcedMemory: false,
-        backendDisabled: false,
-        reason: sqliteConfigured ? 'sqlite indexes unavailable; using lmdb' : 'sqlite disabled; using lmdb',
-        policy
-      };
-    }
-    return {
-      useSqlite: false,
-      useLmdb: false,
-      backendLabel: 'memory',
-      sqliteFtsRequested: false,
-      backendForcedSqlite: false,
-      backendForcedLmdb,
-      backendForcedMemory: false,
-      backendDisabled: false,
-      reason: sqliteConfigured ? 'sqlite indexes unavailable' : 'sqlite disabled',
-      policy
-    };
-  }
-
-  let autoUseSqlite = true;
-  let autoReason = 'auto default';
-  const thresholdsEnabled = sqliteAutoChunkThreshold > 0 || sqliteAutoArtifactBytes > 0;
-  if (thresholdsEnabled) {
-    const hits = [];
-    if (sqliteAutoChunkThreshold > 0 && Number.isFinite(maxChunkCount)) {
-      hits.push(maxChunkCount >= sqliteAutoChunkThreshold ? 'chunkCount' : null);
-    }
-    if (sqliteAutoArtifactBytes > 0 && Number.isFinite(totalArtifactBytes)) {
-      hits.push(totalArtifactBytes >= sqliteAutoArtifactBytes ? 'artifactBytes' : null);
-    }
-    const hitReasons = hits.filter(Boolean);
-    if (hitReasons.length) {
-      autoUseSqlite = true;
-      autoReason = `auto threshold met (${hitReasons.join(', ')})`;
-    } else if (hits.length) {
-      autoUseSqlite = false;
-      autoReason = 'auto threshold not met';
-    }
+  const prefersLmdb = defaultBackend === 'lmdb';
+  let autoUseSqlite = !prefersLmdb;
+  let autoUseLmdb = prefersLmdb;
+  let autoReason = prefersLmdb ? 'auto default (lmdb)' : 'auto default (sqlite)';
+  if (!sqliteAvailable && lmdbAvailable) {
+    autoUseSqlite = false;
+    autoUseLmdb = true;
+    autoReason = 'sqlite unavailable; using lmdb';
+  } else if (!sqliteAvailable && !lmdbAvailable) {
+    autoUseSqlite = false;
+    autoUseLmdb = false;
+    autoReason = 'sqlite unavailable';
+  } else if (prefersLmdb && !lmdbAvailable) {
+    autoUseSqlite = true;
+    autoUseLmdb = false;
+    autoReason = 'lmdb unavailable; using sqlite';
   }
 
   return {
     useSqlite: autoUseSqlite,
-    useLmdb: false,
-    backendLabel: autoUseSqlite ? (sqliteFtsRequested ? 'sqlite-fts' : 'sqlite') : 'memory',
+    useLmdb: autoUseLmdb,
+    backendLabel: autoUseSqlite
+      ? (sqliteFtsRequested ? 'sqlite-fts' : 'sqlite')
+      : (autoUseLmdb ? 'lmdb' : 'memory'),
     sqliteFtsRequested,
     backendForcedSqlite: false,
     backendForcedLmdb: false,

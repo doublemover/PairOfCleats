@@ -1,48 +1,45 @@
 # Unified Setup
 
-The unified setup script (`pairofcleats setup`) guides you through installing optional dependencies and building indexes in one flow. It is interactive by default and supports a non-interactive CI mode.
+The unified setup script (`pairofcleats setup`) guides you through installing optional dependencies and building indexes in one flow. It is interactive by default.
 
 ## Usage
 
 - Interactive (recommended):
   - `pairofcleats setup`
 - Non-interactive (CI):
-- `pairofcleats setup --non-interactive`
+  - `node tools/setup.js --non-interactive`
 - Non-interactive with JSON summary:
-- `pairofcleats setup --non-interactive --json`
+  - `node tools/setup.js --non-interactive --json`
 
 ## What it can do
 
 - Install Node dependencies (`npm install`).
 - Download dictionaries (English wordlist by default).
 - Download embedding models.
-- Download the SQLite ANN extension when configured.
+- Download the SQLite ANN extension when available.
 - Detect and optionally install tooling.
 - Restore CI artifacts when present.
 - Build file-backed indexes (optionally incremental).
 - Build SQLite indexes (default unless `--skip-sqlite`).
-- Offer to set a Node heap limit for large repos (writes `runtime.maxOldSpaceMb`).
-- For I/O-heavy indexing, you can tune libuv's threadpool via `runtime.uvThreadpoolSize` (or `PAIROFCLEATS_UV_THREADPOOL_SIZE`).
 
 ## Flags
 
-- `--non-interactive` / `--ci`: Skip prompts and use defaults.
-- `--json`: Emit a summary report to stdout (logs go to stderr).
-- `--profile <name>`: Select a profile from `profiles/*.json` and record it in `.pairofcleats.json`.
-- `--with-sqlite`: Force SQLite build on (default behavior).
-- `--incremental`: Use incremental indexing if available.
-- `--validate-config`: Validate `.pairofcleats.json` before running setup.
-- `--skip-validate`: Skip config validation prompts.
-- `--heap-mb <mb>`: Persist a Node heap limit (max-old-space-size) in `.pairofcleats.json`.
-- `--tooling-scope cache|global`: Override tooling install scope.
-- `--skip-install`: Skip `npm install`.
-- `--skip-dicts`: Skip dictionary download.
-- `--skip-models`: Skip model download.
-- `--skip-extensions`: Skip SQLite extension download.
-- `--skip-tooling`: Skip tooling detection/install.
-- `--skip-artifacts`: Skip CI artifact restore.
-- `--skip-index`: Skip file-backed index build.
-- `--skip-sqlite`: Skip SQLite index build.
+- Flags below apply to the direct script (`node tools/setup.js`):
+  - `--non-interactive` / `--ci`: Skip prompts and use defaults.
+  - `--json`: Emit a summary report to stdout (logs go to stderr).
+  - `--with-sqlite`: Force SQLite build on (default behavior).
+  - `--incremental`: Use incremental indexing if available.
+  - `--validate-config`: Validate `.pairofcleats.json` before running setup.
+  - `--skip-validate`: Skip config validation prompts.
+  - `--tooling-scope cache|global`: Override tooling install scope.
+  - `--skip-install`: Skip `npm install`.
+  - `--skip-dicts`: Skip dictionary download.
+  - `--skip-models`: Skip model download.
+  - `--skip-extensions`: Skip SQLite extension download.
+  - `--skip-tooling`: Skip tooling detection/install.
+  - `--skip-artifacts`: Skip CI artifact restore.
+  - `--skip-index`: Skip file-backed index build.
+  - `--skip-sqlite`: Skip SQLite index build.
 
 ## Notes
 

@@ -18,26 +18,18 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'const alpha = 1;\n');
 await fsPromises.writeFile(path.join(repoRoot, 'beta.js'), 'const beta = 2;\n');
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify({
-    indexing: {
-      treeSitter: { enabled: false },
-      artifacts: {
-        chunkMetaFormat: 'jsonl',
-        chunkMetaShardSize: 1,
-        tokenPostingsFormat: 'sharded',
-        tokenPostingsShardSize: 1
-      }
-    }
-  }, null, 2)
-);
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  PAIROFCLEATS_TEST_MAX_JSON_BYTES: '2048'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+process.env.PAIROFCLEATS_TEST_MAX_JSON_BYTES = '2048';
 
 const runNode = (label, args, cwd = repoRoot) => {
   const result = spawnSync(process.execPath, args, { cwd, env, stdio: 'inherit' });

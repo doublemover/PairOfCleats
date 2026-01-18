@@ -5,6 +5,8 @@ import { loadPackageScripts, resolveScriptCoveragePaths } from './script-coverag
 import { applyActionCoverage, applyDefaultSkips, createCoverageState, finalizeCoverage, reportCoverage } from './script-coverage/report.js';
 import { createCommandRunner, prepareCoverageDirs, resolveRetries, runShellScripts } from './script-coverage/runner.js';
 
+process.env.PAIROFCLEATS_TESTING = '1';
+
 const root = process.cwd();
 const argv = createCli({
   scriptName: 'script-coverage',

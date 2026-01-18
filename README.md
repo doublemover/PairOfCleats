@@ -18,7 +18,6 @@ PairOfCleats builds a **hybrid semantic index** for a repository (**code + confi
 
 - a CLI (`pairofcleats search`, `pairofcleats index build`)
 - an HTTP API server (`pairofcleats service api`)
-- an MCP server for agent/tool integration (`pairofcleats service mcp`)
 
 It’s optimized for agent workflows:
 - **artifacts are stored outside the repo by default** (cache-backed)
@@ -56,16 +55,10 @@ PairOfCleats combines the strengths:
 ## Quick start
 - `pairofcleats setup`
   - Guided prompts for install, dictionaries, models, extensions, tooling, and indexes.
-  - Add `--non-interactive` for CI or automated runs.
-  - Add `--profile lite|balanced|full` to select a profile.
-  - Add `--with-sqlite` to build SQLite indexes.
-  - Add `--incremental` to reuse per-file cache bundles.
+- `node tools/setup.js --non-interactive` for CI or automated runs.
 - `pairofcleats bootstrap` (fast, no prompts)
-  - Add `--with-sqlite` to build SQLite indexes.
-  - Add `--incremental` to reuse per-file cache bundles.
-- `pairofcleats index watch` (FS events by default; add `--watch-poll` to enable polling)
+- `pairofcleats index watch`
 - `pairofcleats service api` (local HTTP JSON API for status/search)
-- `pairofcleats service indexer` (multi-repo sync + queue; see [docs/service-mode.md](docs/service-mode.md))
 - Cache is outside the repo by default; set `cache.root` in `.pairofcleats.json` to override.
 - CLI commands auto-detect repo roots; use `--repo <path>` to override.
 - Local CLI entrypoint: `node bin/pairofcleats.js <command>`.
@@ -90,8 +83,8 @@ pairofcleats bootstrap
 ### Build index
 ```bash
 pairofcleats index build
-# Add --incremental to reuse per-file cache bundles
-# Add --no-sqlite to skip SQLite builds
+# Add --mode code|prose|both to scope the index
+# Add --quality auto|fast|balanced|max to tune AutoPolicy
 ```
 
 ### Search
@@ -119,133 +112,20 @@ Use `--explain` (or `--why`) to see score breakdowns.
 
 ---
 
-## Profiles (configuration presets)
-
-PairOfCleats is highly configurable. In current form, there isn’t a single `--profile` flag — a “profile” is just a **small set of `.pairofcleats.json` overrides**.
-
-The table below highlights **real config keys** and the most impactful differences between three practical presets.
-
-> Notes:
-> - “Full” is closest to the **default behavior** (many features default to enabled unless explicitly set to `false`).
-> - “Lite” is for speed/minimal dependencies.
-> - “Balanced” is a strong day-to-day default: hybrid retrieval, but avoids the most expensive analysis.
-
-### Profile differences (actual config keys)
-
-| Capability | Config key(s) | Lite | Balanced | Full | Impact |
-|---|---|---:|---:|---:|---|
-| Build SQLite DBs | `sqlite.use` | `false` | `true` | `true` | Disables SQLite build step during `build-index` when `false`. |
-| Default ANN (semantic) | `search.annDefault` | `false` | `true` | `true` | Controls whether semantic rerank/ANN is enabled by default (CLI can override with `--ann` / `--no-ann`). |
-| Phrase n-grams | `indexing.postings.enablePhraseNgrams` | `false` | `true` | `true` | Improves phrase matching; increases index size/build time somewhat. |
-| Chargrams (fuzzy) | `indexing.postings.enableChargrams` | `false` | `true` | `true` | Helps typos/partials/paths/identifiers; can increase index size noticeably. |
-| AST dataflow summary | `indexing.astDataflow` | `false` | `false` | `true` | Enables reads/writes/mutates/alias-like metadata; increases build cost. |
-| Control-flow summary | `indexing.controlFlow` | `false` | `false` | `true` | Enables branches/loops/returns metadata; increases build cost. |
-| Risk signals | `indexing.riskAnalysis` | `false` | `false` | `true` | Enables risk tagging (sources/sinks/flows). |
-| Cross-file risk correlation | `indexing.riskAnalysisCrossFile` | `false` | `false` | `true` | Heavier; correlates risk through call chains across files. |
-| Type inference | `indexing.typeInference` | `false` | `false` | `true` | Opt-in; adds inferred types to metadata. |
-| Cross-file type inference | `indexing.typeInferenceCrossFile` | `false` | `false` | `true` | Heavier + more experimental than intra-file. |
-| Git blame/churn | `indexing.gitBlame` | `false` | `true` | `true` | Enables blame-derived metadata; adds IO/CPU during index. |
-| Lint metadata | `indexing.lint` | `false` | `false` | `true` | JS-focused extraction; increases build time. |
-| Complexity metadata | `indexing.complexity` | `false` | `false` | `true` | JS-focused extraction; increases build time. |
-| Python AST worker | `indexing.pythonAst.enabled` | `false` | `true` | `true` | Avoids Python dependency in Lite; when enabled, uses Python for richer chunk metadata. |
-
-### Example: Lite preset (`.pairofcleats.json` overrides)
-
-```json
-{
-  "sqlite": { "use": false },
-  "search": { "annDefault": false },
-  "indexing": {
-    "postings": { "enablePhraseNgrams": false, "enableChargrams": false },
-    "astDataflow": false,
-    "controlFlow": false,
-    "riskAnalysis": false,
-    "riskAnalysisCrossFile": false,
-    "typeInference": false,
-    "typeInferenceCrossFile": false,
-    "gitBlame": false,
-    "lint": false,
-    "complexity": false,
-    "pythonAst": { "enabled": false }
-  }
-}
-```
-
-If you also want **no model downloads**, run indexing/search with:
-```bash
-export PAIROFCLEATS_EMBEDDINGS=stub
-```
-(or pass `--stub-embeddings` to `build-index`).
-
-### Example: Balanced preset (`.pairofcleats.json` overrides)
-
-```json
-{
-  "sqlite": { "use": true },
-  "search": { "annDefault": true, "sqliteAutoChunkThreshold": 5000 },
-  "indexing": {
-    "postings": {
-      "enablePhraseNgrams": true,
-      "phraseMinN": 2,
-      "phraseMaxN": 4,
-      "enableChargrams": true,
-      "chargramMinN": 3,
-      "chargramMaxN": 5
-    },
-    "astDataflow": false,
-    "controlFlow": false,
-    "riskAnalysis": false,
-    "riskAnalysisCrossFile": false,
-    "gitBlame": true,
-    "lint": false,
-    "complexity": false
-  }
-}
-```
-
-### Example: Full preset (`.pairofcleats.json` overrides)
-
-```json
-{
-  "sqlite": { "use": true },
-  "search": { "annDefault": true },
-  "indexing": {
-    "postings": {
-      "enablePhraseNgrams": true,
-      "phraseMinN": 2,
-      "phraseMaxN": 4,
-      "enableChargrams": true,
-      "chargramMinN": 3,
-      "chargramMaxN": 5
-    },
-    "astDataflow": true,
-    "controlFlow": true,
-    "riskAnalysis": true,
-    "riskAnalysisCrossFile": true,
-    "typeInference": true,
-    "typeInferenceCrossFile": true,
-    "gitBlame": true,
-    "lint": true,
-    "complexity": true
-  }
-}
-```
-
----
-
-## Backends (memory vs SQLite)
+## Backends (memory, SQLite, LMDB)
 
 PairOfCleats can query indexes through different backends:
 
 - **memory**: file-backed JSON artifacts loaded into memory
 - **sqlite**: SQLite tables used as the backend (same general scoring model)
+- **lmdb**: LMDB tables used as the backend (build separately)
 - **sqlite-fts**: FTS5 scoring mode (fast, but scoring differs)
 
 For large repos, SQLite is usually the best experience.
 
-Build SQLite indexes:
+Build LMDB indexes:
 ```bash
-pairofcleats sqlite build
+pairofcleats lmdb build
 ```
 Search with SQLite:
 ```bash
@@ -258,7 +138,7 @@ pairofcleats search -- "query" --backend sqlite
 
 By default, caches and indexes live **outside the repo**:
 
-- cache root: OS-specific (or `PAIROFCLEATS_HOME` / `PAIROFCLEATS_CACHE_ROOT`)
+- cache root: OS-specific (override with `cache.root` in `.pairofcleats.json`)
 - per-repo artifacts: `<cache>/repos/<repoId>/builds/<buildId>/index-code`, `index-prose`, etc.
 - current pointer: `<cache>/repos/<repoId>/builds/current.json` (active build root)
 
@@ -323,7 +203,6 @@ flowchart TB
 - SQLite schema: [`docs/sqlite-index-schema.md`](docs/sqlite-index-schema.md)
 - SQLite ANN extension: [`docs/sqlite-ann-extension.md`](docs/sqlite-ann-extension.md)
 - API server: [`docs/api-server.md`](docs/api-server.md)
-- MCP server: [`docs/mcp-server.md`](docs/mcp-server.md)
 - Triage records: [`docs/triage-records.md`](docs/triage-records.md)
 - Structural search: [`docs/structural-search.md`](docs/structural-search.md)
 

@@ -3,8 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const args = process.argv.slice(2);
-const requireBreaking = args.includes('--breaking')
-  || process.env.PAIROFCLEATS_BREAKING === '1';
+const requireBreaking = args.includes('--breaking');
 
 const root = process.cwd();
 const packagePath = path.join(root, 'package.json');

@@ -12,6 +12,7 @@ const searchPath = path.join(root, 'search.js');
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
@@ -118,32 +119,6 @@ try {
     fail('Explain output missing Sparse breakdown.');
   }
 
-  const blendConfig = {
-    search: {
-      scoreBlend: {
-        enabled: true,
-        sparseWeight: 0.6,
-        annWeight: 0.4
-      }
-    }
-  };
-  await fsPromises.writeFile(
-    path.join(repoRoot, '.pairofcleats.json'),
-    `${JSON.stringify(blendConfig, null, 2)}\n`
-  );
-
-  const blendResult = runNode(
-    'search blend',
-    [searchPath, 'return', '--mode', 'code', '--ann', '--json', '--repo', repoRoot]
-  );
-  const blendPayload = JSON.parse(blendResult.stdout || '{}');
-  const blendHit = blendPayload?.code?.[0];
-  if (!blendHit?.scoreBreakdown?.blend) {
-    fail('search blend test failed: scoreBreakdown.blend missing');
-  }
-  if (blendHit.scoreType !== 'blend') {
-    fail(`search blend test failed: expected scoreType blend, got ${blendHit.scoreType}`);
-  }
 } catch (err) {
   console.error(err?.message || err);
   failure = err;

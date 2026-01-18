@@ -61,11 +61,7 @@ Open the command palette and run `PairOfCleats: Open Settings` or `PairOfCleats:
 - `map_wasd_max_speed`: Isometric viewer WASD max speed.
 - `map_wasd_drag`: Isometric viewer WASD damping.
 - `map_zoom_sensitivity`: Isometric viewer zoom sensitivity.
-- `profile`: Sets `PAIROFCLEATS_PROFILE`.
-- `cache_root`: Sets `PAIROFCLEATS_CACHE_ROOT`.
-- `embeddings_mode`: Sets `PAIROFCLEATS_EMBEDDINGS`.
-- `node_options`: Sets `PAIROFCLEATS_NODE_OPTIONS`.
-- `env`: Extra environment overrides (merged with defaults).
+- `env`: Extra environment values (for `PAIROFCLEATS_API_TOKEN`, etc.).
 
 ## Commands
 
@@ -101,7 +97,7 @@ In your `.sublime-project` file:
     "pairofcleats": {
       "pairofcleats_path": "./bin/pairofcleats.js",
       "env": {
-        "PAIROFCLEATS_PROFILE": "balanced"
+        "PAIROFCLEATS_API_TOKEN": "..."
       }
     }
   }

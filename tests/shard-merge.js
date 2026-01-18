@@ -16,31 +16,16 @@ await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 await fsPromises.mkdir(path.join(repoRoot, 'lib'), { recursive: true });
 await fsPromises.mkdir(cacheRootA, { recursive: true });
 await fsPromises.mkdir(cacheRootB, { recursive: true });
+process.env.PAIROFCLEATS_TESTING = '1';
 
 await fsPromises.writeFile(path.join(repoRoot, 'src', 'alpha.js'), 'export const alpha = 1;\n');
 await fsPromises.writeFile(path.join(repoRoot, 'lib', 'beta.py'), 'def beta():\n  return 2\n');
 
-const configPath = path.join(repoRoot, '.pairofcleats.json');
-const writeConfig = async (shardsEnabled) => {
-  await fsPromises.writeFile(
-    configPath,
-    JSON.stringify({
-      indexing: {
-        fileListSampleSize: 10,
-        shards: {
-          enabled: shardsEnabled,
-          maxWorkers: 1,
-          minFiles: 1
-        },
-        treeSitter: { enabled: false }
-      }
-    }, null, 2)
-  );
-};
-
-const runBuild = (cacheRoot, label) => {
+const runBuild = (cacheRoot, label, testConfig) => {
   const env = {
     ...process.env,
+    PAIROFCLEATS_TESTING: '1',
+    ...(testConfig ? { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) } : {}),
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub'
   };
@@ -70,12 +55,26 @@ const readIndex = async (cacheRoot) => {
   return { chunks, tokenIndex };
 };
 
-await writeConfig(false);
-runBuild(cacheRootA, 'baseline build');
+runBuild(cacheRootA, 'baseline build', {
+  indexing: {
+    fileListSampleSize: 10,
+    shards: { enabled: false },
+    treeSitter: { enabled: false }
+  }
+});
 const baseline = await readIndex(cacheRootA);
 
-await writeConfig(true);
-runBuild(cacheRootB, 'sharded build');
+runBuild(cacheRootB, 'sharded build', {
+  indexing: {
+    fileListSampleSize: 10,
+    shards: {
+      enabled: true,
+      maxWorkers: 1,
+      minFiles: 1
+    },
+    treeSitter: { enabled: false }
+  }
+});
 const sharded = await readIndex(cacheRootB);
 
 if (baseline.chunks.length !== sharded.chunks.length) {

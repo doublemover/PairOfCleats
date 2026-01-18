@@ -2,10 +2,11 @@
 import http from 'node:http';
 import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
-import { getRuntimeConfig, resolveRepoRoot } from './dict-utils.js';
+import { resolveRepoRoot } from './dict-utils.js';
 import { getMetricsRegistry } from '../src/shared/metrics.js';
 import { createApiRouter } from './api/router.js';
 import { configureServiceLogger } from './service/logger.js';
+import { getEnvSecrets } from '../src/shared/env.js';
 
 const argv = createCli({
   scriptName: 'api-server',
@@ -28,7 +29,7 @@ const argv = createCli({
 const host = argv.host || '127.0.0.1';
 const port = Number.isFinite(Number(argv.port)) ? Number(argv.port) : 7345;
 const defaultRepo = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
-const runtimeConfig = getRuntimeConfig(defaultRepo);
+const envSecrets = getEnvSecrets();
 const jsonOutput = argv.json === true;
 const quiet = argv.quiet === true;
 const metricsRegistry = getMetricsRegistry();
@@ -45,10 +46,8 @@ const isLocalHost = (value) => {
   const normalized = String(value).trim().toLowerCase();
   return normalized === '127.0.0.1' || normalized === 'localhost' || normalized === '::1';
 };
-const envAllowUnauth = process.env.PAIROFCLEATS_API_ALLOW_UNAUTHENTICATED === '1'
-  || process.env.PAIROFCLEATS_API_ALLOW_UNAUTHENTICATED === 'true';
-const allowUnauthenticated = argv['allow-unauthenticated'] === true || envAllowUnauth;
-const authToken = String(argv['auth-token'] || process.env.PAIROFCLEATS_API_TOKEN || '').trim();
+const allowUnauthenticated = argv['allow-unauthenticated'] === true;
+const authToken = String(argv['auth-token'] || envSecrets.apiToken || '').trim();
 const hostIsLocal = isLocalHost(host);
 if (!allowUnauthenticated && !hostIsLocal && !authToken) {
   console.error(
@@ -58,16 +57,12 @@ if (!allowUnauthenticated && !hostIsLocal && !authToken) {
   process.exit(1);
 }
 const authRequired = !allowUnauthenticated && (!hostIsLocal || authToken);
-const corsAllowedOrigins = parseList(argv['cors-allowed-origins'] || process.env.PAIROFCLEATS_API_ALLOWED_ORIGINS);
-const corsAllowAny = argv['cors-allow-any'] === true
-  || process.env.PAIROFCLEATS_API_ALLOW_ANY_ORIGIN === '1'
-  || process.env.PAIROFCLEATS_API_ALLOW_ANY_ORIGIN === 'true';
-const allowedRepoRoots = parseList(argv['allowed-repo-roots'] || process.env.PAIROFCLEATS_API_ALLOWED_REPO_ROOTS);
+const corsAllowedOrigins = parseList(argv['cors-allowed-origins']);
+const corsAllowAny = argv['cors-allow-any'] === true;
+const allowedRepoRoots = parseList(argv['allowed-repo-roots']);
 const maxBodyBytes = Number.isFinite(Number(argv['max-body-bytes']))
   ? Math.max(0, Math.floor(Number(argv['max-body-bytes'])))
-  : (Number.isFinite(Number(process.env.PAIROFCLEATS_API_MAX_BODY_BYTES))
-    ? Math.max(0, Math.floor(Number(process.env.PAIROFCLEATS_API_MAX_BODY_BYTES)))
-    : null);
+  : null;
 
 const log = (message) => {
   if (quiet) return;
@@ -100,21 +95,6 @@ server.listen({ port, host }, () => {
   if (jsonOutput) {
     console.log(JSON.stringify({ ok: true, host, port: actualPort, repo: defaultRepo, baseUrl }));
   } else {
-    const effectiveUvRaw = Number(process.env.UV_THREADPOOL_SIZE);
-    const effectiveUvThreadpoolSize = Number.isFinite(effectiveUvRaw) && effectiveUvRaw > 0
-      ? Math.floor(effectiveUvRaw)
-      : null;
-    if (effectiveUvThreadpoolSize) {
-      if (runtimeConfig.uvThreadpoolSize && runtimeConfig.uvThreadpoolSize !== effectiveUvThreadpoolSize) {
-        log(`[api] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (env overrides runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize})`);
-      } else if (runtimeConfig.uvThreadpoolSize) {
-        log(`[api] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize})`);
-      } else {
-        log(`[api] UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize} (env)`);
-      }
-    } else if (runtimeConfig.uvThreadpoolSize) {
-      log(`[api] UV_THREADPOOL_SIZE=default (runtime.uvThreadpoolSize=${runtimeConfig.uvThreadpoolSize} not applied; start via pairofcleats CLI or set UV_THREADPOOL_SIZE before launch)`);
-    }
     log(`[api] listening at ${baseUrl}`);
     log(`[api] repo root: ${defaultRepo}`);
   }

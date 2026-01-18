@@ -65,6 +65,80 @@ const LANG_EXT_MAP = new Map([
   ['config', CONFIG_EXTS]
 ]);
 
+const FILTER_TOKEN_RE = /"([^"]*)"|'([^']*)'|(\S+)/g;
+
+const splitFilterTokens = (raw) => {
+  const tokens = [];
+  const input = String(raw || '').trim();
+  if (!input) return tokens;
+  let match = null;
+  while ((match = FILTER_TOKEN_RE.exec(input))) {
+    tokens.push(match[1] ?? match[2] ?? match[3]);
+  }
+  return tokens;
+};
+
+const splitFilterValues = (value) => String(value || '')
+  .split(',')
+  .map((part) => part.trim())
+  .filter(Boolean);
+
+export function parseFilterExpression(raw) {
+  const errors = [];
+  const file = [];
+  const lang = [];
+  const ext = [];
+  const type = [];
+  const tokens = splitFilterTokens(raw);
+  if (!tokens.length) {
+    return {
+      file: null,
+      lang: null,
+      ext: null,
+      type: null,
+      errors
+    };
+  }
+  const pushValues = (list, value) => {
+    for (const entry of splitFilterValues(value)) {
+      list.push(entry);
+    }
+  };
+  for (const token of tokens) {
+    const trimmed = String(token || '').trim();
+    if (!trimmed) continue;
+    const separatorIndex = trimmed.search(/[:=]/);
+    if (separatorIndex === -1) {
+      pushValues(file, trimmed);
+      continue;
+    }
+    const key = trimmed.slice(0, separatorIndex).trim().toLowerCase();
+    const value = trimmed.slice(separatorIndex + 1).trim();
+    if (!value) {
+      errors.push(`missing value for ${key}`);
+      continue;
+    }
+    if (key === 'path' || key === 'file') {
+      pushValues(file, value);
+    } else if (key === 'lang' || key === 'language') {
+      pushValues(lang, value);
+    } else if (key === 'ext' || key === 'extension') {
+      pushValues(ext, value);
+    } else if (key === 'type' || key === 'kind') {
+      pushValues(type, value);
+    } else {
+      errors.push(`unknown filter key ${key}`);
+    }
+  }
+  return {
+    file: file.length ? file : null,
+    lang: lang.length ? lang : null,
+    ext: ext.length ? ext : null,
+    type: type.length ? type : null,
+    errors
+  };
+}
+
 /**
  * Normalize extension filters into a lowercase list.
  * @param {string|string[]|null|undefined} extArg

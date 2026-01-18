@@ -6,19 +6,19 @@ import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { resolveFtsWeights } from '../fts.js';
 import { parseJson } from '../query-cache.js';
 import { parseChurnArg, parseModifiedArgs } from '../query-parse.js';
-import { mergeExtFilters, normalizeExtFilter, normalizeLangFilter, parseMetaFilters } from '../filters.js';
+import {
+  mergeExtFilters,
+  normalizeExtFilter,
+  normalizeLangFilter,
+  parseFilterExpression,
+  parseMetaFilters
+} from '../filters.js';
 import { resolveSearchMode } from '../cli-args.js';
 import { getMissingFlagMessages, resolveBm25Defaults } from './options.js';
 
 const normalizeOptionalNumber = (value) => (
   Number.isFinite(Number(value)) ? Number(value) : null
 );
-
-const normalizeOptionalPositive = (value, fallback) => {
-  const parsed = normalizeOptionalNumber(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(0, parsed);
-};
 
 const normalizeAnnBackend = (value) => {
   if (typeof value !== 'string') return 'lancedb';
@@ -39,38 +39,40 @@ export function normalizeSearchOptions({
   rawArgs,
   rootDir,
   userConfig,
-  envConfig,
-  metricsDir
+  metricsDir,
+  policy
 }) {
-  const jsonCompact = argv['json-compact'] === true;
-  const jsonOutput = argv.json || jsonCompact;
+  const jsonOutput = argv.json === true;
   const missingValueMessages = getMissingFlagMessages(argv, rawArgs);
   const query = argv._.join(' ').trim();
 
-  const embeddingsConfig = userConfig.indexing?.embeddings || {};
-  const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider);
-  const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
-  const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
-  const lancedbConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
+  const embeddingsConfig = {};
+  const embeddingProvider = normalizeEmbeddingProvider();
+  const embeddingOnnx = normalizeOnnxConfig({});
+  const hnswConfig = normalizeHnswConfig({});
+  const lancedbConfig = normalizeLanceDbConfig({});
 
-  const sqliteConfig = userConfig.sqlite || {};
-  const sqliteAutoChunkThresholdRaw = userConfig.search?.sqliteAutoChunkThreshold;
-  const sqliteAutoChunkThreshold = normalizeOptionalPositive(sqliteAutoChunkThresholdRaw, 0);
-  const sqliteAutoArtifactBytesRaw = userConfig.search?.sqliteAutoArtifactBytes;
-  const sqliteAutoArtifactBytes = normalizeOptionalPositive(sqliteAutoArtifactBytesRaw, 0);
+  const sqliteConfig = {};
+  const sqliteAutoChunkThreshold = 0;
+  const sqliteAutoArtifactBytes = 0;
 
-  const postingsConfig = normalizePostingsConfig(userConfig.indexing?.postings || {});
-  const filePrefilterConfig = userConfig.search?.filePrefilter || {};
-  const filePrefilterEnabled = filePrefilterConfig.enabled !== false;
-  const searchRegexConfig = userConfig.search?.regex || null;
-  const fileChargramN = Number.isFinite(Number(filePrefilterConfig.chargramN))
-    ? Math.max(2, Math.floor(Number(filePrefilterConfig.chargramN)))
-    : postingsConfig.chargramMinN;
+  const postingsConfig = normalizePostingsConfig({});
+  const filePrefilterConfig = {};
+  const filePrefilterEnabled = true;
+  const searchRegexConfig = null;
+  const fileChargramN = postingsConfig.chargramMinN;
 
   const vectorExtension = getVectorExtensionConfig(rootDir, userConfig);
 
   const contextLines = Math.max(0, parseInt(argv.context, 10) || 0);
-  const searchType = argv.type || null;
+  const filterInfo = parseFilterExpression(argv.filter);
+  if (filterInfo.errors && filterInfo.errors.length) {
+    throw new Error(`Invalid --filter: ${filterInfo.errors.join(', ')}`);
+  }
+  const searchTypeEntries = [];
+  if (argv.type) searchTypeEntries.push(argv.type);
+  if (filterInfo.type) searchTypeEntries.push(filterInfo.type);
+  const searchType = searchTypeEntries.length ? searchTypeEntries.flat() : null;
   const searchAuthor = argv.author || null;
   const searchImport = argv.import || null;
   const chunkAuthorFilter = argv['chunk-author'] || null;
@@ -86,16 +88,13 @@ export function normalizeSearchOptions({
   const runExtractedProse = runExtractedProseRaw;
   const commentsEnabled = argv.comments !== false;
 
-  const bm25Config = userConfig.search?.bm25 || {};
   const bm25K1Arg = normalizeOptionalNumber(argv['bm25-k1']);
   const bm25BArg = normalizeOptionalNumber(argv['bm25-b']);
   const bm25Defaults = resolveBm25Defaults(metricsDir, { runCode, runProse, runExtractedProse });
   const bm25K1 = bm25K1Arg
-    ?? normalizeOptionalNumber(bm25Config.k1)
     ?? (bm25Defaults ? bm25Defaults.k1 : null)
     ?? 1.2;
   const bm25B = bm25BArg
-    ?? normalizeOptionalNumber(bm25Config.b)
     ?? (bm25Defaults ? bm25Defaults.b : null)
     ?? 0.75;
 
@@ -111,68 +110,65 @@ export function normalizeSearchOptions({
   const fileFilters = [];
   if (argv.path) fileFilters.push(argv.path);
   if (argv.file) fileFilters.push(argv.file);
+  if (filterInfo.file) fileFilters.push(filterInfo.file);
   const fileFilter = fileFilters.length ? fileFilters.flat() : null;
   const caseAll = argv.case === true;
   const caseFile = argv['case-file'] === true || caseAll;
   const caseTokens = argv['case-tokens'] === true || caseAll;
   const branchFilter = argv.branch ? String(argv.branch).trim() : null;
 
-  const extFilterRaw = normalizeExtFilter(argv.ext);
-  const langFilter = normalizeLangFilter(argv.lang);
-  const extFilter = mergeExtFilters(extFilterRaw, langFilter);
+  const argvExtFilter = mergeExtFilters(
+    normalizeExtFilter(argv.ext),
+    normalizeLangFilter(argv.lang)
+  );
+  const filterExtFilter = mergeExtFilters(
+    normalizeExtFilter(filterInfo.ext),
+    normalizeLangFilter(filterInfo.lang)
+  );
+  const extFilter = mergeExtFilters(argvExtFilter, filterExtFilter);
   const metaFilters = parseMetaFilters(argv.meta, argv['meta-json']);
 
   const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
-  const annDefault = userConfig.search?.annDefault !== false;
-  const annEnabled = annFlagPresent ? argv.ann : annDefault;
-  const annBackendRaw = argv['ann-backend'] ?? userConfig.search?.annBackend ?? 'lancedb';
+  const policyAnn = policy?.retrieval?.ann?.enabled;
+  const annEnabled = annFlagPresent ? argv.ann : (policyAnn ?? true);
+  const annBackendRaw = argv['ann-backend'] ?? 'lancedb';
   const annBackend = normalizeAnnBackend(annBackendRaw);
 
-  const scoreBlendConfig = userConfig.search?.scoreBlend || {};
-  const scoreBlendEnabled = scoreBlendConfig.enabled === true;
-  const scoreBlendSparseWeight = normalizeOptionalNumber(scoreBlendConfig.sparseWeight) ?? 1;
-  const scoreBlendAnnWeight = normalizeOptionalNumber(scoreBlendConfig.annWeight) ?? 1;
+  const scoreBlendEnabled = false;
+  const scoreBlendSparseWeight = 1;
+  const scoreBlendAnnWeight = 1;
 
-  const symbolBoostConfig = userConfig.search?.symbolBoost || {};
-  const symbolBoostEnabled = symbolBoostConfig.enabled !== false;
-  const symbolBoostDefinitionWeight = normalizeOptionalNumber(symbolBoostConfig.definitionWeight) ?? 1.2;
-  const symbolBoostExportWeight = normalizeOptionalNumber(symbolBoostConfig.exportWeight) ?? 1.1;
+  const symbolBoostEnabled = true;
+  const symbolBoostDefinitionWeight = 1.2;
+  const symbolBoostExportWeight = 1.1;
 
-  const minhashMaxDocs = Number.isFinite(Number(userConfig.search?.minhashMaxDocs))
-    ? Math.max(0, Number(userConfig.search.minhashMaxDocs))
-    : 5000;
+  const minhashMaxDocs = 5000;
 
-  const queryCacheConfig = userConfig.search?.queryCache || {};
-  const queryCacheEnabled = queryCacheConfig.enabled === true;
-  const queryCacheMaxEntries = Number.isFinite(Number(queryCacheConfig.maxEntries))
-    ? Math.max(1, Number(queryCacheConfig.maxEntries))
-    : 200;
-  const queryCacheTtlMs = Number.isFinite(Number(queryCacheConfig.ttlMs))
-    ? Math.max(0, Number(queryCacheConfig.ttlMs))
-    : 0;
+  const queryCacheEnabled = policy?.quality?.value ? policy.quality.value !== 'fast' : false;
+  const queryCacheMaxEntries = 200;
+  const queryCacheTtlMs = 0;
 
-  const rrfConfig = userConfig.search?.rrf || {};
-  const rrfEnabled = rrfConfig.enabled !== false;
-  const rrfK = Number.isFinite(Number(rrfConfig.k)) ? Math.max(1, Number(rrfConfig.k)) : 60;
+  const rrfEnabled = false;
+  const rrfK = 60;
 
-  const contextExpansionConfig = userConfig.search?.contextExpansion || {};
-  const contextExpansionEnabled = contextExpansionConfig.enabled === true;
+  const contextExpansionEnabled = false;
   const contextExpansionOptions = {
-    maxPerHit: contextExpansionConfig.maxPerHit,
-    maxTotal: contextExpansionConfig.maxTotal,
-    includeCalls: contextExpansionConfig.includeCalls,
-    includeImports: contextExpansionConfig.includeImports,
-    includeExports: contextExpansionConfig.includeExports,
-    includeUsages: contextExpansionConfig.includeUsages
+    maxPerHit: null,
+    maxTotal: null,
+    includeCalls: null,
+    includeImports: null,
+    includeExports: null,
+    includeUsages: null
   };
-  const contextExpansionRespectFilters = contextExpansionConfig.respectFilters !== false;
+  const contextExpansionRespectFilters = true;
 
-  const sqliteFtsNormalize = userConfig.search?.sqliteFtsNormalize === true;
-  const sqliteFtsProfile = (argv['fts-profile']
-    || envConfig.ftsProfile
-    || userConfig.search?.sqliteFtsProfile
-    || 'balanced').toLowerCase();
-  let sqliteFtsWeightsConfig = userConfig.search?.sqliteFtsWeights || null;
+  const sqliteFtsNormalize = false;
+  const policyQuality = policy?.quality?.value;
+  const sqliteFtsProfile = String(
+    argv['fts-profile']
+      || (['fast', 'balanced', 'max'].includes(policyQuality) ? policyQuality : 'balanced')
+  ).toLowerCase();
+  let sqliteFtsWeightsConfig = null;
   if (argv['fts-weights']) {
     const parsed = parseJson(argv['fts-weights'], null);
     if (parsed) {
@@ -189,14 +185,11 @@ export function normalizeSearchOptions({
   const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
 
   const explain = argv.explain === true || argv.why === true;
-  const denseVectorMode = typeof userConfig.search?.denseVectorMode === 'string'
-    ? userConfig.search.denseVectorMode.toLowerCase()
-    : 'merged';
+  const denseVectorMode = 'merged';
 
   const backendArg = typeof argv.backend === 'string' ? argv.backend.toLowerCase() : '';
 
   return {
-    jsonCompact,
     jsonOutput,
     missingValueMessages,
     query,
@@ -224,7 +217,6 @@ export function normalizeSearchOptions({
     searchRegexConfig,
     fileChargramN,
     vectorExtension,
-    bm25Config,
     bm25K1,
     bm25B,
     branchesMin,
@@ -260,7 +252,7 @@ export function normalizeSearchOptions({
     sqliteFtsNormalize,
     sqliteFtsProfile,
     sqliteFtsWeights,
-    fieldWeightsConfig: userConfig.search?.fieldWeights,
+    fieldWeightsConfig: null,
     explain,
     denseVectorMode,
     backendArg,

@@ -1,41 +1,22 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { getEnvConfig } from './env.js';
 import { hash64Stream, hashFileStream, resolveXxhashBackend } from './hash/xxhash-backend.js';
 
 let backendOverride = null;
 let backendName = null;
 let backendPromise = null;
-let backendLogKey = null;
-
-const resolveBackendName = (envConfig) => {
+const resolveBackendName = () => {
   if (backendOverride) return backendOverride;
-  const envValue = envConfig?.xxhashBackend;
-  if (typeof envValue === 'string' && envValue.trim()) return envValue.trim();
   return 'auto';
 };
 
-const logBackendChoice = (backend, requested, envConfig) => {
-  if (envConfig?.verbose !== true) return;
-  const backendLabel = backend?.name || 'unknown';
-  const requestedLabel = requested || 'auto';
-  const nextKey = `${requestedLabel}:${backendLabel}`;
-  if (backendLogKey === nextKey) return;
-  backendLogKey = nextKey;
-  console.warn(`[hash] xxhash backend: ${backendLabel} (requested: ${requestedLabel})`);
-};
-
 const getBackend = async () => {
-  const envConfig = getEnvConfig();
-  const next = resolveBackendName(envConfig);
+  const next = resolveBackendName();
   if (backendPromise && backendName === next) return backendPromise;
   backendName = next;
   backendPromise = resolveXxhashBackend({
     backend: next,
-    verbose: envConfig.verbose === true
-  }).then((backend) => {
-    logBackendChoice(backend, next, envConfig);
-    return backend;
+    verbose: false
   });
   return backendPromise;
 };
@@ -81,5 +62,4 @@ export function setXxhashBackend(backend) {
   backendOverride = typeof backend === 'string' && backend.trim() ? backend.trim() : null;
   backendName = null;
   backendPromise = null;
-  backendLogKey = null;
 }

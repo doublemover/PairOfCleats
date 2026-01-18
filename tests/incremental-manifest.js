@@ -15,14 +15,12 @@ await fsPromises.mkdir(repoRoot, { recursive: true });
 
 const filePath = path.join(repoRoot, 'sample.js');
 await fsPromises.writeFile(filePath, 'export function hello() { return 1; }\n');
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify({ sqlite: { use: false } }, null, 2)
-);
 
+process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };

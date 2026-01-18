@@ -1,57 +1,29 @@
-import { getIndexDir } from '../../../tools/dict-utils.js';
 import { resolveBackendPolicy } from '../../storage/backend-policy.js';
-import { getSqliteChunkCount } from '../cli-sqlite.js';
-import { estimateIndexBytes } from './options.js';
 
 export const resolveBackendSelection = async ({
   backendArg,
-  sqliteScoreModeConfig,
-  sqliteConfigured,
   sqliteAvailable,
   sqliteCodeAvailable,
   sqliteProseAvailable,
   sqliteCodePath,
   sqliteProsePath,
-  lmdbConfigured,
   lmdbAvailable,
   lmdbCodeAvailable,
   lmdbProseAvailable,
   lmdbCodePath,
   lmdbProsePath,
-  sqliteAutoChunkThreshold,
-  sqliteAutoArtifactBytes,
   needsSqlite,
   needsCode,
   needsProse,
-  root,
-  userConfig,
+  defaultBackend,
   onWarn
 }) => {
-  let chunkCounts = [];
-  let artifactBytes = [];
-  if (needsSqlite && (!backendArg || backendArg === 'auto')) {
-    if (sqliteAutoChunkThreshold > 0) {
-      if (needsCode) chunkCounts.push(await getSqliteChunkCount(sqliteCodePath, 'code'));
-      if (needsProse) chunkCounts.push(await getSqliteChunkCount(sqliteProsePath, 'prose'));
-    }
-    if (sqliteAutoArtifactBytes > 0) {
-      if (needsCode) artifactBytes.push(estimateIndexBytes(getIndexDir(root, 'code', userConfig)));
-      if (needsProse) artifactBytes.push(estimateIndexBytes(getIndexDir(root, 'prose', userConfig)));
-    }
-  }
-
   const backendPolicy = resolveBackendPolicy({
     backendArg,
-    sqliteScoreModeConfig,
-    sqliteConfigured,
     sqliteAvailable,
-    lmdbConfigured,
     lmdbAvailable,
-    sqliteAutoChunkThreshold,
-    sqliteAutoArtifactBytes,
     needsSqlite,
-    chunkCounts,
-    artifactBytes
+    defaultBackend
   });
 
   if (backendPolicy.error) {

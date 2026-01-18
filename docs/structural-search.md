@@ -46,4 +46,3 @@ Notes
 - Engines must be installed separately. This tool does not auto-install.
 - Output is best-effort and normalizes different engine formats into a shared
   shape for later ingestion or analysis.
-- Structural search is gated behind `profile=full` (or `PAIROFCLEATS_PROFILE=full`).

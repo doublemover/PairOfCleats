@@ -14,18 +14,6 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const configPath = path.join(repoRoot, '.pairofcleats.json');
-await fsPromises.writeFile(
-  configPath,
-  JSON.stringify({
-    indexing: {
-      maxFileBytes: 200000,
-      fileListSampleSize: 20,
-      treeSitter: { enabled: false }
-    }
-  }, null, 2)
-);
-
 const minifiedPath = path.join(repoRoot, 'app.min.js');
 const binaryPath = path.join(repoRoot, 'binary.png');
 const normalPath = path.join(repoRoot, 'normal.js');
@@ -38,9 +26,20 @@ await fsPromises.copyFile(
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
+  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+    indexing: {
+      maxFileBytes: 200000,
+      fileListSampleSize: 20,
+      treeSitter: { enabled: false }
+    }
+  }),
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const buildResult = spawnSync(
   process.execPath,

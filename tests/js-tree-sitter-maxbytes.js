@@ -13,7 +13,7 @@ const srcDir = path.join(repoRoot, 'src');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(srcDir, { recursive: true });
 
-const maxBytes = 128;
+const maxBytes = 512 * 1024;
 const payload = 'a'.repeat(maxBytes + 64);
 const bigFilePath = path.join(srcDir, 'big.js');
 await fsPromises.writeFile(bigFilePath, `const data = "${payload}";\n`);
@@ -24,23 +24,14 @@ if (stats.size <= maxBytes) {
   process.exit(1);
 }
 
-const config = {
-  sqlite: { use: false },
-  indexing: {
-    treeSitter: { maxBytes }
-  }
-};
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify(config, null, 2)
-);
-
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: path.join(tempRoot, 'cache'),
   PAIROFCLEATS_EMBEDDINGS: 'stub',
   PAIROFCLEATS_WORKER_POOL: 'off'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
 process.env.PAIROFCLEATS_WORKER_POOL = env.PAIROFCLEATS_WORKER_POOL;

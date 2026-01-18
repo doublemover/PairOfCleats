@@ -7,7 +7,6 @@ const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-ann-fallback');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
-const missingExtensionPath = path.join(tempRoot, 'missing', 'vec0-missing.node');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
@@ -18,28 +17,15 @@ await fsPromises.writeFile(
   'export const alpha = () => "ann_fallback_token";\n'
 );
 
-const config = {
-  cache: { root: cacheRoot },
-  dictionary: { languages: ['en'] },
-  search: { annBackend: 'sqlite-vector' },
-  sqlite: {
-    use: true,
-    vectorExtension: {
-      annMode: 'extension',
-      path: missingExtensionPath
-    }
-  }
-};
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify(config, null, 2) + '\n'
-);
-
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const runNode = (label, args) => {
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
@@ -54,7 +40,7 @@ runNode('build_sqlite', [path.join(root, 'tools', 'build-sqlite-index.js'), '--r
 
 const searchResult = spawnSync(
   process.execPath,
-  [path.join(root, 'search.js'), 'ann_fallback_token', '--backend', 'sqlite', '--ann', '--json', '--repo', repoRoot],
+  [path.join(root, 'search.js'), 'ann_fallback_token', '--ann', '--json', '--repo', repoRoot],
   { env, encoding: 'utf8' }
 );
 if (searchResult.status !== 0) {

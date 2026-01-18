@@ -194,7 +194,6 @@ Any new user-configurable setting must include:
 - Per-feature concurrency settings.
 - Exposing backend selection without a compelling product reason.
 - Allowing unknown keys in config “for forward compatibility.”
-- Feature gating via profiles as a public mechanism.
 
 ---
 

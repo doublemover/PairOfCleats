@@ -1,80 +1,9 @@
 import yargs from 'yargs/yargs';
 
-const BOOLEAN_FLAGS = [
-  'json',
-  'json-compact',
-  'stats',
-  'ann',
-  'comments',
-  'lint',
-  'matched',
-  'async',
-  'generator',
-  'returns',
-  'explain',
-  'why',
-  'case',
-  'case-file',
-  'case-tokens'
+const REMOVED_FLAGS = [
+  { flag: '--human', replacement: '--json' },
+  { flag: '--headline', replacement: '--filter' }
 ];
-
-const STRING_FLAGS = [
-  'type',
-  'author',
-  'import',
-  'calls',
-  'uses',
-  'signature',
-  'param',
-  'decorator',
-  'inferred-type',
-  'return-type',
-  'throws',
-  'reads',
-  'writes',
-  'mutates',
-  'churn',
-  'alias',
-  'awaits',
-  'branches',
-  'loops',
-  'breaks',
-  'continues',
-  'risk',
-  'risk-tag',
-  'risk-source',
-  'risk-sink',
-  'risk-category',
-  'risk-flow',
-  'struct-pack',
-  'struct-rule',
-  'struct-tag',
-  'meta',
-  'meta-json',
-  'file',
-  'ext',
-  'lang',
-  'chunk-author',
-  'modified-after',
-  'modified-since',
-  'visibility',
-  'extends',
-  'mode',
-  'backend',
-  'path',
-  'model',
-  'repo',
-  'branch',
-  'fts-profile',
-  'fts-weights',
-  'bm25-k1',
-  'bm25-b',
-  'profile',
-  'ann-backend'
-];
-
-const ALIASES = { n: 'top', c: 'context', t: 'type', why: 'explain' };
-const DEFAULTS = { n: 5, context: 3 };
 
 /**
  * Parse CLI arguments for search.
@@ -82,11 +11,7 @@ const DEFAULTS = { n: 5, context: 3 };
  * @returns {object}
  */
 export function parseSearchArgs(rawArgs) {
-  const removedFlags = [
-    { flag: '--human', replacement: '--json | --json-compact' },
-    { flag: '--headline', replacement: '--matched' }
-  ];
-  const removed = removedFlags.filter((entry) =>
+  const removed = REMOVED_FLAGS.filter((entry) =>
     rawArgs.some((arg) => arg === entry.flag || arg.startsWith(`${entry.flag}=`))
   );
   if (removed.length) {
@@ -97,30 +22,35 @@ export function parseSearchArgs(rawArgs) {
     error.code = 'REMOVED_FLAG';
     throw error;
   }
+
   const options = {
-    n: { type: 'number', default: DEFAULTS.n },
-    context: { type: 'number', default: DEFAULTS.context }
+    repo: { type: 'string' },
+    mode: { type: 'string' },
+    top: { type: 'number', default: 5 },
+    json: { type: 'boolean', default: false },
+    explain: { type: 'boolean', default: false },
+    why: { type: 'boolean', default: false },
+    filter: { type: 'string' },
+    backend: { type: 'string' },
+    ann: { type: 'boolean' },
+    comments: { type: 'boolean', default: true },
+    case: { type: 'boolean' },
+    'case-file': { type: 'boolean' },
+    'case-tokens': { type: 'boolean' },
+    'stub-embeddings': { type: 'boolean' }
   };
-  for (const flag of BOOLEAN_FLAGS) {
-    options[flag] = { type: 'boolean' };
-  }
-  for (const flag of STRING_FLAGS) {
-    options[flag] = { type: 'string' };
-  }
-  const argv = yargs(rawArgs)
+
+  return yargs(rawArgs)
     .parserConfiguration({
       'camel-case-expansion': false,
       'dot-notation': false
     })
     .options(options)
-    .alias(ALIASES)
+    .alias({ n: 'top' })
     .help()
     .alias('h', 'help')
+    .strict(false)
     .parse();
-  if (argv.profile) {
-    process.env.PAIROFCLEATS_PROFILE = String(argv.profile).trim();
-  }
-  return argv;
 }
 
 /**
@@ -133,30 +63,11 @@ export function getSearchUsage() {
     '',
     'Options:',
     '  --repo <path>',
-    '  --mode code|prose|both|records|all|extracted-prose',
-    '  --backend auto|memory|sqlite|sqlite-fts|lmdb',
-    '  --top N, --context N',
-    '  --json | --json-compact | --stats',
-    '  --ann | --no-ann',
-    '  --comments | --no-comments',
-    '  --ann-backend auto|lancedb|sqlite-vector|hnsw|js',
-    '  --model <id>',
-    '  --fts-profile <name> | --fts-weights <json|csv>',
-    '  --bm25-k1 <num> | --bm25-b <num>',
-    '  --profile <name>',
-    '  --matched | --explain | --why',
-    '  Filters:',
-    '    --type <kind> --author <name> --import <module> --calls <name> --uses <name>',
-    '    --signature <text> --param <name> --decorator <name> --inferred-type <type> --return-type <type>',
-    '    --throws <name> --reads <name> --writes <name> --mutates <name> --alias <name> --awaits <name>',
-    '    --branches <min> --loops <min> --breaks <min> --continues <min>',
-    '    --risk <tag> --risk-tag <tag> --risk-source <name> --risk-sink <name> --risk-category <name> --risk-flow <name>',
-    '    --struct-pack <id> --struct-rule <id> --struct-tag <tag>',
-    '    --visibility <name> --extends <name> --async --generator --returns --lint',
-    '    --churn [min] --modified-after <date> --modified-since <days> --chunk-author <name>',
-    '    --path <pattern> --file <pattern> --ext <.ext> --lang <language> --branch <name>',
-    '    --case --case-file --case-tokens',
-    '    --meta <k=v> --meta-json <json>'
+    '  --mode code|prose|both',
+    '  --top N',
+    '  --json',
+    '  --explain',
+    '  --filter "<expr>"'
   ].join('\n');
 }
 
@@ -176,16 +87,19 @@ export function resolveSearchMode(modeRaw) {
       runExtractedProse: true
     };
   }
-  const searchMode = normalized;
-  const allowedModes = new Set(['code', 'prose', 'both', 'records', 'all', 'extracted-prose']);
-  if (!allowedModes.has(searchMode)) {
-    const error = new Error(`Invalid --mode ${searchMode}. Use code|prose|both|records|all|extracted-prose.`);
+  const allowedModes = new Set(['code', 'prose', 'both']);
+  if (!allowedModes.has(normalized)) {
+    const error = new Error(`Invalid --mode ${normalized}. Use code|prose|both.`);
     error.code = 'INVALID_MODE';
     throw error;
   }
-  const runCode = searchMode === 'code' || searchMode === 'both' || searchMode === 'all';
-  const runProse = searchMode === 'prose' || searchMode === 'both' || searchMode === 'all';
-  const runRecords = searchMode === 'records' || searchMode === 'all';
-  const runExtractedProse = searchMode === 'extracted-prose' || searchMode === 'all';
-  return { searchMode, runCode, runProse, runRecords, runExtractedProse };
+  const runCode = normalized === 'code' || normalized === 'both';
+  const runProse = normalized === 'prose' || normalized === 'both';
+  return {
+    searchMode: normalized,
+    runCode,
+    runProse,
+    runRecords: false,
+    runExtractedProse: runProse
+  };
 }

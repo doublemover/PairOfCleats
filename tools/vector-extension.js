@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from './dict-utils.js';
-import { getEnvConfig } from '../src/shared/env.js';
 import { incFallback } from '../src/shared/metrics.js';
 
 const DEFAULT_PROVIDER = 'sqlite-vec';
@@ -119,45 +118,38 @@ export function getPlatformKey(platform = process.platform, arch = process.arch)
  */
 export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides = {}) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const envConfig = getEnvConfig();
-  const sqlite = cfg.sqlite || {};
-  const vectorCfg = sqlite.vectorExtension || {};
-  const provider = overrides.provider || vectorCfg.provider || DEFAULT_PROVIDER;
+  const provider = overrides.provider || DEFAULT_PROVIDER;
   const providerDefaults = PROVIDERS[provider] || {};
 
-  const annModeRaw = overrides.annMode || vectorCfg.annMode || 'js';
-  const annMode = String(annModeRaw).toLowerCase();
+  const annModeRaw = overrides.annMode || 'auto';
+  const annModeNormalized = String(annModeRaw).toLowerCase();
+  const annMode = ['auto', 'extension', 'js'].includes(annModeNormalized) ? annModeNormalized : 'auto';
+  const autoEnabled = annMode === 'extension' || annMode === 'auto';
   const enabled = overrides.enabled === true
-    || vectorCfg.enabled === true
-    || annMode === 'extension';
+    ? true
+    : (overrides.enabled === false ? false : autoEnabled);
 
-  const platform = overrides.platform || vectorCfg.platform || process.platform;
-  const arch = overrides.arch || vectorCfg.arch || process.arch;
+  const platform = overrides.platform || process.platform;
+  const arch = overrides.arch || process.arch;
   const platformKey = getPlatformKey(platform, arch);
-  const moduleName = overrides.module || vectorCfg.module || providerDefaults.module || DEFAULT_MODULE;
-  const encoding = overrides.encoding || vectorCfg.encoding || providerDefaults.encoding || DEFAULT_ENCODING;
-  const table = overrides.table || vectorCfg.table || providerDefaults.table || DEFAULT_TABLE;
-  const column = overrides.column || vectorCfg.column || providerDefaults.column || DEFAULT_COLUMN;
-  const options = overrides.options || vectorCfg.options || providerDefaults.options || '';
+  const moduleName = overrides.module || providerDefaults.module || DEFAULT_MODULE;
+  const encoding = overrides.encoding || providerDefaults.encoding || DEFAULT_ENCODING;
+  const table = overrides.table || providerDefaults.table || DEFAULT_TABLE;
+  const column = overrides.column || providerDefaults.column || DEFAULT_COLUMN;
+  const options = overrides.options || providerDefaults.options || '';
 
   const dir = overrides.dir
     ? resolvePath(repoRoot, overrides.dir)
-    : resolvePath(repoRoot, vectorCfg.dir)
-      || envConfig.extensionsDir
-      || getExtensionsDir(repoRoot, cfg);
+    : getExtensionsDir(repoRoot, cfg);
   const filename = overrides.filename
-    || vectorCfg.filename
     || providerDefaults.filename
     || `${moduleName}${getBinarySuffix(platform)}`;
   const pathOverride = overrides.path
     ? resolvePath(repoRoot, overrides.path)
-    : resolvePath(repoRoot, vectorCfg.path)
-      || (envConfig.vectorExtension
-        ? resolvePath(repoRoot, envConfig.vectorExtension)
-        : null);
+    : null;
 
-  const url = overrides.url || vectorCfg.url || providerDefaults.url || null;
-  const downloads = overrides.downloads || vectorCfg.downloads || providerDefaults.downloads || null;
+  const url = overrides.url || providerDefaults.url || null;
+  const downloads = overrides.downloads || providerDefaults.downloads || null;
 
   return sanitizeVectorExtensionConfig({
     annMode,

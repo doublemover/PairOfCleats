@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,23 +13,19 @@ try {
     JSON.stringify({ profile: 'lite' }, null, 2),
     'utf8'
   );
-
-  const loaded = loadUserConfig(tempRoot);
-  assert.equal(loaded.profile, 'lite');
-  assert.equal(loaded.indexing?.gitBlame, false);
-
-  const previousProfile = process.env.PAIROFCLEATS_PROFILE;
-  process.env.PAIROFCLEATS_PROFILE = 'full';
-  const loadedEnv = loadUserConfig(tempRoot);
-  assert.equal(loadedEnv.profile, 'full');
-  assert.equal(loadedEnv.indexing?.gitBlame, true);
-  if (previousProfile) {
-    process.env.PAIROFCLEATS_PROFILE = previousProfile;
-  } else {
-    delete process.env.PAIROFCLEATS_PROFILE;
+  try {
+    loadUserConfig(tempRoot);
+    console.error('Expected profile config to be rejected.');
+    process.exit(1);
+  } catch (err) {
+    const message = String(err?.message || '');
+    if (!message.includes('profile')) {
+      console.error('Expected profile config error to mention profile.');
+      process.exit(1);
+    }
   }
 } finally {
   await fsPromises.rm(tempRoot, { recursive: true, force: true });
 }
 
-console.log('profile-config test passed');
+console.log('profile-config rejection test passed');

@@ -8,9 +8,6 @@ import { setProgressHandlers } from './src/shared/progress.js';
 import { getCurrentBuildInfo, getRepoCacheRoot, resolveRepoRoot } from './tools/dict-utils.js';
 
 const { argv, modes } = parseBuildArgs(process.argv.slice(2));
-if (argv.verbose) {
-  process.env.PAIROFCLEATS_VERBOSE = '1';
-}
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const display = createDisplay({
   stream: process.stderr,

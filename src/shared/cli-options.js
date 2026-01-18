@@ -2,6 +2,7 @@ import { validateConfig } from '../config/validate.js';
 
 export const INDEX_BUILD_OPTIONS = {
   mode: { type: 'string', default: 'all' },
+  quality: { type: 'string' },
   stage: { type: 'string' },
   dims: { type: 'number', default: 384 },
   threads: { type: 'number' },
@@ -30,16 +31,10 @@ export const BENCH_OPTIONS = {
   incremental: { type: 'boolean', default: false },
   'keep-cache': { type: 'boolean', default: false },
   'stub-embeddings': { type: 'boolean', default: false },
-  'index-profile': { type: 'string' },
-  'no-index-profile': { type: 'boolean', default: false },
   'real-embeddings': { type: 'boolean', default: false },
   queries: { type: 'string' },
   backend: { type: 'string' },
   out: { type: 'string' },
-  'bm25-k1': { type: 'number' },
-  'bm25-b': { type: 'number' },
-  'fts-profile': { type: 'string' },
-  'fts-weights': { type: 'string' },
   repo: { type: 'string' },
   top: { type: 'number', default: 5 },
   limit: { type: 'number', default: 0 },
@@ -66,6 +61,7 @@ const INDEX_BUILD_SCHEMA = {
   type: 'object',
   properties: {
     mode: { type: 'string' },
+    quality: { type: 'string' },
     stage: { type: 'string' },
     dims: { type: 'number' },
     threads: { type: 'number' },
@@ -91,16 +87,11 @@ const BENCH_SCHEMA = {
     incremental: { type: 'boolean' },
     'keep-cache': { type: 'boolean' },
     'stub-embeddings': { type: 'boolean' },
-    'index-profile': { type: 'string' },
-    'real-embeddings': { type: 'boolean' },
+      'real-embeddings': { type: 'boolean' },
     backend: { type: 'string' },
     top: { type: 'number' },
     limit: { type: 'number' },
-    'bm25-k1': { type: 'number' },
-    'bm25-b': { type: 'number' },
-    'fts-profile': { type: 'string' },
-    'fts-weights': { type: 'string' },
-    'query-concurrency': { type: 'number' },
+            'query-concurrency': { type: 'number' },
     threads: { type: 'number' },
     'heap-mb': { type: 'number' },
     progress: { type: 'string' },
@@ -129,9 +120,6 @@ export function validateBenchArgs(argv) {
   }
   if (argv['stub-embeddings'] && argv['real-embeddings']) {
     conflicts.push('stub-embeddings and real-embeddings cannot both be set');
-  }
-  if (argv['index-profile'] && argv['no-index-profile']) {
-    conflicts.push('index-profile and no-index-profile cannot both be set');
   }
   throwOnErrors('bench args', conflicts);
 }
