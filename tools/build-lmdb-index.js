@@ -13,7 +13,7 @@ import {
   MAX_JSON_BYTES
 } from '../src/shared/artifact-io.js';
 import { writeJsonObjectFile } from '../src/shared/json-stream.js';
-import { checksumFile } from '../src/shared/hash.js';
+import { updateIndexStateManifest } from './index-state-utils.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../src/storage/lmdb/schema.js';
 import { getIndexDir, getMetricsDir, loadUserConfig, resolveIndexRoot, resolveLmdbPaths, resolveRepoRoot } from './dict-utils.js';
 import { Packr } from 'msgpackr';
@@ -30,6 +30,7 @@ const argv = createCli({
     mode: { type: 'string', default: 'all' },
     repo: { type: 'string' },
     'index-root': { type: 'string' },
+    validate: { type: 'boolean', default: false },
     progress: { type: 'string', default: 'auto' },
     verbose: { type: 'boolean', default: false },
     quiet: { type: 'boolean', default: false }
@@ -53,6 +54,8 @@ const fail = (message, code = 1) => {
 if (!open) {
   fail('lmdb is required. Run npm install first.');
 }
+
+const validateArtifacts = argv.validate === true;
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
@@ -78,50 +81,6 @@ const sumDocLengths = (docLengths) => {
   return total;
 };
 
-const updateIndexStateManifest = async (indexDir) => {
-  const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
-  if (!fsSync.existsSync(manifestPath)) return;
-  let manifest = null;
-  try {
-    manifest = readJsonFile(manifestPath) || null;
-  } catch {
-    return;
-  }
-  if (!manifest || !Array.isArray(manifest.pieces)) return;
-  const statePath = path.join(indexDir, 'index_state.json');
-  if (!fsSync.existsSync(statePath)) return;
-  let bytes = null;
-  let checksum = null;
-  let checksumAlgo = null;
-  try {
-    const stat = await fs.stat(statePath);
-    bytes = stat.size;
-    const result = await checksumFile(statePath);
-    checksum = result?.value || null;
-    checksumAlgo = result?.algo || null;
-  } catch {}
-  if (!bytes || !checksum) return;
-  const pieces = manifest.pieces.map((piece) => {
-    if (piece?.name !== 'index_state' || piece?.path !== 'index_state.json') {
-      return piece;
-    }
-    return {
-      ...piece,
-      bytes,
-      checksum: checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : piece.checksum
-    };
-  });
-  const next = {
-    ...manifest,
-    updatedAt: new Date().toISOString(),
-    pieces
-  };
-  try {
-    await writeJsonObjectFile(manifestPath, { fields: next, atomic: true });
-  } catch {
-    // Ignore manifest write failures.
-  }
-};
 
 const updateLmdbState = async (indexDir, patch) => {
   if (!indexDir) return null;
@@ -175,10 +134,43 @@ const storeArtifacts = (db, meta, artifacts) => {
     storeValue(db, LMDB_META_KEYS.sourceIndex, meta.sourceIndex);
     storeValue(db, LMDB_META_KEYS.chunkCount, meta.chunkCount);
     storeValue(db, LMDB_META_KEYS.artifacts, meta.artifacts);
+    storeValue(db, LMDB_META_KEYS.artifactManifest, {
+      keys: meta.artifacts,
+      createdAt: meta.createdAt
+    });
     for (const [key, value] of Object.entries(artifacts)) {
       storeValue(db, key, value);
     }
   });
+};
+
+const hasChunkMeta = (indexDir) => {
+  if (!indexDir) return false;
+  const json = path.join(indexDir, 'chunk_meta.json');
+  const jsonl = path.join(indexDir, 'chunk_meta.jsonl');
+  const meta = path.join(indexDir, 'chunk_meta.meta.json');
+  const parts = path.join(indexDir, 'chunk_meta.parts');
+  return fsSync.existsSync(json)
+    || fsSync.existsSync(jsonl)
+    || fsSync.existsSync(meta)
+    || fsSync.existsSync(parts);
+};
+
+const hasTokenPostings = (indexDir) => {
+  if (!indexDir) return false;
+  const json = path.join(indexDir, 'token_postings.json');
+  const meta = path.join(indexDir, 'token_postings.meta.json');
+  const shards = path.join(indexDir, 'token_postings.shards');
+  return fsSync.existsSync(json) || fsSync.existsSync(meta) || fsSync.existsSync(shards);
+};
+
+const validateRequiredArtifacts = (indexDir, mode) => {
+  if (!hasChunkMeta(indexDir)) {
+    fail(`[lmdb] ${mode} missing chunk_meta artifacts. Run build_index.js first.`, 2);
+  }
+  if (!hasTokenPostings(indexDir)) {
+    fail(`[lmdb] ${mode} missing token_postings artifacts. Run build_index.js first.`, 2);
+  }
 };
 
 const loadArtifactsForMode = async (indexDir, mode) => {
@@ -252,6 +244,9 @@ for (const mode of modes) {
   }
   modeTask.set(completedModes, modes.length, { message: `building ${mode}` });
   const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
+  if (validateArtifacts) {
+    validateRequiredArtifacts(indexDir, mode);
+  }
   const targetPath = mode === 'code' ? lmdbPaths.codePath : lmdbPaths.prosePath;
   const buildStart = Date.now();
   await fs.mkdir(targetPath, { recursive: true });
@@ -259,7 +254,8 @@ for (const mode of modes) {
     enabled: true,
     ready: false,
     pending: true,
-    schemaVersion: LMDB_SCHEMA_VERSION
+    schemaVersion: LMDB_SCHEMA_VERSION,
+    buildMode
   });
 
   const readStart = Date.now();
@@ -276,6 +272,7 @@ for (const mode of modes) {
     ready: true,
     pending: false,
     schemaVersion: LMDB_SCHEMA_VERSION,
+    buildMode,
     path: targetPath
   });
   const finalDb = open({ path: targetPath, readOnly: false });

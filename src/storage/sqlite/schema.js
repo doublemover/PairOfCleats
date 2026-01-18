@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 9;
 
 export const REQUIRED_TABLES = [
   'chunks',
@@ -60,6 +60,9 @@ export const CREATE_TABLES_BASE_SQL = `
     last_modified TEXT,
     last_author TEXT,
     churn REAL,
+    churn_added INTEGER,
+    churn_deleted INTEGER,
+    churn_commits INTEGER,
     chunk_authors TEXT
   );
   CREATE VIRTUAL TABLE chunks_fts USING fts5(
@@ -140,7 +143,10 @@ export const CREATE_TABLES_BASE_SQL = `
     mode TEXT PRIMARY KEY,
     dims INTEGER,
     scale REAL,
-    model TEXT
+    model TEXT,
+    min_val REAL,
+    max_val REAL,
+    levels INTEGER
   );
   CREATE TABLE file_manifest (
     mode TEXT NOT NULL,

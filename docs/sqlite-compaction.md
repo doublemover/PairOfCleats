@@ -17,6 +17,8 @@ Rebuild a SQLite index in-place to remove doc_id gaps, prune unused vocab entrie
 
 ## Notes
 - Uses a temp DB file and swaps it in when complete.
+- Temp DBs are created alongside the target so the final rename is atomic (same filesystem).
 - A full rebuild is still the fastest way to compact everything (this avoids re-parsing the repo).
 - File paths are normalized to use `/` in the SQLite DB.
 - If a vector extension is configured, `dense_vectors_ann` is rebuilt alongside the dense vectors.
+- If the extension cannot be loaded during compaction, the ANN table is skipped and a warning is emitted.

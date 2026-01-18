@@ -3,10 +3,13 @@
 ## Schema
 - SQLite builds follow `docs/sqlite-index-schema.md` and include dense vectors + metadata.
 - Required tables include `chunks`, `token_vocab`, `token_postings`, `minhash_signatures`, `dense_vectors`, and `dense_meta` (plus FTS tables when configured).
+- Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION`.
+- On schema mismatch, SQLite readers fail closed and prompt a rebuild.
 
 ## Incremental updates
 - Incremental builds reuse manifests and remove deleted file rows.
 - Dense vectors and ANN rows must stay in sync with chunk counts.
+- If a schema bump occurs, rebuild SQLite indexes; incremental updates do not attempt migrations.
 
 ## ANN extension
 - Vector extension usage is optional and configuration-driven.

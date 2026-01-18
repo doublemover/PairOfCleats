@@ -7,6 +7,16 @@ Update SQLite indexes in-place by touching only the files that changed since the
 - Per-file incremental cache from `build_index.js --incremental`.
 - Existing SQLite DBs at the current build root, e.g. `<cache>/repos/<repoId>/builds/<buildId>/index-sqlite/index-code.db` and `index-prose.db` (resolved via `builds/current.json`, unless overridden).
 
+## Incremental manifest contract
+- Manifest path: `<cache>/repos/<repoId>/incremental/<mode>/manifest.json`.
+- Expected shape:
+  - `files`: map of file path -> metadata.
+  - File entry fields:
+    - `bundle` (required): bundle filename under `<cache>/repos/<repoId>/incremental/<mode>/files/`.
+    - `hash` (preferred): content hash for strict change detection.
+    - `mtimeMs` and `size`: fallbacks when hash is unavailable.
+- Paths are normalized to `/` before comparison.
+
 ## Schema Additions
 - `file_manifest` table tracks per-file hashes and sizes used for change detection.
 - `idx_chunks_file` speeds `file -> doc_id` lookups during deletes.
@@ -15,6 +25,7 @@ Update SQLite indexes in-place by touching only the files that changed since the
 ## Update Flow
 1. Load incremental manifest for the mode (`<cache>/repos/<repoId>/incremental/<mode>/manifest.json`).
 2. Compare manifest entries to `file_manifest` rows.
+   - If the manifest supplies a hash and the DB row lacks one (but mtime/size match), update the hash in-place without reindexing.
 3. For deleted files: remove doc_ids across all tables (`chunks`, `chunks_fts`, postings, vectors, signatures, plus vector tables when enabled).
 4. For changed files:
    - Delete existing doc_ids.
@@ -30,6 +41,7 @@ Update SQLite indexes in-place by touching only the files that changed since the
 
 ## WAL Policy
 - Incremental updates run `wal_checkpoint(TRUNCATE)` after applying changes to avoid long-lived WAL growth.
+- Full rebuilds also run `wal_checkpoint(TRUNCATE)` after validation to keep the output DB self-contained.
 - The DB remains in WAL mode; conversion back to a single-file DB (`journal_mode=DELETE`) is deferred to a later maintenance/compaction phase.
 - Full rebuilds (artifact/bundle builds) also run `wal_checkpoint(TRUNCATE)` before closing the DB to keep sidecars trimmed and consistent with incremental updates.
 
@@ -47,7 +59,7 @@ If bundle streaming fails (missing bundle, invalid payload, dims mismatch), the 
 Full rebuilds also trigger when:
 - The manifest is empty or has conflicting paths (same file with different separators).
 - `file_manifest` is empty while chunks exist (legacy DBs without per-file metadata).
-- Change ratio exceeds 35% of tracked files (changed + deleted).
+- Change ratio exceeds 35% of tracked files (changed + deleted), computed as `(changed + deleted) / total manifest files`.
 - Vocab growth exceeds maintenance limits for token/phrase/chargram tables.
 - Dense vector metadata (model or dims) mismatches the incoming bundles.
 - Bundle files are missing or invalid.

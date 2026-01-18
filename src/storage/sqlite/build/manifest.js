@@ -27,7 +27,7 @@ export function isManifestMatch(entry, dbEntry, options = {}) {
 export function normalizeManifestFiles(manifestFiles) {
   const entries = [];
   const map = new Map();
-  const conflicts = [];
+  const conflicts = new Set();
   for (const [file, entry] of Object.entries(manifestFiles || {})) {
     const normalized = normalizeFilePath(file);
     const record = { file, normalized, entry };
@@ -48,29 +48,79 @@ export function normalizeManifestFiles(manifestFiles) {
     if (score(entry) > score(existing.entry)) {
       map.set(normalized, record);
     }
-    conflicts.push(normalized);
+    conflicts.add(normalized);
   }
   entries.push(...map.values());
-  return { entries, map, conflicts };
+  return { entries, map, conflicts: Array.from(conflicts) };
 }
 
 export function diffFileManifests(manifestEntries, dbFiles) {
   const changed = [];
   const deleted = [];
+  const manifestUpdates = [];
   const manifestSet = new Set();
 
   for (const record of manifestEntries || []) {
     if (!record?.normalized) continue;
     manifestSet.add(record.normalized);
     const dbEntry = dbFiles.get(record.normalized);
-    if (!isManifestMatch(record.entry, dbEntry, { strictHash: true })) {
-      changed.push(record);
+    if (isManifestMatch(record.entry, dbEntry, { strictHash: true })) continue;
+    if (record.entry?.hash && !dbEntry?.hash) {
+      if (isManifestMatch(record.entry, dbEntry, { strictHash: false })) {
+        manifestUpdates.push(record);
+        continue;
+      }
     }
+    changed.push(record);
   }
 
   for (const [file] of dbFiles.entries()) {
     if (!manifestSet.has(file)) deleted.push(file);
   }
 
-  return { changed, deleted };
+  return { changed, deleted, manifestUpdates };
+}
+
+export function validateIncrementalManifest(manifest) {
+  const errors = [];
+  if (!manifest || typeof manifest !== 'object') {
+    return { ok: false, errors: ['manifest missing or invalid'] };
+  }
+  const files = manifest.files;
+  if (!files || typeof files !== 'object') {
+    return { ok: false, errors: ['manifest.files missing or invalid'] };
+  }
+  const entries = Object.entries(files);
+  if (!entries.length) {
+    return { ok: false, errors: ['manifest.files empty'] };
+  }
+  const maxErrors = 5;
+  for (const [file, entry] of entries) {
+    if (errors.length >= maxErrors) break;
+    if (typeof file !== 'string' || !file.trim()) {
+      errors.push('manifest file key missing or invalid');
+      continue;
+    }
+    if (!entry || typeof entry !== 'object') {
+      errors.push(`manifest entry invalid for ${file}`);
+      continue;
+    }
+    const hasHash = entry.hash != null;
+    const hasMtime = entry.mtimeMs != null;
+    const hasSize = entry.size != null;
+    if (!hasHash && !hasMtime && !hasSize) {
+      errors.push(`manifest entry missing metadata for ${file}`);
+      continue;
+    }
+    if (hasHash && typeof entry.hash !== 'string') {
+      errors.push(`manifest entry hash invalid for ${file}`);
+    }
+    if (hasMtime && !Number.isFinite(entry.mtimeMs)) {
+      errors.push(`manifest entry mtimeMs invalid for ${file}`);
+    }
+    if (hasSize && !Number.isFinite(entry.size)) {
+      errors.push(`manifest entry size invalid for ${file}`);
+    }
+  }
+  return { ok: errors.length === 0, errors };
 }

@@ -1,5 +1,29 @@
 import { chunkArray } from '../utils.js';
 
+const vocabStatementCache = new WeakMap();
+const MAX_MISSING_SAMPLE = 25;
+
+const formatMissingSample = (values) => {
+  if (!Array.isArray(values) || !values.length) return '';
+  const sample = values.slice(0, MAX_MISSING_SAMPLE).join(', ');
+  if (values.length <= MAX_MISSING_SAMPLE) return sample;
+  return `${sample} (+${values.length - MAX_MISSING_SAMPLE} more)`;
+};
+
+const getCachedStatement = (db, key, sql) => {
+  let dbCache = vocabStatementCache.get(db);
+  if (!dbCache) {
+    dbCache = new Map();
+    vocabStatementCache.set(db, dbCache);
+  }
+  let stmt = dbCache.get(key);
+  if (!stmt) {
+    stmt = db.prepare(sql);
+    dbCache.set(key, stmt);
+  }
+  return stmt;
+};
+
 export function getVocabCount(db, mode, table) {
   const row = db.prepare(`SELECT COUNT(*) AS total FROM ${table} WHERE mode = ?`)
     .get(mode) || {};
@@ -12,9 +36,11 @@ export function fetchVocabRows(db, mode, table, idColumn, valueColumn, values) {
   const rows = [];
   for (const chunk of chunkArray(unique)) {
     const placeholders = chunk.map(() => '?').join(',');
-    const stmt = db.prepare(
+    const stmt = getCachedStatement(
+      db,
+      `vocab:${table}:${idColumn}:${valueColumn}:${chunk.length}`,
       `SELECT ${idColumn} AS id, ${valueColumn} AS value FROM ${table} ` +
-      `WHERE mode = ? AND ${valueColumn} IN (${placeholders})`
+        `WHERE mode = ? AND ${valueColumn} IN (${placeholders})`
     );
     rows.push(...stmt.all(mode, ...chunk));
   }
@@ -49,12 +75,15 @@ export function ensureVocabIds(
     const ratioLimit = Number.isFinite(limits.ratio) ? limits.ratio : null;
     const absLimit = Number.isFinite(limits.absolute) ? limits.absolute : null;
     if ((ratioLimit !== null && ratio > ratioLimit) || (absLimit !== null && missing.length > absLimit)) {
+      const sample = formatMissingSample(missing);
       return {
         map,
         inserted: 0,
         total: totalBefore,
         skip: true,
-        reason: `${table} growth ${missing.length}/${totalBefore}`
+        reason: sample
+          ? `${table} growth ${missing.length}/${totalBefore} (sample: ${sample})`
+          : `${table} growth ${missing.length}/${totalBefore}`
       };
     }
   }

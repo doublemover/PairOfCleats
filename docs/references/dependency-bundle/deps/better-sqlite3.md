@@ -8,6 +8,7 @@ Fast synchronous SQLite access for building/searching persistent indexes (includ
 ## Implementation notes (practical)
 - Use prepared statements and explicit transactions for bulk loads.
 - Tune pragmas (WAL, synchronous, cache_size, temp_store) based on workload and durability requirements.
+- Load optional ANN extensions via `tools/download-extensions.js` and configure `sqlite.vectorExtension` to enable `dense_vectors_ann`.
 
 ## Where it typically plugs into PairOfCleats
 - Persist postings, metadata, and chunk text/offsets; enable `--with-sqlite` build pipeline.

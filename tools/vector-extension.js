@@ -185,6 +185,28 @@ export function resolveVectorExtensionPath(config) {
 
 const loadCache = new WeakMap();
 
+const getLoadCache = (db) => {
+  let cache = loadCache.get(db);
+  if (!cache) {
+    cache = new Map();
+    loadCache.set(db, cache);
+  }
+  return cache;
+};
+
+const getLoadCacheKey = (config) => {
+  const extPath = resolveVectorExtensionPath(config) || '';
+  return [
+    config?.provider || '',
+    config?.module || '',
+    config?.table || '',
+    config?.column || '',
+    config?.encoding || '',
+    config?.options || '',
+    extPath
+  ].join('|');
+};
+
 /**
  * Load the vector extension into a SQLite connection (cached per db).
  * @param {import('better-sqlite3').Database} db
@@ -196,21 +218,26 @@ export function loadVectorExtension(db, config, label = 'sqlite') {
   if (!db || !config?.enabled) {
     return { ok: false, reason: config?.disabledReason || 'disabled' };
   }
-  if (loadCache.has(db)) return loadCache.get(db);
+  const cache = getLoadCache(db);
+  const cacheKey = getLoadCacheKey(config);
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    return cached.label === label ? cached : { ...cached, label };
+  }
   const extPath = resolveVectorExtensionPath(config);
   if (!extPath || !fs.existsSync(extPath)) {
     const result = { ok: false, reason: `missing extension (${extPath || 'unset'})` };
-    loadCache.set(db, result);
+    cache.set(cacheKey, result);
     return result;
   }
   try {
     db.loadExtension(extPath);
     const result = { ok: true, path: extPath, label };
-    loadCache.set(db, result);
+    cache.set(cacheKey, result);
     return result;
   } catch (err) {
     const result = { ok: false, reason: err?.message || String(err), label };
-    loadCache.set(db, result);
+    cache.set(cacheKey, result);
     return result;
   }
 }
@@ -258,9 +285,15 @@ export function ensureVectorTable(db, config, dims) {
     return { ok: false, reason: 'invalid vector extension config' };
   }
   const options = config.options ? `, ${config.options}` : '';
+  let trustedSchema = null;
+  let restoreTrustedSchema = false;
   try {
     try {
-      db.pragma('trusted_schema = 1');
+      trustedSchema = db.pragma('trusted_schema', { simple: true });
+      if (trustedSchema !== 1) {
+        db.pragma('trusted_schema = 1');
+        restoreTrustedSchema = true;
+      }
     } catch {}
     db.exec(
       `CREATE VIRTUAL TABLE IF NOT EXISTS ${config.table} USING ${config.module}(${column} float[${Math.floor(dims)}]${options})`
@@ -268,6 +301,12 @@ export function ensureVectorTable(db, config, dims) {
     return { ok: true, tableName: config.table, column };
   } catch (err) {
     return { ok: false, reason: err?.message || String(err) };
+  } finally {
+    if (restoreTrustedSchema && trustedSchema !== null) {
+      try {
+        db.pragma(`trusted_schema = ${trustedSchema}`);
+      } catch {}
+    }
   }
 }
 
