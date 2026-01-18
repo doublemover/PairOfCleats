@@ -54,4 +54,32 @@ if (staleShm && staleShm.toString('utf8') === 'stale-shm') {
   process.exit(1);
 }
 
+run([
+  path.join(root, 'build_index.js'),
+  '--incremental',
+  '--stub-embeddings',
+  '--repo',
+  repoRoot
+], 'build index (incremental)');
+await fsPromises.writeFile(walPath, 'stale-wal');
+await fsPromises.writeFile(shmPath, 'stale-shm');
+run([
+  path.join(root, 'tools', 'build-sqlite-index.js'),
+  '--incremental',
+  '--mode',
+  'code',
+  '--repo',
+  repoRoot
+], 'incremental sqlite update');
+const incrementalWal = fs.existsSync(walPath) ? fs.readFileSync(walPath) : null;
+const incrementalShm = fs.existsSync(shmPath) ? fs.readFileSync(shmPath) : null;
+if (incrementalWal && incrementalWal.toString('utf8') === 'stale-wal') {
+  console.error('Incremental WAL sidecar was not cleaned up.');
+  process.exit(1);
+}
+if (incrementalShm && incrementalShm.toString('utf8') === 'stale-shm') {
+  console.error('Incremental SHM sidecar was not cleaned up.');
+  process.exit(1);
+}
+
 console.log('sqlite sidecar cleanup test passed');

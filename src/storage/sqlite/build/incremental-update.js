@@ -1,12 +1,23 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { readBundleFile } from '../../../shared/bundle-io.js';
-import { buildChunkRow, buildTokenFrequency } from '../build-helpers.js';
+import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../build-helpers.js';
 import { REQUIRED_TABLES, SCHEMA_VERSION } from '../schema.js';
 import { hasRequiredTables, normalizeFilePath } from '../utils.js';
-import { packUint32, packUint8, quantizeVec, toVectorId } from '../vector.js';
+import {
+  packUint32,
+  packUint8,
+  quantizeVec,
+  resolveQuantizationParams,
+  toSqliteRowId
+} from '../vector.js';
 import { deleteDocIds, updateTokenStats } from './delete.js';
-import { diffFileManifests, getFileManifest, normalizeManifestFiles } from './manifest.js';
+import {
+  diffFileManifests,
+  getFileManifest,
+  normalizeManifestFiles,
+  validateIncrementalManifest
+} from './manifest.js';
 import { createInsertStatements } from './statements.js';
 import { getSchemaVersion, validateSqliteDatabase } from './validate.js';
 import { ensureVocabIds } from './vocab.js';
@@ -79,6 +90,12 @@ export async function incrementalUpdateDatabase({
     return { used: false, reason: 'schema missing' };
   }
 
+  const manifestValidation = validateIncrementalManifest(incrementalData.manifest);
+  if (!manifestValidation.ok) {
+    db.close();
+    return { used: false, reason: `invalid manifest (${manifestValidation.errors.join('; ')})` };
+  }
+
   const manifestFiles = incrementalData.manifest.files || {};
   const manifestLookup = normalizeManifestFiles(manifestFiles);
   if (!manifestLookup.entries.length) {
@@ -100,50 +117,74 @@ export async function incrementalUpdateDatabase({
     }
   }
 
-  const { changed, deleted } = diffFileManifests(manifestLookup.entries, dbFiles);
+  const { changed, deleted, manifestUpdates } = diffFileManifests(manifestLookup.entries, dbFiles);
   const totalFiles = manifestLookup.entries.length;
+  const changeSummary = {
+    totalFiles,
+    changedFiles: changed.length,
+    deletedFiles: deleted.length,
+    manifestUpdates: manifestUpdates.length
+  };
   if (totalFiles) {
     const changeRatio = (changed.length + deleted.length) / totalFiles;
     if (changeRatio > MAX_INCREMENTAL_CHANGE_RATIO) {
       db.close();
       return {
         used: false,
-        reason: `change ratio ${changeRatio.toFixed(2)} exceeds ${MAX_INCREMENTAL_CHANGE_RATIO}`
+        reason: `change ratio ${changeRatio.toFixed(2)} (changed=${changed.length}, deleted=${deleted.length}, total=${totalFiles}) exceeds ${MAX_INCREMENTAL_CHANGE_RATIO}`,
+        ...changeSummary
       };
     }
   }
-  if (!changed.length && !deleted.length) {
+  if (!changed.length && !deleted.length && !manifestUpdates.length) {
     db.close();
-    return { used: true, changedFiles: 0, deletedFiles: 0, insertedChunks: 0 };
+    return { used: true, insertedChunks: 0, ...changeSummary };
   }
 
   const dbDenseMeta = db.prepare(
-    'SELECT dims, scale, model FROM dense_meta WHERE mode = ?'
+    'SELECT dims, scale, model, min_val, max_val, levels FROM dense_meta WHERE mode = ?'
   ).get(mode);
   const dbDims = Number.isFinite(dbDenseMeta?.dims) ? dbDenseMeta.dims : null;
   const dbModel = dbDenseMeta?.model || null;
+  const configQuantization = resolveQuantizationParams(vectorConfig?.quantization);
+  const dbQuantization = dbDenseMeta
+    ? resolveQuantizationParams({
+      minVal: dbDenseMeta?.min_val,
+      maxVal: dbDenseMeta?.max_val,
+      levels: dbDenseMeta?.levels
+    })
+    : configQuantization;
+  const quantization = dbDenseMeta ? dbQuantization : configQuantization;
   if ((expectedModel || expectedDims !== null) && !dbDenseMeta) {
     db.close();
-    return { used: false, reason: 'dense metadata missing' };
+    return { used: false, reason: 'dense metadata missing', ...changeSummary };
   }
   if (expectedModel) {
     if (!dbModel) {
       db.close();
-      return { used: false, reason: 'dense metadata model missing' };
+      return { used: false, reason: 'dense metadata model missing', ...changeSummary };
     }
     if (dbModel !== expectedModel) {
       db.close();
-      return { used: false, reason: `model mismatch (db=${dbModel}, expected=${expectedModel})` };
+      return {
+        used: false,
+        reason: `model mismatch (db=${dbModel}, expected=${expectedModel})`,
+        ...changeSummary
+      };
     }
   }
   if (expectedDims !== null) {
     if (dbDims === null) {
       db.close();
-      return { used: false, reason: 'dense metadata dims missing' };
+      return { used: false, reason: 'dense metadata dims missing', ...changeSummary };
     }
     if (dbDims !== expectedDims) {
       db.close();
-      return { used: false, reason: `dense dims mismatch (db=${dbDims}, expected=${expectedDims})` };
+      return {
+        used: false,
+        reason: `dense dims mismatch (db=${dbDims}, expected=${expectedDims})`,
+        ...changeSummary
+      };
     }
   }
 
@@ -155,17 +196,17 @@ export async function incrementalUpdateDatabase({
     const bundleName = entry?.bundle;
     if (!bundleName) {
       db.close();
-      return { used: false, reason: `missing bundle for ${fileKey}` };
+      return { used: false, reason: `missing bundle for ${fileKey}`, ...changeSummary };
     }
     const bundlePath = path.join(incrementalData.bundleDir, bundleName);
     if (!fsSync.existsSync(bundlePath)) {
       db.close();
-      return { used: false, reason: `bundle missing for ${fileKey}` };
+      return { used: false, reason: `bundle missing for ${fileKey}`, ...changeSummary };
     }
     const result = await readBundleFile(bundlePath);
     if (!result.ok) {
       db.close();
-      return { used: false, reason: `invalid bundle for ${fileKey}` };
+      return { used: false, reason: `invalid bundle for ${fileKey}`, ...changeSummary };
     }
     bundles.set(normalizedFile, { bundle: result.bundle, entry, fileKey, normalizedFile });
   }
@@ -188,16 +229,53 @@ export async function incrementalUpdateDatabase({
   }
   if (incomingDimsSet.size > 1) {
     db.close();
-    return { used: false, reason: 'embedding dims mismatch across bundles' };
+    return { used: false, reason: 'embedding dims mismatch across bundles', ...changeSummary };
   }
   const incomingDims = incomingDimsSet.size ? [...incomingDimsSet][0] : null;
   if (incomingDims !== null && dbDims !== null && incomingDims !== dbDims) {
     db.close();
-    return { used: false, reason: `embedding dims mismatch (db=${dbDims}, incoming=${incomingDims})` };
+    return {
+      used: false,
+      reason: `embedding dims mismatch (db=${dbDims}, incoming=${incomingDims})`,
+      ...changeSummary
+    };
   }
   if (incomingDims !== null && expectedDims !== null && incomingDims !== expectedDims) {
     db.close();
-    return { used: false, reason: `embedding dims mismatch (expected=${expectedDims}, incoming=${incomingDims})` };
+    return {
+      used: false,
+      reason: `embedding dims mismatch (expected=${expectedDims}, incoming=${incomingDims})`,
+      ...changeSummary
+    };
+  }
+
+  const updateFileManifest = db.prepare(
+    'UPDATE file_manifest SET hash = ?, mtimeMs = ?, size = ? WHERE mode = ? AND file = ?'
+  );
+  if (!changed.length && !deleted.length) {
+    const updateTx = db.transaction(() => {
+      for (const record of manifestUpdates) {
+        const normalizedFile = record.normalized;
+        const entry = record.entry || {};
+        updateFileManifest.run(
+          entry?.hash || null,
+          Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
+          Number.isFinite(entry?.size) ? entry.size : null,
+          mode,
+          normalizedFile
+        );
+      }
+    });
+    updateTx();
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch (err) {
+      if (emitOutput) {
+        warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
+      }
+    }
+    db.close();
+    return { used: true, insertedChunks: 0, ...changeSummary };
   }
 
   const statements = createInsertStatements(db);
@@ -239,30 +317,22 @@ export async function incrementalUpdateDatabase({
   const encodeVector = vectorConfig?.encodeVector;
   let denseMetaSet = false;
   let denseDims = null;
-  let denseWarned = false;
-  let vectorAnnLoaded = false;
-  let vectorAnnReady = false;
-  let vectorAnnTable = vectorExtension.table || 'dense_vectors_ann';
-  let vectorAnnColumn = vectorExtension.column || 'embedding';
-  let insertVectorAnn = null;
+  let vectorAnnWarned = false;
+  let vectorAnn = null;
   if (vectorAnnEnabled) {
-    const loadResult = vectorConfig.loadVectorExtension(db, vectorExtension, `sqlite ${mode}`);
-    if (loadResult.ok) {
-      vectorAnnLoaded = true;
-      if (vectorConfig.hasVectorTable(db, vectorAnnTable)) {
-        vectorAnnReady = true;
-        insertVectorAnn = db.prepare(
-          `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
-        );
-      }
-    } else if (emitOutput) {
-      warn(`[sqlite] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
+    vectorAnn = prepareVectorAnnInsert({ db, mode, vectorConfig });
+    if (vectorAnn.loaded === false && vectorAnn.reason && emitOutput) {
+      warn(`[sqlite] Vector extension unavailable for ${mode}: ${vectorAnn.reason}`);
+      vectorAnnWarned = true;
     }
   }
 
-  const vectorDeleteTargets = vectorAnnLoaded && vectorAnnReady
-    ? [{ table: vectorAnnTable, column: 'rowid', withMode: false, transform: toVectorId }]
+  const vectorDeleteTargets = vectorAnn?.ready
+    ? [{ table: vectorAnn.tableName, column: 'rowid', withMode: false, transform: toSqliteRowId }]
     : [];
+  if (vectorAnn?.ready && vectorDeleteTargets.length && vectorDeleteTargets[0].column !== 'rowid') {
+    throw new Error('[sqlite] Vector delete targets must use rowid');
+  }
 
   const applyChanges = db.transaction(() => {
     const tokenVocab = ensureVocabIds(
@@ -316,8 +386,23 @@ export async function incrementalUpdateDatabase({
       const entry = existingIdsByFile.get(normalizedFile);
       const docIds = entry?.ids || [];
       deleteDocIds(db, mode, docIds, vectorDeleteTargets);
+      if (docIds.length) {
+        freeDocIds.push(...docIds);
+      }
       db.prepare('DELETE FROM file_manifest WHERE mode = ? AND file = ?')
         .run(mode, normalizedFile);
+    }
+
+    for (const record of manifestUpdates) {
+      const normalizedFile = record.normalized;
+      const entry = record.entry || {};
+      updateFileManifest.run(
+        entry?.hash || null,
+        Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
+        Number.isFinite(entry?.size) ? entry.size : null,
+        mode,
+        normalizedFile
+      );
     }
 
     for (const record of changed) {
@@ -384,29 +469,38 @@ export async function incrementalUpdateDatabase({
         if (Array.isArray(chunk.embedding) && chunk.embedding.length) {
           const dims = chunk.embedding.length;
           if (!denseMetaSet) {
-            insertDenseMeta.run(mode, dims, 1.0, modelConfig.id || null);
+            insertDenseMeta.run(
+              mode,
+              dims,
+              1.0,
+              modelConfig.id || null,
+              quantization.minVal,
+              quantization.maxVal,
+              quantization.levels
+            );
             denseMetaSet = true;
             denseDims = dims;
-          } else if (denseDims !== null && dims !== denseDims && !denseWarned) {
-            warn(`Dense vector dims mismatch for ${mode}: expected ${denseDims}, got ${dims}`);
-            denseWarned = true;
+          } else if (denseDims !== null && dims !== denseDims) {
+            throw new Error(`Dense vector dims mismatch for ${mode}: expected ${denseDims}, got ${dims}`);
           }
-          insertDense.run(mode, docId, packUint8(quantizeVec(chunk.embedding)));
-          if (vectorAnnLoaded) {
-            if (!vectorAnnReady) {
-              const created = vectorConfig.ensureVectorTable(db, vectorExtension, dims);
-              if (created.ok) {
-                vectorAnnReady = true;
-                vectorAnnTable = created.tableName;
-                vectorAnnColumn = created.column;
-                insertVectorAnn = db.prepare(
-                  `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
-                );
+          insertDense.run(
+            mode,
+            docId,
+            packUint8(quantizeVec(chunk.embedding, quantization.minVal, quantization.maxVal, quantization.levels))
+          );
+          if (vectorAnn?.loaded) {
+            if (!vectorAnn.ready) {
+              const created = prepareVectorAnnInsert({ db, mode, vectorConfig, dims });
+              if (created.ready) {
+                vectorAnn = created;
+              } else if (created.reason && !vectorAnnWarned && emitOutput) {
+                warn(`[sqlite] Failed to prepare vector table for ${mode}: ${created.reason}`);
+                vectorAnnWarned = true;
               }
             }
-            if (vectorAnnReady && insertVectorAnn && encodeVector) {
+            if (vectorAnn.ready && vectorAnn.insert && encodeVector) {
               const encoded = encodeVector(chunk.embedding, vectorExtension);
-              if (encoded) insertVectorAnn.run(toVectorId(docId), encoded);
+              if (encoded) vectorAnn.insert.run(toSqliteRowId(docId), encoded);
             }
           }
         }
@@ -430,7 +524,7 @@ export async function incrementalUpdateDatabase({
     }
 
     updateTokenStats(db, mode, insertTokenStats);
-    validateSqliteDatabase(db, mode, { validateMode, emitOutput, logger });
+    validateSqliteDatabase(db, mode, { validateMode, emitOutput, logger, dbPath: outPath });
   });
 
   try {
@@ -445,15 +539,15 @@ export async function incrementalUpdateDatabase({
   } catch (err) {
     db.close();
     if (err instanceof IncrementalSkipError) {
-      return { used: false, reason: err.reason };
+      return { used: false, reason: err.reason, ...changeSummary };
     }
     throw err;
   }
   db.close();
   return {
     used: true,
-    changedFiles: changed.length,
-    deletedFiles: deleted.length,
-    insertedChunks
+    insertedChunks,
+    ...changeSummary
   };
 }
+

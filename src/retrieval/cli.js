@@ -22,6 +22,7 @@ import { resolveIndexDir } from './cli-index.js';
 import { configureOutputCaches } from './output.js';
 import { createSearchTelemetry } from './cli/telemetry.js';
 import { getMissingFlagMessages, resolveIndexedFileCount } from './cli/options.js';
+import { evaluateAutoSqliteThresholds, resolveIndexStats } from './cli/auto-sqlite.js';
 import { hasLmdbStore } from './cli/index-loader.js';
 import { applyBranchFilter } from './cli/branch-filter.js';
 import { createBackendContext } from './cli/backend-context.js';
@@ -54,6 +55,7 @@ const isLmdbReady = (state) => {
   if (!state?.lmdb) return true;
   return state.lmdb.ready !== false && state.lmdb.pending !== true;
 };
+
 
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
   const telemetry = createSearchTelemetry();
@@ -169,6 +171,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       embeddingOnnx,
       hnswConfig,
       sqliteConfig,
+      sqliteAutoChunkThreshold,
+      sqliteAutoArtifactBytes,
       postingsConfig,
       filePrefilterEnabled,
       searchRegexConfig,
@@ -255,6 +259,41 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const lmdbProseAvailable = hasLmdbStore(lmdbProsePath) && isLmdbReady(lmdbStateProse);
     const lmdbAvailable = (!needsCode || lmdbCodeAvailable) && (!needsProse || lmdbProseAvailable);
 
+    const autoChunkThreshold = Number.isFinite(sqliteAutoChunkThreshold)
+      ? Math.max(0, Math.floor(sqliteAutoChunkThreshold))
+      : 0;
+    const autoArtifactThreshold = Number.isFinite(sqliteAutoArtifactBytes)
+      ? Math.max(0, Math.floor(sqliteAutoArtifactBytes))
+      : 0;
+    const autoThresholdsEnabled = autoChunkThreshold > 0 || autoArtifactThreshold > 0;
+    const autoBackendRequested = !backendArg || String(backendArg).trim().toLowerCase() === 'auto';
+    let autoSqliteAllowed = true;
+    let autoSqliteReason = null;
+    if (autoThresholdsEnabled && autoBackendRequested && sqliteAvailable && needsSqlite) {
+      const stats = [];
+      if (runCode) {
+        stats.push({ mode: 'code', ...resolveIndexStats(resolveIndexDir(rootDir, 'code', userConfig)) });
+      }
+      if (runProse) {
+        stats.push({ mode: 'prose', ...resolveIndexStats(resolveIndexDir(rootDir, 'prose', userConfig)) });
+      }
+      if (runExtractedProse) {
+        stats.push({
+          mode: 'extracted-prose',
+          ...resolveIndexStats(resolveIndexDir(rootDir, 'extracted-prose', userConfig))
+        });
+      }
+      const evaluation = evaluateAutoSqliteThresholds({
+        stats,
+        chunkThreshold: autoChunkThreshold,
+        artifactThreshold: autoArtifactThreshold
+      });
+      if (!evaluation.allowed) {
+        autoSqliteAllowed = false;
+        autoSqliteReason = evaluation.reason;
+      }
+    }
+
     const backendSelection = await resolveBackendSelection({
       backendArg,
       sqliteAvailable,
@@ -277,7 +316,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       return bail(backendSelection.error.message);
     }
 
-    const {
+    let {
       backendPolicy,
       useSqlite: useSqliteSelection,
       useLmdb: useLmdbSelection,
@@ -286,6 +325,16 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       backendForcedLmdb,
       backendForcedTantivy
     } = backendSelection;
+    if (!autoSqliteAllowed && autoBackendRequested && useSqliteSelection && !backendForcedSqlite) {
+      useSqliteSelection = false;
+      useLmdbSelection = false;
+      if (autoSqliteReason) {
+        backendPolicy = backendPolicy ? { ...backendPolicy, reason: autoSqliteReason } : backendPolicy;
+        if (emitOutput) {
+          console.warn(`[search] ${autoSqliteReason}. Falling back to file-backed indexes.`);
+        }
+      }
+    }
 
     const backendContext = await createBackendContext({
       backendPolicy,

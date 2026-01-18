@@ -19,7 +19,12 @@ import { checksumFile, sha1File } from '../shared/hash.js';
 import { validateArtifact } from '../shared/artifact-schemas.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../shared/lancedb.js';
 import { Unpackr } from 'msgpackr';
-import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../storage/lmdb/schema.js';
+import {
+  LMDB_ARTIFACT_KEYS,
+  LMDB_META_KEYS,
+  LMDB_REQUIRED_ARTIFACT_KEYS,
+  LMDB_SCHEMA_VERSION
+} from '../storage/lmdb/schema.js';
 
 const resolveIndexDir = (root, mode, userConfig, indexRoot = null) => {
   const cached = getIndexDir(root, mode, userConfig, { indexRoot });
@@ -688,11 +693,7 @@ export async function validateIndexArtifacts(input = {}) {
           );
           return;
         }
-        const requiredArtifacts = [
-          LMDB_ARTIFACT_KEYS.chunkMeta,
-          LMDB_ARTIFACT_KEYS.tokenPostings
-        ];
-        for (const key of requiredArtifacts) {
+        for (const key of LMDB_REQUIRED_ARTIFACT_KEYS) {
           if (!artifacts.includes(key)) {
             addLmdbIssue(
               label,
@@ -766,6 +767,7 @@ export async function validateIndexArtifacts(input = {}) {
         const issue = 'better-sqlite3 not available';
         sqliteReport.issues.push(issue);
         report.issues.push(`[sqlite] ${issue}`);
+        report.hints.push('Run `npm install` to install better-sqlite3.');
       }
       if (Database) {
         const checkTables = (dbPath, label) => {
@@ -779,6 +781,7 @@ export async function validateIndexArtifacts(input = {}) {
               const issue = `${label} missing tables: ${missing.join(', ')}`;
               sqliteReport.issues.push(issue);
               report.issues.push(`[sqlite] ${issue}`);
+              report.hints.push('Run `npm run build-sqlite-index` to rebuild SQLite artifacts.');
             }
           } finally {
             db.close();

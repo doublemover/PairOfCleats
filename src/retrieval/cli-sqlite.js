@@ -1,6 +1,9 @@
+import fsSync from 'node:fs';
 import { hasVectorTable, loadVectorExtension, resolveVectorExtensionPath } from '../../tools/vector-extension.js';
 
 import { SCHEMA_VERSION } from '../storage/sqlite/schema.js';
+
+const sqliteChunkCountCache = new Map();
 
 /**
  * Initialize SQLite connections for search.
@@ -92,6 +95,39 @@ export async function createSqliteBackend(options) {
       'dense_meta'
     ];
 
+  const formatMissingList = (values, max = 8) => {
+    if (!Array.isArray(values)) return '';
+    if (values.length <= max) return values.join(', ');
+    const head = values.slice(0, max).join(', ');
+    return `${head}, +${values.length - max} more`;
+  };
+
+  const requiredColumnsByTable = {
+    chunks: [
+      'id',
+      'mode',
+      'file',
+      'start',
+      'end',
+      'churn',
+      'churn_added',
+      'churn_deleted',
+      'churn_commits'
+    ],
+    chunks_fts: ['mode', 'file', 'name', 'signature', 'kind', 'headline', 'doc', 'tokens'],
+    token_vocab: ['mode', 'token_id', 'token'],
+    token_postings: ['mode', 'token_id', 'doc_id', 'tf'],
+    doc_lengths: ['mode', 'doc_id', 'len'],
+    token_stats: ['mode', 'avg_doc_len', 'total_docs'],
+    phrase_vocab: ['mode', 'phrase_id', 'ngram'],
+    phrase_postings: ['mode', 'phrase_id', 'doc_id'],
+    chargram_vocab: ['mode', 'gram_id', 'gram'],
+    chargram_postings: ['mode', 'gram_id', 'doc_id'],
+    minhash_signatures: ['mode', 'doc_id', 'sig'],
+    dense_vectors: ['mode', 'doc_id', 'vector'],
+    dense_meta: ['mode', 'dims', 'scale', 'model', 'min_val', 'max_val', 'levels']
+  };
+
   const openSqlite = (dbPath, label) => {
     const cached = dbCache?.get?.(dbPath);
     if (cached) return cached;
@@ -100,7 +136,27 @@ export async function createSqliteBackend(options) {
     const tableNames = new Set(tableRows.map((row) => row.name));
     const missing = requiredTables.filter((name) => !tableNames.has(name));
     if (missing.length) {
-      const message = `SQLite index ${label} is missing required tables (${missing.join(', ')}). Rebuild with npm run build-sqlite-index.`;
+      const message = `SQLite index ${label} is missing required tables (${formatMissingList(missing)}). Rebuild with npm run build-sqlite-index.`;
+      if (backendForcedSqlite) {
+        throw new Error(message);
+      }
+      console.warn(`${message} Falling back to file-backed indexes.`);
+      db.close();
+      return null;
+    }
+    const columnIssues = [];
+    for (const table of requiredTables) {
+      const requiredColumns = requiredColumnsByTable[table];
+      if (!requiredColumns) continue;
+      const columns = db.prepare(`PRAGMA table_info(${table})`).all().map((row) => row.name);
+      const columnSet = new Set(columns);
+      const missingColumns = requiredColumns.filter((col) => !columnSet.has(col));
+      if (missingColumns.length) {
+        columnIssues.push(`${table} missing columns: ${formatMissingList(missingColumns)}`);
+      }
+    }
+    if (columnIssues.length) {
+      const message = `SQLite index ${label} is missing required columns (${columnIssues.join('; ')}). Rebuild with npm run build-sqlite-index.`;
       if (backendForcedSqlite) {
         throw new Error(message);
       }
@@ -174,13 +230,24 @@ export async function getSqliteChunkCount(dbPath, mode) {
     return null;
   }
   let db;
+  let cacheKey = '';
   try {
+    const stat = fsSync.statSync(dbPath);
+    cacheKey = `${dbPath}:${mode}`;
+    const cached = sqliteChunkCountCache.get(cacheKey);
+    if (cached && cached.mtimeMs === stat.mtimeMs) return cached.count;
+
     db = new Database(dbPath, { readonly: true });
     const manifestRow = db.prepare('SELECT SUM(chunk_count) as count FROM file_manifest WHERE mode = ?')
       .get(mode);
-    if (Number.isFinite(manifestRow?.count)) return manifestRow.count;
+    if (Number.isFinite(manifestRow?.count)) {
+      sqliteChunkCountCache.set(cacheKey, { mtimeMs: stat.mtimeMs, count: manifestRow.count });
+      return manifestRow.count;
+    }
     const row = db.prepare('SELECT COUNT(*) as count FROM chunks WHERE mode = ?').get(mode);
-    return typeof row?.count === 'number' ? row.count : null;
+    const count = typeof row?.count === 'number' ? row.count : null;
+    sqliteChunkCountCache.set(cacheKey, { mtimeMs: stat.mtimeMs, count });
+    return count;
   } catch {
     return null;
   } finally {

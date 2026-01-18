@@ -1,12 +1,21 @@
+const applyPragma = (db, pragma, label) => {
+  try {
+    db.pragma(pragma);
+  } catch (err) {
+    const suffix = label ? ` (${label})` : '';
+    console.warn(`[sqlite] Failed to apply pragma${suffix}: ${err?.message || err}`);
+  }
+};
+
 export const applyBuildPragmas = (db) => {
-  try { db.pragma('journal_mode = WAL'); } catch {}
-  try { db.pragma('synchronous = OFF'); } catch {}
-  try { db.pragma('temp_store = MEMORY'); } catch {}
-  try { db.pragma('cache_size = -200000'); } catch {}
-  try { db.pragma('mmap_size = 268435456'); } catch {}
+  applyPragma(db, 'journal_mode = WAL', 'journal_mode');
+  applyPragma(db, 'synchronous = OFF', 'synchronous');
+  applyPragma(db, 'temp_store = MEMORY', 'temp_store');
+  applyPragma(db, 'cache_size = -200000', 'cache_size');
+  applyPragma(db, 'mmap_size = 268435456', 'mmap_size');
 };
 
 export const restoreBuildPragmas = (db) => {
-  try { db.pragma('synchronous = NORMAL'); } catch {}
-  try { db.pragma('temp_store = DEFAULT'); } catch {}
+  applyPragma(db, 'synchronous = NORMAL', 'synchronous');
+  applyPragma(db, 'temp_store = DEFAULT', 'temp_store');
 };

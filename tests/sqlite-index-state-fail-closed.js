@@ -87,4 +87,28 @@ if (state.sqlite.pending !== true || state.sqlite.ready !== false) {
   process.exit(1);
 }
 
+run([
+  path.join(root, 'build_index.js'),
+  '--stub-embeddings',
+  '--mode',
+  'code',
+  '--repo',
+  repoRoot
+], 'rebuild index');
+run([
+  path.join(root, 'tools', 'build-sqlite-index.js'),
+  '--mode',
+  'code',
+  '--repo',
+  repoRoot
+], 'rebuild sqlite');
+
+const stateAfter = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+if (stateAfter.sqlite?.pending !== false || stateAfter.sqlite?.ready !== true) {
+  console.error(
+    `Expected sqlite pending=false and ready=true after success, got pending=${stateAfter.sqlite?.pending} ready=${stateAfter.sqlite?.ready}`
+  );
+  process.exit(1);
+}
+
 console.log('sqlite index state fail-closed test passed');

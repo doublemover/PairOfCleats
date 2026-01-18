@@ -49,7 +49,7 @@ export function hasRequiredTables(db, requiredTables) {
  * @returns {string}
  */
 export function normalizeFilePath(value) {
-  if (typeof value !== 'string') return value;
+  if (typeof value !== 'string') return null;
   return value.replace(/\\/g, '/');
 }
 
@@ -146,6 +146,16 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
   const keepBackup = options.keepBackup === true;
   const backupPath = options.backupPath || `${finalDbPath}.bak`;
   const finalExists = fs.existsSync(finalDbPath);
+  const emit = (message) => {
+    if (!message) return;
+    if (options.logger?.warn) {
+      options.logger.warn(message);
+      return;
+    }
+    if (options.logger?.log) {
+      options.logger.log(message);
+    }
+  };
 
   await removeSqliteSidecars(finalDbPath);
   await removeSqliteSidecars(tempDbPath);
@@ -159,6 +169,9 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       if (err?.code !== 'ENOENT') {
         backupAvailable = fs.existsSync(backupPath);
       }
+      if (!backupAvailable) {
+        emit(`[sqlite] Failed to move existing db to backup (${err?.message || err}).`);
+      }
     }
   }
 
@@ -171,6 +184,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     if (!backupAvailable) {
       throw err;
     }
+    emit('[sqlite] Falling back to removing existing db before replace.');
     try {
       await fsPromises.rm(finalDbPath, { force: true });
     } catch {}

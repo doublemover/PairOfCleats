@@ -6,6 +6,7 @@ export const normalizeValidateMode = (value) => {
   if (!normalized || normalized === 'true') return 'smoke';
   if (['off', 'false', '0', 'no'].includes(normalized)) return 'off';
   if (['full', 'integrity'].includes(normalized)) return 'full';
+  if (['auto', 'adaptive'].includes(normalized)) return 'auto';
   return 'smoke';
 };
 
@@ -25,6 +26,7 @@ export const parseBuildSqliteArgs = (rawArgs, options = {}) => {
       repo: { type: 'string' },
       incremental: { type: 'boolean', default: false },
       compact: { type: 'boolean', default: false },
+      'no-compact': { type: 'boolean', default: false },
       validate: { type: 'string', default: 'smoke' },
       'index-root': { type: 'string' },
       progress: { type: 'string', default: 'auto' },

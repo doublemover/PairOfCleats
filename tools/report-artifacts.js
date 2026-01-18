@@ -114,6 +114,12 @@ function formatBytes(bytes) {
   return `${rounded} ${units[unit]}`;
 }
 
+const formatBytesWithRaw = (value) => {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes)) return 'missing';
+  return `${formatBytes(bytes)} (${bytes.toLocaleString()} bytes)`;
+};
+
 const repo = status.repo;
 const overall = status.overall;
 const code = repo.sqlite?.code;
@@ -125,18 +131,18 @@ const lmdbProse = repo.lmdb?.prose;
 
 console.log('Repo artifacts');
 console.log(`- cache root: ${formatBytes(repo.totalBytes)} (${repo.root})`);
-console.log(`- index-code: ${formatBytes(repo.artifacts.indexCode)} (${repo.artifacts.indexCode})`);
-console.log(`- index-prose: ${formatBytes(repo.artifacts.indexProse)} (${repo.artifacts.indexProse})`);
-console.log(`- index-extracted-prose: ${formatBytes(repo.artifacts.indexExtractedProse)} (${repo.artifacts.indexExtractedProse})`);
-console.log(`- index-records: ${formatBytes(repo.artifacts.indexRecords)} (${repo.artifacts.indexRecords})`);
+console.log(`- index-code: ${formatBytesWithRaw(repo.artifacts.indexCode)}`);
+console.log(`- index-prose: ${formatBytesWithRaw(repo.artifacts.indexProse)}`);
+console.log(`- index-extracted-prose: ${formatBytesWithRaw(repo.artifacts.indexExtractedProse)}`);
+console.log(`- index-records: ${formatBytesWithRaw(repo.artifacts.indexRecords)}`);
 console.log(`- repometrics: ${formatBytes(repo.artifacts.repometrics)} (${path.join(repo.root, 'repometrics')})`);
 console.log(`- incremental: ${formatBytes(repo.artifacts.incremental)} (${path.join(repo.root, 'incremental')})`);
-console.log(`- sqlite code db: ${code ? formatBytes(code.bytes) : 'missing'} (${code?.path || status.repo.sqlite?.code?.path || 'missing'})`);
-console.log(`- sqlite prose db: ${prose ? formatBytes(prose.bytes) : 'missing'} (${prose?.path || status.repo.sqlite?.prose?.path || 'missing'})`);
-console.log(`- sqlite extracted-prose db: ${extractedProse ? formatBytes(extractedProse.bytes) : 'missing'} (${extractedProse?.path || status.repo.sqlite?.extractedProse?.path || 'missing'})`);
-console.log(`- sqlite records db: ${records ? formatBytes(records.bytes) : 'missing'} (${records?.path || status.repo.sqlite?.records?.path || 'missing'})`);
-console.log(`- lmdb code db: ${lmdbCode ? formatBytes(lmdbCode.bytes) : 'missing'} (${lmdbCode?.path || status.repo.lmdb?.code?.path || 'missing'})`);
-console.log(`- lmdb prose db: ${lmdbProse ? formatBytes(lmdbProse.bytes) : 'missing'} (${lmdbProse?.path || status.repo.lmdb?.prose?.path || 'missing'})`);
+console.log(`- sqlite code db: ${code ? formatBytesWithRaw(code.bytes) : 'missing'} (${code?.path || status.repo.sqlite?.code?.path || 'missing'})`);
+console.log(`- sqlite prose db: ${prose ? formatBytesWithRaw(prose.bytes) : 'missing'} (${prose?.path || status.repo.sqlite?.prose?.path || 'missing'})`);
+console.log(`- sqlite extracted-prose db: ${extractedProse ? formatBytesWithRaw(extractedProse.bytes) : 'missing'} (${extractedProse?.path || status.repo.sqlite?.extractedProse?.path || 'missing'})`);
+console.log(`- sqlite records db: ${records ? formatBytesWithRaw(records.bytes) : 'missing'} (${records?.path || status.repo.sqlite?.records?.path || 'missing'})`);
+console.log(`- lmdb code db: ${lmdbCode ? formatBytesWithRaw(lmdbCode.bytes) : 'missing'} (${lmdbCode?.path || status.repo.lmdb?.code?.path || 'missing'})`);
+console.log(`- lmdb prose db: ${lmdbProse ? formatBytesWithRaw(lmdbProse.bytes) : 'missing'} (${lmdbProse?.path || status.repo.lmdb?.prose?.path || 'missing'})`);
 if (repo.sqlite?.legacy) {
   console.log(`- legacy sqlite db: ${repo.sqlite.legacy.path}`);
 }

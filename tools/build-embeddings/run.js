@@ -5,7 +5,7 @@ import { createEmbedder } from '../../src/index/embedding.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../src/index/build/build-state.js';
 import { loadIncrementalManifest } from '../../src/storage/sqlite/incremental.js';
-import { dequantizeUint8ToFloat32 } from '../../src/storage/sqlite/vector.js';
+import { dequantizeUint8ToFloat32, resolveQuantizationParams } from '../../src/storage/sqlite/vector.js';
 import { loadChunkMeta, readJsonFile, MAX_JSON_BYTES } from '../../src/shared/artifact-io.js';
 import { readTextFileWithHash } from '../../src/shared/encoding.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
@@ -117,7 +117,12 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     return { skipped: true };
   }
 
-  const denseScale = 2 / 255;
+  const quantization = resolveQuantizationParams(embeddingsConfig.quantization);
+  const quantRange = quantization.maxVal - quantization.minVal;
+  const quantLevels = Number.isFinite(quantization.levels) ? quantization.levels : 256;
+  const denseScale = quantLevels > 1 && Number.isFinite(quantRange) && quantRange !== 0
+    ? quantRange / (quantLevels - 1)
+    : 2 / 255;
   const cacheDims = useStubEmbeddings ? resolveStubDims(configuredDims) : configuredDims;
   const resolvedOnnxModelPath = embeddingProvider === 'onnx'
     ? resolveOnnxModelPath({
@@ -140,9 +145,9 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     maxLength: null,
     quantization: {
       version: 1,
-      minVal: -1,
-      maxVal: 1,
-      levels: 256
+      minVal: quantization.minVal,
+      maxVal: quantization.maxVal,
+      levels: quantization.levels
     },
     onnx: embeddingProvider === 'onnx' ? {
       ...embeddingOnnx,
@@ -365,7 +370,8 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
           codeVector: embedCode,
           docVector: embedDoc,
           zeroVector: zeroVec,
-          addHnswVector: hnswConfig.enabled ? hnswBuilder.addVector : null
+          addHnswVector: hnswConfig.enabled ? hnswBuilder.addVector : null,
+          quantization
         });
         codeVectors[chunkIndex] = quantized.quantizedCode;
         docVectors[chunkIndex] = quantized.quantizedDoc;
@@ -502,7 +508,12 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
               docVectors[chunkIndex] = docVec;
               mergedVectors[chunkIndex] = mergedVec;
               if (hnswConfig.enabled && mergedVec.length) {
-                const floatVec = dequantizeUint8ToFloat32(mergedVec);
+                const floatVec = dequantizeUint8ToFloat32(
+                  mergedVec,
+                  quantization.minVal,
+                  quantization.maxVal,
+                  quantization.levels
+                );
                 if (floatVec) hnswBuilder.addVector(chunkIndex, floatVec);
               }
             }
@@ -568,7 +579,12 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
                 docVectors[chunkIndex] = docVec;
                 mergedVectors[chunkIndex] = mergedVec;
                 if (hnswConfig.enabled && mergedVec.length) {
-                  const floatVec = dequantizeUint8ToFloat32(mergedVec);
+                const floatVec = dequantizeUint8ToFloat32(
+                  mergedVec,
+                  quantization.minVal,
+                  quantization.maxVal,
+                  quantization.levels
+                );
                   if (floatVec) hnswBuilder.addVector(chunkIndex, floatVec);
                 }
               }
@@ -724,7 +740,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     }
 
     if (mode === 'code' || mode === 'prose') {
-      updateSqliteDense({
+        updateSqliteDense({
         Database,
         root,
         userConfig,
@@ -734,6 +750,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
         dims: finalDims,
         scale: denseScale,
         modelId,
+        quantization,
         emitOutput: true,
         logger
       });
