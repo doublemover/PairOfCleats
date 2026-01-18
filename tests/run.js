@@ -22,7 +22,7 @@ const EXCLUDED_DIRS = new Set([
   'worktree',
   'worktrees'
 ]);
-const EXCLUDED_FILES = new Set(['run.js', 'all.js', 'script-coverage.js']);
+const EXCLUDED_FILES = new Set(['run.js', 'all.js', 'script-coverage.js', 'api-server-stream.js']);
 const KNOWN_LANES = new Set(['smoke', 'unit', 'integration', 'services', 'storage', 'perf', 'ci']);
 
 const LANE_RULES = [

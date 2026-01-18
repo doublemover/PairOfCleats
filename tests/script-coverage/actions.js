@@ -1197,12 +1197,10 @@ const actions = [
   const mergeTarget = path.join(mergeDir, 'target.txt');
   await fsPromises.writeFile(mergeBase, 'alpha\nbeta\n');
   await fsPromises.writeFile(mergeTarget, 'beta\ngamma\n');
-
   actions.push({
     label: 'merge-append',
     run: () => runNode('merge-append', path.join(root, 'tools', 'mergeAppendOnly.js'), [mergeBase, mergeTarget]),
     covers: ['merge-append']
   });
-
   return actions;
 };

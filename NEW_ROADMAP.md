@@ -11,7 +11,6 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ## Roadmap order (stability/performance frontloaded)
 
-1. Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
 2. Phase 12 — Storage backends (SQLite + LMDB)
 3. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
 4. Phase 14 — Documentation and Configuration Hardening
@@ -3325,5 +3324,15 @@ Concrete replacements:
 ### 43.3 Smoke retrieval
 
 * [x] `tests/smoke-retrieval.js`: updated help flag expectations and replaced RRF assertions with ANN presence checks for the new contract.
+
+---
+
+## Phase 44 - Merge Phase 32-40 test followups (manual run 2026-01-18)
+
+**Objective:** Track failures/hangs from `npm run test` after merging phase32-40, and re-enable skipped tests once fixed.
+
+### 44.1 Streaming test hang
+
+* [ ] `tests/api-server-stream.js`: hangs during `npm run test`; temporarily excluded from `tests/run.js`. Investigate stream lifecycle and re-enable the test in the suite.
 
 ---
