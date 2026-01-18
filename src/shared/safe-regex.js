@@ -1,4 +1,5 @@
-import { RE2JS } from 're2js';
+import { createRe2Backend } from './safe-regex/backends/re2.js';
+import { checkProgramSize, createRe2jsBackend } from './safe-regex/backends/re2js.js';
 
 export const DEFAULT_SAFE_REGEX_CONFIG = {
   maxPatternLength: 512,
@@ -42,20 +43,39 @@ const mergeFlags = (explicit, fallback) => {
   return merged.join('');
 };
 
-const toFlagMask = (flags) => {
-  let mask = 0;
-  if (flags.includes('i')) mask |= RE2JS.CASE_INSENSITIVE;
-  if (flags.includes('m')) mask |= RE2JS.MULTILINE;
-  if (flags.includes('s')) mask |= RE2JS.DOTALL;
-  return mask;
+const re2jsBackend = createRe2jsBackend();
+const re2Backend = createRe2Backend();
+let warnedMissingRe2 = false;
+
+const normalizeEngine = (engine) => {
+  if (engine === 're2' || engine === 're2js' || engine === 'auto') return engine;
+  return 'auto';
+};
+
+const warnMissingRe2 = () => {
+  if (warnedMissingRe2) return;
+  warnedMissingRe2 = true;
+  console.warn('[safe-regex] re2 requested but not available; falling back to re2js.');
+};
+
+const selectBackend = (engine) => {
+  if (engine === 're2') {
+    if (re2Backend.available) return re2Backend;
+    warnMissingRe2();
+    return re2jsBackend;
+  }
+  if (engine === 're2js') return re2jsBackend;
+  return re2Backend.available ? re2Backend : re2jsBackend;
 };
 
 class SafeRegex {
-  constructor(re2, source, flags, config) {
-    this.re2 = re2;
+  constructor(backend, compiled, source, flags, config) {
+    this.backend = backend;
+    this.compiled = compiled;
     this.source = source;
     this.flags = flags;
     this.config = config;
+    this.engine = backend?.name || 're2js';
     this.lastIndex = 0;
     this.isGlobal = flags.includes('g');
   }
@@ -75,24 +95,21 @@ class SafeRegex {
       ? Math.max(0, this.lastIndex)
       : 0;
     const started = timeoutMs ? Date.now() : 0;
-    const matcher = this.re2.matcher(text);
-    const found = matcher.find(startIndex);
+    const outcome = this.backend.exec(this.compiled, text, startIndex, this.isGlobal);
     if (timeoutMs && Date.now() - started > timeoutMs) {
       if (this.isGlobal) this.lastIndex = 0;
       return null;
     }
-    if (!found) {
+    if (!outcome || !outcome.match) {
       if (this.isGlobal) this.lastIndex = 0;
       return null;
     }
-    const groupCount = this.re2.groupCount();
-    const result = new Array(groupCount + 1);
-    for (let i = 0; i <= groupCount; i += 1) {
-      result[i] = matcher.group(i);
+    const result = outcome.match;
+    if (result.index === undefined || result.index === null) {
+      result.index = startIndex;
     }
-    result.index = matcher.start();
-    result.input = text;
-    if (this.isGlobal) this.lastIndex = matcher.end();
+    if (!result.input) result.input = text;
+    if (this.isGlobal) this.lastIndex = Number.isFinite(outcome.nextIndex) ? outcome.nextIndex : 0;
     return result;
   }
 
@@ -116,21 +133,26 @@ export function normalizeSafeRegexConfig(raw = {}, defaults = {}) {
 
 export function createSafeRegex(pattern, flags = '', config = {}) {
   const normalized = normalizeSafeRegexConfig(config);
+  const engine = normalizeEngine(config?.engine);
   const source = String(pattern ?? '');
   if (!source) return null;
   if (normalized.maxPatternLength && source.length > normalized.maxPatternLength) {
     return null;
   }
   const combinedFlags = mergeFlags(flags, normalized.flags);
-  const mask = toFlagMask(combinedFlags);
-  try {
-    const translated = RE2JS.translateRegExp(source);
-    const compiled = RE2JS.compile(translated, mask);
-    if (normalized.maxProgramSize && compiled.programSize() > normalized.maxProgramSize) {
+  const backend = selectBackend(engine);
+  if (backend.name === 're2' && normalized.maxProgramSize) {
+    if (!checkProgramSize(source, combinedFlags, normalized.maxProgramSize)) {
       return null;
     }
-    return new SafeRegex(compiled, source, combinedFlags, normalized);
-  } catch {
+  }
+  const compiled = backend.compile({
+    source,
+    flags: combinedFlags,
+    maxProgramSize: normalized.maxProgramSize
+  });
+  if (!compiled) {
     return null;
   }
+  return new SafeRegex(backend, compiled, source, combinedFlags, normalized);
 }

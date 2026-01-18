@@ -170,21 +170,50 @@ export function createSearchPipeline(context) {
     return false;
   }
 
+  const resolvePhraseRange = (phraseSet) => {
+    if (phraseRange?.min && phraseRange?.max) return phraseRange;
+    if (!phraseSet || !phraseSet.size) return null;
+    let min = null;
+    let max = null;
+    for (const phrase of phraseSet) {
+      const len = String(phrase || '').split('_').filter(Boolean).length;
+      if (len < 2) continue;
+      min = min == null ? len : Math.min(min, len);
+      max = max == null ? len : Math.max(max, len);
+    }
+    return min && max ? { min, max } : null;
+  };
+  const resolvedPhraseRange = resolvePhraseRange(phraseNgramSet);
+
   // Phrase postings are the authoritative source of phrase membership.
   // Do NOT rely on per-chunk ngram arrays: they are optional, often sampled,
   // and (in memory-constrained builds) may not be present at all.
-  function getPhraseMatchInfo(idx, chunkId, phraseSet) {
+  function getPhraseMatchInfo(idx, chunkId, phraseSet, chunkTokens) {
     if (!phraseSet || !phraseSet.size || !idx) return { matches: 0 };
     const phraseIndex = idx.phraseNgrams;
-    if (!phraseIndex || !phraseIndex.vocab || !phraseIndex.postings) return { matches: 0 };
-    const vocabIndex = phraseIndex.vocabIndex
-      || (phraseIndex.vocabIndex = new Map(phraseIndex.vocab.map((t, i) => [t, i])));
+    if (phraseIndex && phraseIndex.vocab && phraseIndex.postings) {
+      const vocabIndex = phraseIndex.vocabIndex
+        || (phraseIndex.vocabIndex = new Map(phraseIndex.vocab.map((t, i) => [t, i])));
+      let matches = 0;
+      for (const ng of phraseSet) {
+        const hit = vocabIndex.get(ng);
+        if (hit === undefined) continue;
+        const posting = phraseIndex.postings[hit] || [];
+        if (postingIncludesDocId(posting, chunkId)) matches += 1;
+      }
+      if (matches) return { matches };
+      if (phraseIndex.vocab.length || phraseIndex.postings.length) return { matches: 0 };
+    }
+    const tokens = Array.isArray(chunkTokens)
+      ? chunkTokens
+      : (Array.isArray(idx.chunkMeta?.[chunkId]?.tokens) ? idx.chunkMeta[chunkId].tokens : []);
+    if (!tokens.length || !resolvedPhraseRange?.min || !resolvedPhraseRange?.max) return { matches: 0 };
+    const ngrams = extractNgrams(tokens, resolvedPhraseRange.min, resolvedPhraseRange.max);
+    if (!ngrams.length) return { matches: 0 };
+    const ngramSet = new Set(ngrams);
     let matches = 0;
     for (const ng of phraseSet) {
-      const hit = vocabIndex.get(ng);
-      if (hit === undefined) continue;
-      const posting = phraseIndex.postings[hit] || [];
-      if (postingIncludesDocId(posting, chunkId)) matches += 1;
+      if (ngramSet.has(ng)) matches += 1;
     }
     return { matches };
   }
@@ -521,7 +550,7 @@ export function createSearchPipeline(context) {
         let phraseBoost = 0;
         let phraseFactor = 0;
         if (phraseNgramSet && phraseNgramSet.size) {
-          const matchInfo = getPhraseMatchInfo(idx, idxVal, phraseNgramSet);
+          const matchInfo = getPhraseMatchInfo(idx, idxVal, phraseNgramSet, chunk?.tokens);
           phraseMatches = matchInfo.matches;
           if (phraseMatches) {
             phraseFactor = Math.min(0.5, phraseMatches * 0.1);

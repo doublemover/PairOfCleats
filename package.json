@@ -266,6 +266,7 @@
   "optionalDependencies": {
     "@mongodb-js/zstd": "^7.0.0",
     "@node-rs/xxhash": "^1.7.2",
-    "@parcel/watcher": "^2.4.1"
+    "@parcel/watcher": "^2.4.1",
+    "re2": "^1.23.0"
   }
 }

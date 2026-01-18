@@ -83,6 +83,25 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
       .map((entry) => entry.trim())
       .filter(Boolean);
   };
+  const normalizePhraseList = (value) => {
+    if (!value) return [];
+    const entries = Array.isArray(value) ? value : [value];
+    const out = [];
+    for (const entry of entries) {
+      const raw = String(entry || '').trim();
+      if (!raw) continue;
+      if (raw.includes(',')) {
+        raw
+          .split(',')
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .forEach((part) => out.push(part));
+      } else {
+        out.push(raw);
+      }
+    }
+    return out;
+  };
   const parseFileMatcher = (entry) => {
     const raw = String(entry || '').trim();
     if (!raw) return null;
@@ -114,7 +133,24 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
   const authorNeedles = normalizeList(author).map(normalize);
   const metaFilters = Array.isArray(metaFilter) ? metaFilter : (metaFilter ? [metaFilter] : []);
   const excludeNeedles = normalizeList(excludeTokens).map((value) => (caseTokens ? String(value || '') : normalize(value)));
-  const excludePhraseNeedles = normalizeList(excludePhrases).map((value) => (caseTokens ? String(value || '') : normalize(value)));
+  const normalizePhraseNeedle = (value) => {
+    const normalized = caseTokens ? String(value || '') : normalize(value);
+    return normalized.replace(/\s+/g, '_');
+  };
+  const excludePhraseNeedles = normalizePhraseList(excludePhrases).map(normalizePhraseNeedle);
+  const derivedPhraseRange = (() => {
+    if (excludePhraseRange?.min && excludePhraseRange?.max) return excludePhraseRange;
+    if (!excludePhraseNeedles.length) return null;
+    let min = null;
+    let max = null;
+    for (const needle of excludePhraseNeedles) {
+      const len = String(needle || '').split('_').filter(Boolean).length;
+      if (len < 2) continue;
+      min = min == null ? len : Math.min(min, len);
+      max = max == null ? len : Math.max(max, len);
+    }
+    return min && max ? { min, max } : null;
+  })();
   const structPackNeedles = normalizeList(structPack).map(normalize);
   const structRuleNeedles = normalizeList(structRule).map(normalize);
   const structTagNeedles = normalizeList(structTag).map(normalize);
@@ -491,8 +527,8 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     if (excludeNeedles.length || excludePhraseNeedles.length) {
       const tokens = Array.isArray(c.tokens) ? c.tokens : [];
       let ngrams = Array.isArray(c.ngrams) ? c.ngrams : null;
-      if (!ngrams && excludePhraseNeedles.length && tokens.length && excludePhraseRange?.min && excludePhraseRange?.max) {
-        ngrams = extractNgrams(tokens, excludePhraseRange.min, excludePhraseRange.max);
+      if (!ngrams && excludePhraseNeedles.length && tokens.length && derivedPhraseRange?.min && derivedPhraseRange?.max) {
+        ngrams = extractNgrams(tokens, derivedPhraseRange.min, derivedPhraseRange.max);
       }
       const tokenSet = new Set(tokens.map(normalizeToken));
       const ngramSet = new Set((ngrams || []).map(normalizeToken));
