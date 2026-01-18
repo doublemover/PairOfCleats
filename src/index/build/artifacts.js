@@ -48,6 +48,7 @@ export async function writeIndexArtifacts(input) {
     graphRelations
   } = input;
   const indexingConfig = userConfig?.indexing || {};
+  const documentExtractionEnabled = indexingConfig.documentExtraction?.enabled === true;
   const {
     resolvedTokenMode,
     tokenMaxFiles,
@@ -718,6 +719,7 @@ export async function writeIndexArtifacts(input) {
     tokenPostingsUseShards,
     compressionEnabled,
     compressionMode,
-    compressionKeepRaw
+    compressionKeepRaw,
+    documentExtractionEnabled
   });
 }

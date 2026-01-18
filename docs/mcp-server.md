@@ -5,6 +5,12 @@ PairOfCleats ships an MCP server that exposes indexing, search, and maintenance 
 ## Run
 - `pairofcleats service mcp`
 
+## Transport
+- Current transport: legacy JSON-RPC over stdio (`vscode-jsonrpc` framing).
+- `mcp.transport` accepts `auto|legacy|sdk`; SDK transport is planned but not
+  wired yet. If you set `sdk`, ensure `@modelcontextprotocol/sdk` is installed
+  to avoid capability warnings.
+
 ## Tools
 - `index_status`
 - `config_status`

@@ -40,7 +40,7 @@ PairOfCleats combines the strengths:
 - **Chunk-aware indexing** → results are immediately usable snippets
 - **Lexical + fuzzy + semantic retrieval** → better recall without losing precision
 - **Rich metadata** → filters like type/signature/reads-writes/calls/churn/risk tags
-- **Scale options** → memory artifacts for small repos; SQLite + ANN for large ones
+- **Scale options** → memory artifacts for small repos; SQLite + ANN for large ones; `auto` picks the best available backend based on index size + installed deps
 
 ---
 
@@ -50,6 +50,8 @@ PairOfCleats combines the strengths:
 - Optional (recommended for best Python chunk metadata): **Python 3** (`indexing.pythonAst.*`)
 - Optional (recommended for large repos): **SQLite backend** (via `better-sqlite3`)
 - Optional (recommended for fastest semantic search): **sqlite-vec** extension for ANN
+- Optional (document extraction): **PDF/DOCX support** via `pdfjs-dist` + `mammoth` (`indexing.documentExtraction.enabled` or `PAIROFCLEATS_DOC_EXTRACT=on`)
+- Optional performance backends (auto-selected when available): **LMDB**, **LanceDB**, SQLite ANN extension. Set explicit config to force a backend.
 
 ---
 
