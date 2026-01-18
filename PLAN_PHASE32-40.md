@@ -16,7 +16,7 @@ We will execute the Phase 32-40 hard cut in a dedicated worktree, freezing the p
 [x] Phase 40: sweep docs (README/commands/setup) for removed flags, update LMDB opt-in guidance, and delete remaining dead helpers/tests.
 [x] Update tests that relied on removed env/config overrides (cache root, profiles) and ensure LMDB coverage remains.
 [x] Modernize remaining tests/bench scripts to the new contract via test-only env overrides (no config keys/removed flags).
-[ ] Run lint/format and quick sanity checks, then update config inventory/guardrails if needed.
+[x] Run lint/format and quick sanity checks, then update config inventory/guardrails if needed.
 
 ## Open questions
 - None.

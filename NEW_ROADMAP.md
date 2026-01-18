@@ -3414,3 +3414,21 @@ Concrete replacements:
 * [ ] Re-run `npm run test:storage` after addressing the failures above.
 
 ---
+
+## Phase 43 - Targeted test failures (manual run 2026-01-18)
+
+**Objective:** Record failures from the targeted test run so they can be addressed once, then re-run.
+
+### 43.1 Incremental cache signature
+
+* [x] `tests/incremental-cache-signature.js`: resolved by switching the test-only config change to `indexing.lint` so the config signature changes without reintroducing removed knobs.
+
+### 43.2 Incremental tokenization cache
+
+* [x] `tests/incremental-tokenization-cache.js`: resolved by toggling `indexing.postings.enablePhraseNgrams` in the test-only config so the tokenization key changes without touching removed config knobs.
+
+### 43.3 Smoke retrieval
+
+* [x] `tests/smoke-retrieval.js`: updated help flag expectations and replaced RRF assertions with ANN presence checks for the new contract.
+
+---

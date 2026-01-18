@@ -45,8 +45,8 @@ const runBuild = (label, testConfig) => {
   }
 };
 
-runBuild('initial build', { quality: 'fast' });
-runBuild('cache build', { quality: 'fast' });
+runBuild('initial build', { indexing: { postings: { enablePhraseNgrams: false } } });
+runBuild('cache build', { indexing: { postings: { enablePhraseNgrams: false } } });
 
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(repoRoot);
@@ -68,7 +68,7 @@ if (!cachedEntry || cachedEntry.cached !== true) {
   process.exit(1);
 }
 
-runBuild('config change rebuild', { quality: 'max' });
+runBuild('config change rebuild', { indexing: { postings: { enablePhraseNgrams: true } } });
 
 const userConfigAfter = loadUserConfig(repoRoot);
 const codeDirAfter = getIndexDir(repoRoot, 'code', userConfigAfter);

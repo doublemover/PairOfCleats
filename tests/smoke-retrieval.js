@@ -53,32 +53,33 @@ try {
     fail('Expected search help to exit non-zero with no query.');
   }
   const helpOutput = `${helpResult.stdout || ''}${helpResult.stderr || ''}`;
-  const requiredFlags = ['--calls', '--uses', '--author', '--import', '--explain'];
+  const requiredFlags = ['--filter', '--explain', '--json', '--mode'];
   for (const flag of requiredFlags) {
     if (!helpOutput.includes(flag)) {
       fail(`Help output missing flag: ${flag}`);
     }
   }
 
-  const rrfResult = runNode(
-    'search rrf',
+  const annResult = runNode(
+    'search ann',
     [searchPath, 'return', '--mode', 'code', '--ann', '--json', '--repo', repoRoot]
   );
-  let rrfPayload = null;
+  let annPayload = null;
   try {
-    rrfPayload = JSON.parse(rrfResult.stdout || '{}');
+    annPayload = JSON.parse(annResult.stdout || '{}');
   } catch {
-    fail('search rrf test failed: invalid JSON output');
+    fail('search ann test failed: invalid JSON output');
   }
-  const rrfHit = rrfPayload?.code?.[0];
-  if (!rrfPayload?.stats?.annActive) {
-    fail('search rrf test failed: annActive was false');
+  if (!annPayload?.stats?.annActive) {
+    fail('search ann test failed: annActive was false');
   }
-  if (!rrfHit?.scoreBreakdown?.rrf) {
-    fail('search rrf test failed: scoreBreakdown.rrf missing');
+  const annHit = annPayload?.code?.find((hit) => hit?.scoreBreakdown?.ann);
+  if (!annHit) {
+    fail('search ann test failed: no ann hits found');
   }
-  if (rrfHit.scoreType !== 'rrf') {
-    fail(`search rrf test failed: expected scoreType rrf, got ${rrfHit.scoreType}`);
+  const annSource = annHit?.scoreBreakdown?.ann?.source;
+  if (!annSource) {
+    fail('search ann test failed: ann source missing');
   }
 
   const filterResult = runNode(

@@ -44,8 +44,8 @@ const runBuild = (label, testConfig) => {
   }
 };
 
-runBuild('initial build', { quality: 'fast' });
-runBuild('cache build', { quality: 'fast' });
+runBuild('initial build', { indexing: { lint: false } });
+runBuild('cache build', { indexing: { lint: false } });
 
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(repoRoot);
@@ -62,7 +62,7 @@ if (!cachedEntry || cachedEntry.cached !== true) {
   process.exit(1);
 }
 
-runBuild('config signature rebuild', { quality: 'max' });
+runBuild('config signature rebuild', { indexing: { lint: true } });
 
 const userConfigAfter = loadUserConfig(repoRoot);
 const codeDirAfter = getIndexDir(repoRoot, 'code', userConfigAfter);
