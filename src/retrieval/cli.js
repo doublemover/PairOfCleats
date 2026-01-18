@@ -6,6 +6,7 @@ import {
   DEFAULT_MODEL_ID,
   getCacheRuntimeConfig,
   getDictConfig,
+  getAutoPolicy,
   getRepoRoot,
   getMetricsDir,
   getModelConfig,
@@ -14,7 +15,6 @@ import {
   resolveSqlitePaths
 } from '../../tools/dict-utils.js';
 import { queryVectorAnn } from '../../tools/vector-extension.js';
-import { getEnvConfig } from '../shared/env.js';
 import { createError, ERROR_CODES, isErrorCode } from '../shared/error-codes.js';
 import { getSearchUsage, parseSearchArgs } from './cli-args.js';
 import { loadDictionary } from './cli-dictionary.js';
@@ -65,12 +65,11 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const t0 = Date.now();
 
   const inferJsonOutputFromArgs = () => {
-    if (!Array.isArray(rawArgs)) return { jsonOutput: false, jsonCompact: false };
+    if (!Array.isArray(rawArgs)) return { jsonOutput: false };
     const hasFlag = (name) =>
       rawArgs.some((arg) => typeof arg === 'string' && (arg === name || arg.startsWith(`${name}=`)));
-    const jsonCompact = hasFlag('--json-compact');
-    const jsonOutput = hasFlag('--json') || jsonCompact;
-    return { jsonOutput, jsonCompact };
+    const jsonOutput = hasFlag('--json');
+    return { jsonOutput };
   };
 
   let argv;
@@ -99,15 +98,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     throw error;
   }
 
-  const jsonCompact = argv['json-compact'] === true;
-  const jsonOutput = argv.json || jsonCompact;
+  const jsonOutput = argv.json === true;
   const rootOverride = options.root ? path.resolve(options.root) : null;
   const rootArg = rootOverride || (argv.repo ? path.resolve(argv.repo) : null);
   const rootDir = getRepoRoot(rootArg);
   const userConfig = loadUserConfig(rootDir);
   const cacheConfig = getCacheRuntimeConfig(rootDir, userConfig);
-  const envConfig = getEnvConfig();
-  const verboseCache = envConfig.verbose === true;
+  const verboseCache = false;
   const cacheLog = verboseCache ? (msg) => process.stderr.write(`\n${msg}\n`) : null;
 
   configureOutputCaches({ cacheConfig, verbose: verboseCache, log: cacheLog });
@@ -137,6 +134,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
 
     const metricsDir = getMetricsDir(rootDir, userConfig);
+    const policy = await getAutoPolicy(rootDir, userConfig);
     let normalized;
     try {
       normalized = normalizeSearchOptions({
@@ -144,8 +142,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         rawArgs,
         rootDir,
         userConfig,
-        envConfig,
-        metricsDir
+        metricsDir,
+        policy
       });
     } catch (err) {
       return bail(err.message, 1, ERROR_CODES.INVALID_REQUEST);
@@ -167,12 +165,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         runRecords,
         runExtractedProse: runExtractedProseRaw,
         commentsEnabled,
-        embeddingProvider,
+      embeddingProvider,
       embeddingOnnx,
       hnswConfig,
       sqliteConfig,
-      sqliteAutoChunkThreshold,
-      sqliteAutoArtifactBytes,
       postingsConfig,
       filePrefilterEnabled,
       searchRegexConfig,
@@ -231,7 +227,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
     const modelConfig = getModelConfig(rootDir, userConfig);
     const modelIdDefault = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
-    const useStubEmbeddings = envConfig.embeddings === 'stub';
+    const useStubEmbeddings = argv['stub-embeddings'] === true;
     const topN = argv.n;
     const showStats = argv.stats === true;
     const showMatched = argv.matched === true;
@@ -240,9 +236,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const needsProse = runProse;
     const needsSqlite = runCode || runProse;
     const vectorAnnEnabled = annEnabled && vectorExtension.enabled;
-    const sqliteScoreModeConfig = sqliteConfig.scoreMode === 'fts';
-    const sqliteConfigured = sqliteConfig.use !== false;
-    const lmdbConfigured = userConfig.lmdb?.use !== false;
 
     const lmdbPaths = resolveLmdbPaths(rootDir, userConfig);
     const lmdbCodePath = lmdbPaths.codePath;
@@ -264,26 +257,20 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
     const backendSelection = await resolveBackendSelection({
       backendArg,
-      sqliteScoreModeConfig,
-      sqliteConfigured,
       sqliteAvailable,
       sqliteCodeAvailable,
       sqliteProseAvailable,
       sqliteCodePath,
       sqliteProsePath,
-      lmdbConfigured,
       lmdbAvailable,
       lmdbCodeAvailable,
       lmdbProseAvailable,
       lmdbCodePath,
       lmdbProsePath,
-      sqliteAutoChunkThreshold,
-      sqliteAutoArtifactBytes,
       needsSqlite,
       needsCode,
       needsProse,
-      root: rootDir,
-      userConfig,
+      defaultBackend: policy?.retrieval?.backend || 'sqlite',
       onWarn: console.warn
     });
     if (backendSelection.error) {
@@ -561,7 +548,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const payload = renderSearchOutput({
       emitOutput,
       jsonOutput,
-      jsonCompact,
       explain,
       color,
       rootDir,

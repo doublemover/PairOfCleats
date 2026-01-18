@@ -5,8 +5,8 @@ import { getHeapStatistics } from 'node:v8';
 import { gunzipSync } from 'node:zlib';
 import { spawnSync } from 'node:child_process';
 import { tryRequire } from './optional-deps.js';
+import { getTestEnvConfig } from './env.js';
 
-const MAX_JSON_BYTES_ENV = Number(process.env.PAIROFCLEATS_MAX_JSON_BYTES);
 const DEFAULT_MAX_JSON_BYTES = (() => {
   const fallback = 128 * 1024 * 1024;
   try {
@@ -19,8 +19,10 @@ const DEFAULT_MAX_JSON_BYTES = (() => {
     return fallback;
   }
 })();
-export const MAX_JSON_BYTES = Number.isFinite(MAX_JSON_BYTES_ENV) && MAX_JSON_BYTES_ENV > 0
-  ? Math.floor(MAX_JSON_BYTES_ENV)
+const testEnv = getTestEnvConfig();
+const MAX_JSON_BYTES_TEST_ENV = Number(testEnv?.maxJsonBytes);
+export const MAX_JSON_BYTES = Number.isFinite(MAX_JSON_BYTES_TEST_ENV) && MAX_JSON_BYTES_TEST_ENV > 0
+  ? Math.floor(MAX_JSON_BYTES_TEST_ENV)
   : DEFAULT_MAX_JSON_BYTES;
 
 const toJsonTooLargeError = (filePath, size) => {

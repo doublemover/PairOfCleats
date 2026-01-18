@@ -20,17 +20,9 @@ export function greet(name) {
 `;
 await fsPromises.writeFile(path.join(tempRoot, 'sample.js'), sampleCode);
 
-const config = {
-  sqlite: { use: true },
-  search: { sqliteAutoChunkThreshold: 1, annDefault: false }
-};
-await fsPromises.writeFile(
-  path.join(tempRoot, '.pairofcleats.json'),
-  JSON.stringify(config, null, 2)
-);
-
 const envBase = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
@@ -55,7 +47,7 @@ run([buildSqlitePath, '--repo', tempRoot], 'build sqlite');
 const autoOutput = run(
   [searchPath, 'greet', '--json', '--repo', tempRoot],
   'search auto with sqlite disabled',
-  { PAIROFCLEATS_SQLITE_DISABLED: '1' }
+  { NODE_OPTIONS: '--no-addons' }
 );
 let autoBackend = null;
 try {
@@ -74,7 +66,7 @@ const forcedResult = spawnSync(
   [searchPath, 'greet', '--json', '--backend', 'sqlite', '--repo', tempRoot],
   {
     cwd: tempRoot,
-    env: { ...envBase, PAIROFCLEATS_SQLITE_DISABLED: '1' },
+    env: { ...envBase, NODE_OPTIONS: '--no-addons' },
     encoding: 'utf8'
   }
 );

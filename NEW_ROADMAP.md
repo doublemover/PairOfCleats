@@ -3245,3 +3245,85 @@ Concrete replacements:
 * [ ] CI green.
 
 ---
+
+## Phase 41 - Deep validation failures (integration run 2026-01-18)
+
+**Objective:** Log failing tests from the deep validation run so they can be fixed once, then re-run.
+
+### 41.1 Config schema fallout
+
+* [ ] `tests/artifact-size-guardrails.js`: build_index fails because the test writes `.pairofcleats.json` with `sqlite` + `indexing` keys (now disallowed), leading to `Config errors in .../.pairofcleats.json: #/sqlite is not allowed, #/indexing is not allowed`.
+* [ ] `tests/build-embeddings-cache.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
+* [ ] `tests/build-index-all.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` + `triage` keys (now disallowed).
+* [ ] `tests/code-map-basic.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
+* [ ] `tests/code-map-determinism.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
+* [ ] `tests/code-map-dot.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
+* [ ] `tests/comment-join.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` + `sqlite` keys (now disallowed).
+* [ ] `tests/compact-pieces.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
+* [ ] `tests/embedding-batch-autotune.js`: build_index fails because the test writes `.pairofcleats.json` with `indexing` keys (now disallowed).
+* [ ] `tests/extracted-prose.js`: build_index fails because the test writes `.pairofcleats.json` with removed keys (expected config validation error; confirm exact keys and update the test).
+
+### 41.2 CLI surface mismatch
+
+* [ ] `tests/cli.js`: fails on `pairofcleats config validate` (command removed from public CLI). Update the test to call `node tools/validate-config.js` or adjust CLI expectations.
+
+### 41.3 Backend policy expectation
+
+* [ ] `tests/backend-policy.js`: assertion at line 25 expects auto backend to disable sqlite when `sqliteAutoChunkThreshold` is set; auto thresholds were removed, so update expectations or remove the threshold-specific cases.
+
+### 41.4 Re-run integration
+
+* [ ] Re-run `npm run test:integration` after addressing the failures above.
+
+### 41.5 Services test failures
+
+* [ ] `tests/api-server-stream.js`: `search stream returned no results` during `npm run test:services` (streaming API likely not returning results with current defaults).
+* [ ] `tests/mcp-robustness.js`: `Expected queue overload error response.` during `npm run test:services` (MCP queue overload behavior changed).
+* [ ] `tests/mcp-schema.js`: `MCP schema snapshot mismatch.` during `npm run test:services` (tool schema changed; update snapshot or adjust schema).
+* [ ] `tests/services/api/health-and-status.test.js`: `api-server should reject missing auth` failure (auth enforcement likely changed).
+* [ ] `tests/services/api/no-index.test.js`: `api-server should return NO_INDEX when indexes are missing` failure (status/response contract drift).
+
+---
+
+## Phase 42 - Storage test failures (test:storage run 2026-01-18)
+
+**Objective:** Log `npm run test:storage` failures once; fix each test at most 1–2 tries, then move on.
+
+### 42.1 Config schema fallout
+
+* [ ] `tests/lmdb-backend.js`: writes `.pairofcleats.json` with `indexing.treeSitter` (disallowed). Update test to avoid config keys or move control to allowed env/CLI.
+* [ ] `tests/lmdb-corruption.js`: writes `.pairofcleats.json` with `sqlite.use` (disallowed). Update test to rely on defaults or internal test env overrides.
+* [ ] `tests/lmdb-report-artifacts.js`: writes `.pairofcleats.json` with `sqlite.use` (disallowed). Update test to rely on defaults or internal test env overrides.
+* [ ] `tests/sqlite-ann-extension.js`: writes `.pairofcleats.json` with `cache`, `search`, `sqlite`, `dictionary` keys (disallowed). Remove config file and rely on defaults; replace vector extension settings with auto-only behavior.
+* [ ] `tests/sqlite-ann-fallback.js`: writes `.pairofcleats.json` with `cache`, `dictionary`, `search`, `sqlite` (disallowed). Update to defaults and rework expectations to match auto-only extension handling.
+* [ ] `tests/sqlite-auto-backend.js`: writes `.pairofcleats.json` with `sqlite` + `search.sqliteAutoChunkThreshold` (disallowed) and expects threshold-based backend flips. Update or remove threshold-based expectations.
+* [ ] `tests/sqlite-build-indexes.js`: writes `.pairofcleats.json` with `indexing.*` (disallowed) and uses removed `--stage` flags. Update to new pipeline outputs and defaults.
+* [ ] `tests/sqlite-missing-dep.js`: writes `.pairofcleats.json` with `sqlite` + `search` (disallowed) and uses `PAIROFCLEATS_SQLITE_DISABLED` (removed). Update test to new backend selection policy and missing dependency handling.
+
+### 42.2 Behavioral drift
+
+* [ ] `tests/sqlite-incremental-no-change.js`: fails with `Expected no full rebuild for no-change run` (output indicates rebuild or updated messaging). Align expectation with new incremental logic or adjust output assertions.
+
+### 42.3 Re-run storage tests
+
+* [ ] Re-run `npm run test:storage` after addressing the failures above.
+
+---
+
+## Phase 43 - Targeted test failures (manual run 2026-01-18)
+
+**Objective:** Record failures from the targeted test run so they can be addressed once, then re-run.
+
+### 43.1 Incremental cache signature
+
+* [x] `tests/incremental-cache-signature.js`: resolved by switching the test-only config change to `indexing.lint` so the config signature changes without reintroducing removed knobs.
+
+### 43.2 Incremental tokenization cache
+
+* [x] `tests/incremental-tokenization-cache.js`: resolved by toggling `indexing.postings.enablePhraseNgrams` in the test-only config so the tokenization key changes without touching removed config knobs.
+
+### 43.3 Smoke retrieval
+
+* [x] `tests/smoke-retrieval.js`: updated help flag expectations and replaced RRF assertions with ANN presence checks for the new contract.
+
+---

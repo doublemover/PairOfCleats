@@ -512,6 +512,7 @@ const main = async () => {
   }
 
   const baseEnv = { ...process.env };
+  baseEnv.PAIROFCLEATS_TESTING = '1';
   if (Number.isFinite(argv.retries) || !baseEnv.PAIROFCLEATS_TEST_RETRIES) {
     baseEnv.PAIROFCLEATS_TEST_RETRIES = String(retries);
   }

@@ -12,20 +12,6 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const config = {
-  indexing: {
-    astDataflow: true,
-    controlFlow: true,
-    typeInference: true,
-    typeInferenceCrossFile: true
-  }
-};
-
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify(config, null, 2)
-);
-
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 await fsPromises.writeFile(
   path.join(repoRoot, 'src', 'util.js'),
@@ -50,9 +36,13 @@ await fsPromises.writeFile(
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const buildResult = spawnSync(
   process.execPath,

@@ -24,32 +24,16 @@ const content = `${lines.join('\n')}\n`;
 for (let i = 0; i < 3; i += 1) {
   await fsPromises.writeFile(path.join(repoRoot, `big-${i}.js`), content);
 }
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify({
-    sqlite: {
-      use: false
-    },
-    indexing: {
-      fileScan: {
-        minified: { sampleMinBytes: 20000 }
-      },
-      chunkTokenMode: 'sample',
-      chunkTokenSampleSize: 4,
-      artifacts: {
-        chunkMetaFormat: 'json',
-        chunkMetaShardSize: 0,
-        tokenPostingsFormat: 'json'
-      }
-    }
-  }, null, 2)
-);
 
 const baseEnv = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const maxJsonBytes = 4096;
 const runBuild = (label, envOverrides) => {
@@ -73,7 +57,7 @@ const runBuild = (label, envOverrides) => {
   }
 };
 
-runBuild('artifact guardrails (small max)', { PAIROFCLEATS_MAX_JSON_BYTES: String(maxJsonBytes) });
+runBuild('artifact guardrails (small max)', { PAIROFCLEATS_TEST_MAX_JSON_BYTES: String(maxJsonBytes) });
 
 const userConfig = loadUserConfig(repoRoot);
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
@@ -115,7 +99,7 @@ if (fs.existsSync(path.join(indexDir, 'token_postings.json'))) {
   process.exit(1);
 }
 
-runBuild('artifact guardrails (large max)', { PAIROFCLEATS_MAX_JSON_BYTES: '52428800' });
+runBuild('artifact guardrails (large max)', { PAIROFCLEATS_TEST_MAX_JSON_BYTES: '52428800' });
 
 const nextIndexDir = getIndexDir(repoRoot, 'code', userConfig);
 const nextChunkMetaMeta = path.join(nextIndexDir, 'chunk_meta.meta.json');

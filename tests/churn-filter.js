@@ -86,7 +86,7 @@ const searchPath = path.join(root, 'search.js');
 function runSearch(args, label) {
   const result = spawnSync(
     process.execPath,
-    [searchPath, 'alpha', '--mode', 'prose', '--json-compact', '--no-ann', ...args, ...repoArgs],
+    [searchPath, 'alpha', '--mode', 'prose', '--json', '--no-ann', ...args, ...repoArgs],
     { cwd: repoRoot, env, encoding: 'utf8' }
   );
   if (result.status !== 0) {
@@ -117,7 +117,7 @@ if (Array.isArray(highPayload.prose) && highPayload.prose.length > 0) {
 
 const badResult = spawnSync(
   process.execPath,
-  [searchPath, 'alpha', '--mode', 'prose', '--json-compact', '--churn', 'not-a-number', ...repoArgs],
+  [searchPath, 'alpha', '--mode', 'prose', '--json', '--churn', 'not-a-number', ...repoArgs],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (badResult.status === 0) {

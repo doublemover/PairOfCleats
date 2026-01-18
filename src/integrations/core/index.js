@@ -10,7 +10,6 @@ import { initBuildState, markBuildPhase, startBuildHeartbeat, updateBuildState }
 import { promoteBuild } from '../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../index/validate.js';
 import { watchIndex } from '../../index/build/watch.js';
-import { getEnvConfig } from '../../shared/env.js';
 import { log as defaultLog, logError as defaultLogError, logLine, showProgress } from '../../shared/progress.js';
 import { observeIndexDuration } from '../../shared/metrics.js';
 import { shutdownPythonAstPool } from '../../lang/python.js';
@@ -21,6 +20,7 @@ import { runBuildSqliteIndex } from '../../../tools/build-sqlite-index.js';
 import { shutdownTreeSitterWorkerPool } from '../../lang/tree-sitter.js';
 import { runSearchCli } from '../../retrieval/cli.js';
 import { getStatus } from './status.js';
+import { buildAutoPolicy } from '../../shared/auto-policy.js';
 
 const toolRoot = resolveToolRoot();
 const buildEmbeddingsPath = path.join(toolRoot, 'tools', 'build-embeddings.js');
@@ -67,6 +67,7 @@ const createOverallProgress = ({ modes, buildId, includeEmbeddings = false, incl
 const buildRawArgs = (options = {}) => {
   const args = [];
   if (options.mode) args.push('--mode', String(options.mode));
+  if (options.quality) args.push('--quality', String(options.quality));
   if (options.stage) args.push('--stage', String(options.stage));
   if (options.threads !== undefined) args.push('--threads', String(options.threads));
   if (options.incremental) args.push('--incremental');
@@ -97,7 +98,6 @@ const pushFlag = (args, name, value) => {
   pushFlag(args, 'backend', params.backend);
   pushFlag(args, 'ann', params.ann);
   pushFlag(args, 'json', params.json);
-  pushFlag(args, 'json-compact', params.jsonCompact);
   pushFlag(args, 'explain', params.explain);
   pushFlag(args, 'context', params.context);
   pushFlag(args, 'n', params.n);
@@ -145,6 +145,7 @@ const updateEnrichmentState = async (repoCacheRoot, patch) => {
 const buildStage2Args = ({ root, argv, rawArgv }) => {
   const args = ['--repo', root, '--stage', 'stage2'];
   if (argv.mode && argv.mode !== 'all') args.push('--mode', argv.mode);
+  if (argv.quality) args.push('--quality', String(argv.quality));
   const stageThreads = Number(argv.threads);
   if (Number.isFinite(stageThreads) && stageThreads > 0) {
     args.push('--threads', String(stageThreads));
@@ -156,23 +157,24 @@ const buildStage2Args = ({ root, argv, rawArgv }) => {
   return args;
 };
 
-const resolveEmbeddingRuntime = ({ argv, userConfig, envConfig }) => {
+const resolveEmbeddingRuntime = ({ argv, userConfig, policy }) => {
   const embeddingsConfig = userConfig?.indexing?.embeddings || {};
   const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
     ? embeddingsConfig.mode.trim().toLowerCase()
     : 'auto';
-  const baseStubEmbeddings = argv['stub-embeddings'] === true
-    || envConfig.embeddings === 'stub';
+  const baseStubEmbeddings = argv['stub-embeddings'] === true;
   const normalizedEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(embeddingModeRaw)
     ? embeddingModeRaw
     : 'auto';
   const resolvedEmbeddingMode = normalizedEmbeddingMode === 'auto'
     ? (baseStubEmbeddings ? 'stub' : 'inline')
     : normalizedEmbeddingMode;
-  const embeddingService = embeddingsConfig.enabled !== false
-    && resolvedEmbeddingMode === 'service';
-  const embeddingEnabled = embeddingsConfig.enabled !== false
+  const policyEmbeddings = policy?.indexing?.embeddings?.enabled;
+  const configEnabled = embeddingsConfig.enabled !== false;
+  const embeddingEnabled = (policyEmbeddings ?? configEnabled)
     && resolvedEmbeddingMode !== 'off';
+  const embeddingService = embeddingEnabled
+    && resolvedEmbeddingMode === 'service';
   const queueDir = typeof embeddingsConfig.queue?.dir === 'string'
     ? embeddingsConfig.queue.dir.trim()
     : '';
@@ -289,8 +291,13 @@ export async function buildIndex(repoRoot, options = {}) {
     } catch {}
   };
 
+  const userConfig = loadUserConfig(root);
+  const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
+  const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
+  const policy = await buildAutoPolicy({ repoRoot: root, config: policyConfig });
+
   if (argv.watch) {
-    const runtime = await createBuildRuntime({ root, argv, rawArgv });
+    const runtime = await createBuildRuntime({ root, argv, rawArgv, policy });
     const pollMs = Number.isFinite(Number(argv['watch-poll'])) ? Number(argv['watch-poll']) : 2000;
     const debounceMs = Number.isFinite(Number(argv['watch-debounce'])) ? Number(argv['watch-debounce']) : 500;
     try {
@@ -301,12 +308,10 @@ export async function buildIndex(repoRoot, options = {}) {
     }
   }
 
-  const userConfig = loadUserConfig(root);
-  const envConfig = getEnvConfig();
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const twoStageConfig = userConfig?.indexing?.twoStage || {};
   const twoStageEnabled = twoStageConfig.enabled === true;
-  const embeddingRuntime = resolveEmbeddingRuntime({ argv, userConfig, envConfig });
+  const embeddingRuntime = resolveEmbeddingRuntime({ argv, userConfig, policy });
   const embedModes = modes.filter((modeItem) => (
     modeItem === 'code'
     || modeItem === 'prose'
@@ -505,7 +510,7 @@ export async function buildIndex(repoRoot, options = {}) {
     let runtime = null;
     let result = null;
     try {
-      runtime = await createBuildRuntime({ root, argv: stageArgv, rawArgv });
+      runtime = await createBuildRuntime({ root, argv: stageArgv, rawArgv, policy });
       phaseStage = runtime.stage || phaseStage;
       runtime.featureMetrics = createFeatureMetrics({
         buildId: runtime.buildId,

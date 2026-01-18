@@ -2,7 +2,6 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import os from 'node:os';
 import { createCli } from '../src/shared/cli.js';
 import readline from 'node:readline/promises';
 import { readJsoncFile } from '../src/shared/jsonc.js';
@@ -12,10 +11,8 @@ import {
   getIndexDir,
   getModelConfig,
   getRepoCacheRoot,
-  getRuntimeConfig,
   getToolingConfig,
   loadUserConfig,
-  resolveRuntimeEnv,
   resolveRepoRoot,
   resolveToolRoot
 } from './dict-utils.js';
@@ -41,8 +38,7 @@ const argv = createCli({
     incremental: { type: 'boolean', default: false },
     root: { type: 'string' },
     repo: { type: 'string' },
-    'tooling-scope': { type: 'string' },
-    'heap-mb': { type: 'string' }
+    'tooling-scope': { type: 'string' }
   },
   aliases: { ci: 'non-interactive', s: 'with-sqlite', i: 'incremental' }
 }).parse();
@@ -102,54 +98,6 @@ async function promptChoice(question, choices, defaultChoice) {
   const normalized = answer === 'g' ? 'global' : answer === 'c' ? 'cache' : answer;
   const match = choices.find((choice) => choice.toLowerCase() === normalized);
   return match || defaultChoice;
-}
-
-function formatGb(mb) {
-  return `${(mb / 1024).toFixed(1)} GB`;
-}
-
-function getRecommendedHeapMb() {
-  const totalMb = Math.floor(os.totalmem() / (1024 * 1024));
-  const recommended = Math.max(4096, Math.floor(totalMb * 0.75));
-  const rounded = Math.floor(recommended / 256) * 256;
-  return {
-    totalMb,
-    recommendedMb: Math.max(4096, rounded)
-  };
-}
-
-async function updateRuntimeConfig(maxOldSpaceMb) {
-  const existing = configExists
-    ? readJsoncFile(configPath)
-    : {};
-  const next = {
-    ...existing,
-    runtime: {
-      ...(existing.runtime || {}),
-      maxOldSpaceMb
-    }
-  };
-  await fsPromises.writeFile(configPath, JSON.stringify(next, null, 2));
-  configExists = true;
-  return next;
-}
-
-async function updateProfileConfig(profileName) {
-  const existing = configExists
-    ? readJsoncFile(configPath)
-    : {};
-  const next = {
-    ...existing,
-    profile: profileName
-  };
-  await fsPromises.writeFile(configPath, JSON.stringify(next, null, 2));
-  configExists = true;
-  return next;
-}
-
-function buildRuntimeEnv(config) {
-  const runtimeConfig = getRuntimeConfig(root, config);
-  return resolveRuntimeEnv(runtimeConfig, process.env);
 }
 
 let runtimeEnv = { ...process.env };
@@ -217,56 +165,12 @@ if (shouldValidateConfig && configExists) {
   recordStep('config', { skipped: true, present: configExists, configPath });
 }
 
-const profileName = typeof argv.profile === 'string' ? argv.profile.trim() : '';
 let userConfig = loadUserConfig(root);
-if (profileName) {
-  await updateProfileConfig(profileName);
-  userConfig = loadUserConfig(root);
-  recordStep('profile', { configured: true, profile: profileName });
-} else {
-  recordStep('profile', { configured: false });
-}
-runtimeEnv = buildRuntimeEnv(userConfig);
 const repoCacheRoot = getRepoCacheRoot(root, userConfig);
 const incrementalCacheRoot = path.join(repoCacheRoot, 'incremental');
 const useIncremental = argv.incremental || fs.existsSync(incrementalCacheRoot);
 summary.incremental = useIncremental;
 if (useIncremental) log('Incremental indexing enabled.');
-
-const heapArgRaw = argv['heap-mb'];
-const heapArg = Number.isFinite(Number(heapArgRaw)) ? Number(heapArgRaw) : null;
-const currentHeap = Number(userConfig.runtime?.maxOldSpaceMb);
-const heapConfigured = Number.isFinite(currentHeap) && currentHeap > 0;
-const heapRecommendation = getRecommendedHeapMb();
-let runtimeUpdated = false;
-let heapValue = heapConfigured ? currentHeap : null;
-
-if (Number.isFinite(heapArg) && heapArg > 0) {
-  userConfig = await updateRuntimeConfig(Math.floor(heapArg));
-  runtimeEnv = buildRuntimeEnv(userConfig);
-  runtimeUpdated = true;
-  heapValue = Math.floor(heapArg);
-  log(`Configured Node heap limit at ${formatGb(heapValue)}.`);
-} else if (!heapConfigured) {
-  const defaultYes = heapRecommendation.totalMb >= 16384;
-  const shouldSet = await promptYesNo(
-    `Set Node heap limit to ${formatGb(heapRecommendation.recommendedMb)}?`,
-    defaultYes
-  );
-  if (shouldSet) {
-    userConfig = await updateRuntimeConfig(heapRecommendation.recommendedMb);
-    runtimeEnv = buildRuntimeEnv(userConfig);
-    runtimeUpdated = true;
-    heapValue = heapRecommendation.recommendedMb;
-    log(`Configured Node heap limit at ${formatGb(heapValue)}.`);
-  }
-}
-recordStep('runtime', {
-  configured: runtimeUpdated || heapConfigured,
-  maxOldSpaceMb: heapValue,
-  recommendedMb: heapRecommendation.recommendedMb,
-  skipped: !(runtimeUpdated || heapConfigured)
-});
 
 const nodeModules = path.join(root, 'node_modules');
 if (argv['skip-install']) {

@@ -45,6 +45,8 @@
     "config-validate": "node tools/validate-config.js",
     "config-dump": "node tools/config-dump.js",
     "config-reset": "node tools/reset-config.js",
+    "config:budget": "node tools/config-inventory.js --check",
+    "env:check": "node tools/check-env-usage.js",
     "release-check": "node tools/release-check.js",
     "release-check:breaking": "node tools/release-check.js --breaking",
     "uninstall": "node tools/uninstall.js",

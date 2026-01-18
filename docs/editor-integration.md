@@ -2,7 +2,7 @@
 
 ## CLI contract for editor tooling
 Editor integrations shell out to the CLI and expect JSON output.
-- The VS Code extension uses `--json-compact`.
+- The VS Code extension uses `--json`.
 - The Sublime Text integration is designed to use `--json` to retain full metadata.
 
 The JSON payload contains the following top-level keys:
@@ -10,7 +10,7 @@ The JSON payload contains the following top-level keys:
 - `code`, `prose`, `records`: arrays of result hits (may be empty).
 - `stats`: search timing and cache metadata.
 
-Compact hit fields (subset, for `--json-compact`):
+Compact hit fields (subset, for `--json`):
 - `file`: repo-relative path for the chunk.
 - `startLine`, `endLine`: 1-based line numbers for editor navigation.
 - `start`, `end`: byte offsets (optional).
@@ -25,7 +25,7 @@ numbers are missing, fall back to file-only navigation.
 The bundled VS Code extension lives in `extensions/vscode` and defines a single
 command: `PairOfCleats: Search`. It:
 - prompts for a query
-- runs `pairofcleats search --json-compact`
+- runs `pairofcleats search --json`
 - shows a Quick Pick for results
 - opens the selected file at `startLine`
 

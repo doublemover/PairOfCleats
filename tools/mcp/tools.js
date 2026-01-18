@@ -199,7 +199,7 @@ export async function runSearch(args = {}) {
   const metaJson = args.metaJson || null;
 
   const useCompact = output !== 'full' && output !== 'json';
-  const searchArgs = [useCompact ? '--json-compact' : '--json', '--repo', repoPath];
+  const searchArgs = [useCompact ? '--json' : '--json', '--repo', repoPath];
   if (mode && mode !== 'both') searchArgs.push('--mode', mode);
   if (backend) searchArgs.push('--backend', backend);
   if (ann === true) searchArgs.push('--ann');

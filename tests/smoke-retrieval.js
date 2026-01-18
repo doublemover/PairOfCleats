@@ -12,6 +12,7 @@ const searchPath = path.join(root, 'search.js');
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
@@ -52,32 +53,33 @@ try {
     fail('Expected search help to exit non-zero with no query.');
   }
   const helpOutput = `${helpResult.stdout || ''}${helpResult.stderr || ''}`;
-  const requiredFlags = ['--calls', '--uses', '--author', '--import', '--explain'];
+  const requiredFlags = ['--filter', '--explain', '--json', '--mode'];
   for (const flag of requiredFlags) {
     if (!helpOutput.includes(flag)) {
       fail(`Help output missing flag: ${flag}`);
     }
   }
 
-  const rrfResult = runNode(
-    'search rrf',
+  const annResult = runNode(
+    'search ann',
     [searchPath, 'return', '--mode', 'code', '--ann', '--json', '--repo', repoRoot]
   );
-  let rrfPayload = null;
+  let annPayload = null;
   try {
-    rrfPayload = JSON.parse(rrfResult.stdout || '{}');
+    annPayload = JSON.parse(annResult.stdout || '{}');
   } catch {
-    fail('search rrf test failed: invalid JSON output');
+    fail('search ann test failed: invalid JSON output');
   }
-  const rrfHit = rrfPayload?.code?.[0];
-  if (!rrfPayload?.stats?.annActive) {
-    fail('search rrf test failed: annActive was false');
+  if (!annPayload?.stats?.annActive) {
+    fail('search ann test failed: annActive was false');
   }
-  if (!rrfHit?.scoreBreakdown?.rrf) {
-    fail('search rrf test failed: scoreBreakdown.rrf missing');
+  const annHit = annPayload?.code?.find((hit) => hit?.scoreBreakdown?.ann);
+  if (!annHit) {
+    fail('search ann test failed: no ann hits found');
   }
-  if (rrfHit.scoreType !== 'rrf') {
-    fail(`search rrf test failed: expected scoreType rrf, got ${rrfHit.scoreType}`);
+  const annSource = annHit?.scoreBreakdown?.ann?.source;
+  if (!annSource) {
+    fail('search ann test failed: ann source missing');
   }
 
   const filterResult = runNode(
@@ -118,32 +120,6 @@ try {
     fail('Explain output missing Sparse breakdown.');
   }
 
-  const blendConfig = {
-    search: {
-      scoreBlend: {
-        enabled: true,
-        sparseWeight: 0.6,
-        annWeight: 0.4
-      }
-    }
-  };
-  await fsPromises.writeFile(
-    path.join(repoRoot, '.pairofcleats.json'),
-    `${JSON.stringify(blendConfig, null, 2)}\n`
-  );
-
-  const blendResult = runNode(
-    'search blend',
-    [searchPath, 'return', '--mode', 'code', '--ann', '--json', '--repo', repoRoot]
-  );
-  const blendPayload = JSON.parse(blendResult.stdout || '{}');
-  const blendHit = blendPayload?.code?.[0];
-  if (!blendHit?.scoreBreakdown?.blend) {
-    fail('search blend test failed: scoreBreakdown.blend missing');
-  }
-  if (blendHit.scoreType !== 'blend') {
-    fail(`search blend test failed: expected scoreType blend, got ${blendHit.scoreType}`);
-  }
 } catch (err) {
   console.error(err?.message || err);
   failure = err;

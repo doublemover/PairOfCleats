@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { resolveSqlitePaths } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-auto');
@@ -21,24 +21,13 @@ export function greet(name) {
 `;
 await fsPromises.writeFile(path.join(tempRoot, 'sample.js'), sampleCode);
 
-const writeConfig = async (threshold) => {
-  const config = {
-    sqlite: { use: true },
-    search: { sqliteAutoChunkThreshold: threshold, annDefault: false }
-  };
-  await fsPromises.writeFile(
-    path.join(tempRoot, '.pairofcleats.json'),
-    JSON.stringify(config, null, 2)
-  );
-};
-
-await writeConfig(1);
-
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
 
 const run = (args, label) => {
   const result = spawnSync(process.execPath, args, { cwd: tempRoot, env, encoding: 'utf8' });
@@ -59,10 +48,12 @@ if (backendA !== 'sqlite') {
   process.exit(1);
 }
 
-await writeConfig(999999);
+const sqlitePaths = resolveSqlitePaths(tempRoot, null);
+await fsPromises.rm(sqlitePaths.dbDir, { recursive: true, force: true });
+
 const backendB = JSON.parse(run([searchPath, 'greet', '--json', '--repo', tempRoot], 'search auto memory')).backend;
 if (backendB !== 'memory') {
-  console.error(`Expected memory backend for threshold=999999, got ${backendB}`);
+  console.error(`Expected memory backend when sqlite is missing, got ${backendB}`);
   process.exit(1);
 }
 

@@ -102,12 +102,6 @@ const baselinePath = path.resolve(
   argv.baseline || path.join(toolRoot, 'benchmarks', 'baselines', 'microbench.json')
 );
 
-if (argv['stub-embeddings'] !== false) {
-  process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-} else {
-  delete process.env.PAIROFCLEATS_EMBEDDINGS;
-}
-
 await maybeBuildIndexes();
 
 const bench = new Bench({

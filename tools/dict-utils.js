@@ -6,14 +6,15 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../src/shared/cache.js';
+import { buildAutoPolicy } from '../src/shared/auto-policy.js';
+import { getTestEnvConfig } from '../src/shared/env.js';
 import { readJsoncFile } from '../src/shared/jsonc.js';
 import { isPlainObject, mergeConfig } from '../src/shared/config.js';
+import { validateConfig } from '../src/config/validate.js';
 import { stableStringify } from '../src/shared/stable-json.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TOOL_ROOT = path.resolve(__dirname, '..');
-const PROFILES_DIR = path.resolve(TOOL_ROOT, 'profiles');
-const profileWarnings = new Set();
 let toolVersionCache = null;
 const DEFAULT_DP_MAX_BY_FILE_COUNT = [
   { maxFiles: 5000, dpMaxTokenLength: 32 },
@@ -40,33 +41,31 @@ export const DEFAULT_TRIAGE_PROMOTE_FIELDS = [
 ];
 
 /**
- * Load repo-local configuration from .pairofcleats.json and apply profiles.
+ * Load repo-local configuration from .pairofcleats.json.
  * @param {string} repoRoot
- * @param {{profile?:string,fallbackRoot?:string,fallbackConfigPath?:string}} [options]
  * @returns {object}
  */
-export function loadUserConfig(repoRoot, options = {}) {
-  try {
-    const configPath = path.join(repoRoot, '.pairofcleats.json');
-    if (fs.existsSync(configPath)) {
-      const base = readJsoncFile(configPath) || {};
-      return normalizeUserConfig(applyProfileConfig(base, options.profile));
-    }
-    const fallbackPath = options.fallbackConfigPath
-      || (options.fallbackRoot ? path.join(options.fallbackRoot, '.pairofcleats.json') : null);
-    if (fallbackPath && fs.existsSync(fallbackPath)) {
-      const base = readJsoncFile(fallbackPath) || {};
-      return normalizeUserConfig(applyProfileConfig(base, options.profile));
-    }
-    const defaultPath = path.join(TOOL_ROOT, '.pairofcleats.json');
-    if (defaultPath !== configPath && fs.existsSync(defaultPath)) {
-      const base = readJsoncFile(defaultPath) || {};
-      return normalizeUserConfig(applyProfileConfig(base, options.profile));
-    }
-    return normalizeUserConfig(applyProfileConfig({}, options.profile));
-  } catch {
-    return {};
+export function loadUserConfig(repoRoot) {
+  const configPath = path.join(repoRoot, '.pairofcleats.json');
+  const applyTestOverrides = (baseConfig) => {
+    const testEnv = getTestEnvConfig();
+    if (!testEnv.testing || !testEnv.config) return baseConfig;
+    return mergeConfig(baseConfig, testEnv.config);
+  };
+  if (!fs.existsSync(configPath)) return applyTestOverrides(normalizeUserConfig({}));
+  const base = readJsoncFile(configPath);
+  if (!isPlainObject(base)) {
+    throw new Error('Config root must be a JSON object.');
   }
+  const schemaPath = path.join(TOOL_ROOT, 'docs', 'config-schema.json');
+  const schemaRaw = fs.readFileSync(schemaPath, 'utf8');
+  const schema = JSON.parse(schemaRaw);
+  const result = validateConfig(schema, base);
+  if (!result.ok) {
+    const details = result.errors.map((err) => `- ${err}`).join('\n');
+    throw new Error(`Config errors in ${configPath}:\n${details}`);
+  }
+  return applyTestOverrides(normalizeUserConfig(base));
 }
 
 /**
@@ -106,55 +105,24 @@ export function getEffectiveConfigHash(repoRoot, userConfig = null) {
   return crypto.createHash('sha1').update(json).digest('hex');
 }
 
+export async function getAutoPolicy(repoRoot, userConfig = null, options = {}) {
+  const cfg = userConfig || loadUserConfig(repoRoot);
+  return buildAutoPolicy({ repoRoot, config: cfg, scanLimits: options.scanLimits });
+}
+
 
 function normalizeUserConfig(baseConfig) {
-  if (!isPlainObject(baseConfig)) return baseConfig || {};
-
-  return baseConfig;
-}
-
-
-function loadProfileConfig(profileName) {
-  if (!profileName) return { config: {}, path: null, error: null };
-  const profileFile = `${profileName}.json`;
-  const profilePath = path.join(PROFILES_DIR, profileFile);
-  if (!fs.existsSync(profilePath)) {
-    return {
-      config: {},
-      path: profilePath,
-      error: `Profile not found: ${profilePath}`
-    };
+  if (!isPlainObject(baseConfig)) return {};
+  const normalized = {};
+  if (isPlainObject(baseConfig.cache)) {
+    const root = typeof baseConfig.cache.root === 'string' ? baseConfig.cache.root.trim() : '';
+    if (root) normalized.cache = { root };
   }
-  try {
-    const config = JSON.parse(fs.readFileSync(profilePath, 'utf8')) || {};
-    if (isPlainObject(config)) delete config.profile;
-    return { config, path: profilePath, error: null };
-  } catch (error) {
-    return {
-      config: {},
-      path: profilePath,
-      error: `Failed to parse profile ${profilePath}: ${error?.message || error}`
-    };
+  if (typeof baseConfig.quality === 'string') {
+    const quality = baseConfig.quality.trim();
+    if (quality) normalized.quality = quality;
   }
-}
-
-function applyProfileConfig(baseConfig, profileOverride) {
-  const overrideName = typeof profileOverride === 'string' ? profileOverride.trim() : '';
-  const envProfile = getEnvConfig().profile || '';
-  const configProfile = typeof baseConfig?.profile === 'string' ? baseConfig.profile.trim() : '';
-  const profileName = overrideName || envProfile || configProfile;
-  if (!profileName) return baseConfig || {};
-  const { config: profileConfig, path: profilePath, error } = loadProfileConfig(profileName);
-  if (error) {
-    const key = `${profileName}:${profilePath}`;
-    if (!profileWarnings.has(key)) {
-      profileWarnings.add(key);
-      console.error(`[config] ${error}`);
-    }
-  }
-  const merged = mergeConfig(profileConfig, baseConfig || {});
-  merged.profile = profileName;
-  return merged;
+  return normalized;
 }
 
 /**
@@ -162,9 +130,18 @@ function applyProfileConfig(baseConfig, profileOverride) {
  * @returns {string}
  */
 export function getCacheRoot() {
+  const testRoot = resolveTestCacheRoot(process.env);
+  if (testRoot) return testRoot;
   if (process.env.LOCALAPPDATA) return path.join(process.env.LOCALAPPDATA, 'PairOfCleats');
   if (process.env.XDG_CACHE_HOME) return path.join(process.env.XDG_CACHE_HOME, 'pairofcleats');
   return path.join(os.homedir(), '.cache', 'pairofcleats');
+}
+
+function resolveTestCacheRoot(env) {
+  const testing = env?.PAIROFCLEATS_TESTING === '1' || env?.PAIROFCLEATS_TESTING === 'true';
+  if (!testing) return '';
+  const raw = typeof env.PAIROFCLEATS_CACHE_ROOT === 'string' ? env.PAIROFCLEATS_CACHE_ROOT.trim() : '';
+  return raw || '';
 }
 
 /**

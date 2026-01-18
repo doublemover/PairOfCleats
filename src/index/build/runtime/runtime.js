@@ -19,6 +19,7 @@ import { normalizeCommentConfig } from '../../comments.js';
 import { normalizeSegmentsConfig } from '../../segments.js';
 import { log } from '../../../shared/progress.js';
 import { getEnvConfig } from '../../../shared/env.js';
+import { buildAutoPolicy } from '../../../shared/auto-policy.js';
 import { buildIgnoreMatcher } from '../ignore.js';
 import { normalizePostingsConfig } from '../../../shared/postings-config.js';
 import { createSharedDictionary, createSharedDictionaryView } from '../../../shared/dictionary.js';
@@ -50,11 +51,37 @@ const formatBuildTimestamp = (date) => (
  * @param {{root:string,argv:object,rawArgv:string[]}} input
  * @returns {Promise<object>}
  */
-export async function createBuildRuntime({ root, argv, rawArgv }) {
+export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const userConfig = loadUserConfig(root);
   const envConfig = getEnvConfig();
   const rawIndexingConfig = userConfig.indexing || {};
   let indexingConfig = rawIndexingConfig;
+  const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
+  const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
+  const autoPolicy = policy || await buildAutoPolicy({ repoRoot: root, config: policyConfig });
+  const policyConcurrency = autoPolicy?.indexing?.concurrency || null;
+  const policyEmbeddings = autoPolicy?.indexing?.embeddings || null;
+  const policyWorkerPool = autoPolicy?.runtime?.workerPool || null;
+  if (policyConcurrency) {
+    indexingConfig = mergeConfig(indexingConfig, {
+      concurrency: policyConcurrency.files,
+      importConcurrency: policyConcurrency.imports,
+      ioConcurrencyCap: policyConcurrency.io
+    });
+  }
+  if (policyEmbeddings && typeof policyEmbeddings.enabled === 'boolean') {
+    indexingConfig = mergeConfig(indexingConfig, {
+      embeddings: { enabled: policyEmbeddings.enabled }
+    });
+  }
+  if (policyWorkerPool) {
+    indexingConfig = mergeConfig(indexingConfig, {
+      workerPool: {
+        enabled: policyWorkerPool.enabled !== false ? 'auto' : false,
+        maxWorkers: policyWorkerPool.maxThreads
+      }
+    });
+  }
   const requestedHashBackend = typeof indexingConfig?.hash?.backend === 'string'
     ? indexingConfig.hash.backend.trim().toLowerCase()
     : '';
@@ -71,8 +98,8 @@ export async function createBuildRuntime({ root, argv, rawArgv }) {
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsConfig = normalizeRecordsConfig(userConfig.records || {});
   const currentIndexRoot = resolveIndexRoot(root, userConfig);
-  const configHash = getEffectiveConfigHash(root, userConfig);
-  const contentConfigHash = buildContentConfigHash(userConfig, envConfig);
+  const configHash = getEffectiveConfigHash(root, policyConfig);
+  const contentConfigHash = buildContentConfigHash(policyConfig, envConfig);
   const repoProvenance = await getRepoProvenance(root);
   const toolVersion = getToolVersion();
   const gitShortSha = repoProvenance?.commit ? repoProvenance.commit.slice(0, 7) : 'nogit';

@@ -93,7 +93,7 @@ const computeNDCG = (ranks, totalRelevant, k) => {
 };
 
 const runSearch = async (query, mode) => {
-  const args = ['--json-compact', '--repo', repoRoot, '-n', String(topN)];
+  const args = ['--json', '--repo', repoRoot, '-n', String(topN)];
   if (mode && mode !== 'both') args.push('--mode', mode);
   if (backend && backend !== 'auto') args.push('--backend', backend);
   if (annFlag === true) args.push('--ann');

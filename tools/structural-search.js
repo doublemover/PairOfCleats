@@ -19,18 +19,13 @@ const argv = createCli({
     format: { type: 'string', default: 'jsonl' },
     out: { type: 'string' },
     json: { type: 'boolean', default: false },
-    profile: { type: 'string' },
     'list-packs': { type: 'boolean', default: false }
   }
 }).parse();
 
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(repoRoot, { profile: argv.profile });
-if (userConfig.profile !== 'full') {
-  console.error('structural-search is experimental. Run with profile=full or set PAIROFCLEATS_PROFILE=full.');
-  process.exit(1);
-}
+loadUserConfig(repoRoot);
 const registryPath = argv.registry
   ? path.resolve(argv.registry)
   : path.resolve(scriptRoot, '..', 'rules', 'registry.json');

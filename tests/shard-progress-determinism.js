@@ -15,13 +15,6 @@ await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 
 await fs.writeFile(path.join(repoRoot, 'src', 'alpha.js'), 'const alpha = 1;\n');
 await fs.writeFile(path.join(repoRoot, 'src', 'beta.js'), 'const beta = 2;\n');
-await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
-  indexing: {
-    treeSitter: { enabled: false },
-    embeddings: { mode: 'off' }
-  },
-  sqlite: { use: false }
-}, null, 2));
 
 const result = spawnSync(
   process.execPath,
@@ -43,6 +36,7 @@ const result = spawnSync(
     encoding: 'utf8',
     env: {
       ...process.env,
+      PAIROFCLEATS_TESTING: '1',
       PAIROFCLEATS_CACHE_ROOT: cacheRoot
     }
   }

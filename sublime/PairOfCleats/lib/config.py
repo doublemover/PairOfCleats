@@ -39,10 +39,6 @@ DEFAULT_SETTINGS = {
     'map_wasd_max_speed': 24000,
     'map_wasd_drag': 6,
     'map_zoom_sensitivity': 0.1,
-    'profile': '',
-    'cache_root': '',
-    'embeddings_mode': '',
-    'node_options': '',
     'env': {}
 }
 
@@ -106,14 +102,6 @@ def build_env(settings):
             if key:
                 env[str(key)] = str(value)
 
-    if settings.get('profile'):
-        env['PAIROFCLEATS_PROFILE'] = str(settings['profile'])
-    if settings.get('cache_root'):
-        env['PAIROFCLEATS_CACHE_ROOT'] = str(settings['cache_root'])
-    if settings.get('embeddings_mode'):
-        env['PAIROFCLEATS_EMBEDDINGS'] = str(settings['embeddings_mode'])
-    if settings.get('node_options'):
-        env['PAIROFCLEATS_NODE_OPTIONS'] = str(settings['node_options'])
     return env
 
 

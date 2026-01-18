@@ -13,8 +13,12 @@ export function parseBuildArgs(rawArgs) {
     options: INDEX_BUILD_OPTIONS
   }).parse();
   validateBuildArgs(argv);
-  const modes = argv.mode === 'all'
+  const modeRaw = argv.mode || 'all';
+  const normalized = String(modeRaw).trim().toLowerCase();
+  const mode = normalized === 'both' ? 'all' : normalized;
+  argv.mode = mode;
+  const modes = mode === 'all'
     ? ['code', 'prose', 'extracted-prose', 'records']
-    : [argv.mode];
+    : (mode === 'prose' ? ['prose', 'extracted-prose'] : [mode]);
   return { argv, modes };
 }

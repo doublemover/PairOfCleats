@@ -7,19 +7,11 @@ export async function runSearchBenchmark({
   mode,
   backend,
   ann,
-  profile,
   warmRuns,
   warmupRuns,
   indexCache,
   sqliteCache
 }) {
-  const previousProfile = process.env.PAIROFCLEATS_PROFILE;
-  if (profile) {
-    process.env.PAIROFCLEATS_PROFILE = profile;
-  } else {
-    delete process.env.PAIROFCLEATS_PROFILE;
-  }
-
   const executeSearch = async () => {
     const start = process.hrtime.bigint();
     await search(repoRoot, {
@@ -36,31 +28,23 @@ export async function runSearchBenchmark({
     return hrtimeMs(start);
   };
 
-  try {
-    if (indexCache?.clear) indexCache.clear();
-    if (sqliteCache?.clearAll) sqliteCache.clearAll();
+  if (indexCache?.clear) indexCache.clear();
+  if (sqliteCache?.clearAll) sqliteCache.clearAll();
 
-    const coldMs = await executeSearch();
+  const coldMs = await executeSearch();
 
-    for (let i = 0; i < warmupRuns; i += 1) {
-      await executeSearch();
-    }
-
-    const warmTimes = [];
-    for (let i = 0; i < warmRuns; i += 1) {
-      warmTimes.push(await executeSearch());
-    }
-
-    return {
-      repoRoot,
-      coldMs,
-      warm: summarizeDurations(warmTimes)
-    };
-  } finally {
-    if (previousProfile !== undefined) {
-      process.env.PAIROFCLEATS_PROFILE = previousProfile;
-    } else {
-      delete process.env.PAIROFCLEATS_PROFILE;
-    }
+  for (let i = 0; i < warmupRuns; i += 1) {
+    await executeSearch();
   }
+
+  const warmTimes = [];
+  for (let i = 0; i < warmRuns; i += 1) {
+    warmTimes.push(await executeSearch());
+  }
+
+  return {
+    repoRoot,
+    coldMs,
+    warm: summarizeDurations(warmTimes)
+  };
 }

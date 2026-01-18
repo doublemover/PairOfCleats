@@ -9,6 +9,33 @@ const schemaPath = path.join(root, 'docs', 'config-schema.json');
 const outputJsonPath = path.join(root, 'docs', 'config-inventory.json');
 const outputMdPath = path.join(root, 'docs', 'config-inventory.md');
 
+const PUBLIC_CONFIG_KEYS = new Set(['cache.root', 'quality']);
+const PUBLIC_ENV_VARS = new Set(['PAIROFCLEATS_API_TOKEN']);
+const PUBLIC_CLI_FLAGS = new Set([
+  'repo',
+  'mode',
+  'quality',
+  'watch',
+  'top',
+  'json',
+  'explain',
+  'filter',
+  'backend',
+  'host',
+  'port'
+]);
+const PUBLIC_FLAG_SOURCES = new Set([
+  'bin/pairofcleats.js',
+  'src/shared/cli.js'
+]);
+const BUDGETS = {
+  configKeys: 2,
+  envVars: 1,
+  cliFlags: 25
+};
+
+const shouldCheck = process.argv.includes('--check');
+
 const normalizeType = (schema) => {
   if (!schema || typeof schema !== 'object') return null;
   if (Array.isArray(schema.type)) return schema.type.join('|');
@@ -77,6 +104,19 @@ const collectSchemaEntries = (schema, prefix = '', entries = []) => {
     collectSchemaEntries(items, pathKey, entries);
   }
   return entries;
+};
+
+const getLeafEntries = (entries) => {
+  const prefixes = new Set();
+  for (const entry of entries) {
+    const parts = entry.path.split('.');
+    let prefix = '';
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      prefix = prefix ? `${prefix}.${parts[i]}` : parts[i];
+      prefixes.add(prefix);
+    }
+  }
+  return entries.filter((entry) => !prefixes.has(entry.path));
 };
 
 const listSourceFiles = async () => {
@@ -360,6 +400,7 @@ const buildInventory = async () => {
   }
   const configEntries = Array.from(entryMap.values())
     .sort((a, b) => a.path.localeCompare(b.path));
+  const configLeafEntries = getLeafEntries(configEntries);
   const topLevel = new Map();
   for (const entry of configEntries) {
     const rootKey = entry.path.split(/[.[\]]/)[0] || entry.path;
@@ -391,7 +432,6 @@ const buildInventory = async () => {
     const stringFlags = extractStringArray(source, 'STRING_FLAGS');
     boolFlags.forEach((flag) => fileFlags.add(flag));
     stringFlags.forEach((flag) => fileFlags.add(flag));
-    if (source.includes('mergedOptions.profile')) fileFlags.add('profile');
 
     if ((source.includes('.options(') || source.includes('options:')) && fileFlags.size === 0) {
       dynamicOptionFiles.add(relPath);
@@ -419,6 +459,42 @@ const buildInventory = async () => {
     .map(([file, flags]) => ({ file, flags }))
     .sort((a, b) => a.file.localeCompare(b.file));
 
+  const publicFlagsDetected = new Set();
+  for (const entry of cliFlagsByFileOutput) {
+    if (!PUBLIC_FLAG_SOURCES.has(entry.file)) continue;
+    entry.flags.forEach((flag) => publicFlagsDetected.add(flag));
+  }
+
+  const publicConfigLeafKeys = configLeafEntries
+    .filter((entry) => PUBLIC_CONFIG_KEYS.has(entry.path))
+    .map((entry) => entry.path)
+    .sort();
+  const unknownConfigLeafKeys = configLeafEntries
+    .filter((entry) => !PUBLIC_CONFIG_KEYS.has(entry.path))
+    .map((entry) => entry.path)
+    .sort();
+
+  const publicEnvVars = envVars
+    .filter((entry) => PUBLIC_ENV_VARS.has(entry.name))
+    .map((entry) => entry.name)
+    .sort();
+  const unknownEnvVars = envVars
+    .filter((entry) => !PUBLIC_ENV_VARS.has(entry.name))
+    .map((entry) => entry.name)
+    .sort();
+
+  const publicFlags = cliFlags
+    .filter((entry) => PUBLIC_CLI_FLAGS.has(entry.flag))
+    .map((entry) => entry.flag)
+    .sort();
+  const internalFlags = cliFlags
+    .filter((entry) => !PUBLIC_CLI_FLAGS.has(entry.flag))
+    .map((entry) => entry.flag)
+    .sort();
+  const unknownPublicFlags = Array.from(publicFlagsDetected)
+    .filter((flag) => !PUBLIC_CLI_FLAGS.has(flag))
+    .sort();
+
   const duplicatedFlags = cliFlags
     .filter((entry) => entry.files.length > 1)
     .map((entry) => ({
@@ -430,17 +506,32 @@ const buildInventory = async () => {
 
   const inventory = {
     generatedAt: new Date().toISOString(),
+    budgets: { ...BUDGETS },
+    allowlists: {
+      configKeys: Array.from(PUBLIC_CONFIG_KEYS).sort(),
+      envVars: Array.from(PUBLIC_ENV_VARS).sort(),
+      cliFlags: Array.from(PUBLIC_CLI_FLAGS).sort()
+    },
     configSchema: {
       path: path.relative(root, schemaPath).replace(/\\/g, '/'),
       totalKeys: configEntries.length,
+      leafKeys: configLeafEntries.length,
       topLevel: Array.from(topLevel.entries())
         .map(([key, count]) => ({ key, count }))
         .sort((a, b) => a.key.localeCompare(b.key))
     },
     configKeys: configEntries,
+    configKeysPublic: publicConfigLeafKeys,
+    configKeysUnknown: unknownConfigLeafKeys,
     envVars,
+    envVarsPublic: publicEnvVars,
+    envVarsUnknown: unknownEnvVars,
     cliFlags: {
       totalFlags: cliFlags.length,
+      publicFlags,
+      internalFlags,
+      publicDetected: Array.from(publicFlagsDetected).sort(),
+      publicUnknown: unknownPublicFlags,
       byFile: cliFlagsByFileOutput,
       duplicated: duplicatedFlags,
       dynamicOptionFiles: Array.from(dynamicOptionFiles).sort()
@@ -459,8 +550,18 @@ const buildInventory = async () => {
   mdLines.push('');
   mdLines.push('## Summary');
   mdLines.push(`- Config keys: ${inventory.configSchema.totalKeys}`);
+  mdLines.push(`- Config leaf keys: ${inventory.configSchema.leafKeys}`);
+  mdLines.push(`- Public config keys: ${inventory.configKeysPublic.length}`);
   mdLines.push(`- Env vars: ${inventory.envVars.length}`);
+  mdLines.push(`- Public env vars: ${inventory.envVarsPublic.length}`);
   mdLines.push(`- CLI flags: ${inventory.cliFlags.totalFlags}`);
+  mdLines.push(`- Public CLI flags: ${inventory.cliFlags.publicFlags.length}`);
+  mdLines.push('');
+  mdLines.push('## Allowlist drift');
+  mdLines.push('');
+  mdLines.push(`- Unknown config keys: ${inventory.configKeysUnknown.length}`);
+  mdLines.push(`- Unknown env vars: ${inventory.envVarsUnknown.length}`);
+  mdLines.push(`- Unknown public CLI flags: ${inventory.cliFlags.publicUnknown.length}`);
   mdLines.push('');
   mdLines.push('## Config keys by top-level namespace');
   mdLines.push('');
@@ -477,6 +578,18 @@ const buildInventory = async () => {
       mdLines.push(`- ${entry.name} (${entry.files.length} files)`);
     }
   }
+  mdLines.push('');
+  mdLines.push('## Public CLI flags');
+  mdLines.push('');
+  mdLines.push(inventory.cliFlags.publicFlags.length
+    ? inventory.cliFlags.publicFlags.join(', ')
+    : '(none)');
+  mdLines.push('');
+  mdLines.push('## Internal CLI flags');
+  mdLines.push('');
+  mdLines.push(inventory.cliFlags.internalFlags.length
+    ? inventory.cliFlags.internalFlags.join(', ')
+    : '(none)');
   mdLines.push('');
   mdLines.push('## CLI flags (duplicated across files)');
   mdLines.push('');
@@ -518,6 +631,32 @@ const buildInventory = async () => {
   }
 
   await fs.writeFile(outputMdPath, mdLines.join('\n'));
+
+  if (shouldCheck) {
+    const errors = [];
+    if (unknownConfigLeafKeys.length) {
+      errors.push(`Config keys not in allowlist: ${unknownConfigLeafKeys.join(', ')}`);
+    }
+    if (unknownEnvVars.length) {
+      errors.push(`Env vars not in allowlist: ${unknownEnvVars.join(', ')}`);
+    }
+    if (unknownPublicFlags.length) {
+      errors.push(`Public CLI flags not in allowlist: ${unknownPublicFlags.join(', ')}`);
+    }
+    if (publicConfigLeafKeys.length > BUDGETS.configKeys) {
+      errors.push(`Public config keys exceed budget (${publicConfigLeafKeys.length}/${BUDGETS.configKeys}).`);
+    }
+    if (publicEnvVars.length > BUDGETS.envVars) {
+      errors.push(`Public env vars exceed budget (${publicEnvVars.length}/${BUDGETS.envVars}).`);
+    }
+    if (PUBLIC_CLI_FLAGS.size > BUDGETS.cliFlags) {
+      errors.push(`Public CLI flags exceed budget (${PUBLIC_CLI_FLAGS.size}/${BUDGETS.cliFlags}).`);
+    }
+    if (errors.length) {
+      errors.forEach((msg) => console.error(`[config-budget] ${msg}`));
+      process.exit(1);
+    }
+  }
 };
 
 await buildInventory();

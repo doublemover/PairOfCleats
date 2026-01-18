@@ -126,7 +126,7 @@ function runSearch(query, backend) {
   const args = [
     searchPath,
     query,
-    '--json-compact',
+    '--json',
     '--stats',
     '--backend',
     backend,

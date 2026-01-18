@@ -41,7 +41,6 @@ const argv = createCli({
     mode: { type: 'string' },
     'cache-root': { type: 'string' },
     repo: { type: 'string' },
-    profile: { type: 'string' },
     top: { type: 'number', default: 5 },
     limit: { type: 'number', default: 0 }
   },
@@ -51,11 +50,7 @@ const argv = createCli({
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
 const scriptRoot = resolveToolRoot();
-const userConfig = loadUserConfig(root, { profile: argv.profile });
-if (userConfig.profile !== 'full') {
-  console.error('compare-models is experimental. Run with profile=full or set PAIROFCLEATS_PROFILE=full.');
-  process.exit(1);
-}
+const userConfig = loadUserConfig(root);
 const envConfig = getEnvConfig();
 const runtimeConfig = getRuntimeConfig(root, userConfig);
 const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
@@ -244,7 +239,7 @@ function runSearch(query, env) {
   const args = [
     path.join(scriptRoot, 'search.js'),
     query,
-    '--json-compact',
+    '--json',
     '--stats',
     '--backend',
     backend,

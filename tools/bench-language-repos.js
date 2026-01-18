@@ -2,7 +2,6 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getEnvConfig } from '../src/shared/env.js';
 import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from './dict-utils.js';
 import { parseBenchLanguageArgs } from './bench/language/cli.js';
 import { loadBenchConfig } from './bench/language/config.js';
@@ -37,6 +36,13 @@ const parseList = (value) => {
     .filter(Boolean);
 };
 
+const ensureBenchConfig = async (repoPath, cacheRoot) => {
+  const configPath = path.join(repoPath, '.pairofcleats.json');
+  if (fs.existsSync(configPath)) return;
+  const payload = { cache: { root: cacheRoot } };
+  await fsPromises.writeFile(configPath, JSON.stringify(payload, null, 2), 'utf8');
+};
+
 const {
   argv,
   scriptRoot,
@@ -53,13 +59,10 @@ const {
   lockWaitMs,
   lockStaleMs,
   backendList,
-  wantsSqlite,
-  indexProfile,
-  suppressProfileEnv
+  wantsSqlite
 } = parseBenchLanguageArgs();
 
 const baseEnv = { ...process.env };
-const envConfig = getEnvConfig();
 const quietMode = argv.quiet === true || argv.json === true;
 const display = createDisplay({
   stream: process.stderr,
@@ -382,10 +385,9 @@ for (const task of tasks) {
       }
     }
 
-    const repoUserConfig = loadUserConfig(
-      repoPath,
-      indexProfile ? { profile: indexProfile } : {}
-    );
+    await ensureBenchConfig(repoPath, cacheRoot);
+
+    const repoUserConfig = loadUserConfig(repoPath);
     const repoRuntimeConfig = getRuntimeConfig(repoPath, repoUserConfig);
     let baseNodeOptions = baseEnv.NODE_OPTIONS || '';
     if (Number.isFinite(heapArg) && heapArg > 0) {
@@ -401,14 +403,13 @@ for (const task of tasks) {
       }
     } else if (
       !Number.isFinite(repoRuntimeConfig.maxOldSpaceMb)
-      && !envConfig.maxOldSpaceMb
       && !hasHeapFlag
     ) {
       heapOverride = heapRecommendation.recommendedMb;
       if (!heapLogged) {
         appendLog(
           `[auto-heap] Using ${formatGb(heapOverride)} (${heapOverride} MB) for Node heap. `
-            + 'Override with --heap-mb or PAIROFCLEATS_MAX_OLD_SPACE_MB.'
+            + 'Override with --heap-mb.'
         );
         heapLogged = true;
       }
@@ -422,14 +423,9 @@ for (const task of tasks) {
       baseEnvForRepo.NODE_OPTIONS = baseNodeOptions;
     }
     const repoEnvBase = resolveRuntimeEnv(runtimeConfigForRun, baseEnvForRepo);
-    if (suppressProfileEnv && repoEnvBase.PAIROFCLEATS_PROFILE) {
-      delete repoEnvBase.PAIROFCLEATS_PROFILE;
-    }
     if (heapOverride) {
-      repoEnvBase.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapOverride);
-    }
-    if (indexProfile) {
-      repoEnvBase.PAIROFCLEATS_PROFILE = indexProfile;
+      repoEnvBase.NODE_OPTIONS = stripMaxOldSpaceFlag(repoEnvBase.NODE_OPTIONS || '');
+      repoEnvBase.NODE_OPTIONS = [repoEnvBase.NODE_OPTIONS, `--max-old-space-size=${heapOverride}`].filter(Boolean).join(' ').trim();
     }
 
     const outDir = path.join(resultsRoot, task.language);
@@ -514,7 +510,6 @@ for (const task of tasks) {
       '--out',
       outFile
     ];
-    if (indexProfile) benchArgs.push('--index-profile', indexProfile);
     if (argv['stub-embeddings']) {
       benchArgs.push('--stub-embeddings');
       progress.appendLog('[bench] Stub embeddings enabled; results are not comparable to real-embeddings runs.');
@@ -536,12 +531,7 @@ for (const task of tasks) {
     if (argv.backend) benchArgs.push('--backend', String(argv.backend));
     if (argv.top) benchArgs.push('--top', String(argv.top));
     if (argv.limit) benchArgs.push('--limit', String(argv.limit));
-    if (argv['bm25-k1']) benchArgs.push('--bm25-k1', String(argv['bm25-k1']));
-    if (argv['bm25-b']) benchArgs.push('--bm25-b', String(argv['bm25-b']));
-    if (argv['fts-profile']) benchArgs.push('--fts-profile', String(argv['fts-profile']));
-    if (argv['fts-weights']) benchArgs.push('--fts-weights', String(argv['fts-weights']));
     if (argv.threads) benchArgs.push('--threads', String(argv.threads));
-    if (argv['no-index-profile']) benchArgs.push('--no-index-profile');
     const childProgressMode = argv.progress === 'off' ? 'off' : 'jsonl';
     benchArgs.push('--progress', childProgressMode);
     if (argv.verbose) benchArgs.push('--verbose');
@@ -556,11 +546,7 @@ for (const task of tasks) {
       const benchResult = await processRunner.runProcess(`bench ${repoLabel}`, process.execPath, benchArgs, {
         cwd: scriptRoot,
         env: {
-          ...repoEnvBase,
-          PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-          ...(Number.isFinite(Number(argv.threads)) && Number(argv.threads) > 0
-            ? { PAIROFCLEATS_THREADS: String(argv.threads) }
-            : {})
+          ...repoEnvBase
         },
         continueOnError: true
       });

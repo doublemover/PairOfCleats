@@ -3,6 +3,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createCli } from '../src/shared/cli.js';
 
+process.env.PAIROFCLEATS_TESTING = '1';
+
 const argv = createCli({
   scriptName: 'test-all',
   options: {

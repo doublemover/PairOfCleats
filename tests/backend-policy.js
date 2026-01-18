@@ -4,8 +4,6 @@ import { resolveBackendPolicy } from '../src/storage/backend-policy.js';
 
 const autoDefault = resolveBackendPolicy({
   backendArg: 'auto',
-  sqliteScoreModeConfig: false,
-  sqliteConfigured: true,
   sqliteAvailable: true,
   lmdbAvailable: true,
   needsSqlite: true
@@ -14,30 +12,19 @@ assert.equal(autoDefault.useSqlite, true);
 assert.equal(autoDefault.useLmdb, false);
 assert.equal(autoDefault.backendLabel, 'sqlite');
 
-const autoChunkThreshold = resolveBackendPolicy({
+const autoPreferLmdb = resolveBackendPolicy({
   backendArg: 'auto',
-  sqliteConfigured: true,
   sqliteAvailable: true,
-  sqliteAutoChunkThreshold: 10,
+  lmdbAvailable: true,
   needsSqlite: true,
-  chunkCounts: [5]
+  defaultBackend: 'lmdb'
 });
-assert.equal(autoChunkThreshold.useSqlite, false);
-assert.equal(autoChunkThreshold.useLmdb, false);
-
-const autoArtifactThreshold = resolveBackendPolicy({
-  backendArg: 'auto',
-  sqliteConfigured: true,
-  sqliteAvailable: true,
-  sqliteAutoArtifactBytes: 100,
-  needsSqlite: true,
-  artifactBytes: [200]
-});
-assert.equal(autoArtifactThreshold.useSqlite, true);
+assert.equal(autoPreferLmdb.useSqlite, false);
+assert.equal(autoPreferLmdb.useLmdb, true);
+assert.equal(autoPreferLmdb.backendLabel, 'lmdb');
 
 const forcedMemory = resolveBackendPolicy({
   backendArg: 'memory',
-  sqliteConfigured: true,
   sqliteAvailable: true,
   lmdbAvailable: true,
   needsSqlite: true
@@ -60,7 +47,6 @@ assert.equal(forcedTantivy.backendForcedTantivy, true);
 
 const forcedSqliteMissing = resolveBackendPolicy({
   backendArg: 'sqlite',
-  sqliteConfigured: true,
   sqliteAvailable: false,
   lmdbAvailable: true,
   needsSqlite: true
@@ -84,7 +70,6 @@ assert.ok(forcedLmdbMissing.error);
 
 const autoFallbackLmdb = resolveBackendPolicy({
   backendArg: 'auto',
-  sqliteConfigured: true,
   sqliteAvailable: false,
   lmdbAvailable: true,
   needsSqlite: true

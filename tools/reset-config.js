@@ -23,7 +23,6 @@ const isTruthy = (value) => {
 };
 
 const forceRequested = argv.force
-  || isTruthy(process.env.PAIROFCLEATS_RESET_FORCE)
   || isTruthy(process.env.npm_config_force);
 
 const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());

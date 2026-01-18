@@ -13,21 +13,6 @@ const cacheRoot = path.join(tempRoot, 'cache');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
 
-const config = {
-  indexing: {
-    typeInference: true,
-    typeInferenceCrossFile: true
-  },
-  tooling: {
-    autoEnableOnDetect: false
-  },
-  sqlite: { use: false }
-};
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify(config, null, 2)
-);
-
 await fsPromises.writeFile(
   path.join(repoRoot, 'src', 'creator.js'),
   `/**
@@ -58,9 +43,20 @@ export function buildWidget() {
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
+  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+    indexing: {
+      typeInference: true,
+      typeInferenceCrossFile: true
+    },
+    tooling: {
+      autoEnableOnDetect: false
+    }
+  }),
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
 const result = spawnSync(process.execPath, [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], {

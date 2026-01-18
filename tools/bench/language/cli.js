@@ -28,13 +28,6 @@ const resolveBackendList = (value) => {
     .filter(Boolean);
 };
 
-const isBenchProfile = (value) => {
-  if (!value) return false;
-  const normalized = String(value).trim().toLowerCase();
-  if (!normalized) return false;
-  return normalized === 'bench' || normalized.startsWith('bench-');
-};
-
 const buildRunSuffix = () => {
   const now = new Date();
   const stamp = [
@@ -120,16 +113,6 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
     || backendList.includes('sqlite-fts')
     || backendList.includes('fts');
 
-  const indexProfileRaw = typeof argv['index-profile'] === 'string'
-    ? argv['index-profile'].trim()
-    : '';
-  const defaultHeavyProfile = 'full';
-  const resolvedProfile = indexProfileRaw && !isBenchProfile(indexProfileRaw)
-    ? indexProfileRaw
-    : defaultHeavyProfile;
-  const indexProfile = argv['no-index-profile'] === true ? '' : resolvedProfile;
-  const suppressProfileEnv = argv['no-index-profile'] === true;
-
   return {
     argv,
     scriptRoot,
@@ -149,8 +132,6 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
     lockWaitMs,
     lockStaleMs,
     backendList,
-    wantsSqlite,
-    indexProfile,
-    suppressProfileEnv
+    wantsSqlite
   };
 };

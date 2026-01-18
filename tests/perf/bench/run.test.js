@@ -12,6 +12,8 @@ import os from 'node:os';
 import { createSafeRegex, normalizeSafeRegexConfig } from '../../../src/shared/safe-regex.js';
 import { build as buildHistogram } from 'hdr-histogram-js';
 
+process.env.PAIROFCLEATS_TESTING = '1';
+
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
   scriptName: 'bench',
@@ -97,28 +99,8 @@ let buildIndex = argv['build-index'] || argv.build;
 let buildSqlite = argv['build-sqlite'] || argv.build;
 const buildIncremental = argv.incremental === true || buildSqlite;
 const envConfig = getEnvConfig();
-const indexProfileArg = typeof argv['index-profile'] === 'string'
-  ? argv['index-profile'].trim()
-  : '';
-const noIndexProfile = rawArgs.includes('--no-index-profile');
-const originalEnvProfile = process.env.PAIROFCLEATS_PROFILE;
-const indexProfileRaw = indexProfileArg;
-const suppressEnvProfile = noIndexProfile && !indexProfileRaw;
-if (suppressEnvProfile) {
-  delete process.env.PAIROFCLEATS_PROFILE;
-}
 const runtimeRoot = repoArg || root;
-const userConfig = loadUserConfig(
-  runtimeRoot,
-  indexProfileRaw ? { profile: indexProfileRaw } : {}
-);
-if (suppressEnvProfile) {
-  if (originalEnvProfile === undefined) {
-    delete process.env.PAIROFCLEATS_PROFILE;
-  } else {
-    process.env.PAIROFCLEATS_PROFILE = originalEnvProfile;
-  }
-}
+const userConfig = loadUserConfig(runtimeRoot);
 const runtimeConfig = getRuntimeConfig(runtimeRoot, userConfig);
 const embeddingProvider = userConfig.indexing?.embeddings?.provider || 'xenova';
 const needsMemory = backends.includes('memory');
@@ -172,10 +154,6 @@ const stubEmbeddings = argv['stub-embeddings'] === true
 
 const baseEnvCandidate = { ...process.env, NODE_OPTIONS: baseNodeOptions };
 const baseEnv = resolveRuntimeEnv(runtimeConfigForRun, baseEnvCandidate);
-const profileArgPresent = rawArgs.includes('--profile') || rawArgs.includes('--index-profile');
-if (noIndexProfile && !profileArgPresent && baseEnv.PAIROFCLEATS_PROFILE) {
-  delete baseEnv.PAIROFCLEATS_PROFILE;
-}
 if (realEmbeddings && baseEnv.PAIROFCLEATS_EMBEDDINGS) {
   delete baseEnv.PAIROFCLEATS_EMBEDDINGS;
 }
@@ -186,9 +164,7 @@ if (heapOverride) {
       `(override with --heap-mb or PAIROFCLEATS_MAX_OLD_SPACE_MB)`
   );
 }
-const benchEnvWithProfile = indexProfileRaw
-  ? { ...baseEnv, PAIROFCLEATS_PROFILE: indexProfileRaw }
-  : baseEnv;
+const benchEnv = baseEnv;
 
 function logBench(message) {
   if (!message) return;
@@ -202,7 +178,7 @@ function runSearch(query, backend) {
     searchPath,
     query,
     '--json',
-    '--json-compact',
+    '--json',
     '--stats',
     '--backend',
     backend,
@@ -215,7 +191,7 @@ function runSearch(query, backend) {
   if (bm25BArg) args.push('--bm25-b', String(bm25BArg));
   if (ftsProfileArg) args.push('--fts-profile', String(ftsProfileArg));
   if (ftsWeightsArg) args.push('--fts-weights', String(ftsWeightsArg));
-  const env = { ...benchEnvWithProfile };
+  const env = { ...benchEnv };
   if (stubEmbeddings) {
     env.PAIROFCLEATS_EMBEDDINGS = 'stub';
   } else {
@@ -366,7 +342,7 @@ function runServiceQueue(queueName, env) {
 
 const buildMs = {};
 if (buildIndex || buildSqlite) {
-  const buildEnv = { ...benchEnvWithProfile };
+  const buildEnv = { ...benchEnv };
   if (Number.isFinite(Number(argv.threads)) && Number(argv.threads) > 0) {
     buildEnv.PAIROFCLEATS_THREADS = String(argv.threads);
   }

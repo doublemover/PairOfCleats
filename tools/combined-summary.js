@@ -23,18 +23,13 @@ const argv = createCli({
     top: { type: 'number', default: 5 },
     limit: { type: 'number', default: 0 },
     mode: { type: 'string' },
-    repo: { type: 'string' },
-    profile: { type: 'string' }
+    repo: { type: 'string' }
   }
 }).parse();
 
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
 const root = rootArg || resolveRepoRoot(process.cwd());
-const userConfig = loadUserConfig(root, { profile: argv.profile });
-if (userConfig.profile !== 'full') {
-  console.error('summary-report is experimental. Run with profile=full or set PAIROFCLEATS_PROFILE=full.');
-  process.exit(1);
-}
+const userConfig = loadUserConfig(root);
 const runtimeConfig = getRuntimeConfig(root, userConfig);
 const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const scriptRoot = resolveToolRoot();

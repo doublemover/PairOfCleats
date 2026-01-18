@@ -14,35 +14,30 @@ await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const configPath = path.join(repoRoot, '.pairofcleats.json');
-const writeConfig = async (enableChargrams) => {
-  await fsPromises.writeFile(
-    configPath,
-    JSON.stringify({
-      indexing: {
-        postings: { enableChargrams },
-        fileListSampleSize: 10,
-        treeSitter: { enabled: false }
-      }
-    }, null, 2)
-  );
-};
-await writeConfig(false);
-
 const filePath = path.join(repoRoot, 'src.js');
 await fsPromises.writeFile(filePath, 'function alpha() { return 1; }\n');
 
-const env = {
+const baseEnv = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
-const runBuild = (label) => {
+const runBuild = (label, testConfig) => {
   const result = spawnSync(
     process.execPath,
     [path.join(root, 'build_index.js'), '--stub-embeddings', '--incremental', '--repo', repoRoot],
-    { cwd: repoRoot, env, stdio: 'inherit' }
+    {
+      cwd: repoRoot,
+      env: testConfig
+        ? { ...baseEnv, PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) }
+        : baseEnv,
+      stdio: 'inherit'
+    }
   );
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
@@ -50,8 +45,8 @@ const runBuild = (label) => {
   }
 };
 
-runBuild('initial build');
-runBuild('cache build');
+runBuild('initial build', { indexing: { postings: { enablePhraseNgrams: false } } });
+runBuild('cache build', { indexing: { postings: { enablePhraseNgrams: false } } });
 
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(repoRoot);
@@ -73,8 +68,7 @@ if (!cachedEntry || cachedEntry.cached !== true) {
   process.exit(1);
 }
 
-await writeConfig(true);
-runBuild('config change rebuild');
+runBuild('config change rebuild', { indexing: { postings: { enablePhraseNgrams: true } } });
 
 const userConfigAfter = loadUserConfig(repoRoot);
 const codeDirAfter = getIndexDir(repoRoot, 'code', userConfigAfter);

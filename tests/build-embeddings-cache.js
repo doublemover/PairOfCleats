@@ -18,16 +18,16 @@ await fsPromises.writeFile(
   path.join(repoRoot, 'src', 'alpha.js'),
   'export const alpha = () => 1;\n'
 );
-await fsPromises.writeFile(
-  path.join(repoRoot, '.pairofcleats.json'),
-  JSON.stringify({ indexing: { treeSitter: { enabled: false } } }, null, 2)
-);
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
 const runNode = (label, args) => {
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
@@ -40,7 +40,7 @@ const runNode = (label, args) => {
 runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]);
 runNode('build_embeddings', [path.join(root, 'tools', 'build-embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 
-const repoCacheRoot = getRepoCacheRoot(repoRoot, { cache: { root: cacheRoot } });
+const repoCacheRoot = getRepoCacheRoot(repoRoot, null);
 const cacheDir = path.join(repoCacheRoot, 'embeddings', 'code', 'files');
 const cacheFiles = fs.existsSync(cacheDir)
   ? fs.readdirSync(cacheDir).filter((name) => name.endsWith('.json'))

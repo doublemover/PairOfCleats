@@ -8,7 +8,6 @@ This file complements `docs/config-inventory.md` with manual analysis and owners
 - extensions: `tools/download-extensions.js`, `tools/verify-extensions.js`, `tools/vector-extension.js`
 - indexing: `src/index/build/runtime.js`, `src/index/build/indexer.js`, `src/index/build/file-processor.js`
 - models: `tools/dict-utils.js`, `src/shared/embedding.js`, `src/index/build/runtime.js`
-- profile: `src/shared/cli.js`, `tools/dict-utils.js`
 - runtime: `tools/dict-utils.js`, `src/shared/cli.js`
 - search: `src/retrieval/cli.js`, `src/retrieval/pipeline.js`, `src/retrieval/sqlite-helpers.js`
 - sql: `src/index/build/runtime.js`, `src/lang/sql.js`
@@ -17,7 +16,6 @@ This file complements `docs/config-inventory.md` with manual analysis and owners
 - triage: `src/integrations/triage/*`, `tools/triage/*`
 
 ## Overlap candidates to consolidate (initial)
-- Profiles: `PAIROFCLEATS_PROFILE`, `--profile`, and `--index-profile` overlap and need a single precedence rule.
 - Embeddings: `PAIROFCLEATS_EMBEDDINGS`, `indexing.embeddings.*`, `--stub-embeddings`, and `--real-embeddings` are redundant toggles.
 - Threads/concurrency: `PAIROFCLEATS_THREADS`, `indexing.concurrency`, `--threads`, per-feature concurrency fields, and worker-pool max workers overlap.
 - Cache roots: `cache.root`, `PAIROFCLEATS_CACHE_ROOT`, `--cache-root`, and per-benchmark cache overrides are duplicated.

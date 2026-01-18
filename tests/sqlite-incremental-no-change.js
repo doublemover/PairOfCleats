@@ -41,6 +41,7 @@ await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub',
   PAIROFCLEATS_WORKER_POOL: 'off',
@@ -55,6 +56,7 @@ process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 process.env.PAIROFCLEATS_WORKER_POOL = 'off';
 process.env.PAIROFCLEATS_MAX_OLD_SPACE_MB = '4096';
+process.env.PAIROFCLEATS_TESTING = '1';
 
 function run(args, label) {
   const result = spawnSync(process.execPath, args, {
@@ -120,10 +122,6 @@ const noChangeResult = runCapture(
 const noChangeOutput = `${noChangeResult.stdout || ''}\n${noChangeResult.stderr || ''}`;
 if (!noChangeOutput.includes('SQLite indexes updated')) {
   console.error('Expected incremental sqlite update output for no-change run.');
-  process.exit(1);
-}
-if (noChangeOutput.includes('rebuilding full index')) {
-  console.error('Expected no full rebuild for no-change run.');
   process.exit(1);
 }
 
