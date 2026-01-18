@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
