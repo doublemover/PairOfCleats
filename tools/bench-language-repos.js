@@ -136,7 +136,10 @@ const handleProgressEvent = (event) => {
     appendLog(message, level);
     return;
   }
-  const name = event.name || event.taskId || 'task';
+  const rawName = event.name || event.taskId || 'task';
+  const isOverall = (event.stage || '').toLowerCase() === 'overall'
+    || String(rawName).trim().toLowerCase() === 'overall';
+  const name = isOverall && benchRepoLabel ? benchRepoLabel : rawName;
   const total = Number.isFinite(event.total) && event.total > 0 ? event.total : null;
   const task = display.task(name, {
     taskId: event.taskId || name,
@@ -147,18 +150,18 @@ const handleProgressEvent = (event) => {
   });
   const current = Number.isFinite(event.current) ? event.current : 0;
   if (event.event === 'task:start') {
-    task.set(current, total, { message: event.message });
+    task.set(current, total, { message: event.message, name });
     return;
   }
   if (event.event === 'task:progress') {
-    task.set(current, total, { message: event.message });
+    task.set(current, total, { message: event.message, name });
     return;
   }
   if (event.event === 'task:end') {
     if (event.status === 'failed') {
       task.fail(new Error(event.message || 'failed'));
     } else {
-      task.done({ message: event.message });
+      task.done({ message: event.message, name });
     }
   }
 };
@@ -301,11 +304,19 @@ const results = [];
 const startTime = Date.now();
 let completed = 0;
 
+const formatBenchTierTag = (tier) => {
+  if (!tier) return '';
+  const label = String(tier).trim().toLowerCase();
+  return label ? `bench-${label}` : '';
+};
+let benchTierTag = '';
+let benchRepoLabel = '';
 const benchTask = display.task('Repos', { total: tasks.length, stage: 'bench' });
 const updateBenchProgress = (label) => {
   const elapsed = formatDuration(Date.now() - startTime);
   const message = label ? `${label} | elapsed ${elapsed}` : `elapsed ${elapsed}`;
-  benchTask.set(completed, tasks.length, { message });
+  const reposLabel = benchTierTag ? `Repos (${benchTierTag})` : 'Repos';
+  benchTask.set(completed, tasks.length, { message, name: reposLabel });
 };
 updateBenchProgress('pending');
 
@@ -330,6 +341,11 @@ for (const task of tasks) {
   const repoPath = resolveRepoDir({ reposRoot, repo: task.repo, language: task.language });
   await fsPromises.mkdir(path.dirname(repoPath), { recursive: true });
   const repoLabel = `${task.language}/${task.repo}`;
+  const tierLabel = String(task.tier || '').trim();
+  benchTierTag = formatBenchTierTag(tierLabel) || benchTierTag;
+  benchRepoLabel = tierLabel
+    ? `bench repo ${repoLabel} (${tierLabel})`
+    : `bench repo ${repoLabel}`;
   const phaseLabel = `repo ${repoLabel} (${task.tier})`;
   updateBenchProgress(`starting ${phaseLabel}`);
   const repoCacheRoot = resolveRepoCacheRoot({ repoPath, cacheRoot });

@@ -189,6 +189,21 @@ export function log(msg, meta = null) {
  * @param {object} [meta]
  */
 export function logLine(msg, meta = null) {
+  const isStatus = meta && typeof meta === 'object' && meta.kind === 'status';
+  if (isStatus && !progressHandlers?.logLine && process.stderr.isTTY) {
+    recordEvent('info', msg, meta);
+    const line = String(msg || '');
+    const width = line.length;
+    process.stderr.write(`\r${line}\x1b[K`);
+    lastProgressActive = true;
+    lastProgressWidth = width;
+    if (!line) {
+      process.stderr.write('\r');
+      lastProgressActive = false;
+      lastProgressWidth = 0;
+    }
+    return;
+  }
   if (logger) {
     logger.info({ ...logContext, ...(meta || {}) }, msg);
     recordEvent('info', msg, meta);

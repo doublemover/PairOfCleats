@@ -1,14 +1,27 @@
-import { log } from '../../../../shared/progress.js';
+import { log, logLine } from '../../../../shared/progress.js';
 import { compareStrings } from '../../../../shared/sort.js';
 import { discoverFiles } from '../../discover.js';
 
-export const runDiscovery = async ({ runtime, mode, discovery, state, timing }) => {
+const MODE_LABEL_WIDTH = 'Extracted Prose'.length;
+
+const formatModeLabel = (value) => {
+  if (!value) return '';
+  return String(value)
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() || ''}${part.slice(1)}`)
+    .join(' ');
+};
+
+export const runDiscovery = async ({ runtime, mode, discovery, state, timing, stageNumber = 1 }) => {
   if (discovery && Array.isArray(discovery.skippedFiles) && state?.skippedFiles) {
     for (const file of discovery.skippedFiles) {
       state.skippedFiles.push(file);
     }
   }
-  log('Discovering files...');
+  const modeLabel = formatModeLabel(mode).padStart(MODE_LABEL_WIDTH, ' ');
+  const stageLabel = `Stage ${Number.isFinite(stageNumber) ? stageNumber : 1}`;
+  logLine(`[${modeLabel} | ${stageLabel}]`, { kind: 'status', key: 'discovery' });
   const discoverStart = Date.now();
   let entries = null;
   if (discovery && Array.isArray(discovery.entries)) {

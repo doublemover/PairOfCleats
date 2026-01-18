@@ -8,10 +8,10 @@
     "annBackend": "lancedb"
   },
   "indexing": {
-    "embeddingBatchSize": 16,
+    "embeddingBatchSize": 8,
     "embeddings": {
-      "batchSize": 16,
-      "concurrency": 16,
+      "batchSize": 8,
+      "concurrency": 4,
       "lancedb": {
         "enabled": true,
         "table": "vectors",

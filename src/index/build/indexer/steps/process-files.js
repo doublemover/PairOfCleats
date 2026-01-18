@@ -370,7 +370,10 @@ export const processFiles = async ({
   log('Processing and indexing files...');
   crashLogger.updatePhase('processing');
   const processStart = Date.now();
-  log(`Indexing concurrency: files=${runtime.fileConcurrency}, imports=${runtime.importConcurrency}, io=${runtime.ioConcurrency}, cpu=${runtime.cpuConcurrency}`);
+  log(
+    `Indexing Concurrency: Files: ${runtime.fileConcurrency}, ` +
+    `Imports: ${runtime.importConcurrency}, IO: ${runtime.ioConcurrency}, CPU: ${runtime.cpuConcurrency}`
+  );
   const envConfig = getEnvConfig();
   const showFileProgress = envConfig.verbose === true;
 

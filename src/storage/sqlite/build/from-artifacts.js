@@ -122,12 +122,25 @@ export async function buildDatabaseFromArtifacts({
   emitOutput,
   validateMode,
   vectorConfig,
-  modelConfig
+  modelConfig,
+  logger
 }) {
+  const warn = (message) => {
+    if (!emitOutput || !message) return;
+    if (logger?.warn) {
+      logger.warn(message);
+      return;
+    }
+    if (logger?.log) {
+      logger.log(message);
+      return;
+    }
+    console.warn(message);
+  };
   if (!index) return 0;
   const manifestLookup = normalizeManifestFiles(manifestFiles || {});
   if (emitOutput && manifestLookup.conflicts.length) {
-    console.warn(`[sqlite] Manifest path conflicts for ${mode}; using normalized entries.`);
+    warn(`[sqlite] Manifest path conflicts for ${mode}; using normalized entries.`);
   }
   const manifestByNormalized = manifestLookup.map;
   const validationStats = { chunks: 0, dense: 0, minhash: 0 };
@@ -519,11 +532,11 @@ export async function buildDatabaseFromArtifacts({
         tokenIngested = ingestTokenIndexFromPieces(targetMode, indexDir);
       }
       if (!tokenIngested) {
-        console.warn(`[sqlite] token_postings missing; rebuilding tokens for ${targetMode}.`);
+        warn(`[sqlite] token_postings missing; rebuilding tokens for ${targetMode}.`);
         if (Array.isArray(indexData?.chunkMeta)) {
           ingestTokenIndexFromChunks(indexData.chunkMeta, targetMode);
         } else {
-          console.warn(`[sqlite] chunk_meta unavailable for token rebuild (${targetMode}).`);
+          warn(`[sqlite] chunk_meta unavailable for token rebuild (${targetMode}).`);
         }
       }
 
@@ -561,7 +574,8 @@ export async function buildDatabaseFromArtifacts({
     validateSqliteDatabase(db, mode, {
       validateMode,
       expected: validationStats,
-      emitOutput
+      emitOutput,
+      logger
     });
     succeeded = true;
   } finally {

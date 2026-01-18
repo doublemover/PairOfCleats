@@ -114,7 +114,7 @@ export const DEFAULT_USER_CONFIG_TEMPLATE = `{
     },
     // When to scan imports ("pre" or "post" indexing).
     // Speed impact: small; "post" avoids extra upfront work.
-    "importScan": "post",
+    "importScan": "pre",
     // Enable AST dataflow analysis.
     // Speed impact: moderate CPU cost on large codebases.
     "astDataflow": true,

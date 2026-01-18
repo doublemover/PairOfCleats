@@ -38,7 +38,7 @@ const stripAnsi = (value) => String(value || '').replace(ANSI_PATTERN, '');
 const PARTIALS_OVERALL = ['▊', '▋', '▌', '▍', '▎', '▏'];
 const PARTIALS_STAGE = ['▖', '▘', '▝', '▗', '▚', '▞'];
 const PARTIALS_IMPORTS = ['░', '▒', '▓'];
-const PARTIALS_FILES = ['⡀', '⡄', '⡆', '⡇', '⣇', '⣧', '⣷'];
+const PARTIALS_FILES = ['⠁', '⠃', '⠇', '⡇', '⡏', '⡟', '⡿'];
 const PARTIALS_ARTIFACTS = ['⡈', '⡘', '⡸', '⣸'];
 const PARTIALS_REPOS = ['▂', '▃', '▄', '▅', '▆', '▇'];
 const PARTIALS_DEFAULT = ['⡁', '⡃', '⡇', '⡧', '⡷'];
@@ -52,7 +52,7 @@ const BAR_STYLES = {
   artifacts: { fill: '⣿', empty: ' ', partials: PARTIALS_ARTIFACTS },
   shard: { fill: '⣿', empty: ' ', partials: PARTIALS_FILES },
   records: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
-  embeddings: { fill: '⣿', empty: ' ', partials: PARTIALS_FILES },
+  embeddings: { fill: '█', empty: ' ', partials: PARTIALS_STAGE },
   downloads: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
   repos: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
   queries: { fill: '█', empty: ' ', partials: PARTIALS_REPOS },
@@ -153,7 +153,7 @@ const composeColor = (foreground, background) => {
   return foreground || background || '';
 };
 
-const buildBar = (pct, width, style, theme, colorize) => {
+const buildBar = (pct, width, style, theme, colorize, options = {}) => {
   const safeWidth = Math.max(4, Math.floor(width));
   const clamped = Math.min(1, Math.max(0, pct));
   const total = clamped * safeWidth;
@@ -165,7 +165,13 @@ const buildBar = (pct, width, style, theme, colorize) => {
   let partialIndex = Math.floor(remainder * partials.length);
   if (remainder > 0 && partialIndex === 0) partialIndex = 1;
   if (partialIndex >= partials.length) partialIndex = partials.length;
-  const hasPartial = partialIndex > 0 && fullCount < safeWidth;
+  let hasPartial = partialIndex > 0 && fullCount < safeWidth;
+  const animateIndex = Number.isFinite(options.animateIndex) ? options.animateIndex : null;
+  if (animateIndex !== null && clamped < 1 && fullCount < safeWidth) {
+    const animated = (Math.floor(animateIndex) % partials.length) + 1;
+    partialIndex = animated;
+    hasPartial = true;
+  }
   const emptyCount = Math.max(0, safeWidth - fullCount - (hasPartial ? 1 : 0));
 
   const fillChar = style?.fill || '█';
@@ -246,6 +252,20 @@ const padLabel = (label, width) => {
   return `${plain.slice(0, safeWidth - 3)}...`;
 };
 
+const padVisible = (text, width) => {
+  const value = String(text ?? '');
+  const plainLength = stripAnsi(value).length;
+  if (plainLength >= width) return value;
+  return `${value}${' '.repeat(width - plainLength)}`;
+};
+
+const padVisibleStart = (text, width) => {
+  const value = String(text ?? '');
+  const plainLength = stripAnsi(value).length;
+  if (plainLength >= width) return value;
+  return `${' '.repeat(width - plainLength)}${value}`;
+};
+
 const formatDurationShort = (seconds) => {
   if (!Number.isFinite(seconds) || seconds <= 0) return null;
   const total = Math.max(1, Math.round(seconds));
@@ -278,31 +298,152 @@ const resolveRateUnit = (task) => {
 
 const formatRate = (rate) => {
   if (!Number.isFinite(rate) || rate <= 0) return null;
+  if (rate >= 1000) {
+    const scaled = rate / 1000;
+    const value = scaled >= 10 ? Math.round(scaled) : Number(scaled.toFixed(1));
+    return `${value}k`;
+  }
   if (rate >= 100) return Math.round(rate).toLocaleString();
   if (rate >= 10) return rate.toFixed(1);
   return rate.toFixed(2);
 };
 
+const singularizeUnit = (unit) => {
+  if (!unit) return '';
+  return unit.endsWith('s') ? unit.slice(0, -1) : unit;
+};
+
+const titleCaseUnit = (unit) => {
+  if (!unit) return '';
+  return String(unit)
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() || ''}${part.slice(1)}`)
+    .join('');
+};
+
+const formatSecondsPerUnit = (seconds, unit) => {
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  const safeUnit = titleCaseUnit(singularizeUnit(unit)) || 'Item';
+  let value = '';
+  if (seconds >= 100) value = Math.round(seconds).toLocaleString();
+  else if (seconds >= 10) value = seconds.toFixed(1);
+  else if (seconds >= 1) value = seconds.toFixed(2);
+  else value = seconds.toFixed(3);
+  return `${value}s/${safeUnit}`;
+};
+
+const splitDurationParts = (seconds) => {
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return { days: 0, hours: 0, minutes: 0, seconds: 0, ms: 0, totalSeconds: 0 };
+  }
+  if (seconds < 1) {
+    return { days: 0, hours: 0, minutes: 0, seconds: 0, ms: Math.max(1, Math.round(seconds * 1000)), totalSeconds: seconds };
+  }
+  const total = Math.floor(seconds);
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  return { days, hours, minutes, seconds: secs, ms: 0, totalSeconds: seconds };
+};
+
+const formatDurationCompact = (parts) => {
+  if (parts.ms) return `${parts.ms}ms`;
+  if (parts.days > 0 || parts.hours > 0) {
+    const pieces = [];
+    if (parts.days > 0) pieces.push(`${parts.days}d`);
+    if (parts.hours > 0) pieces.push(`${parts.hours}h`);
+    if (parts.minutes > 0) pieces.push(`${parts.minutes}m`);
+    if (parts.seconds > 0) pieces.push(`${parts.seconds}s`);
+    return pieces.join(' ');
+  }
+  if (parts.minutes > 0) {
+    return parts.seconds > 0 ? `${parts.minutes}m${parts.seconds}s` : `${parts.minutes}m`;
+  }
+  if (parts.seconds > 0) return `${parts.seconds}s`;
+  return '0s';
+};
+
+const formatDurationEtaCompact = (parts) => {
+  if (parts.ms) return `${parts.ms}ms`;
+  if (parts.days > 0 || parts.hours > 0) {
+    const pieces = [];
+    if (parts.days > 0) pieces.push(`${parts.days}d`);
+    if (parts.hours > 0) pieces.push(`${parts.hours}h`);
+    if (parts.minutes > 0) pieces.push(`${parts.minutes}m`);
+    if (parts.seconds > 0) pieces.push(`${parts.seconds}s`);
+    return pieces.join('');
+  }
+  if (parts.minutes > 0) {
+    if (parts.seconds > 0) {
+      const spacer = parts.minutes >= 10 ? ' ' : '';
+      return `${parts.minutes}m${spacer}${parts.seconds}s`;
+    }
+    return parts.minutes >= 10 ? `${parts.minutes}m   ` : `${parts.minutes}m`;
+  }
+  if (parts.seconds > 0) return `${parts.seconds}s`;
+  return '0s';
+};
+
+const formatDurationAligned = (parts, layout) => {
+  const cols = [];
+  if (layout.days > 0) {
+    cols.push(parts.days > 0 ? `${parts.days}d` : '');
+  }
+  if (layout.hours > 0) {
+    cols.push(parts.hours > 0 ? `${parts.hours}h` : '');
+  }
+  if (layout.minutes > 0) {
+    const showZero = parts.minutes === 0 && parts.seconds > 0 && parts.hours > 0;
+    cols.push((parts.minutes > 0 || showZero) ? `${parts.minutes}m` : '');
+  }
+  if (layout.seconds > 0) {
+    let value = '';
+    if (parts.ms) value = `${parts.ms}ms`;
+    else if (parts.seconds > 0) value = `${parts.seconds}s`;
+    cols.push(value);
+  }
+  const padded = cols.map((value, index) => {
+    const width = layout.widths[index] || 0;
+    if (!width) return value;
+    return padVisibleStart(value, width);
+  });
+  return padded.join(' ').trimEnd();
+};
+
 const buildProgressExtras = (task, now) => {
   if (!task || !Number.isFinite(task.current)) return null;
-  const elapsedMs = Number.isFinite(task.startedAt) ? Math.max(0, now - task.startedAt) : 0;
+  const endAt = (task.status === 'done' || task.status === 'failed')
+    ? (Number.isFinite(task.endedAt) ? task.endedAt : now)
+    : now;
+  const elapsedMs = Number.isFinite(task.startedAt) ? Math.max(0, endAt - task.startedAt) : 0;
   if (!elapsedMs) return null;
   const current = Math.max(0, task.current);
   const elapsedSec = elapsedMs / 1000;
   const rate = current > 0 ? current / elapsedSec : 0;
   const unit = resolveRateUnit(task);
-  const parts = [];
+  let rateText = null;
   if (rate > 0 && unit) {
-    const rateText = formatRate(rate);
-    if (rateText) parts.push(`${rateText} ${unit}/s`);
+    if (rate >= 1) {
+      const rateValue = formatRate(rate);
+      if (rateValue) rateText = `${rateValue} ${titleCaseUnit(unit)}/s`;
+    } else {
+      const perUnit = formatSecondsPerUnit(1 / rate, unit);
+      if (perUnit) rateText = perUnit;
+    }
   }
-  if (Number.isFinite(task.total) && task.total > 0 && rate > 0 && current > 0) {
+  let etaSec = null;
+  if (task.status === 'running'
+    && Number.isFinite(task.total)
+    && task.total > 0
+    && rate > 0
+    && current > 0) {
     const remaining = Math.max(0, task.total - current);
-    const etaSec = remaining / rate;
-    const etaText = formatDurationShort(etaSec);
-    if (etaText) parts.push(`eta ${etaText}`);
+    etaSec = remaining / rate;
   }
-  return parts.length ? parts.join(' | ') : null;
+  if (!rateText && !etaSec && !elapsedSec) return null;
+  return { rateText, etaSec, elapsedSec };
 };
 
 export function createDisplay(options = {}) {
@@ -332,6 +473,7 @@ export function createDisplay(options = {}) {
     tasks: new Map(),
     taskOrder: [],
     logLines: [],
+    statusLine: '',
     lastLogKey: '',
     lastLogCount: 0,
     lastLogIndex: -1,
@@ -371,6 +513,19 @@ export function createDisplay(options = {}) {
     const baseLine = message || '';
     const prefix = level === 'warn' ? '[warn] ' : (level === 'error' ? '[error] ' : '');
     const line = `${prefix}${baseLine}`.trim();
+    const isStatusLine = (meta && typeof meta === 'object' && meta.kind === 'status')
+      || baseLine.startsWith('Writing index files')
+      || baseLine.startsWith('[embeddings]')
+      || baseLine.includes('embeddings]') && baseLine.includes('processed') && baseLine.includes('files');
+    if (isStatusLine) {
+      state.statusLine = line;
+      if (interactive && canRender) {
+        scheduleRender();
+        return;
+      }
+      stream.write(`${line}\n`);
+      return;
+    }
     const key = `${level}|${line}`;
     if (key && key === state.lastLogKey) {
       state.lastLogCount += 1;
@@ -396,19 +551,46 @@ export function createDisplay(options = {}) {
       .filter((entry) => entry.task);
     tasks.sort((a, b) => b.order - a.order);
     const orderedTasks = tasks.map((entry) => entry.task);
-    const taskLabels = orderedTasks.map((task) => {
+    const shouldHideTask = (task) => {
+      if (!task) return false;
+      const name = String(task.name || '').trim().toLowerCase();
+      const mode = String(task.mode || '').trim().toLowerCase();
+      if (mode !== 'records') return false;
+      if (name !== 'records' && name !== 'files') return false;
+      const total = Number.isFinite(task.total) ? task.total : null;
+      const current = Number.isFinite(task.current) ? task.current : 0;
+      return current <= 0 && (!total || total <= 0);
+    };
+    const displayTasks = orderedTasks.filter((task) => !shouldHideTask(task));
+    const formatModeLabel = (mode) => {
+      if (!mode) return '';
+      return String(mode)
+        .split(/[-_]/)
+        .filter(Boolean)
+        .map((part) => `${part[0]?.toUpperCase() || ''}${part.slice(1)}`)
+        .join(' ');
+    };
+    const taskLabels = displayTasks.map((task) => {
       const labelParts = [];
-      if (task.mode) labelParts.push(task.mode);
-      labelParts.push(task.name);
+      const rawName = String(task?.name || '').trim();
+      const name = (task?.mode === 'records' && rawName.toLowerCase() === 'records')
+        ? 'Files'
+        : rawName;
+      const stage = String(task?.stage || '').trim().toLowerCase();
+      if (task.mode) labelParts.push(formatModeLabel(task.mode));
+      if (stage === 'embeddings' && name.toLowerCase() === 'files') {
+        labelParts.push('Embeddings');
+      }
+      labelParts.push(name);
       return labelParts.join(' ');
     });
     const baselineLabels = [
-      'extracted-prose Artifacts',
-      'extracted-prose Files',
-      'extracted-prose Stage',
-      'extracted-prose Imports',
-      'extracted-prose Shard',
-      'records Records',
+      `${formatModeLabel('extracted-prose')} Artifacts`,
+      `${formatModeLabel('extracted-prose')} Files`,
+      `${formatModeLabel('extracted-prose')} Stage`,
+      `${formatModeLabel('extracted-prose')} Imports`,
+      `${formatModeLabel('extracted-prose')} Shard`,
+      `${formatModeLabel('records')} Files`,
       'bench Repos',
       'queries Queries'
     ];
@@ -439,8 +621,8 @@ export function createDisplay(options = {}) {
     const overallOverride = computeOverallProgress({ overallTask, tasksByMode });
     const now = Date.now();
     const taskColors = new Map();
-    orderedTasks.forEach((task, index) => {
-      taskColors.set(task.id, resolveGradientColor(index, orderedTasks.length));
+    displayTasks.forEach((task, index) => {
+      taskColors.set(task.id, resolveGradientColor(index, displayTasks.length));
     });
     const resolveBackgroundColor = (task, variant) => {
       if (!task?.mode) return null;
@@ -454,15 +636,143 @@ export function createDisplay(options = {}) {
       }
       return null;
     };
-    const taskLines = orderedTasks.map((task, index) => {
+    const suffixes = displayTasks.map((task) => {
+      const total = Number.isFinite(task.total) && task.total > 0 ? task.total : null;
+      const current = Number.isFinite(task.current) ? task.current : 0;
+      return total ? `${formatCount(current)}/${formatCount(total)}` : formatCount(current);
+    });
+    const maxSuffixLength = suffixes.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
+    const padSuffix = (value) => {
+      const plainLength = stripAnsi(value).length;
+      if (plainLength >= maxSuffixLength) return value;
+      return `${value}${' '.repeat(maxSuffixLength - plainLength)}`;
+    };
+    const extrasByTask = displayTasks.map((task) => buildProgressExtras(task, now));
+    const rateTexts = extrasByTask.map((entry) => entry?.rateText || '');
+    const maxRateLength = rateTexts.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
+    const padRate = (value) => {
+      const plainLength = stripAnsi(value).length;
+      if (plainLength >= maxRateLength) return value;
+      return `${value}${' '.repeat(maxRateLength - plainLength)}`;
+    };
+    const formatMessage = (value) => {
+      if (!value) return '';
+      const text = String(value);
+      if (text.includes('/') || text.includes('\\') || text.includes('.')) return text;
+      return text
+        .split(/\s+/)
+        .map((part) => {
+          if (!part) return '';
+          const upper = part.toUpperCase();
+          if (part === upper) return part;
+          return `${part[0]?.toUpperCase() || ''}${part.slice(1)}`;
+        })
+        .join(' ')
+        .trim();
+    };
+    const timeValues = displayTasks.map((task, index) => {
+      const extras = extrasByTask[index];
+      if (!extras) return null;
+      const value = task.status === 'running' ? extras.etaSec : extras.elapsedSec;
+      return Number.isFinite(value) ? value : null;
+    });
+    const timeParts = timeValues.map((value) => (Number.isFinite(value) ? splitDurationParts(value) : null));
+    const useAlignedUnits = timeParts.some((parts) => parts && (parts.days > 0 || parts.hours > 0));
+    const layoutWidths = { days: 0, hours: 0, minutes: 0, seconds: 0, widths: [] };
+    if (useAlignedUnits) {
+      layoutWidths.days = Math.max(...timeParts.map((parts) => parts && parts.days > 0 ? `${parts.days}d`.length : 0), 0);
+      layoutWidths.hours = Math.max(...timeParts.map((parts) => parts && parts.hours > 0 ? `${parts.hours}h`.length : 0), 0);
+      layoutWidths.minutes = Math.max(...timeParts.map((parts) => {
+        if (!parts) return 0;
+        if (parts.minutes > 0) return `${parts.minutes}m`.length;
+        if (parts.hours > 0 && parts.seconds > 0) return '0m'.length;
+        return 0;
+      }), 0);
+      layoutWidths.seconds = Math.max(...timeParts.map((parts) => {
+        if (!parts) return 0;
+        if (parts.ms) return `${parts.ms}ms`.length;
+        if (parts.seconds > 0) return `${parts.seconds}s`.length;
+        return 0;
+      }), 0);
+      layoutWidths.widths = [layoutWidths.days, layoutWidths.hours, layoutWidths.minutes, layoutWidths.seconds];
+    }
+    const formatTimeText = (task, value, parts) => {
+      if (!Number.isFinite(value) || !parts) return '';
+      if (task.status === 'running') {
+        return useAlignedUnits
+          ? formatDurationAligned(parts, layoutWidths)
+          : formatDurationEtaCompact(parts);
+      }
+      return useAlignedUnits
+        ? formatDurationAligned(parts, layoutWidths)
+        : formatDurationCompact(parts);
+    };
+    const detailTexts = displayTasks.map((task, index) => {
+      const value = timeValues[index];
+      const parts = timeParts[index];
+      return formatTimeText(task, value, parts);
+    });
+    const detailMaxRaw = detailTexts.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
+    const detailPrefix = 'eta:';
+    const detailWidth = detailMaxRaw + detailPrefix.length + 1;
+    const padDetail = (task, value) => {
+      if (!value) return padVisibleStart('', detailWidth);
+      if (task.status === 'running') {
+        const padded = padVisibleStart(value, detailMaxRaw);
+        return `${detailPrefix} ${padded}`;
+      }
+      return padVisibleStart(value, detailWidth);
+    };
+    const messageTexts = displayTasks.map((task) => {
+      if (task?.status !== 'running') return '';
+      return formatMessage(task.message);
+    });
+    const maxMessageLength = messageTexts.reduce((max, value) => Math.max(max, stripAnsi(value).length), 0);
+    const padMessage = (value) => padVisible(value || '', maxMessageLength);
+    const statusDone = colorEnabled
+      ? '\x1b[97m[\x1b[92m✓\x1b[97m]\x1b[0m'
+      : '[✓]';
+    const statusWidth = Math.max(
+      3,
+      displayTasks.reduce((max, task) => {
+        if (!task?.status || task.status === 'running') return max;
+        const text = task.status === 'done' ? statusDone : `(${task.status})`;
+        return Math.max(max, stripAnsi(text).length);
+      }, 0)
+    );
+    const BAR_MAX = 42;
+    const BAR_MID = 21;
+    const BAR_MIN = 7;
+    const tryLayout = ({ showSuffix, showRate, showDetail, showMessage, minBar }) => {
+      const suffixLen = showSuffix ? maxSuffixLength : 0;
+      const rateLen = showRate ? maxRateLength : 0;
+      const detailLen = showDetail ? detailWidth : 0;
+      const messageLen = showMessage ? maxMessageLength : 0;
+      let extraLen = 0;
+      if (showRate && showDetail && showMessage) extraLen = 3 + rateLen + 3 + detailLen + 3 + messageLen;
+      else if (showRate && showDetail) extraLen = 3 + rateLen + 3 + detailLen;
+      else if (showRate) extraLen = 3 + rateLen;
+      else if (showDetail) extraLen = 3 + detailLen;
+      const reserved = labelWidth + 1 + 2 + 1 + suffixLen + 1 + statusWidth + extraLen;
+      const available = width - reserved;
+      if (available < minBar) return null;
+      const barWidth = Math.min(BAR_MAX, Math.max(minBar, available));
+      return { showSuffix, showRate, showDetail, showMessage, barWidth };
+    };
+    const layout = tryLayout({ showSuffix: true, showRate: true, showDetail: true, showMessage: maxMessageLength > 0, minBar: BAR_MID })
+      || tryLayout({ showSuffix: false, showRate: true, showDetail: true, showMessage: maxMessageLength > 0, minBar: BAR_MID })
+      || tryLayout({ showSuffix: false, showRate: false, showDetail: true, showMessage: maxMessageLength > 0, minBar: Math.floor(BAR_MID * 2 / 3) })
+      || tryLayout({ showSuffix: false, showRate: false, showDetail: false, showMessage: false, minBar: BAR_MIN })
+      || { showSuffix: false, showRate: false, showDetail: false, showMessage: false, barWidth: BAR_MIN };
+    const taskLines = displayTasks.map((task, index) => {
       const total = Number.isFinite(task.total) && task.total > 0 ? task.total : null;
       const current = Number.isFinite(task.current) ? task.current : 0;
       let pct = total ? current / total : 0;
       if (overallOverride !== null && task === overallTask) {
         pct = overallOverride;
       }
-      const suffix = total ? `${formatCount(current)}/${formatCount(total)}` : formatCount(current);
-      const barWidth = Math.min(42, Math.max(16, Math.floor(width / 4)));
+      const suffix = layout.showSuffix ? padSuffix(suffixes[index] || formatCount(current)) : '';
+      const barWidth = layout.barWidth;
       const colorize = colorEnabled
         ? (text, code) => (text && code ? `\x1b[${code}m${text}\x1b[0m` : text || '')
         : null;
@@ -476,18 +786,42 @@ export function createDisplay(options = {}) {
       const background = backgroundColor ? colorToAnsi(backgroundColor, true) : '';
       const bracket = resolveBracketColor(index, orderedTasks.length, now, task.status === 'running');
       const theme = { fill, edge, empty, bracket, background };
-      const bar = total ? buildBar(clampRatio(pct), barWidth, style, theme, colorize) : '[-]';
+      if (variant === 'files') {
+        theme.edge = fill;
+      }
+      const animateEdge = task.status === 'running' && variant === 'stage' && current > 0;
+      const animateIndex = animateEdge ? Math.floor(now / 320) : null;
+      const bar = buildBar(clampRatio(pct), barWidth, style, theme, colorize, { animateIndex });
       const label = padLabel(taskLabels[index] || task.name, labelWidth);
-      const status = task.status && task.status !== 'running' ? ` (${task.status})` : '';
-      const extras = buildProgressExtras(task, now);
-      const extraText = extras ? ` | ${extras}` : '';
-      const message = task.message ? ` ${task.message}` : '';
-      return `${label} ${bar} ${suffix}${status}${extraText}${message}`.trim();
+      let status = '';
+      if (task.status && task.status !== 'running') {
+        status = task.status === 'done' ? statusDone : `(${task.status})`;
+      }
+      status = ` ${padVisible(status, statusWidth)}`;
+      const extras = extrasByTask[index];
+      const detail = layout.showDetail ? padDetail(task, detailTexts[index] || '') : '';
+      const message = layout.showMessage ? padMessage(messageTexts[index] || '') : '';
+      const rate = layout.showRate ? padRate(extras?.rateText || '') : '';
+      let extraText = '';
+      if (layout.showRate && layout.showDetail && layout.showMessage) {
+        extraText = ` | ${rate} | ${detail} | ${message}`.trimEnd();
+      } else if (layout.showRate && layout.showDetail) {
+        extraText = ` | ${rate} | ${detail}`.trimEnd();
+      } else if (layout.showRate) {
+        extraText = ` | ${rate}`.trimEnd();
+      } else if (layout.showDetail) {
+        extraText = ` | ${detail}`.trimEnd();
+      }
+      const suffixText = suffix ? ` ${suffix}` : '';
+      return `${label} ${bar}${suffixText}${status}${extraText}`.trimEnd();
     });
 
-    const logLines = [...state.logLines];
-    while (logLines.length < logWindowSize) logLines.push('');
-    const lines = [...logLines, ...taskLines];
+    const statusLine = state.statusLine;
+    const logSlots = Math.max(0, logWindowSize - (statusLine ? 1 : 0));
+    const logLines = state.logLines.slice(-logSlots);
+    while (logLines.length < logSlots) logLines.push('');
+    if (statusLine) logLines.push(statusLine);
+    const lines = [...logLines, '', ...taskLines, ''];
     const totalLines = lines.length;
 
     if (!state.rendered) {
@@ -559,7 +893,8 @@ export function createDisplay(options = {}) {
       message: meta.message || null,
       ephemeral: meta.ephemeral === true,
       startedAt: createdAt,
-      lastUpdateMs: createdAt
+      lastUpdateMs: createdAt,
+      endedAt: null
     };
     state.tasks.set(id, task);
     state.taskOrder.push(id);
@@ -578,10 +913,15 @@ export function createDisplay(options = {}) {
   const updateTask = (task, update = {}) => {
     if (Number.isFinite(update.current)) task.current = update.current;
     if (Number.isFinite(update.total)) task.total = update.total;
+    if (typeof update.name === 'string' && update.name.trim()) task.name = update.name;
     if (typeof update.status === 'string') task.status = update.status;
     if (typeof update.message === 'string') task.message = update.message;
     if (typeof update.stage === 'string') task.stage = update.stage;
     if (typeof update.mode === 'string') task.mode = update.mode;
+    if (task.status === 'running' && update.status) task.endedAt = null;
+    if ((task.status === 'done' || task.status === 'failed') && !Number.isFinite(task.endedAt)) {
+      task.endedAt = Date.now();
+    }
     task.lastUpdateMs = Date.now();
     if (jsonl) emitTaskEvent('task:progress', task, update.extra || {});
     if (task.ephemeral && (task.status === 'done' || task.status === 'failed')) {
@@ -604,14 +944,20 @@ export function createDisplay(options = {}) {
         }
       },
       set(current, total = task.total, extra = null) {
-        updateTask(task, { current, total, message: extra?.message, extra });
+        updateTask(task, {
+          current,
+          total,
+          message: extra?.message,
+          name: extra?.name,
+          extra
+        });
         if (total && current >= total) {
           updateTask(task, { status: 'done' });
           if (jsonl) emitTaskEvent('task:end', task, { status: 'done' });
         }
       },
       done(extra = null) {
-        updateTask(task, { status: 'done', message: extra?.message });
+        updateTask(task, { status: 'done', message: extra?.message, name: extra?.name });
         if (jsonl) emitTaskEvent('task:end', task, { status: 'done', ...extra });
       },
       fail(err) {
@@ -620,7 +966,7 @@ export function createDisplay(options = {}) {
         if (jsonl) emitTaskEvent('task:end', task, { status: 'failed', message });
       },
       update(extra = {}) {
-        updateTask(task, { message: extra.message, extra });
+        updateTask(task, { message: extra.message, name: extra?.name, extra });
       }
     };
   };
@@ -657,6 +1003,11 @@ export function createDisplay(options = {}) {
     }
   };
 
+  const flush = () => {
+    if (!interactive || !canRender) return;
+    render();
+  };
+
   if (interactive && term && typeof term.hideCursor === 'function') {
     term.hideCursor();
   }
@@ -673,6 +1024,7 @@ export function createDisplay(options = {}) {
     logLine,
     showProgress,
     task: taskFactory,
+    flush,
     close
   };
 }

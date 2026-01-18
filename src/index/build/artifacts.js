@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { log, showProgress } from '../../shared/progress.js';
+import { log, logLine, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io.js';
 import {
   writeJsonArrayFile,
@@ -317,7 +317,7 @@ export async function writeIndexArtifacts(input) {
         ? (completedWrites / totalWrites * 100).toFixed(1)
         : '100.0';
       const suffix = lastWriteLabel ? ` | ${lastWriteLabel}` : '';
-      log(`Writing index files ${completedWrites}/${totalWrites} (${percent}%)${suffix}`);
+      logLine(`Writing index files ${completedWrites}/${totalWrites} (${percent}%)${suffix}`, { kind: 'status' });
     }
   };
   const enqueueWrite = (label, job) => {
@@ -678,7 +678,7 @@ export async function writeIndexArtifacts(input) {
   totalWrites = writes.length;
   if (totalWrites) {
     const artifactLabel = totalWrites === 1 ? 'artifact' : 'artifacts';
-    log(`Writing index files (${totalWrites} ${artifactLabel})...`);
+    logLine(`Writing index files (${totalWrites} ${artifactLabel})...`, { kind: 'status' });
     const writeConcurrency = Math.max(1, Math.min(4, totalWrites));
     await runWithConcurrency(
       writes,
@@ -692,8 +692,10 @@ export async function writeIndexArtifacts(input) {
       },
       { collectResults: false }
     );
+    logLine('', { kind: 'status' });
   } else {
-    log('Writing index files (0 artifacts)...');
+    logLine('Writing index files (0 artifacts)...', { kind: 'status' });
+    logLine('', { kind: 'status' });
   }
   timing.writeMs = Date.now() - writeStart;
   timing.totalMs = Date.now() - timing.start;

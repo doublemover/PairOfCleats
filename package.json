@@ -61,7 +61,6 @@
     "ci-restore": "node tools/ci-restore-artifacts.js",
     "eval-run": "node tools/eval/run.js",
     "bench-dict-seg": "node tools/bench-dict-seg.js",
-    "bench-score-strategy": "node tools/bench-score-strategy.js",
     "bench-micro": "node tools/bench/micro/run.js",
     "bench-micro:tiny": "node tools/bench/micro/tinybench.js",
     "bench-language": "node tools/bench-language-repos.js",

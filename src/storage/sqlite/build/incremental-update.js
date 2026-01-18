@@ -34,8 +34,21 @@ export async function incrementalUpdateDatabase({
   vectorConfig,
   emitOutput,
   validateMode,
-  expectedDense
+  expectedDense,
+  logger
 }) {
+  const warn = (message) => {
+    if (!emitOutput || !message) return;
+    if (logger?.warn) {
+      logger.warn(message);
+      return;
+    }
+    if (logger?.log) {
+      logger.log(message);
+      return;
+    }
+    console.warn(message);
+  };
   if (!incrementalData?.manifest) {
     return { used: false, reason: 'missing incremental manifest' };
   }
@@ -243,7 +256,7 @@ export async function incrementalUpdateDatabase({
         );
       }
     } else if (emitOutput) {
-      console.warn(`[sqlite] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
+      warn(`[sqlite] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
     }
   }
 
@@ -375,7 +388,7 @@ export async function incrementalUpdateDatabase({
             denseMetaSet = true;
             denseDims = dims;
           } else if (denseDims !== null && dims !== denseDims && !denseWarned) {
-            console.warn(`Dense vector dims mismatch for ${mode}: expected ${denseDims}, got ${dims}`);
+            warn(`Dense vector dims mismatch for ${mode}: expected ${denseDims}, got ${dims}`);
             denseWarned = true;
           }
           insertDense.run(mode, docId, packUint8(quantizeVec(chunk.embedding)));
@@ -417,7 +430,7 @@ export async function incrementalUpdateDatabase({
     }
 
     updateTokenStats(db, mode, insertTokenStats);
-    validateSqliteDatabase(db, mode, { validateMode, emitOutput });
+    validateSqliteDatabase(db, mode, { validateMode, emitOutput, logger });
   });
 
   try {
@@ -426,7 +439,7 @@ export async function incrementalUpdateDatabase({
       db.pragma('wal_checkpoint(TRUNCATE)');
     } catch (err) {
       if (emitOutput) {
-        console.warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
+        warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
       }
     }
   } catch (err) {

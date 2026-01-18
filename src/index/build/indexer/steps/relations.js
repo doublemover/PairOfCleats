@@ -7,7 +7,7 @@ export const resolveImportScanPlan = ({ runtime, mode, relationsEnabled }) => {
   const importScanRaw = runtime.indexingConfig?.importScan;
   const importScanMode = typeof importScanRaw === 'string'
     ? importScanRaw.trim().toLowerCase()
-    : (importScanRaw === false ? 'off' : 'post');
+    : (importScanRaw === false ? 'off' : 'pre');
   const enableImportLinks = importScanMode !== 'off';
   const usePreScan = importScanMode === 'pre' || importScanMode === 'prescan';
   const shouldScan = mode === 'code' && relationsEnabled && enableImportLinks;
@@ -110,8 +110,16 @@ export const runCrossFileInference = async ({
       }
     }
     if (crossFileStats) {
+      const formatCount = (value) => Number.isFinite(value) ? value.toLocaleString() : '0';
+      const callLinks = Number.isFinite(crossFileStats.linkedCalls) ? crossFileStats.linkedCalls : 0;
+      const usageLinks = Number.isFinite(crossFileStats.linkedUsages) ? crossFileStats.linkedUsages : 0;
+      const returns = Number.isFinite(crossFileStats.inferredReturns) ? crossFileStats.inferredReturns : 0;
       const riskFlows = Number.isFinite(crossFileStats.riskFlows) ? crossFileStats.riskFlows : 0;
-      log(`Cross-file inference: callLinks=${crossFileStats.linkedCalls}, usageLinks=${crossFileStats.linkedUsages}, returns=${crossFileStats.inferredReturns}, riskFlows=${riskFlows}`);
+      log(
+        `Cross-File Inference: ${formatCount(callLinks)} Call Links, ` +
+        `${formatCount(usageLinks)} Usage Links, ${formatCount(returns)} Returns, ` +
+        `${formatCount(riskFlows)} Risk Flows`
+      );
     }
   }
   const graphRelations = mode === 'code' && relationsEnabled

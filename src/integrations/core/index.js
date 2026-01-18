@@ -11,7 +11,7 @@ import { promoteBuild } from '../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../index/validate.js';
 import { watchIndex } from '../../index/build/watch.js';
 import { getEnvConfig } from '../../shared/env.js';
-import { log as defaultLog, logLine, showProgress } from '../../shared/progress.js';
+import { log as defaultLog, logError as defaultLogError, logLine, showProgress } from '../../shared/progress.js';
 import { observeIndexDuration } from '../../shared/metrics.js';
 import { shutdownPythonAstPool } from '../../lang/python.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../index/build/feature-metrics.js';
@@ -47,6 +47,14 @@ const createOverallProgress = ({ modes, buildId, includeEmbeddings = false, incl
     advance(meta = {}) {
       if (current >= total) return;
       current += 1;
+      showProgress('Overall', current, total, {
+        taskId,
+        stage: 'overall',
+        message: meta.message || null
+      });
+    },
+    finish(meta = {}) {
+      current = total;
       showProgress('Overall', current, total, {
         taskId,
         stage: 'overall',
@@ -270,6 +278,9 @@ export async function buildIndex(repoRoot, options = {}) {
     : [mode]);
   const rawArgv = options.rawArgv || buildRawArgs(options);
   const log = typeof options.log === 'function' ? options.log : defaultLog;
+  const logError = typeof options.logError === 'function' ? options.logError : defaultLogError;
+  const warn = typeof options.warn === 'function' ? options.warn : ((message) => log(`[warn] ${message}`));
+  const sqliteLogger = { log, warn, error: logError };
   const metricsMode = mode || 'all';
   const recordIndexMetric = (stage, status, start) => {
     try {
@@ -316,6 +327,7 @@ export async function buildIndex(repoRoot, options = {}) {
   let overallProgress = null;
   const runEmbeddingsStage = async () => {
     const started = process.hrtime.bigint();
+    const fileProgressPattern = /^\[embeddings\]\s+([^:]+):\s+processed\s+(\d+)\/(\d+)\s+files\b/;
     const recordOk = (result) => {
       recordIndexMetric('stage3', 'ok', started);
       return result;
@@ -390,7 +402,33 @@ export async function buildIndex(repoRoot, options = {}) {
         if (embeddingRuntime.useStubEmbeddings) args.push('--stub-embeddings');
         args.push('--progress', 'off');
         const embedResult = await runEmbeddingsTool(args, null, {
-          onLine: (line) => logLine(line)
+          onLine: (line) => {
+            if (line.includes('lance::dataset::write::insert')
+              || line.includes('No existing dataset at')) {
+              return;
+            }
+            const match = fileProgressPattern.exec(line);
+            if (match) {
+              const mode = match[1];
+              const current = Number(match[2]);
+              const total = Number(match[3]);
+              if (Number.isFinite(current) && Number.isFinite(total) && total > 0) {
+                showProgress('Files', current, total, {
+                  stage: 'embeddings',
+                  mode,
+                  taskId: `embeddings:${mode}:files`,
+                  ephemeral: true
+                });
+              }
+              logLine(line, { kind: 'status' });
+              return;
+            }
+            if (line.startsWith('[embeddings]') || line.includes('embeddings]')) {
+              logLine(line, { kind: 'status' });
+              return;
+            }
+            logLine(line);
+          }
         });
         if (embedResult?.cancelled) {
           log('[embeddings] build-embeddings cancelled; skipping remaining modes.');
@@ -444,7 +482,8 @@ export async function buildIndex(repoRoot, options = {}) {
         mode: sqliteModes.length === 1 ? sqliteModes[0] : 'all',
         incremental: argv.incremental === true,
         emitOutput: options.emitOutput !== false,
-        exitOnError: false
+        exitOnError: false,
+        logger: sqliteLogger
       });
       if (includeSqlite && overallProgress?.advance) {
         for (const modeItem of sqliteModes) {
@@ -525,7 +564,7 @@ export async function buildIndex(repoRoot, options = {}) {
           maxDepth: runtime.guardrails?.maxDepth ?? null,
           maxFiles: runtime.guardrails?.maxFiles ?? null,
           fileScan: runtime.fileScan,
-          lineCounts: runtime.shards?.enabled === true,
+          lineCounts: true,
           concurrency: runtime.ioConcurrency,
           log
         });
@@ -575,7 +614,8 @@ export async function buildIndex(repoRoot, options = {}) {
           extractedProseDir,
           recordsDir,
           emitOutput: options.emitOutput !== false,
-          exitOnError: false
+          exitOnError: false,
+          logger: sqliteLogger
         });
       }
       await markBuildPhase(runtime.buildRoot, 'validation', 'running');
@@ -660,6 +700,9 @@ export async function buildIndex(repoRoot, options = {}) {
       return { modes, stage2: stage2Result, stage3: stage3Result, repo: root };
     }
     const stage4Result = await runSqliteStage();
+    if (overallProgress?.finish) {
+      overallProgress.finish();
+    }
     return { modes, stage2: stage2Result, stage3: stage3Result, stage4: stage4Result, repo: root };
   }
 
@@ -729,7 +772,8 @@ export async function buildSqliteIndex(repoRoot, options = {}) {
   return runBuildSqliteIndex(rawArgs, {
     root,
     emitOutput: options.emitOutput !== false,
-    exitOnError: options.exitOnError === true
+    exitOnError: options.exitOnError === true,
+    logger: options.logger || null
   });
 }
 

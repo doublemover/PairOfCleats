@@ -21,8 +21,29 @@ export async function buildDatabaseFromBundles({
   validateMode,
   vectorConfig,
   modelConfig,
-  workerPath
+  workerPath,
+  logger
 }) {
+  const log = (message) => {
+    if (!emitOutput || !message) return;
+    if (logger?.log) {
+      logger.log(message);
+      return;
+    }
+    console.log(message);
+  };
+  const warn = (message) => {
+    if (!emitOutput || !message) return;
+    if (logger?.warn) {
+      logger.warn(message);
+      return;
+    }
+    if (logger?.log) {
+      logger.log(message);
+      return;
+    }
+    console.warn(message);
+  };
   if (!incrementalData?.manifest) {
     return { count: 0, denseCount: 0, reason: 'missing incremental manifest' };
   }
@@ -33,7 +54,7 @@ export async function buildDatabaseFromBundles({
     return { count: 0, denseCount: 0, reason: 'incremental manifest empty' };
   }
   if (emitOutput && manifestLookup.conflicts.length) {
-    console.warn(`[sqlite] Manifest path conflicts for ${mode}; using normalized entries.`);
+    warn(`[sqlite] Manifest path conflicts for ${mode}; using normalized entries.`);
   }
   const totalFiles = manifestEntries.length;
   let processedFiles = 0;
@@ -52,12 +73,12 @@ export async function buildDatabaseFromBundles({
     lastProgressLog = now;
     const percent = ((processedFiles / totalFiles) * 100).toFixed(1);
     const suffix = file ? ` | ${file}` : '';
-    console.log(`[sqlite] bundles ${processedFiles}/${totalFiles} (${percent}%)${suffix}`);
+    log(`[sqlite] bundles ${processedFiles}/${totalFiles} (${percent}%)${suffix}`);
   };
   if (emitOutput) {
-    console.log(`[sqlite] Using incremental bundles for ${mode} (${totalFiles} files).`);
+    log(`[sqlite] Using incremental bundles for ${mode} (${totalFiles} files).`);
     if (useBundleWorkers) {
-      console.log(`[sqlite] Bundle parser workers: ${bundleThreads}.`);
+      log(`[sqlite] Bundle parser workers: ${bundleThreads}.`);
     }
   }
 
@@ -122,7 +143,7 @@ export async function buildDatabaseFromBundles({
           );
         }
       } else {
-        console.warn(`[sqlite] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
+        warn(`[sqlite] Vector extension unavailable for ${mode}: ${loadResult.reason}`);
       }
     }
 
@@ -271,7 +292,7 @@ export async function buildDatabaseFromBundles({
 
     if (bundleFailure) {
       if (emitOutput) {
-        console.warn(`[sqlite] Bundle build failed for ${mode}: ${bundleFailure}.`);
+        warn(`[sqlite] Bundle build failed for ${mode}: ${bundleFailure}.`);
       }
       return { count: 0, denseCount: 0, reason: bundleFailure };
     }
@@ -299,7 +320,8 @@ export async function buildDatabaseFromBundles({
     validateSqliteDatabase(db, mode, {
       validateMode,
       expected: validationStats,
-      emitOutput
+      emitOutput,
+      logger
     });
     succeeded = true;
     return { count, denseCount: validationStats.dense };

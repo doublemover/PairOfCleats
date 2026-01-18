@@ -38,7 +38,7 @@ export const DEFAULT_USER_CONFIG = {
       chargramMaxTokenLength: 48,
       fielded: true
     },
-    importScan: 'post',
+    importScan: 'pre',
     astDataflow: true,
     controlFlow: true,
     riskAnalysis: true,

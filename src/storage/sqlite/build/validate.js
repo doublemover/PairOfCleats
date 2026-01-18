@@ -13,6 +13,15 @@ export function getSchemaVersion(db) {
 export function validateSqliteDatabase(db, mode, options = {}) {
   const validateMode = options.validateMode || 'off';
   if (validateMode === 'off') return;
+  const logger = options.logger && typeof options.logger === 'object' ? options.logger : null;
+  const emit = (message) => {
+    if (!options.emitOutput || !message) return;
+    if (logger && typeof logger.log === 'function') {
+      logger.log(message);
+      return;
+    }
+    console.log(message);
+  };
 
   const errors = [];
   if (!hasRequiredTables(db, REQUIRED_TABLES)) {
@@ -77,7 +86,5 @@ export function validateSqliteDatabase(db, mode, options = {}) {
   if (errors.length) {
     throw new Error(`[sqlite] Validation (${validateMode}) failed for ${mode}: ${errors.join(', ')}`);
   }
-  if (options.emitOutput) {
-    console.log(`[sqlite] Validation (${validateMode}) ok for ${mode}.`);
-  }
+  emit(`[sqlite] Validation (${validateMode}) ok for ${mode}.`);
 }

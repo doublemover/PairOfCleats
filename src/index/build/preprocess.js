@@ -156,7 +156,7 @@ export async function preprocessFiles({
 
   const needsLines = lineCounts === true || hasMaxLinesCaps(fileCaps);
   const supportedEntries = entries.filter((entry) => !entry.skip
-    && (isSupportedEntry(entry, 'code') || isSupportedEntry(entry, 'prose')));
+    && (isSupportedEntry(entry, 'code') || isSupportedEntry(entry, 'prose') || isSupportedEntry(entry, 'records')));
   let lineCountMap = new Map();
   if (needsLines && supportedEntries.length) {
     lineCountMap = await countLinesForEntries(supportedEntries, {

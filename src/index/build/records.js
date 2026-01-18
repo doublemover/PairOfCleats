@@ -17,16 +17,6 @@ const RECORD_EXT_TYPES = new Map([
   ['.tap', 'test']
 ]);
 
-const RECORD_DIR_TYPES = new Map([
-  ['logs', 'log'],
-  ['log', 'log'],
-  ['out', 'log'],
-  ['artifacts', 'artifact'],
-  ['coverage', 'coverage'],
-  ['tmp', 'artifact'],
-  ['.cache', 'artifact']
-]);
-
 const CONTENT_SIGNAL_REGEXES = [
   /Traceback \(most recent call last\):/i,
   /Exception in thread/i,
@@ -68,13 +58,6 @@ const resolveRecordTypeByPath = (relPath, ext) => {
   if (ext && RECORD_EXT_TYPES.has(ext)) {
     return RECORD_EXT_TYPES.get(ext);
   }
-  const parts = relPath.split('/');
-  for (const part of parts) {
-    const key = part.toLowerCase();
-    if (RECORD_DIR_TYPES.has(key)) {
-      return RECORD_DIR_TYPES.get(key);
-    }
-  }
   return 'log';
 };
 
@@ -88,13 +71,6 @@ const detectRecordByPath = ({ relPath, ext, includeMatcher, excludeMatcher }) =>
   const baseType = ext && RECORD_EXT_TYPES.has(ext) ? RECORD_EXT_TYPES.get(ext) : null;
   if (baseType) {
     return { match: true, reason: 'ext', recordType: baseType };
-  }
-  const parts = relPath.split('/');
-  for (const part of parts) {
-    const key = part.toLowerCase();
-    if (RECORD_DIR_TYPES.has(key)) {
-      return { match: true, reason: 'path', recordType: RECORD_DIR_TYPES.get(key) };
-    }
   }
   return { match: false, reason: 'none' };
 };

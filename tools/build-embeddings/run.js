@@ -397,7 +397,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       }
 
       processedFiles += 1;
-      if (processedFiles % 50 === 0 || processedFiles === chunksByFile.size) {
+      if (processedFiles % 8 === 0 || processedFiles === chunksByFile.size) {
         fileTask.set(processedFiles, chunksByFile.size, { message: `${processedFiles}/${chunksByFile.size} files` });
         log(`[embeddings] ${mode}: processed ${processedFiles}/${chunksByFile.size} files`);
       }
@@ -527,8 +527,9 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       let textInfo;
       try {
         textInfo = await readTextFileWithHash(absPath);
-      } catch {
-        warn(`[embeddings] Failed to read ${normalizedRel}; skipping.`);
+      } catch (err) {
+        const reason = err?.code ? `${err.code}: ${err.message || err}` : (err?.message || err);
+        warn(`[embeddings] ${mode}: Failed to read ${normalizedRel}; skipping (${reason}).`);
         continue;
       }
       const text = textInfo.text;

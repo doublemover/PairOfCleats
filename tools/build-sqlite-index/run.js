@@ -80,29 +80,52 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     modeArg,
     rawArgs: parsedRawArgs
   } = parseBuildSqliteArgs(rawArgs, options);
-  const display = createDisplay({
-    stream: process.stderr,
-    progressMode: argv.progress,
-    verbose: argv.verbose === true,
-    quiet: argv.quiet === true
+  const externalLogger = options.logger && typeof options.logger === 'object'
+    ? options.logger
+    : null;
+  const display = externalLogger
+    ? null
+    : createDisplay({
+      stream: process.stderr,
+      progressMode: argv.progress,
+      verbose: argv.verbose === true,
+      quiet: argv.quiet === true
+    });
+  const createNoopTask = () => ({
+    tick() {},
+    set() {},
+    done() {},
+    fail() {},
+    update() {}
   });
+  const taskFactory = display?.task
+    ? display.task.bind(display)
+    : () => createNoopTask();
   let stopHeartbeat = () => {};
   let finalized = false;
   const finalize = () => {
     if (finalized) return;
     finalized = true;
     stopHeartbeat();
-    display.close();
+    if (display) display.close();
   };
   process.once('exit', finalize);
+  const emit = (handler, fallback, message) => {
+    if (!emitOutput || !message) return;
+    if (typeof handler === 'function') {
+      handler(message);
+      return;
+    }
+    if (typeof fallback === 'function') fallback(message);
+  };
   const log = (message) => {
-    if (emitOutput && message) display.log(message);
+    emit(externalLogger?.log, display?.log, message);
   };
   const warn = (message) => {
-    if (emitOutput && message) display.warn(message);
+    emit(externalLogger?.warn || externalLogger?.log, display?.warn, message);
   };
   const error = (message) => {
-    if (emitOutput && message) display.error(message);
+    emit(externalLogger?.error || externalLogger?.log, display?.error, message);
   };
   const bail = (message, code = 1) => {
     if (message) error(message);
@@ -303,7 +326,8 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
         vectorConfig,
         emitOutput,
         validateMode,
-        expectedDense
+        expectedDense,
+        logger: { log, warn, error }
       });
       if (result.used) {
         if (compactOnIncremental && (result.changedFiles || result.deletedFiles)) {
@@ -355,7 +379,8 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
           validateMode,
           vectorConfig,
           modelConfig,
-          workerPath
+          workerPath,
+          logger: { log, warn, error }
         });
         const requiresDense = vectorConfig?.enabled === true
           && Array.isArray(index?.denseVec?.vectors)
@@ -412,7 +437,8 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
         emitOutput,
         validateMode,
         vectorConfig,
-        modelConfig
+        modelConfig,
+        logger: { log, warn, error }
       });
       await replaceSqliteDatabase(tempPath, targetPath, { keepBackup: true });
     } catch (err) {
@@ -424,7 +450,73 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
 
   const results = {};
   let completedModes = 0;
-  const modeTask = display.task('SQLite', { total: modeList.length, stage: 'sqlite' });
+  const modeTask = taskFactory('SQLite', { total: modeList.length, stage: 'sqlite' });
+  const localAppData = process.env.LOCALAPPDATA || '';
+  const normalizePath = (value) => String(value || '').replace(/\//g, path.sep);
+  const ensureTrailingSep = (value) => value && value.endsWith(path.sep) ? value : `${value}${path.sep}`;
+  const formatCacheRoot = (value) => {
+    if (!value) return '';
+    const normalized = normalizePath(value);
+    if (localAppData && normalized.toLowerCase().startsWith(localAppData.toLowerCase())) {
+      const suffix = normalized.slice(localAppData.length);
+      const trimmed = suffix.startsWith(path.sep) ? suffix.slice(1) : suffix;
+      return ensureTrailingSep(`%LOCALAPPDATA%${path.sep}${trimmed}`);
+    }
+    return ensureTrailingSep(normalized);
+  };
+  const extractRepoName = (value) => {
+    if (!value) return '';
+    const parts = normalizePath(value).split(path.sep).filter(Boolean);
+    const repoIndex = parts.findIndex((part) => part.toLowerCase() === 'repos');
+    if (repoIndex >= 0 && parts[repoIndex + 1]) return parts[repoIndex + 1];
+    return path.basename(value);
+  };
+  const extractBuildId = (value) => {
+    if (!value) return '';
+    const match = normalizePath(value).match(/builds[\\\/]([^\\\/]+)/i);
+    return match ? match[1] : '';
+  };
+  const logIndexLayout = (heading, paths) => {
+    log(heading);
+    const firstPath = paths.find((entry) => entry.path)?.path || '';
+    const cacheRoot = repoCacheRoot ? path.dirname(path.dirname(repoCacheRoot)) : '';
+    const repoName = repoCacheRoot ? path.basename(repoCacheRoot) : extractRepoName(firstPath);
+    const buildId = extractBuildId(firstPath);
+    const layoutPath = [
+      'cache_root',
+      'repo',
+      'builds',
+      'build',
+      'index-sqlite'
+    ].join(path.sep) + path.sep;
+    const files = paths
+      .map((entry) => entry.path && path.basename(entry.path))
+      .filter(Boolean);
+    const entries = [
+      { label: 'Cache Root', value: formatCacheRoot(cacheRoot) },
+      { label: 'Repo', value: repoName },
+      { label: 'Build', value: buildId },
+      { label: 'Path', value: layoutPath },
+      { label: 'Files', value: files[0] || '' }
+    ];
+    const maxLabel = entries.reduce((max, entry) => Math.max(max, entry.label.length), 0);
+    const valueColumn = Math.max(30, maxLabel + 2);
+    const formatLine = (label, value) => {
+      const labelPad = label.padStart(maxLabel, ' ');
+      const prefix = `${labelPad}:`;
+      const spacer = ' '.repeat(Math.max(1, valueColumn - prefix.length));
+      return `${prefix}${spacer}${value}`;
+    };
+    for (const entry of entries) {
+      if (!entry.value) continue;
+      log(formatLine(entry.label, entry.value));
+      if (entry.label === 'Files') {
+        for (const file of files.slice(1)) {
+          log(' '.repeat(valueColumn) + file);
+        }
+      }
+    }
+  };
   const updateModeProgress = (message) => {
     modeTask.set(completedModes, modeList.length, { message });
   };
@@ -475,18 +567,30 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
     const anyIncremental = codeResult.incremental || proseResult.incremental
       || extractedResult.incremental || recordsResult.incremental;
     if (anyIncremental) {
+      logIndexLayout('SQLite Indexes Updated', [
+        { label: 'Code', path: codeOutPath },
+        { label: 'Prose', path: proseOutPath },
+        { label: 'Extracted Prose', path: extractedProseOutPath },
+        { label: 'Records', path: recordsOutPath }
+      ]);
       log(
-        `SQLite indexes updated at code=${codeOutPath} prose=${proseOutPath} ` +
-        `extracted-prose=${extractedProseOutPath} records=${recordsOutPath}. ` +
-        `code+${codeResult.insertedChunks || 0} prose+${proseResult.insertedChunks || 0} ` +
-        `extracted-prose+${extractedResult.insertedChunks || 0} records+${recordsResult.insertedChunks || 0}`
+        `SQLite Updates: code+${codeResult.insertedChunks || 0} ` +
+        `prose+${proseResult.insertedChunks || 0} ` +
+        `extracted-prose+${extractedResult.insertedChunks || 0} ` +
+        `records+${recordsResult.insertedChunks || 0}`
       );
     } else {
+      logIndexLayout('SQLite Indexes Built', [
+        { label: 'Code', path: codeOutPath },
+        { label: 'Prose', path: proseOutPath },
+        { label: 'Extracted Prose', path: extractedProseOutPath },
+        { label: 'Records', path: recordsOutPath }
+      ]);
       log(
-        `SQLite indexes built at code=${codeOutPath} prose=${proseOutPath} ` +
-        `extracted-prose=${extractedProseOutPath} records=${recordsOutPath}. ` +
-        `code=${codeResult.count || 0} prose=${proseResult.count || 0} ` +
-        `extracted-prose=${extractedResult.count || 0} records=${recordsResult.count || 0}`
+        `SQLite Counts: code=${codeResult.count || 0} ` +
+        `prose=${proseResult.count || 0} ` +
+        `extracted-prose=${extractedResult.count || 0} ` +
+        `records=${recordsResult.count || 0}`
       );
     }
   } else {
@@ -498,9 +602,15 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
           ? results['extracted-prose']
           : results.records));
     if (result?.incremental) {
-      log(`SQLite ${modeArg} index updated at ${outPath}. +${result.insertedChunks || 0} chunks`);
+      logIndexLayout('SQLite Index Updated', [
+        { label: modeArg === 'extracted-prose' ? 'Extracted Prose' : modeArg[0].toUpperCase() + modeArg.slice(1), path: outPath }
+      ]);
+      log(`SQLite Updates: +${result.insertedChunks || 0} chunks`);
     } else {
-      log(`SQLite ${modeArg} index built at ${outPath}. ${modeArg}=${result?.count || 0}`);
+      logIndexLayout('SQLite Index Built', [
+        { label: modeArg === 'extracted-prose' ? 'Extracted Prose' : modeArg[0].toUpperCase() + modeArg.slice(1), path: outPath }
+      ]);
+      log(`SQLite Counts: ${modeArg}=${result?.count || 0}`);
     }
   }
 

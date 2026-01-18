@@ -114,7 +114,14 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   };
 
   advanceStage(stagePlan[0]);
-  const allEntries = await runDiscovery({ runtime, mode, discovery, state, timing });
+  const allEntries = await runDiscovery({
+    runtime,
+    mode,
+    discovery,
+    state,
+    timing,
+    stageNumber: stageIndex
+  });
   runtime.dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
   const tokenizationKey = buildTokenizationKey(runtime, mode);
   const cacheSignature = buildIncrementalSignature(runtime, mode, tokenizationKey);
