@@ -14,7 +14,6 @@ Completed Phases: `COMPLETED_PHASES.md`
 2. Phase 12 — Storage backends (SQLite + LMDB)
 3. Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
 4. Phase 14 — Documentation and Configuration Hardening
-5. Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
 6. Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
 7. Phase 20 — Threadpool-aware I/O scheduling guardrails
 8. Phase 21 — (Conditional) Native LibUV work: only if profiling proves a real gap
@@ -486,14 +485,6 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 - [ ] Add bundle-shape validation coverage (missing `chunks` field should not crash build loop).
 
-#### `tests/sqlite-cache.js`
-
-- [ ] No issues noted (validates cache path behavior / read path).
-
-#### `tests/sqlite-chunk-id.js`
-
-- [ ] No issues noted (docId/chunkId behavior).
-
 #### `tests/sqlite-compact.js`
 
 - [ ] Consider adding coverage for compaction with ANN enabled but extension mocked (ensures dense_vectors_ann remains consistent after compaction).
@@ -509,10 +500,6 @@ Completed Phases: `COMPLETED_PHASES.md`
 #### `tests/sqlite-index-state-fail-closed.js`
 
 - [ ] Consider adding coverage that “pending” flips back to false on successful build (already implied but could be explicit).
-
-#### `tests/sqlite-missing-dep.js`
-
-- [ ] No issues noted (validates better-sqlite3 missing behavior).
 
 #### `tests/sqlite-sidecar-cleanup.js`
 
@@ -1078,7 +1065,6 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 1. **Document security posture and safe defaults**
 
    * [ ] Document:
-
      * API server host binding risks (`--host 0.0.0.0`)
      * CORS policy and how to configure allowed origins
      * Auth token configuration (if implemented)
@@ -1088,7 +1074,6 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 2. **Add configuration schema coverage for new settings**
 
    * [ ] If adding config keys (CORS/auth/cache TTL), ensure they are:
-
      * Reflected in whatever config docs you maintain
      * Validated consistently (even if validation is lightweight)
 
@@ -1099,56 +1084,6 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 
 ---
 
-## Phase 18 — Safe regex acceleration: optional native RE2 (`re2`) with `re2js` fallback
-
-### 18.1 Add dependency + backend wrapper
-
-* [ ] Add `re2` (native) as an optional dependency (recommended)
-* [ ] Refactor `src/shared/safe-regex.js` into a backend-based module:
-
-  * [ ] Keep current behavior as the fallback backend (`re2js`)
-  * [ ] Add `src/shared/safe-regex/backends/re2.js`
-  * [ ] Add `src/shared/safe-regex/backends/re2js.js` (wrap existing usage cleanly)
-* [ ] Preserve existing safety constraints:
-
-  * [ ] `maxPatternLength`
-  * [ ] `maxInputLength`
-  * [ ] Guard flags normalization (only `gimsyu` supported as today)
-
-### 18.2 Integrate selector + compatibility contract
-
-* [ ] Add `createSafeRegex({ engine, ...limits })` selection:
-
-  * [ ] `engine=auto` uses `re2` if available else `re2js`
-  * [ ] `engine=re2` hard-requires native; if missing, returns a clear error (or a warning + fallback if you prefer)
-* [ ] Validate behavioral parity:
-
-  * [ ] Ensure `.exec()` and `.test()` match expectations for `g` and non-`g`
-  * [ ] Ensure `.lastIndex` semantics are either compatible or explicitly *not supported* (and documented)
-
-### 18.3 Update call sites
-
-* [ ] Verify these flows still behave correctly:
-
-  * [ ] `src/retrieval/output/filters.js` (file/path filters)
-  * [ ] `src/retrieval/output/risk-tags.js` (risk tagging)
-  * [ ] Any structural search / rulepack path using regex constraints
-
-### 18.4 Tests
-
-* [ ] Add `tests/safe-regex-engine.js`:
-
-  * [ ] Conformance tests (flags, match groups, global behavior)
-  * [ ] Safety limit tests (pattern length, input length)
-  * [ ] Engine-selection tests (`auto`, forced `re2js`)
-* [ ] Add script-coverage action(s)
-
-**Exit criteria**
-
-* [ ] No user-visible semantic regressions in filtering/risk-tagging
-* [ ] “Engine auto” is safe and silent (no noisy logs) unless verbose
-
----
 
 ## Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
 
@@ -1157,36 +1092,27 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 ### 19.1 Audit: identify libuv-threadpool-bound hot paths and mismatch points
 
 * [ ] Audit all high-volume async filesystem call sites (these ultimately depend on libuv threadpool behavior):
-
   * [ ] `src/index/build/file-processor.js` (notably `runIo(() => fs.stat(...))`, `runIo(() => fs.readFile(...))`)
   * [ ] `src/index/build/file-scan.js` (`fs.open`, `handle.read`)
   * [ ] `src/index/build/preprocess.js` (file sampling + `countLinesForEntries`)
   * [ ] `src/shared/file-stats.js` (stream-based reads for line counting)
 * [ ] Audit concurrency derivation points where PairOfCleats may exceed practical libuv parallelism:
-
   * [ ] `src/shared/threads.js` (`ioConcurrency = ioBase * 4`, cap 32/64)
   * [ ] `src/index/build/runtime/workers.js` (`createRuntimeQueues` pending limits)
 * [ ] Decide and record the intended precedence rules for threadpool sizing:
-
   * [ ] Whether PairOfCleats should **respect an already-set `UV_THREADPOOL_SIZE`** (recommended, matching existing `NODE_OPTIONS` behavior where flags aren’t overridden if already present).
 
 ### 19.2 Add a first-class runtime setting + env override
 
 * [ ] Add config key (new):
-
   * [ ] `runtime.uvThreadpoolSize` (number; if unset/invalid => no override)
 * [ ] Add env override (new):
-
   * [ ] `PAIROFCLEATS_UV_THREADPOOL_SIZE` (number; same parsing rules as other numeric env overrides)
 * [ ] Implement parsing + precedence:
-
   * [ ] Update `src/shared/env.js`
-
     * [ ] Add `uvThreadpoolSize: parseNumber(env.PAIROFCLEATS_UV_THREADPOOL_SIZE)`
   * [ ] Update `tools/dict-utils.js`
-
     * [ ] Extend `getRuntimeConfig(repoRoot, userConfig)` to resolve `uvThreadpoolSize` with precedence:
-
       * `userConfig.runtime.uvThreadpoolSize` → else `envConfig.uvThreadpoolSize` → else `null`
     * [ ] Clamp/normalize: floor to integer; require `> 0`; else `null`
     * [ ] Update the function’s return shape and JSDoc:
@@ -1197,17 +1123,13 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 ### 19.3 Propagate `UV_THREADPOOL_SIZE` early enough (launcher + spawned scripts)
 
 * [ ] Update `bin/pairofcleats.js` (critical path)
-
   * [ ] In `runScript()`:
-
     * [ ] Resolve `runtimeConfig` as today.
     * [ ] Build child env as an object (don’t pass `process.env` by reference when you need to conditionally add keys).
     * [ ] If `runtimeConfig.uvThreadpoolSize` is set and `process.env.UV_THREADPOOL_SIZE` is not set, add:
-
       * [ ] `UV_THREADPOOL_SIZE = String(runtimeConfig.uvThreadpoolSize)`
     * [ ] (Optional) If `--verbose` or `PAIROFCLEATS_VERBOSE`, log a one-liner showing the chosen `UV_THREADPOOL_SIZE` for the child process.
 * [ ] Update other scripts that spawn Node subcommands and already apply runtime Node options, so they also carry the threadpool sizing consistently:
-
   * [ ] `tools/setup.js` (`buildRuntimeEnv()`)
   * [ ] `tools/bootstrap.js` (`baseEnv`)
   * [ ] `tools/ci-build-artifacts.js` (`baseEnv`)
@@ -1221,20 +1143,15 @@ At least one strategy emits `--signature` without a value. Additionally, values 
 ### 19.4 Observability: surface “configured vs effective” values
 
 * [ ] Update `tools/config-dump.js`
-
   * [ ] Include in `payload.derived.runtime`:
-
     * [ ] `uvThreadpoolSize` (configured value from `getRuntimeConfig`)
     * [ ] `effectiveUvThreadpoolSize` (from `process.env.UV_THREADPOOL_SIZE` or null/undefined if absent)
 * [ ] Add runtime warnings in indexing startup when mismatch is likely:
-
   * [ ] Update `src/index/build/runtime/workers.js` (in `resolveThreadLimitsConfig`, verbose mode is already supported)
-
     * [ ] Compute `effectiveUv = Number(process.env.UV_THREADPOOL_SIZE) || null`
     * [ ] If `effectiveUv` is set and `ioConcurrency` is materially larger, emit a single warning suggesting alignment.
     * [ ] If `effectiveUv` is not set, consider a *non-fatal* hint when `ioConcurrency` is high (e.g., `>= 16`) and `--verbose` is enabled.
 * [ ] (Services) Emit one-time startup info in long-running modes:
-
   * [ ] `tools/api-server.js`
   * [ ] `tools/indexer-service.js`
   * [ ] `tools/mcp-server.js`
@@ -2743,10 +2660,8 @@ Note: merge-followup failures for api-server streaming, code-map basics, MCP sch
 * [ ] Add HDR env map tone calibration controls (env intensity, exposure) to match yoink reference settings.
   * [x] Env intensity control exists (`visuals.glass.envMapIntensity`) and is applied to glass materials
   * [ ] Exposure control is still hard-coded (`renderer.toneMappingExposure = 1.9`); add a UI slider + persist to panel state
-
 * [x] Support normal map repeat/scale on glass with clearcoat normal influence.
   - Implemented via: `visuals.glass.normalRepeat`, `visuals.glass.normalScale`, `visuals.glass.clearcoatNormalScale`
-
 * [ ] Add optional clearcoat normal map toggle for glass shells.
   - Note: setting `clearcoatNormalScale = 0` approximates a toggle, but an explicit boolean that removes `clearcoatNormalMap` would be clearer.
 
@@ -2759,7 +2674,6 @@ Note: merge-followup failures for api-server streaming, code-map basics, MCP sch
 
 * [x] Expose metalness/roughness/transmission/ior/reflectivity/thickness controls as a grouped preset panel.
   - Implemented as UI sliders in `src/map/isometric/client/ui.js` + applied in `src/map/isometric/client/materials.js`
-
 * [ ] Add a “studio” preset that mirrors yoink defaults for fast tuning.
 
 ### Dependency leverage and reuse (map viewer)
