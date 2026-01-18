@@ -7,6 +7,22 @@ const isVectorLike = (value) => {
   return ArrayBuffer.isView(value) && !(value instanceof DataView);
 };
 
+export const assertVectorArrays = (vectors, count, label) => {
+  if (!Array.isArray(vectors) || vectors.length !== count) {
+    throw new Error(
+      `[embeddings] ${label} embedding batch size mismatch (expected ${count}, got ${vectors?.length ?? 0}).`
+    );
+  }
+  for (let i = 0; i < vectors.length; i += 1) {
+    const vec = vectors[i];
+    if (!isVectorLike(vec) || !vec.length) {
+      throw new Error(
+        `[embeddings] ${label} embedding output invalid at index ${i} (non-vector).`
+      );
+    }
+  }
+};
+
 export const runBatched = async ({ texts, batchSize, embed }) => {
   if (!texts.length) return [];
   if (!batchSize || texts.length <= batchSize) {

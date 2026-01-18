@@ -55,6 +55,21 @@ const readIndex = async (cacheRoot) => {
   return { chunks, tokenIndex };
 };
 
+const readManifest = async (cacheRoot) => {
+  const previousCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
+  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+  const userConfig = loadUserConfig(repoRoot);
+  const codeDir = getIndexDir(repoRoot, 'code', userConfig);
+  const manifestPath = path.join(codeDir, 'pieces', 'manifest.json');
+  const raw = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
+  if (previousCacheRoot === undefined) {
+    delete process.env.PAIROFCLEATS_CACHE_ROOT;
+  } else {
+    process.env.PAIROFCLEATS_CACHE_ROOT = previousCacheRoot;
+  }
+  return raw;
+};
+
 runBuild(cacheRootA, 'baseline build', {
   indexing: {
     fileListSampleSize: 10,
@@ -63,6 +78,7 @@ runBuild(cacheRootA, 'baseline build', {
   }
 });
 const baseline = await readIndex(cacheRootA);
+const baselineManifest = await readManifest(cacheRootA);
 
 runBuild(cacheRootB, 'sharded build', {
   indexing: {
@@ -76,6 +92,7 @@ runBuild(cacheRootB, 'sharded build', {
   }
 });
 const sharded = await readIndex(cacheRootB);
+const shardedManifest = await readManifest(cacheRootB);
 
 if (baseline.chunks.length !== sharded.chunks.length) {
   console.error('Shard merge mismatch: chunk counts differ');
@@ -92,6 +109,42 @@ if (JSON.stringify(baseline.tokenIndex.vocab) !== JSON.stringify(sharded.tokenIn
 if (JSON.stringify(baseline.tokenIndex.postings) !== JSON.stringify(sharded.tokenIndex.postings)) {
   console.error('Shard merge mismatch: token postings differ');
   process.exit(1);
+}
+
+const normalizeManifest = (manifest) => {
+  const pieces = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
+  const map = new Map();
+  for (const entry of pieces) {
+    if (!entry?.path) continue;
+    map.set(entry.path, entry);
+  }
+  return map;
+};
+
+const baselinePieces = normalizeManifest(baselineManifest);
+const shardedPieces = normalizeManifest(shardedManifest);
+if (baselinePieces.size !== shardedPieces.size) {
+  console.error('Shard merge mismatch: pieces manifest counts differ');
+  process.exit(1);
+}
+for (const [piecePath, baselineEntry] of baselinePieces.entries()) {
+  const shardedEntry = shardedPieces.get(piecePath);
+  if (!shardedEntry) {
+    console.error(`Shard merge mismatch: missing piece entry ${piecePath}`);
+    process.exit(1);
+  }
+  if (!baselineEntry.checksum || !baselineEntry.checksum.includes(':')) {
+    console.error(`Shard merge mismatch: baseline checksum missing for ${piecePath}`);
+    process.exit(1);
+  }
+  if (!shardedEntry.checksum || !shardedEntry.checksum.includes(':')) {
+    console.error(`Shard merge mismatch: sharded checksum missing for ${piecePath}`);
+    process.exit(1);
+  }
+  if (baselineEntry.checksum !== shardedEntry.checksum) {
+    console.error(`Shard merge mismatch: checksum differs for ${piecePath}`);
+    process.exit(1);
+  }
 }
 
 console.log('shard merge test passed');

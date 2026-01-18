@@ -37,4 +37,31 @@ if (noneMode.resolvedTokenMode !== 'none') {
   fail('Expected explicit chunkTokenMode=none to be respected.');
 }
 
+const invalidMode = resolveTokenMode({
+  indexingConfig: { chunkTokenMode: 'NOPE' },
+  state: baseState,
+  fileCounts: { candidates: 1 }
+});
+if (invalidMode.tokenMode !== 'auto') {
+  fail('Expected invalid chunkTokenMode to fall back to auto.');
+}
+
+const caseInsensitive = resolveTokenMode({
+  indexingConfig: { chunkTokenMode: 'SAMPLE' },
+  state: baseState,
+  fileCounts: { candidates: 0 }
+});
+if (caseInsensitive.resolvedTokenMode !== 'sample') {
+  fail('Expected chunkTokenMode parsing to be case-insensitive.');
+}
+
+const parsedLimits = resolveTokenMode({
+  indexingConfig: { chunkTokenMaxFiles: '12', chunkTokenMaxTokens: '7.9' },
+  state: { chunks: [{ tokens: ['a'] }] },
+  fileCounts: { candidates: 100 }
+});
+if (parsedLimits.tokenMaxFiles !== 12 || parsedLimits.tokenMaxTotal !== 7) {
+  fail('Expected chunkTokenMaxFiles/maxTokens to parse numeric strings.');
+}
+
 console.log('artifact token mode tests passed');

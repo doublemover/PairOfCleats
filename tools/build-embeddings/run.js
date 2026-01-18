@@ -13,11 +13,13 @@ import { resolveHnswPaths } from '../../src/shared/hnsw.js';
 import { normalizeLanceDbConfig } from '../../src/shared/lancedb.js';
 import { createDisplay } from '../../src/shared/cli/display.js';
 import { DEFAULT_STUB_DIMS, resolveStubDims } from '../../src/shared/embedding.js';
+import { normalizeEmbeddingVectorInPlace } from '../../src/shared/embedding-utils.js';
 import { resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { getIndexDir, getRepoCacheRoot, getTriageConfig } from '../dict-utils.js';
 import { buildCacheIdentity, buildCacheKey, isCacheValid, resolveCacheDir, resolveCacheRoot } from './cache.js';
 import { buildChunkSignature, buildChunksFromBundles } from './chunks.js';
 import {
+  assertVectorArrays,
   buildQuantizedVectors,
   createDimsValidator,
   ensureVectorArrays,
@@ -423,11 +425,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
         batchSize: embeddingBatchSize,
         embed: getChunkEmbeddings
       });
-      if (!Array.isArray(codeEmbeds) || codeEmbeds.length !== combinedCodeTexts.length) {
-        throw new Error(
-          `[embeddings] ${mode} code batch size mismatch (expected ${combinedCodeTexts.length}, got ${codeEmbeds?.length ?? 0}).`
-        );
-      }
+      assertVectorArrays(codeEmbeds, combinedCodeTexts.length, `${mode} code`);
 
       const docPayloads = [];
       const docMappings = [];
@@ -447,11 +445,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
           batchSize: embeddingBatchSize,
           embed: getChunkEmbeddings
         });
-        if (!Array.isArray(docEmbeds) || docEmbeds.length !== docPayloads.length) {
-          throw new Error(
-            `[embeddings] ${mode} doc batch size mismatch (expected ${docPayloads.length}, got ${docEmbeds?.length ?? 0}).`
-          );
-        }
+        assertVectorArrays(docEmbeds, docPayloads.length, `${mode} doc`);
         for (let i = 0; i < docMappings.length; i += 1) {
           const mapping = docMappings[i];
           pending[mapping.entryIndex].docVectorsRaw[mapping.chunkOffset] = docEmbeds[i] || null;
@@ -514,6 +508,9 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
                   quantization.maxVal,
                   quantization.levels
                 );
+                if (floatVec && hnswConfig.space === 'cosine') {
+                  normalizeEmbeddingVectorInPlace(floatVec);
+                }
                 if (floatVec) hnswBuilder.addVector(chunkIndex, floatVec);
               }
             }
@@ -585,6 +582,9 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
                   quantization.maxVal,
                   quantization.levels
                 );
+                  if (floatVec && hnswConfig.space === 'cosine') {
+                    normalizeEmbeddingVectorInPlace(floatVec);
+                  }
                   if (floatVec) hnswBuilder.addVector(chunkIndex, floatVec);
                 }
               }
@@ -601,8 +601,8 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       const codeTexts = [];
       const docTexts = [];
       for (const { chunk } of items) {
-        const start = Number(chunk.start) || 0;
-        const end = Number(chunk.end) || start;
+        const start = Number.isFinite(Number(chunk.start)) ? Number(chunk.start) : 0;
+        const end = Number.isFinite(Number(chunk.end)) ? Number(chunk.end) : start;
         codeTexts.push(text.slice(start, end));
         const docText = typeof chunk.docmeta?.doc === 'string' ? chunk.docmeta.doc : '';
         docTexts.push(docText.trim() ? docText : '');

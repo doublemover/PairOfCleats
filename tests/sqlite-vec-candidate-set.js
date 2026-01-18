@@ -50,4 +50,14 @@ assert.equal(largeHits.length, 1, 'expected candidate filtering for large set');
 assert.equal(largeHits[0].idx, 10, 'expected candidate filtering for large set');
 assert.ok(Array.isArray(lastParams), 'expected SQL parameters for ANN query');
 
+const badConfig = {
+  ...config,
+  column: 'embedding;drop'
+};
+lastSql = null;
+lastParams = null;
+const badHits = queryVectorAnn(db, badConfig, [0, 1], 2, smallCandidates);
+assert.equal(badHits.length, 0, 'expected invalid column to return no results');
+assert.equal(lastSql, null, 'expected invalid column to skip query execution');
+
 console.log('sqlite vec candidate set test passed');

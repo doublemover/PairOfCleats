@@ -19,7 +19,12 @@ import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
 import { normalizeManifestFiles } from './manifest.js';
 import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
-import { MAX_JSON_BYTES, parseJsonlLine, resolveJsonlRequiredKeys } from '../../../shared/artifact-io.js';
+import {
+  MAX_JSON_BYTES,
+  parseJsonlLine,
+  readJsonLinesArray,
+  resolveJsonlRequiredKeys
+} from '../../../shared/artifact-io.js';
 
 const listShardFiles = (dir, prefix, extensions) => {
   if (!fsSync.existsSync(dir)) return [];
@@ -47,13 +52,15 @@ const resolveChunkMetaSources = (dir) => {
       } catch {}
     }
     if (!parts.length) {
-      parts = listShardFiles(partsDir, 'chunk_meta.part-', ['.jsonl']);
+      parts = listShardFiles(partsDir, 'chunk_meta.part-', ['.jsonl', '.jsonl.gz', '.jsonl.zst']);
     }
     return parts.length ? { format: 'jsonl', paths: parts } : null;
   }
   const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
-  if (fsSync.existsSync(jsonlPath)) {
-    return { format: 'jsonl', paths: [jsonlPath] };
+  const jsonlCandidates = [jsonlPath, `${jsonlPath}.gz`, `${jsonlPath}.zst`];
+  const jsonlResolved = jsonlCandidates.find((candidate) => fsSync.existsSync(candidate));
+  if (jsonlResolved) {
+    return { format: 'jsonl', paths: [jsonlResolved] };
   }
   const jsonPath = path.join(dir, 'chunk_meta.json');
   if (fsSync.existsSync(jsonPath)) {
@@ -76,7 +83,7 @@ const resolveTokenPostingsSources = (dir) => {
     } catch {}
   }
   if (!parts.length) {
-    parts = listShardFiles(shardsDir, 'token_postings.part-', ['.json']);
+    parts = listShardFiles(shardsDir, 'token_postings.part-', ['.json', '.json.gz', '.json.zst']);
   }
   return parts.length ? { metaPath, parts } : null;
 };
@@ -88,6 +95,11 @@ const readJsonLinesFile = async (
   onEntry,
   { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
 ) => {
+  if (filePath.endsWith('.gz') || filePath.endsWith('.zst')) {
+    const entries = await readJsonLinesArray(filePath, { maxBytes, requiredKeys });
+    for (const entry of entries) onEntry(entry);
+    return;
+  }
   const stream = fsSync.createReadStream(filePath, { encoding: 'utf8' });
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
   let lineNumber = 0;
@@ -226,8 +238,10 @@ export async function buildDatabaseFromArtifacts({
     function ingestTokenIndexFromPieces(targetMode, indexDir) {
       const directPath = path.join(indexDir, 'token_postings.json');
       const directPathGz = `${directPath}.gz`;
+      const directPathZst = `${directPath}.zst`;
       const sources = resolveTokenPostingsSources(indexDir);
-      if (!sources && !fsSync.existsSync(directPath) && !fsSync.existsSync(directPathGz)) {
+      if (!sources && !fsSync.existsSync(directPath) && !fsSync.existsSync(directPathGz)
+        && !fsSync.existsSync(directPathZst)) {
         return false;
       }
       if (!sources) {
@@ -448,7 +462,12 @@ export async function buildDatabaseFromArtifacts({
         churn_added: resolvedChurnAdded,
         churn_deleted: resolvedChurnDeleted,
         churn_commits: resolvedChurnCommits,
-        chunk_authors: chunk.chunk_authors ? JSON.stringify(chunk.chunk_authors) : null
+        chunk_authors: (() => {
+          const authors = Array.isArray(chunk.chunk_authors)
+            ? chunk.chunk_authors
+            : (Array.isArray(chunk.chunkAuthors) ? chunk.chunkAuthors : null);
+          return authors ? JSON.stringify(authors) : null;
+        })()
       };
     };
 

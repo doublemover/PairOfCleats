@@ -115,7 +115,15 @@ export async function loadIndex(dir, options) {
       space: hnswMeta.space || hnswConfig.space,
       efSearch: hnswMeta.efSearch || hnswConfig.efSearch
     };
-    hnswIndex = loadHnswIndex({ indexPath, dims: hnswMeta.dims, config: mergedConfig, meta: hnswMeta });
+    const expectedModel = denseVec?.model || denseVecDoc?.model || denseVecCode?.model || null;
+    const expectedDims = denseVec?.dims || denseVecDoc?.dims || denseVecCode?.dims || hnswMeta.dims;
+    hnswIndex = loadHnswIndex({
+      indexPath,
+      dims: expectedDims,
+      config: mergedConfig,
+      meta: hnswMeta,
+      expectedModel
+    });
     hnswAvailable = Boolean(hnswIndex);
   }
   const fieldPostings = loadOptional('field_postings.json');

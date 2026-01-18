@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
+import { rankHnswIndex } from '../src/shared/hnsw.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -11,9 +12,36 @@ const tempRoot = path.join(root, 'tests', '.cache', 'hnsw-ann');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
+const fakeIndex = {
+  searchKnn: (_vec, _limit, filter) => {
+    const neighbors = [3, 1, 2];
+    const distances = [0.2, 0.1, 0.1];
+    if (!filter) return { neighbors, distances };
+    const filtered = [];
+    const filteredDistances = [];
+    for (let i = 0; i < neighbors.length; i += 1) {
+      if (filter(neighbors[i])) {
+        filtered.push(neighbors[i]);
+        filteredDistances.push(distances[i]);
+      }
+    }
+    return { neighbors: filtered, distances: filteredDistances };
+  }
+};
+const fakeHits = rankHnswIndex(
+  { index: fakeIndex, space: 'cosine' },
+  [0.1, 0.2],
+  3,
+  new Set([1, 2])
+);
+if (fakeHits.length !== 2 || fakeHits[0].idx !== 1 || fakeHits[1].idx !== 2) {
+  console.error('Expected candidate-set filtering and deterministic tie-breaks in HNSW ranking.');
+  process.exit(1);
+}
+
 const nodeMajor = Number(String(process.versions.node || '').split('.')[0]);
 if (Number.isFinite(nodeMajor) && nodeMajor >= 24) {
-  console.log(`Skipping HNSW ANN test on Node ${process.versions.node}.`);
+  console.log(`Skipping HNSW ANN integration test on Node ${process.versions.node}.`);
   process.exit(0);
 }
 

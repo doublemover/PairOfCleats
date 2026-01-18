@@ -8,6 +8,17 @@ import { checksumFile } from '../../src/shared/hash.js';
 export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims }) => {
   const piecesDir = path.join(indexDir, 'pieces');
   const manifestPath = path.join(piecesDir, 'manifest.json');
+  const hnswMetaPath = path.join(indexDir, 'dense_vectors_hnsw.meta.json');
+  let hnswMeta = null;
+  if (fsSync.existsSync(hnswMetaPath)) {
+    try {
+      hnswMeta = readJsonFile(hnswMetaPath, { maxBytes: MAX_JSON_BYTES }) || null;
+    } catch {
+      hnswMeta = null;
+    }
+  }
+  const hnswCount = Number.isFinite(Number(hnswMeta?.count)) ? Number(hnswMeta.count) : totalChunks;
+  const hnswDims = Number.isFinite(Number(hnswMeta?.dims)) ? Number(hnswMeta.dims) : dims;
   let existing = {};
   if (fsSync.existsSync(manifestPath)) {
     try {
@@ -45,8 +56,8 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
     { type: 'embeddings', name: 'dense_vectors', format: 'json', path: 'dense_vectors_uint8.json', count: totalChunks, dims },
     { type: 'embeddings', name: 'dense_vectors_doc', format: 'json', path: 'dense_vectors_doc_uint8.json', count: totalChunks, dims },
     { type: 'embeddings', name: 'dense_vectors_code', format: 'json', path: 'dense_vectors_code_uint8.json', count: totalChunks, dims },
-    { type: 'embeddings', name: 'dense_vectors_hnsw', format: 'bin', path: 'dense_vectors_hnsw.bin', count: totalChunks, dims },
-    { type: 'embeddings', name: 'dense_vectors_hnsw_meta', format: 'json', path: 'dense_vectors_hnsw.meta.json', count: totalChunks, dims },
+    { type: 'embeddings', name: 'dense_vectors_hnsw', format: 'bin', path: 'dense_vectors_hnsw.bin', count: hnswCount, dims: hnswDims },
+    { type: 'embeddings', name: 'dense_vectors_hnsw_meta', format: 'json', path: 'dense_vectors_hnsw.meta.json', count: hnswCount, dims: hnswDims },
     { type: 'embeddings', name: 'dense_vectors_lancedb', format: 'dir', path: 'dense_vectors.lancedb', count: totalChunks, dims },
     { type: 'embeddings', name: 'dense_vectors_lancedb_meta', format: 'json', path: 'dense_vectors.lancedb.meta.json', count: totalChunks, dims },
     { type: 'embeddings', name: 'dense_vectors_doc_lancedb', format: 'dir', path: 'dense_vectors_doc.lancedb', count: totalChunks, dims },

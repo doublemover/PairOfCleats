@@ -556,7 +556,12 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
       );
       if (!matches) return false;
     }
-    if (chunkAuthor && !matchList(c.chunk_authors, chunkAuthor)) return false;
+    if (chunkAuthor) {
+      const authors = Array.isArray(c.chunk_authors)
+        ? c.chunk_authors
+        : (Array.isArray(c.chunkAuthors) ? c.chunkAuthors : null);
+      if (!matchList(authors, chunkAuthor)) return false;
+    }
     if (importName) {
       const imports = c.codeRelations?.imports || resolveFileRelations(c.file)?.imports;
       if (!Array.isArray(imports) || !imports.includes(importName)) return false;

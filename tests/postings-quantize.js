@@ -53,6 +53,10 @@ const postings = await buildPostings({
 });
 
 const dims = chunks[0].embedding.length;
+if (postings.dims !== dims) {
+  console.error(`postings quantize test failed: expected dims=${dims} got ${postings.dims}`);
+  process.exit(1);
+}
 const normalize = (vec) => {
   if (!Array.isArray(vec)) return new Array(dims).fill(0);
   if (vec.length === dims) return vec;

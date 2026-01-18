@@ -6,6 +6,7 @@ import readline from 'node:readline';
 import { createCli } from '../src/shared/cli.js';
 import { writeJsonLinesFile, writeJsonObjectFile } from '../src/shared/json-stream.js';
 import { checksumFile } from '../src/shared/hash.js';
+import { readJsonFile, readJsonLinesArray } from '../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig, resolveRepoRoot } from './dict-utils.js';
 
 const argv = createCli({
@@ -15,7 +16,8 @@ const argv = createCli({
     mode: { type: 'string', default: 'code' },
     'chunk-meta-size': { type: 'number' },
     'token-postings-size': { type: 'number' },
-    'dry-run': { type: 'boolean', default: false }
+    'dry-run': { type: 'boolean', default: false },
+    perf: { type: 'boolean', default: false, describe: 'Log compaction timings' }
   }
 }).parse();
 
@@ -30,12 +32,26 @@ const listShardFiles = (dir, prefix) => {
   if (!fsSync.existsSync(dir)) return [];
   return fsSync
     .readdirSync(dir)
-    .filter((name) => name.startsWith(prefix) && name.endsWith('.jsonl'))
+    .filter((name) => name.startsWith(prefix) && (
+      name.endsWith('.jsonl')
+      || name.endsWith('.jsonl.gz')
+      || name.endsWith('.jsonl.zst')
+    ))
     .sort()
     .map((name) => path.join(dir, name));
 };
 
 const readJsonLinesFile = async (filePath, onEntry) => {
+  if (filePath.endsWith('.gz') || filePath.endsWith('.zst')) {
+    const entries = await readJsonLinesArray(filePath);
+    for (const entry of entries) {
+      const result = onEntry(entry);
+      if (result && typeof result.then === 'function') {
+        await result;
+      }
+    }
+    return;
+  }
   const stream = fsSync.createReadStream(filePath, { encoding: 'utf8' });
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
   for await (const line of rl) {
@@ -48,7 +64,7 @@ const readJsonLinesFile = async (filePath, onEntry) => {
   }
 };
 
-const readJson = async (filePath) => JSON.parse(await fs.readFile(filePath, 'utf8'));
+const readJson = async (filePath) => readJsonFile(filePath);
 
 const resolveChunkMetaParts = async (indexDir) => {
   const metaPath = path.join(indexDir, 'chunk_meta.meta.json');
@@ -88,7 +104,11 @@ const resolveTokenPostingsParts = async (indexDir) => {
   if (!parts.length) {
     parts = fsSync
       .readdirSync(shardsDir)
-      .filter((name) => name.startsWith('token_postings.part-') && name.endsWith('.json'))
+      .filter((name) => name.startsWith('token_postings.part-') && (
+        name.endsWith('.json')
+        || name.endsWith('.json.gz')
+        || name.endsWith('.json.zst')
+      ))
       .sort()
       .map((name) => path.join(shardsDir, name));
   }
@@ -146,6 +166,7 @@ const compactChunkMeta = async (indexDir, targetSize) => {
   }
   const newParts = [];
   const newCounts = [];
+  const startedAt = Date.now();
   let buffer = [];
   let partIndex = 0;
   let total = 0;
@@ -173,6 +194,9 @@ const compactChunkMeta = async (indexDir, targetSize) => {
     });
   }
   await flush();
+  if (Number.isFinite(totalChunks) && total !== totalChunks) {
+    throw new Error(`chunk_meta count mismatch (${total} !== ${totalChunks})`);
+  }
   if (!dryRun) {
     await replaceDirAtomic(tmpDir, partsDir);
     await writeJsonObjectFile(metaPath, {
@@ -185,7 +209,16 @@ const compactChunkMeta = async (indexDir, targetSize) => {
       atomic: true
     });
   }
-  return { type: 'chunks', name: 'chunk_meta', metaName: 'chunk_meta_meta', parts: newParts, counts: newCounts };
+  const durationMs = Date.now() - startedAt;
+  return {
+    type: 'chunks',
+    name: 'chunk_meta',
+    metaName: 'chunk_meta_meta',
+    parts: newParts,
+    counts: newCounts,
+    durationMs,
+    totalEntries: total
+  };
 };
 
 const compactTokenPostings = async (indexDir, targetSize) => {
@@ -204,6 +237,7 @@ const compactTokenPostings = async (indexDir, targetSize) => {
   }
   const newParts = [];
   const newCounts = [];
+  const startedAt = Date.now();
   let vocabBuffer = [];
   let postingsBuffer = [];
   let partIndex = 0;
@@ -246,6 +280,9 @@ const compactTokenPostings = async (indexDir, targetSize) => {
       ? docLengths.reduce((sum, len) => sum + (Number.isFinite(len) ? len : 0), 0) / docLengths.length
       : 0);
   const vocabCount = newCounts.reduce((sum, count) => sum + count, 0);
+  if (Number.isFinite(metaFields?.vocabCount) && vocabCount !== metaFields.vocabCount) {
+    throw new Error(`token_postings vocab mismatch (${vocabCount} !== ${metaFields.vocabCount})`);
+  }
   if (!dryRun) {
     await replaceDirAtomic(tmpDir, shardsDir);
     await writeJsonObjectFile(metaPath, {
@@ -261,7 +298,16 @@ const compactTokenPostings = async (indexDir, targetSize) => {
       atomic: true
     });
   }
-  return { type: 'postings', name: 'token_postings', metaName: 'token_postings_meta', parts: newParts, counts: newCounts };
+  const durationMs = Date.now() - startedAt;
+  return {
+    type: 'postings',
+    name: 'token_postings',
+    metaName: 'token_postings_meta',
+    parts: newParts,
+    counts: newCounts,
+    durationMs,
+    totalEntries: vocabCount
+  };
 };
 
 const updateManifest = async (indexDir, updates) => {
@@ -344,5 +390,20 @@ for (const mode of modes) {
     console.log(`[pieces] ${mode}: no compaction needed.`);
   } else {
     console.log(`[pieces] ${mode}: compaction ${dryRun ? 'planned' : 'complete'}.`);
+  }
+  if (argv.perf && updates.length) {
+    const formatPerf = (label, update) => {
+      const ms = Number(update?.durationMs) || 0;
+      const total = Number(update?.totalEntries) || 0;
+      const perSec = ms > 0 ? Math.round((total / ms) * 1000) : 0;
+      return `[perf] ${mode} ${label}: ${total.toLocaleString()} entries in ${ms}ms (${perSec.toLocaleString()}/s)`;
+    };
+    for (const update of updates) {
+      if (update.name === 'chunk_meta') {
+        console.log(formatPerf('chunk_meta', update));
+      } else if (update.name === 'token_postings') {
+        console.log(formatPerf('token_postings', update));
+      }
+    }
   }
 }

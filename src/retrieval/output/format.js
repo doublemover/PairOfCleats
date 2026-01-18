@@ -85,9 +85,12 @@ export function formatFullChunk({
   if (chunk.last_author) {
     out += c.gray('   Last Author: ') + c.green(chunk.last_author) + '\n';
   }
-  if (Array.isArray(chunk.chunk_authors) && chunk.chunk_authors.length) {
-    const authors = chunk.chunk_authors.slice(0, 6);
-    const suffix = chunk.chunk_authors.length > authors.length ? ' …' : '';
+  const chunkAuthors = Array.isArray(chunk.chunk_authors)
+    ? chunk.chunk_authors
+    : (Array.isArray(chunk.chunkAuthors) ? chunk.chunkAuthors : []);
+  if (chunkAuthors.length) {
+    const authors = chunkAuthors.slice(0, 6);
+    const suffix = chunkAuthors.length > authors.length ? ' …' : '';
     out += c.gray('   Chunk Authors: ') + c.green(authors.join(', ') + suffix) + '\n';
   }
 

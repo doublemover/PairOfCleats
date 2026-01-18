@@ -1,4 +1,6 @@
 export function createFileTimingTracker({ mode, featureMetrics }) {
+  // Durations below are cumulative per file and may exceed wall time because
+  // they sum per-chunk work; they should not be double-counted by callers.
   const fileTimings = {
     parseMs: 0,
     tokenizeMs: 0,
@@ -13,6 +15,10 @@ export function createFileTimingTracker({ mode, featureMetrics }) {
     embedding: 0,
     lint: 0,
     complexity: 0
+  };
+  const clampDuration = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   };
   const addSettingMetric = (setting, languageId, lines, durationMs, count = 1) => {
     if (!settingMetrics) return;
@@ -167,34 +173,34 @@ export function createFileTimingTracker({ mode, featureMetrics }) {
     addSettingMetric,
     addLineSpan,
     addParseDuration: (durationMs) => {
-      fileTimings.parseMs += Number(durationMs) || 0;
+      fileTimings.parseMs += clampDuration(durationMs);
     },
     addTokenizeDuration: (durationMs) => {
-      fileTimings.tokenizeMs += Number(durationMs) || 0;
+      fileTimings.tokenizeMs += clampDuration(durationMs);
     },
     addEnrichDuration: (durationMs) => {
-      fileTimings.enrichMs += Number(durationMs) || 0;
+      fileTimings.enrichMs += clampDuration(durationMs);
     },
     addEmbeddingDuration: (durationMs) => {
-      const value = Number(durationMs) || 0;
+      const value = clampDuration(durationMs);
       fileTimings.embeddingMs += value;
       totals.embedding += value;
     },
     addLintDuration: (durationMs) => {
-      const value = Number(durationMs) || 0;
+      const value = clampDuration(durationMs);
       fileTimings.enrichMs += value;
       totals.lint += value;
     },
     addComplexityDuration: (durationMs) => {
-      const value = Number(durationMs) || 0;
+      const value = clampDuration(durationMs);
       fileTimings.enrichMs += value;
       totals.complexity += value;
     },
     setGitDuration: (durationMs) => {
-      totals.git = Number(durationMs) || 0;
+      totals.git = clampDuration(durationMs);
     },
     setPythonAstDuration: (durationMs) => {
-      totals.pythonAst = Number(durationMs) || 0;
+      totals.pythonAst = clampDuration(durationMs);
     },
     finalizeLanguageLines,
     recordFeatureMetrics,

@@ -6,7 +6,6 @@ import {
   loadTokenPostings,
   readJsonFile
 } from '../../shared/artifact-io.js';
-import { buildFilterIndex, serializeFilterIndex } from '../../retrieval/filter-index.js';
 import { applyCrossFileInference } from '../type-inference-crossfile.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { log as defaultLog } from '../../shared/progress.js';
@@ -583,9 +582,6 @@ export async function assembleIndexPieces({
     if (chunk?.file) uniqueFiles.add(chunk.file);
   }
   const timing = { start: Date.now() };
-  const filterIndex = serializeFilterIndex(buildFilterIndex(state.chunks, {
-    includeBitmaps: false
-  }));
   const graphRelations = mode === 'code'
     ? buildRelationGraphs({ chunks: state.chunks, fileRelations: state.fileRelations })
     : null;
@@ -624,9 +620,7 @@ export async function assembleIndexPieces({
     stage: resolvedStage || baseIndexState.stage || null,
     assembled: true
   };
-  if (filterIndex) {
-    assembledIndexState.filterIndex = { ready: true };
-  }
+  assembledIndexState.filterIndex = { ready: state.chunks.length > 0 };
 
   const postingsConfig = normalizePostingsConfig(userConfig?.indexing?.postings || {});
   await writeIndexArtifacts({

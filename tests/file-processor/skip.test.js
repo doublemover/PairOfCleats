@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createFileScanner } from '../../src/index/build/file-scan.js';
+import { createFileProcessor } from '../../src/index/build/file-processor.js';
 import { resolveBinarySkip, resolvePreReadSkip } from '../../src/index/build/file-processor/skip.js';
 
 const fail = (message) => {
@@ -56,6 +57,65 @@ const binarySkip = await resolveBinarySkip({
 });
 if (!binarySkip || binarySkip.reason !== 'binary') {
   fail('Expected binary buffer to skip with reason=binary.');
+}
+
+const skippedFiles = [];
+const { processFile } = createFileProcessor({
+  root,
+  mode: 'code',
+  dictConfig: {},
+  dictWords: new Set(),
+  languageOptions: { astDataflowEnabled: false, controlFlowEnabled: false },
+  postingsConfig: {},
+  segmentsConfig: {},
+  commentsConfig: {},
+  allImports: {},
+  contextWin: 0,
+  incrementalState: {
+    enabled: false,
+    manifest: { files: {} },
+    bundleDir: '',
+    bundleFormat: 'json'
+  },
+  getChunkEmbedding: async () => null,
+  getChunkEmbeddings: async () => null,
+  typeInferenceEnabled: false,
+  riskAnalysisEnabled: false,
+  riskConfig: {},
+  relationsEnabled: false,
+  seenFiles: new Set(),
+  gitBlameEnabled: false,
+  lintEnabled: false,
+  complexityEnabled: false,
+  structuralMatches: null,
+  cacheConfig: {},
+  cacheReporter: null,
+  queues: null,
+  workerPool: null,
+  crashLogger: null,
+  skippedFiles,
+  embeddingEnabled: false,
+  toolInfo: null,
+  tokenizationStats: null
+});
+
+const unreadableDir = path.join(tempRoot, 'unreadable');
+await fs.mkdir(unreadableDir, { recursive: true });
+const unreadableStat = await fs.stat(unreadableDir);
+const unreadableEntry = {
+  abs: unreadableDir,
+  rel: 'unreadable',
+  stat: unreadableStat,
+  lines: 1,
+  scan: { checkedBinary: true, checkedMinified: true }
+};
+const unreadableResult = await processFile(unreadableEntry, 0);
+if (unreadableResult !== null) {
+  fail('Expected unreadable path to return null.');
+}
+const unreadableSkip = skippedFiles.find((entry) => entry?.file === unreadableDir && entry?.reason === 'unreadable');
+if (!unreadableSkip) {
+  fail('Expected unreadable path to be recorded as skipped.');
 }
 
 console.log('file processor skip tests passed');

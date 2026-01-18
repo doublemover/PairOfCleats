@@ -113,6 +113,7 @@ export const updateSqliteDense = ({
       'INSERT OR REPLACE INTO dense_meta (mode, dims, scale, model, min_val, max_val, levels) VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
     const resolvedQuantization = resolveQuantizationParams(quantization);
+    const batchSize = Math.max(1, Math.min(5000, Math.floor((vectors.length || 0) / 8) || 1000));
     const run = db.transaction(() => {
       deleteDense.run(mode);
       deleteMeta.run(mode);
@@ -128,18 +129,21 @@ export const updateSqliteDense = ({
         resolvedQuantization.maxVal,
         resolvedQuantization.levels
       );
-      for (let docId = 0; docId < vectors.length; docId += 1) {
-        const vec = vectors[docId];
-        insertDense.run(mode, docId, packUint8(vec));
-        if (vectorAnnReady && insertVectorAnn) {
-          const floatVec = dequantizeUint8ToFloat32(
-            vec,
-            resolvedQuantization.minVal,
-            resolvedQuantization.maxVal,
-            resolvedQuantization.levels
-          );
-          const encoded = encodeVector(floatVec, vectorExtension);
-          if (encoded) insertVectorAnn.run(toSqliteRowId(docId), encoded);
+      for (let batchStart = 0; batchStart < vectors.length; batchStart += batchSize) {
+        const batchEnd = Math.min(vectors.length, batchStart + batchSize);
+        for (let docId = batchStart; docId < batchEnd; docId += 1) {
+          const vec = vectors[docId];
+          insertDense.run(mode, docId, packUint8(vec));
+          if (vectorAnnReady && insertVectorAnn) {
+            const floatVec = dequantizeUint8ToFloat32(
+              vec,
+              resolvedQuantization.minVal,
+              resolvedQuantization.maxVal,
+              resolvedQuantization.levels
+            );
+            const encoded = encodeVector(floatVec, vectorExtension);
+            if (encoded) insertVectorAnn.run(toSqliteRowId(docId), encoded);
+          }
         }
       }
     });

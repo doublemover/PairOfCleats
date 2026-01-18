@@ -600,7 +600,20 @@ export async function createIndexerWorkerPool(input = {}) {
             }
             return null;
           }
-          const result = await pool.run(payload, { name: 'quantizeVectors' });
+          const transferList = [];
+          if (Array.isArray(payload?.vectors)) {
+            for (const vec of payload.vectors) {
+              if (ArrayBuffer.isView(vec) && !(vec instanceof DataView)) {
+                if (vec.byteOffset === 0 && vec.byteLength === vec.buffer.byteLength) {
+                  transferList.push(vec.buffer);
+                }
+              }
+            }
+          }
+          const runOptions = transferList.length
+            ? { name: 'quantizeVectors', transferList }
+            : { name: 'quantizeVectors' };
+          const result = await pool.run(payload, runOptions);
           updatePoolMetrics();
           return result;
         } catch (err) {

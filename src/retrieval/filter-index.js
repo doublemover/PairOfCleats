@@ -76,7 +76,9 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     add(index.byAuthor, chunk.last_author, id);
     const visibility = chunk.docmeta?.visibility || chunk.docmeta?.modifiers?.visibility || null;
     add(index.byVisibility, visibility, id);
-    const chunkAuthors = Array.isArray(chunk.chunk_authors) ? chunk.chunk_authors : [];
+    const chunkAuthors = Array.isArray(chunk.chunk_authors)
+      ? chunk.chunk_authors
+      : (Array.isArray(chunk.chunkAuthors) ? chunk.chunkAuthors : []);
     for (const author of chunkAuthors) add(index.byChunkAuthor, author, id);    
   }
 

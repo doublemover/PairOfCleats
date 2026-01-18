@@ -16,6 +16,9 @@ export const resolveCompressionConfig = (indexingConfig = {}) => {
   const compressionEnabled = compressionConfig.enabled === true && compressionMode;
   const compressionKeepRaw = compressionConfig.keepRaw === true;
   const compressibleArtifacts = new Set([
+    'chunk_meta',
+    'file_relations',
+    'repo_map',
     'dense_vectors_uint8',
     'dense_vectors_doc_uint8',
     'dense_vectors_code_uint8',

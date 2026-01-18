@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getRepoCacheRoot, loadUserConfig } from '../tools/dict-utils.js';
+import { buildEmbeddingIdentity } from '../src/shared/embedding-identity.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -105,6 +106,31 @@ if (!meta.modelId || typeof meta.modelId !== 'string') {
 }
 if (!meta.provider || typeof meta.provider !== 'string') {
   console.error('embeddings cache identity test failed: cache identity missing provider');
+  process.exit(1);
+}
+
+const onnxIdentity = buildEmbeddingIdentity({
+  modelId: 'onnx-model',
+  provider: 'onnx',
+  mode: 'inline',
+  stub: false,
+  dims: 384,
+  scale: 0.5,
+  pooling: 'mean',
+  normalize: true,
+  truncation: 'truncate',
+  maxLength: 128,
+  onnx: {
+    modelPath: 'models/onnx/model.onnx',
+    tokenizerId: 'tokenizer-id',
+    executionProviders: ['cpu'],
+    intraOpNumThreads: 2,
+    interOpNumThreads: 1,
+    graphOptimizationLevel: 'basic'
+  }
+});
+if (!onnxIdentity?.onnx?.modelPath || !onnxIdentity?.onnx?.tokenizerId) {
+  console.error('embeddings cache identity test failed: ONNX identity missing modelPath/tokenizerId');
   process.exit(1);
 }
 

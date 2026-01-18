@@ -56,6 +56,10 @@ export async function buildPostings(input) {
     embeddingsEnabled = true
   } = input;
 
+  const normalizedDocLengths = Array.isArray(docLengths)
+    ? docLengths.map((len) => (Number.isFinite(len) ? len : 0))
+    : [];
+
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
   const fieldedEnabled = resolvedConfig.fielded !== false;
   const buildEmptyFieldPostings = () => {
@@ -73,7 +77,7 @@ export async function buildPostings(input) {
     }
     for (const field of fieldNames) {
       const lengths = Array.isArray(fieldDocLengths?.[field])
-        ? fieldDocLengths[field]
+        ? fieldDocLengths[field].map((len) => (Number.isFinite(len) ? len : 0))
         : [];
       fields[field] = {
         vocab: [],
@@ -302,7 +306,12 @@ export async function buildPostings(input) {
           const end = Math.min(i + batchSize, chunks.length);
           const batch = [];
           for (let j = i; j < end; j += 1) {
-            batch.push(selector(chunks[j]));
+            const vec = selector(chunks[j]);
+            if (ArrayBuffer.isView(vec) && !(vec instanceof DataView)) {
+              batch.push(vec);
+            } else {
+              batch.push(Float32Array.from(vec));
+            }
           }
           try {
             const chunk = await quantizeWorker.runQuantize({ vectors: batch });
@@ -368,8 +377,8 @@ export async function buildPostings(input) {
   const tokenEntries = Array.from(tokenPostings.entries()).sort((a, b) => sortStrings(a[0], b[0]));
   const tokenVocab = tokenEntries.map(([token]) => token);
   const tokenPostingsList = tokenEntries.map(([, posting]) => normalizeTfPostingList(posting));
-  const avgDocLen = docLengths.length
-    ? docLengths.reduce((sum, len) => sum + len, 0) / docLengths.length
+  const avgDocLen = normalizedDocLengths.length
+    ? normalizedDocLengths.reduce((sum, len) => sum + len, 0) / normalizedDocLengths.length
     : 0;
 
   const minhashSigs = chunks.map((c) => c.minhashSig);
@@ -382,9 +391,12 @@ export async function buildPostings(input) {
       if (!postingsMap || typeof postingsMap.keys !== 'function') continue;
       const vocab = Array.from(postingsMap.keys()).sort(sortStrings);
       const postings = vocab.map((token) => normalizeTfPostingList(postingsMap.get(token)));
-      const lengths = fieldDocLengths[field] || [];
+      const lengthsRaw = fieldDocLengths[field] || [];
+      const lengths = Array.isArray(lengthsRaw)
+        ? lengthsRaw.map((len) => (Number.isFinite(len) ? len : 0))
+        : [];
       const avgLen = lengths.length
-        ? lengths.reduce((sum, len) => sum + (Number.isFinite(len) ? len : 0), 0) / lengths.length
+        ? lengths.reduce((sum, len) => sum + len, 0) / lengths.length
         : 0;
       fields[field] = {
         vocab,

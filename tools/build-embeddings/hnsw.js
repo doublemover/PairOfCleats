@@ -9,6 +9,7 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode }) => {
   let index = null;
   let added = 0;
   let expected = 0;
+  const pending = [];
 
   const isVectorLike = (value) => (
     Array.isArray(value) || (ArrayBuffer.isView(value) && !(value instanceof DataView))
@@ -32,16 +33,22 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode }) => {
     initHnsw(data);
     if (!index) return;
     expected += 1;
-    try {
-      index.addPoint(data, chunkIndex);
-      added += 1;
-    } catch {
-      // Ignore HNSW insert failures.
-    }
+    pending.push({ chunkIndex, vector: data });
   };
 
   const writeIndex = async ({ indexPath, metaPath, modelId, dims }) => {
     if (!enabled || !index || !expected) return { skipped: true };
+    if (pending.length) {
+      pending.sort((a, b) => a.chunkIndex - b.chunkIndex);
+      for (const entry of pending) {
+        try {
+          index.addPoint(entry.vector, entry.chunkIndex);
+          added += 1;
+        } catch {
+          // Ignore HNSW insert failures.
+        }
+      }
+    }
     if (expected !== added) {
       throw new Error(`HNSW insert count mismatch (${added} of ${expected}).`);
     }

@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { readJsonFile, readJsonLinesArraySync } from '../src/shared/artifact-io.js';
 import { writeJsonLinesFile } from '../src/shared/json-stream.js';
 
@@ -15,6 +16,16 @@ const primaryPath = path.join(tempRoot, 'primary.json');
 const primaryBak = `${primaryPath}.bak`;
 await fsPromises.writeFile(primaryPath, JSON.stringify({ ok: true }));
 await fsPromises.writeFile(primaryBak, JSON.stringify({ ok: false }));
+
+const expectThrow = (label, fn) => {
+  try {
+    fn();
+  } catch {
+    return;
+  }
+  console.error(`artifact bak test failed: expected error for ${label}.`);
+  process.exit(1);
+};
 
 const primary = readJsonFile(primaryPath);
 if (!primary?.ok) {
@@ -79,6 +90,46 @@ if (jsonlFallback.length !== 2) {
 }
 if (!fs.existsSync(jsonlCorruptBak)) {
   console.error('artifact bak test failed: jsonl backup should remain after fallback read.');
+  process.exit(1);
+}
+
+const gzPath = path.join(tempRoot, 'compressed.json');
+const gzSidecar = `${gzPath}.gz`;
+const gzSidecarBak = `${gzSidecar}.bak`;
+await fsPromises.writeFile(gzSidecar, gzipSync(JSON.stringify({ ok: 'gz' })));
+await fsPromises.writeFile(gzSidecarBak, gzipSync(JSON.stringify({ ok: 'gz-bak' })));
+const gzPayload = readJsonFile(gzPath);
+if (gzPayload?.ok !== 'gz') {
+  console.error('artifact bak test failed: gzip sidecar did not load.');
+  process.exit(1);
+}
+if (fs.existsSync(gzSidecarBak)) {
+  console.error('artifact bak test failed: gzip backup was not cleaned up after read.');
+  process.exit(1);
+}
+
+const gzCorruptPath = path.join(tempRoot, 'compressed-corrupt.json');
+const gzCorruptSidecar = `${gzCorruptPath}.gz`;
+const gzCorruptBak = `${gzCorruptSidecar}.bak`;
+await fsPromises.writeFile(gzCorruptSidecar, gzipSync('{bad'));
+await fsPromises.writeFile(gzCorruptBak, gzipSync(JSON.stringify({ ok: 'gz-fallback' })));
+const gzFallback = readJsonFile(gzCorruptPath);
+if (gzFallback?.ok !== 'gz-fallback') {
+  console.error('artifact bak test failed: gzip backup fallback did not load.');
+  process.exit(1);
+}
+if (!fs.existsSync(gzCorruptBak)) {
+  console.error('artifact bak test failed: gzip backup should remain after fallback read.');
+  process.exit(1);
+}
+
+const doubleCorruptPath = path.join(tempRoot, 'double-corrupt.json');
+const doubleCorruptBak = `${doubleCorruptPath}.bak`;
+await fsPromises.writeFile(doubleCorruptPath, '{bad json');
+await fsPromises.writeFile(doubleCorruptBak, '{bad backup');
+expectThrow('corrupt primary and backup', () => readJsonFile(doubleCorruptPath));
+if (!fs.existsSync(doubleCorruptBak)) {
+  console.error('artifact bak test failed: corrupt backup should remain after failed read.');
   process.exit(1);
 }
 

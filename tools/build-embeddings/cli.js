@@ -40,6 +40,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
   const normalizedEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(embeddingModeRaw)
     ? embeddingModeRaw
     : 'auto';
+  // build-embeddings runs inline; service mode from config is coerced here.
   const resolvedEmbeddingMode = normalizedEmbeddingMode === 'auto'
     ? (baseStubEmbeddings ? 'stub' : 'inline')
     : (normalizedEmbeddingMode === 'service'

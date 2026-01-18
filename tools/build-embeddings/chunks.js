@@ -8,8 +8,21 @@ import {
 } from '../../src/shared/bundle-io.js';
 import { sha1 } from '../../src/shared/hash.js';
 
+const normalizeRangeValue = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const docSignature = (chunk) => {
+  const docText = typeof chunk?.docmeta?.doc === 'string' ? chunk.docmeta.doc : '';
+  if (!docText) return '';
+  return sha1(docText);
+};
+
 export const buildChunkSignature = (items) => sha1(
-  items.map(({ chunk }) => `${chunk.start}:${chunk.end}`).join('|')
+  items.map(({ chunk }) => (
+    `${normalizeRangeValue(chunk?.start)}:${normalizeRangeValue(chunk?.end)}:${docSignature(chunk)}`
+  )).join('|')
 );
 
 export const buildChunksFromBundles = async (bundleDir, manifestFiles, bundleFormat) => {

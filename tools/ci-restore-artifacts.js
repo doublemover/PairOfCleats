@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createCli } from '../src/shared/cli.js';
 import simpleGit from 'simple-git';
 import { getIndexDir, loadUserConfig, resolveRepoRoot, resolveSqlitePaths } from './dict-utils.js';
+import { checksumFile, sha1File } from '../src/shared/hash.js';
 
 const argv = createCli({
   scriptName: 'ci-restore',
@@ -67,6 +68,45 @@ async function copyDir(src, dest) {
   return true;
 }
 
+const parseChecksum = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  const parts = value.split(':');
+  if (parts.length === 2) return { algo: parts[0], value: parts[1] };
+  return { algo: 'xxh64', value };
+};
+
+async function validatePiecesManifest(indexDir, label) {
+  const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
+  if (!fs.existsSync(manifestPath)) return;
+  let manifest = null;
+  try {
+    manifest = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
+  } catch (err) {
+    throw new Error(`Failed to read pieces manifest for ${label}: ${err?.message || err}`);
+  }
+  const fields = manifest?.fields || manifest || {};
+  const pieces = Array.isArray(fields.pieces) ? fields.pieces : [];
+  for (const piece of pieces) {
+    if (!piece?.path) continue;
+    const parsed = parseChecksum(piece.checksum);
+    if (!parsed?.value) continue;
+    const absPath = path.join(indexDir, piece.path.split('/').join(path.sep));
+    if (!fs.existsSync(absPath)) {
+      throw new Error(`Missing artifact ${piece.path} for ${label}`);
+    }
+    let expected = null;
+    if (parsed.algo === 'sha1') {
+      expected = await sha1File(absPath);
+    } else {
+      const result = await checksumFile(absPath);
+      expected = result?.value || null;
+    }
+    if (!expected || expected !== parsed.value) {
+      throw new Error(`Checksum mismatch for ${piece.path} (${label})`);
+    }
+  }
+}
+
 const copied = {
   code: await copyDir(path.join(fromDir, 'index-code'), codeDir),
   prose: await copyDir(path.join(fromDir, 'index-prose'), proseDir),
@@ -96,6 +136,14 @@ if (fs.existsSync(sqliteLegacySource)) {
 
 if (!copied.code || !copied.prose) {
   console.error('Required index artifacts are missing (code or prose).');
+  process.exit(1);
+}
+
+try {
+  await validatePiecesManifest(codeDir, 'code');
+  await validatePiecesManifest(proseDir, 'prose');
+} catch (err) {
+  console.error(err?.message || err);
   process.exit(1);
 }
 

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
@@ -356,7 +357,7 @@ export async function buildIndex(repoRoot, options = {}) {
         await ensureQueueDir(queueDir);
         const jobs = [];
         for (const modeItem of embedModes) {
-          const jobId = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+          const jobId = crypto.randomUUID();
           const result = await enqueueJob(
             queueDir,
             {
@@ -721,7 +722,7 @@ export async function buildIndex(repoRoot, options = {}) {
         : path.join(getCacheRoot(), 'service', 'queue');
       const maxQueuedRaw = Number(userConfig?.indexing?.embeddings?.queue?.maxQueued);
       const maxQueued = Number.isFinite(maxQueuedRaw) ? Math.max(0, Math.floor(maxQueuedRaw)) : null;
-      const jobId = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+      const jobId = crypto.randomUUID();
       await ensureQueueDir(queueDir);
       const result = await enqueueJob(
         queueDir,

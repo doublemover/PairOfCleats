@@ -37,6 +37,9 @@ export const createChunkMetaIterator = ({
 }) => function* chunkMetaIterator(start = 0, end = chunks.length) {
   for (let i = start; i < end; i += 1) {
     const c = chunks[i];
+    const authors = Array.isArray(c.chunk_authors)
+      ? c.chunk_authors
+      : (Array.isArray(c.chunkAuthors) ? c.chunkAuthors : null);
     const entry = {
       id: c.id,
       fileId: fileIdByPath.get(c.file) ?? null,
@@ -57,7 +60,8 @@ export const createChunkMetaIterator = ({
       stats: c.stats,
       complexity: c.complexity,
       lint: c.lint,
-      chunk_authors: c.chunk_authors
+      chunk_authors: authors,
+      chunkAuthors: authors
     };
     if (resolvedTokenMode !== 'none') {
       const tokens = Array.isArray(c.tokens) ? c.tokens : [];
@@ -140,6 +144,7 @@ export const enqueueChunkMetaArtifacts = async ({
   chunkMetaIterator,
   chunkMetaPlan,
   maxJsonBytes = MAX_JSON_BYTES,
+  compression = null,
   enqueueJsonArray,
   enqueueWrite,
   addPieceFile,
@@ -205,13 +210,27 @@ export const enqueueChunkMetaArtifacts = async ({
     label: mode ? `${mode} chunk_meta` : 'chunk_meta'
   });
 
+  const resolveJsonlExtension = (value) => {
+    if (value === 'gzip') return 'jsonl.gz';
+    if (value === 'zstd') return 'jsonl.zst';
+    return 'jsonl';
+  };
+  const jsonlExtension = resolveJsonlExtension(compression);
+  const jsonlName = `chunk_meta.${jsonlExtension}`;
+  const jsonlPath = path.join(outDir, jsonlName);
+  const removeJsonlVariants = async () => {
+    await removeArtifact(path.join(outDir, 'chunk_meta.jsonl'));
+    await removeArtifact(path.join(outDir, 'chunk_meta.jsonl.gz'));
+    await removeArtifact(path.join(outDir, 'chunk_meta.jsonl.zst'));
+  };
+
   if (resolvedUseJsonl) {
     await removeArtifact(path.join(outDir, 'chunk_meta.json'));
     await removeArtifact(path.join(outDir, 'chunk_meta.json.gz'));
     await removeArtifact(path.join(outDir, 'chunk_meta.json.zst'));
     if (resolvedUseShards) {
       // When writing sharded JSONL output, ensure any prior unsharded JSONL output is removed.
-      await removeArtifact(path.join(outDir, 'chunk_meta.jsonl'));
+      await removeJsonlVariants();
     } else {
       // When writing unsharded JSONL output, remove any stale shard artifacts.
       // The loader prefers chunk_meta.meta.json / chunk_meta.parts over chunk_meta.jsonl.
@@ -219,7 +238,7 @@ export const enqueueChunkMetaArtifacts = async ({
       await removeArtifact(path.join(outDir, 'chunk_meta.parts'));
     }
   } else {
-    await removeArtifact(path.join(outDir, 'chunk_meta.jsonl'));
+    await removeJsonlVariants();
     await removeArtifact(path.join(outDir, 'chunk_meta.meta.json'));
     await removeArtifact(path.join(outDir, 'chunk_meta.parts'));
   }
@@ -237,7 +256,8 @@ export const enqueueChunkMetaArtifacts = async ({
             items: chunkMetaIterator(),
             maxBytes: resolvedMaxJsonBytes,
             maxItems: chunkMetaShardSize,
-            atomic: true
+            atomic: true,
+            compression
           });
           const shardSize = result.counts.length
             ? Math.max(...result.counts)
@@ -247,7 +267,8 @@ export const enqueueChunkMetaArtifacts = async ({
               format: 'jsonl',
               shardSize,
               totalChunks: chunkMetaCount,
-              parts: result.parts
+              parts: result.parts,
+              compression: compression || null
             },
             atomic: true
           });
@@ -258,27 +279,28 @@ export const enqueueChunkMetaArtifacts = async ({
               type: 'chunks',
               name: 'chunk_meta',
               format: 'jsonl',
-              count: result.counts[i] || 0
+              count: result.counts[i] || 0,
+              compression: compression || null
             }, absPath);
           }
           addPieceFile({ type: 'chunks', name: 'chunk_meta_meta', format: 'json' }, metaPath);
         }
       );
     } else {
-      const jsonlPath = path.join(outDir, 'chunk_meta.jsonl');
       enqueueWrite(
         formatArtifactLabel(jsonlPath),
         () => writeJsonLinesFile(
           jsonlPath,
           chunkMetaIterator(),
-          { atomic: true }
+          { atomic: true, compression }
         )
       );
       addPieceFile({
         type: 'chunks',
         name: 'chunk_meta',
         format: 'jsonl',
-        count: chunkMetaCount
+        count: chunkMetaCount,
+        compression: compression || null
       }, jsonlPath);
     }
   } else {

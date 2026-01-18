@@ -4,6 +4,7 @@ const normalizeMultiplier = (value) => {
 };
 
 export function normalizeEmbeddingBatchMultipliers(raw = {}, fallback = {}) {
+  // Fallback values are applied first, user-provided values override them.
   const output = {};
   for (const source of [fallback, raw]) {
     if (!source || typeof source !== 'object') continue;
@@ -17,9 +18,9 @@ export function normalizeEmbeddingBatchMultipliers(raw = {}, fallback = {}) {
 }
 
 export function resolveEmbeddingBatchSize(baseSize, languageId, multipliers = null) {
-  const resolvedBase = Number.isFinite(baseSize) ? baseSize : 0;
-  if (!resolvedBase || !languageId || !multipliers) return baseSize;
+  const resolvedBase = Number.isFinite(Number(baseSize)) ? Number(baseSize) : 0;
+  if (!resolvedBase || !languageId || !multipliers) return resolvedBase || baseSize;
   const multiplier = normalizeMultiplier(multipliers[String(languageId).toLowerCase()]);
-  if (!multiplier) return baseSize;
+  if (!multiplier) return resolvedBase || baseSize;
   return Math.max(1, Math.floor(resolvedBase * multiplier));
 }

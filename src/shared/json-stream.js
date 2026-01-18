@@ -17,9 +17,17 @@ const waitForFinish = (stream) => new Promise((resolve, reject) => {
   stream.on('finish', resolve);
 });
 
-const createTempPath = (filePath) => (
-  `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
-);
+export const createTempPath = (filePath) => {
+  const suffix = `.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  const tempPath = `${filePath}${suffix}`;
+  if (process.platform !== 'win32' || tempPath.length <= 240) {
+    return tempPath;
+  }
+  const dir = path.dirname(filePath);
+  const ext = path.extname(filePath) || '.bin';
+  const shortName = `.tmp-${Math.random().toString(16).slice(2, 10)}${ext}`;
+  return path.join(dir, shortName);
+};
 
 const createFflateGzipStream = (options = {}) => {
   const level = Number.isFinite(Number(options.level)) ? Math.floor(Number(options.level)) : 6;
@@ -112,7 +120,7 @@ const createZstdStream = (options = {}) => {
 
 const getBakPath = (filePath) => `${filePath}.bak`;
 
-const replaceFile = async (tempPath, finalPath) => {
+export const replaceFile = async (tempPath, finalPath) => {
   const bakPath = getBakPath(finalPath);
   const finalExists = fs.existsSync(finalPath);
   let backupAvailable = fs.existsSync(bakPath);
@@ -326,13 +334,21 @@ export async function writeJsonLinesSharded(input) {
     items,
     maxBytes,
     maxItems = 0,
-    atomic = false
+    atomic = false,
+    compression = null
   } = input || {};
   const resolvedMaxBytes = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
   const resolvedMaxItems = Number.isFinite(Number(maxItems)) ? Math.max(0, Math.floor(Number(maxItems))) : 0;
   const partsDir = path.join(dir, partsDirName);
   await fsPromises.rm(partsDir, { recursive: true, force: true });
   await fsPromises.mkdir(partsDir, { recursive: true });
+
+  const resolveJsonlExtension = (value) => {
+    if (value === 'gzip') return 'jsonl.gz';
+    if (value === 'zstd') return 'jsonl.zst';
+    return 'jsonl';
+  };
+  const extension = resolveJsonlExtension(compression);
 
   const parts = [];
   const counts = [];
@@ -354,12 +370,12 @@ export async function writeJsonLinesSharded(input) {
     partIndex += 1;
     partCount = 0;
     partBytes = 0;
-    const partName = `${partPrefix}${String(partIndex).padStart(5, '0')}.jsonl`;
+    const partName = `${partPrefix}${String(partIndex).padStart(5, '0')}.${extension}`;
     const absPath = path.join(partsDir, partName);
     const relPath = path.posix.join(partsDirName, partName);
     parts.push(relPath);
     counts.push(0);
-    current = createJsonWriteStream(absPath, { atomic });
+    current = createJsonWriteStream(absPath, { atomic, compression });
   };
 
   for (const item of items) {

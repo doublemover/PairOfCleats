@@ -100,23 +100,32 @@ export function resolveHnswPaths(indexDir) {
   };
 }
 
-export function loadHnswIndex({ indexPath, dims, config, meta }) {
+export function loadHnswIndex({ indexPath, dims, config, meta, expectedModel = null }) {
   const candidates = resolveIndexCandidates(indexPath);
   if (!candidates.length) return null;
-  const resolvedDims = Number.isFinite(dims)
-    ? dims
-    : (Number.isFinite(meta?.dims) ? meta.dims : null);
+  const metaDims = Number.isFinite(meta?.dims) ? meta.dims : null;
+  const resolvedDims = Number.isFinite(dims) ? dims : metaDims;
   if (!Number.isFinite(resolvedDims) || resolvedDims <= 0) return null;
-  if (Number.isFinite(meta?.dims) && Number.isFinite(dims) && meta.dims !== dims) {
+  if (metaDims != null && Number.isFinite(dims) && metaDims !== dims) {
     warnLoadFailure('(meta dims mismatch)');
     return null;
   }
   const normalized = normalizeHnswConfig(config);
   if (!normalized.enabled) return null;
+  const metaSpace = meta?.space ? normalizeSpace(meta.space) : null;
+  const configSpace = normalizeSpace(normalized.space);
+  if (metaSpace && metaSpace !== configSpace) {
+    warnLoadFailure('(meta space mismatch)');
+    return null;
+  }
+  if (expectedModel && meta?.model && meta.model !== expectedModel) {
+    warnLoadFailure('(meta model mismatch)');
+    return null;
+  }
   const lib = resolveHnswLib();
   const HNSW = lib?.HierarchicalNSW || lib?.default?.HierarchicalNSW || lib?.default;
   if (!HNSW) return null;
-  const resolvedSpace = typeof meta?.space === 'string' ? meta.space : normalized.space;
+  const resolvedSpace = metaSpace || configSpace;
   let lastErr = null;
   for (const candidate of candidates) {
     const index = new HNSW(resolvedSpace, resolvedDims);

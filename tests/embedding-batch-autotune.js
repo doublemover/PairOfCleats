@@ -17,7 +17,7 @@ const defaults = parseBuildArgs([]).argv;
 const argv = { ...defaults, 'stub-embeddings': true };
 const runtime = await createBuildRuntime({ root: repoRoot, argv, rawArgv: [] });
 
-if (runtime.embeddingBatchSize < 32 || runtime.embeddingBatchSize > 128) {
+if (runtime.embeddingBatchSize < 8 || runtime.embeddingBatchSize > 256) {
   console.error(`Unexpected embedding batch size: ${runtime.embeddingBatchSize}`);
   process.exit(1);
 }

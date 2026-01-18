@@ -417,8 +417,12 @@ export function createFileProcessor(options) {
       try {
         fileBuffer = await runIo(() => fs.readFile(abs));
       } catch (err) {
-        recordSkip(abs, 'read-failure', {
-          code: err?.code || null,
+        const code = err?.code || null;
+        const reason = (code === 'EACCES' || code === 'EPERM' || code === 'EISDIR')
+          ? 'unreadable'
+          : 'read-failure';
+        recordSkip(abs, reason, {
+          code,
           message: err?.message || String(err)
         });
         return null;
@@ -1228,7 +1232,7 @@ export function createFileProcessor(options) {
           : [];
         const gitMeta = {
           ...fileGitMeta,
-          ...(chunkAuthors.length ? { chunk_authors: chunkAuthors } : {})
+          ...(chunkAuthors.length ? { chunk_authors: chunkAuthors, chunkAuthors } : {})
         };
         const chunkRecord = { ...c, startLine, endLine };
         const chunkPayload = buildChunkPayload({

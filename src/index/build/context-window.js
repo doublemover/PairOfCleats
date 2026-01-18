@@ -7,6 +7,10 @@ import { fileExt, toPosix } from '../../shared/files.js';
 
 /**
  * Estimate context window size from sampled chunk lengths.
+ *
+ * This is heuristic and can vary based on the sampled files and active
+ * chunking options. Treat the result as a best-effort default, not a guarantee.
+ *
  * @param {{files:string[],root:string,mode:'code'|'prose',languageOptions:object}} input
  * @returns {Promise<number>}
  */

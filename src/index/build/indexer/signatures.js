@@ -1,4 +1,8 @@
 import { sha1 } from '../../../shared/hash.js';
+import { stableStringify } from '../../../shared/stable-json.js';
+import { ARTIFACT_SCHEMAS } from '../artifacts/schema.js';
+
+const ARTIFACT_SCHEMA_HASH = sha1(stableStringify(ARTIFACT_SCHEMAS));
 
 export const buildTokenizationKey = (runtime, mode) => {
   const commentsConfig = runtime.commentsConfig || {};
@@ -26,6 +30,7 @@ export const buildIncrementalSignature = (runtime, mode, tokenizationKey) => {
     mode,
     tokenizationKey,
     cacheSchemaVersion: derivedSchemaVersion,
+    artifactSchemaHash: ARTIFACT_SCHEMA_HASH,
     features: {
       astDataflowEnabled: runtime.astDataflowEnabled,
       controlFlowEnabled: runtime.controlFlowEnabled,

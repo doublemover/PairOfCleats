@@ -61,6 +61,11 @@ export async function writeIndexArtifacts(input) {
     compressionKeepRaw,
     compressibleArtifacts
   } = resolveCompressionConfig(indexingConfig);
+  const resolveShardCompression = (base) => (
+    compressionEnabled && !compressionKeepRaw && compressibleArtifacts.has(base)
+      ? compressionMode
+      : null
+  );
   const artifactConfig = indexingConfig.artifacts || {};
   const artifactMode = typeof artifactConfig.mode === 'string'
     ? artifactConfig.mode.toLowerCase()
@@ -208,7 +213,8 @@ export async function writeIndexArtifacts(input) {
   const filterIndex = buildSerializedFilterIndex({
     chunks: state.chunks,
     resolvedConfig,
-    userConfig
+    userConfig,
+    root
   });
   const denseScale = 2 / 255;
   const maxJsonBytes = MAX_JSON_BYTES;
@@ -392,6 +398,7 @@ export async function writeIndexArtifacts(input) {
       }
     });
   }
+  const chunkMetaCompression = resolveShardCompression('chunk_meta');
   await enqueueChunkMetaArtifacts({
     state,
     outDir,
@@ -399,6 +406,7 @@ export async function writeIndexArtifacts(input) {
     chunkMetaIterator,
     chunkMetaPlan,
     maxJsonBytes,
+    compression: chunkMetaCompression,
     enqueueJsonArray,
     enqueueWrite,
     addPieceFile,
@@ -428,35 +436,61 @@ export async function writeIndexArtifacts(input) {
     requiredBytes: useRepoMapJsonl ? repoMapMeasurement.totalJsonlBytes : repoMapMeasurement.totalBytes,
     label: `${mode} repo_map`
   });
-  const repoMapPath = path.join(outDir, 'repo_map.json');
-  const repoMapJsonlPath = path.join(outDir, 'repo_map.jsonl');
+  const repoMapCompression = resolveShardCompression('repo_map');
+  const resolveJsonExtension = (value) => {
+    if (value === 'gzip') return 'json.gz';
+    if (value === 'zstd') return 'json.zst';
+    return 'json';
+  };
+  const repoMapPath = path.join(outDir, `repo_map.${resolveJsonExtension(repoMapCompression)}`);
   const repoMapMetaPath = path.join(outDir, 'repo_map.meta.json');
   const repoMapPartsDir = path.join(outDir, 'repo_map.parts');
+  const removeRepoMapJsonl = async () => {
+    await removeArtifact(path.join(outDir, 'repo_map.jsonl'));
+    await removeArtifact(path.join(outDir, 'repo_map.jsonl.gz'));
+    await removeArtifact(path.join(outDir, 'repo_map.jsonl.zst'));
+  };
+  const removeRepoMapJson = async () => {
+    await removeArtifact(path.join(outDir, 'repo_map.json'));
+    await removeArtifact(path.join(outDir, 'repo_map.json.gz'));
+    await removeArtifact(path.join(outDir, 'repo_map.json.zst'));
+  };
+
   if (!useRepoMapJsonl) {
     enqueueWrite(
       formatArtifactLabel(repoMapPath),
       async () => {
-        await removeArtifact(repoMapJsonlPath);
+        await removeRepoMapJsonl();
+        await removeRepoMapJson();
         await removeArtifact(repoMapMetaPath);
         await removeArtifact(repoMapPartsDir);
-        await writeJsonArrayFile(repoMapPath, repoMapIterator(), { atomic: true });
+        await writeJsonArrayFile(repoMapPath, repoMapIterator(), {
+          atomic: true,
+          compression: repoMapCompression
+        });
       }
     );
-    addPieceFile({ type: 'chunks', name: 'repo_map', format: 'json' }, repoMapPath);
+    addPieceFile({
+      type: 'chunks',
+      name: 'repo_map',
+      format: 'json',
+      compression: repoMapCompression || null
+    }, repoMapPath);
   } else {
     log(`repo_map ~${Math.round(repoMapMeasurement.totalJsonlBytes / 1024)}KB; writing JSONL shards.`);
     enqueueWrite(
       formatArtifactLabel(repoMapMetaPath),
       async () => {
-        await removeArtifact(repoMapPath);
-        await removeArtifact(repoMapJsonlPath);
+        await removeRepoMapJson();
+        await removeRepoMapJsonl();
         const result = await writeJsonLinesSharded({
           dir: outDir,
           partsDirName: 'repo_map.parts',
           partPrefix: 'repo_map.part-',
           items: repoMapIterator(),
           maxBytes: maxJsonBytes,
-          atomic: true
+          atomic: true,
+          compression: repoMapCompression
         });
         const shardSize = result.counts.length
           ? Math.max(...result.counts)
@@ -466,7 +500,8 @@ export async function writeIndexArtifacts(input) {
             format: 'jsonl',
             shardSize,
             totalEntries: result.total,
-            parts: result.parts
+            parts: result.parts,
+            compression: repoMapCompression || null
           },
           atomic: true
         });
@@ -477,7 +512,8 @@ export async function writeIndexArtifacts(input) {
             type: 'chunks',
             name: 'repo_map',
             format: 'jsonl',
-            count: result.counts[i] || 0
+            count: result.counts[i] || 0,
+            compression: repoMapCompression || null
           }, absPath);
         }
         addPieceFile({ type: 'chunks', name: 'repo_map_meta', format: 'json' }, repoMapMetaPath);
@@ -502,17 +538,25 @@ export async function writeIndexArtifacts(input) {
     const parts = [];
     const shardPlan = [];
     let shardIndex = 0;
+    const tokenPostingsCompression = resolveShardCompression('token_postings');
+    const resolveJsonExtension = (value) => {
+      if (value === 'gzip') return 'json.gz';
+      if (value === 'zstd') return 'json.zst';
+      return 'json';
+    };
+    const tokenPostingsExtension = resolveJsonExtension(tokenPostingsCompression);
     for (let i = 0; i < postings.tokenVocab.length; i += tokenPostingsShardSize) {
       const end = Math.min(i + tokenPostingsShardSize, postings.tokenVocab.length);
       const partCount = end - i;
-      const partName = `token_postings.part-${String(shardIndex).padStart(5, '0')}.json`;
+      const partName = `token_postings.part-${String(shardIndex).padStart(5, '0')}.${tokenPostingsExtension}`;
       parts.push(path.posix.join('token_postings.shards', partName));
       shardPlan.push({ start: i, end, partCount, partName });
       addPieceFile({
         type: 'postings',
         name: 'token_postings',
         format: 'json',
-        count: partCount
+        count: partCount,
+        compression: tokenPostingsCompression || null
       }, path.join(shardsDir, partName));
       shardIndex += 1;
     }
@@ -532,6 +576,7 @@ export async function writeIndexArtifacts(input) {
               vocab: postings.tokenVocab.slice(part.start, part.end),
               postings: postings.tokenPostingsList.slice(part.start, part.end)
             },
+            compression: tokenPostingsCompression,
             atomic: true
           });
         }
@@ -549,7 +594,8 @@ export async function writeIndexArtifacts(input) {
             format: 'sharded',
             shardSize: tokenPostingsShardSize,
             vocabCount: postings.tokenVocab.length,
-            parts
+            parts,
+            compression: tokenPostingsCompression || null
           },
           arrays: {
             docLengths: state.docLengths
@@ -583,11 +629,13 @@ export async function writeIndexArtifacts(input) {
       piece: { type: 'postings', name: 'field_tokens', count: state.fieldTokens.length }
     });
   }
+  const fileRelationsCompression = resolveShardCompression('file_relations');
   enqueueFileRelationsArtifacts({
     state,
     outDir,
     maxJsonBytes,
     log,
+    compression: fileRelationsCompression,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel

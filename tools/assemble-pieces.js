@@ -46,6 +46,9 @@ if (fsSync.existsSync(outDir) && !argv.force) {
     process.exit(1);
   }
 }
+if (fsSync.existsSync(outDir) && argv.force) {
+  await fs.rm(outDir, { recursive: true, force: true });
+}
 await fs.mkdir(outDir, { recursive: true });
 
 const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());

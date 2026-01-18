@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
+import { getEffectiveConfigHash, getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 import { readJsonFile } from '../src/shared/artifact-io.js';
 import { loadIndex } from '../src/retrieval/cli-index.js';
 
@@ -42,6 +42,8 @@ const indexDir = getIndexDir(repoRoot, 'code', userConfig);
 const filterIndexPath = path.join(indexDir, 'filter_index.json');
 const raw = readJsonFile(filterIndexPath);
 assert.ok(Number.isFinite(raw.fileChargramN) && raw.fileChargramN > 0, 'expected fileChargramN to be set');
+assert.equal(raw.schemaVersion, 1, 'expected filter_index schemaVersion=1');
+assert.equal(raw.configHash, getEffectiveConfigHash(repoRoot, userConfig), 'expected filter_index configHash to match');
 
 const idx = await loadIndex(indexDir, { modelIdDefault: 'test', fileChargramN: 1 });
 assert.equal(idx.filterIndex?.fileChargramN, raw.fileChargramN, 'expected hydrated filter index to use persisted fileChargramN');

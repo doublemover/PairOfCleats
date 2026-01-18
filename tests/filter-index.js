@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { buildFilterIndex } from '../src/retrieval/filter-index.js';
+import { buildFilterIndex, serializeFilterIndex } from '../src/retrieval/filter-index.js';
 import { filterChunks } from '../src/retrieval/output.js';
+import { stableStringify } from '../src/shared/stable-json.js';
 
 const meta = [
   {
@@ -30,6 +31,12 @@ const meta = [
 ];
 
 const index = buildFilterIndex(meta);
+const serializedA = serializeFilterIndex(buildFilterIndex(meta));
+const serializedB = serializeFilterIndex(buildFilterIndex(meta));
+if (stableStringify(serializedA) !== stableStringify(serializedB)) {
+  console.error('Filter index serialization should be deterministic for identical inputs.');
+  process.exit(1);
+}
 
 const expectIds = (filters, expected, label) => {
   const results = filterChunks(meta, filters, index).map((entry) => entry.id).sort();

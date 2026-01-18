@@ -45,24 +45,33 @@ const runBuild = (label, testConfig) => {
   }
 };
 
+const readCachedEntry = async () => {
+  process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+  const userConfig = loadUserConfig(repoRoot);
+  const codeDir = getIndexDir(repoRoot, 'code', userConfig);
+  const fileListsPath = path.join(codeDir, '.filelists.json');
+  if (!fs.existsSync(fileListsPath)) {
+    console.error('Missing .filelists.json');
+    process.exit(1);
+  }
+  const fileLists = JSON.parse(await fsPromises.readFile(fileListsPath, 'utf8'));
+  const scannedSample = fileLists?.scanned?.sample;
+  if (!Array.isArray(scannedSample)) {
+    console.error('Scanned sample payload is not an array');
+    process.exit(1);
+  }
+  const entry = scannedSample.find((entry) => entry?.file && entry.file.endsWith('src.js'));
+  if (!entry) {
+    console.error('Expected sample entry for src.js');
+    process.exit(1);
+  }
+  return entry;
+};
+
 runBuild('initial build', { indexing: { postings: { enablePhraseNgrams: false } } });
 runBuild('cache build', { indexing: { postings: { enablePhraseNgrams: false } } });
 
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
-const userConfig = loadUserConfig(repoRoot);
-const codeDir = getIndexDir(repoRoot, 'code', userConfig);
-const fileListsPath = path.join(codeDir, '.filelists.json');
-if (!fs.existsSync(fileListsPath)) {
-  console.error('Missing .filelists.json');
-  process.exit(1);
-}
-const fileLists = JSON.parse(await fsPromises.readFile(fileListsPath, 'utf8'));
-const scannedSample = fileLists?.scanned?.sample;
-if (!Array.isArray(scannedSample)) {
-  console.error('Scanned sample payload is not an array');
-  process.exit(1);
-}
-const cachedEntry = scannedSample.find((entry) => entry?.file && entry.file.endsWith('src.js'));
+const cachedEntry = await readCachedEntry();
 if (!cachedEntry || cachedEntry.cached !== true) {
   console.error('Expected cached entry after incremental rebuild');
   process.exit(1);
@@ -70,15 +79,26 @@ if (!cachedEntry || cachedEntry.cached !== true) {
 
 runBuild('config change rebuild', { indexing: { postings: { enablePhraseNgrams: true } } });
 
-const userConfigAfter = loadUserConfig(repoRoot);
-const codeDirAfter = getIndexDir(repoRoot, 'code', userConfigAfter);
-const fileListsAfter = JSON.parse(await fsPromises.readFile(path.join(codeDirAfter, '.filelists.json'), 'utf8'));
-const scannedAfter = fileListsAfter?.scanned?.sample;
-const rebuildEntry = Array.isArray(scannedAfter)
-  ? scannedAfter.find((entry) => entry?.file && entry.file.endsWith('src.js'))
-  : null;
+const rebuildEntry = await readCachedEntry();
 if (!rebuildEntry || rebuildEntry.cached === true) {
   console.error('Expected cache invalidation after tokenization config change');
+  process.exit(1);
+}
+
+runBuild('cache build after config change', { indexing: { postings: { enablePhraseNgrams: true } } });
+const cachedAfterChange = await readCachedEntry();
+if (!cachedAfterChange || cachedAfterChange.cached !== true) {
+  console.error('Expected cached entry after config change rebuild');
+  process.exit(1);
+}
+
+runBuild('dict config change rebuild', {
+  indexing: { postings: { enablePhraseNgrams: true } },
+  dictionary: { includeSlang: false }
+});
+const dictEntry = await readCachedEntry();
+if (!dictEntry || dictEntry.cached === true) {
+  console.error('Expected cache invalidation after dictionary config change');
   process.exit(1);
 }
 

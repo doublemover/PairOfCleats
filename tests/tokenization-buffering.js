@@ -47,4 +47,16 @@ if (JSON.stringify(mutated.tokens) === JSON.stringify(baseline.tokens)) {
 compare('tokens (reuse)', baseline.tokens, bufferedAgain.tokens);
 compare('minhash (reuse)', baseline.minhashSig, bufferedAgain.minhashSig);
 
+const unicodeInput = {
+  text: 'const cafe = "caf\\u00e9";',
+  mode: 'code',
+  ext: '.js',
+  context
+};
+const unicodeTokens = tokenizeChunkText({ ...unicodeInput, buffers }).tokens;
+if (!Array.isArray(unicodeTokens) || unicodeTokens.length === 0) {
+  console.error('Expected non-ASCII tokenization to emit tokens.');
+  process.exit(1);
+}
+
 console.log('tokenization buffering test passed');

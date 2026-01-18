@@ -123,7 +123,8 @@ export function createSqliteHelpers(options) {
       churn_added: row.churn_added,
       churn_deleted: row.churn_deleted,
       churn_commits: row.churn_commits,
-      chunk_authors: parseJson(row.chunk_authors, null)
+      chunk_authors: parseJson(row.chunk_authors, null),
+      chunkAuthors: parseJson(row.chunk_authors, null)
     };
   }
 

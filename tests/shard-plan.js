@@ -98,4 +98,44 @@ assert.deepEqual(
   'expected deterministic shard IDs for large input'
 );
 
+const entriesE = [];
+const lineCountsE = new Map();
+for (let dir = 0; dir < 30; dir += 1) {
+  for (let file = 0; file < 10; file += 1) {
+    const rel = `src/pkg${String(dir).padStart(2, '0')}/file${String(file).padStart(2, '0')}.js`;
+    entriesE.push({ rel, abs: path.join('C:\\repo', rel), bytes: 1024 });
+    lineCountsE.set(rel, 10);
+  }
+}
+const perfProfile = {
+  buckets: [{ id: 'xs', maxBytes: 2048 }, { id: 'xl', maxBytes: null }],
+  totals: { avgMsPerFile: 5, byteCostMs: 0.01, lineCostMs: 0.1 },
+  languages: {
+    javascript: { totals: { avgMsPerFile: 5, byteCostMs: 0.01, lineCostMs: 0.1 }, buckets: {} }
+  }
+};
+const shardsE1 = planShards(entriesE, {
+  mode: 'code',
+  dirDepth: 2,
+  lineCounts: lineCountsE,
+  perfProfile,
+  maxShards: 10
+});
+const shardsE2 = planShards(entriesE, {
+  mode: 'code',
+  dirDepth: 2,
+  lineCounts: lineCountsE,
+  perfProfile,
+  maxShards: 10
+});
+assert.equal(shardsE1.length, shardsE2.length, 'expected stable shard counts with perf profile');
+assert.deepEqual(
+  shardsE1.map((shard) => shard.id),
+  shardsE2.map((shard) => shard.id),
+  'expected deterministic shard IDs with perf profile'
+);
+const totalEntriesE = shardsE1.reduce((sum, shard) => sum + shard.entries.length, 0);
+assert.equal(totalEntriesE, entriesE.length, 'expected all entries to be assigned');
+assert.ok(shardsE1.every((shard) => shard.costMs > 0), 'expected perf-based cost totals');
+
 console.log('shard-plan test passed.');

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { getCacheRoot } from '../../../../tools/dict-utils.js';
 import { log } from '../../../shared/progress.js';
@@ -11,7 +12,7 @@ export const enqueueEmbeddingJob = async ({ runtime, mode }) => {
   const maxQueued = Number.isFinite(runtime.embeddingQueue?.maxQueued)
     ? runtime.embeddingQueue.maxQueued
     : 10;
-  const jobId = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+  const jobId = crypto.randomUUID();
   await ensureQueueDir(queueDir);
   const result = await enqueueJob(
     queueDir,

@@ -3,7 +3,7 @@ export const ARTIFACT_SCHEMAS = {
     fields: ['id', 'fileId', 'start', 'end', 'startLine', 'endLine', 'kind', 'name'],
     optionalFields: [
       'weight', 'headline', 'preContext', 'postContext', 'segment', 'codeRelations', 'docmeta',
-      'metaV2', 'stats', 'complexity', 'lint', 'chunk_authors', 'tokens', 'ngrams'
+      'metaV2', 'stats', 'complexity', 'lint', 'chunk_authors', 'chunkAuthors', 'tokens', 'ngrams'
     ]
   },
   chunkMetaMeta: {

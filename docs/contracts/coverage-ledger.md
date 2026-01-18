@@ -12,6 +12,9 @@
 | `tools/mcp-server.js` | `docs/contracts/api-mcp.md` | `tests/services/mcp/tools-list.test.js` | - |
 | `tools/indexer-service.js` | `docs/contracts/indexing.md` | `tests/indexer-service.js`, `tests/service-queue.js`, `tests/two-stage-state.js` | - |
 | `tools/index-validate.js` | `docs/contracts/indexing.md` | `tests/index-validate.js`, `tests/embeddings-dims-mismatch.js` | - |
+| `tools/assemble-pieces.js` | `docs/contracts/indexing.md` | - | Gap: no fixture-based assembly test yet. |
+| `tools/compact-pieces.js` | `docs/contracts/indexing.md` | - | Gap: no regression/perf assertion in CI yet. |
+| `tools/ci-restore-artifacts.js` | `docs/contracts/indexing.md` | - | Gap: no checksum-validation test yet. |
 | `tools/ctags-ingest.js` | `docs/contracts/indexing.md` | `tests/ctags-ingest.js` | - |
 | `tools/lsif-ingest.js` | `docs/contracts/indexing.md` | `tests/lsif-ingest.js` | - |
 | `tools/scip-ingest.js` | `docs/contracts/indexing.md` | `tests/scip-ingest.js` | - |

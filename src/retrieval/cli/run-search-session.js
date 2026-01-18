@@ -16,6 +16,7 @@ import {
 import { loadQueryCache, pruneQueryCache } from '../query-cache.js';
 import { filterChunks } from '../output.js';
 import { runSearchByMode } from './search-runner.js';
+import { resolveStubDims } from '../../shared/embedding.js';
 
 export async function runSearchSession({
   rootDir,
@@ -243,7 +244,10 @@ export async function runSearchSession({
   const getEmbeddingForModel = async (modelId, dims) => {
     abortIfNeeded();
     if (!modelId) return null;
-    const cacheKeyLocal = useStubEmbeddings ? `${modelId}:${dims || 'default'}` : modelId;
+    const resolvedDims = useStubEmbeddings
+      ? resolveStubDims(dims)
+      : (Number.isFinite(Number(dims)) ? Math.floor(Number(dims)) : null);
+    const cacheKeyLocal = useStubEmbeddings ? `${modelId}:${resolvedDims}` : modelId;
     if (embeddingCache.has(cacheKeyLocal)) {
       incCacheEvent({ cache: 'embedding', result: 'hit' });
       return embeddingCache.get(cacheKeyLocal);
@@ -252,7 +256,7 @@ export async function runSearchSession({
     const embedding = await getQueryEmbedding({
       text: embeddingQueryText,
       modelId,
-      dims,
+      dims: resolvedDims,
       modelDir: modelConfig.dir,
       useStub: useStubEmbeddings,
       provider: embeddingProvider,

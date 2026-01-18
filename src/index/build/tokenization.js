@@ -119,6 +119,8 @@ export function buildTokenSequence({ text, mode, ext, dictWords, dictConfig, buf
     if (SYN[w]) seqOut.push(SYN[w]);
   }
 
+  // When buffers are supplied we still return cloned output arrays so callers
+  // can retain per-chunk token lists without being mutated by the next chunk.
   return {
     tokens: useBuffers ? tokensOut.slice() : tokensOut,
     seq: useBuffers ? seqOut.slice() : seqOut

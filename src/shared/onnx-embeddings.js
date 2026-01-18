@@ -121,6 +121,15 @@ const onnxCache = new Map();
 
 const normalizeVecInPlace = normalizeEmbeddingVectorInPlace;
 
+export const createRunQueue = () => {
+  let runQueue = Promise.resolve();
+  return (runStep) => {
+    const next = runQueue.then(runStep, runStep);
+    runQueue = next.catch(() => {});
+    return next;
+  };
+};
+
 const normalizeExecutionProviders = (providers, lowMemory) => {
   if (!providers || !lowMemory) return providers;
   return providers.map((entry) => {
@@ -323,12 +332,8 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig }) 
   }
   const embedderPromise = onnxCache.get(cacheKey);
   const runScratch = { data: null };
-  let runQueue = Promise.resolve();
-  const queueSessionRun = (runStep) => {
-    const next = runQueue.then(runStep, runStep);
-    runQueue = next.catch(() => {});
-    return next;
-  };
+  // onnxruntime-node sessions are not guaranteed to be thread-safe.
+  const queueSessionRun = createRunQueue();
   const getEmbeddings = async (texts) => {
     const list = Array.isArray(texts) ? texts : [];
     if (!list.length) return [];

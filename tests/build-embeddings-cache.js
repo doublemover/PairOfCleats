@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getRepoCacheRoot } from '../tools/dict-utils.js';
+import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../src/shared/embedding-identity.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'build-embeddings-cache');
@@ -57,6 +58,43 @@ runNode('build_embeddings cached', [path.join(root, 'tools', 'build-embeddings.j
 const after = await fsPromises.stat(cachePath);
 if (after.mtimeMs !== before.mtimeMs) {
   console.error('Expected embedding cache file to be reused without rewrite');
+  process.exit(1);
+}
+
+const onnxBase = buildEmbeddingIdentity({
+  modelId: 'onnx-model',
+  provider: 'onnx',
+  mode: 'inline',
+  stub: false,
+  dims: 384,
+  scale: 0.5,
+  pooling: 'mean',
+  normalize: true,
+  truncation: 'truncate',
+  maxLength: 128,
+  onnx: {
+    modelPath: 'models/onnx/model.onnx',
+    tokenizerId: 'tokenizer-id'
+  }
+});
+const onnxVariant = buildEmbeddingIdentity({
+  modelId: 'onnx-model',
+  provider: 'onnx',
+  mode: 'inline',
+  stub: false,
+  dims: 384,
+  scale: 0.5,
+  pooling: 'mean',
+  normalize: true,
+  truncation: 'truncate',
+  maxLength: 128,
+  onnx: {
+    modelPath: 'models/onnx/other.onnx',
+    tokenizerId: 'tokenizer-id'
+  }
+});
+if (buildEmbeddingIdentityKey(onnxBase) === buildEmbeddingIdentityKey(onnxVariant)) {
+  console.error('Expected embedding cache identity to change with ONNX modelPath');
   process.exit(1);
 }
 

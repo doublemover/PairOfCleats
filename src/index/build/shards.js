@@ -387,6 +387,11 @@ export function planShards(
 
   let shards = Array.from(groups.values());
   const lineTotals = shards.map((shard) => computeShardLineTotal(shard, lineCountMap));
+  // Heuristics:
+  // - tenthLargest anchors a "typical large shard" size.
+  // - hugeThreshold is half that value, allowing small subdir shards to survive
+  //   if they contain any file above the threshold.
+  // - minFilesForSubdir prevents tiny subdir shards unless they contain huge files.
   const tenthLargest = computeTenthLargest(lineTotals);
   const hugeThreshold = tenthLargest > 0 ? Math.floor(tenthLargest * 0.5) : 0;
   const minFilesLimit = Number.isFinite(minFiles) && minFiles > 0 ? Math.floor(minFiles) : 3;
@@ -426,6 +431,7 @@ export function planShards(
   }
   const mergedLineTotals = shards.map((shard) => shard.lineCount || 0);
   const mergedCostTotals = shards.map((shard) => shard.costMs || 0);
+  // Split thresholds aim to keep the largest shards near the 10th largest size.
   const splitLineTarget = computeTenthLargest(mergedLineTotals);
   const splitCostTarget = perfProfile ? computeTenthLargest(mergedCostTotals) : 0;
   const splitThreshold = splitLineTarget > 0 ? splitLineTarget : 0;

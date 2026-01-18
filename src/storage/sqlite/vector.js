@@ -1,3 +1,5 @@
+import { quantizeEmbeddingVector } from '../../shared/embedding-utils.js';
+
 /**
  * Quantize a float vector into uint8 bins for storage.
  * @param {number[]} vec
@@ -7,10 +9,7 @@
  * @returns {number[]}
  */
 export function quantizeVec(vec, minVal = -1, maxVal = 1, levels = 256) {
-  if (!Array.isArray(vec)) return [];
-  return vec.map((val) =>
-    Math.max(0, Math.min(levels - 1, Math.round(((val - minVal) / (maxVal - minVal)) * (levels - 1))))
-  );
+  return quantizeEmbeddingVector(vec, minVal, maxVal, levels);
 }
 
 export function resolveQuantizationParams(quantization = {}) {

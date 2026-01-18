@@ -335,6 +335,26 @@ const collectCompressedCandidates = (filePath) => {
   return candidates;
 };
 
+const collectCompressedJsonlCandidates = (filePath) => {
+  const candidates = [];
+  const addCandidate = (targetPath, compression, cleanup) => {
+    if (!fs.existsSync(targetPath)) return;
+    let mtimeMs = 0;
+    try {
+      mtimeMs = fs.statSync(targetPath).mtimeMs;
+    } catch {}
+    candidates.push({ path: targetPath, compression, cleanup, mtimeMs });
+  };
+  const zstPath = `${filePath}.zst`;
+  const gzPath = `${filePath}.gz`;
+  addCandidate(zstPath, 'zstd', true);
+  addCandidate(getBakPath(zstPath), 'zstd', false);
+  addCandidate(gzPath, 'gzip', true);
+  addCandidate(getBakPath(gzPath), 'gzip', false);
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return candidates;
+};
+
 export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   const parseBuffer = (buffer, sourcePath) => {
     if (buffer.length > maxBytes) {
@@ -400,7 +420,29 @@ export const readJsonLinesArray = async (
   filePath,
   { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
 ) => {
+  const readJsonlFromBuffer = (buffer, sourcePath) => {
+    if (buffer.length > maxBytes) {
+      throw toJsonTooLargeError(sourcePath, buffer.length);
+    }
+    const parsed = [];
+    const raw = buffer.toString('utf8');
+    if (!raw.trim()) return parsed;
+    const lines = raw.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i += 1) {
+      const entry = parseJsonlLine(lines[i], sourcePath, i + 1, maxBytes, requiredKeys);
+      if (entry !== null) parsed.push(entry);
+    }
+    return parsed;
+  };
   const tryRead = async (targetPath, cleanup = false) => {
+    const compression = detectCompression(targetPath);
+    if (compression) {
+      const buffer = readBuffer(targetPath, maxBytes);
+      const decompressed = decompressBuffer(buffer, compression, maxBytes, targetPath);
+      const parsed = readJsonlFromBuffer(decompressed, targetPath);
+      if (cleanup) cleanupBak(targetPath);
+      return parsed;
+    }
     const stat = fs.statSync(targetPath);
     if (stat.size > maxBytes) {
       throw toJsonTooLargeError(targetPath, stat.size);
@@ -441,6 +483,20 @@ export const readJsonLinesArray = async (
   if (fs.existsSync(bakPath)) {
     return await tryRead(bakPath);
   }
+  if (filePath.endsWith('.jsonl')) {
+    const candidates = collectCompressedJsonlCandidates(filePath);
+    if (candidates.length) {
+      let lastErr = null;
+      for (const candidate of candidates) {
+        try {
+          return await tryRead(candidate.path, candidate.cleanup);
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      if (lastErr) throw lastErr;
+    }
+  }
   throw new Error(`Missing JSONL artifact: ${filePath}`);
 };
 
@@ -453,10 +509,33 @@ export const readJsonLinesArraySync = (
     const cached = readCache(filePath);
     if (cached) return cached;
   }
+  const readJsonlFromBuffer = (buffer, sourcePath) => {
+    if (buffer.length > maxBytes) {
+      throw toJsonTooLargeError(sourcePath, buffer.length);
+    }
+    const parsed = [];
+    const raw = buffer.toString('utf8');
+    if (!raw.trim()) return parsed;
+    const lines = raw.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i += 1) {
+      const entry = parseJsonlLine(lines[i], sourcePath, i + 1, maxBytes, requiredKeys);
+      if (entry !== null) parsed.push(entry);
+    }
+    return parsed;
+  };
   const tryRead = (targetPath, cleanup = false) => {
     const stat = fs.statSync(targetPath);
     if (stat.size > maxBytes) {
       throw toJsonTooLargeError(targetPath, stat.size);
+    }
+    const compression = detectCompression(targetPath);
+    if (compression) {
+      const buffer = readBuffer(targetPath, maxBytes);
+      const decompressed = decompressBuffer(buffer, compression, maxBytes, targetPath);
+      const parsed = readJsonlFromBuffer(decompressed, targetPath);
+      if (cleanup) cleanupBak(targetPath);
+      if (useCache) writeCache(targetPath, parsed);
+      return parsed;
     }
     let raw = '';
     try {
@@ -493,21 +572,43 @@ export const readJsonLinesArraySync = (
   if (fs.existsSync(bakPath)) {
     return tryRead(bakPath);
   }
+  if (filePath.endsWith('.jsonl')) {
+    const candidates = collectCompressedJsonlCandidates(filePath);
+    if (candidates.length) {
+      let lastErr = null;
+      for (const candidate of candidates) {
+        try {
+          return tryRead(candidate.path, candidate.cleanup);
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      if (lastErr) throw lastErr;
+    }
+  }
   throw new Error(`Missing JSONL artifact: ${filePath}`);
 };
 
 const readShardFiles = (dir, prefix) => {
   if (!fs.existsSync(dir)) return [];
+  const isAllowed = (name) => (
+    name.endsWith('.json')
+    || name.endsWith('.jsonl')
+    || name.endsWith('.json.gz')
+    || name.endsWith('.json.zst')
+    || name.endsWith('.jsonl.gz')
+    || name.endsWith('.jsonl.zst')
+  );
   return fs
     .readdirSync(dir)
-    .filter((name) => name.startsWith(prefix) && (name.endsWith('.json') || name.endsWith('.jsonl')))
+    .filter((name) => name.startsWith(prefix) && isAllowed(name))
     .sort()
     .map((name) => path.join(dir, name));
 };
 
 const existsOrBak = (filePath) => {
   if (fs.existsSync(filePath) || fs.existsSync(getBakPath(filePath))) return true;
-  if (filePath.endsWith('.json')) {
+  if (filePath.endsWith('.json') || filePath.endsWith('.jsonl')) {
     const gzPath = `${filePath}.gz`;
     const zstPath = `${filePath}.zst`;
     if (fs.existsSync(gzPath) || fs.existsSync(getBakPath(gzPath))) return true;

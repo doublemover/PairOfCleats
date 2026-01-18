@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { execaSync } from 'execa';
 import { createCli } from '../src/shared/cli.js';
 import { getEnvConfig } from '../src/shared/env.js';
+import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../src/shared/onnx-embeddings.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../src/experimental/compare/config.js';
 import {
   DEFAULT_MODEL_ID,
@@ -54,6 +55,9 @@ const userConfig = loadUserConfig(root);
 const envConfig = getEnvConfig();
 const runtimeConfig = getRuntimeConfig(root, userConfig);
 const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+const embeddingsConfig = userConfig.indexing?.embeddings || {};
+const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
+const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
 const configCacheRoot = typeof userConfig.cache?.root === 'string' && userConfig.cache.root.trim()
   ? path.resolve(userConfig.cache.root)
   : null;
@@ -464,11 +468,35 @@ for (const modelId of models) {
   const wall = results.map((entry) => entry.runs[modelId]?.wallMs || 0);
   const codeCounts = results.map((entry) => entry.runs[modelId]?.codeCount || 0);
   const proseCounts = results.map((entry) => entry.runs[modelId]?.proseCount || 0);
+  const resolvedOnnxModelPath = embeddingProvider === 'onnx'
+    ? resolveOnnxModelPath({
+      rootDir: root,
+      modelPath: embeddingOnnx.modelPath,
+      modelsDir: sharedModelsDir,
+      modelId
+    })
+    : null;
   summaryByModel[modelId] = {
     elapsedMsAvg: mean(elapsed),
     wallMsAvg: mean(wall),
     codeCountAvg: mean(codeCounts),
-    proseCountAvg: mean(proseCounts)
+    proseCountAvg: mean(proseCounts),
+    embeddingConfig: {
+      provider: embeddingProvider,
+      mode: embeddingsConfig.mode || 'auto',
+      stub: stubEmbeddings,
+      onnx: embeddingProvider === 'onnx'
+        ? {
+          modelPath: embeddingOnnx.modelPath || null,
+          tokenizerId: embeddingOnnx.tokenizerId || null,
+          executionProviders: embeddingOnnx.executionProviders || null,
+          intraOpNumThreads: embeddingOnnx.intraOpNumThreads || null,
+          interOpNumThreads: embeddingOnnx.interOpNumThreads || null,
+          graphOptimizationLevel: embeddingOnnx.graphOptimizationLevel || null,
+          resolvedModelPath: resolvedOnnxModelPath
+        }
+        : null
+    }
   };
 }
 
@@ -529,6 +557,11 @@ const output = {
     models,
     baseline,
     cacheRootBase: configCacheRoot || cacheRootBase,
+    embeddings: {
+      provider: embeddingProvider,
+      mode: embeddingsConfig.mode || 'auto',
+      stub: stubEmbeddings
+    },
     cacheIsolation: !configCacheRoot
   },
   summary: {

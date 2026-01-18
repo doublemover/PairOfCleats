@@ -34,10 +34,50 @@ const providerChanged = buildCacheIdentity({
   dims: 384,
   scale: 0.5
 });
+const poolingChanged = buildCacheIdentity({
+  modelId: 'model-a',
+  provider: 'provider-a',
+  mode: 'inline',
+  stub: false,
+  dims: 384,
+  scale: 0.5,
+  pooling: 'cls'
+});
+const normalizeChanged = buildCacheIdentity({
+  modelId: 'model-a',
+  provider: 'provider-a',
+  mode: 'inline',
+  stub: false,
+  dims: 384,
+  scale: 0.5,
+  normalize: false
+});
+const truncationChanged = buildCacheIdentity({
+  modelId: 'model-a',
+  provider: 'provider-a',
+  mode: 'inline',
+  stub: false,
+  dims: 384,
+  scale: 0.5,
+  truncation: 'none'
+});
+const maxLengthChanged = buildCacheIdentity({
+  modelId: 'model-a',
+  provider: 'provider-a',
+  mode: 'inline',
+  stub: false,
+  dims: 384,
+  scale: 0.5,
+  maxLength: 256
+});
 
 assert.notEqual(base.key, dimsChanged.key, 'expected cache identity to change with dims');
 assert.notEqual(base.key, modelChanged.key, 'expected cache identity to change with model');
 assert.notEqual(base.key, providerChanged.key, 'expected cache identity to change with provider');
+assert.notEqual(base.key, poolingChanged.key, 'expected cache identity to change with pooling');
+assert.notEqual(base.key, normalizeChanged.key, 'expected cache identity to change with normalize');
+assert.notEqual(base.key, truncationChanged.key, 'expected cache identity to change with truncation');
+assert.notEqual(base.key, maxLengthChanged.key, 'expected cache identity to change with maxLength');
 
 const signature = 'sig-1';
 const cached = {

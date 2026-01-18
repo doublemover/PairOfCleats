@@ -78,4 +78,26 @@ if (!skip.code && !skip.message) {
   process.exit(1);
 }
 
+const unreadableDir = path.join(repoRoot, 'unreadable');
+await fsPromises.mkdir(unreadableDir, { recursive: true });
+const unreadableStat = await fsPromises.stat(unreadableDir);
+const unreadableEntry = {
+  abs: unreadableDir,
+  rel: 'unreadable',
+  stat: unreadableStat,
+  lines: 1,
+  scan: { checkedBinary: true, checkedMinified: true }
+};
+
+const unreadableResult = await processFile(unreadableEntry, 1);
+if (unreadableResult !== null) {
+  console.error('Expected null result for unreadable path.');
+  process.exit(1);
+}
+const unreadableSkip = skippedFiles.find((entry) => entry?.file === unreadableDir && entry?.reason === 'unreadable');
+if (!unreadableSkip) {
+  console.error('Expected unreadable skip entry.');
+  process.exit(1);
+}
+
 console.log('read-failure skip test passed');

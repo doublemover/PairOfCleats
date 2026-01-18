@@ -23,6 +23,13 @@ export function reuseCachedBundle({
   fileLanguageId
 }) {
   if (!cachedBundle || !Array.isArray(cachedBundle.chunks)) return { result: null, skip: null };
+  const hasValidChunks = cachedBundle.chunks.every((chunk) => {
+    if (!chunk || typeof chunk !== 'object') return false;
+    const start = Number(chunk.start);
+    const end = Number(chunk.end);
+    return Number.isFinite(start) && Number.isFinite(end) && start <= end;
+  });
+  if (!hasValidChunks) return { result: null, skip: null };
   const cachedCaps = resolveFileCaps(fileCaps, ext);
   if (cachedCaps.maxLines) {
     const maxLine = cachedBundle.chunks.reduce((max, chunk) => {
@@ -46,6 +53,16 @@ export function reuseCachedBundle({
     size: fileStat.size,
     bundle: cachedEntry.bundle || `${sha1(relKey)}.json`
   } : null;
+  const normalizeImportLinks = (imports) => {
+    if (!Array.isArray(imports)) return null;
+    const links = imports
+      .map((i) => allImports?.[i])
+      .filter(Array.isArray)
+      .flat()
+      .filter((entry) => entry && entry !== relKey);
+    if (!links.length) return [];
+    return Array.from(new Set(links));
+  };
   let fileRelations = cachedBundle.fileRelations || null;
   if (!fileRelations) {
     const sample = cachedBundle.chunks.find((chunk) => chunk?.codeRelations);
@@ -53,13 +70,11 @@ export function reuseCachedBundle({
       fileRelations = buildFileRelations(sample.codeRelations, relKey);
     }
   }
-  if (fileRelations?.imports) {
-    const importLinks = fileRelations.imports
-      .map((i) => allImports[i])
-      .filter((x) => !!x)
-      .flat()
-      .filter((entry) => entry && entry !== relKey);
-    fileRelations = { ...fileRelations, importLinks };
+  if (fileRelations && typeof fileRelations === 'object') {
+    const importLinks = normalizeImportLinks(fileRelations.imports);
+    if (importLinks) {
+      fileRelations = { ...fileRelations, importLinks };
+    }
   }
   const updatedChunks = cachedBundle.chunks.map((cachedChunk) => {
     const updatedChunk = { ...cachedChunk };

@@ -50,7 +50,12 @@ export function buildChunkRow(chunk, mode, id) {
     churn_added: typeof chunk.churn_added === 'number' ? chunk.churn_added : null,
     churn_deleted: typeof chunk.churn_deleted === 'number' ? chunk.churn_deleted : null,
     churn_commits: typeof chunk.churn_commits === 'number' ? chunk.churn_commits : null,
-    chunk_authors: chunk.chunk_authors ? JSON.stringify(chunk.chunk_authors) : null
+    chunk_authors: (() => {
+      const authors = Array.isArray(chunk.chunk_authors)
+        ? chunk.chunk_authors
+        : (Array.isArray(chunk.chunkAuthors) ? chunk.chunkAuthors : null);
+      return authors ? JSON.stringify(authors) : null;
+    })()
   };
 }
 
