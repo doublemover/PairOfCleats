@@ -7,10 +7,497 @@
 
 ## Tracked Tests
 <!-- TESTS:START -->
-- `tests\git-blame-range.js`
+- `tests\worker-pool-windows.js`
 <!-- TESTS:END -->
 
 ## Runs
 <!-- RUNS:START -->
-- 2026-01-18 07:01:28 | `tests\git-blame-range.js` | 8.79s | exit 0
+- 2026-01-18 07:43:37 | `tests\code-map-determinism.js` | 1.02s | timeout
+- 2026-01-18 07:45:55 | `tests\tooling\type-inference\crossfile-stats.unit.test.js` | 0.23s | exit 0
+- 2026-01-18 07:47:12 | `tests\tooling\type-inference\crossfile-stats.unit.test.js` | 0.23s | exit 0
+- 2026-01-18 07:48:11 | `tests\all.js` | 1.02s | timeout
+- 2026-01-18 07:48:11 | `tests\artifact-bak-recovery.js` | 0.09s | exit 0
+- 2026-01-18 07:48:12 | `tests\artifact-formats.js` | 0.12s | exit 0
+- 2026-01-18 07:48:13 | `tests\artifact-size-guardrails.js` | 1.01s | timeout
+- 2026-01-18 07:48:13 | `tests\artifacts\file-meta.test.js` | 0.05s | exit 0
+- 2026-01-18 07:48:13 | `tests\artifacts\token-mode.test.js` | 0.09s | exit 0
+- 2026-01-18 07:48:13 | `tests\backend-policy.js` | 0.05s | exit 0
+- 2026-01-18 07:48:13 | `tests\bench-language-lock-semantics.js` | 0.49s | exit 0
+- 2026-01-18 07:48:14 | `tests\bench-language-lock.js` | 0.72s | exit 0
+- 2026-01-18 07:48:14 | `tests\bench-language-progress-parse.js` | 0.05s | exit 0
+- 2026-01-18 07:48:15 | `tests\bench-language-repos.js` | 0.69s | exit 0
+- 2026-01-18 07:48:15 | `tests\bench-progress-format.js` | 0.07s | exit 0
+- 2026-01-18 07:48:16 | `tests\build-embeddings-cache.js` | 1.02s | timeout
+- 2026-01-18 07:48:17 | `tests\build-index-all.js` | 1.03s | timeout
+- 2026-01-18 07:48:17 | `tests\build-runtime\content-hash.test.js` | 0.06s | exit 0
+- 2026-01-18 07:48:17 | `tests\build-runtime\stage-overrides.test.js` | 0.05s | exit 0
+- 2026-01-18 07:48:17 | `tests\cache-gc.js` | 0.19s | exit 1
+- 2026-01-18 07:48:17 | `tests\cache-lru.js` | 0.09s | exit 0
+- 2026-01-18 07:48:18 | `tests\capabilities-report.js` | 0.23s | exit 0
+- 2026-01-18 07:48:18 | `tests\chargram-guardrails.js` | 0.09s | exit 0
+- 2026-01-18 07:48:19 | `tests\chunk-id-backend-parity.js` | 1.01s | timeout
+- 2026-01-18 07:48:19 | `tests\chunk-meta-jsonl-cleanup.js` | 0.12s | exit 0
+- 2026-01-18 07:48:19 | `tests\chunking-guardrails.js` | 0.06s | exit 0
+- 2026-01-18 07:48:19 | `tests\chunking-limits.js` | 0.19s | exit 0
+- 2026-01-18 07:48:19 | `tests\chunking-sql-lua.js` | 0.06s | exit 0
+- 2026-01-18 07:48:19 | `tests\chunking-yaml.js` | 0.19s | exit 0
+- 2026-01-18 07:48:20 | `tests\chunking\json.test.js` | 0.18s | exit 0
+- 2026-01-18 07:48:20 | `tests\chunking\limits.test.js` | 0.05s | exit 0
+- 2026-01-18 07:48:20 | `tests\chunking\yaml.test.js` | 0.19s | exit 0
+- 2026-01-18 07:48:21 | `tests\churn-filter.js` | 1.02s | timeout
+- 2026-01-18 07:48:21 | `tests\clean-artifacts.js` | 0.31s | exit 0
+- 2026-01-18 07:48:22 | `tests\cli.js` | 0.39s | exit 0
+- 2026-01-18 07:48:22 | `tests\clike-doc-comments.js` | 0.08s | exit 0
+- 2026-01-18 07:48:23 | `tests\code-map-basic.js` | 1.02s | timeout
+- 2026-01-18 07:48:24 | `tests\code-map-determinism.js` | 1.01s | timeout
+- 2026-01-18 07:48:25 | `tests\code-map-dot.js` | 1.02s | timeout
+- 2026-01-18 07:48:26 | `tests\code-map-graphviz-fallback.js` | 1.02s | timeout
+- 2026-01-18 07:48:27 | `tests\code-map-guardrails.js` | 1.02s | timeout
+- 2026-01-18 07:48:27 | `tests\comment-boundary.js` | 0.06s | exit 0
+- 2026-01-18 07:48:28 | `tests\comment-join.js` | 1.02s | timeout
+- 2026-01-18 07:48:29 | `tests\compact-pieces.js` | 1.02s | timeout
+- 2026-01-18 07:48:30 | `tests\config-dump.js` | 0.53s | exit 0
+- 2026-01-18 07:48:30 | `tests\config-validate.js` | 0.35s | exit 0
+- 2026-01-18 07:48:30 | `tests\config\auto-policy.test.js` | 0.23s | exit 0
+- 2026-01-18 07:48:30 | `tests\context-expansion.js` | 0.05s | exit 0
+- 2026-01-18 07:48:31 | `tests\core-api.js` | 1.02s | timeout
+- 2026-01-18 07:48:31 | `tests\ctags-ingest.js` | 0.17s | exit 0
+- 2026-01-18 07:48:32 | `tests\dict-adaptive.js` | 0.08s | exit 0
+- 2026-01-18 07:48:32 | `tests\discover.js` | 0.93s | exit 0
+- 2026-01-18 07:48:33 | `tests\download-dicts.js` | 0.26s | exit 0
+- 2026-01-18 07:48:34 | `tests\download-extensions.js` | 1.02s | timeout
+- 2026-01-18 07:48:35 | `tests\embedding-batch-autotune.js` | 1.02s | timeout
+- 2026-01-18 07:48:35 | `tests\embedding-batch-defaults.js` | 0.06s | exit 0
+- 2026-01-18 07:48:35 | `tests\embedding-batch-multipliers.js` | 0.05s | exit 0
+- 2026-01-18 07:48:35 | `tests\embedding-batch-throughput.js` | 0.06s | exit 0
+- 2026-01-18 07:48:35 | `tests\embedding-queue-defaults.js` | 0.19s | exit 0
+- 2026-01-18 07:48:36 | `tests\embeddings-cache-identity.js` | 1.02s | timeout
+- 2026-01-18 07:48:36 | `tests\embeddings-cache-invalidation.js` | 0.06s | exit 0
+- 2026-01-18 07:48:37 | `tests\embeddings-dims-mismatch.js` | 1.02s | timeout
+- 2026-01-18 07:48:37 | `tests\embeddings-dims-validation.js` | 0.06s | exit 0
+- 2026-01-18 07:48:38 | `tests\embeddings-identity.js` | 0.06s | exit 0
+- 2026-01-18 07:48:38 | `tests\embeddings-sqlite-dense.js` | 0.15s | exit 1
+- 2026-01-18 07:48:39 | `tests\embeddings-validate.js` | 1.03s | timeout
+- 2026-01-18 07:48:40 | `tests\encoding-fallback.js` | 1.03s | timeout
+- 2026-01-18 07:48:40 | `tests\encoding-hash.js` | 0.1s | exit 0
+- 2026-01-18 07:48:40 | `tests\encoding-matrix.js` | 0.1s | exit 0
+- 2026-01-18 07:48:41 | `tests\eval-quality.js` | 1.03s | timeout
+- 2026-01-18 07:48:41 | `tests\ext-filter.js` | 0.05s | exit 0
+- 2026-01-18 07:48:42 | `tests\external-docs.js` | 1.02s | timeout
+- 2026-01-18 07:48:43 | `tests\extracted-prose.js` | 1.02s | timeout
+- 2026-01-18 07:48:44 | `tests\fielded-bm25.js` | 1.03s | timeout
+- 2026-01-18 07:48:45 | `tests\file-line-guard.js` | 1.03s | timeout
+- 2026-01-18 07:48:45 | `tests\file-processor\cached-bundle.test.js` | 0.07s | exit 0
+- 2026-01-18 07:48:45 | `tests\file-processor\skip.test.js` | 0.1s | exit 0
+- 2026-01-18 07:48:46 | `tests\file-size-guard.js` | 1.02s | timeout
+- 2026-01-18 07:48:48 | `tests\filter-index-artifact.js` | 1.03s | timeout
+- 2026-01-18 07:48:48 | `tests\filter-index.js` | 0.12s | exit 0
+- 2026-01-18 07:48:48 | `tests\filter-strictness.js` | 0.13s | exit 0
+- 2026-01-18 07:48:49 | `tests\fixture-empty.js` | 1.02s | timeout
+- 2026-01-18 07:48:50 | `tests\fixture-eval.js` | 1.03s | timeout
+- 2026-01-18 07:48:51 | `tests\fixture-parity.js` | 1.02s | timeout
+- 2026-01-18 07:48:52 | `tests\format-fidelity.js` | 1.02s | timeout
+- 2026-01-18 07:48:53 | `tests\git-blame-range.js` | 1.01s | timeout
+- 2026-01-18 07:48:53 | `tests\git-hooks.js` | 0.4s | exit 0
+- 2026-01-18 07:48:54 | `tests\git-meta.js` | 0.33s | exit 0
+- 2026-01-18 07:48:54 | `tests\graph-chunk-id.js` | 0.07s | exit 0
+- 2026-01-18 07:48:54 | `tests\gtags-ingest.js` | 0.16s | exit 0
+- 2026-01-18 07:48:54 | `tests\helpers\api-server.js` | 0.07s | exit 0
+- 2026-01-18 07:48:54 | `tests\helpers\fixture-index.js` | 0.07s | exit 0
+- 2026-01-18 07:48:54 | `tests\helpers\mcp-client.js` | 0.05s | exit 0
+- 2026-01-18 07:48:54 | `tests\helpers\search-filters-repo.js` | 0.07s | exit 0
+- 2026-01-18 07:48:54 | `tests\helpers\sqlite-incremental.js` | 0.07s | exit 0
+- 2026-01-18 07:48:54 | `tests\helpers\triage.js` | 0.05s | exit 0
+- 2026-01-18 07:48:55 | `tests\hnsw-ann.js` | 0.07s | exit 0
+- 2026-01-18 07:48:56 | `tests\hnsw-atomic.js` | 1.02s | timeout
+- 2026-01-18 07:48:56 | `tests\hnsw-candidate-set.js` | 0.06s | exit 0
+- 2026-01-18 07:48:56 | `tests\hnsw-distance-metrics.js` | 0.06s | exit 0
+- 2026-01-18 07:48:56 | `tests\ignore-overrides.js` | 0.49s | exit 0
+- 2026-01-18 07:48:57 | `tests\import-links.js` | 1.02s | timeout
+- 2026-01-18 07:48:58 | `tests\import-priority.js` | 0.5s | exit 0
+- 2026-01-18 07:48:58 | `tests\import-scan.js` | 0.53s | exit 0
+- 2026-01-18 07:48:59 | `tests\incremental-cache-signature.js` | 1.03s | timeout
+- 2026-01-18 07:49:00 | `tests\incremental-manifest.js` | 1.02s | timeout
+- 2026-01-18 07:49:00 | `tests\incremental-reuse.js` | 0.1s | exit 0
+- 2026-01-18 07:49:02 | `tests\incremental-tokenization-cache.js` | 1.02s | timeout
+- 2026-01-18 07:49:02 | `tests\index-cache.js` | 0.13s | exit 0
+- 2026-01-18 07:49:03 | `tests\index-lifecycle-contract.js` | 1.02s | timeout
+- 2026-01-18 07:49:03 | `tests\index-lock.js` | 0.16s | exit 0
+- 2026-01-18 07:49:04 | `tests\index-metrics-options.js` | 1.02s | timeout
+- 2026-01-18 07:49:05 | `tests\index-validate.js` | 1.02s | timeout
+- 2026-01-18 07:49:05 | `tests\indexer-service.js` | 0.28s | exit 0
+- 2026-01-18 07:49:05 | `tests\indexer\incremental-plan.test.js` | 0.1s | exit 0
+- 2026-01-18 07:49:05 | `tests\indexer\signatures.test.js` | 0.06s | exit 0
+- 2026-01-18 07:49:05 | `tests\indexer\sort-determinism.test.js` | 0.05s | exit 0
+- 2026-01-18 07:49:06 | `tests\indexing\fixtures\build-and-artifacts.test.js` | 1.03s | timeout
+- 2026-01-18 07:49:08 | `tests\indexing\fixtures\minhash-consistency.test.js` | 1.01s | timeout
+- 2026-01-18 07:49:09 | `tests\indexing\language-fixture\chunk-meta-exists.test.js` | 1.01s | timeout
+- 2026-01-18 07:49:10 | `tests\indexing\language-fixture\postings-integrity.test.js` | 1.03s | timeout
+- 2026-01-18 07:49:11 | `tests\indexing\type-inference\crossfile-output.integration.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:11 | `tests\io-concurrency-cap.js` | 0.09s | exit 0
+- 2026-01-18 07:49:12 | `tests\js-tree-sitter-maxbytes.js` | 1.02s | timeout
+- 2026-01-18 07:49:12 | `tests\json-stream.js` | 0.14s | exit 0
+- 2026-01-18 07:49:12 | `tests\jsonl-utf8.js` | 0.08s | exit 0
+- 2026-01-18 07:49:12 | `tests\jsonl-validation.js` | 0.14s | exit 0
+- 2026-01-18 07:49:12 | `tests\jsonrpc-parser.js` | 0.09s | exit 0
+- 2026-01-18 07:49:12 | `tests\kotlin-perf-guard.js` | 0.08s | exit 0
+- 2026-01-18 07:49:13 | `tests\lancedb-ann.js` | 1.02s | timeout
+- 2026-01-18 07:49:13 | `tests\lang-filter.js` | 0.06s | exit 0
+- 2026-01-18 07:49:15 | `tests\lang\contracts\go.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:16 | `tests\lang\contracts\javascript.test.js` | 1.01s | timeout
+- 2026-01-18 07:49:17 | `tests\lang\contracts\misc-buildfiles.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:18 | `tests\lang\contracts\python.test.js` | 1.01s | timeout
+- 2026-01-18 07:49:19 | `tests\lang\contracts\sql.test.js` | 1.03s | timeout
+- 2026-01-18 07:49:20 | `tests\lang\contracts\typescript.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:21 | `tests\lang\fixtures-sample\python-metadata.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:22 | `tests\lang\fixtures-sample\rust-metadata.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:23 | `tests\lang\fixtures-sample\swift-metadata.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:23 | `tests\lang\js-chunking.test.js` | 0.13s | exit 0
+- 2026-01-18 07:49:23 | `tests\lang\js-imports.test.js` | 0.13s | exit 0
+- 2026-01-18 07:49:23 | `tests\lang\js-relations.test.js` | 0.12s | exit 0
+- 2026-01-18 07:49:23 | `tests\lang\python-heuristic-chunking.test.js` | 0.06s | exit 0
+- 2026-01-18 07:49:23 | `tests\lang\python-imports.test.js` | 0.06s | exit 0
+- 2026-01-18 07:49:23 | `tests\lang\python-pool.test.js` | 0.06s | exit 0
+- 2026-01-18 07:49:24 | `tests\language-registry\collectors.test.js` | 0.07s | exit 0
+- 2026-01-18 07:49:24 | `tests\language-registry\selection.test.js` | 0.44s | exit 0
+- 2026-01-18 07:49:25 | `tests\lmdb-backend.js` | 1.02s | timeout
+- 2026-01-18 07:49:26 | `tests\lmdb-corruption.js` | 1.02s | timeout
+- 2026-01-18 07:49:27 | `tests\lmdb-report-artifacts.js` | 1.02s | timeout
+- 2026-01-18 07:49:27 | `tests\lsif-ingest.js` | 0.18s | exit 0
+- 2026-01-18 07:49:28 | `tests\lsp-shutdown.js` | 0.35s | exit 0
+- 2026-01-18 07:49:29 | `tests\mcp-robustness.js` | 1.02s | timeout
+- 2026-01-18 07:49:30 | `tests\mcp-schema.js` | 1.02s | timeout
+- 2026-01-18 07:49:30 | `tests\metadata-v2.js` | 0.07s | exit 0
+- 2026-01-18 07:49:30 | `tests\minhash-parity.js` | 0.05s | exit 0
+- 2026-01-18 07:49:30 | `tests\parity.js` | 0.12s | exit 1
+- 2026-01-18 07:49:31 | `tests\perf\bench\run.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:31 | `tests\perf\bench\scenarios\ann-on-off.js` | 0.05s | exit 0
+- 2026-01-18 07:49:31 | `tests\perf\bench\scenarios\bm25-params.js` | 0.05s | exit 0
+- 2026-01-18 07:49:31 | `tests\perf\bench\scenarios\memory-vs-sqlite.js` | 0.07s | exit 0
+- 2026-01-18 07:49:31 | `tests\perf\bench\scenarios\sqlite-fts.js` | 0.06s | exit 0
+- 2026-01-18 07:49:32 | `tests\perf\sqlite-p95-latency.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:32 | `tests\php-methods-unique.js` | 0.08s | exit 0
+- 2026-01-18 07:49:33 | `tests\piece-assembly.js` | 1.02s | timeout
+- 2026-01-18 07:49:34 | `tests\pieces-manifest-strict.js` | 0.11s | exit 0
+- 2026-01-18 07:49:34 | `tests\postings-quantize.js` | 0.07s | exit 0
+- 2026-01-18 07:49:34 | `tests\preprocess-files.js` | 0.55s | exit 0
+- 2026-01-18 07:49:34 | `tests\profile-config.js` | 0.09s | exit 0
+- 2026-01-18 07:49:35 | `tests\prose-rust-exclusion.js` | 1.02s | timeout
+- 2026-01-18 07:49:36 | `tests\prose-skip-imports.js` | 1.02s | timeout
+- 2026-01-18 07:49:37 | `tests\python-ast-worker.js` | 0.23s | exit 0
+- 2026-01-18 07:49:37 | `tests\python-fallback.js` | 0.07s | exit 0
+- 2026-01-18 07:49:38 | `tests\query-cache.js` | 1.02s | timeout
+- 2026-01-18 07:49:38 | `tests\query-intent.js` | 0.06s | exit 0
+- 2026-01-18 07:49:39 | `tests\read-failure-skip.js` | 1.02s | timeout
+- 2026-01-18 07:49:40 | `tests\records-exclusion.js` | 1.02s | timeout
+- 2026-01-18 07:49:41 | `tests\repo-root.js` | 1.03s | timeout
+- 2026-01-18 07:49:41 | `tests\repometrics-dashboard.js` | 0.28s | exit 0
+- 2026-01-18 07:49:41 | `tests\retrieval-auto-sqlite-thresholds.js` | 0.07s | exit 1
+- 2026-01-18 07:49:41 | `tests\retrieval-backend-policy.js` | 0.06s | exit 0
+- 2026-01-18 07:49:42 | `tests\retrieval-branch-filter.js` | 0.09s | exit 0
+- 2026-01-18 07:49:43 | `tests\retrieval\contracts\compact-json.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:44 | `tests\retrieval\contracts\result-shape.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:45 | `tests\retrieval\filters\behavioral.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:46 | `tests\retrieval\filters\control-flow.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:47 | `tests\retrieval\filters\ext-path.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:48 | `tests\retrieval\filters\file-and-token\file-selector-case.test.js` | 1.03s | timeout
+- 2026-01-18 07:49:49 | `tests\retrieval\filters\file-and-token\punctuation-tokenization.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:50 | `tests\retrieval\filters\file-and-token\token-case.test.js` | 1.03s | timeout
+- 2026-01-18 07:49:51 | `tests\retrieval\filters\file-selector.test.js` | 1.03s | timeout
+- 2026-01-18 07:49:52 | `tests\retrieval\filters\git-metadata\branch.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:53 | `tests\retrieval\filters\git-metadata\chunk-author.test.js` | 1.03s | timeout
+- 2026-01-18 07:49:54 | `tests\retrieval\filters\git-metadata\modified-time.test.js` | 1.03s | timeout
+- 2026-01-18 07:49:55 | `tests\retrieval\filters\query-syntax\negative-terms.test.js` | 1.03s | timeout
+- 2026-01-18 07:49:56 | `tests\retrieval\filters\query-syntax\phrases-and-scorebreakdown.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:57 | `tests\retrieval\filters\risk.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:58 | `tests\retrieval\filters\type-signature-decorator.test.js` | 1.02s | timeout
+- 2026-01-18 07:49:59 | `tests\retrieval\filters\types.test.js` | 1.03s | timeout
+- 2026-01-18 07:49:59 | `tests\ruby-end-comment.js` | 0.06s | exit 0
+- 2026-01-18 07:50:00 | `tests\run.js` | 1.02s | timeout
+- 2026-01-18 07:50:00 | `tests\safe-regex-engine.js` | 0.08s | exit 0
+- 2026-01-18 07:50:01 | `tests\scip-ingest.js` | 0.17s | exit 0
+- 2026-01-18 07:50:01 | `tests\script-coverage-harness.js` | 0.06s | exit 0
+- 2026-01-18 07:50:02 | `tests\script-coverage.js` | 1.02s | timeout
+- 2026-01-18 07:50:02 | `tests\script-coverage\actions.js` | 0.05s | exit 0
+- 2026-01-18 07:50:02 | `tests\script-coverage\paths.js` | 0.06s | exit 0
+- 2026-01-18 07:50:02 | `tests\script-coverage\report.js` | 0.05s | exit 0
+- 2026-01-18 07:50:02 | `tests\script-coverage\runner.js` | 0.05s | exit 0
+- 2026-01-18 07:50:03 | `tests\search-contract.js` | 1.01s | timeout
+- 2026-01-18 07:50:04 | `tests\search-determinism.js` | 1.02s | timeout
+- 2026-01-18 07:50:05 | `tests\search-explain-symbol.js` | 1.02s | timeout
+- 2026-01-18 07:50:06 | `tests\search-explain.js` | 1.02s | timeout
+- 2026-01-18 07:50:07 | `tests\search-help.js` | 1.03s | timeout
+- 2026-01-18 07:50:08 | `tests\search-missing-flag-values.js` | 1.03s | timeout
+- 2026-01-18 07:50:09 | `tests\search-missing-index.js` | 1.02s | timeout
+- 2026-01-18 07:50:10 | `tests\search-removed-flags.js` | 1.03s | timeout
+- 2026-01-18 07:50:11 | `tests\search-rrf.js` | 1.02s | timeout
+- 2026-01-18 07:50:11 | `tests\search-symbol-boost.js` | 0.14s | exit 0
+- 2026-01-18 07:50:12 | `tests\search-tie-order.js` | 1.02s | timeout
+- 2026-01-18 07:50:13 | `tests\search-topn-filters.js` | 1.03s | timeout
+- 2026-01-18 07:50:15 | `tests\search-windows-path-filter.js` | 1.02s | timeout
+- 2026-01-18 07:50:15 | `tests\segment-pipeline.js` | 0.91s | exit 0
+- 2026-01-18 07:50:16 | `tests\service-queue.js` | 0.09s | exit 0
+- 2026-01-18 07:50:17 | `tests\services\api\health-and-status.test.js` | 1.02s | timeout
+- 2026-01-18 07:50:18 | `tests\services\api\no-index.test.js` | 1.03s | timeout
+- 2026-01-18 07:50:19 | `tests\services\api\repo-authorization.test.js` | 1.02s | timeout
+- 2026-01-18 07:50:20 | `tests\services\api\search-happy-path.test.js` | 1.02s | timeout
+- 2026-01-18 07:50:21 | `tests\services\api\search-validation.test.js` | 1.02s | timeout
+- 2026-01-18 07:50:22 | `tests\services\mcp\errors.test.js` | 1.02s | timeout
+- 2026-01-18 07:50:23 | `tests\services\mcp\protocol-initialize.test.js` | 1.03s | timeout
+- 2026-01-18 07:50:24 | `tests\services\mcp\tool-build-index-progress.test.js` | 1.03s | timeout
+- 2026-01-18 07:50:25 | `tests\services\mcp\tool-config-status.test.js` | 1.03s | timeout
+- 2026-01-18 07:50:26 | `tests\services\mcp\tool-index-status.test.js` | 1.02s | timeout
+- 2026-01-18 07:50:27 | `tests\services\mcp\tool-search-defaults-and-filters.test.js` | 1.02s | timeout
+- 2026-01-18 07:50:28 | `tests\services\mcp\tools-list.test.js` | 1.02s | timeout
+- 2026-01-18 07:50:29 | `tests\setup-index-detection.js` | 0.86s | exit 0
+- 2026-01-18 07:50:29 | `tests\setup.js` | 0.51s | exit 0
+- 2026-01-18 07:50:30 | `tests\shard-merge.js` | 1.02s | timeout
+- 2026-01-18 07:50:31 | `tests\shard-plan.js` | 0.46s | exit 0
+- 2026-01-18 07:50:32 | `tests\shard-progress-determinism.js` | 1.02s | timeout
+- 2026-01-18 07:50:33 | `tests\skip-minified-binary.js` | 1.01s | timeout
+- 2026-01-18 07:50:34 | `tests\smoke-embeddings.js` | 1.02s | timeout
+- 2026-01-18 07:50:35 | `tests\smoke-retrieval.js` | 1.02s | timeout
+- 2026-01-18 07:50:36 | `tests\smoke-section1.js` | 1.03s | timeout
+- 2026-01-18 07:50:37 | `tests\smoke-services.js` | 1.02s | timeout
+- 2026-01-18 07:50:38 | `tests\smoke-sqlite.js` | 1.02s | timeout
+- 2026-01-18 07:50:38 | `tests\smoke-utils.js` | 0.06s | exit 0
+- 2026-01-18 07:50:39 | `tests\smoke-workers.js` | 0.57s | exit 0
+- 2026-01-18 07:50:39 | `tests\smoke.js` | 0.17s | exit 0
+- 2026-01-18 07:50:39 | `tests\sqlite-ann-extension.js` | 0.16s | exit 0
+- 2026-01-18 07:50:40 | `tests\sqlite-ann-fallback.js` | 1.02s | timeout
+- 2026-01-18 07:50:41 | `tests\sqlite-auto-backend.js` | 1.03s | timeout
+- 2026-01-18 07:50:41 | `tests\sqlite-build-delete.js` | 0.09s | exit 0
+- 2026-01-18 07:50:42 | `tests\sqlite-build-indexes.js` | 1.02s | timeout
+- 2026-01-18 07:50:42 | `tests\sqlite-build-manifest.js` | 0.07s | exit 0
+- 2026-01-18 07:50:43 | `tests\sqlite-build-vocab.js` | 0.1s | exit 0
+- 2026-01-18 07:50:43 | `tests\sqlite-bundle-invalid.js` | 0.17s | exit 0
+- 2026-01-18 07:50:44 | `tests\sqlite-bundle-missing.js` | 1.03s | timeout
+- 2026-01-18 07:50:44 | `tests\sqlite-cache.js` | 0.13s | exit 0
+- 2026-01-18 07:50:44 | `tests\sqlite-chunk-id.js` | 0.07s | exit 0
+- 2026-01-18 07:50:45 | `tests\sqlite-chunk-meta-streaming.js` | 0.47s | exit 0
+- 2026-01-18 07:50:46 | `tests\sqlite-compact.js` | 1.02s | timeout
+- 2026-01-18 07:50:47 | `tests\sqlite-incremental-no-change.js` | 1.03s | timeout
+- 2026-01-18 07:50:48 | `tests\sqlite-index-state-fail-closed.js` | 1.03s | timeout
+- 2026-01-18 07:50:49 | `tests\sqlite-missing-dep.js` | 1.02s | timeout
+- 2026-01-18 07:50:50 | `tests\sqlite-sidecar-cleanup.js` | 1.02s | timeout
+- 2026-01-18 07:50:50 | `tests\sqlite-vec-candidate-set.js` | 0.19s | exit 0
+- 2026-01-18 07:50:50 | `tests\storage\sqlite\bundle-dims-mismatch.test.js` | 0.15s | exit 0
+- 2026-01-18 07:50:50 | `tests\storage\sqlite\incremental\ann-existing-table.test.js` | 0.19s | exit 0
+- 2026-01-18 07:50:51 | `tests\storage\sqlite\incremental\doc-id-reuse.test.js` | 1.03s | timeout
+- 2026-01-18 07:50:52 | `tests\storage\sqlite\incremental\file-manifest-updates.test.js` | 1.03s | timeout
+- 2026-01-18 07:50:53 | `tests\storage\sqlite\incremental\manifest-hash-fill.test.js` | 1.03s | timeout
+- 2026-01-18 07:50:54 | `tests\storage\sqlite\incremental\manifest-normalization.test.js` | 1.03s | timeout
+- 2026-01-18 07:50:56 | `tests\storage\sqlite\incremental\search-after-update.test.js` | 1.03s | timeout
+- 2026-01-18 07:50:57 | `tests\storage\sqlite\incremental\wal-checkpoint.test.js` | 1.02s | timeout
+- 2026-01-18 07:50:58 | `tests\storage\sqlite\migrations\schema-mismatch-rebuild.test.js` | 1.03s | timeout
+- 2026-01-18 07:50:58 | `tests\storage\sqlite\reader-schema-mismatch.test.js` | 0.21s | exit 0
+- 2026-01-18 07:50:59 | `tests\structural-filters.js` | 1.02s | timeout
+- 2026-01-18 07:50:59 | `tests\structural-search.js` | 0.31s | exit 0
+- 2026-01-18 07:50:59 | `tests\sublime-pycompile.js` | 0.17s | exit 0
+- 2026-01-18 07:51:00 | `tests\subprocess-quoting.js` | 1.01s | timeout
+- 2026-01-18 07:51:01 | `tests\summary-report.js` | 1.03s | timeout
+- 2026-01-18 07:51:02 | `tests\tantivy-smoke.js` | 0.06s | exit 0
+- 2026-01-18 07:51:02 | `tests\test-runner.js` | 0.51s | exit 0
+- 2026-01-18 07:51:03 | `tests\thread-limits.js` | 0.44s | exit 0
+- 2026-01-18 07:51:03 | `tests\tokenization-buffering.js` | 0.09s | exit 0
+- 2026-01-18 07:51:03 | `tests\tokenize-dictionary.js` | 0.09s | exit 0
+- 2026-01-18 07:51:04 | `tests\tool-root.js` | 1.03s | timeout
+- 2026-01-18 07:51:05 | `tests\tooling-detect.js` | 1.03s | timeout
+- 2026-01-18 07:51:05 | `tests\tooling-install.js` | 0.25s | exit 0
+- 2026-01-18 07:51:05 | `tests\tooling-lsp.js` | 0.17s | exit 0
+- 2026-01-18 07:51:06 | `tests\tooling\triage\context-pack.test.js` | 1.03s | timeout
+- 2026-01-18 07:51:07 | `tests\tooling\triage\decision.test.js` | 0.33s | exit 0
+- 2026-01-18 07:51:07 | `tests\tooling\triage\ingest-generic.exposure.test.js` | 0.21s | exit 0
+- 2026-01-18 07:51:07 | `tests\tooling\triage\ingest-sources.smoke.test.js` | 0.37s | exit 0
+- 2026-01-18 07:51:08 | `tests\tooling\triage\records-index-and-search.test.js` | 1.02s | timeout
+- 2026-01-18 07:51:08 | `tests\tooling\type-inference\crossfile-stats.unit.test.js` | 0.2s | exit 0
+- 2026-01-18 07:51:09 | `tests\tree-sitter-chunks.js` | 0.08s | exit 0
+- 2026-01-18 07:51:09 | `tests\truth-table.js` | 0.06s | exit 0
+- 2026-01-18 07:51:09 | `tests\ts-jsx-fixtures.js` | 0.32s | exit 0
+- 2026-01-18 07:51:10 | `tests\two-stage-state.js` | 1.03s | timeout
+- 2026-01-18 07:51:10 | `tests\type-inference-clangd-provider-no-clangd.js` | 0.22s | exit 0
+- 2026-01-18 07:51:11 | `tests\type-inference-crossfile-go.js` | 1.02s | timeout
+- 2026-01-18 07:51:11 | `tests\type-inference-crossfile\apply.test.js` | 0.05s | exit 0
+- 2026-01-18 07:51:11 | `tests\type-inference-crossfile\extract.test.js` | 0.05s | exit 0
+- 2026-01-18 07:51:12 | `tests\type-inference-crossfile\symbols.test.js` | 0.05s | exit 0
+- 2026-01-18 07:51:13 | `tests\type-inference-lsp-enrichment.js` | 1.02s | timeout
+- 2026-01-18 07:51:13 | `tests\type-inference-sourcekit-provider-no-sourcekit.js` | 0.24s | exit 0
+- 2026-01-18 07:51:13 | `tests\type-inference-typescript-provider-no-ts.js` | 0.07s | exit 0
+- 2026-01-18 07:51:13 | `tests\typescript-imports-only.js` | 0.19s | exit 0
+- 2026-01-18 07:51:13 | `tests\typescript-parser-selection.js` | 0.34s | exit 0
+- 2026-01-18 07:51:14 | `tests\unicode-offset.js` | 1.02s | timeout
+- 2026-01-18 07:51:15 | `tests\uninstall.js` | 0.22s | exit 1
+- 2026-01-18 07:51:16 | `tests\unsupported-language-skip.js` | 1.02s | timeout
+- 2026-01-18 07:51:16 | `tests\uv-threadpool-env.js` | 0.08s | exit 0
+- 2026-01-18 07:51:16 | `tests\uv-threadpool-no-override.js` | 0.08s | exit 0
+- 2026-01-18 07:51:16 | `tests\vector-extension-missing.js` | 0.17s | exit 1
+- 2026-01-18 07:51:16 | `tests\vector-extension-sanitize.js` | 0.15s | exit 0
+- 2026-01-18 07:51:16 | `tests\vscode-extension.js` | 0.06s | exit 0
+- 2026-01-18 07:51:17 | `tests\watch-backend-selection.js` | 1.03s | timeout
+- 2026-01-18 07:51:18 | `tests\watch-debounce.js` | 1.01s | timeout
+- 2026-01-18 07:51:19 | `tests\watch-filter.js` | 1.03s | timeout
+- 2026-01-18 07:51:21 | `tests\watch-stability-guard.js` | 1.03s | timeout
+- 2026-01-18 07:51:22 | `tests\worker-pool-windows.js` | 1.03s | timeout
+- 2026-01-18 07:51:22 | `tests\worker-pool.js` | 0.25s | exit 0
+- 2026-01-18 07:51:22 | `tests\xxhash-backends.js` | 0.25s | exit 0
+- 2026-01-18 08:01:52 | `tests\all.js` | 2.61s | exit 1
+- 2026-01-18 08:01:54 | `tests\artifact-size-guardrails.js` | 2.52s | exit 1
+- 2026-01-18 08:01:59 | `tests\build-embeddings-cache.js` | 5.02s | timeout
+- 2026-01-18 08:02:04 | `tests\build-index-all.js` | 5.02s | timeout
+- 2026-01-18 08:02:05 | `tests\cache-gc.js` | 0.19s | exit 1
+- 2026-01-18 08:02:10 | `tests\chunk-id-backend-parity.js` | 5.02s | timeout
+- 2026-01-18 08:02:15 | `tests\churn-filter.js` | 5.02s | timeout
+- 2026-01-18 08:02:20 | `tests\code-map-basic.js` | 5.02s | timeout
+- 2026-01-18 08:02:25 | `tests\code-map-determinism.js` | 5.02s | timeout
+- 2026-01-18 08:02:30 | `tests\code-map-dot.js` | 5.02s | timeout
+- 2026-01-18 08:02:35 | `tests\code-map-graphviz-fallback.js` | 5.02s | timeout
+- 2026-01-18 08:02:40 | `tests\code-map-guardrails.js` | 5.02s | timeout
+- 2026-01-18 08:02:45 | `tests\comment-join.js` | 5.03s | timeout
+- 2026-01-18 08:02:48 | `tests\compact-pieces.js` | 2.75s | exit 1
+- 2026-01-18 08:02:53 | `tests\core-api.js` | 5.02s | timeout
+- 2026-01-18 08:02:54 | `tests\download-extensions.js` | 1.68s | exit 0
+- 2026-01-18 08:02:56 | `tests\embedding-batch-autotune.js` | 1.52s | exit 0
+- 2026-01-18 08:03:01 | `tests\embeddings-cache-identity.js` | 5.02s | timeout
+- 2026-01-18 08:03:06 | `tests\embeddings-dims-mismatch.js` | 5.02s | timeout
+- 2026-01-18 08:03:06 | `tests\embeddings-sqlite-dense.js` | 0.15s | exit 1
+- 2026-01-18 08:03:11 | `tests\embeddings-validate.js` | 5.02s | timeout
+- 2026-01-18 08:03:16 | `tests\encoding-fallback.js` | 5.03s | timeout
+- 2026-01-18 08:03:21 | `tests\eval-quality.js` | 5.02s | timeout
+- 2026-01-18 08:03:26 | `tests\external-docs.js` | 5.02s | timeout
+- 2026-01-18 08:03:31 | `tests\extracted-prose.js` | 5.01s | timeout
+- 2026-01-18 08:03:36 | `tests\fielded-bm25.js` | 5.01s | timeout
+- 2026-01-18 08:03:41 | `tests\file-line-guard.js` | 5.02s | timeout
+- 2026-01-18 08:03:46 | `tests\file-size-guard.js` | 5.01s | timeout
+- 2026-01-18 08:03:52 | `tests\filter-index-artifact.js` | 5.02s | timeout
+- 2026-01-18 08:03:56 | `tests\fixture-empty.js` | 4.97s | exit 0
+- 2026-01-18 08:04:02 | `tests\fixture-eval.js` | 5.02s | timeout
+- 2026-01-18 08:04:07 | `tests\fixture-parity.js` | 5.03s | timeout
+- 2026-01-18 08:04:12 | `tests\format-fidelity.js` | 5.02s | timeout
+- 2026-01-18 08:04:17 | `tests\git-blame-range.js` | 5.03s | timeout
+- 2026-01-18 08:04:22 | `tests\hnsw-atomic.js` | 5.02s | timeout
+- 2026-01-18 08:04:27 | `tests\import-links.js` | 5.02s | timeout
+- 2026-01-18 08:04:32 | `tests\incremental-cache-signature.js` | 5.06s | timeout
+- 2026-01-18 08:04:37 | `tests\incremental-manifest.js` | 5.02s | timeout
+- 2026-01-18 08:04:42 | `tests\incremental-tokenization-cache.js` | 5.02s | timeout
+- 2026-01-18 08:04:46 | `tests\index-lifecycle-contract.js` | 3.89s | exit 0
+- 2026-01-18 08:04:48 | `tests\index-metrics-options.js` | 2.02s | exit 1
+- 2026-01-18 08:04:53 | `tests\index-validate.js` | 5.03s | timeout
+- 2026-01-18 08:04:53 | `tests\indexing\fixtures\build-and-artifacts.test.js` | 0.4s | exit 1
+- 2026-01-18 08:04:53 | `tests\indexing\fixtures\minhash-consistency.test.js` | 0.1s | exit 1
+- 2026-01-18 08:04:58 | `tests\indexing\language-fixture\chunk-meta-exists.test.js` | 5.02s | timeout
+- 2026-01-18 08:05:03 | `tests\indexing\language-fixture\postings-integrity.test.js` | 5.03s | timeout
+- 2026-01-18 08:05:09 | `tests\indexing\type-inference\crossfile-output.integration.test.js` | 5.03s | timeout
+- 2026-01-18 08:05:14 | `tests\js-tree-sitter-maxbytes.js` | 5.02s | timeout
+- 2026-01-18 08:05:19 | `tests\lancedb-ann.js` | 5.03s | timeout
+- 2026-01-18 08:05:24 | `tests\lang\contracts\go.test.js` | 5.02s | timeout
+- 2026-01-18 08:05:29 | `tests\lang\contracts\javascript.test.js` | 5.04s | timeout
+- 2026-01-18 08:05:34 | `tests\lang\contracts\misc-buildfiles.test.js` | 5.03s | timeout
+- 2026-01-18 08:05:39 | `tests\lang\contracts\python.test.js` | 5.04s | timeout
+- 2026-01-18 08:05:44 | `tests\lang\contracts\sql.test.js` | 5.04s | timeout
+- 2026-01-18 08:05:49 | `tests\lang\contracts\typescript.test.js` | 5.03s | timeout
+- 2026-01-18 08:05:54 | `tests\lang\fixtures-sample\python-metadata.test.js` | 4.69s | exit 0
+- 2026-01-18 08:05:56 | `tests\lang\fixtures-sample\rust-metadata.test.js` | 2.14s | exit 0
+- 2026-01-18 08:05:58 | `tests\lang\fixtures-sample\swift-metadata.test.js` | 2.18s | exit 0
+- 2026-01-18 08:06:03 | `tests\lmdb-backend.js` | 5.02s | timeout
+- 2026-01-18 08:06:08 | `tests\lmdb-corruption.js` | 5.01s | timeout
+- 2026-01-18 08:06:13 | `tests\lmdb-report-artifacts.js` | 5.02s | timeout
+- 2026-01-18 08:06:18 | `tests\mcp-robustness.js` | 5.06s | timeout
+- 2026-01-18 08:06:23 | `tests\mcp-schema.js` | 4.98s | exit 1
+- 2026-01-18 08:06:23 | `tests\parity.js` | 0.12s | exit 1
+- 2026-01-18 08:06:29 | `tests\perf\bench\run.test.js` | 5.02s | timeout
+- 2026-01-18 08:06:34 | `tests\perf\sqlite-p95-latency.test.js` | 5.02s | timeout
+- 2026-01-18 08:06:39 | `tests\piece-assembly.js` | 5.03s | timeout
+- 2026-01-18 08:06:43 | `tests\prose-rust-exclusion.js` | 4.58s | exit 1
+- 2026-01-18 08:06:48 | `tests\prose-skip-imports.js` | 5.02s | timeout
+- 2026-01-18 08:06:53 | `tests\query-cache.js` | 5.02s | timeout
+- 2026-01-18 08:06:55 | `tests\read-failure-skip.js` | 1.4s | exit 0
+- 2026-01-18 08:07:00 | `tests\records-exclusion.js` | 5.02s | timeout
+- 2026-01-18 08:07:05 | `tests\repo-root.js` | 5.02s | timeout
+- 2026-01-18 08:07:05 | `tests\retrieval-auto-sqlite-thresholds.js` | 0.06s | exit 1
+- 2026-01-18 08:07:07 | `tests\retrieval\contracts\compact-json.test.js` | 2.04s | exit 1
+- 2026-01-18 08:07:09 | `tests\retrieval\contracts\result-shape.test.js` | 2.14s | exit 0
+- 2026-01-18 08:07:14 | `tests\retrieval\filters\behavioral.test.js` | 5.02s | timeout
+- 2026-01-18 08:07:19 | `tests\retrieval\filters\control-flow.test.js` | 5.02s | timeout
+- 2026-01-18 08:07:23 | `tests\retrieval\filters\ext-path.test.js` | 4.16s | exit 0
+- 2026-01-18 08:07:28 | `tests\retrieval\filters\file-and-token\file-selector-case.test.js` | 5.02s | timeout
+- 2026-01-18 08:07:30 | `tests\retrieval\filters\file-and-token\punctuation-tokenization.test.js` | 2.17s | exit 0
+- 2026-01-18 08:07:35 | `tests\retrieval\filters\file-and-token\token-case.test.js` | 4.14s | exit 0
+- 2026-01-18 08:07:40 | `tests\retrieval\filters\file-selector.test.js` | 5.02s | timeout
+- 2026-01-18 08:07:44 | `tests\retrieval\filters\git-metadata\branch.test.js` | 4.12s | exit 0
+- 2026-01-18 08:07:48 | `tests\retrieval\filters\git-metadata\chunk-author.test.js` | 4.15s | exit 0
+- 2026-01-18 08:07:52 | `tests\retrieval\filters\git-metadata\modified-time.test.js` | 4.14s | exit 0
+- 2026-01-18 08:07:56 | `tests\retrieval\filters\query-syntax\negative-terms.test.js` | 4.17s | exit 0
+- 2026-01-18 08:07:58 | `tests\retrieval\filters\query-syntax\phrases-and-scorebreakdown.test.js` | 2.15s | exit 1
+- 2026-01-18 08:08:04 | `tests\retrieval\filters\risk.test.js` | 5.02s | timeout
+- 2026-01-18 08:08:09 | `tests\retrieval\filters\type-signature-decorator.test.js` | 5.03s | timeout
+- 2026-01-18 08:08:14 | `tests\retrieval\filters\types.test.js` | 5.02s | timeout
+- 2026-01-18 08:08:19 | `tests\run.js` | 5.02s | timeout
+- 2026-01-18 08:08:21 | `tests\script-coverage.js` | 2.57s | exit 1
+- 2026-01-18 08:08:26 | `tests\search-contract.js` | 5.02s | timeout
+- 2026-01-18 08:08:31 | `tests\search-determinism.js` | 5.02s | timeout
+- 2026-01-18 08:08:36 | `tests\search-explain-symbol.js` | 5.02s | timeout
+- 2026-01-18 08:08:41 | `tests\search-explain.js` | 5.02s | timeout
+- 2026-01-18 08:08:44 | `tests\search-help.js` | 2.24s | exit 1
+- 2026-01-18 08:08:49 | `tests\search-missing-flag-values.js` | 5.03s | timeout
+- 2026-01-18 08:08:51 | `tests\search-missing-index.js` | 2.09s | exit 0
+- 2026-01-18 08:08:55 | `tests\search-removed-flags.js` | 3.73s | exit 0
+- 2026-01-18 08:09:00 | `tests\search-rrf.js` | 5.02s | timeout
+- 2026-01-18 08:09:05 | `tests\search-tie-order.js` | 5.02s | timeout
+- 2026-01-18 08:09:10 | `tests\search-topn-filters.js` | 5.03s | timeout
+- 2026-01-18 08:09:15 | `tests\search-windows-path-filter.js` | 5.08s | timeout
+- 2026-01-18 08:09:19 | `tests\services\api\health-and-status.test.js` | 3.76s | exit 1
+- 2026-01-18 08:09:21 | `tests\services\api\no-index.test.js` | 1.99s | exit 1
+- 2026-01-18 08:09:24 | `tests\services\api\repo-authorization.test.js` | 3.4s | exit 0
+- 2026-01-18 08:09:28 | `tests\services\api\search-happy-path.test.js` | 3.68s | exit 1
+- 2026-01-18 08:09:32 | `tests\services\api\search-validation.test.js` | 4.27s | exit 1
+- 2026-01-18 08:09:36 | `tests\services\mcp\errors.test.js` | 4.3s | exit 0
+- 2026-01-18 08:09:38 | `tests\services\mcp\protocol-initialize.test.js` | 1.96s | exit 0
+- 2026-01-18 08:09:43 | `tests\services\mcp\tool-build-index-progress.test.js` | 5.03s | timeout
+- 2026-01-18 08:09:46 | `tests\services\mcp\tool-config-status.test.js` | 2.16s | exit 0
+- 2026-01-18 08:09:48 | `tests\services\mcp\tool-index-status.test.js` | 2.04s | exit 0
+- 2026-01-18 08:09:50 | `tests\services\mcp\tool-search-defaults-and-filters.test.js` | 2.16s | exit 1
+- 2026-01-18 08:09:52 | `tests\services\mcp\tools-list.test.js` | 1.95s | exit 0
+- 2026-01-18 08:09:57 | `tests\shard-merge.js` | 5.02s | timeout
+- 2026-01-18 08:10:00 | `tests\shard-progress-determinism.js` | 3.39s | exit 1
+- 2026-01-18 08:10:05 | `tests\skip-minified-binary.js` | 5.02s | timeout
+- 2026-01-18 08:10:10 | `tests\smoke-embeddings.js` | 5.02s | timeout
+- 2026-01-18 08:10:15 | `tests\smoke-retrieval.js` | 5.02s | timeout
+- 2026-01-18 08:10:20 | `tests\smoke-section1.js` | 5.02s | timeout
+- 2026-01-18 08:10:24 | `tests\smoke-services.js` | 3.93s | exit 1
+- 2026-01-18 08:10:29 | `tests\smoke-sqlite.js` | 5.01s | timeout
+- 2026-01-18 08:10:34 | `tests\sqlite-ann-fallback.js` | 5.01s | timeout
+- 2026-01-18 08:10:39 | `tests\sqlite-auto-backend.js` | 5.03s | timeout
+- 2026-01-18 08:10:44 | `tests\sqlite-build-indexes.js` | 5.03s | timeout
+- 2026-01-18 08:10:49 | `tests\sqlite-bundle-missing.js` | 5.01s | timeout
+- 2026-01-18 08:10:54 | `tests\sqlite-compact.js` | 5.03s | timeout
+- 2026-01-18 08:11:00 | `tests\sqlite-incremental-no-change.js` | 5.02s | timeout
+- 2026-01-18 08:11:05 | `tests\sqlite-index-state-fail-closed.js` | 5.01s | timeout
+- 2026-01-18 08:11:10 | `tests\sqlite-missing-dep.js` | 5.02s | timeout
+- 2026-01-18 08:11:15 | `tests\sqlite-sidecar-cleanup.js` | 5.03s | timeout
+- 2026-01-18 08:11:20 | `tests\storage\sqlite\incremental\doc-id-reuse.test.js` | 5.02s | timeout
+- 2026-01-18 08:11:25 | `tests\storage\sqlite\incremental\file-manifest-updates.test.js` | 5.03s | timeout
+- 2026-01-18 08:11:30 | `tests\storage\sqlite\incremental\manifest-hash-fill.test.js` | 5.02s | timeout
+- 2026-01-18 08:11:35 | `tests\storage\sqlite\incremental\manifest-normalization.test.js` | 5.02s | timeout
+- 2026-01-18 08:11:40 | `tests\storage\sqlite\incremental\search-after-update.test.js` | 5.03s | timeout
+- 2026-01-18 08:11:45 | `tests\storage\sqlite\incremental\wal-checkpoint.test.js` | 5.02s | timeout
+- 2026-01-18 08:11:50 | `tests\storage\sqlite\migrations\schema-mismatch-rebuild.test.js` | 5.03s | timeout
+- 2026-01-18 08:11:55 | `tests\structural-filters.js` | 5.02s | timeout
+- 2026-01-18 08:12:00 | `tests\subprocess-quoting.js` | 5.03s | timeout
+- 2026-01-18 08:12:05 | `tests\summary-report.js` | 5.02s | timeout
+- 2026-01-18 08:12:10 | `tests\tool-root.js` | 5.02s | timeout
+- 2026-01-18 08:12:11 | `tests\tooling-detect.js` | 1.34s | exit 0
+- 2026-01-18 08:12:16 | `tests\tooling\triage\context-pack.test.js` | 5.03s | timeout
+- 2026-01-18 08:12:22 | `tests\tooling\triage\records-index-and-search.test.js` | 5.03s | timeout
+- 2026-01-18 08:12:27 | `tests\two-stage-state.js` | 5.04s | timeout
+- 2026-01-18 08:12:32 | `tests\type-inference-crossfile-go.js` | 5.03s | timeout
+- 2026-01-18 08:12:37 | `tests\type-inference-lsp-enrichment.js` | 5.02s | timeout
+- 2026-01-18 08:12:42 | `tests\unicode-offset.js` | 5.02s | timeout
+- 2026-01-18 08:12:42 | `tests\uninstall.js` | 0.45s | exit 1
+- 2026-01-18 08:12:44 | `tests\unsupported-language-skip.js` | 1.78s | exit 1
+- 2026-01-18 08:12:44 | `tests\vector-extension-missing.js` | 0.16s | exit 1
+- 2026-01-18 08:12:46 | `tests\watch-backend-selection.js` | 1.92s | exit 1
+- 2026-01-18 08:12:48 | `tests\watch-debounce.js` | 1.86s | exit 0
+- 2026-01-18 08:12:50 | `tests\watch-filter.js` | 1.7s | exit 1
+- 2026-01-18 08:12:52 | `tests\watch-stability-guard.js` | 1.95s | exit 0
+- 2026-01-18 08:12:53 | `tests\worker-pool-windows.js` | 1.52s | exit 0
 <!-- RUNS:END -->

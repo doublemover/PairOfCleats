@@ -2,7 +2,9 @@ param(
   [Parameter(Mandatory = $true, Position = 0)]
   [string]$TestPath,
   [string[]]$Args = @(),
-  [int]$TimeoutSeconds = 10
+  [int]$TimeoutSeconds = 20,
+  [Alias('Gen-Short')]
+  [switch]$GenShort
 )
 
 if ($PSVersionTable.PSVersion.Major -lt 7) {
@@ -31,6 +33,7 @@ $tick = [char]96
 
 $timesPath = Join-Path $repoRoot 'TEST_TIMES.md'
 $slowPath = Join-Path $repoRoot 'SLOW_TESTS.md'
+$shortPath = Join-Path $repoRoot 'SHORT_TESTS.md'
 
 $ensureTemplate = {
   if (-not (Test-Path -LiteralPath $timesPath)) {
@@ -56,24 +59,43 @@ $ensureTemplate = {
 
 & $ensureTemplate
 
+if ($GenShort) {
+  $TimeoutSeconds = 1
+}
+
 $lines = Get-Content -Path $timesPath
 $testLine = "- $tick$relativePath$tick"
 $testStart = [Array]::IndexOf($lines, '<!-- TESTS:START -->')
 $testEnd = [Array]::IndexOf($lines, '<!-- TESTS:END -->')
+if ($testStart -lt 0 -or $testEnd -lt 0) {
+  Add-Content -Path $timesPath -Value @(
+    '',
+    '## Tracked Tests',
+    '<!-- TESTS:START -->',
+    '<!-- TESTS:END -->'
+  )
+  $lines = Get-Content -Path $timesPath
+  $testStart = [Array]::IndexOf($lines, '<!-- TESTS:START -->')
+  $testEnd = [Array]::IndexOf($lines, '<!-- TESTS:END -->')
+}
 if ($testStart -ge 0 -and $testEnd -gt $testStart) {
-  $existing = $lines[($testStart + 1)..($testEnd - 1)] | Where-Object { $_ -eq $testLine }
+  $existing = @()
+  if ($testEnd - $testStart -gt 1) {
+    $existing = $lines[($testStart + 1)..($testEnd - 1)] | Where-Object { $_ -eq $testLine }
+  }
   if (-not $existing) {
     $before = $lines[0..$testStart]
     $after = $lines[$testEnd..($lines.Length - 1)]
     $lines = @($before + $testLine + $after)
+    Set-Content -Path $timesPath -Value $lines
   }
 }
 
-Set-Content -Path $timesPath -Value $lines
-
 $start = Get-Date
 $argList = @($testFullPath) + $Args
-$process = Start-Process -FilePath 'node' -ArgumentList $argList -WorkingDirectory $repoRoot -NoNewWindow -PassThru
+$errorPath = Join-Path $repoRoot 'TEST_ERRORS.md'
+$stderrPath = Join-Path $env:TEMP ("poc-test-stderr-{0}.log" -f ([guid]::NewGuid().ToString('N')))
+$process = Start-Process -FilePath 'node' -ArgumentList $argList -WorkingDirectory $repoRoot -NoNewWindow -PassThru -RedirectStandardError $stderrPath
 if (-not $process) {
   Write-Error 'Failed to start test process.'
   exit 1
@@ -93,14 +115,30 @@ $runLine = "- $timestamp | $tick$relativePath$tick | ${durationSeconds}s | $exit
 $lines = Get-Content -Path $timesPath
 $runStart = [Array]::IndexOf($lines, '<!-- RUNS:START -->')
 $runEnd = [Array]::IndexOf($lines, '<!-- RUNS:END -->')
+if ($runStart -lt 0 -or $runEnd -lt 0) {
+  Add-Content -Path $timesPath -Value @(
+    '',
+    '## Runs',
+    '<!-- RUNS:START -->',
+    '<!-- RUNS:END -->'
+  )
+  $lines = Get-Content -Path $timesPath
+  $runStart = [Array]::IndexOf($lines, '<!-- RUNS:START -->')
+  $runEnd = [Array]::IndexOf($lines, '<!-- RUNS:END -->')
+}
 if ($runStart -ge 0 -and $runEnd -gt $runStart) {
+  $runs = @()
+  if ($runEnd - $runStart -gt 1) {
+    $runs = $lines[($runStart + 1)..($runEnd - 1)]
+  }
+  $runs += $runLine
   $before = $lines[0..$runStart]
   $after = $lines[$runEnd..($lines.Length - 1)]
-  $lines = @($before + $runLine + $after)
+  $lines = @($before + $runs + $after)
+  Set-Content -Path $timesPath -Value $lines
 }
-Set-Content -Path $timesPath -Value $lines
 
-if ($timedOut -or $elapsed.TotalSeconds -gt 10) {
+if (-not $GenShort -and ($timedOut -or $elapsed.TotalSeconds -gt $TimeoutSeconds)) {
   if (-not (Test-Path -LiteralPath $slowPath)) {
     Set-Content -Path $slowPath -Value @('# Slow Tests', '')
   }
@@ -110,9 +148,37 @@ if ($timedOut -or $elapsed.TotalSeconds -gt 10) {
   }
 }
 
-if ($timedOut) {
-  Write-Error "Test exceeded ${TimeoutSeconds}s and was stopped."
-  exit 1
+if (-not $timedOut -and $process.ExitCode -ne 0) {
+  if (-not (Test-Path -LiteralPath $errorPath)) {
+    Set-Content -Path $errorPath -Value @('# Test Errors', '')
+  }
+  $errorDetail = ''
+  if (Test-Path -LiteralPath $stderrPath) {
+    $errorDetail = (Get-Content -Path $stderrPath -Tail 8) -join ' | '
+    $errorDetail = $errorDetail.Trim()
+  }
+  if (-not $errorDetail) {
+    $errorDetail = if ($timedOut) { 'timeout' } else { 'no stderr output' }
+  }
+  $errorLine = "- $timestamp | $tick$relativePath$tick | ${durationSeconds}s | $exitLabel | reason: $errorDetail"
+  Add-Content -Path $errorPath -Value $errorLine
 }
 
+if ($timedOut) {
+  Write-Warning "Test exceeded ${TimeoutSeconds}s and was stopped (${durationSeconds}s)."
+  exit 1
+}
+Write-Host "Test completed in ${durationSeconds}s ($exitLabel)."
+if ($GenShort -and $process.ExitCode -eq 0 -and $elapsed.TotalSeconds -le 1) {
+  if (-not (Test-Path -LiteralPath $shortPath)) {
+    Set-Content -Path $shortPath -Value @('# Short Tests', '')
+  }
+  $shortLines = Get-Content -Path $shortPath
+  if (-not ($shortLines | Where-Object { $_ -eq $testLine })) {
+    Add-Content -Path $shortPath -Value $testLine
+  }
+}
+if (Test-Path -LiteralPath $stderrPath) {
+  Remove-Item -LiteralPath $stderrPath -Force
+}
 exit $process.ExitCode

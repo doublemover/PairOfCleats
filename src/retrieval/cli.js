@@ -100,7 +100,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     throw error;
   }
 
-  const jsonOutput = argv.json === true;
+    const jsonOutput = argv.json === true;
+    const jsonCompact = argv.compact === true;
   const rootOverride = options.root ? path.resolve(options.root) : null;
   const rootArg = rootOverride || (argv.repo ? path.resolve(argv.repo) : null);
   const rootDir = getRepoRoot(rootArg);
@@ -597,6 +598,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const payload = renderSearchOutput({
       emitOutput,
       jsonOutput,
+      jsonCompact,
       explain,
       color,
       rootDir,

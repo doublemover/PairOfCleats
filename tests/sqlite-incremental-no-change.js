@@ -123,7 +123,7 @@ const noChangeResult = runCapture(
   'build sqlite index (no change)'
 );
 const noChangeOutput = `${noChangeResult.stdout || ''}\n${noChangeResult.stderr || ''}`;
-if (!noChangeOutput.includes('SQLite indexes updated')) {
+if (!noChangeOutput.toLowerCase().includes('sqlite indexes updated')) {
   console.error('Expected incremental sqlite update output for no-change run.');
   process.exit(1);
 }

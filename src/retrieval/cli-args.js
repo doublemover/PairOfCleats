@@ -28,6 +28,7 @@ export function parseSearchArgs(rawArgs) {
     mode: { type: 'string' },
     top: { type: 'number', default: 5 },
     json: { type: 'boolean', default: false },
+    compact: { type: 'boolean', default: false },
     explain: { type: 'boolean', default: false },
     why: { type: 'boolean', default: false },
     filter: { type: 'string' },
@@ -37,6 +38,16 @@ export function parseSearchArgs(rawArgs) {
     case: { type: 'boolean' },
     'case-file': { type: 'boolean' },
     'case-tokens': { type: 'boolean' },
+    type: { type: 'string' },
+    author: { type: 'string' },
+    import: { type: 'string' },
+    calls: { type: 'string' },
+    uses: { type: 'string' },
+    'chunk-author': { type: 'string' },
+    'modified-after': { type: 'string' },
+    'modified-since': { type: 'string' },
+    risk: { type: 'string' },
+    'risk-tag': { type: 'string' },
     'stub-embeddings': { type: 'boolean' }
   };
 
@@ -63,10 +74,18 @@ export function getSearchUsage() {
     '',
     'Options:',
     '  --repo <path>',
-    '  --mode code|prose|both',
+    '  --mode code|prose|extracted-prose|records|both|all',
     '  --top N',
     '  --json',
+    '  --compact',
     '  --explain',
+    '  --calls',
+    '  --uses',
+    '  --author "<name>"',
+    '  --chunk-author "<name>"',
+    '  --import "<path>"',
+    '  --modified-after <iso-date>',
+    '  --modified-since <days>',
     '  --filter "<expr>"'
   ].join('\n');
 }

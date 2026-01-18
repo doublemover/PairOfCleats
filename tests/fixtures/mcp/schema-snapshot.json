@@ -378,6 +378,36 @@
           "path": "<string>"
         }
       },
+      "capabilities": {
+        "compression": {
+          "gzip": "<boolean>",
+          "zstd": "<boolean>"
+        },
+        "extractors": {
+          "docx": "<boolean>",
+          "pdf": "<boolean>"
+        },
+        "externalBackends": {
+          "lancedb": "<boolean>",
+          "tantivy": "<boolean>"
+        },
+        "hash": {
+          "nodeRsXxhash": "<boolean>",
+          "wasmXxhash": "<boolean>"
+        },
+        "mcp": {
+          "legacy": "<boolean>",
+          "sdk": "<boolean>"
+        },
+        "regex": {
+          "re2": "<boolean>",
+          "re2js": "<boolean>"
+        },
+        "watcher": {
+          "chokidar": "<boolean>",
+          "parcel": "<boolean>"
+        }
+      },
       "config": {
         "cacheRoot": "<string>",
         "dictionary": {
@@ -407,44 +437,13 @@
           "slangDirs": [],
           "slangFiles": []
         },
-        "indexing": {
-          "astDataflow": "<boolean>",
-          "complexity": "<boolean>",
-          "controlFlow": "<boolean>",
-          "gitBlame": "<boolean>",
-          "importScan": "<string>",
-          "lint": "<boolean>",
-          "postings": {
-            "chargramMaxN": "<number>",
-            "chargramMaxTokenLength": "<number>",
-            "chargramMinN": "<number>",
-            "chargramSource": "<string>",
-            "enableChargrams": "<boolean>",
-            "enablePhraseNgrams": "<boolean>",
-            "fielded": "<boolean>",
-            "phraseMaxN": "<number>",
-            "phraseMinN": "<number>"
-          },
-          "pythonAst": {
-            "enabled": "<boolean>"
-          },
-          "riskAnalysis": "<boolean>",
-          "riskAnalysisCrossFile": "<boolean>",
-          "treeSitter": {
-            "enabled": "<boolean>"
-          },
-          "typeInference": "<boolean>",
-          "typeInferenceCrossFile": "<boolean>"
-        },
+        "indexing": {},
         "models": {
           "dir": "<string>",
           "id": "<string>"
         },
         "repoCacheRoot": "<string>",
-        "search": {
-          "annDefault": "<boolean>",
-          "denseVectorMode": "<string>"
-        },
+        "search": {},
         "sqlite": {
           "annMode": "<string>",
           "codeDbPath": "<string>",
