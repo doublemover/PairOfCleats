@@ -1,4 +1,43 @@
 {
+    "swift": {
+    "label": "Swift",
+    "queries": "benchmarks/queries/swift.txt",
+    "repos": {
+      "huge": [
+        "apple/swift"
+      ],
+      "large": [
+        "apple/swift-nio"
+      ],
+      "typical": [
+        "twostraws/simple-swiftui",
+        "Alamofire/Alamofire",
+        "onevcat/Kingfisher"
+      ]
+    }
+  },
+  "clike": {
+    "label": "C / C++ / Objective-C",
+    "queries": "benchmarks/queries/clike.txt",
+    "repos": {
+      "huge": [
+        "opencv/opencv",
+        "llvm/llvm-project",
+        "godotengine/godot"
+      ],
+      "large": [
+        "curl/curl",
+        "redis/redis",
+        "git/git"
+      ],
+      "typical": [
+        "nlohmann/json",
+        "fmtlib/fmt",
+        "gabime/spdlog",
+        "madler/zlib"
+      ]
+    }
+  },
   "lua": {
     "label": "Lua",
     "queries": "benchmarks/queries/lua.txt",
@@ -154,27 +193,6 @@
         "pallets/flask",
         "scikit-learn/scikit-learn",
         "python/cpython"
-      ]
-    }
-  },
-  "swift": {
-    "label": "Swift",
-    "queries": "benchmarks/queries/swift.txt",
-    "repos": {
-      "huge": [
-        "apple/swift"
-      ],
-      "large": [
-        "apple/swift-nio"
-      ],
-      "medium": [
-        "Alamofire/Alamofire"
-      ],
-      "normal": [
-        "onevcat/Kingfisher"
-      ],
-      "tiny": [
-        "twostraws/simple-swiftui"
       ]
     }
   },

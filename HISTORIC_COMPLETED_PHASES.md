@@ -1,2918 +1,4873 @@
+# PairOfCleats Historic Completed Phases
+
+This is where Phases go when Completed Phases gets too long. They are simply appended to the end. 
+
 # Completed phases
 
-# Phase 1 — Truth Alignment, Spec Freeze, and Correctness Harness
+## Phase 1 — Sublime Text 3 Plugin Foundation (Parity + Plumbing)
 
-**Objective:** Establish the authoritative definition of “what the tool does,” then encode it into tests, validations, and reproducible fixtures so every subsequent phase is measurable.
+### 1.1 Plugin repo structure + packaging
 
-## 1.1 Feature truth table (claims → evidence → tests → limitations)
+* [x] Create `sublime/PairOfCleats/` package skeleton:
+  * [x] `PairOfCleats.py` (entrypoint)
+  * [x] `commands/` (command modules)
+  * [x] `lib/` (helpers: config, subprocess, parsing, caching)
+  * [x] `messages/` (install/upgrade notes)
+  * [x] `Default.sublime-commands`
+  * [x] `Main.sublime-menu` (optional)
+  * [x] `Default.sublime-keymap` (optional)
+* [x] Add `README.md` for ST3 plugin installation + prerequisites
+* [x] Add “Package Control” compatibility notes (no external deps beyond Node runtime + repo binaries)
 
-### Dependency guidance (best choices)
-- `ajv` — model the truth table itself as a JSON Schema and **validate it in CI** so the “claims → evidence → tests → limits” ledger can’t silently drift.
-  - Compile schemas once at startup (`new Ajv({ strict: true, allErrors: true })`), not per file/run.
-- `jsonc-parser` — if feature flags or config files are JSONC, use offset-aware parsing (`getLocation`, `parseTree`) so you can attach *precise* diagnostics to a feature claim.
-- `semver` — version every claim bundle and feature gate using semver ranges rather than ad-hoc strings.
+### 1.2 Node/CLI discovery + execution contract
 
-- [x] Build `docs/truth-table.md` that covers:
-  - [x] Build modes: code / prose / records / mixed
-  - [x] Chunking rules (by language and file type)
-  - [x] Tokenization semantics (code vs prose)
-  - [x] Index artifact outputs (memory + sqlite + shard formats)
-  - [x] Search semantics (filters, scoring, explain)
-  - [x] Enrichment outputs (risk, types, relations, git)
-  - [x] Service/API/MCP behavior (contracts, stability expectations)
-- [x] For each claim:
-  - [x] link to implementation module(s)
-  - [x] list configuration toggles
-  - [x] list known limitations / failure modes
-  - [x] identify a fixture-based test that demonstrates it
+* [x] Implement robust “pairofcleats binary discovery”:
+  * [x] Prefer project-local `node_modules/.bin/pairofcleats` when available
+  * [x] Fallback to global `pairofcleats` on PATH
+  * [x] Allow explicit override in ST settings: `pairofcleats_path`
+* [x] Implement repo-root detection:
+  * [x] Prefer `.pairofcleats.json` location
+  * [x] Fallback to `.git` root
+  * [x] Fallback to folder of active file
+* [x] Implement subprocess wrapper:
+  * [x] Streams output to Sublime panel
+  * [x] Captures JSON payloads when `--json` is used
+  * [x] Supports cancellation (best-effort)
+  * [x] Adds stable environment injection (cache root, embeddings mode, etc.)
 
-## 1.2 Acceptance-test fixtures and golden expectations
+### 1.3 Settings + per-project overrides
 
-### Dependency guidance (best choices)
-- `seedrandom` — make all randomized fixture generation deterministic (seed = repo hash + test name), so flaky “random repos” never block correctness gates.
-- `xxhash-wasm` — use fast, stable hashing to derive fixture IDs and to detect unintended fixture drift (hash raw inputs + normalized outputs).
+* [x] Add `PairOfCleats.sublime-settings` defaults:
+  * [x] `pairofcleats_path`, `node_path`
+  * [x] `index_mode_default` (code/prose/both)
+  * [x] `search_backend_default` (memory/sqlite-fts/etc)
+  * [x] `open_results_in` (quick_panel / new_tab / output_panel)
+* [x] Support `.sublime-project` settings overrides
+* [x] Validate config and surface actionable error messages
 
-- [x] Add fixture repos representing:
-  - [x] small: <1k files mixed code/prose
-  - [x] medium: 5k–50k files with mixed languages
-  - [x] multi-language mixed-file repo (HTML+JS+CSS, markdown code fences, etc)
-- [x] Define “must-hit” retrieval assertions:
-  - [x] symbol lookup (name/kind)
-  - [x] structural filters (e.g., `--kind`, `--signature`, `--decorator`)
-  - [x] risk filter behavior (even if basic initially)
-  - [x] type inference visibility (even if minimal initially)
+### 1.4 Smoke tests (plugin-side)
 
-## 1.3 Tool invocation correctness (install-root vs repo-root)
-
-### Dependency guidance (best choices)
-- `execa` — standardize all subprocess calls (git, node, pnpm) with robust quoting, streaming output capture, timeouts, and non-throwing exit handling.
-  - Prefer `reject: false` and check `exitCode` explicitly; capture `stdout`, `stderr`, and combined `all` output.
-- `semver` — validate runtime/tool versions (Node, npm/pnpm, optional native deps) and emit actionable errors early.
-
-- [x] Implement and require a single resolver:
-  - [x] `resolveToolRoot()` (ESM-safe, based on `import.meta.url`)
-  - [x] `resolveRepoRoot()` (explicit > inferred; deterministic)
-- [x] Convert *all* scripts that spawn other scripts/tools to use toolRoot resolution.
-- [x] Add tests that run commands from a directory **outside** repoRoot.
-
-## 1.4 Determinism and reproducibility baseline
-
-### Dependency guidance (best choices)
-- `seedrandom` — seed any randomized ordering (file traversal, shard selection, benchmark query generation).
-- `xxhash-wasm` — deterministic hashing for chunk IDs and segment IDs; avoid crypto hashes unless explicitly required.
-- `msgpackr` — if you snapshot intermediate artifacts for determinism tests, prefer MsgPack for speed and stable binary outputs.
-
-- [x] Ensure build artifacts include:
-  - [x] tool version, node version, OS, effective config hash
-  - [x] repo provenance (git commit + dirty flag when available)
-- [x] Establish a deterministic test mode:
-  - [x] deterministic embedding stub (by default in tests)
-  - [x] deterministic ordering everywhere (files, shards, chunk IDs)
-
-**Deliverables**
-- `docs/truth-table.md`
-- fixture repos + goldens
-- installed-package E2E test suite
-
-**Exit criteria**
-- Tier-1 E2E tests pass reliably (Linux) and are reproducible locally.
-- “Truth table” coverage: every user-visible feature claim has a test or explicit limitation.
+* [x] Add Python unit tests that:
+  * [x] Import plugin modules without Sublime runtime (mock `sublime`, `sublime_plugin`)
+  * [x] Validate binary discovery behavior
+  * [x] Validate repo-root resolution on fixtures
+  * [x] Validate settings overlay precedence
 
 ---
 
-# Phase 2 — Artifact Contracts, Metadata Schema v2, and Atomic Build Durability
+## Phase 17 — Hashing performance: optional native xxhash (`@node-rs/xxhash`) with `xxhash-wasm` fallback
 
-**Objective:** Make artifacts and metadata self-describing, versioned, validated, and crash-safe.
+### 17.1 Add dependency + unify backend contract
 
-## 2.1 Artifact contract (schema + invariants)
+* [x] Add `@node-rs/xxhash` as optional dependency (or hard dep if you accept platform constraints)
+* [x] Create `src/shared/hash/xxhash-backend.js`:
+  * [x] `hash64(buffer|string) -> hex16` (exact output format must match existing `checksumString()` + `checksumFile()`)
+  * [x] `hash64Stream(readable) -> hex16` (if supported; otherwise implement chunking in JS)
+* [x] Update `src/shared/hash.js`:
+  * [x] Keep `sha1()` unchanged
+  * [x] Route `checksumString()` / `checksumFile()` through the backend contract
+  * [x] Preserve deterministic formatting (`formatXxhashHex`)
 
-### Dependency guidance (best choices)
-- `ajv` — enforce artifact schema invariants (index file, shard manifests, metadata v2, benchmark outputs) as a hard gate.
-  - Consider Ajv standalone validation for hot-path validation during large builds (generate validators once).
-- `msgpackr` — use for compact, fast serialization of intermediate shard artifacts (especially metadata-rich chunks).
-  - Prefer a versioned envelope (magic bytes + schema version + codec version) so upgrades are safe.
-- `fflate` — compress large artifacts (shards, posting lists) with streaming APIs to avoid event-loop stalls.
-- `xxhash-wasm` — compute stable content hashes and IDs efficiently; cache initialized WASM instance and reuse.
-- `roaring-wasm` (optional but high ROI) — represent posting lists and large ID sets as compressed bitmaps for fast intersection/union.
-  - Explicitly call `dispose()` on bitmaps to avoid WASM memory growth.
-- `better-sqlite3` — if SQLite is a backend, standardize on prepared statements + WAL mode + transactional writes for durability.
-- `lmdb` (optional) — consider as an alternative backend for very high write throughput; gate behind optional dependency/feature flag (install friction).
+### 17.2 Introduce selector + telemetry
 
-- [x] Define/refresh `docs/artifact-contract.md`:
-  - [x] every artifact file + format + version
-  - [x] required fields + optional fields
-  - [x] invariants (cross-artifact) and validation rules
-- [x] Strengthen `tools/index-validate`:
-  - [x] schema validation per artifact
-  - [x] cross checks: chunk IDs, file references, postings references, embedding references
-  - [x] human remediation hints for each failure class
+* [x] Add `PAIROFCLEATS_XXHASH_BACKEND=auto|native|wasm`
+* [x] Emit backend choice in verbose logs (once)
 
-## 2.2 **Metadata schema v2** (rich per-chunk metadata contract)
+### 17.3 Tests
 
-### Dependency guidance (best choices)
-- `ajv` — treat **Metadata Schema v2** as the canonical contract.
-  - Encode “required when …” rules as schema + additional runtime checks (Ajv can’t express every cross-field invariant cleanly).
-- `semver` — version metadata schema independently from the index container version; negotiate reader compatibility.
-
-This is the foundation for advanced rich metadata, risk flows, and type inference.
-
-- [x] Create `docs/metadata-schema-v2.md` defining:
-  - [x] stable core: `chunkId`, `file`, `segment`, `range`, `lang`, `ext`, `kind`, `name`
-  - [x] provenance: `generatedBy`, `tooling`, `parser`, versions
-  - [x] doc metadata: signature, docstring/doc-comments, annotations, decorators/attributes
-  - [x] control-flow summary: branches/loops/returns/throws/awaits/async/generator
-  - [x] dataflow summary: reads/writes/mutates/aliases (local first; later cross-file)
-  - [x] dependencies: imports, referenced modules, includes
-  - [x] risk metadata: sources/sinks/sanitizers/flows (+ confidence)
-  - [x] type metadata: declared/inferred/tooling (+ confidence)
-  - [x] embedded metadata: segment parent, embedded language, embedding context
-- [x] Define compatibility rules with existing `docmeta`:
-  - [x] migration mapping from current fields to v2 fields
-  - [x] deprecation schedule for legacy keys
-
-## 2.3 Atomic build and “current” pointer
-
-### Dependency guidance (best choices)
-- `better-sqlite3` — implement “current pointer” and multi-stage build state updates as **atomic transactions**.
-  - Use WAL journaling; keep write transactions short and bounded.
-- `fflate` — if “current pointer” points at compressed shard bundles, stream compress/decompress rather than buffering whole bundles.
-
-- [x] Build to staging directory `builds/<buildId>/...` (default format: `YYYYMMDDTHHMMSSZ_<gitShortSha|nogit>_<configHash8>`)
-- [x] Validate staging artifacts before promoting to “current”
-- [x] Ensure readers never see partial outputs:
-  - [x] atomic rename/swap semantics
-  - [x] sqlite temp file + rename
-  - [x] shard manifest atomicity
-
-## 2.4 Durable state machine for multi-stage builds
-
-### Dependency guidance (best choices)
-- `better-sqlite3` / `lmdb` — persist the build state machine (stage, shard progress, error ledger, tool versions, input manifest hashes) in a durable store.
-  - Prefer append-only event logs + periodic snapshots rather than in-place mutation only.
-- `pino` — log state transitions as structured events (runId, shardId, stage, timings, error category).
-- `prom-client` — expose state machine counters/histograms for throughput and failure rates (per stage, per language).
-
-- [x] Create a build state model with explicit phases:
-  - [x] discovery → preprocessing → stage1 → stage2 → stage3 → validation → promote
-- [x] Ensure stage2/stage3 jobs cannot remain “running forever”:
-  - [x] heartbeat timestamps: persist `lastHeartbeatAt` every **30s** while a job is `running`
-  - [x] stale job detection: consider a job stale if `now - lastHeartbeatAt` exceeds:
-    - [x] **10 minutes** for stage2 (enrichment; mostly CPU + local IO)
-    - [x] **15 minutes** for stage3 (embeddings; can be longer-running, but heartbeat is independent of work duration)
-  - [x] recovery policy: mark stale jobs as `failed` and re-queue up to **2 retries** (default) with exponential backoff (**2m**, **10m**)
-  - [x] resumable checkpoints: persist progress at least every **1,000 files** or **120 seconds** (whichever comes first)
-
-**Deliverables**
-- `docs/artifact-contract.md`
-- `docs/metadata-schema-v2.md`
-- hardened `index-validate`
-- atomic build/promotion implementation + tests
+* [x] Add `tests/xxhash-backends.js`:
+  * [x] Assert `checksumString('abc')` matches a known baseline (record from current implementation)
+  * [x] Assert `checksumFile()` matches `checksumString()` on same content (via temp file)
+  * [x] If native backend is available, assert native and wasm match exactly
+  * [x] If native is missing, ensure test still passes (skips “native parity” block)
+* [x] Add script-coverage action(s)
 
 **Exit criteria**
-- Killing the process mid-build never corrupts last-known-good index.
-- Any index can be validated deterministically; schema v2 is published and enforced.
+
+* [x] No change to bundle identity semantics (incremental cache stability)
+* [x] `checksumFile()` remains bounded-memory for large files (streaming or chunked reads)
 
 ---
 
-# Phase 3 — Generalized Hybrid Chunking and Prose Extraction (Correctness)
 
-**Objective:** Make file segmentation and chunking correct for real-world mixed files (embedded languages) and ensure comments are consistently extracted and searchable as prose when desired.
+## Phase 2 — Sublime Search UX (Queries, Results, Navigation)
 
-## 3.1 Introduce a **SegmentedDocument** pipeline
+### 2.1 Search command(s)
 
-### Dependency guidance (best choices)
-- `file-type` + `istextorbinary` — aggressively avoid parsing binaries; detect via magic bytes first, then fallback heuristics.
-- `chardet` + `iconv-lite` — only attempt encoding detection/decoding when UTF-8 decoding fails; preserve byte offsets by tracking decoding strategy.
-- `fdir` — fast directory traversal (significantly faster than naive `fs.readdir` recursion).
-- `ignore` — implement `.gitignore` semantics correctly (and cache per-directory ignore matchers).
-- `picomatch` — precompile include/exclude globs for the segment discovery pre-pass (don’t recompile per file).
-- `linguist-languages` — unify extension → languageId mapping, but keep project overrides (repo-local config) higher priority.
+* [x] `PairOfCleats: Search` command:
+  * [x] Prompt input panel for query
+  * [x] Optional toggles: code/prose/both, backend, limit
+  * [x] Execute `pairofcleats search ... --json`
+* [x] `PairOfCleats: Search Selection` command:
+  * [x] Uses selected text as query
+* [x] `PairOfCleats: Search Symbol Under Cursor` command
 
-- [x] Define a new internal representation:
-  - [x] `FileDocument { file, bytes, text, ext, langHint }`
-  - [x] `Segment { segmentId, type: code|prose|config|comment|embedded, languageId, start, end, parentSegmentId?, meta }`
-  - [x] `Chunk { chunkId, segmentId, start, end, name, kind, metaV2 }`
-- [x] Replace “single chunker per file” with:
-  1) segment discovery
-  2) per-segment chunking
-  3) chunk merging + stable ordering + overlap rules
+### 2.2 Results presentation
 
-## 3.2 Mixed-file support coverage (beyond HTML)
+* [x] Quick panel results:
+  * [x] Show `file:line-range`, symbol name, snippet/headline, score
+  * [x] Preserve stable ordering for repeatability
+* [x] On selection:
+  * [x] Open file at best-effort location (line/column)
+  * [x] Highlight match range (if available)
+* [x] Add optional “results buffer” view (for large result sets)
 
-### Dependency guidance (best choices)
-- Markdown / MDX / prose containers:
-  - `micromark` — extract **exact byte ranges** of headings, paragraphs, and fenced code blocks (language from info string).
-  - `yaml` + `smol-toml` + `jsonc-parser` — parse frontmatter blocks into config segments with node/range provenance.
-  - `@mdx-js/mdx` — for MDX, compile with plugins disabled by default; enable remark/rehype plugins only when requested (performance).
-- Web component containers:
-  - `@vue/compiler-sfc` — use `parse()` to get descriptor blocks and their `loc`/range; treat template/script/style as segments and preserve ordering.
-  - `svelte` — use compiler `parse()`; extract `<script>`/`<style>`/markup regions via node ranges.
-  - `@astrojs/compiler` — parse frontmatter and template; treat embedded scripts/styles as segments with correct languageId.
-- Infrastructure / config / DSL:
-  - `dockerfile-ast` — parse Dockerfile into instruction nodes; keep comments and continuations intact.
-  - `fast-xml-parser` — parse XML with `preserveOrder` when positional/ordering matters for chunk boundaries.
-  - `graphql` — use `parse()` + `visit()` to extract definitions and references with location mapping.
-  - `protobufjs` — parse `.proto` to reflection model for symbol metadata and cross-file references.
-- Templates:
-  - `@handlebars/parser` — parse templates into AST to extract helpers/partials and embedded JS-like expressions as metadata.
-  - `nunjucks` — prefer API-supported parsing paths (custom tags expose parser API); treat templates as prose+embedded expressions if full AST isn’t stable.
+### 2.3 Quality-of-life UX
 
-Implement segment discovery + chunking for at least:
+* [x] Query history (per project)
+* [x] “Repeat last search” command
+* [x] “Explain search” (if supported by CLI flags / internal explain output)
 
-- [x] Markdown/RST/AsciiDoc:
-  - [x] heading segments (existing)
-  - [x] fenced code blocks (```lang) as **embedded code segments**
-  - [x] inline code spans as optional micro-segments (configurable; concrete defaults):
-    - [x] `indexing.segments.inlineCodeSpans = false` (default)
-    - [x] if enabled: only emit spans with **≥ 8** non-whitespace characters
-    - [x] per-file caps: **≤ 200** spans AND **≤ 64 KiB** total inline-code bytes (truncate beyond cap)
-  - [x] frontmatter blocks (YAML/TOML/JSON) as **config segments**
-- [x] Web components and template containers:
-  - [x] `.vue` (template/script/style)
-  - [x] `.svelte` (script/style/template)
-  - [x] `.astro` (frontmatter + template + style)
-- [x] “HTML inside other languages” baseline:
-  - [x] JSX/TSX: treat JSX regions as embedded markup segments (at least for metadata; chunk boundaries already exist)
-- [x] JSON/YAML embedded inside comments or strings (best-effort):
-  - [x] detect fenced blocks in comments/docstrings tagged `json`, `yaml`, `toml`
-  - [x] treat them as embedded config segments if parseable
+### 2.4 Tests
 
-## 3.3 Comment extraction as first-class segments
-
-### Dependency guidance (best choices)
-- `@es-joy/jsdoccomment` — parse JSDoc blocks into structured AST; preserve descriptions as prose segments and tags/types as metadata.
-  - Use `commentParserToESTree` when you need type expressions and tags integrated into an ESTree-like form.
-- `jsdoc-type-pratt-parser` — parse complex JSDoc type expressions into AST; store both raw and normalized forms.
-- `@typescript-eslint/typescript-estree` — for JS/TS, enable comment/tokens output to reliably extract all comments with ranges.
-  - Prefer a non-type-aware parse for comment extraction (fast path), and only enable type-aware mode in Phase 4 when needed.
-
-- [x] Implement a comment extraction layer per language:
-  - [x] doc comments (existing behavior) as `comment:doc`
-  - [x] inline comments (optional, configurable) as `comment:inline`
-  - [x] block comments as `comment:block`
-  - [x] license/header comments as `comment:license` (default: **extract but do not index**; searchable only when explicitly enabled)
-- [x] Each comment segment must record:
-  - [x] original language + comment style
-  - [x] byte range and line range
-  - [x] nearest symbol anchor (chunkId) when linkable
-- [x] Add config toggles (with concrete defaults):
-  - [x] `indexing.comments.extract = off|doc|all` (default: `doc`)
-  - [x] `indexing.comments.includeLicense = false` (default; when false, emit `comment:license` segments but exclude from term postings)
-  - [x] minimum length thresholds (defaults):
-    - [x] doc comments: **≥ 15** non-whitespace characters after stripping markers
-    - [x] inline/block comments: **≥ 30** non-whitespace characters after stripping markers
-    - [x] after normalization/tokenization: **≥ 5** prose tokens (otherwise drop)
-  - [x] skip patterns (defaults enabled; configurable allow/deny lists):
-    - [x] license/header detector: if a comment is within the first **200 lines** and matches `copyright|license|spdx|apache|mit|gpl|bsd`
-    - [x] generated detector: matches `generated by|do not edit|@generated|autogenerated`
-    - [x] linter-noise detector: matches `eslint-disable|prettier-ignore|noinspection`
-
-## 3.4 Prose-index strategy for comments and extracted prose
-
-### Dependency guidance (best choices)
-- `micromark` — for comment-prose indexing, treat fenced blocks inside comments/docstrings similarly to markdown fenced blocks.
-- `lru-cache` — cache comment-prose normalization and snippet generation (bounded by sizeCalculation + TTL).
-- `msgpackr` — if you create a dedicated prose index, serialize it separately with a small, versioned envelope for fast load/unload.
-
-Two supported options (choose one as default, keep the other as optional):
-
-**Option A — Separate “extracted-prose” index (recommended for clarity)**
-  - [x] Build a distinct index mode: `mode=extracted-prose`
-  - [x] Store comment segments + extracted prose blocks (frontmatter, docstrings, etc.)
-  - [x] Use **prose tokenization** (stemming/stopwords) for these segments
-  - [x] Search tool can query `code`, `prose`, and `extracted-prose` and fuse (RRF)
-
-**Option B — Fielded indexing inside code chunks (DEFAULT)**
-- [x] Keep a single code chunk and index comment-prose as a **separate field**:
-  - [x] add `fieldTokens.comment` (normalized prose tokens from extracted inline/block comments)
-  - [x] keep doc comments in `fieldTokens.doc` (existing behavior)
-  - [x] store raw comment snippets in `docmeta.comments[]` for explain/snippet (not tokenized)
-- [x] Default caps (configurable):
-  - [x] max **5** comment segments per chunk (nearest-to-symbol first)
-  - [x] max **8 KiB** total raw comment bytes per chunk (truncate + note `truncated=true`)
-- [x] Default scoring weights (BM25 field weights; overrideable via `search.fieldWeights`):
-  - [x] code intent: `comment=0.6`
-  - [x] prose intent: `comment=1.8`
-  - [x] mixed intent: `comment=1.2`
-  - [x] path intent: `comment=0.4`
-
-## 3.5 Correctness tests for segmentation and hybrid chunking
-
-### Dependency guidance (best choices)
-- `seedrandom` — generate stress fixtures deterministically (random mixed-language embedding + comment fences).
-- `ajv` — validate that segmentation outputs comply with `SegmentedDocument` + metadata v2 schema before indexing.
-
-- [x] Fixture files covering:
-  - [x] HTML with script/style blocks (existing) + nested code/pre
-  - [x] markdown with multiple fenced blocks + frontmatter
-  - [x] Vue/Svelte/Astro files
-  - [x] mixed json-in-comments (doc blocks)
-- [x] Assert:
-  - [x] segment boundaries correct (byte + line ranges)
-  - [x] chunk boundaries correct (no overlaps unless explicitly allowed)
-  - [x] embedded language detection correct enough (by tag/fence/lang attr)
-  - [x] comment segments extracted according to config
-
-**Deliverables**
-- SegmentedDocument pipeline + segment discovery implementations
-- comment extraction engine + config
-- either “extracted-prose index” or fielded comment-prose indexing (or both, with a default)
-- fixtures + tests
-
-**Exit criteria**
-- Mixed-language fixtures chunk correctly with stable IDs and validated invariants.
-- Comments become searchable as prose **via the code-chunk `comment` field (Option B, default)**; extracted-prose mode remains optional, and both are validated by tests when enabled.
+* [x] Add Node-level “search contract” tests:
+  * [x] Ensure `--json` output parseability and required fields
+* [x] Add plugin tests:
+  * [x] Search command dispatches correct subprocess args
+  * [x] Results parsing tolerates partial/missing optional fields
 
 ---
 
-# Phase 4 — Advanced Rich Metadata, Advanced Risk Analysis, and Advanced Type Inference
 
-**Objective:** Fully implement advanced versions of:
-1) rich per-chunk metadata,
-2) risk analysis (sources/sinks/flows), and
-3) type inference,
-with explicit provenance, confidence scoring, and testable correctness.
+## Phase 3 — Index Lifecycle in Sublime (Build/Watch/Validate + Status)
 
-## 4.1 Rich metadata per chunk (schema v2 compliance)
+### 3.1 Build index commands
 
-### Dependency guidance (best choices)
-- JS/TS structural metadata:
-  - `@swc/core` — preferred for high-throughput parsing to AST (Rust); use when native deps are allowed and install is stable for your targets.
-  - `typescript` — use compiler API for type-aware metadata (Program/TypeChecker); cache Programs per tsconfig.
-  - `@typescript-eslint/typescript-estree` — when you need ESTree compatibility + TS node services; keep config minimal for speed.
-  - `@babel/traverse` — traverse JS/TS ASTs for symbol extraction, call graphs, and reference collection.
-  - `eslint/js` — derive lexical scopes/variable bindings (useful for risk analysis + metadata).
-  - `esquery` — allow declarative AST queries for “extractor rules” without writing custom visitors.
-- Data structure speedups:
-  - `roaring-wasm` — store large sets of symbol IDs, callsites, and references compactly with fast set ops.
-  - `xxhash-wasm` — hash AST node signatures and normalized identifiers for stable IDs.
+* [x] `PairOfCleats: Index Build (Code)`
+* [x] `PairOfCleats: Index Build (Prose)`
+* [x] `PairOfCleats: Index Build (All)`
+* [x] Stream progress to an output panel
+* [x] Persist “last index time” + “last index mode” in project cache
 
+### 3.2 Watch mode integration
 
-## 4.2 Advanced **risk analysis**: sources / sinks / sanitizers / flows
+* [x] `PairOfCleats: Index Watch Start`
+* [x] `PairOfCleats: Index Watch Stop`
+* [x] Prevent duplicate watchers per window/project
+* [x] Robust shutdown on Sublime exit / project close
 
-### Dependency guidance (best choices)
-- `@ast-grep/napi` — implement rule packs for sources/sinks/sanitizers using structural patterns (AST-level matching).
-  - Use the JS API for integration; keep rule packs versioned and testable.
-- `re2js` — use for user-supplied or configurable regex rules to avoid ReDoS in large repos.
-- `aho-corasick` — accelerate “dictionary style” scanning (many fixed tokens like sink names, env var keys, SQL APIs) before expensive AST passes.
-- `graphology` — represent flows as graphs (nodes = symbols/expressions/files; edges = dataflow/callflow/import).
-  - Use traversal + shortest-path utilities for explainable flow paths.
-- `roaring-wasm` — represent taint sets and reachability sets efficiently; union/intersection are hot-path ops for flows.
+### 3.3 Validate + repair affordances
 
-The current regex-based “sources × sinks” cartesian product is a useful baseline, but not advanced.
+* [x] `PairOfCleats: Index Validate`
+* [x] Surface actionable failures (missing artifacts, invalid JSON, stale manifests)
+* [x] Provide “Open index directory” convenience command
 
-### 4.2.1 Risk rule system
+### 3.4 Tests
 
-### 4.2.2 Intra-procedural taint/dataflow (per chunk/function scope)
-
-### 4.2.3 Inter-procedural flows (within file, then cross-file)
-
-### 4.2.4 Risk metadata outputs
-
-## 4.3 Advanced **type inference** (local + cross-file + tooling)
-
-### Dependency guidance (best choices)
-- `typescript` — primary for TS/JS type inference when a tsconfig exists; extract types with provenance (source, inferred, any/unknown).
-  - Prefer incremental Programs (or reuse) rather than re-creating per file.
-- `pyright` — primary for Python static typing; run via CLI with `--outputjson` for machine-readable results.
-  - Cache pyright environment resolution per repo; treat missing stubs as low-confidence types.
-- `protobufjs` — leverage schema-defined types for `.proto` files and for generated-code correlation when present.
-
-### 4.3.1 Local type extraction upgrades
-
-
-### 4.3.2 Cross-file inference engine
-
-### 4.3.3 Tooling integration hardening (LSP and language servers)
-
-### 4.3.4 Output schema and search integration
-
-**Deliverables**
-- [x] `docs/risk-rules.md` + risk rules bundle format
-- [x] advanced risk engine (local → file → cross-file)
-- [x] advanced type inference engine (local + cross-file + tooling)
-- [x] v2 metadata completeness across core languages
-- [x] fixtures and goldens for risk/types correctness
-
-**Exit criteria**
-- [x] Risk flows and type inference are correct on fixtures with documented conservative limitations.
-- [x] `index-validate` can validate risk/type metadata invariants.
-- [x] Enrichment never crashes indexing; it degrades gracefully with actionable logs.
+* [x] Node tests for index build/validate on fixtures
+* [x] Plugin tests for lifecycle commands and watcher gating
 
 ---
 
-# Phase 5 — Search Correctness, Parity, and Index Benchmarking Suite
 
-**Objective:** Guarantee that search semantics are correct, explainable, and stable across backends, and add an index-evaluation tool that can auto-generate benchmark queries (10–100+ configurable) that exercise flags.
+## Phase 4 — Codebase Semantic Map (Imports/Exports/Calls/Dataflow/Control Flow → Visual Map)
 
-## 5.1 Search contract and explainability
+### What this phase delivers
 
-### Dependency guidance (best choices)
-- `roaring-wasm` — implement fast boolean retrieval operators (AND/OR/NOT) over postings; this underpins correctness + speed.
-- `lru-cache` — query-result caching (per query plan signature); enforce size/TTL to prevent runaway memory.
-- `msgpackr` — persist query plans and explain traces for debugging/benchmark replay.
+A **real codebase map** that uses existing and enriched semantic metadata to generate a **diagram-ready model** and one or more **rendered artifacts**.
 
-- [x] Define `docs/search-contract.md`:
-  - [x] ranking components and weights
-  - [x] filter semantics and precedence rules
-  - [x] how multi-mode results are fused (RRF rules)
-  - [x] how metadata fields impact scoring and filtering
-- [x] Implement a single explain schema across backends:
-  - [x] lexical score components
-  - [x] semantic score components
-  - [x] filter decisions
-  - [x] metadata boosts
+It must explicitly incorporate and visualize:
 
-## 5.2 Backend parity as a gate (memory vs sqlite vs sqlite-fts)
+* **Imports / Exports / ImportLinks**
+* **Calls / CallLinks / CallSummaries**
+* **Usages / UsageLinks**
+* **Signature / Modifiers / Params / Returns**
+* **Reads / Writes / Mutates / Aliases**
+* **Control flow** (branches, loops, throws, awaits, yields, returns)
+* **AST-derived semantics** (using what the indexer already extracts)
 
-### Dependency guidance (best choices)
-- `better-sqlite3` — SQLite backend parity testing: ensure identical semantics vs in-memory index.
-- `lmdb` (optional) — if introduced as an alternate backend, add parity tests against SQLite and in-memory.
+#### Visual grammar (required characteristics)
 
-- [x] Define parity thresholds (concrete defaults; `K=5`):
-  - [x] Gate policy (concrete default):
-    - [x] memory vs sqlite: **blocking** (fails CI)
-    - [x] memory vs sqlite-fts: **non-blocking warning** (until the backend is promoted from experimental)
-  - [x] Parity scoring rule (concrete default):
-    - [x] if both backends return **0 hits** for a given query+mode, treat `overlap@K = 1.0` and exclude that query+mode from `rankCorr` averaging
-  - [x] memory vs sqlite (primary backend; blocking):
-    - [x] `overlap@5` average **≥ 0.95** (code and prose evaluated separately)
-    - [x] Spearman `rankCorr` average **≥ 0.90**
-    - [x] `avgDelta` average **≤ 0.10**
-    - [x] no single query with `overlap@5 < 0.60`
-  - [x] memory vs sqlite-fts (experimental backend; warning-only):
-    - [x] `overlap@5` average **≥ 0.70**
-    - [x] Spearman `rankCorr` average **≥ 0.55**
-    - [x] `avgDelta` average **≤ 0.50**
-- [x] Create parity debug tooling:
-  - [x] compare component-level scoring
-  - [x] diff filters and metadata interpretation
+* **File = outer shape**
 
-## 5.3 **Index evaluator + benchmark query generator** (new)
+  * Shape varies by file type/category (source/test/config/doc/generated/etc.)
+* **Functions/classes = content inside the file shape**
 
-### Dependency guidance (best choices)
-- `tinybench` — microbench harness for parsing, chunking, indexing, and query operators (configurable runs, warmups).
-- `hdr-histogram-js` — capture latency distributions (p50/p95/p99) across repeated queries and builds.
-- `seedrandom` — deterministic benchmark query generation (seeded by index hash + config).
-- `prom-client` — export benchmark metrics for dashboards/CI regression gates (histograms + counters).
-- `@vscode/ripgrep` — baseline external comparator for lexical search latency + correctness on the same corpora.
+  * The “fill” of the file node is structurally subdivided to represent contained functions/classes
+* **Function details = nested sub-shapes inside function area**
 
-This is the requested capability.
+  * Small badges/segments represent modifiers/returns/dataflow/control-flow
+* **Multiple line styles = multiple edge semantics**
 
-- [x] Implement benchmark query generator + runner (`tools/bench-query-generator.js`, `tests/bench.js`):
-  - Inputs:
-    - [x] index path (or repoRoot)
-    - [x] number of queries (10–1000)
-    - [x] random seed
-    - [x] coverage targets (ensure flags are exercised)
-  - Index analysis step:
-    - [x] sample symbols by language/kind
-    - [x] sample files by ext/size
-    - [x] sample metadata values (decorators, risk tags, types, visibility, imports)
-  - Query generation step:
-    - [x] generate a mixed set:
-      - [x] “name lookup” queries (symbol exact-ish)
-      - [x] “natural language” queries
-      - [x] filters-heavy queries exercising flags:
-        - [x] `--lang`, `--ext`, `--file`, `--kind`
-        - [x] `--calls`, `--uses`, `--reads`, `--writes`, `--mutates`, `--awaits`
-        - [x] `--decorator`, `--signature`, `--param`, `--return-type`, `--inferred-type`
-        - [x] `--risk`, `--min-risk-score` (or equivalent), flow existence filters
-        - [x] `--modified-after`, `--author`, churn filters (where available)
-      - [x] backend toggles:
-        - [x] memory vs sqlite vs sqlite-fts
-        - [x] ann on/off
-        - [x] rrf/mrr/mmr toggles where available
-    - [x] ensure at least `N = max(10, ceil(0.25 * queryCount))` queries include **multiple flags simultaneously**
-  - Execution step:
-    - [x] run the search CLI/core search with each query
-    - [x] capture latency, candidate counts, and topK stability
-  - Report step:
-    - [x] JSON report + optional markdown summary
-    - [x] per-flag coverage report (“did we exercise X?”)
-
-- [x] Integrate into CI (smoke-level) and perf pipelines (tiered).
-
-**Deliverables**
-- [x] `docs/search-contract.md`
-- [x] unified explain schema and parity tools
-- [x] index benchmark suite generator + runner + reports
-- [x] CI gate that runs a small benchmark suite on fixtures
-
-**Exit criteria**
-- [x] Search parity gates are green for fixtures.
-- [x] Benchmark suite can generate and run 10–100+ flag-rich queries and produce a report deterministically.
+  * Imports (file→file), control flow calls (fn→fn), usage deps (fn→fn), dataflow (arg/return/state)
 
 ---
 
-# Phase 6 — Throughput Engineering: Sharding, Worker Pools, Parallelism, WASM Parsing Acceleration
+### 4.1 Inventory + normalize available semantics from existing artifacts
 
-**Objective:** After correctness gates are met, maximize build throughput and stability by making sharding metric-driven, tuning concurrency, improving pre-pass leverage, and accelerating language parsing (especially tree-sitter WASM).
+Leverage what is already produced today, and formalize how it’s consumed:
 
-## 6.1 Metric-driven sharding (time-equalized shards)
+* [x] **Inputs** (expected present after `index build`):
 
-### Dependency guidance (best choices)
-- Shard planner algorithm (default): **LPT greedy bin packing** (Longest-Processing-Time first; implement in-house, no new dependency).
-- `xxhash-wasm` — stable file identity + content hash used to reuse prior throughput measurements safely across runs.
-- `hdr-histogram-js` — maintain per-language/per-extension throughput distributions to inform shard planning.
-
-### 6.1.1 Collect throughput metrics
-- [x] During builds, record per-language performance:
-  - [x] files/sec, lines/sec, bytes/sec
-  - [x] parse time (chunking + relations)
-  - [x] tokenization time
-  - [x] stage2/3/x enrichment time
-- [x] Persist a “perf profile” artifact:
-  - [x] per language + file-size bucket cost model
-  - [x] versioned and tied to config hash
-
-### 6.1.2 Shard planning with a cost model
-- [x] Replace line-count-only shard sizing with estimated time cost:
-  - [x] cost(file) = overhead(lang) + bytes * byteCost(lang) + lines * lineCost(lang)
-  - [x] modifiers for enabled features (relations/flow/tree-sitter/tooling)
-- [x] Implement bin-packing / greedy balancing to minimize shard makespan
-- [x] Support constraints:
-  - [x] preserve directory locality (optional; default: off; for cache locality)
-  - [x] cap max shard size by bytes/lines (defaults): **maxShardBytes = 64 MiB**, **maxShardLines = 200,000**
-- [x] At runtime:
-  - [x] adaptively rebalance when early shards show different throughput than predicted
-
-## 6.2 Worker pool correctness + Windows reliability hard gate
-
-### Dependency guidance (best choices)
-- `piscina` — standardize on Piscina for worker pools (robust scheduling, backpressure, worker lifecycle controls).
-  - Prefer transferable objects (ArrayBuffer) or SharedArrayBuffer for large payloads; avoid structured-clone of huge JSON.
-  - Validate Windows paths/URLs for worker entrypoints (`file://` URLs where needed).
-- `pino` — log worker lifecycle events and crashes with shard context; ensure uncaught exceptions are attributed to a shard + stage.
-
-- [x] Explicitly cap default worker counts (concrete defaults):
-  - [x] `fileConcurrency = min(cpuCount, 16)` (Windows: `min(cpuCount, 8)`)
-  - [x] `cpuConcurrency = fileConcurrency` (avoid CPU oversubscription by default)
-  - [x] `ioConcurrency = min(64, fileConcurrency * 4)` (Windows: `min(32, fileConcurrency * 4)`)
-  - [x] `workerPool.maxWorkers = min(8, fileConcurrency)` (default), and hard-cap at **16** unless explicitly overridden
-  - [x] `indexing.pythonAst.maxWorkers = min(4, fileConcurrency)` (default), and hard-cap at **8** unless explicitly overridden
-- [x] Add Windows-specific CI and stress tests:
-  - [x] worker pool creation, restart, and shutdown
-  - [x] long runs with many small tasks
-  - [x] path length + spaces + unicode paths
-- [x] Improve worker crash reporting:
-  - [x] capture error class, message, stack, serialized “cause” chain
-  - [x] include task context (file, ext, size, mode) on failure
-- [x] Consider splitting pools by task type:
-  - [x] tokenization pool
-  - [x] parsing pool (tree-sitter/Babel/TS)
-  - [x] quantization pool
-  - [x] avoid contention and reduce restart blast radius
-
-## 6.3 Parallelism and pipeline refactors (architectural changes allowed)
-
-### Dependency guidance (best choices)
-- `piscina` — use a single pool per stage (or per workload class) with explicit concurrency limits; avoid nested pools.
-- `fdir` — parallelize file discovery and stat collection; feed measured work weights into shard planning.
-- `lru-cache` — cache parse artifacts (AST, token streams, segment maps) within shard lifetime; enforce strict memory budgets.
-- `fflate` — stream intermediate shard writes so workers can flush incrementally rather than buffering.
-
-- [x] Reduce redundant IO passes:
-  - [x] integrate import extraction into file processing when feasible
-  - [x] defer import-link enrichment to a post-pass instead of separate full scan
-- [x] Stream postings construction:
-  - [x] avoid holding all chunk texts/tokens in memory at once
-  - [x] incremental flush of postings shards
-- [x] Pipeline embeddings with backpressure:
-  - [x] overlap embedding computation with lexical index build where possible
-  - [x] control memory via bounded queues (defaults):
-    - [x] cap pending file-processing tasks at `min(10_000, fileConcurrency * 100)`
-    - [x] cap pending embedding batches at `min(64, embeddingConcurrency * 8)`
-    - [x] when caps are hit, producers block (no unbounded Promise arrays)
-
-## 6.4 WASM parsing acceleration (tree-sitter)
-
-### Dependency guidance (best choices)
-- `@swc/core` — where tree-sitter WASM is insufficiently fast for JS/TS metadata, use SWC parse as an accelerator (native, optional).
-- `@ast-grep/napi` — can offload certain structural matches to tree-sitter engines efficiently; apply before bespoke analyzers.
-- `xxhash-wasm` — cache AST/parse results keyed by stable content hash to avoid repeat work across stages.
-
-Within the limits of web-tree-sitter + tree-sitter-wasms:
-
-- [x] Optimize traversal:
-  - [x] avoid `node.namedChildren` allocations; use `namedChildCount`/`namedChild(i)` or TreeCursor
-  - [x] avoid `text.split('
-')` for doc extraction when possible (use line index + windowed scanning)
-- [x] Preload grammars efficiently:
-  - [x] keep per-process cache as today, but add an option to preload in parallel after correctness verification
-- [x] Offload heavy parsing to workers (optional; default: off):
-  - [x] per-worker wasm init + grammar cache
-  - [x] measure if this improves throughput vs overhead
-- [x] Add/enable additional WASM grammars where available:
-  - [x] JavaScript / TypeScript / TSX / JSX
-  - [x] Python (chunking fallback to avoid spawning python for stage1)
-  - [x] JSON / YAML / TOML / Markdown (as available) for segment parsing
-- [x] Add per-language performance guardrails:
-  - [x] maxBytes/maxLines gating (defaults):
-    - [x] tree-sitter: skip if file > **512 KiB** or > **10,000 lines**
-    - [x] YAML top-level chunking: skip if file > **200 KiB**
-    - [x] Kotlin flow: skip if file > **200 KiB** or > **3,000 lines**
-    - [x] Kotlin relations: skip if file > **200 KiB** or > **2,000 lines**
-    - [x] per-file parse timeout: if parsing exceeds **1000 ms**, fall back to heuristic chunking for that file
-  - [x] automatic fallback to heuristic parsing on slow files
-
-**Deliverables**
-- [x] perf profile artifact + cost-model sharder
-- [x] Windows worker pool reliability gate
-- [x] reduced redundant passes and pipelined indexing where beneficial
-- [x] tree-sitter traversal optimizations + additional wasm grammars
-- [x] benchmark comparisons showing throughput improvements
-
-**Exit criteria**
-- [x] Shards finish in near-equal wall time on benchmark repos (reduced straggler effect).
-- [x] Worker pool does not fail on Windows across stress runs.
-- [x] Measured throughput improves without violating correctness gates.
+  * [x] `file_relations.json` (imports, exports, usages, importLinks, functionMeta/classMeta)
+  * [x] `repo_map.json` (chunk-level symbol map, exported flag, signatures)
+  * [x] `chunk_meta.json` (docmeta/metaV2: signature/modifiers/returns/controlFlow/dataflow + relations)
+  * [x] `graph_relations.json` (importGraph/callGraph/usageGraph)
+* [x] Define “canonical IDs” used across the map:
+  * [x] `fileId = <repo-relative path>`
+  * [x] `symbolId = <file>::<symbolName>` (already used in relation graphs)
+  * [x] Stable IDs for anonymous/lambda cases (fallback: chunkId when name is `(anonymous)`)
 
 ---
 
-# Phase 7 — Observability, Failure Capture, and Operational Durability
+### 4.2 Define a versioned “Map Model” schema (diagram-ready)
 
-**Objective:** Ensure failures are diagnosable, logs are complete, and long-running operation is durable (watch mode, service mode).
+This is the core contract the plugin will consume.
 
-## 7.1 Structured logging and run diagnostics
+* [x] Create `docs/map-schema.json` (or similar) with:
 
-### Dependency guidance (best choices)
-- `pino` — structured logs with runId/shardId/stageId; use redaction for secrets; avoid logging full file contents by default.
-- `pino-pretty` — developer-only pretty transport; ensure production logs remain JSON.
-- `prom-client` — export counters/histograms for build throughput, parse failures, risk rule matches, and query latency.
-- `hdr-histogram-js` — maintain in-process histograms for high-cardinality timing stats (then export summaries).
-
-- [x] Add structured JSON logs option:
-  - [x] log levels
-  - [x] timestamps
-  - [x] buildId correlation
-  - [x] shardId / workerId correlation
-- [x] Capture environment snapshot at start of build:
-  - [x] node version, OS, CPU count, memory
-  - [x] enabled features and effective config hash
-- [x] Ensure logs flush on crash:
-  - [x] avoid fire-and-forget writes for crash logs
-  - [x] add “last N events” ring buffer persisted on fatal errors (default: **N=200** events, capped to **2 MiB** serialized)
-
-## 7.2 Failure taxonomy and actionable capture
-
-### Dependency guidance (best choices)
-- `pino` — emit structured error events with classification fields: `{ category, languageId, stage, shardId, file, offset?, tool, retryable }`.
-- `ajv` — validate that error objects conform to a schema (so failures are machine-actionable, not ad-hoc strings).
-
-- [x] Define a failure taxonomy:
-  - [x] parse failures
-  - [x] tool dependency failures
-  - [x] worker pool failures
-  - [x] artifact IO failures (JSON too large, corruption)
-  - [x] sqlite build failures
-- [x] For each failure class:
-  - [x] record minimal reproduction hints
-  - [x] suggest config mitigations (e.g., file caps, disable feature X)
-
-## 7.3 Watch/service durability
-
-### Dependency guidance (best choices)
-- `chokidar` — cross-platform file watching; on Windows/network drives prefer `awaitWriteFinish` and consider polling fallback.
-- `piscina` — for watch mode, keep pools warm but rate-limit rebuilds; cancel in-flight shard work on superseding changes.
-
-- [x] Ensure watch mode debounces and avoids rebuild storms
-- [x] Ensure service queue and stage2 jobs:
-  - [x] have durable state machine (Phase 2)
-  - [x] can be resumed after crash/restart
-  - [x] produce per-job logs and reports
-
-**Deliverables**
-- [x] structured logging + diagnostic bundle output
-- [x] failure taxonomy + captured evidence improvements
-- [x] hardened watch/service operation
-
-**Exit criteria**
-- [x] Any build failure produces a diagnostic bundle sufficient to triage without rerunning.
-- [x] Long-running modes remain stable over multi-hour runs.
+  * [x] `version`
+  * [x] `generatedAt`
+  * [x] `root` (repo root logical id)
+  * [x] `legend`:
+    * [x] `nodeTypes` (file/function/class/symbol)
+    * [x] `fileShapes` mapping (category → shape)
+    * [x] `functionBadges` mapping (modifier/returns/dataflow/control-flow → badge glyph)
+    * [x] `edgeTypes` mapping (imports/calls/usages/dataflow/aliases/mutations)
+    * [x] `edgeStyles` mapping (solid/dashed/dotted/double, arrowheads, labels)
+  * [x] `nodes`:
+    * [x] file nodes with nested “members” (functions/classes)
+    * [x] function nodes with structured “semantic facets”
+  * [x] `edges` (typed, labeled, optionally “port-addressable”)
+* [x] Schema must support **hierarchical nesting**:
+  * [x] File node has `members[]` with per-member ports
+  * [x] Member nodes (functions) include `signature`, `modifiers`, `returns`, `controlFlow`, `dataflow`
+* [x] Determinism requirements:
+  * [x] Stable ordering (sort keys/ids)
+  * [x] Explicit timestamp field allowed, but everything else must be deterministic
 
 ---
 
-# Phase 8 — Language Coverage Expansion and Long-Term Architecture Simplification
+### 4.3 Build the semantic “map extractor” (core engine tool)
 
-**Objective:** Expand supported languages and mixed-file containers while reducing maintenance cost and ensuring performance guardrails.
+Implement a Node tool that reads index artifacts and produces the map model.
 
-## 8.1 New language onboarding playbook (repeatable)
-
-### Dependency guidance (best choices)
-- `linguist-languages` — bootstrap languageId mapping and aliases; treat it as a baseline and allow project overrides.
-- Parser deps (only when the language is in the support matrix):
-  - `graphql`, `protobufjs`, `fast-xml-parser`, `dockerfile-ast`, `@handlebars/parser`, `nunjucks`, etc.
-- For higher-level metadata/risk:
-  - `@ast-grep/napi`, `graphology`, `re2js`, `aho-corasick` as reusable primitives across languages.
-
-For each new language or container format:
-
-- [x] Decide parsing strategy:
-  - [x] tree-sitter wasm grammar (preferred)
-  - [x] heuristic parser
-  - [x] tooling/LSP enrichment only (optional)
-- [x] Implement:
-  - [x] chunk extraction
-  - [x] minimal relations (imports + calls) where feasible
-  - [x] comment extraction rules
-  - [x] metadata v2 mapping
-- [x] Add fixtures:
-  - [x] “language fidelity” tests
-  - [x] perf guard tests (max bytes/lines)
-- [x] Add to benchmark matrix.
-
-## 8.2 Recommended language priorities
-
-### Dependency guidance (best choices)
-- Prioritize languages whose parsers expose **ranges/locations** and can run deterministically in your target environments (Node + optional native/WASM).
-- Reuse existing primitives (`micromark`, `parse5`, `@ast-grep/napi`, `graphology`, `ajv`) rather than adding bespoke parsers where possible.
-
-**High priority (common + high ROI)**
-- [x] JavaScript/TypeScript (tree-sitter wasm for chunking/metadata)
-- [x] TSX/JSX segmentation improvements
-- [x] Python (tree-sitter wasm chunking as stage1 fallback)
-- [x] Dockerfile
-- [x] Makefile
-- [x] Protobuf
-- [x] GraphQL
-
-**Next tier (ecosystem breadth)**
-- [x] CMake
-- [x] Bazel/Starlark
-- [x] Nix
-- [x] Dart
-- [x] Scala / Groovy
-- [x] R / Julia
-
-**Web template tier**
-- [x] Handlebars/Mustache
-- [x] Jinja2 / Django templates
-- [x] Razor
-
-## 8.3 Architecture simplification after stabilization
-
-### Dependency guidance (best choices)
-- Consolidate on fewer parsing/AST stacks per ecosystem:
-  - JS/TS: SWC for speed + TypeScript for type-aware enrichment, with AST bridges where needed.
-  - Structural matching: `@ast-grep/napi` rule packs to reduce custom per-language logic.
-- Keep serialization + storage minimal: `msgpackr` + `fflate` + one durable backend (`better-sqlite3` or `lmdb`) behind a stable contract.
-
-- [x] Consolidate parsing APIs:
-  - [x] one segment discovery API
-  - [x] one chunking API
-  - [x] one metadata v2 builder interface
-- [x] Reduce duplicate passes and duplicated formats
-- [x] Remove deprecated schema paths once migrations are complete
-
-**Deliverables**
-- [x] language onboarding playbook
-- [x] expanded language and mixed-file coverage
-- [x] simplified architecture and reduced defect surface
-
-**Exit criteria**
-- [x] New languages can be added with predictable steps, tests, and guardrails.
-- [x] Maintenance burden decreases while coverage increases.
+* [x] Add `tools/code-map.js` (or `tools/report-code-map.js`) that:
+  * [x] Locates repo + index dirs using existing `tools/dict-utils.js`
+  * [x] Loads:
+    * [x] `file_relations.json`
+    * [x] `repo_map.json`
+    * [x] `chunk_meta.json` (or minimal subset)
+    * [x] `graph_relations.json`
+  * [x] Merges into a single “map model”:
+    * [x] **Files** classified into categories (drives file shape)
+    * [x] **Members** extracted per file:
+      * [x] functions/methods/classes (from `repo_map` and/or chunk meta)
+      * [x] include line ranges
+      * [x] include `signature`, `modifiers`, `params`, `returns`
+    * [x] **Function semantics**:
+      * [x] `dataflow.reads`, `dataflow.writes`, `dataflow.mutations`, `dataflow.aliases`
+      * [x] `controlFlow.branches/loops/returns/throws/awaits/yields/breaks/continues`
+      * [x] `throws`, `awaits`, `yields`, `returnsValue` facets surfaced explicitly
+    * [x] **Edges**:
+      * [x] Import edges (file→file) from `importLinks` + raw `imports`
+      * [x] Export edges (file→symbol) from `exports` + repo_map `exported`
+      * [x] Call edges (fn→fn) from `callLinks` or `graph_relations.callGraph`
+      * [x] Usage edges (fn→fn) from `usageLinks` or `graph_relations.usageGraph`
+      * [x] Dataflow edges:
+        * [x] Argument flow edges from `callSummaries.argMap` (caller→callee param ports)
+        * [x] Return flow edges using inferred return metadata where available
+        * [x] Optional: “state flow” edges when reads/writes/mutations overlap (guardrailed; see 28.6)
+      * [x] Alias edges:
+        * [x] derived from `dataflow.aliases` (function-local or cross-function via calls when resolvable)
+* [x] Add CLI entrypoint:
+  * [x] `pairofcleats report map` (preferred, consistent with existing `report` group), or
+  * [x] `pairofcleats map` (top-level)
+* [x] Support scope + size controls:
+  * [x] `--scope repo|dir|file|symbol`
+  * [x] `--focus <path or symbol>`
+  * [x] `--include imports,calls,usages,dataflow,exports`
+  * [x] `--only-exported`
+  * [x] `--max-files N`, `--max-members-per-file N`, `--max-edges N`
+  * [x] `--collapse file|dir` (aggregate mode)
+  * [x] `--format json|dot|svg|html` (see 28.4)
 
 ---
 
-# Phase 10 — Dependency Bundle Parser/AST Checklists
+### 4.4 Generate “shape-based” diagrams (DOT-first, with nested function fills)
 
-**Objective:** Complete extraction checklists for parser/AST dependency sheets and link them to implementation and tests.
+To match your “shape with fill containing functions” requirement cleanly, DOT/Graphviz is the most direct representation.
 
-## 10.1 Parser/AST extraction checklist completion
-- [x] For each dependency sheet below, fill in the extraction checklist (stable ranges, minimal traversal, metadata vs. indexes, performance pitfalls) and check it off:
-  - `docs/references/dependency-bundle/deps/ast-grep-napi.md`
-  - `docs/references/dependency-bundle/deps/astrojs-compiler.md`
-  - `docs/references/dependency-bundle/deps/babel-traverse.md`
-  - `docs/references/dependency-bundle/deps/dockerfile-ast.md`
-  - `docs/references/dependency-bundle/deps/es-joy-jsdoccomment.md`
-  - `docs/references/dependency-bundle/deps/esquery.md`
-  - `docs/references/dependency-bundle/deps/fast-xml-parser.md`
-  - `docs/references/dependency-bundle/deps/graphql.md`
-  - `docs/references/dependency-bundle/deps/handlebars-parser.md`
-  - `docs/references/dependency-bundle/deps/jsdoc-type-pratt-parser.md`
-  - `docs/references/dependency-bundle/deps/jsonc-parser.md`
-  - `docs/references/dependency-bundle/deps/mdx-js-mdx.md`
-  - `docs/references/dependency-bundle/deps/micromark.md`
-  - `docs/references/dependency-bundle/deps/nunjucks.md`
-  - `docs/references/dependency-bundle/deps/parse5.md`
-  - `docs/references/dependency-bundle/deps/picomatch.md`
-  - `docs/references/dependency-bundle/deps/protobufjs.md`
-  - `docs/references/dependency-bundle/deps/semver.md`
-  - `docs/references/dependency-bundle/deps/smol-toml.md`
-  - `docs/references/dependency-bundle/deps/svelte.md`
-  - `docs/references/dependency-bundle/deps/swc-core.md`
-  - `docs/references/dependency-bundle/deps/typescript.md`
-  - `docs/references/dependency-bundle/deps/typescript-eslint-typescript-estree.md`
-  - `docs/references/dependency-bundle/deps/vue-compiler-sfc.md`
-  - `docs/references/dependency-bundle/deps/vscode-ripgrep.md`
-  - `docs/references/dependency-bundle/deps/yaml.md`
-
-**Deliverables**
-- Parser/AST dependency sheets updated with extraction notes and links to code/tests.
-
-**Exit criteria**
-- Every listed sheet has all extraction checklist items checked with concrete references.
+* [x] Implement a DOT generator `src/map/dot-writer.js`:
+  * [x] **File nodes as outer shapes** with file-type-dependent shapes:
+    * [x] Source code: `box` or `component`
+    * [x] Tests: `box` with distinct border style
+    * [x] Config/data: `cylinder` or `hexagon`
+    * [x] Docs/prose: `note`
+    * [x] Generated/build artifacts: `folder` or `box3d`
+  * [x] **Fill represents members** using HTML-like labels:
+    * [x] Outer `<TABLE>` represents the file “container”
+    * [x] Each function/class is a row with a `PORT` so edges can land on that member specifically
+  * [x] **Nested shapes inside the function row** (HTML sub-tables/cells) to represent:
+    * [x] modifiers: async/static/generator/visibility
+    * [x] signature/params summary
+    * [x] returns/returnType/returnsValue indicator
+    * [x] dataflow mini-badges: reads/writes/mutates/aliases counts (and/or top N symbols)
+    * [x] controlFlow mini-badges: branches/loops/throws/awaits/yields
+* [x] **Edge encoding** (multiple edge “line types”):
+  * [x] Import edges: dashed file→file
+  * [x] Call edges: solid function→function (primary control flow)
+  * [x] Usage edges: thin/secondary style function→function
+  * [x] Dataflow edges:
+    * [x] dotted caller→callee(param) edges (argument flow)
+    * [x] dotted callee→caller edges for return flow (if inferred)
+  * [x] Mutation/state edges (optional, guardrailed): double-line or distinct style
+  * [x] Alias edges: dashed-dotted, labeled `alias: a=b`
+* [x] Output modes:
+  * [x] `--format dot` always available
+  * [x] `--format svg` if Graphviz present (shell out to `dot -Tsvg`)
+  * [x] `--format html` wraps SVG + legend into a standalone HTML viewer
+* [x] Implement legend rendering:
+  * [x] Either embed as a DOT subgraph or in HTML wrapper
+  * [x] Must document shape/edge meaning for users
 
 ---
 
-# Phase 11 — Dependency Bundle API/Knobs/Test Checklists
+### 4.5 Sublime Text 3 plugin commands for map generation + viewing
 
-**Objective:** Complete integration checklists for core helper libraries (API entrypoints, config knobs, fixtures/benchmarks).
+Provide first-class UX inside Sublime, even if rendering happens externally.
 
-## 11.1 Integration checklist completion
-- [x] For each dependency sheet below, document API entrypoints, config knobs, and add references to fixtures/benchmarks; then check the boxes.
-  - `docs/references/dependency-bundle/deps/aho-corasick.md`
-  - `docs/references/dependency-bundle/deps/ajv.md`
-  - `docs/references/dependency-bundle/deps/chardet.md`
-  - `docs/references/dependency-bundle/deps/execa.md`
-  - `docs/references/dependency-bundle/deps/fdir.md`
-  - `docs/references/dependency-bundle/deps/fflate.md`
-  - `docs/references/dependency-bundle/deps/file-type.md`
-  - `docs/references/dependency-bundle/deps/graphology.md`
-  - `docs/references/dependency-bundle/deps/greedy-number-partitioning.md`
-  - `docs/references/dependency-bundle/deps/hdr-histogram-js.md`
-  - `docs/references/dependency-bundle/deps/hnswlib-node.md`
-  - `docs/references/dependency-bundle/deps/iconv-lite.md`
-  - `docs/references/dependency-bundle/deps/ignore.md`
-  - `docs/references/dependency-bundle/deps/istextorbinary.md`
-  - `docs/references/dependency-bundle/deps/linguist-languages.md`
-  - `docs/references/dependency-bundle/deps/lru-cache.md`
-  - `docs/references/dependency-bundle/deps/onnxruntime-node.md`
-  - `docs/references/dependency-bundle/deps/pino-pretty.md`
-  - `docs/references/dependency-bundle/deps/pyright.md`
-  - `docs/references/dependency-bundle/deps/re2js.md`
-  - `docs/references/dependency-bundle/deps/seedrandom.md`
-
-**Deliverables**
-- Integration sheets updated with API usage notes, config knobs, and test/bench references.
-
-**Exit criteria**
-- All listed sheets have the integration checklist items checked.
+* [x] Add commands:
+  * [x] `PairOfCleats: Map (Repo)`
+  * [x] `PairOfCleats: Map (Current Folder)`
+  * [x] `PairOfCleats: Map (Current File)`
+  * [x] `PairOfCleats: Map (Symbol Under Cursor)`
+  * [x] `PairOfCleats: Map (Selection)`
+* [x] Add a “Map Type” chooser:
+  * [x] Import Map
+  * [x] Call Map
+  * [x] Usage/Dependency Map
+  * [x] Dataflow Map (args/returns/state)
+  * [x] Combined Map (guardrailed by size limits)
+* [x] Implement output handling:
+  * [x] Write outputs to `.pairofcleats/maps/` (repo-local) or cache dir
+  * [x] Open `.dot` in Sublime for inspection
+  * [x] If `.svg`/`.html` produced:
+    * [x] Provide “Open in Browser” command (best-effort)
+* [x] Navigation affordances:
+  * [x] When a map is generated, also produce an indexable “node list” JSON:
+    * [x] allows Sublime quick panel “Jump to node” (file/function)
+    * [x] opens file at recorded `startLine`
+* [x] Graceful degradation:
+  * [x] If `astDataflow` / `controlFlow` metadata is unavailable in the index:
+    * [x] show “limited map” warning
+    * [x] offer action: “Rebuild index with dataflow/control-flow enabled” (invokes `index build` with the project’s config expectations)
 
 ---
 
-# Phase 12 — Dependency Bundle Storage/Determinism Checklists
+### 4.6 Performance guardrails + scaling strategy (mandatory for real repos)
 
-**Objective:** Document artifact format, determinism, and durability expectations for storage/serialization dependencies.
+This phase will generate *very large graphs* unless explicitly constrained.
 
-## 12.1 Artifact/determinism checklist completion
-- [x] For each dependency sheet below, complete the artifact/determinism checklist and check the boxes:
-  - `docs/references/dependency-bundle/deps/better-sqlite3.md`
-  - `docs/references/dependency-bundle/deps/lmdb.md`
-  - `docs/references/dependency-bundle/deps/msgpackr.md`
-  - `docs/references/dependency-bundle/deps/roaring-wasm.md`
-  - `docs/references/dependency-bundle/deps/xxhash-wasm.md`
-
-**Deliverables**
-- Storage/serialization sheets updated with format/determinism/throughput notes.
-
-**Exit criteria**
-- All listed sheets have artifact/determinism checklist items checked.
-
----
-
-# Phase 13 — Dependency Bundle Metrics/Concurrency Checklists
-
-**Objective:** Finalize metrics/logging and concurrency checklist items for observability and rebuild safety.
-
-## 13.1 Metrics and logging checklist completion
-- [x] For each dependency sheet below, complete the metrics/logging checklist and check the boxes:
-  - `docs/references/dependency-bundle/deps/pino.md`
-  - `docs/references/dependency-bundle/deps/prom-client.md`
-  - `docs/references/dependency-bundle/deps/tinybench.md`
-
-## 13.2 Concurrency and rebuild safety checklist completion
-- [x] For each dependency sheet below, complete the concurrency checklist and check the boxes:
-  - `docs/references/dependency-bundle/deps/chokidar.md`
-  - `docs/references/dependency-bundle/deps/piscina.md`
-
-**Deliverables**
-- Metrics/logging and concurrency sheets updated with concrete policies and test references.
-
-**Exit criteria**
-- All listed sheets have their checklist items checked.
+* [x] Hard limits with user-overrides:
+  * [x] `maxFiles`, `maxMembersPerFile`, `maxEdges`
+  * [x] edge sampling policies per edge type
+* [x] Aggregation modes:
+  * [x] Directory-level aggregation (folder nodes contain files)
+  * [x] File-only map (no nested functions)
+  * [x] Export-only functions view
+  * [x] “Top-K by degree” (highest call/import fan-in/out)
+* [x] Deterministic sampling:
+  * [x] same inputs → same output (stable selection)
+* [x] Cache map builds keyed by:
+  * [x] index signature + generator options
+* [x] Failure mode policy:
+  * [x] If size exceeds limits, output a “truncated map” plus a summary explaining what was dropped
 
 ---
 
-# Phase 14 — Integration Checklist Items (Detailed)
+### 4.7 Tests (core + integration + determinism)
 
-**Objective:** Complete the integration checklists captured in `TEMP_DEPENDENCY_CHECKLISTS.md` for Phase 11 dependencies.
+Add explicit automated coverage for the map feature.
 
-## 14.1 API entrypoints and persisted data structures
-- [x] Identify the exact API entrypoints you will call and the data structures you will persist for:
-  - `docs/references/dependency-bundle/deps/aho-corasick.md`
-  - `docs/references/dependency-bundle/deps/chardet.md`
-  - `docs/references/dependency-bundle/deps/fflate.md`
-  - `docs/references/dependency-bundle/deps/file-type.md`
-  - `docs/references/dependency-bundle/deps/graphology.md`
-  - `docs/references/dependency-bundle/deps/greedy-number-partitioning.md`
-  - `docs/references/dependency-bundle/deps/hdr-histogram-js.md`
-  - `docs/references/dependency-bundle/deps/hnswlib-node.md`
-  - `docs/references/dependency-bundle/deps/iconv-lite.md`
-  - `docs/references/dependency-bundle/deps/istextorbinary.md`
-  - `docs/references/dependency-bundle/deps/linguist-languages.md`
-  - `docs/references/dependency-bundle/deps/onnxruntime-node.md`
-  - `docs/references/dependency-bundle/deps/pyright.md`
-  - `docs/references/dependency-bundle/deps/re2js.md`
+#### Node tool tests (authoritative)
 
-## 14.2 Configuration knobs that impact output/performance
-- [x] Record configuration knobs that meaningfully change output/performance for:
-  - `docs/references/dependency-bundle/deps/aho-corasick.md`
-  - `docs/references/dependency-bundle/deps/chardet.md`
-  - `docs/references/dependency-bundle/deps/fflate.md`
-  - `docs/references/dependency-bundle/deps/file-type.md`
-  - `docs/references/dependency-bundle/deps/graphology.md`
-  - `docs/references/dependency-bundle/deps/greedy-number-partitioning.md`
-  - `docs/references/dependency-bundle/deps/hdr-histogram-js.md`
-  - `docs/references/dependency-bundle/deps/hnswlib-node.md`
-  - `docs/references/dependency-bundle/deps/iconv-lite.md`
-  - `docs/references/dependency-bundle/deps/istextorbinary.md`
-  - `docs/references/dependency-bundle/deps/linguist-languages.md`
-  - `docs/references/dependency-bundle/deps/onnxruntime-node.md`
-  - `docs/references/dependency-bundle/deps/pyright.md`
-  - `docs/references/dependency-bundle/deps/re2js.md`
+* [x] `tests/code-map-basic.js`
+  * [x] Build a tiny fixture repo with:
+    * [x] imports/exports
+    * [x] functions calling other functions
+    * [x] a function with reads/writes/mutations/aliases
+    * [x] a function with branches/loops/throws/awaits
+  * [x] Run `build_index.js --stub-embeddings`
+  * [x] Run `pairofcleats report map --format json`
+  * [x] Assert:
+    * [x] file nodes exist
+    * [x] member nodes include `signature/modifiers/returns/dataflow/controlFlow`
+    * [x] edge sets include imports + calls
+* [x] `tests/code-map-dot.js`
+  * [x] Generate DOT output
+  * [x] Assert:
+    * [x] file “container” nodes exist
+    * [x] function rows/ports exist
+    * [x] edges connect to ports (caller fn → callee fn)
+    * [x] distinct edge styles appear for import vs call vs dataflow
+* [x] `tests/code-map-determinism.js`
+  * [x] Run map generation twice and compare outputs (ignore `generatedAt`)
+* [x] `tests/code-map-guardrails.js`
+  * [x] Generate a repo with many dummy functions
+  * [x] Ensure truncation behavior is correct and stable
 
-## 14.3 Fixtures and regression benchmarks
-- [x] Add at least one representative test fixture and a regression benchmark for:
-  - `docs/references/dependency-bundle/deps/aho-corasick.md`
-  - `docs/references/dependency-bundle/deps/chardet.md`
-  - `docs/references/dependency-bundle/deps/fflate.md`
-  - `docs/references/dependency-bundle/deps/file-type.md`
-  - `docs/references/dependency-bundle/deps/graphology.md`
-  - `docs/references/dependency-bundle/deps/greedy-number-partitioning.md`
-  - `docs/references/dependency-bundle/deps/hdr-histogram-js.md`
-  - `docs/references/dependency-bundle/deps/hnswlib-node.md`
-  - `docs/references/dependency-bundle/deps/iconv-lite.md`
-  - `docs/references/dependency-bundle/deps/istextorbinary.md`
-  - `docs/references/dependency-bundle/deps/linguist-languages.md`
-  - `docs/references/dependency-bundle/deps/onnxruntime-node.md`
-  - `docs/references/dependency-bundle/deps/pyright.md`
-  - `docs/references/dependency-bundle/deps/re2js.md`
+#### Plugin-side tests
 
-**Deliverables**
-- Phase 11 dependency sheets updated with API entrypoints, config knobs, and fixture/benchmark references.
+* [x] Python unit tests:
+  * [x] command registration exists
+  * [x] subprocess args are correct for each map command
+  * [x] output paths computed correctly
+  * [x] “Graphviz missing” fallback behavior (DOT-only) works
+
+### 4.8 Isometric map viewer (three.js)
+
+* [x] Generate an isometric HTML viewer from the map model (three.js module import)
+* [x] Support zoom with configurable sensitivity
+* [x] Support WASD movement with configurable sensitivity/acceleration/drag
+* [x] Highlight selections and show file/line metadata
+* [x] Double-click opens the selected file/line via a URI template
+* [x] Add layout styles (clustered/radial/flat) with adjustable spacing
+* [x] Add flow-connected highlighting (edges + related nodes) and hover highlights from the selection panel
+* [x] Add grid line rendering + glow, fog, and wireframe tuning (panel configurable)
+* [x] Modularize the isometric viewer client into <500-line modules
+---
+
+## Phase 11 — Resource Lifecycle Management (Caches, Long-Lived Servers, Builds)
+
+**Objective:** Prevent memory and resource leaks in long-running processes (API server, service workers), especially across repeated builds and multi-repo usage.
+
+1. **Add eviction/TTL for API router repo-level caches**
+
+   * [x] **Implement eviction for `repoCaches` map in `tools/api/router.js`.**
+     * **Why:** `repoCaches` can grow unbounded if clients query multiple repos or if repo roots vary. Each entry can hold heavy caches (index cache + sqlite connections).
+     * **Fix:**
+       * Add:
+         * `maxRepos` (e.g., 3–10)
+         * `repoTtlMs` (e.g., 10–30 minutes)
+       * Track `lastUsed` and evict least-recently-used / expired.
+       * On eviction: close sqlite cache handles (`sqliteCache.close()`), clear index cache.
+   * [x] Add metrics for cache size and evictions.
+     * **Where:** `tools/api/router.js` and metrics registry.
+
+2. **Add eviction for per-repo index cache and sqlite DB cache**
+
+   * [x] **Index cache eviction**
+     * **Why:** `src/retrieval/index-cache.js` caches by `dir` (which can change per build). On repeated re-indexing, old build directories can accumulate.
+     * **Fix:** Convert to LRU with max entries, or TTL purge on access.
+   * [x] **SQLite DB cache eviction**
+     * **Where:** `src/retrieval/sqlite-cache.js`
+     * **Why:** Same “dir-per-build” key pattern; can leak connections/handles.
+     * **Fix:** LRU/TTL + ensure `close()` called on eviction.
+
+3. **Add explicit cache invalidation when “current build” pointer changes**
+
+   * [x] Detect when the effective index directory changes (new build) and prune caches for previous builds.
+     * **Why:** Keeps hot caches relevant and bounds memory footprint.
 
 **Exit criteria**
-- All Phase 11 unchecked checklist items in `TEMP_DEPENDENCY_CHECKLISTS.md` are resolved.
+
+* [x] API server memory does not grow unbounded when indexing/searching multiple repos/builds.
+* [x] Old build caches are evicted/pruned automatically.
+* [x] SQLite handles are closed on eviction (verified via tests or instrumentation).
 
 ---
 
-# Phase 15 — Storage/Determinism Checklist Items (Detailed)
+## Phase 12 — Performance and Operational Hardening
 
-**Objective:** Complete the storage/determinism checklists captured in `TEMP_DEPENDENCY_CHECKLISTS.md` for Phase 12 dependencies.
+**Objective:** Improve throughput and robustness under load without changing core behavior.
 
-## 15.1 Artifact format/versioning documentation
-- [x] Define artifact formats and version them (schema/version header + migration plan) for:
-  - `docs/references/dependency-bundle/deps/better-sqlite3.md`
-  - `docs/references/dependency-bundle/deps/lmdb.md`
-  - `docs/references/dependency-bundle/deps/msgpackr.md`
-  - `docs/references/dependency-bundle/deps/roaring-wasm.md`
-  - `docs/references/dependency-bundle/deps/xxhash-wasm.md`
+1. **Reduce event-loop blocking sync filesystem calls on API request paths**
 
-## 15.2 Deterministic output requirements
-- [x] Ensure determinism: stable ordering, stable encodings, stable hashing inputs for:
-  - `docs/references/dependency-bundle/deps/better-sqlite3.md`
-  - `docs/references/dependency-bundle/deps/lmdb.md`
-  - `docs/references/dependency-bundle/deps/msgpackr.md`
-  - `docs/references/dependency-bundle/deps/roaring-wasm.md`
-  - `docs/references/dependency-bundle/deps/xxhash-wasm.md`
+   * [x] Replace `fsSync.*` in API request hot paths with async equivalents where practical.
+     * **Why:** Sync I/O can stall concurrent requests in the API server process.
+     * **Where (examples):**
+       * `tools/api/router.js` `resolveRepo()` uses `existsSync/statSync`.
+     * **Fix:** Use `fs.promises.stat` with try/catch; cache results briefly if needed.
 
-## 15.3 Throughput/size measurements
-- [x] Measure: write/read throughput and artifact size; record p95/p99 for bulk load for:
-  - `docs/references/dependency-bundle/deps/better-sqlite3.md`
-  - `docs/references/dependency-bundle/deps/lmdb.md`
-  - `docs/references/dependency-bundle/deps/msgpackr.md`
-  - `docs/references/dependency-bundle/deps/roaring-wasm.md`
-  - `docs/references/dependency-bundle/deps/xxhash-wasm.md`
+2. **Prevent decompression “zip bomb” style memory spikes in artifact reading**
 
-## 15.4 Corruption detection and partial rebuild safety
-- [x] Plan for corruption detection (hashes) and safe partial rebuilds for:
-  - `docs/references/dependency-bundle/deps/better-sqlite3.md`
-  - `docs/references/dependency-bundle/deps/lmdb.md`
-  - `docs/references/dependency-bundle/deps/msgpackr.md`
-  - `docs/references/dependency-bundle/deps/roaring-wasm.md`
-  - `docs/references/dependency-bundle/deps/xxhash-wasm.md`
+   * [x] Add output size limiting to gzip decompression.
+     * **Why:** `src/shared/artifact-io.js` uses `gunzipSync(buffer)` and only checks decompressed size *after* decompression. A small compressed file could expand massively and spike memory.
+     * **Fix:**
+       * Use `zlib.gunzipSync(buffer, { maxOutputLength: maxBytes + slack })` (if supported in your Node target), or switch to streaming gunzip with explicit byte limits.
+     * **Where:** `src/shared/artifact-io.js` `parseBuffer` / gzip handling.
 
-**Deliverables**
-- Phase 12 dependency sheets updated with artifact/determinism notes and measurement guidance.
+3. **Add download size limits for tools that fetch large remote assets**
+
+   * [x] Enforce maximum download size (or require hash) for dictionary downloads.
+     * **Why:** `tools/download-dicts.js` buffers the entire response in memory (`Buffer.concat`) without a hard cap.
+     * **Fix:** Stream to disk with a cap; abort if exceeded; strongly prefer requiring hashes for non-default URLs.
 
 **Exit criteria**
-- All Phase 12 unchecked checklist items in `TEMP_DEPENDENCY_CHECKLISTS.md` are resolved.
+
+* [x] API request path avoids avoidable sync I/O.
+* [x] Artifact gzip parsing cannot explode memory beyond configured limits.
+* [x] Large downloads are bounded and/or verified.
 
 ---
 
-# Phase 16 — Metrics/Concurrency Checklist Items (Detailed)
+## Phase 14 — Optional-dependency framework + capability registry (foundation for all phases)
 
-**Objective:** Complete the metrics/logging and concurrency checklists captured in `TEMP_DEPENDENCY_CHECKLISTS.md` for Phase 13 dependencies.
+### 14.1 Introduce a consistent “optional dependency” loader
 
-## 16.1 Metrics vocabulary and logging hygiene
-- [x] Define a minimal metrics vocabulary (names, labels) and keep label cardinality bounded for:
-  - `docs/references/dependency-bundle/deps/pino.md`
-  - `docs/references/dependency-bundle/deps/prom-client.md`
-  - `docs/references/dependency-bundle/deps/tinybench.md`
-- [x] Capture latency distributions, not just averages (p50/p95/p99) for:
-  - `docs/references/dependency-bundle/deps/pino.md`
-  - `docs/references/dependency-bundle/deps/prom-client.md`
-  - `docs/references/dependency-bundle/deps/tinybench.md`
-- [x] Make logs structured and redact secrets; add run/repo correlation fields for:
-  - `docs/references/dependency-bundle/deps/pino.md`
-  - `docs/references/dependency-bundle/deps/prom-client.md`
-  - `docs/references/dependency-bundle/deps/tinybench.md`
-- [x] Keep benchmarking reproducible (fixed inputs, warmups, pinned configs) for:
-  - `docs/references/dependency-bundle/deps/pino.md`
-  - `docs/references/dependency-bundle/deps/prom-client.md`
-  - `docs/references/dependency-bundle/deps/tinybench.md`
+* [x] Add `src/shared/optional-deps.js` with a single, opinionated API:
+  * [x] `tryRequire(name)` / `tryImport(name)` helpers (use `createRequire(import.meta.url)` where needed)
+  * [x] Standardized return shape: `{ ok: true, mod } | { ok: false, error, reason }`
+  * [x] Standardized logging hook (only when `PAIROFCLEATS_VERBOSE` or a dedicated flag is enabled)
+* [x] Add `src/shared/capabilities.js` that reports runtime availability:
+  * [x] `watcher: { chokidar: true, parcel: boolean }`
+  * [x] `regex: { re2: boolean, re2js: true }`
+  * [x] `hash: { nodeRsXxhash: boolean, wasmXxhash: true }`
+  * [x] `compression: { gzip: true, zstd: boolean }`
+  * [x] `extractors: { pdf: boolean, docx: boolean }`
+  * [x] `mcp: { sdk: boolean, legacy: true }`
+  * [x] `externalBackends: { tantivy: boolean, lancedb: boolean }` (even if “boolean” means “reachable” rather than “installed”)
+* [x] Wire capabilities into existing “status” surfaces:
+  * [x] Extend `tools/mcp/repo.js` → `configStatus()` to include capability info and warnings for requested-but-unavailable features
+  * [x] Extend `tools/config-dump.js` (or equivalent) to print capabilities in JSON output mode
 
-## 16.2 Concurrency and rebuild safety
-- [x] Define units of work and weights (bytes or historical parse time) for load balancing for:
-  - `docs/references/dependency-bundle/deps/chokidar.md`
-  - `docs/references/dependency-bundle/deps/piscina.md`
-- [x] Set resource limits and failure policy (skip, retry, quarantine) for:
-  - `docs/references/dependency-bundle/deps/chokidar.md`
-  - `docs/references/dependency-bundle/deps/piscina.md`
-- [x] Instrument per-worker timings and queue depth for:
-  - `docs/references/dependency-bundle/deps/chokidar.md`
-  - `docs/references/dependency-bundle/deps/piscina.md`
-- [x] Ensure incremental rebuild logic is correct under bursts of file events for:
-  - `docs/references/dependency-bundle/deps/chokidar.md`
-  - `docs/references/dependency-bundle/deps/piscina.md`
+### 14.2 Add config + env “backend selectors” (uniform UX)
 
-**Deliverables**
-- Phase 13 dependency sheets updated with concrete metrics/logging and concurrency notes.
+* [x] Extend `src/shared/env.js` to parse new selectors (string + allowlist):
+  * [x] `PAIROFCLEATS_WATCHER_BACKEND` = `auto|chokidar|parcel`
+  * [x] `PAIROFCLEATS_REGEX_ENGINE` = `auto|re2|re2js`
+  * [x] `PAIROFCLEATS_XXHASH_BACKEND` = `auto|native|wasm`
+  * [x] `PAIROFCLEATS_COMPRESSION` = `auto|gzip|zstd|none`
+  * [x] `PAIROFCLEATS_DOC_EXTRACT` = `auto|on|off`
+  * [x] `PAIROFCLEATS_MCP_TRANSPORT` = `auto|sdk|legacy`
+* [x] Add parallel config keys in `.pairofcleats.json` (keep them near existing related config blocks):
+  * [x] `indexing.watch.backend`
+  * [x] `search.regex.engine`
+  * [x] `indexing.hash.backend`
+  * [x] `indexing.artifactCompression.mode` enum expansion + `auto`
+  * [x] `indexing.documentExtraction.enabled`
+  * [x] `mcp.transport`
+* [x] Update `docs/config-schema.json`:
+  * [x] Add/expand enums (avoid “free string” for anything that’s meant to be policy-controlled)
+  * [x] Add descriptions that clarify fallback rules (`auto` behavior)
+* [x] Update any config validation code paths if they enforce known keys (`src/config/validate.js` is schema-driven; keep schema authoritative)
+
+### 14.3 Add dependency-bundle reference stubs (keeps repo documentation consistent)
+
+For each new dependency introduced in later phases, add a minimal doc file under:
+`docs/references/dependency-bundle/deps/<dep>.md`
+
+* [x] `parcel-watcher.md`
+* [x] `re2.md`
+* [x] `node-rs-xxhash.md`
+* [x] `mongodb-js-zstd.md`
+* [x] `pdfjs-dist.md`
+* [x] `mammoth.md`
+* [x] `modelcontextprotocol-sdk.md`
+* [x] `lancedb.md` (if used)
+* [x] `tantivy.md` (if used)
+* [x] Update `docs/references/dependency-bundle/README.md` if it has an index
+
+### 14.4 Tests (framework-level)
+
+* [x] Add `tests/capabilities-report.js`:
+  * [x] Asserts `capabilities` object shape is stable
+  * [x] Asserts `auto` selectors never throw when optional deps are missing
+* [x] Add a script-coverage action to run it:
+  * [x] `tests/script-coverage/actions.js`: add action entry that calls `runNode(...)`
+  * [x] (Optional) Add an npm script alias if you want parity with the rest of the repo scripts
 
 **Exit criteria**
-- All Phase 13 unchecked checklist items in `TEMP_DEPENDENCY_CHECKLISTS.md` are resolved.
+
+* [x] All “capability” calls are side-effect-free and safe when optional deps are absent
+* [x] `config_status` (MCP) can surface “you requested X but it’s not available” warnings without crashing
+* [x] CI passes on Node 18 (Ubuntu + Windows lanes)
 
 ---
 
-# Phase 17 — File Identification, Encoding, and Language Mapping
+## Phase 15 — File watching performance: add `@parcel/watcher` backend (keep chokidar fallback)
 
-**Objective:** Implement the file-type, binary detection, and encoding fallback pipeline so discovery and parsing handle non-UTF8 and binary inputs correctly.
+### 15.1 Add the dependency (prefer optional unless you want it guaranteed everywhere)
 
-## 17.1 File type and binary detection
-- [x] Integrate `file-type` magic-byte detection before parsing; fall back to `istextorbinary` heuristics.
-- [x] Add binary fixtures (`tests/fixtures/binary`) and wire them into discovery tests.
+* [x] Add `@parcel/watcher` to `package.json`
+  * [x] Prefer `optionalDependencies` if you want installs to succeed even when native builds fail
+  * [x] If you add it as a hard dependency, ensure Windows CI remains green
 
-## 17.2 Encoding fallback
-- [x] When UTF-8 decode fails, run `chardet` and decode via `iconv-lite` while preserving byte offsets.
-- [x] Add encoding fixtures (`tests/fixtures/encoding`) and coverage in `tools/bench-language-repos.js`.
+### 15.2 Create a watcher-backend abstraction
 
-## 17.3 Language mapping
-- [x] Load `linguist-languages` mappings with override precedence; validate in `tests/language-fidelity.js`.
+* [x] Create `src/index/build/watch/backends/types.js` (or inline JSDoc contract) describing:
+  * [x] `start({ root, ignored, onEvent, onError, pollMs? }) -> { close(): Promise<void> }`
+  * [x] Normalized event shape: `{ type: 'add'|'change'|'unlink', absPath }`
+* [x] Extract chokidar wiring out of `src/index/build/watch.js`:
+  * [x] Move into `src/index/build/watch/backends/chokidar.js`
+  * [x] Preserve existing semantics (`awaitWriteFinish`, ignored matcher, poll support)
+* [x] Implement parcel watcher backend:
+  * [x] New file: `src/index/build/watch/backends/parcel.js`
+  * [x] Map parcel events to the normalized `{type, absPath}` model
+  * [x] Decide how to handle rename/move (often appears as unlink+add):
+    * [x] If parcel reports rename, still emit unlink+add for compatibility with current scheduling
+  * [x] Implement “poll” behavior:
+    * [x] If poll mode is requested, either:
+      * [x] force chokidar with polling, **or**
+      * [x] implement a cheap stat-based poller wrapper (only if needed)
+  * [x] Implement “write stability” guard:
+    * [x] Chokidar has `awaitWriteFinish`; parcel does not in the same way
+    * [x] Add a “stabilize file” check in the pipeline: before processing a file, optionally confirm `mtime/size` stable across N ms
+    * [x] Place this in `createDebouncedScheduler()` or immediately before `enqueueOrUpdate()` in `file-processor.js` (prefer a single shared guard)
 
-**Deliverables**
-- File discovery pipeline with binary + encoding fallback handling.
-- Fixtures + tests for binary and non-UTF8 content.
+### 15.3 Wire selection into `watchIndex()`
+
+* [x] Update `src/index/build/watch.js`:
+  * [x] Choose backend via (in order): CLI/config → env → `auto` capability
+  * [x] Log selected backend once at startup (only if verbose or `--watch`)
+  * [x] Ensure `pollMs` is still honored (either by backend or by selection logic)
+
+### 15.4 Tests
+
+* [x] Add `tests/watch-backend-selection.js`:
+  * [x] Forces `PAIROFCLEATS_WATCHER_BACKEND=chokidar` and asserts no parcel import occurs
+  * [x] Forces `...=parcel` and asserts fallback behavior if module unavailable (no crash, warning path)
+* [x] Add `tests/watch-stability-guard.js`:
+  * [x] Simulate “partial write” (write file in two chunks with delay) and assert processor waits/defers correctly
+  * [x] Keep the test deterministic: use explicit timeouts and a temp directory under `tests/.cache`
+* [x] Add corresponding script-coverage actions in `tests/script-coverage/actions.js`
 
 **Exit criteria**
-- Mixed binary/encoding fixtures pass and language fidelity stays green.
+
+* [x] `pairofcleats index watch` remains correct on Windows and Linux
+* [x] No regressions in ignore behavior (still uses `buildIgnoredMatcher`)
+* [x] Event storms do not cause repeated redundant rebuilds (existing debounce logic preserved)
 
 ---
 
-# Phase 18 — Pattern Matching Engines (Aho-Corasick, Re2js)
+## Phase 7 — RPC Robustness and Memory-Safety (LSP + MCP + JSON-RPC)
 
-**Objective:** Implement safe, fast pattern matching for dictionary segmentation and risk/search filters.
+**Objective:** Prevent unbounded memory growth and improve resilience when communicating with external processes (LSP servers, MCP transport), including malformed or oversized JSON-RPC frames.
 
-## 18.1 Multi-pattern dictionary scans
-- [x] Integrate `aho-corasick` for multi-pattern matching and persist term lists/automata for reuse.
-- [x] Add fixtures under `tests/fixtures/dict-scan` and extend `tools/bench-dict-seg.js`.
+1. **Implement `maxBufferBytes` enforcement in framed JSON-RPC parser**
 
-## 18.2 Safe regex execution
-- [x] Use `re2js` for risk rules and search filters; expose config knobs (timeout/flags/max size).
-- [x] Add regression coverage in `tests/language-fidelity.js` and `tests/bench.js`.
+   * [x] **Enforce `maxBufferBytes` in `createFramedJsonRpcParser`.**
+     * **Why:** The function accepts `maxBufferBytes` but does not enforce it, leaving an unbounded buffer growth path if a peer sends large frames or never terminates headers.
+     * **Where:** `src/shared/jsonrpc.js` (`createFramedJsonRpcParser`)
+     * **Fix:**
+       * Track buffer size after concatenation.
+       * If buffer exceeds limit:
+         * Clear internal buffer.
+         * Call `onError(new Error(...))`.
+         * Optionally enter a “failed/closed” state to reject further data.
+       * Consider separate thresholds:
+         * `maxHeaderBytes` (protect header scan)
+         * `maxMessageBytes` (protect content-length payload)
+   * [x] **Add explicit tests for oversized frames.**
 
-**Deliverables**
-- Multi-pattern matching pipeline + fixtures/benchmarks.
-- Safe regex engine path for risk/search filters.
+     * **Where:** Add a new unit test under `tests/` that pushes > limit into parser and asserts:
+       * `onError` called
+       * parser does not continue to grow memory
+
+2. **Apply bounded JSON-RPC parsing in LSP client**
+
+   * [x] Replace `StreamMessageReader` usage with the bounded framed parser (or wrap it with size checks).
+     * **Why:** `StreamMessageReader` will buffer messages; without explicit size enforcement at your integration boundary, a misbehaving server can cause OOM.
+     * **Where:** `src/integrations/tooling/lsp/client.js`
+     * **Fix:**
+       * Wire `proc.stdout` `data` into `createFramedJsonRpcParser`.
+       * Feed parsed messages into the existing dispatch/response correlation logic.
+       * Ensure shutdown/kill closes parser cleanly.
+
+3. **Apply bounded JSON-RPC parsing in MCP transport**
+
+   * [x] Replace `StreamMessageReader` usage similarly.
+     * **Where:** `tools/mcp/transport.js`
+     * **Fix:** Same pattern as LSP client; enforce message size limits and fail gracefully.
 
 **Exit criteria**
-- Dictionary segmentation and regex fixtures pass with bounded execution time.
+
+* [x] `createFramedJsonRpcParser` enforces max buffer/message sizes with tests.
+* [x] LSP client no longer relies on unbounded message buffering.
+* [x] MCP transport no longer relies on unbounded message buffering.
 
 ---
 
-# Phase 19 — Graph and Shard Balancing (Graphology, Greedy Partitioning)
+## Phase 2.4 — Unified CLI progress display + logging hygiene (build-index, bench-lang, long runners)
 
-**Objective:** Implement graph-backed relations and weight-based shard balancing.
+**Objective:** Make all long-running CLI commands share a single, high-quality TTY display (progress bars + compact logs), reduce noisy/repetitive output, and ensure mode-level visibility (`code`/`prose`/`extracted-prose`/`records`) is consistent everywhere.
 
-## 19.1 Graph-backed relations
-- [x] Use `graphology` to capture call/flow graphs and persist adjacency lists.
-- [x] Add fixtures under `tests/fixtures/graphs` and extend `tests/type-inference-crossfile.js`.
+### 2.4.1 Standardize on a single progress UI dependency
 
-## 19.2 Shard balancing
-- [x] Use `greedy-number-partitioning` to balance shard weights and queue batches.
-- [x] Add coverage in `tools/shard-census.js` and `tests/thread-limits.js`.
+- [x] Add `terminal-kit` as the progress/UI engine for TTY mode (Windows/macOS/Linux).
+  - Use built-in progress bars and screen-buffer primitives rather than hand-rolled ANSI.
+  - Explicitly validate in **PowerShell** (Windows Terminal + classic console hosts) as well as bash/zsh.
+  - Rendering contract:
+    - interactive UI renders to **stderr** (never stdout)
+    - stdout remains clean for JSON output, pipes, and file redirection
+- [x] Add a thin wrapper module (new): `src/shared/cli/display.js`
+  - Public API (proposal):
+    - `createDisplay({ stream, isTTY, verbose, progressMode, json })`
+    - `display.task(name, { total, unit, mode, stage }) -> { tick(n=1), set(n), done(), fail(err) }`
+    - `display.log/info/warn/error(...)` (routes to log pane in TTY, to stderr otherwise)
+    - `display.close()` (restores terminal state)
+  - Defaults:
+    - `--progress=auto` is **on by default**:
+      - if `process.stderr.isTTY`: show interactive progress UI
+      - else: emit periodic, single-line progress summaries (no cursor movement)
+    - `--progress=off` (or `--no-progress`) disables progress rendering entirely
+    - `--progress=jsonl` emits machine-readable progress events to **stderr** (one JSON object per line)
+    - interactive UI is automatically disabled when `--json` output is enabled (JSON must remain clean)
 
-**Deliverables**
-- Graph relation storage with fixtures.
-- Weighted shard balancing with regression tests.
+### 2.4.2 Define a shared progress event vocabulary
+
+- [x] Add a small event layer that long tasks can emit (even when they are not directly rendering):
+  - `task:start`, `task:progress`, `task:end`
+  - stable fields:
+    - `taskId`
+    - `stage` (e.g., `discovery`, `processing`, `write`, `sqlite`, `validate`, `promote`, `bench`)
+    - `mode` (`code`, `prose`, `extracted-prose`, `records`)
+    - optional: `shardId`, `repoId`, `file`, `bytes`, `lines`, `etaMs`
+- [x] Ensure events can be:
+  - rendered live in-process (direct `build_index.js` runs)
+  - consumed by a parent process (bench harness) without scraping free-form text
+- [x] Standardize emission:
+  - progress events always go to **stderr**
+  - parent processes can opt-in to JSONL parsing via `--progress=jsonl`
+
+### 2.4.3 Upgrade `build-index` to use the unified display
+
+- [x] Replace per-file `[shard] i/n …` spam (default) with:
+  - an overall stage bar
+  - per-mode bars when multiple modes are active
+  - shard-level bars only when sharding is enabled
+- [x] Keep file-level output behind `--verbose` (CLI-only). Do not add env toggles; env is reserved for secrets/deployment wiring only.
+- [x] Ensure extracted-prose + records are shown everywhere code/prose are shown:
+  - startup “modes enabled” banner
+  - stage/mode progress bars
+  - final per-mode summaries (chunks/tokens/dims)
+- [x] Logging noise controls:
+  - avoid repeating identical warnings many times (dedupe + counters)
+  - cap redraw frequency (e.g., 10–20 updates/sec)
+  - in PowerShell/Windows, avoid flicker and cursor corruption (use terminal-kit primitives; add fallback to non-interactive lines when the console cannot reposition)
+
+### 2.4.4 Refactor `bench-lang` to use the same display
+
+- [x] Replace `tools/bench/language/progress/render.js`’s custom ANSI UI with the shared display wrapper.
+- [x] Ensure bench progress renders to **stderr** (never stdout), matching `build-index`.
+- [x] Update `tools/bench-language-repos.js` + `tools/bench/language/run.js` to consume progress events from child index builds.
+- [x] Ensure bench output remains stable and machine-readable when `--json` is used (no TTY UI in JSON mode).
+
+### 2.4.5 Adopt unified display for other long-running commands
+
+- [x] Migrate these to emit progress events and/or use the unified display:
+  - `tools/build-sqlite-index/*`
+  - `tools/build-lmdb-index.js`
+  - `tools/build-embeddings/*`
+  - `tools/compact-sqlite-index.js`
+  - `tools/download-extensions.js` (download/verify/extract steps)
+  - `tools/ci-build-artifacts.js` (multi-step aggregator)
+  - `tools/eval/run.js` (long-running eval workflows)
+
+### 2.4.6 Logging hygiene: less noisy, more actionable
+
+- [x] Add log de-duplication + coalescing:
+  - collapse repeated identical warnings/errors into one line with a counter
+  - throttle high-rate progress logs
+- [x] Add a consistent verbosity contract across tools:
+  - default: compact info logs only (summary lines + key warnings)
+  - `--verbose`: per-file or per-item logs + shard plan dump
+  - `--quiet`: errors only (still prints final summary)
+- [x] Ensure crash logs retain full detail regardless of verbosity:
+  - write full detail to crash report artifacts / ring buffer logs (not console spam)
+  - print a single-line “crash summary + path to report” to stderr
 
 **Exit criteria**
-- Cross-file graph tests pass and shard balance metrics stabilize.
+
+- [x] `build_index.js` and `tools/bench-language-repos.js` share the same display UX and render identical progress primitives.
+- [x] Progress output is on by default and consistently emitted on **stderr**, with JSON-safe stdout.
+- [x] Long-running tools listed above use the unified display (TTY) and emit clean line logs (non-TTY).
+- [x] Default console output is materially less noisy while preserving debuggability via `--verbose`.
 
 ---
 
-# Phase 20 — Embeddings and ANN (ONNX Runtime, HNSW)
+## Phase 3 — Index build scalability: artifact sharding, OOM prevention, and parsing robustness
 
-**Objective:** Add real embedding inference and ANN indexing.
+**Objective:** Prevent index builds from failing on large repos due to memory blowups, oversized artifacts, and brittle JSON parsing.
 
-## 20.1 ONNX embeddings
-- [x] Integrate `onnxruntime-node` inference path with config knobs (executionProviders, thread counts).
-- [x] Add fixture coverage in `tests/bench.js` and repo-scale runs in `tools/bench-language-repos.js`.
+### Observed failures driving this phase
 
-## 20.2 HNSW ANN index
-- [x] Integrate `hnswlib-node` for vector ANN search with persistence and rebuild hooks.
-- [x] Add coverage in `tests/sqlite-ann-extension.js` or a dedicated ANN test.
+- `Error: JSON artifact too large to load (...)` while loading `chunk_meta` (examples observed: ~139MB, ~188MB, ~157MB, and ~704MB).
+- `RangeError: Map maximum size exceeded` in:
+  - `src/index/build/state.js` (`state.phrasePost.set(...)`)
+  - `graphology` during relation graph building
+- Out-of-memory (OOM) when indexing at least one file in the listed fixture set.
+- Repeated JSON parse/syntax errors while reading chunk JSON (“chunkJSON”), including lines containing `[]` / `{}` or bracket fragments.
 
-**Deliverables**
-- ONNX embedding pipeline with configurable execution providers.
-- HNSW ANN indexing + tests/benchmarks.
+### 3.1 Hard guarantee: shard JSONL artifacts before they exceed MAX_JSON_BYTES
+
+- [x] Upgrade `chunk_meta` sharding to be **measured**, not purely sample-estimated:
+  - enforce a hard upper bound per artifact file (and per shard part)
+  - if a part would exceed the bound, split earlier
+- [x] Apply the same policy to other potentially-large JSONL artifacts as needed (file relations, repo map, graphs).
+- [x] Add tests that generate synthetic chunk meta large enough to exceed `MAX_JSON_BYTES` and assert the writer produces `chunk_meta.meta.json` + `chunk_meta.parts/...`, and the loader can read it.
+- [x] Align explicitly with the requirement: “split into multiple jsonl artifacts if it exceeds the size.”
+
+### 3.2 Streaming loaders for SQLite build tooling
+
+- [x] Update sqlite index build tooling to avoid `readJsonLinesArray(...)` collecting the entire chunk_meta into memory:
+  - stream chunk_meta JSONL/parts and insert rows incrementally
+  - keep peak memory bounded by a small batch size
+- [x] Add a regression test on a synthetic large index that builds sqlite from artifacts successfully without unbounded memory growth.
+
+### 3.3 Phrase postings and graph construction memory caps
+
+- [x] Add guardrails to prevent `Map maximum size exceeded`:
+  - phrase postings: cap unique phrase grams per file/chunk; spill/flush; or disable phrase indexing beyond a threshold
+  - relation graphs: cap max edges; dedupe aggressively; avoid building a global in-memory graph for very large repos (stream edges instead)
+- [x] Add diagnostics that identify top contributors (file path + chunk id) when a cap is hit.
+
+### 3.4 Fix the OOM file culprit in the fixture set
+
+- [x] Reproduce the OOM reliably and identify the triggering file from the provided list (fixtures under `tests/fixtures/languages/*`, `tests/fixtures/sample/*`, `tests/fixtures/tree-sitter/*`).
+- [x] Add a targeted regression test and the minimal fix (caps, chunking change, skip reason, or algorithmic improvement) so the fixture set indexes without OOM.
+
+### 3.5 JSONL parsing robustness (“chunkJSON”)
+
+- [x] Add strict JSONL validation:
+  - each non-empty line must parse as a JSON object with required keys
+  - detect and fail fast on bracket/fragments indicative of “JSON array in a .jsonl file”
+- [x] Improve error reporting (file, line number, short preview).
+- [x] Add tests for trailing blank lines, truncated final line, and accidental JSON-array formatting.
 
 **Exit criteria**
-- Embedding + ANN runs complete on bench repos with reproducible metrics.
+
+- [x] Large repos no longer fail with “JSON artifact too large to load”.
+- [x] Index builds do not crash with `Map maximum size exceeded`; they degrade gracefully with clear diagnostics.
+- [x] The identified OOM fixture file is fixed and covered by tests.
+- [x] JSONL parsing failures are actionable and do not appear as repeated opaque syntax errors.
 
 ---
 
-# Phase 22 — Metrics, Benchmarking, and Logging (Prom-client, HDR Histogram, Tinybench, Pino)
+## Phase 5 — Encoding + Language Handler Hardening (latin1, utf-8, Swift)
 
-**Objective:** Provide consistent metrics, latency distributions, and reproducible benchmarking.
+**Objective:** Eliminate encoding-related crashes and restore full language coverage parity for the fixture corpus, with particular focus on latin1/invalid UTF‑8 inputs and Swift parsing.
 
-## 22.1 Metrics + distributions
-- [x] Wire `prom-client` metrics with a minimal vocabulary and bounded labels.
-- [x] Capture p50/p95/p99 latencies using `hdr-histogram-js` or Prometheus histograms.
+### 5.1 Encoding regression suite expansion
 
-## 22.2 Bench tooling and logging hygiene
-- [x] Add `tinybench`-based microbench harness and store reproducible baselines.
-- [x] Configure `pino` redaction and propagate run/repo correlation fields consistently.
+- [x] Add `latin1.js` fixture (from downloads) into `tests/fixtures/encoding/latin1.js` (or equivalent) with known latin1 bytes that are not valid UTF‑8.
+- [x] Add tests covering:
+  - latin1 decode fallback path (iconv)
+  - invalid UTF‑8 does not crash (`TypeError: The encoded data was not valid for encoding utf-8`)
+  - JSONL artifact reading/writing always produces valid UTF‑8
+- [x] Add a decode test matrix for `readTextFileWithHash`:
+  - utf-8 (valid)
+  - utf-8 (invalid sequences)
+  - latin1 / windows-1252 (detected + decoded)
+  - truncation near caps does not split multi-byte sequences
 
-**Deliverables**
-- Metrics endpoint + latency distributions.
-- Microbench suite with reproducible outputs.
+### 5.2 Swift indexing parity
+
+- [x] Reproduce “Swift broken” against:
+  - `tests/fixtures/languages/src/swift_advanced.swift`
+  - `tests/fixtures/tree-sitter/swift.swift`
+  - at least one real-world Swift repo used in benchmarks
+- [x] Fix whichever stage is failing (language registry / chunking / docmeta / relations / comment extraction).
+- [x] Add/extend Swift tests so that:
+  - chunking extracts expected functions/types
+  - extracted-prose comment extraction works
+
+### 5.3 Tree-sitter maxBytes behavior for JavaScript
+
+- [x] Clarify and codify behavior when JS files exceed the tree-sitter `maxBytes` cap (e.g., `984433 > 524288`):
+  - fall back to heuristic chunking with a clear reason, OR
+  - treat as oversize/minified and skip indexing entirely (configurable)
+- [x] Add tests covering the chosen behavior, including ensuring this path cannot trigger downstream Map-size blowups.
 
 **Exit criteria**
-- Metrics and benchmark outputs are stable across repeated runs.
+
+- [x] No encoding-related `TypeError` escapes the file read/decode boundary.
+- [x] Swift fixtures index correctly (chunking + extracted-prose comments at minimum).
+- [x] Large JS files do not cause tree-sitter disable → downstream indexer crashes.
 
 ---
 
-# Phase 23 — Worker and Watch Observability (Piscina, Chokidar)
+## Phase 6 — Security and Input-Hardening (Local Servers + Indexing)
 
-**Objective:** Instrument worker pools and file watch flows with clear, actionable telemetry.
+**Objective:** Close high-impact vulnerabilities and unsafe defaults that could be exploited when indexing untrusted repositories or exposing the local API server beyond localhost.
 
-## 23.1 Worker pool telemetry
-- [x] Emit per-worker timings, queue depth, and retry counts for `piscina` pools.
+1. **Prevent symlink-based repo escape during discovery/indexing**
 
-## 23.2 Watch telemetry
-- [x] Surface watch backlog, debounce stats, and burst handling metrics in `src/index/build/watch.js`.
+   * [x] **Stop following symlinks when discovering and stat’ing files.**
+     * **Why:** If a repository contains a tracked symlink pointing outside the repo (e.g., to `/etc/passwd`), the current logic can follow it and read/index external files. This is a classic “repo escape / data exfiltration” risk when indexing untrusted repos.
+     * **Where:** `src/index/build/discover.js`
+       * Uses `fs.stat()` (follows symlinks) on each path.
+     * **Fix:**
+       * Use `lstat` first; if it is a symlink:
+         * Default behavior: **skip** the entry.
+         * Optional (configurable) behavior: allow symlinks only if resolved target remains within `rootDir` (realpath boundary check).
+       * Ensure both “git ls-files” path discovery and fallback `fdir` scanning apply the same symlink policy.
+     * **Tests:**
+       * Add a fixture repo containing a symlink file pointing outside repo root.
+       * Assert indexing does not read it (and ideally logs a warning or records a skip reason).
+   * [x] **Ensure downstream file reads cannot accidentally follow symlinks even if discovery misses one.**
+     * **Why:** Defense-in-depth; discovery should prevent it, but a second gate at file-read time reduces risk.
+     * **Where:** `src/index/build/file-processor.js` and any shared read helpers (e.g., `src/shared/encoding.js` `readTextFileWithHash`)
+     * **Fix:** If feasible, check `lstat` before read in the pre-read stage (or pass `lstat` results from discovery and enforce “no symlink reads”).
 
-**Deliverables**
-- Worker and watch telemetry surfaced in logs/metrics.
+2. **Lock down API server defaults (CORS, repo selection, and exposure)**
+
+   * [x] **Remove unconditional permissive CORS (`Access-Control-Allow-Origin: *`) or make it explicitly opt-in.**
+     * **Why:** If the server is started with `--host 0.0.0.0` (supported), permissive CORS plus no auth makes it trivial for any web page on the same network to call the API from a browser (cross-site request from an untrusted origin).
+     * **Where (currently sets `*`):**
+       * `tools/api/router.js` (sets headers broadly, including metrics endpoint)
+       * `tools/api/response.js`
+       * `tools/api/sse.js`
+     * **Fix (recommended safe default):**
+       * Default allowlist: `http://127.0.0.1:*` and `http://localhost:*` only (or no CORS headers at all unless configured).
+       * Add config flags:
+         * `api.cors.allowedOrigins` (array)
+         * `api.cors.allowAnyOrigin` (explicit opt-in, default false)
+   * [x] **Add authentication for non-localhost bindings (or always, with a “dev disable” escape hatch).**
+     * **Why:** The API allows expensive operations (search) and can access the filesystem via repo selection (see next item). This should not be anonymous if reachable from other machines.
+     * **Fix:**
+       * Support a bearer token header, e.g. `Authorization: Bearer <token>` with `PAIR_OF_CLEATS_API_TOKEN` env var.
+       * If `host` is not `127.0.0.1/localhost`, require token by default.
+   * [x] **Restrict `repoPath` override in API requests (prevent arbitrary filesystem indexing/search).**
+     * **Why:** Current API accepts a request body that can set `repoPath`, and then resolves and operates on that directory. Without an allowlist, this is arbitrary directory read/search capability.
+     * **Where:** `tools/api/router.js` `resolveRepo(value)` and usage in `/search`, `/status`, `/stream/search`.
+     * **Fix options:**
+       * Option A (strict): disallow `repoPath` in request; only use the server’s configured repo.
+       * Option B (allowlist): allow only if within a configured set of allowed roots (`api.allowedRepoRoots`), enforced by realpath boundary checks.
+     * **Tests:**
+       * Confirm requests with disallowed repoPath return 400/403.
+       * Confirm allowed repo paths still work.
+
+3. **Harden API request body parsing and limits**
+
+   * [x] **Replace string concatenation body parsing with byte-safe buffering and strict size enforcement.**
+     * **Why:** Current `parseBody` in `tools/api/router.js` does `data += chunk` and uses `data.length` (characters, not bytes). This is less reliable and can be slower for large payloads due to repeated string reallocations.
+     * **Fix:**
+       * Accumulate Buffers in an array; track `byteLength`.
+       * Enforce a hard cap in bytes (e.g., 1 MiB configurable).
+       * Only decode once at the end.
+   * [x] **Validate `Content-Type` for JSON endpoints.**
+     * **Why:** Avoid ambiguous parsing and reduce attack surface.
+     * **Fix:** Require `application/json` for POST bodies on `/search` and stream endpoints (except where intentionally flexible).
 
 **Exit criteria**
-- Worker/watch telemetry consistently reports queue depth and durations under load.
+
+* [x] Indexing does not follow symlinks by default (tested with a symlink fixture).
+* [x] API no longer emits permissive CORS headers by default.
+* [x] API requests cannot arbitrarily set `repoPath` unless explicitly allowed/configured.
+* [x] API body parsing is byte-safe and enforces a clear, tested size limit.
 
 ---
 
-# Phase 24 — Python Type Tooling (Pyright)
+## Phase 8 — Language handlers & chunking review
 
-**Objective:** Implement Python type inference using Pyright.
+**Objective:** Make language detection, per-language chunking, tree-sitter integration, and ingestion tooling *deterministic, robust on real-world code*, and *well-tested* — with clear fallback behavior, predictable chunk boundaries, and guardrails against performance/pathological inputs.
 
-## 24.1 Pyright integration
-- [x] Integrate `pyright` analysis for Python files and capture diagnostics/types.
-- [x] Add fixtures and cross-file inference tests for Python.
+---
 
-**Deliverables**
-- Pyright-backed Python type metadata with fixtures and tests.
+### 8.0 Priority findings summary (what must be fixed first)
+
+#### P0 — Breaks correctness, tests, or core workflows
+- [x] **Fix YAML tab handling + Windows path normalization bugs** in `src/index/chunking/formats/yaml.js` (tabs currently checked as the literal string `"\t"`; Windows paths normalized with the wrong regex).  
+  - Affects: skipping list items / indentation detection; GitHub Actions workflow detection on Windows-style paths.
+- [x] **Fix C-like docstring/attribute extraction off-by-one** in `src/lang/clike.js` (doc comment extraction currently skips the line immediately above declarations).  
+  - Affects: docstring/attributes in C/C++/ObjC chunks (and downstream docmeta / fidelity).
+- [x] **Fix broken test syntax** in `tests/language-registry/collectors.test.js` (invalid escaped quotes).  
+  - Affects: test suite execution.
+- [x] **Fix ingestion tools writing output before ensuring directory exists** in:
+  - `tools/ctags-ingest.js`
+  - `tools/gtags-ingest.js`
+  - `tools/lsif-ingest.js`
+  - `tools/scip-ingest.js`  
+  Creating the write stream before `ensureOutputDir()` can fail when the output directory does not exist.
+- [x] **Fix SQL statement splitting for standard SQL escaping (`''` / `""`)** in `src/lang/sql.js`.  
+  Current quote toggling assumes backslash-escaping and will mis-split statements containing doubled quotes.
+
+#### P1 — Tree-sitter quality/perf gaps that will surface at scale
+- [x] **Fix `findNameNode` traversal depth bug** in `src/lang/tree-sitter/chunking.js` (depth increments per node instead of per level; the search stops after ~4 iterations).  
+  - Affects: chunk naming quality and method/class qualification.
+- [x] **Make tree-sitter worker path functional and deterministic** (`src/lang/workers/tree-sitter-worker.js` + `src/lang/tree-sitter/chunking.js`).  
+  - Worker currently does not preload/init grammars; `buildTreeSitterChunksAsync()` treats a `null` worker result as “success” and does not fall back.
+
+#### P2 — Cleanup, clarity, and long-term maintainability
+- [x] **Remove or use unused imports** (e.g., `parseTypeScriptSignature` in `src/lang/typescript/chunks-babel.js`).
+- [x] **Add missing/edge-case tests** (Windows paths, tabs, unicode identifiers, SQL quoting, tree-sitter worker behavior, etc.).
+- [x] **Document chunk metadata semantics** (particularly `meta.endLine` inclusivity and byte vs. code-unit offsets) in `docs/contracts/chunking.md` (and/or a new contract doc).
+
+---
+
+### 8.1 Chunking pipeline: mapping, fallback, limits, determinism
+
+#### 8.1.1 Fallback behavior and deterministic output
+- [x] **Audit & document** the full fallback chain in `src/index/chunking/dispatch.js`:
+  - code chunker → code-format chunker → prose chunker → root chunk (prose extensions) → fixed-size blob fallback.
+- [x] **Add regression tests** that verify:
+  - A failed code chunker returns `null` and the dispatcher properly falls back.
+  - “Prose mode” behavior for `.md/.rst/.adoc/.txt/.mdx` is stable (chunk headings when possible; otherwise single chunk).
+  - “Code mode” for prose files intentionally uses blob fallback (or adjust if that’s not desired).
+
+#### 8.1.2 Limits: correctness + performance under large inputs
+- [x] **Add tests for multi-byte UTF-8 boundaries** in `applyChunkingLimits()` (`src/index/chunking/limits.js`):
+  - Ensure splits never create invalid surrogate pairs.
+  - Ensure byte limits are enforced correctly with emoji / non-ASCII identifiers.
+- [x] **Performance review:** `resolveByteBoundary()` currently calls `Buffer.byteLength(text.slice(0, mid))` repeatedly.
+  - [x] Consider a faster strategy (e.g., pre-encoding once to a `Buffer`, or maintaining cumulative byte counts per line) to avoid repeated substring allocations.
+- [x] **Clarify contract semantics** for:
+  - Whether `chunk.end` is exclusive (it is treated as exclusive almost everywhere).
+  - Whether `meta.endLine` is “line containing end offset” vs “last included line”.  
+    (Many language chunkers use `offsetToLine(end)` vs `offsetToLine(end - 1)`; this should be intentional and documented.)
+  - Update `docs/contracts/chunking.md` accordingly and add examples.
+
+---
+
+### 8.2 Format chunkers: YAML, JSON, XML, INI/TOML, Markdown, RST/Asciidoc
+
+#### 8.2.1 YAML (`src/index/chunking/formats/yaml.js`)
+**Bugs**
+- [x] **Fix tab detection** in `chunkYamlTopLevel()` and list-item skipping:
+  - Current code checks `line.startsWith("\t")` (literal backslash + t) instead of `line.startsWith("\t")` as a tab character.
+  - Locations:
+    - line ~60: `line.startsWith('\t')` in list-item skip condition
+    - line ~92: `line.startsWith('\t')` in indentation calculation
+- [x] **Fix Windows path normalization** in `chunkYaml()`:
+  - Current: `normalizedPath = relPath.replace(/\\\\/g, '/')`  
+    This matches *double* backslashes; typical Windows paths contain single backslashes.
+  - Should be: `relPath.replace(/\\/g, '/')` (single backslash regex)
+
+**Hardening / improvements**
+- [x] **Add YAML tests** covering:
+  - Tab-indented YAML (even if discouraged, tools may produce it).
+  - Workflow path detection for both `".github/workflows/foo.yml"` and `".github\\workflows\\foo.yml"`.
+  - A workflow file with `jobs:` where indentation is not 2 spaces (ensure graceful behavior).
+- [x] **Document YAML chunker limitations** (top-level-only + heuristics for GH Actions) in the chunking contract or a dedicated “format chunkers” doc section.
+
+#### 8.2.2 JSON (`src/index/chunking/formats/json.js`)
+- [x] **Test hygiene:** Fix test calls that pass arguments in the wrong positions (e.g., `chunkJson(jsonText, {})` in `tests/chunking/json.test.js` currently passes `{}` as `relPath`).  
+  Update to `chunkJson(jsonText, null, {})` for clarity and future-proofing.
+- [x] **Optional robustness improvement:** consider using `jsonc-parser` for tolerant parsing (trailing commas/comments) *if desired*.
+  - If adopted, ensure invalid JSON still cleanly falls back (i.e., return `null`).
+
+#### 8.2.3 XML (`src/index/chunking/formats/xml.js`)
+- [x] Add tests for:
+  - Nested tags with attributes + self-closing tags.
+  - CDATA blocks and processing instructions.
+  - Malformed tag recovery (should return `null`, triggering fallback, rather than producing broken chunks).
+
+#### 8.2.4 Markdown (`src/index/chunking/formats/markdown.js`)
+- [x] Add tests for:
+  - Headings inside fenced blocks (should not create chunks; current `inFence` logic covers ``` and ~~~).
+  - Setext headings vs horizontal rules (ensure `---` under a paragraph is treated correctly).
+
+#### 8.2.5 RST/Asciidoc (`src/index/chunking/formats/rst-asciidoc.js`)
+- [x] Add tests for:
+  - RST overline+underline headings and nested sectioning.
+  - Asciidoc `==` headings inside code/list blocks to avoid false positives.
+
+#### 8.2.6 INI/TOML (`src/index/chunking/formats/ini-toml.js`)
+- [x] Add tests for:
+  - TOML array-of-tables (`[[table]]`).
+  - INI sections with unusual whitespace and comments.
+
+---
+
+### 8.3 Language registry: selection, options, and collector mapping
+
+#### 8.3.1 Registry correctness (`src/index/language-registry/registry.js`)
+- [x] **Confirm and document intentional grouping** of C/C++/ObjC into `id: 'clike'`:
+  - Ensure docs and tests consistently reflect that `.c/.h/.cpp/.hpp/.m/.mm` map to the same language id.
+  - Update language-fidelity expectations and/or docs if users expect separate ids.
+
+- [x] Expand `tests/language-registry/selection.test.js` to cover:
+  - C/C++/ObjC extensions: `.c`, `.h`, `.cpp`, `.hpp`, `.m`, `.mm`
+  - Ambiguous extensions and “special names”:
+    - `Dockerfile`, `dockerfile`, `*.Dockerfile`
+    - `Makefile`, `makefile`
+    - `CMakeLists.txt`
+    - `.gitignore`-style config names (if supported elsewhere)
+
+#### 8.3.2 Import collectors map (`tests/language-registry/collectors.test.js`)
+- [x] **Fix syntax error** at the Dart fixture entry:
+  - Replace `text: "import 'package:foo/bar.dart';",` with a valid JS string literal:
+    - `text: "import 'package:foo/bar.dart';",`
+
+- [x] Add edge-case import collector tests for:
+  - Multiline imports (where applicable).
+  - Imports inside comments (should be ignored where the collector claims to ignore comments).
+  - Duplicate imports / whitespace variants (ensure normalization works).
+
+---
+
+### 8.4 Tree-sitter backbone: wasm init, language loading, chunk extraction, workers
+
+#### 8.4.1 Name extraction (`src/lang/tree-sitter/chunking.js`)
+- [x] **Fix `findNameNode()` depth logic**:
+  - Current implementation increments `depth` per dequeued node, not per BFS level.
+  - Result: the search stops after ~4 processed nodes and often fails to find a name.
+  - Expected: traverse up to N levels or up to a node-count budget (explicitly), and return the first plausible identifier.
+- [x] Add tests that assert:
+  - Function and class chunk names are extracted correctly across multiple language grammars.
+  - Member/method names are found for nested AST shapes where the `name` field is not a direct child.
+
+#### 8.4.2 Worker-mode tree-sitter chunking (`src/lang/workers/tree-sitter-worker.js`, `src/lang/tree-sitter/chunking.js`)
+- [x] **Initialize and preload grammars inside the worker** (or add a per-worker lazy-init path):
+  - Today, the worker calls `buildTreeSitterChunks()` without ensuring tree-sitter wasm + language grammar are loaded in that worker thread.
+  - Proposed fix:
+    - In the worker, resolve language id from `ext`/`languageId`, then `await preloadTreeSitterLanguages([resolvedId], treeSitterOptions)` before parsing.
+- [x] **Make `buildTreeSitterChunksAsync()` treat `null` results as a failure signal** and fall back to in-thread parsing (or to non-tree-sitter chunking), at least when worker-mode is enabled.
+- [x] Add tests that explicitly enable worker-mode and assert that:
+  - Chunks are returned (not `null`) for a known fixture.
+  - The result matches non-worker behavior (same chunk boundaries, or documented acceptable differences).
+  - If a grammar is missing/unavailable, it falls back cleanly and deterministically.
+
+#### 8.4.3 Configuration normalization (`src/lang/tree-sitter/options.js`)
+- [x] Improve boolean normalization:
+  - Current `normalizeEnabled()` only recognizes `false` and the literal string `'off'`.
+  - Expand to treat `'false'`, `'0'`, `'no'` (case-insensitive) as disabled, and `'true'`, `'1'`, `'yes'`, `'on'` as enabled.
+- [x] Add tests for config parsing from environment/JSON where booleans may be strings.
+
+#### 8.4.4 Offsets: bytes vs JS string indices
+- [x] Add an explicit contract note and tests around offset units used by:
+  - tree-sitter (`node.startIndex/endIndex`)
+  - parse5 and other JS parsers
+  - Python AST (line/col from Python runtime)  
+  Ensure all chunk `start/end` offsets are consistent with JS string slicing expectations, particularly with non-BMP unicode characters.
+
+---
+
+### 8.5 Language handlers: correctness fixes & hardening
+
+#### 8.5.1 C-like (`src/lang/clike.js`)
+- [x] **Fix docstring extraction index** for functions and ObjC methods:
+  - Current:
+    - ObjC method chunk meta: `extractDocComment(lines, i - 1, ...)` and `collectAttributes(lines, i - 1, ...)`
+    - C-like functions: `extractDocComment(lines, i - 1)`
+  - This skips the immediate preceding line.  
+  - Fix: pass `i` (0-based declaration start line) instead of `i - 1`.
+  - Locations:
+    - ~417–418, ~463 in `src/lang/clike.js`
+- [x] Add tests for C-like doc comment capture:
+  - A `/** ... */` or `// ...` directly above a `struct`, `class`, `enum`, and `function`.
+  - ObjC method with `///` doc comment above it.
+
+#### 8.5.2 SQL (`src/lang/sql.js`)
+- [x] **Fix quote handling** in both `stripSqlComments()` and `splitSqlStatements()`:
+  - SQL escaping commonly uses doubled quotes:
+    - `'It''s fine'`
+    - `"a ""quoted"" identifier"`
+  - Current logic toggles on every `'`/`"` not preceded by backslash, which breaks on doubled quotes.
+
+- [x] Add tests that include:
+  - Semicolons inside strings with doubled quotes.
+  - PostgreSQL dollar-quoted strings combined with single-quoted strings.
+  - MySQL delimiter blocks that contain semicolons.
+
+#### 8.5.3 CSS (`src/lang/css.js`)
+- [x] Add guardrails to prevent pathological chunk explosion when using the CSS tree-sitter parser:
+  - Options:
+    - Enforce a max node/chunk count (consistent with tree-sitter default maxChunkNodes behavior).
+    - Or switch to `buildTreeSitterChunks()` and its existing limits.
+- [x] Add tests for:
+  - Nested `@media` with many rules (ensure performance and deterministic chunk output).
+  - Files exceeding the max node threshold (ensure fallback to heuristic).
+
+#### 8.5.4 TypeScript (`src/lang/typescript/chunks-babel.js`)
+- [x] Remove or use unused import `parseTypeScriptSignature` (currently imported but not referenced).
+- [x] Add/extend tests ensuring:
+  - Babel-based TS chunker produces signatures and types consistently where expected.
+  - Worker/non-worker tree-sitter paths do not regress TS chunking (when enabled).
+
+---
+
+### 8.6 Imports, relations, and control-flow metrics
+
+#### 8.6.1 Import collectors
+- [x] Add test coverage for:
+  - Normalization rules (`normalizeImportToken()` behavior).
+  - Edge cases per language (e.g., JS `import type`, TS `import("x")`, Python relative imports).
+- [x] Validate that collectors return stable, sorted output (dedupe + order determinism), or document if order is intentionally non-deterministic.
+
+#### 8.6.2 Relations builders (`src/index/language-registry/simple-relations.js`, per-language `relations.js`)
+- [x] Add a small integration test that:
+  - Runs `collectLanguageImports()` and `buildLanguageRelations()` for a multi-language fixture set.
+  - Verifies the resulting `imports`, `exports`, `calls`, and `usages` sets match expectations.
+
+---
+
+### 8.7 Ingestion tools: ctags / gtags / lsif / scip
+
+#### 8.7.1 Output directory creation order
+- [x] Move `await ensureOutputDir()` to occur *before* `fs.createWriteStream(outputPath, ...)` in:
+  - `tools/ctags-ingest.js` (write stream is created before the dir is ensured)
+  - `tools/gtags-ingest.js`
+  - `tools/lsif-ingest.js`
+  - `tools/scip-ingest.js`
+
+#### 8.7.2 Robustness improvements
+- [x] Add tests / smoke scripts that verify:
+  - Tools succeed when output directory doesn’t exist.
+  - Tools correctly handle empty input streams.
+  - Tools fail with actionable errors on malformed JSON lines.
+
+- [x] Add optional flags/docs for:
+  - Strict vs tolerant ingest behavior (skip malformed lines vs fail-fast).
+  - Path normalization expectations (repo-root relative vs absolute).
+
+---
+
+### 8.8 Docs and test suite alignment
+
+#### 8.8.1 Fix broken / missing documentation references
+- [x] The Section 5 checklist references docs that are *not present* in this repo snapshot (e.g., `docs/contracts/language-registry.md`, `docs/contracts/ast.md`, and `docs/optional/*`).  
+  Decide whether to:
+  - Create these docs, or
+  - Update the checklist to point to existing docs (`docs/language-handler-imports.md`, `docs/language-fidelity.md`, etc.).
+
+#### 8.8.2 Update existing docs for discovered behavior
+- [x] Update `docs/contracts/chunking.md` to include:
+  - Chunk offset semantics (exclusive `end`, unicode considerations).
+  - `meta.startLine/endLine` semantics and examples.
+  - Expected behavior for overlapping chunks (if allowed) vs non-overlapping (if required).
+- [x] Update `docs/language-fidelity.md` if docstring expectations for C-like currently fail due to the off-by-one bug.
+
+#### 8.8.3 Add a “known limitations” section (recommended)
+- [x] Document known heuristic limitations for:
+  - SQL parsing (heuristic statement splitting vs full parser).
+  - YAML parsing (line-based, top-level heuristics).
+  - Language relations (regex-based calls/usages for some languages).
+
+---
+
+### Deliverables
+- [x] All P0/P1 fixes implemented with unit tests.
+- [x] Updated docs reflecting chunk semantics and configuration.
+- [x] A focused regression test pack covering:
+  - YAML tabs + Windows workflow paths
+  - C-like doc comments
+  - SQL doubled-quote handling
+  - Tree-sitter worker-mode functionality
+  - Chunking limits with unicode/multi-byte text
+
+---
+
+### Exit criteria
+- [x] `npm test` (or the project’s test runner) executes without syntax errors (including `collectors.test.js`).
+- [x] Format chunkers are robust against malformed inputs and fall back deterministically.
+- [x] Tree-sitter worker-mode returns real chunks for supported languages and falls back when grammars are missing.
+- [x] Chunk metadata semantics are documented and consistent across chunkers (or differences are explicitly justified).
+- [x] Ingestion tools succeed when output directories are missing and produce valid NDJSON outputs.
+
+---
+
+## Phase 41 — Test runner entrypoint: `pairofcleats test` (lanes/selectors/output)
+
+**Objective:** Replace hundreds of ad-hoc `node tests/<file>.js` entrypoints with a single stable runner that can execute existing tests unchanged, while enabling lanes, selectors, retries/timeouts, and structured output.
+
+### 41.1 Choose and wire the canonical entrypoint
+
+* [x] Implement the canonical public interface (preferred): `pairofcleats test …`
+  * Acceptable alternative: `node tests/run.js …`
+* [x] Wire `npm test` to the canonical entrypoint.
+* [x] Ensure the runner can execute existing tests (initially `tests/*.js`) unchanged (subprocess execution).
+
+### 41.2 Runner CLI interface (selectors + options)
+
+Selection:
+
+* [x] Support `selectors...` (id/path/name selectors).
+* [x] `--lane <name>[,<name>...]` (default `ci`).
+* [x] `--tag <tag>` (repeatable) and `--exclude-tag <tag>` (repeatable).
+* [x] `--match <pattern>` (repeatable) and `--exclude <pattern>` (repeatable).
+  * pattern forms: substring (case-insensitive) or regex literal `/.../`
+* [x] `--list` prints resolved tests and exits.
+
+Execution controls:
+
+* [x] `--jobs <n>` (default 1 initially; increase once isolation improves).
+* [x] `--retries <n>` (default 0 local, 1–2 CI).
+* [x] `--timeout-ms <n>` (default 120000).
+* [x] `--fail-fast`.
+
+Output / reporting:
+
+* [x] `--quiet` minimal output.
+* [x] `--json` machine-readable summary to stdout.
+* [x] `--junit <path>` writes JUnit XML.
+* [x] `--log-dir <path>` captures per-test stdout/stderr.
+
+Pass-through:
+
+* [x] Support `-- <args>` pass-through to selected tests.
+
+### 41.3 Environment normalization (runner responsibility)
+
+* [x] Normalize these env vars (unless explicitly overridden):
+  * `PAIROFCLEATS_TEST_TIMEOUT_MS`
+  * `PAIROFCLEATS_TEST_LOG_DIR`
+  * `PAIROFCLEATS_TEST_RETRIES`
+
+* [x] Runner must **not** globally force cache roots or embeddings providers.
+
+### 41.4 Discovery model
+
+* [x] Convention-based discovery (initial):
+  * discover executable Node scripts under `tests/`
+  * exclude `tests/fixtures/**`, `tests/**/helpers/**`, and known orchestrators
+  * id is relative path from `tests/` without extension
+* [x] Manifest-based discovery (recommended long-term):
+  * add `tests/manifest.json` (or `tests/manifest.js`) with `{id, path, tags}`
+  * support stable ids even after refactors
+
+### 41.5 Lanes, determinism, and exit codes
+
+* [x] Implement lanes:
+  * `smoke`, `unit`, `integration`, `services`, `storage`, `perf`, `ci` (default)
+
+* [x] Define lane composition (initial):
+  * `ci = unit + integration + services` minus `perf` and minus explicitly flaky/slow tests
+
+* [x] Exit codes:
+  * `0` all pass
+  * `1` failures
+  * `2` usage error (unknown lane / bad flags)
+
+* [x] Output format (human):
+  * preamble (lanes/filters/resolved count)
+  * per-test `PASS/FAIL <id> (<duration>)`
+  * final summary (passed/failed/skipped + failure list + log dir)
 
 **Exit criteria**
-- Python type inference fixtures pass with stable outputs.
 
+* [x] `pairofcleats test` runs the default lane on a clean checkout.
+* [x] `--lane`, `--match`, and `--list` work and are deterministic.
+* [x] Runner emits stable human output and optional JSON/JUnit reports.
 
-## Phase 6: Throughput engineering and incremental correctness
+---
 
-### 6.1 Metric-driven sharding and performance profiles
+## Phase 42 — Test suite decomposition & regrouping (split monolith tests; folder structure; retire suites)
+
+**Objective:** Make failures easy to triage by enforcing “one responsibility per test file,” and by regrouping the suite into coherent directories aligned with lanes/tags.
+
+### 42.1 Establish the grouping taxonomy (paths + ids)
+
+* [x] Introduce (or formalize) group folders under `tests/`:
+  * `harness/` — meta-tests and suite controllers
+  * `unit/` — pure logic
+  * `indexing/` — build-time + artifact contracts
+  * `retrieval/` — search semantics + filters + determinism
+  * `storage/` — SQLite/LMDB backends + migrations
+  * `services/` — API + MCP servers
+  * `tooling/` — LSP enrichment, cross-file inference, worker/tool contracts
+  * `lang/` — language/format contracts (per-language invariants and metadata expectations)
+  * `perf/` — benchmarks + perf guardrails
+* [x] Ensure the test runner lane/tag model maps cleanly onto these groups.
+
+### 42.2 Migration Phase 1 — Tag-and-lane only (no file moves)
+
+* [x] Establish lane membership using a small mapping (runner manifest).
+* [x] Keep today’s scripts runnable during migration.
+
+### 42.3 Split the largest multi-responsibility tests (priority list)
+
+#### 42.3.1 Split `tests/language-fidelity.js` (split aggressively)
+
+Indexing artifact integrity (`tests/indexing/language-fixture/`):
+
+* [x] Add `tests/indexing/language-fixture/postings-integrity.test.js`
+* [x] Add `tests/indexing/language-fixture/chunk-meta-exists.test.js`
+
+Search filter semantics (`tests/retrieval/filters/`):
+
+* [x] Add `tests/retrieval/filters/control-flow.test.js` (branches)
+* [x] Add `tests/retrieval/filters/types.test.js` (inferred-type, return-type)
+* [x] Add `tests/retrieval/filters/behavioral.test.js` (returns, async)
+* [x] Add `tests/retrieval/filters/file-selector.test.js` (file regex)
+* [x] Add `tests/retrieval/filters/risk.test.js` (risk tag + risk flow)
+
+Language/format contracts (`tests/lang/contracts/`):
+
+* [x] Add `tests/lang/contracts/javascript.test.js`
+* [x] Add `tests/lang/contracts/typescript.test.js`
+* [x] Add `tests/lang/contracts/python.test.js`
+* [x] Add `tests/lang/contracts/go.test.js`
+* [x] Add `tests/lang/contracts/sql.test.js`
+* [x] Add `tests/lang/contracts/misc-buildfiles.test.js`
+
+#### 42.3.2 Split `tests/fixture-smoke.js` (split by contract area)
+
+Fixture build + artifacts (`tests/indexing/fixtures/`):
+
+* [x] Add `tests/indexing/fixtures/build-and-artifacts.test.js`
+* [x] Add `tests/indexing/fixtures/minhash-consistency.test.js`
+
+Search output contracts (`tests/retrieval/contracts/`):
+
+* [x] Add `tests/retrieval/contracts/result-shape.test.js`
+* [x] Add `tests/retrieval/contracts/compact-json.test.js`
+
+Fixture-scoped filter semantics (`tests/retrieval/filters/`):
+
+* [x] Add `tests/retrieval/filters/ext-path.test.js`
+* [x] Add `tests/retrieval/filters/type-signature-decorator.test.js`
+
+Language spot-checks (fixture sample only) (`tests/lang/fixtures-sample/`):
+
+* [x] Add `tests/lang/fixtures-sample/python-metadata.test.js`
+* [x] Add `tests/lang/fixtures-sample/swift-metadata.test.js`
+* [x] Add `tests/lang/fixtures-sample/rust-metadata.test.js`
+
+#### 42.3.3 Split `tests/sqlite-incremental.js` (split by behavior axis)
+
+`tests/storage/sqlite/incremental/`:
+
+* [x] Add `tests/storage/sqlite/incremental/file-manifest-updates.test.js`
+* [x] Add `tests/storage/sqlite/incremental/search-after-update.test.js`
+* [x] Add `tests/storage/sqlite/incremental/manifest-normalization.test.js`
+
+`tests/storage/sqlite/migrations/`:
+
+* [x] Add `tests/storage/sqlite/migrations/schema-mismatch-rebuild.test.js`
+
+#### 42.3.4 Split `tests/search-filters.js` (split by filter family)
+
+`tests/retrieval/filters/query-syntax/`:
+
+* [x] Add `tests/retrieval/filters/query-syntax/negative-terms.test.js`
+* [x] Add `tests/retrieval/filters/query-syntax/phrases-and-scorebreakdown.test.js`
+
+`tests/retrieval/filters/git-metadata/`:
+
+* [x] Add `tests/retrieval/filters/git-metadata/chunk-author.test.js`
+* [x] Add `tests/retrieval/filters/git-metadata/modified-time.test.js`
+* [x] Add `tests/retrieval/filters/git-metadata/branch.test.js`
+
+`tests/retrieval/filters/file-and-token/`:
+
+* [x] Add `tests/retrieval/filters/file-and-token/file-selector-case.test.js`
+* [x] Add `tests/retrieval/filters/file-and-token/token-case.test.js`
+* [x] Add `tests/retrieval/filters/file-and-token/punctuation-tokenization.test.js`
+
+#### 42.3.5 Split `tests/mcp-server.js` (split by MCP contract areas)
+
+`tests/services/mcp/`:
+
+* [x] Add `tests/services/mcp/protocol-initialize.test.js`
+* [x] Add `tests/services/mcp/tools-list.test.js`
+* [x] Add `tests/services/mcp/tool-index-status.test.js`
+* [x] Add `tests/services/mcp/tool-config-status.test.js`
+* [x] Add `tests/services/mcp/tool-build-index-progress.test.js`
+* [x] Add `tests/services/mcp/tool-search-defaults-and-filters.test.js`
+* [x] Add `tests/services/mcp/errors.test.js` (missing repo, missing index)
+
+#### 42.3.6 Split `tests/api-server.js` (split by endpoint family)
+
+`tests/services/api/`:
+
+* [x] Add `tests/services/api/health-and-status.test.js`
+* [x] Add `tests/services/api/search-happy-path.test.js`
+* [x] Add `tests/services/api/search-validation.test.js`
+* [x] Add `tests/services/api/repo-authorization.test.js`
+* [x] Add `tests/services/api/no-index.test.js`
+
+#### 42.3.7 Split `tests/type-inference-crossfile.js` (unit vs integration)
+
+`tests/tooling/type-inference/`:
+
+* [x] Add `tests/tooling/type-inference/crossfile-stats.unit.test.js`
+
+`tests/indexing/type-inference/`:
+
+* [x] Add `tests/indexing/type-inference/crossfile-output.integration.test.js`
+
+#### 42.3.8 Split `tests/triage-records.js` (split by pipeline stage)
+
+`tests/tooling/triage/`:
+
+* [x] Add `tests/tooling/triage/ingest-generic.exposure.test.js`
+* [x] Add `tests/tooling/triage/ingest-sources.smoke.test.js`
+* [x] Add `tests/tooling/triage/decision.test.js`
+* [x] Add `tests/tooling/triage/records-index-and-search.test.js`
+* [x] Add `tests/tooling/triage/context-pack.test.js`
+
+#### 42.3.9 Split `tests/bench.js` (move to perf + split scenarios)
+
+`tests/perf/bench/`:
+
+* [x] Add `tests/perf/bench/run.test.js` (or `run.js` if treated as a tool rather than a test)
+* [x] Add `tests/perf/bench/scenarios/memory-vs-sqlite.js`
+* [x] Add `tests/perf/bench/scenarios/sqlite-fts.js`
+* [x] Add `tests/perf/bench/scenarios/ann-on-off.js`
+* [x] Add `tests/perf/bench/scenarios/bm25-params.js`
+
+#### 42.3.10 Optional decompositions (as time permits)
+
+* [x] Split `tests/mcp-robustness.js` into two tests (queue overload vs timeout scenarios).
+* [x] Consider splitting `tests/mcp-schema.js` by snapshot type (tool schema vs response shape).
+* [x] Consider splitting `tests/type-inference-crossfile-go.js` similarly to JS cross-file.
+* [x] Consider splitting `tests/type-inference-lsp-enrichment.js` by language if it remains unstable.
+
+### 42.4 Migration Phase 2 — Move tests into group folders (mechanical)
+
+* [x] Move remaining tests into `tests/<group>/...` while preserving ids via a manifest.
+* [x] Create thin compatibility shims only where necessary.
+
+### 42.5 Migration Phase 3 — Remove deprecated suites and script sprawl
+
+* [x] Remove monolith scripts once split tests cover equivalent assertions.
+* [x] Collapse `package.json` scripts surface to a small set of lanes (delegate to the test runner).
+
+**Success criteria**
+
+* [x] A developer can answer “what should I run?” with ~6 lanes.
+* [x] The largest multi-domain scripts are split so failures point to a subsystem.
+* [x] CI can run the `ci` lane deterministically with clear logs and minimal flake.
+* [x] The test tree communicates intent via folder structure and stable ids.
+
+---
+
+## Executive summary
+
+### P0 (must address)
+
+- **Chunk-meta sharding cleanup bug can cause the loader to read stale shard data** when switching builds from sharded chunk-meta to non-sharded JSONL. This is because `loadChunkMeta()` prefers `chunk_meta.meta.json` / `chunk_meta.parts` over `chunk_meta.jsonl`. Current cleanup logic does not remove the sharded artifacts in the “jsonl, not sharded” path.  
+  - Impact: **incorrect chunks, incorrect file mapping, confusing debug output, and potentially broken search** for any repo where a previous build produced `chunk_meta.meta.json` / `chunk_meta.parts`.  
+  - Primary locus: `src/index/build/artifacts/writers/chunk-meta.js`.
+
+- **Fast import scanning likely mis-parses `es-module-lexer` records** by treating `entry.d` as a module specifier string. In `es-module-lexer`, `d` is not a specifier (it is typically a numeric “dynamic import” marker). This can yield non-string imports (numbers), downstream crashes in normalization, and/or incorrect `fileRelations.imports` / `externalDocs`.  
+  - Primary locus: `src/index/build/imports.js`.
+
+- **Piece assembly can silently accept structurally-invalid inputs** because `validateLengths()` treats an empty list as “valid” even when the expected length is non-zero. This can produce assembled indexes with mismatched arrays (e.g., `docLengths`, embeddings vectors) without an early, actionable error.  
+  - Primary locus: `src/index/build/piece-assembly.js`.
+
+- **Piece assembly appears to drop the `comment` field in field postings/docLengths** (field tokens include `comment`, but assembly only merges `name/signature/doc/body`). If `comment` is enabled in fielded search, this can corrupt/disable that feature in assembled outputs.  
+  - Primary locus: `src/index/build/piece-assembly.js` (and, secondarily, `src/index/build/postings.js` conventions).
+
+### P1 (high-value next)
+
+- **Determinism risks** (import link ordering; vocab ordering derived from `Map` insertion order; shard batch sorting ties; repo-map ordering) can cause noisy diffs and unstable IDs across builds even when inputs are unchanged.
+- **Artifact manifest robustness**: `pieces/manifest.json` generation can silently record `null` checksums/bytes on error; this weakens contract guarantees and can hide partial artifact failures.
+- **CI metadata hygiene**: `tools/ci-build-artifacts.js` records remote URLs; sanitize to avoid leaking credentials in CI logs/artifacts.
+
+### P2 (cleanup / maintainability)
+
+- Documentation drift (notably the claim that compressed payloads embed a `compression` field) and contract documentation gaps (assembled stage semantics, meta schema examples) should be corrected.
+- Several low-risk performance wins are available (avoid `split('\n')` in hot paths; reduce repeated per-chunk work; minimize transient array concat).
+
+---
+
+### 9.1 Per-file processing correctness (Checklist A)
 
 **Audit**
 
-- Sharding planner exists with a cost model:
-  - `src/index/build/shards.js`
-  - `src/index/build/perf-profile.js`
-- Index builds write metrics and perf profiles:
-  - `src/index/build/artifacts.js` (writes to `repometrics/`)
+Reviewed the per-file pipeline as implemented in:
+
+- `src/index/build/file-processor.js`
+- `src/index/build/file-processor/*` (assemble/cached-bundle/chunk/incremental/meta/read/relations/skip/timings)
+- Supporting callsites and artifacts emitted downstream: `src/index/build/artifacts.js`, `src/index/build/artifacts/file-meta.js`, and chunk-meta serialization (`src/index/build/artifacts/writers/chunk-meta.js`)
+- Relevant tests in scope: `tests/file-processor/skip.test.js`, `tests/file-processor/cached-bundle.test.js`
+
+#### Chunk boundary invariants are not asserted at the file-processor boundary
+
+- `file-processor.js` assumes `chunkSegments()` returns non-overlapping, in-range chunks. It does not assert invariants such as:
+  - `0 <= start <= end <= text.length`
+  - monotonically increasing chunk ranges (or “overlap only when configured”)
+  - “no accidental overlap” beyond configured overlap window
+- This makes debugging chunking regressions harder: errors will surface downstream (postings build, artifact read) rather than at the boundary.
+
+#### Skip reasons: observable coverage is incomplete
+
+Covered / explicit:
+- `oversize` (max bytes / max lines), `minified`, `binary`, `read-failure` (and `unreadable` via scan results)
+
+Missing or ambiguous:
+- **unsupported language** (no explicit skip reason visible in `file-processor.js` / `skip.js`)
+- **parse / relation extraction failures**: most errors will currently throw and likely fail the build rather than record a per-file skip reason (no “parse-error” skip).
+
+#### Provenance: per-file outputs are missing stable “content identity” fields
+
+- Chunk payloads contain `file` (rel path), `ext`, and `lang`, which is good.
+- `file_meta.json` contains `id`, `file`, `ext`, git metadata, etc.
+- **Neither chunk meta nor file meta currently records a stable file content hash** (even though the pipeline already computes `fileHash` for incremental caching).
+
+This makes post-hoc debugging harder:
+- You cannot quickly tell whether a chunk came from a particular file revision without recomputing hashes from source.
+
+#### Minor correctness nits
+
+- Comment assignment edge: comments starting exactly at `chunk.end` can be assigned to the previous chunk due to a strict `<` comparison in `assignCommentsToChunks()` (`src/index/build/file-processor/chunk.js`).
+- Timing accounting: `addParseDuration()` is invoked multiple times per file (parseStart and relationStart paths), which risks double-counting in aggregated metrics.
 
 **Remaining work**
 
-- [x] Implemented.
-
-### 6.2 Worker pool tuning and OS gates
-
-**Audit**
-
-- Worker pool exists and can be gated/disabled:
-  - `src/index/build/worker-pool.js`
-  - `src/index/build/runtime.js` contains platform gating and pool sizing logic
-
-**Remaining work**
-
-- [x] Implemented.
-
-### 6.3 Incremental indexing: correctness and reuse
-
-**Audit**
-
-- Incremental manifest, bundle caching, pruning exist:
-  - `src/index/build/incremental.js`
-- Tests cover reuse and manifest behaviors:
-  - `tests/incremental-reuse.js`
-  - `tests/incremental-manifest.js`
-  - `tests/incremental-tokenization-cache.js`
-
-**Resolved correctness defect**
-
-- **File deletions are now considered in the “reuse whole index” check** (manifest key set must match current entries).
-
-**Remaining work**
-
-- [x] Fix `shouldReuseIncrementalIndex(...)` to detect deletions (manifest key set check).
-- [x] Add deletion coverage to `tests/incremental-reuse.js` (manifest extra entry rejects reuse).
+- [x] **Document offset units** for `start`/`end` (recommendation: define as UTF‑16 code-unit offsets, because that is what JS uses), and add at least one non‑ASCII regression test that validates:
+  - [x] `text.slice(start, end)` reproduces the chunk text
+  - [x] `offsetToLine()` aligns with `startLine/endLine` for multi-byte characters  
+  (Files: `src/index/build/file-processor.js`, `docs/artifact-contract.md`, `docs/contracts/indexing.md`, plus a new/extended test)
+- [x] Add **boundary asserts** (behind a dev/test flag if needed) after chunking:
+  - [x] in-range checks (`0..text.length`)
+  - [x] monotonic chunk ordering
+  - [x] overlap detection (only allow configured overlap)  
+  (File: `src/index/build/file-processor.js`)
+- [x] Make **unsupported-language** behavior explicit and test-covered:
+  - [x] decide: skip with reason `unsupported-language` vs. treat as `unknown` with generic chunking
+  - [x] add test coverage for the chosen behavior  
+  (Files: `src/index/build/file-processor.js`, `src/index/build/file-processor/skip.js`, tests under `tests/file-processor/`)
+- [x] Add **parse-error** (and relation-error) per-file skip handling:
+  - [x] catch and record failures from `lang.chunk`, `lang.buildRelations`, `lang.extractDocMeta`, `flow()`, etc.
+  - [x] ensure the build can proceed when a single file fails (configurable)  
+  (File: `src/index/build/file-processor.js`)
+- [x] Add **file-level content hash** to `file_meta.json` (and optionally, to each chunk’s `metaV2`):
+  - [x] store `hash` and `hashAlgo`
+  - [x] ensure incremental and non-incremental builds agree  
+  (Files: `src/index/build/file-processor.js`, `src/index/build/artifacts/file-meta.js`, `docs/artifact-contract.md`)
+- [x] Fix the comment boundary condition in `assignCommentsToChunks()`:
+  - [x] consider `<=` for boundary tests, or implement overlap-based assignment using comment `(start,end)`  
+  (File: `src/index/build/file-processor/chunk.js`)
+- [x] Audit and correct **timing double-counting** in `createTimingsTracker()` usage:
+  - [x] ensure parseMs reflects one pass, and relation/flow have separate counters if desired  
+  (Files: `src/index/build/file-processor.js`, `src/index/build/file-processor/timings.js`)
 
 ---
 
-## Phase A (P0): Correctness and “don’t lie” invariants
-
-- [x] Fix incremental reuse deletion bug (`src/index/build/incremental.js`).
-- [x] Add deletion coverage for incremental reuse (`tests/incremental-reuse.js`).
-- [x] Remove all `process.exit(...)` paths from reusable library modules (notably sqlite backend creation in `src/retrieval/cli-sqlite.js`); convert to errors honoring `exitOnError` and “forced backend” semantics.
-- [x] Make stage3 embeddings update `index_state.json` atomically and run `index-validate` after writing embeddings artifacts.
-
-## Phase C (P2): Mode surface cleanup (extracted-prose)
-
-- [x] Decide: keep extracted-prose.
-- [x] If keep: expose it in `bin/pairofcleats.js` mode choices (build and search), document it in the truth table, and add tests.
-
----
-
-## Phase 4: High-signal metadata and rich filters
-
-### 4.1 Metadata v2 wiring
+### 9.2 Artifact contract correctness (Checklist B)
 
 **Audit**
 
-- Meta v2 exists and is written with chunks:
-  - `src/index/metadata-v2.js`
-  - `src/index/build/file-processor.js`
+Reviewed artifact write orchestration and contract touchpoints:
 
-**Remaining work**
+- Orchestration: `src/index/build/artifacts.js`
+- Contract-level helpers: `src/index/build/artifacts/checksums.js`, `src/index/build/artifacts/compression.js`
+- Writers: `src/index/build/artifacts/writers/chunk-meta.js`, `.../file-relations.js`, `.../repo-map.js`
+- Schema docs: `docs/artifact-contract.md`, `docs/contracts/indexing.md`
+- Guardrail tests: `tests/artifact-size-guardrails.js`, `tests/artifact-formats.js`, `tests/artifact-bak-recovery.js`
 
-- [x] Implemented.
-
-### 4.2 Risk analysis
-
-**Audit**
-
-- Risk analyzer exists: `src/index/risk.js`.
-- Risk metadata is incorporated into doc/chunk metadata and is filterable in retrieval (see retrieval output/filter logic).
-
-**Remaining work**
-
-- [x] Implemented; heuristic quality improvements can be iterative.
-
-### 4.3 Type inference
-
-**Audit**
-
-- Type inference exists: `src/index/type-inference.js`.
-- Integrated into metadata generation.
-
-**Remaining work**
-
-- [x] Implemented; heuristic quality improvements can be iterative.
-
-### 4.4 Filters (lang/ext/kind/risk/type/imports/structural)
-
-**Audit**
-
-- The retrieval CLI supports a large filter surface; the implementation uses:   
-  - `src/retrieval/filters.js` (core filter parsing/matching)
-  - `src/retrieval/output.js` (post-filtering and output gating)
-  - `src/retrieval/structural-*.js` (structural filtering/search)
+Confirmed:
+- JSON and JSONL writers use `atomic: true` (temp + rename + `.bak` semantics) via shared JSON stream helpers.
+- `pieces/manifest.json` is generated and includes checksums for files that can be read at generation time.
+- Readers are designed to be backward compatible with older shapes (e.g., token shard files and meta shapes in `tests/artifact-formats.js`).
 
 **Gaps / issues**
 
-- Some advanced filters are “post-filter” style (scan chunk meta) rather than being backed by an accelerated index structure. This is functionally correct but may be slower on very large corpora.
-- The roadmap mentions `roaring-wasm` for bitmap acceleration; it is now used for filter intersections.
+#### P0: Chunk-meta sharding cleanup is incomplete (stale shards override new JSONL)
+
+- In `enqueueChunkMetaArtifacts()` (`src/index/build/artifacts/writers/chunk-meta.js`):
+  - When `chunkMetaUseJsonl === true` and `chunkMetaUseShards === false`, the writer removes `chunk_meta.json` and `chunk_meta.json.gz`, but **does not remove**:
+    - `chunk_meta.meta.json`
+    - `chunk_meta.parts/`
+- `loadChunkMeta()` prefers meta/parts if they exist, even if `chunk_meta.jsonl` exists. Therefore, stale shards can override a newly-written JSONL file.
+
+#### Sharded directory atomicity remains “best effort” only
+
+- Token postings shards: `artifacts.js` deletes and recreates `token_postings.shards/` and writes part files atomically, but the directory as a whole can still be left in a partial state if the process crashes mid-write (no staging directory + atomic rename).
+- Chunk meta shards: similar; additionally, the parts directory is not cleared before writing, which can leave orphan part files.
+
+This is not always fatal if readers rely solely on `meta.parts`, but it violates the “no partially-written states” intent of the checklist.
+
+#### Manifest robustness: checksum/stat errors are swallowed
+
+- `writePiecesManifest()` catches errors from `fs.stat` and `checksumFile` and records `bytes: null` / `checksum: null`, without failing the build or preserving error details.
+- That makes it easy to produce an apparently “valid” manifest that cannot be validated later.
+
+#### Documentation drift: compression description is inaccurate
+
+- `docs/artifact-contract.md` claims the JSON payload contains a `compression` field when `.json.gz` is written. Current writers compress the raw JSON stream; they do not inject a `compression` field into the JSON object.
+
+#### Contract clarity gaps
+
+- The docs do not clearly document:
+  - precedence rules when multiple formats are present (meta/parts vs jsonl vs json)
+  - the on-disk schema for `token_postings.meta.json` and `chunk_meta.meta.json` (fields vs arrays vs legacy)
+  - whether `.json.gz` is a sidecar (both present) or a replacement (only gz present)
 
 **Remaining work**
 
-- [x] implement bitmap-accelerated filter evaluation (roaring-wasm-backed bitmaps for filter intersections)
+- [x] **Fix chunk-meta cleanup** when `chunkMetaUseJsonl && !chunkMetaUseShards`:
+  - [x] remove `chunk_meta.meta.json` if present
+  - [x] remove `chunk_meta.parts/` if present  
+  (File: `src/index/build/artifacts/writers/chunk-meta.js`)
+- [x] Ensure shard writes do not accumulate orphan files:
+  - [x] delete `chunk_meta.parts/` before writing new sharded parts (or write to staging dir + rename)
+  - [x] confirm `token_postings.shards/` cleanup is complete on all branches  
+  (Files: `src/index/build/artifacts/writers/chunk-meta.js`, `src/index/build/artifacts.js`)
+- [x] Implement **directory-level atomicity** for sharded artifacts:
+  - [x] write shards to `*.tmp/` directory
+  - [x] atomically swap into place via rename (and optionally keep a directory-level `.bak`)  
+  (Files: `src/index/build/artifacts/writers/chunk-meta.js`, `src/index/build/artifacts.js`)
+- [x] Make manifest generation strict for required artifacts:
+  - [x] either (a) fail the build on checksum/stat failure, or (b) record an `error` field and ensure validation tooling treats it as failure  
+  (File: `src/index/build/artifacts/checksums.js`)
+- [x] Update docs to match implementation:
+  - [x] remove/adjust claim about `compression` field
+  - [x] add schema examples for meta files (fields/arrays/legacy)
+  - [x] document precedence rules for readers  
+  (Files: `docs/artifact-contract.md`, `docs/contracts/indexing.md`)
+- [x] Add a regression test that explicitly covers the stale chunk-meta shard override:
+  - [x] build A: sharded chunk meta written
+  - [x] build B: non-sharded jsonl written, ensure shards removed or ignored
+  - [x] loader reads build B’s jsonl, not build A’s shards  
+  (New test; or extend `tests/artifact-formats.js` / `tests/artifact-size-guardrails.js`)
 
 ---
 
-# Phase HS — High-severity issues found (must fix)
-
-**Objective:** Close the top correctness and operational gaps identified in code review.
-
-- [x] Incremental reuse detects deletions by verifying manifest keys match the current file set (`src/index/build/incremental.js`) and is covered by `tests/incremental-reuse.js`.
-- [x] SQLite backend creation no longer calls `process.exit(1)`; forced mode throws, optional mode warns and falls back (`src/retrieval/cli-sqlite.js`).
-- [x] Stage3 embeddings writes `index_state.json` atomically, validates after write, and readers gate embeddings readiness via `index_state` (`tools/build-embeddings.js` + readers).
-- [x] Observability/acceleration dependencies are implemented: `xxhash-wasm` for checksums, `roaring-wasm` for bitmap acceleration, and `prom-client` + `hdr-histogram-js` wired into metrics/bench tooling.
-- [x] Extracted-prose mode is first-class: CLI exposure and dedicated tests via `tests/extracted-prose.js`.
-
----
-
-## Roadmap closeout (2026-01-10)
-
-### 2.3 Atomic build directories + “current” pointer
+### 9.3 Sharding / pieces / postings (Checklist C)
 
 **Audit**
 
-- Build roots and promotion exist:
-  - `src/index/build/promotion.js` (writes/reads `current.json`)
-  - `src/integrations/core/index.js` builds to `builds/<buildId>` and promotes after validation
+Reviewed:
+
+- Shard planning: `src/index/build/shards.js` + tests (`tests/shard-plan.js`)
+- Postings build: `src/index/build/postings.js`
+- Tokenization primitives: `src/index/build/tokenization.js` + buffering tests (`tests/tokenization-buffering.js`)
+- Piece assembly/merge: `src/index/build/piece-assembly.js` + test (`tests/piece-assembly.js`)
+- Piece compaction tool: `tools/compact-pieces.js`
 
 **Gaps / issues**
 
-- None noted; stage3/stage4 enrichment runs in-place but is gated by `index_state` readiness.
+#### Determinism: import links and vocab ordering are under-specified
+
+- **Imports / importLinks**:
+  - `scanImports()` runs with concurrency and stores per-module Sets of importing files. The final arrays are not sorted.
+  - `buildImportLinksFromRelations()` builds `importLinks` lists that may include the current file and are not explicitly sorted/deduped.
+  - Result: output can vary based on processing order, which can vary with concurrency and scheduling.
+- **Vocab ordering**:
+  - `buildPostings()` converts multiple Maps to vocab arrays via `Array.from(map.keys())`.
+  - This relies on Map insertion order being stable across builds. It often is, but it is not a strong contract and can be perturbed by changes in traversal order or parallelism.
+  - Risk: **token IDs may shift across builds** even when inputs are unchanged, creating noisy diffs and complicating caching.
+
+#### Postings canonicalization: sorted/canonical postings are assumed but not asserted
+
+- Many consumers assume postings are in docId order and token vocab order is stable.
+- There is no explicit “canonicalize and validate” step before writing postings, and few tests assert canonical ordering.
+
+#### Piece assembly: field postings coverage mismatch + weak validation
+
+- **Field postings merge omits the `comment` field** (see P0 summary).
+- **validateLengths()** can silently allow missing arrays when expected > 0 (see P0 summary).
+- Vocab arrays in assembly are also derived from Map insertion order; if input order differs, assembled token IDs can differ.
+
+#### Shard planning: tie-break determinism should be explicit
+
+- Some sorts are deterministic (by label, by relPath), but shard batching uses weight-based partitioning without explicit tie-breakers when weights are equal. This is likely stable in current Node versions, but should be explicitly stable to avoid cross-version drift.
 
 **Remaining work**
 
-- [x] Define and enforce a clear atomicity rule for stage3/stage4 (in-place gated by `index_state` readiness flags).
-- [x] Add post-stage validation for stage3 outputs (run `tools/index-validate.js` or call `validateIndexArtifacts(...)`).
+#### Shard planning
 
-### 2.4 Durable build state machine (heartbeat/stale/retry)
+- [x] Add explicit tie-breakers in shard batching and balancing when weights are equal:
+  - [x] include `label` or `id` in comparator
+  - [x] document determinism guarantees  
+  (File: `src/index/build/shards.js`)
+- [x] Add a “very large repo” synthetic shard-plan test:
+  - [x] verifies bounded memory and time
+  - [x] verifies stable shard labels/IDs across runs  
+  (New test; extend `tests/shard-plan.js`)
+
+#### Postings / tokenization
+
+- [x] Canonicalize vocab ordering for stability:
+  - [x] define canonical sort order (lexicographic; or localeCompare with explicit locale; or bytewise)
+  - [x] apply consistently to token vocab, phrase vocab, chargram vocab, and field vocabs  
+  (File: `src/index/build/postings.js` and any upstream postings-map builders)
+- [x] Canonicalize and/or validate postings ordering:
+  - [x] assert postings doc IDs are strictly increasing per token (or stable canonical order)
+  - [x] assert vocab/postings arrays align and lengths match  
+  (File: `src/index/build/postings.js`; plus tests)
+- [x] Expand quantization tests to include:
+  - [x] scale correctness
+  - [x] dims mismatch handling
+  - [x] doc/code embeddings “fallback to main embedding” behavior  
+  (File: `tests/postings-quantize.js`)
+
+#### Piece assembly
+
+- [x] Fix `validateLengths()` to fail when expected > 0 and list is empty or mismatched:
+  - [x] treat `[]` as invalid when `expected > 0`
+  - [x] include artifact name + input dir in error message for fast triage  
+  (File: `src/index/build/piece-assembly.js`)
+- [x] Merge **all field postings present in inputs**, including `comment` (and any future fields):
+  - [x] do not hardcode `name/signature/doc/body`
+  - [x] merge based on keys present in `field_postings.json` / `field_tokens.json` or config  
+  (File: `src/index/build/piece-assembly.js`)
+- [x] Determinize assembly:
+  - [x] sort `inputs` deterministically by path (or require stable input ordering and document it)
+  - [x] sort merged vocabs (or guarantee stable order via canonicalization)
+  - [x] ensure assembled output is byte-for-byte stable for same inputs  
+  (Files: `tools/assemble-pieces.js`, `src/index/build/piece-assembly.js`)
+- [x] Add a regression test: **assembled output equals monolithic output** for the same fixture:
+  - [x] build monolithic index
+  - [x] build two partial indexes (or reuse shards) and assemble
+  - [x] compare chunk_meta + token_postings + manifest semantics  
+  (New test; extend `tests/piece-assembly.js`)
+- [x] Verify manifests list all required parts:
+  - [x] ensure meta files are included and checksummed
+  - [x] ensure shard part counts match meta.parts and manifest counts match meta totals  
+  (Files: `src/index/build/artifacts/checksums.js`, tests)
+
+---
+
+### 9.4 Performance improvements to prioritize (Checklist D)
 
 **Audit**
 
-- Build state tracking exists:
-  - `src/index/build/build-state.js` (phase transitions, checkpointing, heartbeat)
-- Service job queue includes stale requeue + bounded retries:
-  - `tools/service/queue.js`
-  - `tools/indexer-service.js`
+The current implementation is functional and reasonably structured, but several areas will become dominant costs on large repos:
+
+- Per-file pipeline does multiple passes over the same data (chunking, tokenization, docmeta, lint/complexity).
+- Artifact writing constructs full in-memory arrays for potentially huge artifacts and then serializes them.
+- Some hot paths allocate transient arrays aggressively.
+
+### High-impact improvements (prioritized)
+
+#### Avoid “build huge arrays then serialize”
+
+- `buildPostings()` currently materializes large `vocab` and `postings` arrays in memory.
+  - [x] Add a streaming/sharded writer path that writes postings shards incrementally as postings are built (or at least allows releasing intermediate Maps earlier).
+- `chunk_meta` estimation uses JSON.stringify samples, which is OK, but writing sharded JSONL still relies on iterators that materialize per-entry objects.
+  - [X] Consider a “lightweight entry view” or direct JSONL streaming that avoids building large intermediate objects for fields not needed.
+
+#### Reduce repeated parsing/enrichment passes
+
+- Complexity + lint are computed in the per-chunk loop but cached per file; move the computation to a single per-file pre-pass to remove repeated cache checks.
+- Where feasible, consider combining:
+  - chunking + tokenization (tokenize the chunk as soon as you slice it, but avoid repeated slice work)
+  - relations/docmeta extraction caching to avoid per-chunk repeated derived work
+
+#### Minimize transient allocations
+
+- Avoid `text.split('\n')` for context windows in `file-processor.js`. Use a line-scan utility that slices the relevant ranges without splitting the entire file.
+- Replace repeated `array.concat()` in loops (e.g., `commentFieldTokens = commentFieldTokens.concat(tokens)`) with `push(...tokens)` or manual push for large arrays.
+- In tokenization, buffer reuse is good, but `buildTokenSequence()` still clones arrays (`slice()`) each call. Confirm this is intentional and consider:
+  - pre-sizing output arrays when token counts are known/estimable
+  - returning typed arrays for `seq` where possible (if consumers permit)
+
+**Remaining work**
+
+- [x] Replace `split('\n')` usage in `src/index/build/file-processor.js` with a targeted line-scan helper.  
+- [x] Move complexity/lint computation outside the per-chunk loop in `file-processor.js`.  
+- [x] Reduce transient array concatenations in comment token aggregation.  
+- [x] Explore a streaming postings writer for very large repos (phase-level refactor).  
+- [x] Add at least one micro-benchmark or perf regression test covering:
+  - piece assembly (`src/index/build/piece-assembly.js`)
+  - piece compaction (`tools/compact-pieces.js`)
+
+---
+
+### 9.5 Refactoring goals (Checklist E)
+
+**Audit**
+
+Current state:
+- Artifact writing is orchestrated from `artifacts.js` via `enqueueJsonObject/Array/Lines` + special-case writers (chunk meta writer).
+- Schema definitions are implicit in “writer payload construction” and spread across multiple modules.
+- Multiple identifiers exist (`chunk.id`, `metaV2.chunkId`, graph keys `file::name`), which increases the chance of accidental drift.
+
+**Remaining work**
+
+- [x] Introduce a single “artifact writer” abstraction with a consistent interface:
+  - [x] `write(name, payload | iterator, { format, sharded, compression, pieceType })`
+  - [x] built-in cleanup rules and directory-level atomic swaps
+  - [x] standard metadata (version, generatedAt, schemaVersion)  
+  (Impacts: `src/index/build/artifacts.js`, `src/index/build/artifacts/writers/*`)
+- [x] Separate schema definitions from I/O:
+  - [x] define schemas for artifacts in a central module (even if only via JS object contracts + comments)
+  - [x] ensure docs mirror those schema definitions  
+  (Impacts: `docs/artifact-contract.md`, `docs/contracts/indexing.md`)
+- [x] Create a single canonical chunk-id generator and use it everywhere:
+  - [x] prefer `metaV2.chunkId` (content-based) for graphs/relations keys instead of ad-hoc `file::name`
+  - [x] ensure assembled and non-assembled builds produce identical chunkIds  
+  (Impacts: `src/index/build/graphs.js`, and any code producing chunk identifiers)
+
+---
+
+### 9.6 Tests (Checklist F)
+
+**Audit**
+
+In-scope tests are generally helpful and cover:
+- `.bak` recovery semantics (`tests/artifact-bak-recovery.js`)
+- artifact precedence formats (`tests/artifact-formats.js`)
+- size guardrails forcing sharding (`tests/artifact-size-guardrails.js`)
+- shard planning (`tests/shard-plan.js`)
+- shard vs non-shard equivalence (`tests/shard-merge.js`)
+- quantization correctness (`tests/postings-quantize.js`)
+- incremental tokenization caching (`tests/incremental-tokenization-cache.js`)
+
+However, multiple tests are still existence/shape-heavy and do not verify semantic meaning deeply, especially around assembled outputs and import scanning.
 
 **Gaps / issues**
 
-- None noted; build-state writes are atomic and fire-and-forget updates catch errors.
+- `tests/file-processor/cached-bundle.test.js` uses shapes for `allImports` and `codeRelations.calls` that do not match the likely real shapes; it can pass while not meaningfully validating correctness.
+- No tests cover:
+  - chunk-meta cleanup when switching formats (P0 issue)
+  - compressed sidecar `.json.gz` artifacts and their `.bak` semantics
+  - partial shard write behavior (meta missing, orphan parts, etc.)
+  - import scanning correctness for dynamic imports / es-module-lexer record handling
+  - deterministic `importLinks` ordering
+  - perf regression for `compact-pieces` / `assembleIndexPieces`
 
 **Remaining work**
 
-- [x] Make build-state writes robust (await critical updates or catch fire-and-forget writes).
-- [x] Extend durability semantics to stage3/stage4 consistently (stage3 build-embeddings, stage4 build-sqlite-index).
+- [X] Strengthen artifact format tests to assert semantic meaning:
+  - [X] verify loader precedence (meta/parts vs jsonl vs json) in more combinations
+  - [X] verify meta.parts path normalization and correctness
+- [X] Add regression tests for atomic write failures:
+  - [X] simulate rename failures (via dependency injection or controlled FS behavior)
+  - [X] assert `.bak` fallback and cleanup behavior
+- [X] Add regression tests for partial shard writes:
+  - [X] parts written, meta missing
+  - [X] meta references missing parts
+  - [X] stale orphan parts do not affect reads
+- [X] Add stress fixtures for large token/postings sets:
+  - [X] ensure bounded memory / time
+  - [X] ensure canonical ordering remains correct under stress
+- [x] Add at least one perf regression test:
+  - [x] compaction: `tools/compact-pieces.js`
+  - [x] assembly: `src/index/build/piece-assembly.js`
+- [x] Fix `tests/file-processor/cached-bundle.test.js` to use realistic shapes:
+  - [x] `allImports` should be `{ [moduleName: string]: string[] }`
+  - [x] `codeRelations.calls/usages` should match the real structure used by `buildRelationGraphs()` / `buildCallIndex()`  
+  (File: `tests/file-processor/cached-bundle.test.js`)
 
-### 5.3 Benchmark query suite generation
+---
+
+## Appendix A: File-by-file findings
+
+This section enumerates each in-scope file and lists file-specific items to address (beyond cross-cutting tasks already listed above).
+
+### src/index/build/artifacts.js
+- [x] (P1) Consider directory-level atomic swap for `token_postings.shards/` (staging dir + rename).
+- [x] (P1) Normalize shard part paths to POSIX in any meta/manifest structures (avoid OS-separator leakage).
+- [x] (P2) Consider sorting `pieceEntries` by `path` before writing the manifest to reduce diff noise.
+
+### src/index/build/artifacts/checksums.js
+- [x] (P1) Do not silently accept checksum/stat failures for required pieces; fail or record errors explicitly.
+
+### src/index/build/artifacts/compression.js
+- [x] (P2) Update docs to clarify that gzip is a sidecar (`.json` and `.json.gz` both exist).
+- [X] (P2) Consider extending compression to sharded artifacts (optional future work).
+
+### src/index/build/artifacts/file-meta.js
+- [x] (P1) Make file ID assignment stable by sorting unique file paths before assigning IDs.
+- [x] (P1) Add file content hash (and algo) and file size to `file_meta.json`.
+- [X] (P2) Remove or rename `chunk_authors` in file meta (currently derived from the first chunk and not file-level).
+
+### src/index/build/artifacts/filter-index.js
+- [X] (P2) Consider persisting schema version/config hash in the filter index artifact for easier debugging.
+
+### src/index/build/artifacts/metrics.js
+- [X] (P2) Do not swallow metrics write errors silently (log or propagate based on severity).
+
+### src/index/build/artifacts/token-mode.js
+- [X] (P2) Make parsing more robust (case-insensitive modes; integer parsing + clamping).
+
+### src/index/build/artifacts/writers/chunk-meta.js
+- [x] (P0) Remove stale `chunk_meta.meta.json` and `chunk_meta.parts/` when writing non-sharded JSONL.
+- [x] (P1) Clear or stage-swap `chunk_meta.parts/` when writing sharded output.
+- [x] (P1) Normalize `meta.parts` entries to POSIX paths.
+- [X] (P2) Consider normalizing field naming conventions (`chunk_authors` vs `startLine/endLine`).
+
+### src/index/build/artifacts/writers/file-relations.js
+- [X] (P2) Consider JSONL/sharding for very large `file_relations` outputs; add versioning metadata.
+
+### src/index/build/artifacts/writers/repo-map.js
+- [X] (P1) Ensure `exported` detection handles default exports correctly (depends on relations schema).
+- [X] (P2) Consider sorting output by `{file, name}` for stability.
+
+### src/index/build/file-processor.js
+- [x] (P1) Add explicit boundary asserts for chunks after chunking.
+- [x] (P1) Replace `split('\n')` with line-scan utility for context extraction.
+- [x] (P2) Move complexity/lint to per-file scope; avoid repeated per-chunk cache checks.
+- [x] (P2) Fix possible timing double-counting across parse/relation durations.
+- [x] (P1) Add explicit unsupported-language and parse-error skip reasons (configurable).
+
+### src/index/build/file-processor/assemble.js
+- [x] (P1) Ensure field token fields written here (including `comment`) are consistently supported by postings and piece assembly.
+
+### src/index/build/file-processor/cached-bundle.js
+- [X] (P2) Validate cached bundle shapes more strictly; ensure importLinks shape is consistent.
+
+### src/index/build/file-processor/chunk.js
+- [x] (P2) Adjust comment-to-chunk assignment at boundary (`chunk.end === comment.start`) and consider overlap-based assignment.
+
+### src/index/build/file-processor/incremental.js
+- [X] (P2) Ensure cache invalidation includes schema/version changes for any artifact-impacting changes.
+
+### src/index/build/file-processor/meta.js
+- [x] (P2) Deduplicate `externalDocs` outputs; consider ordering for determinism.
+
+### src/index/build/file-processor/read.js
+- [X] (P2) Consider UTF-8 safe truncation (avoid splitting multi-byte sequences mid-codepoint).
+
+### src/index/build/file-processor/relations.js
+- [x] (P2) Consider sorting/deduping relation arrays (imports/exports/usages) for determinism.
+
+### src/index/build/file-processor/skip.js
+- [x] (P1) Add explicit unsupported-language skip reason (or document that unknown languages are processed).
+- [X] (P2) Add coverage for `unreadable` and `read-failure` skip paths.
+
+### src/index/build/file-processor/timings.js
+- [x] (P2) Validate that parse/token/embed durations are not double-counted; document semantics.
+
+### src/index/build/graphs.js
+- [x] (P2) Prefer canonical `chunkId` keys where possible instead of `file::name` to avoid collisions.
+- [X] (P2) Sort serialized node lists for full determinism (neighbors are already sorted).
+
+### src/index/build/imports.js
+- [x] (P0) Fix `es-module-lexer` import record handling (`entry.d` is not a specifier string).
+- [x] (P1) Sort and dedupe `importLinks` deterministically; exclude self-links unless explicitly desired.
+- [x] (P1) Ensure concurrency does not affect output ordering (sort module keys and file arrays before serialization).
+
+### src/index/build/piece-assembly.js
+- [x] (P0) Make `validateLengths()` strict when `expected > 0`.
+- [x] (P0) Merge all field postings (including `comment`) and docLengths based on actual input keys.
+- [x] (P1) Canonicalize vocab ordering in assembled outputs.
+- [X] (P2) Remove redundant filterIndex construction (avoid double work; rely on writeIndexArtifacts).
+
+### src/index/build/postings.js
+- [x] (P1) Canonicalize vocab ordering (token/phrase/chargram/field) explicitly.
+- [x] (P2) Validate docLengths are finite and consistent; avoid NaN avgDocLen.
+- [x] (P2) Sort Object.entries() iteration for field postings and weights for deterministic output.
+
+### src/index/build/shards.js
+- [x] (P1) Add explicit tie-breakers in weight-based sorts/batching for determinism across runtimes.
+- [X] (P2) Document heuristic thresholds (minFilesForSubdir, hugeThreshold, tenth-largest targets).
+
+### src/index/build/tokenization.js
+- [X] (P2) Review buffer reuse effectiveness (arrays are still cloned); consider pre-sizing and reducing transient allocations further.
+
+### tools/assemble-pieces.js
+- [x] (P1) Sort `inputDirs` by default (or add `--sort`) to ensure deterministic assembled output.
+- [X] (P2) When `--force` is used, consider cleaning the output dir first to avoid stale artifacts.
+
+### tools/ci-build-artifacts.js
+- [x] (P1) Sanitize remote URLs before writing them to `manifest.json` to avoid leaking credentials.
+
+### tools/ci-restore-artifacts.js
+- [X] (P2) Optionally validate `pieces/manifest.json` checksums after restore (fast fail on corrupt artifacts).
+
+### tools/compact-pieces.js
+- [X] (P1) Consider directory-level atomic swap semantics (avoid rm+rename window).
+- [X] (P2) Add perf regression harness and validate output equivalence post-compaction.
+
+### tests/artifact-bak-recovery.js
+- [X] (P2) Expand coverage to include: both primary and backup corrupt; json.gz sidecars; and cleanup expectations.
+
+### tests/artifact-formats.js
+- [X] (P1) Add explicit precedence test: sharded meta/parts must not override fresh jsonl when shards are stale (post-fix).
+
+### tests/artifact-size-guardrails.js
+- [X] (P2) Extend to cover: chunkMetaFormat=jsonl with switching shard/no-shard, and cleanup behavior.
+
+### tests/artifacts/file-meta.test.js
+- [X] (P1) Update test if file ID assignment is changed to sorted-by-path; assert stability across different chunk orders.
+
+### tests/artifacts/token-mode.test.js
+- [X] (P2) Add coverage for invalid modes, case-insensitive parsing, and maxTokens/maxFiles parsing edge cases.
+
+### tests/clean-artifacts.js
+- [X] (P2) Consider adding a check that `.bak` files are handled correctly (optional).
+
+### tests/file-processor/cached-bundle.test.js
+- [X] (P1) Fix test fixtures to use realistic `allImports` and `codeRelations` shapes, and assert semantic correctness (not only presence).
+
+### tests/file-processor/skip.test.js
+- [X] (P2) Add coverage for `unreadable` and `read-failure` paths (permissions, ENOENT races).
+
+### tests/filter-index-artifact.js
+- [X] (P2) Add a schema assertion for filter_index fields/versioning to prevent drift.
+
+### tests/filter-index.js
+- [X] (P2) Consider adding a determinism check for serialized filter index (same inputs => same output).
+
+### tests/graph-chunk-id.js
+- [X] (P2) Add a collision regression test for graph keys, or migrate to chunkId-based keys.
+
+### tests/incremental-tokenization-cache.js
+- [X] (P2) Add a second invalidation scenario (e.g., tokenization config changes that affect stemming/synonyms).
+
+### tests/piece-assembly.js
+- [X] (P1) Add semantic equivalence test vs monolithic build and add a determinism test (same inputs => identical assembled output).
+
+### tests/postings-quantize.js
+- [X] (P2) Extend to test scale and dims, and doc/code embedding behavior.
+
+### tests/shard-merge.js
+- [X] (P2) Consider adding checksum and manifest equivalence checks as well.
+
+### tests/shard-plan.js
+- [X] (P2) Add stress case coverage (many files, equal weights, perfProfile enabled).
+
+### tests/tokenization-buffering.js
+- [X] (P2) Consider adding a non-ASCII tokenization regression case.
+
+### docs/artifact-contract.md
+- [X] (P1) Fix compression description (no embedded `compression` field) and clarify `.json.gz` sidecar semantics.
+- [X] (P1) Add explicit precedence rules (meta/parts vs jsonl vs json).
+- [X] (P2) Add schema examples for meta files and `pieces/manifest.json`.
+
+### docs/contracts/coverage-ledger.md
+- [X] (P2) Add entries for new/critical tooling: `tools/assemble-pieces.js`, `tools/compact-pieces.js`, and CI artifact scripts.
+
+### docs/contracts/indexing.md
+- [X] (P1) Clarify which artifacts are “required” vs “optional/configurable” (e.g., minhash signatures).
+- [X] (P1) Document sharded meta schema and loader precedence.
+
+---
+
+## Phase 10 — Index build orchestration review (findings + required fixes)
+
+### Executive summary: highest-priority issues (fix first)
+
+#### Correctness / functional
+
+- [X] **Sharding path creates fresh worker pools + queues per shard work item, with no explicit teardown.**  
+  This is very likely to cause thread/resource leaks, excessive pool creation overhead, and/or a build process that does not exit cleanly.  
+  _Primary file:_ `src/index/build/indexer/steps/process-files.js`  
+  _Related:_ `src/index/build/runtime/workers.js`, `src/index/build/worker-pool.js`
+
+- [X] **`--mode all` behavior is inconsistent with “extracted-prose” + `records` expectations (tests + CLI surface).**  
+  `tests/build-index-all.js` expects an `extracted-prose` index (and should be extended to expect a `records` index) to be produced for `--mode all`. `parseBuildArgs(...)` already resolves `modes` to include `extracted-prose` and must be updated to include `records`; however the CLI entry (`build_index.js`) discards the computed `modes` and delegates to the core build entry, which (in the current tree) resolves “all” differently.  
+  _Primary file(s) in scope:_ `build_index.js`, `src/index/build/args.js`, `tests/build-index-all.js`  
+  _Note:_ the root cause may live outside this section’s file list, but the mismatch is observable from the files in scope and should be corrected at the boundary.
+
+- [X] **Watch debounce scheduler does not safely handle async `onRun` errors (risk of unhandled promise rejection).**  
+  `createDebouncedScheduler(...)` calls `onRun()` without `await`/`.catch(...)`. In `watchIndex(...)`, `onRun` is async. Any unexpected throw/rejection (e.g., from lock release, filesystem exceptions) can become an unhandled rejection.  
+  _Primary file:_ `src/index/build/watch.js`
+
+#### Determinism / reproducibility
+
+- [X] **Locale-dependent sorts in ordering-critical paths (`localeCompare`) should be replaced with deterministic lexicographic compares.**  
+  Ordering drives chunk IDs, manifest key ordering, and shard planning stability; `localeCompare` can vary by ICU/locale.  
+  _Primary files:_  
+  - `src/index/build/indexer/steps/discover.js`  
+  - `src/index/build/indexer/steps/process-files.js`  
+  - `tools/shard-census.js`
+
+#### Incremental correctness across versions
+
+- [X] **Incremental cache signature likely needs a “tool/build schema version” component.**  
+  Today, signature invalidation is strongly config-based. If tokenization/chunk schema/postings semantics change across releases without config changes, the cache can be reused incorrectly.  
+  _Primary file:_ `src/index/build/indexer/signatures.js`  
+  _Related:_ `src/index/build/incremental.js`, `tests/incremental-*.js`
+
+---
+
+### A. Pipeline mapping and boundaries
+
+#### A.1 Current pipeline map (as implemented)
 
 **Audit**
 
-- Deterministic bench query generator exists:
-  - `tools/bench-query-generator.js` (uses `seedrandom`)
-- Bench runner tests exist:
-  - `tests/bench.js`
+The index build pipeline, as observable from the files in scope, is structured as:
+
+1. **CLI entry**
+   - `build_index.js` → parses args and calls the core build entry with `argv` + `rawArgv`.
+
+2. **Runtime construction**
+   - `src/index/build/runtime.js` → `createBuildRuntime(...)`  
+   - `src/index/build/runtime/runtime.js` → loads config(s), applies stage overrides (`runtime/stage.js`), resolves caps/guardrails (`runtime/caps.js`), ignore rules (`ignore.js`), concurrency and queues/pools (`runtime/workers.js`, `worker-pool.js`), crash logging (`crash-log.js`), and creates a build output root.
+
+3. **Mode build orchestration**
+   - `src/index/build/indexer.js` → `buildIndexForMode(...)` for each mode.
+   - `src/index/build/indexer/pipeline.js` coordinates the build steps per mode.
+
+4. **Per-mode pipeline stages**
+   - **Discover**: `indexer/steps/discover.js` (uses `discover.js` + optional preprocessed discovery)  
+   - **Incremental plan + whole-index reuse**: `indexer/steps/incremental.js` (wraps `incremental.js`)  
+   - **Relations pre-scan**: `indexer/steps/relations.js` (`preScanImports`)  
+   - **Estimate context window**: `estimateContextWindow(...)` (not in scope; used by pipeline)  
+   - **Process files**: `indexer/steps/process-files.js`  
+     - optional sharding plan execution
+     - per-file chunking + postings accumulation + incremental bundle read/write
+   - **Relations post-scan + cross-file inference**: `indexer/steps/relations.js` (`postScanImports`, `runCrossFileInference`)  
+   - **Incremental manifest pruning**: `incremental.js` (`pruneIncrementalManifest(...)`)  
+   - **Postings build**: `indexer/steps/postings.js`  
+   - **Write artifacts**: `indexer/steps/write.js`  
+   - **Optional**: enqueue embeddings job when using an external embeddings service (called from pipeline)
+
+5. **Promotion**
+   - `src/index/build/promotion.js` writes/updates a `current.json` pointer to a successful build root (promotion is performed outside the per-mode pipeline).
+
+**Contract boundaries (recommended)**
+
+- The pipeline currently “spans layers” in a few places:
+  - CLI args parsing (“mode all”) and computed mode lists are not consistently treated as an API contract boundary.
+  - Sharding logic (planning + execution) creates runtime sub-instances rather than remaining a pure scheduling layer.
+  - Incremental state is mutated from multiple steps (process-files + relations cross-file inference updates).
+
+These are workable, but they heighten the importance of clear contracts/invariants per stage.
+
+---
+
+#### A.2 Stage-by-stage contracts (inputs/outputs/invariants/errors/determinism)
+
+> This section captures what the code *currently* does, plus what should be made explicit (and tested).
+
+##### Stage: Discover
+
+**Primary implementation**
+- `src/index/build/indexer/steps/discover.js`
+- `src/index/build/discover.js`
+
+**Inputs**
+- `runtime.root`, `runtime.ignoreMatcher`, `runtime.maxFileBytes`, `runtime.fileCaps`, `runtime.guardrails` (maxDepth/maxFiles), mode (`code`/`prose`/`extracted-prose`)
+- Optional precomputed discovery bundle `{ entries, skippedFiles, lineCounts }` from preprocessing (if provided by orchestration layer)
+
+**Outputs**
+- `state.entries`: ordered list of discovered file entries
+- `state.skippedFiles`: per-mode skips (plus common skips)
+- Entries are annotated with `orderIndex` for deterministic downstream ordering
+
+**Invariants**
+- Entries must have:
+  - `abs` absolute path
+  - `rel` repo-relative path (POSIX form) with no `..`
+  - `stat` with at least `size`, `mtimeMs`
+- Deterministic ordering: sorting by `rel` must be stable and locale-independent.
+- `skippedFiles` should preserve a stable ordering for reproducibility (currently sorted in discover.js).
+
+**Error behavior**
+- Per-file stat errors or size cap failures are recorded as skips, not fatal errors.
+- Discover-level failures (e.g., inability to crawl filesystem) should throw and abort build.
+
+**Determinism requirements**
+- Must not use locale-sensitive comparisons (`localeCompare`) or OS-dependent casing assumptions.
+- Normalize paths consistently (POSIX rel keys).
+
+**Remaining work**
+- [X] Replace locale-dependent sorting in `indexer/steps/discover.js` with deterministic compare (and document determinism requirement).
+- [X] Consider adding `stat.isFile()` checks (defensive) before admitting entries (especially for non-git discovery paths).
+- [X] Consider making “tracked-only” behavior explicit at the API boundary (discover uses `git ls-files` when root is a git repo root) and ensure watch mode semantics align (see Watch section).
+
+---
+
+##### Stage: Incremental plan / reuse
+
+**Primary implementation**
+- `src/index/build/indexer/steps/incremental.js`
+- `src/index/build/incremental.js`
+- `src/index/build/indexer/signatures.js`
+
+**Inputs**
+- `outDir` (mode-specific index output dir)
+- `tokenizationKey` (derived from dict signature + tokenization/postings config)
+- `cacheSignature` (derived from broader runtime feature/config surface)
+- current discovered entries list + their `stat` for whole-index reuse decision
+
+**Outputs**
+- `incrementalState` with:
+  - `manifest` (files, signature, tokenizationKey, bundleFormat, shards metadata)
+  - `bundleDir` + bundle format
+- `reused` boolean indicating full-index reuse (early exit)
+- For per-file reuse, `readCachedBundle(...)` is used by file processor layer.
+
+**Invariants**
+- `manifest.files` keys represent the exact set of indexed files, keyed by deterministic relKey.
+- Whole-index reuse must only return true if:
+  - stage coverage is sufficient for requested stage
+  - manifest key set matches current entries key set (including deletions)
+  - size + mtime checks match for all files (or an approved hash fallback mechanism is used)
+  - signature + tokenizationKey match
+
+**Error behavior**
+- Corrupt/missing manifest should fall back to “rebuild” (not crash).
+- Bundle read failures should fall back to “recompute file” (not crash), unless explicitly configured otherwise.
+
+**Determinism requirements**
+- Signature computation must be stable (`stableStringify` is used).
+- Manifest writing should be stable in structure and ordering (even if JSON object key order is mostly stable in practice).
+
+**Remaining work**
+- [X] Add an explicit “cache schema / tool version” component to `cacheSignature` (or a separate `cacheSchemaVersion` field checked alongside it).
+- [X] Treat `manifest.version` as a compatibility gate (migrate or reset when unsupported); ensure `manifest.files` is validated as a *plain object* (not an array).
+- [X] Decide whether whole-index reuse should allow hash fallback (currently it is strict on mtime/size) — if yes, add an opt-in and tests.
+
+---
+
+##### Stage: Process files (chunking + postings accumulation)
+
+**Primary implementation**
+- `src/index/build/indexer/steps/process-files.js`
+- `src/index/build/state.js`
+- `src/index/build/file-scan.js` (via file processor layer)
+- `src/index/build/workers/indexer-worker.js` (worker pool tokenization)
+- `src/index/build/worker-pool.js`, `src/index/build/runtime/workers.js` (pool + queue orchestration)
+
+**Inputs**
+- Ordered entries list with `orderIndex`
+- Runtime config: tokenization config, postings config, feature flags, caps/guardrails, worker pool config, concurrency limits, sharding config
+- Incremental state with manifest + bundle directory
+- Optional import map from pre-scan stage
+
+**Outputs**
+- Mutated `state`:
+  - `chunks` (+ `chunkMeta`)
+  - `tokenPost`, `phrasePost`, `trigramPost`, `chargramPost`
+  - `df`, `docLengths`, `fileRelations`, `importLinks`
+  - `fileMeta` and `fileChunkMap`
+  - `totalTokens`, `totalChunks`
+  - `skippedFiles` additions for per-file failures
+- `tokenizationStats` + `shardSummary` + `shardPlan` (for reporting and later artifact writing)
+- Incremental manifest updates + bundle writes for non-cached files
+
+**Invariants**
+- Chunk IDs must be assigned deterministically and match the ordering derived from discovered entries (not processing completion order).
+  - Current mechanism: `orderedAppender` ensures deterministic append order even with concurrency/sharding.
+- Postings and DF must reflect the same token stream used to produce chunk meta.
+- For cached files:
+  - The cached bundle contents must be compatible with the current tokenizationKey/signature.
+  - Cached chunks must be appended in the same deterministic order.
+
+**Error behavior**
+- Per-file failures: retry per `indexingConfig.fileRetries` (via `runWithQueue` retry handling); if ultimately failing, abort build (current behavior).
+- Crash logging is best-effort (debug mode only).
+
+**Determinism requirements**
+- Ordering must not depend on concurrency, sharding, or locale settings.
+- Any feature that modifies existing chunks (token retention “auto”, cross-file inference update) must be deterministic given the same inputs.
+
+**Remaining work**
+- [X] Fix sharding runtime lifecycle (see Section C/D): avoid creating worker pools per shard item; ensure explicit teardown; ensure sharding does not leak threads/handles.
+- [X] Replace localeCompare usage in shard plan sorting with deterministic ordering.
+- [X] Consider exposing and testing a “deterministic build mode” in which timestamps/build IDs do not affect artifact contents (at least for core artifacts).
+
+---
+
+##### Stage: Relations (import scan + cross-file inference)
+
+**Primary implementation**
+- `src/index/build/indexer/steps/relations.js`
+- `src/index/build/feature-metrics.js` (for reporting)
+
+**Inputs**
+- `state.fileRelations` from per-file processing (and/or pre-scan)
+- runtime feature flags:
+  - `indexingConfig.importScan`
+  - `typeInferenceEnabled`, `riskAnalysisEnabled`
+  - `*CrossFileEnabled` flags
+- incremental state (to update cached bundles after cross-file inference)
+
+**Outputs**
+- `state.importLinks` from `postScanImports`
+- Optionally updated `state.chunks` and file metadata from `applyCrossFileInference`
+- `graphRelations` structure for index artifacts
+- Optional incremental bundle updates via `updateIncrementalBundlesWithChunks(...)`
+
+**Invariants**
+- importLinks should be stable given stable fileRelations + scan plan.
+- If cross-file inference updates are applied:
+  - updates must be reflected in persisted incremental bundles (or explicitly excluded)
+  - index artifacts written later must correspond to the updated state.
+
+**Error behavior**
+- Import scan failures should degrade gracefully (ideally mark relations as unavailable and continue) unless configured otherwise.
+- Cross-file inference failures should not leave state partially mutated; either apply atomically or abort.
+
+**Determinism requirements**
+- Import scan output ordering should be stable.
+- Graph construction should be stable (avoid hash/map iteration nondeterminism in serialization).
+
+**Remaining work**
+- [X] Add tests ensuring cross-file inference updates are persisted into incremental bundles when enabled.
+- [X] Clarify the artifact contract for `graphRelations` in `index_state.json` and ensure it is versioned.
+
+---
+
+##### Stage: Postings build
+
+**Primary implementation**
+- `src/index/build/indexer/steps/postings.js`
+
+**Inputs**
+- `state` with postings sets + DF + doc lengths + chunks
+- `runtime.postingsConfig`, token retention configuration
+
+**Outputs**
+- A postings artifact structure ready for serialization (plus metrics like context window)
+- Optional token retention adjustments applied to chunks (auto)
+
+**Invariants**
+- Postings must refer to valid chunk IDs.
+- DF counts must align with unique tokens per doc.
+- Token retention must not change postings/DF (only the retained token/gram arrays stored in chunks for downstream consumers).
+
+**Error behavior**
+- Failures should abort (postings are core artifact).
+
+**Determinism requirements**
+- Postings list ordering must be stable (e.g., chunk IDs sorted ascending).
+- DF computation must not depend on processing order (it currently does not, provided chunk order is deterministic).
+
+**Remaining work**
+- [X] Add/verify tests around token retention “auto” switching (sample vs none) to ensure artifact stability and correctness.
+
+---
+
+##### Stage: Write artifacts + promotion
+
+**Primary implementation**
+- `src/index/build/indexer/steps/write.js`
+- `src/index/build/promotion.js`
+- `src/index/build/build-state.js` (build_state.json)
+
+**Inputs**
+- runtime + mode
+- `state`, `postings`, `timing`, `entries`, `shardSummary`, `graphRelations`
+- (promotion) build root + mode list
+
+**Outputs**
+- Mode-specific index directory:
+  - `index_state.json`
+  - chunk meta, file meta, postings, perf profile, feature metrics, relations graph
+- Promotion pointer file:
+  - `current.json` mapping mode → build root
+
+**Invariants**
+- Artifact writes should be atomic where practical.
+- `index_state.json` must contain:
+  - tool version + config hash
+  - stage
+  - tokenizationKey + cacheSignature (if incremental is enabled)
+  - feature flags summary (for transparency)
+
+**Error behavior**
+- Any write failure should abort promotion; promotion must only occur after successful writes.
+
+**Determinism requirements**
+- Artifact contents (excluding timestamps) should be stable given stable inputs.
+- Promotion pointer must not “flip” to a partial build.
+
+**Remaining work**
+- [X] Validate that `promotion.js` cannot write a `current.json` pointer that escapes the intended cache root (path traversal hardening).
+- [X] Consider making build_state updates resilient to concurrent writes (or explicitly “best effort” with documentation).
+
+---
+
+### B. Incremental builds: deeper review
+
+#### B.1 What is already solid
+
+**Audit**
+
+- Clear separation between:
+  - tokenizationKey (tokenization + dictionary + postings surface)
+  - cacheSignature (broader runtime feature surface)
+- Per-file bundle read has a hash fallback mechanism to handle mtime/size mismatch scenarios (when a cached hash exists).
+- Manifest pruning deletes bundles for deleted files (`pruneIncrementalManifest`).
+- Whole-index reuse checks stage coverage and verifies manifest key set matches entries key set (including deletions) and validates per-file stat checks (`shouldReuseIncrementalIndex`).
+- A dedicated test suite exists for:
+  - signature invalidation (`tests/incremental-cache-signature.js`)
+  - manifest updates (`tests/incremental-manifest.js`)
+  - reuse semantics including deletions (`tests/incremental-reuse.js`)
+  - incremental plan behavior (`tests/indexer/incremental-plan.test.js`)
+
+#### B.2 Gaps / risks
+
+**Remaining work (correctness + durability)**
+
+- [X] **Cache invalidation across tool updates:** include a “tool version / schema version / algorithm version” in the incremental signature.  
+  Suggested approach:
+  - Add a `runtime.cacheSchemaVersion` constant (bumped on any semantic change), and include it in `buildIncrementalSignature(...)`.
+  - Or include `runtime.toolInfo.version` (and document that caches are invalidated across versions).
+- [X] **Manifest version compatibility:** enforce `manifest.version` compatibility explicitly; if unsupported, reset (and optionally delete bundles).  
+  Also validate `manifest.files` is a plain object: `loaded.files && typeof loaded.files === 'object' && !Array.isArray(loaded.files)`.
+- [X] **Bundle cleanup on invalidation:** when signature/tokenizationKey mismatches, consider deleting the bundles directory (or moving aside) to avoid disk bloat.
+- [X] **Whole-index reuse strictness:** decide if whole-index reuse should support content-hash fallback for stat mismatch (opt-in).  
+  If not, document that mtime/size must match exactly, and why (performance vs safety).
+- [X] **Stage interactions:** confirm and test that:
+  - stage1 builds do not reuse stage2 caches (signature should differ, but confirm)
+  - stage2 builds do not reuse stage1 caches
+  - stage4 behaviors are consistent (if stage4 writes different artifact sets)
+- [X] **RelKey normalization:** ensure relKey generation is consistently POSIX and case-handled on Windows for both discovery and watch paths.
+
+---
+
+### C. Concurrency and robustness
+
+#### C.1 Locking
+
+**Audit**
+
+- `src/index/build/lock.js` implements:
+  - atomic lock acquisition via `fs.open(lockPath, 'wx')`
+  - stale lock detection via pid + timestamp (and mtime fallback)
+  - optional wait/poll to acquire lock
+
+**Remaining work**
+- [X] Ensure the lock file handle is closed even if `writeFile(...)` fails (use try/finally around the acquired `handle`).
+- [X] Consider including `buildId` and `mode(s)` in the lock file payload to improve observability/debugging.
+- [X] Add a test that simulates write failure during lock acquisition (can be done by injecting a stubbed fs layer, or by creating a read-only directory).
+
+#### C.2 Sharding + queues + worker pools
+
+**Audit**
+
+- The pipeline uses a queue abstraction (`createTaskQueues`, `runWithQueue`) and worker pools (`Piscina`) to parallelize CPU-heavy tasks.
+- Sharding aims to distribute work based on line counts / cost predictions, while preserving deterministic output ordering via an ordered appender.
+
+**Remaining work (critical)**
+- [X] **Do not create worker pools per shard item.**  
+  Options (choose one):
+  1) **Preferred:** share the parent runtime’s worker pools across all shards; only shard the scheduling/queueing.  
+  2) If per-shard pools are required: create **one** shard runtime per shard worker (batch), reuse it for all work items in that batch, and **always** `destroy()` pools and tear down queues in a `finally`.
+- [X] Add a regression test / harness that runs a sharded build and asserts the process exits promptly (no lingering worker threads).  
+  Practical approach: spawn `node build_index.js ...` with `--shards.enabled` and ensure it exits within a timeout; also enable `--verbose` to detect repeated pool creation.
+- [X] Audit `maxPending` sizing on queues in shard runtime creation; ensure it cannot exceed a safe bound when shard concurrency is high.
+
+#### C.3 Watch mode robustness
+
+**Audit**
+
+- Watch mode uses chokidar and a debounce scheduler to coalesce changes.
+- It maintains a tracked file set to decide whether removals/oversize transitions should trigger rebuilds.
+- It always enables incremental to avoid full reindexing on every change.
+
+**Remaining work**
+- [X] Make `createDebouncedScheduler(...)` safe for async `onRun`:
+  - wrap `onRun()` in `Promise.resolve(...).catch(...)`
+  - optionally provide an `onError` callback
+- [X] Ensure “extracted-prose only” watch mode is supported:
+  - update `isIndexablePath(...)` to treat `extracted-prose` as **code-only** for extension filtering (do **not** treat as prose; `extracted-prose` must not re-index normal prose)
+  - add coverage in `tests/watch-filter.js` (including a `.md` change that should *not* trigger when `modes=['extracted-prose']`)
+- [X] Decide how to handle untracked file changes in git repos (discover is tracked-only):
+  - either document that watch will trigger rebuilds but new untracked files will not be indexed
+  - or add an optional “include untracked” mode for watch builds (with tests)
+
+---
+
+### D. Performance and scalability
+
+#### D.1 Discovery and preprocessing overhead
+
+**Audit**
+
+- Discovery uses `git ls-files -z` when root is the git repo root, otherwise fdir crawl.
+- It performs a per-file `fs.stat` in a sequential loop (async, but awaited one-by-one).
+- Preprocess stage can scan file headers to detect binary/minified, and optionally count lines.
+
+**Remaining work**
+- [X] Parallelize `fs.stat` in discovery with a concurrency limit (e.g., 32) to reduce wall-clock time on large repos.
+- [X] Consider using fdir’s `withStats()` to avoid a separate stat syscall for non-git discovery paths.
+- [X] Ensure file-type detection does not misclassify common text types as binary (treat certain `application/*` mimes as text if needed).
+
+#### D.2 Sharding overhead
+
+**Audit**
+
+- Sharding may require a full line-count pass (expensive) unless line counts are provided.
+- Shard planning uses predicted cost from perf profiles when available.
+
+**Remaining work**
+- [X] Add an option to avoid full line counting when perf profile is available and sufficiently fresh (approximate weights).
+- [X] Revisit per-shard file concurrency hard cap (`min(2, ...)`) — it can underutilize configured `runtime.fileConcurrency` on larger machines.
+- [X] Avoid per-shard runtime creation (performance + correctness; see Section C).
+
+#### D.3 Worker pool overhead
+
+**Audit**
+
+- Worker tasks validate cloneability of inputs/outputs for each task (deep scan with limits).
+- Worker pool supports restart/backoff, and permanent disable on repeated opaque failures.
+
+**Remaining work**
+- [X] Gate cloneability validation behind a debug flag or environment variable; keep it on by default in CI/tests, off in production, or vice versa (choose explicitly).
+- [X] Consider using transfer lists for large typed arrays in quantize tasks to reduce cloning overhead.
+- [X] Add metrics to quantify:
+  - pool restart frequency
+  - clone-check overhead
+  - task latency distribution
+
+---
+
+### E. Refactoring / code quality / test gaps
+
+#### E.1 Duplication and clarity
+
+**Audit**
+
+- Multiple modules duplicate “max bytes per extension” logic and cap normalization:
+  - `discover.js` has `resolveMaxBytesForExt`
+  - `watch.js` has `maxBytesForExt`
+  - `tools/shard-census.js` has its own normalization helpers
+- Ordering uses both explicit `<` comparisons and `localeCompare` in different places.
+
+**Remaining work**
+- [X] Centralize “max bytes per extension” and “cap normalization” logic into a single helper module (likely `runtime/caps.js` or a shared `file-caps.js`) and reuse across discover/watch/tools.
+- [X] Standardize ordering comparisons: provide a shared `compareRelPaths(a, b)` helper that is locale-independent and (optionally) Windows-case-aware.
+- [X] Run formatter / lint pass on files with inconsistent indentation (not functionally wrong, but increases diff noise and review friction).
+
+#### E.2 Tests to add or strengthen
+
+**Remaining work**
+- [X] **Build all modes:** Ensure `tests/build-index-all.js` reliably enforces that `--mode all` produces `code`, `prose`, `extracted-prose`, and `records` artifacts (and fix the orchestration boundary if currently inconsistent).
+- [X] **Watch extracted-prose:** add a case to `tests/watch-filter.js` where `modes=['extracted-prose']` and confirm indexable file changes trigger scheduling.
+- [X] **Watch async error safety:** add a test that uses an async `onRun` that rejects once, and assert no `unhandledRejection` occurs (attach a listener in the test).
+- [X] **Sharding teardown:** add a harness test that enables sharding and asserts no lingering worker threads prevent exit.
+- [X] **Incremental schema version:** add a test that simulates a tool version/schema version change and confirms caches are invalidated.
+
+---
+
+### File-by-file findings (actionable)
+
+> Items below are intentionally concrete and file-scoped to minimize ambiguity.
+
+#### `build_index.js`
+
+- [X] Pass the resolved `modes` from `parseBuildArgs(...)` through to the build orchestrator (or otherwise guarantee that `--mode all` resolves identically at every boundary and includes `records`).  
+  _Why:_ prevents drift between CLI arg parsing and internal orchestration; aligns with `tests/build-index-all.js`.
+
+#### `src/index/build/args.js`
+
+- [X] Consider adding `argv.modes` (or similar) so downstream layers do not need to re-derive the “all → modes” mapping (and so the CLI entry can pass a single object).
+
+#### `src/index/build/build-state.js`
+
+- [X] Document that `build_state.json` is best-effort and may lose updates under concurrent writers; or introduce an append-only/event model to prevent lost updates.
+- [X] Consider `timer.unref()` on heartbeat interval for cases where build-state heartbeat should not keep the process alive (optional).
+
+#### `src/index/build/crash-log.js`
+
+- [X] Consider throttling `updateFile(...)` writes when debug crash logging is enabled (currently potentially writes state on every file).
+
+#### `src/index/build/discover.js`
+
+- [X] Add concurrency-limited parallel statting for large repos.
+- [X] Add defensive `stat.isFile()` gating for non-git crawls.
+
+#### `src/index/build/failure-taxonomy.js`
+
+- No blocking issues found in scope; consider expanding taxonomy categories over time as needed.
+
+#### `src/index/build/feature-metrics.js`
+
+- No blocking issues found; consider adding an explicit schema version to metrics output to support future evolution.
+
+#### `src/index/build/file-scan.js`
+
+- [X] Treat certain `file-type` “application/*” results (e.g., json/xml) as potentially text, or ensure `file-type` is only advisory and always confirm with istextorbinary when in doubt.
+#### `src/index/build/ignore.js`
+
+- [X] Consider supporting nested `.gitignore` semantics for non-git discovery paths (optional, but improves parity with developer expectations).
+
+#### `src/index/build/incremental.js`
+
+- [X] Validate `manifest.files` is a plain object; reset if array/invalid.
+- [X] Enforce manifest version compatibility; reset or migrate.
+- [X] Consider deleting stale bundles on signature/tokenizationKey mismatch to avoid disk bloat.
+
+#### `src/index/build/indexer.js`
+
+- No major issues; ensure per-mode runtime mutations are intentional and documented.
+
+#### `src/index/build/indexer/pipeline.js`
+
+- [X] Ensure any ordering-critical sorts remain locale-independent (primary issue is in discover step; pipeline relies on it).
+- [X] Consider explicitly documenting the per-mode stage graph and how it maps to artifacts and cache signature components.
+
+#### `src/index/build/indexer/signatures.js`
+
+- [X] Add cache schema / tool version component to `buildIncrementalSignature(...)`.
+- [X] Consider adding explicit versions for:
+  - chunk schema
+  - postings schema
+  - relations graph schema
+
+#### `src/index/build/indexer/steps/discover.js`
+
+- [X] Replace `localeCompare` sort with deterministic compare.
+- [X] Avoid mutating shared entry objects if discovery is reused across modes (optional; low risk today, but cleaner).
+
+#### `src/index/build/indexer/steps/incremental.js`
+
+- [X] Add more granular status reporting (e.g., why reuse rejected) for observability; currently logs are decent but could be structured.
+
+#### `src/index/build/indexer/steps/postings.js`
+
+- [X] Add tests for token retention “auto” switching correctness and stability.
+
+#### `src/index/build/indexer/steps/process-files.js`
+
+- [X] Fix sharding runtime lifecycle (do not create per-work-item pools; ensure teardown).
+- [X] Replace localeCompare in shard plan sorting with deterministic compare.
+- [X] Revisit per-shard concurrency cap (min(2, ...)).
+- [X] Consider hoisting shard runtime creation outside the inner work-item loop if per-shard runtime instances remain desired.
+
+#### `src/index/build/indexer/steps/relations.js`
+
+- [X] Add tests ensuring cross-file inference updates are persisted into incremental bundles when enabled.
+- [X] Clarify error strategy for import scan failures (degrade vs abort) and encode it in tests/config.
+
+#### `src/index/build/indexer/steps/write.js`
+
+- [X] Ensure `index_state.json` always includes the correct cache signature / tokenizationKey values used for the build (especially when any runtime config is adapted per mode).
+
+#### `src/index/build/lock.js`
+
+- [X] Close file handle in a `finally` if write fails during lock acquisition.
+
+#### `src/index/build/perf-profile.js`
+
+- No major correctness issues; consider exporting a schema version.
+
+#### `src/index/build/preprocess.js`
+
+- [X] Document that preprocess is currently for `code` + `prose` only (or extend support to `extracted-prose` explicitly if desired).
+
+#### `src/index/build/promotion.js`
+
+- [X] Harden path handling so `current.json` cannot point outside `repoCacheRoot` even if inputs are malformed.
+
+#### `src/index/build/runtime.js`
+
+- No blocking issues found in scope.
+
+#### `src/index/build/runtime/caps.js`
+
+- No blocking issues found; consider consolidating cap normalization usage across tools.
+
+#### `src/index/build/runtime/hash.js`
+
+- No blocking issues found.
+
+#### `src/index/build/runtime/logging.js`
+
+- No blocking issues found; consider documenting the distinction between structured logs and progress logs.
+
+#### `src/index/build/runtime/runtime.js`
+
+- [X] Consider making the “tracked-only discovery” behavior visible in logs when git is used (helps users understand why new files may not be indexed).
+- [X] Consider ensuring any per-mode adaptive config does not bleed across modes (currently low risk, but worth documenting).
+
+#### `src/index/build/runtime/stage.js`
+
+- No blocking issues found; stage overrides appear coherent and tested (`tests/build-runtime/stage-overrides.test.js`).
+
+#### `src/index/build/runtime/tree-sitter.js`
+
+- No blocking issues found in scope.
+
+#### `src/index/build/runtime/workers.js`
+
+- [X] Review queue pending-limit sizing with sharding enabled; ensure worst-case bounds are safe.
+
+#### `src/index/build/state.js`
+
+- No blocking issues found; consider adding explicit assertions/guards in merge functions to prevent mismatched id offsets if used elsewhere.
+
+#### `src/index/build/watch.js`
+
+- [X] Make debounce scheduler safe for async `onRun` (catch rejections).
+- [X] Support `extracted-prose` as a mode for indexable path filtering.
+- [X] Consider reducing rebuild churn from untracked files (optional).
+
+#### `src/index/build/worker-pool.js`
+
+- [X] Consider exposing a “debug clone checks” toggle (ties into worker validation overhead discussion).
+- [X] Add optional transferList support for quantize tasks.
+
+#### `src/index/build/workers/indexer-worker.js`
+
+- [X] Gate cloneability validation behind a debug/config toggle if performance becomes an issue.
+
+#### `tools/shard-census.js`
+
+- [X] Replace `localeCompare` with deterministic compare for stable reporting.
+- [X] Consider reusing shared cap/normalization utilities rather than duplicating.
+
+#### Tests
+
+##### `tests/build-index-all.js`
+
+- [X] Ensure the build orchestration actually builds `extracted-prose` **and `records`** for `--mode all` (fix boundary mismatch if needed).
+
+##### `tests/watch-filter.js`
+
+- [X] Add an `extracted-prose`-only mode coverage case.
+- [X] Add an async debounce safety test (unhandled rejection prevention).
+
+##### `tests/worker-pool*.js`
+
+- No immediate gaps; consider adding a perf regression test if clone checks are made optional.
+
+---
+
+### Deliverables
+
+- [X] Fix sharding runtime lifecycle and add regression coverage.
+- [X] Resolve “mode all” / extracted-prose / records mismatch and ensure `tests/build-index-all.js` passes reliably.
+- [X] Harden watch debounce scheduling against async rejection.
+- [X] Replace localeCompare sorts in ordering-critical paths.
+- [X] Add a cache schema/tool version component to incremental signature and add a test for invalidation.
+
+### Exit criteria
+
+- [X] Sharded builds do not leak worker threads/handles and the process exits cleanly.
+- [X] `--mode all` produces `code`, `prose`, `extracted-prose`, and `records` indices; validated by test.
+- [X] Watch mode does not emit unhandled promise rejections under forced error paths.
+- [X] Deterministic ordering is documented and enforced (no locale-dependent sorts in critical ordering paths).
+- [X] Incremental cache reuse is safe across code releases (explicit schema/version invalidation).
+
+---
+
+## Phase 16 — Artifact compression upgrade: add Zstandard (`zstd`) alongside gzip
+
+### 16.1 Add compression dependency
+
+* [ ] Add `@mongodb-js/zstd` (recommended as optional dependency due to native bindings)
+* [ ] Decide “streaming vs buffer-only” support:
+
+  * [ ] If streaming is supported: implement streaming JSONL writers/readers
+  * [ ] If buffer-only: restrict zstd to JSON object/array artifacts, keep JSONL as gzip (document clearly)
+
+### 16.2 Introduce compression abstraction (avoid sprinkling `if (mode===...)` everywhere)
+
+* [ ] Add `src/shared/compression.js`:
+
+  * [ ] `compressBuffer(mode, buffer, level?)`
+  * [ ] `decompressBuffer(mode, buffer)`
+  * [ ] Optional stream helpers if supported
+* [ ] Update `src/index/build/artifacts/compression.js`:
+
+  * [ ] Expand `mode` validation: `gzip|zstd|none`
+  * [ ] Keep current defaults unchanged (`gzip` or `null` based on existing config)
+* [ ] Update `src/index/build/artifacts.js`:
+
+  * [ ] Replace hard-coded `.json.gz` with extension derived from compression mode
+
+    * [ ] gzip: `.json.gz`
+    * [ ] zstd: `.json.zst` (or `.json.zstd`; pick one and standardize)
+  * [ ] Ensure `compressionKeepRaw` behavior remains correct
+
+### 16.3 Update readers/writers for new extensions
+
+* [ ] Update `src/shared/artifact-io.js`:
+
+  * [ ] Extend `resolveArtifactPath()` to check:
+
+    * [ ] `<name>.json` then `<name>.json.gz` then `<name>.json.zst`
+    * [ ] Also handle `.bak` variants for each
+  * [ ] Extend `readJsonFile()` to decode zstd when applicable
+* [ ] Update `src/shared/json-stream.js`:
+
+  * [ ] Add zstd path for `writeJsonArrayFile()` / `writeJsonObjectFile()` when compression is requested
+  * [ ] If JSONL is to support zstd: update `writeJsonLinesFile()` and `readJsonLinesArraySync()`
+
+### 16.4 Update artifact contract + metrics
+
+* [ ] Update `docs/artifact-contract.md`:
+
+  * [ ] New allowed compression modes
+  * [ ] New filename extensions
+  * [ ] Backward compatibility statement (gzip still readable)
+* [ ] Update `src/index/build/artifacts/metrics.js` to report `compression.mode=zstd`
+* [ ] Update `docs/config-schema.json` to restrict/describe valid modes
+
+### 16.5 Tests
+
+* [ ] Add `tests/artifact-zstd-readwrite.js`:
+
+  * [ ] Write a compressed artifact (zstd) using production writer
+  * [ ] Read it with `readJsonFile()` and assert payload matches
+* [ ] Extend `tests/artifact-bak-recovery.js` with a zstd variant:
+
+  * [ ] `.json.zst` + `.bak` fallback behavior
+* [ ] Add script-coverage action(s)
+
+**Exit criteria**
+
+* [ ] `loadIndex()` can transparently read `.json`, `.json.gz`, and `.json.zst` artifacts
+* [ ] Existing gzip artifacts remain fully compatible
+* [ ] Failure-mode behavior (`.bak` recovery) remains correct for new extensions
+
+---
+
+## Phase 1 — Test Gate Stabilization and Determinism
+
+**Objective:** Make the current test suite reliable (non-flaky) and green, so subsequent refactors (security, caching, RPC hardening) have a trustworthy safety net.
+
+1. **Fix failing Phase 22 gate: `type-inference-lsp-enrichment` (Python tooling return type missing)**
+
+   * [x] **Broaden hover fallback conditions in LSP tooling providers so missing return types are recovered even when parameter types are present.**
+
+     * **Why:** All three LSP tooling providers currently only fetch hover when *both* `returnType` is missing *and* `paramTypes` is empty. If a provider can parse param types from `documentSymbol.detail` but that string omits return type (a plausible LSP behavior), it will never attempt hover and will miss return types (exact symptom reported by the failing test).
+     * **Where:**
+
+       * `src/index/tooling/pyright-provider.js`
+
+         * Current gating (too strict):
+           `if (!info || (!info.returnType && !Object.keys(info.paramTypes || {}).length)) { ... hover ... }`
+       * `src/index/tooling/clangd-provider.js` (same pattern)
+       * `src/index/tooling/sourcekit-provider.js` (same pattern)
+     * **Fix:**
+
+       * Change hover fallback gating to trigger when **either** return type is missing **or** param types are missing, e.g.:
+
+         * `if (!info || !info.returnType || !Object.keys(info.paramTypes || {}).length) { ... }`
+       * Keep a small timeout override (already present) and consider a per-file/per-symbol hover cap if you want to prevent worst-case hover storms.
+     * **Tests:**
+
+       * Keep `tests/type-inference-lsp-enrichment.js` as the regression gate.
+       * Add/adjust a focused unit/integration test fixture path where `documentSymbol.detail` omits return type but hover includes it (this directly validates the new behavior rather than relying on chance).
+   * [x] **Validate stored tooling return types match exact expectations for Python (`str`)**
+
+     * **Why:** The test asserts `entry.type === 'str'` (exact string match). Any normalization differences (e.g., `builtins.str`, `str:`) will fail.
+     * **Where:** Return type extraction path:
+
+       * `src/index/tooling/signature-parse/python.js` (`parsePythonSignature`)
+       * `src/index/tooling/pyright-provider.js` (populating `entry.returns`)
+       * `src/index/type-inference-crossfile/apply.js` (`addInferredReturn`)
+     * **Fix:** Ensure the Python return type passed into `addInferredReturn()` is the normalized “plain” name the project expects (currently looks intended to already be `str`, but explicitly confirm by tests).
+
+2. **Fix failing Phase 22 gate: `embeddings-dims-mismatch` (test is flaky due to cache file selection)**
+
+   * [x] **Make the test select a cache entry that matches the identity it intends to mutate.**
+
+     * **Why:** The cache directory can contain *multiple* caches for the same file hash/signature but different identity keys (e.g., stub embeddings default dims 384 from `build_index` stage vs. a subsequent `build-embeddings --dims 8`). The test currently mutates an arbitrary first file returned by `readdir`, which is OS/filesystem-order dependent, causing nondeterministic behavior (observed in `tests/phase22-logs/embeddings-dims-mismatch.js.log`).
+     * **Where:** `tests/embeddings-dims-mismatch.js`
+
+       * Current behavior: `const targetFile = cacheFiles[0];` (no filtering)
+     * **Fix (recommended):**
+
+       * Read all cache files, parse JSON, and select one whose `cacheMeta.identity.dims === 8` **and** `cacheMeta.identity.stub === true` (or match `cacheMeta.identityKey` computed from `buildCacheIdentity`).
+       * Sort `cacheFiles` for determinism even after filtering.
+     * **Tests:** The test itself is the gate; ensure it passes consistently on Windows/macOS/Linux.
+
+3. **De-flake related embeddings cache test to prevent future intermittent failures**
+
+   * [x] Apply the same deterministic cache selection strategy to `tests/embeddings-cache-identity.js`.
+
+     * **Why:** It uses the same “first file” selection pattern and can fail depending on directory enumeration order and presence of other identity caches.
+     * **Where:** `tests/embeddings-cache-identity.js`
+     * **Fix:** Filter for identity matching the run’s intended dims/provider/stub flags (same as above), and sort before selecting.
+
+4. **Add a “Phase 22 gate” smoke runner (optional but strongly recommended)**
+
+   * [x] Create a single script to run only the gate tests and report failures clearly.
+
+     * **Why:** Reduces time-to-signal and encourages frequent local verification during refactors.
+     * **Where:** e.g., `tools/run-phase22-gates.js` or `npm run test:phase22`
+     * **Exit expectation:** One command that deterministically reproduces CI gate results.
+
+**Exit criteria**
+
+* [X] `tests/type-inference-lsp-enrichment.js` passes.
+* [X] `tests/embeddings-dims-mismatch.js` passes deterministically (no filesystem-order dependence).
+* [X] `tests/embeddings-cache-identity.js` passes deterministically.
+
+---
+
+---
+
+## Phase 11 — Extracted-Prose + Records end-to-end parity (build/search/stats/tests)
+
+**Objective:** Make `extracted-prose` a first-class index mode (for extracted text such as code comments) and make `records` a first-class mode for log/record artifacts. Enforce deterministic, non-duplicative indexing across `code`, `prose`, `extracted-prose`, and `records`, and ensure `--mode all` includes all four.
+
+### Observed failures driving this phase
+
+- `📦  extracted-prose: 0 chunks, 0 tokens` during benchmark builds (unexpected; indicates missing extraction/discovery or incorrect pipeline wiring).
+- Risk of normal prose content being re-indexed into `extracted-prose` (mode separation not strict enough).
+- Comment text currently influences `code` mode search, duplicating content that should live in `extracted-prose`.
+- Logs/records can exist anywhere in a repo; they must be detected and kept out of the other modes.
+
+### 11.1 Define and enforce mode invariants
+
+* [x] Document and enforce mode semantics in `docs/contracts/indexing.md`:
+  * `code` indexes code bodies + structural metadata; **must not index comments as searchable text**.
+  * `prose` indexes documentation/prose files (Markdown, text, etc.).
+    * Any comments that exist inside prose files (e.g., HTML comments inside Markdown) remain in `prose`.
+  * `extracted-prose` indexes **only extracted text** (comments/docstrings/config comments/etc.) sourced from **both** code and prose files.
+    * **All comments are eligible** for extraction (default on), but extracted-prose must never contain the “normal prose body” of a prose file.
+    * Implementation requirement: extracted-prose mode must only emit chunks for explicit extracted segments (no fallback that chunks the whole file).
+  * `records` indexes log/record/triage artifacts; anything indexed in `records` must be excluded from other modes.
+  * `all` == `{code, prose, extracted-prose, records}`.
+
+* [x] Update build orchestration so `--mode all` truly means “all”:
+  * `src/index/build/args.js`: expand `--mode all` to include `records`.
+  * `src/integrations/core/index.js`: expand `mode === 'all'` to include `records` (do not re-derive modes inconsistently vs. `parseBuildArgs`).
+  * Ensure stage3 embedding generation includes `extracted-prose` when enabled:
+    * `src/integrations/core/index.js`: `buildEmbedModes` must include `extracted-prose` (and still exclude `records`).
+  * Add/extend `tests/build-index-all.js` to assert `records` is built.
+
+* [x] Update discovery + file processing so extracted-prose never re-indexes full prose:
+  * Guarantee: a prose file with no extractable comment-like segments yields **0** extracted-prose chunks.
+  * `src/index/build/file-processor.js`:
+    * enforce `segmentsConfig.onlyExtras=true` for `mode === 'extracted-prose'` across all extensions
+    * ensure no fallback path can chunk the full file body into extracted-prose
+  * Add regression tests:
+    * `.md` with only normal prose -> 0 extracted-prose chunks
+    * `.md` with HTML comments (`<!-- ... -->`) -> extracted-prose chunks contain the comment text
+    * comments remain searchable in prose (since they remain in prose) while also appearing in extracted-prose
+
+* [x] Ensure stats + smoke tests are mode-aware:
+  * Smoke test that builds all modes then runs:
+    * `search.js --mode extracted-prose ...`
+    * `search.js --mode records ...`
+  * Ensure any stats tooling used in CI includes extracted-prose + records counts (non-zero when fixtures contain eligible content).
+
+### 11.2 Comments: single source of truth in extracted-prose, displayed by default
+
+* [x] Change the indexing contract so comment text is stored in one place:
+  * `extracted-prose` chunk meta contains comment text/tokens/embeddings.
+  * `code` chunk meta stores **references** to comment chunks/spans/IDs (no duplicated tokens).
+
+* [x] Retrieval join contract (default-on):
+  * `code` results **include** a comment excerpt by default by joining to `extracted-prose` via `(fileId, start, end)` and/or explicit `commentChunkIds`.
+  * Add a flag to disable the join for performance debugging (e.g., `--no-comments` or `--comments=off`).
+  * Ensure joins are lazy and bounded (do not load all extracted-prose chunks eagerly).
+
+* [x] Implementation (gate behind a compatibility flag only if required):
+  * `src/index/build/file-processor.js` / `src/index/build/file-processor/assemble.js`:
+    * remove `fieldTokens.comment` population in code mode
+    * attach comment references instead
+
+* [x] Tests:
+  * [x] Searching in `extracted-prose` finds doc comments for a code fixture.
+  * [x] Searching in `code` does **not** match solely on comment text.
+  * [x] Default retrieval output includes a comment excerpt for code results when the reference exists.
+
+### 11.3 Records: detect logs/records anywhere and prevent cross-mode duplication
+
+* [x] Define “records” as **log/record-like artifacts**, regardless of directory:
+  * examples: build logs, test logs, stack traces, benchmark outputs, crash dumps, tool outputs.
+
+* [x] Implement records detection + routing:
+  * Add a classifier (path + content heuristics) used during discovery, e.g. `classifyFileKind(entry)`.
+  * Heuristics should include:
+    * extensions: `.log`, `.out`, `.trace`, `.stacktrace`, `.dmp`, `.gcov`, `.lcov`, etc.
+    * path segments: `logs/`, `log/`, `out/`, `artifacts/`, `coverage/`, `tmp/`, `.cache/` (configurable)
+    * lightweight content sniffing (bounded bytes): high timestamp density, stack-trace signatures, test runner prefixes.
+  * Provide config overrides:
+    * `records.detect` (default on)
+    * `records.includeGlobs` / `records.excludeGlobs`
+
+* [x] Enforce exclusion invariant:
+  * any file classified into `records` is excluded from `code`, `prose`, and `extracted-prose`.
+
+* [x] Tests:
+  * [x] Place a log-like file in an arbitrary subdir (not under a dedicated `recordsDir`) and assert it indexes only under `records`.
+  * [x] Add a regression test that prevents a records file from being double-indexed into `prose`.
+
+### 11.4 Rust/prose mode isolation regression
+
+* [x] Add a discovery/unit test that asserts `.rs` files are never included in `prose` discovery.
+* [x] Add an integration smoke test that builds `prose` for a repo containing `.rs` and asserts zero `.rs` chunks exist in the prose index.
+
+### 11.5 Critical dependency reference documentation completeness
+
+* [x] Define the “critical dependency set” (runtime deps that are native, download/exec, security-sensitive, or historically fragile).
+* [x] Add a CI-friendly tooling check that verifies each critical dependency has a corresponding reference document under `docs/references/dependency-bundle/deps/`.
+* [x] For missing entries, add stub docs with:
+  * purpose in PairOfCleats
+  * supported platforms/constraints
+  * security notes (native deps, downloads, binaries)
+  * upstream reference links
+
+### 11.6 Mode surface + observability parity (logs, stats, tooling)
+
+* [x] Audit every place that enumerates modes (hard-coded `['code', 'prose']`, `code|prose|both|all`, etc.) and ensure:
+  * `extracted-prose` + `records` are included where intended, **or**
+  * the tool explicitly declares it only supports `code`/`prose` (and prints that once, clearly).
+
+  Known call-sites to fix (non-exhaustive; start here):
+  * Build orchestration:
+    * `src/index/build/args.js`
+    * `src/integrations/core/index.js`
+  * Validators / artifact tools:
+    * `src/index/validate.js` (defaults currently fall back to `['code', 'prose']`)
+    * `tools/report-artifacts.js`
+    * `tools/index-validate.js`
+    * `tools/compact-pieces.js`
+    * `tools/shard-census.js`
+    * `tools/triage/context-pack.js`
+  * Storage backend build tools (mode flags):
+    * `tools/build-lmdb-index.js`
+    * `tools/build-sqlite-index/*` (explicitly declare support set if it remains `code`/`prose` only)
+  * Tests that assume only two modes:
+    * `tests/discover.js`
+    * `tests/preprocess-files.js`
+    * `tests/watch-filter.js`
+
+* [x] Update user-facing stats output to include extracted-prose wherever code/prose are shown:
+  * `src/retrieval/cli/render.js` (`--stats` line): include `extracted-prose chunks=...` and `records chunks=...` when those indexes are present/enabled.
+  * `build-index` final summary: ensure a per-mode summary line exists for all four modes (consistent order/labels).
+
+* [x] Update tooling that reports/validates artifacts so it includes `extracted-prose` + `records` wherever it already includes `code` + `prose`:
+  * `tools/report-artifacts.js` (validation should cover all built modes)
+  * `tools/index-validate.js` (default should validate all available modes)
+  * `src/index/validate.js` (default mode set)
+  * `tools/shard-census.js` (mode loop)
+  * `tools/triage/context-pack.js` and `tools/triage/ingest.js` (exports should include mode artifacts consistently)
+
+* [x] Update benchmark reporting to surface these modes consistently:
+  * `tools/bench/language/metrics.js` should either:
+    * report `extracted-prose` + `records` metrics alongside `code` + `prose`, or
+    * explicitly mark them as “not built / not available” (once, not per-row spam).
+
+* [x] Normalize ordering + labels everywhere:
+  * Stable order: `code`, `prose`, `extracted-prose`, `records`
+  * Ensure all mode-summary lines and tables use the same order and consistent labels.
+
+* [x] Add a focused smoke test that asserts user-facing output includes the new modes when present:
+  * Build a fixture that contains:
+    * a code comment (should produce `extracted-prose` chunks)
+    * a prose file with an HTML comment (should also produce `extracted-prose` chunks, while remaining in prose)
+    * a log-like file (should produce `records` chunks)
+  * Assert the final build summary mentions both `extracted-prose` and `records`.
+  * Assert `search.js --stats` output includes extracted-prose + records counts.
+
+### 11.7 Prose-edge linking between symbols and comment chunks (deferred)
+
+* [x] After parity is complete, add a lightweight “prose-edge” mechanism to associate:
+  * files, classes, functions, and symbols
+  * to one-or-more extracted-prose comment chunks
+  * even when not physically adjacent (not necessarily a full graph edge).
+* [x] Store as a separate artifact (e.g., `comment_links.jsonl`) so it can be recomputed without rewriting core chunk artifacts.
+* [x] Retrieval should be able to surface linked comment chunks for a symbol/file without duplicating stored text.
+
+**Exit criteria**
+
+* [x] `build_index.js --mode all` deterministically builds `code`, `prose`, `extracted-prose`, and `records`.
+* [x] `extracted-prose` contains extracted comment text for code files with comments.
+* [x] No prose files are indexed into `extracted-prose` (unless explicitly enabled for comment-like segments).
+* [x] Code index does not duplicate comment text; it references extracted-prose and displays excerpts by default.
+* [x] Records do not duplicate across modes; records detection works for logs placed anywhere.
+* [x] Tooling and stats that report per-mode results include `extracted-prose` + `records` (or explicitly mark them unsupported).
+* [x] CI has a deterministic check for missing critical dependency reference docs.
+
+---
+## Phase 2 — Benchmark + build harness reliability (cache hygiene, shard progress determinism, disk-full resilience)
+
+**Objective:** Make benchmark runs reproducible and prevent disk/memory blowups by managing caches, improving progress determinism, and failing fast with actionable diagnostics when the environment is insufficient.
+
+### Observed failures driving this phase
+
+- Duplicate/late progress counters during sharded builds, e.g.:
+  - `[shard] 268/638 src/storage/sqlite/build-helpers.js`
+  - `[shard] 268/638 src/storage/sqlite/incremental.js`
+- `SqliteError: database or disk is full` during benchmark search/load.
+- Benchmark cache growth causing giant artifact files and disk exhaustion.
+
+### 2.1 Cache cleanup after each benchmarked repo
+
+- [x] Update benchmark harnesses to **clean the repo cache after each repo** by default:
+  - remove repo build directories (including incremental chunk artifacts and shard parts) and sqlite DBs under `benchmarks/cache/repos/...`
+  - keep only benchmark results/baselines (and optionally a minimal build summary)
+  - do **not** delete shared caches (downloads, extension caches, shared embedding caches); only repo-specific build outputs
+- [x] Add a `--keep-cache` override for debugging.
+- [x] Document this in `docs/benchmarks.md` (cache policy + disk sizing expectations).
+
+### 2.2 Deterministic shard progress numbering
+
+- [x] Pre-assign `fileIndex` for each work item **before** concurrent processing begins.
+- [x] Ensure progress renderer never reuses the same `(index/total)` pair for different files in the same shard run.
+- [x] Add a regression test that simulates concurrent progress events and asserts monotonically increasing fileIndex (running buildindex on the repo itself briefly should be sufficient to verify this)
+
+### 2.3 Disk-full resilience for SQLite + artifact build steps
+
+- [x] Add a preflight free-disk-space check before:
+  - building sqlite indexes
+  - copying/compacting sqlite DBs
+  - writing large artifacts/shards
+- [x] On insufficient space, fail fast with:
+  - required bytes estimate (best-effort)
+  - current free bytes
+  - remediation steps (change cache dir, enable cleanup, reduce modes, reduce token retention)
+- [x] Optional: if a repo fails due to disk full during benchmark runs, record failure and continue to next repo.
+
+**Exit criteria**
+
+- [x] Bench runs do not accumulate unbounded cache state across repos by default.
+- [x] Sharded build progress numbering is stable and trustworthy.
+- [x] Disk-full conditions are detected early with actionable messages rather than failing deep in sqlite reads.
+
+---
+
+## Phase 4 — Regression gate sweep (fix current failing tests)
+
+**Objective:** Clear the currently failing regression gates so subsequent refactors (scalability, mode separation, security) have trustworthy signal.
+
+**Status:** Phase archived; remaining failing tests and exit criteria moved to Phase 30 (Verification Gates).
+
+---
+
+## Phase 15 — Benchmarks, regression gates, and release hardening (prove the ROI)
+
+### 15.1 Extend microbench suite (`tools/bench/micro/`)
+
+* [x] Add `tools/bench/micro/watch.js`:
+  * [x] Event storm simulation (if feasible) or synthetic scheduler load
+* [x] Add `tools/bench/micro/regex.js`:
+  * [x] Compare `re2js` vs `re2` on representative patterns/inputs
+* [x] Add `tools/bench/micro/hash.js`:
+  * [x] Compare wasm vs native checksum throughput
+* [x] Add `tools/bench/micro/compression.js`:
+  * [x] gzip vs zstd compress/decompress for representative artifact payload sizes
+* [x] Add `tools/bench/micro/extractors.js`:
+  * [x] PDF/DOCX extraction throughput and memory ceiling
+
+### 15.2 Add “no-regression” assertions where it matters
+
+* [x] Add deterministic snapshot tests (lightweight, not full golden files):
+  * [x] Ensure chunk IDs stable across backends
+  * [x] Ensure ordering stable under ties
+* [x] Add metrics validation:
+  * [x] `index-*.json` metrics reflect new compression/extractor options correctly
+
+### 15.3 Documentation + UX polish
+
+* [x] Update `README.md`:
+  * [x] Mention PDF/DOCX support and how to enable/disable
+  * [x] Mention optional performance backends and how `auto` works
+* [x] Update `docs/external-backends.md` for Tantivy/LanceDB reality (what’s implemented vs planned)
+* [x] Update `docs/mcp-server.md` for SDK migration
+
+**Exit criteria**
+
+* [x] Remaining verification gates moved to Phase 30 (Verification Gates).
+
+---
+
+## Phase 26 — Tantivy sparse backend (optional, high impact on large repos)
+
+> This phase is intentionally split into “abstraction first” and “backend integration” to keep risk controlled.
+
+### 26.1 Extract a sparse-retrieval interface
+
+* [x] Create `src/retrieval/sparse/`:
+  * [x] `types.js` contract: `search({ query, topN, filters, mode }) -> hits[]`
+  * [x] `providers/sqlite-fts.js` wrapper around existing SQLite FTS ranking
+  * [x] `providers/js-bm25.js` wrapper around the in-memory BM25 path
+
+* [x] Update `src/retrieval/pipeline.js` to call the provider rather than direct sqlite/JS branching:
+  * [x] Keep behavior identical as baseline
+  * [x] Preserve determinism (stable tie-breaking)
+
+### 26.2 Implement Tantivy integration (choose one operational model)
+
+* [x] Choose packaging model (selected embedded N-API; sidecar deferred)
+
+* [x] Add `src/retrieval/sparse/providers/tantivy.js`:
+  * [x] Build query → execute → map results to `{ idx, score }`
+  * [x] Support candidate-set filtering if feasible (or document it as a limitation and handle via post-filtering)
+
+* [x] Add `tools/build-tantivy-index.js`:
+  * [x] Consume existing artifacts (`chunk_meta`, token streams) and build tantivy index on disk
+  * [x] Store alongside other indexes (e.g., under repo cache root)
+  * [x] Consider incremental updates later; start with full rebuild
+
+### 26.3 Config + CLI integration
+
+* [x] Add config:
+  * [x] `tantivy.enabled`
+  * [x] `tantivy.path` (optional override)
+  * [x] `tantivy.autoBuild` (optional)
+
+* [x] Extend backend policy logic (see `src/retrieval/cli/backend-context.js` and backend-policy tests):
+  * [x] Allow `--backend tantivy` (or `--sparse-backend tantivy`)
+  * [x] Ensure `auto` fallback behavior remains predictable
+
+### 26.4 Tests (gated if tantivy isn’t always available in CI)
+
+* [x] Add `tests/tantivy-smoke.js`:
+  * [x] Builds tantivy index for `tests/fixtures/sample`
+  * [x] Executes a basic query and asserts hits are non-empty
+
+* [x] Gate it behind env:
+  * [x] `PAIROFCLEATS_TEST_TANTIVY=1` to run
+  * [x] Otherwise test exits 0 with “skipped” message (match existing patterns in repo)
+
+* [x] Add script-coverage action(s) that run it only when env flag is set (or mark as skipped in coverage if you keep strictness)
+
+**Exit criteria**
+
+* [x] Tantivy backend can be enabled without changing default behavior
+* [x] Remaining performance gate moved to Phase 30 (Verification Gates).
+
+---
+
+## Phase 32 — Config/Flags/Env Hard Cut: Freeze contract + add enforcement (stop the bleeding)
+
+**Objective:** Ensure the configuration surface simplification cannot regress during implementation by freezing the contract, introducing budgets, and enforcing them in CI.
+
+**Strategic note:** This is a deliberate **breaking “hard cut”** (no deprecation period, no backwards compatibility layer). Confirm adoption of this contract before doing destructive deletions.
+
+### 32.1 Define the “public surface” allowlists + budgets
+
+* [x] Create `docs/config-contract.md` with an explicit whitelist of:
+  * public repo config keys
+  * public CLI flags
+  * public env vars (secrets only)
+
+* [x] In `docs/config-contract.md`, explicitly declare precedence order:
+  * CLI flags > repo config > AutoPolicy > code defaults
+  * env vars are secrets-only and are not in precedence for normal behavior
+
+* [x] Create `docs/config-budgets.md` documenting numeric budgets + rationale:
+  * config keys target: **2** (`cache.root`, `quality`) (optionally +`service.*` if needed)
+  * env vars target: **1** (`PAIROFCLEATS_API_TOKEN`)
+  * public CLI flags target: **15–25** across core commands
+
+* [x] Encode naming conventions in the contract docs:
+  * config keys: lowercase + structured (`cache.root`, `quality`)
+  * CLI flags: kebab-case (`--cache-root`, `--explain`)
+  * env vars: uppercase `PAIROFCLEATS_*` (secrets and deployment wiring only)
+
+### 32.2 Make the config inventory actionable in CI
+
+* [x] Extend `tools/config-inventory.js` to output:
+  * totals (already)
+  * **public vs internal/dev-only** classification for CLI flags (new)
+  * allowlist drift report (new public keys/flags/env vars)
+
+* [x] Add `npm run config:budget` (or equivalent) and wire into CI to fail when budgets are exceeded.
+
+### 32.3 Enforce governance rules (anti-sprawl guardrails)
+
+* [x] CI: fail if any `process.env.PAIROFCLEATS_*` is referenced outside the secrets env module (`src/shared/env.js`) in runtime code.
+
+* [x] CI: fail if `docs/config-schema.json` contains unknown keys beyond the allowlist/budget.
+
+* [x] CI: fail if the public CLI flag count exceeds budget (using the allowlist + inventory classifier).
+
+* [x] Lint rule (or CI grep): ban `process.env.PAIROFCLEATS_*` usage outside `src/shared/env.js` (scope runtime, not tests).
+
+* [x] Runtime: ensure `--explain` prints policy resolution (inputs + derived values) to reduce “why did it do that?” tickets.
+
+### 32.4 “Adding a new knob” gating requirements (process)
+
+* [x] Add a PR checklist/template requiring any new user-configurable setting to include:
+  * justification (user intent vs tuning)
+  * ownership (module owner)
+  * single-plane design (config **or** CLI **or** env)
+  * tests (unit + integration)
+  * budget impact (must delete another knob if over budget)
+
+**Exit criteria**
+
+* [x] CI fails if public budgets are exceeded.
+* [x] `docs/config-contract.md` and `docs/config-budgets.md` exist and match the intended end-state.
+
+---
+
+## Phase 33 — Config Hard Cut: Introduce MinimalConfig + AutoPolicy (policy-first wiring)
+
+**Objective:** Land the new primitives first: a minimal config schema/loader and an AutoPolicy resolver. Subsequent deletions become “wire to policy” instead of “invent behavior.”
+
+### 33.1 Minimal config schema (repo config)
+
+* [x] Replace `docs/config-schema.json` with a minimal schema containing only:
+  * `cache.root`
+  * `quality` (`auto|fast|balanced|max`)
+
+* [x] Unknown keys are **errors** (fail fast).
+
+* [x] Update config tooling to the minimal schema:
+  * [x] `tools/validate-config.js` validates only the minimal shape
+  * [x] `tools/config-reset.js` emits minimal config only
+  * [x] `tools/config-dump.js` dumps minimal config + derived policy (recommended)
+
+### 33.2 Minimal config load path (centralized IO)
+
+* [x] Update `tools/dict-utils.js:loadUserConfig()` to:
+  * load `.pairofcleats.json`
+  * validate against the minimal schema
+  * return **only** the minimal config
+  * remove fallback-to-tool-root config (unless explicitly retained and documented)
+
+* [x] Enforce centralization rule:
+  * only the config loader reads `.pairofcleats.json`
+  * all other modules accept a plain options object (no direct config/env/argv reads)
+
+### 33.3 AutoPolicy (resource-derived decisions)
+
+* [x] Add `src/shared/auto-policy.js` with:
+  * resource detection: CPU, RAM
+  * fast repo scan: file count + size estimate (early-stop allowed)
+  * capability detection hooks (native modules/extensions present)
+  * outputs for: `quality`, concurrency, feature enablement, backend decisions
+
+* [x] Implement a quality resolver (example mapping):
+  * `fast` if `mem < 16GB` or `cpu <= 4`
+  * `balanced` if `mem < 48GB` or `cpu < 12`
+  * `max` otherwise
+  * downgrade one level for “huge repos” (e.g., >200k files or >5GB scanned bytes)
+
+* [x] Wire AutoPolicy creation into central entrypoints (without deleting old config reads yet):
+  * [x] `tools/dict-utils.js` exports `getAutoPolicy(repoRoot, config)` (or similar)
+  * [x] `bin/pairofcleats.js` passes policy into child scripts via args (preferred) rather than env
+
+### 33.4 Contract tests
+
+* [x] Add tests enforcing the new contract:
+  * [x] unknown config key ⇒ error
+  * [x] `quality=auto` resolves deterministically with mocked resources/repo metrics
+
+  Suggested:
+  * `tests/config/minimal-schema.test.js`
+  * `tests/config/auto-policy.test.js`
+
+**Exit criteria**
+
+* [x] `pairofcleats config validate` only accepts minimal config.
+* [x] AutoPolicy unit tests exist and pass.
+* [x] No new knobs introduced during Phase 33.
+
+---
+
+## Phase 34 — Config Hard Cut: Remove profiles completely (delete the system)
+
+**Objective:** Delete the profile control plane (files + env + flag + merge logic) to remove precedence confusion.
+
+### 34.1 Delete profile artifacts
+
+* [x] Delete the `profiles/` directory.
+* [x] Remove profile references in docs (e.g., any “Experimental commands require profile=full”).
+
+### 34.2 Remove profile logic from code
+
+* [x] In `tools/dict-utils.js`, delete:
+  * `PROFILES_DIR`
+  * `loadProfileConfig`
+  * `applyProfileConfig`
+  * env/config/cli profile selection logic
+
+* [x] In `src/shared/cli.js`:
+  * [x] remove `profile` as a shared option
+  * [x] remove automatic profile default injection
+
+* [x] In `src/retrieval/cli-args.js`:
+  * [x] remove `--profile`
+
+### 34.3 Remove env var `PAIROFCLEATS_PROFILE`
+
+* [x] Remove from `src/shared/env.js`.
+* [x] Remove/replace any tests relying on profiles.
+
+**Exit criteria**
+
+* [x] No `profiles/` directory.
+* [x] No references to `PAIROFCLEATS_PROFILE` or `--profile`.
+* [x] Help text and docs no longer mention profiles.
+
+---
+
+## Phase 35 — Config Hard Cut: Remove env override plumbing (secrets-only env)
+
+**Objective:** Eliminate the “second configuration system” implemented via env vars. Env is secrets/deployment wiring only.
+
+### 35.1 Rewrite env module (secrets-only)
+
+* [x] Replace `src/shared/env.js` with secrets-only access:
+  * `getSecretsEnv()` returns `{ apiToken }`
+  * remove parsing helpers for booleans/enums/numbers unless needed elsewhere
+
+* [x] Enforce rule: no runtime behavior depends on env vars except secrets.
+
+### 35.2 Replace `getEnvConfig()` call-sites
+
+* [x] Remove/replace all call-sites of `getEnvConfig()` across index build, retrieval, tools, and tests.
+
+  Strong checklist (non-exhaustive):
+  * `src/index/build/file-processor.js` (progress flags)
+  * `src/index/build/indexer/pipeline.js`
+  * `src/index/build/indexer/steps/process-files.js`
+  * `src/index/build/runtime/runtime.js`
+  * `src/index/build/watch.js`
+  * `src/integrations/core/index.js`
+  * `src/integrations/core/status.js`
+  * `src/retrieval/cli.js`
+  * `src/retrieval/output/cache.js`
+  * `src/shared/hash.js`
+  * `tools/*` (cache-gc, clean-artifacts, config-dump, vector-extension, services, benches, etc.)
+  * `tests/bench.js`
+
+  Replacement strategy:
+  * debug/diagnostic toggles ⇒ delete or move to `--explain`
+  * perf/resource knobs ⇒ derive in AutoPolicy
+  * behavior toggles (embeddings/backend/fts profile) ⇒ derive in AutoPolicy; delete user override
+
+### 35.3 Delete env documentation
+
+* [x] Rewrite `docs/env-overrides.md` to “Secrets only: `PAIROFCLEATS_API_TOKEN`.”
+* [x] Remove mentions of env-driven profiles, embeddings toggles, thread knobs, watcher backends, etc.
+
+### 35.4 Update config hashing determinism
+
+* [x] Update `tools/dict-utils.js:getEffectiveConfigHash()` to:
+  * exclude env-derived settings from the effective config hash
+  * ensure artifact identity is driven by config + repo content + tool version
+
+**Exit criteria**
+
+* [x] No `PAIROFCLEATS_*` env vars used for behavior except `PAIROFCLEATS_API_TOKEN`.
+* [x] `getEffectiveConfigHash()` is not sensitive to random env settings.
+* [x] Docs reflect secrets-only env.
+
+---
+
+## Phase 36 — Config Hard Cut: Collapse public CLI flags to a strict whitelist
+
+**Objective:** Remove flag sprawl and duplicated flags across scripts by making the public CLI surface strict and small.
+
+### 36.1 Public command surface (whitelist)
+
+* [x] Confirm the public commands are restricted to:
+  * `setup`
+  * `bootstrap`
+  * `index build` / `index watch` / `index validate`
+  * `search`
+  * `service api`
+
+* [x] Collapse the public flags to a whitelist (target contract):
+
+  `pairofcleats index build`
+  * `--repo <path>`
+  * `--mode <code|prose|both>` (default `both`)
+  * `--quality <auto|fast|balanced|max>`
+  * `--watch` (optional)
+
+  `pairofcleats index watch`
+  * `--repo <path>`
+  * `--mode <code|prose|both>`
+  * `--quality <auto|fast|balanced|max>`
+
+  `pairofcleats search "<query>"`
+  * `--repo <path>`
+  * `--mode <code|prose|both>`
+  * `--top <N>` (default 5)
+  * `--json`
+  * `--explain`
+
+  `pairofcleats service api`
+  * `--host <host>` (default 127.0.0.1)
+  * `--port <port>` (default 7345)
+  * optional: `--repo <path>` only if required
+
+### 36.2 Strict CLI dispatch + parsing
+
+* [x] Update `bin/pairofcleats.js` to:
+  * dispatch only the public commands
+  * reject unknown commands
+  * reject unknown flags
+  * avoid passing through arbitrary args to internal scripts
+
+* [x] Update per-command option parsing to accept only the whitelist:
+  * [x] rewrite `src/retrieval/cli-args.js` (search)
+  * [x] refactor `build_index.js` or `src/index/build/args.js` (index build/watch)
+
+### 36.3 Collapse search filter flags
+
+* [x] Replace dozens of search CLI flags with either:
+  * query-language filters (preferred), OR
+  * a single `--filter "<expr>"` flag
+
+* [x] Implement a minimal filter parser (initially):
+  * [x] `lang`
+  * [x] `path`
+  * [x] `type`
+
+* [x] Remove per-filter CLI flags and simplify `src/retrieval/cli/normalize-options.js` accordingly.
+
+* [x] Update `docs/search.md` / `docs/search-contract.md` to match the new mechanism.
+
+### 36.4 Delete duplicated options across internal scripts
+
+* [x] Remove duplicated flags like `--repo`, `--out`, `--json` from internal scripts once the CLI wrapper is strict.
+* [x] Internal scripts accept explicit parameters from the wrapper (no ad-hoc CLI parsing).
+
+**Exit criteria**
+
+* [x] `pairofcleats --help` shows only the public commands.
+* [x] Unknown flags error out.
+* [x] Search filtering uses query filters or `--filter` (not dozens of flags).
+
+---
+
+## Phase 37 — Config Hard Cut: Remove user-configurable indexing knobs (wire indexing to AutoPolicy)
+
+**Objective:** Delete `indexing.*` configurability by deriving values via AutoPolicy and making pipeline decisions internal.
+
+### 37.1 Identify indexing config consumption points
+
+* [x] Audit and remove config/env reads across (focus list):
+  * `src/index/build/runtime.js`
+  * `src/index/build/runtime/runtime.js`
+  * `src/index/build/runtime/workers.js`
+  * `src/index/build/indexer.js`
+  * `src/index/build/file-processor.js`
+  * `src/index/build/worker-pool.js`
+  * `src/index/build/chunking/*`
+  * `src/index/chunking/limits.js`
+
+### 37.2 Thread policy values through indexing
+
+* [x] Create an `IndexBuildContext` (or equivalent) that contains:
+  * minimal `config`
+  * derived `policy` (AutoPolicy)
+
+* [x] Thread this context through build orchestration so downstream modules do not read config/env directly.
+
+* [x] Delete or ignore now-unused indexing config keys (and remove them from inventory).
+
+Concrete replacements:
+* [x] Concurrency uses `policy.indexing.concurrency`
+* [x] Embeddings enablement uses `policy.indexing.embeddings.enabled`
+* [x] Chunking limits use `policy.indexing.chunking.*`
+* [x] Worker pool sizing uses `policy.runtime.workerPool.*`
+
+### 37.3 Remove stage toggles
+
+* [x] Remove env `PAIROFCLEATS_STAGE`.
+* [x] Remove config `indexing.stage` (and similar).
+* [x] Make pipeline stage selection deterministic and fixed.
+
+### 37.4 Operational behavior decisions (indexing-adjacent)
+
+* [x] Ignore behavior is fixed:
+  * always respect `.gitignore`
+  * always respect `.pairofcleatsignore` if present
+  * remove config keys like `useGitignore`, `usePairofcleatsIgnore`, `useDefaultSkips`, `ignoreFiles`, `extraIgnore`
+
+* [x] Watcher backend is fixed:
+  * default to `chokidar` (or internal auto)
+  * remove `PAIROFCLEATS_WATCHER_BACKEND` and any config keys controlling it
+
+### 37.5 Tests
+
+* [x] Remove tests that assert behavior of deleted knobs.
+* [x] Add tests asserting:
+  * policy-derived concurrency is used
+  * embeddings enablement is solely policy-driven
+
+**Exit criteria**
+
+* [x] No code reads `indexing.*` from user config.
+* [x] Index build outcome is driven by AutoPolicy + repo inputs.
+* [x] Test coverage exists for policy-driven decisions.
+
+---
+
+## Phase 38 — Config Hard Cut: Remove user-configurable search knobs (wire retrieval to AutoPolicy)
+
+**Objective:** Delete `search.*` configurability and backend/scoring knobs. Retrieval becomes “one good default pipeline,” with only `--top`, `--json`, `--explain` remaining.
+
+### 38.1 Remove backend selection knobs
+
+* [x] Make retrieval always use SQLite indexes.
+* [x] Delete backend selection flags from the public CLI:
+  * `--backend`
+  * `--ann-backend`
+  * `--ann` / `--no-ann`
+
+* [x] Any ANN usage is auto-detected by capabilities + policy.
+
+### 38.2 Remove scoring knobs
+
+* [x] Delete user-tunable scoring knobs:
+  * `search.bm25.*` and `--bm25-*`
+  * `--fts-profile`, `--fts-weights`
+  * env `PAIROFCLEATS_FTS_PROFILE`
+
+* [x] Replace with fixed scoring defaults.
+* [x] Optional: policy switches by `quality` (fast/balanced/max), but not user-tunable parameters.
+
+### 38.3 Cache knob removal
+
+* [x] If `docs/query-cache.md` exposes user knobs, collapse to:
+  * internal cache with fixed limits, OR
+  * off-by-default if not essential
+
+### 38.4 Tests
+
+* [x] Add/adjust tests that assert behavior is policy-driven and does not depend on env/config overrides.
+
+**Exit criteria**
+
+* [x] No code reads `search.*` from config.
+* [x] No user-facing backend/scoring knobs remain.
+* [x] Search works with the default pipeline + optional explain output.
+
+---
+
+## Phase 39 — Config Hard Cut: Backend + extension simplification (LMDB kept, vector-extension config removed)
+
+Note: LMDB kept and remains opt-in; vector extension config removed.
+
+**Objective:** Simplify backend configuration while keeping LMDB available as an opt-in backend.
+
+### 39.1 Keep LMDB support (user-visible, opt-in)
+
+* [x] Retain LMDB build/runtime paths:
+  * [x] `tools/build-lmdb-index.js`
+  * [x] LMDB runtime modules
+  * [x] `pairofcleats lmdb build` dispatch from `bin/pairofcleats.js`
+
+* [x] Keep docs aligned with LMDB opt-in guidance (no extra config knobs).
+
+### 39.2 Vector extension: auto only
+
+* [x] Remove env `PAIROFCLEATS_VECTOR_EXTENSION`.
+* [x] Remove config `sqlite.vectorExtension.*`.
+
+* [x] Make extension lookup fixed to tool-managed directory:
+  * `tools/download-extensions.js` installs into a known location
+  * runtime checks presence and enables if available
+  * never require user path overrides
+
+* [x] Rewrite `docs/sqlite-ann-extension.md` to “auto only.”
+
+**Exit criteria**
+
+* [x] No LMDB code paths are part of the public surface.
+* [x] Vector extension has no user-configurable paths; enablement is fully auto.
+
+---
+
+## Phase 40 — Config Hard Cut: Delete dead code/docs/tests and lock minimal surface (budgets + validation)
+
+**Objective:** Remove everything that exists only to support deleted knobs and ensure the repo stays simplified.
+
+### 40.1 Dead docs cleanup
+
+* [x] Delete `docs/config-deprecations.md`.
+* [x] Rewrite `docs/env-overrides.md` to secrets-only.
+* [x] Rewrite or delete `docs/external-backends.md`.
+* [x] Remove any remaining “profile=full required” references in docs.
+
+### 40.2 Trim helper APIs
+
+* [x] Trim `tools/dict-utils.js` exports to only what the remaining public CLI and build/search paths require.
+* [x] Delete/move any remaining accessors that expose removed namespaces (`getRuntimeConfig`, `getModelConfig`, etc.).
+
+### 40.3 Re-run and commit inventory
+
+* [x] Run `node tools/config-inventory.js` and commit updated `docs/config-inventory.*`.
+* [x] Confirm budgets and enforcement are green.
+
+### 40.4 Add/keep “no new knobs” guardrails
+
+* [x] CI scan: `PAIROFCLEATS_` usage restricted to secrets module (runtime code).
+* [x] CI scan: schema key budget enforcement.
+* [x] CI scan: public CLI flag budget enforcement.
+
+### 40.5 Operational decisions (explicit hard cut)
+
+* [x] Logging is fixed:
+  * default log level `info`
+  * only per-invocation overrides via `--json` / `--explain`
+  * remove `logging.*` config namespace and env logging controls
+
+* [x] Compression / hashing / regex engine selection is internal auto:
+  * “best available” selection (native if present) is automatic
+  * remove user knobs for selecting engines
+
+### 40.6 Repeatable validation checklist
+
+* [x] `pairofcleats index build` works on a representative repo with zero config.
+* [x] `pairofcleats search "foo"` works and returns results.
+* [x] `pairofcleats search --explain "foo"` prints derived policy decisions.
+* [x] `node tools/config-inventory.js` reports:
+  * config keys <= 5
+  * env vars == 1
+  * public CLI flags <= 25
+* [x] Grep check: no usage of `PAIROFCLEATS_` outside secrets allowlist in runtime code.
+* [x] CI green.
+
+---
+
+
+## Appendix A — Completed items (from PLAN_APPENDIX_A)
+
+- setup: Create worktree: worktrees/appendix-a-sundial
+- setup: Remove GIGAROAD/ROADMAP.md
+- setup: Keep this plan updated after each completed task
+- `src/index/build/artifacts.js`: (P1) Consider directory-level atomic swap for `token_postings.shards/` (staging dir + rename).
+- `src/index/build/artifacts.js`: (P1) Normalize shard part paths to POSIX in any meta/manifest structures (avoid OS-separator leakage).
+- `src/index/build/artifacts/checksums.js`: (P1) Do not silently accept checksum/stat failures for required pieces; fail or record errors explicitly.
+- `src/index/build/artifacts/compression.js`: (P2) Update docs to clarify that gzip is a sidecar (`.json` and `.json.gz` both exist).
+- `src/index/build/artifacts/file-meta.js`: (P1) Make file ID assignment stable by sorting unique file paths before assigning IDs.
+- `src/index/build/artifacts/file-meta.js`: (P1) Add file content hash (and algo) and file size to `file_meta.json`.
+- `src/index/build/artifacts/writers/chunk-meta.js`: (P0) Remove stale `chunk_meta.meta.json` and `chunk_meta.parts/` when writing non-sharded JSONL.
+- `src/index/build/artifacts/writers/chunk-meta.js`: (P1) Clear or stage-swap `chunk_meta.parts/` when writing sharded output.
+- `src/index/build/artifacts/writers/chunk-meta.js`: (P1) Normalize `meta.parts` entries to POSIX paths.
+- `src/index/build/artifacts/writers/repo-map.js`: (P1) Ensure `exported` detection handles default exports correctly (depends on relations schema).
+- `src/index/build/file-processor.js`: (P1) Add explicit boundary asserts for chunks after chunking.
+- `src/index/build/file-processor.js`: (P1) Replace `split('\n')` with line-scan utility for context extraction.
+- `src/index/build/file-processor.js`: (P1) Add explicit unsupported-language and parse-error skip reasons (configurable).
+- `src/index/build/file-processor/assemble.js`: (P1) Ensure field token fields written here (including `comment`) are consistently supported by postings and piece assembly.
+- `src/index/build/file-processor/skip.js`: (P1) Add explicit unsupported-language skip reason (or document that unknown languages are processed).
+- `src/index/build/imports.js`: (P0) Fix `es-module-lexer` import record handling (`entry.d` is not a specifier string).
+- `src/index/build/imports.js`: (P1) Sort and dedupe `importLinks` deterministically; exclude self-links unless explicitly desired.
+- `src/index/build/imports.js`: (P1) Ensure concurrency does not affect output ordering (sort module keys and file arrays before serialization).
+- `src/index/build/piece-assembly.js`: (P0) Make `validateLengths()` strict when `expected > 0`.
+- `src/index/build/piece-assembly.js`: (P0) Merge all field postings (including `comment`) and docLengths based on actual input keys.
+- `src/index/build/piece-assembly.js`: (P1) Canonicalize vocab ordering in assembled outputs.
+- `src/index/build/postings.js`: (P1) Canonicalize vocab ordering (token/phrase/chargram/field) explicitly.
+- `src/index/build/shards.js`: (P1) Add explicit tie-breakers in weight-based sorts/batching for determinism across runtimes.
+- `tools/assemble-pieces.js`: (P1) Sort `inputDirs` by default (or add `--sort`) to ensure deterministic assembled output.
+- `tools/ci-build-artifacts.js`: (P1) Sanitize remote URLs before writing them to `manifest.json` to avoid leaking credentials.
+- `tools/compact-pieces.js`: (P1) Consider directory-level atomic swap semantics (avoid rm+rename window).
+- `tests/artifact-formats.js`: (P1) Add explicit precedence test: sharded meta/parts must not override fresh jsonl when shards are stale (post-fix).
+- `tests/artifacts/file-meta.test.js`: (P1) Update test if file ID assignment is changed to sorted-by-path; assert stability across different chunk orders.
+- `tests/file-processor/cached-bundle.test.js`: (P1) Fix test fixtures to use realistic `allImports` and `codeRelations` shapes, and assert semantic correctness (not only presence).
+- `tests/piece-assembly.js`: (P1) Add semantic equivalence test vs monolithic build and add a determinism test (same inputs => identical assembled output).
+- `docs/artifact-contract.md`: (P1) Fix compression description (no embedded `compression` field) and clarify `.json.gz` sidecar semantics.
+- `docs/artifact-contract.md`: (P1) Add explicit precedence rules (meta/parts vs jsonl vs json).
+- `docs/artifact-contract.md`: (P2) Add schema examples for meta files and `pieces/manifest.json`.
+- `docs/contracts/indexing.md`: (P1) Clarify which artifacts are "required" vs "optional/configurable" (e.g., minhash signatures).
+- `docs/contracts/indexing.md`: (P1) Document sharded meta schema and loader precedence.
+
+## Phase 43 - Targeted test failures (manual run 2026-01-18)
+**Objective:** Record failures from the targeted test run so they can be addressed once, then re-run.
+### 43.1 Incremental cache signature
+* [x] `tests/incremental-cache-signature.js`: resolved by switching the test-only config change to `indexing.lint` so the config signature changes without reintroducing removed knobs.
+### 43.2 Incremental tokenization cache
+* [x] `tests/incremental-tokenization-cache.js`: resolved by toggling `indexing.postings.enablePhraseNgrams` in the test-only config so the tokenization key changes without touching removed config knobs.
+### 43.3 Smoke retrieval
+* [x] `tests/smoke-retrieval.js`: updated help flag expectations and replaced RRF assertions with ANN presence checks for the new contract.
+
+---
+
+## Phase 12 — Storage backends (SQLite + LMDB)
+
+**Objective:** Perform an audit of the storage backends (SQLite + LMDB) and their supporting tooling (build, validation, compaction, incremental updates, ANN extension management, and backend selection). Identify *all* correctness bugs, edge cases, documentation drift, missing tests, and performance/refactoring opportunities, aligned to the provided checklist.
+
+#### Out-of-scope (not deeply reviewed, but referenced when necessary)
+
+- Non-listed call-sites (e.g. retrieval query code) were spot-checked only when needed to validate schema/index/query alignment.
+
+---
+
+### Executive summary
+
+#### Top P0 / correctness items
+
+- [x] **(P0) SQLite ANN table is not updated when it already exists** in:
+  - `src/storage/sqlite/build/from-bundles.js` (vector table existence sets `vectorAnnReady = true` but **does not** prepare `insertVectorAnn`) — see around L120.
+  - `src/storage/sqlite/build/incremental-update.js` (same pattern) — see around L240.
+
+  **Impact:** when the ANN virtual table already exists (most importantly during incremental updates), deleted rows *can* be removed (because deletes run via `deleteDocIds(...)`), but replacement vectors for changed chunks are **not reinserted**, leaving the ANN table sparse/out-of-sync with `dense_vectors`. This can silently degrade or break ANN-based retrieval depending on how the extension is queried.
+
+- [x] **(P0) Retrieval-side fail-closed is incomplete for SQLite schema versions.**
+
+  `src/retrieval/cli-sqlite.js` validates required table *names* but does **not** enforce `PRAGMA user_version == SCHEMA_VERSION` (or otherwise fail-closed on schema mismatch). This violates the checklist requirement (“readers fail closed on unknown versions”) for the SQLite reader path.
+
+- [x] **(P0) Bundle-build path does not hard-fail on embedding dimension mismatches** (`src/storage/sqlite/build/from-bundles.js`).
+
+  The code currently *warns once* on a dims mismatch but continues (and may still insert inconsistent vectors). This risks producing an index with an internally inconsistent dense-vector corpus (which can cause downstream errors or silent relevance regressions).
+
+#### High-signal P1 / robustness items
+
+- [x] **WAL / sidecar handling is inconsistent across build vs incremental update paths.**  
+  Full rebuild paths use `replaceSqliteDatabase(...)` which removes sidecars, but incremental updates modify the DB in-place under WAL mode and do not explicitly checkpoint/truncate. If later tooling removes sidecars without a checkpoint, this can create “single-file DB” assumptions that do not hold.
+
+- [x] **Indexing for hot maintenance queries can be improved**: `chunks(mode, file)` exists, but multiple maintenance queries order by `id` and would benefit from `(mode, file, id)`.
+
+- [x] **Docs drift:** `docs/sqlite-incremental-updates.md` (and a few related docs) describe doc-id behavior and operational details that do not match current implementation (doc-id reuse/free-list behavior; ratio guard details; and operational caveats).
+
+#### “Good news” / items that look solid already
+
+- Most bulk write paths are transactional (build ingest, compaction copy, incremental applyChanges).
+- The extension download hardening in `tools/download-extensions.js` has multiple safety layers (hash verification support, archive path traversal protection, size/entry limits).
+- LMDB corruption handling has targeted tests (`tests/lmdb-corruption.js`) and tooling integration (`tests/lmdb-report-artifacts.js`).
+
+#### Current test failures (local, after building artifacts/SQLite)
+
+- [x] `tests/lmdb-backend.js`: fixed by scoping the LMDB search to `--mode code` for code-only LMDB build.
+- [x] `tests/sqlite-ann-extension.js`: fixed by disabling bundle workers in test and falling back to artifacts when bundles lack dense vectors (plus `embedding_u8` ingestion).
+- [x] `tests/sqlite-incremental-no-change.js`: fixed by short-circuiting no-change incremental updates before dense metadata checks and softening records-only rebuild messaging.
+- [x] `tests/storage/sqlite/incremental/manifest-normalization.test.js`: fixed via no-change short-circuit when manifest normalization yields zero diffs.
+
+---
+
+## Checklist coverage and required follow-ups
+
+### A) Schema & migrations
+
+**Audit**
+
+- SQLite schema is versioned via `PRAGMA user_version` with `SCHEMA_VERSION = 7` (`src/storage/sqlite/schema.js`).
+- Incremental update explicitly checks schema version and required tables before mutating (`src/storage/sqlite/build/incremental-update.js`).
+- Table-level constraints are generally well-defined (primary keys per (mode, …), plus supporting indexes for vocab/postings).
 
 **Gaps / issues**
 
-- None noted; bench tooling references now point at `tools/bench-query-generator.js` and `tests/bench.js`.
+- [x] **Fail-closed at read time:** Add a `user_version` gate to the SQLite reader path (at minimum in `src/retrieval/cli-sqlite.js` / sqlite backend creation).
+  - Desired behavior:  
+    - If backend is *forced* to SQLite: throw a clear error (“SQLite schema mismatch: expected X, found Y”).
+    - If backend is not forced (auto): treat SQLite as unavailable and fall back to the file-backed backend, with a warning.
+- [x] **Index alignment with hot predicates:** Consider adding `CREATE INDEX idx_chunks_file_id ON chunks(mode, file, id)` to support:
+  - `SELECT id FROM chunks WHERE mode=? AND file=? ORDER BY id`
+  - `SELECT file, id FROM chunks WHERE mode=? ORDER BY file, id` (incremental update id reuse scan)
+- [x] **Document upgrade path explicitly:** The system is effectively “rebuild on schema bump”. Ensure docs and user-facing error messaging make that explicit (and fail closed rather than attempting to limp on).
+- [x] **Consider column-level schema validation for critical tables** (optional but recommended): required-table-name checks do not catch incompatible column changes if a user provides an arbitrary SQLite file containing tables with the right names.
 
-**Remaining work**
+---
 
-- [x] Update documentation/roadmap references to reflect the actual bench tooling entry points (`tools/bench-query-generator.js`, `tests/bench.js`, docs under `docs/bench/`).
-
-### 7.1 Structured logging and crash diagnostics
+### B) SQLite build pipeline
 
 **Audit**
 
-- Structured logging via pino exists:
-  - `src/shared/progress.js`
-- Crash log capturing exists:
-  - `src/index/build/crash-log.js`
-- Failure taxonomy exists:
-  - `src/index/build/failure-taxonomy.js`
+- Build-from-artifacts path uses bulk inserts and creates secondary indexes after ingest (`src/storage/sqlite/build/from-artifacts.js`).
+- Build-from-bundles supports a fast-path using bundle workers (`src/storage/sqlite/build/from-bundles.js` + `bundle-loader.js`).
+- Validation includes `PRAGMA integrity_check` (full) and cross-table count consistency checks (`src/storage/sqlite/build/validate.js`).
 
 **Gaps / issues**
 
-- None noted; crash/build-state writes are guarded against unhandled rejections.
+- [x] **(P0) Fix ANN insert statement preparation when the ANN table already exists:**
+  - In `src/storage/sqlite/build/from-bundles.js`:
+    - When `hasVectorTable` is true (L120), prepare `insertVectorAnn` immediately (same SQL as the “created table” path near L209).
+  - In `src/storage/sqlite/build/incremental-update.js`:
+    - When `vectorAnnReady` is set based on `hasVectorTable` (L240), prepare `insertVectorAnn` as well.
+  - Add a CI-friendly unit test that does not require a real sqlite-vec binary (see “Tests” section below).
+- [x] **(P0) Enforce embedding dims consistency in bundle builds.**
+  - Recommendation: pre-scan each bundle (or the whole manifest) to ensure all embeddings are either absent or have a single consistent dimension; then hard-fail the build if mismatched.
+  - Current behavior: warns once around L197 and continues; this should be tightened to match the artifacts build path which throws on mismatch.
+- [x] **Failure cleanup should include SQLite sidecars** (`.db-wal`, `.db-shm`) in:
+  - `src/storage/sqlite/build/from-artifacts.js`
+  - `src/storage/sqlite/build/from-bundles.js`
 
-**Remaining work**
+  Today they remove only `outPath` on failure. If WAL/SHM exist, they can be left behind as confusing debris and can interfere with subsequent runs.
+- [x] **Consider ensuring the produced DB is “single-file”** after build by checkpointing/truncating WAL (or switching journal mode back), rather than relying on implicit behavior.
+- [x] **Prepared statement churn:** `deleteDocIds(...)` dynamically prepares multiple statements per chunk; consider statement caching keyed by chunk size to reduce overhead during large deletes.
 
-- [x] Make crash/build-state writes robust against unhandled rejections (catch or await).
-- [x] Make stage3 index_state updates atomic and add post-stage validation (`tools/build-embeddings.js`).
+---
 
-### 8.1 Documentation alignment
+### C) LMDB backend
 
 **Audit**
 
-- There is extensive documentation in `docs/`.
-- Some doc references in `COMPLETED_PHASES.md` point to files/dirs that no longer exist (likely due to refactors).
-
-**Remaining work**
-
-- [x] Update docs to reflect current entry points and filenames (see “Doc/reference drift” appendix below).
-- [x] Ensure the public CLI help (`bin/pairofcleats.js`) reflects supported modes (including extracted-prose if kept).
-
-## Phase B (P1): Atomicity and staged enrichment clarity
-
-- [x] Decide stage3/stage4 atomic strategy: in-place gated by index_state readiness.
-- [x] If in-place: ensure readers never treat partial outputs as ready (strict gating).
-- [x] Document decision: keep stage3/4 in-place (gated by index_state readiness); promote-style builds not planned.
-
-## Phase D (P3): Docs + dependency alignment
-
-- [x] Update doc references that no longer match repo layout.
-- [x] Either remove unused deps or wire them in (metrics/histograms/xxhash/roaring).
-
----
-
-## Phase 4 (NEW_ROADMAP) — Retrieval pipeline semantics
-
-### 4.2 Determinism guarantees
-
-**Audit**
-
-- Tie-break ordering is enforced in:
-  - `src/retrieval/rankers.js`
-  - `src/retrieval/pipeline.js`
-  - `src/retrieval/sqlite-helpers.js`
-- Determinism coverage:
-  - `tests/search-determinism.js` (stub embeddings; asserts identical hits + explain output)
-  - `tests/sqlite-vec-candidate-set.js` (ANN ordering uses `ORDER BY distance, rowid`)
-
-**Remaining work**
-
-- [x] Implemented and test-backed.
-
-### 4.3 Advanced type inference (local + cross-file + tooling)
-
-**Audit**
-
-- Local inference and normalization:
-  - `src/index/type-inference.js`
-- Cross-file inference and tooling enrichment:
-  - `src/index/type-inference-crossfile.js`
-  - `src/index/tooling/typescript-provider.js`
-  - `src/index/tooling/pyright-provider.js`
-  - `src/index/tooling/clangd-provider.js`
-  - `src/index/tooling/sourcekit-provider.js`
-- Tests:
-  - `tests/type-inference-crossfile.js`
-  - `tests/type-inference-crossfile-go.js`
-  - `tests/type-inference-lsp-enrichment.js`
-
-**Remaining work**
-
-- [x] Implemented and test-backed.
-
----
-
-## Phase 1 (NEW_ROADMAP) — Roadmap executable and falsifiable
-
-### 1.3 Tool invocation correctness: install-root vs repo-root
-
-**Audit**
-
-- Root resolution utilities:
-  - `tools/dict-utils.js` (`resolveRepoRoot`, `resolveToolRoot`)
-  - `tools/path-utils.js`
-- Tests:
-  - `tests/tool-root.js`
-  - `tests/repo-root.js`
-
-**Remaining work**
-
-- [x] Implemented and test-backed.
-
-### 1.4 Determinism + reproducibility baseline
-
-**Audit**
-
-- Deterministic chunk IDs and metadata:
-  - `src/index/metadata-v2.js`
-- Artifact determinism and validation:
-  - `src/index/build/artifacts.js`
-  - `src/index/validate.js`
-  - `src/shared/hash.js` (xxhash/sha1)
-- Tests:
-  - `tests/incremental-reuse.js`
-  - `tests/incremental-manifest.js`
-  - `tests/metadata-v2.js`
-
-**Remaining work**
-
-- [x] Implemented and test-backed.
-
----
-
-## Phase 2 (NEW_ROADMAP) — Artifact contract and metadata schema
-
-### 2.1 Artifact contract + index-validate tool
-
-**Audit**
-
-- Contract and schema:
-  - `docs/artifact-contract.md`
-  - `src/shared/artifact-schemas.js`
-- Validation tooling:
-  - `src/index/validate.js`
-  - `tools/index-validate.js`
-- Tests:
-  - `tests/index-validate.js`
-  - `tests/artifact-formats.js`
-  - `tests/artifact-size-guardrails.js`
-
-**Remaining work**
-
-- [x] Implemented and in active use.
-
-### 2.2 Metadata schema v2
-
-**Audit**
-
-- Schema and wiring:
-  - `src/index/metadata-v2.js`
-  - `src/index/build/file-processor.js`
-  - `src/index/build/artifacts.js`
-- Tests:
-  - `tests/metadata-v2.js`
-  - `tests/graph-chunk-id.js`
-  - `tests/sqlite-chunk-id.js`
-
-**Remaining work**
-
-- [x] Implemented and integrated.
-
----
-
-## Phase 3 (NEW_ROADMAP) — Segment-aware chunking, mixed-file support, and prose
-
-### 3.1 Segmented document pipeline
-
-**Audit**
-
-- Segment discovery and chunking:
-  - `src/index/segments.js` (`discoverSegments`, `chunkSegments`)
-- Tests:
-  - `tests/segment-pipeline.js`
-
-**Remaining work**
-
-- [x] Implemented and tested.
-
-### 3.2 Mixed-file support (Markdown/Vue/Svelte/Astro, embedded blocks)
-
-**Audit**
-
-- Mixed-format segmentation:
-  - `src/index/segments.js`
-- Tests:
-  - `tests/segment-pipeline.js`
-
-**Remaining work**
-
-- [x] Implemented and tested.
-
-### 3.3 Comment extraction and config blocks inside comments
-
-**Audit**
-
-- Comment parsing and wiring:
-  - `src/index/comments.js`
-  - `src/index/build/file-processor.js`
-- Tests:
-  - `tests/segment-pipeline.js`
-
-**Remaining work**
-
-- [x] Implemented and tested.
-
-### 3.4 Prose-index strategy (Option A vs Option B)
-
-**Audit**
-
-- Comment-as-field mode (Option B) and extracted-prose support:
-  - `src/index/build/file-processor.js`
-  - `src/index/segments.js`
-- Tests:
-  - `tests/extracted-prose.js`
-
-**Remaining work**
-
-- [x] Implemented and documented.
-
----
-
-## Phase 5 (NEW_ROADMAP) — Retrieval correctness, parity, and benchmark harness
-
-### 5.1 Search contract and explainability
-
-**Audit**
-
-- Search contract:
-  - `docs/search-contract.md`
-- Explain output:
-  - `src/retrieval/output/explain.js`
-- Tests:
-  - `tests/search-explain.js`
-
-**Remaining work**
-
-- [x] Implemented and tested.
-
-### 5.2 Parity harness (file-backed vs sqlite)
-
-**Audit**
-
-- Parity harness:
-  - `tests/parity.js`
-  - `tests/fixture-parity.js`
-- Backend selection checks:
-  - `tests/sqlite-auto-backend.js`
-  - `tests/sqlite-missing-dep.js`
-
-**Remaining work**
-
-- [x] Implemented and tested.
-
----
-
-## Phase 7 (NEW_ROADMAP) — Operational hardening, observability, and service surfaces
-
-### 7.2 Metrics endpoint and telemetry (prom-client)
-
-**Audit**
-
-- Metrics registry and endpoint:
-  - `src/shared/metrics.js`
-  - `tools/api-server.js`
-- Tests:
-  - `tests/api-server.js`
-
-**Remaining work**
-
-- [x] Implemented and exposed.
-
-### 7.3 Service-mode indexer and queue semantics
-
-**Audit**
-
-- Service queue:
-  - `tools/indexer-service.js`
-  - `tools/service/queue.js`
-- Tests:
-  - `tests/indexer-service.js`
-  - `tests/two-stage-state.js`
-
-**Remaining work**
-
-- [x] Implemented and tested.
-
-### 7.4 API server and MCP server
-
-**Audit**
-
-- Service entrypoints:
-  - `tools/api-server.js`
-  - `tools/mcp-server.js`
-- Tests:
-  - `tests/api-server.js`
-  - `tests/mcp-smoke.js`
-
-**Remaining work**
-
-- [x] Implemented and tested.
-
-
-
----
-
-# NEW_ROADMAP Completed Phases
-
-# Phase 0 — Roadmap hygiene, baseline gates, and “tests must be truthful”
-
-**Objective:** establish a reliable baseline so subsequent changes are validated quickly and deterministically.
-
-## 0.1 Remove/retire docs-consistency-test (locked decision)
-- [x] Remove `docs-consistency-test` entry from `package.json` (or repoint to an existing test if you prefer to keep the script name as a no-op wrapper).
-- [x] Update `tests/script-coverage.js` so it does not expect `docs-consistency-test` to run.
-- [x] Update any docs referencing the script (if present).
-
-**Exit criteria**
-- [x] `npm run script-coverage-test` passes without missing-script references.
-
-## 0.2 Establish “fast smoke lanes” per major surface
-Create deterministic, cache-isolated smoke entrypoints:
-- [x] **Indexing smoke** (Section 1): core API + minimal index build + API server basic route test
-- [x] **Retrieval smoke** (Section 2): search help + search filters + search explain + RRF/blend sanity
-- [x] **Services smoke** (Section 3): MCP server basic tool call + JSON-RPC framing sanity
-- [x] **Worker/meta smoke** (Section 4): worker pool split teardown + language fidelity baseline
-- [x] **Embeddings smoke** (Section 5): cache reuse + dims mismatch failure case
-- [x] **SQLite smoke** (Section 6): build + incremental + sqlite ANN extension missing fallback
-
-**Deliverables**
-- [x] `npm run smoke:section1`
-- [x] `npm run smoke:retrieval`
-- [x] `npm run smoke:services`
-- [x] `npm run smoke:workers`
-- [x] `npm run smoke:embeddings`
-- [x] `npm run smoke:sqlite`
-
-**Exit criteria**
-- [x] Each smoke lane runs deterministically with an isolated `PAIROFCLEATS_CACHE_ROOT` and cleans up after itself.
-
-## 0.3 Contract capture + coverage ledger (repo-wide)
-- [x] Create/update `docs/contracts/` so each major surface has a short contract:
-  - indexing stages/modes and artifacts
-  - chunk identity and sizing
-  - search flags and outputs
-  - retrieval ranking/explain semantics
-  - sqlite schema/incremental/ANN semantics
-  - API server and MCP server request/response/error contracts
-- [x] Create a “entrypoint → tests” coverage ledger (what is asserted vs assumed).
-
-**Exit criteria**
-- [x] Every public entrypoint has at least one content-asserting test (not just “exits 0”) or a documented gap.
-
----
-
-# Phase 1 — Stop-the-bleeding P0 fixes (hangs, crashers, leaks)
-
-**Objective:** eliminate known hangs, orphan processes, and common crash paths before feature/semantics work.
-
-## 1.1 Runtime lifecycle teardown (watch mode, worker pools, long-lived resources)
-- [x] Persist combined worker pools on runtime creation (e.g., `runtime.workerPools = { tokenizePool, quantizePool, destroy }`).
-- [x] Ensure teardown destroys both tokenize and quantize pools (and any other long-lived resources).
-- [x] Wrap watch mode in `try/finally` so teardown runs on shutdown/signals.
-
-**Exit criteria**
-- [x] `build_index.js --watch ...` exits cleanly on SIGINT/SIGTERM with split pools enabled.
-- [x] No lingering worker threads keep the Node event loop alive.
-
-## 1.2 Search CLI crashers / hard failures
-- [x] Guard `--stats` so it cannot dereference null indexes when a mode is disabled.
-- [x] Make telemetry writes best-effort so read-only cache roots do not fail searches.
-- [x] Make human-output highlighting safe (escape tokens; avoid unsafe regex compilation).
-
-**Exit criteria**
-- [x] Punctuation-heavy queries do not crash human output mode.
-- [x] `search --stats` works across modes.
-
-## 1.3 Bench and test harness correctness hazards
-- [x] Fix bench runner acceptance so missing timing stats cannot be recorded as `0ms`.
-- [x] Fix `tests/language-fidelity.js` `failures` scoping error and make token postings validation resilient to sharded formats.
-- [x] Fix bench harness line normalization to avoid `
- → \n\n` artifacts.
-
-**Exit criteria**
-- [x] Bench fails loudly when it cannot measure.
-- [x] Language fidelity fails only on real fidelity problems (not reference errors).
-- [x] Bench output parsing remains stable on Windows and non-TTY.
-
-## 1.4 File processor observability
-- [x] Record skip reason on read failure (do not silently drop files from indexing).
-
-**Exit criteria**
-- [x] Read failures are surfaced in metrics/skipped lists and covered by a test.
-
-## 1.5 Python AST pool: prevent orphans
-- [x] On timeout/write error, explicitly kill the Python worker process.
-- [x] Add crash-loop guard/backoff; fall back to heuristic chunking.
-- [x] Add optional queue backpressure.
-
-**Exit criteria**
-- [x] A timeout cannot leave orphan Python processes running.
-
----
-
-# Phase 2 — Retrieval CLI contract alignment (flags, UX, and help truthfulness)
-
-**Objective:** ensure CLI behavior matches help/docs and eliminate dead/ambiguous flags.
-
-## 2.1 Remove dead/ambiguous flags (locked decision)
-- [x] Remove `--human` and `--headline` from:
-  - `src/retrieval/cli-args.js` (parser)
-  - help/usage text
-  - README/docs that mention them
-- [x] Add/adjust tests to ensure the flags are not accepted and that the error is actionable.
-
-**Exit criteria**
-- [x] Help output no longer advertises removed flags.
-- [x] Passing removed flags returns a clean error (non-zero exit) with remediation.
-
-## 2.2 Flag typing and “missing value is an error” (locked decision)
-- [x] Declare `--type`, `--author`, `--import` as **string** options in yargs.
-- [x] If any of these flags are passed without a value, fail with:
-  - a non-zero exit code
-  - a clear message: which flag is missing a value and an example of correct usage
-
-**Exit criteria**
-- [x] Regression tests prove correct parsing and error behavior.
-
-## 2.3 Windows path normalization for file/path filters
-- [x] Normalize candidate file paths and filter substrings to a shared representation (recommended: POSIX `/` separators + lowercasing).
-
-**Exit criteria**
-- [x] Windows-style `--file src\nested\util.ts` matches expected results.
-
-## 2.4 Explain output fidelity
-- [x] Ensure explain output includes all applied boosts and scoring components (including symbol boost data).
-- [x] Ensure `--why` and `--explain` are identical in content.
-
-**Exit criteria**
-- [x] Explain output is “reconcilable” with actual scoring logic and is test-backed.
-
----
-
-# Phase 3 — Chunking correctness, deterministic sizing, and stable chunk identity
-
-**Objective:** stabilize chunk identity across builds and prevent pathological chunk sizes.
-
-## 3.1 Chunk identity contract (locked decision)
-- [x] Treat `chunk.metaV2.chunkId` as the **stable external identifier** across:
-  - JSON outputs
-  - SQLite records (where applicable)
-  - incremental mapping/reuse logic
-- [x] Document the distinction:
-  - `chunk.id` = index-local numeric id (unstable across builds)
-  - `metaV2.chunkId` = stable id (content/structure-derived)
-
-**Exit criteria**
-- [x] External outputs clearly expose `metaV2.chunkId` and tests assert stability expectations.
-
-## 3.2 Deterministic chunk splitting (locked decision)
-- [x] Add config for deterministic size limits at the chunking layer:
-  - max bytes and/or max lines per chunk (choose one primary; support both if needed)
-- [x] Ensure the split logic is deterministic (no dependence on iteration order/concurrency).
-- [x] Add regression tests for oversize inputs.
-
-**Exit criteria**
-- [x] With a fixed config, repeated runs produce identical chunk boundaries and IDs.
-- [x] No chunk exceeds configured limits.
-
----
-
-# Phase 4 — Retrieval pipeline semantics (early filtering, top-N fulfillment, determinism)
-
-**Objective:** ensure `--top N` means what it says, and results are predictable.
-
-## 4.1 Apply filters earlier (locked decision; architecture supports it)
-The current pipeline computes `allowedIdx` early but applies it late (after ranking). This causes under-filled results when filters are restrictive.
-
-Implement pre-filtering without rewriting the rankers:
-- [x] Introduce `allowedIdx` into sparse ranking:
-  - Option A: modify `rankBM25` / `rankBM25Fields` to accept `allowedIdx` and skip scoring docs not in the allowed set.
-  - Option B: apply an early intersection step to postings iteration (equivalent effect, lower overhead).
-- [x] For sqlite FTS mode, push down allowed sets where feasible:
-  - for small allowed sets: `rowid IN (...)`
-  - for large allowed sets: best-effort (documented) or use a temp table strategy if warranted
-- [x] Intersect ANN candidate sets with `allowedIdx` so ANN work is not wasted.
-
-**Exit criteria**
-- [x] `--top N` returns N results whenever at least N chunks satisfy the filter constraints.
-- [x] Regression tests cover restrictive filters and prove top-N fulfillment.
-
----
-
-# Phase 5 — Artifact durability and atomicity (with `.bak` retention)
-
-**Objective:** eliminate partial/corrupt writes and ensure crash recovery is possible.
-
-## 5.1 Safer atomic replace with `.bak` retention (locked decision)
-- [x] Implement safer `replaceFile()`:
-  - write `*.tmp-*` in same directory
-  - rename existing destination to `*.bak` (best-effort)
-  - rename temp to destination
-  - keep `.bak` until the next successful read/validate cycle, then best-effort delete
-- [x] Update critical readers (where practical) to fall back to `.bak` if the primary is missing/corrupt.
-
-**Exit criteria**
-- [x] A crash during write never removes both old and new files.
-- [x] Recovery behavior is documented and tested.
-
-## 5.2 Setup idempotency across all artifact formats
-- [x] Replace “index exists” detection to recognize:
-  - `chunk_meta.json`
-  - `chunk_meta.jsonl`
-  - `chunk_meta.meta.json` + `chunk_meta.parts/`
-- [x] Add tests covering partial installs and re-run behavior.
-
-**Exit criteria**
-- [x] Re-running setup is a no-op when artifacts are already present and valid.
-
-## 5.3 HNSW build output atomicity
-- [x] Write HNSW `.bin` to a temp path and atomically replace the final.
-- [x] Store actual inserted vector count and validate it matches expectations.
-
-**Exit criteria**
-- [x] HNSW artifacts are never half-written and failures preserve prior working indexes.
-
----
-
-# Phase 6 — Embeddings tooling correctness (cache integrity, decoding alignment, dims validation)
-
-**Objective:** ensure embeddings are correct, deterministic, and not reused across incompatible configs.
-
-## 6.1 Cache key correctness
-- [x] Include in embeddings cache keys:
-  - model identity (`modelId`)
-  - effective dims
-  - quantization scale
-  - stub vs real mode (and provider)
-- [x] Store cache metadata for diagnostics.
-
-**Exit criteria**
-- [x] Changing model/dims/scale changes cache key and triggers recompute.
-
-## 6.2 Hashing and decoding consistency
-- [x] Compute file hash from raw bytes (buffer), not decoded text.
-- [x] Decode text for slicing using the same decode logic as indexing (shared helper).
-- [x] Add shared helper `readTextFileWithHash()` used by both indexer and embeddings tool.
-
-**Exit criteria**
-- [x] Embeddings slicing is consistent with chunk offsets produced by indexing for non-UTF8 inputs.
-
-## 6.3 Dims mismatch policy (locked decision)
-- [x] Detect actual embedding dims from computed vectors.
-- [x] If configured dims mismatch actual dims: **fail hard** with an actionable error message.
-
-**Exit criteria**
-- [x] Dims mismatch cannot silently truncate vectors.
-
----
-
-# Phase 7 — SQLite builder integrity, ANN semantics, and hardening
-
-**Objective:** make SQLite build/update safe, deterministic, and injection-resistant.
-
-## 7.1 Transaction boundaries and fail-closed state
-- [x] Wrap incremental update in transaction boundaries that prevent partial state from being promoted.
-- [x] Ensure `index_state.json` is fail-closed:
-  - set pending before work
-  - only mark ready after successful replacement/validation
-
-**Exit criteria**
-- [x] Failure mid-update does not leave the DB promoted as “ready”.
-
-## 7.2 Bundle-backed rebuild completeness (locked decision)
-- [x] Treat missing/invalid bundles as **fatal** for bundle-backed rebuild:
-  - either fail closed, or
-  - fall back to artifact-backed rebuild (but never produce a silently partial DB)
-- [x] Add tests with missing bundle references.
-
-**Exit criteria**
-- [x] Bundle-backed rebuild cannot silently drop files.
-
-## 7.3 SQLite replacement hygiene (WAL/-shm)
-- [x] Implement `replaceSqliteDatabase(tempDbPath, finalDbPath)` that also manages `-wal`/`-shm` sidecars.
-- [x] Use this helper in build and compact tools.
-- [x] Add regression test for stale WAL sidecars.
-
-**Exit criteria**
-- [x] Stale WAL/shm sidecars do not break rebuilt/compacted DBs.
-
-## 7.4 Injection-safe dynamic SQL
-- [x] Validate identifiers (table/column/module names) via allowlist regex.
-- [x] Replace raw `options` concatenation with structured config or strict allowlist parsing.
-- [x] If validation fails: disable extension mode and warn (do not execute unsafe SQL).
-
-**Exit criteria**
-- [x] No config-driven SQL injection primitives remain.
-
-## 7.5 sqlite-vec candidate-set semantics (locked decision)
-- [x] Implement candidate pushdown for small candidate sets (exact within candidate set).
-- [x] For large candidate sets: best-effort fallback is allowed but must be documented and observable.
-- [x] Ensure deterministic ANN ordering (`ORDER BY distance, rowid`).
-
-**Exit criteria**
-- [x] Candidate-set correctness is guaranteed for small candidate sets and test-backed.
-
-## 7.6 Extension download/extraction hardening
-- [x] Prevent zip-slip/tar traversal and symlink tricks.
-- [x] Add malicious archive fixtures and assert extraction never writes outside destination.
-
-**Exit criteria**
-- [x] Extension extraction is path-safe and test-backed.
-
----
-
-# Phase 8 — Service surfaces (API server + MCP server) hardening
-
-**Objective:** make service mode reliable under concurrency, cancellation, and malformed inputs.
-
-## 8.1 API server request validation + error contract (locked decisions)
-- [x] Add request schema validation for `/search` and `/search/stream`:
-  - reject unknown fields (`additionalProperties: false`)
-  - validate types/ranges/enums
-- [x] Implement stable error payloads:
-  - `NO_INDEX` returns **409**
-  - invalid request returns 400
-  - internal errors return 500 with `{ ok:false, code:'INTERNAL', ... }`
-
-**Exit criteria**
-- [x] API error responses are predictable and machine-parseable.
-
-## 8.2 API server streaming robustness
-- [x] Handle client disconnects and propagate cancellation where feasible.
-- [x] Respect backpressure (`drain`) and avoid writes-after-close.
-- [x] Add tests for aborted streaming requests.
-
-**Exit criteria**
-- [x] Streaming endpoints do not leak work or crash on slow/aborting clients.
-
-## 8.3 JSON-RPC framing safety (MCP + LSP)
-- [x] Replace per-message writer creation with per-stream writer + serialization queue.
-- [x] Provide close semantics to prevent writes-after-close.
-- [x] Fix LSP shutdown ordering issues (`ERR_STREAM_DESTROYED`) and add regression tests.
-
-**Exit criteria**
-- [x] No frame corruption under concurrent sends.
-- [x] Shutdown is deterministic and does not emit stream-destroyed errors.
-
-## 8.4 MCP server backpressure and timeouts (locked decision)
-- [x] Implement queue cap with clear error code on overload.
-- [x] Implement per-tool timeouts with conservative defaults (overrideable via config).
-- [x] Add schema snapshot tests for MCP tool definitions and representative responses.
-
-**Exit criteria**
-- [x] MCP cannot hang indefinitely without an explicit long timeout.
-- [x] Tool schema changes are intentional and test-detectable.
-
----
-
-# Phase 9 — Un-gate flaky tests and strengthen CI signals
-
-**Objective:** reduce “safety tape” (skips/gates) and ensure CI failures indicate real regressions.
-
-## 9.1 Un-gate currently skipped/unstable tests
-- [x] Fix Windows `fixture-parity` crash (exit 3221226505) with diagnostics and regression.
-- [x] Fix `type-inference-crossfile-test` hang with timeouts + deterministic cleanup.
-- [x] Fix `type-inference-lsp-enrichment-test` stream shutdown ordering.
-
-**Exit criteria**
-- [x] Previously gated tests run deterministically (or are explicitly retired with rationale and cleanup).
-
-## 9.2 Script coverage ≠ correctness
-- [x] Split test coverage into:
-  - Tier A: surface coverage (command runs/usage/exit codes)
-  - Tier B: behavioral correctness (artifact invariants, output invariants, negative tests)
-- [x] Require Tier B for artifact-producing scripts.
-
-**Exit criteria**
-- [x] Script coverage failures point to missing *meaningful* tests, not only missing invocations.
-
-## 9.3 Add minimal platform matrix
-- [x] Add a Windows CI lane running a reduced but meaningful suite:
-  - worker pool teardown regression
-  - path normalization tests
-  - fixture parity (reduced fixture)
-- [x] Keep Linux lane as the primary full suite.
-
-**Exit criteria**
-- [x] Windows regressions are caught continuously.
-
----
-
-# Phase 10 — Modularization (refactor-only; behavior frozen by tests)
-
-**Objective:** reduce defect surface area by splitting mega-files only after correctness is stabilized.
-
-## 10.1 Retrieval
-- [x] Split `src/retrieval/cli.js` into cohesive modules (normalize options, load indexes, run search, render output, telemetry, highlight).
-- [x] Split `src/retrieval/output.js` (filters, explain formatting, context cleaning, caching).
-
-## 10.2 Indexing + language
-- [x] Split `src/index/build/file-processor.js` into read/chunk/relations/meta/embeddings/incremental modules.
-- [x] Split TypeScript and Tree-sitter integration modules as planned in the Section roadmaps.
-
-## 10.3 Services
-- [x] Split `tools/mcp-server.js` into transport/repo/runner/tools modules.     
-- [x] Split `tools/api-server.js` into router/validation/sse/response modules.  
-
-**Exit criteria**
-- [x] Refactors introduce no behavior change without tests updated accordingly. 
-- [x] Modules are cohesive and significantly smaller (soft target: ≤ ~300 LOC). 
-
----
-
-# Phase 11 — Documentation parity and migration notes
-
-**Objective:** ensure docs/help match actual behavior; document breaking changes introduced by locked decisions.
-
-## 11.1 Retrieval docs and help
-- [x] Remove references to removed flags (`--human`, `--headline`) and update examples.
-- [x] Document:
-  - stable chunk id (`metaV2.chunkId`)
-  - filter ordering semantics and `--top` fulfillment expectations
-  - explain output components
-
-## 11.2 API server docs
-- [x] Align docs with actual SSE event types and routes.
-- [x] Document `/metrics`.
-- [x] Document the `409 NO_INDEX` behavior and error schema.
-
-## 11.3 SQLite + embeddings docs
-- [x] Document bundle-backed rebuild failure behavior.
-- [x] Document candidate-set ANN semantics (exact small / best-effort large).
-- [x] Document dims mismatch hard-failure behavior and remediation steps.
-
-**Exit criteria**
-- [x] Docs and CLI help no longer contradict implementation.
-
----
-
-# Phase 12 — Additional phases (gaps not fully covered by the source roadmaps)
-
-These phases are recommended additions based on codebase risk profile.
-
-## 12.1 Security posture and supply-chain hardening
-- [x] Add archive extraction hardening beyond traversal:
-  - size limits (zip bombs)
-  - safe symlink handling
-  - permission normalization
-- [x] Add download verification policy for external artifacts (hash allowlists or signed manifests where feasible).
-- [x] Add “untrusted repo indexing” guardrails (file size caps, recursion limits, degenerate input protection).
-
-## 12.2 Cross-surface error taxonomy + observability consistency
-- [x] Define a shared error code taxonomy used by:
-  - CLI
-  - API server
-  - MCP server
-- [x] Standardize structured logging (especially for service modes).
-- [x] Align metrics labels and ensure key counters exist (timeouts, fallbacks, cache hits/misses).
-
-## 12.3 Release readiness discipline
-- [x] Define versioning rules for:
-  - output schema changes
-  - artifact schema changes
-  - CLI flag removals/renames
-- [x] Add a concise changelog process that is enforced for breaking changes.
-
----
-
-## Appendix — Dependency-optimized execution order (recommended)
-
-1) Phase 0 (baseline truth + remove broken docs-consistency script)  
-2) Phase 1 (stop-the-bleeding P0 fixes)  
-3) Phase 2–4 (retrieval CLI + chunking + early filtering semantics)  
-4) Phase 5–7 (artifact durability + embeddings + SQLite integrity)  
-5) Phase 8–9 (services hardening + un-gating tests + CI matrix)  
-6) Phase 10–12 (modularization, docs parity, security/observability/release discipline)
-
-
-# Phase 21 — Storage, Compression, and Determinism (Fflate, Msgpackr, Roaring, XXHash, LMDB)
-
-**Objective:** Implement durable, efficient artifact storage with deterministic formats and checksums.
-
-## 21.1 Compression and serialization
-- [x] Use `fflate` streaming compression for large artifacts; update `docs/artifact-contract.md`.
-- [x] Add `msgpackr` envelope format for bundles with deterministic encoding and checksums.
-
-## 21.2 Postings storage and hashing
-- [x] Use `roaring-wasm` for bitmap-accelerated filter evaluation now that it is implemented.
-- [x] Use `xxhash-wasm` for checksums; keep sha1 for legacy identifiers where required.
-
-## 21.3 Alternative storage backend
-- [x] Implement optional LMDB backend (`lmdb`) with keyspace schema + migration rules.
-- [x] Add throughput and corruption checks in `tools/report-artifacts.js` and bench runs.
-
-**Deliverables**
-- Compressed, deterministic artifact formats with checksum validation.
-- Optional LMDB backend with benchmarks.
-
-**Exit criteria**
-- Artifacts validate deterministically and storage backends pass integrity checks.
-
----
-
-
-## 4.2 Advanced **risk analysis**: sources / sinks / sanitizers / flows
-
-### Dependency guidance (best choices)
-- `@ast-grep/napi` — implement rule packs for sources/sinks/sanitizers using structural patterns (AST-level matching).
-  - Use the JS API for integration; keep rule packs versioned and testable.
-- `re2js` — use for user-supplied or configurable regex rules to avoid ReDoS in large repos.
-- `aho-corasick` — accelerate “dictionary style” scanning (many fixed tokens like sink names, env var keys, SQL APIs) before expensive AST passes.
-- `graphology` — represent flows as graphs (nodes = symbols/expressions/files; edges = dataflow/callflow/import).
-  - Use traversal + shortest-path utilities for explainable flow paths.
-- `roaring-wasm` — represent taint sets and reachability sets efficiently; union/intersection are hot-path ops for flows.
-
-The current regex-based “sources × sinks” cartesian product is a useful baseline, but not advanced.
-
-## Phase 1: Make the roadmap executable and falsifiable
-
-### 1.1 Truth table: behavioral ledger of user-visible invariants
-
-**Audit (code evidence)**
-
-- A truth-table document exists: `docs/truth-table.md`.
-- Additional “contract” style docs exist and help (even if not named “truth table”):
-  - `docs/artifact-contract.md`
-  - `docs/search-contract.md`
+- LMDB has a clear key-space separation (`meta:*`, `artifact:*`) and an explicit schema version (`src/storage/lmdb/schema.js`).
+- LMDB build tool stores artifacts plus metadata into LMDB (`tools/build-lmdb-index.js`).
+- Corruption handling is at least partially validated via tests (`tests/lmdb-corruption.js`, `tests/lmdb-report-artifacts.js`).
 
 **Gaps / issues**
 
-- None noted; truth table now maps behavior to implementation, config, and tests.
+- [x] Ensure the LMDB *reader* path (not in this checklist set) fails closed on schema mismatch the same way SQLite incremental update does (explicit schema version check; clear error messaging).
+- [x] Consider adding a lightweight “LMDB quick check” command in tooling (or enhancing `tools/index-validate.js`) that validates the presence of all required keys (schema version, chunk meta, vocab, postings, etc.) and reports missing keys explicitly.
+- [x] Document LMDB key invariants and expected artifact presence (which artifacts are mandatory vs optional).
 
-**Remaining work**
+---
 
-- [x] Expand `docs/truth-table.md` into a complete “behavioral ledger” for:
-  - build modes/stages (stage1–stage4),
-  - all public `--mode` values (including any supported “extracted-prose” semantics),
-  - backend selection rules (file-backed vs sqlite; auto/fallback vs forced),
-  - key indexing invariants (chunk IDs, artifact names, sharding formats),
-  - search semantics (filters, ranking, explain output),
-  - service/API/MCP behavior (job queueing, timeouts/retries).
-- [x] For each truth-table claim, add:
-  - “Implementation pointers” (file paths + function names),
-  - “Config knobs” (profile/env keys),
-  - “Proving tests” (tests that would fail if the claim breaks).
-
-### 1.2 Acceptance fixtures + golden expectations
+### D) Incremental updates
 
 **Audit**
 
-- Multiple fixture repos exist:
-  - `tests/fixtures/sample`
-  - `tests/fixtures/mixed`
-  - `tests/fixtures/medium` generator (`generate-medium-fixture.cjs`)
-- There are strong integration tests around fixtures and parity:
-  - `tests/fixture-smoke.js`
-  - `tests/fixture-parity.js` / `tests/parity.js`
+- Incremental update gating exists (requires incremental manifest, rejects schema mismatch, rejects high change ratios) (`src/storage/sqlite/build/incremental-update.js`).
+- It preserves doc-id stability per-file by reusing IDs for changed files and reusing free IDs from deletions.
+- Deletes are applied across all relevant tables using `deleteDocIds(...)` with consistent table lists.
 
 **Gaps / issues**
 
-- There is no “golden must-hit” query pack that asserts specific retrieval expectations for:
-  - comment-derived matches vs code matches,
-  - risk/type filters,
-  - extracted-prose behavior (if supported).
+- [x] **(P0) ANN table insertion bug** (same as in section B) must be fixed for incremental updates.
+- [x] **WAL lifecycle:** after an in-place incremental update, run:
+  - `PRAGMA wal_checkpoint(TRUNCATE);`
+  - optionally `PRAGMA journal_mode = DELETE;` (if the project prefers single-file DBs)
 
-**Remaining work**
-
-- [ ] Add a small “golden query suite” for `tests/fixtures/mixed` with assertions like:
-  - query → expected file(s)/chunk(s) appear in top-N
-  - filters change results in predictable ways
-- [x] Add a dedicated extracted-prose fixture/query (`tests/extracted-prose.js`).
-- [x] Add deletion coverage to incremental reuse tests (manifest extra entry now forces reuse rejection).
-
----
-
-## Phase 2: Artifact contract, metadata contract, and durability
+  This ensures the on-disk DB is not “dependent on sidecars” after the update and reduces the likelihood of later tooling accidentally discarding uncheckpointed state.
+- [x] **Manifest match logic:** `isManifestMatch(...)` falls back to mtime/size when one side has a hash and the other does not.
+  - Consider tightening: if an incremental manifest provides a hash but the DB manifest row does not, treat as “changed” and update the DB row hash (this gradually converges the DB to the stronger invariant).
+- [x] **Performance of doc-id reuse scan:** the “scan all chunks ordered by file,id” approach is correct but can be expensive; if it becomes a bottleneck, consider either:
+  - adding `(mode,file,id)` index, and/or
+  - materializing file→docId list in a side table (only if necessary).
 
 ---
 
-## Phase 3: Segment-aware chunking, mixed-file support, and prose
-### 3.5 Correctness tests for segmentation + prose
+### E) Performance
 
-**Remaining work**
+**Audit**
 
-- [x] Add extracted-prose build/search integration tests (`tests/extracted-prose.js`).
-- [ ] Add a golden-query test proving comment-field vs code-field behavior (e.g., query that matches only a comment should still retrieve the owning code chunk).
+- Build pragmas in `src/storage/sqlite/build/pragmas.js` are set to favor build throughput (WAL + relaxed synchronous) and are restored (partially).
+- Compaction tool is designed to reduce doc-id sparsity and reclaim file size (`tools/compact-sqlite-index.js`).
 
----
+**Gaps / issues**
 
----
-
-# Appendix A: COMPLETED_PHASES.md cross-check (dedupe + drift notes)
-
-This repository contains a historical “completed phases” ledger in `COMPLETED_PHASES.md`. The ledger includes multiple phase-number series and several references that appear to be from older layouts. Where the completed phases describe an older approach that has been superseded by a newer design, this audit treats the older approach as **(DEPRECATED/REPLACED)** and focuses on verifying the best/latest implementation.
-
-## A.1 Doc/reference drift (files/dirs referenced but not present)
-
-The following references are still missing from the current repository layout:
-
-- `scripts/config`
-- `scripts/styles`
-- `scripts/tools`
-- `docs/config` (directory)
-- `docs/tests` (directory)
-- `tests/fixtures/docs`
-- `tests/fixtures/external-docs`
-
-Previously noted drift entries now have clear replacements or are present:
-
-- `tools/index-bench-suite.js` -> `tools/bench-query-generator.js` + `tests/bench.js`
-- `docs/phase3-parity-report.json` exists in `docs/`
-- `tools/bench-compare-models.js` -> `tools/compare-models.js`
-- `tools/mergeNoResultQueries.js` -> `tools/merge-no-results.sh`
-- `tools/mergeSearchHistory.js` -> `tools/merge-history.sh`
-- `tools/search-sqlite.js` -> `search.js --backend sqlite`
-
-## A.2 High-confidence verification of major “completed” subsystems
-
-The following completed-phase feature clusters are clearly implemented in code and generally covered by tests:
-
-- Cache layout and repo/build root resolution:
-  - `tools/dict-utils.js`, tests `tests/tool-root.js`, `tests/repo-root.js`
-- Tooling detect/install + language servers:
-  - `tools/tooling-detect.js`, `tools/tooling-install.js`, and providers under `src/index/tooling/`
-- Structural search surface:
-  - `bin/pairofcleats.js` structural commands, structural matching under `src/retrieval/structural-*.js`, tests `tests/structural-search.js`
-- Ingest tools (ctags/gtags/lsif/scip):
-  - `tools/ctags-ingest.js`, `tools/gtags-ingest.js`, `tools/lsif-ingest.js`, `tools/scip-ingest.js`
-- Service-mode indexing:
-  - `tools/indexer-service.js`, `tools/service/queue.js`, tests `tests/indexer-service.js`, `tests/two-stage-state.js`
-- API and MCP:
-  - `tools/api-server.js`, `tools/mcp-server.js`, tests `tests/api-server.js`, `tests/mcp-smoke.js`
-
-### Previously noted cross-cutting issues (now resolved)
-
-Even where the phase is “complete,” the following issues were addressed (they affected completed functionality too):
-
-- Incremental reuse deletion correctness (fixed in `src/index/build/incremental.js` + `tests/incremental-reuse.js`)
-- Library-unsafe process exit in sqlite backend creation (fixed in `src/retrieval/cli-sqlite.js`)
-- Stage3 durability/atomicity inconsistencies (fixed in `tools/build-embeddings.js` + index_state gating)
+- [x] **Avoid repeated `COUNT(*)` scans** for backend auto-selection where possible (`src/storage/backend-policy.js`).
+  - Options: use `file_manifest` sum, maintain a meta counter, or store chunk count in `index_state.json`.
+- [x] **Improve maintenance query performance** via `(mode,file,id)` index as noted above.
+- [x] **Reduce query-time statement re-preparation** in `src/retrieval/sqlite-helpers.js` (`chunkArray(...)` creates fresh SQL each time); consider caching by chunk size.
+- [x] **Add at least one p95 query latency regression test** using a stable fixture DB (details below).
 
 ---
 
-## Appendix B: Suggested new tests (concrete proposals)
+### F) Refactoring goals
 
-These are intentionally specific and can be added quickly.
+**Audit**
 
-1. **Incremental deletion reuse test**
-   - Build code index for a small fixture
-   - Assert file `X` produces at least one chunk
-   - Delete file `X`
-   - Re-run build with reuse enabled
-   - Assert `chunk_meta` contains no entries for `X` and searching a unique token from `X` yields no hits
-   - Status: manifest-level deletion coverage added in `tests/incremental-reuse.js`; full fixture/search variant still optional.
+- The codebase already separates schema SQL, prepared statements, and build/validate logic into dedicated modules.
 
-2. **Extracted-prose integration test (if supported)**
-   - Build `--mode extracted-prose` for a fixture containing doc-comments and config blocks
-   - Search for a phrase that appears only in comments and verify results appear from extracted-prose index
-   - Status: implemented in `tests/extracted-prose.js`.
+**Gaps / issues**
 
-3. **SQLite backend non-fatal missing dependency test**
-   - Simulate `better-sqlite3` import failure (dependency injection or env guard)
-   - In backend “auto,” verify search falls back to file-backed
-   - In backend “forced sqlite,” verify a structured error is returned/thrown (no process exit)
-   - Status: implemented in `tests/sqlite-missing-dep.js` (env guard via `PAIROFCLEATS_SQLITE_DISABLED`).
-
-4. **Stage3 embeddings validation test**
-   - Run stage2 build with embedding service disabled (or stubbed)
-   - Run `tools/build-embeddings.js`
-   - Run `tools/index-validate.js` and assert pass
-   - Verify `index_state.json` updated atomically (e.g., checksum of file valid, schema valid)
-   - Status: implemented in `tests/embeddings-validate.js` (build + embeddings + validate, index_state flags checked).
+- [x] **De-duplicate shared helpers:**
+  - `updateIndexStateManifest(...)` exists in both `tools/build-lmdb-index.js` and `tools/build-sqlite-index/index-state.js`.
+  - `chunkArray(...)` exists in both build and retrieval code (or adjacent helpers).
+- [x] **Centralize ANN table setup logic** so that “table exists” vs “table created” paths always prepare the insert statement (avoid the current drift between `prepareVectorAnnTable(...)` and the bundle/incremental paths).
+- [x] **Clarify naming:** `toSqliteRowId(...)` is currently a “coerce to BigInt” helper; consider renaming to reflect that it does not encode/transform the id.
 
 ---
 
-# Phase 23.4 — Language module modularization (barrel + submodules)
+## Tests and benchmarks — required additions
 
-**Objective:** convert the two largest language “mega-files” into a `typescript/`-style layout (directory of cohesive modules + a stable barrel file), without changing behavior.
+### Must-add tests (CI-friendly)
 
-## 23.4.1 `src/lang/python.js` → `src/lang/python/*` (keep `src/lang/python.js` as the barrel)
+- [x] **Unit test: ANN insertion when the ANN table already exists** (no real extension binary required).
+  - Approach:
+    - Create a temporary SQLite DB with all required tables plus a *plain* `dense_vectors_ann` table (not virtual) matching the schema used by insert/delete (`rowid` + `embedding` BLOB column).
+    - Pass a mocked `vectorConfig` into `incrementalUpdateDatabase(...)` with:
+      - `loadVectorExtension: () => ({ ok: true })`
+      - `hasVectorTable: () => true`
+      - `encodeVector: () => Buffer.from([0])` (or similar stable stub)
+    - Run an incremental update that modifies at least one file and assert that:
+      - rows are deleted for removed docIds
+      - rows are inserted/replaced for changed docIds
+- [x] **Unit test: bundle-build dims mismatch hard failure**
+  - Create two bundle files in the incremental bundle dir: one with embedding length N, one with embedding length N+1.
+  - Assert build fails (or returns count 0 with a clear reason) rather than “warn and continue”.
 
-* [x] Create `src/lang/python/` directory.
-* [x] Move the embedded script into a dedicated module:
+### Additional recommended tests
 
-  * [x] `src/lang/python/ast-script.js`: export `PYTHON_AST_SCRIPT` (string) and any script-version constants.
-  * [x] Keep the spawn path unchanged (`python -u -c <script>`); do **not** introduce runtime file reads unless packaging guarantees exist.
-* [x] Split process/pool responsibilities:
+- [x] **Reader fail-closed test:** Provide a DB with `user_version != SCHEMA_VERSION` and confirm:
+  - forced SQLite backend errors clearly
+  - auto backend falls back without using SQLite.
+- [x] **Incremental WAL checkpoint test** (if WAL checkpointing is implemented): verify that after incremental update:
+  - no `*.db-wal` / `*.db-shm` remain (or WAL is truncated to a small size, depending on desired policy).
 
-  * [x] `src/lang/python/executable.js`: detection + validation of `python` binary (currently the “probe” spawn logic).
-  * [x] `src/lang/python/pool.js`: pool lifecycle (spawn, health, request/response framing, backpressure, shutdown).
-  * [x] `src/lang/python/ast.js`: `getPythonAst()` wrapper (pure API surface; delegates to pool).
-* [x] Split transformation logic (pure, unit-testable):
+### Benchmark / regression testing
 
-  * [x] `src/lang/python/chunks-from-ast.js`: `buildPythonChunksFromAst()`.
-  * [x] `src/lang/python/chunks-heuristic.js`: `buildPythonHeuristicChunks()`.
-  * [x] `src/lang/python/imports.js`: `collectPythonImports()`.
-  * [x] `src/lang/python/relations.js`: `buildPythonRelations()`.
-  * [x] `src/lang/python/docmeta.js`: `extractPythonDocMeta()`.
-  * [x] `src/lang/python/normalize.js`: shared normalizers/utilities used across the above (offset mapping, safe slicing, etc.).
-* [x] Convert `src/lang/python.js` into a barrel:
+- [x] **p95 query latency regression guard (fixture-based)**
+  - Add a small but non-trivial fixture SQLite DB (or build it deterministically during test setup) and run a representative query workload:
+    - candidate generation (ngrams)
+    - FTS ranking (if enabled)
+    - dense vector scoring (if enabled)
+  - Measure per-query durations and assert p95 stays under a budget (or does not regress beyond a tolerance vs a baseline).
+  - Keep it deterministic: single-threaded, warm cache (or explicit warm-up iterations), fixed query set, fixed limits.
 
-  * [x] Re-export the existing public API (same names, same signatures):        
-    `shutdownPythonAstPool`, `getPythonAst`, `buildPythonChunksFromAst`, `buildPythonHeuristicChunks`, `collectPythonImports`, `buildPythonRelations`, `extractPythonDocMeta`.
-* [x] Add tests that become easy only after this split:
+---
 
-  * [x] `tests/lang/python-heuristic-chunking.test.js`: deterministic chunk boundaries for representative Python fixtures.
-  * [x] `tests/lang/python-imports.test.js`: imports edge cases (relative, `from x import y`, multiline, conditional).
-  * [x] `tests/lang/python-pool.test.js`: pool shutdown/idempotency; “python missing” path is handled predictably.
+## File-by-file findings and action items
 
-**Deliverables**
+> This section lists concrete issues and improvement opportunities per reviewed file.  
+> Items are written as actionable checkboxes; severity tags (P0/P1/P2) are included where appropriate.
 
-* `src/lang/python/*` module set + barrel `src/lang/python.js`
-* Focused unit tests for chunking/imports/pool behavior
+### `src/storage/backend-policy.js`
+
+- [x] Clarify threshold semantics for `autoSqliteThresholdChunks` / `autoSqliteThresholdBytes` when set to `0` (current code uses `> 0`, so `0` behaves like “disabled” rather than “always use SQLite”).
+- [x] Consider avoiding expensive `COUNT(*)` scans for auto-selection; store chunk count in a meta table or `index_state.json` and read that instead (or sum `file_manifest.chunk_count`).
+- [x] Consider logging/telemetry: when auto-select declines SQLite due to missing/invalid thresholds, surface that decision (currently it is silent except for return fields).
+
+### `src/storage/lmdb/schema.js`
+
+- [x] Add brief inline documentation describing key-space expectations (which keys must exist for a usable LMDB index).
+- [x] Consider adding a helper to enumerate expected artifact keys for validation tooling (to avoid drift).
+
+### `src/storage/sqlite/build-helpers.js`
+
+- [x] Ensure `vectorConfig.extension.table` / `.column` are always sanitized before being interpolated into SQL (call-site currently depends on the caller to sanitize).
+- [x] Consider making `buildChunkRow(...)` treat empty strings/arrays consistently (e.g., avoid turning `''` into `null` unintentionally for fields where empty-string is meaningful).
+- [x] Consider reducing confusion: `buildChunkRow(...)` returns fields (`signature`, `doc`) that are not inserted into `chunks` but only into `chunks_fts`.
+
+### `src/storage/sqlite/build/bundle-loader.js`
+
+- [x] Ensure loader failures return actionable error messages (bundle path, reason). (Current errors are decent; confirm `readBundleFile(...)` includes enough context.)
+- [x] Consider exposing a small “max in-flight bundles” safeguard if worker threads are enabled (to avoid memory spikes on extremely large bundles).
+
+### `src/storage/sqlite/build/delete.js`
+
+- [x] Cache delete statements by chunk size to reduce repeated `db.prepare(...)` overhead when deleting many docIds.
+- [x] Consider supporting a temp table approach (`CREATE TEMP TABLE ids(...)`) if deletion performance becomes a bottleneck for large deletes.
+- [x] Verify that the `vectorDeleteTargets` contract remains consistent across callers (column name `rowid` vs explicit id columns).
+
+### `src/storage/sqlite/build/from-artifacts.js`
+
+- [x] Tighten shard discovery: `listShardFiles(...)` includes `.jsonl` but ingestion reads shards via `readJson(...)`; either:
+  - restrict token-postings shards to `.json`, or
+  - add JSONL support for token-postings shards (if they can be JSONL in practice).
+- [x] Consider inserting `dense_meta` inside the same transaction as the first dense-vector batch (atomicity / consistency).
+- [x] For `chunkMeta` ingestion (non-piece path), avoid building a single giant `rows` array in memory if the artifact can be large; use chunked batching as done in `ingestChunkMetaPieces(...)`.
+- [x] Failure cleanup: remove sidecars (`outPath-wal`, `outPath-shm`) as well as `outPath` on failure.
+
+### `src/storage/sqlite/build/from-bundles.js`
+
+- [x] **(P0) Prepare `insertVectorAnn` even when the ANN table already exists** (see around L120).  
+  The “table exists” branch sets `vectorAnnReady = true` but does not prepare the insert statement, so embeddings are not inserted into ANN.
+- [x] **(P0) Make embedding dims mismatch a hard failure.**  
+  Current warning-only behavior (around L197) can produce inconsistent dense vectors.
+- [x] Guard against malformed bundles: `count += result.bundle.chunks.length` should handle missing/invalid `chunks` gracefully (use `?.length || 0`).
+- [x] Remove unused import (`path` is currently imported but not used).
+- [x] Failure cleanup should remove SQLite sidecars, not just the DB file.
+
+### `src/storage/sqlite/build/incremental-update.js`
+
+- [x] **(P0) Prepare `insertVectorAnn` when the ANN table already exists** (see around L240).  
+  Without this, incremental updates delete ANN rows but do not reinsert replacement vectors.
+- [x] Add explicit WAL checkpointing/truncation at the end of a successful update (to keep the DB self-contained and avoid large WAL growth).
+- [x] Consider tightening `isManifestMatch(...)` semantics when hashes are available on only one side (to converge DB manifest quality).
+- [x] Performance: consider `(mode,file,id)` index or other optimization for `getDocIdsForFile(...)` scanning and per-file id lists.
+- [x] Remove (or convert to assertion) the redundant “dims mismatch warn” path inside applyChanges; dims mismatch should already be rejected earlier.
+
+### `src/storage/sqlite/build/manifest.js`
+
+- [x] De-duplicate `conflicts` output (currently can include repeated normalized paths).
+- [x] Consider strict hash preference: if `entry.hash` is present but `dbEntry.hash` is null, treat as mismatch and update DB hash (do not silently match on mtime/size).
+
+### `src/storage/sqlite/build/pragmas.js`
+
+- [x] Consider restoring `journal_mode` (or explicitly checkpointing) after build to ensure “single-file DB” invariants if the project expects that.
+- [x] Consider surfacing pragma failures (currently swallowed silently).
+
+### `src/storage/sqlite/build/statements.js`
+
+- [x] Consider adding `idx_chunks_file_id` (see schema/index alignment notes).
+- [x] Reduce confusion: `buildChunkRowWithMeta(...)` populates fields not present in the schema (e.g., `churn_added`, `churn_deleted`, `churn_commits`). Either:
+  - add these columns to the schema if they are intended, or
+  - stop emitting them to avoid “looks supported but isn’t”.
+
+### `src/storage/sqlite/build/validate.js`
+
+- [x] Consider validating ANN invariants when ANN is enabled:
+  - `dense_vectors_ann` row count should match `dense_vectors` row count for the mode (or at least have no orphans).
+- [x] Consider making full `integrity_check` optional for very large DBs (it can be expensive); provide a quick-check mode and/or configurable validation levels.
+
+### `src/storage/sqlite/build/vocab.js`
+
+- [x] Consider caching prepared statements by chunk size (similar to delete/vocab fetch) to reduce repeated SQL compilation overhead.
+- [x] Error messaging: if `missing.length` is huge, cap printed missing values in the thrown error and include only a sample plus counts (to avoid megabyte-scale exception strings).
+
+### `src/storage/sqlite/incremental.js`
+
+- [x] Document the on-disk incremental manifest contract and failure modes (missing manifest, conflicts, ratio guard).
+- [x] Consider adding a small helper to validate the incremental manifest shape early, with clearer error output.
+
+### `src/storage/sqlite/schema.js`
+
+- [x] Consider adding `(mode,file,id)` index for maintenance queries.
+- [x] Ensure docs (`docs/sqlite-index-schema.md`) stay in sync when schema changes.
+
+### `src/storage/sqlite/utils.js`
+
+- [x] `normalizeFilePath(...)` returns the input unchanged when it is not a string; consider returning `null` instead to reduce accidental “undefined as key” behavior.
+- [x] `replaceSqliteDatabase(...)`: consider logging when fallback rename/remove paths are taken (debuggability of replacement failures).
+
+### `src/storage/sqlite/vector.js`
+
+- [x] `toSqliteRowId(...)` is effectively “coerce to BigInt”; consider renaming to reflect that (e.g., `toSqliteRowidInt64(...)`) to avoid implying a non-trivial mapping.
+- [x] Consider making quantization parameters (`minVal`, `maxVal`) configurable or derived from embedding model metadata (avoid silent saturation if embeddings are out of range).
+
+---
+
+### Tooling files
+
+#### `tools/build-lmdb-index.js`
+
+- [x] Consider a `--validate` option that checks required artifacts exist before writing LMDB (fail early, clearer errors).
+- [x] Consider writing a small LMDB “manifest” key listing which artifacts were written (enables tool-side validation and reduces drift).
+
+#### `tools/build-sqlite-index.js`
+
+- [x] Consider exit codes and messaging consistency across build modes (full rebuild vs incremental vs skipped).
+
+#### `tools/build-sqlite-index/cli.js`
+
+- [x] Consider validating incompatible flag combinations early (e.g., `--bundle-workers` without a bundle dir).
+- [x] Consider adding `--no-compact` / `--compact` clarity in CLI help (if not already covered elsewhere).
+
+#### `tools/build-sqlite-index/index-state.js`
+
+- [x] De-duplicate `updateIndexStateManifest(...)` with the LMDB equivalent; extract to a shared helper module.
+- [x] Consider including schema version and build mode (full vs incremental) in `index_state.json` for observability.
+
+#### `tools/build-sqlite-index/run.js`
+
+- [x] Ensure `stopHeartbeat()` is always invoked via `try/finally` (avoid leaking an interval on error when `exitOnError=false`).
+- [x] After incremental updates, consider forcing WAL checkpoint/truncate (see incremental update section).
+- [x] Consider making the “incremental fallback to rebuild” reason more explicit in output (currently logged, but could include key stats: changedFiles, deletedFiles, ratio).
+
+#### `tools/build-sqlite-index/temp-path.js`
+
+- [x] Consider a “same filesystem guarantee” note: temp DB path must be on same filesystem for atomic rename (current implementation uses same directory, which is good; document this).
+
+#### `tools/clean-artifacts.js`
+
+- [x] Consider adding a `--dry-run` option that prints what would be deleted without deleting it (safety for new users).
+
+#### `tools/compact-sqlite-index.js`
+
+- [x] If vector extension is enabled but cannot be loaded, consider warning that compaction may drop ANN acceleration (and suggest remediation, e.g. rerun embeddings rebuild once extension is available).
+- [x] Consider recording pre/post compaction stats into `index_state.json` (bytes, row counts) for observability.
+
+#### `tools/download-extensions.js`
+
+- [x] Consider streaming zip extraction rather than buffering each entry into memory (`adm-zip` forces buffer extraction; if large binaries become common, consider a streaming zip library).
+- [x] Consider setting file permissions for extracted binaries explicitly per-platform conventions (e.g., preserve exec bit if needed, although shared libraries typically do not require it).
+
+#### `tools/index-validate.js`
+
+- [x] Consider including actionable remediation hints per failure mode (e.g., “run build-index”, “run build-sqlite-index”, “run download-extensions”).
+
+#### `tools/report-artifacts.js`
+
+- [x] Consider clarifying the units in output when printing both formatted size and raw bytes (currently raw bytes are printed in parentheses without a label).
+
+#### `tools/vector-extension.js`
+
+- [x] Consider keying `loadCache` by (db, config) rather than only db (avoids surprising behavior if config changes during a long-lived process).
+- [x] Consider restoring prior `trusted_schema` value after `ensureVectorTable(...)` (minimize global DB setting changes).
+
+#### `tools/verify-extensions.js`
+
+- [x] Consider adding a quick “smoke query” that verifies the ANN table can be created and queried (optional).
+
+---
+
+### Test files
+
+#### `tests/backend-policy.js`
+
+- [x] Add coverage for threshold edge cases (e.g., `autoSqliteThresholdChunks=0` semantics).
+- [x] Add a test case where SQLite exists but artifact metadata cannot be read (ensure fallback behavior is correct and reason is surfaced).
+
+#### `tests/compact-pieces.js`
+
+- [x] No issues noted (acts as a compaction functional check for artifact pieces).
+
+#### `tests/lmdb-backend.js`
+
+- [x] Consider adding schema version mismatch coverage (fail closed when schema version differs).
+
+#### `tests/lmdb-corruption.js`
+
+- [x] Consider asserting on error message content to ensure corruption reporting remains actionable.
+
+#### `tests/lmdb-report-artifacts.js`
+
+- [x] Consider adding a test for “missing required key” vs “corruption” differentiation (if validation tooling can distinguish).
+
+#### `tests/retrieval-backend-policy.js`
+
+- [x] Add coverage for schema version mismatch fallback (once reader-side user_version check exists).
+
+#### `tests/smoke-sqlite.js`
+
+- [x] Add coverage for `user_version` mismatch behavior once implemented.
+
+#### `tests/sqlite-ann-extension.js`
+
+- [x] Add a CI-friendly companion test that does not require the real extension binary (mock vectorConfig approach described above) to ensure ANN insert/delete invariants are enforced in CI.
+
+#### `tests/sqlite-ann-fallback.js`
+
+- [x] Consider adding explicit coverage that fallback ANN search never returns out-of-range docIds (robustness guard).
+
+#### `tests/sqlite-auto-backend.js`
+
+- [x] Add a test that covers the “SQLite present but too small” path + verifies reason reporting is stable.
+
+#### `tests/sqlite-build-delete.js`
+
+- [x] Add coverage for deleting from an ANN table using `rowid` column and BigInt inputs (ensures `toSqliteRowId(...)` conversion remains correct).
+
+#### `tests/sqlite-build-indexes.js`
+
+- [x] Add coverage for any new maintenance index (e.g., `(mode,file,id)`), if introduced.
+
+#### `tests/sqlite-build-manifest.js`
+
+- [x] Add a test for “manifest has hash but DB does not” semantics (once tightened).
+
+#### `tests/sqlite-build-vocab.js`
+
+- [x] Add stress coverage for token sets larger than SQLite’s `IN` limit (ensuring chunking logic remains correct).
+
+#### `tests/sqlite-bundle-missing.js`
+
+- [x] Add bundle-shape validation coverage (missing `chunks` field should not crash build loop).
+
+#### `tests/sqlite-cache.js`
+
+- [x] No issues noted (validates cache path behavior / read path).
+
+#### `tests/sqlite-chunk-id.js`
+
+- [x] No issues noted (docId/chunkId behavior).
+#### `tests/sqlite-compact.js`
+
+- [x] Consider adding coverage for compaction with ANN enabled but extension mocked (ensures dense_vectors_ann remains consistent after compaction).
+
+#### `tests/sqlite-incremental-no-change.js`
+
+- [x] Consider verifying `index_state.json` is unchanged (or only updated timestamp changes), depending on desired policy.
+
+#### `tests/sqlite-incremental.js`
+
+- [x] Add coverage for doc-id reuse behavior (free-list) to prevent accidental regression to “always append”.
+
+#### `tests/sqlite-index-state-fail-closed.js`
+
+- [x] Consider adding coverage that “pending” flips back to false on successful build (already implied but could be explicit).
+
+#### `tests/sqlite-missing-dep.js`
+
+- [x] No issues noted (validates better-sqlite3 missing behavior).
+#### `tests/sqlite-sidecar-cleanup.js`
+
+- [x] Add incremental-update sidecar cleanup coverage if WAL checkpointing/truncation is implemented.
+
+---
+
+### Documentation files
+
+#### `docs/contracts/sqlite.md`
+
+- [x] Explicitly document the `user_version` contract and the “fail closed / rebuild on mismatch” behavior.
+- [x] Ensure the list of required tables aligns with the actual reader/build code paths (and clearly separate “core” vs “optional” tables).
+
+#### `docs/external-backends.md`
+
+- [x] Consider updating to reflect current backend-policy behavior (auto selection thresholds, forced backend semantics).
+
+#### `docs/model-compare-sqlite.json`, `docs/parity-sqlite-ann.json`, `docs/parity-sqlite-fts-ann.json`
+
+- [x] Ensure these reports are either generated artifacts (and documented as such) or kept in sync with the current schema/tooling versions (otherwise they can mislead).
+
+#### `docs/references/dependency-bundle/deps/better-sqlite3.md`
+
+- [x] Confirm documented behavior matches current runtime expectations (particularly around extension loading, platform binaries, and supported SQLite features).
+
+#### `docs/sqlite-ann-extension.md`
+
+- [x] Document the invariant that `dense_vectors_ann` must remain consistent with `dense_vectors` (no orphans; same cardinality per mode when enabled).
+- [x] Document how incremental updates maintain the ANN table (and note limitations when extension is not available).
+
+#### `docs/sqlite-compaction.md`
+
+- [x] Clarify how compaction interacts with the ANN extension table (and the remediation path if ANN is temporarily unavailable during compaction).
+
+#### `docs/sqlite-incremental-updates.md`
+
+- [x] Update doc-id behavior description to match implementation (per-file id reuse + free-list reuse rather than always appending).
+- [x] Document the ratio guard behavior and fallback to full rebuild more explicitly.
+- [x] Document WAL/sidecar expectations for incremental updates (single-file vs WAL sidecars).
+
+#### `docs/sqlite-index-schema.md`
+
+- [x] Reconfirm schema matches `SCHEMA_VERSION = 7` (columns, indexes, optional extension table).
+- [x] If `(mode,file,id)` index is added, document it as a maintenance/performance index.
+
+---
+
+## Exit criteria for this review section
+
+The following items should be completed to consider “Review Section 7” fully addressed:
+
+- [x] ANN insert-preparation bug fixed in both bundle-build and incremental-update code paths.
+- [x] Reader-side schema version fail-closed behavior implemented and tested.
+- [x] Bundle-build embedding dims mismatch becomes a hard failure (with tests).
+- [x] WAL/sidecar policy is explicitly decided, implemented consistently, and documented (at minimum for incremental updates).
+- [x] At least one CI-friendly test covers ANN table sync invariants without requiring a real extension binary.
+- [x] At least one fixture-based p95 latency regression test is added (or an equivalent deterministic perf guard).
+
+---
+
+## Phase 18 - Safe regex acceleration: optional native RE2 (re2) with re2js fallback
+
+### 18.1 Add dependency + backend wrapper
+
+* [x] Add re2 (native) as an optional dependency (recommended)
+* [x] Refactor src/shared/safe-regex.js into a backend-based module:
+  * [x] Keep current behavior as the fallback backend (re2js)
+  * [x] Add src/shared/safe-regex/backends/re2.js
+  * [x] Add src/shared/safe-regex/backends/re2js.js (wrap existing usage cleanly)
+* [x] Preserve existing safety constraints:
+  * [x] maxPatternLength
+  * [x] maxInputLength
+  * [x] Guard flags normalization (only gimsyu supported as today)
+
+### 18.2 Integrate selector + compatibility contract
+
+* [x] Add createSafeRegex({ engine, ...limits }) selection:
+  * [x] engine=auto uses re2 if available else re2js
+  * [x] engine=re2 hard-requires native; if missing, warning + fallback to re2js
+* [x] Validate behavioral parity:
+  * [x] Ensure .exec() and .test() match expectations for g and non-g
+  * [x] Ensure .lastIndex semantics are compatible
+
+### 18.3 Update call sites
+
+* [x] Verify these flows still behave correctly:
+  * [x] src/retrieval/output/filters.js (file/path filters)
+  * [x] src/retrieval/output/risk-tags.js (risk tagging)
+  * [x] Any structural search / rulepack path using regex constraints
+
+### 18.4 Tests
+
+* [x] Add tests/safe-regex-engine.js:
+  * [x] Conformance tests (flags, match groups, global behavior)
+  * [x] Safety limit tests (pattern length, input length)
+  * [x] Engine-selection tests (auto, forced re2js)
+* [x] Add script-coverage action(s)
 
 **Exit criteria**
 
-* No change in chunk counts/ranges for existing fixtures (or goldens updated with explicit justification).
-* `src/lang/python.js` drops to a thin re-export + minimal wiring (soft target: ≤ ~80 LOC).
+* [x] No user-visible semantic regressions in filtering/risk-tagging
+* [x] Engine auto is safe and silent (no noisy logs) unless verbose
 
 ---
 
-## 23.4.2 `src/lang/javascript.js` → `src/lang/javascript/*` (keep `src/lang/javascript.js` as the barrel)
+## Phase 27 - LanceDB vector backend (optional, high impact on ANN scaling)
 
-* [x] Create `src/lang/javascript/` directory.
-* [x] Split parsing vs. downstream consumers:
+### 27.1 Extract a vector-ANN provider interface
 
-  * [x] `src/lang/javascript/parse.js`: `parseJavaScriptAst()` and parser selection options.
-  * [x] `src/lang/javascript/ast-utils.js`: node range helpers, safe traversal, normalization utilities.
-* [x] Split chunking vs. relations vs. docmeta:
+* [x] Create `src/retrieval/ann/`:
+  * [x] `types.js`: `query({ embedding, topN, candidateSet, mode }) -> hits[]`
+  * [x] `providers/sqlite-vec.js` wrapper around `rankVectorAnnSqlite`
+  * [x] `providers/hnsw.js` wrapper around `rankHnswIndex`
+  * [x] `providers/lancedb.js` wrapper around `rankLanceDb`
+  * [x] `providers/dense.js` wrapper around `rankDenseVectors`
+* [x] Update `src/retrieval/pipeline.js` to use the provider interface
 
-  * [x] `src/lang/javascript/chunks.js`: `buildJsChunks()`.
-  * [x] `src/lang/javascript/imports.js`: `collectImportsFromAst()` and `collectImports()`.
-  * [x] `src/lang/javascript/relations.js`: `buildCodeRelations()` (and any call/usages extraction helpers).
-  * [x] `src/lang/javascript/docmeta.js`: `extractDocMeta()`.
-* [x] Convert `src/lang/javascript.js` into a barrel that re-exports the same API.
-* [x] Add tests:
+### 27.2 Implement LanceDB integration (choose operational model)
 
-  * [x] `tests/lang/js-imports.test.js`: ESM/CJS/dynamic imports; re-exports; `require()` parsing.
-  * [x] `tests/lang/js-chunking.test.js`: functions/classes/exports chunk boundaries.
-  * [x] `tests/lang/js-relations.test.js`: calls/usages extraction stability.
+* [x] Choose packaging model:
+  * [x] Node library integration (`@lancedb/lancedb`)
+* [x] Sidecar service (Python) + HTTP (deferred)
+* [x] Add LanceDB ANN ranker/provider (lancedb query path accepts typed arrays):
+  * [x] Query by vector and return `{ idx, sim }`
+  * [x] Handle filtering:
+    * [x] Push down for small candidate sets
+    * [x] Post-filter and overfetch when needed
+  * [x] Relocate under `src/retrieval/ann/providers/lancedb.js`
 
-**Deliverables**
+### 27.3 Build tooling for vector index creation
 
-* `src/lang/javascript/*` module set + barrel `src/lang/javascript.js`
+* [x] Build tooling for vector index creation (tools/build-embeddings):
+  * [x] Ingest `dense_vectors_*` artifacts
+  * [x] Store LanceDB table in cache (mode-specific)
+  * [x] Validate dims/model compatibility using `index_state.json` semantics
+* [x] (Optional) Add a standalone `tools/build-lancedb-index.js` entrypoint (deferred)
+
+### 27.4 Tests (gated)
+
+* [x] Add `tests/lancedb-ann.js` smoke test
+* [x] Gate test execution so CI does not fail when LanceDB is unavailable
+* [x] (Optional) Add explicit `PAIROFCLEATS_TEST_LANCEDB=1` env gating (deferred)
+* [x] Add script-coverage action(s):
+  * [x] `tests/script-coverage/actions.js` includes `lancedb-ann-test`
 
 **Exit criteria**
 
-* `language-registry` and `chunking` still import the same public functions with no behavior drift.
-* `src/lang/javascript.js` becomes a thin barrel (soft target ≤ ~80 LOC).
+* [x] LanceDB ANN can be enabled without breaking sqlite/hnsw fallbacks
+* [x] Demonstrable memory and/or latency win for ANN retrieval at scale (not required)
 
 ---
 
-# Phase 23.5 — Index chunking + language registry modularization
 
-**Objective:** split two “hub” modules into cohesive submodules so they become readable, testable, and easier to extend.
+## Phase 13 — Retrieval, Services & Benchmarking/Eval (Latency End-to-End)
+#### Correctness & Contracts
 
-## 23.5.1 `src/index/chunking.js` → `src/index/chunking/*`
+* [X] Query parsing supports required constructs (operators/quoting/negation/precedence) or docs/contracts explicitly define the simplified grammar.
+* [X] Filters are correctly detected as “active” and do not disable backend fast-paths accidentally.
+* [X] Explain output matches actual scoring math and is emitted only when requested (or contracts updated to reflect always-present fields).
 
-* [x] Create `src/index/chunking/` directory and convert `src/index/chunking.js` into:
+#### Performance & Latency
 
-  * [x] a small barrel exporting `smartChunk` and the public format chunkers (Markdown/JSON/YAML/etc) exactly as today.
-* [x] Split by responsibility:
+* [X] SQLite FTS fast-path is not disabled by default (especially for large indexes).
+* [x] Context expansion avoids repeated O(N) scans per query (or is cached/optimized).
+* [X] Benchmarks can write baselines reliably and optionally enforce budgets.
 
-  * [x] `src/index/chunking/limits.js`: `resolveChunkingLimits`, `applyChunkingLimits`, `splitChunkByLines`, `splitChunkByBytes`, boundary safety.
-  * [x] `src/index/chunking/dispatch.js`: `resolveChunker`, CODE_CHUNKERS / PROSE_CHUNKERS / CODE_FORMAT_CHUNKERS tables, and the `smartChunk()` orchestration.
-  * [x] `src/index/chunking/tree-sitter.js`: `getTreeSitterOptions(context)` and any tree-sitter gating rules used by multiple formats.
-* [x] Split format chunkers into files (pure logic, easy fixtures):
+#### Services Robustness
 
-  * [x] `src/index/chunking/formats/markdown.js`: `chunkMarkdown` (+ fallback heading matcher).
-  * [x] `src/index/chunking/formats/json.js`: `chunkJson` (+ string scanning helpers).
-  * [x] `src/index/chunking/formats/yaml.js`: `chunkYaml` (and YAML “top-level” mode logic).
-  * [x] `src/index/chunking/formats/ini-toml.js`: `chunkIniToml`.
-  * [x] `src/index/chunking/formats/xml.js`: `chunkXml`.
-  * [x] `src/index/chunking/formats/rst-asciidoc.js`: `chunkRst`, `chunkAsciiDoc`.
-* [x] Add tests (these are currently hard to isolate while everything lives in one file):
+* [X] API streaming handles backpressure and connection close without hanging.
+* [X] API/MCP support cancellation/timeout propagation to stop expensive work.
+* [X] CORS/security posture is explicitly intentional and documented.
 
-  * [x] `tests/chunking/limits.test.js`: maxLines/maxBytes splitting invariants.
-  * [x] `tests/chunking/yaml.test.js`: root vs top-level behavior; nested documents; anchors.
-  * [x] `tests/chunking/json.test.js`: large JSON objects; escaped strings; invalid JSON returns null.
+#### Tests & Tooling
 
-**Deliverables**
-
-* `src/index/chunking/*` directory split with stable exports
-* Dedicated chunking format + limit tests
-
-**Exit criteria**
-
-* `smartChunk()` output is identical for a fixed set of fixtures (or changes are intentional + documented).
-* `src/index/chunking.js` drops to a barrel + `smartChunk()` wiring only (soft target ≤ ~150 LOC).
+* [X] Tests cover discovered regressions and add missing edge cases (FTS eligibility, extracted-prose query caching, MCP id=0, etc.).
+* [X] Bench/eval docs match actual behavior and command usage.
 
 ---
 
-## 23.5.2 `src/index/language-registry.js` → `src/index/language-registry/*`
+## Findings & Required Work
 
-* [x] Create `src/index/language-registry/` directory; convert `src/index/language-registry.js` into a barrel re-exporting:
+### 13.A — Retrieval Semantics, Explain, Context Expansion (Review Section 8.A)
 
-  * [x] `getLanguageForFile`
-  * [x] `collectLanguageImports`
-  * [x] `buildLanguageContext`
-  * [x] `buildChunkRelations`
-* [x] Split “registry” (configuration) from “collectors” (parsers):
+#### A1 — **Critical: Filter “active” detection is wrong (breaks performance paths)**
 
-  * [x] `src/index/language-registry/registry.js`: the language table; selection rules; linguist mapping.
-  * [x] `src/index/language-registry/control-flow.js`: `JS_CONTROL_FLOW`, `PY_CONTROL_FLOW`, `buildControlFlowOnly`.
-  * [x] `src/index/language-registry/simple-relations.js`: `buildSimpleRelations`, token normalization helpers.
-* [x] Move the many one-off import collectors into their own directory:
-
-  * [x] `src/index/language-registry/import-collectors/dockerfile.js`
-  * [x] `.../makefile.js`
-  * [x] `.../proto.js`
-  * [x] `.../graphql.js`
-  * [x] `.../cmake.js`
-  * [x] `.../starlark.js`
-  * [x] `.../nix.js`
-  * [x] `.../dart.js`
-  * [x] `.../scala.js`
-  * [x] `.../groovy.js`
-  * [x] `.../r.js`
-  * [x] `.../julia.js`
-  * [x] `.../handlebars.js`
-  * [x] `.../mustache.js`
-  * [x] (and the remaining template/DSL collectors)
-* [x] Make `registry.js` depend on collectors, not the other way around (prevents circular growth).
-* [x] Add tests:
-
-  * [x] `tests/language-registry/collectors.test.js`: fixtures for each collector (small, explicit, easy to extend).
-  * [x] `tests/language-registry/selection.test.js`: extension + relPath → language selection invariants.
-
-**Deliverables**
-
-* `src/index/language-registry/*` split + tests for collectors/selection
-
-**Exit criteria**
-
-* A new import collector can be added by creating one file + adding one line to `registry.js` (no edits to unrelated code).
-* `src/index/language-registry.js` becomes a barrel (soft target ≤ ~80 LOC).
+* [X] Fix `hasActiveFilters()` to ignore internal/config-only keys (e.g., `filePrefilter`) and only count user-constraining filters.
+* [X] Add unit tests for `hasActiveFilters()` default filter object and typical combinations.
+* [X] Add an integration test ensuring sqlite-fts remains eligible on a large index when no filters are set (or at least verify the path selection in stats/debug output).
 
 ---
 
-# Phase 23.6 — Cross-file type inference modularization
+#### A2 — **Context expansion does repeated O(N) indexing work per query**
 
-**Objective:** break `type-inference-crossfile.js` into explicit stages (index → infer → apply → tooling), so bugs become localized and tests become targeted.
-
-## 23.6.1 `src/index/type-inference-crossfile.js` → `src/index/type-inference-crossfile/*`
-
-* [x] Create `src/index/type-inference-crossfile/` directory; keep `src/index/type-inference-crossfile.js` as the barrel exporting `applyCrossFileInference`.
-* [x] Split into modules aligned to the algorithm:
-
-  * [x] `constants.js`: sources, confidence defaults, regexes (`RETURN_CALL_RX`, etc.).
-  * [x] `symbols.js`: symbol index build (`addSymbol`, `resolveUniqueSymbol`, `leafName`, type-declaration detection).
-  * [x] `extract.js`: extract return/param types from chunk docmeta; extract return call sites from chunk text; arg-type inference.
-  * [x] `tooling.js`: provider orchestration (`clangd`, `pyright`, `sourcekit`, `typescript`) + logging + retry/breaker normalization.
-  * [x] `apply.js`: “write-back” helpers (`addInferredReturn`, `addInferredParam`, diagnostics merge).
-  * [x] `pipeline.js`: `applyCrossFileInference()` orchestrator that calls the above in order.
-* [x] Add tests by stage:
-
-  * [x] `tests/type-inference-crossfile/symbols.test.js`
-  * [x] `tests/type-inference-crossfile/extract.test.js`
-  * [x] `tests/type-inference-crossfile/apply.test.js` (idempotency + dedupe invariants)
-
-**Deliverables**
-
-* `src/index/type-inference-crossfile/*` split + focused tests
-
-**Exit criteria**
-
-* `applyCrossFileInference()` remains the only public entrypoint and stays behavior-identical for fixture repos.
-* Each stage module is ≤ ~250–300 LOC and testable without filesystem/tooling dependencies.
+* [x] Cache context index per loaded index signature (store on the loaded index object or in `index-cache.js`).
+* [x] Add tests to ensure expansions are stable and do not cross branch/filters (if applicable).
+* [X] Document the intended semantic boundaries of context expansion (same file vs cross-file, name matching rules, etc.).
 
 ---
 
-# Phase 23.7 — Index build pipeline modularization (runtime/indexer/artifacts/file-processor)
+#### A3 — Explain output / scoring contract alignment is ambiguous
 
-**Objective:** split “build_index core” into explicit subsystems: runtime config, orchestration, per-file processing, and artifact emission.
-
-## 23.7.1 `src/index/build/runtime.js` → `src/index/build/runtime/*`
-
-* [x] Create `src/index/build/runtime/` and keep `runtime.js` as the public entrypoint exporting `createBuildRuntime`.
-* [x] Split into cohesive normalizers:
-
-  * [x] `stage.js`: `normalizeStage`, `buildStageOverrides`.
-  * [x] `hash.js`: `normalizeContentConfig`, `buildContentConfigHash`.
-  * [x] `logging.js`: `configureLogger` wiring + log-level/format normalization.
-  * [x] `caps.js`: guardrails + file caps normalization.
-  * [x] `embeddings.js`: embedding-mode resolution + `createEmbedder` wiring.
-  * [x] `tree-sitter.js`: enabled-languages resolution + preload policy.
-  * [x] `workers.js`: thread limits + worker-pool config resolution and creation.
-  * [x] `runtime.js`: final assembly of the runtime object (thin).
-* [x] Add tests for config normalization invariants:
-
-  * [x] `tests/build-runtime/stage-overrides.test.js`
-  * [x] `tests/build-runtime/content-hash.test.js` (stable stringify inputs)
-
-**Exit criteria**
-
-* No behavioral change in resolved runtime fields for a matrix of configs/env inputs.
+* [X] Only compute/attach `scoreBreakdown` when explain requested.
+* [X] Add snapshot tests asserting the presence/absence of explain fields by mode/output format.
+* [X] Ensure explain’s boost attribution matches scoring math (phrase + symbol boosts currently depend on the already-boosted score; document).
 
 ---
 
-## 23.7.2 `src/index/build/indexer.js` → `src/index/build/indexer/*`
+### 13.B — Query Parsing & Filtering (Review Section 8.B)
 
-* [x] Create `src/index/build/indexer/` and keep `indexer.js` exporting `buildIndexForMode`.
-* [x] Extract the three top-level “mega-responsibilities”:
+#### B1 — Query parsing does not satisfy checklist requirements
 
-  * [x] `signatures.js`: `buildTokenizationKey`, `buildIncrementalSignature`.
-  * [x] `embedding-queue.js`: `enqueueEmbeddingJob`.
-  * [x] `pipeline.js`: `buildIndexForMode()` orchestrator (should read like: discover → incremental plan → process → postings → artifacts → checkpoint).
-* [x] Extract inner pipeline steps so they become independently testable:
-
-  * [x] `steps/discover.js`: discovery reuse/sort/orderIndex assignment.
-  * [x] `steps/incremental.js`: reuse decision + manifest pruning + bundle updates (wrapping the existing `./incremental.js` helpers).
-  * [x] `steps/process-files.js`: queue/concurrency orchestration over `createFileProcessor`.
-  * [x] `steps/postings.js`: wrapping `buildPostings` + token retention.
-  * [x] `steps/relations.js`: import scan + relation graph build + cross-file inference gating.
-  * [x] `steps/write.js`: `writeIndexArtifacts` + perf profile finalization + “current pointer” updates/checkpoints.
-* [x] Add tests:
-
-  * [x] `tests/indexer/signatures.test.js` (hash stability and input sensitivity).
-  * [x] `tests/indexer/incremental-plan.test.js` (reuse/skip decisions for synthetic manifests).
-
-**Exit criteria**
-
-* `buildIndexForMode()` becomes ~200–300 LOC and reads as orchestration only.
+* [X] Either implement full operator parsing & precedence or explicitly constrain and document the query grammar.
+* [X] Add detection + actionable error messages for unbalanced quotes and invalid constructs.
+* [X] Add tests for negated phrases, nested quotes, malformed input, and operator tokens.
 
 ---
 
-## 23.7.3 `src/index/build/file-processor.js` (finish the split it already started)
+#### B2 — Filtering: performance and correctness concerns
 
-This file already delegates to `./file-processor/*`, but still contains multiple concerns that can be separated cleanly.
-
-* [x] Add additional modules under `src/index/build/file-processor/` and move logic out of the parent:
-
-  * [x] `skip.js`: oversize/minified/binary detection policy + consistent skip reasons.
-  * [x] `cached-bundle.js`: cached bundle validation + “rehydration” of fileRelations/importLinks/metaV2 defaults.
-  * [x] `timings.js`: file timing accounting + perf hooks (`recordFileMetric` call site coordination).
-  * [x] `assemble.js`: final chunk object assembly (weights, headlines, external docs, fields).
-* [x] Keep `createFileProcessor()` as the only exported factory, but make it mostly “wire dependencies + return processFile”.
-* [x] Add tests:
-
-  * [x] `tests/file-processor/skip.test.js`: skip reason invariants (minified name, binary sample, caps).
-  * [x] `tests/file-processor/cached-bundle.test.js`: cached bundle reuse doesn’t silently drop required fields.
-
-**Exit criteria**
-
-* Parent `file-processor.js` becomes a wiring module; most logic sits in `file-processor/*`.
+* [X] Ensure case-sensitive file filters don’t lose correctness through normalization shortcuts (currently used for prefiltering; confirm final checks are strict).
+* [X] Consider memory growth of filter index structures; document expected footprint and add soft limits/metrics.
 
 ---
 
-## 23.7.4 `src/index/build/artifacts.js` → `src/index/build/artifacts/*`
+### 13.C — Ranking Determinism & Tie-Breaking (Review Section 8.C)
 
-* [x] Create `src/index/build/artifacts/` and keep `artifacts.js` exporting `writeIndexArtifacts`.
-* [x] Split artifact emission by domain:
+#### C1 — Dense ranking should defensively validate embedding dimensionality
 
-  * [x] `token-mode.js`: token retention decision (`auto/full/sample/none`) + budgeting.
-  * [x] `file-meta.js`: `fileMeta` + `fileIdByPath` construction and invariants.
-  * [x] `writers/chunk-meta.js`: chunk meta sharding + JSON/JSONL selection.
-  * [x] `writers/repo-map.js`: repo map generation + export flags.
-  * [x] `writers/file-relations.js`: relations serialization.
-  * [x] `filter-index.js`: build + serialize filter index (thin wrapper around existing retrieval module).
-  * [x] `compression.js`: compressible artifact set + gzip policy + keepRaw rules.
-  * [x] `checksums.js`: checksum collection and embedding into manifests/metrics.
-  * [x] `metrics.js`: write metrics payload and perf profile outputs.
-* [x] Add tests:
-
-  * [x] `tests/artifacts/token-mode.test.js`
-  * [x] `tests/artifacts/file-meta.test.js` (stable fileId assignment, no duplicates)
-
-**Exit criteria**
-
-* Each writer is independently testable with synthetic `state` objects.
-* `writeIndexArtifacts()` becomes orchestration-only.
+* [X] Validate query embedding length vs index dims; if mismatch, either truncate safely or skip dense scoring with a clear warning.
+* [X] Add tests for dims mismatch (stub embeddings + configured dims is a good harness).
 
 ---
 
-# Phase 23.8 — SQLite builder modularization
+#### C2 — SQLite dense vector scale fallback looks unsafe
 
-**Objective:** turn `tools/build-sqlite-index.js` into a thin CLI wrapper over a reusable builder library (and isolate incremental update logic).
-
-## 23.8.1 `tools/build-sqlite-index.js` → `tools/build-sqlite-index/*` + `src/storage/sqlite/build/*`
-
-* [x] Create `tools/build-sqlite-index/`:
-
-  * [x] `cli.js`: argv parsing + normalization + defaults (pure).
-  * [x] `run.js`: per-mode orchestration (`runMode`), heartbeats, state updates.
-  * [x] `index-state.js`: `updateSqliteState` + `updateIndexStateManifest` (also reused by `build-embeddings`).
-  * [x] `temp-path.js`: `createTempPath` (shared with embeddings).
-* [x] Create `src/storage/sqlite/build/` to hold the actual logic:
-
-  * [x] `pragmas.js`: `applyBuildPragmas`.
-  * [x] `validate.js`: `getSchemaVersion`, `validateSqliteDatabase`.
-  * [x] `manifest.js`: `getFileManifest`, `normalizeManifestFiles`, `diffFileManifests`, `isManifestMatch`.
-  * [x] `vocab.js`: `getVocabCount`, `fetchVocabRows`, `ensureVocabIds`.
-  * [x] `delete.js`: `deleteDocIds`, `updateTokenStats`.
-  * [x] `from-artifacts.js`: current `buildDatabase(...)` (fresh build).
-  * [x] `from-bundles.js`: current `buildDatabaseFromBundles(...)` (bundle-backed rebuild).
-  * [x] `incremental-update.js`: current `incrementalUpdateDatabase(...)` (move whole function first, then split).
-  * [x] `statements.js`: prepared statement factory shared across the three build modes (fresh/bundle/incremental).
-  * [x] `bundle-loader.js`: Piscina worker wiring + fallback non-worker bundle reads.
-* [x] Ensure the tool script becomes:
-
-  1. parse args
-  2. resolve paths/config
-  3. call `buildSqliteIndex({ mode, inputs, options })`
-  4. update manifests/state
-* [x] Add unit + integration tests:
-
-  * [x] unit: manifest diff / vocab id creation / delete semantics
-  * [x] integration: incremental update produces identical results for “no-change” runs
-
-**Exit criteria**
-
-* `tools/build-sqlite-index.js` shrinks to ~150–250 LOC of CLI wiring.
-* Incremental logic becomes testable without invoking the entire CLI.
+* [X] Change fallback scale default to `2/255` (and minVal to `-1` consistent with vector quantization).
+* [X] Add a regression test ensuring dense scoring remains bounded even when meta is missing/corrupt (or fail loudly).
 
 ---
 
-# Phase 23.9 — Embeddings builder modularization
+### 13.D — Services: API Server & MCP (Review Section 8.D)
 
-**Objective:** isolate caching, HNSW, SQLite updates, and manifest/state updates into separate modules so each can be tested independently.
-
-## 23.9.1 `tools/build-embeddings.js` → `tools/build-embeddings/*`
-
-* [x] Create `tools/build-embeddings/`:
-
-  * [x] `cli.js`: argv parsing + config resolution.
-  * [x] `cache.js`: cache identity, cache-dir layout, signature validity checks.
-  * [x] `chunks.js`: `buildChunksFromBundles` + chunk signature computation.
-  * [x] `embed.js`: `runBatched`, vector normalization/quantization checks, dims validation helpers.
-  * [x] `hnsw.js`: HNSW init/add/save/load meta logic (all `HierarchicalNSW` usage).
-  * [x] `sqlite-dense.js`: `updateSqliteDense` and table presence detection.
-  * [x] `manifest.js`: `updatePieceManifest` (and any manifest merge logic).
-  * [x] `atomic.js`: `createTempPath` + `replaceFile` (then reuse from SQLite builder to remove duplication).
-* [x] Convert `tools/build-embeddings.js` into a thin wrapper that calls `runBuildEmbeddings({ ... })`.
-* [x] Add tests:
-
-  * [x] cache invalidation when dims/model/provider changes
-  * [x] dims mismatch behavior (hard-fail vs skip) remains exactly as designed
-  * [x] SQLite dense update only executes when tables exist and mode is enabled
-
-**Exit criteria**
-
-* HNSW and SQLite update code can be tested with small synthetic vectors without reading bundle files.
-* Tool script shrinks substantially (target ≤ ~250 LOC).
+* [X] Replace `await once('drain')` with `Promise.race([drain, close, error])`.
+* [X] Add tests simulating backpressure + early disconnect (larger payload / forced write buffering).
 
 ---
 
-# Phase 23.10 — Bench harness modularization
+#### D2 — Streaming contracts/docs do not match actual /search/stream behavior
 
-**Objective:** make `tools/bench-language-repos.js` maintainable by isolating state, progress parsing, process management, and reporting.
-
-## 23.23.1 `tools/bench-language-repos.js` → `tools/bench/language/*`
-
-* [x] Create `tools/bench/language/`:
-
-  * [x] `cli.js`: args parsing + normalization (backend list, lock mode, limits).
-  * [x] `config.js`: `loadConfig()` and config schema validation (if any).
-  * [x] `locks.js`: lock reading/age/process-alive checks (`checkIndexLock`, etc.).
-  * [x] `repos.js`: clone tool detection, long paths support, repo dir resolution.
-  * [x] `process.js`: `runProcess`, kill-tree, active-child lifecycle.
-  * [x] `progress/state.js`: a single mutable progress model (instead of scattered globals).
-  * [x] `progress/parse.js`: shard/file/import stats line parsing (pure functions).
-  * [x] `progress/render.js`: log window rendering + formatting.
-  * [x] `metrics.js`: LOC stats, heap recommendations, metric summary formatting.
-  * [x] `report.js`: `summarizeResults`, `printSummary`, final JSON output.
-* [x] Convert `tools/bench-language-repos.js` into a small wrapper that:
-
-  * builds context
-  * iterates repos
-  * delegates to runner modules
-* [x] Add tests:
-
-  * [x] progress line parsing (golden input lines → parsed state)
-  * [x] lock semantics (stale lock vs active pid)
-
-**Exit criteria**
-
-* Progress parsing is unit-testable (no subprocess required).
-* Main script becomes orchestration only.
+**Action items:**
+* [X] Decide: implement progress events (pipeline milestones)
+* [X] If implementing progress: add hooks from retrieval CLI/pipeline → core API → router SSE.
 
 ---
 
-# Phase 23.11 — Retrieval CLI modularization (finish the split)
+#### D3 — Cancellation/timeout propagation is missing end-to-end
 
-**Objective:** reduce `src/retrieval/cli.js` to an orchestrator and push details into `src/retrieval/cli/*` modules.
-
-## 23.11.1 `src/retrieval/cli.js` → additional `src/retrieval/cli/*` extraction
-
-(There are already `cli-*` modules; this is the “finish line”.)
-
-* [x] Extract branch filter logic:
-
-  * [x] `src/retrieval/cli/branch-filter.js`: `resolveRepoBranch` + branch match behavior + “emit empty payload” behavior.
-* [x] Extract backend binding glue:
-
-  * [x] `src/retrieval/cli/backend-context.js`: `getSqliteDb/getLmdbDb`, helper creation, backend labeling.
-* [x] Extract terminal rendering primitives:
-
-  * [x] `src/retrieval/cli/ansi.js`: the `color` helpers (or move to `src/shared/ansi.js` if reused elsewhere).
-* [x] Extract “policy decisions” that currently live inline:
-
-  * [x] `src/retrieval/cli/policy.js`: backendPolicy normalization + selection (sqlite/lmdb/memory).
-  * [x] `src/retrieval/cli/model-ids.js`: resolve per-mode model IDs and fallback behaviors.
-* [x] Tighten `cli.js` to:
-
-  1. parse args
-  2. build context (configs, backends, dictionary)
-  3. run queries
-  4. render output
-* [x] Add tests:
-
-  * [x] snapshot-style tests for help/usage text are already common; add targeted tests for:
-
-    * [x] branch-filter “no results” payload shape
-    * [x] backend selection invariants given a simulated availability matrix
-
-**Exit criteria**
-
-* `src/retrieval/cli.js` becomes a readable orchestration layer (target ≤ ~250–300 LOC).
-* Backend selection and branch filtering are testable without running the full CLI.
+* [X] Introduce `AbortController` per request/tool call.
+* [X] Wire close events (`req.on('close')`) and timeout timers to `abort()`.
+* [X] Teach retrieval pipeline / embedding fetch to check `signal.aborted` and throw a consistent cancellation error.
+* [X] Add tests:
+  * API stream abort stops work early (not just stops writing).
+  * MCP tool timeout aborts the underlying work, not just returns an error.
 
 ---
 
-# Phase 23.12 — Script coverage harness modularization
+#### D4 — Security posture: permissive CORS is risky
 
-**Objective:** make the “scripts are covered by tests” harness maintainable by splitting actions/config, execution, and reporting.
-
-## 23.12.1 `tests/script-coverage.js` → `tests/script-coverage/*`
-
-* [x] Create `tests/script-coverage/`:
-
-  * [x] `actions.js`: the `actions` array (and any tiering logic like `coversTierB`).
-  * [x] `runner.js`: `run()`, retry logic, subprocess spawning, env handling.
-  * [x] `report.js`: uncovered script detection, pretty printing, failure summarization.
-  * [x] `paths.js`: repo root resolution, cache dir resolution.
-* [x] Convert `tests/script-coverage.js` into:
-
-  * [x] minimal “load actions → run actions → assert coverage → exit”.
-* [x] Add a unit test for the harness itself (lightweight):
-
-  * [x] verify that “unknown script name in covers” produces a clear failure
-  * [x] verify that tier overrides work as intended
-
-**Exit criteria**
-
-* Adding a new script coverage rule requires touching `actions.js` only.
-* The entrypoint file is short and free of complex logic.
+* [X] Default CORS to disabled or restricted (require explicit `--cors` enablement).
+* [X] Document threat model: local-only, trusted environment, or add token-based auth.
+* [X] Add tests for CORS behavior (preflight, allowed origins).
 
 ---
 
-## Global modularization guardrails (apply to every phase above)
+### 13.E — Benchmarks & Latency Budgets (Review Section 8.E)
 
-* [ ] Soft target per module: **≤ ~300 LOC** (consistent with the repo’s Phase 23 exit criteria).
-* [ ] Prefer **pure functions** + explicit context objects over hidden module globals.
-* [ ] Introduce barrels only to preserve existing import paths (`<name>.js` remains stable, `<name>/...` is new).
-* [ ] Every split comes with at least one new “tight” unit test for the extracted logic (not just integration coverage).
+#### E1 — Microbench “dense” vs “hybrid” distinction is not actually implemented
 
-# Phase 22 — Verification gates (passed tests)
+* [X] Implement explicit scoring strategy selection (via args/env/profile) for sparse vs dense vs hybrid.
+* [X] Confirm the benchmark measures what it claims (esp. hybrid weighting).
+* [X] Add “sanity asserts” in benchmark output to record which strategy actually ran.
 
-**Objective:** Consolidate passed Phase 22 verification tests from NEW_ROADMAP.md.
+---
 
-- [x] `tests/search-windows-path-filter.js`
-- [x] `tests/search-explain-symbol.js`
-- [x] `tests/chunking-limits.js`
-- [x] `tests/graph-chunk-id.js`
-- [x] `tests/sqlite-chunk-id.js`
-- [x] `tests/search-topn-filters.js`
-- [x] `tests/search-determinism.js`
-- [x] `tests/artifact-bak-recovery.js`
-- [x] `tests/setup-index-detection.js`
-- [x] `tests/hnsw-atomic.js`
-- [x] `tests/encoding-hash.js`
-- [x] `tests/embeddings-cache-identity.js`
-- [x] `tests/embeddings-dims-mismatch.js`
-- [x] `tests/sqlite-index-state-fail-closed.js`
-- [x] `tests/sqlite-bundle-missing.js`
-- [x] `tests/sqlite-sidecar-cleanup.js`
-- [x] `tests/vector-extension-sanitize.js`
-- [x] `tests/sqlite-vec-candidate-set.js`
-- [x] `tests/download-extensions.js`
-- [x] `tests/api-server.js`
-- [x] `tests/api-server-stream.js`
-- [x] `tests/mcp-robustness.js`
-- [x] `tests/lsp-shutdown.js`
-- [x] `tests/fixture-parity.js`
-- [x] `tests/type-inference-crossfile.js`
-- [x] `tests/type-inference-lsp-enrichment.js`
-- [x] `tests/worker-pool-windows.js`
-- [x] `tests/search-windows-path-filter.js`
-- [x] `tests/cli.js`
-- [x] `tests/summary-report.js`
-- [x] `tests/segment-pipeline.js`
-- [x] `tests/ts-jsx-fixtures.js`
-- [x] `tests/typescript-parser-selection.js`
-- [x] `tests/tree-sitter-chunks.js`
-- [x] `tests/mcp-server.js`
-- [x] `tests/smoke-services.js`
-- [x] `tests/api-server.js`
-- [x] `tests/api-server-stream.js`
-- [x] `tests/download-extensions.js`
-- [x] `tests/download-dicts.js`
-- [x] `tests/discover.js`
-- [x] `tests/lmdb-report-artifacts.js`
-- [x] `tests/lmdb-corruption.js`
-- [x] `tests/truth-table.js`
-- [x] `tests/artifacts/file-meta.test.js`
-- [x] `tests/artifacts/token-mode.test.js`
-- [x] `tests/bench-language-lock-semantics.js`
-- [x] `tests/bench-language-progress-parse.js`
-- [x] `tests/build-runtime/content-hash.test.js`
-- [x] `tests/build-runtime/stage-overrides.test.js`
-- [x] `tests/chunking/json.test.js`
-- [x] `tests/chunking/limits.test.js`
-- [x] `tests/chunking/yaml.test.js`
-- [x] `tests/embeddings-cache-invalidation.js`
-- [x] `tests/embeddings-dims-validation.js`
-- [x] `tests/embeddings-sqlite-dense.js`
-- [x] `tests/file-processor/cached-bundle.test.js`
-- [x] `tests/indexer/incremental-plan.test.js`
-- [x] `tests/indexer/signatures.test.js`
-- [x] `tests/lang/js-imports.test.js`
-- [x] `tests/lang/python-heuristic-chunking.test.js`
-- [x] `tests/lang/python-imports.test.js`
-- [x] `tests/lang/python-pool.test.js`
-- [x] `tests/language-registry/selection.test.js`
-- [x] `tests/retrieval-backend-policy.js`
-- [x] `tests/retrieval-branch-filter.js`
-- [x] `tests/script-coverage-harness.js`
-- [x] `tests/script-coverage/actions.js`
-- [x] `tests/script-coverage/paths.js`
-- [x] `tests/script-coverage/report.js`
-- [x] `tests/script-coverage/runner.js`
-- [x] `tests/sqlite-build-delete.js`
-- [x] `tests/sqlite-build-manifest.js`
-- [x] `tests/sqlite-build-vocab.js`
-- [x] `tests/type-inference-crossfile/apply.test.js`
-- [x] `tests/type-inference-crossfile/extract.test.js`
-- [x] `tests/type-inference-crossfile/symbols.test.js`
-- [x] `tests/mcp-schema.js`
-- [x] `tests/format-fidelity.js`
-- [x] `tests/sqlite-incremental-no-change.js`
+#### E2 — Baseline writing can fail because directories don’t exist
+
+* [X] Ensure baseline directory exists via `fs.mkdirSync(..., { recursive:true })`.
+* [X] Add a test for `--write-baseline` success on a clean repo checkout.
+* [X] Update docs to clarify how baselines are created and stored.
+
+---
+
+#### E3 — SQLite cache reuse is missing in benchmark harnesses
+
+* [X] Instantiate and reuse `createSqliteDbCache()` across runs for warm scenarios.
+* [X] Record cache reuse status in benchmark output for transparency.
+
+---
+
+#### E4 — Latency “budgets” are described but not enforceable
+
+* [X] Define target budgets (p50/p95) for representative queries and backends.
+* [X] Add CI-friendly “perf smoke” tests that fail if budgets regress beyond thresholds (with generous margins and stable fixtures).
+* [X] Document environment assumptions for benchmarks (CPU, disk, warmup, etc.).
+
+---
+
+### 13.F — Eval Harness (Review Section 8.F)
+
+#### F1 — Matching logic is permissive and may inflate scores
+
+* [X] Decide strictness: exact name match vs substring vs regex.
+* [X] Add dataset option `matchMode` or per-expected matcher configuration.
+* [X] Add tests for false-positive matching cases.
+
+---
+
+## Additional Concrete Bugs Found (Non-Checklist)
+
+### G1 — Retrieval output summary “word count” logic uses character length
+
+* [X] Fix to track word count, not character length.
+* [X] Avoid calling `getBodySummary()` twice.
+* [X] Add tests for summary length behavior.
+
+---
+
+### G2 — Parity test references missing benchmark query file path
+
+* [X] Update parity test to load from `tests/parity-queries.txt` (or move file to benchmarks).
+* [X] Add a guard assertion that query file exists with a clear message.
+
+---
+
+### G3 — Language benchmark progress renderer imports wrong relative paths
+
+* [X] Fix import paths to `../../../../src/shared/...`.
+* [X] Add a smoke test that loads the module (ensures no runtime import failures).
+
+---
+
+### G4 — MCP transport drops valid JSON-RPC ids when id = 0
+
+* [X] Change checks to `(id === null || id === undefined)`.
+* [X] Add MCP tests sending `id: 0`.
+
+---
+
+### G5 — Bench query generator emits invalid CLI fragments (and lacks quoting)
+
+* [X] Fix signature strategy to emit `--signature "<value>"`.
+* [X] Quote/escape all flag values safely.
+* [X] Clarify intended consumer (CLI vs internal harness) and ensure output format matches it.
+
+---
+
+## Test Coverage Additions (Highly Recommended)
+
+### New/Expanded Tests
+
+* [X] `hasActiveFilters()` default object returns false; internal config-only objects don’t activate filters.
+* [X] sqlite-fts eligibility remains enabled for unfiltered queries on large (>900 chunks) indexes.
+* [X] Query cache includes extracted-prose payloads and validates required fields when mode enabled.
+* [X] SSE backpressure + client disconnect doesn’t hang.
+* [X] API abort cancels search work (requires AbortSignal support).
+* [X] MCP id=0 support.
+* [X] `--write-baseline` creates directories and succeeds.
+
+---
+
+## Documentation Corrections Required
+
+* [X] `docs/api-server.md`: align stream behavior (progress vs start/result/done), update security/CORS discussion.
+* [X] `docs/contracts/api-mcp.md`: align `/search/stream` contract to actual behavior or update implementation.
+* [X] `docs/benchmarks.md`: document baseline creation and ensure code supports it (mkdir); clarify dense/hybrid distinctions.
+* [X] `docs/mcp-server.md`: appears outdated vs actual transport implementation; update to match current code.
+
+---
+
+
+## Phase 22 — Embeddings & ANN (onnx/HNSW/batching/candidate sets)
+
+**Objective:** harden the embeddings + ANN stack for correctness, determinism (where required), performance, and resilient fallbacks across **index build**, **build-embeddings tooling**, and **retrieval-time ANN execution**.
+
+---
+
+#### 22.2.3 Session/model reuse
+
+##### Remaining gaps / action items
+- [x] **Guard concurrent use of shared ONNX sessions if required**:
+  - [x] Add a per-session mutex/queue around `session.run()` to avoid concurrent use.
+  - [x] Document thread-safety assumptions and add a stress test.
+
+---
+
+### 22.4 Performance improvements to prioritize
+
+#### 22.4.2 Minimize serialization between threads/processes (transferable buffers)
+- [x] Where embeddings are computed in worker threads/processes (service mode), prefer:
+  - transferring `ArrayBuffer`/`SharedArrayBuffer` instead of JSON arrays,
+  - or using binary packed formats for vectors.
+- [x] Add an explicit “embedding payload format” version in job payloads so workers and callers stay compatible.
+  - File touchpoints: `src/index/build/indexer/embedding-queue.js` (job payload)
+
+#### 22.4.3 Pre-allocate and reuse buffers
+- [x] **ONNX embedding path**:
+  - Avoid per-call allocations:
+    - re-use `BigInt64Array` buffers for token ids/masks where shapes are stable,
+    - avoid `Array.from()` conversions for slices.
+  - Files: `src/shared/onnx-embeddings.js`
+
+#### 22.4.4 Candidate generation tuning
+- [x] Push sparse filters earlier and reduce dense scoring work:
+  - prefer ANN-restricted candidate sets before dense dot products,
+  - prefer pushing candidate constraints into sqlite-vec queries when small enough (already partially implemented).
+  - (Some of this lives outside the reviewed file list; track as cross-cutting work.)
+
+
+---
+
+### 22.5 Refactoring goals
+
+#### 22.5.1 Single embedding interface shared by build + retrieval
+- [x] Create a single shared adapter interface, e.g.:
+  - `embed(texts: string[], opts) => Float32Array[]`
+  - `embedOne(text: string, opts) => Float32Array`
+- [x] Move provider selection + error handling behind adapters:
+  - `xenova`, `onnx`, `stub`.
+- [x] Ensure both index-build and retrieval use the same adapter and the same preprocessing defaults.
+
+#### 22.5.2 Centralize normalization & preprocessing
+- [x] Eliminate duplicated `normalizeVec()` implementations:
+  - `src/index/embedding.js`
+  - `src/shared/onnx-embeddings.js`
+  - `tools/build-embeddings/embed.js` (indirectly uses index/embedding normalization)
+- [x] Centralize:
+  - pooling strategy,
+  - normalization strategy,
+  - truncation/max_length policy,
+  - doc/code merge policy.
+
+#### 22.5.3 Clear ANN backend adapters
+- [x] Wrap sqlite-vec and HNSW behind a single “ANN adapter” contract with:
+  - candidate set semantics,
+  - deterministic tie-break contract,
+  - consistent error handling and stats reporting.
+  - (Some of this lives outside the reviewed file list.)
+
+---
+
+### Appendix A — File-by-file review notes (actionable items)
+
+> The checklist items above are the canonical “what to fix.” This appendix maps concrete file-level changes back to those items.
+
+#### Appendix A - Artifacts, indexing, and build pipeline (remaining)
+
+- [x] `src/index/build/artifacts.js` (P2) Sort `pieceEntries` by `path` before writing the manifest to reduce diff noise.
+- [x] `src/index/build/artifacts/compression.js` (P2) Extending compression to sharded artifacts.
+- [x] `src/index/build/artifacts/file-meta.js` (P2) Rename `chunk_authors` in file meta (currently derived from the first chunk and not file-level). (No chunk_authors present.)
+- [x] `src/index/build/artifacts/filter-index.js` (P2) Persist schema version/config hash in the filter index artifact for easier debugging.
+- [x] `src/index/build/artifacts/metrics.js` (P2) Do not swallow metrics write errors silently (log or propagate based on severity).
+- [x] `src/index/build/artifacts/token-mode.js` (P2) Make parsing more robust (case-insensitive modes; integer parsing + clamping).
+- [x] `src/index/build/artifacts/writers/chunk-meta.js` (P2) Normalize field naming conventions (`chunk_authors` vs `startLine/endLine`).
+- [x] `src/index/build/artifacts/writers/file-relations.js` (P2) JSONL/sharding for very large `file_relations` outputs; add versioning metadata.
+- [x] `src/index/build/artifacts/writers/repo-map.js` (P2) Sort output by `{file, name}` for stability.
+- [x] `src/index/build/file-processor.js` (P2) Move complexity/lint to per-file scope; avoid repeated per-chunk cache checks.
+  - [x] (P2) Fix possible timing double-counting across parse/relation durations.
+- [x] `src/index/build/file-processor/cached-bundle.js` (P2) Validate cached bundle shapes more strictly; ensure importLinks shape is consistent.
+- [x] `src/index/build/file-processor/chunk.js` (P2) Adjust comment-to-chunk assignment at boundary (`chunk.end === comment.start`) and consider overlap-based assignment.
+- [x] `src/index/build/file-processor/incremental.js` (P2) Ensure cache invalidation includes schema/version changes for any artifact-impacting changes.
+- [x] `src/index/build/file-processor/meta.js` (P2) Deduplicate `externalDocs` outputs; consider ordering for determinism.
+- [x] `src/index/build/file-processor/read.js` (P2) UTF-8 safe truncation (avoid splitting multi-byte sequences mid-codepoint).
+- [x] `src/index/build/file-processor/relations.js` (P2) Sorting/deduping relation arrays (imports/exports/usages) for determinism.
+- [x] `src/index/build/file-processor/skip.js` (P2) Add coverage for `unreadable` and `read-failure` skip paths.
+- [x] `src/index/build/file-processor/timings.js` (P2) Validate that parse/token/embed durations are not double-counted; document semantics.
+- [x] `src/index/build/graphs.js` (P2) Prefer canonical `chunkId` keys where possible instead of `file::name` to avoid collisions.
+  - [x] (P2) Sort serialized node lists for full determinism (neighbors are already sorted).
+- [x] `src/index/build/piece-assembly.js` (P2) Remove redundant filterIndex construction (avoid double work; rely on writeIndexArtifacts).
+- [x] `src/index/build/postings.js` (P2) Validate docLengths are finite and consistent; avoid NaN avgDocLen.
+  - [x] (P2) Sort Object.entries() iteration for field postings and weights for deterministic output.
+- [x] `src/index/build/shards.js` (P2) Document heuristic thresholds (minFilesForSubdir, hugeThreshold, tenth-largest targets).
+- [x] `src/index/build/tokenization.js` (P2) Review buffer reuse effectiveness (arrays are still cloned); consider pre-sizing and reducing transient allocations further.
+- [x] `tools/assemble-pieces.js` (P2) When `--force` is used, consider cleaning the output dir first to avoid stale artifacts.
+- [x] `tools/ci-restore-artifacts.js` (P2) Optionally validate `pieces/manifest.json` checksums after restore (fast fail on corrupt artifacts).
+- [x] `tools/compact-pieces.js` (P2) Add perf regression harness and validate output equivalence post-compaction.
+- [x] `tests/artifact-bak-recovery.js` (P2) Expand coverage to include: both primary and backup corrupt; json.gz sidecars; and cleanup expectations.
+- [x] `tests/artifact-size-guardrails.js` (P2) Extend to cover: chunkMetaFormat=jsonl with switching shard/no-shard, and cleanup behavior.
+- [x] `tests/artifacts/token-mode.test.js` (P2) Add coverage for invalid modes, case-insensitive parsing, and maxTokens/maxFiles parsing edge cases.
+- [x] `tests/clean-artifacts.js` (P2) Consider adding a check that `.bak` files are handled correctly (optional).
+- [x] `tests/file-processor/skip.test.js` (P2) Add coverage for `unreadable` and `read-failure` paths (permissions, ENOENT races).
+- [x] `tests/filter-index-artifact.js` (P2) Add a schema assertion for filter_index fields/versioning to prevent drift.
+- [x] `tests/filter-index.js` (P2) Consider adding a determinism check for serialized filter index (same inputs => same output).
+- [x] `tests/graph-chunk-id.js` (P2) Add a collision regression test for graph keys, or migrate to chunkId-based keys.
+- [x] `tests/incremental-tokenization-cache.js` (P2) Add a second invalidation scenario (e.g., tokenization config changes that affect stemming/synonyms).
+- [x] `tests/postings-quantize.js` (P2) Extend to test scale and dims, and doc/code embedding behavior.
+- [x] `tests/shard-merge.js` (P2) Consider adding checksum and manifest equivalence checks as well.
+- [x] `tests/shard-plan.js` (P2) Add stress case coverage (many files, equal weights, perfProfile enabled).
+- [x] `tests/tokenization-buffering.js` (P2) Consider adding a non-ASCII tokenization regression case.
+- [x] `docs/contracts/coverage-ledger.md` (P2) Add entries for new/critical tooling: `tools/assemble-pieces.js`, `tools/compact-pieces.js`, and CI artifact scripts.
+
+#### src
+
+- [x] Switch job IDs to `crypto.randomUUID()` for collision resistance.
+- [x] `src/index/build/context-window.js` Document that context-window estimation is heuristic and may vary with sampling strategy.
+`src/index/build/embedding-batch.js`:
+  - [x] Parse `baseSize` if it may come from config as a numeric string.
+  - [x] Add explicit documentation for multiplier precedence (fallback vs user config).
+`src/index/embedding.js`:
+  - [x] Centralize `normalizeVec`/`quantizeVec` into shared utilities; remove duplication.
+  - [x] Harden `normalizeBatchOutput()` to:
+    - guarantee output length equals input count,
+    - handle unexpected tensor dims more defensively,
+    - avoid returning a single huge vector when output is 3D.
+`src/retrieval/embedding.js`:
+  - [x] Use a normalized/fingerprinted ONNX config in the embedder cache key (avoid JSON-order sensitivity).
+  - [x] If retrieval can request embeddings without known dims (ANN-only paths), require dims or ensure consistent default dims.
+  - [x] Log embedder load failures once to aid debugging.
+- [x] `src/shared/hnsw.js` Read/validate `dense_vectors_hnsw.meta.json` to confirm `dims/space/model` before using the index.
+`src/shared/onnx-embeddings.js`:
+  - [x] Improve performance by avoiding heavy array conversions and by reusing buffers/tensors.
+  - [x] Concurrency guards around `session.run()` if onnxruntime sessions are not safe concurrently.
+
+---
+
+#### tools
+
+- [x] `tools/build-embeddings/atomic.js` Consolidating atomic replace logic with `src/shared/json-stream.js` to avoid divergence (optional refactor).
+`tools/build-embeddings/chunks.js`:
+  - [x] Incorporating doc-related signals into the chunk signature (or into identity versioning) so doc embedding caches invalidate when doc extraction logic changes.
+  - [x] Normalize `start/end` to finite numbers before signature generation (avoid stringifying `undefined`).
+- [x] `tools/build-embeddings/cli.js` Document the behavior where `mode=service` is coerced to `inline` for this tool.
+- [x] `tools/build-embeddings/embed.js` Consider failing fast on non-vector outputs instead of silently returning `[]` entries (to avoid quietly producing all-zero embeddings).
+`tools/build-embeddings/hnsw.js`:
+  - [x] Ensure stable vector insertion order into HNSW (ascending chunkIndex).
+  - [x] When adding vectors reconstructed from cache (dequantized), consider re-normalizing for cosine space to reduce drift.
+- [x] `tools/build-embeddings/manifest.js`Consider reading HNSW meta to report accurate `count`/`dims` for ANN piece files, rather than relying on `totalChunks` (defensive correctness).
+`tools/build-embeddings/run.js`:
+  - [x] Use `Number.isFinite()` for chunk start/end to avoid 0/NaN edge cases from `||` coercion.
+  - [x] Make HNSW build deterministic (stable insertion order).
+  - [x] Adding a global cross-file batcher for throughput.
+- [x] `tools/build-embeddings/sqlite-dense.js`Batching inserts in larger chunks or using prepared statements more aggressively for performance on large vector sets.
+- [x] `tools/compare-models.js` If comparing ONNX vs xenova providers, ensure the script can capture and report provider config differences (identity) to interpret deltas correctly (minor enhancement).
+`tools/download-models.js`:
+  - [x] Support explicit download of ONNX model artifacts when users rely on `indexing.embeddings.provider=onnx` and custom `onnx.modelPath`.
+  - [x] Improve output to show where models were cached and what to set in config if needed.
+
+---
+
+#### tests
+
+- [x] `tests/build-embeddings-cache.js` Extend to assert cache identity changes for ONNX config changes (once identity schema is expanded).
+- [x] `tests/embedding-batch-autotune.js` Loosen or documenting assumptions about minimum batch size on low-memory systems (or adjust runtime min to match test expectations).
+- [x] `tests/embeddings-cache-identity.js` Extend to cover ONNX-specific identity fields (tokenizerId/modelPath/etc).
+- [x] `tests/embeddings-cache-invalidation.js` Add invalidation scenarios tied to preprocessing knobs (pooling/normalize/max_length) once surfaced in identity.
+- [x] `tests/embeddings-sqlite-dense.js` Add coverage for vector extension load failure paths (extension missing), not only baseline dense sqlite insertions.
+- [x] `tests/hnsw-ann.js` Add correctness assertions beyond “backend selected”:
+  - candidate set filterig (once exposed),
+  - tie-break determinism,
+  - sanity check of returned ordering for a known query on fixture corpus.
+- [x] `tests/hnsw-atomic.js` Add test for `.bak` fallback on corrupt primary index/meta (reader-side).
+- [x] `tests/smoke-embeddings.js` new tests to this suite after implementing performance regression and fallback tests.
+- [x] `tests/sqlite-vec-candidate-set.js` Add a column-name sanitization test (table is covered; column is not).
+
+---
+
+## Phase 32 - Merge Fixes
+
+* [X] P2 Badge Keep boundary comments in the correct chunk
+  - Chunk offsets are treated as half‑open ranges ([start, end)), e.g. the end line is computed from end - 1 and chunk text is sliced with text.slice(start, end). With the new < comparison, a comment whose start equals chunk.end stays attached to the previous chunk even though it begins after that chunk’s range. That misattributes boundary comments (and their tokens/metadata) to the wrong chunk whenever a chunk boundary falls exactly at a comment start. Consider restoring the inclusive check or otherwise ensuring start === end comments move to the next chunk.
+* [X]P2 Badge Use sqlite cache API that actually clears entries
+  - With this commit, the microbench scripts now construct a real SQLite cache (createSqliteDbCache()), but runSearchBenchmark still calls sqliteCache.clearAll(). That method doesn’t exist on the cache object (it exposes closeAll()), so the cache is never cleared. As a result, the new validateScoreMode() call warms the SQLite cache and the subsequent “cold” timing is no longer cold, skewing benchmark results. This affects benchmark accuracy whenever a sqlite-backed search is exercised; consider switching to closeAll() here to actually reset the cache.
+
+---
+

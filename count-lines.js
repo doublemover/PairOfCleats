@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 const root = process.cwd();
-const skipDirs = new Set(['.git', 'node_modules', 'coverage', 'test-results']);
+const skipDirs = new Set(['.git', 'node_modules', 'coverage', 'test-results', 'benchmarks', 'worktrees']);
 
 const toPosix = (value) => value.split(path.sep).join('/');
 
