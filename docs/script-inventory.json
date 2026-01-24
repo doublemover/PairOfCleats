@@ -1,0 +1,1043 @@
+{
+  "generatedAt": "2026-01-23T23:30:06.316Z",
+  "scripts": [
+    {
+      "name": "api-server",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "api-server-stream-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "api-server-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "backend-policy-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bench-dict-seg",
+      "category": "bench",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bench-language",
+      "category": "bench",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bench-language-lock-semantics-test",
+      "category": "bench",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bench-language-lock-test",
+      "category": "bench",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bench-language-progress-parse-test",
+      "category": "bench",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bench-language-test",
+      "category": "bench",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bench-language:matrix",
+      "category": "bench",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bench-micro",
+      "category": "bench",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bench-micro:tiny",
+      "category": "bench",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bench-queries",
+      "category": "bench",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "bootstrap",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "build-index",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "build-index-all-test",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "build-lmdb-index",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "build-sqlite-index",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "build-tantivy-index",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "cache-gc",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "cache-gc-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "cache-lru-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "capabilities-report-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "chargram-guardrails-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "chunking-limits-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "ci-build",
+      "category": "release",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "ci-restore",
+      "category": "release",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "clean-artifacts",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "clean-artifacts-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "cli-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "comment-boundary-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "compact-pieces-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "compact-sqlite-index",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "compare-models",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "config-dump",
+      "category": "config",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "config-dump-test",
+      "category": "config",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "config-reset",
+      "category": "config",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "config-validate",
+      "category": "config",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "config-validate-test",
+      "category": "config",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "config:budget",
+      "category": "config",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "core-api-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "ctags-ingest",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "ctags-ingest-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "dict-adaptive-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "discover-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "download-dicts",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "download-extensions",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "download-extensions-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "download-models",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "env:check",
+      "category": "tooling",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "eval-run",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "ext-filter-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "external-docs-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "filter-strictness-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "format",
+      "category": "lint",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "format-fidelity-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "generate-repo-dict",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "get-last-failure",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "git-blame-range-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "graph-chunk-id-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "gtags-ingest",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "gtags-ingest-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "hnsw-ann-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "hnsw-atomic-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "import-links-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "import-scan-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "index-validate",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "index-validate-test",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "indexer-service",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "indexer-service-test",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "io-concurrency-cap-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "kotlin-perf-guard-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "lancedb-ann-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "lang-filter-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "language-fidelity-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "lint",
+      "category": "lint",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "lmdb-backend-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "lsif-ingest",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "lsif-ingest-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "lsp-shutdown-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "map-iso",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "mcp-robustness-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "mcp-schema-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "mcp-server",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "mcp-server-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "merge-append",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "metadata-v2-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "minhash-parity-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "parity:matrix",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "piece-assembly-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "pieces-manifest-strict-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "prose-skip-imports-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "release-check",
+      "category": "release",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "release-check:breaking",
+      "category": "release",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "repometrics-dashboard",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "repometrics-dashboard-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "report-artifacts",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "retrieval-backend-policy-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "retrieval-branch-filter-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "scip-ingest",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "scip-ingest-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "script-coverage-harness-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "script-coverage-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "search",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "search-explain-test",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "search-filters-test",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "search-help-test",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "search-missing-index-test",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "search-symbol-boost-test",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "setup",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "setup-index-detection-test",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "setup-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "shard-census",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "shard-plan-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "show-throughput",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-ann-extension-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-auto-backend-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-build-delete-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-build-manifest-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-build-vocab-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-bundle-missing-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-chunk-id-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-compact-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-incremental-no-change-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-incremental-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-index-state-fail-closed-test",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-missing-dep-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-sidecar-cleanup-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "sqlite-vec-candidate-set-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "structural-filters-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "structural-search",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "structural-search-test",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "summary-report",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "summary-report-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "test",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test-all-no-bench",
+      "category": "test",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "test:ci",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:integration",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:list",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:nightly",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:perf",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:pr",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:services",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:smoke",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:storage",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:unit",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "tooling-detect",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "tooling-detect-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "tooling-install",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "tooling-install-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "tree-sitter-chunks-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "triage-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "type-inference-crossfile-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "type-inference-lsp-enrichment-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "typescript-parser-selection-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "uninstall",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "uninstall-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "unsupported-language-skip-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "uv-threadpool-env-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "uv-threadpool-no-override-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "vector-extension-sanitize-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "verify",
+      "category": "tooling",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "verify-extensions",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "vscode-extension-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "watch-backend-selection-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "watch-debounce-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "watch-filter-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "watch-index",
+      "category": "indexing",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "watch-stability-guard-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "worker-pool-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "worker-pool-windows-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    },
+    {
+      "name": "xxhash-backends-test",
+      "category": "tooling",
+      "ciAllowed": false,
+      "replacement": null
+    }
+  ]
+}

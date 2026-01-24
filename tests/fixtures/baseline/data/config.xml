@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<config>
+  <feature>true</feature>
+  <threshold>0.42</threshold>
+</config>

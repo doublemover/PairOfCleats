@@ -1,0 +1,54 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  nightly:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    env:
+      PAIROFCLEATS_EMBEDDINGS: stub
+      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+
+      - name: Node and npm versions
+        run: |
+          node -v
+          npm -v
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Restore PairOfCleats cache
+        uses: actions/cache@v4
+        with:
+          path: .ci-cache/pairofcleats
+          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Nightly suite
+        run: npm run test:nightly
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-artifacts-${{ matrix.os }}
+          path: |
+            tests/.logs/**
+            artifacts/junit.xml
+            .diagnostics/**
+          if-no-files-found: ignore

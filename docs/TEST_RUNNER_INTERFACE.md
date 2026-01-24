@@ -80,6 +80,7 @@ pairofcleats test [selectors...] [options] [-- <pass-through args>]
 - `--timeout-ms <n>`
   - Hard timeout per test process.
   - Default: 120000 (align with existing long-running tests).
+  - On timeout, the runner terminates the entire process tree (SIGTERM then SIGKILL, or `taskkill` on Windows).
 
 - `--fail-fast`
   - Stop on first failure.
@@ -98,6 +99,10 @@ pairofcleats test [selectors...] [options] [-- <pass-through args>]
 - `--log-dir <path>`
   - Directory where per-test stdout/stderr are persisted.
   - Mirrors the existing `PAIROFCLEATS_TEST_LOG_DIR` convention used by some tests.
+  - Each run writes to a unique subdirectory: `<log-dir>/run-<id>/`.
+
+- `--timings-file <path>`
+  - Write a JSON summary of per-test durations for later analysis.
 
 ### Environment normalization (runner responsibility)
 
@@ -106,6 +111,7 @@ The runner should set or normalize a small set of env vars (unless explicitly ov
 - `PAIROFCLEATS_TEST_TIMEOUT_MS` (mirrors `--timeout-ms`)
 - `PAIROFCLEATS_TEST_LOG_DIR` (mirrors `--log-dir`)
 - `PAIROFCLEATS_TEST_RETRIES` (mirrors `--retries`)
+- `PAIROFCLEATS_TEST_LOG_DIR` is set to the resolved run-specific log directory.
 
 The runner **must not** globally force cache roots or embeddings provider; many tests already manage `PAIROFCLEATS_CACHE_ROOT` internally.
 
@@ -172,6 +178,7 @@ Lanes are the main lever for “few comprehensive entrypoints.” Proposed lane 
 - `0`: all selected tests passed
 - `1`: one or more selected tests failed
 - `2`: runner usage error (bad flags, unknown lane)
+- `77`: test skipped (use `tests/helpers/skip.js` for standard behavior)
 
 ## Output format (human)
 

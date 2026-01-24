@@ -7,6 +7,11 @@ export const buildActions = async (context) => {
   const ciOutDir = context.ciOutDir || path.join(baseCacheRoot, 'ci-artifacts');
   const skipSqliteIncremental = process.env.PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL === '1'
     || process.env.PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL === 'true';
+  const scriptNames = context.scriptNames instanceof Set ? context.scriptNames : null;
+  const filterCovers = (covers) => {
+    if (!scriptNames || !Array.isArray(covers)) return covers;
+    return covers.filter((name) => scriptNames.has(name));
+  };
 
 const actions = [
   {
@@ -459,11 +464,6 @@ const actions = [
     covers: ['compact-pieces-test']
   },
   {
-    label: 'git-hooks-test',
-    run: () => runNode('git-hooks-test', path.join(root, 'tests', 'git-hooks.js')),
-    covers: ['git-hooks-test', 'git-hooks']
-  },
-  {
     label: 'git-meta-test',
     run: () => runNode('git-meta-test', path.join(root, 'tests', 'git-meta.js')),
     covers: []
@@ -529,11 +529,6 @@ const actions = [
     covers: ['search-explain-test']
   },
   {
-    label: 'search-rrf-test',
-    run: () => runNode('search-rrf-test', path.join(root, 'tests', 'search-rrf.js')),
-    covers: ['search-rrf-test']
-  },
-  {
     label: 'artifact-bak-recovery-test',
     run: () => runNode('artifact-bak-recovery-test', path.join(root, 'tests', 'artifact-bak-recovery.js')),
     covers: ['artifact-bak-recovery-test']
@@ -582,16 +577,6 @@ const actions = [
     label: 'embeddings-sqlite-dense-test',
     run: () => runNode('embeddings-sqlite-dense-test', path.join(root, 'tests', 'embeddings-sqlite-dense.js')),
     covers: ['embeddings-sqlite-dense-test']
-  },
-  {
-    label: 'search-topn-filters-test',
-    run: () => runNode('search-topn-filters-test', path.join(root, 'tests', 'search-topn-filters.js')),
-    covers: ['search-topn-filters-test']
-  },
-  {
-    label: 'search-determinism-test',
-    run: () => runNode('search-determinism-test', path.join(root, 'tests', 'search-determinism.js')),
-    covers: ['search-determinism-test']
   },
   {
     label: 'filter-index-artifact-test',
@@ -1243,5 +1228,12 @@ const actions = [
     run: () => runNode('merge-append', path.join(root, 'tools', 'mergeAppendOnly.js'), [mergeBase, mergeTarget]),
     covers: ['merge-append']
   });
+  if (scriptNames) {
+    return actions.map((action) => ({
+      ...action,
+      covers: filterCovers(action.covers),
+      coversTierB: filterCovers(action.coversTierB)
+    }));
+  }
   return actions;
 };

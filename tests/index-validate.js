@@ -3,18 +3,19 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
+import { repoRoot } from './helpers/root.js';
+import { copyFixtureToTemp } from './helpers/fixtures.js';
+import { makeTempDir, rmDirRecursive } from './helpers/temp.js';
 
-const root = process.cwd();
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, 'tests', '.cache', 'index-validate');
+const root = repoRoot();
+const fixtureRoot = await copyFixtureToTemp('sample');
+const fixtureTempRoot = path.dirname(fixtureRoot);
+const cacheRoot = await makeTempDir('pairofcleats-index-validate-');
 const env = {
   ...process.env,
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
-
-await fsPromises.rm(cacheRoot, { recursive: true, force: true });
-await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 const validatorPath = path.join(root, 'tools', 'index-validate.js');
 const buildPath = path.join(root, 'build_index.js');
@@ -80,3 +81,6 @@ if (!payload || payload.ok !== true) {
 }
 
 console.log('index-validate test passed');
+
+await rmDirRecursive(cacheRoot);
+await rmDirRecursive(fixtureTempRoot);

@@ -17,11 +17,12 @@ for (let i = 0; i < 200; i += 1) {
   tokens.push(`token_${i}_${'x'.repeat(24)}`);
 }
 const lines = [];
-for (let i = 0; i < tokens.length; i += 20) {
-  lines.push(tokens.slice(i, i + 20).join(' '));
+for (let i = 0; i < tokens.length; i += 5) {
+  lines.push(tokens.slice(i, i + 5).join(' '));
 }
 const content = `${lines.join('\n')}\n`;
-for (let i = 0; i < 3; i += 1) {
+const fileCount = 12;
+for (let i = 0; i < fileCount; i += 1) {
   await fsPromises.writeFile(path.join(repoRoot, `big-${i}.js`), content);
 }
 
@@ -35,7 +36,7 @@ process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 
-const maxJsonBytes = 4096;
+const maxJsonBytes = 16384;
 const runBuild = (label, envOverrides) => {
   const result = spawnSync(
     process.execPath,

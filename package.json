@@ -3,6 +3,9 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24.13.0"
+  },
   "bin": {
     "pairofcleats": "bin/pairofcleats.js"
   },
@@ -24,8 +27,6 @@
     "lsif-ingest": "node tools/lsif-ingest.js",
     "gtags-ingest": "node tools/gtags-ingest.js",
     "structural-search": "node tools/structural-search.js",
-    "git-hooks": "node tools/git-hooks.js",
-    "git-hooks-test": "node tests/git-hooks.js",
     "git-blame-range-test": "node tests/git-blame-range.js",
     "external-docs-test": "node tests/external-docs.js",
     "import-links-test": "node tests/import-links.js",
@@ -54,6 +55,9 @@
     "mcp-server": "node tools/mcp-server.js",
     "indexer-service": "node tools/indexer-service.js",
     "test": "node tests/run.js",
+    "test:pr": "node tools/ci/run-suite.js --mode pr",
+    "test:nightly": "node tools/ci/run-suite.js --mode nightly",
+    "test-all-no-bench": "npm run test:pr",
     "setup": "node tools/setup.js",
     "bootstrap": "node tools/bootstrap.js",
     "parity:matrix": "node tools/parity-matrix.js",

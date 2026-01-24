@@ -126,6 +126,8 @@ const listSourceFiles = async () => {
     const normalized = filePath.replace(/\\/g, '/');
     if (normalized.includes('/node_modules/')) return false;
     if (normalized.includes('/.git/')) return false;
+    if (normalized.includes('/worktrees/')) return false;
+    if (normalized.includes('/.worktrees/')) return false;
     if (normalized.includes('/benchmarks/repos/')) return false;
     if (normalized.includes('/benchmarks/cache/')) return false;
     return true;

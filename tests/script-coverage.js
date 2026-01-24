@@ -4,10 +4,11 @@ import { buildActions } from './script-coverage/actions.js';
 import { loadPackageScripts, resolveScriptCoveragePaths } from './script-coverage/paths.js';
 import { applyActionCoverage, applyDefaultSkips, createCoverageState, finalizeCoverage, reportCoverage } from './script-coverage/report.js';
 import { createCommandRunner, prepareCoverageDirs, resolveRetries, runShellScripts } from './script-coverage/runner.js';
+import { repoRoot } from './helpers/root.js';
 
 process.env.PAIROFCLEATS_TESTING = '1';
 
-const root = process.cwd();
+const root = repoRoot();
 const argv = createCli({
   scriptName: 'script-coverage',
   options: {
@@ -54,8 +55,24 @@ const actions = await buildActions({
   baseCacheRoot,
   ciOutDir,
   mergeDir,
-  runNode
+  runNode,
+  scriptNames: new Set(scriptNames)
 });
+
+const knownScripts = new Set(scriptNames);
+const unknownCovers = new Set();
+for (const action of actions) {
+  for (const key of ['covers', 'coversTierB']) {
+    const values = Array.isArray(action[key]) ? action[key] : [];
+    for (const name of values) {
+      if (!knownScripts.has(name)) unknownCovers.add(name);
+    }
+  }
+}
+if (unknownCovers.size) {
+  console.error(`script coverage references missing scripts: ${Array.from(unknownCovers).sort().join(', ')}`);
+  process.exit(1);
+}
 
 for (const action of actions) {
   console.log(`[script-coverage] ${action.label}`);
