@@ -3,8 +3,9 @@ import fsPromises from 'node:fs/promises';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { repoRoot } from './helpers/root.js';
 
-const root = process.cwd();
+const root = repoRoot();
 const cacheRoot = path.join(root, 'tests', '.cache', 'config-validate');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });

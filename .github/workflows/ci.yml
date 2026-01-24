@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
+      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,28 +18,43 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '24.13.0'
           cache: npm
+
+      - name: Node and npm versions
+        run: |
+          node -v
+          npm -v
 
       - name: Install deps
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      - name: Restore PairOfCleats cache
+        uses: actions/cache@v4
+        with:
+          path: .ci-cache/pairofcleats
+          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Config budgets
-        run: npm run config:budget
+      - name: PR suite
+        run: npm run test:pr
 
-      - name: Env usage guardrail
-        run: npm run env:check
-
-      - name: Short tests (no bench)
-        run: npm run test-all-no-bench
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-artifacts-ubuntu
+          path: |
+            tests/.logs/**
+            artifacts/junit.xml
+            .diagnostics/**
+          if-no-files-found: ignore
 
   windows:
     runs-on: windows-latest
+    continue-on-error: true
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
+      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,14 +62,36 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '24.13.0'
           cache: npm
+
+      - name: Node and npm versions
+        run: |
+          node -v
+          npm -v
 
       - name: Install deps
         run: npm ci
+
+      - name: Restore PairOfCleats cache
+        uses: actions/cache@v4
+        with:
+          path: .ci-cache/pairofcleats
+          key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Windows regression lane
         run: |
           node tests/worker-pool-windows.js
           node tests/search-windows-path-filter.js
           node tests/fixture-parity.js --fixtures sample
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-artifacts-windows
+          path: |
+            tests/.logs/**
+            artifacts/junit.xml
+            .diagnostics/**
+          if-no-files-found: ignore

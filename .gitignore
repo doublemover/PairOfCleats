@@ -9,6 +9,7 @@ benchmarks/repos/
 benchmarks/cache/
 benchmarks/results/
 docs/benchmarks.json
+.diagnostics/
 *.db
 *.db-shm
 *.db-wal

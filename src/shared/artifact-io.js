@@ -331,7 +331,10 @@ const collectCompressedCandidates = (filePath) => {
   addCandidate(getBakPath(zstPath), 'zstd', false);
   addCandidate(gzPath, 'gzip', true);
   addCandidate(getBakPath(gzPath), 'gzip', false);
-  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  candidates.sort((a, b) => {
+    if (a.cleanup !== b.cleanup) return a.cleanup ? -1 : 1;
+    return b.mtimeMs - a.mtimeMs;
+  });
   return candidates;
 };
 
@@ -351,7 +354,10 @@ const collectCompressedJsonlCandidates = (filePath) => {
   addCandidate(getBakPath(zstPath), 'zstd', false);
   addCandidate(gzPath, 'gzip', true);
   addCandidate(getBakPath(gzPath), 'gzip', false);
-  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  candidates.sort((a, b) => {
+    if (a.cleanup !== b.cleanup) return a.cleanup ? -1 : 1;
+    return b.mtimeMs - a.mtimeMs;
+  });
   return candidates;
 };
 

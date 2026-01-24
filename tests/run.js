@@ -6,11 +6,14 @@ import { fileURLToPath } from 'node:url';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import PQueue from 'p-queue';
+import { killProcessTree } from './helpers/kill-tree.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TESTS_DIR = path.join(ROOT, 'tests');
 const DEFAULT_TIMEOUT_MS = 120000;
 const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
+const SKIP_EXIT_CODE = 77;
+const DEFAULT_TIMEOUT_GRACE_MS = 2000;
 
 const EXCLUDED_DIRS = new Set([
   'fixtures',
@@ -76,6 +79,7 @@ const parseArgs = () => {
     .option('json', { type: 'boolean', default: false })
     .option('junit', { type: 'string', default: '' })
     .option('log-dir', { type: 'string', default: '' })
+    .option('timings-file', { type: 'string', default: '' })
     .option('node-options', { type: 'string', default: '' })
     .option('max-old-space-mb', { type: 'number' })
     .option('pairofcleats-threads', { type: 'number' })
@@ -238,9 +242,20 @@ const formatDuration = (ms) => {
   return `${Math.round(ms)}ms`;
 };
 
+const extractSkipReason = (stdout, stderr) => {
+  const pickLine = (text) => {
+    if (!text) return '';
+    return text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find(Boolean) || '';
+  };
+  return pickLine(stdout) || pickLine(stderr) || 'skipped';
+};
+
 const sanitizeId = (value) => value.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 120) || 'test';
 
-const writeLogFile = async ({ logDir, test, attempt, stdout, stderr, status, exitCode, signal, timedOut }) => {
+const writeLogFile = async ({ logDir, test, attempt, stdout, stderr, status, exitCode, signal, timedOut, skipReason, termination }) => {
   if (!logDir) return '';
   const safeId = sanitizeId(test.id);
   const filePath = path.join(logDir, `${safeId}.attempt-${attempt}.log`);
@@ -252,6 +267,8 @@ const writeLogFile = async ({ logDir, test, attempt, stdout, stderr, status, exi
     `exit: ${exitCode ?? 'null'}`,
     `signal: ${signal ?? 'null'}`,
     `timedOut: ${timedOut ? 'true' : 'false'}`,
+    `skipReason: ${skipReason || ''}`,
+    `termination: ${termination ? JSON.stringify(termination) : ''}`,
     ''
   ];
   if (stdout) {
@@ -287,11 +304,13 @@ const runTestOnce = async ({ test, passThrough, env, cwd, timeoutMs, captureOutp
   const child = spawn(process.execPath, args, {
     cwd,
     env,
+    detached: process.platform !== 'win32',
     stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit'
   });
   let timedOut = false;
   let timeoutHandle = null;
   let resolved = false;
+  let termination = null;
   const stopTimer = () => {
     if (timeoutHandle) clearTimeout(timeoutHandle);
     timeoutHandle = null;
@@ -303,9 +322,13 @@ const runTestOnce = async ({ test, passThrough, env, cwd, timeoutMs, captureOutp
     resolve(result);
   };
   if (timeoutMs > 0) {
-    timeoutHandle = setTimeout(() => {
+    timeoutHandle = setTimeout(async () => {
       timedOut = true;
-      child.kill('SIGTERM');
+      try {
+        termination = await killProcessTree(child.pid, { graceMs: DEFAULT_TIMEOUT_GRACE_MS });
+      } catch (error) {
+        termination = { error: error?.message || String(error) };
+      }
     }, timeoutMs);
   }
   const getStdout = collectOutput(child.stdout, MAX_OUTPUT_BYTES);
@@ -319,19 +342,25 @@ const runTestOnce = async ({ test, passThrough, env, cwd, timeoutMs, captureOutp
       timedOut: false,
       durationMs,
       stdout: captureOutput ? getStdout() : '',
-      stderr: captureOutput ? `${getStderr()}\n${error?.message || error}`.trim() : ''
+      stderr: captureOutput ? `${getStderr()}\n${error?.message || error}`.trim() : '',
+      termination
     });
   });
   child.on('close', (code, signal) => {
     const durationMs = Date.now() - start;
+    const stdout = captureOutput ? getStdout() : '';
+    const stderr = captureOutput ? getStderr() : '';
+    const skipped = !timedOut && code === SKIP_EXIT_CODE;
     finish({
-      status: code === 0 && !timedOut ? 'passed' : 'failed',
+      status: timedOut ? 'failed' : (code === 0 ? 'passed' : (skipped ? 'skipped' : 'failed')),
       exitCode: code,
       signal,
       timedOut,
       durationMs,
-      stdout: captureOutput ? getStdout() : '',
-      stderr: captureOutput ? getStderr() : ''
+      stdout,
+      stderr,
+      skipReason: skipped ? extractSkipReason(stdout, stderr) : '',
+      termination
     });
   });
 });
@@ -352,10 +381,12 @@ const runTestWithRetries = async ({ test, passThrough, env, cwd, timeoutMs, capt
       status: result.status,
       exitCode: result.exitCode,
       signal: result.signal,
-      timedOut: result.timedOut
+      timedOut: result.timedOut,
+      skipReason: result.skipReason,
+      termination: result.termination
     });
     if (logPath) logs.push(logPath);
-    if (result.status === 'passed') {
+    if (result.status === 'passed' || result.status === 'skipped') {
       return { ...result, attempts: attempt, logs };
     }
   }
@@ -424,7 +455,8 @@ const writeJUnit = async ({ junitPath, results, totalMs }) => {
       return `  <testcase classname="pairofcleats" name="${name}" time="${time}"/>`;
     }
     if (result.status === 'skipped') {
-      return `  <testcase classname="pairofcleats" name="${name}" time="${time}"><skipped/></testcase>`;
+      const skipMessage = result.skipReason ? ` message="${escapeXml(result.skipReason)}"` : '';
+      return `  <testcase classname="pairofcleats" name="${name}" time="${time}"><skipped${skipMessage}/></testcase>`;
     }
     const message = escapeXml(formatFailure(result));
     return `  <testcase classname="pairofcleats" name="${name}" time="${time}"><failure message="${message}"/></testcase>`;
@@ -437,6 +469,22 @@ const writeJUnit = async ({ junitPath, results, totalMs }) => {
     ''
   ].join('\n');
   await fsPromises.writeFile(junitPath, xml, 'utf8');
+};
+
+const writeTimings = async ({ timingsPath, results, totalMs, runId }) => {
+  if (!timingsPath) return;
+  await fsPromises.mkdir(path.dirname(timingsPath), { recursive: true });
+  const payload = {
+    runId,
+    totalMs,
+    tests: results.map((result) => ({
+      id: result.id,
+      lane: result.lane,
+      status: result.status,
+      durationMs: result.durationMs
+    }))
+  };
+  await fsPromises.writeFile(timingsPath, `${JSON.stringify(payload)}\n`, 'utf8');
 };
 
 const main = async () => {
@@ -504,11 +552,14 @@ const main = async () => {
   const retries = resolveRetries({ cli: argv.retries, env: envRetries, defaultRetries });
   const timeoutMs = resolveTimeout({ cli: argv['timeout-ms'], env: envTimeout, defaultTimeout: DEFAULT_TIMEOUT_MS });
   const logDir = resolveLogDir({ cli: argv['log-dir'], env: envLogDir });
+  const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const runLogDir = logDir ? path.join(logDir, `run-${runId}`) : '';
+  const timingsPath = argv['timings-file'] ? path.resolve(ROOT, argv['timings-file']) : '';
   const jobs = Math.max(1, Math.floor(argv.jobs || 1));
   const passThrough = Array.isArray(argv['--']) ? argv['--'].map(String) : [];
 
-  if (logDir) {
-    await fsPromises.mkdir(logDir, { recursive: true });
+  if (runLogDir) {
+    await fsPromises.mkdir(runLogDir, { recursive: true });
   }
 
   const baseEnv = { ...process.env };
@@ -520,7 +571,7 @@ const main = async () => {
     baseEnv.PAIROFCLEATS_TEST_TIMEOUT_MS = String(timeoutMs);
   }
   if ((argv['log-dir'] && argv['log-dir'].trim()) || !baseEnv.PAIROFCLEATS_TEST_LOG_DIR) {
-    if (logDir) baseEnv.PAIROFCLEATS_TEST_LOG_DIR = logDir;
+    if (runLogDir) baseEnv.PAIROFCLEATS_TEST_LOG_DIR = runLogDir;
   }
   const threadsOverride = Number.isFinite(argv['pairofcleats-threads'])
     ? Math.max(1, Math.floor(argv['pairofcleats-threads']))
@@ -543,7 +594,7 @@ const main = async () => {
     baseEnv.NODE_OPTIONS = mergeNodeOptions(baseEnv.NODE_OPTIONS, nodeOptionsParts.join(' '));
   }
 
-  const captureOutput = argv.json || argv.quiet || Boolean(logDir) || jobs > 1 || Boolean(argv.junit);
+  const captureOutput = argv.json || argv.quiet || Boolean(runLogDir) || jobs > 1 || Boolean(argv.junit);
   const consoleStream = argv.json ? process.stderr : process.stdout;
   const showPreamble = !argv.quiet;
   const showPass = !argv.quiet;
@@ -589,7 +640,8 @@ const main = async () => {
         const duration = formatDuration(current.durationMs);
         consoleStream.write(`PASS ${current.id} (${duration})\n`);
       } else if (current.status === 'skipped' && showSkip) {
-        consoleStream.write(`SKIP ${current.id}\n`);
+        const reason = current.skipReason ? ` (${current.skipReason})` : '';
+        consoleStream.write(`SKIP ${current.id}${reason}\n`);
       }
       nextToReport += 1;
     }
@@ -610,7 +662,7 @@ const main = async () => {
         timeoutMs,
         captureOutput,
         retries,
-        logDir
+        logDir: runLogDir
       });
       const fullResult = { ...test, ...result };
       if (fullResult.status === 'failed' && argv['fail-fast']) {
@@ -632,15 +684,15 @@ const main = async () => {
         consoleStream.write(`  - ${failure.id} (${formatFailure(failure)})\n`);
       }
     }
-    if (logDir) {
-      consoleStream.write(`Logs: ${logDir}\n`);
+    if (runLogDir) {
+      consoleStream.write(`Logs: ${runLogDir}\n`);
     }
   }
 
   if (argv.json) {
     const payload = {
       summary,
-      logDir: logDir || null,
+      logDir: runLogDir || null,
       junit: argv.junit ? path.resolve(ROOT, argv.junit) : null,
       tests: results.map((result) => ({
         id: result.id,
@@ -653,6 +705,8 @@ const main = async () => {
         exitCode: result.exitCode ?? null,
         signal: result.signal ?? null,
         timedOut: result.timedOut ?? false,
+        skipReason: result.skipReason || null,
+        termination: result.termination || null,
         logs: result.logs || []
       }))
     };
@@ -662,6 +716,10 @@ const main = async () => {
   if (argv.junit) {
     const junitPath = path.resolve(ROOT, argv.junit);
     await writeJUnit({ junitPath, results, totalMs });
+  }
+
+  if (timingsPath) {
+    await writeTimings({ timingsPath, results, totalMs, runId });
   }
 
   process.exit(summary.failed > 0 ? 1 : 0);

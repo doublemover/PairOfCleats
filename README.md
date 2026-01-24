@@ -45,7 +45,7 @@ PairOfCleats combines the strengths:
 
 ## Requirements
 
-- **Node.js 18+**
+- **Node.js 24.13.0 LTS** (see `.nvmrc`)
 - Optional (recommended for best Python chunk metadata): **Python 3** (`indexing.pythonAst.*`)
 - Optional (recommended for large repos): **SQLite backend** (via `better-sqlite3`)
 - Optional (recommended for fastest semantic search): **sqlite-vec** extension for ANN
@@ -70,6 +70,11 @@ PairOfCleats combines the strengths:
 ### Install
 ```bash
 npm install
+```
+
+### CI/PR test suite
+```bash
+npm run test:pr
 ```
 
 ### Guided setup (recommended)
@@ -212,7 +217,7 @@ flowchart TB
 
 ## Status
 
-Active development. See `NEW_ROADMAP.md` for current execution status.
+Active development. See `GIGAROADMAP.md` for current execution status.
 
 ---
 
