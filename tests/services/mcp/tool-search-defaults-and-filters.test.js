@@ -2,10 +2,20 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { startMcpServer } from '../../helpers/mcp-client.js';
+import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 
 const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-search');
 const sampleRepo = path.join(process.cwd(), 'tests', 'fixtures', 'sample');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
+
+const { fixtureRoot } = await ensureFixtureIndex({
+  fixtureName: 'languages',
+  cacheName: 'mcp-search'
+});
+await ensureFixtureIndex({
+  fixtureName: 'sample',
+  cacheName: 'mcp-search'
+});
 
 const { send, readMessage, shutdown } = await startMcpServer({ cacheRoot });
 
@@ -26,7 +36,7 @@ try {
       name: 'search',
       arguments: {
         repoPath: sampleRepo,
-        query: 'return',
+        query: 'greet',
         mode: 'code',
         top: 5
       }
@@ -49,20 +59,22 @@ try {
     params: {
       name: 'search',
       arguments: {
-        repoPath: sampleRepo,
+        repoPath: fixtureRoot,
         query: 'return',
         mode: 'code',
         top: 5,
-        riskTag: 'sql'
+        backend: 'memory'
       }
     }
   });
-  const riskSearch = await readMessage();
-  const riskPayload = JSON.parse(riskSearch.result?.content?.[0]?.text || '{}');
-  const riskHits = riskPayload.code || [];
-  if (riskHits.length === baselineHits.length) {
-    throw new Error('riskTag filter did not change MCP search results');
+  const baselineRiskSearch = await readMessage();
+  const baselineRiskPayload = JSON.parse(baselineRiskSearch.result?.content?.[0]?.text || '{}');
+  const baselineRiskHits = Array.isArray(baselineRiskPayload.code) ? baselineRiskPayload.code : [];
+  if (!baselineRiskHits.length) {
+    throw new Error('baseline risk MCP search returned no results');
   }
+  const hitKey = (hit) => hit?.file || hit?.path || hit?.relPath || hit?.id || JSON.stringify(hit);
+  const baselineRiskKeys = new Set(baselineRiskHits.map(hitKey));
 
   send({
     jsonrpc: '2.0',
@@ -71,22 +83,92 @@ try {
     params: {
       name: 'search',
       arguments: {
-        repoPath: sampleRepo,
+        repoPath: fixtureRoot,
         query: 'return',
         mode: 'code',
         top: 5,
-        type: 'class'
+        riskTag: 'command-exec',
+        backend: 'memory'
+      }
+    }
+  });
+  const riskSearch = await readMessage();
+  const riskPayload = JSON.parse(riskSearch.result?.content?.[0]?.text || '{}');
+  const riskHits = Array.isArray(riskPayload.code) ? riskPayload.code : [];
+  if (!riskHits.length) {
+    throw new Error('riskTag filter returned no results');
+  }
+  const riskKeys = new Set(riskHits.map(hitKey));
+  let changed = baselineRiskKeys.size !== riskKeys.size;
+  if (!changed) {
+    for (const key of baselineRiskKeys) {
+      if (!riskKeys.has(key)) {
+        changed = true;
+        break;
+      }
+    }
+  }
+  if (!changed) {
+    throw new Error('riskTag filter did not change MCP search results');
+  }
+
+  send({
+    jsonrpc: '2.0',
+    id: 5,
+    method: 'tools/call',
+    params: {
+      name: 'search',
+      arguments: {
+        repoPath: sampleRepo,
+        query: 'greet',
+        mode: 'code',
+        top: 5,
+        backend: 'memory'
+      }
+    }
+  });
+  const baselineTypeSearch = await readMessage();
+  const baselineTypePayload = JSON.parse(baselineTypeSearch.result?.content?.[0]?.text || '{}');
+  const baselineTypeHits = Array.isArray(baselineTypePayload.code) ? baselineTypePayload.code : [];
+  if (!baselineTypeHits.length) {
+    throw new Error('baseline type MCP search returned no results');
+  }
+  const baselineTypeKeys = new Set(baselineTypeHits.map(hitKey));
+
+  send({
+    jsonrpc: '2.0',
+    id: 6,
+    method: 'tools/call',
+    params: {
+      name: 'search',
+      arguments: {
+        repoPath: sampleRepo,
+        query: 'greet',
+        mode: 'code',
+        top: 5,
+        type: 'class',
+        backend: 'memory'
       }
     }
   });
   const typeSearch = await readMessage();
   const typePayload = JSON.parse(typeSearch.result?.content?.[0]?.text || '{}');
-  const typeHits = typePayload.code || [];
-  if (typeHits.length === baselineHits.length) {
+  const typeHits = Array.isArray(typePayload.code) ? typePayload.code : [];
+  const typeKeys = new Set(typeHits.map(hitKey));
+  let typeChanged = baselineTypeKeys.size !== typeKeys.size;
+  if (!typeChanged) {
+    for (const key of baselineTypeKeys) {
+      if (!typeKeys.has(key)) {
+        typeChanged = true;
+        break;
+      }
+    }
+  }
+  if (!typeChanged) {
     throw new Error('type filter did not change MCP search results');
   }
 
-  send({ jsonrpc: '2.0', id: 5, method: 'shutdown' });
+  send({ jsonrpc: '2.0', id: 7, method: 'shutdown' });
   await readMessage();
   send({ jsonrpc: '2.0', method: 'exit' });
 } catch (err) {

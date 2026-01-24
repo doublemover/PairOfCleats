@@ -464,7 +464,9 @@ export async function assembleIndexPieces({
     throw new Error('assembleIndexPieces found no chunks to merge.');
   }
 
-  const ordering = buildChunkOrdering(state.chunks);
+  const ordering = inputs.length === 1
+    ? state.chunks.map((chunk, index) => ({ chunk, oldId: index }))
+    : buildChunkOrdering(state.chunks);
   const needsRemap = ordering.some((entry, index) => entry.oldId !== index);
   if (needsRemap) {
     const docMap = new Array(ordering.length);
@@ -515,10 +517,11 @@ export async function assembleIndexPieces({
   }
 
   const indexingConfig = userConfig?.indexing || {};
-  const typeInferenceEnabled = indexingConfig.typeInference === true;
+  const typeInferenceEnabled = indexingConfig.typeInference !== false;
   const typeInferenceCrossFileEnabled = indexingConfig.typeInferenceCrossFile === true;
-  const riskAnalysisEnabled = indexingConfig.riskAnalysis === true;
-  const riskAnalysisCrossFileEnabled = indexingConfig.riskAnalysisCrossFile === true;
+  const riskAnalysisEnabled = indexingConfig.riskAnalysis !== false;
+  const riskAnalysisCrossFileEnabled = riskAnalysisEnabled
+    && indexingConfig.riskAnalysisCrossFile !== false;
   if (typeInferenceCrossFileEnabled || riskAnalysisCrossFileEnabled) {
     await applyCrossFileInference({
       rootDir: root,

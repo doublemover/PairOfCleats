@@ -73,8 +73,7 @@ const INTERNAL_FILTER_KEYS = new Set([
   'caseFile',
   'caseTokens',
   'excludeTokens',
-  'excludePhrases',
-  'excludePhraseRange'
+  'excludePhrases'
 ]);
 
 const splitFilterTokens = (raw) => {

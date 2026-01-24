@@ -355,6 +355,7 @@ export async function configStatus(args = {}) {
   const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
   const dictConfig = getDictConfig(repoPath, userConfig);
   const dictionaryPaths = await getDictionaryPaths(repoPath, dictConfig);
+  const dictionaryPathsConfigured = await getDictionaryPaths(repoPath, dictConfig, { allowFallback: false });
   const modelConfig = getModelConfig(repoPath, userConfig);
   const modelsDir = modelConfig.dir;
   const modelDirName = `models--${modelConfig.id.replace('/', '--')}`;
@@ -366,7 +367,7 @@ export async function configStatus(args = {}) {
   const capabilities = getCapabilities();
 
   const warnings = [];
-  if (!dictionaryPaths.length && (dictConfig.languages.length || dictConfig.files.length || dictConfig.includeSlang || dictConfig.enableRepoDictionary)) {
+  if (!dictionaryPathsConfigured.length && (dictConfig.languages.length || dictConfig.files.length || dictConfig.includeSlang || dictConfig.enableRepoDictionary)) {
     warnings.push({
       code: 'dictionary_missing',
       message: 'No dictionary files found; identifier splitting will be limited.'

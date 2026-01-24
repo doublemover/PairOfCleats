@@ -22,3 +22,8 @@ Intent: review Phase 1 in `GIGAROADMAP.md` for improvements, then implement all 
 [x] Implement 1.5 import scanning fixes (lexer init, options forwarding, regex fallback, proto-safe accumulators) with new tests.
 [x] Implement 1.6 progress/logging fixes (pino@10 transport, redaction, ring buffer snapshotting, zero-total guard) with new tests.
 [ ] Run targeted tests and `npm run test:pr` when Phase 1 changes are complete. (Targeted tests done; test:pr pending.)
+
+## Current status (2026-01-24)
+- CI lane still has failures tracked in `failing_tests_list.md`.
+- `retrieval/filters/types.test` passes in isolation but still fails in `node tests/run.js --lane ci --log-dir tests/.logs`.
+- `services/mcp/tool-search-defaults-and-filters.test` is recorded as broken/hanging in `broken_tests.md`.

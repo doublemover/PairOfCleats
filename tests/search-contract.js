@@ -37,7 +37,7 @@ if (buildResult.status !== 0) {
 const searchPath = path.join(root, 'search.js');
 const result = spawnSync(
   process.execPath,
-  [searchPath, 'alpha', '--mode', 'prose', '--json', '--backend', 'memory', '--no-ann', '--repo', repoRoot],
+  [searchPath, 'alpha', '--mode', 'prose', '--json', '--stats', '--backend', 'memory', '--no-ann', '--repo', repoRoot],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 

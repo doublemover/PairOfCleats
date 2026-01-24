@@ -31,7 +31,7 @@ const result = spawnSync(
   process.execPath,
   [
     path.join(root, 'search.js'),
-    'return',
+    'greet',
     '--mode',
     'code',
     '--ann',

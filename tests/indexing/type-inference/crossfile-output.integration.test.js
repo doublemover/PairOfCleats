@@ -64,7 +64,7 @@ const result = spawnSync(process.execPath, [path.join(root, 'build_index.js'), '
   env,
   timeout: Number.isFinite(Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
     ? Math.max(1000, Number(process.env.PAIROFCLEATS_TEST_TIMEOUT_MS))
-    : 120000,
+    : 20000,
   killSignal: 'SIGTERM',
   stdio: 'inherit'
 });

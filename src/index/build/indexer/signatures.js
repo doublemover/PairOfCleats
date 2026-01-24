@@ -1,13 +1,16 @@
 import { ARTIFACT_SCHEMA_HASH } from '../../../contracts/registry.js';
 import { sha1 } from '../../../shared/hash.js';
+import { stableStringify } from '../../../shared/stable-json.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
 export const buildTokenizationKey = (runtime, mode) => {
   const commentsConfig = runtime.commentsConfig || {};
+  const dictConfig = runtime.dictConfig || {};
+  const { dir: _dictDir, ...dictConfigPayload } = dictConfig;
   const payload = {
     mode,
-    dictConfig: runtime.dictConfig || {},
+    dictConfig: dictConfigPayload,
     postingsConfig: runtime.postingsConfig || {},
     dictSignature: runtime.dictSignature || null,
     segmentsConfig: runtime.segmentsConfig || {},
@@ -18,7 +21,7 @@ export const buildTokenizationKey = (runtime, mode) => {
       linterPattern: commentsConfig.linterPattern?.source || null
     }
   };
-  return sha1(JSON.stringify(payload));
+  return sha1(stableStringify(payload));
 };
 
 export const buildIncrementalSignature = (runtime, mode, tokenizationKey) => {
@@ -73,5 +76,5 @@ export const buildIncrementalSignature = (runtime, mode, tokenizationKey) => {
     fileScan: runtime.fileScan,
     incrementalBundleFormat: runtime.incrementalBundleFormat || null
   };
-  return sha1(JSON.stringify(payload));
+  return sha1(stableStringify(payload));
 };

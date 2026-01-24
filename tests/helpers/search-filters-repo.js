@@ -49,8 +49,8 @@ export const ensureSearchFiltersRepo = async () => {
     return null;
   }
   const tempRoot = path.join(ROOT, 'tests', '.cache', 'search-filters');
-  const repoRoot = path.join(tempRoot, 'repo');
-  const cacheRoot = path.join(tempRoot, 'cache');
+  const repoRoot = path.join(tempRoot, `repo-${process.pid}`);
+  const cacheRoot = path.join(tempRoot, `cache-${process.pid}`);
   await fsPromises.mkdir(repoRoot, { recursive: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
 
@@ -106,6 +106,7 @@ export const ensureSearchFiltersRepo = async () => {
 
   const env = {
     ...process.env,
+    PAIROFCLEATS_TESTING: '1',
     PAIROFCLEATS_CACHE_ROOT: cacheRoot,
     PAIROFCLEATS_EMBEDDINGS: 'stub'
   };

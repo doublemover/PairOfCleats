@@ -111,7 +111,6 @@ await fs.writeFile(
 
 await writeManifest([
   { name: 'chunk_meta', path: 'chunk_meta.jsonl', format: 'jsonl' },
-  { name: 'chunk_meta_meta', path: 'chunk_meta.meta.json', format: 'json' },
   { name: 'token_postings', path: path.posix.join('token_postings.shards', partAName), format: 'json' },
   { name: 'token_postings', path: path.posix.join('token_postings.shards', partBName), format: 'json' },
   { name: 'token_postings_meta', path: 'token_postings.meta.json', format: 'json' }

@@ -61,7 +61,10 @@ export async function createCrashLogger({ repoCacheRoot, enabled, log }) {
     } catch {}
   };
 
-  if (log) log(`Crash logging enabled: ${logPath}`);
+  if (log) {
+    const relativePath = path.relative(repoCacheRoot, logPath) || logPath;
+    log(`Crash logging enabled: ${relativePath}`);
+  }
 
   return {
     enabled: true,

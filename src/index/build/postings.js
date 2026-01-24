@@ -225,6 +225,15 @@ export async function buildPostings(input) {
       return isByteVector(v) && v.length;
     });
 
+    let docMarkerWarned = false;
+    const warnMissingDocMarker = () => {
+      if (docMarkerWarned) return;
+      docMarkerWarned = true;
+      if (typeof log === 'function') {
+        log('Missing doc embedding marker for some chunks; falling back to merged embeddings.');
+      }
+    };
+
     if (hasPreQuantized) {
       // Streaming/early-quant path: chunks already carry uint8 vectors.
       // This avoids building large float arrays and avoids a second quantization pass.
@@ -241,12 +250,15 @@ export async function buildPostings(input) {
         // Doc vectors: an empty marker means "no doc", which should behave like
         // a zero-vector so doc-only dense search doesn't surface code-only chunks.
         const doc = chunk?.embed_doc_u8;
+        let docVec;
         if (doc == null) {
-          throw new Error('[postings] missing doc embedding marker for chunk.');
-        }
-        const docVec = normalizeByteVector(doc, { emptyIsZero: true });
-        if (!docVec) {
-          throw new Error('[postings] invalid doc embedding marker for chunk.');
+          warnMissingDocMarker();
+          docVec = mergedVec;
+        } else {
+          docVec = normalizeByteVector(doc, { emptyIsZero: true });
+          if (!docVec) {
+            throw new Error('[postings] invalid doc embedding marker for chunk.');
+          }
         }
 
         // Code vectors: when missing, fall back to merged.
@@ -274,7 +286,11 @@ export async function buildPostings(input) {
           }
           return chunk.embed_doc.length ? normalizeFloatVector(chunk.embed_doc) : zeroVec;
         }
-        throw new Error('[postings] missing doc embedding marker for chunk.');
+        warnMissingDocMarker();
+        if (isVectorLike(chunk?.embedding) && chunk.embedding.length) {
+          return normalizeFloatVector(chunk.embedding);
+        }
+        return zeroVec;
       };
       const selectCodeEmbedding = (chunk) => {
         if (isVectorLike(chunk?.embed_code) && chunk.embed_code.length) {

@@ -13,8 +13,13 @@ const fixtureTempRoot = path.dirname(fixtureRoot);
 const cacheRoot = await makeTempDir('pairofcleats-index-validate-');
 const env = {
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+    sqlite: { use: false },
+    indexing: { embeddings: { enabled: false } }
+  })
 };
 
 const validatorPath = path.join(root, 'tools', 'index-validate.js');

@@ -21,6 +21,8 @@ const env = {
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
+process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
 const runBuild = (label, args) => {
   const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, stdio: 'inherit' });
@@ -31,8 +33,6 @@ const runBuild = (label, args) => {
 };
 
 runBuild('stage1', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage1', '--repo', repoRoot]);
-
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 const userConfig = loadUserConfig(repoRoot);
 const resolveStagePaths = () => {
   const codeDir = getIndexDir(repoRoot, 'code', userConfig);

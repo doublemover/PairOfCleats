@@ -31,6 +31,7 @@ export function getEnvConfig(env = process.env) {
     threads: normalizeNumber(env.PAIROFCLEATS_THREADS),
     bundleThreads: normalizeNumber(env.PAIROFCLEATS_BUNDLE_THREADS),
     watcherBackend: normalizeString(env.PAIROFCLEATS_WATCHER_BACKEND),
+    verbose: normalizeBoolean(env.PAIROFCLEATS_VERBOSE),
     logLevel: normalizeString(env.PAIROFCLEATS_LOG_LEVEL),
     logFormat: normalizeString(env.PAIROFCLEATS_LOG_FORMAT),
     stage: normalizeString(env.PAIROFCLEATS_STAGE),

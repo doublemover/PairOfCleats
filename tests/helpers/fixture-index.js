@@ -3,8 +3,9 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { getIndexDir, getMetricsDir, loadUserConfig, resolveSqlitePaths } from '../../tools/dict-utils.js';
+import { getIndexDir, getMetricsDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../tools/dict-utils.js';
 import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
+import { MAX_JSON_BYTES, readCompatibilityKey } from '../../src/shared/artifact-io.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -12,8 +13,18 @@ const ensureDir = async (dir) => {
   await fsPromises.mkdir(dir, { recursive: true });
 };
 
+const resolveCacheName = (baseName) => {
+  const suffixRaw = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
+    ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
+    : '';
+  if (!suffixRaw) return baseName;
+  if (baseName.endsWith(`-${suffixRaw}`)) return baseName;
+  return `${baseName}-${suffixRaw}`;
+};
+
 const createFixtureEnv = (cacheRoot, overrides = {}) => ({
   ...process.env,
+  PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub',
   PAIROFCLEATS_WORKER_POOL: 'off',
@@ -21,6 +32,33 @@ const createFixtureEnv = (cacheRoot, overrides = {}) => ({
 });
 
 const hasChunkMeta = (dir) => hasIndexMeta(dir);
+
+const readIndexCompatibilityKey = (dir) => {
+  try {
+    return readCompatibilityKey(dir, { maxBytes: MAX_JSON_BYTES, strict: true }).key;
+  } catch {
+    return null;
+  }
+};
+
+const hasCompatibleIndexes = ({ codeDir, proseDir, extractedProseDir }) => {
+  if (!hasChunkMeta(codeDir) || !hasChunkMeta(proseDir) || !hasChunkMeta(extractedProseDir)) {
+    return false;
+  }
+  const codeKey = readIndexCompatibilityKey(codeDir);
+  const proseKey = readIndexCompatibilityKey(proseDir);
+  const extractedKey = readIndexCompatibilityKey(extractedProseDir);
+  const baseline = codeKey || proseKey || extractedKey;
+  if (!baseline) {
+    const testing = process.env.PAIROFCLEATS_TESTING === '1' || process.env.PAIROFCLEATS_TESTING === 'true';
+    const allowMissing = testing
+      && process.env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY !== '0'
+      && process.env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY !== 'false';
+    if (allowMissing) return true;
+    return false;
+  }
+  return [codeKey, proseKey, extractedKey].every((key) => !key || key === baseline);
+};
 
 const run = (args, label, options) => {
   const result = spawnSync(process.execPath, args, options);
@@ -37,14 +75,18 @@ export const ensureFixtureIndex = async ({
 } = {}) => {
   if (!fixtureName) throw new Error('fixtureName is required');
   const fixtureRoot = path.join(ROOT, 'tests', 'fixtures', fixtureName);
-  const cacheRoot = path.join(ROOT, 'tests', '.cache', cacheName);
+  const cacheRoot = path.join(ROOT, 'tests', '.cache', resolveCacheName(cacheName));
   await ensureDir(cacheRoot);
   process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
   const env = createFixtureEnv(cacheRoot, envOverrides);
   const userConfig = loadUserConfig(fixtureRoot);
   let codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
   let proseDir = getIndexDir(fixtureRoot, 'prose', userConfig);
-  if (!hasChunkMeta(codeDir)) {
+  let extractedProseDir = getIndexDir(fixtureRoot, 'extracted-prose', userConfig);
+  if (!hasCompatibleIndexes({ codeDir, proseDir, extractedProseDir })) {
+    const repoCacheRoot = getRepoCacheRoot(fixtureRoot, userConfig);
+    await fsPromises.rm(repoCacheRoot, { recursive: true, force: true });
+    await ensureDir(repoCacheRoot);
     run(
       [path.join(ROOT, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
       `build index (${fixtureName})`,
@@ -52,6 +94,7 @@ export const ensureFixtureIndex = async ({
     );
     codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
     proseDir = getIndexDir(fixtureRoot, 'prose', userConfig);
+    extractedProseDir = getIndexDir(fixtureRoot, 'extracted-prose', userConfig);
   }
   return { root: ROOT, fixtureRoot, cacheRoot, env, userConfig, codeDir, proseDir };
 };

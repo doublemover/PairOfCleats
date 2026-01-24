@@ -18,7 +18,7 @@ if (!hasPython()) {
 
 const { fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName: 'fixture-sample'
+  cacheName: 'fixture-sample-python'
 });
 
 const payload = runSearch({

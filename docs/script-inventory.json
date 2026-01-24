@@ -824,6 +824,12 @@
       "replacement": null
     },
     {
+      "name": "test:api",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
       "name": "test:ci",
       "category": "test",
       "ciAllowed": true,

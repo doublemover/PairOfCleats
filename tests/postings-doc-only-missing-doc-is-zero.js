@@ -41,9 +41,13 @@ const missingMarkerInput = {
   ]
 };
 
-await assert.rejects(
-  () => buildPostings(missingMarkerInput),
-  /missing doc embedding marker/i
+const missingResult = await buildPostings(missingMarkerInput);
+const missingDocVec = missingResult.quantizedDocVectors[0];
+assert.ok(missingDocVec instanceof Uint8Array, 'expected byte vector for missing doc marker');
+assert.deepEqual(
+  Array.from(missingDocVec),
+  Array.from(missingResult.quantizedVectors[0]),
+  'expected missing doc marker to fall back to merged embedding'
 );
 
 console.log('postings doc-only missing doc marker test passed');

@@ -273,8 +273,9 @@ export const createApiRouter = ({
    */
   const resolveRepo = async (value) => {
     const candidate = value ? path.resolve(value) : normalizedDefaultRepo;
-    const candidateReal = normalizePath(await toRealPathAsync(candidate));
-    if (value && !isAllowedRepoPath(candidateReal)) {
+    const candidateReal = await toRealPathAsync(candidate);
+    const candidateNormalized = normalizePath(candidateReal);
+    if (value && !isAllowedRepoPath(candidateNormalized)) {
       const err = new Error('Repo path not permitted by server configuration.');
       err.code = ERROR_CODES.FORBIDDEN;
       throw err;
@@ -292,9 +293,10 @@ export const createApiRouter = ({
       throw new Error(`Repo path is not a directory: ${candidate}`);
     }
     const resolvedRoot = value ? resolveRepoRoot(candidateReal) : candidateReal;
-    const resolvedReal = normalizePath(await toRealPathAsync(resolvedRoot));
-    if (value && !isAllowedRepoPath(resolvedReal)) {
-      if (isAllowedRepoPath(candidateReal)) {
+    const resolvedReal = await toRealPathAsync(resolvedRoot);
+    const resolvedNormalized = normalizePath(resolvedReal);
+    if (value && !isAllowedRepoPath(resolvedNormalized)) {
+      if (isAllowedRepoPath(candidateNormalized)) {
         return candidateReal;
       }
       const err = new Error('Resolved repo root not permitted by server configuration.');

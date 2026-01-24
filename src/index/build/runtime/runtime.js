@@ -114,7 +114,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const { maxFileBytes, fileCaps, guardrails } = resolveFileCapsAndGuardrails(indexingConfig);
   const astDataflowEnabled = indexingConfig.astDataflow !== false;
   const controlFlowEnabled = indexingConfig.controlFlow !== false;
-  const typeInferenceEnabled = indexingConfig.typeInference === true;
+  const typeInferenceEnabled = indexingConfig.typeInference !== false;
   const typeInferenceCrossFileEnabled = indexingConfig.typeInferenceCrossFile === true;
   const riskAnalysisEnabled = indexingConfig.riskAnalysis !== false;
   const riskAnalysisCrossFileEnabled = riskAnalysisEnabled
@@ -135,7 +135,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     : '';
   const yamlChunkingMode = ['auto', 'root', 'top-level'].includes(yamlChunkingModeRaw)
     ? yamlChunkingModeRaw
-    : 'root';
+    : 'auto';
   const yamlTopLevelMaxBytesRaw = Number(indexingConfig.yamlTopLevelMaxBytes);
   const yamlTopLevelMaxBytes = Number.isFinite(yamlTopLevelMaxBytesRaw)
     ? Math.max(0, Math.floor(yamlTopLevelMaxBytesRaw))
@@ -312,13 +312,28 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
       }
     } catch {}
   }
+  const normalizeDictSignaturePath = (dictFile) => {
+    const normalized = path.resolve(dictFile);
+    if (dictConfig?.dir) {
+      const dictDir = path.resolve(dictConfig.dir);
+      if (normalized === dictDir || normalized.startsWith(dictDir + path.sep)) {
+        return path.relative(dictDir, normalized).split(path.sep).join('/');
+      }
+    }
+    const repoRoot = path.resolve(root);
+    if (normalized === repoRoot || normalized.startsWith(repoRoot + path.sep)) {
+      return path.relative(repoRoot, normalized).split(path.sep).join('/');
+    }
+    return normalized;
+  };
   const dictSignatureParts = [];
   for (const dictFile of dictionaryPaths) {
+    const signaturePath = normalizeDictSignaturePath(dictFile);
     try {
       const stat = await fs.stat(dictFile);
-      dictSignatureParts.push(`${dictFile}:${stat.size}:${stat.mtimeMs}`);
+      dictSignatureParts.push(`${signaturePath}:${stat.size}:${stat.mtimeMs}`);
     } catch {
-      dictSignatureParts.push(`${dictFile}:missing`);
+      dictSignatureParts.push(`${signaturePath}:missing`);
     }
   }
   dictSignatureParts.sort();

@@ -85,6 +85,7 @@ function validateValue(value, schema, path) {
           continue;
         }
         if (schema.additionalProperties === false) {
+          if (required.has(key)) continue;
           errors.push(`${formatPath(path, key)} is not allowed`);
           continue;
         }

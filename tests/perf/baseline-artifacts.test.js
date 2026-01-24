@@ -72,7 +72,6 @@ const buildResult1 = runBuild();
 if (buildResult1.status !== 0) {
   console.error('baseline determinism test failed: first build failed');
   if (buildResult1.stderr) console.error(buildResult1.stderr.trim());
-  await rmDirRecursive(cacheRoot);
   process.exit(buildResult1.status ?? 1);
 }
 const firstBuildRoots = {
@@ -84,7 +83,6 @@ const buildResult2 = runBuild();
 if (buildResult2.status !== 0) {
   console.error('baseline determinism test failed: second build failed');
   if (buildResult2.stderr) console.error(buildResult2.stderr.trim());
-  await rmDirRecursive(cacheRoot);
   process.exit(buildResult2.status ?? 1);
 }
 const secondBuildRoots = {

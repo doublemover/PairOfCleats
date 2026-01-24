@@ -79,6 +79,7 @@
     "test:unit": "node tests/run.js --lane unit",
     "test:integration": "node tests/run.js --lane integration",
     "test:services": "node tests/run.js --lane services",
+    "test:api": "node tests/run.js --lane api",
     "test:storage": "node tests/run.js --lane storage",
     "test:perf": "node tests/run.js --lane perf",
     "test:ci": "node tests/run.js --lane ci",

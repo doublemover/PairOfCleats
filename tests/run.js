@@ -1,19 +1,50 @@
 #!/usr/bin/env node
+import fsSync from 'node:fs';
 import fsPromises from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import PQueue from 'p-queue';
 import { killProcessTree } from './helpers/kill-tree.js';
+import { parse as parseJsonc } from 'jsonc-parser';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TESTS_DIR = path.join(ROOT, 'tests');
-const DEFAULT_TIMEOUT_MS = 120000;
+const RUN_CONFIG_PATH = path.join(TESTS_DIR, 'run.config.jsonc');
+const DEFAULT_TIMEOUT_MS = 30000;
 const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
 const SKIP_EXIT_CODE = 77;
 const DEFAULT_TIMEOUT_GRACE_MS = 2000;
+const ANSI = {
+  reset: '\x1b[0m',
+  fgGreen: '\x1b[32m',
+  fgRed: '\x1b[31m',
+  fgYellow: '\x1b[33m',
+  fgCyan: '\x1b[36m',
+  fgLight: '\x1b[37m',
+  fgBlue: '\x1b[34m',
+  fgLightBlue: '\x1b[94m',
+  fgBrightWhite: '\x1b[97m',
+  fgDarkGray: '\x1b[90m',
+  fgSoftBlue: '\x1b[38;5;117m',
+  fgPink: '\x1b[38;5;213m',
+  fgPinkMuted: '\x1b[38;5;176m',
+  fgPinkDark: '\x1b[38;5;168m',
+  fgDarkGreen: '\x1b[38;5;22m',
+  fgOrange: '\x1b[38;5;214m',
+  fgDarkOrange: '\x1b[38;5;172m',
+  fgBrown: '\x1b[38;5;130m',
+  fgBrownDark: '\x1b[38;5;94m',
+  bgBlack: '\x1b[40m',
+  bgDarkPurple: '\x1b[48;5;18m',
+  dim: '\x1b[2m',
+  bold: '\x1b[1m'
+};
+const TIME_LABEL_COLOR = ANSI.fgDarkGray;
+const TIME_BRACKET_COLOR = `${ANSI.dim}${ANSI.fgDarkGray}`;
 
 const EXCLUDED_DIRS = new Set([
   'fixtures',
@@ -26,11 +57,12 @@ const EXCLUDED_DIRS = new Set([
   'worktrees'
 ]);
 const EXCLUDED_FILES = new Set(['run.js', 'all.js', 'script-coverage.js', 'api-server-stream.js']);
-const KNOWN_LANES = new Set(['smoke', 'unit', 'integration', 'services', 'storage', 'perf', 'ci']);
+const KNOWN_LANES = new Set(['smoke', 'unit', 'integration', 'services', 'api', 'storage', 'perf', 'ci']);
 
 const LANE_RULES = [
   { lane: 'perf', match: [/^perf\//, /^bench/, /-perf-/, /^kotlin-perf-guard/] },
   { lane: 'smoke', match: [/^smoke(?:-|$)/, /^harness\/smoke\//] },
+  { lane: 'api', match: [/^services\/api\//] },
   { lane: 'services', match: [/^services\//, /^api-server/, /^mcp/, /^indexer-service/, /^service-queue/] },
   { lane: 'storage', match: [/^storage\//, /^sqlite/, /^lmdb/, /^vector-extension/] },
   { lane: 'unit', match: [/^unit\//, /\.unit(\.|$)/, /^harness\//, /^jsonrpc-/, /^json-stream/, /^tokenize-/, /^tokenization-/, /^dict-/, /^cache-lru/, /^build-runtime\//, /^test-runner$/] }
@@ -39,6 +71,7 @@ const LANE_RULES = [
 const TAG_RULES = [
   { tag: 'perf', match: /^perf\// },
   { tag: 'services', match: /^services\// },
+  { tag: 'api', match: /^services\/api\// },
   { tag: 'storage', match: /^storage\// },
   { tag: 'indexing', match: /^indexing\// },
   { tag: 'retrieval', match: /^retrieval\// },
@@ -53,7 +86,32 @@ const TAG_RULES = [
   { tag: 'api', match: /^api-server/ },
   { tag: 'watch', match: /^watch-/ },
   { tag: 'embeddings', match: /embeddings/ },
-  { tag: 'tooling', match: /tooling|lsp|type-inference/ }
+  { tag: 'tooling', match: /tooling|lsp|type-inference/ },
+  { tag: 'context-pack', match: /^tooling\/triage\/context-pack/ },
+  { tag: 'summary-report', match: /^summary-report/ },
+  { tag: 'search-tie-order', match: /^search-tie-order/ },
+  { tag: 'search-explain', match: /^search-explain/ },
+  { tag: 'search-rrf', match: /^search-rrf/ },
+  { tag: 'records-index-and-search', match: /^tooling\/triage\/records-index-and-search\.test$/ },
+  { tag: 'tool-build-index-progress', match: /^services\/mcp\/tool-build-index-progress\.test$/ },
+  { tag: 'file-selector-case', match: /^retrieval\/filters\/file-and-token\/file-selector-case\.test$/ },
+  { tag: 'type-signature-decorator', match: /^retrieval\/filters\/type-signature-decorator\.test$/ },
+  { tag: 'parity', match: /parity/ },
+  { tag: 'lancedb-ann', match: /^lancedb-ann/ },
+  { tag: 'incremental-tokenization-cache', match: /^incremental-tokenization-cache/ },
+  { tag: 'incremental-cache-signature', match: /^incremental-cache-signature/ },
+  { tag: 'hnsw-ann', match: /^hnsw-ann/ },
+  { tag: 'fixture-parity', match: /^fixture-parity/ },
+  { tag: 'fixture-eval', match: /^fixture-eval/ },
+  { tag: 'artifact-size-guardrails', match: /^artifact-size-guardrails/ },
+  { tag: 'churn-filter', match: /^churn-filter/ },
+  { tag: 'comment-join', match: /^comment-join/ },
+  { tag: 'extracted-prose', match: /^extracted-prose/ },
+  { tag: 'timeout-target', match: /^harness\/timeout-target/ },
+  { tag: 'python-metadata', match: /^lang\/fixtures-sample\/python-metadata\.test$/ },
+  { tag: 'query-cache', match: /^query-cache(?:-|$)/ },
+  { tag: 'shard-merge', match: /^shard-merge/ },
+  { tag: 'destructive', match: /^uninstall/ }
 ];
 
 const parseArgs = () => {
@@ -202,9 +260,6 @@ const applyFilters = ({ tests, lanes, includeMatchers, excludeMatchers, tagInclu
   if (tagInclude.length) {
     filtered = filtered.filter((test) => tagInclude.some((tag) => test.tags.includes(tag)));
   }
-  if (tagExclude.length) {
-    filtered = filtered.filter((test) => !tagExclude.some((tag) => test.tags.includes(tag)));
-  }
   if (includeMatchers.length) {
     filtered = filtered.filter((test) => (
       matchesAny(test.id, includeMatchers) || matchesAny(test.relPath, includeMatchers)
@@ -215,7 +270,18 @@ const applyFilters = ({ tests, lanes, includeMatchers, excludeMatchers, tagInclu
       matchesAny(test.id, excludeMatchers) || matchesAny(test.relPath, excludeMatchers)
     ));
   }
-  return filtered;
+  const hasExcludedTag = (test) => tagExclude.some((tag) => test.tags.includes(tag));
+  const skipped = tagExclude.length
+    ? filtered.filter((test) => hasExcludedTag(test)).map((test) => ({
+      ...test,
+      presetStatus: 'skipped',
+      skipReason: `excluded tag: ${test.tags.filter((tag) => tagExclude.includes(tag)).join(', ')}`
+    }))
+    : [];
+  const selected = tagExclude.length
+    ? filtered.filter((test) => !hasExcludedTag(test))
+    : filtered;
+  return { selected, skipped };
 };
 
 const resolveRetries = ({ cli, env, defaultRetries }) => {
@@ -240,6 +306,203 @@ const formatDuration = (ms) => {
   if (ms >= 10000) return `${(ms / 1000).toFixed(1)}s`;
   if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
   return `${Math.round(ms)}ms`;
+};
+
+const formatDurationCell = (ms) => {
+  const text = formatDuration(ms);
+  const width = 6;
+  if (text.length >= width) return text;
+  return `${' '.repeat(width - text.length)}${text}`;
+};
+
+const formatLabel = (label, { useColor = false, mode = 'plain' } = {}) => {
+  if (!useColor) return label;
+  if (mode === 'pass') return `${ANSI.bgBlack}${ANSI.fgGreen}${label}${ANSI.reset}`;
+  if (mode === 'fail') return `${ANSI.bgBlack}${ANSI.fgRed}${label}${ANSI.reset}`;
+  if (mode === 'warn') return `${ANSI.fgYellow}${label}${ANSI.reset}`;
+  if (mode === 'log') return `${ANSI.bgBlack}${ANSI.fgLightBlue}${label}${ANSI.reset}`;
+  if (mode === 'skip') return `${ANSI.bgBlack}${ANSI.fgPink}${label}${ANSI.reset}`;
+  return label;
+};
+
+const extractOutputLines = (text) => {
+  if (!text) return [];
+  const normalized = text.replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
+  return lines.map((line) => line.trimEnd()).filter((line) => line.trim() !== '');
+};
+
+const formatOutputLines = (lines, { useColor = false, columns = 0 } = {}) => {
+  if (!lines.length) return '';
+  const indented = lines.map((line) => `  ${line}`);
+  const colored = indented.map((line) => {
+    if (!useColor) return line;
+    const tinted = `${ANSI.fgSoftBlue}${line}${ANSI.reset}`;
+    return applyLineBackground(tinted, { useColor, columns, bg: ANSI.bgDarkPurple });
+  }).join('\n');
+  const output = useColor ? colored : indented.join('\n');
+  return `${output}\n`;
+};
+
+const selectOutputLines = ({ stdout, stderr, mode }) => {
+  const lines = [...extractOutputLines(stdout), ...extractOutputLines(stderr)];
+  if (!lines.length) return [];
+  if (mode === 'success') return [];
+  if (mode === 'failure') {
+    const matches = lines.filter((line) => /\[error\]|Failed\b/i.test(line));
+    return matches.length ? matches : lines.slice(-3);
+  }
+  return lines.slice(-3);
+};
+
+const formatCapturedOutput = ({ stdout, stderr, mode, useColor = false, columns = 0 } = {}) => {
+  const lines = selectOutputLines({ stdout, stderr, mode });
+  return formatOutputLines(lines, { useColor, columns });
+};
+
+const formatLogPath = (value) => {
+  if (!value) return '';
+  const relative = path.isAbsolute(value) ? path.relative(ROOT, value) : value;
+  const normalized = String(relative || '').replace(/\\/g, '/');
+  if (!normalized) return './';
+  if (normalized.startsWith('./') || normalized.startsWith('../')) return normalized;
+  return `./${normalized}`;
+};
+
+const formatLogLine = (value, { useColor = false } = {}) => {
+  const label = formatLabel('LOG:', { useColor, mode: 'log' });
+  const resolved = formatLogPath(value);
+  const pad = ' '.repeat(10);
+  if (!useColor) return `${label}${pad}${resolved}`;
+  return `${label}${pad}${ANSI.fgBrightWhite}${resolved}${ANSI.reset}`;
+};
+
+const formatSummaryLogLine = (value, { useColor = false } = {}) => {
+  const label = formatLabel('LOG:', { useColor, mode: 'log' });
+  const resolved = formatLogPath(value);
+  if (!useColor) return `${label} ${resolved}`;
+  return `${label} ${ANSI.fgBrightWhite}${resolved}${ANSI.reset}`;
+};
+
+const formatSkipReason = (reason, { useColor = false } = {}) => {
+  if (!reason) return '';
+  const prefix = 'excluded tag:';
+  const trimmed = String(reason).trim();
+  if (!useColor) return ` (${trimmed})`;
+  if (!trimmed.toLowerCase().startsWith(prefix)) {
+    return `${ANSI.fgDarkGray} (${trimmed})${ANSI.reset}`;
+  }
+  const tagsPart = trimmed.slice(prefix.length).trim();
+  return `${ANSI.fgDarkGray} (${prefix} ${ANSI.reset}${ANSI.fgPinkDark}${tagsPart}${ANSI.reset}${ANSI.fgDarkGray})${ANSI.reset}`;
+};
+
+const stripAnsi = (text) => String(text).replace(/\x1b\[[0-9;]*m/g, '');
+
+const colorize = (text, color, useColor) => (useColor ? `${color}${text}${ANSI.reset}` : text);
+
+const applyLineBackground = (text, { useColor = false, columns = 0, bg = ANSI.bgBlack } = {}) => {
+  if (!useColor) return text;
+  const visible = stripAnsi(text).length;
+  const width = Number.isFinite(columns) ? columns : 0;
+  let padded = text;
+  if (width && visible < width) {
+    padded = `${text}${' '.repeat(width - visible)}`;
+  }
+  const withBg = `${bg}${padded}`.replaceAll(ANSI.reset, `${ANSI.reset}${bg}`);
+  return `${withBg}${ANSI.reset}`;
+};
+
+const padEndRaw = (text, width) => {
+  if (text.length >= width) return text;
+  return `${text}${' '.repeat(width - text.length)}`;
+};
+
+const padEndVisible = (text, width) => {
+  const visible = stripAnsi(text).length;
+  if (visible >= width) return text;
+  return `${text}${' '.repeat(width - visible)}`;
+};
+
+const wrapList = (items, maxLen) => {
+  const lines = [];
+  let current = [];
+  let currentLen = 0;
+  for (const item of items) {
+    const itemText = String(item);
+    const addLen = (current.length ? 2 : 0) + itemText.length;
+    if (current.length && (currentLen + addLen) > maxLen) {
+      lines.push(current);
+      current = [itemText];
+      currentLen = itemText.length;
+      continue;
+    }
+    current.push(itemText);
+    currentLen += addLen;
+  }
+  if (current.length) lines.push(current);
+  return lines;
+};
+
+const loadRunConfig = () => {
+  try {
+    if (!fsSync.existsSync(RUN_CONFIG_PATH)) return {};
+    const raw = fsSync.readFileSync(RUN_CONFIG_PATH, 'utf8');
+    const parsed = parseJsonc(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const BORDER_PATTERN = '╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴';
+
+const buildBorder = (length) => {
+  if (length <= 0) return '';
+  let out = '';
+  while (out.length < length) out += BORDER_PATTERN;
+  return out.slice(0, length);
+};
+
+const colorizeBorder = (border, useColor) => {
+  if (!useColor) return border;
+  return Array.from(border).map((ch) => {
+    const dashLike = ch === '-' || ch === '╶' || ch === '╴';
+    const color = dashLike ? `${ANSI.dim}${ANSI.fgDarkGray}` : ANSI.fgDarkGray;
+    return `${color}${ch}${ANSI.reset}`;
+  }).join('');
+};
+
+const formatDurationBadge = (ms, { useColor = false } = {}) => {
+  const inner = formatDurationCell(ms);
+  const trimmed = inner.trim();
+  const unit = trimmed.endsWith('ms') ? 'ms' : 's';
+  const numberPart = inner.slice(0, inner.length - unit.length);
+  if (!useColor) return `[${inner}]`;
+  const bracketColor = TIME_BRACKET_COLOR;
+  const suffixColor = TIME_LABEL_COLOR;
+  return `${ANSI.bgBlack}${bracketColor}[${ANSI.fgBrightWhite}${numberPart}${suffixColor}${unit}` +
+    `${ANSI.reset}${ANSI.bgBlack}${bracketColor}]${ANSI.reset}`;
+};
+
+const formatDurationValue = (ms, { useColor = false } = {}) => {
+  const text = formatDuration(ms);
+  if (!useColor) return text;
+  const unit = text.endsWith('ms') ? 'ms' : 's';
+  const numberPart = text.slice(0, text.length - unit.length);
+  return `${ANSI.fgBrightWhite}${numberPart}${TIME_LABEL_COLOR}${unit}${ANSI.reset}`;
+};
+
+const resolveSlowestColor = (ms) => {
+  const seconds = Number(ms) / 1000;
+  if (!Number.isFinite(seconds) || seconds <= 2) return ANSI.fgGreen;
+  if (seconds <= 4) return ANSI.fgDarkGreen;
+  if (seconds <= 7) return ANSI.fgYellow;
+  if (seconds <= 10) return ANSI.fgOrange;
+  if (seconds <= 13) return ANSI.fgDarkOrange;
+  if (seconds <= 16) return ANSI.fgBrown;
+  if (seconds <= 19.5) return ANSI.fgBrownDark;
+  return ANSI.fgRed;
 };
 
 const extractSkipReason = (stdout, stderr) => {
@@ -301,9 +564,16 @@ const collectOutput = (stream, limit, onChunk) => {
 const runTestOnce = async ({ test, passThrough, env, cwd, timeoutMs, captureOutput }) => new Promise((resolve) => {
   const start = Date.now();
   const args = [test.path, ...passThrough];
+  const testEnv = { ...env };
+  if (!testEnv.PAIROFCLEATS_TEST_CACHE_SUFFIX) {
+    testEnv.PAIROFCLEATS_TEST_CACHE_SUFFIX = sanitizeId(test.id);
+  }
+  if (!testEnv.PAIROFCLEATS_TEST_PID_FILE && test.id === 'harness/timeout-target') {
+    testEnv.PAIROFCLEATS_TEST_PID_FILE = path.join(os.tmpdir(), `pairofcleats-timeout-${process.pid}.json`);
+  }
   const child = spawn(process.execPath, args, {
     cwd,
-    env,
+    env: testEnv,
     detached: process.platform !== 'win32',
     stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit'
   });
@@ -493,8 +763,27 @@ const main = async () => {
   const includePatterns = [...selectors, ...argv.match];
   const excludePatterns = [...argv.exclude];
   const tagInclude = splitCsv(argv.tag);
+  const requestedLanes = splitCsv(argv.lane.length ? argv.lane : ['ci']);
+  const lanes = resolveLanes(requestedLanes);
+  const lanesList = Array.from(lanes).sort();
+  const runConfig = loadRunConfig();
   const tagExclude = splitCsv(argv['exclude-tag']);
-  const lanes = resolveLanes(argv.lane);
+  const configExclude = new Set(
+    Array.isArray(runConfig.excludeTags) ? runConfig.excludeTags.map((tag) => String(tag)) : []
+  );
+  const laneConfig = runConfig.lanes && typeof runConfig.lanes === 'object' ? runConfig.lanes : {};
+  for (const lane of requestedLanes) {
+    const entry = laneConfig[lane];
+    if (!entry || typeof entry !== 'object') continue;
+    const laneExcludes = Array.isArray(entry.excludeTags)
+      ? entry.excludeTags.map((tag) => String(tag))
+      : [];
+    laneExcludes.forEach((tag) => configExclude.add(tag));
+  }
+  for (const tag of configExclude) {
+    if (!tag || tagInclude.includes(tag) || tagExclude.includes(tag)) continue;
+    tagExclude.push(tag);
+  }
 
   const tests = (await discoverTests()).map((test) => {
     const lane = assignLane(test.id);
@@ -503,7 +792,8 @@ const main = async () => {
 
   const includeMatchers = compileMatchers(includePatterns, 'match');
   const excludeMatchers = compileMatchers(excludePatterns, 'exclude');
-  let selection = applyFilters({ tests, lanes, includeMatchers, excludeMatchers, tagInclude, tagExclude });
+  const { selected, skipped } = applyFilters({ tests, lanes, includeMatchers, excludeMatchers, tagInclude, tagExclude });
+  let selection = [...selected, ...skipped];
 
   if (!selection.length) {
     console.error('No tests matched the selected filters.');
@@ -590,6 +880,11 @@ const main = async () => {
     nodeOptionsParts.push(`--max-old-space-size=${maxOldSpaceMb}`);
   }
   if (nodeOptionsExtraRaw) nodeOptionsParts.push(nodeOptionsExtraRaw);
+  const testEnvImport = `--import ${pathToFileURL(path.join(TESTS_DIR, 'helpers', 'test-env.js')).href}`;
+  const existingNodeOptions = mergeNodeOptions(baseEnv.NODE_OPTIONS, nodeOptionsExtraRaw);
+  if (!existingNodeOptions.includes(testEnvImport)) {
+    nodeOptionsParts.push(testEnvImport);
+  }
   if (nodeOptionsParts.length) {
     baseEnv.NODE_OPTIONS = mergeNodeOptions(baseEnv.NODE_OPTIONS, nodeOptionsParts.join(' '));
   }
@@ -601,19 +896,78 @@ const main = async () => {
   const showSkip = !argv.quiet;
   const showFailures = true;
   const showSummary = true;
+  const useColor = !argv.json && consoleStream.isTTY;
   const startedAt = Date.now();
-  const preamble = [
-    `Lanes: ${Array.from(lanes).sort().join(', ')}`,
-    `Tests: ${selection.length}`,
-    includePatterns.length ? `Match: ${includePatterns.join(', ')}` : '',
-    tagInclude.length ? `Tags: ${tagInclude.join(', ')}` : '',
-    tagExclude.length ? `Exclude tags: ${tagExclude.join(', ')}` : '',
-    excludePatterns.length ? `Exclude: ${excludePatterns.join(', ')}` : '',
-    jobs > 1 ? `Jobs: ${jobs}` : ''
-  ].filter(Boolean).join(' | ');
+  const headerIndent = '         ';
+  const innerPadding = '      ';
+  const lineIndent = `${headerIndent}${innerPadding}`;
+  const prefix = 'Lanes: ';
+  const testsCount = String(selection.length).padStart(4);
+  const testsRaw = `Tests: ${testsCount}`;
+  const showJobs = jobs > 1;
+  const jobsCount = String(jobs).padStart(2);
+  const jobsRaw = `Jobs: ${jobsCount}`;
+  const rightRaw = showJobs ? `${testsRaw} | ${jobsRaw}` : testsRaw;
+  const rightRawWithPipe = `| ${rightRaw}`;
+  const maxWidth = Math.max(
+    60,
+    Math.min((consoleStream.isTTY && consoleStream.columns ? consoleStream.columns : 80) - headerIndent.length, 120)
+  );
+  const laneMaxLen = Math.max(10, maxWidth - prefix.length - 1 - rightRawWithPipe.length);
+  const laneLines = wrapList(lanesList, laneMaxLen);
+  const laneLineTexts = laneLines.map((line, idx) => {
+    const text = line.join(', ');
+    return idx < laneLines.length - 1 ? `${text},` : text;
+  });
+  const maxLaneLineLen = laneLineTexts.reduce((max, text) => Math.max(max, text.length), 0);
+  const leftWidth = prefix.length + maxLaneLineLen;
+  const rightPipe = useColor ? `${ANSI.fgLight}|${ANSI.reset}` : '|';
+
+  const lanesLabel = colorize('Lanes:', ANSI.fgLightBlue, useColor);
+  const lanesLineColored = laneLines.map((line, idx) => {
+    const colored = line.map((lane) => colorize(lane, ANSI.fgLight, useColor)).join(', ');
+    return idx < laneLines.length - 1 ? `${colored},` : colored;
+  });
+  const testsLabel = colorize('Tests:', ANSI.fgGreen, useColor);
+  const testsValue = colorize(testsCount, ANSI.fgLight, useColor);
+  const jobsLabel = colorize('Jobs:', ANSI.fgOrange, useColor);
+  const jobsValue = colorize(jobsCount, ANSI.fgLight, useColor);
+  const rightColored = showJobs
+    ? `${rightPipe} ${testsLabel} ${testsValue} ${rightPipe} ${jobsLabel} ${jobsValue}`
+    : `${rightPipe} ${testsLabel} ${testsValue}`;
+
+  const contentLinesRaw = [];
+  const contentLinesColored = [];
+
+  if (laneLineTexts.length) {
+    const leftRaw = padEndRaw(`${prefix}${laneLineTexts[0]}`, leftWidth);
+    const leftColored = padEndVisible(`${lanesLabel} ${lanesLineColored[0]}`, leftWidth);
+    contentLinesRaw.push(`${leftRaw} ${rightRawWithPipe}`);
+    contentLinesColored.push(`${leftColored} ${rightColored}`);
+    for (let i = 1; i < laneLineTexts.length; i += 1) {
+      const leftRawLine = padEndRaw(laneLineTexts[i], maxLaneLineLen);
+      const leftColoredLine = padEndVisible(lanesLineColored[i], maxLaneLineLen);
+      contentLinesRaw.push(`${' '.repeat(prefix.length)}${leftRawLine}${rightRawWithPipe.slice(0, 1)}`);
+      contentLinesColored.push(`${' '.repeat(prefix.length)}${leftColoredLine}${rightPipe}`);
+    }
+  }
+
+  const contentWidth = contentLinesRaw.reduce((max, line) => Math.max(max, line.length), 0);
+  const maxContentLength = Math.max(contentWidth, BORDER_PATTERN.length);
+  const paddedLinesColored = contentLinesColored.map((line) => padEndVisible(line, maxContentLength));
+  const borderRaw = buildBorder(maxContentLength);
+  const border = `${headerIndent}${colorizeBorder(borderRaw, useColor)}`;
+  const headerBg = { useColor, columns: consoleStream.columns };
+  const blankLine = applyLineBackground('', headerBg);
 
   if (showPreamble) {
-    consoleStream.write(`${preamble}\n`);
+    consoleStream.write(`${blankLine}\n`);
+    consoleStream.write(`${applyLineBackground(border, headerBg)}\n`);
+    for (const line of paddedLinesColored) {
+      consoleStream.write(`${applyLineBackground(`${lineIndent}${line}`, headerBg)}\n`);
+    }
+    consoleStream.write(`${applyLineBackground(border, headerBg)}\n`);
+    consoleStream.write(`${blankLine}\n`);
   }
 
   const results = new Array(selection.length);
@@ -626,22 +980,57 @@ const main = async () => {
       const current = results[nextToReport];
       if (current.status === 'failed' && showFailures) {
         if (captureOutput && !argv.json) {
-          if (current.stdout) consoleStream.write(current.stdout);
-          if (current.stderr) consoleStream.write(current.stderr);
+          const output = formatCapturedOutput({
+            stdout: current.stdout,
+            stderr: current.stderr,
+            mode: 'failure',
+            useColor,
+            columns: consoleStream.columns
+          });
+          if (output) {
+            consoleStream.write(`${applyLineBackground('', { useColor, columns: consoleStream.columns })}\n`);
+            consoleStream.write(output);
+          }
         }
-        const duration = formatDuration(current.durationMs);
+        const duration = formatDurationBadge(current.durationMs, { useColor });
         const detail = formatFailure(current);
         const attemptInfo = current.attempts > 1 ? ` after ${current.attempts} attempts` : '';
-        consoleStream.write(`FAIL ${current.id} (${duration}) ${detail}${attemptInfo}\n`);
+        const label = formatLabel('FAIL', { useColor, mode: 'fail' });
+        const gap = useColor ? `${ANSI.bgBlack} ${ANSI.reset}` : ' ';
+        const failLine = `${label}${gap}${duration} ${current.id} ${detail}${attemptInfo}`;
+        consoleStream.write(`${applyLineBackground(failLine, { useColor, columns: consoleStream.columns })}\n`);
         if (current.logs && current.logs.length) {
-          consoleStream.write(`Log: ${current.logs[current.logs.length - 1]}\n`);
+          const logLine = formatLogLine(current.logs[current.logs.length - 1], { useColor });
+          consoleStream.write(`${applyLineBackground(logLine, { useColor, columns: consoleStream.columns })}\n`);
+          consoleStream.write(`${applyLineBackground('', { useColor, columns: consoleStream.columns })}\n`);
         }
       } else if (current.status === 'passed' && showPass) {
-        const duration = formatDuration(current.durationMs);
-        consoleStream.write(`PASS ${current.id} (${duration})\n`);
+        const duration = formatDurationBadge(current.durationMs, { useColor });
+        const label = formatLabel('PASS', { useColor, mode: 'pass' });
+        const gap = useColor ? `${ANSI.bgBlack} ${ANSI.reset}` : ' ';
+        const passLine = `${label}${gap}${duration} ${current.id}`;
+        consoleStream.write(`${applyLineBackground(passLine, { useColor, columns: consoleStream.columns })}\n`);
+        if (captureOutput && !argv.json) {
+          const output = formatCapturedOutput({
+            stdout: current.stdout,
+            stderr: current.stderr,
+            mode: 'success',
+            useColor,
+            columns: consoleStream.columns
+          });
+          if (output) {
+            consoleStream.write(`${applyLineBackground('', { useColor, columns: consoleStream.columns })}\n`);
+            consoleStream.write(output);
+          }
+        }
       } else if (current.status === 'skipped' && showSkip) {
-        const reason = current.skipReason ? ` (${current.skipReason})` : '';
-        consoleStream.write(`SKIP ${current.id}${reason}\n`);
+        const reason = formatSkipReason(current.skipReason, { useColor });
+        const label = formatLabel('SKIP', { useColor, mode: 'skip' });
+        const gap = useColor ? `${ANSI.bgBlack} ${ANSI.reset}` : ' ';
+        const pad = ' '.repeat(10);
+        const nameText = useColor ? `${ANSI.fgDarkGray}${current.id}${ANSI.reset}` : current.id;
+        const skipLine = `${label}${gap}${pad}${nameText}${reason}`;
+        consoleStream.write(`${applyLineBackground(skipLine, { useColor, columns: consoleStream.columns })}\n`);
       }
       nextToReport += 1;
     }
@@ -650,6 +1039,10 @@ const main = async () => {
   const queue = new PQueue({ concurrency: jobs });
   selection.forEach((test, index) => {
     queue.add(async () => {
+      if (test.presetStatus === 'skipped') {
+        reportResult({ ...test, id: test.id, status: 'skipped', durationMs: 0 }, index);
+        return;
+      }
       if (argv['fail-fast'] && failFastTriggered) {
         reportResult({ ...test, id: test.id, status: 'skipped', durationMs: 0 }, index);
         return;
@@ -676,16 +1069,183 @@ const main = async () => {
   const totalMs = Date.now() - startedAt;
   const summary = summarizeResults(results, totalMs);
   if (showSummary) {
-    consoleStream.write(`Summary: ${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped\n`);
-    if (summary.failed) {
-      const failures = results.filter((result) => result.status === 'failed');
-      consoleStream.write('Failures:\n');
-      for (const failure of failures) {
-        consoleStream.write(`  - ${failure.id} (${formatFailure(failure)})\n`);
-      }
+    const summaryBg = { useColor, columns: consoleStream.columns };
+    const summaryIndent = '     ' + '        ' + innerPadding;
+    const sectionIndent = '  ';
+    const itemIndent = '     ';
+    const completeIndent = '                        ' + '        ' + innerPadding;
+    const summaryLabel = colorize('Summary:', ANSI.fgLightBlue, useColor);
+    const passedText = colorize('Passed', ANSI.fgGreen, useColor);
+    const failedText = colorize('Failed', ANSI.fgRed, useColor);
+    const timeoutsText = colorize('Timeouts', ANSI.fgOrange, useColor);
+    const skippedText = colorize('Skipped', ANSI.fgPink, useColor);
+    const passedValue = colorize(String(summary.passed), ANSI.fgBrightWhite, useColor);
+    const timeouts = results.filter((result) => result.timedOut);
+    const failedOnly = results.filter((result) => result.status === 'failed' && !result.timedOut);
+    const excludedSkips = results.filter((result) => result.status === 'skipped'
+      && String(result.skipReason || '').toLowerCase().startsWith('excluded tag:'));
+    const skippedOnly = results.filter((result) => result.status === 'skipped'
+      && !String(result.skipReason || '').toLowerCase().startsWith('excluded tag:'));
+    const failedValue = colorize(String(failedOnly.length), ANSI.fgBrightWhite, useColor);
+    const skippedValue = colorize(String(skippedOnly.length), ANSI.fgBrightWhite, useColor);
+    const timeoutsValue = colorize(String(timeouts.length), ANSI.fgBrightWhite, useColor);
+    const durationLabel = colorize('Duration:', TIME_LABEL_COLOR, useColor);
+    const summaryLabelName = 'Summary';
+    const durationLabelName = 'Duration';
+    const slowestLabelName = 'Slowest';
+    const labelWidth = Math.max(summaryLabelName.length, durationLabelName.length, slowestLabelName.length);
+    const renderLabel = (label, color) => {
+      const padded = label.padEnd(labelWidth);
+      if (!useColor) return `${padded}:`;
+      return `${color}${padded}:${ANSI.reset}`;
+    };
+    const resolveWord = (count, singular, plural) => (count === 1 ? singular : plural);
+    const summaryFailedWord = resolveWord(failedOnly.length, 'Failure', 'Failed');
+    const summaryTimeoutWord = resolveWord(timeouts.length, 'Timeout', 'Timeouts');
+    const summarySkipWord = resolveWord(skippedOnly.length, 'Skip', 'Skipped');
+
+    consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
+    const completeText = useColor
+      ? `${ANSI.bold}${ANSI.fgBrightWhite}Test Complete!${ANSI.reset}`
+      : 'Test Complete!';
+    consoleStream.write(`${applyLineBackground(`${completeIndent}${completeText}`, summaryBg)}\n`);
+    consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
+    consoleStream.write(`${applyLineBackground(border, summaryBg)}\n`);
+    const summaryLine = `${summaryIndent}${renderLabel(summaryLabelName, ANSI.fgLightBlue)} ${passedValue} ${passedText} | ` +
+      `${failedValue} ${colorize(summaryFailedWord, ANSI.fgRed, useColor)} | ` +
+      `${timeoutsValue} ${colorize(summaryTimeoutWord, ANSI.fgOrange, useColor)} | ` +
+      `${skippedValue} ${colorize(summarySkipWord, ANSI.fgPink, useColor)}`;
+    consoleStream.write(`${applyLineBackground(summaryLine, summaryBg)}\n`);
+    const durationLine = `${summaryIndent}${renderLabel(durationLabelName, TIME_LABEL_COLOR)} ${formatDurationValue(totalMs, { useColor })}`;
+    consoleStream.write(`${applyLineBackground(durationLine, summaryBg)}\n`);
+    const slowest = results.reduce((best, result) => {
+      if (!Number.isFinite(result?.durationMs)) return best;
+      if (!best || result.durationMs > best.durationMs) return result;
+      return best;
+    }, null);
+    if (slowest) {
+      const slowestColor = resolveSlowestColor(slowest.durationMs);
+      const slowestLabel = useColor ? `${slowestColor}${slowestLabelName.padEnd(labelWidth)}:${ANSI.reset}` : `${slowestLabelName.padEnd(labelWidth)}:`;
+      const slowestName = colorize(slowest.id, ANSI.fgBrightWhite, useColor);
+      const slowestStatus = slowest.status === 'passed'
+        ? colorize('PASS', ANSI.fgGreen, useColor)
+        : (slowest.status === 'skipped'
+          ? colorize('SKIP', ANSI.fgPink, useColor)
+          : colorize('FAIL', ANSI.fgRed, useColor));
+      const slowestTime = formatDurationBadge(slowest.durationMs, { useColor });
+      const slowestLine = `${summaryIndent}${slowestLabel} ${slowestName} | ${slowestStatus} ${slowestTime}`;
+      consoleStream.write(`${applyLineBackground(slowestLine, summaryBg)}\n`);
     }
+    consoleStream.write(`${applyLineBackground(border, summaryBg)}\n`);
+    consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
+    if (excludedSkips.length) {
+      const exclusions = new Set();
+      for (const skip of excludedSkips) {
+        const reason = String(skip.skipReason || '');
+        const raw = reason.replace(/^excluded tag:/i, '').trim();
+        if (!raw) continue;
+        raw.split(',').map((value) => value.trim()).filter(Boolean).forEach((tag) => exclusions.add(tag));
+      }
+      const exclusionCount = exclusions.size;
+      const testsCount = excludedSkips.length;
+      const labelText = useColor
+        ? `${ANSI.fgPinkDark}Excluded Tags${ANSI.reset}`
+        : 'Excluded Tags';
+      const exclusionValue = useColor ? `${ANSI.fgBrightWhite}${exclusionCount}${ANSI.reset}` : String(exclusionCount);
+      const testsValue = useColor ? `${ANSI.fgBrightWhite}${testsCount}${ANSI.reset}` : String(testsCount);
+      const headerLine = `${sectionIndent}${labelText} - ${exclusionValue} Exclusions bypassing ${testsValue} Tests`;
+      consoleStream.write(`${applyLineBackground(headerLine, summaryBg)}\n`);
+      const tagsList = Array.from(exclusions).sort((a, b) => a.localeCompare(b));
+      if (tagsList.length) {
+        const maxWidth = Math.max(20, (consoleStream.columns || 100) - sectionIndent.length - 2);
+        const wrapped = wrapList(tagsList, maxWidth);
+        for (const lineItems of wrapped) {
+          const lineText = lineItems.join(', ');
+          const coloredText = useColor ? `${ANSI.fgPinkDark}${lineText}${ANSI.reset}` : lineText;
+          consoleStream.write(`${applyLineBackground(`${itemIndent}${coloredText}`, summaryBg)}\n`);
+        }
+      }
+      consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
+    }
+    if (skippedOnly.length) {
+      const skipHeaderText = resolveWord(skippedOnly.length, 'Skip', 'Skips');
+      const skipHeader = useColor
+        ? `${sectionIndent}${ANSI.fgPink}${skipHeaderText}${ANSI.reset}${ANSI.fgBrightWhite}:${ANSI.reset}`
+        : `${sectionIndent}${skipHeaderText}:`;
+      consoleStream.write(`${applyLineBackground(skipHeader, summaryBg)}\n`);
+      for (const skip of skippedOnly) {
+        const reason = skip.skipReason ? ` (${skip.skipReason})` : '';
+        const bullet = useColor ? `${ANSI.fgBrightWhite}- ${ANSI.reset}` : '- ';
+        const lineText = `${itemIndent}${bullet}${skip.id}${reason}`;
+        const coloredLine = useColor ? `${ANSI.fgBrightWhite}${lineText}${ANSI.reset}` : lineText;
+        consoleStream.write(`${applyLineBackground(coloredLine, summaryBg)}\n`);
+      }
+      consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
+    }
+    if (timeouts.length) {
+      const timeoutHeaderText = resolveWord(timeouts.length, 'Timeout', 'Timeouts');
+      const timeoutHeader = useColor
+        ? `${sectionIndent}${ANSI.fgOrange}${timeoutHeaderText}${ANSI.reset}${ANSI.fgBrightWhite}:${ANSI.reset}`
+        : `${sectionIndent}${timeoutHeaderText}:`;
+      consoleStream.write(`${applyLineBackground(timeoutHeader, summaryBg)}\n`);
+      for (const timeout of timeouts) {
+        const bullet = useColor ? `${ANSI.fgBrightWhite}- ${ANSI.reset}` : '- ';
+        const timeoutLine = `${itemIndent}${bullet}${timeout.id} ${formatDurationBadge(timeout.durationMs, { useColor })}`;
+        const coloredLine = useColor ? `${ANSI.fgDarkOrange}${timeoutLine}${ANSI.reset}` : timeoutLine;
+        consoleStream.write(`${applyLineBackground(coloredLine, summaryBg)}\n`);
+      }
+      consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
+    }
+    if (failedOnly.length) {
+      const failureHeaderText = resolveWord(failedOnly.length, 'Failure', 'Failures');
+      const failureHeader = useColor
+        ? `${sectionIndent}${ANSI.fgRed}${failureHeaderText}${ANSI.reset}${ANSI.fgBrightWhite}:${ANSI.reset}`
+        : `${sectionIndent}${failureHeaderText}:`;
+      consoleStream.write(`${applyLineBackground(failureHeader, summaryBg)}\n`);
+      for (const failure of failedOnly) {
+        const detail = formatFailure(failure);
+        const detailText = useColor
+          ? `${ANSI.bold}${ANSI.fgBrightWhite}${detail}${ANSI.reset}`
+          : detail;
+        const bullet = useColor ? `${ANSI.fgBrightWhite}- ${ANSI.reset}` : '- ';
+        const nameText = useColor ? `${ANSI.fgRed}${failure.id}${ANSI.reset}` : failure.id;
+        const duration = formatDurationBadge(failure.durationMs, { useColor });
+        const lineText = `${itemIndent}${bullet}${duration} ${nameText} (${detailText})`;
+        consoleStream.write(`${applyLineBackground(lineText, summaryBg)}\n`);
+        const outputLines = selectOutputLines({
+          stdout: failure.stdout,
+          stderr: failure.stderr,
+          mode: 'failure'
+        });
+        const hasLogs = failure.logs && failure.logs.length;
+        const hasDetails = outputLines.length || hasLogs;
+        if (outputLines.length) {
+          const subIndent = `${itemIndent}    `;
+          for (const line of outputLines) {
+            const subLine = `${subIndent}${line}`;
+            const coloredSubLine = useColor ? `${ANSI.fgDarkGray}${subLine}${ANSI.reset}` : subLine;
+            consoleStream.write(`${applyLineBackground(coloredSubLine, summaryBg)}\n`);
+          }
+        }
+        if (hasLogs) {
+          const subIndent = `${itemIndent}    `;
+          const logPath = formatLogPath(failure.logs[failure.logs.length - 1]);
+          const logLine = `${subIndent}LOG: ${logPath}`;
+          const coloredLogLine = useColor ? `${ANSI.fgDarkGray}${logLine}${ANSI.reset}` : logLine;
+          consoleStream.write(`${applyLineBackground(coloredLogLine, summaryBg)}\n`);
+        }
+        if (hasDetails) {
+          consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
+        }
+      }
+      consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
+    }
+    consoleStream.write(`${applyLineBackground(border, summaryBg)}\n`);
     if (runLogDir) {
-      consoleStream.write(`Logs: ${runLogDir}\n`);
+      consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
+      const logsLine = `${formatLabel('LOGS:', { useColor, mode: 'log' })} ${formatLogPath(runLogDir)}`;
+      consoleStream.write(`${applyLineBackground(logsLine, summaryBg)}\n`);
+      consoleStream.write(`${applyLineBackground('', summaryBg)}\n`);
     }
   }
 

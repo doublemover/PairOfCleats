@@ -13,6 +13,8 @@ const pidFile = path.join(tmpDir, 'pids.json');
 
 const result = spawnSync(process.execPath, [
   runnerPath,
+  '--lane',
+  'unit',
   '--match', 'harness/timeout-target',
   '--timeout-ms', '500',
   '--json'

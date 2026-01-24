@@ -71,6 +71,7 @@ Invocation corrections:
 
 ## Notes
 - Roadmap updates: mark Phase 0 in-progress while working; checkboxes only when changes are committed; test checkboxes only after tests pass; log test fix attempts under the test checkbox; after 3 failed fix attempts, stop and report.
+- 2026-01-24: default test timeout raised to 30s in `tests/run.js` (was 20s).
 
 ## Audit notes
 - Current CI workflow (`.github/workflows/ci.yml`) uses Node 18 and calls `npm run test-all-no-bench`, which is not defined in `package.json`.

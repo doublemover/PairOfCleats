@@ -1,7 +1,9 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { MAX_JSON_BYTES, readJsonFile } from '../../src/shared/artifact-io.js';
+import { MAX_JSON_BYTES, loadPiecesManifest, readJsonFile } from '../../src/shared/artifact-io.js';
+import { ARTIFACT_SCHEMA_DEFS } from '../../src/shared/artifact-schemas.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { checksumFile } from '../../src/shared/hash.js';
 
@@ -22,7 +24,7 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
   let existing = {};
   if (fsSync.existsSync(manifestPath)) {
     try {
-      existing = readJsonFile(manifestPath, { maxBytes: MAX_JSON_BYTES }) || {};
+      existing = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: false }) || {};
     } catch {
       existing = {};
     }
@@ -65,8 +67,10 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
     { type: 'embeddings', name: 'dense_vectors_code_lancedb', format: 'dir', path: 'dense_vectors_code.lancedb', count: totalChunks, dims },
     { type: 'embeddings', name: 'dense_vectors_code_lancedb_meta', format: 'json', path: 'dense_vectors_code.lancedb.meta.json', count: totalChunks, dims }
   ];
+  const schemaNames = new Set(Object.keys(ARTIFACT_SCHEMA_DEFS));
   const enriched = [];
   for (const entry of embeddingPieces) {
+    if (!schemaNames.has(entry.name)) continue;
     const absPath = path.join(indexDir, entry.path);
     if (!fsSync.existsSync(absPath)) continue;
     let bytes = null;
@@ -92,10 +96,14 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
   const now = new Date().toISOString();
   const manifest = {
     version: existing.version || 2,
+    artifactSurfaceVersion: existing.artifactSurfaceVersion || ARTIFACT_SURFACE_VERSION,
+    compatibilityKey: existing.compatibilityKey ?? null,
     generatedAt: existing.generatedAt || now,
     updatedAt: now,
-    mode,
+    mode: existing.mode || mode,
     stage: existing.stage || 'stage3',
+    repoId: existing.repoId ?? null,
+    buildId: existing.buildId ?? null,
     pieces: [...retained, ...enriched]
   };
   await fs.mkdir(piecesDir, { recursive: true });

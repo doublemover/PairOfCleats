@@ -1,0 +1,292 @@
+import path from 'node:path';
+import { MAX_JSON_BYTES } from './constants.js';
+import { existsOrBak } from './fs.js';
+import { readJsonFile } from './json.js';
+
+const MIN_MANIFEST_BYTES = 64 * 1024;
+const warnedMissingCompat = new Set();
+
+const normalizeManifest = (raw) => {
+  if (!raw || typeof raw !== 'object') return null;
+  const source = raw.fields && typeof raw.fields === 'object' ? raw.fields : raw;
+  const pieces = Array.isArray(source.pieces) ? source.pieces : [];
+  return { ...source, pieces };
+};
+
+const normalizeCompatibilityKey = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const isSafeManifestPath = (value) => {
+  if (typeof value !== 'string') return false;
+  if (!value) return false;
+  if (path.isAbsolute(value)) return false;
+  const normalized = value.split('\\').join('/');
+  if (normalized.includes('..')) return false;
+  if (normalized.startsWith('/')) return false;
+  return true;
+};
+
+const resolveManifestMaxBytes = (maxBytes) => {
+  const parsed = Number(maxBytes);
+  if (!Number.isFinite(parsed) || parsed <= 0) return maxBytes;
+  return Math.max(Math.floor(parsed), MIN_MANIFEST_BYTES);
+};
+
+export const resolveManifestPath = (dir, relPath, strict) => {
+  if (!relPath) return null;
+  if (strict && !isSafeManifestPath(relPath)) {
+    const err = new Error(`Invalid manifest path: ${relPath}`);
+    err.code = 'ERR_MANIFEST_PATH';
+    throw err;
+  }
+  const resolved = path.resolve(dir, relPath.split('/').join(path.sep));
+  if (strict) {
+    const root = path.resolve(dir);
+    if (!resolved.startsWith(root + path.sep) && resolved !== root) {
+      const err = new Error(`Manifest path escapes index root: ${relPath}`);
+      err.code = 'ERR_MANIFEST_PATH';
+      throw err;
+    }
+  }
+  return resolved;
+};
+
+export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = true } = {}) => {
+  const manifestPath = path.join(dir, 'pieces', 'manifest.json');
+  if (!existsOrBak(manifestPath)) {
+    if (strict) {
+      const err = new Error(`Missing pieces manifest: ${manifestPath}`);
+      err.code = 'ERR_MANIFEST_MISSING';
+      throw err;
+    }
+    return null;
+  }
+  const resolvedMaxBytes = resolveManifestMaxBytes(maxBytes);
+  const raw = readJsonFile(manifestPath, { maxBytes: resolvedMaxBytes });
+  const manifest = normalizeManifest(raw);
+  if (!manifest && strict) {
+    const err = new Error(`Invalid pieces manifest: ${manifestPath}`);
+    err.code = 'ERR_MANIFEST_INVALID';
+    throw err;
+  }
+  return manifest;
+};
+
+export const readCompatibilityKey = (dir, { maxBytes = MAX_JSON_BYTES, strict = true } = {}) => {
+  const testing = process.env.PAIROFCLEATS_TESTING === '1' || process.env.PAIROFCLEATS_TESTING === 'true';
+  const allowMissingInTests = testing
+    && process.env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY !== '0'
+    && process.env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY !== 'false';
+  let manifest = null;
+  if (strict) {
+    manifest = loadPiecesManifest(dir, { maxBytes, strict: true });
+  } else {
+    try {
+      manifest = loadPiecesManifest(dir, { maxBytes, strict: false });
+    } catch {}
+  }
+  const manifestKey = normalizeCompatibilityKey(manifest?.compatibilityKey);
+  if (manifestKey) {
+    return { key: manifestKey, source: 'manifest' };
+  }
+  const statePath = path.join(dir, 'index_state.json');
+  let state = null;
+  try {
+    state = readJsonFile(statePath, { maxBytes });
+  } catch (err) {
+    if (strict) {
+      if (allowMissingInTests) {
+        if (!warnedMissingCompat.has(dir)) {
+          warnedMissingCompat.add(dir);
+          console.warn(`Missing compatibilityKey for index; continuing because tests allow missing keys: ${dir}`);
+        }
+        return { key: null, source: null };
+      }
+      const error = new Error(`Missing compatibilityKey for index: ${dir}`);
+      error.code = 'ERR_COMPATIBILITY_KEY_MISSING';
+      throw error;
+    }
+    return { key: null, source: null };
+  }
+  const stateKey = normalizeCompatibilityKey(state?.compatibilityKey);
+  if (stateKey) {
+    if (manifest && strict) {
+      console.warn(
+        `Pieces manifest missing compatibilityKey; falling back to index_state.json (${path.join(dir, 'pieces', 'manifest.json')}).`
+      );
+    }
+    return { key: stateKey, source: 'index_state' };
+  }
+  if (strict) {
+    if (allowMissingInTests) {
+      if (!warnedMissingCompat.has(dir)) {
+        warnedMissingCompat.add(dir);
+        console.warn(`Missing compatibilityKey for index; continuing because tests allow missing keys: ${dir}`);
+      }
+      return { key: null, source: null };
+    }
+    const err = new Error(`Missing compatibilityKey for index: ${dir}`);
+    err.code = 'ERR_COMPATIBILITY_KEY_MISSING';
+    throw err;
+  }
+  return { key: null, source: null };
+};
+
+const indexManifestPieces = (manifest) => {
+  const map = new Map();
+  const list = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
+  for (const entry of list) {
+    const name = typeof entry?.name === 'string' ? entry.name : '';
+    if (!name) continue;
+    if (!map.has(name)) map.set(name, []);
+    map.get(name).push(entry);
+  }
+  return map;
+};
+
+const resolveManifestEntries = (manifest, name) => {
+  const map = indexManifestPieces(manifest);
+  return map.get(name) || [];
+};
+
+const inferEntryFormat = (entry) => {
+  if (entry && typeof entry.format === 'string' && entry.format) return entry.format;
+  const pathValue = typeof entry?.path === 'string' ? entry.path : '';
+  if (pathValue.endsWith('.jsonl') || pathValue.endsWith('.jsonl.gz') || pathValue.endsWith('.jsonl.zst')) {
+    return 'jsonl';
+  }
+  return 'json';
+};
+
+export const normalizeMetaParts = (parts) => {
+  if (!Array.isArray(parts)) return [];
+  return parts
+    .map((part) => {
+      if (typeof part === 'string') return part;
+      if (part && typeof part === 'object' && typeof part.path === 'string') return part.path;
+      return null;
+    })
+    .filter(Boolean);
+};
+
+export const resolveMetaFormat = (meta, fallback) => {
+  const raw = typeof meta?.format === 'string' ? meta.format : null;
+  if (!raw) return fallback;
+  if (raw === 'jsonl') return 'jsonl';
+  if (raw === 'jsonl-sharded') return 'sharded';
+  if (raw === 'sharded') return 'sharded';
+  if (raw === 'json') return 'json';
+  return raw;
+};
+
+export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, maxBytes = MAX_JSON_BYTES }) => {
+  if (!manifest) return null;
+  const entries = resolveManifestEntries(manifest, name);
+  const metaEntries = resolveManifestEntries(manifest, `${name}_meta`);
+  if (metaEntries.length > 1 && strict) {
+    const err = new Error(`Multiple manifest entries for ${name}_meta`);
+    err.code = 'ERR_MANIFEST_INVALID';
+    throw err;
+  }
+  if (metaEntries.length === 1) {
+    const metaEntry = metaEntries[0];
+    const metaPath = resolveManifestPath(dir, metaEntry.path, strict);
+    const metaRaw = readJsonFile(metaPath, { maxBytes });
+    const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+    const parts = normalizeMetaParts(meta?.parts);
+    if (!parts.length) {
+      const err = new Error(`Manifest meta missing parts for ${name}`);
+      err.code = 'ERR_MANIFEST_INVALID';
+      throw err;
+    }
+    const partSet = new Set(entries.map((entry) => entry?.path));
+    if (strict) {
+      for (const part of parts) {
+        if (!partSet.has(part)) {
+          const err = new Error(`Manifest missing shard path for ${name}: ${part}`);
+          err.code = 'ERR_MANIFEST_INCOMPLETE';
+          throw err;
+        }
+      }
+    }
+    const paths = parts.map((part) => resolveManifestPath(dir, part, strict));
+    return {
+      format: resolveMetaFormat(meta, 'jsonl'),
+      paths,
+      meta,
+      metaPath
+    };
+  }
+  if (!entries.length) return null;
+  if (entries.length > 1 && strict) {
+    const err = new Error(`Ambiguous manifest entries for ${name}`);
+    err.code = 'ERR_MANIFEST_INVALID';
+    throw err;
+  }
+  const resolvedEntries = entries.slice().sort((a, b) => {
+    const aPath = a?.path || '';
+    const bPath = b?.path || '';
+    return aPath < bPath ? -1 : (aPath > bPath ? 1 : 0);
+  });
+  const paths = resolvedEntries
+    .map((entry) => resolveManifestPath(dir, entry?.path, strict))
+    .filter(Boolean);
+  return {
+    format: inferEntryFormat(resolvedEntries[0]),
+    paths
+  };
+};
+
+export const resolveArtifactPresence = (
+  dir,
+  name,
+  {
+    manifest = null,
+    maxBytes = MAX_JSON_BYTES,
+    strict = true
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  let sources = null;
+  let error = null;
+  try {
+    sources = resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name,
+      strict,
+      maxBytes
+    });
+  } catch (err) {
+    error = err;
+  }
+  if (!sources) {
+    return {
+      name,
+      format: 'missing',
+      paths: [],
+      metaPath: null,
+      meta: null,
+      missingPaths: [],
+      missingMeta: false,
+      error
+    };
+  }
+  const paths = Array.isArray(sources.paths) ? sources.paths : [];
+  const missingPaths = paths.filter((target) => !existsOrBak(target));
+  const metaPath = sources.metaPath || null;
+  const missingMeta = metaPath ? !existsOrBak(metaPath) : false;
+  return {
+    name,
+    format: sources.format === 'sharded' ? 'sharded' : sources.format,
+    paths,
+    metaPath,
+    meta: sources.meta || null,
+    missingPaths,
+    missingMeta,
+    error
+  };
+};

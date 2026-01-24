@@ -10,6 +10,10 @@ import { getCurrentBuildInfo, getRepoCacheRoot, resolveRepoRoot } from './tools/
 
 const { argv, modes } = parseBuildArgs(process.argv.slice(2));
 const rootArg = argv.repo ? path.resolve(argv.repo) : null;
+if (argv.verbose === true) {
+  process.env.PAIROFCLEATS_VERBOSE = '1';
+}
+
 const display = createDisplay({
   stream: process.stderr,
   progressMode: argv.progress,

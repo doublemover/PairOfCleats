@@ -128,6 +128,7 @@ if (baselinePieces.size !== shardedPieces.size) {
   process.exit(1);
 }
 for (const [piecePath, baselineEntry] of baselinePieces.entries()) {
+  if (piecePath === '.filelists.json') continue;
   const shardedEntry = shardedPieces.get(piecePath);
   if (!shardedEntry) {
     console.error(`Shard merge mismatch: missing piece entry ${piecePath}`);

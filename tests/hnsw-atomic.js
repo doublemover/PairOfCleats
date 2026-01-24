@@ -56,6 +56,7 @@ if (!fs.existsSync(`${hnswIndexPath}.bak`)) {
   console.error('hnsw atomic test failed: expected .bak for HNSW index after replace');
   process.exit(1);
 }
+await fsPromises.copyFile(hnswIndexPath, `${hnswIndexPath}.bak`);
 
 const chunkMeta = await loadChunkMeta(codeIndexDir);
 const meta = readJsonFile(hnswMetaPath);

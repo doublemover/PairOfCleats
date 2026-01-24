@@ -26,6 +26,39 @@ const hasTable = (db, table) => {
   }
 };
 
+const ensureDenseMetaSchema = (db) => {
+  const rows = db.prepare('PRAGMA table_info(dense_meta)').all();
+  const columns = new Set(rows.map((row) => row.name));
+  const addColumn = (name, type) => {
+    if (columns.has(name)) return;
+    db.exec(`ALTER TABLE dense_meta ADD COLUMN ${name} ${type}`);
+    columns.add(name);
+  };
+  addColumn('min_val', 'REAL');
+  addColumn('max_val', 'REAL');
+  addColumn('levels', 'INTEGER');
+};
+
+const resolveVectorTableDims = (db, table, column) => {
+  if (!db || !table || !column) return null;
+  try {
+    const rows = db.prepare(`PRAGMA table_info(${table})`).all();
+    const col = rows.find((row) => row.name === column);
+    const type = col?.type || '';
+    const match = String(type).match(/\[(\d+)\]/);
+    if (match) return Number(match[1]);
+  } catch {}
+  try {
+    const row = db.prepare(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name = ?"
+    ).get(table);
+    const sql = row?.sql || '';
+    const match = String(sql).match(/\[(\d+)\]/);
+    if (match) return Number(match[1]);
+  } catch {}
+  return null;
+};
+
 export const updateSqliteDense = ({
   Database,
   root,
@@ -70,6 +103,7 @@ export const updateSqliteDense = ({
       }
       return { skipped: true, reason: 'missing dense tables' };
     }
+    ensureDenseMetaSchema(db);
     try {
       db.pragma('journal_mode = WAL');
       db.pragma('synchronous = NORMAL');
@@ -84,7 +118,22 @@ export const updateSqliteDense = ({
       const loadResult = loadVectorExtension(db, vectorExtension, `embeddings ${mode}`);
       if (loadResult.ok) {
         if (hasVectorTable(db, vectorAnnTable)) {
-          vectorAnnReady = true;
+          const existingDims = resolveVectorTableDims(db, vectorAnnTable, vectorAnnColumn);
+          if (Number.isFinite(existingDims) && existingDims !== dims) {
+            try {
+              db.exec(`DROP TABLE IF EXISTS ${vectorAnnTable}`);
+            } catch {}
+            const created = ensureVectorTable(db, vectorExtension, dims);
+            if (created.ok) {
+              vectorAnnReady = true;
+              vectorAnnTable = created.tableName;
+              vectorAnnColumn = created.column;
+            } else if (emitOutput) {
+              logger.warn(`[embeddings] Failed to recreate vector table for ${mode}: ${created.reason}`);
+            }
+          } else {
+            vectorAnnReady = true;
+          }
         } else {
           const created = ensureVectorTable(db, vectorExtension, dims);
           if (created.ok) {

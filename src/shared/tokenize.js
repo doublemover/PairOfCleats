@@ -304,7 +304,7 @@ export function extractNgrams(tokens, nStart = 2, nEnd = 4) {
   const grams = [];
   for (let n = nStart; n <= nEnd; ++n) {
     for (let i = 0; i <= tokens.length - n; i++) {
-      grams.push(tokens.slice(i, i + n).join('_'));
+      grams.push(tokens.slice(i, i + n).join('\u0001'));
     }
   }
   return grams;

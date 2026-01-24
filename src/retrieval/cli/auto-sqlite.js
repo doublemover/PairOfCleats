@@ -98,7 +98,7 @@ export const evaluateAutoSqliteThresholds = ({
   if (totalBytes === null && autoArtifactThreshold > 0) {
     return {
       allowed: false,
-      reason: 'auto sqlite thresholds require artifact bytes, but artifact stats are unavailable'
+      reason: 'auto sqlite thresholds require artifact bytes, but artifact bytes are unavailable'
     };
   }
   return {

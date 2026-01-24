@@ -10,7 +10,8 @@ const payload = runSearch({
   fixtureRoot,
   env,
   query: 'message',
-  mode: 'code'
+  mode: 'code',
+  args: ['--explain']
 });
 const hit = (payload.code || [])[0];
 if (!hit) {

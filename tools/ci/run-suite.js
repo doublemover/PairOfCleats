@@ -106,6 +106,8 @@ const main = async () => {
         'tests/run.js',
         '--lane',
         'ci',
+        '--exclude',
+        'services/api/',
         ...(mode === 'nightly' ? ['--lane', 'storage', '--lane', 'perf'] : []),
         '--junit',
         junitPath,

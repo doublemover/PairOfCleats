@@ -58,7 +58,7 @@ export const writeIndexArtifactsForMode = async ({
       shards: runtime.shards?.enabled
         ? { enabled: true, plan: shardSummary }
         : { enabled: false },
-      enrichment: runtime.twoStage?.enabled
+      enrichment: (runtime.twoStage?.enabled || runtime.stage)
         ? {
           enabled: true,
           pending: runtime.stage === 'stage1',

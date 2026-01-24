@@ -10,12 +10,10 @@ import {
 } from '../../../../shared/json-stream.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 
-const MIN_CHUNK_META_BYTES = 4096;
-
 const resolveChunkMetaMaxBytes = (maxJsonBytes) => {
   const parsed = Number(maxJsonBytes);
   if (!Number.isFinite(parsed) || parsed <= 0) return maxJsonBytes;
-  return Math.max(Math.floor(parsed), MIN_CHUNK_META_BYTES);
+  return Math.floor(parsed);
 };
 
 const formatBytes = (bytes) => {
@@ -30,11 +28,38 @@ const formatBytes = (bytes) => {
   return `${gb.toFixed(1)}GB`;
 };
 
+const compactChunkMetaEntry = (entry, maxBytes) => {
+  const resolvedMax = Number.isFinite(Number(maxBytes)) ? Math.floor(Number(maxBytes)) : 0;
+  if (!resolvedMax) return entry;
+  const fits = (value) => Buffer.byteLength(JSON.stringify(value), 'utf8') + 1 <= resolvedMax;
+  if (fits(entry)) return entry;
+  const trimmed = { ...entry };
+  delete trimmed.tokens;
+  delete trimmed.ngrams;
+  if (fits(trimmed)) return trimmed;
+  delete trimmed.preContext;
+  delete trimmed.postContext;
+  delete trimmed.headline;
+  delete trimmed.segment;
+  if (fits(trimmed)) return trimmed;
+  delete trimmed.docmeta;
+  delete trimmed.metaV2;
+  delete trimmed.stats;
+  delete trimmed.complexity;
+  delete trimmed.lint;
+  delete trimmed.codeRelations;
+  delete trimmed.chunk_authors;
+  delete trimmed.chunkAuthors;
+  delete trimmed.weight;
+  return trimmed;
+};
+
 export const createChunkMetaIterator = ({
   chunks,
   fileIdByPath,
   resolvedTokenMode,
-  tokenSampleSize
+  tokenSampleSize,
+  maxJsonBytes
 }) => function* chunkMetaIterator(start = 0, end = chunks.length) {
   for (let i = start; i < end; i += 1) {
     const c = chunks[i];
@@ -76,7 +101,7 @@ export const createChunkMetaIterator = ({
       entry.tokens = tokenOut;
       entry.ngrams = ngramOut;
     }
-    yield entry;
+    yield compactChunkMetaEntry(entry, maxJsonBytes);
   }
 };
 

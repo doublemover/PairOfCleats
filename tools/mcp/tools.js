@@ -151,7 +151,7 @@ export async function runSearch(args = {}, context = {}) {
   const output = typeof args.output === 'string' ? args.output.toLowerCase() : '';
   const ann = typeof args.ann === 'boolean' ? args.ann : null;
   const top = Number.isFinite(Number(args.top)) ? Math.max(1, Number(args.top)) : null;
-  const context = Number.isFinite(Number(args.context)) ? Math.max(0, Number(args.context)) : null;
+  const contextLines = Number.isFinite(Number(args.context)) ? Math.max(0, Number(args.context)) : null;
   const typeFilter = args.type ? String(args.type) : null;
   const authorFilter = args.author ? String(args.author) : null;
   const importFilter = args.import ? String(args.import) : null;
@@ -209,7 +209,7 @@ export async function runSearch(args = {}, context = {}) {
   if (ann === true) searchArgs.push('--ann');
   if (ann === false) searchArgs.push('--no-ann');
   if (top) searchArgs.push('-n', String(top));
-  if (context !== null) searchArgs.push('--context', String(context));
+  if (contextLines !== null) searchArgs.push('--context', String(contextLines));
   if (typeFilter) searchArgs.push('--type', typeFilter);
   if (authorFilter) searchArgs.push('--author', authorFilter);
   if (importFilter) searchArgs.push('--import', importFilter);

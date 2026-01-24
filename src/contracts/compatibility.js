@@ -6,9 +6,13 @@ import { ARTIFACT_SURFACE_VERSION, parseSemver } from './versioning.js';
 const normalizeModes = (modes) => Array.from(new Set(modes || [])).sort();
 
 export const buildLanguagePolicyKey = (runtime) => {
+  const languageOptions = runtime?.languageOptions
+    ? { ...runtime.languageOptions }
+    : {};
+  if (languageOptions.rootDir) delete languageOptions.rootDir;
   const payload = {
     segmentsConfig: runtime?.segmentsConfig || {},
-    languageOptions: runtime?.languageOptions || {},
+    languageOptions,
     commentsConfig: runtime?.commentsConfig || {}
   };
   return sha1(stableStringify(payload));

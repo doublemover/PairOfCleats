@@ -39,6 +39,17 @@ export function buildChunkPayload({
   const wantsFieldTokens = fieldedEnabled
     || postingsConfig?.chargramSource === 'fields'
     || postingsConfig?.phraseSource === 'fields';
+  const docTokens = tokenMode !== 'code'
+    ? (docText
+      ? buildTokenSequence({
+        text: docText,
+        mode: tokenMode,
+        ext,
+        dictWords,
+        dictConfig
+      }).tokens
+      : tokens)
+    : [];
   const fieldTokens = wantsFieldTokens ? {
     name: chunk.name ? buildTokenSequence({
       text: chunk.name,
@@ -56,15 +67,7 @@ export function buildChunkPayload({
         dictConfig
       }).tokens
       : [],
-    doc: (docText && tokenMode !== 'code')
-      ? buildTokenSequence({
-        text: docText,
-        mode: tokenMode,
-        ext,
-        dictWords,
-        dictConfig
-      }).tokens
-      : [],
+    doc: docTokens,
     comment: commentFieldTokens,
     body: fieldedEnabled ? tokens : []
   } : null;

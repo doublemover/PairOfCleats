@@ -36,7 +36,6 @@ for (const action of actions) {
 
 if (unknown.size) {
   console.error(`script coverage wiring invalid: ${Array.from(unknown).sort().join(', ')}`);
-  await rmDirRecursive(baseCacheRoot);
   process.exit(1);
 }
 

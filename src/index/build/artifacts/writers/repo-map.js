@@ -43,7 +43,17 @@ export const createRepoMapIterator = ({ chunks, fileRelations }) => {
       const kindB = String(b.kind || '');
       return kindA.localeCompare(kindB);
     });
+    const seen = new Set();
     for (const entry of entries) {
+      const key = [
+        entry.file,
+        entry.name,
+        entry.kind,
+        entry.signature,
+        entry.startLine
+      ].map((value) => (value == null ? '' : String(value))).join('::');
+      if (seen.has(key)) continue;
+      seen.add(key);
       yield entry;
     }
   };

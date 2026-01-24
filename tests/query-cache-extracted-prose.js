@@ -55,6 +55,7 @@ const searchArgs = [
   'extracted-prose',
   '--no-ann',
   '--json',
+  '--stats',
   commentText
 ];
 const first = JSON.parse(run(searchArgs, 'search (first)'));

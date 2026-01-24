@@ -134,7 +134,7 @@ export function isIndexablePath({ absPath, root, recordsRoot, ignoreMatcher, mod
   const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock;
   const allowCode = (modes.includes('code') || modes.includes('extracted-prose'))
     && (EXTS_CODE.has(ext) || isSpecial);
-  const allowProse = modes.includes('prose') && EXTS_PROSE.has(ext);
+  const allowProse = (modes.includes('prose') || modes.includes('extracted-prose')) && EXTS_PROSE.has(ext);
   return allowCode || allowProse;
 }
 

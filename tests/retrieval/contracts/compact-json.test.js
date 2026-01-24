@@ -14,6 +14,7 @@ const result = spawnSync(
     path.join(root, 'search.js'),
     'message',
     '--json',
+    '--compact',
     '--backend',
     'memory',
     '--no-ann',

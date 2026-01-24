@@ -763,3 +763,233 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
 - [x] Add/extend `tests/artifact-formats.js` (if it is the canonical place for format coverage)
 
 ---
+
+
+## Phase 1 — P0 Correctness Hotfixes (Shared Primitives + Indexer Core) [@]
+
+### Objective
+
+Eliminate known “silent correctness” failures and fragile invariants in the core index build pipeline, focusing on concurrency/error propagation, postings construction, embedding handling, import scanning, and progress/logging. The intent is to make incorrect outputs fail fast (or degrade in a clearly documented, test-covered way) rather than silently producing partial or misleading indexes.
+
+### Current blockers (2026-01-24)
+
+- CI lane failures are tracked in `failing_tests_list.md` and `broken_tests.md`.
+- `retrieval/filters/types.test` passes in isolation but fails under `node tests/run.js --lane ci --log-dir tests/.logs`.
+- `services/mcp/tool-search-defaults-and-filters.test` is hanging/rebuilding indefinitely (see `broken_tests.md`).
+
+---
+
+### 1.1 Concurrency primitives: deterministic error propagation + stable backpressure
+
+- **Files touched:**
+  - `src/shared/concurrency.js`
+
+- [x] **Fix `runWithQueue()` to never “succeed” when worker tasks reject**
+  - [x] Separate _in-flight backpressure tracking_ from _final completion tracking_ (avoid “removing from `pending` then awaiting `pending`” patterns that can drop rejections).
+  - [x] Ensure every enqueued task has an attached rejection handler immediately (avoid unhandled-rejection windows while waiting to `await` later).
+  - [x] Await completion in a way that guarantees: if any worker rejects, `runWithQueue()` rejects (no silent pass).
+- [x] **Make backpressure logic robust to worker rejections**
+  - [x] Replace `Promise.race(pending)` usage with a variant that unblocks on completion **regardless of fulfill/reject**, without throwing mid-scheduling.
+  - [x] Decide and document semantics explicitly:
+    - Default behavior: **fail-fast scheduling** (stop enqueueing new items after first observed failure),
+    - But still **drain already-enqueued tasks to a settled state** before returning error (avoid “background work continues after caller thinks it failed”).
+  - [x] Ensure `runWithConcurrency()` inherits the same semantics via `runWithQueue()`.
+- [x] **Accept iterables, not just arrays**
+  - [x] Allow `items` to be any iterable (`Array`, `Set`, generator), by normalizing once at the start (`Array.from(...)`) and using that stable snapshot for `results` allocation and deterministic ordering.
+- [x] **Stop swallowing queue-level errors**
+  - [x] Replace the current no-op `queue.on('error', () => {})` behavior with a handler that **records/logs** queue errors and ensures they surface as failures of the enclosing `runWithQueue()` call.
+  - [x] Ensure no listener leaks (attach per-call with cleanup, or attach once in a way that does not grow unbounded).
+
+#### Tests / Verification
+
+- [x] Add `tests/concurrency-run-with-queue-error-propagation.js`
+  - [x] A rejecting worker causes `runWithQueue()` to reject reliably (no “resolved success”).
+  - [x] Ensure no unhandled-rejection warnings are emitted under a rejecting worker (attach handlers early).
+- [x] Add `tests/concurrency-run-with-queue-backpressure-on-reject.js`
+  - [x] When an early task rejects and later tasks are still in-flight, the function’s failure behavior is deterministic and documented (fail-fast enqueueing + drain in-flight).
+- [x] Add `tests/concurrency-run-with-queue-iterables.js`
+  - [x] Passing a `Set` or generator as `items` produces correct ordering and correct results length.
+
+---
+
+### 1.2 Embeddings pipeline: merge semantics, TypedArray parity, and no-hang batching
+
+- **Files touched:**
+  - `src/shared/embedding-utils.js`
+  - `src/index/build/file-processor/embeddings.js`
+  - `src/index/build/indexer/steps/postings.js`
+
+- [x] **Make `mergeEmbeddingVectors()` correct and explicit**
+  - [x] When only one vector is present, return that vector unchanged (avoid “code-only is halved”).
+  - [x] When both vectors are present:
+    - [x] Define dimension mismatch behavior explicitly (avoid NaNs and silent truncation).
+          Recommended Phase 1 behavior: **fail closed** with a clear error (dimension mismatch is a correctness failure), unless/until a contract says otherwise.
+    - [x] Ensure merge never produces NaN due to `undefined`/holes (`(vec[i] ?? 0)` defensively).
+  - [x] Keep output type stable (e.g., `Float32Array`) and documented.
+- [x] **Ensure TypedArray parity across embedding ingestion**
+  - [x] In `src/index/build/indexer/steps/postings.js`, replace `Array.isArray(...)` checks for embedding floats with a vector-like predicate (accept `Float32Array` and similar).
+  - [x] Ensure quantization in the postings step uses the same “vector-like” acceptance rules for merged/doc/code vectors.
+- [x] **Fix embedding batcher reentrancy: no unflushed queued work**
+  - [x] In `createBatcher()` (`src/index/build/file-processor/embeddings.js`), handle “flush requested while flushing” deterministically:
+    - [x] If `flush()` is called while `flushing === true`, record intent (e.g., `needsFlush = true`) rather than returning and risking a stranded queue.
+    - [x] After a flush finishes, if the queue is non-empty (or `needsFlush`), perform/schedule another flush immediately.
+  - [x] Ensure the batcher cannot enter a state where items remain queued with no timer and no subsequent trigger.
+- [x] **Enforce a single build-time representation for “missing doc embedding”**
+  - [x] Standardize on **one marker** at build time (current marker is `EMPTY_U8`) to represent “no doc embedding present”.
+  - [x] Ensure downstream steps never interpret “missing doc embedding” as “fallback to merged embedding” (the doc-only semantics fix is completed in **1.4**, but Phase 1.2 should ensure the marker is consistently produced).
+
+#### Tests / Verification
+
+- [x] Add `tests/embedding-merge-vectors-semantics.js`
+  - [x] Code-only merge returns identical vector (no halving).
+  - [x] Doc-only merge returns identical vector (no scaling).
+  - [x] Mismatched dimensions is deterministic (throws or controlled fallback per Phase 1 decision), and never yields NaNs.
+- [x] Add `tests/embedding-typedarray-quantization-postings-step.js`
+  - [x] A `Float32Array` embedding input is quantized and preserved equivalently to a plain array.
+- [x] Add `tests/embedding-batcher-flush-reentrancy.js`
+  - [x] Reentrant flush (flush called while flushing) does not strand queued items; all queued work is eventually flushed and promises resolve.
+- [x] Run existing embedding build tests to confirm no regressions:
+  - [x] `npm test -- embedding-batch-*`
+  - [x] `npm test -- build-embeddings-cache`
+
+---
+
+### 1.3 Postings state correctness: chargrams, tokenless chunks, and guardrails without truncation
+
+- **Files touched:**
+  - `src/index/build/state.js`
+
+- [x] **Fix chargram extraction “early abort” on long tokens**
+  - [x] Replace the per-token `return` with `continue` inside chargram token processing so a single long token does not suppress all subsequent tokens for the chunk.
+  - [x] Ensure chargram truncation behavior remains bounded by `maxChargramsPerChunk`.
+- [x] **Make chargram min/max-N configuration robust**
+  - [x] Stop relying on callers always passing pre-normalized postings config.
+  - [x] Ensure `chargramMinN`, `chargramMaxN`, and `chargramMaxTokenLength` have safe defaults consistent with `normalizePostingsConfig()` when absent.
+  - [x] Ensure invalid ranges (min > max) degrade deterministically (swap or clamp) and are covered by tests.
+- [x] **Preserve tokenless chunks**
+  - [x] Remove the early return that drops chunks when `seq` is empty.
+  - [x] Continue to:
+    - [x] Assign chunk IDs and append chunk metadata,
+    - [x] Record `docLengths[chunkId] = 0`,
+    - [x] Allow phrase/field indexing paths to run where applicable (field-sourced tokens can still produce phrases even when `seq` is empty),
+    - [x] Skip token postings updates cleanly (no crashes).
+- [x] **Fix max-unique guard behavior to avoid disabling all future updates**
+  - [x] Redefine guard behavior so that “max unique reached” stops _introducing new keys_ but does **not** prevent:
+    - [x] Adding doc IDs for **existing** keys,
+    - [x] Continuing to process remaining keys in the same chunk.
+  - [x] Remove/adjust any “break if guard.disabled” loops that prevent existing-key updates (the key-level function should decide whether to skip).
+
+#### Tests / Verification
+
+- [x] Add `tests/postings-chargram-long-token-does-not-abort.js`
+  - [x] A chunk containing one overlong token plus normal tokens still produces chargrams from the normal tokens.
+- [x] Add `tests/postings-tokenless-chunk-preserved.js`
+  - [x] Tokenless chunk still appears in state (`chunks.length` increments, `docLengths` has an entry, metadata preserved).
+- [x] Add `tests/postings-chargram-config-defaults.js`
+  - [x] Passing an unnormalized postings config does not break chargram generation and uses default min/max values.
+- [x] Add `tests/postings-guard-max-unique-keeps-existing.js`
+  - [x] After hitting `maxUnique`, existing keys continue to accumulate doc IDs; only new keys are skipped.
+
+---
+
+### 1.4 Dense postings build: doc-only semantics and vector selectors (byte + float paths)
+
+- **Files touched:**
+  - `src/index/build/postings.js`
+- [x] **Fix doc-only semantics: missing doc vectors must behave as zero vectors**
+  - [x] In the quantized-u8 path (`extractDenseVectorsFromChunks`):
+    - [x] Stop falling back to merged embeddings when `embed_doc_u8` is absent/unparseable.
+    - [x] Normalize doc vectors so that:
+      - `EMPTY_U8` ⇒ zero-vector semantics (already intended),
+      - _missing/invalid_ `embed_doc_u8` ⇒ **also** zero-vector semantics (not merged fallback).
+  - [x] In the legacy float path (`selectDocEmbedding`):
+    - [x] Stop falling back to `chunk.embedding` when `chunk.embed_doc` is missing.
+    - [x] Treat missing doc embedding as “no doc embedding” (zero-vector semantics for doc-only retrieval), consistent with the empty-marker rule.
+- [x] **Accept TypedArrays in legacy float extraction**
+  - [x] Replace `Array.isArray(vec)` checks with a vector-like predicate to avoid dropping `Float32Array` embeddings when building dense artifacts from float fields.
+- [x] **Document the invariant**
+  - [x] Clearly document: _doc-only retrieval uses doc embeddings; when doc embedding is missing, the chunk behaves as if its doc embedding is the zero vector (i.e., it should not match doc-only queries due to code-only embeddings)._
+        (This is a correctness guarantee; performance tuning can follow later.)
+
+#### Tests / Verification
+
+- [x] Add `tests/postings-doc-only-missing-doc-is-zero.js`
+  - [x] A chunk with code-only embeddings does **not** get a doc vector equal to the merged/code vector when doc embedding is missing.
+  - [x] Both quantized and legacy float paths enforce the same semantics (construct fixtures to exercise both).
+- [x] Add `tests/postings-typedarray-legacy-float-extraction.js`
+  - [x] `Float32Array` embeddings are recognized and included when building dense postings from legacy float fields.
+
+---
+
+### 1.5 Import scanning: options forwarding, lexer init correctness, fallback coverage, and proto safety
+
+- **Files touched:**
+  - `src/index/build/imports.js`
+  - `src/index/language-registry/registry.js`
+
+- [x] **Fix ES-module-lexer initialization**
+  - [x] Ensure `ensureEsModuleLexer()` actually calls `initEsModuleLexer()` and awaits its promise (not the function reference).
+  - [x] Ensure initialization is idempotent and safe under concurrency.
+- [x] **Fix options forwarding to per-language import collectors**
+  - [x] In `collectLanguageImports()`, stop nesting user options under `options: { ... }`.
+  - [x] Pass `{ ext, relPath, mode, ...options }` (or equivalent) so language collectors can actually read `flowMode`, parser choices, etc.
+- [x] **Make require() regex fallback run even when lexers fail**
+  - [x] Do not gate regex extraction on lexer success; if lexers throw or fail, still attempt regex extraction.
+  - [x] If regex extraction finds imports, treat that as a successful extraction path for the file (do not return `null`).
+- [x] **Prevent prototype pollution from module-name keys**
+  - [x] Replace `{}` accumulators keyed by module specifiers with `Object.create(null)` (or a `Map`) anywhere module-spec strings become dynamic keys.
+  - [x] Ensure serialized results remain compatible (JSON output should not change in shape, aside from the object prototype).
+
+#### Tests / Verification
+
+- [x] Add `tests/imports-options-forwarding-flowmode.js`
+  - [x] Call `collectLanguageImports({ ext: '.js', ... , options: { flowMode: 'on' } })` on a Flow-syntax file without an `@flow` directive.
+  - [x] Assert imports are detected only when options are forwarded correctly (regression for the wrapper-object bug).
+- [x] Add `tests/imports-esmodule-lexer-init.js`
+  - [x] Ensure module imports are detected via the fast path on a basic ESM file (init actually occurs).
+  - Fix attempt: updated `ensureEsModuleLexer()` to handle `init` being a Promise in current `es-module-lexer`.
+- [x] Add `tests/imports-require-regex-fallback-on-lexer-failure.js`
+  - [x] Use a syntactically invalid file that still contains `require('dep')`; confirm scanning still returns `'dep'`.
+- [x] Add `tests/imports-proto-safe-module-keys.js`
+  - [x] Import a module named `__proto__` and confirm:
+    - [x] It appears as a normal key,
+    - [x] Returned `allImports` has a null prototype (or otherwise cannot pollute `Object.prototype`),
+    - [x] No prototype pollution occurs.
+
+---
+
+### 1.6 Progress + logging: pino@10 transport wiring, safe ring buffer, and zero-total guard
+
+- **Files touched:**
+  - `src/shared/progress.js`
+
+- [x] **Fix pino transport/destination wiring for pino@10**
+  - [x] Ensure pretty-transport is constructed correctly for pino@10 (use supported `transport` configuration; avoid configurations that silently no-op).
+  - [x] Ensure destination selection (stdout/stderr/file) is applied correctly in both pretty and JSON modes.
+- [x] **Make redaction configuration compatible with pino@10**
+  - [x] Validate redact configuration format and ensure it actually redacts intended fields (and doesn’t crash/ignore due to schema mismatch).
+- [x] **Fix ring buffer event retention to avoid huge/circular meta retention**
+  - [x] Do not store raw meta objects by reference in the ring buffer.
+  - [x] Store a bounded, safe representation (e.g., truncated JSON with circular handling, or a curated subset of primitive fields).
+  - [x] Ensure event recording never throws when meta contains circular references.
+- [x] **Fix `showProgress()` divide-by-zero**
+  - [x] When `total === 0`, render a stable, sensible output (e.g., 0% with no NaN/Infinity).
+
+#### Tests / Verification
+
+- [x] Add `tests/progress-show-total-zero.js`
+  - [x] `showProgress({ total: 0 })` does not emit NaN/Infinity and produces stable output.
+- [x] Add `tests/progress-ring-buffer-circular-meta.js`
+  - [x] Recording an event with circular meta does not throw and does not retain the original object reference.
+- [x] Add `tests/progress-configure-logger-pino10-transport.js`
+  - [x] `configureLogger()` can be constructed with pretty transport and can log without throwing under pino@10.
+  - [x] Redaction config is accepted and functions as expected for at least one known redaction path.
+  - Fix attempt: route pretty output via `pino-pretty` `destination` option for file/stdout/stderr support.
+
+---
+
+### Phase 1 closeout
+
+- [ ] Run `npm run test:pr` (requires longer than the 30s cap; pending approval).
+
+---

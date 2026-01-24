@@ -97,7 +97,8 @@ try {
   }
 
   const search = await requestJson(serverInfo.baseUrl, 'POST', '/search', {
-    query: 'alpha',
+    repoPath,
+    query: 'greet',
     mode: 'code',
     top: 3
   });

@@ -17,7 +17,6 @@ await fsPromises.writeFile(tempReadme, `${original}\nmutation`);
 const updated = await fsPromises.readFile(fixturePath, 'utf8');
 if (updated !== original) {
   console.error('copy fixture test failed: original fixture was mutated');
-  await rmDirRecursive(tempRoot);
   process.exit(1);
 }
 

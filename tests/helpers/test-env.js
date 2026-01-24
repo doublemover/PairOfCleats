@@ -3,3 +3,5 @@ export const applyTestEnv = ({ cacheRoot, embeddings } = {}) => {
   if (cacheRoot) process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
   if (embeddings) process.env.PAIROFCLEATS_EMBEDDINGS = embeddings;
 };
+
+applyTestEnv();

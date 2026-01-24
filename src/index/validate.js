@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   getBuildsRoot,
-  getIndexDir,
   getRepoRoot,
   loadUserConfig,
   resolveLmdbPaths,
@@ -15,16 +14,12 @@ import {
   loadJsonArrayArtifact,
   loadPiecesManifest,
   loadTokenPostings,
-  readJsonFile,
-  resolveArtifactPresence
+  readJsonFile
 } from '../shared/artifact-io.js';
 import { checksumFile, sha1File } from '../shared/hash.js';
-import { ARTIFACT_SCHEMA_DEFS, validateArtifact } from '../shared/artifact-schemas.js';
 import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../shared/lancedb.js';
-import { Unpackr } from 'msgpackr';
 import {
   ARTIFACT_SURFACE_VERSION,
-  SHARDED_JSONL_META_SCHEMA_VERSION,
   isSupportedVersion
 } from '../contracts/versioning.js';
 import {
@@ -33,275 +28,27 @@ import {
   LMDB_REQUIRED_ARTIFACT_KEYS,
   LMDB_SCHEMA_VERSION
 } from '../storage/lmdb/schema.js';
-
-const resolveIndexDir = (root, mode, userConfig, indexRoot = null, strict = false) => {
-  const cached = getIndexDir(root, mode, userConfig, { indexRoot });
-  if (strict) return cached;
-  const cachedMeta = path.join(cached, 'chunk_meta.json');
-  const cachedMetaJsonl = path.join(cached, 'chunk_meta.jsonl');
-  const cachedMetaParts = path.join(cached, 'chunk_meta.meta.json');
-  if (fs.existsSync(cachedMeta) || fs.existsSync(cachedMetaJsonl) || fs.existsSync(cachedMetaParts)) {
-    return cached;
-  }
-  const local = path.join(root, `index-${mode}`);
-  const localMeta = path.join(local, 'chunk_meta.json');
-  const localMetaJsonl = path.join(local, 'chunk_meta.jsonl');
-  const localMetaParts = path.join(local, 'chunk_meta.meta.json');
-  if (fs.existsSync(localMeta) || fs.existsSync(localMetaJsonl) || fs.existsSync(localMetaParts)) {
-    return local;
-  }
-  return cached;
-};
-
-const normalizeManifestPath = (value) => String(value || '').split('\\').join('/');
-
-const isManifestPathSafe = (value) => {
-  if (typeof value !== 'string' || !value) return false;
-  if (path.isAbsolute(value)) return false;
-  if (value.startsWith('/')) return false;
-  const normalized = normalizeManifestPath(value);
-  if (normalized.includes('..')) return false;
-  return true;
-};
-
-const extractArray = (raw, key) => {
-  if (Array.isArray(raw?.[key])) return raw[key];
-  if (Array.isArray(raw?.arrays?.[key])) return raw.arrays[key];
-  return [];
-};
-
-const normalizeDenseVectors = (raw) => ({
-  model: raw?.model ?? raw?.fields?.model ?? null,
-  dims: Number.isFinite(Number(raw?.dims ?? raw?.fields?.dims))
-    ? Number(raw?.dims ?? raw?.fields?.dims)
-    : null,
-  scale: Number.isFinite(Number(raw?.scale ?? raw?.fields?.scale))
-    ? Number(raw?.scale ?? raw?.fields?.scale)
-    : null,
-  vectors: extractArray(raw, 'vectors')
-});
-
-const normalizeMinhash = (raw) => ({
-  signatures: extractArray(raw, 'signatures')
-});
-
-const normalizeTokenPostings = (raw) => {
-  if (!raw || typeof raw !== 'object') return null;
-  return {
-    vocab: Array.isArray(raw.vocab) ? raw.vocab : extractArray(raw, 'vocab'),
-    postings: Array.isArray(raw.postings) ? raw.postings : extractArray(raw, 'postings'),
-    docLengths: Array.isArray(raw.docLengths) ? raw.docLengths : extractArray(raw, 'docLengths'),
-    avgDocLen: Number.isFinite(Number(raw.avgDocLen ?? raw.fields?.avgDocLen))
-      ? Number(raw.avgDocLen ?? raw.fields?.avgDocLen)
-      : null,
-    totalDocs: Number.isFinite(Number(raw.totalDocs ?? raw.fields?.totalDocs))
-      ? Number(raw.totalDocs ?? raw.fields?.totalDocs)
-      : null
-  };
-};
-
-const normalizeFieldPostings = (raw) => {
-  if (!raw || typeof raw !== 'object') return null;
-  return raw.fields ? raw : null;
-};
-
-const normalizePhrasePostings = (raw) => ({
-  vocab: extractArray(raw, 'vocab'),
-  postings: extractArray(raw, 'postings')
-});
-
-const normalizeFilterIndex = (raw) => raw && typeof raw === 'object' ? raw : null;
-
-const unpackr = new Unpackr();
-const decode = (value) => (value == null ? null : unpackr.unpack(value));
-
-const hasLmdbStore = (storePath) => {
-  if (!storePath || !fs.existsSync(storePath)) return false;
-  return fs.existsSync(path.join(storePath, 'data.mdb'));
-};
-
-const addIssue = (report, mode, message, hint = null, bucket = 'issues') => {
-  const tag = mode ? `[${mode}] ` : '';
-  report[bucket].push(`${tag}${message}`);
-  if (hint) report.hints.push(hint);
-};
-
-const validateManifestEntries = (report, mode, dir, manifest, { strictSchema = true } = {}) => {
-  const pieces = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
-  const seenPaths = new Set();
-  const root = path.resolve(dir);
-  for (const entry of pieces) {
-    const name = typeof entry?.name === 'string' ? entry.name : '';
-    if (!name) {
-      addIssue(report, mode, 'manifest entry missing name');
-    } else if (strictSchema && !ARTIFACT_SCHEMA_DEFS[name]) {
-      addIssue(report, mode, `manifest entry uses unknown artifact name: ${name}`);
-    }
-
-    const relPath = typeof entry?.path === 'string' ? entry.path : '';
-    if (!relPath) {
-      addIssue(report, mode, `manifest entry missing path (${name || 'unknown'})`);
-      continue;
-    }
-    if (relPath.includes('\\')) {
-      addIssue(report, mode, `manifest path must use '/' separators: ${relPath}`);
-    }
-    if (!isManifestPathSafe(relPath)) {
-      addIssue(report, mode, `manifest path is not safe: ${relPath}`);
-      continue;
-    }
-    const normalized = normalizeManifestPath(relPath);
-    if (seenPaths.has(normalized)) {
-      addIssue(report, mode, `manifest path duplicated: ${relPath}`);
-    } else {
-      seenPaths.add(normalized);
-    }
-    const resolved = path.resolve(dir, normalized.split('/').join(path.sep));
-    if (!resolved.startsWith(root + path.sep) && resolved !== root) {
-      addIssue(report, mode, `manifest path escapes index root: ${relPath}`);
-      continue;
-    }
-    if (!fs.existsSync(resolved)) {
-      addIssue(report, mode, `manifest path missing: ${relPath}`);
-    }
-  }
-};
-
-const validateSchema = (report, mode, name, payload, hint, { strictSchema = false } = {}) => {
-  if (strictSchema && !ARTIFACT_SCHEMA_DEFS[name]) {
-    addIssue(report, mode, `unknown artifact schema: ${name}`, hint);
-    return false;
-  }
-  const result = validateArtifact(name, payload);
-  if (!result.ok) {
-    const detail = result.errors.length ? ` (${result.errors.join('; ')})` : '';
-    addIssue(report, mode, `${name} schema invalid${detail}`, hint);
-  }
-  return result.ok;
-};
-
-const validatePostingsDocIds = (report, mode, label, postings, chunkCount) => {
-  const maxErrors = 20;
-  let errors = 0;
-  for (const posting of postings || []) {
-    if (!Array.isArray(posting)) continue;
-    for (const entry of posting) {
-      const docId = Array.isArray(entry) ? entry[0] : null;
-      if (!Number.isFinite(docId) || docId < 0 || docId >= chunkCount) {
-        if (errors < maxErrors) {
-          addIssue(report, mode, `${label} docId out of range (${docId})`, 'Rebuild index artifacts for this mode.');
-        }
-        errors += 1;
-        if (errors >= maxErrors) return;
-      }
-    }
-  }
-};
-
-const validateIdPostings = (report, mode, label, postings, chunkCount) => {
-  const maxErrors = 20;
-  let errors = 0;
-  for (const posting of postings || []) {
-    if (!Array.isArray(posting)) continue;
-    for (const docId of posting) {
-      if (!Number.isFinite(docId) || docId < 0 || docId >= chunkCount) {
-        if (errors < maxErrors) {
-          addIssue(report, mode, `${label} docId out of range (${docId})`, 'Rebuild index artifacts for this mode.');
-        }
-        errors += 1;
-        if (errors >= maxErrors) return;
-      }
-    }
-  }
-};
-
-const validateChunkIds = (report, mode, chunkMeta) => {
-  const seen = new Set();
-  for (let i = 0; i < chunkMeta.length; i += 1) {
-    const entry = chunkMeta[i];
-    const id = Number.isFinite(entry?.id) ? entry.id : null;
-    if (id === null) {
-      addIssue(report, mode, `chunk_meta missing id at index ${i}`, 'Rebuild index artifacts for this mode.');
-      return;
-    }
-    if (seen.has(id)) {
-      addIssue(report, mode, `chunk_meta duplicate id ${id}`, 'Rebuild index artifacts for this mode.');
-      return;
-    }
-    seen.add(id);
-    if (id !== i) {
-      addIssue(report, mode, `chunk_meta id mismatch at index ${i} (id=${id})`, 'Rebuild index artifacts for this mode.');
-      return;
-    }
-  }
-};
-
-const validateMetaV2 = (report, mode, chunkMeta) => {
-  const maxErrors = 20;
-  let errors = 0;
-  for (let i = 0; i < chunkMeta.length; i += 1) {
-    const entry = chunkMeta[i];
-    const meta = entry?.metaV2;
-    if (!meta) continue;
-    if (typeof meta.chunkId !== 'string' || !meta.chunkId) {
-      addIssue(report, mode, `metaV2 missing chunkId at index ${i}`, 'Rebuild index artifacts for this mode.');
-      errors += 1;
-    }
-    if (typeof meta.file !== 'string' || !meta.file) {
-      addIssue(report, mode, `metaV2 missing file at index ${i}`, 'Rebuild index artifacts for this mode.');
-      errors += 1;
-    }
-    if (meta.risk?.flows) {
-      for (const flow of meta.risk.flows || []) {
-        if (!flow || !flow.source || !flow.sink) {
-          addIssue(report, mode, `metaV2 risk flow missing source/sink at index ${i}`, 'Rebuild index artifacts for this mode.');
-          errors += 1;
-          break;
-        }
-      }
-    }
-    if (meta.types && typeof meta.types === 'object') {
-      const checkTypeEntries = (bucket) => {
-        if (!bucket || typeof bucket !== 'object') return;
-        for (const entries of Object.values(bucket)) {
-          const list = Array.isArray(entries) ? entries : [];
-          for (const typeEntry of list) {
-            if (!typeEntry?.type) {
-              addIssue(report, mode, `metaV2 type entry missing type at index ${i}`, 'Rebuild index artifacts for this mode.');
-              errors += 1;
-              return;
-            }
-          }
-        }
-      };
-      checkTypeEntries(meta.types.declared);
-      checkTypeEntries(meta.types.inferred);
-      checkTypeEntries(meta.types.tooling);
-    }
-    if (errors >= maxErrors) return;
-  }
-};
-
-const validateFileNameCollisions = (report, mode, repoMap) => {
-  const seen = new Set();
-  for (const entry of Array.isArray(repoMap) ? repoMap : []) {
-    const file = entry?.file;
-    const name = entry?.name;
-    if (!file || !name) continue;
-    const key = `${file}::${name}`;
-    if (seen.has(key)) {
-      addIssue(
-        report,
-        mode,
-        `ERR_ID_COLLISION duplicate file::name identifier: ${key}`,
-        'Resolve symbol name collisions or update artifact generation.'
-      );
-      return;
-    }
-    seen.add(key);
-  }
-};
-
+import { normalizeManifestPath, resolveIndexDir } from './validate/paths.js';
+import {
+  extractArray,
+  normalizeDenseVectors,
+  normalizeFieldPostings,
+  normalizeFilterIndex,
+  normalizeMinhash,
+  normalizePhrasePostings,
+  normalizeTokenPostings
+} from './validate/normalize.js';
+import { decode, hasLmdbStore } from './validate/lmdb.js';
+import { addIssue } from './validate/issues.js';
+import { validateManifestEntries, validateSchema } from './validate/schema.js';
+import { createArtifactPresenceHelpers } from './validate/presence.js';
+import {
+  validateChunkIds,
+  validateFileNameCollisions,
+  validateIdPostings,
+  validateMetaV2,
+  validatePostingsDocIds
+} from './validate/checks.js';
 export async function validateIndexArtifacts(input = {}) {
   const root = getRepoRoot(input.root);
   const indexRoot = input.indexRoot ? path.resolve(input.indexRoot) : null;
@@ -459,157 +206,20 @@ export async function validateIndexArtifacts(input = {}) {
       }
     }
 
-    const presenceCache = new Map();
-    const resolvePresence = (name) => {
-      if (!strict || !manifest) return null;
-      if (presenceCache.has(name)) return presenceCache.get(name);
-      const presence = resolveArtifactPresence(dir, name, { manifest, strict: true });
-      presenceCache.set(name, presence);
-      return presence;
-    };
-
-    const checkPresence = (name, { required = false } = {}) => {
-      const presence = resolvePresence(name);
-      if (!presence) return null;
-      if (presence.error) {
-        addIssue(report, mode, `manifest entry invalid for ${name}: ${presence.error.message}`);
-        modeReport.ok = false;
-        return presence;
-      }
-      if (presence.format === 'missing') {
-        const label = `missing ${name}`;
-        if (required) {
-          modeReport.ok = false;
-          modeReport.missing.push(name);
-          report.issues.push(`[${mode}] ${label}`);
-        } else {
-          modeReport.warnings.push(name);
-          report.warnings.push(`[${mode}] optional ${name} missing`);
-        }
-        return presence;
-      }
-      if (presence.missingMeta) {
-        addIssue(report, mode, `${name} meta missing`, 'Rebuild index artifacts for this mode.');
-        modeReport.ok = false;
-      }
-      if (presence.missingPaths.length) {
-        presence.missingPaths.forEach((missing) => {
-          addIssue(report, mode, `${name} shard missing: ${path.relative(dir, missing)}`);
-        });
-        modeReport.ok = false;
-      }
-      if (presence.meta && typeof presence.meta === 'object') {
-        validateSchema(
-          report,
-          mode,
-          `${name}_meta`,
-          presence.meta,
-          'Rebuild index artifacts for this mode.',
-          { strictSchema: strict }
-        );
-        if (presence.meta.schemaVersion
-          && !isSupportedVersion(presence.meta.schemaVersion, SHARDED_JSONL_META_SCHEMA_VERSION)) {
-          addIssue(
-            report,
-            mode,
-            `${name}_meta schemaVersion unsupported: ${presence.meta.schemaVersion}`,
-            'Rebuild index artifacts for this mode.'
-          );
-        }
-      }
-      return presence;
-    };
-
-    const readJsonArtifact = (name, { required = false } = {}) => {
-      try {
-        if (strict && manifest) {
-          const presence = resolvePresence(name);
-          if (!presence || presence.format === 'missing') return null;
-          if (presence.format !== 'json') {
-            throw new Error(`Unexpected ${name} format: ${presence.format}`);
-          }
-          if (!presence.paths.length) {
-            throw new Error(`Missing ${name} JSON path in manifest`);
-          }
-          if (presence.paths.length > 1) {
-            throw new Error(`Ambiguous JSON sources for ${name}`);
-          }
-          return readJsonFile(presence.paths[0]);
-        }
-        const jsonPath = path.join(dir, `${name}.json`);
-        if (!fs.existsSync(jsonPath) && !fs.existsSync(`${jsonPath}.gz`) && !fs.existsSync(`${jsonPath}.zst`)) {
-          return null;
-        }
-        return readJsonFile(jsonPath);
-      } catch (err) {
-        addIssue(report, mode, `${name} load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
-        if (required) modeReport.ok = false;
-        return null;
-      }
-    };
-
-    const shouldLoadOptional = (name) => {
-      if (!strict) return true;
-      const presence = resolvePresence(name);
-      return presence && presence.format !== 'missing' && !presence.error;
-    };
-
-    const hasLegacyArtifact = (name) => {
-      if (name === 'chunk_meta') {
-        const json = path.join(dir, 'chunk_meta.json');
-        const jsonl = path.join(dir, 'chunk_meta.jsonl');
-        const meta = path.join(dir, 'chunk_meta.meta.json');
-        const partsDir = path.join(dir, 'chunk_meta.parts');
-        return fs.existsSync(json) || fs.existsSync(jsonl) || fs.existsSync(meta) || fs.existsSync(partsDir);
-      }
-      const hasJsonlArtifact = (baseName) => {
-        const json = path.join(dir, `${baseName}.json`);
-        const jsonl = path.join(dir, `${baseName}.jsonl`);
-        const meta = path.join(dir, `${baseName}.meta.json`);
-        const partsDir = path.join(dir, `${baseName}.parts`);
-        if (fs.existsSync(json) || fs.existsSync(`${json}.gz`)) return true;
-        return fs.existsSync(jsonl) || fs.existsSync(meta) || fs.existsSync(partsDir);
-      };
-      if (name === 'file_relations') return hasJsonlArtifact('file_relations');
-      if (name === 'graph_relations') return hasJsonlArtifact('graph_relations');
-      if (name === 'repo_map') return hasJsonlArtifact('repo_map');
-      if (name === 'token_postings') {
-        const json = path.join(dir, 'token_postings.json');
-        const gz = `${json}.gz`;
-        const zst = `${json}.zst`;
-        const meta = path.join(dir, 'token_postings.meta.json');
-        const shardsDir = path.join(dir, 'token_postings.shards');
-        return fs.existsSync(json)
-          || fs.existsSync(gz)
-          || fs.existsSync(zst)
-          || fs.existsSync(meta)
-          || fs.existsSync(shardsDir);
-      }
-      if (name === 'dense_vectors') {
-        const json = path.join(dir, 'dense_vectors_uint8.json');
-        return fs.existsSync(json) || fs.existsSync(`${json}.gz`);
-      }
-      if (name === 'dense_vectors_doc') {
-        const json = path.join(dir, 'dense_vectors_doc_uint8.json');
-        return fs.existsSync(json) || fs.existsSync(`${json}.gz`);
-      }
-      if (name === 'dense_vectors_code') {
-        const json = path.join(dir, 'dense_vectors_code_uint8.json');
-        return fs.existsSync(json) || fs.existsSync(`${json}.gz`);
-      }
-      if (name === 'index_state') {
-        return fs.existsSync(path.join(dir, 'index_state.json'));
-      }
-      if (name === 'filelists') {
-        return fs.existsSync(path.join(dir, '.filelists.json'));
-      }
-      const filePath = path.join(dir, `${name}.json`);
-      if (fs.existsSync(filePath)) return true;
-      const gzPath = `${filePath}.gz`;
-      const zstPath = `${filePath}.zst`;
-      if (fs.existsSync(zstPath) || fs.existsSync(gzPath)) return true;
-      return false;
-    };
+    const {
+      resolvePresence,
+      checkPresence,
+      readJsonArtifact,
+      shouldLoadOptional,
+      hasLegacyArtifact
+    } = createArtifactPresenceHelpers({
+      dir,
+      manifest,
+      strict,
+      mode,
+      report,
+      modeReport
+    });
 
     if (strict) {
       for (const name of requiredArtifacts) {
@@ -940,47 +550,49 @@ export async function validateIndexArtifacts(input = {}) {
     report.modes[mode] = modeReport;
   }
 
-  const buildsRoot = getBuildsRoot(root, userConfig);
-  const currentPath = path.join(buildsRoot, 'current.json');
-  if (fs.existsSync(currentPath)) {
-    try {
-      const current = readJsonFile(currentPath);
-      validateSchema(
-        report,
-        null,
-        'builds_current',
-        current,
-        'Rebuild index artifacts for this repo.',
-        { strictSchema: strict }
-      );
-      if (strict && !isSupportedVersion(current?.artifactSurfaceVersion, ARTIFACT_SURFACE_VERSION)) {
-        addIssue(
+  if (!indexRoot) {
+    const buildsRoot = getBuildsRoot(root, userConfig);
+    const currentPath = path.join(buildsRoot, 'current.json');
+    if (fs.existsSync(currentPath)) {
+      try {
+        const current = readJsonFile(currentPath);
+        validateSchema(
           report,
           null,
-          `current.json artifactSurfaceVersion unsupported: ${current?.artifactSurfaceVersion ?? 'missing'}`,
-          'Rebuild index artifacts for this repo.'
+          'builds_current',
+          current,
+          'Rebuild index artifacts for this repo.',
+          { strictSchema: strict }
         );
-      }
-      if (strict) {
-        const repoCacheRoot = path.resolve(path.dirname(buildsRoot));
-        const ensureSafeRoot = (value, label) => {
-          if (!value) return;
-          const resolved = path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
-          const normalized = path.resolve(resolved);
-          if (!normalized.startsWith(repoCacheRoot + path.sep) && normalized !== repoCacheRoot) {
-            addIssue(report, null, `current.json ${label} escapes repo cache root`);
-          }
-        };
-        ensureSafeRoot(current?.buildRoot, 'buildRoot');
-        const rootsByMode = current?.buildRootsByMode || null;
-        if (rootsByMode && typeof rootsByMode === 'object' && !Array.isArray(rootsByMode)) {
-          for (const value of Object.values(rootsByMode)) {
-            ensureSafeRoot(value, 'buildRootsByMode');
+        if (strict && !isSupportedVersion(current?.artifactSurfaceVersion, ARTIFACT_SURFACE_VERSION)) {
+          addIssue(
+            report,
+            null,
+            `current.json artifactSurfaceVersion unsupported: ${current?.artifactSurfaceVersion ?? 'missing'}`,
+            'Rebuild index artifacts for this repo.'
+          );
+        }
+        if (strict) {
+          const repoCacheRoot = path.resolve(path.dirname(buildsRoot));
+          const ensureSafeRoot = (value, label) => {
+            if (!value) return;
+            const resolved = path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+            const normalized = path.resolve(resolved);
+            if (!normalized.startsWith(repoCacheRoot + path.sep) && normalized !== repoCacheRoot) {
+              addIssue(report, null, `current.json ${label} escapes repo cache root`);
+            }
+          };
+          ensureSafeRoot(current?.buildRoot, 'buildRoot');
+          const rootsByMode = current?.buildRootsByMode || null;
+          if (rootsByMode && typeof rootsByMode === 'object' && !Array.isArray(rootsByMode)) {
+            for (const value of Object.values(rootsByMode)) {
+              ensureSafeRoot(value, 'buildRootsByMode');
+            }
           }
         }
+      } catch (err) {
+        addIssue(report, null, `current.json invalid (${err?.message || err})`);
       }
-    } catch (err) {
-      addIssue(report, null, `current.json invalid (${err?.message || err})`);
     }
   }
 
@@ -1158,3 +770,4 @@ export async function validateIndexArtifacts(input = {}) {
   report.ok = report.issues.length === 0;
   return report;
 }
+

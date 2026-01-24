@@ -31,6 +31,7 @@ Intent: implement Phase 2 with hard breaks and a strict contract layer so artifa
 - CompatibilityKey now derives from manifest-aware tokenization keys, is enforced across loaders/assemble, and query-cache signatures include sharded `chunk_meta`.
 - Added golden contract fixture (`tests/fixtures/public-surface`) + strict validation suite, plus loader matrix parity coverage for chunk_meta formats.
 - Fixed records index_state emission and pieces_manifest schema to include checksum/stat error fields used by emitters.
+- 2026-01-24: remaining failures still tracked in `failing_tests_list.md`; `mcp-schema` and `compact-pieces` remain unresolved.
 
 ## Findings (review)
 - Schema sources are duplicated: `src/index/build/artifacts/schema.js` (field lists) and `src/shared/artifact-schemas.js` (Ajv validators), creating likely drift.

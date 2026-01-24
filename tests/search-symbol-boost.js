@@ -36,6 +36,7 @@ const searchPipeline = createSearchPipeline({
   sqliteFtsWeights: null,
   bm25K1: 1.2,
   bm25B: 0.75,
+  explain: true,
   postingsConfig: {
     enablePhraseNgrams: false,
     enableChargrams: false,

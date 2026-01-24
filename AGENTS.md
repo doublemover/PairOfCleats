@@ -20,9 +20,13 @@
 
 ## PowerShell 7.5 Notes
 - Work in PowerShell 7.5; prefer PowerShell-native syntax over bashisms.
-- Quoting: use single quotes for literal strings, double quotes to expand `$env:VAR` or `$(...)`.
-- Paths: use `C:\...` or `.\relative\path`; escape backticks/backslashes only when needed.
-- Here-strings (heredocs): `@"` ... `"@` for expandable, `@'` ... `'@` for literal.
+- Quoting: use single quotes for literal strings, double quotes only when you need `$env:VAR` or `$(...)` expansion.
+- Escaping: PowerShell uses backtick `` ` `` (not `\` or `^`) to escape inside double quotes. In single quotes, escape a `'` by doubling it (`''`).
+- Avoid unquoted paths with spaces; wrap in single quotes when no expansion is needed.
+- JSON/CLI args: prefer single-quoted JSON (`'{"k":"v"}'`) to avoid accidental expansion; if you must use double quotes, escape `$` as `` `$ ``.
+- Paths: use `C:\\...` or `.\\relative\\path`; you generally do not need to escape backslashes.
+- Here-strings (heredocs): `@"` ... `"@` for expandable, `@'` ... `'@` for literal; avoid bash-style heredocs (`<<EOF`).
+- Tests: set `PAIROFCLEATS_TESTING=1` or other `PAIROFCLEATS_TEST_*` env vars will be ignored.
 
 ## Coding Style & Naming Conventions
 - JavaScript, ESM (`"type": "module"` in `package.json`).

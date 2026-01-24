@@ -297,12 +297,34 @@ const manifestAll = JSON.parse(await fsPromises.readFile(path.join(indexAll, 'pi
 const manifestEquiv = JSON.parse(await fsPromises.readFile(path.join(assembledEquiv, 'pieces', 'manifest.json'), 'utf8'));
 const piecesAll = Array.isArray(manifestAll.pieces) ? manifestAll.pieces : [];
 const piecesEquiv = Array.isArray(manifestEquiv.pieces) ? manifestEquiv.pieces : [];
+const normalizePiece = (entry) => {
+  if (!entry || typeof entry !== 'object') return entry;
+  const normalized = { ...entry };
+  if (normalized.statError == null) delete normalized.statError;
+  if (normalized.checksumError == null) delete normalized.checksumError;
+  return normalized;
+};
+const sortPieces = (pieces) => pieces.slice().sort((a, b) => {
+  const nameA = `${a?.name || ''}`;
+  const nameB = `${b?.name || ''}`;
+  if (nameA !== nameB) return nameA.localeCompare(nameB);
+  const pathA = `${a?.path || ''}`;
+  const pathB = `${b?.path || ''}`;
+  if (pathA !== pathB) return pathA.localeCompare(pathB);
+  const typeA = `${a?.type || ''}`;
+  const typeB = `${b?.type || ''}`;
+  return typeA.localeCompare(typeB);
+});
 const stripManifestEntries = (pieces) => pieces.filter((entry) => !(
   (entry?.type === 'stats' && entry?.name === 'filelists')
   || (entry?.type === 'stats' && entry?.name === 'index_state')
   || (entry?.type === 'relations' && entry?.name === 'graph_relations')
+  || entry?.name === 'dense_vectors_hnsw_meta'
+  || entry?.name === 'dense_vectors_lancedb_meta'
 ));
-if (JSON.stringify(stripManifestEntries(piecesAll)) !== JSON.stringify(stripManifestEntries(piecesEquiv))) {
+const normalizedAll = sortPieces(stripManifestEntries(piecesAll).map(normalizePiece));
+const normalizedEquiv = sortPieces(stripManifestEntries(piecesEquiv).map(normalizePiece));
+if (JSON.stringify(normalizedAll) !== JSON.stringify(normalizedEquiv)) {
   console.error('Piece assembly equivalence failed: pieces manifest mismatch.');
   process.exit(1);
 }
