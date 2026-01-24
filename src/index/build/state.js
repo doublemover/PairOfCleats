@@ -40,14 +40,15 @@ const recordGuardSample = (guard, context) => {
 // This avoids allocating one `Set` per term.
 function appendDocIdToPostingsMap(map, key, docId, guard = null, context = null) {
   if (!map) return;
-  if (guard?.disabled) return;
   const current = map.get(key);
   if (current === undefined) {
     if (guard?.maxUnique && map.size >= guard.maxUnique) {
-      guard.disabled = true;
-      guard.reason = guard.reason || 'max-unique';
+      if (!guard.disabled) {
+        guard.disabled = true;
+        guard.reason = guard.reason || 'max-unique';
+        recordGuardSample(guard, context);
+      }
       guard.dropped += 1;
-      recordGuardSample(guard, context);
       return;
     }
     map.set(key, docId);
@@ -76,7 +77,7 @@ function appendDocIdToPostingsMap(map, key, docId, guard = null, context = null)
  * `extractNgrams(...)`, especially for long token sequences.
  */
 function appendPhraseNgramsToPostingsMap(map, tokens, docId, minN, maxN, guard = null, context = null) {
-  if (!map || guard?.disabled) return;
+  if (!map) return;
   if (!Array.isArray(tokens) || tokens.length === 0) return;
   const min = Number.isFinite(minN) ? minN : 2;
   const max = Number.isFinite(maxN) ? maxN : 4;
@@ -213,25 +214,35 @@ export function appendChunk(
   postingsConfig = DEFAULT_POSTINGS_CONFIG,
   tokenRetention = null
 ) {
+  const config = postingsConfig && typeof postingsConfig === 'object' ? postingsConfig : {};
   const tokens = Array.isArray(chunk.tokens) ? chunk.tokens : [];
   const seq = Array.isArray(chunk.seq) && chunk.seq.length ? chunk.seq : tokens;
-  if (!seq.length) return;
 
-  const phraseEnabled = postingsConfig?.enablePhraseNgrams !== false;
-  const phraseMinN = Number.isFinite(postingsConfig?.phraseMinN)
-    ? postingsConfig.phraseMinN
-    : 2;
-  const phraseMaxN = Number.isFinite(postingsConfig?.phraseMaxN)
-    ? postingsConfig.phraseMaxN
-    : 4;
-  const phraseSource = postingsConfig?.phraseSource === 'full' ? 'full' : 'fields';
+  const phraseEnabled = config.enablePhraseNgrams !== false;
+  const phraseMinRaw = Number.isFinite(config.phraseMinN)
+    ? Math.max(1, Math.floor(config.phraseMinN))
+    : DEFAULT_POSTINGS_CONFIG.phraseMinN;
+  const phraseMaxRaw = Number.isFinite(config.phraseMaxN)
+    ? Math.max(1, Math.floor(config.phraseMaxN))
+    : DEFAULT_POSTINGS_CONFIG.phraseMaxN;
+  const phraseMinN = phraseMinRaw <= phraseMaxRaw ? phraseMinRaw : phraseMaxRaw;
+  const phraseMaxN = phraseMaxRaw >= phraseMinRaw ? phraseMaxRaw : phraseMinRaw;
+  const phraseSource = config.phraseSource === 'full' ? 'full' : 'fields';
 
-  const chargramEnabled = postingsConfig?.enableChargrams !== false;
-  const fieldedEnabled = postingsConfig?.fielded !== false;
-  const chargramSource = postingsConfig?.chargramSource === 'full' ? 'full' : 'fields';
-  const chargramMaxTokenLength = postingsConfig?.chargramMaxTokenLength == null
-    ? null
-    : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
+  const chargramEnabled = config.enableChargrams !== false;
+  const fieldedEnabled = config.fielded !== false;
+  const chargramSource = config.chargramSource === 'full' ? 'full' : 'fields';
+  const chargramMinRaw = Number.isFinite(config.chargramMinN)
+    ? Math.max(1, Math.floor(config.chargramMinN))
+    : DEFAULT_POSTINGS_CONFIG.chargramMinN;
+  const chargramMaxRaw = Number.isFinite(config.chargramMaxN)
+    ? Math.max(1, Math.floor(config.chargramMaxN))
+    : DEFAULT_POSTINGS_CONFIG.chargramMaxN;
+  const chargramMinN = chargramMinRaw <= chargramMaxRaw ? chargramMinRaw : chargramMaxRaw;
+  const chargramMaxN = chargramMaxRaw >= chargramMinRaw ? chargramMaxRaw : chargramMinRaw;
+  const chargramMaxTokenLength = config.chargramMaxTokenLength == null
+    ? DEFAULT_POSTINGS_CONFIG.chargramMaxTokenLength
+    : Math.max(2, Math.floor(Number(config.chargramMaxTokenLength)));
 
   state.totalTokens += seq.length;
   const chunkId = state.chunks.length;
@@ -254,8 +265,8 @@ export function appendChunk(
       const addFromTokens = (tokenList) => {
         if (!Array.isArray(tokenList) || !tokenList.length) return;
         for (const w of tokenList) {
-          if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) return;
-          for (let n = postingsConfig.chargramMinN; n <= postingsConfig.chargramMaxN; ++n) {
+          if (chargramMaxTokenLength && w.length > chargramMaxTokenLength) continue;
+          for (let n = chargramMinN; n <= chargramMaxN; ++n) {
             for (const g of tri(w, n)) {
               if (maxChargramsPerChunk && charSet.size >= maxChargramsPerChunk) return;
               charSet.add(g);
@@ -333,7 +344,6 @@ export function appendChunk(
     const maxChargrams = chargramGuard?.maxPerChunk || 0;
     let added = 0;
     for (const tg of charSet) {
-      if (chargramGuard?.disabled) break;
       if (maxChargrams && added >= maxChargrams) {
         if (chargramGuard) {
           chargramGuard.truncatedChunks += 1;

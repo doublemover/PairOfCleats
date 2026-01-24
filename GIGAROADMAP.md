@@ -52,7 +52,7 @@ Phase 29 — Optional: Service-Mode Integration for Sublime (API-backed Workflow
 
 ---
 
-## Phase 1 — P0 Correctness Hotfixes (Shared Primitives + Indexer Core)
+## Phase 1 — P0 Correctness Hotfixes (Shared Primitives + Indexer Core) [@]
 
 ### Objective
 
@@ -65,31 +65,31 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
 - **Files touched:**
   - `src/shared/concurrency.js`
 
-- [ ] **Fix `runWithQueue()` to never “succeed” when worker tasks reject**
-  - [ ] Separate _in-flight backpressure tracking_ from _final completion tracking_ (avoid “removing from `pending` then awaiting `pending`” patterns that can drop rejections).
-  - [ ] Ensure every enqueued task has an attached rejection handler immediately (avoid unhandled-rejection windows while waiting to `await` later).
-  - [ ] Await completion in a way that guarantees: if any worker rejects, `runWithQueue()` rejects (no silent pass).
-- [ ] **Make backpressure logic robust to worker rejections**
-  - [ ] Replace `Promise.race(pending)` usage with a variant that unblocks on completion **regardless of fulfill/reject**, without throwing mid-scheduling.
-  - [ ] Decide and document semantics explicitly:
+- [x] **Fix `runWithQueue()` to never “succeed” when worker tasks reject**
+  - [x] Separate _in-flight backpressure tracking_ from _final completion tracking_ (avoid “removing from `pending` then awaiting `pending`” patterns that can drop rejections).
+  - [x] Ensure every enqueued task has an attached rejection handler immediately (avoid unhandled-rejection windows while waiting to `await` later).
+  - [x] Await completion in a way that guarantees: if any worker rejects, `runWithQueue()` rejects (no silent pass).
+- [x] **Make backpressure logic robust to worker rejections**
+  - [x] Replace `Promise.race(pending)` usage with a variant that unblocks on completion **regardless of fulfill/reject**, without throwing mid-scheduling.
+  - [x] Decide and document semantics explicitly:
     - Default behavior: **fail-fast scheduling** (stop enqueueing new items after first observed failure),
     - But still **drain already-enqueued tasks to a settled state** before returning error (avoid “background work continues after caller thinks it failed”).
-  - [ ] Ensure `runWithConcurrency()` inherits the same semantics via `runWithQueue()`.
-- [ ] **Accept iterables, not just arrays**
-  - [ ] Allow `items` to be any iterable (`Array`, `Set`, generator), by normalizing once at the start (`Array.from(...)`) and using that stable snapshot for `results` allocation and deterministic ordering.
-- [ ] **Stop swallowing queue-level errors**
-  - [ ] Replace the current no-op `queue.on('error', () => {})` behavior with a handler that **records/logs** queue errors and ensures they surface as failures of the enclosing `runWithQueue()` call.
-  - [ ] Ensure no listener leaks (attach per-call with cleanup, or attach once in a way that does not grow unbounded).
+  - [x] Ensure `runWithConcurrency()` inherits the same semantics via `runWithQueue()`.
+- [x] **Accept iterables, not just arrays**
+  - [x] Allow `items` to be any iterable (`Array`, `Set`, generator), by normalizing once at the start (`Array.from(...)`) and using that stable snapshot for `results` allocation and deterministic ordering.
+- [x] **Stop swallowing queue-level errors**
+  - [x] Replace the current no-op `queue.on('error', () => {})` behavior with a handler that **records/logs** queue errors and ensures they surface as failures of the enclosing `runWithQueue()` call.
+  - [x] Ensure no listener leaks (attach per-call with cleanup, or attach once in a way that does not grow unbounded).
 
 #### Tests / Verification
 
-- [ ] Add `tests/concurrency-run-with-queue-error-propagation.js`
-  - [ ] A rejecting worker causes `runWithQueue()` to reject reliably (no “resolved success”).
-  - [ ] Ensure no unhandled-rejection warnings are emitted under a rejecting worker (attach handlers early).
-- [ ] Add `tests/concurrency-run-with-queue-backpressure-on-reject.js`
-  - [ ] When an early task rejects and later tasks are still in-flight, the function’s failure behavior is deterministic and documented (fail-fast enqueueing + drain in-flight).
-- [ ] Add `tests/concurrency-run-with-queue-iterables.js`
-  - [ ] Passing a `Set` or generator as `items` produces correct ordering and correct results length.
+- [x] Add `tests/concurrency-run-with-queue-error-propagation.js`
+  - [x] A rejecting worker causes `runWithQueue()` to reject reliably (no “resolved success”).
+  - [x] Ensure no unhandled-rejection warnings are emitted under a rejecting worker (attach handlers early).
+- [x] Add `tests/concurrency-run-with-queue-backpressure-on-reject.js`
+  - [x] When an early task rejects and later tasks are still in-flight, the function’s failure behavior is deterministic and documented (fail-fast enqueueing + drain in-flight).
+- [x] Add `tests/concurrency-run-with-queue-iterables.js`
+  - [x] Passing a `Set` or generator as `items` produces correct ordering and correct results length.
 
 ---
 
@@ -100,38 +100,38 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
   - `src/index/build/file-processor/embeddings.js`
   - `src/index/build/indexer/steps/postings.js`
 
-- [ ] **Make `mergeEmbeddingVectors()` correct and explicit**
-  - [ ] When only one vector is present, return that vector unchanged (avoid “code-only is halved”).
-  - [ ] When both vectors are present:
-    - [ ] Define dimension mismatch behavior explicitly (avoid NaNs and silent truncation).
+- [x] **Make `mergeEmbeddingVectors()` correct and explicit**
+  - [x] When only one vector is present, return that vector unchanged (avoid “code-only is halved”).
+  - [x] When both vectors are present:
+    - [x] Define dimension mismatch behavior explicitly (avoid NaNs and silent truncation).
           Recommended Phase 1 behavior: **fail closed** with a clear error (dimension mismatch is a correctness failure), unless/until a contract says otherwise.
-    - [ ] Ensure merge never produces NaN due to `undefined`/holes (`(vec[i] ?? 0)` defensively).
-  - [ ] Keep output type stable (e.g., `Float32Array`) and documented.
-- [ ] **Ensure TypedArray parity across embedding ingestion**
-  - [ ] In `src/index/build/indexer/steps/postings.js`, replace `Array.isArray(...)` checks for embedding floats with a vector-like predicate (accept `Float32Array` and similar).
-  - [ ] Ensure quantization in the postings step uses the same “vector-like” acceptance rules for merged/doc/code vectors.
-- [ ] **Fix embedding batcher reentrancy: no unflushed queued work**
-  - [ ] In `createBatcher()` (`src/index/build/file-processor/embeddings.js`), handle “flush requested while flushing” deterministically:
-    - [ ] If `flush()` is called while `flushing === true`, record intent (e.g., `needsFlush = true`) rather than returning and risking a stranded queue.
-    - [ ] After a flush finishes, if the queue is non-empty (or `needsFlush`), perform/schedule another flush immediately.
-  - [ ] Ensure the batcher cannot enter a state where items remain queued with no timer and no subsequent trigger.
-- [ ] **Enforce a single build-time representation for “missing doc embedding”**
-  - [ ] Standardize on **one marker** at build time (current marker is `EMPTY_U8`) to represent “no doc embedding present”.
-  - [ ] Ensure downstream steps never interpret “missing doc embedding” as “fallback to merged embedding” (the doc-only semantics fix is completed in **1.4**, but Phase 1.2 should ensure the marker is consistently produced).
+    - [x] Ensure merge never produces NaN due to `undefined`/holes (`(vec[i] ?? 0)` defensively).
+  - [x] Keep output type stable (e.g., `Float32Array`) and documented.
+- [x] **Ensure TypedArray parity across embedding ingestion**
+  - [x] In `src/index/build/indexer/steps/postings.js`, replace `Array.isArray(...)` checks for embedding floats with a vector-like predicate (accept `Float32Array` and similar).
+  - [x] Ensure quantization in the postings step uses the same “vector-like” acceptance rules for merged/doc/code vectors.
+- [x] **Fix embedding batcher reentrancy: no unflushed queued work**
+  - [x] In `createBatcher()` (`src/index/build/file-processor/embeddings.js`), handle “flush requested while flushing” deterministically:
+    - [x] If `flush()` is called while `flushing === true`, record intent (e.g., `needsFlush = true`) rather than returning and risking a stranded queue.
+    - [x] After a flush finishes, if the queue is non-empty (or `needsFlush`), perform/schedule another flush immediately.
+  - [x] Ensure the batcher cannot enter a state where items remain queued with no timer and no subsequent trigger.
+- [x] **Enforce a single build-time representation for “missing doc embedding”**
+  - [x] Standardize on **one marker** at build time (current marker is `EMPTY_U8`) to represent “no doc embedding present”.
+  - [x] Ensure downstream steps never interpret “missing doc embedding” as “fallback to merged embedding” (the doc-only semantics fix is completed in **1.4**, but Phase 1.2 should ensure the marker is consistently produced).
 
 #### Tests / Verification
 
-- [ ] Add `tests/embedding-merge-vectors-semantics.js`
-  - [ ] Code-only merge returns identical vector (no halving).
-  - [ ] Doc-only merge returns identical vector (no scaling).
-  - [ ] Mismatched dimensions is deterministic (throws or controlled fallback per Phase 1 decision), and never yields NaNs.
-- [ ] Add `tests/embedding-typedarray-quantization-postings-step.js`
-  - [ ] A `Float32Array` embedding input is quantized and preserved equivalently to a plain array.
-- [ ] Add `tests/embedding-batcher-flush-reentrancy.js`
-  - [ ] Reentrant flush (flush called while flushing) does not strand queued items; all queued work is eventually flushed and promises resolve.
-- [ ] Run existing embedding build tests to confirm no regressions:
-  - [ ] `npm test -- embedding-batch-*`
-  - [ ] `npm test -- build-embeddings-cache`
+- [x] Add `tests/embedding-merge-vectors-semantics.js`
+  - [x] Code-only merge returns identical vector (no halving).
+  - [x] Doc-only merge returns identical vector (no scaling).
+  - [x] Mismatched dimensions is deterministic (throws or controlled fallback per Phase 1 decision), and never yields NaNs.
+- [x] Add `tests/embedding-typedarray-quantization-postings-step.js`
+  - [x] A `Float32Array` embedding input is quantized and preserved equivalently to a plain array.
+- [x] Add `tests/embedding-batcher-flush-reentrancy.js`
+  - [x] Reentrant flush (flush called while flushing) does not strand queued items; all queued work is eventually flushed and promises resolve.
+- [x] Run existing embedding build tests to confirm no regressions:
+  - [x] `npm test -- embedding-batch-*`
+  - [x] `npm test -- build-embeddings-cache`
 
 ---
 
@@ -140,36 +140,36 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
 - **Files touched:**
   - `src/index/build/state.js`
 
-- [ ] **Fix chargram extraction “early abort” on long tokens**
-  - [ ] Replace the per-token `return` with `continue` inside chargram token processing so a single long token does not suppress all subsequent tokens for the chunk.
-  - [ ] Ensure chargram truncation behavior remains bounded by `maxChargramsPerChunk`.
-- [ ] **Make chargram min/max-N configuration robust**
-  - [ ] Stop relying on callers always passing pre-normalized postings config.
-  - [ ] Ensure `chargramMinN`, `chargramMaxN`, and `chargramMaxTokenLength` have safe defaults consistent with `normalizePostingsConfig()` when absent.
-  - [ ] Ensure invalid ranges (min > max) degrade deterministically (swap or clamp) and are covered by tests.
-- [ ] **Preserve tokenless chunks**
-  - [ ] Remove the early return that drops chunks when `seq` is empty.
-  - [ ] Continue to:
-    - [ ] Assign chunk IDs and append chunk metadata,
-    - [ ] Record `docLengths[chunkId] = 0`,
-    - [ ] Allow phrase/field indexing paths to run where applicable (field-sourced tokens can still produce phrases even when `seq` is empty),
-    - [ ] Skip token postings updates cleanly (no crashes).
-- [ ] **Fix max-unique guard behavior to avoid disabling all future updates**
-  - [ ] Redefine guard behavior so that “max unique reached” stops _introducing new keys_ but does **not** prevent:
-    - [ ] Adding doc IDs for **existing** keys,
-    - [ ] Continuing to process remaining keys in the same chunk.
-  - [ ] Remove/adjust any “break if guard.disabled” loops that prevent existing-key updates (the key-level function should decide whether to skip).
+- [x] **Fix chargram extraction “early abort” on long tokens**
+  - [x] Replace the per-token `return` with `continue` inside chargram token processing so a single long token does not suppress all subsequent tokens for the chunk.
+  - [x] Ensure chargram truncation behavior remains bounded by `maxChargramsPerChunk`.
+- [x] **Make chargram min/max-N configuration robust**
+  - [x] Stop relying on callers always passing pre-normalized postings config.
+  - [x] Ensure `chargramMinN`, `chargramMaxN`, and `chargramMaxTokenLength` have safe defaults consistent with `normalizePostingsConfig()` when absent.
+  - [x] Ensure invalid ranges (min > max) degrade deterministically (swap or clamp) and are covered by tests.
+- [x] **Preserve tokenless chunks**
+  - [x] Remove the early return that drops chunks when `seq` is empty.
+  - [x] Continue to:
+    - [x] Assign chunk IDs and append chunk metadata,
+    - [x] Record `docLengths[chunkId] = 0`,
+    - [x] Allow phrase/field indexing paths to run where applicable (field-sourced tokens can still produce phrases even when `seq` is empty),
+    - [x] Skip token postings updates cleanly (no crashes).
+- [x] **Fix max-unique guard behavior to avoid disabling all future updates**
+  - [x] Redefine guard behavior so that “max unique reached” stops _introducing new keys_ but does **not** prevent:
+    - [x] Adding doc IDs for **existing** keys,
+    - [x] Continuing to process remaining keys in the same chunk.
+  - [x] Remove/adjust any “break if guard.disabled” loops that prevent existing-key updates (the key-level function should decide whether to skip).
 
 #### Tests / Verification
 
-- [ ] Add `tests/postings-chargram-long-token-does-not-abort.js`
-  - [ ] A chunk containing one overlong token plus normal tokens still produces chargrams from the normal tokens.
-- [ ] Add `tests/postings-tokenless-chunk-preserved.js`
-  - [ ] Tokenless chunk still appears in state (`chunks.length` increments, `docLengths` has an entry, metadata preserved).
-- [ ] Add `tests/postings-chargram-config-defaults.js`
-  - [ ] Passing an unnormalized postings config does not break chargram generation and uses default min/max values.
-- [ ] Add `tests/postings-guard-max-unique-keeps-existing.js`
-  - [ ] After hitting `maxUnique`, existing keys continue to accumulate doc IDs; only new keys are skipped.
+- [x] Add `tests/postings-chargram-long-token-does-not-abort.js`
+  - [x] A chunk containing one overlong token plus normal tokens still produces chargrams from the normal tokens.
+- [x] Add `tests/postings-tokenless-chunk-preserved.js`
+  - [x] Tokenless chunk still appears in state (`chunks.length` increments, `docLengths` has an entry, metadata preserved).
+- [x] Add `tests/postings-chargram-config-defaults.js`
+  - [x] Passing an unnormalized postings config does not break chargram generation and uses default min/max values.
+- [x] Add `tests/postings-guard-max-unique-keeps-existing.js`
+  - [x] After hitting `maxUnique`, existing keys continue to accumulate doc IDs; only new keys are skipped.
 
 ---
 
@@ -177,28 +177,28 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
 
 - **Files touched:**
   - `src/index/build/postings.js`
-- [ ] **Fix doc-only semantics: missing doc vectors must behave as zero vectors**
-  - [ ] In the quantized-u8 path (`extractDenseVectorsFromChunks`):
-    - [ ] Stop falling back to merged embeddings when `embed_doc_u8` is absent/unparseable.
-    - [ ] Normalize doc vectors so that:
+- [x] **Fix doc-only semantics: missing doc vectors must behave as zero vectors**
+  - [x] In the quantized-u8 path (`extractDenseVectorsFromChunks`):
+    - [x] Stop falling back to merged embeddings when `embed_doc_u8` is absent/unparseable.
+    - [x] Normalize doc vectors so that:
       - `EMPTY_U8` ⇒ zero-vector semantics (already intended),
       - _missing/invalid_ `embed_doc_u8` ⇒ **also** zero-vector semantics (not merged fallback).
-  - [ ] In the legacy float path (`selectDocEmbedding`):
-    - [ ] Stop falling back to `chunk.embedding` when `chunk.embed_doc` is missing.
-    - [ ] Treat missing doc embedding as “no doc embedding” (zero-vector semantics for doc-only retrieval), consistent with the empty-marker rule.
-- [ ] **Accept TypedArrays in legacy float extraction**
-  - [ ] Replace `Array.isArray(vec)` checks with a vector-like predicate to avoid dropping `Float32Array` embeddings when building dense artifacts from float fields.
-- [ ] **Document the invariant**
-  - [ ] Clearly document: _doc-only retrieval uses doc embeddings; when doc embedding is missing, the chunk behaves as if its doc embedding is the zero vector (i.e., it should not match doc-only queries due to code-only embeddings)._
+  - [x] In the legacy float path (`selectDocEmbedding`):
+    - [x] Stop falling back to `chunk.embedding` when `chunk.embed_doc` is missing.
+    - [x] Treat missing doc embedding as “no doc embedding” (zero-vector semantics for doc-only retrieval), consistent with the empty-marker rule.
+- [x] **Accept TypedArrays in legacy float extraction**
+  - [x] Replace `Array.isArray(vec)` checks with a vector-like predicate to avoid dropping `Float32Array` embeddings when building dense artifacts from float fields.
+- [x] **Document the invariant**
+  - [x] Clearly document: _doc-only retrieval uses doc embeddings; when doc embedding is missing, the chunk behaves as if its doc embedding is the zero vector (i.e., it should not match doc-only queries due to code-only embeddings)._
         (This is a correctness guarantee; performance tuning can follow later.)
 
 #### Tests / Verification
 
-- [ ] Add `tests/postings-doc-only-missing-doc-is-zero.js`
-  - [ ] A chunk with code-only embeddings does **not** get a doc vector equal to the merged/code vector when doc embedding is missing.
-  - [ ] Both quantized and legacy float paths enforce the same semantics (construct fixtures to exercise both).
-- [ ] Add `tests/postings-typedarray-legacy-float-extraction.js`
-  - [ ] `Float32Array` embeddings are recognized and included when building dense postings from legacy float fields.
+- [x] Add `tests/postings-doc-only-missing-doc-is-zero.js`
+  - [x] A chunk with code-only embeddings does **not** get a doc vector equal to the merged/code vector when doc embedding is missing.
+  - [x] Both quantized and legacy float paths enforce the same semantics (construct fixtures to exercise both).
+- [x] Add `tests/postings-typedarray-legacy-float-extraction.js`
+  - [x] `Float32Array` embeddings are recognized and included when building dense postings from legacy float fields.
 
 ---
 
@@ -208,33 +208,34 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
   - `src/index/build/imports.js`
   - `src/index/language-registry/registry.js`
 
-- [ ] **Fix ES-module-lexer initialization**
-  - [ ] Ensure `ensureEsModuleLexer()` actually calls `initEsModuleLexer()` and awaits its promise (not the function reference).
-  - [ ] Ensure initialization is idempotent and safe under concurrency.
-- [ ] **Fix options forwarding to per-language import collectors**
-  - [ ] In `collectLanguageImports()`, stop nesting user options under `options: { ... }`.
-  - [ ] Pass `{ ext, relPath, mode, ...options }` (or equivalent) so language collectors can actually read `flowMode`, parser choices, etc.
-- [ ] **Make require() regex fallback run even when lexers fail**
-  - [ ] Do not gate regex extraction on lexer success; if lexers throw or fail, still attempt regex extraction.
-  - [ ] If regex extraction finds imports, treat that as a successful extraction path for the file (do not return `null`).
-- [ ] **Prevent prototype pollution from module-name keys**
-  - [ ] Replace `{}` accumulators keyed by module specifiers with `Object.create(null)` (or a `Map`) anywhere module-spec strings become dynamic keys.
-  - [ ] Ensure serialized results remain compatible (JSON output should not change in shape, aside from the object prototype).
+- [x] **Fix ES-module-lexer initialization**
+  - [x] Ensure `ensureEsModuleLexer()` actually calls `initEsModuleLexer()` and awaits its promise (not the function reference).
+  - [x] Ensure initialization is idempotent and safe under concurrency.
+- [x] **Fix options forwarding to per-language import collectors**
+  - [x] In `collectLanguageImports()`, stop nesting user options under `options: { ... }`.
+  - [x] Pass `{ ext, relPath, mode, ...options }` (or equivalent) so language collectors can actually read `flowMode`, parser choices, etc.
+- [x] **Make require() regex fallback run even when lexers fail**
+  - [x] Do not gate regex extraction on lexer success; if lexers throw or fail, still attempt regex extraction.
+  - [x] If regex extraction finds imports, treat that as a successful extraction path for the file (do not return `null`).
+- [x] **Prevent prototype pollution from module-name keys**
+  - [x] Replace `{}` accumulators keyed by module specifiers with `Object.create(null)` (or a `Map`) anywhere module-spec strings become dynamic keys.
+  - [x] Ensure serialized results remain compatible (JSON output should not change in shape, aside from the object prototype).
 
 #### Tests / Verification
 
-- [ ] Add `tests/imports-options-forwarding-flowmode.js`
-  - [ ] Call `collectLanguageImports({ ext: '.js', ... , options: { flowMode: 'on' } })` on a Flow-syntax file without an `@flow` directive.
-  - [ ] Assert imports are detected only when options are forwarded correctly (regression for the wrapper-object bug).
-- [ ] Add `tests/imports-esmodule-lexer-init.js`
-  - [ ] Ensure module imports are detected via the fast path on a basic ESM file (init actually occurs).
-- [ ] Add `tests/imports-require-regex-fallback-on-lexer-failure.js`
-  - [ ] Use a syntactically invalid file that still contains `require('dep')`; confirm scanning still returns `'dep'`.
-- [ ] Add `tests/imports-proto-safe-module-keys.js`
-  - [ ] Import a module named `__proto__` and confirm:
-    - [ ] It appears as a normal key,
-    - [ ] Returned `allImports` has a null prototype (or otherwise cannot pollute `Object.prototype`),
-    - [ ] No prototype pollution occurs.
+- [x] Add `tests/imports-options-forwarding-flowmode.js`
+  - [x] Call `collectLanguageImports({ ext: '.js', ... , options: { flowMode: 'on' } })` on a Flow-syntax file without an `@flow` directive.
+  - [x] Assert imports are detected only when options are forwarded correctly (regression for the wrapper-object bug).
+- [x] Add `tests/imports-esmodule-lexer-init.js`
+  - [x] Ensure module imports are detected via the fast path on a basic ESM file (init actually occurs).
+  - Fix attempt: updated `ensureEsModuleLexer()` to handle `init` being a Promise in current `es-module-lexer`.
+- [x] Add `tests/imports-require-regex-fallback-on-lexer-failure.js`
+  - [x] Use a syntactically invalid file that still contains `require('dep')`; confirm scanning still returns `'dep'`.
+- [x] Add `tests/imports-proto-safe-module-keys.js`
+  - [x] Import a module named `__proto__` and confirm:
+    - [x] It appears as a normal key,
+    - [x] Returned `allImports` has a null prototype (or otherwise cannot pollute `Object.prototype`),
+    - [x] No prototype pollution occurs.
 
 ---
 
@@ -243,27 +244,34 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
 - **Files touched:**
   - `src/shared/progress.js`
 
-- [ ] **Fix pino transport/destination wiring for pino@10**
-  - [ ] Ensure pretty-transport is constructed correctly for pino@10 (use supported `transport` configuration; avoid configurations that silently no-op).
-  - [ ] Ensure destination selection (stdout/stderr/file) is applied correctly in both pretty and JSON modes.
-- [ ] **Make redaction configuration compatible with pino@10**
-  - [ ] Validate redact configuration format and ensure it actually redacts intended fields (and doesn’t crash/ignore due to schema mismatch).
-- [ ] **Fix ring buffer event retention to avoid huge/circular meta retention**
-  - [ ] Do not store raw meta objects by reference in the ring buffer.
-  - [ ] Store a bounded, safe representation (e.g., truncated JSON with circular handling, or a curated subset of primitive fields).
-  - [ ] Ensure event recording never throws when meta contains circular references.
-- [ ] **Fix `showProgress()` divide-by-zero**
-  - [ ] When `total === 0`, render a stable, sensible output (e.g., 0% with no NaN/Infinity).
+- [x] **Fix pino transport/destination wiring for pino@10**
+  - [x] Ensure pretty-transport is constructed correctly for pino@10 (use supported `transport` configuration; avoid configurations that silently no-op).
+  - [x] Ensure destination selection (stdout/stderr/file) is applied correctly in both pretty and JSON modes.
+- [x] **Make redaction configuration compatible with pino@10**
+  - [x] Validate redact configuration format and ensure it actually redacts intended fields (and doesn’t crash/ignore due to schema mismatch).
+- [x] **Fix ring buffer event retention to avoid huge/circular meta retention**
+  - [x] Do not store raw meta objects by reference in the ring buffer.
+  - [x] Store a bounded, safe representation (e.g., truncated JSON with circular handling, or a curated subset of primitive fields).
+  - [x] Ensure event recording never throws when meta contains circular references.
+- [x] **Fix `showProgress()` divide-by-zero**
+  - [x] When `total === 0`, render a stable, sensible output (e.g., 0% with no NaN/Infinity).
 
 #### Tests / Verification
 
-- [ ] Add `tests/progress-show-total-zero.js`
-  - [ ] `showProgress({ total: 0 })` does not emit NaN/Infinity and produces stable output.
-- [ ] Add `tests/progress-ring-buffer-circular-meta.js`
-  - [ ] Recording an event with circular meta does not throw and does not retain the original object reference.
-- [ ] Add `tests/progress-configure-logger-pino10-transport.js`
-  - [ ] `configureLogger()` can be constructed with pretty transport and can log without throwing under pino@10.
-  - [ ] Redaction config is accepted and functions as expected for at least one known redaction path.
+- [x] Add `tests/progress-show-total-zero.js`
+  - [x] `showProgress({ total: 0 })` does not emit NaN/Infinity and produces stable output.
+- [x] Add `tests/progress-ring-buffer-circular-meta.js`
+  - [x] Recording an event with circular meta does not throw and does not retain the original object reference.
+- [x] Add `tests/progress-configure-logger-pino10-transport.js`
+  - [x] `configureLogger()` can be constructed with pretty transport and can log without throwing under pino@10.
+  - [x] Redaction config is accepted and functions as expected for at least one known redaction path.
+  - Fix attempt: route pretty output via `pino-pretty` `destination` option for file/stdout/stderr support.
+
+---
+
+### Phase 1 closeout
+
+- [ ] Run `npm run test:pr` (requires longer than the 30s cap; pending approval).
 
 ---
 
@@ -1676,7 +1684,1036 @@ This phase explicitly targets:
 - [ ] Add a regression test that demonstrates `file::name` collisions do not corrupt graph joins (ambiguity is handled deterministically and visibly).
 
 ---
- 
+
+## Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity
+
+### Objective
+Make embeddings generation and ANN retrieval **deterministic, build-scoped, and policy-driven** across all supported backends (HNSW, LanceDB, and SQLite dense). This phase hardens the end-to-end lifecycle:
+
+- Embeddings are **optional**, but when enabled they are **contracted**, discoverable, and validated.
+- Embeddings jobs are **bound to a specific build output** (no implicit “current build” writes).
+- Quantization/normalization rules are **consistent** across tools, caches, and query-time ANN.
+- ANN backends behave predictably under real-world constraints (candidate filtering, partial failure, missing deps).
+
+### Exit Criteria
+- Embeddings can be **disabled** without breaking builds, validation, or CI.
+- When embeddings are enabled, artifacts are **consistent, validated, and build-scoped** (no cross-build contamination).
+- HNSW and LanceDB ANN results are **stable and correctly ranked**, with clear selection/availability signaling.
+- CI can run without optional native deps (e.g., LanceDB) using an explicit **skip protocol**, while still providing meaningful ANN coverage where possible.
+
+---
+
+### Phase 7.1 — Build-scoped embeddings jobs and best-effort enqueue semantics
+- [ ] **Bind embeddings jobs to an explicit build output target (no “current build” inference).**
+  - [ ] Extend the embedding job payload to include an immutable provenance tuple and target paths:
+    - [ ] `buildId` and `buildRoot` (or an explicit `indexRoot`) for the build being augmented.
+    - [ ] `mode` (`code` / `prose`) and the exact `indexDir` (the per-mode output directory) the job must write into.
+    - [ ] `configHash` (or equivalent) used to build the base index.
+    - [ ] `repoProvenance` snapshot (at minimum: repo path + commit/branch if available).
+    - [ ] `embeddingIdentity` + `embeddingIdentityKey` (already present in queue schema; ensure always populated).
+    - [ ] A monotonically increasing `embeddingPayloadFormatVersion` that gates behavior.
+  - [ ] Update `src/index/build/indexer/pipeline.js` to pass build-scoped paths into `enqueueEmbeddingJob(...)`.
+  - [ ] Update `src/index/build/indexer/embedding-queue.js` to accept and forward these fields.
+  - Touchpoints:
+    - `src/index/build/indexer/pipeline.js`
+    - `src/index/build/indexer/embedding-queue.js`
+    - `tools/service/queue.js`
+
+- [ ] **Make embedding job enqueue best-effort when embeddings are configured as a service.**
+  - [ ] Wrap queue-dir creation and `enqueueJob(...)` in a non-fatal path when `runtime.embeddingService === true`.
+    - If enqueue fails, log a clear warning and continue indexing.
+    - Ensure indexing does **not** fail due solely to queue I/O failures.
+  - [ ] Record “embeddings pending/unavailable” state in `index_state.json` when enqueue fails.
+  - Touchpoints:
+    - `src/index/build/indexer/embedding-queue.js`
+    - `src/index/build/indexer/steps/write.js` (state recording)
+
+- [ ] **Ensure the embeddings worker/runner honors build scoping.**
+  - [ ] Update the embeddings job runner (currently `tools/indexer-service.js`) so `build-embeddings` is executed with an explicit `--index-root` (or equivalent) derived from the job payload.
+  - [ ] Add defensive checks: if job payload references a missing buildRoot/indexDir, the job must fail without writing output.
+  - [ ] Add backwards compatibility behavior for old jobs:
+    - If `embeddingPayloadFormatVersion` is missing/old, either refuse the job with a clear error **or** run in legacy mode but emit a warning.
+  - Touchpoints:
+    - `tools/indexer-service.js`
+    - `tools/build-embeddings/cli.js` (ensuring `--index-root` is usable everywhere)
+
+#### Tests / Verification
+- [ ] Add `tests/embeddings/job-payload-includes-buildroot.test.js`
+  - Verify queue job JSON includes `buildId`, `buildRoot`/`indexRoot`, `indexDir`, `configHash`, and embedding identity fields.
+- [ ] Add `tests/embeddings/optional-no-service.test.js`
+  - Simulate missing/unwritable queue dir and assert indexing still succeeds with embeddings marked pending/unavailable.
+- [ ] Add `tests/embeddings/worker-refuses-mismatched-buildroot.test.js`
+  - Provide a job with an invalid/nonexistent target path and assert the runner fails without producing/altering embeddings artifacts.
+
+---
+
+### Phase 7.2 — Embeddings artifact contract and explicit capability signaling
+- [ ] **Define the canonical “embeddings artifacts” contract and make it discoverable.**
+  - [ ] Treat the existing dense-vector outputs as the formal embeddings artifact surface:
+    - `dense_vectors_uint8.json` (+ any per-mode variants)
+    - `dense_vectors_hnsw.bin` + `dense_vectors_hnsw.meta.json`
+    - `dense_vectors_lancedb/` + `dense_vectors_lancedb.meta.json`
+    - Optional SQLite dense tables when enabled (`dense_vectors`, `dense_meta`, and ANN table)
+  - [ ] Ensure embeddings artifacts are present in `pieces/manifest.json` when available and absent when not.
+  - Touchpoints:
+    - `tools/build-embeddings/manifest.js`
+    - `src/index/build/artifacts.js` (piece emission rules)
+
+- [ ] **Emit embedding identity and quantization policy into state and metadata, regardless of build path.**
+  - [ ] Ensure `index_state.json.embeddings` always includes:
+    - `enabled`, `ready/present`, `mode` (inline/service), and a clear `reason` when not ready.
+    - `embeddingIdentity` and `embeddingIdentityKey`.
+    - Backend availability summary for this build (HNSW/LanceDB/SQLite dense), including dims + metric/space where applicable.
+  - [ ] Align `src/index/build/indexer/steps/write.js` with `tools/build-embeddings/run.js` so inline embeddings builds also include identity/key.
+  - Touchpoints:
+    - `src/index/build/indexer/steps/write.js`
+    - `tools/build-embeddings/run.js`
+
+- [ ] **Harden validation for embeddings presence and consistency.**
+  - [ ] Extend strict validation to enforce, when embeddings are present:
+    - Dense vector count matches chunk count for the mode.
+    - Dimensions match across dense vectors and any ANN index metadata.
+    - Model/identity metadata is internally consistent (identity key stable for that build).
+  - [ ] When embeddings are absent, validation should still pass but surface a clear “embeddings not present” indicator.
+  - Touchpoints:
+    - `src/index/validate.js`
+
+- [ ] **Add missing-embeddings reporting (and optional gating).**
+  - [ ] Track missing vectors during embedding build (code/doc/merged) instead of silently treating them as equivalent to an all-zero vector.
+    - Preserve existing “fill missing with zeros” behavior only as an internal representation, but record missing counts explicitly.
+  - [ ] Add configurable thresholds (e.g., maximum allowed missing rate) that can mark embeddings as failed/unusable for ANN.
+    - If threshold exceeded: do not publish ANN index availability and record reason in state.
+  - Touchpoints:
+    - `tools/build-embeddings/embed.js`
+    - `tools/build-embeddings/run.js`
+    - `src/index/build/indexer/file-processor/embeddings.js` (if inline embeddings path participates)
+
+#### Tests / Verification
+- [ ] Add `tests/validate/embeddings-referential-integrity.test.js`
+  - Corrupt dense vector count or dims and assert strict validation fails with a clear error.
+- [ ] Add `tests/validate/embeddings-optional-absence.test.js`
+  - Validate an index without embeddings artifacts and assert validation passes with a “not present” signal.
+- [ ] Add `tests/embeddings/missing-rate-gating.test.js`
+  - Force a controlled missing-vector rate and assert state/reporting reflects the gating outcome.
+
+---
+
+### Phase 7.3 — Quantization invariants (levels clamp, safe dequantization, no uint8 wrap)
+- [ ] **Enforce `levels ∈ [2, 256]` everywhere for uint8 embeddings.**
+  - [ ] Clamp in quantization parameter resolution:
+    - Update `src/storage/sqlite/vector.js: resolveQuantizationParams()` to clamp levels into `[2, 256]`.
+    - Emit a warning when user config requests `levels > 256` (explicitly noting coercion).
+  - [ ] Clamp at the quantizer:
+    - Update `src/shared/embedding-utils.js: quantizeEmbeddingVector()` to mirror clamping (or route callers to `quantizeEmbeddingVectorUint8`).
+    - Ensure no code path can produce values outside `[0, 255]` for “uint8” vectors.
+  - [ ] Fix call sites that currently risk wrap:
+    - `src/index/embedding.js` (`quantizeVec`) and its downstream usage in incremental updates.
+    - `src/storage/sqlite/build/incremental-update.js` packing paths.
+  - Touchpoints:
+    - `src/shared/embedding-utils.js`
+    - `src/storage/sqlite/vector.js`
+    - `src/index/embedding.js`
+    - `src/storage/sqlite/build/incremental-update.js`
+
+- [ ] **Fix dequantization safety and parameter propagation.**
+  - [ ] Update `dequantizeUint8ToFloat32(...)` to avoid division-by-zero when `levels <= 1` and to use clamped params.
+  - [ ] Thread quantization params into LanceDB writer:
+    - Update `tools/build-embeddings/lancedb.js: writeLanceDbIndex({ ..., quantization })`.
+    - Call `dequantizeUint8ToFloat32(vec, minVal, maxVal, levels)` (no defaults).
+  - Touchpoints:
+    - `src/storage/sqlite/vector.js`
+    - `tools/build-embeddings/lancedb.js`
+
+- [ ] **Regression protection for embedding vector merges.**
+  - [ ] Ensure `mergeEmbeddingVectors(code, doc)` does not incorrectly dampen single-source vectors.
+    - If this is already fixed earlier, add/keep a regression test here (this phase modifies embedding utilities heavily).
+  - Touchpoints:
+    - `src/shared/embedding-utils.js`
+
+- [ ] **Decide and document endianness portability for packed integer buffers.**
+  - Current pack/unpack helpers rely on platform endianness.
+  - [ ] Either:
+    - Implement fixed-endian encoding/decoding with backward compatibility, **or**
+    - Explicitly record endianness in metadata and defer full portability to a named follow-on phase.
+  - Deferred (if not fully addressed here): **Phase 11 — Index Portability & Migration Tooling**.
+
+#### Tests / Verification
+- [ ] Add `tests/unit/quantization-levels-clamp.test.js`
+  - Pass `levels: 512` and assert it clamps to `256` (and logs a warning).
+- [ ] Add `tests/unit/dequantize-levels-safe.test.js`
+  - Call dequantization with `levels: 1` and assert no crash and sane output.
+- [ ] Add `tests/regression/incremental-update-quantize-no-wrap.test.js`
+  - Ensure packed uint8 values never wrap for large `levels` inputs.
+- [ ] Extend `tests/lancedb-ann.js` to run with non-default quantization params and verify ANN still functions.
+
+---
+
+### Phase 7.4 — Normalization policy consistency across build paths and query-time ANN
+- [ ] **Centralize normalization policy and apply it everywhere vectors enter ANN.**
+  - [ ] Create a shared helper that defines normalization expectations for embeddings (index-time and query-time).
+    - Prefer deriving this from `embeddingIdentity.normalize` to ensure build outputs and query behavior remain compatible.
+  - [ ] Apply consistently:
+    - Fresh build path (`tools/build-embeddings/embed.js`).
+    - Cached build path (`tools/build-embeddings/run.js`).
+    - Query-time ANN (HNSW provider via `src/shared/hnsw.js` and/or the embedder).
+  - Touchpoints:
+    - `src/shared/embedding-utils.js` (or a new shared policy module)
+    - `tools/build-embeddings/embed.js`
+    - `tools/build-embeddings/run.js`
+    - `src/shared/hnsw.js`
+
+- [ ] **Normalize persisted per-component vectors when they are intended for retrieval.**
+  - [ ] Ensure `embed_code_u8` and `embed_doc_u8` are quantized from normalized vectors (or explicitly mark them as non-retrieval/debug-only and keep them out of ANN pathways).
+  - Touchpoints:
+    - `tools/build-embeddings/embed.js`
+
+#### Tests / Verification
+- [ ] Add `tests/unit/normalization-policy-consistency.test.js`
+  - Assert fresh vs cached paths produce equivalent normalized vectors for the same input.
+- [ ] Add `tests/integration/hnsw-rebuild-idempotent.test.js`
+  - Build embeddings twice (cache hit vs miss) and assert stable ANN outputs for a fixed query set.
+
+---
+
+### Phase 7.5 — LanceDB ANN correctness and resilience
+- [ ] **Promise-cache LanceDB connections and tables to prevent redundant concurrent opens.**
+  - [ ] Change `src/retrieval/lancedb.js` connection/table caching to store promises, not only resolved objects.
+  - Touchpoints:
+    - `src/retrieval/lancedb.js`
+
+- [ ] **Fix candidate-set filtering under-return so `topN` is honored.**
+  - [ ] When candidate filtering cannot be pushed down (or is chunked), ensure the query strategy returns at least `topN` results after filtering (unless the candidate set is smaller).
+    - Options include iterative limit growth, chunked `IN (...)` pushdown + merge, or multi-pass querying.
+  - Touchpoints:
+    - `src/retrieval/lancedb.js`
+
+- [ ] **Harden `idColumn` handling and query safety.**
+  - [ ] Quote/escape `idColumn` (and any identifiers) rather than interpolating raw strings into filters.
+  - [ ] Ensure candidate IDs are handled safely for numeric and string identifiers.
+  - Touchpoints:
+    - `src/retrieval/lancedb.js`
+
+- [ ] **Replace global `warnOnce` suppression with structured/rate-limited warnings.**
+  - Avoid hiding repeated failures after the first warning.
+  - Touchpoints:
+    - `src/retrieval/lancedb.js`
+
+- [ ] **Keep quantization parameters consistent (writer + retrieval expectations).**
+  - This is primarily implemented via Phase 7.3, but ensure LanceDB metadata emitted from the writer is sufficient for later verification.
+  - Touchpoints:
+    - `tools/build-embeddings/lancedb.js`
+    - `src/retrieval/cli/load-indexes.js` (metadata loading expectations)
+
+#### Tests / Verification
+- [ ] Update `tests/lancedb-ann.js`:
+  - [ ] Pass `--ann-backend lancedb` explicitly.
+  - [ ] Use skip exit code 77 when LanceDB dependency is missing.
+  - [ ] Add a candidate-set test that exercises the “pushdown disabled” path and asserts `topN` is still achieved.
+- [ ] Add a focused unit test (or harness test) that ensures concurrent queries do not open multiple LanceDB connections.
+
+---
+
+### Phase 7.6 — HNSW ANN correctness, compatibility, and failure observability
+- [ ] **Make HNSW index loading compatible with pinned `hnswlib-node` signatures.**
+  - [ ] Update `src/shared/hnsw.js: loadHnswIndex()` to call `readIndexSync` with the correct signature.
+    - If the signature differs across versions, detect via function arity and/or guarded calls.
+  - Touchpoints:
+    - `src/shared/hnsw.js`
+
+- [ ] **Verify and correct similarity mapping for `ip` and `cosine` spaces.**
+  - [ ] Add a small correctness harness that confirms returned distances map to expected similarity ordering.
+  - Touchpoints:
+    - `src/shared/hnsw.js`
+
+- [ ] **Improve insertion failure observability while preserving safe build semantics.**
+  - [ ] Keep all-or-nothing index generation as the default policy.
+  - [ ] In `tools/build-embeddings/hnsw.js`:
+    - Capture insertion failures with `{ chunkIndex, errorMessage }`.
+    - Throw an error that includes a concise failure summary (capped list + counts).
+    - Optionally emit `dense_vectors_hnsw.failures.json` next to the index for debugging.
+  - Touchpoints:
+    - `tools/build-embeddings/hnsw.js`
+
+- [ ] **Preserve atomicity for index + metadata publication.**
+  - Ensure meta updates remain consistent with `.bin` publication; avoid partially updated states.
+
+#### Tests / Verification
+- [ ] Add `tests/hnsw-insertion-failures-report.test.js`
+  - Force deterministic insertion failures and assert:
+    - Failures are reported.
+    - The index is not marked available.
+    - Atomic write behavior is preserved.
+- [ ] Add `tests/hnsw-ip-similarity.test.js`
+  - Verify similarity ranking is correct for known vectors under `ip`.
+- [ ] Ensure existing `tests/hnsw-atomic.js` and `tests/hnsw-ann.js` remain stable after signature/policy updates.
+
+---
+
+### Phase 7.7 — ANN backend policy and parity (selection, availability, explicit tests)
+- [ ] **Provide an explicit policy contract for ANN backend selection.**
+  - [ ] Confirm or introduce a single canonical config/CLI surface (e.g., `--ann-backend` and `retrieval.annBackend` or `retrieval.vectorBackend`).
+  - [ ] Ensure `auto` selection is deterministic and based on:
+    - Backend availability for the mode (artifacts present + loadable).
+    - Compatibility with the embedding identity (dims, normalize policy, metric/space).
+  - Touchpoints:
+    - Retrieval CLI option normalization (`src/retrieval/cli/normalize-options.js`)
+    - ANN provider selection (`src/retrieval/ann/index.js` and providers)
+
+- [ ] **Record backend availability and the selected backend in observable state.**
+  - [ ] Ensure `index_state.json` captures availability for HNSW/LanceDB/SQLite dense per mode.
+  - [ ] Ensure query stats include the selected backend (already present as `annBackend` in several paths; make it consistent).
+
+- [ ] **Make tests explicit about backend choice.**
+  - [ ] Update `tests/lancedb-ann.js` (see Phase 7.5).
+  - [ ] Ensure any other ANN tests pass an explicit backend flag to prevent policy drift from breaking intent.
+
+#### Tests / Verification
+- [ ] Add `tests/ann-backend-selection-fallback.test.js`
+  - Validate `auto` chooses the expected backend when one is missing/unavailable.
+- [ ] Add `tests/ann-backend-selection-explicit.test.js`
+  - Validate explicit selection fails clearly (or falls back if policy allows) when requested backend is unavailable.
+
+---
+
+### Phase 7.8 — Backend storage resilience required by embeddings/ANN workflows
+- [ ] **LMDB map size planning for predictable index builds.**
+  - [ ] Add config support and defaults:
+    - `indexing.lmdb.mapSizeBytes` with a sane default and override.
+  - [ ] Estimate required map size from corpus characteristics (with headroom), and log the chosen size + inputs.
+  - [ ] Pass `mapSize` to LMDB `open()` in `tools/build-lmdb-index.js`.
+  - Touchpoints:
+    - `tools/build-lmdb-index.js`
+
+- [ ] **SQLite dense writer safety: avoid cross-mode ANN table deletion when DBs are shared.**
+  - [ ] Confirm whether SQLite dense DBs are per-mode (separate DB files) in all supported configurations.
+  - [ ] If shared DBs are possible, ensure ANN table deletes are mode-scoped:
+    - Either add a mode discriminator column and filter deletes, or use mode-specific ANN table names.
+  - Touchpoints:
+    - `tools/build-embeddings/sqlite-dense.js`
+
+- [ ] **Avoid O(N) cache scans during embeddings preflight.**
+  - [ ] Replace full-directory scans in `tools/build-embeddings/run.js` with a lightweight cache metadata file (e.g., `cache/index.json`) that records:
+    - dims, identity keys, and a small index of available cached chunks.
+  - [ ] Keep backward compatibility by falling back to scan only when metadata is missing.
+  - Touchpoints:
+    - `tools/build-embeddings/run.js`
+    - `tools/build-embeddings/cache.js`
+
+#### Tests / Verification
+- [ ] Add `tests/lmdb-map-size-planning.test.js`
+  - Build an LMDB index of moderate size and verify it does not fail due to map size.
+- [ ] Add `tests/sqlite-dense-cross-mode-safety.test.js`
+  - Build both modes and rebuild one mode; verify the other mode’s ANN data remains intact.
+- [ ] Add `tests/embeddings/cache-preflight-metadata.test.js`
+  - Ensure preflight uses metadata without scanning when the meta file exists, and remains correct.
+
+---
+
+## Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment‑Aware)
+
+### Objective
+Deliver a **capability‑gated, provider‑driven tooling layer** that can safely enrich the index with **high‑confidence type/signature information** (and, where practical, symbol/definition context) across languages — without making indexing brittle when tools are absent.
+
+This phase focuses on:
+- A **provider registry** + **config‑driven allow/deny** and deterministic provider ordering
+- **Segment/VFS‑aware** tooling execution (embedded scripts get the same type coverage as standalone files)
+- **TypeScript tooling parity for JS/JSX** (and optionally container‑script segments)
+- **Provider hardening** (stable chunk keys, encoding‑correct offsets, LSP reliability, and runtime guardrails)
+- A **“doctor” workflow** so users can diagnose and enable optional tooling safely
+
+### Exit Criteria
+- Tooling providers are executed through a single registry/orchestrator that is **config‑gated**, **deterministic**, and **safe when tools are missing**.
+- JS/JSX receives TypeScript‑powered types by default when TS tooling is available (with explicit caps + opt‑outs).
+- All tooling providers attach types using **stable chunk identity** (chunkId / chunkUid) rather than `file::name` keys.
+- Tooling reads file text through the shared decoding path so **offset math is consistent** with chunking for non‑UTF8 inputs.
+- At least one non‑C/Swift/Python compiled language (e.g., Go or Rust) has an **optional LSP provider** wired end‑to‑end (detected → gated → enriches types).
+- A supported **tooling doctor/report** command can explain why tooling is or isn’t active, and what to do next.
+
+---
+
+### Phase 8.1 — Provider interface + registry (capability gating, deterministic selection)
+- [ ] Define a **Tooling Provider contract** that standardizes:
+  - [ ] `id`, `label`, `languages` (effective `languageId` values), `kinds` (types/symbols/diagnostics), `requires` (binary/module), and `experimental` flags.
+  - [ ] `detect({ rootDir, toolingDir, config }) -> { available, details }` (best‑effort; never throws).
+  - [ ] `collect({ rootDir, inputs, config, guard, log }) -> { typesByChunkId, diagnostics?, provenance }`.
+  - [ ] A shared **result schema** (see Phase 8.2) that supports:
+    - provider id
+    - confidence
+    - bounded evidence
+    - deterministic ordering
+- [ ] Implement a **provider registry** module and migrate orchestration to it.
+  - Touchpoints:
+    - `src/index/type-inference-crossfile/tooling.js` (replace ad‑hoc provider wiring)
+    - New: `src/index/tooling/registry.js` (or similar)
+    - Existing providers: `src/index/tooling/typescript-provider.js`, `clangd-provider.js`, `sourcekit-provider.js`, `pyright-provider.js`
+  - [ ] Ensure deterministic provider order:
+    - [ ] stable default ordering by provider id
+    - [ ] optional config override (e.g., `tooling.providerOrder`)
+- [ ] Make tool/provider selection **config‑driven** (allow/deny) and actually enforced.
+  - Touchpoints:
+    - `tools/dict-utils.js#getToolingConfig` (already parses `enabledTools`/`disabledTools`)
+    - `src/index/type-inference-crossfile/tooling.js` / provider registry selection
+  - [ ] Semantics:
+    - [ ] `tooling.disabledTools` always wins (hard off).
+    - [ ] If `tooling.enabledTools` is non‑empty, only listed providers may run.
+    - [ ] Provider‑local `enabled: false` also wins (hard off).
+- [ ] Formalize provider configuration surfaces (documented + validated).
+  - [ ] Extend config inventory / docs to include new fields introduced in Phase 8 (see subsections).
+  - [ ] Add schema coverage for tooling config (currently missing from `docs/config-schema.json`).
+    - Touchpoints:
+      - `docs/config-schema.json`
+      - `docs/config-inventory.md` and/or `docs/config-inventory.json`
+      - `docs/config-contract.md` (if contract needs to call out tooling behavior)
+
+#### Tests / Verification
+- [ ] Add a unit test that resolves providers deterministically given:
+  - [ ] default config (all providers eligible)
+  - [ ] allowlist only
+  - [ ] denylist present
+  - [ ] provider‑local `enabled:false`
+- [ ] Add a config‑schema test that fails on unknown tooling keys once tooling is included in schema.
+- [ ] Add a smoke verification that indexing does not fail when **no tooling is installed** (providers simply no‑op).
+
+---
+
+### Phase 8.2 — Segment/VFS‑aware tooling pass orchestration (stable chunk keys + merge semantics)
+- [ ] Replace extension‑only filtering with **effective language selection** (segment‑aware).
+  - Touchpoints:
+    - `src/index/type-inference-crossfile/tooling.js#filterChunksByExt` (replace)
+    - `src/index/segments.js` / segment metadata produced earlier (Phase 5 dependency)
+  - [ ] New behavior:
+    - [ ] Select candidate chunks by effective `languageId` (segment language if present; else container file language).
+    - [ ] Providers may still optionally apply extension filters as a secondary guard.
+- [ ] Introduce a **stable per‑chunk tooling key** and remove reliance on `file::name`.
+  - Touchpoints:
+    - `src/index/chunk-id.js#resolveChunkId`
+    - `src/index/type-inference-crossfile/tooling.js`
+    - All providers under `src/index/tooling/*-provider.js`
+  - [ ] Provider outputs must be keyed by **chunkId** (or chunkUid), not `file::name`.
+  - [ ] Add collision/ambiguity detection:
+    - [ ] If multiple chunks map to the same legacy key, log once and require chunkId mapping.
+- [ ] Add a segment‑aware **virtual file input layer** for tooling.
+  - Touchpoints:
+    - New (recommended): `src/index/tooling/virtual-files.js`
+    - Provider updates: `src/index/tooling/typescript-provider.js` (required), LSP providers as needed
+  - [ ] Requirements:
+    - [ ] Tooling can be fed either:
+      - [ ] real repo files (baseline), and/or
+      - [ ] virtual projected files for embedded segments (Phase 5 VFS foundation dependency).
+    - [ ] Each virtual file has:
+      - [ ] stable virtual path
+      - [ ] `languageId`
+      - [ ] content hash (for caching/invalidation)
+      - [ ] mapping back to `(containerRelPath, segmentId, startOffset, endOffset)`
+- [ ] Fix the tooling skip heuristic (too coarse today).
+  - Touchpoints:
+    - `src/index/type-inference-crossfile/tooling.js#hasToolingReturn` (replace)
+  - [ ] New skip policy:
+    - [ ] Skip only when the provider has already produced the relevant fields **for this chunkId** and the cached inputs match:
+      - file/segment content hash
+      - provider version (binary/module version)
+      - provider config hash
+    - [ ] If only some fields exist (e.g., params but not returns), rerun only if the provider can fill gaps.
+- [ ] Normalize and merge tooling types with bounded growth and provenance.
+  - Touchpoints:
+    - `src/integrations/tooling/providers/shared.js#mergeToolingEntry` (extend)
+    - `src/index/type-inference-crossfile/apply.js` (extend inferred‑type structures as needed)
+    - `src/index/metadata-v2.js` (ensure tooling types are visible/normalized for segments)
+  - [ ] Required semantics:
+    - [ ] Attach `provider` (e.g., `typescript`, `clangd`) and `source: "tooling"` at the leaf entries.
+    - [ ] Support `confidence` and optional bounded `evidence` fields.
+    - [ ] Enforce caps:
+      - [ ] max candidates per param/return
+      - [ ] deterministic ordering (e.g., sort by confidence desc then lexicographic)
+- [ ] Normalize primary return type surfacing to reduce “looks missing” gaps.
+  - [ ] Standardize on `docmeta.returnType` as a single “primary” return type while preserving multi‑candidate lists.
+  - Touchpoints:
+    - `src/index/metadata-v2.js`
+    - Retrieval/UI surfaces that read return types (as applicable)
+
+#### Tests / Verification
+- [ ] Add a fixture with **duplicate symbol names** in a single file (and/or in two segments) and verify:
+  - [ ] tooling enrichment attaches to the correct chunk by chunkId
+  - [ ] no overwrite/collision occurs
+- [ ] Add a segment fixture (e.g., `.vue` or fenced block) where embedded JS/TS receives tooling types via the virtual file layer.
+- [ ] Add a deterministic merge test:
+  - [ ] two providers produce overlapping return candidates → merged list is stable and bounded
+- [ ] Verify `tests/type-inference-lsp-enrichment.js` continues to pass (no regressions) after orchestration changes.
+
+---
+
+### Phase 8.3 — TypeScript provider parity for JS/JSX (jsconfig, partitions, guardrails, stable keys)
+- [ ] Expand TypeScript provider file selection to include JS/JSX when configured.
+  - Touchpoints:
+    - `src/index/tooling/typescript-provider.js`
+    - `src/index/type-inference-crossfile/tooling.js` (ensure JS/JSX chunk sets are sent to TS provider)
+  - [ ] Default behavior (recommended):
+    - [ ] `.js`, `.jsx`, `.mjs`, `.cjs` are included when `tooling.typescript.includeJs !== false`.
+    - [ ] `checkJs` defaults to true for richer types when JS is included.
+- [ ] Respect `jsconfig.json` for JS‑first repositories.
+  - Touchpoints:
+    - `src/index/tooling/typescript-provider.js` (config discovery + resolution)
+    - `tools/dict-utils.js#getToolingConfig` (expose relevant config)
+  - [ ] Requirements:
+    - [ ] If `jsconfig.json` exists and no `tsconfig.json` exists, treat jsconfig as the config source.
+    - [ ] Continue to respect explicit `tooling.typescript.tsconfigPath` overrides.
+- [ ] Implement a deterministic **program partitioning** strategy with explicit caps.
+  - Touchpoints:
+    - `src/index/tooling/typescript-provider.js`
+    - (Optional helper): `src/index/tooling/typescript-partitions.js`
+  - [ ] Partitioning heuristics (in priority order):
+    - [ ] by tsconfig/jsconfig roots when available
+    - [ ] else by package root (nearest `package.json`)
+    - [ ] else by a bounded SCC partition of the import graph (only if already available; otherwise defer SCC splitting)
+  - [ ] Determinism requirements:
+    - [ ] Partition IDs are content‑derived (e.g., sha1 of sorted root relpaths + config relpath + schema version).
+    - [ ] Partitions are enumerated in sorted order by ID before execution.
+- [ ] Add huge file / huge project guardrails and omission metadata.
+  - Touchpoints:
+    - `src/index/tooling/typescript-provider.js`
+    - `src/index/type-inference-crossfile/tooling.js` (skip huge‑file candidates before provider invocation if possible)
+  - [ ] Policy (centralized):
+    - [ ] If `bytes > maxBytes` or `lines > maxLines` (and optionally `nodeCount > maxNodes`):
+      - [ ] skip full typechecking
+      - [ ] extract surface declarations only (best‑effort)
+      - [ ] emit omission metadata (reason codes) so results are explainable
+- [ ] Fix parameter‑name instability for destructuring parameters.
+  - Touchpoints:
+    - `src/index/tooling/typescript-provider.js`
+  - [ ] Requirements:
+    - [ ] Normalize destructuring param “names” to a stable form (whitespace‑insensitive) **or** store positional param typing for destructured params.
+    - [ ] Ensure mapping remains compatible with `docmeta.params` and metadata‑v2 normalization.
+- [ ] Emit provider outputs keyed by **chunkId** and encoding‑correct offsets.
+  - Touchpoints:
+    - `src/index/tooling/typescript-provider.js`
+    - `src/shared/encoding.js` (reuse `readTextFile*` for content and offset math)
+  - [ ] Ensure virtual file support:
+    - [ ] accept VFS virtual files (segments) as additional compiler host inputs when enabled.
+- [ ] Extend tooling TypeScript config surface (document + validate).
+  - Touchpoints:
+    - `tools/dict-utils.js#getToolingConfig`
+    - `docs/config-inventory.json` / `docs/config-inventory.md`
+  - [ ] Add (minimum) keys:
+    - [ ] `tooling.typescript.includeJs` (default true)
+    - [ ] `tooling.typescript.checkJs` (default true)
+    - [ ] `tooling.typescript.includeNodeModules` (default false)
+    - [ ] `tooling.typescript.maxFiles` (safety cap)
+    - [ ] `tooling.typescript.maxFileBytes` / `maxLines` (huge file policy)
+    - [ ] `tooling.typescript.maxProgramFiles` (huge project policy)
+
+#### Tests / Verification
+- [ ] Add a JS fixture repo with `jsconfig.json` + path alias and verify TS provider resolves types (at least one alias import).
+- [ ] Add a JS fixture that uses JSDoc and verify tooling types surface into `docmeta.inferredTypes`.
+- [ ] Add a “huge file” fixture (generated) and verify:
+  - [ ] provider does not blow up runtime
+  - [ ] omission metadata is present and deterministic
+- [ ] Extend `tests/type-inference-typescript-provider-no-ts.js` with:
+  - [ ] JS/JSX selection behavior (no TS module → empty)
+  - [ ] config override behavior (explicit `tsconfigPath`)
+
+---
+
+### Phase 8.4 — Provider hardening (LSP reliability, guard semantics, encoding correctness, stable keys)
+- [ ] Fix LSP client lifecycle hazards (restart/session corruption).
+  - Touchpoints:
+    - `src/integrations/tooling/lsp/client.js`
+  - [ ] Requirements:
+    - [ ] Exit handlers from old processes must not clobber state for a new process instance.
+    - [ ] Restart behavior must be deterministic (no interleaved parser/writer state).
+- [ ] Eliminate “hung request” failure modes in the LSP client.
+  - Touchpoints:
+    - `src/integrations/tooling/lsp/client.js`
+  - [ ] Requirements:
+    - [ ] All requests must have a timeout (default if caller omits one).
+    - [ ] If the transport is closed, pending requests must be rejected promptly.
+- [ ] Strengthen languageId handling for LSP tooling (avoid extension-only blind spots).
+  - Touchpoints:
+    - `src/integrations/tooling/lsp/client.js#languageIdForFileExt`
+    - Provider inputs (virtual files should provide `languageId` explicitly)
+  - [ ] Requirements:
+    - [ ] Allow providers to override `languageId` per document (don’t rely solely on file extension).
+    - [ ] Ensure segment-projected virtual files carry correct `languageId` (e.g., `typescriptreact` vs `javascriptreact`).
+- [ ] Make diagnostics collection deterministic for LSP-based providers (especially Pyright).
+  - Touchpoints:
+    - `src/index/tooling/pyright-provider.js`
+    - (If needed) `src/integrations/tooling/providers/lsp.js` (shared helper)
+  - [ ] Requirements:
+    - [ ] Add a short, bounded “diagnostics drain” after opening documents (or use request-based diagnostics where supported).
+    - [ ] Ensure output does not depend on notification timing or shutdown order (repeatable across runs).
+- [ ] Fix circuit breaker semantics so retries don’t artificially trip the breaker.
+  - Touchpoints:
+    - `src/integrations/tooling/providers/shared.js#createToolingGuard`
+  - [ ] Requirements:
+    - [ ] Count “failures” per invocation (post‑retries), not per retry attempt.
+    - [ ] Keep existing logging, but make it reflect invocation outcomes.
+- [ ] Make provider text reads encoding‑correct and consistent with chunking.
+  - Touchpoints:
+    - `src/index/tooling/clangd-provider.js`
+    - `src/index/tooling/sourcekit-provider.js`
+    - `src/index/tooling/pyright-provider.js`
+  - [ ] Replace `fs.readFile(..., 'utf8')` with shared decode (`src/shared/encoding.js`) so offsets align with chunk ranges for non‑UTF8 files.
+- [ ] Replace provider keying by `file::name` across all tooling providers.
+  - Touchpoints:
+    - `src/index/tooling/clangd-provider.js`
+    - `src/index/tooling/sourcekit-provider.js`
+    - `src/index/tooling/pyright-provider.js`
+    - `src/index/tooling/typescript-provider.js`
+  - [ ] Providers must key outputs by `chunkId` (or include range in the key if chunkId is unavailable).
+- [ ] Add provider‑level guardrails for large repos/projects (time + scope).
+  - [ ] Introduce per‑provider caps (max files, max bytes, max symbols) and enforce them deterministically.
+  - Touchpoints:
+    - provider files listed above
+    - `tools/dict-utils.js#getToolingConfig` (if new config keys are added)
+
+#### Tests / Verification
+- [ ] Add a unit test that simulates LSP client restart and verifies:
+  - [ ] old process exit does not null out a new client instance
+  - [ ] requests after restart still resolve/reject deterministically
+- [ ] Add a provider guard test:
+  - [ ] a single call that retries does not trip the breaker prematurely
+- [ ] Add/extend a non‑UTF8 fixture file and verify provider offset mapping remains stable (no misattachment).
+
+---
+
+### Phase 8.5 — Expand provider coverage + tooling setup UX (doctor/report/install; optional framework servers)
+- [ ] Implement additional optional LSP providers (best‑effort; never required for indexing).
+  - Touchpoints:
+    - New provider modules under `src/index/tooling/` (one per provider)
+    - Provider registry (Phase 8.1)
+    - Tooling orchestrator (Phase 8.2)
+  - [ ] Prioritized list:
+    - [ ] Go: `gopls`
+    - [ ] Rust: `rust-analyzer`
+    - [ ] Java: `jdtls` (gated behind explicit enable due to setup complexity)
+    - [ ] Kotlin: `kotlin-language-server` / `kotlin-lsp` (gated)
+    - [ ] C#: `csharp-ls` preferred (OmniSharp optional; gated)
+  - [ ] Secondary / experimental list (explicitly opt‑in):
+    - [ ] Ruby: `ruby-lsp` (Solargraph fallback)
+    - [ ] PHP: `phpactor` (Intelephense optional)
+    - [ ] Shell: `bash-language-server`
+    - [ ] Lua: `lua-language-server`
+    - [ ] SQL: `sqls` (limited but useful for hover/symbols)
+- [ ] Container scripts: ensure embedded scripts have usable types without requiring framework language servers.
+  - [ ] Baseline:
+    - [ ] embedded JS/TS segments are projected into virtual files and get TS‑provider enrichment (Phase 8.2 + 8.3)
+  - [ ] Optional accelerators (explicitly opt‑in; never required):
+    - [ ] Vue: Volar (`@vue/language-server`)
+    - [ ] Svelte: `svelte-language-server`
+    - [ ] Astro: `@astrojs/language-server`
+  - [ ] If enabled:
+    - [ ] treat segments as virtual documents (or use LS SFC entrypoints)
+    - [ ] map returned positions/types back to container offsets using segment offset maps
+- [ ] Add a first‑class “tooling doctor/report” workflow.
+  - Touchpoints:
+    - New: `tools/tooling-doctor.js` (or promote/rename `tools/tooling-detect.js`)
+    - `tools/tooling-utils.js` (report building, tool docs, detection)
+    - `docs/commands.md` (CLI surface)
+  - [ ] Requirements:
+    - [ ] Detect installed tools and print actionable next steps (including manual‑install tools).
+    - [ ] Ensure detection checks the actual command a provider will execute (e.g., align `pyright` vs `pyright-langserver`, and respect configured `cmd`).
+    - [ ] Verify critical prerequisites (e.g., `compile_commands.json` when required for clangd).
+    - [ ] Emit machine‑readable JSON output for automation (`--json`).
+- [ ] Improve tooling install/report integration into the public CLI surface (optional but recommended).
+  - [ ] Add CLI wrappers:
+    - [ ] `pairofcleats tooling report --repo <path> [--json]`
+    - [ ] `pairofcleats tooling install <toolId> [--scope cache|user] [--dry-run]`
+- [ ] Document tooling setup recipes and known constraints.
+  - Touchpoints (choose one home):
+    - [ ] New: `docs/tooling.md`
+    - [ ] Or extend: `docs/parser-backbone.md` / existing operational docs
+  - [ ] Must include concrete guidance for:
+    - clangd + compile_commands generation
+    - sourcekit-lsp + Swift toolchain assumptions
+    - pyright + python environment expectations
+    - jdtls/kotlin servers (gated: explain prerequisites)
+
+#### Tests / Verification
+- [ ] Add a CLI smoke test that runs tooling doctor/report in a fixture repo and asserts:
+  - [ ] missing tools are reported with docs links (when provided)
+  - [ ] output is stable in `--json` mode
+- [ ] Add an integration fixture for at least one new LSP provider using a stub server (similar to existing LSP enrichment tests).
+- [ ] Manual verification checklist:
+  - [ ] run `pairofcleats tooling report` on a repo with no tools installed (should be informative, not fatal)
+  - [ ] run on a repo with `clangd` or `pyright` installed (should show detected and enabled gating behavior)
+
+---
+
+## Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
+
+### Objective
+Introduce canonical, collision-safe chunk and symbol identity so cross-file joins and graph-powered features are correct by construction. This phase eliminates `file::name` collision classes, emits first-class symbol artifacts, and upgrades cross-file inference and retrieval context expansion to use explicit identity with strict validation.
+
+### 9.1 Canonical chunk identity contract (`docId` vs `chunkUid`) + persisted mapping artifacts
+- [ ] Define and enforce a single canonical identity vocabulary
+  - [ ] Treat `docId` as a build-local integer identifier (stable only within a single build output).
+  - [ ] Introduce `chunkUid` as the stable-ish, graph/UI/cache-facing string identifier used for cross-file joins.
+  - [ ] Ensure no module uses “chunkId” to mean both an integer and a string (rename as needed and enforce via validation).
+  - Touchpoints (expected): `src/index/build/state.js`, `src/index/chunk-id.js`, `src/index/metadata-v2.js`.
+- [ ] Implement `chunkUid` derivation that is resilient to minor line shifts
+  - [ ] Compute a deterministic `spanHash` from the chunk’s text content (hash backend: xxh64 via `src/shared/hash.js`), and include small context hashes to reduce collision risk without anchoring to absolute line numbers.
+    - Detail (recommended): `chunkUid = xxh64(fileRelPath + '\0' + (segmentId||'') + '\0' + spanHash + '\0' + preHash + '\0' + postHash)`.
+  - [ ] Persist `spanHash`, `algoVersion`, and (when used) `pre/post` context hash metadata into `metaV2`.
+  - [ ] If a collision is detected within a `{fileRelPath, segmentId}` scope, deterministically disambiguate and record `collisionOf`.
+  - Touchpoints (expected): chunking pipeline (span text available), `src/index/metadata-v2.js`.
+- [ ] Persist identity mapping artifacts for deterministic joins
+  - [ ] Emit a `docId ↔ chunkUid` mapping artifact for the build (and ensure it is discoverable via `pieces/manifest.json`).
+  - [ ] Emit a `fileId ↔ normalizedRelPath` mapping artifact (so downstream systems do not rely on raw paths).
+  - Touchpoints (expected): artifact writers under `src/index/build/artifacts/writers/`, manifest in `pieces/manifest.json`.
+- [ ] Fail closed on missing identity
+  - [ ] After adapters/normalization, `chunkUid` must never be null/empty.
+  - [ ] Builders and SQLite ingestion must reject any row missing `chunkUid` (or the canonical chunk identity field) with actionable diagnostics.
+  - Touchpoints (expected): `src/index/build/*` writers, `src/storage/sqlite/build/from-artifacts.js`, `src/index/validate.js`.
+
+#### Tests
+- [ ] `tests/identity/chunkuid-stability-line-shift.test.js`
+  - Rebuild fixture where chunks shift lines but text span is identical; assert `chunkUid` values remain unchanged.
+- [ ] `tests/identity/docid-chunkuid-mapping-emitted.test.js`
+  - Build fixture; assert mapping artifacts exist, are referenced in `pieces/manifest.json`, and are internally consistent.
+- [ ] `tests/validate/chunkuid-required.test.js`
+  - Tamper an artifact row to remove `chunkUid`; strict validate (and/or SQLite ingestion) fails with a clear error.
+
+### 9.2 Canonical symbol identity types + `SymbolRef` contract (no more `file::name` joins)
+- [ ] Define and document canonical symbol identity types and when to use each
+  - [ ] `chunkId`: range-specific deterministic identifier for a chunk (keep existing helper behavior, but avoid using it as the cross-file join key when stability is required).
+  - [ ] `symbolKey`: stable grouping key (namespaceKey + file/virtualPath + kind + qualifiedName/scope chain); signature-free by default to reduce churn.
+  - [ ] `scopedId`: unique disambiguated identity derived from `symbolKey` plus a `signatureKey` (and optional container/anchor disambiguator).
+  - [ ] `SymbolId`: upstream semantic ID when available (`scip:` / `lsif:`), with a deterministic fallback (`heur:`).
+  - Touchpoints (expected): `docs/symbol-sources.md` and/or public artifact contract docs, `src/index/chunk-id.js`, `src/index/type-inference-crossfile/symbols.js`.
+- [ ] Implement per-language `signatureKey` normalization + hashing
+  - [ ] Normalize signature strings deterministically and hash into `signatureKey = "sha1:" + sha1(normalizedSignature)` when available.
+  - [ ] Treat `signatureKey` as a secondary disambiguator (not part of `symbolKey`).
+  - Touchpoints (expected): language-specific normalization helpers, `src/index/type-inference-crossfile/*`.
+- [ ] Define a versioned `SymbolRef` envelope usable across graphs, maps, and retrieval
+  - [ ] Schema includes identity fields (`SymbolId`/`scopedId`/`symbolKey`), location anchors (file/virtualPath + range), human label, kind, and evidence.
+  - [ ] Include explicit resolution state: `resolved | ambiguous | unresolved`, and carry candidate lists for ambiguous cases.
+  - [ ] Use truncation metadata for any capped symbol expansion surface.
+  - Touchpoints (expected): `src/index/build/graphs.js`, `src/map/build-map.js`, retrieval output shaping.
+
+#### Tests
+- [ ] `tests/contracts/identity-types-documented.test.js`
+  - Assert contract docs describe `symbolKey`, `scopedId`, and `SymbolId` prefixes.
+- [ ] `tests/identity/signaturekey-normalization.test.js`
+  - Same signature normalizes to the same hash; semantically different signatures yield different hashes.
+- [ ] `tests/symbols/symbolref-envelope-shape.test.js`
+  - Validate emitted `SymbolRef` objects include required versioned fields and resolution state.
+
+### 9.3 Collision-safe cross-file inference + tooling-backed typing parity + argMap propagation
+- [ ] Replace collision-prone `file::name` indexing in cross-file inference
+  - [ ] Use `chunkUid` and/or `symbolKey` as the primary join keys.
+  - [ ] When multiple chunks map to the same `symbolKey`, compute deterministic disambiguators and expose `scopedId`.
+  - [ ] Update `resolveUniqueSymbol` to return explicit ambiguous/unresolved results (not a silent null) so downstream steps can preserve uncertainty.
+  - Touchpoints (expected): `src/index/type-inference-crossfile/pipeline.js`, `src/index/type-inference-crossfile/symbols.js`, `src/index/type-inference-crossfile/extract.js`.
+- [ ] Normalize tooling type output to a single internal representation
+  - [ ] Define canonical `TypeEntry` representation: `{ type, confidence, source, evidence? }`.
+  - [ ] Update providers to emit/normalize into `TypeEntry` consistently.
+  - Touchpoints (expected): `src/index/tooling/typescript-provider.js`, `src/index/tooling/pyright-provider.js`, `src/index/tooling/clangd-provider.js`, `src/index/tooling/sourcekit-provider.js`, `src/index/metadata-v2.js`.
+- [ ] Implement cross-file argMap propagation using call evidence
+  - [ ] Use callsite args + callee parameter names/types to infer parameter types from caller argument types.
+  - [ ] Add depth/cycle caps and deterministic tie-breaking to avoid runaway propagation.
+  - [ ] Ensure call evidence contains argument ranges/text and is emitted deterministically (use callDetails and/or callsites artifact surface, as available).
+  - Touchpoints (expected): `src/index/type-inference-crossfile/*`, relations/callsites producers from Phase 6, `src/index/metadata-v2.js` finalization.
+- [ ] Ensure meta construction occurs after enrichment (no drift)
+  - [ ] Ensure identity/type inference results are applied before `metaV2` is finalized and written.
+  - [ ] If finalization must occur earlier for streaming, persist interim identity/type fields and apply a deterministic “finalization pass” before promotion.
+
+#### Tests
+- [ ] `tests/inference/collision-safe-grouping.test.js`
+  - Fixture with two same-named symbols in different scopes; assert both survive and do not collapse.
+- [ ] `tests/inference/resolveUniqueSymbol-ambiguity.test.js`
+  - Ambiguous resolution yields an explicit ambiguous result and does not crash downstream.
+- [ ] `tests/type-inference/typeentry-normalization.test.js`
+  - Provider outputs normalize into `TypeEntry` consistently (shape + confidence bounds).
+- [ ] `tests/type-inference/argmap-propagation.test.js`
+  - Two-file fixture: caller passes a string to a callee parameter; assert callee `metaV2.inferredTypes.params` includes string.
+- [ ] `tests/metadata/metav2-finalization-includes-enrichments.test.js`
+  - Assert `metaV2` includes identity + inferred type fields produced by enrichment passes.
+
+### 9.4 Emit symbol artifacts and use identity in graphs, maps, and retrieval context expansion
+- [ ] Emit first-class public symbol artifacts (JSONL + `.meta.json`)
+  - [ ] `symbols`: one row per canonical symbol (`SymbolId`, `symbolKey`, `scopedId`, label, kind, anchor).
+  - [ ] `symbol_occurrences`: one row per occurrence (def/ref/import/call) with `chunkUid/chunkId`, file/range, and link back to `symbols`.
+  - [ ] `symbol_edges`: identity-based symbol graph (calls/overrides/imports/references) expressed as edges between `SymbolId` or `scopedId`.
+  - [ ] List artifacts in `pieces/manifest.json` and add required-key validation for each.
+  - [ ] Enforce deterministic ordering (stable sort by `(file, range)` and/or `(symbolKey, occurrenceKind)`).
+  - Touchpoints (expected): `src/shared/artifact-io.js`, artifact writers, `src/index/validate.js`.
+- [ ] Upgrade graph building to prefer canonical identity and preserve uncertainty
+  - [ ] Use `SymbolRef` for source/target on edges.
+  - [ ] Do not guess on collisions; emit unresolved/ambiguous edges with candidates and evidence.
+  - [ ] Ensure `graph_relations` (and any derived graph artifacts) use canonical identities rather than `file::name` joins.
+  - Touchpoints (expected): `src/index/build/graphs.js`, `src/index/build/indexer/steps/relations.js`, language relation builders under `src/lang/*`.
+- [ ] Add opt-in symbol neighborhood expansion to retrieval
+  - [ ] When a query hits a symbol-like chunk, optionally expand context with a bounded neighborhood (definition + references + callers/callees).
+  - [ ] Enforce caps (max symbols/edges/chunks) and surface truncation metadata.
+  - [ ] Provide an opt-in “symbol context pack” API surface returning `{ symbols, occurrences, edges, chunks }`.
+  - Touchpoints (expected): `src/retrieval/context-expansion.js`, API surface (CLI/server) as applicable.
+- [ ] Update map builders/clients to key nodes by canonical identity
+  - [ ] Prefer `SymbolId/scopedId` (or `chunkUid` fallback) for map node identity.
+  - Touchpoints (expected): `src/map/build-map.js` and any map data model used by clients.
+
+#### Tests
+- [ ] `tests/symbols/artifacts-emitted.test.js`
+  - Build fixture; assert symbol artifacts are present and listed in the manifest.
+- [ ] `tests/symbols/referential-integrity.test.js`
+  - Assert every occurrence references an existing symbol (or is explicitly unresolved).
+- [ ] `tests/symbols/deterministic-order.test.js`
+  - Build twice; assert stable ordering (or stable sorted equivalence) for symbol artifacts.
+- [ ] `tests/retrieval/symbol-context-expansion.test.js`
+  - Query a symbol; assert returned context includes its definition and at least one reference/callsite chunk.
+- [ ] `tests/retrieval/symbol-context-expansion-caps.test.js`
+  - Construct many references; assert expansion caps apply and truncation metadata is present.
+
+### 9.5 Strict validation for identity collisions and symbol artifact integrity
+- [ ] Add strict validation for identity collision classes
+  - [ ] Detect `symbolKey` collisions that cannot be disambiguated and fail with actionable diagnostics (include colliding chunks/files).
+  - [ ] Validate that all symbol edges reference valid symbols (or are explicitly unresolved with evidence).
+  - [ ] Validate symbol occurrence ranges reference valid chunks/files and are in-bounds.
+  - Touchpoints (expected): `src/index/validate.js`.
+- [ ] Enforce “fail closed” invariants for identity-dependent artifacts
+  - [ ] Symbol artifacts and graphs must not silently drop or mis-link due to collisions.
+  - [ ] Any missing required identity field in strict mode fails validation before promotion.
+
+#### Tests
+- [ ] `tests/validate/symbol-collision-detected.test.js`
+  - Fixture with intentionally colliding symbol keys; strict validate fails and reports both sources.
+- [ ] `tests/validate/symbol-edges-integrity.test.js`
+  - Remove a referenced symbol row; strict validate fails.
+- [ ] `tests/validate/symbol-occurrence-range-integrity.test.js`
+  - Tamper an occurrence range; strict validate fails with an actionable message.
+
+---
+
+## Phase 10 — Interprocedural Risk Flows (taint summaries + propagation)
+
+### Objective
+Deliver cross-file, explainable taint-to-sink risk flows by (1) generating per-symbol taint summaries (inputs/outputs/sanitizers/sinks) and (2) propagating those summaries across a call graph to emit path-level flow artifacts and retrieval/CLI surfacing, with deterministic output, strict caps, and contract-safe metadata.
+
+- Depends on prior phases that establish **canonical symbol identity** and **cross-file call linking**.
+- When risk-flow path artifacts are disabled, the system must remain backward-compatible with existing local risk detection and optional one-hop cross-file correlation.
+
+---
+
+### 10.1 Contracts, configuration, and rule-model upgrades
+
+- [ ] Define canonical **data contracts** for:
+  - [ ] Per-symbol risk/taint summary (`RiskSummary`)
+  - [ ] Interprocedural flow path record (`RiskFlow`)
+  - [ ] Call-site evidence record (`CallSiteEvidence`)
+  - [ ] Aggregated stats (`RiskFlowStats`)
+  - Notes:
+    - Include `version` and `generatedAt` fields for each artifact (or for each manifest entry), and a `caps`/`limits` structure to make truncation explicit.
+    - Require stable identifiers (`symbolId`, `chunkId`, and `file`) and specify how they are derived (canonical identity contract).
+
+- [ ] Choose canonical artifact names and formats (primary + optional):
+  - [ ] `risk_summaries.jsonl` (JSONL; one summary per symbol)
+  - [ ] `risk_flows.jsonl` (JSONL; one record per discovered source→sink path)
+  - [ ] `risk_flow_stats.json` (JSON object)
+  - [ ] Optional (only if needed for downstream UI/graph ops): `risk_flow_graph.jsonl` (edge list derived from paths)
+  - Notes:
+    - Prefer path JSONL + optional edge list over adjacency-heavy graphs.
+    - Enforce per-line size limits via **final byte-size checks** before write (no heuristic-only planning).
+
+- [ ] Define canonical **in-chunk representation** used by retrieval/filtering without loading full flow artifacts:
+  - [ ] `chunk.docmeta.risk.summary` (authoritative runtime data)
+  - [ ] `chunk.metaV2.risk.summary` (serialized view; must reflect final-state mutations)
+  - Notes:
+    - Keep this summary compact (for chunk_meta), while retaining full fidelity in `risk_summaries.jsonl`.
+
+- [ ] Add/standardize configuration keys:
+  - [ ] `indexing.riskInterprocedural.enabled` (boolean; default false)
+  - [ ] `indexing.riskInterprocedural.emitArtifacts` (`"none" | "jsonl"`; default `"jsonl"` when enabled)
+  - [ ] `indexing.riskInterprocedural.summaryOnly` (boolean; compute summaries but skip propagation)
+  - [ ] Caps/limits:
+    - [ ] `maxDepth` (default 4)
+    - [ ] `maxPaths` (default 200)
+    - [ ] `maxEdges` (default 5000)
+    - [ ] `maxMs` (default 75)
+  - Notes:
+    - Preserve the existing `indexing.riskAnalysis` / `indexing.riskAnalysisCrossFile` behavior as legacy mode unless explicitly replaced.
+
+- [ ] Upgrade the risk-rule model to support interprocedural semantics:
+  - [ ] Add explicit “propagation semantics” fields where needed (e.g., sanitizer categories, optional propagators)
+  - [ ] Update `docs/risk-rules.md` to document new fields and how they affect summaries/propagation
+
+- [ ] Harden risk-rule normalization/compilation to avoid silent drops and “empty rule” footguns:
+  - [ ] Emit diagnostics when a regex pattern fails to compile
+  - [ ] Drop any rule that compiles to zero usable patterns (do not keep “empty shells”)
+  - [ ] Record rule provenance + compilation warnings in the bundle output (or runtime logs in non-test)
+
+#### Tests
+- [ ] Unit: invalid regex patterns produce diagnostics; rules with zero compiled patterns are excluded.
+- [ ] Unit: rule bundle merge precedence (defaults vs rulesPath vs inline rules) is deterministic.
+- [ ] Contract: JSON schema/required-key checks for `RiskSummary`, `RiskFlow`, and `CallSiteEvidence` (fixtures validate).
+
+---
+
+### 10.2 Per-symbol taint summaries (local analysis → callable summary)
+
+- [ ] Implement a summary builder that converts existing local risk signals + lightweight flow hints into per-callable summaries:
+  - [ ] Create `src/index/risk-flows/summaries.js` (or equivalent) exporting `buildRiskSummaries({ chunks, riskRules, caps, identity })`.
+  - [ ] For each callable symbol chunk (function/method/ctor/lambda as available), compute:
+    - [ ] `sources[]` (source rule hits, categories/tags/confidence)
+    - [ ] `sinks[]` (sink rule hits, categories/severity/tags/confidence)
+    - [ ] `sanitizers[]` (sanitizer rule hits)
+    - [ ] `outputs`:
+      - [ ] `returnsTainted` (boolean)
+      - [ ] `taintedParams[]` (params that can carry taint into the function)
+      - [ ] Optional: `taintedFields[]` (e.g., `this.*` writes / known global writes, when detectable)
+    - [ ] `evidence` entries sufficient to justify summary fields without bloating chunk_meta (line numbers + hashes, capped)
+    - [ ] `limits` structure indicating capping/truncation and reason
+  - Notes:
+    - Start conservative: if evidence is insufficient, prefer “unknown” over “incorrectly tainted”.
+    - Keep summaries deterministic (stable sorting for lists; stable selection for capped evidence).
+
+- [ ] Fix parameter/return contract hazards that would corrupt summaries or propagation inputs:
+  - [ ] Normalize `docmeta.params` into a **positional parameter contract** usable across languages.
+    - [ ] Ensure destructured parameters do not explode into unstable keys that break arg→param mapping.
+      - [ ] Store destructured params as positional placeholders (e.g., `arg0`, `arg1`) and (optionally) track binding names separately.
+  - [ ] Normalize `docmeta.returns` to strings at extraction time:
+    - [ ] Accept common object shapes (e.g., `{ type: "T" }`, `{ returnType: "T" }`) and ignore non-strings otherwise.
+  - [ ] Ensure inferred-type extraction does not emit `[object Object]` / non-string values.
+
+- [ ] Attach the compact summary into each chunk’s metadata:
+  - [ ] `chunk.docmeta.risk.summary = ...`
+  - [ ] `chunk.metaV2.risk.summary = ...` (but only after metaV2 is finalized post-enrichment)
+
+#### Tests
+- [ ] Unit: summary extraction for a simple function that reads a source (e.g., request input) and hits a sink emits `sources[]`, `sinks[]`, and meaningful `outputs`.
+- [ ] Unit: destructured parameters do not misalign arg→param mapping (positional placeholders preserved).
+- [ ] Unit: return type extraction ignores non-string entries and normalizes object-shaped returns.
+- [ ] Determinism: repeated summary builds over the same fixture produce byte-identical JSONL output.
+
+---
+
+### 10.3 Call-site evidence and call-edge sampling (enable explainable paths)
+
+- [ ] Extend language relation extraction to capture call-site coordinates suitable for explainability:
+  - [ ] JavaScript: include `{ startLine, endLine, startCol, endCol }` on `callDetails` entries.
+  - [ ] Python (and other languages as available): include equivalent line/column fields when parsers provide them.
+  - [ ] Add a snippet strategy:
+    - [ ] Store a short, capped snippet OR a stable `snippetHash` + optional preview.
+    - [ ] Ensure the snippet strategy cannot exceed JSONL per-line limits.
+
+- [ ] Replace “over-aggressive dedupe” in cross-file call evidence:
+  - [ ] Keep `callLinks` as a deduped edge set (caller→callee).
+  - [ ] Treat call-site evidence as a bounded sample keyed by location (caller, callee, file, startLine/startCol).
+  - [ ] Preserve multiple distinct call sites (up to cap) rather than collapsing them into one.
+
+- [ ] Emit an optional `call_sites.jsonl` artifact when risk-flow artifacts are enabled:
+  - [ ] Each entry should include:
+    - [ ] `from` / `to` (symbol IDs)
+    - [ ] `file`, `startLine`, `endLine` (and columns when available)
+    - [ ] `argsSummary` (bounded; no raw code blobs)
+    - [ ] `snippetHash` (preferred) and optional snippet preview
+  - Notes:
+    - Call-site evidence must be deterministic (stable sampling order and keys).
+
+#### Tests
+- [ ] Unit: JS callDetails include stable line/column coordinates for a known fixture.
+- [ ] Integration: call-site evidence sampling retains multiple distinct call sites for the same edge (up to cap).
+- [ ] Size guard: a pathological call site cannot produce a JSONL entry exceeding configured limits.
+
+---
+
+### 10.4 Interprocedural propagation engine (summaries + call graph → risk_flows)
+
+- [ ] Implement propagation across the call graph using summaries:
+  - [ ] Create `src/index/risk-flows/propagate.js` exporting `propagateRiskFlows({ summaries, callLinks, callSites, rules, caps })`.
+  - [ ] Model taint propagation at the summary level:
+    - [ ] Source introduction (direct sources in a symbol)
+    - [ ] Sink reachability (direct sinks in a symbol)
+    - [ ] Sanitizer influence (reduce or terminate propagation, depending on rule semantics)
+    - [ ] Param→output effects and return-taint effects
+  - [ ] Produce `risk_flows.jsonl` records containing:
+    - [ ] `from` / `to` (symbol IDs)
+    - [ ] `source` (rule reference + category)
+    - [ ] `sink` (rule reference + category/severity)
+    - [ ] `path[]` (symbol ID chain)
+    - [ ] `depth`
+    - [ ] `confidence` (0..1)
+    - [ ] `callSites[]` (bounded evidence along the path, if available)
+    - [ ] `notes[]` (e.g., truncation/capping signals)
+  - Notes:
+    - Handle cycles safely (visited sets + depth cap; no infinite loops).
+    - Enforce caps (`maxDepth`, `maxPaths`, `maxEdges`, `maxMs`) and make truncation explicit.
+    - Output must be deterministic (stable adjacency ordering, tie-breakers, and capped selection).
+
+- [ ] Emit `risk_flow_stats.json`:
+  - [ ] Total summaries, total flows, unique sources/sinks/categories
+  - [ ] Max depth observed, caps hit counts, runtime duration
+
+- [ ] Optional: emit `risk_flow_graph.jsonl` as an edge list derived from paths (only if downstream consumers need it).
+
+#### Tests
+- [ ] Unit: multi-hop propagation produces the expected `path[]` and `depth`, with bounded evidence.
+- [ ] Unit: sanitizer on a path reduces confidence (or terminates), per configured semantics.
+- [ ] Unit: cyclic call graphs terminate under caps and emit truncation notes.
+- [ ] Determinism: identical fixtures produce identical `risk_flows.jsonl` ordering/content across runs.
+
+---
+
+### 10.5 Indexing pipeline integration, metaV2 finalization, and artifact writing
+
+- [ ] Integrate risk summaries and propagation into the indexing pipeline:
+  - [ ] Update `src/index/build/indexer/steps/relations.js` (or a new step adjacent to it) to run:
+    - [ ] Cross-file call linking first (call graph + call-site evidence assembly)
+    - [ ] `buildRiskSummaries(...)`
+    - [ ] `propagateRiskFlows(...)` (if not `summaryOnly`)
+
+- [ ] Fix cross-file inference gating so risk correlation/flows do not accidentally enable type inference:
+  - [ ] When cross-file work is triggered only for risk, ensure type inference is not executed unless explicitly enabled.
+
+- [ ] Fix “metaV2 drift” caused by enrichment passes mutating docmeta/relations after metaV2 was built:
+  - [ ] Ensure metaV2 is constructed from **final-state** chunk/docmeta right before serialization.
+  - [ ] Prefer a single “finalize metaV2” pass after all enrichment mutations (call links, inferred types, risk summaries, etc.).
+
+- [ ] Add new artifact writers and manifest entries:
+  - [ ] Update `src/index/build/artifacts.js` to write:
+    - [ ] `risk_summaries.jsonl` (sharded)
+    - [ ] `risk_flows.jsonl` (sharded)
+    - [ ] `risk_flow_stats.json`
+    - [ ] optional `call_sites.jsonl` and `risk_flow_graph.jsonl`
+  - [ ] Update `src/shared/artifact-io.js` to:
+    - [ ] Recognize/load new artifacts via manifest
+    - [ ] Add JSONL required keys for the new artifact types
+  - [ ] Ensure per-entry byte-size checks are enforced at write-time, with truncation strategies for verbose fields.
+
+#### Tests
+- [ ] Integration: enabling interprocedural risk flows produces all configured risk artifacts and includes them in the pieces manifest.
+- [ ] Regression: chunk_meta metaV2 reflects post-enrichment relations and risk summary fields (no stale serialization).
+- [ ] Config: enabling risk interprocedural features does not activate type inference unless requested.
+
+---
+
+### 10.6 Validation and retrieval/UX surfacing
+
+- [ ] Extend index validation to cover new artifacts:
+  - [ ] Update `src/index/validate.js` to validate:
+    - [ ] `risk_summaries.jsonl` required keys, confidence bounds, and referential integrity
+    - [ ] `risk_flows.jsonl` path integrity (`depth` vs path length), referential integrity, capped notes
+    - [ ] `call_sites.jsonl` location validity and referential integrity
+    - [ ] `risk_flow_stats.json` internal consistency (counts match or are explainably capped)
+  - [ ] Ensure `tools/index-validate.js --strict` fails on broken risk artifacts when present.
+
+- [ ] Add retrieval/CLI surfacing for risk summaries and flows:
+  - [ ] Add an option to display `risk.summary` in result output (compact and deterministic).
+  - [ ] Add an option to expand and render interprocedural flows for a selected chunk/symbol when `risk_flows.jsonl` is present.
+  - [ ] Add basic filtering controls (by sink category/severity, minimum confidence).
+  - Notes:
+    - If risk artifacts are absent, fall back to existing local `docmeta.risk` display.
+
+- [ ] Documentation:
+  - [ ] Add `docs/artifacts/risk_flows.md` covering artifact semantics, schemas, and caps.
+  - [ ] Update `docs/risk-rules.md` to reflect new rule semantics.
+  - [ ] Update `docs/config.md` (or equivalent) to document new `indexing.riskInterprocedural.*` keys and legacy behavior.
+
+#### Tests
+- [ ] Validation: fixture index with risk artifacts passes `index-validate --strict`.
+- [ ] CLI: smoke test renders risk summary and (when enabled) at least one multi-hop flow with call-site evidence.
+- [ ] Backward compatibility: disabling interprocedural risk flows preserves current output semantics.
+
+---
+
+
 ## Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
 
   **Objective:** Make libuv threadpool sizing an explicit, validated, and observable runtime control so PairOfCleats I/O concurrency scales predictably across platforms and workloads.
@@ -2298,6 +3335,7 @@ This phase explicitly targets:
 
 
 ---
+
 
 
 

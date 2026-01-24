@@ -50,6 +50,7 @@
 - Test checkboxes cannot be checked until the test has run and passed.
 - If fixing a failing test, log each attempted fix as sub-details under that test’s checkbox.
 - After 3 failed fix attempts, stop and report the failure, what was tried, and the next best fix.
+- If a tiny post-commit update is needed (e.g., updating roadmap checkboxes), amend the previous commit instead of creating a new one, unless you are explicitly told not to amend.
 - When all tasks in a phase are complete and concerns addressed, remove that phase and append it to `COMPLETED_PHASES.md` blindly (do not reorder or dedupe).
 
 ## Configuration & Artifacts

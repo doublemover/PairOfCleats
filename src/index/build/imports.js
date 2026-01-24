@@ -15,7 +15,15 @@ let cjsInitPromise = null;
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
 const ensureEsModuleLexer = async () => {
-  if (!esModuleInitPromise) esModuleInitPromise = initEsModuleLexer;
+  if (!esModuleInitPromise) {
+    if (typeof initEsModuleLexer === 'function') {
+      esModuleInitPromise = initEsModuleLexer();
+    } else if (initEsModuleLexer && typeof initEsModuleLexer.then === 'function') {
+      esModuleInitPromise = initEsModuleLexer;
+    } else {
+      esModuleInitPromise = Promise.resolve();
+    }
+  }
   await esModuleInitPromise;
 };
 
@@ -63,10 +71,11 @@ const collectModuleImportsFast = async ({ text, ext }) => {
       }
     }
   } catch {}
-  if (success) {
-    const requireRegex = /(?:^|[^.\w$])require\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g;
-    for (const match of text.matchAll(requireRegex)) {
-      if (match[1]) imports.add(match[1]);
+  const requireRegex = /(?:^|[^.\w$])require\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g;
+  for (const match of text.matchAll(requireRegex)) {
+    if (match[1]) {
+      imports.add(match[1]);
+      success = true;
     }
   }
   return success ? normalizeImports(Array.from(imports)) : null;
@@ -188,6 +197,7 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
         return;
       }
       const fastImports = await collectModuleImportsFast({ text, ext });
+      const options = languageOptions && typeof languageOptions === 'object' ? languageOptions : {};
       const imports = normalizeImports(Array.isArray(fastImports)
         ? fastImports
         : collectLanguageImports({
@@ -195,7 +205,7 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
           relPath: relKey,
           text,
           mode,
-          options: languageOptions
+          ...options
         }));
       if (imports.length > 0) filesWithImports += 1;
       for (const mod of imports) {
@@ -209,7 +219,7 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
   );
 
   showProgress('Imports', items.length, items.length, progressMeta);
-  const dedupedImports = {};
+  const dedupedImports = Object.create(null);
   const moduleKeys = Array.from(allImports.keys()).sort(sortStrings);
   let edgeCount = 0;
   for (const mod of moduleKeys) {
@@ -231,7 +241,10 @@ export async function scanImports({ files, root, mode, languageOptions, importCo
 
 export function buildImportLinksFromRelations(fileRelations) {
   if (!fileRelations || typeof fileRelations.entries !== 'function') {
-    return { allImports: {}, stats: { modules: 0, edges: 0, files: 0, scanned: 0 } };
+    return {
+      allImports: Object.create(null),
+      stats: { modules: 0, edges: 0, files: 0, scanned: 0 }
+    };
   }
   const moduleMap = new Map();
   let filesWithImports = 0;
@@ -245,7 +258,7 @@ export function buildImportLinksFromRelations(fileRelations) {
       moduleMap.get(mod).add(file);
     }
   }
-  const dedupedImports = {};
+  const dedupedImports = Object.create(null);
   let edgeCount = 0;
   const moduleKeys = Array.from(moduleMap.keys()).sort(sortStrings);
   for (const mod of moduleKeys) {

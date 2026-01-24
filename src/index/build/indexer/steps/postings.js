@@ -7,6 +7,7 @@ import {
   normalizeTokenRetention
 } from '../../state.js';
 import { quantizeVecUint8 } from '../../../embedding.js';
+import { isVectorLike } from '../../../../shared/embedding-utils.js';
 
 export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog }) => {
   const tokenizationStats = {
@@ -99,7 +100,7 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
           chunkCopy.embed_doc_u8 = existingDocU8;
         } else {
           const rawDoc = chunkCopy.embed_doc;
-          const hasDoc = Array.isArray(rawDoc) && rawDoc.length;
+          const hasDoc = isVectorLike(rawDoc) && rawDoc.length;
           chunkCopy.embed_doc_u8 = hasDoc ? quantizeVecUint8(rawDoc) : EMPTY_U8;
         }
 
@@ -107,7 +108,7 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
           chunkCopy.embed_code_u8 = existingCodeU8;
         } else {
           const rawCode = chunkCopy.embed_code;
-          const hasCode = Array.isArray(rawCode) && rawCode.length;
+          const hasCode = isVectorLike(rawCode) && rawCode.length;
           chunkCopy.embed_code_u8 = hasCode ? quantizeVecUint8(rawCode) : existingMergedU8;
         }
       } else {
@@ -116,15 +117,15 @@ export const createTokenRetentionState = ({ runtime, totalFiles, log = sharedLog
         // during indexing (especially with many languages / chunk counts), and they are
         // not needed once we have the uint8 representation.
         const merged = chunkCopy.embedding;
-        const hasMerged = Array.isArray(merged) && merged.length;
+        const hasMerged = isVectorLike(merged) && merged.length;
         if (hasMerged) {
           const mergedU8 = quantizeVecUint8(merged);
           chunkCopy.embedding_u8 = mergedU8;
 
           const rawDoc = chunkCopy.embed_doc;
           const rawCode = chunkCopy.embed_code;
-          const hasDoc = Array.isArray(rawDoc) && rawDoc.length;
-          const hasCode = Array.isArray(rawCode) && rawCode.length;
+          const hasDoc = isVectorLike(rawDoc) && rawDoc.length;
+          const hasCode = isVectorLike(rawCode) && rawCode.length;
 
           // Preserve dense-vector mode semantics:
           // - doc vectors: an empty marker means "no doc", which the postings builder

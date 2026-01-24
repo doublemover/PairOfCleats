@@ -2,7 +2,7 @@ export const DEFAULT_EMBEDDING_POOLING = 'mean';
 export const DEFAULT_EMBEDDING_NORMALIZE = true;
 export const DEFAULT_EMBEDDING_TRUNCATION = true;
 
-const isVectorLike = (value) => (
+export const isVectorLike = (value) => (
   Array.isArray(value)
   || (ArrayBuffer.isView(value) && !(value instanceof DataView))
 );
@@ -10,16 +10,21 @@ const isVectorLike = (value) => (
 export const mergeEmbeddingVectors = ({ codeVector, docVector }) => {
   const code = isVectorLike(codeVector) ? codeVector : [];
   const doc = isVectorLike(docVector) ? docVector : [];
-  const length = code.length || doc.length || 0;
-  const merged = length ? new Float32Array(length) : new Float32Array(0);
-  if (code.length) {
-    for (let i = 0; i < merged.length; i += 1) {
-      merged[i] = (code[i] + (doc[i] ?? 0)) / 2;
-    }
-  } else if (doc.length) {
-    for (let i = 0; i < merged.length; i += 1) {
-      merged[i] = doc[i] ?? 0;
-    }
+  const codeLen = code.length || 0;
+  const docLen = doc.length || 0;
+  if (!codeLen && !docLen) return new Float32Array(0);
+  if (codeLen && !docLen) {
+    return code instanceof Float32Array ? new Float32Array(code) : Float32Array.from(code);
+  }
+  if (docLen && !codeLen) {
+    return doc instanceof Float32Array ? new Float32Array(doc) : Float32Array.from(doc);
+  }
+  if (codeLen !== docLen) {
+    throw new Error(`[embeddings] embedding dims mismatch (code=${codeLen}, doc=${docLen}).`);
+  }
+  const merged = new Float32Array(codeLen);
+  for (let i = 0; i < merged.length; i += 1) {
+    merged[i] = (Number(code[i] ?? 0) + Number(doc[i] ?? 0)) / 2;
   }
   return merged;
 };

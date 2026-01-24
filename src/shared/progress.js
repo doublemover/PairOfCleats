@@ -13,6 +13,7 @@ let structuredEnabled = false;
 let logContext = {};
 let ringMax = 200;
 let ringMaxBytes = 2 * 1024 * 1024;
+const ringMetaMaxBytes = 8 * 1024;
 const ringEvents = [];
 const ringSizes = [];
 let ringBytes = 0;
@@ -44,12 +45,66 @@ const normalizeRedact = (value) => {
   return { paths: defaultRedactPaths, censor: '[redacted]' };
 };
 
+const safeJsonStringify = (value) => {
+  const seen = new WeakSet();
+  return JSON.stringify(value, (key, val) => {
+    if (typeof val === 'bigint') return val.toString();
+    if (typeof val === 'function') return `[Function${val.name ? `: ${val.name}` : ''}]`;
+    if (val && typeof val === 'object') {
+      if (seen.has(val)) return '[Circular]';
+      seen.add(val);
+    }
+    return val;
+  });
+};
+
+const truncateUtf8 = (value, maxBytes) => {
+  const raw = typeof value === 'string' ? value : String(value || '');
+  const size = Buffer.byteLength(raw, 'utf8');
+  if (size <= maxBytes) return raw;
+  const suffix = '...[truncated]';
+  const suffixBytes = Buffer.byteLength(suffix, 'utf8');
+  const keepBytes = Math.max(0, maxBytes - suffixBytes);
+  const slice = Buffer.from(raw, 'utf8').subarray(0, keepBytes);
+  return `${slice.toString('utf8')}${suffix}`;
+};
+
+const snapshotMeta = (meta) => {
+  if (meta == null) return null;
+  let encoded = '';
+  try {
+    encoded = safeJsonStringify(meta);
+  } catch {
+    encoded = '"[unserializable]"';
+  }
+  if (!encoded) return null;
+  return truncateUtf8(encoded, ringMetaMaxBytes);
+};
+
+const normalizeDestinationTarget = (value) => {
+  if (!value) return null;
+  if (value && typeof value.write === 'function') return value;
+  if (value === 'stdout' || value === 1) return 1;
+  if (value === 'stderr' || value === 2) return 2;
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  return null;
+};
+
+const resolveDestinationStream = (value) => {
+  if (!value) return null;
+  if (value && typeof value.write === 'function') return value;
+  const target = normalizeDestinationTarget(value);
+  if (target == null) return null;
+  return pino.destination(target);
+};
+
 const recordEvent = (level, msg, meta) => {
   const payload = {
     ts: new Date().toISOString(),
     level,
     msg,
-    meta: meta && typeof meta === 'object' ? meta : null
+    meta: snapshotMeta(meta)
   };
   let encoded = '';
   try {
@@ -87,18 +142,24 @@ export function configureLogger(options = {}) {
     ? options.level.trim().toLowerCase()
     : 'info';
   const redact = normalizeRedact(options.redact);
+  const destinationTarget = normalizeDestinationTarget(options.destination);
+  const destinationStream = options.pretty ? null : resolveDestinationStream(options.destination);
   const transport = options.pretty
-    ? {
+    ? pino.transport({
       target: 'pino-pretty',
-      options: { colorize: true, translateTime: 'SYS:standard' }
-    }
-    : undefined;
+      options: {
+        colorize: true,
+        translateTime: 'SYS:standard',
+        ...(destinationTarget != null ? { destination: destinationTarget } : {})
+      }
+    })
+    : null;
   logger = pino({
     level,
     base: null,
     timestamp: pino.stdTimeFunctions.isoTime,
     ...(redact ? { redact } : {})
-  }, transport);
+  }, transport || destinationStream || undefined);
   logContext = options.context && typeof options.context === 'object'
     ? { ...options.context }
     : {};
@@ -141,8 +202,10 @@ export function showProgress(step, i, total, meta = null) {
     return;
   }
   if (structuredEnabled) return;
-  const pct = ((i / total) * 100).toFixed(1);
-  const line = `${step} ${i}/${total} (${pct}%)`;
+  const safeTotal = Number.isFinite(total) ? Math.max(0, total) : 0;
+  const safeIndex = Number.isFinite(i) ? Math.max(0, i) : 0;
+  const pct = safeTotal ? ((safeIndex / safeTotal) * 100).toFixed(1) : '0.0';
+  const line = `${step} ${safeIndex}/${safeTotal} (${pct}%)`;
   const isTty = process.stderr.isTTY;
   if (isTty) {
     process.stderr.write(`\r${line}\x1b[K`);

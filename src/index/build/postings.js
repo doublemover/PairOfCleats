@@ -1,6 +1,7 @@
 import { quantizeVec } from '../embedding.js';
 import { DEFAULT_STUB_DIMS } from '../../shared/embedding.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
+import { isVectorLike } from '../../shared/embedding-utils.js';
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -159,11 +160,6 @@ export async function buildPostings(input) {
     const embedLabel = useStubEmbeddings ? 'stub' : 'model';
     log(`Using ${embedLabel} embeddings for dense vectors (${modelId})...`);
 
-    const isVectorLike = (value) => {
-      if (Array.isArray(value)) return true;
-      return ArrayBuffer.isView(value) && !(value instanceof DataView);
-    };
-
     const isByteVector = (value) => (
       value
       && typeof value === 'object'
@@ -245,8 +241,13 @@ export async function buildPostings(input) {
         // Doc vectors: an empty marker means "no doc", which should behave like
         // a zero-vector so doc-only dense search doesn't surface code-only chunks.
         const doc = chunk?.embed_doc_u8;
-        let docVec = normalizeByteVector(doc, { emptyIsZero: true });
-        if (!docVec) docVec = mergedVec;
+        if (doc == null) {
+          throw new Error('[postings] missing doc embedding marker for chunk.');
+        }
+        const docVec = normalizeByteVector(doc, { emptyIsZero: true });
+        if (!docVec) {
+          throw new Error('[postings] invalid doc embedding marker for chunk.');
+        }
 
         // Code vectors: when missing, fall back to merged.
         const code = chunk?.embed_code_u8;
@@ -260,26 +261,26 @@ export async function buildPostings(input) {
     } else {
       // Legacy path: quantize from float embeddings.
       const selectEmbedding = (chunk) => (
-        Array.isArray(chunk?.embedding) && chunk.embedding.length
+        isVectorLike(chunk?.embedding) && chunk.embedding.length
           ? normalizeFloatVector(chunk.embedding)
           : zeroVec
       );
       const selectDocEmbedding = (chunk) => {
         // `embed_doc: []` is used as an explicit marker for "no doc embedding" to
         // avoid allocating a full dims-length zero vector per chunk.
-        if (Array.isArray(chunk?.embed_doc)) {
+        if (Object.prototype.hasOwnProperty.call(chunk || {}, 'embed_doc')) {
+          if (!isVectorLike(chunk.embed_doc)) {
+            throw new Error('[postings] invalid doc embedding marker for chunk.');
+          }
           return chunk.embed_doc.length ? normalizeFloatVector(chunk.embed_doc) : zeroVec;
         }
-        if (Array.isArray(chunk?.embedding) && chunk.embedding.length) {
-          return normalizeFloatVector(chunk.embedding);
-        }
-        return zeroVec;
+        throw new Error('[postings] missing doc embedding marker for chunk.');
       };
       const selectCodeEmbedding = (chunk) => {
-        if (Array.isArray(chunk?.embed_code) && chunk.embed_code.length) {
+        if (isVectorLike(chunk?.embed_code) && chunk.embed_code.length) {
           return normalizeFloatVector(chunk.embed_code);
         }
-        if (Array.isArray(chunk?.embedding) && chunk.embedding.length) {
+        if (isVectorLike(chunk?.embedding) && chunk.embedding.length) {
           return normalizeFloatVector(chunk.embedding);
         }
         return zeroVec;

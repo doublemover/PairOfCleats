@@ -1,4 +1,5 @@
 import { normalizeVec, quantizeVecUint8 } from '../../embedding.js';
+import { isVectorLike, mergeEmbeddingVectors } from '../../../shared/embedding-utils.js';
 import { resolveEmbeddingBatchSize } from '../embedding-batch.js';
 
 // Empty marker used throughout the indexing pipeline to indicate a missing doc vector.
@@ -6,11 +7,6 @@ import { resolveEmbeddingBatchSize } from '../embedding-batch.js';
 // shared zero-vector for dot products without allocating per-chunk.
 const EMPTY_U8 = new Uint8Array(0);
 const EMPTY_FLOAT = new Float32Array(0);
-
-const isVectorLike = (value) => {
-  if (Array.isArray(value)) return true;
-  return ArrayBuffer.isView(value) && !(value instanceof DataView);
-};
 
 const assertVectorBatch = (label, vectors, expectedCount, expectedDims = 0) => {
   if (!Array.isArray(vectors) || vectors.length !== expectedCount) {
@@ -41,28 +37,35 @@ const createBatcher = (embed, batchSize) => {
   let queue = [];
   let flushing = false;
   let scheduled = false;
+  let needsFlush = false;
   const size = Math.max(1, Math.floor(batchSize));
 
   const flush = async () => {
-    if (flushing) return;
+    if (flushing) {
+      needsFlush = true;
+      return;
+    }
     flushing = true;
-    while (queue.length) {
-      const batch = queue.splice(0, size);
-      const payload = batch.map((item) => item.text);
-      try {
-        const outputs = await embed(payload);
-        if (!Array.isArray(outputs) || outputs.length !== batch.length) {
-          throw new Error(`embedding batch size mismatch (expected ${batch.length}, got ${outputs?.length ?? 0})`);
-        }
-        for (let i = 0; i < batch.length; i += 1) {
-          batch[i].resolve(outputs[i] ?? []);
-        }
-      } catch (err) {
-        for (const item of batch) {
-          item.reject(err);
+    do {
+      needsFlush = false;
+      while (queue.length) {
+        const batch = queue.splice(0, size);
+        const payload = batch.map((item) => item.text);
+        try {
+          const outputs = await embed(payload);
+          if (!Array.isArray(outputs) || outputs.length !== batch.length) {
+            throw new Error(`embedding batch size mismatch (expected ${batch.length}, got ${outputs?.length ?? 0})`);
+          }
+          for (let i = 0; i < batch.length; i += 1) {
+            batch[i].resolve(outputs[i] ?? []);
+          }
+        } catch (err) {
+          for (const item of batch) {
+            item.reject(err);
+          }
         }
       }
-    }
+    } while (needsFlush || queue.length);
     flushing = false;
   };
 
@@ -213,12 +216,7 @@ export async function attachEmbeddings({
     const embedCode = isVectorLike(codeVectors[i]) ? codeVectors[i] : EMPTY_FLOAT;
     const rawDoc = docVectors[i];
     const hasDoc = isVectorLike(rawDoc) && rawDoc.length;
-    const embedDoc = hasDoc ? rawDoc : missingDoc;
-    const merged = embedCode.length
-      ? (hasDoc
-        ? embedCode.map((v, idx) => (v + (rawDoc[idx] ?? 0)) / 2)
-        : embedCode)
-      : (hasDoc ? rawDoc : missingDoc);
+    const merged = mergeEmbeddingVectors({ codeVector: embedCode, docVector: hasDoc ? rawDoc : missingDoc });
 
     // Normalize + quantize immediately. Holding full float embeddings for every chunk
     // dramatically increases peak heap usage during indexing.

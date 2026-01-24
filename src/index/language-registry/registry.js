@@ -642,10 +642,15 @@ export function getLanguageForFile(ext, relPath) {
   return resolveLinguistLanguage(ext, normalized);
 }
 
-export function collectLanguageImports({ ext, relPath, text, mode, options }) {
+export function collectLanguageImports(input = {}) {
+  const { ext, relPath, text, mode, options, ...rest } = input;
   const lang = getLanguageForFile(ext, relPath);
   if (!lang || typeof lang.collectImports !== 'function') return [];
-  const imports = lang.collectImports(text, { ext, relPath, mode, options });
+  const forwarded = {
+    ...rest,
+    ...(options && typeof options === 'object' ? options : {})
+  };
+  const imports = lang.collectImports(text, { ext, relPath, mode, ...forwarded });
   return Array.isArray(imports) ? imports : [];
 }
 
