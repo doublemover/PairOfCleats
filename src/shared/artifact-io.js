@@ -127,11 +127,14 @@ const finalizeGraphPayload = (payload) => {
 };
 
 const createGraphRelationsShell = (meta) => {
-  const graphsMeta = meta?.graphs || {};
+  const extensions = meta && typeof meta.extensions === 'object' ? meta.extensions : {};
+  const graphsMeta = extensions?.graphs || meta?.graphs || {};
   const generatedAt = typeof meta?.generatedAt === 'string'
     ? meta.generatedAt
     : new Date().toISOString();
-  const version = Number.isFinite(meta?.version) ? meta.version : 1;
+  const version = Number.isFinite(extensions?.version)
+    ? extensions.version
+    : (Number.isFinite(meta?.version) ? meta.version : 1);
   const payload = {
     version,
     generatedAt,
@@ -422,6 +425,266 @@ export const readJsonFile = (filePath, { maxBytes = MAX_JSON_BYTES } = {}) => {
   throw new Error(`Missing JSON artifact: ${filePath}`);
 };
 
+const normalizeManifest = (raw) => {
+  if (!raw || typeof raw !== 'object') return null;
+  const source = raw.fields && typeof raw.fields === 'object' ? raw.fields : raw;
+  const pieces = Array.isArray(source.pieces) ? source.pieces : [];
+  return { ...source, pieces };
+};
+
+const normalizeCompatibilityKey = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const isSafeManifestPath = (value) => {
+  if (typeof value !== 'string') return false;
+  if (!value) return false;
+  if (path.isAbsolute(value)) return false;
+  const normalized = value.split('\\').join('/');
+  if (normalized.includes('..')) return false;
+  if (normalized.startsWith('/')) return false;
+  return true;
+};
+
+const resolveManifestPath = (dir, relPath, strict) => {
+  if (!relPath) return null;
+  if (strict && !isSafeManifestPath(relPath)) {
+    const err = new Error(`Invalid manifest path: ${relPath}`);
+    err.code = 'ERR_MANIFEST_PATH';
+    throw err;
+  }
+  const resolved = path.resolve(dir, relPath.split('/').join(path.sep));
+  if (strict) {
+    const root = path.resolve(dir);
+    if (!resolved.startsWith(root + path.sep) && resolved !== root) {
+      const err = new Error(`Manifest path escapes index root: ${relPath}`);
+      err.code = 'ERR_MANIFEST_PATH';
+      throw err;
+    }
+  }
+  return resolved;
+};
+
+export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = true } = {}) => {
+  const manifestPath = path.join(dir, 'pieces', 'manifest.json');
+  if (!existsOrBak(manifestPath)) {
+    if (strict) {
+      const err = new Error(`Missing pieces manifest: ${manifestPath}`);
+      err.code = 'ERR_MANIFEST_MISSING';
+      throw err;
+    }
+    return null;
+  }
+  const raw = readJsonFile(manifestPath, { maxBytes });
+  const manifest = normalizeManifest(raw);
+  if (!manifest && strict) {
+    const err = new Error(`Invalid pieces manifest: ${manifestPath}`);
+    err.code = 'ERR_MANIFEST_INVALID';
+    throw err;
+  }
+  return manifest;
+};
+
+export const readCompatibilityKey = (dir, { maxBytes = MAX_JSON_BYTES, strict = true } = {}) => {
+  let manifest = null;
+  if (strict) {
+    manifest = loadPiecesManifest(dir, { maxBytes, strict: true });
+  } else {
+    try {
+      manifest = loadPiecesManifest(dir, { maxBytes, strict: false });
+    } catch {}
+  }
+  const manifestKey = normalizeCompatibilityKey(manifest?.compatibilityKey);
+  if (manifestKey) {
+    return { key: manifestKey, source: 'manifest' };
+  }
+  if (manifest && strict) {
+    const err = new Error(`Pieces manifest missing compatibilityKey: ${path.join(dir, 'pieces', 'manifest.json')}`);
+    err.code = 'ERR_COMPATIBILITY_KEY_MISSING';
+    throw err;
+  }
+  const statePath = path.join(dir, 'index_state.json');
+  let state = null;
+  try {
+    state = readJsonFile(statePath, { maxBytes });
+  } catch (err) {
+    if (strict) {
+      const error = new Error(`Missing compatibilityKey for index: ${dir}`);
+      error.code = 'ERR_COMPATIBILITY_KEY_MISSING';
+      throw error;
+    }
+    return { key: null, source: null };
+  }
+  const stateKey = normalizeCompatibilityKey(state?.compatibilityKey);
+  if (stateKey) {
+    return { key: stateKey, source: 'index_state' };
+  }
+  if (strict) {
+    const err = new Error(`Missing compatibilityKey for index: ${dir}`);
+    err.code = 'ERR_COMPATIBILITY_KEY_MISSING';
+    throw err;
+  }
+  return { key: null, source: null };
+};
+
+const indexManifestPieces = (manifest) => {
+  const map = new Map();
+  const list = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
+  for (const entry of list) {
+    const name = typeof entry?.name === 'string' ? entry.name : '';
+    if (!name) continue;
+    if (!map.has(name)) map.set(name, []);
+    map.get(name).push(entry);
+  }
+  return map;
+};
+
+const resolveManifestEntries = (manifest, name) => {
+  const map = indexManifestPieces(manifest);
+  return map.get(name) || [];
+};
+
+const inferEntryFormat = (entry) => {
+  if (entry && typeof entry.format === 'string' && entry.format) return entry.format;
+  const pathValue = typeof entry?.path === 'string' ? entry.path : '';
+  if (pathValue.endsWith('.jsonl') || pathValue.endsWith('.jsonl.gz') || pathValue.endsWith('.jsonl.zst')) {
+    return 'jsonl';
+  }
+  return 'json';
+};
+
+const normalizeMetaParts = (parts) => {
+  if (!Array.isArray(parts)) return [];
+  return parts
+    .map((part) => {
+      if (typeof part === 'string') return part;
+      if (part && typeof part === 'object' && typeof part.path === 'string') return part.path;
+      return null;
+    })
+    .filter(Boolean);
+};
+
+const resolveMetaFormat = (meta, fallback) => {
+  const raw = typeof meta?.format === 'string' ? meta.format : null;
+  if (!raw) return fallback;
+  if (raw === 'jsonl') return 'jsonl';
+  if (raw === 'jsonl-sharded') return 'sharded';
+  if (raw === 'sharded') return 'sharded';
+  if (raw === 'json') return 'json';
+  return raw;
+};
+
+const resolveManifestArtifactSources = ({ dir, manifest, name, strict, maxBytes = MAX_JSON_BYTES }) => {
+  if (!manifest) return null;
+  const entries = resolveManifestEntries(manifest, name);
+  const metaEntries = resolveManifestEntries(manifest, `${name}_meta`);
+  if (metaEntries.length > 1 && strict) {
+    const err = new Error(`Multiple manifest entries for ${name}_meta`);
+    err.code = 'ERR_MANIFEST_INVALID';
+    throw err;
+  }
+  if (metaEntries.length === 1) {
+    const metaEntry = metaEntries[0];
+    const metaPath = resolveManifestPath(dir, metaEntry.path, strict);
+    const metaRaw = readJsonFile(metaPath, { maxBytes });
+    const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+    const parts = normalizeMetaParts(meta?.parts);
+    if (!parts.length) {
+      const err = new Error(`Manifest meta missing parts for ${name}`);
+      err.code = 'ERR_MANIFEST_INVALID';
+      throw err;
+    }
+    const partSet = new Set(entries.map((entry) => entry?.path));
+    if (strict) {
+      for (const part of parts) {
+        if (!partSet.has(part)) {
+          const err = new Error(`Manifest missing shard path for ${name}: ${part}`);
+          err.code = 'ERR_MANIFEST_INCOMPLETE';
+          throw err;
+        }
+      }
+    }
+    const paths = parts.map((part) => resolveManifestPath(dir, part, strict));
+    return {
+      format: resolveMetaFormat(meta, 'jsonl'),
+      paths,
+      meta,
+      metaPath
+    };
+  }
+  if (!entries.length) return null;
+  if (entries.length > 1 && strict) {
+    const err = new Error(`Ambiguous manifest entries for ${name}`);
+    err.code = 'ERR_MANIFEST_INVALID';
+    throw err;
+  }
+  const resolvedEntries = entries.slice().sort((a, b) => {
+    const aPath = a?.path || '';
+    const bPath = b?.path || '';
+    return aPath < bPath ? -1 : (aPath > bPath ? 1 : 0);
+  });
+  const paths = resolvedEntries
+    .map((entry) => resolveManifestPath(dir, entry?.path, strict))
+    .filter(Boolean);
+  return {
+    format: inferEntryFormat(resolvedEntries[0]),
+    paths
+  };
+};
+
+export const resolveArtifactPresence = (
+  dir,
+  name,
+  {
+    manifest = null,
+    maxBytes = MAX_JSON_BYTES,
+    strict = true
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  let sources = null;
+  let error = null;
+  try {
+    sources = resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name,
+      strict,
+      maxBytes
+    });
+  } catch (err) {
+    error = err;
+  }
+  if (!sources) {
+    return {
+      name,
+      format: 'missing',
+      paths: [],
+      metaPath: null,
+      meta: null,
+      missingPaths: [],
+      missingMeta: false,
+      error
+    };
+  }
+  const paths = Array.isArray(sources.paths) ? sources.paths : [];
+  const missingPaths = paths.filter((target) => !existsOrBak(target));
+  const metaPath = sources.metaPath || null;
+  const missingMeta = metaPath ? !existsOrBak(metaPath) : false;
+  return {
+    name,
+    format: sources.format === 'sharded' ? 'sharded' : sources.format,
+    paths,
+    metaPath,
+    meta: sources.meta || null,
+    missingPaths,
+    missingMeta,
+    error
+  };
+};
+
 export const readJsonLinesArray = async (
   filePath,
   { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
@@ -659,9 +922,13 @@ const resolveJsonlArtifactSources = (dir, baseName) => {
     let parts = [];
     if (existsOrBak(metaPath)) {
       try {
-        const meta = readJsonFile(metaPath, { maxBytes: MAX_JSON_BYTES });
+        const metaRaw = readJsonFile(metaPath, { maxBytes: MAX_JSON_BYTES });
+        const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
         if (Array.isArray(meta?.parts) && meta.parts.length) {
-          parts = meta.parts.map((name) => path.join(dir, name));
+          parts = meta.parts
+            .map((part) => (typeof part === 'string' ? part : part?.path))
+            .filter(Boolean)
+            .map((name) => path.join(dir, name));
         }
       } catch {}
     }
@@ -679,11 +946,54 @@ const resolveJsonlArtifactSources = (dir, baseName) => {
 export const loadJsonArrayArtifact = async (
   dir,
   baseName,
-  { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
+  {
+    maxBytes = MAX_JSON_BYTES,
+    requiredKeys = null,
+    manifest = null,
+    strict = true
+  } = {}
 ) => {
-  const sources = resolveJsonlArtifactSources(dir, baseName);
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  if (strict) {
+    const sources = resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name: baseName,
+      strict: true,
+      maxBytes
+    });
+    const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
+    if (sources?.paths?.length) {
+      if (sources.format === 'json') {
+        if (sources.paths.length > 1) {
+          throw new Error(`Ambiguous JSON sources for ${baseName}`);
+        }
+        return readJsonFile(sources.paths[0], { maxBytes });
+      }
+      const out = [];
+      for (const partPath of sources.paths) {
+        const part = await readJsonLinesArray(partPath, { maxBytes, requiredKeys: resolvedKeys });
+        for (const entry of part) out.push(entry);
+      }
+      return out;
+    }
+    throw new Error(`Missing manifest entry for ${baseName}`);
+  }
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: baseName,
+    strict: false,
+    maxBytes
+  }) || resolveJsonlArtifactSources(dir, baseName);
   const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
   if (sources?.paths?.length) {
+    if (sources.format === 'json') {
+      if (sources.paths.length > 1) {
+        throw new Error(`Ambiguous JSON sources for ${baseName}`);
+      }
+      return readJsonFile(sources.paths[0], { maxBytes });
+    }
     const out = [];
     for (const partPath of sources.paths) {
       const part = await readJsonLinesArray(partPath, { maxBytes, requiredKeys: resolvedKeys });
@@ -701,11 +1011,54 @@ export const loadJsonArrayArtifact = async (
 export const loadJsonArrayArtifactSync = (
   dir,
   baseName,
-  { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
+  {
+    maxBytes = MAX_JSON_BYTES,
+    requiredKeys = null,
+    manifest = null,
+    strict = true
+  } = {}
 ) => {
-  const sources = resolveJsonlArtifactSources(dir, baseName);
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  if (strict) {
+    const sources = resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name: baseName,
+      strict: true,
+      maxBytes
+    });
+    const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
+    if (sources?.paths?.length) {
+      if (sources.format === 'json') {
+        if (sources.paths.length > 1) {
+          throw new Error(`Ambiguous JSON sources for ${baseName}`);
+        }
+        return readJsonFile(sources.paths[0], { maxBytes });
+      }
+      const out = [];
+      for (const partPath of sources.paths) {
+        const part = readJsonLinesArraySync(partPath, { maxBytes, requiredKeys: resolvedKeys });
+        for (const entry of part) out.push(entry);
+      }
+      return out;
+    }
+    throw new Error(`Missing manifest entry for ${baseName}`);
+  }
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: baseName,
+    strict: false,
+    maxBytes
+  }) || resolveJsonlArtifactSources(dir, baseName);
   const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
   if (sources?.paths?.length) {
+    if (sources.format === 'json') {
+      if (sources.paths.length > 1) {
+        throw new Error(`Ambiguous JSON sources for ${baseName}`);
+      }
+      return readJsonFile(sources.paths[0], { maxBytes });
+    }
     const out = [];
     for (const partPath of sources.paths) {
       const part = readJsonLinesArraySync(partPath, { maxBytes, requiredKeys: resolvedKeys });
@@ -720,14 +1073,71 @@ export const loadJsonArrayArtifactSync = (
   throw new Error(`Missing index artifact: ${baseName}.json`);
 };
 
-export const loadGraphRelations = async (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
+export const loadGraphRelations = async (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true
+  } = {}
+) => {
+  const requiredKeys = resolveJsonlRequiredKeys('graph_relations');
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  if (strict) {
+    const sources = resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name: 'graph_relations',
+      strict: true,
+      maxBytes
+    });
+    if (sources?.paths?.length) {
+      if (sources.format === 'json') {
+        if (sources.paths.length > 1) {
+          throw new Error('Ambiguous JSON sources for graph_relations');
+        }
+        return readJsonFile(sources.paths[0], { maxBytes });
+      }
+      const payload = createGraphRelationsShell(sources.meta || null);
+      for (const partPath of sources.paths) {
+        const entries = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
+        appendGraphRelationsEntries(payload, entries, partPath);
+      }
+      return finalizeGraphRelations(payload);
+    }
+    throw new Error('Missing manifest entry for graph_relations');
+  }
+
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: 'graph_relations',
+    strict: false,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.format === 'json') {
+      if (sources.paths.length > 1) {
+        throw new Error('Ambiguous JSON sources for graph_relations');
+      }
+      return readJsonFile(sources.paths[0], { maxBytes });
+    }
+    const payload = createGraphRelationsShell(sources.meta || null);
+    for (const partPath of sources.paths) {
+      const entries = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
+      appendGraphRelationsEntries(payload, entries, partPath);
+    }
+    return finalizeGraphRelations(payload);
+  }
+
   const metaPath = path.join(dir, 'graph_relations.meta.json');
   const partsDir = path.join(dir, 'graph_relations.parts');
-  const requiredKeys = resolveJsonlRequiredKeys('graph_relations');
   if (existsOrBak(metaPath) || fs.existsSync(partsDir)) {
-    const meta = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
-    const parts = Array.isArray(meta?.parts) && meta.parts.length
-      ? meta.parts.map((name) => path.join(dir, name))
+    const metaRaw = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
+    const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+    const partList = normalizeMetaParts(meta?.parts);
+    const parts = partList.length
+      ? partList.map((name) => path.join(dir, name))
       : readShardFiles(partsDir, 'graph_relations.part-');
     if (!parts.length) {
       throw new Error(`Missing graph_relations shard files in ${partsDir}`);
@@ -753,14 +1163,71 @@ export const loadGraphRelations = async (dir, { maxBytes = MAX_JSON_BYTES } = {}
   throw new Error('Missing index artifact: graph_relations.json');
 };
 
-export const loadGraphRelationsSync = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
+export const loadGraphRelationsSync = (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true
+  } = {}
+) => {
+  const requiredKeys = resolveJsonlRequiredKeys('graph_relations');
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  if (strict) {
+    const sources = resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name: 'graph_relations',
+      strict: true,
+      maxBytes
+    });
+    if (sources?.paths?.length) {
+      if (sources.format === 'json') {
+        if (sources.paths.length > 1) {
+          throw new Error('Ambiguous JSON sources for graph_relations');
+        }
+        return readJsonFile(sources.paths[0], { maxBytes });
+      }
+      const payload = createGraphRelationsShell(sources.meta || null);
+      for (const partPath of sources.paths) {
+        const entries = readJsonLinesArraySync(partPath, { maxBytes, requiredKeys });
+        appendGraphRelationsEntries(payload, entries, partPath);
+      }
+      return finalizeGraphRelations(payload);
+    }
+    throw new Error('Missing manifest entry for graph_relations');
+  }
+
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: 'graph_relations',
+    strict: false,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.format === 'json') {
+      if (sources.paths.length > 1) {
+        throw new Error('Ambiguous JSON sources for graph_relations');
+      }
+      return readJsonFile(sources.paths[0], { maxBytes });
+    }
+    const payload = createGraphRelationsShell(sources.meta || null);
+    for (const partPath of sources.paths) {
+      const entries = readJsonLinesArraySync(partPath, { maxBytes, requiredKeys });
+      appendGraphRelationsEntries(payload, entries, partPath);
+    }
+    return finalizeGraphRelations(payload);
+  }
+
   const metaPath = path.join(dir, 'graph_relations.meta.json');
   const partsDir = path.join(dir, 'graph_relations.parts');
-  const requiredKeys = resolveJsonlRequiredKeys('graph_relations');
   if (existsOrBak(metaPath) || fs.existsSync(partsDir)) {
-    const meta = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
-    const parts = Array.isArray(meta?.parts) && meta.parts.length
-      ? meta.parts.map((name) => path.join(dir, name))
+    const metaRaw = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
+    const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+    const partList = normalizeMetaParts(meta?.parts);
+    const parts = partList.length
+      ? partList.map((name) => path.join(dir, name))
       : readShardFiles(partsDir, 'graph_relations.part-');
     if (!parts.length) {
       throw new Error(`Missing graph_relations shard files in ${partsDir}`);
@@ -786,56 +1253,81 @@ export const loadGraphRelationsSync = (dir, { maxBytes = MAX_JSON_BYTES } = {}) 
   throw new Error('Missing index artifact: graph_relations.json');
 };
 
-export const loadChunkMeta = async (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
-  const metaPath = path.join(dir, 'chunk_meta.meta.json');
-  const partsDir = path.join(dir, 'chunk_meta.parts');
+export const loadChunkMeta = async (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true
+  } = {}
+) => {
   const requiredKeys = resolveJsonlRequiredKeys('chunk_meta');
-  const jsonlPath = path.join(dir, 'chunk_meta.jsonl');
-  const hasJsonl = existsOrBak(jsonlPath);
-  const hasShards = existsOrBak(metaPath) || fs.existsSync(partsDir);
-  if (hasJsonl && hasShards) {
-    const jsonlMtime = resolveArtifactMtime(jsonlPath);
-    const shardMtime = existsOrBak(metaPath)
-      ? resolveArtifactMtime(metaPath)
-      : resolveDirMtime(partsDir);
-    if (jsonlMtime >= shardMtime) {
-      return readJsonLinesArray(jsonlPath, { maxBytes, requiredKeys });
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  if (strict) {
+    const sources = resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name: 'chunk_meta',
+      strict: true,
+      maxBytes
+    });
+    if (sources?.paths?.length) {
+      if (sources.format === 'json') {
+        if (sources.paths.length > 1) {
+          throw new Error('Ambiguous JSON sources for chunk_meta');
+        }
+        return readJsonFile(sources.paths[0], { maxBytes });
+      }
+      const out = [];
+      for (const partPath of sources.paths) {
+        const part = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
+        for (const entry of part) out.push(entry);
+      }
+      return out;
     }
+    throw new Error('Missing manifest entry for chunk_meta');
   }
-  if (hasShards) {
-    const meta = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : null;
-    const parts = Array.isArray(meta?.parts) && meta.parts.length
-      ? meta.parts.map((name) => path.join(dir, name))
-      : readShardFiles(partsDir, 'chunk_meta.part-');
-    if (!parts.length) {
-      throw new Error(`Missing chunk_meta shard files in ${partsDir}`);
+
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: 'chunk_meta',
+    strict: false,
+    maxBytes
+  }) || resolveJsonlArtifactSources(dir, 'chunk_meta');
+  if (sources?.paths?.length) {
+    if (sources.format === 'json') {
+      if (sources.paths.length > 1) {
+        throw new Error('Ambiguous JSON sources for chunk_meta');
+      }
+      return readJsonFile(sources.paths[0], { maxBytes });
     }
     const out = [];
-    for (const partPath of parts) {
+    for (const partPath of sources.paths) {
       const part = await readJsonLinesArray(partPath, { maxBytes, requiredKeys });
       for (const entry of part) out.push(entry);
     }
     return out;
   }
-  if (hasJsonl) {
-    return readJsonLinesArray(jsonlPath, { maxBytes, requiredKeys });
-  }
+
   const jsonPath = path.join(dir, 'chunk_meta.json');
   if (existsOrBak(jsonPath)) {
     return readJsonFile(jsonPath, { maxBytes });
   }
-  throw new Error(`Missing index artifact: chunk_meta.json`);
+  throw new Error('Missing index artifact: chunk_meta.json');
 };
 
-export const loadTokenPostings = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
-  const metaPath = path.join(dir, 'token_postings.meta.json');
-  const shardsDir = path.join(dir, 'token_postings.shards');
-  if (existsOrBak(metaPath) || fs.existsSync(shardsDir)) {
-    const meta = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : {};
-    const shards = Array.isArray(meta?.parts) && meta.parts.length
-      ? meta.parts.map((name) => path.join(dir, name))
-      : readShardFiles(shardsDir, 'token_postings.part-');
-    if (!shards.length) {
+export const loadTokenPostings = (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    manifest = null,
+    strict = true
+  } = {}
+) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const loadSharded = (meta, shardPaths, shardsDir) => {
+    if (!Array.isArray(shardPaths) || shardPaths.length === 0) {
       throw new Error(`Missing token_postings shard files in ${shardsDir}`);
     }
     const vocab = [];
@@ -846,10 +1338,14 @@ export const loadTokenPostings = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
         target.push(...items.slice(i, i + CHUNK));
       }
     };
-    for (const shardPath of shards) {
+    for (const shardPath of shardPaths) {
       const shard = readJsonFile(shardPath, { maxBytes });
-      const shardVocab = Array.isArray(shard?.vocab) ? shard.vocab : (Array.isArray(shard?.arrays?.vocab) ? shard.arrays.vocab : []);
-      const shardPostings = Array.isArray(shard?.postings) ? shard.postings : (Array.isArray(shard?.arrays?.postings) ? shard.arrays.postings : []);
+      const shardVocab = Array.isArray(shard?.vocab)
+        ? shard.vocab
+        : (Array.isArray(shard?.arrays?.vocab) ? shard.arrays.vocab : []);
+      const shardPostings = Array.isArray(shard?.postings)
+        ? shard.postings
+        : (Array.isArray(shard?.arrays?.postings) ? shard.arrays.postings : []);
       if (shardVocab.length) pushChunked(vocab, shardVocab);
       if (shardPostings.length) pushChunked(postings, shardPostings);
     }
@@ -862,10 +1358,63 @@ export const loadTokenPostings = (dir, { maxBytes = MAX_JSON_BYTES } = {}) => {
       postings,
       docLengths
     };
+  };
+  if (strict) {
+    const sources = resolveManifestArtifactSources({
+      dir,
+      manifest: resolvedManifest,
+      name: 'token_postings',
+      strict: true,
+      maxBytes
+    });
+    if (sources?.paths?.length) {
+      if (sources.format === 'json') {
+        if (sources.paths.length > 1) {
+          throw new Error('Ambiguous JSON sources for token_postings');
+        }
+        return readJsonFile(sources.paths[0], { maxBytes });
+      }
+      if (sources.format === 'sharded') {
+        return loadSharded(sources.meta || {}, sources.paths, path.join(dir, 'token_postings.shards'));
+      }
+      throw new Error(`Unsupported token_postings format: ${sources.format}`);
+    }
+    throw new Error('Missing manifest entry for token_postings');
+  }
+
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name: 'token_postings',
+    strict: false,
+    maxBytes
+  });
+  if (sources?.paths?.length) {
+    if (sources.format === 'json') {
+      if (sources.paths.length > 1) {
+        throw new Error('Ambiguous JSON sources for token_postings');
+      }
+      return readJsonFile(sources.paths[0], { maxBytes });
+    }
+    if (sources.format === 'sharded') {
+      return loadSharded(sources.meta || {}, sources.paths, path.join(dir, 'token_postings.shards'));
+    }
+    throw new Error(`Unsupported token_postings format: ${sources.format}`);
+  }
+
+  const metaPath = path.join(dir, 'token_postings.meta.json');
+  const shardsDir = path.join(dir, 'token_postings.shards');
+  if (existsOrBak(metaPath) || fs.existsSync(shardsDir)) {
+    const meta = existsOrBak(metaPath) ? readJsonFile(metaPath, { maxBytes }) : {};
+    const partList = normalizeMetaParts(meta?.parts);
+    const shards = partList.length
+      ? partList.map((name) => path.join(dir, name))
+      : readShardFiles(shardsDir, 'token_postings.part-');
+    return loadSharded(meta, shards, shardsDir);
   }
   const jsonPath = path.join(dir, 'token_postings.json');
   if (existsOrBak(jsonPath)) {
     return readJsonFile(jsonPath, { maxBytes });
   }
-  throw new Error(`Missing index artifact: token_postings.json`);
+  throw new Error('Missing index artifact: token_postings.json');
 };

@@ -11,7 +11,7 @@ import {
 } from './index-loader.js';
 import { loadIndex, requireIndexDir, resolveIndexDir } from '../cli-index.js';
 import { resolveModelIds } from './model-ids.js';
-import { MAX_JSON_BYTES, readJsonFile } from '../../shared/artifact-io.js';
+import { MAX_JSON_BYTES, readCompatibilityKey, readJsonFile } from '../../shared/artifact-io.js';
 import { resolveLanceDbPaths, resolveLanceDbTarget } from '../../shared/lancedb.js';
 import { tryRequire } from '../../shared/optional-deps.js';
 import { normalizeTantivyConfig, resolveTantivyPaths } from '../../shared/tantivy.js';
@@ -130,6 +130,27 @@ export async function loadSearchIndexes({
         resolvedRunExtractedProse = false;
         resolvedLoadExtractedProse = false;
       }
+    }
+  }
+
+  const compatibilityTargets = [
+    runCode ? { mode: 'code', dir: codeDir } : null,
+    runProse ? { mode: 'prose', dir: proseDir } : null,
+    runRecords ? { mode: 'records', dir: recordsDir } : null,
+    resolvedLoadExtractedProse ? { mode: 'extracted-prose', dir: extractedProseDir } : null
+  ].filter((entry) => entry && entry.dir && hasIndexMeta(entry.dir));
+  if (compatibilityTargets.length) {
+    const keys = new Map();
+    for (const entry of compatibilityTargets) {
+      const { key } = readCompatibilityKey(entry.dir, { maxBytes: MAX_JSON_BYTES, strict: true });
+      keys.set(entry.mode, key);
+    }
+    const uniqueKeys = new Set(keys.values());
+    if (uniqueKeys.size > 1) {
+      const details = Array.from(keys.entries())
+        .map(([mode, key]) => `- ${mode}: ${key}`)
+        .join('\n');
+      throw new Error(`Incompatible indexes detected (compatibilityKey mismatch):\n${details}`);
     }
   }
 

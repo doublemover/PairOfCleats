@@ -38,6 +38,14 @@ const listShardFiles = (dir, prefix, extensions) => {
     .map((name) => path.join(dir, name));
 };
 
+const normalizeMetaParts = (parts) => (
+  Array.isArray(parts)
+    ? parts
+      .map((part) => (typeof part === 'string' ? part : part?.path))
+      .filter(Boolean)
+    : []
+);
+
 const resolveChunkMetaSources = (dir) => {
   const metaPath = path.join(dir, 'chunk_meta.meta.json');
   const partsDir = path.join(dir, 'chunk_meta.parts');
@@ -45,9 +53,11 @@ const resolveChunkMetaSources = (dir) => {
     let parts = [];
     if (fsSync.existsSync(metaPath)) {
       try {
-        const meta = readJson(metaPath);
-        if (Array.isArray(meta?.parts) && meta.parts.length) {
-          parts = meta.parts.map((name) => path.join(dir, name));
+        const metaRaw = readJson(metaPath);
+        const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+        const entries = normalizeMetaParts(meta?.parts);
+        if (entries.length) {
+          parts = entries.map((name) => path.join(dir, name));
         }
       } catch {}
     }
@@ -76,9 +86,11 @@ const resolveTokenPostingsSources = (dir) => {
   let parts = [];
   if (fsSync.existsSync(metaPath)) {
     try {
-      const meta = readJson(metaPath);
-      if (Array.isArray(meta?.parts) && meta.parts.length) {
-        parts = meta.parts.map((name) => path.join(dir, name));
+      const metaRaw = readJson(metaPath);
+      const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+      const entries = normalizeMetaParts(meta?.parts);
+      if (entries.length) {
+        parts = entries.map((name) => path.join(dir, name));
       }
     } catch {}
   }

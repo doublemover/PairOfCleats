@@ -294,6 +294,36 @@ const writeJsonValue = async (stream, value) => {
   await writeChunk(stream, '}');
 };
 
+const stringifyJsonValue = (value) => {
+  const normalized = normalizeJsonValue(value);
+  if (normalized === null || typeof normalized !== 'object') {
+    if (normalized === undefined || typeof normalized === 'function' || typeof normalized === 'symbol') {
+      return 'null';
+    }
+    return JSON.stringify(normalized);
+  }
+  if (ArrayBuffer.isView(normalized) && !(normalized instanceof DataView)) {
+    const items = [];
+    for (let i = 0; i < normalized.length; i += 1) {
+      items.push(JSON.stringify(normalized[i]));
+    }
+    return `[${items.join(',')}]`;
+  }
+  if (Array.isArray(normalized)) {
+    const items = normalized.map((item) => stringifyJsonValue(item));
+    return `[${items.join(',')}]`;
+  }
+  const entries = [];
+  for (const [key, entry] of Object.entries(normalized)) {
+    const entryValue = normalizeJsonValue(entry);
+    if (entryValue === undefined || typeof entryValue === 'function' || typeof entryValue === 'symbol') {
+      continue;
+    }
+    entries.push(`${JSON.stringify(key)}:${stringifyJsonValue(entryValue)}`);
+  }
+  return `{${entries.join(',')}}`;
+};
+
 const writeArrayItems = async (stream, items) => {
   let first = true;
   for (const item of items) {
@@ -324,7 +354,7 @@ export async function writeJsonLinesFile(filePath, items, options = {}) {
 /**
  * Stream JSON lines into sharded JSONL files.
  * @param {{dir:string,partsDirName:string,partPrefix:string,items:Iterable<any>,maxBytes:number,maxItems?:number,atomic?:boolean}} input
- * @returns {Promise<{parts:string[],counts:number[],total:number,totalBytes:number,partsDir:string}>}
+ * @returns {Promise<{parts:string[],counts:number[],bytes:number[],total:number,totalBytes:number,partsDir:string,maxPartRecords:number,maxPartBytes:number,targetMaxBytes:number|null}>}
  */
 export async function writeJsonLinesSharded(input) {
   const {
@@ -352,18 +382,28 @@ export async function writeJsonLinesSharded(input) {
 
   const parts = [];
   const counts = [];
+  const bytes = [];
   let total = 0;
   let totalBytes = 0;
   let partIndex = -1;
   let partCount = 0;
   let partBytes = 0;
   let current = null;
+  let currentPath = null;
 
   const closePart = async () => {
     if (!current) return;
     current.stream.end();
     await current.done;
+    if (currentPath) {
+      try {
+        const stat = await fsPromises.stat(currentPath);
+        bytes[bytes.length - 1] = stat.size;
+        totalBytes += stat.size;
+      } catch {}
+    }
     current = null;
+    currentPath = null;
   };
 
   const openPart = () => {
@@ -375,11 +415,13 @@ export async function writeJsonLinesSharded(input) {
     const relPath = path.posix.join(partsDirName, partName);
     parts.push(relPath);
     counts.push(0);
+    bytes.push(0);
     current = createJsonWriteStream(absPath, { atomic, compression });
+    currentPath = absPath;
   };
 
   for (const item of items) {
-    const line = JSON.stringify(item);
+    const line = stringifyJsonValue(item);
     const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
     if (resolvedMaxBytes && lineBytes > resolvedMaxBytes) {
       throw new Error(
@@ -398,12 +440,24 @@ export async function writeJsonLinesSharded(input) {
     partCount += 1;
     partBytes += lineBytes;
     total += 1;
-    totalBytes += lineBytes;
     counts[counts.length - 1] = partCount;
   }
   await closePart();
 
-  return { parts, counts, total, totalBytes, partsDir };
+  const maxPartRecords = counts.length ? Math.max(...counts) : 0;
+  const maxPartBytes = bytes.length ? Math.max(...bytes) : 0;
+  const targetMaxBytes = resolvedMaxBytes > 0 ? resolvedMaxBytes : null;
+  return {
+    parts,
+    counts,
+    bytes,
+    total,
+    totalBytes,
+    partsDir,
+    maxPartRecords,
+    maxPartBytes,
+    targetMaxBytes
+  };
 }
 
 /**

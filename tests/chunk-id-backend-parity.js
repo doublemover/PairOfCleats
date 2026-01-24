@@ -82,11 +82,14 @@ async function loadChunkMeta(indexDir) {
   }
   const metaPath = path.join(indexDir, 'chunk_meta.meta.json');
   if (fs.existsSync(metaPath)) {
-    const meta = JSON.parse(await fsPromises.readFile(metaPath, 'utf8'));
+    const metaRaw = JSON.parse(await fsPromises.readFile(metaPath, 'utf8'));
+    const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
     const parts = Array.isArray(meta?.parts) ? meta.parts : [];
     const entries = [];
     for (const relPath of parts) {
-      const absPath = path.join(indexDir, relPath.split('/').join(path.sep));
+      const pathValue = typeof relPath === 'string' ? relPath : relPath?.path;
+      if (!pathValue) continue;
+      const absPath = path.join(indexDir, pathValue.split('/').join(path.sep));
       if (!fs.existsSync(absPath)) continue;
       const raw = await fsPromises.readFile(absPath, 'utf8');
       raw.split(/\r?\n/)

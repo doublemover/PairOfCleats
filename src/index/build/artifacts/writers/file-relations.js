@@ -5,6 +5,7 @@ import {
   writeJsonLinesSharded,
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
+import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 
 export const createFileRelationsIterator = (relations) => function* fileRelationsIterator() {
   if (!relations || typeof relations.entries !== 'function') return;
@@ -115,18 +116,24 @@ export const enqueueFileRelationsArtifacts = ({
         atomic: true,
         compression
       });
-      const shardSize = result.counts.length
-        ? Math.max(...result.counts)
-        : null;
+      const parts = result.parts.map((part, index) => ({
+        path: part,
+        records: result.counts[index] || 0,
+        bytes: result.bytes[index] || 0
+      }));
       await writeJsonObjectFile(relationsMetaPath, {
         fields: {
-          version: 1,
+          schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
+          artifact: 'file_relations',
+          format: 'jsonl-sharded',
           generatedAt: new Date().toISOString(),
-          format: 'jsonl',
-          shardSize,
-          totalEntries: result.total,
-          parts: result.parts,
-          compression: compression || null
+          compression: compression || 'none',
+          totalRecords: result.total,
+          totalBytes: result.totalBytes,
+          maxPartRecords: result.maxPartRecords,
+          maxPartBytes: result.maxPartBytes,
+          targetMaxBytes: result.targetMaxBytes,
+          parts
         },
         atomic: true
       });

@@ -66,26 +66,31 @@ function validateValue(value, schema, path) {
     });
   }
 
-  if (value && typeof value === 'object' && !Array.isArray(value) && schema.properties) {
-    const required = new Set(schema.required || []);
-    for (const key of required) {
-      if (!(key in value)) {
-        errors.push(`${formatPath(path, key)} is required`);
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const hasObjectRules = schema.properties
+      || Array.isArray(schema.required)
+      || schema.additionalProperties !== undefined;
+    if (hasObjectRules) {
+      const required = new Set(schema.required || []);
+      for (const key of required) {
+        if (!(key in value)) {
+          errors.push(`${formatPath(path, key)} is required`);
+        }
       }
-    }
 
-    const known = schema.properties || {};
-    for (const [key, val] of Object.entries(value)) {
-      if (known[key]) {
-        errors.push(...validateValue(val, known[key], formatPath(path, key)));
-        continue;
-      }
-      if (schema.additionalProperties === false) {
-        errors.push(`${formatPath(path, key)} is not allowed`);
-        continue;
-      }
-      if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
-        errors.push(...validateValue(val, schema.additionalProperties, formatPath(path, key)));
+      const known = schema.properties || {};
+      for (const [key, val] of Object.entries(value)) {
+        if (known[key]) {
+          errors.push(...validateValue(val, known[key], formatPath(path, key)));
+          continue;
+        }
+        if (schema.additionalProperties === false) {
+          errors.push(`${formatPath(path, key)} is not allowed`);
+          continue;
+        }
+        if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
+          errors.push(...validateValue(val, schema.additionalProperties, formatPath(path, key)));
+        }
       }
     }
   }

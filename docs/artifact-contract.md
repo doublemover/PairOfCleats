@@ -1,8 +1,10 @@
 # Artifact Contract
 
+> Canonical contract: `docs/contracts/public-artifact-surface.md` (this file is legacy detail and may be trimmed as the canonical spec evolves).
+
 This document defines the on-disk artifact layout, formats, and invariants for PairOfCleats index builds.
 
-Canonical schema field lists live in `src/index/build/artifacts/schema.js` and are kept in sync with this document.
+Canonical schema field lists live in `src/contracts/schemas/artifacts.js` and are kept in sync with this document.
 
 ## Build layout
 

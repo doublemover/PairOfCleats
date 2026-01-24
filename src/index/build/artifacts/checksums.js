@@ -4,6 +4,7 @@ import { log } from '../../../shared/progress.js';
 import { runWithConcurrency } from '../../../shared/concurrency.js';
 import { checksumFile } from '../../../shared/hash.js';
 import { writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 
 export const writePiecesManifest = async ({
   pieceEntries,
@@ -56,9 +57,13 @@ export const writePiecesManifest = async ({
   await writeJsonObjectFile(manifestPath, {
     fields: {
       version: 2,
+      artifactSurfaceVersion: indexState?.artifactSurfaceVersion || ARTIFACT_SURFACE_VERSION,
+      compatibilityKey: indexState?.compatibilityKey || null,
       generatedAt: new Date().toISOString(),
       mode,
       stage: indexState?.stage || null,
+      repoId: indexState?.repoId || null,
+      buildId: indexState?.buildId || null,
       pieces: normalizedEntries
     },
     atomic: true

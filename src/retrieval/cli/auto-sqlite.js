@@ -18,12 +18,13 @@ export const resolveIndexStats = (indexDir) => {
   let artifactBytes = null;
   const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
   const manifest = fsSync.existsSync(manifestPath) ? readJsonFile(manifestPath) : null;
-  if (Array.isArray(manifest?.pieces)) {
+  const manifestFields = manifest?.fields && typeof manifest.fields === 'object' ? manifest.fields : manifest;
+  if (Array.isArray(manifestFields?.pieces)) {
     let count = 0;
     let countSeen = false;
     let bytes = 0;
     let bytesSeen = false;
-    for (const piece of manifest.pieces) {
+    for (const piece of manifestFields.pieces) {
       if (Number.isFinite(piece?.bytes)) {
         bytes += piece.bytes;
         bytesSeen = true;
@@ -40,7 +41,9 @@ export const resolveIndexStats = (indexDir) => {
     const chunkMetaMetaPath = path.join(indexDir, 'chunk_meta.meta.json');
     if (fsSync.existsSync(chunkMetaMetaPath)) {
       const meta = readJsonFile(chunkMetaMetaPath);
-      if (Number.isFinite(meta?.totalChunks)) chunkCount = meta.totalChunks;
+      const metaFields = meta?.fields && typeof meta.fields === 'object' ? meta.fields : meta;
+      if (Number.isFinite(metaFields?.totalRecords)) chunkCount = metaFields.totalRecords;
+      if (chunkCount === null && Number.isFinite(metaFields?.totalChunks)) chunkCount = metaFields.totalChunks;
     } else {
       const chunkMetaPath = path.join(indexDir, 'chunk_meta.json');
       if (fsSync.existsSync(chunkMetaPath)) {

@@ -8,6 +8,8 @@ import { validateIndexArtifacts } from '../src/index/validate.js';
 
 const hasIndexMeta = (dir) => {
   if (!dir) return false;
+  const manifest = path.join(dir, 'pieces', 'manifest.json');
+  if (fs.existsSync(manifest)) return true;
   const meta = path.join(dir, 'chunk_meta.json');
   const jsonl = path.join(dir, 'chunk_meta.jsonl');
   const metaParts = path.join(dir, 'chunk_meta.meta.json');
@@ -29,7 +31,13 @@ const parseModes = (raw, root, userConfig) => {
     const available = resolveAvailableModes(root, userConfig);
     return available.length ? available : ['code', 'prose', 'extracted-prose', 'records'];
   }
-  const modeSet = new Set(tokens);
+  const allowed = new Set(['code', 'prose', 'extracted-prose', 'records', 'all']);
+  const normalized = tokens.map((token) => token.toLowerCase());
+  const unknown = normalized.filter((token) => !allowed.has(token));
+  if (unknown.length) {
+    throw new Error(`Unknown mode(s): ${unknown.join(', ')}. Use code|prose|extracted-prose|records|all.`);
+  }
+  const modeSet = new Set(normalized);
   if (modeSet.has('all')) return ['code', 'prose', 'extracted-prose', 'records'];
   return Array.from(modeSet);
 };
@@ -41,7 +49,9 @@ async function runCli() {
       json: { type: 'boolean', default: false },
       repo: { type: 'string' },
       mode: { type: 'string' },
-      'index-root': { type: 'string' }
+      'index-root': { type: 'string' },
+      strict: { type: 'boolean', default: true },
+      'non-strict': { type: 'boolean', default: false }
     }
   }).parse();
 
@@ -50,7 +60,11 @@ async function runCli() {
   const indexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
   const userConfig = loadUserConfig(root);
   const modes = parseModes(argv.mode, root, userConfig);
-  const report = await validateIndexArtifacts({ root, indexRoot, modes });
+  if (argv.strict && argv['non-strict']) {
+    throw new Error('Choose either --strict or --non-strict, not both.');
+  }
+  const strict = argv['non-strict'] ? false : argv.strict !== false;
+  const report = await validateIndexArtifacts({ root, indexRoot, modes, strict });
 
   if (argv.json) {
     console.log(JSON.stringify(report, null, 2));
@@ -58,9 +72,14 @@ async function runCli() {
   }
 
   console.log('Index validation');
+  console.log(`- strict: ${report.strict ? 'yes' : 'no'}`);
   console.log(`- repo: ${report.root}`);
   for (const mode of modes) {
     const entry = report.modes[mode];
+    if (!entry) {
+      console.log(`- ${mode}: missing (no report entry)`);
+      continue;
+    }
     const status = entry.ok ? 'ok' : 'missing';
     console.log(`- ${mode}: ${status} (${entry.path})`);
     if (entry.missing.length) {

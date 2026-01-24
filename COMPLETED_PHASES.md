@@ -406,3 +406,360 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
 - [x] Verification task: ensure the PR template or contributing guide links to this tracking file (optional)
 
 ---
+
+## Phase 2 — Contracts and Policy Kernel (Artifact Surface, Schemas, Compatibility) [x]
+
+### Objective
+
+Establish a single, versioned, fail-closed contract layer for the **public artifact surface** (what builds emit and what tools/retrieval consume). This phase standardizes artifact schemas + sharded sidecars, enforces **manifest-driven discovery**, introduces **SemVer-based surface versioning** with N-1 adapters, adds **strict index validation** as a build/promotion gate, and introduces an **index compatibilityKey** to prevent unsafe mixing/federation and cache invalidation bugs.
+
+---
+
+### Phase 2.1 Public artifact surface spec and SemVer policy become canonical
+
+- [x] Publish a single canonical “Public Artifact Surface” spec and treat it as the source of truth for what is stable/public
+  - Files:
+    - `docs/contracts/public-artifact-surface.md` (new; canonical)
+    - Update/merge/supersede `docs/artifact-contract.md` as needed (avoid duplicated, drifting contracts)
+    - Link from `README.md` and `docs/commands.md` and ensure `--help` points at the canonical doc
+  - Include (at minimum) explicit contracts for:
+    - `builds/current.json` (bundle pointer + mode map)
+    - `index_state.json` (capabilities + config identity)
+    - `pieces/manifest.json` (canonical inventory)
+    - sharded JSONL sidecars (`*.meta.json`) for `*.jsonl.parts/`
+    - required/optional artifacts and their **stability** status
+- [x] Adopt the SemVer policy for artifact surfaces and schemas (bundle-level + artifact-level)
+  - Bundle-level:
+    - Add/require `artifactSurfaceVersion` (SemVer string) in:
+      - `builds/current.json`
+      - `index_state.json`
+      - `pieces/manifest.json`
+  - Artifact-level:
+    - Use `schemaVersion` (SemVer string) for sharded JSONL `*.meta.json`
+    - For non-sharded public artifacts, define where `schemaVersion` lives (preferred: in `pieces/manifest.json` per piece entry; alternative: per-artifact sidecar)
+  - N-1 requirement:
+    - Readers must support N-1 major for `artifactSurfaceVersion` and key artifact `schemaVersion`s
+    - Writers emit only the current major
+  - Fail-closed requirement:
+    - Unknown major => hard error in strict mode (no “best effort” guesses)
+- [x] Define and document “reserved / invariant fields” and “extension policy” for public artifacts
+  - Reserved fields (examples; must be enumerated in the spec):
+    - `artifactSurfaceVersion`, `schemaVersion`, `repoId`, `buildId`, `compatibilityKey`, `generatedAt`
+    - per-record invariants like `file` (repo-relative normalized path) and stable identifiers for records
+  - Extension policy:
+    - Either enforce `x_*` namespacing, or require an `extensions` object, or both
+    - Explicitly state which artifacts allow additional properties, and under what namespace
+- [x] Define canonical reference + truncation envelopes (contract-first)
+  - Specify stable shapes for:
+    - reference targets (e.g., `ref.target`, `ref.kind`, `ref.display`)
+    - truncation metadata (what was truncated, why, and how to detect it)
+  - Note:
+    - Implementation must begin with artifacts Phase 2 touches (file relations / graph relations), and the contract must be used by validators immediately, even if other producers adopt later
+
+#### Tests
+
+- [x] Add a contract-doc presence + basic structure test (smoke check)
+  - Example: `tests/contracts/public-artifact-surface-doc.test.js` (verifies file exists + required headings/anchors)
+- [x] Add a SemVer policy conformance test for the schema registry
+  - Example: `tests/contracts/semver-policy-enforced.test.js` (ensures all surfaced versions are SemVer strings; ensures N-1 ranges are encoded)
+
+---
+
+### Phase 2.2 Manifest-driven artifact discovery everywhere (no filename guessing)
+
+- [x] Make `pieces/manifest.json` the single source of truth for locating artifacts (build, validate, tools, retrieval)
+  - Update `src/shared/artifact-io.js` to:
+    - expose a strict discovery mode that **requires** the manifest
+    - centralize resolution logic so all callers share the same behavior
+
+  - Files:
+    - `src/shared/artifact-io.js`
+
+- [x] Add (or formalize) a single “artifact presence/detection” helper that reports artifact availability and format without hardcoded filenames
+  - Options:
+    - extend `src/shared/artifact-io.js`, or
+    - create `src/shared/index-artifacts.js` that wraps artifact-io with presence reporting
+  - Presence report should return (at minimum):
+    - format: `json | jsonl | sharded | missing`
+    - resolved paths
+    - required sidecars (meta/parts) and whether they are consistent
+
+- [x] Update tools to use manifest-driven discovery (never `existsSync('chunk_meta.json')`-style checks)
+  - Tools in scope for this phase (minimum):
+    - `tools/report-artifacts.js`
+    - `tools/assemble-pieces.js`
+    - any test/tool code that reads `chunk_meta.json` directly for “presence”
+- [x] Define strict vs non-strict behavior at the API boundary (artifact-io)
+  - Strict:
+    - manifest required
+    - unknown artifact baseName is error
+    - missing shard referenced by manifest is error
+  - Non-strict:
+    - may fall back to legacy guessing/scanning **only** where explicitly allowed (documented), and must emit a warning signal so callers can detect non-canonical behavior
+
+#### Tests
+
+- [x] Add `tests/artifact-io-manifest-discovery.test.js`
+  - Ensures artifact-io resolves artifacts _only_ via manifest in strict mode
+- [x] Add `tests/assemble-pieces-no-guess.test.js`
+  - Ensures `assemble-pieces` refuses to run when manifest is missing (or requires `--non-strict` explicitly)
+- [x] Add `tests/report-artifacts-manifest-driven.test.js`
+  - Ensures reporting reflects manifest inventory, not directory heuristics
+
+---
+
+### Phase 2.3 Standard sharded JSONL sidecar schema + typed-array safe sharded writing
+
+- [x] Standardize sharded JSONL `*.meta.json` schema for all JSONL sharded artifacts
+  - Required meta fields (as contract):
+    - `schemaVersion` (SemVer)
+    - `artifact` (artifact baseName, e.g. `chunk_meta`, `repo_map`)
+    - `format` = `jsonl-sharded`
+    - `generatedAt` (ISO)
+    - `compression` (`none | gzip | zstd`)
+    - `totalRecords`, `totalBytes`
+    - `maxPartRecords`, `maxPartBytes`, `targetMaxBytes`
+    - `parts`: list of `{ path, records, bytes }` (checksum optional but encouraged)
+  - Files:
+    - Writers and meta emitters:
+      - `src/index/build/artifacts/writers/chunk-meta.js`
+      - `src/index/build/artifacts/writers/file-relations.js`
+      - `src/index/build/artifacts.js` (repo_map + graph_relations meta emit)
+    - Readers:
+      - `src/shared/artifact-io.js` (sharded JSONL loading must parse/validate this schema)
+    - Schemas:
+      - `src/shared/artifact-schemas.js` (or migrated contract registry; see Phase 2.4)
+
+- [x] Fix sharded JSONL writer serialization to be contract-correct for TypedArrays
+  - Current risk:
+    - `writeJsonLinesSharded()` uses `JSON.stringify(item)` which can serialize TypedArrays incorrectly
+  - Required fix:
+    - route line serialization through the project’s “typed-array safe” JSON writer (or equivalent normalization)
+  - Files:
+    - `src/shared/json-stream.js`
+
+- [x] Ensure meta/manifest consistency is enforced at write-time (not just validate-time)
+  - Writers must guarantee:
+    - every shard file is in `pieces/manifest.json`
+    - every meta file is in `pieces/manifest.json`
+    - meta.parts list matches manifest entries (paths, bytes where recorded)
+
+  - Files:
+    - `src/index/build/artifacts.js`
+    - `src/index/build/artifacts/checksums.js`
+
+#### Tests
+
+- [x] Add `tests/sharded-meta-schema.test.js`
+  - Ensures emitted `*.meta.json` matches the standardized schema
+- [x] Add `tests/sharded-meta-bytes.test.js`
+  - Ensures `totalBytes` and per-part `bytes` match actual file sizes
+- [x] Add `tests/sharded-meta-manifest-consistency.test.js`
+  - Ensures meta/parts entries are all present in `pieces/manifest.json`
+- [x] Add `tests/json-stream-typedarray-sharded.test.js`
+  - Ensures TypedArray values serialize as JSON arrays in sharded JSONL output
+
+---
+
+### Phase 2.4 Single source of truth for schemas + N-1 adapters (and CLI/config schema hygiene)
+
+- [x] Create a canonical contracts module and migrate schema definitions into it (shared by build + validate + retrieval)
+  - Target layout (example; adjust as needed but keep the intent):
+    - `src/contracts/versioning.js` (artifactSurfaceVersion constant + supported ranges)
+    - `src/contracts/schemas/*` (JSON schemas)
+    - `src/contracts/validators/*` (Ajv compilation + wrappers)
+    - `src/contracts/adapters/*` (N-1 major adapters)
+    - `src/contracts/fields/*` (canonical enums and normalizers)
+
+  - Replace duplicated definitions:
+    - `src/shared/artifact-schemas.js` and `src/index/build/artifacts/schema.js` must become thin wrappers or be removed in favor of contracts
+
+- [x] Tighten artifact schemas where appropriate
+  - At minimum:
+    - top-level objects (`pieces/manifest.json`, `index_state.json`, `builds/current.json`, sharded meta sidecars) should not silently accept arbitrary fields unless explicitly allowed by extension policy
+
+  - Where additional properties are required for forward compatibility:
+    - enforce extension namespace rules rather than “anything goes”
+
+- [x] Make config schema validation robust even when `schema.properties` is missing
+  - Current bug:
+    - object validation path skips required/additionalProperties checks when `schema.properties` is absent
+
+  - Required behavior:
+    - enforce:
+      - required keys
+      - additionalProperties policy
+      - type checks
+
+    - regardless of presence of `schema.properties`
+
+  - Files:
+    - `src/config/validate.js`
+
+- [x] Eliminate CLI schema drift between option definitions and schemas
+  - Ensure `INDEX_BUILD_SCHEMA` and `BENCH_SCHEMA` (and any other exported schemas) include every defined option
+  - Decide + enforce unknown CLI option policy (warn vs error) consistently
+  - Files:
+    - `src/shared/cli-options.js`
+    - any CLI wiring that calls validation (`src/shared/cli.js`, etc.) if needed
+
+#### Tests
+
+- [x] Add `tests/contracts/schema-registry-single-source.test.js`
+  - Ensures build-time schema hash and validate-time schema registry are derived from the same objects
+
+- [x] Add `tests/contracts/n-minus-one-adapter.test.js`
+  - Ensures N-1 payloads adapt or fail closed as intended
+
+- [x] Add `tests/config/validate-object-without-properties.test.js`
+- [x] Add `tests/cli/cli-options-schema-drift.test.js`
+- [x] Add `tests/contracts/additional-properties-policy.test.js`
+
+---
+
+### Phase 2.5 Strict index validation mode becomes a real gate (and tools/index-validate is hardened)
+
+- [x] Implement strict validation mode that is manifest-driven and version-aware
+  - Strict mode must:
+    - require `pieces/manifest.json`
+    - validate `builds/current.json` (when present) and `index_state.json`
+    - validate sharded meta sidecars and enforce meta↔manifest consistency
+    - enforce path safety in manifests:
+      - no absolute paths
+      - no `..` traversal
+      - normalized separators
+      - no duplicate `path` entries
+    - validate JSONL required keys per artifact type and add regression tests (even if currently aligned)
+    - reject unknown artifact schema names (no “ok by default” in strict)
+  - Files:
+    - `src/index/validate.js`
+    - `src/shared/artifact-io.js`
+    - schema registry (`src/contracts/*` or existing `src/shared/artifact-schemas.js` until migrated)
+
+- [x] Harden `tools/index-validate.js` mode parsing
+  - Unknown modes must be rejected early with a clear error message and a non-zero exit code
+  - Must not crash due to undefined report entries
+  - File:
+    - `tools/index-validate.js`
+
+- [x] Add an explicit validation check for identity collision footguns relevant to upcoming graph work
+  - Example: detect ambiguous `file::name` collisions early and report them deterministically
+  - If full remediation is out of scope here:
+    - Strict validation must at least detect + emit a named error code (and remediation lands in the graph/identity phase)
+
+#### Tests
+
+- [x] Add `tests/validate/index-validate-strict.test.js`
+- [x] Add `tests/validate/index-validate-missing-manifest.test.js`
+- [x] Add `tests/validate/index-validate-manifest-safety.test.js`
+- [x] Add `tests/validate/index-validate-sharded-meta-consistency.test.js`
+- [x] Add `tests/validate/index-validate-unknown-mode.test.js`
+- [x] Add `tests/validate/index-validate-unknown-artifact-fails-strict.test.js`
+- [x] Add `tests/validate/index-validate-jsonl-required-keys.test.js`
+- [x] Add `tests/validate/index-validate-file-name-collision.test.js` (if implementing collision detection here)
+
+---
+
+### Phase 2.6 Safe promotion barrier + current.json schema and path safety
+
+- [x] Make promotion conditional on passing strict validation (no “promote broken builds”)
+  - Add a mandatory gate in the build pipeline:
+    - after artifacts are written
+    - before `promoteBuild()` updates `builds/current.json`
+  - If validation fails:
+    - do not update `current.json`
+    - write a clear failure summary into `build_state.json`
+  - Files:
+    - `src/integrations/core/index.js` (or wherever promotion is orchestrated)
+    - `src/index/build/indexer/pipeline.js` if the gate belongs inside the pipeline
+    - `src/index/build/promotion.js`
+
+- [x] Fix path traversal risk in promotion/current resolution
+  - Promotion must refuse to write a `buildRoot` that resolves outside the repo cache root
+  - Consumers must refuse to follow a `buildRoot` outside repo cache root
+  - Files:
+    - `src/index/build/promotion.js`
+    - `tools/dict-utils.js` (e.g., `resolveIndexRoot`, `getCurrentBuildInfo`)
+
+- [x] Disambiguate `buildRoots` semantics in current.json
+  - If the intent is “per mode”:
+    - keep `buildRootsByMode` only
+  - If the intent is also “by stage”:
+    - add a separate field (`buildRootsByStage`) and make both explicit
+  - Ensure the schema + validator enforce the chosen structure
+
+#### Tests
+
+- [x] Add `tests/promotion/promotion-barrier-strict-validation.test.js`
+- [x] Add `tests/promotion/current-json-path-safety.test.js`
+- [x] Add `tests/promotion/current-json-atomic-write.test.js`
+- [x] Add `tests/promotion/current-json-schema.test.js`
+- [x] Add `tests/promotion/promotion-does-not-advance-on-failure.test.js`
+
+---
+
+### Phase 2.7 Index compatibilityKey gate + cache signature parity for sharded chunk_meta
+
+- [x] Introduce `compatibilityKey` per the compatibility-gate spec (fail-closed on mismatch)
+  - `compatibilityKey` must be computed from “hard compatibility fields” (examples; finalize in spec):
+    - `artifactSurfaceVersion` major
+    - tool version
+    - artifact schema hash
+    - tokenizationKey
+    - embeddings model identity + dims + quantization settings
+    - language/segment policy identity (as stabilized in Phase 1)
+  - Persist `compatibilityKey` in:
+    - `index_state.json`
+    - `pieces/manifest.json`
+    - (optional but recommended) `builds/current.json` for fast checks
+  - Files:
+    - contract module (new): `src/contracts/compat/*` or similar
+    - build emission: `src/index/build/indexer/steps/write.js`, `src/index/build/artifacts/checksums.js`, `src/index/build/promotion.js`
+
+- [x] Enforce compatibilityKey in consumers
+  - Retrieval/index loading must detect mismatch and error (or refuse federation)
+  - `assemble-pieces` / any bundling must ensure all combined indexes are compatible
+  - Files (minimum):
+    - retrieval loader(s): `src/retrieval/*` (where index_state/manifest is loaded)
+    - federation/bundling tool(s): `tools/assemble-pieces.js` (if it combines)
+- [x] Fix query-cache invalidation gap for sharded `chunk_meta` signatures
+  - `getIndexSignature()` must incorporate sharded `chunk_meta` (and ideally manifest signature)
+  - Required change:
+    - stop assuming `chunk_meta.json` exists
+    - use `jsonlArtifactSignature(dir, 'chunk_meta')` or a manifest-derived signature
+  - File:
+    - `src/retrieval/cli-index.js`
+
+#### Tests
+
+- [x] Add `tests/contracts/index-compatibility-key-generation.test.js`
+- [x] Add `tests/contracts/index-compatibility-key-enforced-on-load.test.js`
+- [x] Add `tests/contracts/index-compatibility-key-federation-block.test.js`
+- [x] Add `tests/retrieval/query-cache-signature-sharded-chunk-meta.test.js`
+
+---
+
+### Phase 2.8 Golden contract fixtures and CI enforcement
+
+- [x] Create golden fixture indexes that cover:
+  - multiple modes (`code`, `prose`, `records`) as applicable
+  - artifact format variants (`json`, `jsonl`, `jsonl-sharded`)
+  - presence of meta sidecars and manifest inventory correctness
+- [x] Add a contract fixture suite that runs:
+  - build => validate (strict) => load via artifact-io => basic retrieval smoke (where applicable)
+  - and asserts that “public surface invariants” hold for every fixture
+- [x] Add a loader matrix test that proves consumers are resilient to supported artifact encodings
+  - Example: `chunk_meta` load parity across json/jsonl/sharded
+- [x] Wire strict validation into CI as a required gate for fixture builds
+
+#### Tests
+
+- [x] Add `tests/fixtures/public-surface/*` (fixture definitions + expected invariants)
+- [x] Add `tests/contracts/golden-surface-suite.test.js`
+  - Fix attempt: corrected build-time import path for contracts versioning in index write step.
+  - Fix attempt: added missing sha1 import in indexer signatures.
+  - Fix attempt: fixed records index_state emission and manifest schema (statError/checksumError), plus fixture helper rebuild path.
+- [x] Add `tests/contracts/loader-matrix-parity.test.js`
+- [x] Add/extend `tests/artifact-formats.js` (if it is the canonical place for format coverage)
+
+---

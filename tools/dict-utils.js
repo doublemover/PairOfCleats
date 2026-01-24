@@ -333,15 +333,25 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
     const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
     const buildId = typeof data.buildId === 'string' ? data.buildId : null;
     const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
+    const repoCacheResolved = path.resolve(repoCacheRoot);
     const resolveRoot = (value) => {
       if (!value) return null;
-      return path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+      const resolved = path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+      const normalized = path.resolve(resolved);
+      if (!normalized.startsWith(repoCacheResolved + path.sep) && normalized !== repoCacheResolved) return null;
+      return normalized;
     };
     const buildRoot = buildRootRaw
       ? resolveRoot(buildRootRaw)
       : (buildId ? path.join(buildsRoot, buildId) : null);
     const buildRoots = {};
-    if (data.buildRoots && typeof data.buildRoots === 'object' && !Array.isArray(data.buildRoots)) {
+    if (data.buildRootsByMode && typeof data.buildRootsByMode === 'object' && !Array.isArray(data.buildRootsByMode)) {
+      for (const [mode, value] of Object.entries(data.buildRootsByMode)) {
+        if (typeof value !== 'string') continue;
+        const resolved = resolveRoot(value);
+        if (resolved) buildRoots[mode] = resolved;
+      }
+    } else if (data.buildRoots && typeof data.buildRoots === 'object' && !Array.isArray(data.buildRoots)) {
       for (const [mode, value] of Object.entries(data.buildRoots)) {
         if (typeof value !== 'string') continue;
         const resolved = resolveRoot(value);
@@ -378,9 +388,13 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
   if (fs.existsSync(currentPath)) {
     try {
       const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
+      const repoCacheResolved = path.resolve(repoCacheRoot);
       const resolveRoot = (value) => {
         if (!value) return null;
-        return path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+        const resolved = path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+        const normalized = path.resolve(resolved);
+        if (!normalized.startsWith(repoCacheResolved + path.sep) && normalized !== repoCacheResolved) return null;
+        return normalized;
       };
       const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
       const buildId = typeof data.buildId === 'string' ? data.buildId : null;
@@ -388,7 +402,12 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
         ? resolveRoot(buildRootRaw)
         : (buildId ? path.join(buildsRoot, buildId) : null);
       const buildRoots = {};
-      if (data.buildRoots && typeof data.buildRoots === 'object' && !Array.isArray(data.buildRoots)) {
+      if (data.buildRootsByMode && typeof data.buildRootsByMode === 'object' && !Array.isArray(data.buildRootsByMode)) {
+        for (const [mode, value] of Object.entries(data.buildRootsByMode)) {
+          if (typeof value !== 'string') continue;
+          buildRoots[mode] = resolveRoot(value);
+        }
+      } else if (data.buildRoots && typeof data.buildRoots === 'object' && !Array.isArray(data.buildRoots)) {
         for (const [mode, value] of Object.entries(data.buildRoots)) {
           if (typeof value !== 'string') continue;
           buildRoots[mode] = resolveRoot(value);

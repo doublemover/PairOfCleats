@@ -1,0 +1,33 @@
+{
+  "default": true,
+
+  // Headings
+  "MD001": true,          // heading-increment
+  "MD003": { "style": "atx" }, // ### not underlines
+  "MD022": true,          // blanks around headings
+  "MD025": true,          // single H1
+  "MD041": false,         // first line heading (often conflicts with frontmatter/badges)
+
+  // Lists
+  "MD029": { "style": "one_or_ordered" }, // ordered list numbering
+  "MD030": true,          // list marker spacing
+  "MD032": true,          // blanks around lists
+
+  // Code + blocks
+  "MD040": true,          // fenced code language required
+  "MD046": { "style": "fenced" }, // fenced code blocks
+  "MD048": { "style": "backtick" }, // ``` not ~~~
+
+  // Line length
+  "MD013": {
+    "line_length": 120,
+    "tables": false,
+    "code_blocks": false
+  },
+
+  // Whitespace
+  "MD009": { "br_spaces": 2 }, // allow 2 spaces for hard breaks
+  "MD010": true,               // no hard tabs
+  "MD012": true,               // no multiple blank lines
+  "MD047": true                // single trailing newline
+}

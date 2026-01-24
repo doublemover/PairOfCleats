@@ -1,0 +1,3 @@
+2024-01-01 00:00:00 INFO start
+2024-01-01 00:00:01 WARN example warning
+2024-01-01 00:00:02 ERROR example error

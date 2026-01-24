@@ -312,7 +312,9 @@ export function getIndexSignature(options) {
   const extractedProseDir = needsExtractedProse
     ? resolveIndexDir(root, 'extracted-prose', userConfig)
     : null;
-  const extractedProseMeta = extractedProseDir ? path.join(extractedProseDir, 'chunk_meta.json') : null;
+  const extractedProseMeta = extractedProseDir
+    ? jsonlArtifactSignature(extractedProseDir, 'chunk_meta')
+    : null;
   const extractedProseDense = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_uint8.json') : null;
   const extractedProseHnswMeta = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_hnsw.meta.json') : null;
   const extractedProseHnswIndex = extractedProseDir ? path.join(extractedProseDir, 'dense_vectors_hnsw.bin') : null;
@@ -332,7 +334,7 @@ export function getIndexSignature(options) {
     const proseLanceDocMeta = path.join(proseDir, 'dense_vectors_doc.lancedb.meta.json');
     const proseLanceCodeMeta = path.join(proseDir, 'dense_vectors_code.lancedb.meta.json');
     const recordDir = runRecords ? resolveIndexDir(root, 'records', userConfig) : null;
-    const recordMeta = recordDir ? path.join(recordDir, 'chunk_meta.json') : null;
+    const recordMeta = recordDir ? jsonlArtifactSignature(recordDir, 'chunk_meta') : null;
     const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
     return {
       backend: backendLabel,
@@ -346,22 +348,22 @@ export function getIndexSignature(options) {
       proseLanceMeta: fileSignature(proseLanceMeta),
       proseLanceDocMeta: fileSignature(proseLanceDocMeta),
       proseLanceCodeMeta: fileSignature(proseLanceCodeMeta),
-      extractedProse: extractedProseMeta ? fileSignature(extractedProseMeta) : null,
+      extractedProse: extractedProseMeta,
       extractedProseDense: extractedProseDense ? fileSignature(extractedProseDense) : null,
       extractedProseHnswMeta: extractedProseHnswMeta ? fileSignature(extractedProseHnswMeta) : null,
       extractedProseHnswIndex: extractedProseHnswIndex ? fileSignature(extractedProseHnswIndex) : null,
       extractedProseLanceMeta: extractedProseLanceMeta ? fileSignature(extractedProseLanceMeta) : null,
       extractedProseLanceDocMeta: extractedProseLanceDocMeta ? fileSignature(extractedProseLanceDocMeta) : null,
       extractedProseLanceCodeMeta: extractedProseLanceCodeMeta ? fileSignature(extractedProseLanceCodeMeta) : null,
-      records: recordMeta ? fileSignature(recordMeta) : null,
+      records: recordMeta,
       recordsDense: recordDense ? fileSignature(recordDense) : null
     };
   }
 
   const codeDir = resolveIndexDir(root, 'code', userConfig);
   const proseDir = resolveIndexDir(root, 'prose', userConfig);
-  const codeMeta = path.join(codeDir, 'chunk_meta.json');
-  const proseMeta = path.join(proseDir, 'chunk_meta.json');
+  const codeMeta = jsonlArtifactSignature(codeDir, 'chunk_meta');
+  const proseMeta = jsonlArtifactSignature(proseDir, 'chunk_meta');
   const codeDense = path.join(codeDir, 'dense_vectors_uint8.json');
   const proseDense = path.join(proseDir, 'dense_vectors_uint8.json');
   const codeHnswMeta = path.join(codeDir, 'dense_vectors_hnsw.meta.json');
@@ -377,14 +379,14 @@ export function getIndexSignature(options) {
   const codeRelations = jsonlArtifactSignature(codeDir, 'file_relations');
   const proseRelations = jsonlArtifactSignature(proseDir, 'file_relations');
   const recordDir = runRecords ? resolveIndexDir(root, 'records', userConfig) : null;
-  const recordMeta = recordDir ? path.join(recordDir, 'chunk_meta.json') : null;
+  const recordMeta = recordDir ? jsonlArtifactSignature(recordDir, 'chunk_meta') : null;
   const recordDense = recordDir ? path.join(recordDir, 'dense_vectors_uint8.json') : null;
   const recordHnswMeta = recordDir ? path.join(recordDir, 'dense_vectors_hnsw.meta.json') : null;
   const recordHnswIndex = recordDir ? path.join(recordDir, 'dense_vectors_hnsw.bin') : null;
   return {
     backend: backendLabel,
-    code: fileSignature(codeMeta),
-    prose: fileSignature(proseMeta),
+    code: codeMeta,
+    prose: proseMeta,
     codeDense: fileSignature(codeDense),
     proseDense: fileSignature(proseDense),
     codeHnswMeta: fileSignature(codeHnswMeta),
@@ -399,14 +401,14 @@ export function getIndexSignature(options) {
     proseLanceCodeMeta: fileSignature(proseLanceCodeMeta),
     codeRelations,
     proseRelations,
-    extractedProse: extractedProseMeta ? fileSignature(extractedProseMeta) : null,
+    extractedProse: extractedProseMeta,
     extractedProseDense: extractedProseDense ? fileSignature(extractedProseDense) : null,
     extractedProseHnswMeta: extractedProseHnswMeta ? fileSignature(extractedProseHnswMeta) : null,
     extractedProseHnswIndex: extractedProseHnswIndex ? fileSignature(extractedProseHnswIndex) : null,
     extractedProseLanceMeta: extractedProseLanceMeta ? fileSignature(extractedProseLanceMeta) : null,
     extractedProseLanceDocMeta: extractedProseLanceDocMeta ? fileSignature(extractedProseLanceDocMeta) : null,
     extractedProseLanceCodeMeta: extractedProseLanceCodeMeta ? fileSignature(extractedProseLanceCodeMeta) : null,
-    records: recordMeta ? fileSignature(recordMeta) : null,
+    records: recordMeta,
     recordsDense: recordDense ? fileSignature(recordDense) : null,
     recordsHnswMeta: recordHnswMeta ? fileSignature(recordHnswMeta) : null,
     recordsHnswIndex: recordHnswIndex ? fileSignature(recordHnswIndex) : null

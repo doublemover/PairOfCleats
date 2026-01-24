@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getIndexDir, getMetricsDir, loadUserConfig, resolveSqlitePaths } from '../../tools/dict-utils.js';
+import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -19,7 +20,7 @@ const createFixtureEnv = (cacheRoot, overrides = {}) => ({
   ...overrides
 });
 
-const hasChunkMeta = (dir) => fs.existsSync(path.join(dir, 'chunk_meta.json'));
+const hasChunkMeta = (dir) => hasIndexMeta(dir);
 
 const run = (args, label, options) => {
   const result = spawnSync(process.execPath, args, options);
@@ -41,14 +42,16 @@ export const ensureFixtureIndex = async ({
   process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
   const env = createFixtureEnv(cacheRoot, envOverrides);
   const userConfig = loadUserConfig(fixtureRoot);
-  const codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
-  const proseDir = getIndexDir(fixtureRoot, 'prose', userConfig);
+  let codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
+  let proseDir = getIndexDir(fixtureRoot, 'prose', userConfig);
   if (!hasChunkMeta(codeDir)) {
     run(
       [path.join(ROOT, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
       `build index (${fixtureName})`,
       { cwd: fixtureRoot, env, stdio: 'inherit' }
     );
+    codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
+    proseDir = getIndexDir(fixtureRoot, 'prose', userConfig);
   }
   return { root: ROOT, fixtureRoot, cacheRoot, env, userConfig, codeDir, proseDir };
 };

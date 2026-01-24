@@ -3,12 +3,15 @@ import path from 'node:path';
 import {
   loadChunkMeta,
   loadJsonArrayArtifact,
+  loadPiecesManifest,
   loadTokenPostings,
+  readCompatibilityKey,
   readJsonFile
 } from '../../shared/artifact-io.js';
 import { applyCrossFileInference } from '../type-inference-crossfile.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { log as defaultLog } from '../../shared/progress.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { createIndexState } from './state.js';
 import { buildRelationGraphs } from './graphs.js';
 import { writeIndexArtifacts } from './artifacts.js';
@@ -56,12 +59,13 @@ const readField = (value, key) => {
   return null;
 };
 
-const loadIndexArtifacts = async (dir) => {
+const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
   if (!fsSync.existsSync(dir)) {
     throw new Error(`Missing input index directory: ${dir}`);
   }
-  const chunkMeta = await loadChunkMeta(dir);
-  const fileMeta = readJsonOptional(dir, 'file_meta.json');
+  const manifest = loadPiecesManifest(dir, { strict });
+  const chunkMeta = await loadChunkMeta(dir, { manifest, strict });
+  const fileMeta = await loadJsonArrayArtifact(dir, 'file_meta', { manifest, strict }).catch(() => null);
   const fileMetaById = new Map();
   const fileInfoByPath = new Map();
   if (Array.isArray(fileMeta)) {
@@ -98,7 +102,7 @@ const loadIndexArtifacts = async (dir) => {
   if (missingFile) {
     throw new Error(`file_meta.json required for chunk metadata in ${dir}`);
   }
-  const tokenPostings = loadTokenPostings(dir);
+  const tokenPostings = loadTokenPostings(dir, { manifest, strict });
   return {
     dir,
     chunkMeta,
@@ -111,7 +115,7 @@ const loadIndexArtifacts = async (dir) => {
     denseVec: readJsonOptional(dir, 'dense_vectors_uint8.json'),
     denseVecDoc: readJsonOptional(dir, 'dense_vectors_doc_uint8.json'),
     denseVecCode: readJsonOptional(dir, 'dense_vectors_code_uint8.json'),
-    fileRelations: await loadJsonArrayArtifact(dir, 'file_relations').catch(() => null),
+    fileRelations: await loadJsonArrayArtifact(dir, 'file_relations', { manifest, strict }).catch(() => null),
     indexState: readJsonOptional(dir, 'index_state.json'),
     fileInfoByPath
   };
@@ -283,7 +287,8 @@ export async function assembleIndexPieces({
   mode,
   userConfig,
   stage = null,
-  log = defaultLog
+  log = defaultLog,
+  strict = true
 }) {
   if (!Array.isArray(inputs) || inputs.length === 0) {
     throw new Error('assembleIndexPieces requires input index directories.');
@@ -309,8 +314,25 @@ export async function assembleIndexPieces({
   const sortedInputs = inputs
     .map((dir) => path.resolve(dir))
     .sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+  const compatibilityKeys = new Map();
   for (const dir of sortedInputs) {
-    const input = await loadIndexArtifacts(dir);
+    const result = readCompatibilityKey(dir, { strict });
+    if (result?.key) {
+      compatibilityKeys.set(dir, result.key);
+    }
+  }
+  const uniqueCompatibilityKeys = new Set(compatibilityKeys.values());
+  if (uniqueCompatibilityKeys.size > 1) {
+    const details = Array.from(compatibilityKeys.entries())
+      .map(([dir, key]) => `- ${dir}: ${key}`)
+      .join('\n');
+    throw new Error(`assemble-pieces compatibilityKey mismatch:\n${details}`);
+  }
+  const compatibilityKey = uniqueCompatibilityKeys.size === 1
+    ? Array.from(uniqueCompatibilityKeys)[0]
+    : null;
+  for (const dir of sortedInputs) {
+    const input = await loadIndexArtifacts(dir, { strict });
     const chunks = Array.isArray(input.chunkMeta) ? input.chunkMeta : [];
     const docLengths = Array.isArray(input.tokenPostings?.docLengths)
       ? input.tokenPostings.docLengths
@@ -616,6 +638,8 @@ export async function assembleIndexPieces({
   const assembledIndexState = {
     ...baseIndexState,
     generatedAt: new Date().toISOString(),
+    artifactSurfaceVersion: baseIndexState.artifactSurfaceVersion || ARTIFACT_SURFACE_VERSION,
+    compatibilityKey: compatibilityKey || baseIndexState.compatibilityKey || null,
     mode,
     stage: resolvedStage || baseIndexState.stage || null,
     assembled: true

@@ -1,8 +1,7 @@
+import { ARTIFACT_SCHEMA_HASH } from '../../../contracts/registry.js';
 import { sha1 } from '../../../shared/hash.js';
-import { stableStringify } from '../../../shared/stable-json.js';
-import { ARTIFACT_SCHEMAS } from '../artifacts/schema.js';
 
-const ARTIFACT_SCHEMA_HASH = sha1(stableStringify(ARTIFACT_SCHEMAS));
+export { ARTIFACT_SCHEMA_HASH };
 
 export const buildTokenizationKey = (runtime, mode) => {
   const commentsConfig = runtime.commentsConfig || {};

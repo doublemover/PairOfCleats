@@ -7,6 +7,7 @@ import {
   getToolVersion
 } from '../../../tools/dict-utils.js';
 import { writeJsonObjectFile } from '../../shared/json-stream.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 
 export async function promoteBuild({
   repoRoot,
@@ -16,23 +17,37 @@ export async function promoteBuild({
   stage,
   modes,
   configHash,
-  repoProvenance
+  repoProvenance,
+  artifactSurfaceVersion = ARTIFACT_SURFACE_VERSION,
+  compatibilityKey = null
 }) {
   if (!repoRoot || !buildId || !buildRoot) return null;
   const buildsRoot = getBuildsRoot(repoRoot, userConfig);
   const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+  const resolvedCacheRoot = path.resolve(repoCacheRoot);
+  const resolvedBuildRoot = path.resolve(buildRoot);
+  if (!resolvedBuildRoot.startsWith(resolvedCacheRoot + path.sep) && resolvedBuildRoot !== resolvedCacheRoot) {
+    throw new Error(`buildRoot escapes repo cache root: ${buildRoot}`);
+  }
   const relativeRoot = path.relative(repoCacheRoot, buildRoot).split(path.sep).join('/');
   const normalizeRelativeRoot = (value) => {
     if (typeof value !== 'string' || !value.trim()) return null;
     const resolved = path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
-    return path.relative(repoCacheRoot, resolved).split(path.sep).join('/');
+    const normalized = path.resolve(resolved);
+    if (!normalized.startsWith(resolvedCacheRoot + path.sep) && normalized !== resolvedCacheRoot) return null;
+    return path.relative(repoCacheRoot, normalized).split(path.sep).join('/');
   };
   const currentPath = path.join(buildsRoot, 'current.json');
   let priorRoots = {};
   if (fsSync.existsSync(currentPath)) {
     try {
       const current = JSON.parse(await fs.readFile(currentPath, 'utf8')) || {};
-      if (current.buildRoots && typeof current.buildRoots === 'object' && !Array.isArray(current.buildRoots)) {
+      if (current.buildRootsByMode && typeof current.buildRootsByMode === 'object' && !Array.isArray(current.buildRootsByMode)) {
+        for (const [mode, value] of Object.entries(current.buildRootsByMode)) {
+          const normalized = normalizeRelativeRoot(value);
+          if (normalized) priorRoots[mode] = normalized;
+        }
+      } else if (current.buildRoots && typeof current.buildRoots === 'object' && !Array.isArray(current.buildRoots)) {
         for (const [mode, value] of Object.entries(current.buildRoots)) {
           const normalized = normalizeRelativeRoot(value);
           if (normalized) priorRoots[mode] = normalized;
@@ -49,18 +64,20 @@ export async function promoteBuild({
     } catch {}
   }
   const promotedModes = Array.isArray(modes) ? modes.filter((mode) => typeof mode === 'string') : [];
-  const buildRoots = { ...priorRoots };
+  const buildRootsByMode = { ...priorRoots };
   for (const mode of promotedModes) {
-    buildRoots[mode] = relativeRoot;
+    buildRootsByMode[mode] = relativeRoot;
   }
   const payload = {
     buildId,
     buildRoot: relativeRoot,
-    buildRoots: Object.keys(buildRoots).length ? buildRoots : null,
+    buildRootsByMode: Object.keys(buildRootsByMode).length ? buildRootsByMode : null,
     promotedAt: new Date().toISOString(),
     stage: stage || null,
     modes: promotedModes.length ? promotedModes : null,
     configHash: configHash || null,
+    artifactSurfaceVersion,
+    compatibilityKey,
     tool: { version: getToolVersion() },
     repo: repoProvenance || null
   };

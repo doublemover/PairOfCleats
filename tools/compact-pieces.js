@@ -66,6 +66,14 @@ const readJsonLinesFile = async (filePath, onEntry) => {
 
 const readJson = async (filePath) => readJsonFile(filePath);
 
+const normalizeMetaParts = (parts) => (
+  Array.isArray(parts)
+    ? parts
+      .map((part) => (typeof part === 'string' ? part : part?.path))
+      .filter(Boolean)
+    : []
+);
+
 const resolveChunkMetaParts = async (indexDir) => {
   const metaPath = path.join(indexDir, 'chunk_meta.meta.json');
   const partsDir = path.join(indexDir, 'chunk_meta.parts');
@@ -75,8 +83,9 @@ const resolveChunkMetaParts = async (indexDir) => {
   if (fsSync.existsSync(metaPath)) {
     const meta = await readJson(metaPath);
     metaFields = meta.fields || meta;
-    if (Array.isArray(metaFields.parts)) {
-      parts = metaFields.parts.map((name) => path.join(indexDir, name));
+    const entries = normalizeMetaParts(metaFields.parts);
+    if (entries.length) {
+      parts = entries.map((name) => path.join(indexDir, name));
     }
   }
   if (!parts.length) {
@@ -97,8 +106,9 @@ const resolveTokenPostingsParts = async (indexDir) => {
     const meta = await readJson(metaPath);
     metaFields = meta.fields || meta;
     metaArrays = meta.arrays || meta;
-    if (Array.isArray(metaFields.parts)) {
-      parts = metaFields.parts.map((name) => path.join(indexDir, name));
+    const entries = normalizeMetaParts(metaFields.parts);
+    if (entries.length) {
+      parts = entries.map((name) => path.join(indexDir, name));
     }
   }
   if (!parts.length) {
@@ -153,10 +163,14 @@ const compactChunkMeta = async (indexDir, targetSize) => {
   const resolved = await resolveChunkMetaParts(indexDir);
   if (!resolved) return null;
   const { metaPath, partsDir, parts, metaFields } = resolved;
-  const totalChunks = Number.isFinite(metaFields?.totalChunks) ? metaFields.totalChunks : null;
+  const totalChunks = Number.isFinite(metaFields?.totalRecords)
+    ? metaFields.totalRecords
+    : (Number.isFinite(metaFields?.totalChunks) ? metaFields.totalChunks : null);
   const target = Number.isFinite(Number(targetSize)) && Number(targetSize) > 0
     ? Math.floor(Number(targetSize))
-    : (Number.isFinite(metaFields?.shardSize) ? metaFields.shardSize : 100000);
+    : (Number.isFinite(metaFields?.maxPartRecords)
+      ? metaFields.maxPartRecords
+      : (Number.isFinite(metaFields?.shardSize) ? metaFields.shardSize : 100000));
   if (parts.length <= 1 || target <= 0) return null;
 
   const tmpDir = path.join(indexDir, 'chunk_meta.parts.compact');
@@ -166,21 +180,28 @@ const compactChunkMeta = async (indexDir, targetSize) => {
   }
   const newParts = [];
   const newCounts = [];
+  const newBytes = [];
   const startedAt = Date.now();
   let buffer = [];
   let partIndex = 0;
   let total = 0;
+  let totalBytes = 0;
   const flush = async () => {
     if (!buffer.length) return;
     const name = `chunk_meta.part-${String(partIndex).padStart(5, '0')}.jsonl`;
     const relPath = path.join('chunk_meta.parts', name).split(path.sep).join('/');
     const outPath = path.join(tmpDir, name);
+    let outBytes = 0;
     if (!dryRun) {
       await writeJsonLinesFile(outPath, buffer, { atomic: true });
+      const stat = await fs.stat(outPath);
+      outBytes = stat.size;
     }
     newParts.push(relPath);
     newCounts.push(buffer.length);
+    newBytes.push(outBytes);
     total += buffer.length;
+    totalBytes += outBytes;
     buffer = [];
     partIndex += 1;
   };
@@ -201,10 +222,21 @@ const compactChunkMeta = async (indexDir, targetSize) => {
     await replaceDirAtomic(tmpDir, partsDir);
     await writeJsonObjectFile(metaPath, {
       fields: {
-        format: 'jsonl',
-        shardSize: target,
-        totalChunks: totalChunks ?? total,
-        parts: newParts
+        schemaVersion: '0.0.1',
+        artifact: 'chunk_meta',
+        format: 'jsonl-sharded',
+        generatedAt: new Date().toISOString(),
+        compression: 'none',
+        totalRecords: totalChunks ?? total,
+        totalBytes,
+        maxPartRecords: newCounts.length ? Math.max(...newCounts) : 0,
+        maxPartBytes: newBytes.length ? Math.max(...newBytes) : 0,
+        targetMaxBytes: null,
+        parts: newParts.map((part, index) => ({
+          path: part,
+          records: newCounts[index] || 0,
+          bytes: newBytes[index] || 0
+        }))
       },
       atomic: true
     });

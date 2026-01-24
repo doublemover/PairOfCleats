@@ -8,6 +8,7 @@ import {
   writeJsonLinesSharded,
   writeJsonObjectFile
 } from '../../../../shared/json-stream.js';
+import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/versioning.js';
 
 const MIN_CHUNK_META_BYTES = 4096;
 
@@ -259,16 +260,24 @@ export const enqueueChunkMetaArtifacts = async ({
             atomic: true,
             compression
           });
-          const shardSize = result.counts.length
-            ? Math.max(...result.counts)
-            : chunkMetaShardSize || null;
+          const parts = result.parts.map((part, index) => ({
+            path: part,
+            records: result.counts[index] || 0,
+            bytes: result.bytes[index] || 0
+          }));
           await writeJsonObjectFile(metaPath, {
             fields: {
-              format: 'jsonl',
-              shardSize,
-              totalChunks: chunkMetaCount,
-              parts: result.parts,
-              compression: compression || null
+              schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
+              artifact: 'chunk_meta',
+              format: 'jsonl-sharded',
+              generatedAt: new Date().toISOString(),
+              compression: compression || 'none',
+              totalRecords: result.total,
+              totalBytes: result.totalBytes,
+              maxPartRecords: result.maxPartRecords,
+              maxPartBytes: result.maxPartBytes,
+              targetMaxBytes: result.targetMaxBytes,
+              parts
             },
             atomic: true
           });

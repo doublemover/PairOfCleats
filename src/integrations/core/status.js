@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getCacheRoot, getDictConfig, getIndexDir, getMetricsDir, getRepoCacheRoot, getRepoRoot, loadUserConfig, resolveLmdbPaths, resolveSqlitePaths } from '../../../tools/dict-utils.js';
+import { loadPiecesManifest, resolveArtifactPresence } from '../../shared/artifact-io.js';
 import { getEnvConfig } from '../../shared/env.js';
 
 const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
@@ -176,82 +177,53 @@ export async function getStatus(input = {}) {
 
   const health = { issues: [], hints: [] };
   const indexIssues = [];
-  if (!fs.existsSync(indexCodeDir)) {
-    indexIssues.push('index-code directory missing');
-  } else {
-    const codeChunkMeta = fs.existsSync(path.join(indexCodeDir, 'chunk_meta.json'))
-      || fs.existsSync(path.join(indexCodeDir, 'chunk_meta.jsonl'))
-      || fs.existsSync(path.join(indexCodeDir, 'chunk_meta.meta.json'))
-      || fs.existsSync(path.join(indexCodeDir, 'chunk_meta.parts'));
-    if (!codeChunkMeta) {
-      indexIssues.push('index-code chunk_meta.json missing');
+  const checkIndexArtifacts = (dir, label) => {
+    if (!fs.existsSync(dir)) {
+      indexIssues.push(`${label} directory missing`);
+      return;
     }
-    const codeTokenPostings = fs.existsSync(path.join(indexCodeDir, 'token_postings.json'))
-      || fs.existsSync(path.join(indexCodeDir, 'token_postings.json.gz'))
-      || fs.existsSync(path.join(indexCodeDir, 'token_postings.json.zst'))
-      || fs.existsSync(path.join(indexCodeDir, 'token_postings.meta.json'))
-      || fs.existsSync(path.join(indexCodeDir, 'token_postings.shards'));
-    if (!codeTokenPostings) {
-      indexIssues.push('index-code token_postings.json missing');
+    let manifest = null;
+    try {
+      manifest = loadPiecesManifest(dir, { maxBytes: MAX_STATUS_JSON_BYTES, strict: true });
+    } catch (err) {
+      if (err?.code === 'ERR_MANIFEST_MISSING') {
+        indexIssues.push(`${label} pieces/manifest.json missing`);
+      } else if (err?.code === 'ERR_MANIFEST_INVALID') {
+        indexIssues.push(`${label} pieces/manifest.json invalid`);
+      } else {
+        indexIssues.push(`${label} pieces/manifest.json unreadable`);
+      }
+      return;
     }
-  }
-  if (!fs.existsSync(indexProseDir)) {
-    indexIssues.push('index-prose directory missing');
-  } else {
-    const proseChunkMeta = fs.existsSync(path.join(indexProseDir, 'chunk_meta.json'))
-      || fs.existsSync(path.join(indexProseDir, 'chunk_meta.jsonl'))
-      || fs.existsSync(path.join(indexProseDir, 'chunk_meta.meta.json'))
-      || fs.existsSync(path.join(indexProseDir, 'chunk_meta.parts'));
-    if (!proseChunkMeta) {
-      indexIssues.push('index-prose chunk_meta.json missing');
+    const chunkMeta = resolveArtifactPresence(dir, 'chunk_meta', {
+      manifest,
+      maxBytes: MAX_STATUS_JSON_BYTES,
+      strict: true
+    });
+    if (chunkMeta.error) {
+      indexIssues.push(`${label} chunk_meta manifest invalid`);
+    } else if (chunkMeta.format === 'missing') {
+      indexIssues.push(`${label} chunk_meta missing in manifest`);
+    } else if (chunkMeta.missingMeta || (chunkMeta.missingPaths && chunkMeta.missingPaths.length)) {
+      indexIssues.push(`${label} chunk_meta manifest paths missing`);
     }
-    const proseTokenPostings = fs.existsSync(path.join(indexProseDir, 'token_postings.json'))
-      || fs.existsSync(path.join(indexProseDir, 'token_postings.json.gz'))
-      || fs.existsSync(path.join(indexProseDir, 'token_postings.json.zst'))
-      || fs.existsSync(path.join(indexProseDir, 'token_postings.meta.json'))
-      || fs.existsSync(path.join(indexProseDir, 'token_postings.shards'));
-    if (!proseTokenPostings) {
-      indexIssues.push('index-prose token_postings.json missing');
+    const tokenPostings = resolveArtifactPresence(dir, 'token_postings', {
+      manifest,
+      maxBytes: MAX_STATUS_JSON_BYTES,
+      strict: true
+    });
+    if (tokenPostings.error) {
+      indexIssues.push(`${label} token_postings manifest invalid`);
+    } else if (tokenPostings.format === 'missing') {
+      indexIssues.push(`${label} token_postings missing in manifest`);
+    } else if (tokenPostings.missingMeta || (tokenPostings.missingPaths && tokenPostings.missingPaths.length)) {
+      indexIssues.push(`${label} token_postings manifest paths missing`);
     }
-  }
-  if (!fs.existsSync(indexExtractedProseDir)) {
-    indexIssues.push('index-extracted-prose directory missing');
-  } else {
-    const extractedChunkMeta = fs.existsSync(path.join(indexExtractedProseDir, 'chunk_meta.json'))
-      || fs.existsSync(path.join(indexExtractedProseDir, 'chunk_meta.jsonl'))
-      || fs.existsSync(path.join(indexExtractedProseDir, 'chunk_meta.meta.json'))
-      || fs.existsSync(path.join(indexExtractedProseDir, 'chunk_meta.parts'));
-    if (!extractedChunkMeta) {
-      indexIssues.push('index-extracted-prose chunk_meta.json missing');
-    }
-    const extractedTokenPostings = fs.existsSync(path.join(indexExtractedProseDir, 'token_postings.json'))
-      || fs.existsSync(path.join(indexExtractedProseDir, 'token_postings.json.gz'))
-      || fs.existsSync(path.join(indexExtractedProseDir, 'token_postings.json.zst'))
-      || fs.existsSync(path.join(indexExtractedProseDir, 'token_postings.meta.json'))
-      || fs.existsSync(path.join(indexExtractedProseDir, 'token_postings.shards'));
-    if (!extractedTokenPostings) {
-      indexIssues.push('index-extracted-prose token_postings.json missing');
-    }
-  }
-  if (!fs.existsSync(indexRecordsDir)) {
-    indexIssues.push('index-records directory missing');
-  } else {
-    const recordsChunkMeta = fs.existsSync(path.join(indexRecordsDir, 'chunk_meta.json'))
-      || fs.existsSync(path.join(indexRecordsDir, 'chunk_meta.jsonl'))
-      || fs.existsSync(path.join(indexRecordsDir, 'chunk_meta.meta.json'))
-      || fs.existsSync(path.join(indexRecordsDir, 'chunk_meta.parts'));
-    if (!recordsChunkMeta) {
-      indexIssues.push('index-records chunk_meta.json missing');
-    }
-    const recordsTokenPostings = fs.existsSync(path.join(indexRecordsDir, 'token_postings.json'))
-      || fs.existsSync(path.join(indexRecordsDir, 'token_postings.json.gz'))
-      || fs.existsSync(path.join(indexRecordsDir, 'token_postings.json.zst'))
-      || fs.existsSync(path.join(indexRecordsDir, 'token_postings.meta.json'))
-      || fs.existsSync(path.join(indexRecordsDir, 'token_postings.shards'));
-    if (!recordsTokenPostings) {
-      indexIssues.push('index-records token_postings.json missing');
-    }
-  }
+  };
+  checkIndexArtifacts(indexCodeDir, 'index-code');
+  checkIndexArtifacts(indexProseDir, 'index-prose');
+  checkIndexArtifacts(indexExtractedProseDir, 'index-extracted-prose');
+  checkIndexArtifacts(indexRecordsDir, 'index-records');
   if (indexIssues.length) {
     health.issues.push(...indexIssues);
     health.hints.push('Run `npm run build-index` to rebuild file-backed indexes.');

@@ -4,18 +4,20 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { parseBuildArgs } from '../../index/build/args.js';
 import { buildIndexForMode } from '../../index/build/indexer.js';
+import { buildTokenizationKey } from '../../index/build/indexer/signatures.js';
 import { acquireIndexLock } from '../../index/build/lock.js';
 import { preprocessFiles, writePreprocessStats } from '../../index/build/preprocess.js';
 import { createBuildRuntime } from '../../index/build/runtime.js';
 import { initBuildState, markBuildPhase, startBuildHeartbeat, updateBuildState } from '../../index/build/build-state.js';
 import { promoteBuild } from '../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../index/validate.js';
+import { buildCompatibilityKey } from '../../contracts/compatibility.js';
 import { watchIndex } from '../../index/build/watch.js';
 import { log as defaultLog, logError as defaultLogError, logLine, showProgress } from '../../shared/progress.js';
 import { observeIndexDuration } from '../../shared/metrics.js';
 import { shutdownPythonAstPool } from '../../lang/python.js';
 import { createFeatureMetrics, writeFeatureMetrics } from '../../index/build/feature-metrics.js';
-import { getCacheRoot, getMetricsDir, getRepoCacheRoot, getRepoRoot, getToolVersion, getIndexDir, loadUserConfig, resolveToolRoot } from '../../../tools/dict-utils.js';
+import { applyAdaptiveDictConfig, getCacheRoot, getMetricsDir, getRepoCacheRoot, getRepoRoot, getToolVersion, getIndexDir, loadUserConfig, resolveToolRoot } from '../../../tools/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../tools/service/queue.js';
 import { runBuildSqliteIndex } from '../../../tools/build-sqlite-index.js';
 import { shutdownTreeSitterWorkerPool } from '../../lang/tree-sitter.js';
@@ -159,6 +161,20 @@ const buildStage2Args = ({ root, argv, rawArgv }) => {
   return args;
 };
 
+const computeCompatibilityKey = ({ runtime, modes, sharedDiscovery }) => {
+  const tokenizationKeys = {};
+  const baseDictConfig = runtime.dictConfig || {};
+  for (const modeItem of modes) {
+    const entryCount = sharedDiscovery?.[modeItem]?.entries?.length ?? 0;
+    const adaptedDictConfig = applyAdaptiveDictConfig(baseDictConfig, entryCount);
+    const runtimeSnapshot = { ...runtime, dictConfig: adaptedDictConfig };
+    tokenizationKeys[modeItem] = buildTokenizationKey(runtimeSnapshot, modeItem);
+  }
+  runtime.tokenizationKeys = tokenizationKeys;
+  runtime.compatibilityKey = buildCompatibilityKey({ runtime, modes, tokenizationKeys });
+  return tokenizationKeys;
+};
+
 const resolveEmbeddingRuntime = ({ argv, userConfig, policy }) => {
   const embeddingsConfig = userConfig?.indexing?.embeddings || {};
   const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
@@ -300,6 +316,7 @@ export async function buildIndex(repoRoot, options = {}) {
 
   if (argv.watch) {
     const runtime = await createBuildRuntime({ root, argv, rawArgv, policy });
+    computeCompatibilityKey({ runtime, modes, sharedDiscovery: null });
     const pollMs = Number.isFinite(Number(argv['watch-poll'])) ? Number(argv['watch-poll']) : 2000;
     const debounceMs = Number.isFinite(Number(argv['watch-debounce'])) ? Number(argv['watch-debounce']) : 500;
     try {
@@ -586,6 +603,7 @@ export async function buildIndex(repoRoot, options = {}) {
           };
         }
       }
+      computeCompatibilityKey({ runtime, modes, sharedDiscovery });
       await markBuildPhase(runtime.buildRoot, 'discovery', 'done');
       await markBuildPhase(runtime.buildRoot, phaseStage, 'running');
       for (const modeItem of modes) {
@@ -633,12 +651,14 @@ export async function buildIndex(repoRoot, options = {}) {
         userConfig: runtime.userConfig,
         sqliteEnabled: sqliteEnabledForValidation
       });
+      const validationSummary = {
+        ok: validation.ok,
+        issueCount: validation.issues.length,
+        warningCount: validation.warnings.length,
+        issues: validation.ok ? null : validation.issues.slice(0, 10)
+      };
       await updateBuildState(runtime.buildRoot, {
-        validation: {
-          ok: validation.ok,
-          issueCount: validation.issues.length,
-          warningCount: validation.warnings.length
-        }
+        validation: validationSummary
       });
       if (!validation.ok) {
         await markBuildPhase(runtime.buildRoot, 'validation', 'failed');

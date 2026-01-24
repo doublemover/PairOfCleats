@@ -85,8 +85,26 @@ const scenarios = [
       const partsDir = path.join(codeIndexDir, 'chunk_meta.parts');
       await fsPromises.mkdir(partsDir, { recursive: true });
       const partName = 'chunk_meta.part-00000.jsonl';
-      await fsPromises.writeFile(path.join(partsDir, partName), '{}\n');
-      const meta = { parts: [path.join('chunk_meta.parts', partName)], count: 1 };
+      const partPath = path.join(partsDir, partName);
+      await fsPromises.writeFile(partPath, '{}\n');
+      const partStat = await fsPromises.stat(partPath);
+      const meta = {
+        schemaVersion: '0.0.1',
+        artifact: 'chunk_meta',
+        format: 'jsonl-sharded',
+        generatedAt: new Date().toISOString(),
+        compression: 'none',
+        totalRecords: 1,
+        totalBytes: partStat.size,
+        maxPartRecords: 1,
+        maxPartBytes: partStat.size,
+        targetMaxBytes: null,
+        parts: [{
+          path: path.posix.join('chunk_meta.parts', partName),
+          records: 1,
+          bytes: partStat.size
+        }]
+      };
       await fsPromises.writeFile(
         path.join(codeIndexDir, 'chunk_meta.meta.json'),
         JSON.stringify(meta, null, 2)
@@ -99,7 +117,19 @@ const scenarios = [
     build: async () => {
       await fsPromises.writeFile(
         path.join(codeIndexDir, 'chunk_meta.meta.json'),
-        JSON.stringify({ parts: [], count: 0 }, null, 2)
+        JSON.stringify({
+          schemaVersion: '0.0.1',
+          artifact: 'chunk_meta',
+          format: 'jsonl-sharded',
+          generatedAt: new Date().toISOString(),
+          compression: 'none',
+          totalRecords: 0,
+          totalBytes: 0,
+          maxPartRecords: 0,
+          maxPartBytes: 0,
+          targetMaxBytes: null,
+          parts: []
+        }, null, 2)
       );
     },
     expectReady: false

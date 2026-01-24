@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { shouldReuseIncrementalIndex } from '../../src/index/build/incremental.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 
 const fail = (message) => {
   console.error(message);
@@ -19,8 +20,23 @@ const setup = async () => {
   await fs.mkdir(path.dirname(fixtureFile), { recursive: true });
   await fs.writeFile(fixtureFile, 'const a = 1;\n');
   await fs.mkdir(piecesDir, { recursive: true });
-  await fs.writeFile(path.join(outDir, 'index_state.json'), JSON.stringify({ stage: 'stage2' }));
-  await fs.writeFile(path.join(piecesDir, 'manifest.json'), JSON.stringify({ pieces: [{ id: 'piece-1' }] }));
+  await fs.writeFile(
+    path.join(outDir, 'index_state.json'),
+    JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      mode: 'code',
+      stage: 'stage2',
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION
+    })
+  );
+  await fs.writeFile(
+    path.join(piecesDir, 'manifest.json'),
+    JSON.stringify({
+      version: 2,
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+      pieces: [{ name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' }]
+    })
+  );
 };
 
 const run = async () => {

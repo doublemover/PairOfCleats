@@ -54,10 +54,21 @@ if (shardResult.parts.length < 2) {
 }
 await writeJsonObjectFile(path.join(indexDir, 'chunk_meta.meta.json'), {
   fields: {
-    format: 'jsonl',
-    shardSize: shardResult.counts.length ? Math.max(...shardResult.counts) : null,
-    totalChunks: chunkCount,
-    parts: shardResult.parts
+    schemaVersion: '0.0.1',
+    artifact: 'chunk_meta',
+    format: 'jsonl-sharded',
+    generatedAt: new Date().toISOString(),
+    compression: 'none',
+    totalRecords: shardResult.total,
+    totalBytes: shardResult.totalBytes,
+    maxPartRecords: shardResult.maxPartRecords,
+    maxPartBytes: shardResult.maxPartBytes,
+    targetMaxBytes: shardResult.targetMaxBytes,
+    parts: shardResult.parts.map((part, index) => ({
+      path: part,
+      records: shardResult.counts[index] || 0,
+      bytes: shardResult.bytes[index] || 0
+    }))
   },
   atomic: true
 });

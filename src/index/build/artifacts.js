@@ -24,6 +24,7 @@ import {
   enqueueChunkMetaArtifacts,
   resolveChunkMetaPlan
 } from './artifacts/writers/chunk-meta.js';
+import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../contracts/versioning.js';
 
 /**
  * Write index artifacts and metrics.
@@ -534,16 +535,24 @@ export async function writeIndexArtifacts(input) {
           atomic: true,
           compression: repoMapCompression
         });
-        const shardSize = result.counts.length
-          ? Math.max(...result.counts)
-          : null;
+        const parts = result.parts.map((part, index) => ({
+          path: part,
+          records: result.counts[index] || 0,
+          bytes: result.bytes[index] || 0
+        }));
         await writeJsonObjectFile(repoMapMetaPath, {
           fields: {
-            format: 'jsonl',
-            shardSize,
-            totalEntries: result.total,
-            parts: result.parts,
-            compression: repoMapCompression || null
+            schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
+            artifact: 'repo_map',
+            format: 'jsonl-sharded',
+            generatedAt: new Date().toISOString(),
+            compression: repoMapCompression || 'none',
+            totalRecords: result.total,
+            totalBytes: result.totalBytes,
+            maxPartRecords: result.maxPartRecords,
+            maxPartBytes: result.maxPartBytes,
+            targetMaxBytes: result.targetMaxBytes,
+            parts
           },
           atomic: true
         });
@@ -719,19 +728,29 @@ export async function writeIndexArtifacts(input) {
               maxBytes: maxJsonBytes,
               atomic: true
             });
-            const shardSize = result.counts.length
-              ? Math.max(...result.counts)
-              : null;
+            const parts = result.parts.map((part, index) => ({
+              path: part,
+              records: result.counts[index] || 0,
+              bytes: result.bytes[index] || 0
+            }));
             await writeJsonObjectFile(graphMetaPath, {
               fields: {
-                format: 'jsonl',
-                version: graphMeasurement.version,
+                schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
+                artifact: 'graph_relations',
+                format: 'jsonl-sharded',
                 generatedAt: graphMeasurement.generatedAt,
-                graphs: graphMeasurement.graphs,
-                caps: graphRelations.caps ?? null,
-                shardSize,
-                totalEntries: result.total,
-                parts: result.parts
+                compression: 'none',
+                totalRecords: result.total,
+                totalBytes: result.totalBytes,
+                maxPartRecords: result.maxPartRecords,
+                maxPartBytes: result.maxPartBytes,
+                targetMaxBytes: result.targetMaxBytes,
+                parts,
+                extensions: {
+                  graphs: graphMeasurement.graphs,
+                  caps: graphRelations.caps ?? null,
+                  version: graphMeasurement.version
+                }
               },
               atomic: true
             });

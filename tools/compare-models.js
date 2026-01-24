@@ -178,7 +178,11 @@ function indexExists(modelCacheRoot, mode) {
       const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
       const resolveRoot = (value) => {
         if (!value) return null;
-        return path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+        const resolved = path.isAbsolute(value) ? value : path.join(repoCacheRoot, value);
+        const normalized = path.resolve(resolved);
+        const rootResolved = path.resolve(repoCacheRoot);
+        if (!normalized.startsWith(rootResolved + path.sep) && normalized !== rootResolved) return null;
+        return normalized;
       };
       const buildId = typeof data.buildId === 'string' ? data.buildId : null;
       const buildRootRaw = typeof data.buildRoot === 'string' ? data.buildRoot : null;
@@ -186,7 +190,12 @@ function indexExists(modelCacheRoot, mode) {
         ? resolveRoot(buildRootRaw)
         : (buildId ? path.join(repoCacheRoot, 'builds', buildId) : null);
       let modeRoot = null;
-      if (data.buildRoots && typeof data.buildRoots === 'object' && !Array.isArray(data.buildRoots)) {
+      if (data.buildRootsByMode && typeof data.buildRootsByMode === 'object' && !Array.isArray(data.buildRootsByMode)) {
+        const raw = data.buildRootsByMode[mode];
+        if (typeof raw === 'string') {
+          modeRoot = resolveRoot(raw);
+        }
+      } else if (data.buildRoots && typeof data.buildRoots === 'object' && !Array.isArray(data.buildRoots)) {
         const raw = data.buildRoots[mode];
         if (typeof raw === 'string') {
           modeRoot = resolveRoot(raw);

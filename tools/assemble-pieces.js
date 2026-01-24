@@ -17,6 +17,11 @@ const argv = createCli({
     repo: { type: 'string' },
     stage: { type: 'string' },
     force: { type: 'boolean', default: false },
+    'non-strict': {
+      type: 'boolean',
+      default: false,
+      describe: 'Allow legacy filename guessing (manifest not required)'
+    },
     sort: {
       type: 'boolean',
       default: true,
@@ -54,6 +59,7 @@ await fs.mkdir(outDir, { recursive: true });
 const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(repoRoot);
 const mode = argv.mode || 'code';
+const strict = argv['non-strict'] !== true;
 
 const resolvedInputs = inputDirs.map((dir) => path.resolve(dir));
 if (argv.sort !== false) {
@@ -67,9 +73,16 @@ try {
     root: repoRoot,
     mode,
     userConfig,
-    stage: argv.stage
+    stage: argv.stage,
+    strict
   });
 } catch (err) {
+  if (!strict && err?.code === 'ERR_MANIFEST_MISSING') {
+    console.error('Missing pieces manifest. Re-run without --non-strict to require manifest discovery.');
+  }
+  if (strict && err?.code === 'ERR_MANIFEST_MISSING') {
+    console.error('Missing pieces manifest. Use --non-strict to allow legacy filename guessing.');
+  }
   console.error(err?.message || err);
   process.exit(1);
 }

@@ -2,12 +2,26 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadIndex } from '../src/retrieval/cli-index.js';
+import { ARTIFACT_SURFACE_VERSION } from '../src/contracts/versioning.js';
 
 const root = process.cwd();
 const cacheRoot = path.join(root, 'tests', '.cache', 'artifact-formats');
 
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
+
+const writeManifest = async (pieces) => {
+  const piecesDir = path.join(cacheRoot, 'pieces');
+  await fs.mkdir(piecesDir, { recursive: true });
+  await fs.writeFile(
+    path.join(piecesDir, 'manifest.json'),
+    JSON.stringify({
+      version: 2,
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+      pieces
+    }, null, 2)
+  );
+};
 
 const chunkMetaLines = [
   { id: 0, file: 'src/a.js', start: 0, end: 10, ext: '.js', kind: 'Function', name: 'alpha' },
@@ -16,17 +30,30 @@ const chunkMetaLines = [
 const chunkMetaPartsDir = path.join(cacheRoot, 'chunk_meta.parts');
 await fs.mkdir(chunkMetaPartsDir, { recursive: true });
 const chunkMetaPartName = 'chunk_meta.part-00000.jsonl';
+const chunkMetaPartPath = path.join(chunkMetaPartsDir, chunkMetaPartName);
 await fs.writeFile(
-  path.join(chunkMetaPartsDir, chunkMetaPartName),
+  chunkMetaPartPath,
   `${JSON.stringify({ id: 99, file: 'src/stale.js', start: 0, end: 1, ext: '.js' })}\n`
 );
+const chunkMetaPartStat = await fs.stat(chunkMetaPartPath);
 await fs.writeFile(
   path.join(cacheRoot, 'chunk_meta.meta.json'),
   JSON.stringify({
-    format: 'jsonl',
-    shardSize: 1,
-    totalChunks: 1,
-    parts: [path.posix.join('chunk_meta.parts', chunkMetaPartName)]
+    schemaVersion: '0.0.1',
+    artifact: 'chunk_meta',
+    format: 'jsonl-sharded',
+    generatedAt: new Date().toISOString(),
+    compression: 'none',
+    totalRecords: 1,
+    totalBytes: chunkMetaPartStat.size,
+    maxPartRecords: 1,
+    maxPartBytes: chunkMetaPartStat.size,
+    targetMaxBytes: null,
+    parts: [{
+      path: path.posix.join('chunk_meta.parts', chunkMetaPartName),
+      records: 1,
+      bytes: chunkMetaPartStat.size
+    }]
   }, null, 2)
 );
 const staleTime = new Date(Date.now() - 5000);
@@ -81,6 +108,14 @@ await fs.writeFile(
   path.join(cacheRoot, 'token_postings.json'),
   JSON.stringify({ vocab: ['legacy'], postings: [[[0, 1]]], docLengths: [1], avgDocLen: 1, totalDocs: 1 }, null, 2)
 );
+
+await writeManifest([
+  { name: 'chunk_meta', path: 'chunk_meta.jsonl', format: 'jsonl' },
+  { name: 'chunk_meta_meta', path: 'chunk_meta.meta.json', format: 'json' },
+  { name: 'token_postings', path: path.posix.join('token_postings.shards', partAName), format: 'json' },
+  { name: 'token_postings', path: path.posix.join('token_postings.shards', partBName), format: 'json' },
+  { name: 'token_postings_meta', path: 'token_postings.meta.json', format: 'json' }
+]);
 
 const idx = await loadIndex(cacheRoot, { modelIdDefault: null, fileChargramN: 3 });
 

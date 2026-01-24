@@ -8,6 +8,7 @@ import {
   createChunkMetaIterator,
   enqueueChunkMetaArtifacts
 } from '../src/index/build/artifacts/writers/chunk-meta.js';
+import { writePiecesManifest } from '../src/index/build/artifacts/checksums.js';
 import { loadChunkMeta } from '../src/shared/artifact-io.js';
 
 const root = process.cwd();
@@ -32,14 +33,17 @@ const chunkMetaIterator = createChunkMetaIterator({
 
 const runWriter = async (chunkMetaPlan) => {
   const writes = [];
+  const pieceEntries = [];
   const enqueueWrite = (label, job) => {
     writes.push({ label, job });
   };
   const enqueueJsonArray = (label, _payload, _options) => {
     throw new Error(`Unexpected enqueueJsonArray for chunk meta (${label})`);
   };
-  const addPieceFile = () => {};
-  const formatArtifactLabel = (value) => value;
+  const formatArtifactLabel = (filePath) => path.relative(outDir, filePath).split(path.sep).join('/');
+  const addPieceFile = (entry, filePath) => {
+    pieceEntries.push({ ...entry, path: formatArtifactLabel(filePath) });
+  };
 
   const state = { chunks };
   await enqueueChunkMetaArtifacts({
@@ -61,6 +65,12 @@ const runWriter = async (chunkMetaPlan) => {
       throw new Error(`Failed write job (${label}): ${err?.message || err}`);
     }
   }
+  await writePiecesManifest({
+    pieceEntries,
+    outDir,
+    mode: 'code',
+    indexState: null
+  });
 };
 
 const metaPath = path.join(outDir, 'chunk_meta.meta.json');

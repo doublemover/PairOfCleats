@@ -58,48 +58,56 @@ export function mergeCliOptions(...sets) {
   return merged;
 }
 
-const INDEX_BUILD_SCHEMA = {
-  type: 'object',
-  properties: {
-    mode: { type: 'string' },
-    quality: { type: 'string' },
-    stage: { type: 'string' },
-    dims: { type: 'number' },
-    threads: { type: 'number' },
-    incremental: { type: 'boolean' },
-    watch: { type: 'boolean' },
-    sqlite: { type: 'boolean' },
-    model: { type: 'string' },
-    repo: { type: 'string' },
-    progress: { type: 'string' },
-    verbose: { type: 'boolean' },
-    quiet: { type: 'boolean' }
+const CLI_META_KEYS = new Set(['_', '$0', 'help', 'h']);
+
+const resolveOptionKeys = (options) => {
+  const keys = new Set(Object.keys(options || {}));
+  const aliases = new Set();
+  for (const value of Object.values(options || {})) {
+    if (!value || typeof value !== 'object') continue;
+    const alias = value.alias;
+    if (Array.isArray(alias)) {
+      alias.forEach((entry) => aliases.add(String(entry)));
+    } else if (alias) {
+      aliases.add(String(alias));
+    }
   }
+  return { keys, aliases };
 };
 
-const BENCH_SCHEMA = {
+const buildSchemaFromOptions = (options) => ({
   type: 'object',
-  properties: {
-    ann: { type: 'boolean' },
-    'no-ann': { type: 'boolean' },
-    build: { type: 'boolean' },
-    'build-index': { type: 'boolean' },
-    'build-sqlite': { type: 'boolean' },
-    incremental: { type: 'boolean' },
-    'keep-cache': { type: 'boolean' },
-    'stub-embeddings': { type: 'boolean' },
-      'real-embeddings': { type: 'boolean' },
-    backend: { type: 'string' },
-    top: { type: 'number' },
-    limit: { type: 'number' },
-            'query-concurrency': { type: 'number' },
-    threads: { type: 'number' },
-    'heap-mb': { type: 'number' },
-    progress: { type: 'string' },
-    verbose: { type: 'boolean' },
-    quiet: { type: 'boolean' }
+  properties: Object.fromEntries(
+    Object.entries(options || {}).map(([key, value]) => [
+      key,
+      { type: value?.type || 'string' }
+    ])
+  ),
+  additionalProperties: false
+});
+
+const extractKnownArgs = (argv, keys) => {
+  const filtered = {};
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(argv, key)) {
+      filtered[key] = argv[key];
+    }
   }
+  return filtered;
 };
+
+const findUnknownArgs = (argv, keys, aliases) => {
+  const unknown = [];
+  for (const key of Object.keys(argv || {})) {
+    if (CLI_META_KEYS.has(key)) continue;
+    if (keys.has(key) || aliases.has(key)) continue;
+    unknown.push(key);
+  }
+  return unknown;
+};
+
+export const INDEX_BUILD_SCHEMA = buildSchemaFromOptions(INDEX_BUILD_OPTIONS);
+export const BENCH_SCHEMA = buildSchemaFromOptions(BENCH_OPTIONS);
 
 const throwOnErrors = (label, errors) => {
   if (!errors.length) return;
@@ -108,12 +116,22 @@ const throwOnErrors = (label, errors) => {
 };
 
 export function validateBuildArgs(argv) {
-  const result = validateConfig(INDEX_BUILD_SCHEMA, argv);
+  const { keys, aliases } = resolveOptionKeys(INDEX_BUILD_OPTIONS);
+  const unknown = findUnknownArgs(argv, keys, aliases);
+  if (unknown.length) {
+    throw new Error(`build-index args include unknown options: ${unknown.join(', ')}`);
+  }
+  const result = validateConfig(INDEX_BUILD_SCHEMA, extractKnownArgs(argv, keys));
   if (!result.ok) throwOnErrors('build-index args', result.errors);
 }
 
 export function validateBenchArgs(argv) {
-  const result = validateConfig(BENCH_SCHEMA, argv);
+  const { keys, aliases } = resolveOptionKeys(BENCH_OPTIONS);
+  const unknown = findUnknownArgs(argv, keys, aliases);
+  if (unknown.length) {
+    throw new Error(`bench args include unknown options: ${unknown.join(', ')}`);
+  }
+  const result = validateConfig(BENCH_SCHEMA, extractKnownArgs(argv, keys));
   if (!result.ok) throwOnErrors('bench args', result.errors);
   const conflicts = [];
   if (argv.ann && argv['no-ann']) {

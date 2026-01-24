@@ -1,4 +1,5 @@
 import { writeIndexArtifacts } from '../../artifacts.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../../contracts/versioning.js';
 import { finalizePerfProfile } from '../../perf-profile.js';
 
 export const writeIndexArtifactsForMode = async ({
@@ -32,6 +33,10 @@ export const writeIndexArtifactsForMode = async ({
     graphRelations,
     indexState: {
       generatedAt: new Date().toISOString(),
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+      compatibilityKey: runtime.compatibilityKey || null,
+      buildId: runtime.buildId || null,
+      repoId: runtime.repoId || null,
       mode,
       stage: runtime.stage || null,
       embeddings: {

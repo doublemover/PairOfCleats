@@ -7,6 +7,7 @@ import { STOP, SYN } from '../../index/constants.js';
 import { createIndexState, appendChunk } from '../../index/build/state.js';
 import { buildPostings } from '../../index/build/postings.js';
 import { writeIndexArtifacts } from '../../index/build/artifacts.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { extractNgrams, splitId, splitWordsWithDict, stem, tri } from '../../shared/tokenize.js';
 import { log, showProgress } from '../../shared/progress.js';
 import { promoteRecordFields } from './record-utils.js';
@@ -166,8 +167,41 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null }) {
     modelId: runtime.modelId,
     useStubEmbeddings: runtime.useStubEmbeddings,
     log,
-    workerPool: runtime.workerPool
+    workerPool: runtime.workerPool,
+    embeddingsEnabled: runtime.embeddingEnabled
   });
+
+  const indexState = {
+    generatedAt: new Date().toISOString(),
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+    compatibilityKey: runtime.compatibilityKey || null,
+    buildId: runtime.buildId || null,
+    repoId: runtime.repoId || null,
+    mode: 'records',
+    stage: runtime.stage || null,
+    embeddings: {
+      enabled: runtime.embeddingEnabled || runtime.embeddingService,
+      ready: runtime.embeddingEnabled,
+      mode: runtime.embeddingMode,
+      service: runtime.embeddingService === true
+    },
+    features: {
+      treeSitter: false,
+      lint: false,
+      complexity: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false,
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      gitBlame: false
+    },
+    shards: runtime.shards?.enabled
+      ? { enabled: true, plan: null }
+      : { enabled: false },
+    enrichment: runtime.twoStage?.enabled
+      ? { enabled: true, pending: runtime.stage === 'stage1', stage: runtime.stage || null }
+      : { enabled: false }
+  };
 
   await writeIndexArtifacts({
     outDir,
@@ -182,7 +216,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null }) {
     root: runtime.root,
     userConfig: runtime.userConfig,
     incrementalEnabled: false,
-    fileCounts: { candidates: recordSources.length }
+    fileCounts: { candidates: recordSources.length },
+    indexState
   });
 }
 

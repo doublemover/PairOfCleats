@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { shouldReuseIncrementalIndex } from '../src/index/build/incremental.js';
+import { ARTIFACT_SURFACE_VERSION } from '../src/contracts/versioning.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'incremental-reuse');
@@ -10,8 +11,12 @@ const outDir = path.join(tempRoot, 'index');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(outDir, 'pieces'), { recursive: true });
 
-const indexState = { stage: 'stage2' };
-const pieceManifest = { version: 2, pieces: [{ name: 'chunk_meta', path: 'chunk_meta.json' }] };
+const indexState = { stage: 'stage2', mode: 'code', generatedAt: new Date().toISOString(), artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION };
+const pieceManifest = {
+  version: 2,
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+  pieces: [{ name: 'chunk_meta', path: 'chunk_meta.json' }]
+};
 await fs.writeFile(path.join(outDir, 'index_state.json'), JSON.stringify(indexState));
 await fs.writeFile(path.join(outDir, 'pieces', 'manifest.json'), JSON.stringify(pieceManifest));
 
