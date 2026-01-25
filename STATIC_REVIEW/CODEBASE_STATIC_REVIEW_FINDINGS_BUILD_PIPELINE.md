@@ -83,15 +83,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### B) Cache signatures, incremental invariants, and reproducibility
 
-#### B3) Adaptive dict configuration mutates runtime across modes
-- **File:** `src/index/build/indexer/pipeline.js`.
-- **Details:** After discovery, `runtime.dictConfig` is mutated via `applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length)` (line ~125).
-- **Impact:**
-  - If you build multiple modes sequentially in a single run, the later mode’s signatures and tokenization behavior may inherit adaptation based on the earlier mode’s file count.
-  - This can undermine incremental correctness if cache keys are computed using the mutated config.
-- **Suggested fix:** Treat adaptive dict config as a per-mode derived value (e.g., `effectiveDictConfigByMode[mode]`) rather than mutating the shared runtime object.
-- **Suggested test:** Build `code` then `prose` with very different file counts; assert prose keying is not influenced by code discovery.
-
 ### C) Robustness, path safety, and operator expectations
 
 #### C1) Ignore file loading can escape repo root via absolute paths / traversal
