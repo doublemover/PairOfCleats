@@ -376,19 +376,6 @@ The remainder of the document enumerates concrete issues and recommended remedia
 
 ---
 
-### P3 — Minor correctness/UX nit: wrong file name in binary skip failure message
-
-**Where**
-- `tests/skip-minified-binary.js` (line 75)
-
-**What’s wrong**
-- Error message says “binary.js” but the file under test is `binary.png`.
-
-**Suggested fix**
-- Update the message for clarity (no functional impact, but improves debugging signal).
-
----
-
 ## Coverage Gaps Worth Addressing
 
 These are not necessarily “bugs,” but are high-value improvements to keep tests aligned with the roadmap (sharding, streaming, policy centralization):
@@ -485,4 +472,3 @@ This section is intended as a concrete to-do list derived from the findings abov
 - [ ] Add capability-driven skip metadata for optional dependencies (sqlite, vector extension, node flags).
 
 ---
-
