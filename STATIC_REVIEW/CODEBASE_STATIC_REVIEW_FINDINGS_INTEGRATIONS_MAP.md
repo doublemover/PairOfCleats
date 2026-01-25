@@ -41,12 +41,7 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 ### Critical
 
-1) **LSP client restart/kill can corrupt a new session due to global state in event handlers**
-- **Where:** `src/integrations/tooling/lsp/client.js` (`start()` attaches `error`/`exit` handlers that reference global `proc`, `parser`, `writer`)
-- **Why it’s a problem:** If `kill()` is used and a new LSP process is started before the old process emits `exit` (or `error`), the old handler will run and mistakenly null out/close the **new** `proc`/`parser`/`writer` (because it reads the global variables at callback execution time). This can create “random” failures, hanging requests, or silent partial results.
-- **Suggestion:** In `start()`, capture a local `const child = spawn(...)` and use that in all handlers. Guard cleanup with `if (proc !== child) return;` before mutating shared state, and push stdout chunks into the parser bound to that `child`.
-
-2) **Triage records indexing drops discovery metadata due to a signature mismatch**
+1) **Triage records indexing drops discovery metadata due to a signature mismatch**
 - **Where:** `src/integrations/triage/index-records.js`
 - **What:** The loop calls `buildDocMeta(record, triageConfig, recordEntry.recordMeta)` (3 args), but `buildDocMeta` is declared as `function buildDocMeta(record, triageConfig)` (2 args). That means `recordEntry.recordMeta` is ignored.
 - **Impact:** Records coming from discovery (`record === null`) or where important fields are intended to live in `recordEntry.recordMeta` will have **empty/incorrect docmeta**, weakening filters, display fields, embeddings input selection, and potentially the indexing payload.
@@ -57,13 +52,13 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 ### High
 
-3) **CVSS score `0` is treated as “missing” in normalization**
+2) **CVSS score `0` is treated as “missing” in normalization**
 - **Where:** `src/integrations/triage/normalize/dependabot.js`, `src/integrations/triage/normalize/aws-inspector.js`
 - **What:** Both use truthiness checks like `(cvssScore || vector || version)` when deciding whether to emit a `cvss` block.
 - **Impact:** A valid score `0` is falsy, causing CVSS to be dropped even when present.
 - **Suggestion:** Use `Number.isFinite(cvssScore)` (or an explicit `cvssRaw.score != null`) rather than truthiness.
 
-4) **Map dataflow naming drift: `mutates` vs `mutations` likely breaks badges/filters**
+3) **Map dataflow naming drift: `mutates` vs `mutations` likely breaks badges/filters**
 - **Where:**
   - `src/map/constants.js` legend uses `functionBadges` key **`mutates`**
   - Map builders/renderers consistently use **`mutations`** (`src/map/build-map.js`, `src/map/dot-writer.js`, `src/map/isometric/client/meshes.js`)
@@ -72,23 +67,15 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
   - Adjust `normalizeDataflow()` to accept both `mutates` and `mutations` (and emit one), and
   - Keep legend keys consistent with the emitted JSON.
 
-5) **LSP request can hang indefinitely if writer is closed and caller does not set a timeout**
-- **Where:** `src/integrations/tooling/lsp/client.js` (`request()` + `send()`)
-- **What:** `request()` adds an entry to `pending`, then calls `send(payload)`. `send()` returns early if `writerClosed`/`writer` is absent, leaving the pending request unresolved unless a timeout was provided.
-- **Impact:** Rare but nasty “stuck” awaits in tooling, especially if an LSP server crashes mid-run.
-- **Suggestion:** If `send()` cannot write, fail fast:
-  - either reject immediately from `request()` when `writerClosed` is true,
-  - or ensure every `request()` has a default timeout.
-
 ### Medium
 
-6) **Two-stage indexing queue uses embeddings queue config namespace**
+4) **Two-stage indexing queue uses embeddings queue config namespace**
 - **Where:** `src/integrations/core/index.js` (two-stage background enqueue)
 - **What:** Stage2 background jobs are enqueued using `userConfig.indexing.embeddings.queue.dir` and `maxQueued`.
 - **Impact:** Confusing configuration semantics; risks unintended coupling (embeddings queue size limits throttling stage2 indexing), and reduces operator clarity.
 - **Suggestion:** Give two-stage indexing its own queue config keys (or a shared `indexing.queue.*` that both can use explicitly), and include “effective queue config” in `config_status` output.
 
-7) **MCP tool schema appears richer than the core CLI arg builder supports**
+5) **MCP tool schema appears richer than the core CLI arg builder supports**
 - **Where:**
   - Schema lists many filters in `src/integrations/mcp/defs.js` (`type`, `author`, `import`, `calls`, `signature`, …)
   - Core `buildSearchArgs()` in `src/integrations/core/index.js` only maps a small subset
@@ -98,7 +85,7 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
   - Reduce schema to what is actually honored, OR
   - Expand `buildSearchArgs()` to cover the schema.
 
-8) **Map member identity collisions likely for repeated names inside a file**
+6) **Map member identity collisions likely for repeated names inside a file**
 - **Where:** `src/map/build-map.js` (`buildSymbolId()` returns `${file}::${name}` for most named symbols)
 - **Impact:** Overloads / same-name functions / methods / nested symbols can collapse into one node, distorting edges and per-member metadata (types, risk, dataflow).
 - **Suggestion:** Use a more collision-resistant ID:
@@ -107,12 +94,12 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
   - use chunk IDs consistently when present.
   Also add a warning counter: “mergedSymbolsDueToCollision”.
 
-9) **`src/integrations/core/status.js` contains unused functions / drift indicators**
+7) **`src/integrations/core/status.js` contains unused functions / drift indicators**
 - **Where:** `readJsonWithLimit()`, `summarizeShardPlan()` are defined but not used.
 - **Impact:** Signals partially implemented or abandoned checks; increases maintenance burden and can mislead future refactors.
 - **Suggestion:** Either wire them into `getStatus()` (if they reflect intended invariants), or remove them to reduce confusion.
 
-10) **Isometric viewer has minimal JSON/error handling; one malformed payload breaks the UI entirely**
+8) **Isometric viewer has minimal JSON/error handling; one malformed payload breaks the UI entirely**
 - **Where:** `src/map/isometric/client/dom.js`
 - **What:** `JSON.parse` on `#map-data` and `#viewer-config` has no try/catch; missing DOM nodes throw.
 - **Impact:** A truncated or invalid map JSON yields a blank viewer with a console error.
@@ -124,26 +111,10 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 ### `src/integrations/tooling/lsp/client.js`
 
-**A) Session corruption on restart (critical)**
-- Event handlers (`proc.on('exit'| 'error')`) reference global `proc`/`parser`/`writer` at callback time.
-- If `kill()` is called and `start()` spawns a new proc before the old one exits, the old handler may:
-  - set `proc = null` (clobbering new proc),
-  - `parser?.dispose()` (disposing the new parser),
-  - set `writer = null` / `writerClosed = true` (breaking new session).
-- **Recommendation:** capture `child` locally and gate cleanup on identity (`if (proc !== child) return`). Also bind stdout/stderr piping to the corresponding parser instance for that child.
-
-**B) Requests can hang if sending fails (high)**
-- `request()` stores `pending` then calls `send()`. If `writerClosed` is true, `send()` returns without rejection.
-- **Recommendation:** fail fast when `writerClosed` or writer missing; enforce default timeout.
-
-**C) Potentially over-aggressive error policy**
+**A) Potentially over-aggressive error policy**
 - Parser error handler kills the process immediately.
 - For transient framing issues, this is fine; for partial reads or server logs on stdout, it can produce cascading failures.
 - **Recommendation:** verify that the framing parser cannot be desynchronized by non-protocol stdout writes (some servers misbehave). Consider running servers with stdio separation or strict mode.
-
-**D) Lifetime cleanup is not fully coherent**
-- `kill()` sets `proc = null` before the `exit` handler runs, which then treats `currentProc` as null.
-- Even if you guard with captured `child`, this is solvable.
 
 ### `src/integrations/tooling/providers/lsp.js`
 
@@ -395,7 +366,6 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 ## Suggested next steps (non-code)
 
 1) Add minimal regression tests around the critical issues:
-- LSP client restart safety (simulate kill + restart, ensure old exit does not clobber new session).
 - Records indexing docmeta coverage when `record === null` but `recordMeta` exists.
 - CVSS score 0 preservation.
 - Map legend/dataflow naming consistency.
@@ -408,4 +378,3 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 3) Document the “contracts” explicitly:
 - MCP schema ↔ CLI flags mapping.
 - Map JSON schema keys (`dataflow.mutations` vs `dataflow.mutates`).
-
