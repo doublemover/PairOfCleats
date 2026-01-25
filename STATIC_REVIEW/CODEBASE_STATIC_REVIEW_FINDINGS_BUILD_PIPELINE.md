@@ -1,0 +1,205 @@
+# Static Review Findings — Build/Indexer Pipeline Sweep
+
+## Scope
+This sweep reviewed **only** the following files from the provided zip:
+
+- `src/index/build/ignore.js`
+- `src/index/build/indexer.js`
+- `src/index/build/indexer/embedding-queue.js`
+- `src/index/build/indexer/pipeline.js`
+- `src/index/build/indexer/signatures.js`
+- `src/index/build/indexer/steps/discover.js`
+- `src/index/build/lock.js`
+- `src/index/build/perf-profile.js`
+- `src/index/build/piece-assembly.js`
+- `src/index/build/preprocess.js`
+- `src/index/build/promotion.js`
+- `src/index/build/records.js`
+- `src/index/build/runtime.js`
+- `src/index/build/runtime/caps.js`
+- `src/index/build/runtime/embeddings.js`
+- `src/index/build/runtime/hash.js`
+- `src/index/build/runtime/logging.js`
+- `src/index/build/runtime/runtime.js`
+- `src/index/build/runtime/stage.js`
+- `src/index/build/runtime/tree-sitter.js`
+- `src/index/build/runtime/workers.js`
+- `src/index/build/watch.js`
+- `src/index/build/watch/backends/chokidar.js`
+- `src/index/build/watch/backends/parcel.js`
+- `src/index/build/watch/backends/types.js`
+- `src/index/build/worker-pool.js`
+- `src/index/build/workers/indexer-worker.js`
+
+## Executive summary
+This portion of the codebase is generally well-structured (clear runtime normalization, explicit stage controls, and a coherent indexing pipeline), but there are a handful of **high-impact correctness and “drift” issues** that will cause surprising behavior at scale.
+
+### Highest-impact issues
+
+1) **Crash bug in watch shutdown path**
+- **Where:** `src/index/build/watch.js` around `requestShutdown()`.
+- **Evidence:** `scheduler.cancel()` is called unconditionally, but `scheduler` is declared later; a fast SIGINT/SIGTERM can arrive before scheduler initialization.
+  - `watch.js:280` calls `scheduler.cancel()` (see lines ~275–283 in the numbered view).
+- **Impact:** A “Ctrl+C during startup” can throw and exit uncleanly (exactly when the operator expects clean shutdown). This is a pure reliability bug.
+
+2) **Runtime object omits `recordsDir` / `recordsConfig`, but downstream build code expects them**
+- **Where:**
+  - Runtime creation: `src/index/build/runtime/runtime.js` return object.
+  - Usage: `src/index/build/indexer/steps/discover.js`, and watch path resolution in `src/index/build/watch.js`.
+- **Evidence:**
+  - `runtime/runtime.js` computes triage/records inputs and even passes `triageConfig.recordsDir` into `resolveEmbeddingRuntime()` (line ~248–257), but the returned runtime object (lines ~533–625) does **not** include `recordsDir` or `recordsConfig`.
+  - `indexer/steps/discover.js` calls `discoverFiles({ ..., recordsDir: runtime.recordsDir, recordsConfig: runtime.recordsConfig, ... })` (lines ~31–42).
+- **Impact:**
+  - Any logic in `discoverFiles()` that relies on records metadata (exclude record files from code/prose modes; include/label record files; apply records guardrails) will silently fail.
+  - Watch mode similarly treats `runtime.recordsDir` as authoritative for scanning/watching records; if omitted, records changes may never trigger rebuilds.
+  - More broadly: this is a “type drift” problem—call sites assume runtime shape that runtime does not provide.
+
+3) **Incremental/tokenization cache keys are vulnerable to nondeterminism and collisions**
+- **Where:** `src/index/build/indexer/signatures.js`.
+- **Evidence:**
+  - Uses `sha1(JSON.stringify(payload))` for both tokenization and incremental signatures (lines ~7–23 and ~25–78).
+  - Only includes `.source` for `licensePattern`/`generatedPattern`/`linterPattern` but not `.flags` (lines ~15–20).
+- **Impact:**
+  - **Regex flags collision** (e.g., `/foo/i` vs `/foo/g` hash the same) can incorrectly reuse cached artifacts.
+  - JSON property order is typically stable for simple objects but is not a hard invariant across all object construction paths; for config objects assembled dynamically (or coming from different loaders), you can end up with avoidable cache misses (or—worse—wrong reuse if keys are dropped/normalized inconsistently elsewhere).
+
+4) **`waitForStableFile()` is not a true stability check**
+- **Where:** `src/index/build/watch.js`.
+- **Evidence:**
+  - Function returns `true` even if the file never stabilizes across the requested checks (lines ~59–76). It only returns `false` when `fs.stat()` fails.
+- **Impact:**
+  - On fast rebuild loops, this can index partially-written files (or files being written in multiple bursts) while giving the appearance that a stability guard is active.
+
+5) **`current.json` promotion logic can point outside the intended repo cache root**
+- **Where:** `src/index/build/promotion.js`.
+- **Evidence:**
+  - `relativeRoot = path.relative(repoCacheRoot, buildRoot)` (line ~24). If `buildRoot` is not under `repoCacheRoot`, this will contain `..` segments.
+  - `normalizeRelativeRoot()` also accepts absolute paths and joins relative paths without any explicit “must be within repo cache root” enforcement.
+- **Impact:**
+  - Index selection can become surprising (or dangerous) if a misconfigured buildRoot or a malformed `current.json` points to unintended directories.
+  - Even if this is “only local”, it’s a correctness and operator-safety issue, especially when multiple repos/build roots exist.
+
+## Detailed findings
+
+### A) Crash and correctness bugs
+
+#### A1) Watch shutdown can throw before scheduler initialization
+- **File:** `src/index/build/watch.js`
+- **Details:**
+  - `scheduler` is declared as `let scheduler;` (line ~252), but signal handlers are registered earlier.
+  - `requestShutdown()` calls `scheduler.cancel()` unconditionally (line ~280).
+- **Why this is wrong:** Signals are asynchronous and can arrive immediately; shutdown handlers should be resilient during all initialization phases.
+- **Suggested fix:** Guard `scheduler` (`scheduler?.cancel()`), or initialize scheduler before registering signal handlers.
+- **Suggested test:** Spawn watch mode and immediately send SIGINT; assert clean exit without uncaught exception.
+
+#### A2) Runtime shape drift: `recordsDir` / `recordsConfig` not present
+- **Files:**
+  - `src/index/build/runtime/runtime.js`
+  - `src/index/build/indexer/steps/discover.js`
+  - `src/index/build/watch.js`
+- **Details:**
+  - `runtime.runtime.js` return object includes many config fields (lines ~533–625) but omits `recordsDir` and `recordsConfig`.
+  - `runDiscovery()` passes `runtime.recordsDir` and `runtime.recordsConfig` into `discoverFiles()` (discover step lines ~31–42).
+- **Why this is wrong:** This will silently disable records-aware behavior in discovery and watch. It’s especially risky because it won’t necessarily fail loudly.
+- **Suggested fix:** Include the records fields on the runtime object (and/or stop referencing runtime.recordsDir/recordsConfig and instead re-derive via config helpers at call sites). The better decision depends on whether “runtime” is intended to be the single source of truth for a run.
+- **Suggested tests:**
+  - Unit test that `createBuildRuntime()` includes records fields when triage/records config is enabled.
+  - Integration test: ensure record files are excluded from code/prose discovery when recordsDir is configured.
+
+#### A3) `waitForStableFile()` does not detect sustained instability
+- **File:** `src/index/build/watch.js` (lines ~59–76)
+- **Details:** If the file changes on every poll, the loop completes and returns `true` anyway.
+- **Why this is wrong:** The function name and the call site (`if (!stable) return;`) imply “do not proceed until stable.” The current behavior is “delay a bit and then proceed regardless.”
+- **Suggested fix:** Return `false` when stability is not observed within `checks` polls (or rename to reflect “best-effort delay” semantics).
+- **Suggested test:** Create a file that is rewritten multiple times across the guard window; assert that indexing does not proceed until stable (or assert the renamed semantics).
+
+#### A4) Promotion can allow `current.json` to reference unintended paths
+- **File:** `src/index/build/promotion.js`.
+- **Details:** `relativeRoot` may contain `..` segments when buildRoot is outside repoCacheRoot. There’s no explicit validation that the resolved root is within the cache root.
+- **Why this is wrong:** Build promotion should be a strict mapping to known build roots under the cache directory, not an arbitrary filesystem pointer.
+- **Suggested fix:**
+  - Enforce: `buildRoot` must be within `repoCacheRoot` (or within `repoCacheRoot/builds`).
+  - Validate that normalized resolved roots do not start with `..` after `path.relative`.
+- **Suggested test:** Force a buildRoot outside repoCacheRoot and assert promotion rejects with a clear message.
+
+### B) Cache signatures, incremental invariants, and reproducibility
+
+#### B1) Regex flags are not included in tokenization signature
+- **File:** `src/index/build/indexer/signatures.js`.
+- **Details:** `licensePattern`, `generatedPattern`, and `linterPattern` include only `.source` (lines ~15–20).
+- **Impact:** Two different regexes with the same source but different flags produce the same signature; incremental artifacts may be reused when they shouldn’t.
+- **Suggested fix:** Include `{source, flags}` or serialize the regex with both parts.
+- **Suggested test:** Run indexing twice with identical source regex but different flags; assert incremental cache invalidation occurs.
+
+#### B2) `JSON.stringify` is used for signature payloads
+- **File:** `src/index/build/indexer/signatures.js`.
+- **Details:** Both `buildTokenizationKey()` and `buildIncrementalSignature()` hash `JSON.stringify(payload)`.
+- **Impact:** Avoidable nondeterminism and difficult-to-debug “why didn’t incremental reuse?” outcomes when payloads contain dynamically constructed objects.
+- **Suggested fix:** Use the project’s existing stable serializer (`stableStringify`) for signature payloads.
+
+#### B3) Adaptive dict configuration mutates runtime across modes
+- **File:** `src/index/build/indexer/pipeline.js`.
+- **Details:** After discovery, `runtime.dictConfig` is mutated via `applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length)` (line ~125).
+- **Impact:**
+  - If you build multiple modes sequentially in a single run, the later mode’s signatures and tokenization behavior may inherit adaptation based on the earlier mode’s file count.
+  - This can undermine incremental correctness if cache keys are computed using the mutated config.
+- **Suggested fix:** Treat adaptive dict config as a per-mode derived value (e.g., `effectiveDictConfigByMode[mode]`) rather than mutating the shared runtime object.
+- **Suggested test:** Build `code` then `prose` with very different file counts; assert prose keying is not influenced by code discovery.
+
+### C) Robustness, path safety, and operator expectations
+
+#### C1) Ignore file loading can escape repo root via absolute paths / traversal
+- **File:** `src/index/build/ignore.js`.
+- **Details:** `ignorePath = path.join(root, ignoreFile)` (lines ~35–40). If `ignoreFile` is absolute, `path.join` ignores `root`; if it contains `..`, it escapes `root`.
+- **Impact:** This can lead to confusing behavior where “repo ignore config” is actually read from an unrelated filesystem path.
+- **Suggested fix:**
+  - Normalize and validate ignore file paths (ensure they remain within repo root), unless you explicitly want to support absolute ignore file paths.
+  - If absolute paths are supported, document that clearly and consider requiring an explicit opt-in.
+- **Suggested test:** Provide `ignoreFiles: ['../other/.gitignore']` and assert either (a) rejected, or (b) allowed with explicit log.
+
+#### C2) Index lock is global to repo cache root
+- **File:** `src/index/build/lock.js`.
+- **Details:** lock file is always `repoCacheRoot/locks/index.lock`.
+- **Impact:** Potentially over-serializes work if you ever want to allow concurrent “read-only enrichment” or separate mode builds.
+- **Suggestion:** Not necessarily a bug, but consider whether you want per-mode locks or per-artifact locks once the system becomes more parallel.
+
+### D) Worker pool resilience and failure modes
+
+#### D1) DataCloneError triggers pool restart even though restart cannot fix payload cloneability
+- **File:** `src/index/build/worker-pool.js`.
+- **Evidence:** `isCloneError` detection (lines ~519–525) still goes through `scheduleRestart(reason)` in most cases (line ~529).
+- **Why this is wrong:** Clone failures are input/payload correctness issues, not worker lifecycle issues; restarting workers does not fix a non-cloneable payload.
+- **Suggested fix:** Treat clone errors as “fallback to main thread for this payload” and/or “disable pool permanently until fixed,” but do not repeatedly restart.
+- **Suggested test:** Force a non-cloneable field into the payload and assert behavior is deterministic (fallback) rather than a restart loop.
+
+#### D2) Pool may remain allocated after exceeding max restart attempts
+- **File:** `src/index/build/worker-pool.js`.
+- **Evidence:** When `restartAttempts > maxRestartAttempts`, `scheduleRestart()` returns without calling `shutdownPool()` (lines ~344–348).
+- **Impact:** Leaves a disabled pool allocated and potentially holding resources/threads. At minimum, confusing; at worst, resource leak.
+- **Suggested fix:** When giving up, explicitly destroy/shutdown the pool.
+
+### E) Performance and scalability concerns (not necessarily “bugs”, but likely to surface as failures)
+
+#### E1) Dictionary loading reads entire wordlists into memory
+- **File:** `src/index/build/runtime/runtime.js`.
+- **Details:** Wordlists are read completely and split into a `Set` (lines ~303–333).
+- **Impact:** Large wordlists can become a major startup cost and memory footprint.
+- **Suggested improvement:** Consider streaming parsing and/or on-demand dictionary usage, especially if you later move towards end-to-end streaming indexing.
+
+#### E2) Piece assembly is inherently memory-heavy
+- **File:** `src/index/build/piece-assembly.js`.
+- **Details:** It loads all chunk metadata, token postings, and doc lengths into memory and then remaps postings based on a global ordering.
+- **Impact:** For large repos, this step can become a practical OOM risk.
+- **Suggested improvement:** If piece assembly remains a first-class operation, consider external sort / streaming remap strategies.
+
+## Per-file quick notes
+
+### `src/index/build/indexer/pipeline.js`
+- **Potential drift:** early return on incremental reuse (`reused`) does not advance overall progress stages; if overall progress UI assumes each stage calls `advance`, you can end up with confusing progress output.
+
+### `src/index/build/runtime/hash.js`
+- **Hash stability risk:** `normalizeContentConfig()` uses `JSON.parse(JSON.stringify(config))` (line ~6). This will collapse/lose non-JSON values (e.g., `RegExp`, `undefined`, functions) and can create config-hash collisions.
+
+### `src/index/build/indexer/embedding-queue.js`
+- **Runtime compatibility:** uses `crypto.randomUUID()` (line ~15). Ensure Node version policy matches this requirement.
+
