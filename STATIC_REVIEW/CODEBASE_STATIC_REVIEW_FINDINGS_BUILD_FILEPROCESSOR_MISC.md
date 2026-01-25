@@ -33,38 +33,21 @@ The goal here is to identify bugs, edge cases, and correctness/performance footg
 
 ### High / operational gaps
 
-3) **Windows `.ps1` structural tools are “detected” but not runnable** (`src/experimental/structural/binaries.js`).
-   - `findOnPath()` searches for `${candidate}.ps1`, but `runCommand()` only enables `shell: true` for `.cmd`/`.bat` and otherwise executes the file directly.
-   - Executing a PowerShell script typically requires invoking `powershell.exe -File <script.ps1>` (or `pwsh`).
-   - Suggested fix: treat `.ps1` as a special case that wraps in `powershell`/`pwsh` as the command with an args prefix.
-
-4) **Discovery uses synchronous `lstat` for every file path in a potentially large list** (`src/index/build/discover.js`).
+3) **Discovery uses synchronous `lstat` for every file path in a potentially large list** (`src/index/build/discover.js`).
    - The loop does `await fs.lstat(filePath)` sequentially. This is simple but can become a wall-clock bottleneck on very large repos.
    - Suggested improvement: bounded concurrency for lstat, or leverage directory walker APIs that provide stats.
    - Suggested test/benchmark: large synthetic repo with N files; assert discovery remains under a target time budget (non-CI benchmark, excluded from test suites).
 
 ## Detailed findings
 
-### 1) `src/experimental/structural/binaries.js` — `.ps1` invocation and existence checks
-
-**What looks wrong**
-
-- `.ps1` scripts are discovered but executed directly (will usually fail).
-- `fsExists()` returns the result of `fs.statSync()` (a `Stats` object) rather than a strict boolean; directories will be treated as “exists” too.
-
-**Suggested improvements**
-
-- If a candidate ends in `.ps1`, return `{ command: "powershell", argsPrefix: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", <script>] }` (or `pwsh` if available).
-- Replace `fsExists()` with a boolean existence check and (optionally) a file-type check.
-
-### 2) `src/index/build/discover.js` — performance and subtle behavior notes
+### 1) `src/index/build/discover.js` — performance and subtle behavior notes
 
 **What to watch for**
 
 - Git-based discovery is only used when `root` is the repo toplevel. Indexing a subdirectory will fall back to filesystem crawling, which can surprise users who expect `.gitignore` + git tracked filtering semantics.
 - The per-file lstat loop is sequential; bounded concurrency could significantly reduce discovery wall time on large repos.
 
-### 3) `src/index/build/file-processor.js` — a few correctness/perf footguns worth tightening
+### 2) `src/index/build/file-processor.js` — a few correctness/perf footguns worth tightening
 
 This file is large and generally well-structured; the items below are focused on correctness edge cases and high-cost paths.
 
@@ -72,7 +55,7 @@ This file is large and generally well-structured; the items below are focused on
 - If the worker pool is disabled or returns `null`, tokenization falls back to main thread, which is correct — but it may be worth emitting a structured warning once per run so operators notice the throughput regression.
 - `extractComments()` + comment tokenization happen even if comments are later excluded from token text. If performance becomes an issue, consider a fast-path to skip per-comment tokenization when comment fields are disabled (or when minTokens thresholds will exclude them anyway).
 
-### 4) `src/index/build/file-scan.js` — binary detection semantics
+### 3) `src/index/build/file-scan.js` — binary detection semantics
 
 - The scanner still performs binary heuristics even when `wantsBinary` is false (because a sample buffer is loaded for other checks). This may be intended, but it makes `sampleMinBytes` feel less like a gate and more like a tuning knob.
 - If `sampleMinBytes` is meant as a “don’t even try” threshold, consider short-circuiting detection when size < sampleMinBytes (except for obvious magic-number detection via `file-type`).
