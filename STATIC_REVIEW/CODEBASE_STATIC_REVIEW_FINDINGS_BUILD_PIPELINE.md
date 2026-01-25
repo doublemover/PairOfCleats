@@ -85,12 +85,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### C) Robustness, path safety, and operator expectations
 
-#### C2) Index lock is global to repo cache root
-- **File:** `src/index/build/lock.js`.
-- **Details:** lock file is always `repoCacheRoot/locks/index.lock`.
-- **Impact:** Potentially over-serializes work if you ever want to allow concurrent “read-only enrichment” or separate mode builds.
-- **Suggestion:** Not necessarily a bug, but consider whether you want per-mode locks or per-artifact locks once the system becomes more parallel.
-
 ### D) Worker pool resilience and failure modes
 
 #### D1) DataCloneError triggers pool restart even though restart cannot fix payload cloneability

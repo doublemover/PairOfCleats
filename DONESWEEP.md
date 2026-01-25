@@ -47,3 +47,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: signatures already use stable serialization; removed note.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: adaptive dict config already returns new object; removed note.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: ignore file path validation already enforced; removed note.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: reviewed repo lock scope note; no change needed.
