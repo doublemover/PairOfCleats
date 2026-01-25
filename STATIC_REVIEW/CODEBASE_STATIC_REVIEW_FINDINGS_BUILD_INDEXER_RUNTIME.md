@@ -38,11 +38,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
 
 ### High / correctness + feature gaps
 
-3) **Piece assembly drops `hash_algo` into a black hole and may force token postings even in non-token/vectors-only scenarios** (`src/index/build/piece-assembly.js`).
-   - `file_meta.json` parsing records `entry.hash_algo || entry.hashAlgo` (snake or camel), but chunk fill logic only checks `meta.hashAlgo` (camel) when populating `chunk.fileHashAlgo`. If the writer emits `hash_algo` (snake), assembled chunks can lose `fileHashAlgo`.
-   - The assembler unconditionally loads `token_postings.json` via `loadTokenPostings(dir)`. If you later support “vector-only” or “postings-off” indexes, piece assembly will currently fail unless it learns to treat postings artifacts as optional based on `indexState` / stage.
-   - Suggested fix: accept both `hashAlgo` and `hash_algo` in the chunk fill path, and make postings artifacts optional when the stage/mode disables them.
-
 4) **Stage defaults may not match intent for “stage3/embeddings”** (`src/index/build/runtime/stage.js`).
    - Stage 3 defaults disable tree-sitter/lint/risk/type inference but do **not** force embeddings on. If a user invokes stage3 with embeddings disabled in config, the run can become a confusing no-op or partial stage.
    - Suggested fix: either (a) force `embeddings.enabled=true` (and mode) in stage3 defaults, or (b) explicitly validate and error when stage3 is requested but embeddings are disabled.
@@ -66,22 +61,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
    - The job payload does not include the promoted build root or explicit artifact paths; if multiple indexes exist per repo/mode, the embedding worker may need more identifiers to find the correct target.
 
 ## Detailed findings (with concrete suggestions)
-
-### 3) Piece assembly: metadata compatibility and optional artifacts
-**File:** `src/index/build/piece-assembly.js`
-
-**What looks wrong / risky**
-
-- Mixed snake_case vs camelCase: `hash_algo` is recognized when building `fileInfoByPath`, but chunk fill only reads `meta.hashAlgo` and ignores `meta.hash_algo`.
-- The assembler unconditionally requires token postings artifacts; stage-aware optionality is not present.
-- Cross-file inference is applied during piece assembly when enabled, but the call does not appear to gate on `mode === "code"`. If other modes are assembled, cross-file inference may run unnecessarily or encounter unexpected chunk shapes.
-
-**Suggested improvements**
-
-- Normalize file_meta fields once (e.g., convert `hash_algo` → `hashAlgo`) and use the normalized form consistently.
-- Make artifact loading conditional on stage/features:
-  - If stage/postings disabled, treat `token_postings.json` and other postings artifacts as optional, and clearly validate “what must exist” for that mode/stage.
-- Explicitly gate cross-file inference to `mode === "code"` and document that behavior in the assembler.
 
 ### 4) Ignore config robustness
 **File:** `src/index/build/ignore.js`
