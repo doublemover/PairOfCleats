@@ -896,3 +896,235 @@ The best systemic fix is to introduce a **single canonical contract layer** (sch
    - no booleans/objects in `returnType`; `docmeta.returns` must normalize into canonical signature.
 `
 
+- C:/Users/sneak/Development/PairOfCleats_CODEX/WIDESWEEPS/CODEBASE_WIDE_SWEEP_RETRIEVAL_UX_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+
+`
+# Codebase Static Review Findings — Wide Sweep D (Final, Merged)
+
+**Scope / focus:** Retrieval semantics and UX (ranking, filters, context shaping, output formats, CLI normalization, backend/provider selection).
+
+**Merged sources (wide sweep drafts):**
+- `CODEBASE_WIDE_SWEEP_RETRIEVAL_UX.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12D_WIDE_RETRIEVAL_SEMANTICS_UX.md`
+
+## Severity key
+
+- **P0 / Critical**: can return wrong results due to mis-joins, mis-filtering, or silent semantic drift.
+- **P1 / High**: major UX/correctness inconsistencies; ranking/filter surprises; backend parity breaks.
+- **P2 / Medium**: determinism, explainability, and maintainability gaps.
+
+## Executive summary
+
+Retrieval features are extensive, but correctness is undermined by a lack of a single “semantic kernel” that all providers and outputs must obey. The most serious risks are:
+
+1. **docId alignment is assumed** across multiple retrieval paths (implicit array-index joins), but not validated — a silent corruption risk.
+2. **Backend/provider selection and capability gating is scattered**, enabling silent fallback behavior (especially around SQLite/ANN).
+3. **Language and filter semantics drift** (extension-based language filtering, filter-index drift between build and retrieval).
+4. **Ranking/boosting rules lack strong guards**, notably export boosting.
+5. **Context expansion and output shaping** are collision-prone and can exhaust budgets without a clear policy contract.
+
+---
+
+## Findings
+
+### P0 — docId is treated as a universal join key without alignment validation (implicit array-index joins)
+
+**Where**
+- Retrieval joins and ranking:
+  - `src/retrieval/bitmap.js`
+  - `src/retrieval/fts.js`
+  - `src/retrieval/filter-index.js`
+- SQLite cache/helpers:
+  - `src/retrieval/sqlite-cache.js`
+  - `src/retrieval/sqlite-helpers.js`
+
+**What’s wrong**
+- Retrieval frequently assumes:
+  - `docId` is dense and stable,
+  - arrays from different sources align by docId index (chunk meta arrays, score arrays, postings bitmaps).
+- The system does not validate that:
+  - all artifact sets share the same docId→chunk mapping,
+  - providers return docIds that map to the same chunk-meta ordering.
+
+**Impact**
+- Returning incorrect snippet/metadata for a match (silent corruption).
+- Incorrect filters and context expansion because “match points to wrong chunk”.
+
+**Suggested fix**
+- Make stableChunkId the universal join key; docId becomes storage-local only.
+- Require an explicit join map and validate alignment at index load time (fail closed if inconsistent).
+
+---
+
+### P1 — Provider selection and capability gating are not centralized (semantic drift + silent fallback)
+
+**Where**
+- Backend/provider selection:
+  - `src/retrieval/backend-policy.js`
+  - `src/retrieval/sqlite-fts-eligibility.js`
+  - `src/retrieval/ann/providers/*`
+- CLI normalization and backend context:
+  - `src/retrieval/cli/backend-context.js`
+  - `src/retrieval/cli/policy.js`
+
+**What’s wrong**
+- The “same query” can be routed to different providers depending on:
+  - local dependency availability,
+  - inferred eligibility thresholds,
+  - CLI flags and defaults.
+- Capability gating is not enforced as a strict manifest-backed contract, so silent fallback is possible.
+
+**Suggested fix**
+- Centralize routing in one `RetrievalPlan` builder that requires:
+  - index manifest capabilities,
+  - local environment capabilities,
+  - explicit policy rules.
+- If capabilities don’t match, fail closed (or require explicit “allow fallback” policy).
+
+---
+
+### P1 — Context expansion is collision-prone when identity is weak (can merge unrelated chunks)
+
+**Where**
+- Context shaping:
+  - `src/retrieval/context-expansion.js`
+  - `src/retrieval/query-cache-extracted-prose.js` (if used for reuse)
+
+**What’s wrong**
+- Context expansion often aggregates matches by coarse keys (file paths, chunk ordinals, docIds).
+- If stable IDs are not canonical (see Wide Sweep A), collisions can occur and context blocks can contain wrong/merged data.
+
+**Suggested fix**
+- Use stableChunkId for all expansion grouping.
+- Attach confidence and provenance for “expanded-by” relationships.
+
+---
+
+### P1 — SQLite hydration can return a reduced shape compared to JSONL artifacts (backend parity break)
+
+**Where**
+- SQLite hydration:
+  - `src/retrieval/sqlite-helpers.js`
+  - `src/storage/sqlite/*` (schema and readers)
+
+**What’s wrong**
+- Some retrieval paths reconstruct minimal chunk metadata for SQLite rows.
+- This makes output shapes and filter behavior backend-dependent.
+
+**Suggested fix**
+- Store canonical `metaV2` (or canonical subset) in SQLite at ingest time.
+- Validate parity via contract tests.
+
+---
+
+### P1 — Export boosting appears to apply broadly across languages (missing guards)
+
+**Where**
+- Ranking:
+  - `src/retrieval/rank.js`
+
+**What’s wrong**
+- “Exported symbol” boost logic is not clearly gated to a language/kind model; in practice, many chunks can appear “exported” by heuristic.
+- This biases ranking and can degrade relevance for non-TS/JS repositories.
+
+**Suggested fix**
+- Gate export boosts by canonical `metaV2.lang` and `metaV2.kind`.
+- Require explicit language support to enable this boost.
+- Surface boost application in explain output.
+
+---
+
+### P1 — Language filtering is extension-centric; must pivot to `metaV2.lang` (segment-aware)
+
+**Where**
+- Filters and query parsing:
+  - `src/retrieval/filters.js`
+  - `src/retrieval/query-parse.js`
+  - `src/retrieval/query.js`
+
+**What’s wrong**
+- Filters consult file extensions or `chunk.ext` rather than canonical `metaV2.lang`.
+- This is incorrect for segmented files and also interacts with the build-side bug where segment language can be overwritten.
+
+**Suggested fix**
+- Define `metaV2.lang` as the only filter key.
+- Ensure filter-index uses the same key.
+
+---
+
+### P1 — Filter-index semantics drift between build-time and retrieval-time implementations
+
+**Where**
+- Build:
+  - `src/index/build/artifacts/filter-index.js`
+- Retrieval:
+  - `src/retrieval/filter-index.js`
+
+**What’s wrong**
+- Normalization rules (case, punctuation, tokenization, strictness defaults) are not guaranteed to match.
+- This produces “filter exists but doesn’t apply” confusion.
+
+**Suggested fix**
+- Centralize normalization in shared code and version the filter-index contract.
+
+---
+
+### P1 — Token semantics collapse when `tokenMode: none` (filters and scoring degrade)
+
+**Where**
+- Query parsing and scoring:
+  - `src/retrieval/query-parse.js`
+  - `src/retrieval/rank.js`
+
+**What’s wrong**
+- If tokenization is disabled/altered, features built on token boundaries (filters, scoring, phrase matching) degrade in ways that can appear as “random relevance loss”.
+
+**Suggested fix**
+- Treat tokenMode as a hard policy and signature input; emit warnings or refuse to run incompatible queries.
+
+---
+
+### P2 — Output verbosity and explainability need a budgeted, policy-driven contract
+
+**Where**
+- Output shaping:
+  - `src/retrieval/output/*`
+  - `src/retrieval/context-expansion.js`
+
+**What’s wrong**
+- Without a single “verbosity budget” policy (max matches, max context, max snippet bytes), different commands can emit unexpectedly large payloads and perform poorly.
+
+**Suggested fix**
+- Implement a retrieval output policy:
+  - budgets + defaults,
+  - CLI normalization,
+  - stable JSON schema.
+
+---
+
+### P2 — Query plan / explain output does not describe normalization and rewrites
+
+**Where**
+- Query plan / explain:
+  - `src/retrieval/cli/query-plan.js`
+  - `src/retrieval/output/explain.js`
+
+**Suggested fix**
+- Explain must include:
+  - normalized tokens,
+  - applied filters,
+  - boosts and reasons,
+  - provider selection decisions,
+  - fallback decisions (if any).
+
+---
+
+## “Keep it right” retrieval invariants
+
+1. Retrieval must fail closed if docId alignment cannot be proven.
+2. Provider selection must be manifest + policy driven (no silent fallback).
+3. Language and filter semantics must be canonical (`metaV2.lang`, shared normalization).
+4. Ranking boosts must be gated and explainable.
+5. Context expansion and output shaping must obey a single policy budget.
+`
+
