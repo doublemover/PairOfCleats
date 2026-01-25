@@ -40,10 +40,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
 
 ### Medium / operational footguns
 
-7) **Tree-sitter runtime config has a surprising invalid-value fallback for `deferMissingMax`** (`src/index/build/runtime/tree-sitter.js`).
-   - If the config explicitly sets `deferMissingMax` but it is invalid/non-numeric, the code uses `normalizeOptionalLimit(...) ?? 0`, which forces it to `0` (rather than a safe default like `DEFAULT_DEFER_MISSING_MAX`).
-   - Suggested fix: on invalid numeric overrides, fall back to the default constant, not zero.
-
 8) **Embedding queue enqueue path is not clearly “best-effort”** (`src/index/build/indexer/embedding-queue.js`).
    - `ensureQueueDir()` / `enqueueJob()` errors bubble up and can fail indexing. If the embedding service is optional, enqueue should be “best effort” with clear logging and a non-fatal failure mode.
    - The job payload does not include the promoted build root or explicit artifact paths; if multiple indexes exist per repo/mode, the embedding worker may need more identifiers to find the correct target.
@@ -57,12 +53,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
   - Stage1/Stage2 should never attempt embeddings.
   - Stage3 should require embeddings artifacts input and/or enabled embeddings mode.
   - Stage4 should require embeddings to already exist (even if embeddings computation is disabled).
-
-### 7) Tree-sitter config fallback behavior
-**File:** `src/index/build/runtime/tree-sitter.js`
-
-- Avoid turning invalid `deferMissingMax` into `0` if the property is present but invalid; default to `DEFAULT_DEFER_MISSING_MAX` instead.
-- Add a config validation test covering invalid numeric overrides.
 
 ### 8) Embedding enqueue is not clearly best-effort
 **File:** `src/index/build/indexer/embedding-queue.js`
