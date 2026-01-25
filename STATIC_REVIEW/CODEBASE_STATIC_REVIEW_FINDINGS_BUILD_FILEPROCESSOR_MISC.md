@@ -48,9 +48,6 @@ This file is large and generally well-structured; the items below are focused on
 
 This section is intentionally short per file; it exists to confirm review coverage and to note any smaller follow-ups.
 
-### `src/index/build/failure-taxonomy.js`
-- Classification is heuristic by nature. If you rely on these categories for alerting/telemetry, add a snapshot test suite with a set of representative errors so categories don’t drift silently.
-
 ### `src/index/build/feature-metrics.js`
 - Metric accounting looks consistent and uses share-of-lines to apportion duration/bytes across languages.
 - Minor note: `mergeFeatureMetrics()` clones via `JSON.parse(JSON.stringify(...))` (same caveat as elsewhere: this drops non-JSON values). Metrics objects should stay JSON-safe, so this is fine.

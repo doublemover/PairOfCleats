@@ -13,3 +13,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed build args test suggestion; no change needed for now.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed crash-log test suggestion; no change needed for now.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed embedding-batch test suggestion; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed failure-taxonomy snapshot suggestion; no change needed for now.
