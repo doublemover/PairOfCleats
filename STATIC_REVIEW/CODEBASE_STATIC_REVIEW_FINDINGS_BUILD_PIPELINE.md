@@ -33,26 +33,3 @@ This sweep reviewed **only** the following files from the provided zip:
 
 ## Executive summary
 This portion of the codebase is generally well-structured (clear runtime normalization, explicit stage controls, and a coherent indexing pipeline), but there are a handful of **high-impact correctness and “drift” issues** that will cause surprising behavior at scale.
-
-### Highest-impact issues
-
-## Detailed findings
-
-### A) Crash and correctness bugs
-
-### B) Cache signatures, incremental invariants, and reproducibility
-
-### C) Robustness, path safety, and operator expectations
-
-### D) Worker pool resilience and failure modes
-
-### E) Performance and scalability concerns (not necessarily “bugs”, but likely to surface as failures)
-
-## Per-file quick notes
-
-### `src/index/build/indexer/pipeline.js`
-
-### `src/index/build/runtime/hash.js`
-
-### `src/index/build/indexer/embedding-queue.js`
-- **Runtime compatibility:** uses `crypto.randomUUID()` (line ~15). Ensure Node version policy matches this requirement.
