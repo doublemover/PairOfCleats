@@ -63,7 +63,6 @@ This section lists additional smaller observations per file to aid future cleanu
 ### `src/index/build/runtime/logging.js`
 
 ### `src/index/build/watch/backends/parcel.js`
-- Parcel ignore callbacks may not receive `fs.Stats`; the ignore function currently supports missing stats, but directory-specific checks become less precise. Confirm behavior with upstream watcher APIs.
 
 ### `src/index/build/workers/indexer-worker.js`
 - `validateCloneable()` runs on inputs/outputs for every task; verify the overhead is acceptable for very high throughput tokenization. Consider gating to debug mode if needed.
