@@ -48,10 +48,6 @@ This file is large and generally well-structured; the items below are focused on
 
 This section is intentionally short per file; it exists to confirm review coverage and to note any smaller follow-ups.
 
-### `src/index/build/feature-metrics.js`
-- Metric accounting looks consistent and uses share-of-lines to apportion duration/bytes across languages.
-- Minor note: `mergeFeatureMetrics()` clones via `JSON.parse(JSON.stringify(...))` (same caveat as elsewhere: this drops non-JSON values). Metrics objects should stay JSON-safe, so this is fine.
-
 ### `src/index/build/file-processor/incremental.js`
 - Incremental reuse decisions are clear (prefer stable `fileHash`, else fall back to size+mtime).
 - Consider tests that cover: (1) hash matches, (2) hash missing but mtime/size match, (3) file content changed but same size, (4) deleted files in bundles.
