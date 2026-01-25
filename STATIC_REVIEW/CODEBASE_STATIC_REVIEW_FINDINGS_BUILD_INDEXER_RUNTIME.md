@@ -53,7 +53,6 @@ This section lists additional smaller observations per file to aid future cleanu
 ### `src/index/build/indexer/steps/discover.js`
 
 ### `src/index/build/lock.js`
-- Stale lock handling is reasonable; consider logging when stale locks are detected/removed to aid operational debugging.
 
 ### `src/index/build/preprocess.js`
 - Contains an unused `normalizeLimit()` helper (dead code). Removing reduces drift and lint noise.
