@@ -47,7 +47,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
 This section lists additional smaller observations per file to aid future cleanup and test planning.
 
 ### `src/index/build/indexer/pipeline.js`
-- Index reuse path exits early; ensure any “late” artifacts (e.g., embedding queue jobs, metrics emission) are not required for correctness when reuse occurs.
 
 ### `src/index/build/indexer/signatures.js`
 - Incremental signature includes many runtime toggles; verify embedding service identity/config (endpoint/model) is included if it can vary between runs.
