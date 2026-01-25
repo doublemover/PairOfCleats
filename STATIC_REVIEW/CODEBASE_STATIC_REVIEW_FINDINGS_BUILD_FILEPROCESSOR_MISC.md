@@ -48,9 +48,6 @@ This file is large and generally well-structured; the items below are focused on
 
 This section is intentionally short per file; it exists to confirm review coverage and to note any smaller follow-ups.
 
-### `src/experimental/compare/config.js`
-- Looks correct for its purpose (load/merge config + compute hashes). If you expand compare tooling, consider writing fixtures that include nested objects, arrays, and absent keys to ensure hash behavior is stable.
-
 ### `src/index/build/args.js`
 - Straightforward CLI parsing and mode normalization. Consider a test for the `mode=both` alias and for invalid modes raising a validation error (via `validateBuildArgs`).
 
