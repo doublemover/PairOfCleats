@@ -55,7 +55,6 @@ This section lists additional smaller observations per file to aid future cleanu
 ### `src/index/build/lock.js`
 
 ### `src/index/build/preprocess.js`
-- Contains an unused `normalizeLimit()` helper (dead code). Removing reduces drift and lint noise.
 - Preprocess collects per-language line counts but does not yet emit a language-grouped ordering plan (needed for WASM grouping / streaming passes).
 
 ### `src/index/build/runtime/caps.js`

@@ -9,12 +9,6 @@ import { createFileScanner, readFileSample } from './file-scan.js';
 import { discoverEntries } from './discover.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
 
-const normalizeLimit = (value, fallback) => {
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return fallback;
-};
-
 const hasMaxLinesCaps = (fileCaps) => {
   const defaultMax = fileCaps?.default?.maxLines;
   if (Number.isFinite(Number(defaultMax)) && Number(defaultMax) > 0) return true;
