@@ -55,3 +55,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: runtime hash normalization already uses canonicalized stable serialization; removed stale note.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: incremental/tokenization signature nondeterminism addressed; removed stale summary finding.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: waitForStableFile already returns false when stability is not achieved; removed stale finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: promotion now validates buildRoot within repo cache root; removed stale finding.

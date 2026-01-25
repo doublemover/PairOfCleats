@@ -36,27 +36,9 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### Highest-impact issues
 
-5) **`current.json` promotion logic can point outside the intended repo cache root**
-- **Where:** `src/index/build/promotion.js`.
-- **Evidence:**
-  - `relativeRoot = path.relative(repoCacheRoot, buildRoot)` (line ~24). If `buildRoot` is not under `repoCacheRoot`, this will contain `..` segments.
-  - `normalizeRelativeRoot()` also accepts absolute paths and joins relative paths without any explicit “must be within repo cache root” enforcement.
-- **Impact:**
-  - Index selection can become surprising (or dangerous) if a misconfigured buildRoot or a malformed `current.json` points to unintended directories.
-  - Even if this is “only local”, it’s a correctness and operator-safety issue, especially when multiple repos/build roots exist.
-
 ## Detailed findings
 
 ### A) Crash and correctness bugs
-
-#### A4) Promotion can allow `current.json` to reference unintended paths
-- **File:** `src/index/build/promotion.js`.
-- **Details:** `relativeRoot` may contain `..` segments when buildRoot is outside repoCacheRoot. There’s no explicit validation that the resolved root is within the cache root.
-- **Why this is wrong:** Build promotion should be a strict mapping to known build roots under the cache directory, not an arbitrary filesystem pointer.
-- **Suggested fix:**
-  - Enforce: `buildRoot` must be within `repoCacheRoot` (or within `repoCacheRoot/builds`).
-  - Validate that normalized resolved roots do not start with `..` after `path.relative`.
-- **Suggested test:** Force a buildRoot outside repoCacheRoot and assert promotion rejects with a clear message.
 
 ### B) Cache signatures, incremental invariants, and reproducibility
 
