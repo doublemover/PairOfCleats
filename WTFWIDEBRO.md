@@ -1573,3 +1573,176 @@ These are not just cleanliness problems: in an indexing system, they become *det
 5. Progress/log event envelopes must be schema-validated and versioned.
 `
 
+- C:/Users/sneak/Development/PairOfCleats_CODEX/WIDESWEEPS/CODEBASE_WIDE_SWEEP_STORAGE_BACKENDS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+
+`
+# Codebase Static Review Findings — Wide Sweep F (Final, Merged)
+
+**Scope / focus:** Storage backend implementations and policy (SQLite build/incremental, LMDB sizing/limits, vector extension integration, format evolution).
+
+**Merged sources (wide sweep drafts):**
+- `CODEBASE_WIDE_SWEEP_STORAGE_BACKENDS.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12F_WIDE_STORAGE_BACKENDS_POLICY.md`
+
+## Severity key
+
+- **P0 / Critical**: can open the wrong backend, silently fall back, or promote an index that cannot be reliably queried.
+- **P1 / High**: backend parity gaps and incremental correctness risks.
+- **P2 / Medium**: operational robustness and maintainability.
+
+## Executive summary
+
+Storage backend behavior is effectively part of the system’s “policy kernel”, but it is currently distributed and partially implicit. The highest-risk issues are:
+
+1. **Backend identity and policy labels are not stored/validated consistently**, enabling “open wrong backend” behavior and silent fallback when dependencies are missing.
+2. **Backend selection logic is duplicated across build and retrieval**, and the two can disagree.
+3. **SQLite parity gaps (notably `metaV2`) create backend-dependent semantics**.
+4. **Incremental build/manifest and schema evolution are not enforced as strict contracts** (risk of silent rebuild loops or stale reads).
+
+---
+
+## Findings
+
+### P0 — Backend identity/policy can mismatch and silently fall back
+
+**Where**
+- Backend policy resolution:
+  - `src/storage/backend-policy.js`
+  - `src/shared/auto-policy.js`
+- Retrieval backend selection:
+  - `src/retrieval/cli/auto-sqlite.js`
+  - `src/retrieval/cli/backend-context.js`
+- Index current pointer / runtime:
+  - `src/index/build/promotion.js`
+  - `src/index/build/runtime/runtime.js`
+
+**What’s wrong**
+- Policies can resolve to a backendId (e.g., `sqlite`) even when that backend is not actually usable (missing extension, missing deps), and fallback behavior can occur without a strong “fail closed” contract.
+- Backend identity is not always stamped into the index in a way that retrieval validates before opening.
+
+**Impact**
+- User thinks they are querying a SQLite-backed index, but retrieval may be:
+  - silently using LMDB,
+  - silently dropping ANN features,
+  - or failing in inconsistent ways depending on local deps.
+
+**Suggested fix**
+- Stamp backend identity into the promoted index as a required contract:
+  - `index.manifest.json` includes `{backendId, backendCapabilities, schemaVersion, buildSignature}`
+- Retrieval must:
+  - read manifest,
+  - validate local capability matrix,
+  - fail closed with a clear error if requirements are not met.
+
+---
+
+### P0 — Build and retrieval can disagree about backend selection and capabilities
+
+**Where**
+- Build-time policy application:
+  - `src/storage/backend-policy.js`
+  - `src/shared/capabilities.js`
+- Retrieval-time policy application:
+  - `src/retrieval/cli/policy.js`
+  - `src/retrieval/cli/backend-context.js`
+
+**What’s wrong**
+- The same conceptual decision (backend selection) is repeated in multiple layers with different fallbacks and defaults.
+
+**Suggested fix**
+- Centralize backend policy in one module (a “policy kernel”):
+  - one resolver,
+  - one capability detector,
+  - one manifest stamp.
+- Make the resolved policy part of the build signature.
+
+---
+
+### P1 — SQLite `metaV2` parity gap causes backend-dependent semantics
+
+**Where**
+- SQLite ingest/build:
+  - `src/storage/sqlite/build/from-artifacts.js`
+  - `src/storage/sqlite/build/from-bundles.js`
+
+**What’s wrong**
+- SQLite may store only a minimal subset of `metaV2` compared to JSONL artifacts.
+- Retrieval behavior differs by backend (types/relations/risk fields missing).
+
+**Suggested fix**
+- Store canonical `metaV2` (or a canonical subset) as JSON in SQLite.
+- Add parity tests comparing JSONL and SQLite retrieval for the same chunk.
+
+---
+
+### P1 — Vector extension integration and fallback behavior must be explicit and durable
+
+**Where**
+- Vector extension integration:
+  - `src/storage/sqlite/vector.js`
+  - `src/shared/optional-deps.js`
+  - `src/shared/lancedb.js` (if used as alternative ANN)
+- Retrieval ANN providers:
+  - `src/retrieval/ann/providers/sqlite-vec.js`
+  - `src/retrieval/ann/providers/hnsw.js`
+
+**What’s wrong**
+- If vector extension is missing or fails to load, fallback behavior may occur without:
+  - durable recording in the manifest,
+  - user-visible warnings,
+  - consistent ranking behavior.
+
+**Suggested fix**
+- Require a manifest-stamped capability:
+  - `{annProvider: "sqlite-vec"|"hnsw"|"none", dims, metric}`
+- Retrieval must refuse ANN queries if the index was built without ANN support (unless explicitly allowed by policy).
+
+---
+
+### P1 — SQLite incremental build and schema evolution should be treated as explicit contracts
+
+**Where**
+- SQLite incremental/migrations:
+  - `src/storage/sqlite/incremental.js`
+  - `src/storage/sqlite/schema.js`
+  - `src/storage/sqlite/build/validate.js`
+  - `src/storage/sqlite/build/manifest.js`
+
+**What’s wrong**
+- Incremental behavior depends on schema versions and manifest hashes, but:
+  - migration authority is split,
+  - rebuild triggers may be inconsistent,
+  - validation is not always staged/promotion-gated.
+
+**Suggested fix**
+- Introduce a single schema authority:
+  - `schemaVersion` increments with explicit migration steps,
+  - validation and rebuild behavior is deterministic.
+- Treat “schema mismatch rebuild” as a staged operation that cannot be promoted until complete.
+
+---
+
+### P2 — LMDB sizing/limits should be policy-driven and stamped
+
+**Where**
+- LMDB schema and sizing:
+  - `src/storage/lmdb/schema.js`
+  - `src/shared/disk-space.js`
+
+**Suggested fix**
+- Compute LMDB map size and growth policy from:
+  - repo size estimate,
+  - expected postings/vectors scale.
+- Stamp map size policy into manifest for reproducibility.
+
+---
+
+## “Keep it right” backend invariants
+
+1. Promoted indexes must include a manifest with backendId + capabilities.
+2. Retrieval must validate manifest vs local capabilities and fail closed.
+3. Backend selection must be centralized and part of the build signature.
+4. SQLite parity must be tested (metaV2, postings, ANN).
+5. Incremental/migrations must be explicit contracts and promotion-gated.
+`
+
