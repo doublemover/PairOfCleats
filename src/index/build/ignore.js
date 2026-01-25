@@ -9,12 +9,13 @@ import { SKIP_DIRS, SKIP_FILES, SKIP_GLOBS } from '../constants.js';
  * @returns {Promise<{ignoreMatcher:import('ignore').Ignore,config:object,ignoreFiles:string[],warnings:Array<object>}>}
  */
 export async function buildIgnoreMatcher({ root, userConfig }) {
+  const resolvedConfig = userConfig && typeof userConfig === 'object' ? userConfig : {};
   const config = {
-    useDefaultSkips: userConfig.useDefaultSkips !== false,
-    useGitignore: userConfig.useGitignore !== false,
-    usePairofcleatsIgnore: userConfig.usePairofcleatsIgnore !== false,
-    ignoreFiles: Array.isArray(userConfig.ignoreFiles) ? userConfig.ignoreFiles : [],
-    extraIgnore: Array.isArray(userConfig.extraIgnore) ? userConfig.extraIgnore : []
+    useDefaultSkips: resolvedConfig.useDefaultSkips !== false,
+    useGitignore: resolvedConfig.useGitignore !== false,
+    usePairofcleatsIgnore: resolvedConfig.usePairofcleatsIgnore !== false,
+    ignoreFiles: Array.isArray(resolvedConfig.ignoreFiles) ? resolvedConfig.ignoreFiles : [],
+    extraIgnore: Array.isArray(resolvedConfig.extraIgnore) ? resolvedConfig.extraIgnore : []
   };
 
   const ignoreMatcher = ignore();

@@ -40,10 +40,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
 
 ### Medium / operational footguns
 
-5) **`buildIgnoreMatcher()` assumes `userConfig` is always a non-null object and silently swallows ignore-file read errors** (`src/index/build/ignore.js`).
-   - If `userConfig` is ever `null/undefined`, property access will throw. Even if that “should never happen”, a defensive default (`userConfig ?? {}`) avoids brittle call sites.
-   - The broad `catch {}` around ignore file reads hides permission/IO errors; it is fine to ignore missing files, but other errors should be surfaced (or at least optionally logged) to avoid “why is .gitignore not working?” confusion.
-
 6) **Promotion metadata can encode build roots outside the cache root if a non-contained path is written** (`src/index/build/promotion.js`).
    - `relativeRoot = path.relative(repoCacheRoot, buildRoot)` can start with `..` when `buildRoot` is outside `repoCacheRoot`. Loading that later can walk outside the cache root.
    - Suggested fix: validate that `buildRoot` resolves under `repoCacheRoot` before persisting; treat violations as errors.
@@ -57,15 +53,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
    - The job payload does not include the promoted build root or explicit artifact paths; if multiple indexes exist per repo/mode, the embedding worker may need more identifiers to find the correct target.
 
 ## Detailed findings (with concrete suggestions)
-
-### 4) Ignore config robustness
-**File:** `src/index/build/ignore.js`
-
-**Issues / improvements**
-
-- Defensive default: treat `userConfig` as `{}` when absent to avoid brittle call sites.
-- Replace blanket `catch {}` with: ignore missing files, but surface other errors (or optionally log them under `--verbose`).
-- Ensure the ignore matcher receives POSIX-style relative paths everywhere; if any call sites pass platform separators, ignores may fail silently on Windows.
 
 ### 5) Stage overrides clarity
 **File:** `src/index/build/runtime/stage.js`
