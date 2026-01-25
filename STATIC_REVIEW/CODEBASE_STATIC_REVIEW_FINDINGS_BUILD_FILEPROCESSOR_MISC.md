@@ -31,13 +31,7 @@ The goal here is to identify bugs, edge cases, and correctness/performance footg
 
 ### Critical / correctness-risk
 
-1) **Schema validation can silently skip required/additionalProperties checks when `properties` is absent** (`src/config/validate.js`).
-   - Object validation is currently gated behind `schema.type === "object" && schema.properties`.
-   - If a schema uses `required` and/or `additionalProperties` but omits `properties`, the validator will not enforce those constraints.
-   - Suggested fix: perform `required` + `additionalProperties` checks whenever `schema.type === "object"`, regardless of whether `properties` is present.
-   - Suggested tests: fixtures where `properties` is omitted but `required` is present; fixtures where only `additionalProperties` is defined (both boolean and schema).
-
-2) **Comment-to-chunk assignment assumes comments are pre-sorted** (`src/index/build/file-processor/chunk.js`).
+1) **Comment-to-chunk assignment assumes comments are pre-sorted** (`src/index/build/file-processor/chunk.js`).
    - `assignCommentsToChunks()` uses a forward-only `chunkIdx` pointer; if comments are not strictly increasing by `comment.start`, later smaller `start` values can be assigned to the wrong chunk.
    - Because comment ranges influence stripping and comment token fields, misassignment can distort chunk text and retrieval signals.
    - Suggested fix: either sort `comments` by `start` inside the function, or document/validate that the input list is sorted (and enforce upstream).
@@ -57,25 +51,7 @@ The goal here is to identify bugs, edge cases, and correctness/performance footg
 
 ## Detailed findings
 
-### 1) `src/config/validate.js` — object schema enforcement gaps
-
-**What looks wrong**
-
-- Object validation currently runs only when `schema.properties` is present.
-- As written, schemas of the form `{ type: "object", required: [...], additionalProperties: false }` will not enforce either `required` or `additionalProperties`.
-
-**Impact**
-
-- Misconfigured configs can slip through validation and fail later in runtime in less obvious ways.
-- This is a likely source of “config drift” bugs (schema/docs say something is required but the validator does not actually enforce it).
-
-**Suggested improvements**
-
-- Run `required` checks whenever `schema.required` is defined, not only when `properties` exists.
-- Apply `additionalProperties` checks whenever `schema.additionalProperties` is defined (and `type === "object"`).
-- Consider adding minimal support for `oneOf`/`anyOf` if the schema relies on them, but this is optional if the current schema is intentionally limited.
-
-### 2) `src/index/build/file-processor/chunk.js` — comment assignment ordering assumption
+### 1) `src/index/build/file-processor/chunk.js` — comment assignment ordering assumption
 
 **What looks wrong**
 
@@ -92,7 +68,7 @@ The goal here is to identify bugs, edge cases, and correctness/performance footg
 - Sort `comments` by `start` inside the function (cheap relative to other work).
 - Alternatively, assert monotonicity in debug builds and fix upstream ordering guarantees.
 
-### 3) `src/experimental/structural/binaries.js` — `.ps1` invocation and existence checks
+### 2) `src/experimental/structural/binaries.js` — `.ps1` invocation and existence checks
 
 **What looks wrong**
 
@@ -104,14 +80,14 @@ The goal here is to identify bugs, edge cases, and correctness/performance footg
 - If a candidate ends in `.ps1`, return `{ command: "powershell", argsPrefix: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", <script>] }` (or `pwsh` if available).
 - Replace `fsExists()` with a boolean existence check and (optionally) a file-type check.
 
-### 4) `src/index/build/discover.js` — performance and subtle behavior notes
+### 3) `src/index/build/discover.js` — performance and subtle behavior notes
 
 **What to watch for**
 
 - Git-based discovery is only used when `root` is the repo toplevel. Indexing a subdirectory will fall back to filesystem crawling, which can surprise users who expect `.gitignore` + git tracked filtering semantics.
 - The per-file lstat loop is sequential; bounded concurrency could significantly reduce discovery wall time on large repos.
 
-### 5) `src/index/build/file-processor.js` — a few correctness/perf footguns worth tightening
+### 4) `src/index/build/file-processor.js` — a few correctness/perf footguns worth tightening
 
 This file is large and generally well-structured; the items below are focused on correctness edge cases and high-cost paths.
 
@@ -119,7 +95,7 @@ This file is large and generally well-structured; the items below are focused on
 - If the worker pool is disabled or returns `null`, tokenization falls back to main thread, which is correct — but it may be worth emitting a structured warning once per run so operators notice the throughput regression.
 - `extractComments()` + comment tokenization happen even if comments are later excluded from token text. If performance becomes an issue, consider a fast-path to skip per-comment tokenization when comment fields are disabled (or when minTokens thresholds will exclude them anyway).
 
-### 6) `src/index/build/file-scan.js` — binary detection semantics
+### 5) `src/index/build/file-scan.js` — binary detection semantics
 
 - The scanner still performs binary heuristics even when `wantsBinary` is false (because a sample buffer is loaded for other checks). This may be intended, but it makes `sampleMinBytes` feel less like a gate and more like a tuning knob.
 - If `sampleMinBytes` is meant as a “don’t even try” threshold, consider short-circuiting detection when size < sampleMinBytes (except for obvious magic-number detection via `file-type`).
