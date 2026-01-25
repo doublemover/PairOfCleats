@@ -94,7 +94,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 ### `src/index/build/indexer/pipeline.js`
 
 ### `src/index/build/runtime/hash.js`
-- **Hash stability risk:** `normalizeContentConfig()` uses `JSON.parse(JSON.stringify(config))` (line ~6). This will collapse/lose non-JSON values (e.g., `RegExp`, `undefined`, functions) and can create config-hash collisions.
 
 ### `src/index/build/indexer/embedding-queue.js`
 - **Runtime compatibility:** uses `crypto.randomUUID()` (line ~15). Ensure Node version policy matches this requirement.
