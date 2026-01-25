@@ -42,7 +42,6 @@ This file is large and generally well-structured; the items below are focused on
 
 ## File-by-file smaller notes
 
-- `src/index/build/failure-taxonomy.js`: the categorizer is heuristic; ensure tests cover common failure message patterns so classification doesn’t regress.
 
 
 ## File-by-file notes (coverage)
