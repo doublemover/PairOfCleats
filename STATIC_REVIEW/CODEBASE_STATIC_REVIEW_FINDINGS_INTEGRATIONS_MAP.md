@@ -66,12 +66,7 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
   - use chunk IDs consistently when present.
   Also add a warning counter: “mergedSymbolsDueToCollision”.
 
-4) **`src/integrations/core/status.js` contains unused functions / drift indicators**
-- **Where:** `readJsonWithLimit()`, `summarizeShardPlan()` are defined but not used.
-- **Impact:** Signals partially implemented or abandoned checks; increases maintenance burden and can mislead future refactors.
-- **Suggestion:** Either wire them into `getStatus()` (if they reflect intended invariants), or remove them to reduce confusion.
-
-5) **Isometric viewer has minimal JSON/error handling; one malformed payload breaks the UI entirely**
+4) **Isometric viewer has minimal JSON/error handling; one malformed payload breaks the UI entirely**
 - **Where:** `src/map/isometric/client/dom.js`
 - **What:** `JSON.parse` on `#map-data` and `#viewer-config` has no try/catch; missing DOM nodes throw.
 - **Impact:** A truncated or invalid map JSON yields a blank viewer with a console error.
@@ -159,11 +154,7 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 - `sizeOfPath()` recursively scans directories and sums file sizes; `includeAll` can traverse many repos.
 - **Recommendation:** add a cap/timeout, or return partial results with a “truncated” flag.
 
-**B) Unused helper functions (low/medium)**
-- `readJsonWithLimit()`, `summarizeShardPlan()` defined but unused.
-- **Recommendation:** wire them in (if intended) or remove.
-
-**C) Output field naming may be confusing (low)**
+**B) Output field naming may be confusing (low)**
 - Payload uses `repo.root` but sets it to `repoCacheRoot`.
 - **Recommendation:** include both `repoRoot` and `repoCacheRoot` explicitly.
 
