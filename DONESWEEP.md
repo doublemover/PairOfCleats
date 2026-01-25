@@ -6,3 +6,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: emit a once-per-run warning when tokenization worker pool is unavailable.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: skipped comment tokenization fast-path suggestion; logged in WTFBRO.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: skipped file-scan binary detection short-circuit; logged in WTFBRO.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed structural runner stderr suggestion; no change needed for now.
