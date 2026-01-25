@@ -346,7 +346,14 @@ export async function createIndexerWorkerPool(input = {}) {
       incWorkerRetries({ pool: poolLabel });
       if (restartAttempts > maxRestartAttempts) {
         pendingRestart = false;
+        permanentlyDisabled = true;
+        disabled = true;
         if (reason) log(`Worker pool disabled: ${reason}`);
+        if (activeTasks === 0) {
+          await shutdownPool();
+        } else {
+          shutdownWhenIdle = true;
+        }
         return;
       }
       const delayMs = Math.min(
@@ -528,7 +535,9 @@ export async function createIndexerWorkerPool(input = {}) {
           const reason = isCloneError
             ? (detail ? `data-clone error: ${detail}` : 'data-clone error')
             : (detail ? `worker failure: ${detail}` : 'worker failure');
-          if (opaqueFailure) {
+          if (isCloneError) {
+            await disablePermanently(reason || 'data-clone error');
+          } else if (opaqueFailure) {
             await disablePermanently(reason || 'worker failure');
           } else {
             await scheduleRestart(reason);

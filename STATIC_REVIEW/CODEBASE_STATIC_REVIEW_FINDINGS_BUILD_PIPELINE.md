@@ -87,19 +87,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### D) Worker pool resilience and failure modes
 
-#### D1) DataCloneError triggers pool restart even though restart cannot fix payload cloneability
-- **File:** `src/index/build/worker-pool.js`.
-- **Evidence:** `isCloneError` detection (lines ~519–525) still goes through `scheduleRestart(reason)` in most cases (line ~529).
-- **Why this is wrong:** Clone failures are input/payload correctness issues, not worker lifecycle issues; restarting workers does not fix a non-cloneable payload.
-- **Suggested fix:** Treat clone errors as “fallback to main thread for this payload” and/or “disable pool permanently until fixed,” but do not repeatedly restart.
-- **Suggested test:** Force a non-cloneable field into the payload and assert behavior is deterministic (fallback) rather than a restart loop.
-
-#### D2) Pool may remain allocated after exceeding max restart attempts
-- **File:** `src/index/build/worker-pool.js`.
-- **Evidence:** When `restartAttempts > maxRestartAttempts`, `scheduleRestart()` returns without calling `shutdownPool()` (lines ~344–348).
-- **Impact:** Leaves a disabled pool allocated and potentially holding resources/threads. At minimum, confusing; at worst, resource leak.
-- **Suggested fix:** When giving up, explicitly destroy/shutdown the pool.
-
 ### E) Performance and scalability concerns (not necessarily “bugs”, but likely to surface as failures)
 
 #### E1) Dictionary loading reads entire wordlists into memory
