@@ -1,4 +1,5 @@
 import { buildChunkId } from './chunk-id.js';
+import { collectDeclaredReturnTypes, pickDeclaredReturnType } from '../shared/docmeta.js';
 
 const normalizeString = (value) => {
   if (value === null || value === undefined) return null;
@@ -82,9 +83,13 @@ const buildDeclaredTypes = (docmeta) => {
     }
     if (Object.keys(params).length) declared.params = params;
   }
-  const returnType = normalizeString(docmeta.returnType || docmeta.returns);
-  if (returnType) {
-    declared.returns = [{ type: returnType, source: 'annotation', confidence: 0.95 }];
+  const returnTypes = collectDeclaredReturnTypes(docmeta);
+  if (returnTypes.length) {
+    declared.returns = returnTypes.map((type) => ({
+      type,
+      source: 'annotation',
+      confidence: 0.95
+    }));
   }
   return Object.keys(declared).length ? declared : null;
 };
@@ -171,7 +176,7 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
     ]),
     modifiers: normalizeModifiers(docmeta?.modifiers),
     params: Array.isArray(docmeta?.params) ? docmeta.params.filter(Boolean) : [],
-    returns: normalizeString(docmeta?.returnType || docmeta?.returns) || null,
+    returns: pickDeclaredReturnType(docmeta),
     controlFlow: docmeta?.controlFlow || null,
     dataflow: docmeta?.dataflow || null,
     dependencies: docmeta?.dependencies || null,

@@ -1,3 +1,5 @@
+import { collectDeclaredReturnTypes } from '../shared/docmeta.js';
+
 const TYPE_SOURCES = {
   annotation: 'annotation',
   default: 'default',
@@ -482,8 +484,10 @@ export function inferTypeMetadata({ docmeta, chunkText, languageId }) {
     }, languageId) || hasData;
   }
 
-  const returnType = normalizeTypeName(docmeta.returnType, languageId);
-  if (returnType) {
+  const declaredReturns = collectDeclaredReturnTypes(docmeta);
+  for (const rawType of declaredReturns) {
+    const returnType = normalizeTypeName(rawType, languageId);
+    if (!returnType) continue;
     hasData = addReturnTypes(inferred.returns, {
       type: returnType,
       source: TYPE_SOURCES.annotation,

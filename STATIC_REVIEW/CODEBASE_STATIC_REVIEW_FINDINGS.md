@@ -13,32 +13,26 @@ Where possible, each issue includes a **suggested fix direction** (high-level on
 
 ## High-impact cross-cutting issues (priority order)
 
-1) **Return-type field inconsistencies create wrong metadata and broken filters**
-   - Some languages emit return types in `docmeta.returns` (string/array), JavaScript uses `docmeta.returns` as a boolean “@returns present”, while many consumers look only at `docmeta.returnType`.
-   - Consequences:
-     - `metaV2` can incorrectly declare return type `"true"` for JS chunks with `@returns` but without `{Type}`.
-     - Type inference and CLI filtering/reporting can appear to “miss return types” for many languages.
-
-2) **Keying by `file::name` (or just `name`) causes collisions across segments/overloads/nesting**
+1) **Keying by `file::name` (or just `name`) causes collisions across segments/overloads/nesting**
    - Multiple subsystems (cross-file inference, tooling providers, graph building) assume `file + symbolName` is unique.
    - In practice it is not, especially with:
      - Vue/Svelte/Astro segments (multiple “virtual files” in one physical file)
      - TypeScript overloads
      - Duplicate function names in the same file (common in tests)
 
-3) **Segment language normalization collapses JSX/TSX into JS/TS, breaking parsing/tooling**
+2) **Segment language normalization collapses JSX/TSX into JS/TS, breaking parsing/tooling**
    - `jsx → javascript` and `tsx → typescript` loses the grammar distinction required by tree-sitter/Babel tooling.
    - Embedded JSX/TSX segments in `.vue`, markdown fences, or HTML script blocks will frequently parse incorrectly or not at all.
 
-4) **Tooling filters are file-extension–based, so embedded segments don’t get tooling-backed types**
+3) **Tooling filters are file-extension–based, so embedded segments don’t get tooling-backed types**
    - The TypeScript provider (and tooling pipeline) primarily selects by **file extension**, not per-segment language.
    - Result: Vue `<script lang="ts">` and similar embedded contexts miss the strongest type extraction.
 
-5) **`metaV2` is built before cross-file inference/tooling enrichment and never rebuilt**
+4) **`metaV2` is built before cross-file inference/tooling enrichment and never rebuilt**
    - Cross-file inference mutates `chunk.docmeta` (links, inferred param types, risk flows), but `metaV2` remains the earlier snapshot.
    - Anything consuming `metaV2` sees stale declared/inferred types and relations.
 
-6) **Risk analysis “caps” do not short-circuit early enough**
+5) **Risk analysis “caps” do not short-circuit early enough**
    - When a file exceeds byte/line caps, the implementation still performs expensive per-line rule scanning.
    - This negates the intended performance protection.
 
@@ -48,16 +42,6 @@ Where possible, each issue includes a **suggested fix direction** (high-level on
 
 ## `src/index/metadata-v2.js`
 
-- **Bug: `docmeta.returns` is treated as a return-type value without type-guarding**
-  - **What’s wrong:** `normalizeString(docmeta.returnType || docmeta.returns)` will stringify booleans/objects.
-  - **Why it matters:** In JavaScript chunks, `docmeta.returns` is a boolean (“@returns present”), so `metaV2.returns` can become `"true"` and declared return types can become `[{type:"true",...}]`.
-  - **Suggested fix:** Only treat `docmeta.returns` as a return-type source when it is a **string** or a **structured return list**; otherwise ignore.
-
-- **Bug: structured `docmeta.returns` arrays/objects are stringified**
-  - **What’s wrong:** If `docmeta.returns` is an array (common in cross-file inference output), `String(array)` yields garbage (`"[object Object]"` or comma-joined fragments).
-  - **Why it matters:** Declared return types in `metaV2` become incorrect or unusable for filters and downstream analysis.
-  - **Suggested fix:** Normalize arrays using the same extraction logic used elsewhere (`extractReturnTypes`) and only accept string return types.
-
 - **Drift risk: `metaV2` does not reflect post-processing mutations**
   - **What’s wrong:** `metaV2` is built once during file assembly.
   - **Why it matters:** Cross-file inferred param types, call links, and risk flows may not be represented.
@@ -65,21 +49,7 @@ Where possible, each issue includes a **suggested fix direction** (high-level on
 
 ---
 
-## `src/lang/javascript/docmeta.js`
-
-- **Schema ambiguity: `returns` is boolean, while other languages treat `returns` as a return-type**
-  - **What’s wrong:** JS uses `returns: boolean` (“@returns tag exists”), and `returnType` holds the type when present.
-  - **Why it matters:** Any consumer that interprets `returns` as a type (as `metadata-v2.js` currently does) will misbehave.
-  - **Suggested fix:** Rename boolean to something unambiguous (`hasReturnsTag`, `returnsDocTag`) or ensure all consumers treat `returns` as non-type unless explicitly string/array.
-
----
-
 ## `src/index/type-inference.js`
-
-- **Bug: return-type inference ignores `docmeta.returns`**
-  - **What’s wrong:** `inferReturnType` reads `docmeta.returnType` only.
-  - **Why it matters:** Many languages populate return types in `docmeta.returns` (string) rather than `returnType`, so inferred return types can appear missing even when extracted.
-  - **Suggested fix:** Normalize return type from `docmeta.returnType` **or** (string-only) `docmeta.returns`.
 
 - **Data model drift risk: inconsistent sources for “declared vs inferred”**
   - **What’s wrong:** Some return/param types are treated as inference in one subsystem and “declared” in another.
@@ -90,24 +60,10 @@ Where possible, each issue includes a **suggested fix direction** (high-level on
 
 ## `src/retrieval/output/filters.js`
 
-- **Bug: `--returnType` filter ignores `docmeta.returns`**
-  - **What’s wrong:** `const foundReturnType = c.docmeta?.returnType || null;`.
-  - **Why it matters:** Return-type filtering fails for languages that populate `docmeta.returns`.
-  - **Suggested fix:** Filter should consider normalized return types (string-only) from both fields or from `metaV2.types.declared.returns`.
-
 - **Potential semantics pitfall: `--calls` matches caller name OR callee name**
   - **What’s wrong:** `found = callsList.find(([fn, callName]) => fn === calls || callName === calls)`.
   - **Why it matters:** Users typically expect `--calls X` to mean “calls X”, not “is named X”.
   - **Suggested fix:** Separate flags (`--caller` vs `--calls`) or clarify semantics.
-
----
-
-## `src/retrieval/output/format.js`
-
-- **Correctness/UX gap: output emphasizes `docmeta.returnType`**
-  - **What’s wrong:** Formatting (and likely JSON output) prioritizes `returnType` only.
-  - **Why it matters:** For many languages, return types exist in `docmeta.returns` and won’t be displayed.
-  - **Suggested fix:** Display a normalized return type value (string-only) or prefer `metaV2` declared types.
 
 ---
 
