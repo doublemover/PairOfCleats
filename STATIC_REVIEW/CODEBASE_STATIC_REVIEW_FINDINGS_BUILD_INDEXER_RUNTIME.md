@@ -51,7 +51,6 @@ This section lists additional smaller observations per file to aid future cleanu
 ### `src/index/build/indexer/signatures.js`
 
 ### `src/index/build/indexer/steps/discover.js`
-- When reusing `discovery.entries`, the code mutates entries by assigning `orderIndex`. If the same entry objects are reused across modes, ensure this cannot cause subtle cross-mode coupling.
 
 ### `src/index/build/lock.js`
 - Stale lock handling is reasonable; consider logging when stale locks are detected/removed to aid operational debugging.

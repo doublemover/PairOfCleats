@@ -42,9 +42,7 @@ export const runDiscovery = async ({ runtime, mode, discovery, state, timing, st
     }));
   }
   entries.sort((a, b) => compareStrings(a.rel, b.rel));
-  entries.forEach((entry, index) => {
-    entry.orderIndex = index;
-  });
+  entries = entries.map((entry, index) => ({ ...entry, orderIndex: index }));
   log(`→ Found ${entries.length} files.`);
   if (timing) timing.discoverMs = Date.now() - discoverStart;
   return entries;
