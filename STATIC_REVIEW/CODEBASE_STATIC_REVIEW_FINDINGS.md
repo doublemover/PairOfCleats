@@ -20,19 +20,15 @@ Where possible, each issue includes a **suggested fix direction** (high-level on
      - TypeScript overloads
      - Duplicate function names in the same file (common in tests)
 
-2) **Segment language normalization collapses JSX/TSX into JS/TS, breaking parsing/tooling**
-   - `jsx → javascript` and `tsx → typescript` loses the grammar distinction required by tree-sitter/Babel tooling.
-   - Embedded JSX/TSX segments in `.vue`, markdown fences, or HTML script blocks will frequently parse incorrectly or not at all.
-
-3) **Tooling filters are file-extension–based, so embedded segments don’t get tooling-backed types**
+2) **Tooling filters are file-extension–based, so embedded segments don’t get tooling-backed types**
    - The TypeScript provider (and tooling pipeline) primarily selects by **file extension**, not per-segment language.
    - Result: Vue `<script lang="ts">` and similar embedded contexts miss the strongest type extraction.
 
-4) **`metaV2` is built before cross-file inference/tooling enrichment and never rebuilt**
+3) **`metaV2` is built before cross-file inference/tooling enrichment and never rebuilt**
    - Cross-file inference mutates `chunk.docmeta` (links, inferred param types, risk flows), but `metaV2` remains the earlier snapshot.
    - Anything consuming `metaV2` sees stale declared/inferred types and relations.
 
-5) **Risk analysis “caps” do not short-circuit early enough**
+4) **Risk analysis “caps” do not short-circuit early enough**
    - When a file exceeds byte/line caps, the implementation still performs expensive per-line rule scanning.
    - This negates the intended performance protection.
 
@@ -68,11 +64,6 @@ Where possible, each issue includes a **suggested fix direction** (high-level on
 ---
 
 ## `src/index/segments.js`
-
-- **Bug/limitation: JSX/TSX are normalized away (`jsx→javascript`, `tsx→typescript`)**
-  - **What’s wrong:** `MARKDOWN_FENCE_LANG_ALIASES` collapses JSX/TSX into the base language.
-  - **Why it matters:** Tree-sitter and Babel require distinct grammars/plugin sets to parse JSX/TSX. This causes embedded JSX/TSX to parse as plain JS/TS and often fail.
-  - **Suggested fix:** Preserve `jsx`/`tsx` as distinct `languageId` values and ensure segment ext reflects it (`.jsx`, `.tsx`).
 
 - **Limiter: stylesheet languages coerced to `.css`**
   - **What’s wrong:** `scss/sass/less → .css`.

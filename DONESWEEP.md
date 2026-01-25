@@ -58,3 +58,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: promotion now validates buildRoot within repo cache root; removed stale finding.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: Node engine policy already covers crypto.randomUUID; removed compatibility note and empty sections.
 - CODEBASE_STATIC_REVIEW_FINDINGS.md: normalized declared return types across metadata, inference, and output to avoid boolean/string drift.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: preserve jsx/tsx fence languages instead of collapsing to js/ts.
