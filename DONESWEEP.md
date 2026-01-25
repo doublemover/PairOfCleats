@@ -20,3 +20,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed UTF-8 truncation test note; no change needed for now.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed relations schema check note; no change needed for now.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed timings summary note; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: defer worker pool shutdown until idle after failures; added restart regression test.

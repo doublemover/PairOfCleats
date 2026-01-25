@@ -36,11 +36,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
 
 ### Critical / correctness-risk
 
-1) **Worker pool restart/disable can leave a dead-but-still-allocated pool in memory** (`src/index/build/worker-pool.js`).
-   - `scheduleRestart()` and `disablePermanently()` only call `shutdownPool()` when `activeTasks === 0` *at the moment the error is handled*. In the common case (error thrown inside an active task), `activeTasks` is still > 0 when these functions run, so the pool is never destroyed after the task completes.
-   - Result: the pool can remain allocated while `disabled === true`, consuming threads/memory, and subsequent calls return `null` (fallback path) without reclaiming resources.
-   - Suggested fix: when a restart/permanent-disable is requested while tasks are active, **defer `shutdownPool()` until `activeTasks` reaches 0** (e.g., in the `finally` block of `runTokenize()` and/or in `maybeRestart()` when `disabled` is true). Add a regression test that simulates a worker failure and asserts `pool.destroy()` is called once the task unwinds.
-
 2) **Watch mode can thrash on locks and re-run expensive repo-wide discovery on each rebuild** (`src/index/build/watch.js`).
    - `acquireIndexLock()` is called with default `waitMs=0`. If another index build holds the lock, watch immediately reschedules another build (debounced), potentially producing a tight loop of repeated lock attempts while the lock owner is still running.
    - Each build currently calls `buildIndexForMode({ mode, runtime })` without supplying a discovery subset, so watch rebuilds re-scan the repo each time (even if only a few files changed).
@@ -76,28 +71,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
    - The job payload does not include the promoted build root or explicit artifact paths; if multiple indexes exist per repo/mode, the embedding worker may need more identifiers to find the correct target.
 
 ## Detailed findings (with concrete suggestions)
-
-### 1) Worker pool: restart/disable lifecycle edge cases
-**Files:** `src/index/build/worker-pool.js`, `src/index/build/workers/indexer-worker.js`
-
-**What looks wrong / risky**
-
-- `scheduleRestart()` and `disablePermanently()` only call `shutdownPool()` if `activeTasks === 0` at call time.
-  - See `disablePermanently()` (around lines ~327–336) and `scheduleRestart()` (around lines ~338–358).
-  - In `runTokenize()`, failures are caught *before* `activeTasks` is decremented in `finally`, so `activeTasks` is usually > 0 when restart/disable is scheduled.
-- `maybeRestart()`/`ensurePool()` do not attempt to destroy the pool while waiting for the restart time (`restartAtMs`). When `disabled` is true and `pendingRestart` is true, the pool can sit idle in memory until either (a) a later call arrives after `restartAtMs` or (b) the process exits.
-
-**Impact**
-
-- Memory/threads retained after a worker failure, even though the system has shifted into fallback mode.
-- Potentially confusing diagnostics: logs say “disabled (retry in N ms)”, but resources are not reclaimed.
-
-**Suggested improvements**
-
-- When scheduling restart/permanent disable while `activeTasks > 0`, set a flag like `shutdownWhenIdle = true`. In the `finally` path (when `activeTasks` decrements to 0), if `shutdownWhenIdle` is set, call `shutdownPool()` immediately.
-- Consider separating “disable usage” from “destroy pool”: destroy-on-disable is usually correct after fatal errors.
-- Add targeted tests:
-  - Simulate a worker throwing (mock Piscina `run()` to reject) and assert: (1) fallback returns `null`, (2) once the task settles, `pool.destroy()` is called, (3) subsequent calls after `restartAtMs` recreate the pool.
 
 ### 2) Watch mode: lock retry thrash and incremental efficiency
 **File:** `src/index/build/watch.js`

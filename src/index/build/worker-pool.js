@@ -283,6 +283,7 @@ export async function createIndexerWorkerPool(input = {}) {
     let restartAtMs = 0;
     let restarting = null;
     let activeTasks = 0;
+    let shutdownWhenIdle = false;
     let pendingRestart = false;
     const workerExecArgv = buildWorkerExecArgv();
     const resourceLimits = resolveWorkerResourceLimits(poolConfig.maxWorkers);
@@ -333,6 +334,8 @@ export async function createIndexerWorkerPool(input = {}) {
       if (reason) log(`Worker pool disabled permanently: ${reason}`);
       if (activeTasks === 0) {
         await shutdownPool();
+      } else {
+        shutdownWhenIdle = true;
       }
     };
     const scheduleRestart = async (reason) => {
@@ -354,6 +357,8 @@ export async function createIndexerWorkerPool(input = {}) {
       pendingRestart = true;
       if (activeTasks === 0) {
         await shutdownPool();
+      } else {
+        shutdownWhenIdle = true;
       }
       if (reason) log(`Worker pool disabled: ${reason} (retry in ${delayMs}ms).`);
     };
@@ -571,6 +576,10 @@ export async function createIndexerWorkerPool(input = {}) {
           activeTasks = Math.max(0, activeTasks - 1);
           updatePoolMetrics();
           if (activeTasks === 0) {
+            if (shutdownWhenIdle) {
+              shutdownWhenIdle = false;
+              await shutdownPool();
+            }
             await maybeRestart();
           }
         }
@@ -657,6 +666,10 @@ export async function createIndexerWorkerPool(input = {}) {
           activeTasks = Math.max(0, activeTasks - 1);
           updatePoolMetrics();
           if (activeTasks === 0) {
+            if (shutdownWhenIdle) {
+              shutdownWhenIdle = false;
+              await shutdownPool();
+            }
             await maybeRestart();
           }
         }
