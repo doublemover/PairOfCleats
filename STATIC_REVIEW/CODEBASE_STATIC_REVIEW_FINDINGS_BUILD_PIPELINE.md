@@ -83,12 +83,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### B) Cache signatures, incremental invariants, and reproducibility
 
-#### B2) `JSON.stringify` is used for signature payloads
-- **File:** `src/index/build/indexer/signatures.js`.
-- **Details:** Both `buildTokenizationKey()` and `buildIncrementalSignature()` hash `JSON.stringify(payload)`.
-- **Impact:** Avoidable nondeterminism and difficult-to-debug “why didn’t incremental reuse?” outcomes when payloads contain dynamically constructed objects.
-- **Suggested fix:** Use the project’s existing stable serializer (`stableStringify`) for signature payloads.
-
 #### B3) Adaptive dict configuration mutates runtime across modes
 - **File:** `src/index/build/indexer/pipeline.js`.
 - **Details:** After discovery, `runtime.dictConfig` is mutated via `applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length)` (line ~125).
