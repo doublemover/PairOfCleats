@@ -1336,3 +1336,240 @@ The “correct from first principles” solution is a **policy kernel** + **stre
 - Fail-closed correctness: no silent fallback without policy allowing it.
 `
 
+- C:/Users/sneak/Development/PairOfCleats_CODEX/WIDESWEEPS/CODEBASE_WIDE_SWEEP_SHARED_FOUNDATIONS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+
+`
+# Codebase Static Review Findings — Wide Sweep E (Final, Merged)
+
+**Scope / focus:** Shared foundations/utilities underpinning correctness and determinism (concurrency runner, progress/JSONL envelopes, logging, JSON streaming, cache semantics, embedding helpers, safety utilities).
+
+**Merged sources (wide sweep drafts):**
+- `CODEBASE_WIDE_SWEEP_SHARED_FOUNDATIONS.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12E_WIDE_SHARED_FOUNDATIONS.md`
+
+## Severity key
+
+- **P0 / Critical**: can corrupt artifacts or make builds/retrieval silently inconsistent.
+- **P1 / High**: deterministic correctness risks; common operational failures at scale.
+- **P2 / Medium**: maintainability and observability debt.
+
+## Executive summary
+
+The codebase has a lot of shared infrastructure (caches, JSONL streaming, progress envelopes, concurrency runners, hashing utilities). The biggest systemic problem is that **serialization and canonicalization are not centralized**, so different parts of the system can:
+
+- serialize the “same” structure differently,
+- hash the “same” inputs differently,
+- cache the “same” key differently,
+- log/progress-report the “same” events differently.
+
+These are not just cleanliness problems: in an indexing system, they become *determinism and correctness* issues.
+
+---
+
+## Findings
+
+### P0 — JSONL serialization is not canonical; typed arrays / buffers can silently serialize incorrectly
+
+**Where**
+- JSON streaming/writing:
+  - `src/shared/json-stream.js`
+  - `src/shared/jsonl.js`
+  - sharded writer utilities (as used by artifact writers)
+
+**What’s wrong**
+- Some code paths call `JSON.stringify` directly.
+- `JSON.stringify(Uint8Array)` and other typed arrays do not serialize as “the intended bytes”; they serialize as objects with numeric keys or empty objects depending on runtime behavior.
+- This can silently corrupt:
+  - hashed content,
+  - embedding vectors or binary-ish payloads,
+  - integrity checksums if computed over corrupted JSON.
+
+**Suggested fix**
+- Provide a **single canonical JSON serializer** for the whole codebase:
+  - handles typed arrays via base64 or explicit `{__type:"u8", b64:"..."}` encoding,
+  - rejects non-finite numbers unless explicitly encoded,
+  - stable key ordering for objects used in hashing/signatures.
+- Ban direct `JSON.stringify` in artifact emission code via lint rule.
+
+**Tests**
+- Round-trip test: serialize then parse canonical JSON for:
+  - Buffer, Uint8Array, Float32Array,
+  - objects containing these types nested.
+- Ensure stable output across Node versions.
+
+---
+
+### P1 — Hashing/signature inputs are not consistently canonicalized
+
+**Where**
+- Hash utilities:
+  - `src/shared/hash.js`
+  - `src/shared/hash/xxhash-backend.js`
+  - `src/shared/stable-json.js`
+- Signature computation:
+  - `src/index/build/signatures.js`
+  - `src/index/build/indexer/signatures.js`
+
+**What’s wrong**
+- The system uses multiple hashing backends and JSON canonicalizers, but does not guarantee that:
+  - the same object produces the same serialized bytes everywhere,
+  - the same set of inputs is included in every signature.
+- This undermines incremental reuse safety and determinism.
+
+**Suggested fix**
+- Define a single `signatureInput()` function that:
+  - canonicalizes objects via stable-json,
+  - forbids non-canonical types unless explicitly supported,
+  - stamps versions (schema + tool versions).
+- Use it everywhere signatures are computed.
+
+---
+
+### P1 — Cancellation/abort semantics are not unified; partial results can “look successful”
+
+**Where**
+- Concurrency runner:
+  - `src/shared/concurrency.js`
+  - `src/shared/threads.js`
+- Worker pools and build runtime:
+  - `src/index/build/worker-pool.js`
+  - `src/index/build/runtime/workers.js`
+
+**What’s wrong**
+- Some async workflows can be interrupted/cancelled but still emit partial outputs (or partial progress events) that appear valid.
+- In a pipeline with promotion, partial outputs are dangerous unless clearly marked.
+
+**Suggested fix**
+- Standardize on a cancellation token propagated through:
+  - file processor,
+  - shard writers,
+  - embedding queue.
+- Require writers to either:
+  - finalize atomically, or
+  - fail closed (no partial artifact visibility).
+
+---
+
+### P1 — Cache semantics are inconsistent (immutability assumptions and invalidation triggers)
+
+**Where**
+- Cache:
+  - `src/shared/cache.js`
+  - `src/shared/cache-lru.js` (if present)
+  - retrieval cache layers: `src/retrieval/sqlite-cache.js`
+
+**What’s wrong**
+- Some caches assume keys are immutable and values are safe to reuse across stages/runs, but the system frequently changes config, policy, and stage semantics.
+- Invalidation triggers are not consistently tied to a canonical signature.
+
+**Suggested fix**
+- Tie every cache entry to:
+  - `{buildSignature, schemaVersion, toolVersions}`
+- Fail closed when signatures mismatch.
+
+---
+
+### P1 — Logging/progress event envelopes are not strictly versioned contracts
+
+**Where**
+- Progress and CLI:
+  - `src/shared/progress.js`
+  - `src/shared/bench-progress.js`
+  - `src/shared/cli/display/*`
+
+**What’s wrong**
+- Multiple parts of the system emit progress events; not all use a single schema.
+- This can break dashboards, benches, and long-running jobs when fields drift.
+
+**Suggested fix**
+- Define a `ProgressEvent` schema with explicit versions.
+- Provide `emitProgress(event)` helper that validates shape at runtime in dev/test.
+
+---
+
+### P1 — Safe-regex engine selection is a policy decision but is scattered
+
+**Where**
+- Regex policy and backends:
+  - `src/shared/safe-regex.js`
+  - `src/shared/safe-regex/backends/re2.js`
+  - `src/shared/safe-regex/backends/re2js.js`
+
+**What’s wrong**
+- Backend selection affects correctness and performance (re2 vs re2js behavior differences).
+- If policy is scattered, retrieval and indexing filters may diverge.
+
+**Suggested fix**
+- Make safe-regex backend selection part of centralized policy and part of the build signature.
+
+---
+
+
+
+### P1 — Atomic replace / `.bak` recovery semantics are not centralized (risk of partial reads)
+
+**Where**
+- Atomic writes:
+  - `src/shared/fs/atomic.js`
+  - `src/shared/artifact-io.js` (if present)
+- Promotion pointer writing:
+  - `src/index/build/promotion.js`
+
+**What’s wrong**
+- Different writers appear to implement “atomic replace” slightly differently (tmp files, `.bak`, rename strategy).
+- If a reader ever observes a `.bak` or half-written file during promotion, behavior is undefined unless centralized.
+
+**Suggested fix**
+- Provide a single `atomicWriteFile(path, bytes, {mode})` helper used everywhere.
+- Standardize `.bak` semantics:
+  - either never exposed to readers,
+  - or always cleaned up and never treated as valid.
+
+---
+
+### P2 — Progress/JSONL event envelopes are not strictly centralized
+
+**Where**
+- Progress events:
+  - `src/shared/progress.js`
+  - `src/shared/bench-progress.js`
+- JSONL writing:
+  - `src/shared/jsonl.js`
+
+**What’s wrong**
+- Multiple subsystems can emit “progress-like” events with slightly different fields.
+- Without schema validation, dashboards and long-running tools can break with minor drift.
+
+**Suggested fix**
+- Version and validate progress envelopes at runtime (in dev/test).
+- Provide a single `emitProgress(event)` wrapper.
+
+---
+
+### P2 — Queue error semantics (retry vs fail-closed) are inconsistent across subsystems
+
+**Where**
+- Embedding queue and other queues:
+  - `src/index/build/indexer/embedding-queue.js`
+  - `src/shared/concurrency.js`
+
+**What’s wrong**
+- Some queues may swallow errors, others throw, others “warn and continue”.
+- Without a consistent policy, pipelines can complete with missing work.
+
+**Suggested fix**
+- Adopt one queue contract:
+  - retries are explicit and bounded,
+  - failure modes are recorded in build report,
+  - promotion is gated on required queues.
+
+
+## “Keep it right” foundations checklist
+
+1. Ban direct `JSON.stringify` for artifacts; require canonical serializer.
+2. Ensure one canonical signature input builder is used everywhere.
+3. Cancellation token must propagate through all long-running tasks.
+4. Caches must be signature-stamped and fail closed on mismatch.
+5. Progress/log event envelopes must be schema-validated and versioned.
+`
+
