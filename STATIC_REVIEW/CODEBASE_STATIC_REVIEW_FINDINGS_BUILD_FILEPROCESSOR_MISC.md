@@ -48,10 +48,6 @@ This file is large and generally well-structured; the items below are focused on
 
 This section is intentionally short per file; it exists to confirm review coverage and to note any smaller follow-ups.
 
-### `src/index/build/file-processor/incremental.js`
-- Incremental reuse decisions are clear (prefer stable `fileHash`, else fall back to size+mtime).
-- Consider tests that cover: (1) hash matches, (2) hash missing but mtime/size match, (3) file content changed but same size, (4) deleted files in bundles.
-
 ### `src/index/build/file-processor/meta.js`
 - External docs linking for `node_modules` is helpful. Consider tests for scoped packages and Windows path handling.
 
