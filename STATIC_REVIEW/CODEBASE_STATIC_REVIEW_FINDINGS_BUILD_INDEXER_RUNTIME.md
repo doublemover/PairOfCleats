@@ -42,14 +42,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
 
 ## Detailed findings (with concrete suggestions)
 
-### 5) Stage overrides clarity
-**File:** `src/index/build/runtime/stage.js`
-
-- Consider validating stage invariants explicitly:
-  - Stage1/Stage2 should never attempt embeddings.
-  - Stage3 should require embeddings artifacts input and/or enabled embeddings mode.
-  - Stage4 should require embeddings to already exist (even if embeddings computation is disabled).
-
 ## File-by-file notes
 
 This section lists additional smaller observations per file to aid future cleanup and test planning.

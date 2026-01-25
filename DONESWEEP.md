@@ -28,3 +28,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: promotion build-root validation already enforced; removed stale finding.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: default invalid deferMissingMax to safe value; added runtime config test.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: embedding queue already best-effort with identity fields; removed stale finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: stage invariants largely enforced via defaults; explicit validation deferred.
