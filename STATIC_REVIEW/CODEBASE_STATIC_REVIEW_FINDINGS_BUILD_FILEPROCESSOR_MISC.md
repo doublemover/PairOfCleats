@@ -48,9 +48,6 @@ This file is large and generally well-structured; the items below are focused on
 
 This section is intentionally short per file; it exists to confirm review coverage and to note any smaller follow-ups.
 
-### `src/index/build/embedding-batch.js`
-- Batch helpers look coherent. If embedding providers change behavior across versions, consider a test ensuring the batch splitter produces stable batch sizes (especially when `maxBatchSize` is derived from model/provider).
-
 ### `src/index/build/failure-taxonomy.js`
 - Classification is heuristic by nature. If you rely on these categories for alerting/telemetry, add a snapshot test suite with a set of representative errors so categories don’t drift silently.
 
