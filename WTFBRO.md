@@ -1,3 +1,53 @@
 # WTFBRO
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: comment tokenization fast-path suggestion (file-processor.js). Skipped for now: current flow uses token counts to enforce minTokens and commentSegments, and changing tokenization behavior risks altering comment inclusion semantics without a clear spec; needs design decision before optimization.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: file-scan binary detection sampleMinBytes short-circuit suggestion. Skipped: current detector intentionally samples for file-type and heuristic even when wantsBinary is false; changing this could miss binary identification without a clear requirement.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: segments.js stylesheet languages coerced to .css. Skipped for now: changing ext/language handling without SCSS/SASS/LESS grammar support needs a decision on parser fallback vs. language fidelity; requires design input.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: segments.js parse failures for Vue/Svelte/Astro are silent. Skipped for now: adding warnings needs a consistent warning/telemetry strategy (throttling, surface, config) that isn't defined.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: segments.js offset invariants not tested. Skipped: requires new fixtures/spec for segment slicing expectations before adding tests.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: babel-parser TSX enablement is extension-only. Skipped: needs a detection heuristic or explicit segment language propagation plan beyond current ext/mode plumbing.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: babel-parser parse failures return null without reasons. Skipped: needs standardized parse-error reporting path (structured warnings or diagnostics).
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: TypeScript chunking/parser TSX selection depends on ext. Skipped: requires segment language override integration across TS chunkers.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: tree-sitter config lacks SCSS/LESS/SASS grammars. Skipped: requires adding new optional grammars and deciding fallback behavior.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: tree-sitter chunking hard-fails when maxChunkNodes exceeded. Skipped: needs a partial-chunking strategy design.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: tree-sitter name extraction depth limit may miss deep names. Skipped: needs language-specific tuning or field-based extraction strategy.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: type-inference-crossfile uses file::name keys (collisions) and call summary de-dup is too coarse. Skipped: fixing this needs schema/key changes (chunkId/range) and changes to relation/link payloads.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: high-impact file::name collisions across graphs/tooling. Skipped: resolving requires changing keying to chunkId/range across multiple artifact schemas.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: tooling filters keyed by file extension (embedded segments missing tooling). Skipped: needs segment-language-aware tooling selection design.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: metaV2 built before cross-file/tooling enrichment. Skipped: requires rebuilding or incremental metaV2 updates after enrichment steps.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: tooling skip heuristic (hasToolingReturn) too coarse and tooling mutations not reflected in metaV2. Skipped: needs a completeness predicate and a post-tooling metaV2 rebuild strategy.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: file-processor assemble builds metaV2 before enrichment. Skipped: requires shifting metaV2 construction or adding a finalize step across pipeline stages.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: relations step lacks post-pass meta normalization. Skipped: would require new metadata finalize step and schema decision.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: graphs use file::name legacy keys and adjacency-heavy serialization. Skipped: needs schema/key redesign and output format changes to avoid collisions/size bloat.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: process-files ordering/deferral semantics. Skipped: requires ordering guarantee spec and pipeline refactor to preserve orderIndex.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: artifact-io maxJsonBytes is implicit/test-only. Skipped: needs config schema changes and CLI/config surface design.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: artifacts maxJsonBytes plumbing and graph size estimation heuristics. Skipped: needs artifact writer config plumb and serialization strategy review.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: chunk-meta size clamps and estimateJsonBytes heuristics. Skipped: requires config exposure and shard planning redesign.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: risk dedupeMatches and assignment heuristic issues. Skipped: needs risk evidence strategy and AST-based assignment detection plan.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: ESLint v9 compatibility risk. Skipped: requires pinned ESLint strategy and fixture-based test update.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: git metadata completeness gap (committer/branch/issue refs). Skipped: needs expanded SCM schema and provider abstraction.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: TypeScript tooling provider gaps (jsconfig, .js/.jsx, destructuring names, large project guardrails). Skipped: requires tooling policy decisions and performance guard design.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: pyright provider diagnostics timing + encoding handling. Skipped: needs LSP lifecycle changes and shared decode integration.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: clangd/sourcekit key collisions + encoding offsets. Skipped: needs chunkId/range keying and shared decode integration.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: default skip lists in constants are aggressive. Skipped: needs tiered skip policy and user-visible diagnostics.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: two-stage indexing queue reuses embeddings queue config. Skipped: requires new config surface and status reporting changes.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: MCP schema vs CLI arg coverage. Skipped: needs contract decision and conformance testing plan.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: isometric viewer JSON/error handling + absolute paths. Skipped: requires UI error-state design and asset path strategy.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: LSP client error policy and provider gaps (languageId coverage, multi-chunk mapping, signature heuristics, file::name keys). Skipped: needs broader LSP contract updates.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: tooling providers shared circuit-breaker and merge semantics. Skipped: requires decision on retry accounting and conflict resolution.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: LSP UTF-16 offset and symbol URI gaps. Skipped: needs shared text position policy.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: triage normalize helpers (references normalization, stable record IDs) and render raw payload size. Skipped: needs triage schema normalization plan.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: map edge encoding assumptions, DOT/SVG escaping, routing cost, layout stability, name-key collisions, texture disposal. Skipped: requires map format + viewer behavior decisions.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_SHARDS_SMOKE_SQLITE_TESTS.md: remaining test suite reliability items (deterministic sqlite-ann-fallback, spawnSync timeouts, smoke artifact drift, log-string brittleness, sqlite-cache mtime flake, candidate-set thresholds). Skipped: requires broader test harness policy and capability toggles.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_MISC_VSCODE_WATCH_WORKERPOOL.md: remaining VS Code extension robustness, unicode-offset artifact reader, timer jitter, env leakage, watch/worker pool policy items. Skipped: needs broader test harness and extension contract decisions.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_SMOKE_SHARDS_SQLITE_MISC.md: remaining P0/P1 test hermeticity and smoke/sqlite fixes (ann fallback, auto-backend cache root, smoke artifacts, subprocess quoting, WAL/SHM assertions, cwd dependence, portability). Skipped: requires broader test harness policy and config support.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_SMOKE_SHARDS_SQLITE_STORAGE.md: remaining test harness root discovery, artifact format drift, optional-deps gating, WAL/SHM portability, and log-string brittleness. Skipped: requires test harness refactor and policy alignment.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_SMOKE_SHARDS.md: remaining spawnSync timeout, smoke artifact drift, progress determinism strictness, and smoke runner instrumentation. Skipped: requires test runner policy changes.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_TOOLING_TREESITTER_TRIAGE.md: tooling/tree-sitter/triage test improvements not addressed. Skipped: needs larger tooling/test policy decisions.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TYPE_INFERENCE_TESTS.md: type inference test suite suggestions not addressed. Skipped: requires test harness and inference policy work.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS2.md / PASS3.md / PASS3B.md: broad codebase sweep findings not addressed in this pass. Skipped: require deeper design/architecture review beyond current scope.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS4_BUILD_PIPELINE.md / PASS4_ENTRYPOINTS_LINT.md / PASS4_FILE_PROCESSOR.md / PASS4_INDEX_CHUNKING.md: remaining build/indexing findings not addressed here. Skipped: overlap with ongoing pipeline changes and need targeted design decisions.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_*: artifact/chunking/lang-registry/risk/ANN findings not addressed. Skipped: require schema and pipeline-level decisions.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS6_*: shared foundations/CLI/policy/storage findings not addressed. Skipped: needs broader infra decisions.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS7_*: tooling/bench/MCP ingest findings not addressed. Skipped: needs tooling policy and perf budget decisions.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_*: test-suite findings (fixtures, indexing, graph/git/hnsw/incremental, MCP/LSIF/perf) not addressed. Skipped: requires test harness policy and CI tiering decisions.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS9_*: retrieval/search/script-coverage/service test findings not addressed. Skipped: requires test harness policy and product decisions.
