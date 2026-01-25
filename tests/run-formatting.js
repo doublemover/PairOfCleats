@@ -15,6 +15,19 @@ export const applyLineBackground = (text, { useColor = false, columns = 0, bg = 
   applyLineBackgroundRaw(text, { enabled: useColor, columns, bg })
 );
 
+export const applySplitBackground = (
+  text,
+  { useColor = false, columns = 0, bgText = ANSI.bgBlack, bgTail = ANSI.bgBlack } = {}
+) => {
+  if (!useColor) return text;
+  const visible = stripAnsi(text).length;
+  const width = Number.isFinite(columns) ? columns : 0;
+  const padding = width && visible < width ? width - visible : 0;
+  const withText = `${bgText}${text}`.replaceAll(ANSI.reset, `${ANSI.reset}${bgText}`);
+  const tail = padding ? `${ANSI.reset}${bgTail}${' '.repeat(padding)}` : '';
+  return `${withText}${tail}${ANSI.reset}`;
+};
+
 export const formatDuration = (ms) => {
   if (!Number.isFinite(ms)) return '0ms';
   if (ms >= 10000) return `${(ms / 1000).toFixed(1)}s`;
@@ -32,14 +45,15 @@ export const formatDurationCell = (ms) => {
 export const formatLabel = (label, { useColor = false, mode = 'plain' } = {}) => {
   if (!useColor) return label;
   if (mode === 'pass') return `${ANSI.bgBlack}${ANSI.fgGreen}${label}${ANSI.reset}`;
-  if (mode === 'fail') return `${ANSI.bgBlack}${ANSI.fgRed}${label}${ANSI.reset}`;
+  if (mode === 'fail') return `${ANSI.fgRed}${label}${ANSI.reset}`;
   if (mode === 'warn') return `${ANSI.fgYellow}${label}${ANSI.reset}`;
-  if (mode === 'log') return `${ANSI.bgBlack}${ANSI.fgLightBlue}${label}${ANSI.reset}`;
+  if (mode === 'log') return `${ANSI.fgLightBlue}${label}${ANSI.reset}`;
   if (mode === 'skip') return `${ANSI.bgBlack}${ANSI.fgPink}${label}${ANSI.reset}`;
+  if (mode === 'init') return `${ANSI.bgBlack}${ANSI.fgBrightWhite}${label}${ANSI.reset}`;
   return label;
 };
 
-export const formatDurationBadge = (ms, { useColor = false } = {}) => {
+export const formatDurationBadge = (ms, { useColor = false, bg = ANSI.bgBlack } = {}) => {
   const inner = formatDurationCell(ms);
   const trimmed = inner.trim();
   const unit = trimmed.endsWith('ms') ? 'ms' : 's';
@@ -47,8 +61,8 @@ export const formatDurationBadge = (ms, { useColor = false } = {}) => {
   if (!useColor) return `[${inner}]`;
   const bracketColor = TIME_BRACKET_COLOR;
   const suffixColor = TIME_LABEL_COLOR;
-  return `${ANSI.bgBlack}${bracketColor}[${ANSI.fgBrightWhite}${numberPart}${suffixColor}${unit}` +
-    `${ANSI.reset}${ANSI.bgBlack}${bracketColor}]${ANSI.reset}`;
+  return `${bg}${bracketColor}[${ANSI.fgBrightWhite}${numberPart}${suffixColor}${unit}` +
+    `${ANSI.reset}${bg}${bracketColor}]${ANSI.reset}`;
 };
 
 export const formatDurationValue = (ms, { useColor = false } = {}) => {
@@ -153,10 +167,30 @@ export const wrapList = (items, maxLen) => {
 export const formatOutputLines = (lines, { useColor = false, columns = 0 } = {}) => {
   if (!lines.length) return '';
   const indented = lines.map((line) => `  ${line}`);
-  const colored = indented.map((line) => {
+  const wrapLine = (line) => {
+    if (!columns || line.length <= columns) return [line];
+    const chunks = [];
+    for (let i = 0; i < line.length; i += columns) {
+      chunks.push(line.slice(i, i + columns));
+    }
+    return chunks;
+  };
+  const flattened = [];
+  for (const line of indented) {
+    const segments = wrapLine(line);
+    for (const segment of segments) {
+      flattened.push(segment);
+    }
+  }
+  const colored = flattened.map((line) => {
     if (!useColor) return line;
     const tinted = `${ANSI.fgSoftBlue}${line}${ANSI.reset}`;
-    return applyLineBackground(tinted, { useColor, columns, bg: ANSI.bgDarkPurple });
+    return applySplitBackground(tinted, {
+      useColor,
+      columns,
+      bgText: ANSI.bgOutputLine,
+      bgTail: ANSI.bgOutputTail
+    });
   }).join('\n');
   const output = useColor ? colored : indented.join('\n');
   return `${output}\n`;

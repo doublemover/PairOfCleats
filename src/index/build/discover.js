@@ -205,6 +205,11 @@ export async function discoverEntries({ root, recordsDir = null, recordsConfig =
       : (recordsClassifier
         ? recordsClassifier.classify({ absPath, relPath: relPosix, ext })
         : null);
+    if (maxFilesValue && entries.length >= maxFilesValue) {
+      maxFilesReached = true;
+      recordSkip(absPath, 'max-files', { maxFiles: maxFilesValue });
+      return;
+    }
     entries.push({
       abs: absPath,
       rel: relPosix,

@@ -127,7 +127,10 @@ export const applyFilters = ({ tests, lanes, includeMatchers, excludeMatchers, t
 };
 
 export const resolveLanes = (argvLanes, knownLanes) => {
-  const raw = splitCsv(argvLanes.length ? argvLanes : ['ci']);
+  let raw = splitCsv(argvLanes.length ? argvLanes : ['ci']);
+  if (raw.includes('all')) {
+    raw = Array.from(knownLanes);
+  }
   for (const lane of raw) {
     if (!knownLanes.has(lane)) {
       console.error(`Unknown lane: ${lane}`);

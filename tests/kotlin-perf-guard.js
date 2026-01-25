@@ -36,11 +36,11 @@ assert.ok(flowFull && flowFull.controlFlow, 'Expected flow metadata for Kotlin c
 const flowSkipped = computeKotlinFlow(text, target, { ...skipOptions, dataflow: true, controlFlow: true });
 assert.equal(flowSkipped, null, 'Expected flow metadata to be skipped for large Kotlin file.');
 
-const relationsFull = buildKotlinRelations(text, {}, chunks, fullOptions);
+const relationsFull = buildKotlinRelations(text, chunks, fullOptions);
 assert.ok(relationsFull.calls.some((entry) => entry[1] && entry[1].includes('foo')),
   'Expected Kotlin calls to include foo().');
 
-const relationsSkipped = buildKotlinRelations(text, {}, chunks, skipOptions);
+const relationsSkipped = buildKotlinRelations(text, chunks, skipOptions);
 assert.equal(relationsSkipped.calls.length, 0, 'Expected Kotlin relations to be skipped.');
 
 console.log('kotlin perf guard test passed');

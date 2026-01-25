@@ -159,6 +159,9 @@ export const runTests = async ({ selection, context, reportResult }) => {
       } else if (context.failFast && failFastTriggered) {
         result = normalizeResult({ status: 'skipped', durationMs: 0, skipReason: '' });
       } else {
+        if (context.initReporter?.start) {
+          context.initReporter.start(test);
+        }
         result = await runTestWithRetries({
           test,
           passThrough: context.passThrough,

@@ -21,6 +21,10 @@ export const ANSI = {
   fgBrownDark: '\x1b[38;5;94m',
   bgBlack: '\x1b[40m',
   bgDarkPurple: '\x1b[48;5;18m',
+  bgFailLine: '\x1b[48;5;17m',
+  bgLogLine: '\x1b[48;5;18m',
+  bgOutputLine: '\x1b[48;5;21m',
+  bgOutputTail: '\x1b[48;5;20m',
   dim: '\x1b[2m',
   bold: '\x1b[1m'
 };

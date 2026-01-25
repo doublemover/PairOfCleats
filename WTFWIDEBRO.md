@@ -1,15 +1,13 @@
 # WTFWIDEBRO
-- C:/Users/sneak/Development/PairOfCleats_CODEX/WIDESWEEPS/CODEBASE_WIDE_SWEEP_ARTIFACTS_SHARDS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+- /CODEBASE_WIDE_SWEEP_ARTIFACTS_SHARDS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
+  - Decision: Define docId stability guarantees, shard planning invariants, and integrity/manifest timing (compute-last vs incremental).
+  - Questions: Should docId be derived from stableChunkId ordering and do we require join validation on load?
 
 `
 # Codebase Static Review Findings — Wide Sweep C (Final, Merged)
 
 **Scope / focus:** Artifact emission + postings correctness + shard planning + embedding materialization (format correctness, determinism, and high-risk silent degradation).
-
-**Merged sources (wide sweep drafts):**
-- `CODEBASE_WIDE_SWEEP_ARTIFACTS_SHARDS.md`
-- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12C_WIDE_ARTIFACTS_POSTINGS_SHARDS.md`
-- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12C_WIDE_ARTIFACTS_POSTINGS_SHARDS_EMBEDDINGS.md`
 
 ## Severity key
 
@@ -224,18 +222,15 @@ The build pipeline currently treats artifacts/postings/shards/embeddings as “l
 4. Embedding artifacts must be manifest-stamped and validated by retrieval.
 `
 
-- C:/Users/sneak/Development/PairOfCleats_CODEX/WIDESWEEPS/CODEBASE_WIDE_SWEEP_BUILD_RUNTIME_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+- /CODEBASE_WIDE_SWEEP_BUILD_RUNTIME_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
+  - Decision: Define the runtime envelope and cancellation/queue semantics that apply across builds, watch, and tooling spawns.
+  - Questions: Which runtime limits are hard caps vs soft recommendations?
 
 `
 # Codebase Static Review Findings — Wide Sweep B (Final, Merged)
 
 **Scope / focus:** Build/runtime orchestration and operational robustness (watch mode, workers, promotion/current.json, signature hashing, entrypoint/lint drift), plus file discovery + file processor correctness and scaling (preprocess/read/scan, incremental reuse/cached bundles, caps, context windows, experimental structural boundary checks).
-
-**Merged sources (wide sweep drafts):**
-- `CODEBASE_WIDE_SWEEP_BUILD_RUNTIME.md`
-- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12_WIDE_BUILD_ORCHESTRATION_AND_FILE_PROCESSING.md`
-- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12B_WIDE_BUILD_RUNTIME_ORCHESTRATION.md`
-- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12B_WIDE_BUILD_RUNTIME_DISCOVERY.md`
 
 ## Severity key
 
@@ -537,7 +532,10 @@ The best forward direction is to model the build as a strict **BuildRoot transac
 5. Incremental reuse must be provably safe (fail closed if uncertain).
 `
 
-- C:/Users/sneak/Development/PairOfCleats_CODEX/WIDESWEEPS/CODEBASE_WIDE_SWEEP_CONTRACTS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+- /CODEBASE_WIDE_SWEEP_CONTRACTS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 12 — MCP Migration + API/Tooling Contract Formalization; Phase 14 — Documentation and Configuration Hardening
+  - Decision: Define authoritative contracts (schema vs CLI behavior), versioning strategy, and conformance tests for breaking changes.
+  - Questions: Which contracts are required for compatibility and how are version bumps communicated?
 
 `
 # Codebase Static Review Findings — Wide Sweep A (Final, Merged)
@@ -896,16 +894,15 @@ The best systemic fix is to introduce a **single canonical contract layer** (sch
    - no booleans/objects in `returnType`; `docmeta.returns` must normalize into canonical signature.
 `
 
-- C:/Users/sneak/Development/PairOfCleats_CODEX/WIDESWEEPS/CODEBASE_WIDE_SWEEP_RETRIEVAL_UX_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+- /CODEBASE_WIDE_SWEEP_RETRIEVAL_UX_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking); Phase 16 — Prose ingestion + retrieval routing correctness (PDF/DOCX + FTS policy)
+  - Decision: Define retrieval UX contracts (output fields, explainability, routing defaults) and how they align with roadmap phases.
+  - Questions: Which output fields are mandatory for downstream tools, and what is the stability guarantee?
 
 `
 # Codebase Static Review Findings — Wide Sweep D (Final, Merged)
 
 **Scope / focus:** Retrieval semantics and UX (ranking, filters, context shaping, output formats, CLI normalization, backend/provider selection).
-
-**Merged sources (wide sweep drafts):**
-- `CODEBASE_WIDE_SWEEP_RETRIEVAL_UX.md`
-- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12D_WIDE_RETRIEVAL_SEMANTICS_UX.md`
 
 ## Severity key
 
@@ -1128,15 +1125,15 @@ Retrieval features are extensive, but correctness is undermined by a lack of a s
 5. Context expansion and output shaping must obey a single policy budget.
 `
 
-- C:/Users/sneak/Development/PairOfCleats_CODEX/WIDESWEEPS/CODEBASE_WIDE_SWEEP_SCORCHED_EARTH_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+- /CODEBASE_WIDE_SWEEP_SCORCHED_EARTH_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails; Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites); Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
+  - Decision: Decide which breaking changes are acceptable, what gets hard-reset, and how we stage the migration.
+  - Questions: What is the acceptable compatibility window (if any) for scorched-earth changes?
 
 `
 # Codebase Static Review Findings — Wide Sweep G (Final, Merged)
 
 **Scope / focus:** Architecture-level roadmap for a scorched-earth rebuild and a policy-kernel / streaming-first indexer future.
-
-**Merged sources (wide sweep drafts):**
-- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12G_WIDE_SCORCHED_EARTH_POLICY_KERNEL_STREAMING.md`
 
 **Additional incorporation (still limited to wide sweeps):**
 - This “final copy” also folds in the *highest-severity systemic observations* from Wide Sweeps A–F (contracts, build/runtime, artifacts/shards, retrieval UX, shared foundations, storage/policy) to ensure the rebuild roadmap directly addresses the observed failure modes.
@@ -1336,7 +1333,10 @@ The “correct from first principles” solution is a **policy kernel** + **stre
 - Fail-closed correctness: no silent fallback without policy allowing it.
 `
 
-- C:/Users/sneak/Development/PairOfCleats_CODEX/WIDESWEEPS/CODEBASE_WIDE_SWEEP_SHARED_FOUNDATIONS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+- /CODEBASE_WIDE_SWEEP_SHARED_FOUNDATIONS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 14 — Documentation and Configuration Hardening; Phase 20 — Distribution & Platform Hardening (Release Matrix, Packaging, and Optional Python)
+  - Decision: Define shared foundations (config, serialization, error contracts) and the governance for cross-cutting primitives.
+  - Questions: Which shared primitives must be finalized before later phases proceed?
 
 `
 # Codebase Static Review Findings — Wide Sweep E (Final, Merged)
@@ -1573,7 +1573,10 @@ These are not just cleanliness problems: in an indexing system, they become *det
 5. Progress/log event envelopes must be schema-validated and versioned.
 `
 
-- C:/Users/sneak/Development/PairOfCleats_CODEX/WIDESWEEPS/CODEBASE_WIDE_SWEEP_STORAGE_BACKENDS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+- /CODEBASE_WIDE_SWEEP_STORAGE_BACKENDS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+  - Roadmap: Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity; Phase 18 — Vector-Only Profile (Build + Search Without Sparse Postings); Phase 20 — Distribution & Platform Hardening (Release Matrix, Packaging, and Optional Python)
+  - Decision: Define backend parity requirements, fallback policy, and which storage profiles are first-class.
+  - Questions: Which backends are required for CI vs optional, and how do we validate parity?
 
 `
 # Codebase Static Review Findings — Wide Sweep F (Final, Merged)
