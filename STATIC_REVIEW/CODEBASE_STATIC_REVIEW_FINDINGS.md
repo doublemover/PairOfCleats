@@ -84,16 +84,6 @@ Where possible, each issue includes a **suggested fix direction** (high-level on
 
 ## `src/index/build/file-processor/tree-sitter.js`
 
-- **Bug: segment language resolution uses the *file* extension instead of the *segment* extension**
-  - **What’s wrong:** `resolveTreeSitterLanguagesForSegments` calls `resolveTreeSitterLanguageForSegment(segment.languageId, ext)` where `ext` is the container file ext.
-  - **Why it matters:** Embedded TSX/JSX segments in `.vue`/`.md` won’t resolve to `tsx`/`jsx` grammars.
-  - **Suggested fix:** Use `segment.ext` (or a richer segment language descriptor) when resolving tree-sitter language IDs.
-
-- **Knock-on effect:** missing-language deferral can be triggered incorrectly
-  - **What’s wrong:** `treeSitterMissingLanguages` may omit languages that are actually needed (because ext-based mapping hides them).
-  - **Why it matters:** Files may fall back to non-tree-sitter chunking even though a grammar exists.
-  - **Suggested fix:** Resolve languages based on per-segment type, not container ext.
-
 ---
 
 ## `src/lang/babel-parser.js`
