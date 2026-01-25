@@ -50,3 +50,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: reviewed repo lock scope note; no change needed.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: disable pool on clone errors and shutdown when max restarts exceeded.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: reviewed dictionary memory note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: reviewed piece assembly memory note; no change needed.

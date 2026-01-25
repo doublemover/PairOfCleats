@@ -89,12 +89,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### E) Performance and scalability concerns (not necessarily “bugs”, but likely to surface as failures)
 
-#### E2) Piece assembly is inherently memory-heavy
-- **File:** `src/index/build/piece-assembly.js`.
-- **Details:** It loads all chunk metadata, token postings, and doc lengths into memory and then remaps postings based on a global ordering.
-- **Impact:** For large repos, this step can become a practical OOM risk.
-- **Suggested improvement:** If piece assembly remains a first-class operation, consider external sort / streaming remap strategies.
-
 ## Per-file quick notes
 
 ### `src/index/build/indexer/pipeline.js`
