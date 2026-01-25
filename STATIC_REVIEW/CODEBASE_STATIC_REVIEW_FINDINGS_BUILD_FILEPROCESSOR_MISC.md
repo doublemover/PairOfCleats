@@ -48,9 +48,6 @@ This file is large and generally well-structured; the items below are focused on
 
 This section is intentionally short per file; it exists to confirm review coverage and to note any smaller follow-ups.
 
-### `src/index/build/file-processor/meta.js`
-- External docs linking for `node_modules` is helpful. Consider tests for scoped packages and Windows path handling.
-
 ### `src/index/build/file-processor/read.js`
 - UTF-8 truncation logic is careful and avoids splitting multibyte sequences.
 - If you have very large UTF-8 codepoints near chunk boundaries, add a regression test to ensure truncated reads do not produce replacement characters.
