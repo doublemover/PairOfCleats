@@ -38,10 +38,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
 
 ### High / correctness + feature gaps
 
-4) **Stage defaults may not match intent for “stage3/embeddings”** (`src/index/build/runtime/stage.js`).
-   - Stage 3 defaults disable tree-sitter/lint/risk/type inference but do **not** force embeddings on. If a user invokes stage3 with embeddings disabled in config, the run can become a confusing no-op or partial stage.
-   - Suggested fix: either (a) force `embeddings.enabled=true` (and mode) in stage3 defaults, or (b) explicitly validate and error when stage3 is requested but embeddings are disabled.
-
 ### Medium / operational footguns
 
 5) **`buildIgnoreMatcher()` assumes `userConfig` is always a non-null object and silently swallows ignore-file read errors** (`src/index/build/ignore.js`).
