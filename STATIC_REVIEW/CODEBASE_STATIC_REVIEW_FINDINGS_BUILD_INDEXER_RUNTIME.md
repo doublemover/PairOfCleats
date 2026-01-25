@@ -36,11 +36,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
 
 ### Critical / correctness-risk
 
-2) **Watch mode can thrash on locks and re-run expensive repo-wide discovery on each rebuild** (`src/index/build/watch.js`).
-   - `acquireIndexLock()` is called with default `waitMs=0`. If another index build holds the lock, watch immediately reschedules another build (debounced), potentially producing a tight loop of repeated lock attempts while the lock owner is still running.
-   - Each build currently calls `buildIndexForMode({ mode, runtime })` without supplying a discovery subset, so watch rebuilds re-scan the repo each time (even if only a few files changed).
-   - Suggested fix: implement an exponential backoff or a minimum retry interval when a lock is busy; also add a “changed paths discovery” mode that feeds only `pendingPaths` (+ necessary dependency neighborhoods) into indexing discovery for incremental updates.
-
 ### High / correctness + feature gaps
 
 3) **Piece assembly drops `hash_algo` into a black hole and may force token postings even in non-token/vectors-only scenarios** (`src/index/build/piece-assembly.js`).
@@ -71,29 +66,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
    - The job payload does not include the promoted build root or explicit artifact paths; if multiple indexes exist per repo/mode, the embedding worker may need more identifiers to find the correct target.
 
 ## Detailed findings (with concrete suggestions)
-
-### 2) Watch mode: lock retry thrash and incremental efficiency
-**File:** `src/index/build/watch.js`
-
-**What looks wrong / risky**
-
-- If the lock is held, watch immediately schedules another build (debounced). With `debounceMs` small and a long-running index build, this can produce repeated lock attempts for the duration of the build.
-- Watch rebuilds do not pass a discovery subset; each rebuild can trigger repo-wide discovery and preprocessing again.
-
-**Impact**
-
-- Unnecessary CPU/IO churn during active indexing (especially on monorepos).
-- Reduced perceived responsiveness, since watch spends time re-discovering instead of focusing on the changed file set.
-
-**Suggested improvements**
-
-- Add lock backoff: if lock not acquired, wait `minRetryMs` (and optionally exponential backoff up to `maxRetryMs`) before rescheduling.
-- Add a “changed files discovery” path:
-  - Maintain `pendingPaths` and feed it into discovery as `discovery.entries` (or a specialized discovery mode) so incremental plans can be computed without crawling the full tree.
-  - Include a dependency neighborhood expansion option (imports/adjacent config files) so changes that affect indexing (e.g., tsconfig) still trigger wider rebuilds when needed.
-- Add tests:
-  - Ensure watch does not call full discovery when `pendingPaths` is non-empty and “changed-only” mode is enabled.
-  - Ensure lock contention yields bounded retry frequency.
 
 ### 3) Piece assembly: metadata compatibility and optional artifacts
 **File:** `src/index/build/piece-assembly.js`
