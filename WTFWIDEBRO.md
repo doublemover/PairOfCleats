@@ -537,3 +537,362 @@ The best forward direction is to model the build as a strict **BuildRoot transac
 5. Incremental reuse must be provably safe (fail closed if uncertain).
 `
 
+- C:/Users/sneak/Development/PairOfCleats_CODEX/WIDESWEEPS/CODEBASE_WIDE_SWEEP_CONTRACTS_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+
+`
+# Codebase Static Review Findings — Wide Sweep A (Final, Merged)
+
+**Scope / focus:** Canonical contracts + cross-cutting correctness (metadata/type fields, chunk/symbol identity, segment language fidelity, invariants).
+
+**This document is a merged “final copy”** of the recent wide-sweep drafts below, with duplicated items collapsed and unique items preserved:
+
+- `CODEBASE_WIDE_SWEEP_CONTRACTS.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12_WIDE_CONTRACTS.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12_WIDE_CANONICAL_CONTRACTS.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12A_WIDE_CONTRACTS.md`
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12A_WIDE_CANONICAL_CONTRACTS.md`
+
+## Severity key
+
+- **P0 / Critical**: can silently corrupt results, produce wrong joins/edges, or make indexes non-deterministic.
+- **P1 / High**: materially degrades correctness/precision; likely to cause user-visible inconsistencies.
+- **P2 / Medium**: correctness debt, drift risk, or “footgun” behavior that becomes P0 at scale.
+- **P3 / Low**: polish, maintainability, or documentation drift.
+
+## Executive summary
+
+There are several *contract fractures* that cut across indexing, artifact emission, storage backends, retrieval, and UX:
+
+1. **Segment-derived language/extension is computed correctly, but later overwritten/discarded** when the chunk payload is assembled. This turns segment-aware analysis into file-extension–driven behavior downstream. The blast radius includes: chunk IDs, parser selection, type-inference keys, language filters, and graph edges.
+2. **Identity is not canonical** (docId vs chunkId vs multiple “stable” keys). Several subsystems rely on “implicit joins” (e.g., array-index joins by docId) or ad-hoc IDs; this is a silent-degradation risk.
+3. **`metaV2` is computed early, then treated as authoritative even after later enrichment passes mutate/augment the underlying chunk** (cross-file inference, call links, risk, etc.). This creates systematic “looks indexed but missing fields” behavior.
+4. **Return-type and signature metadata is fragmented** (`docmeta.returns` vs `docmeta.returnType`, inconsistent shapes, and even non-type values). Some consumers only read one field, so the system can appear to “have no return types” even when extraction produced them.
+5. **SQLite build path reconstructs a minimal `metaV2`**, breaking parity with JSONL artifacts and causing retrieval-time behavior to differ by backend.
+
+The best systemic fix is to introduce a **single canonical contract layer** (schemas + canonicalization functions + contract tests) that every producer/consumer must go through.
+
+---
+
+## Findings
+
+### P0 — Segment language/extension fidelity is computed, but later discarded/overwritten
+
+**Why this is critical**
+- The system already has segment-aware language detection (script segments, mixed files, embedded languages).
+- But in later assembly the chunk payload reverts to file-level `ext/lang`, causing:
+  - incorrect parser selection (tree-sitter vs TS parser vs heuristics),
+  - incorrect chunk IDs (because many IDs incorporate ext/lang),
+  - incorrect retrieval language filters,
+  - incorrect cross-file inference keying and graph edges.
+
+**Where**
+- Segment detection and language resolution:
+  - `src/index/segments.js` (e.g., `resolveSegmentExt`, `resolveSegmentLanguage`)
+- Chunk payload assembly that overwrites:
+  - `src/index/build/file-processor/assemble.js` (notably `buildChunkPayload(...)`)
+    - the wide sweeps observed the pattern: `const ext = ctx.fileMeta.ext` / `const lang = ctx.fileMeta.lang` applied to *all* chunks even when a segment-derived language exists.
+
+**Symptoms / risks**
+- A Vue/React SFC script segment can be analyzed as “vue/html” at segment time but stored/retrieved as “js” (or the reverse), depending on container extension.
+- Language-scoped features (risk rules, type inference, filters, call-args extraction) behave inconsistently between artifact paths and SQLite paths, because each may consult different fields (`chunk.ext`, `metaV2.lang`, file ext).
+
+**Recommendation**
+- Make `segment.languageId` (or canonical `chunk.languageId`) the *single* source of truth.
+- Enforce a rule: “file-level ext/lang may only be used when there are no segments.”
+- Add a `canonicalizeChunkLanguage(chunk, ctx)` step used by:
+  - chunk-id computation,
+  - parser selection,
+  - `metaV2` derivation,
+  - shard planning language grouping,
+  - retrieval language filtering.
+
+**Tests to add**
+- Fixture with embedded segments (Vue SFC, HTML with `<script>`, Markdown code-fences if supported) verifying:
+  - emitted `chunk.ext/lang` match segment-derived values,
+  - retrieval `--lang` filters use segment-derived values (not container extension),
+  - cross-file inference keys differ between segments as expected.
+
+---
+
+### P0 — Tree-sitter runtime/parser selection is keyed to container extension, not the canonical segment language
+
+**Why this is critical**
+- Even if segment language is detected, *downstream* parser selection can still consult a mismatched `chunk.ext` and pick the wrong parser (or no parser), producing malformed relations/types.
+
+**Where**
+- Tree-sitter selection logic:
+  - `src/index/build/file-processor/tree-sitter.js`
+  - `src/lang/tree-sitter/*` (selection/config and chunking)
+- Language selection can be affected by chunk payload fields:
+  - `src/index/build/file-processor/assemble.js` (see previous finding)
+
+**Recommendation**
+- Replace “extension-driven selection” with “canonical languageId-driven selection”.
+- Treat extension as a fallback **only** if languageId is unknown.
+- Introduce a `ParserSelector` contract: `(languageId, segmentExt?, fileExt?) -> parser`.
+
+**Tests to add**
+- A segment-fixture where the container extension is *different* from the embedded segment language (e.g., `.vue` containing TS script).
+- Assert the selected parser matches the segment language, and emitted relations/types match the correct language.
+
+---
+
+### P0 — Stable identity is not canonical across artifacts/graphs/retrieval/storage
+
+**Why this is critical**
+- Multiple identities are used interchangeably:
+  - `docId` (often treated as dense `[0..N)` index),
+  - `chunkId` / `stableChunkKey`,
+  - file+chunkIndex composites,
+  - “implicit joins” across arrays keyed by docId.
+- This enables silent wrong-joins when ordering changes (e.g., deferred tree-sitter languages reorder work) or when incremental builds reuse partial artifacts.
+
+**Where**
+- Chunk ID generation:
+  - `src/index/chunk-id.js`
+- Artifact writers and graph emissions:
+  - `src/index/build/artifacts/writers/chunk-meta.js`
+  - `src/index/build/graphs.js`
+- Retrieval loaders / caches:
+  - `src/retrieval/index-cache.js`
+- SQLite build/import path:
+  - `src/storage/sqlite/build/from-artifacts.js`
+
+**Recommendation**
+- Define **one canonical stable key**:
+  - `stableChunkId = hash(repoId, canonicalPath, segmentId, chunkOrdinalWithinSegment, contentHash?)`
+- Make `docId` a *storage-local surrogate* only (never used as an implicit join key without validation).
+- Emit an explicit join map in artifacts:
+  - `docId -> stableChunkId`
+  - `stableChunkId -> {file, segment, chunkIndex}`
+
+**Tests to add**
+- Determinism test: same repo indexed twice with different file traversal order → stableChunkIds identical.
+- Deferred-language test: trigger a missing tree-sitter WASM deferral mid-run → stableChunkIds and joins remain correct.
+
+---
+
+### P0 — `metaV2` is built early and becomes stale after later enrichment passes
+
+**Why this is critical**
+- `metaV2` is treated as the retrieval-time contract, but enrichment stages mutate the underlying chunk after `metaV2` was computed.
+- The system can therefore “have” relations/types/risk flows, but retrieval filters/output shape operate on stale `metaV2`.
+
+**Where**
+- `metaV2` derivation:
+  - `src/index/build/file-processor/meta.js`
+  - `src/index/metadata-v2.js`
+- Enrichment after metaV2:
+  - `src/index/type-inference-crossfile/*`
+  - `src/index/build/indexer/steps/relations.js`
+  - `src/index/risk.js`
+
+**Recommendation**
+- Move to a model where `metaV2` is either:
+  1) computed **after** all enrichment, or  
+  2) incrementally updated (re-canonicalized) whenever enrichment adds fields.
+- Add a `metaV2Version` and `metaV2InputsHash` so loaders can detect staleness.
+
+**Tests to add**
+- Cross-file inference integration test should assert `metaV2.types` present in emitted chunk-meta after inference.
+- Risk enrichment test should assert `metaV2.risk` reflects computed risk tags/flows.
+
+---
+
+### P0 — Return type / signature metadata is fragmented and can accept non-type values
+
+**Why this is critical**
+- Producers emit return types in multiple places (`docmeta.returns` vs `docmeta.returnType`) and with inconsistent shapes.
+- Some extractors accept non-type values (boolean/object) as “return type”, which can poison downstream normalization.
+- Consumers often look only at `returnType`, so you can appear to have “no return types” even when they exist.
+
+**Where**
+- Return-type extraction (varies by language):
+  - JS/TS docmeta: `src/lang/javascript/docmeta.js`
+  - C-like extractors: `src/lang/clike.js` (commonly emits `docmeta.returns`)
+- Meta normalization / consumption:
+  - `src/index/metadata-v2.js`
+  - retrieval filters/types: `src/retrieval/filters.js`, `src/retrieval/output/*`
+
+**Recommendation**
+- Create one canonical representation:
+  - `signature: { params: [...], returns: { type: string|null, raw: string|null, confidence } }`
+- Add a strict validator: reject boolean/object/etc for `returns.type` (store them under `returns.raw` if needed).
+- Teach all consumers to read only the canonical field.
+
+**Tests to add**
+- Unit tests for `metadata-v2` normalization:
+  - accepts `{returns: "Foo"}` and `{returnType: "Foo"}` but emits canonical `signature.returns.type = "Foo"`,
+  - rejects `{returnType: true}` (or normalizes to `null` with `raw`).
+- Fixture-based end-to-end test for a C-like function with explicit return type.
+
+---
+
+### P1 — Signature parameter metadata (`docmeta.params`) has inconsistent shapes and is not schema-validated
+
+**Why this matters**
+- Several language extractors emit parameter metadata, but the shape is not consistent (array vs object vs missing), and there is no canonical normalization step.
+- Downstream consumers (type inference decorators, filters, output formatters) risk either crashing on unexpected shapes or silently dropping parameter information.
+
+**Where**
+- Language docmeta emitters:
+  - `src/lang/*` (language-specific docmeta modules)
+- Meta normalization:
+  - `src/index/metadata-v2.js`
+
+**Suggested fix**
+- Expand the canonical signature contract (introduced in the return-type finding) to include `params` with a strict schema:
+  - `params: [{ name, type, optional, defaultValueRaw?, position }]`
+- Add a normalizer that accepts legacy shapes and produces the canonical array.
+- Add schema validation for `signature` at artifact-write time.
+
+**Tests to add**
+- Contract tests that feed multiple legacy param shapes through normalization and assert stable canonical output.
+
+---
+
+### P1 — Symbol identity collisions and text-only linking inflate false edges
+
+**Why this matters**
+- Callgraph/usage edges are often keyed by display name or textual callee rather than a symbol identifier.
+- Overloaded functions, method receivers, namespaces, and imports can produce false edges that later drive context expansion, risk flows, and “who calls what” features.
+
+**Where**
+- Relations emitters (language-specific):
+  - `src/lang/*/relations.js` (notably JS/Python vs TS differences)
+- Graph construction:
+  - `src/index/build/graphs.js`
+
+**Recommendation**
+- Introduce a symbol ID contract:
+  - `symbolId = hash(languageId, canonicalPath, containerSymbol, localName, kind, signatureFingerprint)`
+- Where possible, augment via tooling (LSP/SCIP/LSIF) to resolve definitions/references and attach authoritative symbol IDs.
+- Track confidence on edges (`resolved`, `heuristic`, `text-only`).
+
+**Tests**
+- Fixture with overloaded names and imports; assert edges include confidence + do not merge unrelated symbols.
+
+---
+
+### P1 — Retrieval language filtering is extension-centric and will be wrong in mixed/segmented files
+
+**Where**
+- Retrieval filters / CLI:
+  - `src/retrieval/filters.js`
+  - `src/retrieval/cli/*` (lang filters)
+- Filter-index artifacts:
+  - `src/index/build/artifacts/filter-index.js`
+
+**Why it matters**
+- If `chunk.ext` was overwritten with file ext, language filters become inaccurate.
+- Even if `metaV2.lang` is correct, filters may not consult it.
+
+**Recommendation**
+- Make `metaV2.lang` the canonical filter key.
+- Ensure `filter-index` uses the same key that retrieval uses (avoid “build-time ext, retrieval-time lang” drift).
+
+**Tests**
+- Mixed-language fixture with container ext not matching segment language.
+- Validate `--lang ts` returns only TS chunks inside `.vue`/`.md`/`.html` where applicable.
+
+---
+
+### P1 — SQLite `metaV2` reconstruction is minimal, causing backend-dependent behavior
+
+**Where**
+- SQLite build/import:
+  - `src/storage/sqlite/build/from-artifacts.js`
+  - `src/storage/sqlite/build/from-bundles.js`
+
+**Why it matters**
+- Features that rely on `metaV2` fields (types, risk tags, relations metadata) behave differently depending on whether retrieval loads JSONL artifacts or SQLite.
+
+**Recommendation**
+- Store canonical `metaV2` (or a canonical subset) directly in SQLite at ingest time.
+- Validate a parity contract: “SQLite and JSONL produce the same `metaV2` for a given chunk”.
+
+---
+
+### P2 — Offset units are not canonicalized across languages/parsers
+
+**Why it matters**
+- Some parts of the system treat offsets as bytes, others as UTF-16 code units, others as code points.
+- This causes subtle breakage in:
+  - callsite locations,
+  - risk evidence references,
+  - “open in editor” line/col mapping.
+
+**Where**
+- TS parsing/positions:
+  - `src/lang/typescript/parser.js`
+- Python AST scripts:
+  - `src/lang/python/ast-script.js`
+- Tree-sitter AST:
+  - `src/lang/tree-sitter/ast.js`
+
+**Recommendation**
+- Define a canonical position contract:
+  - `pos: { line, colUtf16, byteOffset? }` (or pick one, but be explicit)
+- Require each language adapter to supply a converter to canonical positions.
+
+---
+
+### P2 — Chunk record shape drifts across pipelines (internal chunk vs artifact chunk vs SQLite reconstruction)
+
+**Why it matters**
+- Different parts of the system treat “the chunk record” differently:
+  - internal file-processor chunk objects,
+  - JSONL `chunk-meta` artifact rows,
+  - SQLite ingested rows and reconstructed `metaV2`.
+- Without a canonical shape and explicit versioning, it’s easy to introduce drift where:
+  - a field exists in one backend but not another,
+  - a field is renamed (or duplicated) but only partially aliased,
+  - consumers silently fall back to defaults.
+
+**Where**
+- Internal file processing and assembly:
+  - `src/index/build/file-processor/*`
+- Artifact writing:
+  - `src/index/build/artifacts/writers/chunk-meta.js`
+- SQLite reconstruction:
+  - `src/storage/sqlite/build/from-artifacts.js`
+
+**Suggested fix**
+- Define and version a single `ChunkMetaV2` schema used for:
+  - JSONL emission,
+  - SQLite storage,
+  - retrieval contracts.
+- Require all pipelines to pass through the same `canonicalizeChunkMetaV2(...)` function.
+
+
+### P2 — Contract casing duplication and partial aliasing (snake_case vs camelCase)
+
+**Where**
+- Multiple artifact and retrieval layers:
+  - `chunk_authors` vs `chunkAuthors`, `last_author` vs `lastAuthor`, etc.
+
+**Recommendation**
+- Pick one canonical JSON shape for public artifacts and APIs.
+- Provide a single “compat decoder” that normalizes legacy shapes at load time, and delete ad-hoc per-field aliasing over time.
+
+---
+
+## “Keep it right” recommendations (contract gates)
+
+1. **Introduce JSON Schemas as the *only* supported contract** for:
+   - chunk payload (internal),
+   - chunk-meta JSONL,
+   - metaV2,
+   - graphs/relations edges.
+2. Add a **contract test suite** that:
+   - runs a small fixture repo through build → validate → SQLite import → retrieval,
+   - asserts parity across backends for canonical fields,
+   - asserts stable IDs across two different traversal orders.
+3. Add a **segment fidelity gate**:
+   - if segment-derived `languageId` exists, it must be the emitted language key everywhere.
+4. Add a **metaV2 freshness gate**:
+   - `metaV2InputsHash` must match the final enriched chunk state.
+5. Add a **return-type normalization gate**:
+   - no booleans/objects in `returnType`; `docmeta.returns` must normalize into canonical signature.
+`
+
