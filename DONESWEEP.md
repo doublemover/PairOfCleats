@@ -3,3 +3,5 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: sort comments before assigning to chunks; updated comment-boundary test for shuffled input.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: treat .ps1 binaries via PowerShell wrapper and make fsExists strictly file-based.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: enable git discovery for subdirs and add bounded lstat concurrency in discover.js.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: emit a once-per-run warning when tokenization worker pool is unavailable.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: skipped comment tokenization fast-path suggestion; logged in WTFBRO.

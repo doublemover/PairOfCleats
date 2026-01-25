@@ -39,7 +39,6 @@ The goal here is to identify bugs, edge cases, and correctness/performance footg
 
 This file is large and generally well-structured; the items below are focused on correctness edge cases and high-cost paths.
 
-- `extractComments()` + comment tokenization happen even if comments are later excluded from token text. If performance becomes an issue, consider a fast-path to skip per-comment tokenization when comment fields are disabled (or when minTokens thresholds will exclude them anyway).
 
 ### 2) `src/index/build/file-scan.js` — binary detection semantics
 
