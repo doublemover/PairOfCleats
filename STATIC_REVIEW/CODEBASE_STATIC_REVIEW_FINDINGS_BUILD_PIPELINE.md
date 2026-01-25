@@ -36,13 +36,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### Highest-impact issues
 
-4) **`waitForStableFile()` is not a true stability check**
-- **Where:** `src/index/build/watch.js`.
-- **Evidence:**
-  - Function returns `true` even if the file never stabilizes across the requested checks (lines ~59–76). It only returns `false` when `fs.stat()` fails.
-- **Impact:**
-  - On fast rebuild loops, this can index partially-written files (or files being written in multiple bursts) while giving the appearance that a stability guard is active.
-
 5) **`current.json` promotion logic can point outside the intended repo cache root**
 - **Where:** `src/index/build/promotion.js`.
 - **Evidence:**
@@ -55,13 +48,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 ## Detailed findings
 
 ### A) Crash and correctness bugs
-
-#### A3) `waitForStableFile()` does not detect sustained instability
-- **File:** `src/index/build/watch.js` (lines ~59–76)
-- **Details:** If the file changes on every poll, the loop completes and returns `true` anyway.
-- **Why this is wrong:** The function name and the call site (`if (!stable) return;`) imply “do not proceed until stable.” The current behavior is “delay a bit and then proceed regardless.”
-- **Suggested fix:** Return `false` when stability is not observed within `checks` polls (or rename to reflect “best-effort delay” semantics).
-- **Suggested test:** Create a file that is rewritten multiple times across the guard window; assert that indexing does not proceed until stable (or assert the renamed semantics).
 
 #### A4) Promotion can allow `current.json` to reference unintended paths
 - **File:** `src/index/build/promotion.js`.
