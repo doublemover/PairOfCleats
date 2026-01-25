@@ -41,13 +41,7 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 ### High
 
-1) **CVSS score `0` is treated as “missing” in normalization**
-- **Where:** `src/integrations/triage/normalize/dependabot.js`, `src/integrations/triage/normalize/aws-inspector.js`
-- **What:** Both use truthiness checks like `(cvssScore || vector || version)` when deciding whether to emit a `cvss` block.
-- **Impact:** A valid score `0` is falsy, causing CVSS to be dropped even when present.
-- **Suggestion:** Use `Number.isFinite(cvssScore)` (or an explicit `cvssRaw.score != null`) rather than truthiness.
-
-2) **Map dataflow naming drift: `mutates` vs `mutations` likely breaks badges/filters**
+1) **Map dataflow naming drift: `mutates` vs `mutations` likely breaks badges/filters**
 - **Where:**
   - `src/map/constants.js` legend uses `functionBadges` key **`mutates`**
   - Map builders/renderers consistently use **`mutations`** (`src/map/build-map.js`, `src/map/dot-writer.js`, `src/map/isometric/client/meshes.js`)
@@ -58,13 +52,13 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 ### Medium
 
-3) **Two-stage indexing queue uses embeddings queue config namespace**
+2) **Two-stage indexing queue uses embeddings queue config namespace**
 - **Where:** `src/integrations/core/index.js` (two-stage background enqueue)
 - **What:** Stage2 background jobs are enqueued using `userConfig.indexing.embeddings.queue.dir` and `maxQueued`.
 - **Impact:** Confusing configuration semantics; risks unintended coupling (embeddings queue size limits throttling stage2 indexing), and reduces operator clarity.
 - **Suggestion:** Give two-stage indexing its own queue config keys (or a shared `indexing.queue.*` that both can use explicitly), and include “effective queue config” in `config_status` output.
 
-4) **MCP tool schema appears richer than the core CLI arg builder supports**
+3) **MCP tool schema appears richer than the core CLI arg builder supports**
 - **Where:**
   - Schema lists many filters in `src/integrations/mcp/defs.js` (`type`, `author`, `import`, `calls`, `signature`, …)
   - Core `buildSearchArgs()` in `src/integrations/core/index.js` only maps a small subset
@@ -74,7 +68,7 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
   - Reduce schema to what is actually honored, OR
   - Expand `buildSearchArgs()` to cover the schema.
 
-5) **Map member identity collisions likely for repeated names inside a file**
+4) **Map member identity collisions likely for repeated names inside a file**
 - **Where:** `src/map/build-map.js` (`buildSymbolId()` returns `${file}::${name}` for most named symbols)
 - **Impact:** Overloads / same-name functions / methods / nested symbols can collapse into one node, distorting edges and per-member metadata (types, risk, dataflow).
 - **Suggestion:** Use a more collision-resistant ID:
@@ -83,12 +77,12 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
   - use chunk IDs consistently when present.
   Also add a warning counter: “mergedSymbolsDueToCollision”.
 
-6) **`src/integrations/core/status.js` contains unused functions / drift indicators**
+5) **`src/integrations/core/status.js` contains unused functions / drift indicators**
 - **Where:** `readJsonWithLimit()`, `summarizeShardPlan()` are defined but not used.
 - **Impact:** Signals partially implemented or abandoned checks; increases maintenance burden and can mislead future refactors.
 - **Suggestion:** Either wire them into `getStatus()` (if they reflect intended invariants), or remove them to reduce confusion.
 
-7) **Isometric viewer has minimal JSON/error handling; one malformed payload breaks the UI entirely**
+6) **Isometric viewer has minimal JSON/error handling; one malformed payload breaks the UI entirely**
 - **Where:** `src/map/isometric/client/dom.js`
 - **What:** `JSON.parse` on `#map-data` and `#viewer-config` has no try/catch; missing DOM nodes throw.
 - **Impact:** A truncated or invalid map JSON yields a blank viewer with a console error.
@@ -215,16 +209,8 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 ### `src/integrations/triage/normalize/dependabot.js`
 
-**A) CVSS score truthiness bug (high)**
-- See executive summary.
-
-**B) References normalization may be shallow (low/medium)**
+**A) References normalization may be shallow (low/medium)**
 - Uses arrays of strings; might want normalized objects with URLs + labels.
-
-### `src/integrations/triage/normalize/aws-inspector.js`
-
-**A) CVSS score truthiness bug (high)**
-- See executive summary.
 
 ### `src/integrations/triage/normalize/generic.js`
 

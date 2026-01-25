@@ -44,9 +44,10 @@ export function normalizeDependabot(raw, meta = {}, options = {}) {
 
   const cvssRaw = advisory.cvss || raw?.cvss || {};
   const cvssScore = Number(cvssRaw.score ?? cvssRaw.baseScore);
-  const cvss = (cvssScore || cvssRaw.vector_string || cvssRaw.vectorString || cvssRaw.vector || cvssRaw.version)
+  const hasScore = Number.isFinite(cvssScore);
+  const cvss = (hasScore || cvssRaw.vector_string || cvssRaw.vectorString || cvssRaw.vector || cvssRaw.version)
     ? {
-      score: Number.isFinite(cvssScore) ? cvssScore : null,
+      score: hasScore ? cvssScore : null,
       vector: pickFirst(cvssRaw.vector_string, cvssRaw.vectorString, cvssRaw.vector),
       version: pickFirst(cvssRaw.version, cvssRaw.cvss_version, cvssRaw.cvssVersion)
     }
