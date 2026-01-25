@@ -16,6 +16,8 @@ import { resolveBinarySkip, resolvePreReadSkip } from './file-processor/skip.js'
 import { createFileTimingTracker } from './file-processor/timings.js';
 import { resolveExt } from './file-processor/read.js';
 import { getLanguageForFile } from '../language-registry.js';
+
+let warnedNoWorkerPool = false;
 /**
  * Create a file processor with shared caches.
  * @param {object} options
@@ -93,6 +95,10 @@ export function createFileProcessor(options) {
   const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn) : (fn) => fn();
   const runEmbedding = embeddingQueue ? (fn) => embeddingQueue.add(fn) : (fn) => fn();
   const showLineProgress = getEnvConfig().verbose === true;
+  if (!workerPool && !warnedNoWorkerPool) {
+    warnedNoWorkerPool = true;
+    log('[tokenization] Worker pool unavailable; using main thread.');
+  }
   const tokenDictWords = dictShared || dictWords;
   const tokenContext = createTokenizationContext({
     dictWords: tokenDictWords,
