@@ -36,15 +36,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### Highest-impact issues
 
-3) **Incremental/tokenization cache keys are vulnerable to nondeterminism and collisions**
-- **Where:** `src/index/build/indexer/signatures.js`.
-- **Evidence:**
-  - Uses `sha1(JSON.stringify(payload))` for both tokenization and incremental signatures (lines ~7–23 and ~25–78).
-  - Only includes `.source` for `licensePattern`/`generatedPattern`/`linterPattern` but not `.flags` (lines ~15–20).
-- **Impact:**
-  - **Regex flags collision** (e.g., `/foo/i` vs `/foo/g` hash the same) can incorrectly reuse cached artifacts.
-  - JSON property order is typically stable for simple objects but is not a hard invariant across all object construction paths; for config objects assembled dynamically (or coming from different loaders), you can end up with avoidable cache misses (or—worse—wrong reuse if keys are dropped/normalized inconsistently elsewhere).
-
 4) **`waitForStableFile()` is not a true stability check**
 - **Where:** `src/index/build/watch.js`.
 - **Evidence:**
@@ -97,4 +88,3 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### `src/index/build/indexer/embedding-queue.js`
 - **Runtime compatibility:** uses `crypto.randomUUID()` (line ~15). Ensure Node version policy matches this requirement.
-
