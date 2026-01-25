@@ -18,8 +18,16 @@ export const assignCommentsToChunks = (comments, chunks) => {
   if (!Array.isArray(comments) || !comments.length || !Array.isArray(chunks) || !chunks.length) {
     return assignments;
   }
+  const orderedComments = comments.slice().sort((a, b) => {
+    const startA = Number.isFinite(a?.start) ? a.start : 0;
+    const startB = Number.isFinite(b?.start) ? b.start : 0;
+    if (startA !== startB) return startA - startB;
+    const endA = Number.isFinite(a?.end) ? a.end : 0;
+    const endB = Number.isFinite(b?.end) ? b.end : 0;
+    return endA - endB;
+  });
   let chunkIdx = 0;
-  for (const comment of comments) {
+  for (const comment of orderedComments) {
     // Chunks are treated as half-open ranges [start, end).
     while (chunkIdx < chunks.length && chunks[chunkIdx].end <= comment.start) {
       chunkIdx += 1;

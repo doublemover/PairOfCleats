@@ -31,12 +31,6 @@ The goal here is to identify bugs, edge cases, and correctness/performance footg
 
 ### Critical / correctness-risk
 
-1) **Comment-to-chunk assignment assumes comments are pre-sorted** (`src/index/build/file-processor/chunk.js`).
-   - `assignCommentsToChunks()` uses a forward-only `chunkIdx` pointer; if comments are not strictly increasing by `comment.start`, later smaller `start` values can be assigned to the wrong chunk.
-   - Because comment ranges influence stripping and comment token fields, misassignment can distort chunk text and retrieval signals.
-   - Suggested fix: either sort `comments` by `start` inside the function, or document/validate that the input list is sorted (and enforce upstream).
-   - Suggested tests: intentionally shuffled comment ranges; verify assignment correctness and that stripping behaves deterministically.
-
 ### High / operational gaps
 
 3) **Windows `.ps1` structural tools are “detected” but not runnable** (`src/experimental/structural/binaries.js`).
@@ -51,24 +45,7 @@ The goal here is to identify bugs, edge cases, and correctness/performance footg
 
 ## Detailed findings
 
-### 1) `src/index/build/file-processor/chunk.js` — comment assignment ordering assumption
-
-**What looks wrong**
-
-- `assignCommentsToChunks()` uses a monotonic `chunkIdx` pointer and does not sort inputs.
-- If upstream comment extraction ever returns comments out of order (or if different comment sources are merged), the assignment can become incorrect.
-
-**Impact**
-
-- Incorrect comment tokens per chunk (affects comment field retrieval).
-- Incorrect stripping behavior when comments are excluded from code text (could leave comment text in the chunk, or strip the wrong region).
-
-**Suggested improvements**
-
-- Sort `comments` by `start` inside the function (cheap relative to other work).
-- Alternatively, assert monotonicity in debug builds and fix upstream ordering guarantees.
-
-### 2) `src/experimental/structural/binaries.js` — `.ps1` invocation and existence checks
+### 1) `src/experimental/structural/binaries.js` — `.ps1` invocation and existence checks
 
 **What looks wrong**
 
@@ -80,14 +57,14 @@ The goal here is to identify bugs, edge cases, and correctness/performance footg
 - If a candidate ends in `.ps1`, return `{ command: "powershell", argsPrefix: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", <script>] }` (or `pwsh` if available).
 - Replace `fsExists()` with a boolean existence check and (optionally) a file-type check.
 
-### 3) `src/index/build/discover.js` — performance and subtle behavior notes
+### 2) `src/index/build/discover.js` — performance and subtle behavior notes
 
 **What to watch for**
 
 - Git-based discovery is only used when `root` is the repo toplevel. Indexing a subdirectory will fall back to filesystem crawling, which can surprise users who expect `.gitignore` + git tracked filtering semantics.
 - The per-file lstat loop is sequential; bounded concurrency could significantly reduce discovery wall time on large repos.
 
-### 4) `src/index/build/file-processor.js` — a few correctness/perf footguns worth tightening
+### 3) `src/index/build/file-processor.js` — a few correctness/perf footguns worth tightening
 
 This file is large and generally well-structured; the items below are focused on correctness edge cases and high-cost paths.
 
@@ -95,7 +72,7 @@ This file is large and generally well-structured; the items below are focused on
 - If the worker pool is disabled or returns `null`, tokenization falls back to main thread, which is correct — but it may be worth emitting a structured warning once per run so operators notice the throughput regression.
 - `extractComments()` + comment tokenization happen even if comments are later excluded from token text. If performance becomes an issue, consider a fast-path to skip per-comment tokenization when comment fields are disabled (or when minTokens thresholds will exclude them anyway).
 
-### 5) `src/index/build/file-scan.js` — binary detection semantics
+### 4) `src/index/build/file-scan.js` — binary detection semantics
 
 - The scanner still performs binary heuristics even when `wantsBinary` is false (because a sample buffer is loaded for other checks). This may be intended, but it makes `sampleMinBytes` feel less like a gate and more like a tuning knob.
 - If `sampleMinBytes` is meant as a “don’t even try” threshold, consider short-circuiting detection when size < sampleMinBytes (except for obvious magic-number detection via `file-type`).

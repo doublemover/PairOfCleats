@@ -8,9 +8,9 @@ const chunks = [
 ];
 
 const comments = [
+  { start: 25, end: 30, text: 'tail' },
   { start: 0, end: 2, text: 'head' },
-  { start: 10, end: 12, text: 'boundary' },
-  { start: 25, end: 30, text: 'tail' }
+  { start: 10, end: 12, text: 'boundary' }
 ];
 
 const assignments = assignCommentsToChunks(comments, chunks);
