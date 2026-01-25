@@ -7,7 +7,11 @@ export const buildSymbolId = ({ file, name, kind, startLine, chunkId }) => {
   const safeFile = normalizePath(file || '');
   const safeName = String(name || '').trim();
   const lowered = safeName.toLowerCase();
-  if (safeName && !ANON_NAMES.has(lowered)) return `${safeFile}::${safeName}`;
+  if (safeName && !ANON_NAMES.has(lowered)) {
+    if (chunkId) return `${safeFile}::${chunkId}`;
+    const lineTag = Number.isFinite(startLine) ? `:${startLine}` : '';
+    return `${safeFile}::${safeName}${lineTag}`;
+  }
   if (chunkId) return `${safeFile}::${chunkId}`;
   const suffix = Number.isFinite(startLine) ? startLine : 0;
   const kindTag = kind ? String(kind) : 'symbol';

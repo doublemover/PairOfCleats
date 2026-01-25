@@ -57,16 +57,7 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
   - Reduce schema to what is actually honored, OR
   - Expand `buildSearchArgs()` to cover the schema.
 
-3) **Map member identity collisions likely for repeated names inside a file**
-- **Where:** `src/map/build-map.js` (`buildSymbolId()` returns `${file}::${name}` for most named symbols)
-- **Impact:** Overloads / same-name functions / methods / nested symbols can collapse into one node, distorting edges and per-member metadata (types, risk, dataflow).
-- **Suggestion:** Use a more collision-resistant ID:
-  - incorporate `startLine` (and maybe `endLine`) into IDs for named symbols, or
-  - incorporate container/class name when available, or
-  - use chunk IDs consistently when present.
-  Also add a warning counter: “mergedSymbolsDueToCollision”.
-
-4) **Isometric viewer has minimal JSON/error handling; one malformed payload breaks the UI entirely**
+3) **Isometric viewer has minimal JSON/error handling; one malformed payload breaks the UI entirely**
 - **Where:** `src/map/isometric/client/dom.js`
 - **What:** `JSON.parse` on `#map-data` and `#viewer-config` has no try/catch; missing DOM nodes throw.
 - **Impact:** A truncated or invalid map JSON yields a blank viewer with a console error.
@@ -219,15 +210,12 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 ### `src/map/build-map.js`
 
-**A) Member ID collisions (medium)**
-- See executive summary.
-
-**C) Call edges built from `chunk.codeRelations.calls` assume tuple shape (medium)**
+**A) Call edges built from `chunk.codeRelations.calls` assume tuple shape (medium)**
 - `buildEdgesFromCalls()` expects each entry to be an array where `entry[1]` is the target name.
 - If `calls` are stored as strings or as `{ target, ... }` objects, edges will silently drop.
 - **Recommendation:** support multiple call-link encodings, or validate/trace drops.
 
-**D) CallSummaries are emitted as `dataflow` edges (design drift risk)**
+**B) CallSummaries are emitted as `dataflow` edges (design drift risk)**
 - `buildEdgesFromCallSummaries()` uses `type: 'dataflow'` for call summaries.
 - **Risk:** viewer semantics (edge colors/weights/filters) may treat call edges differently than dataflow.
 - **Recommendation:** consider explicit `callsite` or `callSummary` edge type.
@@ -313,7 +301,6 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 2) Add lightweight “drop counters” to map building:
 - number of call edges skipped due to unknown encoding,
-- number of symbols merged due to ID collision,
 - number of members without range.
 
 3) Document the “contracts” explicitly:
