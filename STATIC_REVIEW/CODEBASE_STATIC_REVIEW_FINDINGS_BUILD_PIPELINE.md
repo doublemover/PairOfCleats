@@ -36,12 +36,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### Highest-impact issues
 
-1) **Crash bug in watch shutdown path**
-- **Where:** `src/index/build/watch.js` around `requestShutdown()`.
-- **Evidence:** `scheduler.cancel()` is called unconditionally, but `scheduler` is declared later; a fast SIGINT/SIGTERM can arrive before scheduler initialization.
-  - `watch.js:280` calls `scheduler.cancel()` (see lines ~275–283 in the numbered view).
-- **Impact:** A “Ctrl+C during startup” can throw and exit uncleanly (exactly when the operator expects clean shutdown). This is a pure reliability bug.
-
 2) **Runtime object omits `recordsDir` / `recordsConfig`, but downstream build code expects them**
 - **Where:**
   - Runtime creation: `src/index/build/runtime/runtime.js` return object.
@@ -82,15 +76,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 ## Detailed findings
 
 ### A) Crash and correctness bugs
-
-#### A1) Watch shutdown can throw before scheduler initialization
-- **File:** `src/index/build/watch.js`
-- **Details:**
-  - `scheduler` is declared as `let scheduler;` (line ~252), but signal handlers are registered earlier.
-  - `requestShutdown()` calls `scheduler.cancel()` unconditionally (line ~280).
-- **Why this is wrong:** Signals are asynchronous and can arrive immediately; shutdown handlers should be resilient during all initialization phases.
-- **Suggested fix:** Guard `scheduler` (`scheduler?.cancel()`), or initialize scheduler before registering signal handlers.
-- **Suggested test:** Spawn watch mode and immediately send SIGINT; assert clean exit without uncaught exception.
 
 #### A2) Runtime shape drift: `recordsDir` / `recordsConfig` not present
 - **Files:**
