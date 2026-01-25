@@ -43,8 +43,7 @@ However, there are several issues that will materially affect reliability and si
 2. **False positives / under-asserting “stream abort” behavior**: `search-stream-abort.test.js` can pass even if `/search/stream` returns an immediate error or never streams meaningful data. It validates “server didn’t crash” but not that “streaming actually started and was aborted mid-stream.”
 3. **Brittle assertions against human-readable error messages** in MCP tests: `errors.test.js` asserts on substring matches like “Repo path not found” and “index” rather than stable machine codes. This is likely to churn or localize.
 4. **Filter tests for MCP search are logically weak and may fail spuriously**: comparing only `riskHits.length` / `typeHits.length` against baseline can fail even when filtering works (e.g., same `top` count but different members), or pass when it doesn’t (some kinds of ranking regressions).
-5. **Portability issues in setup detection test**: `tests/setup-index-detection.js` writes `chunk_meta.meta.json` using `path.join()` for paths inside the JSON payload, which may emit platform-specific separators (`\` on Windows). If the loader expects POSIX separators or normalizes differently, the test can become OS-dependent.
-6. **Cost profile / CI tiering**: most API service tests rebuild fixture indexes by using a fresh `cacheName` and deleting cache roots. That is good for isolation but expensive and will become a pressure point for CI runtime; you will want explicit tiering and timing-ledger-driven decisions.
+5. **Cost profile / CI tiering**: most API service tests rebuild fixture indexes by using a fresh `cacheName` and deleting cache roots. That is good for isolation but expensive and will become a pressure point for CI runtime; you will want explicit tiering and timing-ledger-driven decisions.
 
 The rest of this document lists concrete issues and recommended remediations.
 
@@ -136,32 +135,6 @@ The rest of this document lists concrete issues and recommended remediations.
 
 ---
 
-### P0 — `tests/setup-index-detection.js` can become OS-dependent due to path separators embedded in JSON
-
-**Where**
-- `tests/setup-index-detection.js` (lines 83–96, specifically line 89)
-
-**What’s wrong**
-- The test writes `chunk_meta.meta.json` containing:
-  - `parts: [path.join('chunk_meta.parts', partName)]`
-- `path.join()` emits OS-specific separators (e.g., `chunk_meta.parts\\chunk_meta.part-00000.jsonl` on Windows).
-- If the artifact loader expects POSIX separators (`/`) or performs comparisons that assume `/`, this test will be platform-flaky.
-
-**Why it matters**
-- Artifacts are one of the primary interchange formats in the system.
-- Even if you do not claim cross-platform artifact portability, tests should avoid accidentally encoding OS-specific assumptions unless that is explicitly part of the contract.
-
-**Suggested fix**
-- Prefer storing manifest paths in a stable normalized form:
-  - Use POSIX separators inside the JSON (`'chunk_meta.parts/' + partName`) *or*
-  - Explicitly normalize to `/` when writing parts manifest values.
-- Add a second scenario that writes the manifest using `\` separators (if Windows portability is intended) and ensure the loader handles it.
-
-**Additional coverage to add**
-- A scenario with a part path that includes nested directories.
-- A scenario where the meta file exists but the referenced part file is missing (should be `ready: false`).
-
----
 
 ## Medium-Priority Findings
 
@@ -420,6 +393,3 @@ If you want a minimal set of changes that will improve reliability without chang
 1. Add request timeouts to API service tests (or to the shared request helper) to prevent hangs.
 2. Strengthen `search-stream-abort.test.js` to assert it actually received a real SSE frame (status/content-type + minimal parse).
 3. Fix MCP filter tests to assert predicate correctness (not `hits.length` differences).
-4. Normalize `chunk_meta.meta.json` part paths in `setup-index-detection.js` to avoid OS-dependent separators.
-5. Add a test timing ledger + tiering manifest to keep CI fast and prevent slow drift.
-
