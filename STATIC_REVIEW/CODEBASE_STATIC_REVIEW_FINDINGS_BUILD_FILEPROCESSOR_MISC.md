@@ -48,9 +48,6 @@ This file is large and generally well-structured; the items below are focused on
 
 This section is intentionally short per file; it exists to confirm review coverage and to note any smaller follow-ups.
 
-### `src/index/build/args.js`
-- Straightforward CLI parsing and mode normalization. Consider a test for the `mode=both` alias and for invalid modes raising a validation error (via `validateBuildArgs`).
-
 ### `src/index/build/crash-log.js`
 - The crash logger is practical and likely very useful operationally.
 - Consider a targeted test that writes a failure event and asserts the crash state file contains `{ phase, lastFile, lastError }` and that log files are created even when the directory didn’t exist.
