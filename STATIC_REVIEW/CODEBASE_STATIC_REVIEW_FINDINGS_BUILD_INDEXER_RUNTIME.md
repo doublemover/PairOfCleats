@@ -57,7 +57,6 @@ This section lists additional smaller observations per file to aid future cleanu
 ### `src/index/build/preprocess.js`
 
 ### `src/index/build/runtime/caps.js`
-- “Untrusted mode” caps can be disabled by setting numeric values to 0, because `normalizeLimit(0) -> null`. If untrusted mode is meant to always enforce safety caps, consider disallowing “disable via 0” there.
 
 ### `src/index/build/runtime/hash.js`
 - Hash normalization uses `JSON.parse(JSON.stringify(...))`; if any config values are non-JSON (e.g., RegExp objects), they will be dropped, potentially weakening cache keys.
