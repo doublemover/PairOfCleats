@@ -83,13 +83,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### B) Cache signatures, incremental invariants, and reproducibility
 
-#### B1) Regex flags are not included in tokenization signature
-- **File:** `src/index/build/indexer/signatures.js`.
-- **Details:** `licensePattern`, `generatedPattern`, and `linterPattern` include only `.source` (lines ~15–20).
-- **Impact:** Two different regexes with the same source but different flags produce the same signature; incremental artifacts may be reused when they shouldn’t.
-- **Suggested fix:** Include `{source, flags}` or serialize the regex with both parts.
-- **Suggested test:** Run indexing twice with identical source regex but different flags; assert incremental cache invalidation occurs.
-
 #### B2) `JSON.stringify` is used for signature payloads
 - **File:** `src/index/build/indexer/signatures.js`.
 - **Details:** Both `buildTokenizationKey()` and `buildIncrementalSignature()` hash `JSON.stringify(payload)`.

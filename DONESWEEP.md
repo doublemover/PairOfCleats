@@ -43,3 +43,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: reviewed cloneable validation overhead note; no change needed.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: watch shutdown already guards scheduler cancel; removed stale finding.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: add recordsDir/recordsConfig to build runtime; added runtime test.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: regex flags already included in signature canonicalization; removed note.
