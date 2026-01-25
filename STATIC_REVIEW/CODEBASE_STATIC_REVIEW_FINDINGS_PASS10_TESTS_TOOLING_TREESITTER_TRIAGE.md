@@ -78,7 +78,6 @@ The remainder of this document enumerates concrete issues per file and proposes 
 - `tests/truth-table.js` line 5
 - `tests/ts-jsx-fixtures.js` line 7
 - `tests/two-stage-state.js` line 8
-- `tests/tree-sitter-chunks.js` line 11 (uses `path.resolve(...)`, which is also CWD-dependent)
 
 **What’s wrong**
 - These tests assume they are always executed with the project root as the current working directory.
@@ -349,7 +348,6 @@ The remainder of this document enumerates concrete issues per file and proposes 
 
 **Issues / risks**
 - **Skip-as-pass** when tree-sitter is not available (P0).
-- CWD dependency for fixture path (line 11).
 - Does not validate the `maxLoadedLanguages` eviction behavior, even though it constrains it to 2 and then loads many languages.
 
 **Suggested improvements**

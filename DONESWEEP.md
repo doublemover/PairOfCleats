@@ -75,3 +75,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_MISC_VSCODE_WATCH_WORKERPOOL.md: add tmp dir cleanup in watch-stability-guard and xxhash-backends tests.
 - CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_SMOKE_SHARDS_SQLITE_STORAGE.md: corrected skip-minified-binary error message; removed stale finding.
 - CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_SMOKE_SHARDS.md: removed stale skip-minified-binary error string finding.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_TOOLING_TREESITTER_TRIAGE.md: make tree-sitter fixture paths independent of cwd.
