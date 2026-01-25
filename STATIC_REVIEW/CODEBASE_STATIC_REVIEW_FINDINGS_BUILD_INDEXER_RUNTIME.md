@@ -65,4 +65,3 @@ This section lists additional smaller observations per file to aid future cleanu
 ### `src/index/build/watch/backends/parcel.js`
 
 ### `src/index/build/workers/indexer-worker.js`
-- `validateCloneable()` runs on inputs/outputs for every task; verify the overhead is acceptable for very high throughput tokenization. Consider gating to debug mode if needed.
