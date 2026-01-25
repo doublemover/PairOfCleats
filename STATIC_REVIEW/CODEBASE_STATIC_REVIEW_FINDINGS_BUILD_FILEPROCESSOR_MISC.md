@@ -42,8 +42,6 @@ This file is large and generally well-structured; the items below are focused on
 
 ## File-by-file smaller notes
 
-- `src/index/build/context-window.js`: uses `chunk.text.slice(...).split("
-")` repeatedly; this is correct but allocates heavily. If this ever becomes hot, a newline-count scan can reduce allocations.
 - `src/index/build/failure-taxonomy.js`: the categorizer is heuristic; ensure tests cover common failure message patterns so classification doesn’t regress.
 
 
