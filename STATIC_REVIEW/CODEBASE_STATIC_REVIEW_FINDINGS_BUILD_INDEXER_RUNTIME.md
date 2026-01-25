@@ -40,10 +40,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
 
 ### Medium / operational footguns
 
-6) **Promotion metadata can encode build roots outside the cache root if a non-contained path is written** (`src/index/build/promotion.js`).
-   - `relativeRoot = path.relative(repoCacheRoot, buildRoot)` can start with `..` when `buildRoot` is outside `repoCacheRoot`. Loading that later can walk outside the cache root.
-   - Suggested fix: validate that `buildRoot` resolves under `repoCacheRoot` before persisting; treat violations as errors.
-
 7) **Tree-sitter runtime config has a surprising invalid-value fallback for `deferMissingMax`** (`src/index/build/runtime/tree-sitter.js`).
    - If the config explicitly sets `deferMissingMax` but it is invalid/non-numeric, the code uses `normalizeOptionalLimit(...) ?? 0`, which forces it to `0` (rather than a safe default like `DEFAULT_DEFER_MISSING_MAX`).
    - Suggested fix: on invalid numeric overrides, fall back to the default constant, not zero.
@@ -61,12 +57,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
   - Stage1/Stage2 should never attempt embeddings.
   - Stage3 should require embeddings artifacts input and/or enabled embeddings mode.
   - Stage4 should require embeddings to already exist (even if embeddings computation is disabled).
-
-### 6) Promotion safety
-**File:** `src/index/build/promotion.js`
-
-- Validate that build roots recorded in `current.json` resolve within `repoCacheRoot` to avoid “../” traversal risks.
-- Consider adding a checksum/identifier alongside the path (e.g., buildId) to detect stale pointers.
 
 ### 7) Tree-sitter config fallback behavior
 **File:** `src/index/build/runtime/tree-sitter.js`

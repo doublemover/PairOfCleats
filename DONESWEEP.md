@@ -25,3 +25,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: normalize hash_algo and gate cross-file inference to code mode; postings optionality deferred.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: stage3 defaults now enable embeddings to prevent no-op stages.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: guard ignore config defaults when userConfig is missing.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: promotion build-root validation already enforced; removed stale finding.
