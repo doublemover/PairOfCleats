@@ -182,11 +182,6 @@ Where possible, each issue includes a **suggested fix direction** (high-level on
 
 ## `src/index/build/indexer/steps/relations.js`
 
-- **Configuration surprise: `riskAnalysisCrossFileEnabled` can trigger type inference**
-  - **What’s wrong:** when cross-file inference runs due to risk, `enableTypeInference` is still `runtime.typeInferenceEnabled`.
-  - **Why it matters:** users can unintentionally pay type inference cost when they expected only risk correlation.
-  - **Suggested fix:** gate cross-file type inference on `typeInferenceCrossFileEnabled` explicitly.
-
 - **Drift: no post-pass meta normalization**
   - **What’s wrong:** `applyCrossFileInference` modifies chunk objects, but no step normalizes/revalidates metaV2 afterwards.
   - **Why it matters:** downstream features see inconsistent representations.

@@ -129,6 +129,7 @@ export const runCrossFileInference = async ({
   const useTooling = typeof policy?.typeInference?.tooling?.enabled === 'boolean'
     ? policy.typeInference.tooling.enabled
     : (typeInferenceEnabled && typeInferenceCrossFileEnabled && runtime.toolingEnabled);
+  const enableCrossFileTypeInference = typeInferenceEnabled && typeInferenceCrossFileEnabled;
   const crossFileEnabled = typeInferenceCrossFileEnabled || riskAnalysisCrossFileEnabled;
   if (mode === 'code' && crossFileEnabled) {
     crashLogger.updatePhase('cross-file');
@@ -139,7 +140,7 @@ export const runCrossFileInference = async ({
       enabled: true,
       log,
       useTooling,
-      enableTypeInference: typeInferenceEnabled,
+      enableTypeInference: enableCrossFileTypeInference,
       enableRiskCorrelation: riskAnalysisEnabled && riskAnalysisCrossFileEnabled,
       fileRelations: state.fileRelations
     });
