@@ -52,3 +52,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_*: test-suite findings (fixtures, indexing, graph/git/hnsw/incremental, MCP/LSIF/perf) not addressed. Skipped: requires test harness policy and CI tiering decisions.
 - CODEBASE_STATIC_REVIEW_FINDINGS_PASS9_*: retrieval/search/script-coverage/service test findings not addressed. Skipped: requires test harness policy and product decisions.
 - CODEBASE_STATIC_REVIEW_FINDINGS_PASS9_TESTS_SEARCH_SCRIPT_COVERAGE.md: skipped remaining findings (script-coverage covers unknown scripts, scoreBreakdown policy mismatch, process.cwd assumptions, determinism normalization, includeLicense no-op). Needs contract/policy decisions before refactor.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS9_RETRIEVAL_FILTERS_TEST_RUNNER.md: skipped remaining findings (skip-as-pass coverage holes, filter predicate assertions, git timestamp drift, phrase order brittleness, runner timeout semantics, timing ledger). Needs test-runner policy decisions.
