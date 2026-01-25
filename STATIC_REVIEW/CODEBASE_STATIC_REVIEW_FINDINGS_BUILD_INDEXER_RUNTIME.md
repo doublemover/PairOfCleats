@@ -59,7 +59,6 @@ This section lists additional smaller observations per file to aid future cleanu
 ### `src/index/build/runtime/caps.js`
 
 ### `src/index/build/runtime/hash.js`
-- Hash normalization uses `JSON.parse(JSON.stringify(...))`; if any config values are non-JSON (e.g., RegExp objects), they will be dropped, potentially weakening cache keys.
 
 ### `src/index/build/runtime/logging.js`
 - Logger configuration is enabled only when `format !== "text"`. Confirm whether ring-buffer capture or structured logging is desired in text mode as well.

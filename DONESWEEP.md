@@ -37,3 +37,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: removed unused preprocess normalizeLimit helper.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: reviewed preprocess language ordering note; no change needed.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: reviewed untrusted caps disable note; no change needed.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: runtime hash already uses canonical/stable serialization; removed note.
