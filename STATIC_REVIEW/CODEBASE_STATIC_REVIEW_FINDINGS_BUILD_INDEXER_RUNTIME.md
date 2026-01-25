@@ -47,7 +47,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
 This section lists additional smaller observations per file to aid future cleanup and test planning.
 
 ### `src/index/build/indexer/pipeline.js`
-- Stage progress advancement advances the *previous* stage when entering the next stage; verify this matches desired UX and does not double-advance in edge cases.
 - Index reuse path exits early; ensure any “late” artifacts (e.g., embedding queue jobs, metrics emission) are not required for correctness when reuse occurs.
 
 ### `src/index/build/indexer/signatures.js`
