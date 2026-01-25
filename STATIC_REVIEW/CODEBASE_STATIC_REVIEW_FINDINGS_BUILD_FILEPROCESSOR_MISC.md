@@ -40,11 +40,6 @@ The goal here is to identify bugs, edge cases, and correctness/performance footg
 This file is large and generally well-structured; the items below are focused on correctness edge cases and high-cost paths.
 
 
-### 2) `src/index/build/file-scan.js` — binary detection semantics
-
-- The scanner still performs binary heuristics even when `wantsBinary` is false (because a sample buffer is loaded for other checks). This may be intended, but it makes `sampleMinBytes` feel less like a gate and more like a tuning knob.
-- If `sampleMinBytes` is meant as a “don’t even try” threshold, consider short-circuiting detection when size < sampleMinBytes (except for obvious magic-number detection via `file-type`).
-
 ## File-by-file smaller notes
 
 - `src/experimental/structural/runner.js`: good use of JSON modes; consider capturing stderr output snippets for diagnostics when a tool fails (helps triage why results are empty).

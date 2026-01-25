@@ -1,2 +1,3 @@
 # WTFBRO
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: comment tokenization fast-path suggestion (file-processor.js). Skipped for now: current flow uses token counts to enforce minTokens and commentSegments, and changing tokenization behavior risks altering comment inclusion semantics without a clear spec; needs design decision before optimization.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: file-scan binary detection sampleMinBytes short-circuit suggestion. Skipped: current detector intentionally samples for file-type and heuristic even when wantsBinary is false; changing this could miss binary identification without a clear requirement.
