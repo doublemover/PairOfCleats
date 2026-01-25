@@ -49,7 +49,6 @@ This section lists additional smaller observations per file to aid future cleanu
 ### `src/index/build/indexer/pipeline.js`
 
 ### `src/index/build/indexer/signatures.js`
-- Incremental signature includes many runtime toggles; verify embedding service identity/config (endpoint/model) is included if it can vary between runs.
 
 ### `src/index/build/indexer/steps/discover.js`
 - When reusing `discovery.entries`, the code mutates entries by assigning `orderIndex`. If the same entry objects are reused across modes, ensure this cannot cause subtle cross-mode coupling.
