@@ -61,7 +61,6 @@ This section lists additional smaller observations per file to aid future cleanu
 ### `src/index/build/runtime/hash.js`
 
 ### `src/index/build/runtime/logging.js`
-- Logger configuration is enabled only when `format !== "text"`. Confirm whether ring-buffer capture or structured logging is desired in text mode as well.
 
 ### `src/index/build/watch/backends/parcel.js`
 - Parcel ignore callbacks may not receive `fs.Stats`; the ignore function currently supports missing stats, but directory-specific checks become less precise. Confirm behavior with upstream watcher APIs.
