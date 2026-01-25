@@ -65,3 +65,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS.md: gate cross-file type inference on the explicit cross-file toggle.
 - CODEBASE_STATIC_REVIEW_FINDINGS.md: emit once-per-repo warnings when git metadata/provenance lookups fail.
 - CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: guard LSP client lifecycle handlers to avoid cross-session cleanup and fail fast on writer loss.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: merge recordMeta into triage docmeta when building records index.

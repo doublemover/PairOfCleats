@@ -252,11 +252,15 @@ async function loadRecordJson(recordsDir, mdPath) {
   }
 }
 
-function buildDocMeta(record, triageConfig) {
+function buildDocMeta(record, triageConfig, recordMeta = null) {
   const docmeta = {};
-  if (record) {
-    docmeta.record = promoteRecordFields(record, triageConfig.promoteFields);
-    const summary = record.vuln?.title || record.vuln?.description || record.decision?.justification;
+  const meta = recordMeta && typeof recordMeta === 'object' ? recordMeta : null;
+  const mergedRecord = record && meta ? { ...meta, ...record } : (record || meta);
+  if (mergedRecord) {
+    docmeta.record = promoteRecordFields(mergedRecord, triageConfig.promoteFields);
+    const summary = mergedRecord.vuln?.title
+      || mergedRecord.vuln?.description
+      || mergedRecord.decision?.justification;
     if (summary) docmeta.doc = String(summary);
   }
   return docmeta;
