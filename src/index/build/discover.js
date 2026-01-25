@@ -111,12 +111,23 @@ export async function discoverEntries({ root, recordsDir = null, recordsConfig =
       if (rootCheck.status !== 0) return null;
       const gitRoot = String(rootCheck.stdout || '').trim();
       if (!gitRoot) return null;
-      if (normalizeRoot(gitRoot) !== normalizedRoot) return null;
-      const result = spawnSync('git', ['-C', root, 'ls-files', '-z'], { encoding: 'utf8' });
+      const normalizedGitRoot = normalizeRoot(gitRoot);
+      const rootRel = normalizedRoot === normalizedGitRoot
+        ? ''
+        : (normalizedRoot.startsWith(`${normalizedGitRoot}${path.sep}`)
+          ? path.relative(gitRoot, root)
+          : null);
+      if (rootRel == null) return null;
+      const args = ['-C', gitRoot, 'ls-files', '-z'];
+      if (rootRel) args.push('--', rootRel);
+      const result = spawnSync('git', args, { encoding: 'utf8' });
       if (result.status !== 0) return null;
       const output = String(result.stdout || '');
       if (!output) return [];
-      return output.split('\u0000').filter(Boolean);
+      return {
+        gitRoot,
+        files: output.split('\u0000').filter(Boolean)
+      };
     } catch {
       return null;
     }
@@ -127,15 +138,21 @@ export async function discoverEntries({ root, recordsDir = null, recordsConfig =
     return crawler.withPromise();
   };
 
-  const relPaths = listGitFiles();
-  const candidates = Array.isArray(relPaths)
-    ? relPaths.map((rel) => path.join(root, rel))
+  const gitResult = listGitFiles();
+  const candidates = gitResult && Array.isArray(gitResult.files)
+    ? gitResult.files.map((rel) => path.join(gitResult.gitRoot || root, rel))
     : await listFdirFiles();
 
   const entries = [];
-  for (const absPath of candidates) {
+  let maxFilesReached = false;
+  const statConcurrency = Math.min(64, Math.max(4, Number(process.env.PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY) || 32));
+  const processCandidate = async (absPath) => {
+    if (maxFilesReached) {
+      recordSkip(absPath, 'max-files', { maxFiles: maxFilesValue });
+      return;
+    }
     const relPosix = toPosix(path.relative(root, absPath));
-    if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) continue;
+    if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return;
     const normalizedAbs = normalizeRoot(absPath);
     const inRecordsRoot = recordsRoot
       ? normalizedAbs.startsWith(`${recordsRoot}${path.sep}`)
@@ -144,12 +161,13 @@ export async function discoverEntries({ root, recordsDir = null, recordsConfig =
       const depth = relPosix.split('/').length - 1;
       if (depth > maxDepthValue) {
         recordSkip(absPath, 'max-depth', { depth, maxDepth: maxDepthValue });
-        continue;
+        return;
       }
     }
     if (maxFilesValue && entries.length >= maxFilesValue) {
+      maxFilesReached = true;
       recordSkip(absPath, 'max-files', { maxFiles: maxFilesValue });
-      break;
+      return;
     }
     const baseName = path.basename(absPath);
     const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
@@ -160,27 +178,27 @@ export async function discoverEntries({ root, recordsDir = null, recordsConfig =
     const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock || isSpecialLanguage;
     if (minifiedNameRegex.test(baseName.toLowerCase())) {
       recordSkip(absPath, 'minified', { method: 'name' });
-      continue;
+      return;
     }
     if (ignoreMatcher.ignores(relPosix)) {
       recordSkip(absPath, 'ignored');
-      continue;
+      return;
     }
     let stat;
     try {
       stat = await fs.lstat(absPath);
     } catch {
       recordSkip(absPath, 'stat-failed');
-      continue;
+      return;
     }
     if (stat.isSymbolicLink()) {
       recordSkip(absPath, 'symlink');
-      continue;
+      return;
     }
     const maxBytesForExt = resolveMaxBytesForExt(ext);
     if (maxBytesForExt && stat.size > maxBytesForExt) {
       recordSkip(absPath, 'oversize', { bytes: stat.size, maxBytes: maxBytesForExt });
-      continue;
+      return;
     }
     const record = inRecordsRoot
       ? { source: 'triage', recordType: 'record', reason: 'records-dir' }
@@ -197,6 +215,24 @@ export async function discoverEntries({ root, recordsDir = null, recordsConfig =
       isLock,
       ...(record ? { record } : {})
     });
+    if (maxFilesValue && entries.length >= maxFilesValue) {
+      maxFilesReached = true;
+    }
+  };
+  const workerCount = Math.min(statConcurrency, candidates.length || 0);
+  if (!workerCount) {
+    // no candidates
+  } else {
+    let cursor = 0;
+    const workers = Array.from({ length: workerCount }, () => (async () => {
+      while (true) {
+        const idx = cursor;
+        cursor += 1;
+        if (idx >= candidates.length) break;
+        await processCandidate(candidates[idx]);
+      }
+    })());
+    await Promise.all(workers);
   }
 
   entries.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
