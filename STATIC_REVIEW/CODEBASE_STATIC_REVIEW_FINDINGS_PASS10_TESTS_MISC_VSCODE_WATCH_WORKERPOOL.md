@@ -245,23 +245,6 @@ The section “Test Timing & Suite Tiering” at the end provides an actionable 
 
 ---
 
-### P2 — Temp directories are not consistently cleaned up
-
-**Where**
-- `tests/watch-stability-guard.js` (creates tmp dir via `mkdtemp`, does not remove)
-- `tests/xxhash-backends.js` (creates tmp dir via `mkdtemp`, does not remove)
-
-**What’s wrong**
-- Leaks under `/tmp` accumulate across CI jobs, which can:
-  - increase disk usage, and
-  - create “mysterious” failures if temp is exhausted.
-
-**Suggested fix**
-- Add `finally` cleanup blocks to remove temp dirs.
-- Prefer a shared helper for temp roots that guarantees cleanup.
-
----
-
 ## Low-Priority Findings / Observations
 
 ### P3 — Inconsistent test style (shebang, assertions, and exit handling)

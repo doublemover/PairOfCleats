@@ -13,18 +13,21 @@ const wasmHash = await checksumString('abc');
 assert.equal(wasmHash.value, baseline, 'wasm checksumString should match baseline');
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-xxhash-'));
-const filePath = path.join(tempRoot, 'sample.txt');
-await fs.writeFile(filePath, 'abc');
-const fileHash = await checksumFile(filePath);
-assert.equal(fileHash.value, baseline, 'checksumFile should match checksumString');
+try {
+  const filePath = path.join(tempRoot, 'sample.txt');
+  await fs.writeFile(filePath, 'abc');
+  const fileHash = await checksumFile(filePath);
+  assert.equal(fileHash.value, baseline, 'checksumFile should match checksumString');
 
-const caps = getCapabilities();
-if (caps.hash.nodeRsXxhash) {
-  setXxhashBackend('native');
-  const nativeHash = await checksumString('abc');
-  assert.equal(nativeHash.value, baseline, 'native checksumString should match baseline');
+  const caps = getCapabilities();
+  if (caps.hash.nodeRsXxhash) {
+    setXxhashBackend('native');
+    const nativeHash = await checksumString('abc');
+    assert.equal(nativeHash.value, baseline, 'native checksumString should match baseline');
+  }
+
+  console.log('xxhash backend tests passed');
+} finally {
+  setXxhashBackend('');
+  await fs.rm(tempRoot, { recursive: true, force: true });
 }
-
-setXxhashBackend('');
-
-console.log('xxhash backend tests passed');
