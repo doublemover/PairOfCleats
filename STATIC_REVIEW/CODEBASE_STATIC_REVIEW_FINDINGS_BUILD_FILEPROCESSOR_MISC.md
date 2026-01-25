@@ -48,10 +48,6 @@ This file is large and generally well-structured; the items below are focused on
 
 This section is intentionally short per file; it exists to confirm review coverage and to note any smaller follow-ups.
 
-### `src/index/build/crash-log.js`
-- The crash logger is practical and likely very useful operationally.
-- Consider a targeted test that writes a failure event and asserts the crash state file contains `{ phase, lastFile, lastError }` and that log files are created even when the directory didn’t exist.
-
 ### `src/index/build/embedding-batch.js`
 - Batch helpers look coherent. If embedding providers change behavior across versions, consider a test ensuring the batch splitter produces stable batch sizes (especially when `maxBatchSize` is derived from model/provider).
 
