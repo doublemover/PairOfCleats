@@ -92,7 +92,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 ## Per-file quick notes
 
 ### `src/index/build/indexer/pipeline.js`
-- **Potential drift:** early return on incremental reuse (`reused`) does not advance overall progress stages; if overall progress UI assumes each stage calls `advance`, you can end up with confusing progress output.
 
 ### `src/index/build/runtime/hash.js`
 - **Hash stability risk:** `normalizeContentConfig()` uses `JSON.parse(JSON.stringify(config))` (line ~6). This will collapse/lose non-JSON values (e.g., `RegExp`, `undefined`, functions) and can create config-hash collisions.
