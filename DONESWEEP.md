@@ -27,3 +27,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: guard ignore config defaults when userConfig is missing.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: promotion build-root validation already enforced; removed stale finding.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: default invalid deferMissingMax to safe value; added runtime config test.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_INDEXER_RUNTIME.md: embedding queue already best-effort with identity fields; removed stale finding.

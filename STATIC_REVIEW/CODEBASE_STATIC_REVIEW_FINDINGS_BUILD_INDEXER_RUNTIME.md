@@ -40,10 +40,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
 
 ### Medium / operational footguns
 
-8) **Embedding queue enqueue path is not clearly “best-effort”** (`src/index/build/indexer/embedding-queue.js`).
-   - `ensureQueueDir()` / `enqueueJob()` errors bubble up and can fail indexing. If the embedding service is optional, enqueue should be “best effort” with clear logging and a non-fatal failure mode.
-   - The job payload does not include the promoted build root or explicit artifact paths; if multiple indexes exist per repo/mode, the embedding worker may need more identifiers to find the correct target.
-
 ## Detailed findings (with concrete suggestions)
 
 ### 5) Stage overrides clarity
@@ -53,13 +49,6 @@ The goal here is **correctness and operational robustness**: identify bugs, foot
   - Stage1/Stage2 should never attempt embeddings.
   - Stage3 should require embeddings artifacts input and/or enabled embeddings mode.
   - Stage4 should require embeddings to already exist (even if embeddings computation is disabled).
-
-### 8) Embedding enqueue is not clearly best-effort
-**File:** `src/index/build/indexer/embedding-queue.js`
-
-- If the embedding queue/service is optional, enqueue failures should be non-fatal by default (with a clear warning).
-- Include a more explicit “index identity” in queued jobs (buildId + mode + output dir) so the embedding worker can unambiguously locate the right artifacts.
-- Add tests: queue full behavior, enqueue error handling, and payload completeness.
 
 ## File-by-file notes
 
