@@ -95,37 +95,6 @@ The remainder of this document lists concrete findings and suggested remediation
 
 ---
 
-### P0 — Inconsistent working directory and config view between the build step and the post-check step
-
-**Where**
-- `tests/type-inference-crossfile-go.js`:
-  - build spawns with `cwd: repoRoot` (line **140**)
-  - reads config via `loadUserConfig(repoRoot)` (line **149**), but does **not** mirror `PAIROFCLEATS_TEST_CONFIG` into the parent process
-- `tests/type-inference-lsp-enrichment.js`:
-  - build spawns without `cwd` override (lines **50–54**)
-  - reads config via `loadUserConfig(repoRoot)` (line **62**), again without mirroring `PAIROFCLEATS_TEST_CONFIG`
-
-**What’s wrong**
-- The child process (build) receives `PAIROFCLEATS_TEST_CONFIG` in `env`, which may change:
-  - index output directory policy,
-  - artifact formats,
-  - which modes are built,
-  - which enrichments run.
-- The parent process (test script) then calls `loadUserConfig(repoRoot)` without guaranteeing it is seeing the same effective config used by the build.
-- Additionally, the LSP test does not set `cwd: repoRoot` for the build process, which can matter for tool discovery, repo-relative config, or LSP project rooting.
-
-**Why it matters**
-- This can produce **false negatives** (test looks for artifacts in a dir derived from a different config than the build used) and **false positives** (test reads an index produced with different knobs than intended).
-- It also increases divergence between integration tests and “real usage,” where working-directory effects are common.
-
-**Suggested fix**
-- Make the build environment and the verification environment consistent:
-  - set `process.env.PAIROFCLEATS_TEST_CONFIG` to match the child’s config before calling `loadUserConfig(...)`, or
-  - avoid `loadUserConfig` entirely in these tests by determining the index directory from the build output path (preferred long-term: have the builder emit a machine-readable “index output location” record).
-- Standardize integration tests to spawn `build_index.js` with `cwd: repoRoot` unless there is a deliberate reason not to.
-
----
-
 ## Additional Findings and Improvements
 
 ### P1 — Provider fallback tests assert log message substrings (brittle contract)
@@ -305,4 +274,3 @@ For tests that rely on fixtures or external dependencies:
 3. Align build-time config and verification-time config (avoid config drift between child build process and parent verifier).
 4. Replace log-substring assertions with structured provider availability reports.
 5. Add durable per-test timing capture and tiered CI execution.
-

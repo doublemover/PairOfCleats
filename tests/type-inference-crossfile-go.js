@@ -2,10 +2,11 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
-const root = process.cwd();
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tempRoot = path.join(root, 'tests', '.cache', 'type-inference-crossfile-go');
 const repoRoot = path.join(tempRoot, 'repo');
 const hasPython = () => {
@@ -133,6 +134,7 @@ const env = {
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
 process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_TEST_CONFIG = env.PAIROFCLEATS_TEST_CONFIG;
 process.env.PAIROFCLEATS_CACHE_ROOT = env.PAIROFCLEATS_CACHE_ROOT;
 process.env.PAIROFCLEATS_EMBEDDINGS = env.PAIROFCLEATS_EMBEDDINGS;
 

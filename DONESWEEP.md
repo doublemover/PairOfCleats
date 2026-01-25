@@ -76,3 +76,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_SMOKE_SHARDS_SQLITE_STORAGE.md: corrected skip-minified-binary error message; removed stale finding.
 - CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_SMOKE_SHARDS.md: removed stale skip-minified-binary error string finding.
 - CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TESTS_TOOLING_TREESITTER_TRIAGE.md: make tree-sitter fixture paths independent of cwd.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_TYPE_INFERENCE_TESTS.md: align type inference integration tests with build cwd and test config.
