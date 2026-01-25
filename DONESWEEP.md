@@ -63,3 +63,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS.md: align tree-sitter HTML config nameTypes to match chunker expectations.
 - CODEBASE_STATIC_REVIEW_FINDINGS.md: risk caps already short-circuit on maxBytes/maxLines; removed stale finding.
 - CODEBASE_STATIC_REVIEW_FINDINGS.md: gate cross-file type inference on the explicit cross-file toggle.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: emit once-per-repo warnings when git metadata/provenance lookups fail.

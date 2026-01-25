@@ -284,11 +284,6 @@ Where possible, each issue includes a **suggested fix direction** (high-level on
 
 ## `src/index/git.js`
 
-- **Observability gap: git metadata failures are silently swallowed**
-  - **What’s wrong:** many `try/catch {}` return `{}` with no warning.
-  - **Why it matters:** features relying on churn/author metadata can degrade without clear user feedback.
-  - **Suggested fix:** emit a single warning per repo when git metadata is unavailable (missing git, shallow clone, permissions, etc.).
-
 - **Completeness gap: only “author” is stored; committer/branch/issue refs are not captured**
   - **What’s wrong:** meta includes `last_author` and a short log, but not committer identity or richer SCM context.
   - **Why it matters:** audit/ownership routing is less accurate.
