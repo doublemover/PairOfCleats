@@ -583,6 +583,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     repoCacheRoot,
     buildId,
     buildRoot,
+    recordsDir: triageConfig.recordsDir,
+    recordsConfig,
     currentIndexRoot,
     configHash,
     repoProvenance,

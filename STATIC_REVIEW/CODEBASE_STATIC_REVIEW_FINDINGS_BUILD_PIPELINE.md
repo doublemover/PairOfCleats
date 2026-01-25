@@ -36,18 +36,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### Highest-impact issues
 
-2) **Runtime object omits `recordsDir` / `recordsConfig`, but downstream build code expects them**
-- **Where:**
-  - Runtime creation: `src/index/build/runtime/runtime.js` return object.
-  - Usage: `src/index/build/indexer/steps/discover.js`, and watch path resolution in `src/index/build/watch.js`.
-- **Evidence:**
-  - `runtime/runtime.js` computes triage/records inputs and even passes `triageConfig.recordsDir` into `resolveEmbeddingRuntime()` (line ~248–257), but the returned runtime object (lines ~533–625) does **not** include `recordsDir` or `recordsConfig`.
-  - `indexer/steps/discover.js` calls `discoverFiles({ ..., recordsDir: runtime.recordsDir, recordsConfig: runtime.recordsConfig, ... })` (lines ~31–42).
-- **Impact:**
-  - Any logic in `discoverFiles()` that relies on records metadata (exclude record files from code/prose modes; include/label record files; apply records guardrails) will silently fail.
-  - Watch mode similarly treats `runtime.recordsDir` as authoritative for scanning/watching records; if omitted, records changes may never trigger rebuilds.
-  - More broadly: this is a “type drift” problem—call sites assume runtime shape that runtime does not provide.
-
 3) **Incremental/tokenization cache keys are vulnerable to nondeterminism and collisions**
 - **Where:** `src/index/build/indexer/signatures.js`.
 - **Evidence:**
@@ -76,20 +64,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 ## Detailed findings
 
 ### A) Crash and correctness bugs
-
-#### A2) Runtime shape drift: `recordsDir` / `recordsConfig` not present
-- **Files:**
-  - `src/index/build/runtime/runtime.js`
-  - `src/index/build/indexer/steps/discover.js`
-  - `src/index/build/watch.js`
-- **Details:**
-  - `runtime.runtime.js` return object includes many config fields (lines ~533–625) but omits `recordsDir` and `recordsConfig`.
-  - `runDiscovery()` passes `runtime.recordsDir` and `runtime.recordsConfig` into `discoverFiles()` (discover step lines ~31–42).
-- **Why this is wrong:** This will silently disable records-aware behavior in discovery and watch. It’s especially risky because it won’t necessarily fail loudly.
-- **Suggested fix:** Include the records fields on the runtime object (and/or stop referencing runtime.recordsDir/recordsConfig and instead re-derive via config helpers at call sites). The better decision depends on whether “runtime” is intended to be the single source of truth for a run.
-- **Suggested tests:**
-  - Unit test that `createBuildRuntime()` includes records fields when triage/records config is enabled.
-  - Integration test: ensure record files are excluded from code/prose discovery when recordsDir is configured.
 
 #### A3) `waitForStableFile()` does not detect sustained instability
 - **File:** `src/index/build/watch.js` (lines ~59–76)
