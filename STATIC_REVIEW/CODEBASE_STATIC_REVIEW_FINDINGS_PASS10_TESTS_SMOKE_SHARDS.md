@@ -156,7 +156,6 @@ This document enumerates specific issues and concrete refactoring suggestions, i
   - set sample size to “all” when total skipped count is small.
 
 **Minor correctness issue**
-- Error string says “Expected binary skip entry for binary.js” but the file is `binary.png`. This is harmless but confusing when debugging.
 
 ---
 
