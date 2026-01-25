@@ -85,15 +85,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### C) Robustness, path safety, and operator expectations
 
-#### C1) Ignore file loading can escape repo root via absolute paths / traversal
-- **File:** `src/index/build/ignore.js`.
-- **Details:** `ignorePath = path.join(root, ignoreFile)` (lines ~35–40). If `ignoreFile` is absolute, `path.join` ignores `root`; if it contains `..`, it escapes `root`.
-- **Impact:** This can lead to confusing behavior where “repo ignore config” is actually read from an unrelated filesystem path.
-- **Suggested fix:**
-  - Normalize and validate ignore file paths (ensure they remain within repo root), unless you explicitly want to support absolute ignore file paths.
-  - If absolute paths are supported, document that clearly and consider requiring an explicit opt-in.
-- **Suggested test:** Provide `ignoreFiles: ['../other/.gitignore']` and assert either (a) rejected, or (b) allowed with explicit log.
-
 #### C2) Index lock is global to repo cache root
 - **File:** `src/index/build/lock.js`.
 - **Details:** lock file is always `repoCacheRoot/locks/index.lock`.
