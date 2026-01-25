@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { shouldReuseIncrementalIndex } from '../src/index/build/incremental.js';
 import { ARTIFACT_SURFACE_VERSION } from '../src/contracts/versioning.js';
+import { SIGNATURE_VERSION } from '../src/index/build/indexer/signatures.js';
 
 const root = process.cwd();
 const tempRoot = path.join(root, 'tests', '.cache', 'incremental-reuse');
@@ -26,6 +27,7 @@ const entries = [
 ];
 
 const manifest = {
+  signatureVersion: SIGNATURE_VERSION,
   files: {
     'src/a.js': { size: 10, mtimeMs: 123 },
     'src/b.js': { size: 20, mtimeMs: 456 }

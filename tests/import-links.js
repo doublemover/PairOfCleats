@@ -11,12 +11,14 @@ const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fsPromises.mkdir(path.join(repoRoot, 'src', 'a'), { recursive: true });
+await fsPromises.mkdir(path.join(repoRoot, 'src', 'b'), { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-await fsPromises.writeFile(path.join(repoRoot, 'src', 'a.js'), "import x from 'lib';\n");
-await fsPromises.writeFile(path.join(repoRoot, 'src', 'b.js'), "const x = require('lib');\n");
-await fsPromises.writeFile(path.join(repoRoot, 'src', 'c.js'), "import y from 'other';\n");
+await fsPromises.writeFile(path.join(repoRoot, 'src', 'a', 'index.js'), "import './utils';\n");
+await fsPromises.writeFile(path.join(repoRoot, 'src', 'a', 'utils.js'), 'export const a = 1;\n');
+await fsPromises.writeFile(path.join(repoRoot, 'src', 'b', 'index.js'), "import './utils';\n");
+await fsPromises.writeFile(path.join(repoRoot, 'src', 'b', 'utils.js'), 'export const b = 2;\n');
 
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
@@ -47,8 +49,8 @@ if (!fs.existsSync(relationsPath)) {
 
 const raw = JSON.parse(fs.readFileSync(relationsPath, 'utf8'));
 const map = new Map(raw.map((entry) => [entry.file, entry.relations]));
-const relA = map.get('src/a.js');
-const relB = map.get('src/b.js');
+const relA = map.get('src/a/index.js');
+const relB = map.get('src/b/index.js');
 
 if (!relA || !Array.isArray(relA.importLinks)) {
   console.error('import-links test failed: missing importLinks for a.js');
@@ -59,8 +61,8 @@ if (!relB || !Array.isArray(relB.importLinks)) {
   process.exit(1);
 }
 
-const expectedA = ['src/b.js'];
-const expectedB = ['src/a.js'];
+const expectedA = ['src/a/utils.js'];
+const expectedB = ['src/b/utils.js'];
 const sortLinks = (links) => (Array.isArray(links) ? links.slice().sort() : []);
 if (JSON.stringify(sortLinks(relA.importLinks)) !== JSON.stringify(expectedA)) {
   console.error(`import-links test failed: a.js links ${JSON.stringify(relA.importLinks)} !== ${JSON.stringify(expectedA)}`);
@@ -70,12 +72,12 @@ if (JSON.stringify(sortLinks(relB.importLinks)) !== JSON.stringify(expectedB)) {
   console.error(`import-links test failed: b.js links ${JSON.stringify(relB.importLinks)} !== ${JSON.stringify(expectedB)}`);
   process.exit(1);
 }
-if (relA.importLinks.includes('src/a.js')) {
-  console.error('import-links test failed: a.js should not link to itself');
+if (relA.importLinks.includes('src/a/index.js')) {
+  console.error('import-links test failed: a/index.js should not link to itself');
   process.exit(1);
 }
-if (relA.importLinks.includes('src/c.js')) {
-  console.error('import-links test failed: a.js should not link to c.js');
+if (relA.importLinks.includes('src/b/utils.js')) {
+  console.error('import-links test failed: a/index.js should not link to b/utils.js');
   process.exit(1);
 }
 

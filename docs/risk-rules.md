@@ -67,5 +67,17 @@ Configure caps under `indexing.riskCaps`:
 }
 ```
 
-If caps are exceeded, the engine records `risk.analysisStatus = "capped"` and falls back to
-heuristic rule matching.
+If caps are exceeded, the engine records `risk.analysisStatus = "capped"` and short-circuits
+analysis (no rule evaluation for that chunk).
+
+## Index state export
+
+Builds serialize the effective rule bundle into `index_state.json` as `riskRules` so validation
+and debugging can confirm the exact rule set and limits used. Serialized rules store regex
+sources as strings (compiled SafeRegex objects are not persisted).
+
+## Phase 3 notes
+- Risk analysis now treats cap exceedance as an early-exit condition (no full-file scanning).
+- SafeRegex evaluation is guarded; regex errors are treated as no-match.
+- A lightweight prefilter is applied before regex evaluation to reduce scan overhead.
+- See `docs/phase-3-analysis-policy-spec.md` for analysis policy defaults.

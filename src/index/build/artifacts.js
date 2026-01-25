@@ -145,6 +145,7 @@ export async function writeIndexArtifacts(input) {
     log('→ Wrote .filelists.json (samples only).');
   }
 
+
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
   const filterIndex = buildSerializedFilterIndex({
     chunks: state.chunks,
@@ -273,6 +274,24 @@ export async function writeIndexArtifacts(input) {
     compressionKeepRaw,
     compressibleArtifacts
   });
+  if (state.importResolutionGraph) {
+    const importGraphDir = path.join(outDir, 'artifacts');
+    const importGraphPath = path.join(importGraphDir, 'import_resolution_graph.json');
+    enqueueWrite(
+      formatArtifactLabel(importGraphPath),
+      async () => {
+        await fs.mkdir(importGraphDir, { recursive: true });
+        await writeJsonObjectFile(importGraphPath, {
+          fields: state.importResolutionGraph,
+          atomic: true
+        });
+      }
+    );
+    addPieceFile(
+      { type: 'debug', name: 'import_resolution_graph', format: 'json' },
+      importGraphPath
+    );
+  }
 
   const denseVectorsEnabled = postings.dims > 0 && postings.quantizedVectors.length;
   if (!denseVectorsEnabled) {

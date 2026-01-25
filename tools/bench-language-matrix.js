@@ -6,35 +6,36 @@ import { createCli } from '../src/shared/cli.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../src/shared/cli-options.js';
 import { resolveToolRoot } from './dict-utils.js';
 
+const benchOptions = mergeCliOptions(
+  BENCH_OPTIONS,
+  {
+    tier: { type: 'string', default: 'typical' },
+    backend: { type: 'string' },
+    backends: { type: 'string' },
+    'ann-modes': { type: 'string' },
+    config: { type: 'string' },
+    root: { type: 'string' },
+    'cache-root': { type: 'string' },
+    'cache-suffix': { type: 'string' },
+    results: { type: 'string' },
+    'log-dir': { type: 'string' },
+    'out-dir': { type: 'string' },
+    language: { type: 'string' },
+    languages: { type: 'string' },
+    repos: { type: 'string' },
+    only: { type: 'string' },
+    'dry-run': { type: 'boolean', default: false },
+    'fail-fast': { type: 'boolean', default: false },
+    'lock-mode': { type: 'string' },
+    'lock-wait-ms': { type: 'number' },
+    'lock-stale-ms': { type: 'number' }
+  }
+);
 const argv = createCli({
   scriptName: 'bench-language-matrix',
-  options: mergeCliOptions(
-    BENCH_OPTIONS,
-    {
-      tier: { type: 'string', default: 'typical' },
-      backend: { type: 'string' },
-      backends: { type: 'string' },
-      'ann-modes': { type: 'string' },
-      config: { type: 'string' },
-      root: { type: 'string' },
-      'cache-root': { type: 'string' },
-      'cache-suffix': { type: 'string' },
-      results: { type: 'string' },
-      'log-dir': { type: 'string' },
-      'out-dir': { type: 'string' },
-      language: { type: 'string' },
-      languages: { type: 'string' },
-      repos: { type: 'string' },
-      only: { type: 'string' },
-      'dry-run': { type: 'boolean', default: false },
-      'fail-fast': { type: 'boolean', default: false },
-      'lock-mode': { type: 'string' },
-      'lock-wait-ms': { type: 'number' },
-      'lock-stale-ms': { type: 'number' }
-    }
-  )
+  options: benchOptions
 }).parse();
-validateBenchArgs(argv);
+validateBenchArgs(argv, { allowedOptions: benchOptions });
 
 const scriptRoot = resolveToolRoot();
 const benchScript = path.join(scriptRoot, 'tools', 'bench-language-repos.js');

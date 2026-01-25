@@ -29,6 +29,17 @@ export const estimateStringBytes = (value) => {
   return Buffer.byteLength(value, 'utf8');
 };
 
+export const estimateFileTextBytes = (value) => {
+  if (typeof value === 'string') return estimateStringBytes(value);
+  if (Buffer.isBuffer(value)) return value.length;
+  if (value && typeof value === 'object') {
+    if (Buffer.isBuffer(value.buffer)) return value.buffer.length;
+    if (Buffer.isBuffer(value.data)) return value.data.length;
+    if (typeof value.text === 'string') return estimateStringBytes(value.text);
+  }
+  return estimateJsonBytes(value);
+};
+
 export const estimateJsonBytes = (value) => {
   const MAX_DEPTH = 4;
   const MAX_SAMPLE = 200;

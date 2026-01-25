@@ -73,6 +73,7 @@ const server = spawn(process.execPath, [serverPath], {
   stdio: ['pipe', 'pipe', 'inherit'],
   env: {
     ...process.env,
+    PAIROFCLEATS_TESTING: '1',
     PAIROFCLEATS_HOME: cacheRoot,
     PAIROFCLEATS_CACHE_ROOT: cacheRoot
   }

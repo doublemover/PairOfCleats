@@ -502,11 +502,10 @@ export function buildCLikeChunks(text, ext, options = {}) {
 /**
  * Build import/export/call/usage relations for C-like chunks.
  * @param {string} text
- * @param {Record<string,string[]>} allImports
  * @param {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null} clikeChunks
- * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
-export function buildCLikeRelations(text, allImports, clikeChunks) {
+export function buildCLikeRelations(text, clikeChunks) {
   const imports = collectCLikeImports(text);
   const exports = new Set();
   const calls = [];
@@ -524,16 +523,11 @@ export function buildCLikeRelations(text, allImports, clikeChunks) {
       for (const usage of chunkUsages) usages.add(usage);
     }
   }
-  const importLinks = imports
-    .map((i) => allImports[i])
-    .filter((x) => !!x)
-    .flat();
   return {
     imports,
     exports: Array.from(exports),
     calls,
-    usages: Array.from(usages),
-    importLinks
+    usages: Array.from(usages)
   };
 }
 

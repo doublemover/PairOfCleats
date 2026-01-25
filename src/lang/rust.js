@@ -375,26 +375,20 @@ function readSignatureLines(lines, startLine) {
 /**
  * Build import/export/call/usage relations for Rust chunks.
  * @param {string} text
- * @param {Record<string,string[]>} allImports
- * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
-export function buildRustRelations(text, allImports) {
+export function buildRustRelations(text) {
   const imports = collectRustImports(text);
   const exportRe = /^\s*pub(?:\([^)]+\))?\s+(struct|enum|trait|fn|mod|const|type)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
   const exports = new Set();
   for (const match of text.matchAll(exportRe)) {
     exports.add(match[2]);
   }
-  const importLinks = imports
-    .map((i) => allImports[i])
-    .filter((x) => !!x)
-    .flat();
   return {
     imports,
     exports: Array.from(exports),
     calls: [],
-    usages: [],
-    importLinks
+    usages: []
   };
 }
 

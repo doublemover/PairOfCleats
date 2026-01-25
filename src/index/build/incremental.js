@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { sha1 } from '../../shared/hash.js';
+import { SIGNATURE_VERSION } from './indexer/signatures.js';
 import {
   normalizeBundleFormat,
   readBundleFile,
@@ -9,6 +10,26 @@ import {
   resolveBundleFormatFromName,
   writeBundleFile
 } from '../../shared/bundle-io.js';
+
+const summarizeSignatureDelta = (current, previous, limit = 5) => {
+  if (!current || !previous) return null;
+  const keys = new Set([
+    ...Object.keys(current || {}),
+    ...Object.keys(previous || {})
+  ]);
+  if (!keys.size) return null;
+  const sorted = Array.from(keys).sort();
+  const diffList = [];
+  let diffCount = 0;
+  for (const key of sorted) {
+    if (current[key] === previous[key]) continue;
+    diffCount += 1;
+    if (diffList.length < limit) diffList.push(key);
+  }
+  if (!diffCount) return null;
+  const extra = diffCount > diffList.length ? ` (+${diffCount - diffList.length} more)` : '';
+  return `${diffList.join(', ')}${extra}`;
+};
 
 /**
  * Initialize incremental cache state for a mode.
@@ -21,6 +42,7 @@ export async function loadIncrementalState({
   enabled,
   tokenizationKey = null,
   cacheSignature = null,
+  cacheSignatureSummary = null,
   bundleFormat = null,
   log = null
 }) {
@@ -33,9 +55,11 @@ export async function loadIncrementalState({
   const defaultBundleFormat = requestedBundleFormat || 'json';
   let manifest = {
     version: 5,
+    signatureVersion: SIGNATURE_VERSION,
     mode,
     tokenizationKey: tokenizationKey || null,
     cacheSignature: cacheSignature || null,
+    signatureSummary: cacheSignatureSummary || null,
     bundleFormat: defaultBundleFormat,
     files: {},
     shards: null
@@ -52,20 +76,38 @@ export async function loadIncrementalState({
           : null;
         const loadedBundleFormat = normalizeBundleFormat(loaded.bundleFormat);
         const effectiveBundleFormat = requestedBundleFormat || loadedBundleFormat || defaultBundleFormat;
+        const loadedSignatureVersion = Number.isFinite(Number(loaded.signatureVersion))
+          ? Number(loaded.signatureVersion)
+          : null;
         const signatureMismatch = cacheSignature
           ? cacheSignature !== loadedSignature
           : false;
-        if (signatureMismatch || (tokenizationKey && loadedKey !== tokenizationKey)) {
+        const signatureVersionMismatch = loadedSignatureVersion !== SIGNATURE_VERSION;
+        if (
+          signatureMismatch
+          || signatureVersionMismatch
+          || (tokenizationKey && loadedKey !== tokenizationKey)
+        ) {
           if (typeof log === 'function') {
-            const reason = signatureMismatch ? 'signature changed' : 'tokenization config changed';
+            const reason = signatureVersionMismatch
+              ? `signatureVersion mismatch (${loadedSignatureVersion ?? 'none'} -> ${SIGNATURE_VERSION})`
+              : (signatureMismatch ? 'signature changed' : 'tokenization config changed');
             log(`[incremental] ${mode} cache reset: ${reason}.`);
+            if (signatureMismatch && cacheSignatureSummary && loaded.signatureSummary) {
+              const diff = summarizeSignatureDelta(cacheSignatureSummary, loaded.signatureSummary);
+              if (diff) {
+                log(`[incremental] ${mode} signature delta keys: ${diff}.`);
+              }
+            }
           }
         } else {
           manifest = {
             version: loaded.version || 1,
+            signatureVersion: loadedSignatureVersion ?? SIGNATURE_VERSION,
             mode,
             tokenizationKey: loadedKey || tokenizationKey || null,
             cacheSignature: loadedSignature || cacheSignature || null,
+            signatureSummary: loaded.signatureSummary || cacheSignatureSummary || null,
             bundleFormat: effectiveBundleFormat,
             files: loaded.files || {},
             shards: loaded.shards || null
@@ -101,16 +143,26 @@ export async function shouldReuseIncrementalIndex({
   outDir,
   entries,
   manifest,
-  stage
+  stage,
+  log = null,
+  explain = false
 }) {
-  if (!outDir || !manifest || !Array.isArray(entries) || entries.length === 0) {
+  const shouldExplain = explain === true && typeof log === 'function';
+  const fail = (reason) => {
+    if (shouldExplain) log(`[incremental] reuse skipped: ${reason}.`);
     return false;
+  };
+  if (!outDir || !manifest || !Array.isArray(entries) || entries.length === 0) {
+    return fail('missing build outputs or entries');
+  }
+  if (manifest.signatureVersion !== SIGNATURE_VERSION) {
+    return fail('signatureVersion mismatch');
   }
   const manifestFiles = manifest.files || {};
   const indexStatePath = path.join(outDir, 'index_state.json');
   const piecesPath = path.join(outDir, 'pieces', 'manifest.json');
   if (!fsSync.existsSync(indexStatePath) || !fsSync.existsSync(piecesPath)) {
-    return false;
+    return fail('missing index artifacts');
   }
   let indexState = null;
   let pieceManifest = null;
@@ -118,11 +170,13 @@ export async function shouldReuseIncrementalIndex({
     indexState = JSON.parse(await fs.readFile(indexStatePath, 'utf8'));
     pieceManifest = JSON.parse(await fs.readFile(piecesPath, 'utf8'));
   } catch {
-    return false;
+    return fail('failed to read index state/manifest');
   }
-  if (!stageSatisfied(stage, indexState?.stage || null)) return false;
+  if (!stageSatisfied(stage, indexState?.stage || null)) {
+    return fail('index stage mismatch');
+  }
   if (!Array.isArray(pieceManifest?.pieces) || pieceManifest.pieces.length === 0) {
-    return false;
+    return fail('piece manifest empty');
   }
   const entryKeys = new Set();
   for (const entry of entries) {
@@ -130,16 +184,16 @@ export async function shouldReuseIncrementalIndex({
   }
   for (const relKey of Object.keys(manifestFiles)) {
     if (!entryKeys.has(relKey)) {
-      return false;
+      return fail('manifest missing entries');
     }
   }
   for (const entry of entries) {
     const relKey = entry?.rel;
-    if (!relKey) return false;
+    if (!relKey) return fail('missing entry rel path');
     const cached = manifestFiles[relKey];
-    if (!cached || !entry.stat) return false;
+    if (!cached || !entry.stat) return fail('missing cached entry stats');
     if (cached.size !== entry.stat.size || cached.mtimeMs !== entry.stat.mtimeMs) {
-      return false;
+      return fail('entry stats changed');
     }
   }
   return true;

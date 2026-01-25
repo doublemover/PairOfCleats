@@ -14,6 +14,35 @@ const normalizeStringArray = (value) => {
   return single ? [single] : [];
 };
 
+const normalizeModifiers = (value) => {
+  if (Array.isArray(value)) return normalizeStringArray(value);
+  if (value && typeof value === 'object') {
+    const output = [];
+    for (const [key, raw] of Object.entries(value)) {
+      if (raw === null || raw === undefined || raw === false) continue;
+      const normalizedKey = normalizeString(key);
+      if (key === 'visibility') {
+        const normalized = normalizeString(raw);
+        if (normalized) output.push(normalized);
+        continue;
+      }
+      if (typeof raw === 'boolean') {
+        if (raw && normalizedKey) output.push(normalizedKey);
+        continue;
+      }
+      const normalizedValue = normalizeString(raw);
+      if (normalizedValue && normalizedKey && normalizedKey !== normalizedValue) {
+        output.push(`${normalizedKey}:${normalizedValue}`);
+        continue;
+      }
+      if (normalizedValue) output.push(normalizedValue);
+    }
+    return output.filter(Boolean);
+  }
+  const single = normalizeString(value);
+  return single ? [single] : [];
+};
+
 const unique = (values) => Array.from(new Set(values.filter(Boolean)));
 
 const normalizeEntries = (entries) => {
@@ -77,7 +106,8 @@ const splitToolingTypes = (raw) => {
   };
 };
 
-export function buildMetaV2({ chunk, docmeta, toolInfo }) {
+export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
+  if (analysisPolicy?.metadata?.enabled === false) return null;
   if (!chunk) return null;
   const segment = chunk.segment || null;
   const relations = chunk.codeRelations && typeof chunk.codeRelations === 'object'
@@ -139,9 +169,7 @@ export function buildMetaV2({ chunk, docmeta, toolInfo }) {
       ...normalizeStringArray(docmeta?.decorators),
       ...normalizeStringArray(docmeta?.annotations)
     ]),
-    modifiers: docmeta?.modifiers && typeof docmeta.modifiers === 'object'
-      ? docmeta.modifiers
-      : null,
+    modifiers: normalizeModifiers(docmeta?.modifiers),
     params: Array.isArray(docmeta?.params) ? docmeta.params.filter(Boolean) : [],
     returns: normalizeString(docmeta?.returnType || docmeta?.returns) || null,
     controlFlow: docmeta?.controlFlow || null,
@@ -169,6 +197,7 @@ export function buildMetaV2({ chunk, docmeta, toolInfo }) {
 
   if (!metadata.annotations.length) metadata.annotations = null;
   if (!metadata.params.length) metadata.params = null;
+  if (!metadata.modifiers.length) metadata.modifiers = null;
 
   return metadata;
 }

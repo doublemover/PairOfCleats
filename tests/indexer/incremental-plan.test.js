@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { shouldReuseIncrementalIndex } from '../../src/index/build/incremental.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
+import { SIGNATURE_VERSION } from '../../src/index/build/indexer/signatures.js';
 
 const fail = (message) => {
   console.error(message);
@@ -43,7 +44,10 @@ const run = async () => {
   await setup();
   const stat = await fs.stat(fixtureFile);
   const entries = [{ rel: 'src/a.js', stat }];
-  const manifest = { files: { 'src/a.js': { size: stat.size, mtimeMs: stat.mtimeMs } } };
+  const manifest = {
+    signatureVersion: SIGNATURE_VERSION,
+    files: { 'src/a.js': { size: stat.size, mtimeMs: stat.mtimeMs } }
+  };
 
   const reuse = await shouldReuseIncrementalIndex({ outDir, entries, manifest, stage: 'stage2' });
   if (!reuse) {
@@ -55,7 +59,10 @@ const run = async () => {
     fail('shouldReuseIncrementalIndex should fail when stage is not satisfied.');
   }
 
-  const manifestMismatch = { files: { 'src/a.js': { size: stat.size + 1, mtimeMs: stat.mtimeMs } } };
+  const manifestMismatch = {
+    signatureVersion: SIGNATURE_VERSION,
+    files: { 'src/a.js': { size: stat.size + 1, mtimeMs: stat.mtimeMs } }
+  };
   const reuseMismatch = await shouldReuseIncrementalIndex({ outDir, entries, manifest: manifestMismatch, stage: 'stage2' });
   if (reuseMismatch) {
     fail('shouldReuseIncrementalIndex should fail when file sizes differ.');

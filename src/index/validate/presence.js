@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { readJsonFile, resolveArtifactPresence } from '../../shared/artifact-io.js';
+import { MAX_JSON_BYTES, readJsonFile, resolveArtifactPresence } from '../../shared/artifact-io.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION, isSupportedVersion } from '../../contracts/versioning.js';
 import { addIssue } from './issues.js';
 import { validateSchema } from './schema.js';
@@ -13,6 +13,13 @@ export const createArtifactPresenceHelpers = ({
   report,
   modeReport
 }) => {
+  const minJsonBytes = 64 * 1024;
+  const resolveMaxBytes = (name) => {
+    if (name === 'index_state' || name === 'filelists') {
+      return Math.max(MAX_JSON_BYTES, minJsonBytes);
+    }
+    return MAX_JSON_BYTES;
+  };
   const presenceCache = new Map();
   const resolvePresence = (name) => {
     if (!strict || !manifest) return null;
@@ -88,13 +95,13 @@ export const createArtifactPresenceHelpers = ({
         if (presence.paths.length > 1) {
           throw new Error(`Ambiguous JSON sources for ${name}`);
         }
-        return readJsonFile(presence.paths[0]);
+        return readJsonFile(presence.paths[0], { maxBytes: resolveMaxBytes(name) });
       }
       const jsonPath = path.join(dir, `${name}.json`);
       if (!fs.existsSync(jsonPath) && !fs.existsSync(`${jsonPath}.gz`) && !fs.existsSync(`${jsonPath}.zst`)) {
         return null;
       }
-      return readJsonFile(jsonPath);
+      return readJsonFile(jsonPath, { maxBytes: resolveMaxBytes(name) });
     } catch (err) {
       addIssue(report, mode, `${name} load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
       if (required) modeReport.ok = false;

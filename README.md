@@ -219,6 +219,15 @@ flowchart TB
 
 Active development. See `GIGAROADMAP.md` for current execution status.
 
+Phase 3 specs (current correctness work):
+- `docs/phase-3-import-resolution-spec.md`
+- `docs/phase-3-signature-spec.md`
+- `docs/phase-3-watch-atomicity-spec.md`
+- `docs/phase-3-build-state-integrity-spec.md`
+- `docs/phase-3-analysis-policy-spec.md`
+- `docs/phase-3-segmentation-perf-spec.md`
+- `docs/phase-3-tooling-io-spec.md`
+
 ---
 
 ## License

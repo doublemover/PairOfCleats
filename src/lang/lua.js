@@ -193,11 +193,10 @@ export function buildLuaChunks(text) {
 /**
  * Build import/export/call/usage relations for Lua chunks.
  * @param {string} text
- * @param {Record<string,string[]>} allImports
  * @param {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null} luaChunks
- * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
-export function buildLuaRelations(text, allImports, luaChunks) {
+export function buildLuaRelations(text, luaChunks) {
   const imports = collectLuaImports(text);
   const exports = new Set();
   const calls = [];
@@ -212,16 +211,11 @@ export function buildLuaRelations(text, allImports, luaChunks) {
       for (const usage of chunkUsages) usages.add(usage);
     }
   }
-  const importLinks = imports
-    .map((i) => allImports[i])
-    .filter((x) => !!x)
-    .flat();
   return {
     imports,
     exports: Array.from(exports),
     calls,
-    usages: Array.from(usages),
-    importLinks
+    usages: Array.from(usages)
   };
 }
 

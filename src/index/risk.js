@@ -73,29 +73,48 @@ const lineContainsVar = (line, name) => {
   return false;
 };
 
-const matchRuleOnLine = (rule, line, languageId) => {
+const matchRuleOnLine = (rule, line, languageId, lineLowerRef) => {
   if (!rule || !Array.isArray(rule.patterns)) return null;
   if (rule.languages && languageId) {
     const allowed = rule.languages.map((entry) => String(entry).toLowerCase());
     if (!allowed.includes(String(languageId).toLowerCase())) return null;
   }
   if (rule.requires) {
-    rule.requires.lastIndex = 0;
-    if (!rule.requires.test(line)) return null;
+    try {
+      rule.requires.lastIndex = 0;
+      if (!rule.requires.test(line)) return null;
+    } catch {
+      return null;
+    }
   }
   for (const pattern of rule.patterns) {
     if (!pattern) continue;
-    pattern.lastIndex = 0;
-    const match = pattern.exec(line);
-    if (match) return { index: match.index, match: match[0] };
+    const prefilter = pattern.prefilter;
+    if (prefilter) {
+      if (pattern.prefilterLower) {
+        if (!lineLowerRef.value) {
+          lineLowerRef.value = line.toLowerCase();
+        }
+        if (!lineLowerRef.value.includes(pattern.prefilterLower)) continue;
+      } else if (!line.includes(prefilter)) {
+        continue;
+      }
+    }
+    try {
+      pattern.lastIndex = 0;
+      const match = pattern.exec(line);
+      if (match) return { index: match.index, match: match[0] };
+    } catch {
+      continue;
+    }
   }
   return null;
 };
 
-const collectLineMatches = (rules, line, lineNo, languageId) => {
+const collectLineMatches = (rules, line, lineNo, languageId, lineLowerRef) => {
   const matches = [];
   for (const rule of rules || []) {
-    const hit = matchRuleOnLine(rule, line, languageId);
+    const hit = matchRuleOnLine(rule, line, languageId, lineLowerRef);
     if (!hit) continue;
     matches.push({
       rule,
@@ -208,26 +227,23 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
   if (exceeded.length) {
     analysisStatus.status = 'capped';
     analysisStatus.reason = exceeded.join('|');
+    return {
+      tags: [],
+      categories: [],
+      severity: null,
+      confidence: null,
+      sources: [],
+      sinks: [],
+      sanitizers: [],
+      flows: [],
+      analysisStatus,
+      ruleProvenance: rules.provenance || null
+    };
   }
 
-  const matchesByLine = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    matchesByLine.push({
-      line: lines[i],
-      lineNo: i + 1,
-      sources: collectLineMatches(rules.sources, lines[i], i + 1, languageId),
-      sinks: collectLineMatches(rules.sinks, lines[i], i + 1, languageId),
-      sanitizers: collectLineMatches(rules.sanitizers, lines[i], i + 1, languageId)
-    });
-  }
-
-  const sourcesRaw = dedupeMatches(matchesByLine.flatMap((entry) => entry.sources));
-  const sinksRaw = dedupeMatches(matchesByLine.flatMap((entry) => entry.sinks));
-  const sanitizersRaw = dedupeMatches(matchesByLine.flatMap((entry) => entry.sanitizers));
-
-  const sources = buildRiskEntries(sourcesRaw, 'source');
-  const sinks = buildRiskEntries(sinksRaw, 'sink');
-  const sanitizers = buildRiskEntries(sanitizersRaw, 'sanitizer');
+  const sourcesRaw = [];
+  const sinksRaw = [];
+  const sanitizersRaw = [];
 
   const flows = [];
   const flowKeys = new Set();
@@ -240,84 +256,110 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
     flows.push(flow);
   };
 
-  if (analysisStatus.status === 'ok') {
-    const taint = new Map();
-    let nodes = 0;
-    let edges = 0;
-    for (const entry of matchesByLine) {
-      if (caps.maxMs && Date.now() - analysisStart > caps.maxMs) {
-        analysisStatus.status = 'capped';
-        analysisStatus.reason = 'maxMs';
-        break;
-      }
-      const { line, sources: sourceMatches, sinks: sinkMatches, sanitizers: sanitizerMatches } = entry;
-      const sanitizedVars = [];
-      if (sanitizerMatches.length && taint.size) {
-        for (const name of taint.keys()) {
-          if (lineContainsVar(line, name)) sanitizedVars.push(name);
-        }
-        for (const name of sanitizedVars) taint.delete(name);
-      }
+  const taint = new Map();
+  let nodes = 0;
+  let edges = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (caps.maxMs && Date.now() - analysisStart > caps.maxMs) {
+      analysisStatus.status = 'capped';
+      analysisStatus.reason = 'maxMs';
+      break;
+    }
+    const line = lines[i];
+    const lineNo = i + 1;
+    const lineLowerRef = { value: null };
+    const sourceMatches = collectLineMatches(rules.sources, line, lineNo, languageId, lineLowerRef);
+    const sinkMatches = collectLineMatches(rules.sinks, line, lineNo, languageId, lineLowerRef);
+    const sanitizerMatches = collectLineMatches(rules.sanitizers, line, lineNo, languageId, lineLowerRef);
+    if (sourceMatches.length) sourcesRaw.push(...sourceMatches);
+    if (sinkMatches.length) sinksRaw.push(...sinkMatches);
+    if (sanitizerMatches.length) sanitizersRaw.push(...sanitizerMatches);
 
-      const assignment = isAssignment(line);
-      if (assignment) {
-        nodes += 1;
-        const rhsTainted = [];
-        for (const [name, info] of taint.entries()) {
-          if (lineContainsVar(assignment.rhs, name)) {
-            rhsTainted.push(...(info.sources || []));
+    if (analysisStatus.status !== 'ok') continue;
+
+    const sanitizedVars = [];
+    if (sanitizerMatches.length && taint.size) {
+      for (const name of taint.keys()) {
+        if (lineContainsVar(line, name)) sanitizedVars.push(name);
+      }
+      for (const name of sanitizedVars) taint.delete(name);
+    }
+    const assignment = isAssignment(line);
+    if (assignment) {
+      nodes += 1;
+      const rhsTainted = [];
+      for (const [name, info] of taint.entries()) {
+        if (lineContainsVar(assignment.rhs, name)) {
+          rhsTainted.push(...(info.sources || []));
+        }
+      }
+      const { sources: newSources, ruleIds } = combineSourceEvidence(sourceMatches, rhsTainted);
+      if (newSources.length) {
+        const confidence = Math.max(...newSources.map((entry) => entry.confidence || 0));
+        taint.set(assignment.name, { sources: newSources, ruleIds, confidence });
+        edges += newSources.length;
+      }
+    }
+
+    if (sinkMatches.length) {
+      nodes += 1;
+      const taintedSources = [];
+      for (const [name, info] of taint.entries()) {
+        if (lineContainsVar(line, name)) {
+          taintedSources.push(...(info.sources || []));
+        }
+      }
+      const { sources: lineSources } = combineSourceEvidence(sourceMatches, taintedSources);
+      if (lineSources.length) {
+        for (const source of lineSources) {
+          for (const sink of sinkMatches) {
+            addFlow({
+              source: source.rule.name,
+              sink: sink.rule.name,
+              category: sink.rule.category || null,
+              severity: sink.rule.severity || null,
+              scope: 'local',
+              confidence: Math.min(1, (source.rule.confidence || 0.5) * (sink.rule.confidence || 0.5) + 0.1),
+              ruleIds: [source.rule.id, sink.rule.id],
+              evidence: buildEvidence(line, lineNo, 1)
+            });
           }
         }
-        const { sources: newSources, ruleIds } = combineSourceEvidence(sourceMatches, rhsTainted);
-        if (newSources.length) {
-          const confidence = Math.max(...newSources.map((entry) => entry.confidence || 0));
-          taint.set(assignment.name, { sources: newSources, ruleIds, confidence });
-          edges += newSources.length;
-        }
       }
+      edges += sinkMatches.length;
+    }
 
-      if (sinkMatches.length) {
-        nodes += 1;
-        const taintedSources = [];
-        for (const [name, info] of taint.entries()) {
-          if (lineContainsVar(line, name)) {
-            taintedSources.push(...(info.sources || []));
-          }
-        }
-        const { sources: lineSources } = combineSourceEvidence(sourceMatches, taintedSources);
-        if (lineSources.length) {
-          for (const source of lineSources) {
-            for (const sink of sinkMatches) {
-              addFlow({
-                source: source.rule.name,
-                sink: sink.rule.name,
-                category: sink.rule.category || null,
-                severity: sink.rule.severity || null,
-                scope: 'local',
-                confidence: Math.min(1, (source.rule.confidence || 0.5) * (sink.rule.confidence || 0.5) + 0.1),
-                ruleIds: [source.rule.id, sink.rule.id],
-                evidence: buildEvidence(line, entry.lineNo, 1)
-              });
-            }
-          }
-        }
-        edges += sinkMatches.length;
-      }
-
-      if (caps.maxNodes && nodes > caps.maxNodes) {
-        analysisStatus.status = 'capped';
-        analysisStatus.reason = 'maxNodes';
-        break;
-      }
-      if (caps.maxEdges && edges > caps.maxEdges) {
-        analysisStatus.status = 'capped';
-        analysisStatus.reason = 'maxEdges';
-        break;
-      }
+    if (caps.maxNodes && nodes > caps.maxNodes) {
+      analysisStatus.status = 'capped';
+      analysisStatus.reason = 'maxNodes';
+      break;
+    }
+    if (caps.maxEdges && edges > caps.maxEdges) {
+      analysisStatus.status = 'capped';
+      analysisStatus.reason = 'maxEdges';
+      break;
     }
   }
 
+  const sources = buildRiskEntries(dedupeMatches(sourcesRaw), 'source');
+  const sinks = buildRiskEntries(dedupeMatches(sinksRaw), 'sink');
+  const sanitizers = buildRiskEntries(dedupeMatches(sanitizersRaw), 'sanitizer');
+
   if (!sources.length && !sinks.length && !sanitizers.length && !flows.length) {
+    if (analysisStatus.status !== 'ok') {
+      return {
+        tags: [],
+        categories: [],
+        severity: null,
+        confidence: null,
+        sources,
+        sinks,
+        sanitizers,
+        flows,
+        analysisStatus,
+        ruleProvenance: rules.provenance || null
+      };
+    }
     return null;
   }
 

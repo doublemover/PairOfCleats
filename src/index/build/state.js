@@ -196,6 +196,7 @@ export function createIndexState() {
     totalTokens: 0,
     fileRelations: new Map(),
     fileInfoByPath: new Map(),
+    importResolutionGraph: null,
     postingsGuard: {
       phrase: createGuardEntry('phrase', POSTINGS_GUARDS.phrase),
       chargram: createGuardEntry('chargram', POSTINGS_GUARDS.chargram)

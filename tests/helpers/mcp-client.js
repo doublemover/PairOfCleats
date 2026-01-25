@@ -67,6 +67,7 @@ export const startMcpServer = async ({ cacheRoot }) => {
     stdio: ['pipe', 'pipe', 'inherit'],
     env: {
       ...process.env,
+      PAIROFCLEATS_TESTING: '1',
       PAIROFCLEATS_HOME: cacheRoot,
       PAIROFCLEATS_CACHE_ROOT: cacheRoot
     }

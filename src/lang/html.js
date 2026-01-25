@@ -361,7 +361,7 @@ export function buildHtmlChunks(text, options = {}) {
   return merged;
 }
 
-export function buildHtmlRelations(text, allImports, htmlChunks, htmlMeta) {
+export function buildHtmlRelations(text, htmlChunks, htmlMeta) {
   const imports = Array.isArray(htmlMeta?.imports) ? htmlMeta.imports : [];
   return { imports, exports: [], calls: [], usages: [], importLinks: [], functionMeta: {}, classMeta: {} };
 }

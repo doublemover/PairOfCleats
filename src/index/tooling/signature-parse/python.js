@@ -68,7 +68,7 @@ const parsePythonParam = (value) => {
 
 const normalizePythonType = (value) => {
   if (!value) return value;
-  return value.replace(/\b(?:builtins|typing)\./g, '');
+  return value.replace(/\b(?:builtins|typing|typing_extensions|collections\.abc)\./g, '');
 };
 
 export const parsePythonSignature = (detail) => {

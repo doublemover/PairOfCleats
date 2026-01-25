@@ -44,37 +44,38 @@ const buildRunSuffix = () => {
 };
 
 export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
+  const benchOptions = mergeCliOptions(
+    BENCH_OPTIONS,
+    {
+      list: { type: 'boolean', default: false },
+      clone: { type: 'boolean', default: true },
+      'no-clone': { type: 'boolean', default: false },
+      'dry-run': { type: 'boolean', default: false },
+      'cache-run': { type: 'boolean', default: false },
+      'keep-cache': { type: 'boolean', default: false },
+      config: { type: 'string' },
+      root: { type: 'string' },
+      'cache-root': { type: 'string' },
+      'cache-suffix': { type: 'string' },
+      results: { type: 'string' },
+      log: { type: 'string' },
+      language: { type: 'string' },
+      languages: { type: 'string' },
+      tier: { type: 'string' },
+      repos: { type: 'string' },
+      only: { type: 'string' },
+      'log-lines': { type: 'number' },
+      'lock-mode': { type: 'string' },
+      'lock-wait-ms': { type: 'number' },
+      'lock-stale-ms': { type: 'number' }
+    }
+  );
   const argv = createCli({
     scriptName: 'bench-language',
-    options: mergeCliOptions(
-      BENCH_OPTIONS,
-      {
-        list: { type: 'boolean', default: false },
-        clone: { type: 'boolean', default: true },
-        'no-clone': { type: 'boolean', default: false },
-        'dry-run': { type: 'boolean', default: false },
-        'cache-run': { type: 'boolean', default: false },
-        'keep-cache': { type: 'boolean', default: false },
-        config: { type: 'string' },
-        root: { type: 'string' },
-        'cache-root': { type: 'string' },
-        'cache-suffix': { type: 'string' },
-        results: { type: 'string' },
-        log: { type: 'string' },
-        language: { type: 'string' },
-        languages: { type: 'string' },
-        tier: { type: 'string' },
-        repos: { type: 'string' },
-        only: { type: 'string' },
-        'log-lines': { type: 'number' },
-        'lock-mode': { type: 'string' },
-        'lock-wait-ms': { type: 'number' },
-        'lock-stale-ms': { type: 'number' }
-      }
-    ),
+    options: benchOptions,
     argv: ['node', 'bench-language-repos.js', ...(rawArgs || [])]
   }).parse();
-  validateBenchArgs(argv);
+  validateBenchArgs(argv, { allowedOptions: benchOptions });
 
   const scriptRoot = resolveToolRoot();
   const configPath = path.resolve(argv.config || path.join(scriptRoot, 'benchmarks', 'repos.json'));

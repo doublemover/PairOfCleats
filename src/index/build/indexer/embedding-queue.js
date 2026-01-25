@@ -4,35 +4,43 @@ import { getCacheRoot } from '../../../../tools/dict-utils.js';
 import { log } from '../../../shared/progress.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
 
-export const enqueueEmbeddingJob = async ({ runtime, mode }) => {
+export const enqueueEmbeddingJob = async ({ runtime, mode, indexRoot = null }) => {
   if (!runtime.embeddingService) return null;
-  const queueDir = runtime.embeddingQueue?.dir
-    ? path.resolve(runtime.embeddingQueue.dir)
-    : path.join(getCacheRoot(), 'service', 'queue');
-  const maxQueued = Number.isFinite(runtime.embeddingQueue?.maxQueued)
-    ? runtime.embeddingQueue.maxQueued
-    : 10;
-  const jobId = crypto.randomUUID();
-  await ensureQueueDir(queueDir);
-  const result = await enqueueJob(
-    queueDir,
-    {
-      id: jobId,
-      createdAt: new Date().toISOString(),
-      repo: runtime.root,
-      mode,
-      reason: 'embeddings',
-      embeddingIdentity: runtime.embeddingIdentity || null,
-      embeddingIdentityKey: runtime.embeddingIdentityKey || null,
-      embeddingPayloadFormatVersion: 1
-    },
-    maxQueued,
-    'embeddings'
-  );
-  if (!result.ok) {
-    log('[embeddings] Queue full or unavailable; skipped enqueue.');
+  try {
+    const queueDir = runtime.embeddingQueue?.dir
+      ? path.resolve(runtime.embeddingQueue.dir)
+      : path.join(getCacheRoot(), 'service', 'queue');
+    const maxQueued = Number.isFinite(runtime.embeddingQueue?.maxQueued)
+      ? runtime.embeddingQueue.maxQueued
+      : 10;
+    const jobId = crypto.randomUUID();
+    await ensureQueueDir(queueDir);
+    const result = await enqueueJob(
+      queueDir,
+      {
+        id: jobId,
+        createdAt: new Date().toISOString(),
+        repo: runtime.root,
+        mode,
+        reason: 'embeddings',
+        buildId: runtime.buildId || null,
+        buildRoot: runtime.buildRoot || null,
+        indexRoot: indexRoot ? path.resolve(indexRoot) : null,
+        embeddingIdentity: runtime.embeddingIdentity || null,
+        embeddingIdentityKey: runtime.embeddingIdentityKey || null,
+        embeddingPayloadFormatVersion: 1
+      },
+      maxQueued,
+      'embeddings'
+    );
+    if (!result.ok) {
+      log('[embeddings] Queue full or unavailable; skipped enqueue.');
+      return null;
+    }
+    log(`[embeddings] Queued embedding job ${jobId} (${mode}).`);
+    return result.job || null;
+  } catch (err) {
+    log(`[embeddings] Queue enqueue failed; skipped (${err?.message || err}).`);
     return null;
   }
-  log(`[embeddings] Queued embedding job ${jobId} (${mode}).`);
-  return result.job || null;
 };

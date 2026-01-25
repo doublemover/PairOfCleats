@@ -24,7 +24,6 @@ const { processFile } = createFileProcessor({
   postingsConfig: {},
   segmentsConfig: {},
   commentsConfig: {},
-  allImports: {},
   contextWin: 0,
   incrementalState: {
     enabled: false,

@@ -1,9 +1,9 @@
 import { sha1 } from '../../../shared/hash.js';
-import { stableStringify } from '../../../shared/stable-json.js';
+import { canonicalizeForSignature, stableStringifyForSignature } from '../../../shared/stable-json.js';
 
 export const normalizeContentConfig = (config) => {
   if (!config || typeof config !== 'object') return config || {};
-  const cloned = JSON.parse(JSON.stringify(config));
+  const cloned = canonicalizeForSignature(config);
   if (cloned.indexing && typeof cloned.indexing === 'object') {
     delete cloned.indexing.shards;
     delete cloned.indexing.fileListSampleSize;
@@ -21,5 +21,5 @@ export const buildContentConfigHash = (config, envConfig) => {
     config: normalizeContentConfig(config),
     env: normalizedEnv
   };
-  return sha1(stableStringify(payload));
+  return sha1(stableStringifyForSignature(payload));
 };

@@ -42,7 +42,9 @@ const cachedBundle = {
       chargrams: []
     }
   ],
-  fileRelations: null
+  fileRelations: {
+    importLinks: ['dep.js']
+  }
 };
 
 const { result, skip } = reuseCachedBundle({
@@ -62,9 +64,6 @@ const { result, skip } = reuseCachedBundle({
       }
     }
   },
-  allImports: {
-    dep: ['dep.js']
-  },
   fileStructural: null,
   toolInfo: null,
   fileStart: Date.now(),
@@ -82,7 +81,7 @@ const importLinks = Array.isArray(result.fileRelations?.importLinks)
   ? result.fileRelations.importLinks
   : [];
 if (importLinks.length !== 1 || importLinks[0] !== 'dep.js') {
-  fail('Expected importLinks to be rehydrated from allImports with stable targets.');
+  fail('Expected importLinks to be preserved from cached file relations.');
 }
 const chunk = result.chunks[0];
 if (!chunk?.metaV2?.chunkId) {
@@ -96,6 +95,66 @@ if (!Array.isArray(chunk?.codeRelations?.calls)) {
 }
 if (!result.fileMetrics?.cached) {
   fail('Expected cached file metrics to set cached=true.');
+}
+
+const missingRelations = {
+  chunks: cachedBundle.chunks.slice()
+};
+const missingResult = reuseCachedBundle({
+  abs: targetPath,
+  relKey: 'cached.js',
+  fileIndex: 0,
+  fileStat: stat,
+  fileHash: 'hash',
+  fileHashAlgo: 'sha1',
+  ext: '.js',
+  fileCaps: {},
+  cachedBundle: missingRelations,
+  incrementalState: {
+    manifest: {
+      files: {
+        'cached.js': { bundle: 'cached.json', hash: 'hash' }
+      }
+    }
+  },
+  fileStructural: null,
+  toolInfo: null,
+  fileStart: Date.now(),
+  knownLines: 1,
+  fileLanguageId: null
+});
+if (missingResult?.result) {
+  fail('Expected cached bundle without fileRelations to skip reuse.');
+}
+
+const algoResult = reuseCachedBundle({
+  abs: targetPath,
+  relKey: 'cached.js',
+  fileIndex: 0,
+  fileStat: stat,
+  fileHash: 'hash-xx',
+  fileHashAlgo: 'xxh64',
+  ext: '.js',
+  fileCaps: {},
+  cachedBundle,
+  incrementalState: {
+    manifest: {
+      files: {
+        'cached.js': { bundle: 'cached.json', hash: 'hash-xx', hashAlgo: 'xxh64' }
+      }
+    }
+  },
+  fileStructural: null,
+  toolInfo: null,
+  fileStart: Date.now(),
+  knownLines: 1,
+  fileLanguageId: null
+});
+if (!algoResult?.result?.fileInfo || algoResult.result.fileInfo.hashAlgo !== 'xxh64') {
+  fail('Expected cached bundle to preserve file hash algorithm.');
+}
+if (algoResult.result.chunks[0]?.fileHashAlgo !== 'xxh64') {
+  fail('Expected cached chunk to preserve file hash algorithm.');
 }
 
 console.log('file processor cached bundle tests passed');

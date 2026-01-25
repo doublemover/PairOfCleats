@@ -125,13 +125,15 @@ export function validateBuildArgs(argv) {
   if (!result.ok) throwOnErrors('build-index args', result.errors);
 }
 
-export function validateBenchArgs(argv) {
-  const { keys, aliases } = resolveOptionKeys(BENCH_OPTIONS);
+export function validateBenchArgs(argv, { allowedOptions } = {}) {
+  const allowed = allowedOptions || BENCH_OPTIONS;
+  const { keys, aliases } = resolveOptionKeys(allowed);
   const unknown = findUnknownArgs(argv, keys, aliases);
   if (unknown.length) {
     throw new Error(`bench args include unknown options: ${unknown.join(', ')}`);
   }
-  const result = validateConfig(BENCH_SCHEMA, extractKnownArgs(argv, keys));
+  const { keys: benchKeys } = resolveOptionKeys(BENCH_OPTIONS);
+  const result = validateConfig(BENCH_SCHEMA, extractKnownArgs(argv, benchKeys));
   if (!result.ok) throwOnErrors('bench args', result.errors);
   const conflicts = [];
   if (argv.ann && argv['no-ann']) {

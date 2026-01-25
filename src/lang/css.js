@@ -334,7 +334,7 @@ function buildCssHeuristicChunks(text, options = {}) {
   return chunks.length ? chunks : null;
 }
 
-export function buildCssRelations(text, allImports) {
+export function buildCssRelations(text) {
   return {
     imports: collectCssImports(text),
     exports: [],

@@ -1,4 +1,3 @@
-import path from 'node:path';
 import * as esprima from 'esprima';
 import {
   collectPatternNames,
@@ -13,10 +12,9 @@ import { parseJavaScriptAst } from './parse.js';
  * Build import/export/call/usage relations for JS chunks.
  * @param {string} text
  * @param {string} relPath
- * @param {Record<string,string[]>} allImports
- * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
-export function buildCodeRelations(text, relPath, allImports, options = {}) {
+export function buildCodeRelations(text, relPath, options = {}) {
   const dataflowEnabled = options.dataflow !== false;
   const controlFlowEnabled = options.controlFlow !== false;
   const imports = new Set();
@@ -593,34 +591,12 @@ export function buildCodeRelations(text, relPath, allImports, options = {}) {
     }
   }
 
-  const importLinks = new Set();
-  const resolveRelativeImport = (spec) => {
-    if (!spec) return null;
-    if (spec.startsWith('.')) {
-      return path.posix.normalize(path.posix.join(path.posix.dirname(relPath || ''), spec));
-    }
-    if (spec.startsWith('/')) {
-      return path.posix.normalize(spec.slice(1));
-    }
-    return null;
-  };
-  for (const spec of imports) {
-    const resolved = resolveRelativeImport(spec);
-    if (resolved) importLinks.add(resolved);
-    const mapped = allImports?.[spec];
-    if (Array.isArray(mapped)) {
-      for (const entry of mapped) {
-        if (entry) importLinks.add(entry);
-      }
-    }
-  }
   return {
     imports: Array.from(imports),
     exports: Array.from(exports),
     calls,
     callDetails,
     usages: Array.from(usages),
-    importLinks: Array.from(importLinks),
     functionMeta,
     classMeta
   };

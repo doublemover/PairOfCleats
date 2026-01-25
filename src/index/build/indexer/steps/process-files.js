@@ -28,7 +28,6 @@ export const processFiles = async ({
   runtime,
   discovery,
   entries,
-  importResult,
   contextWin,
   timing,
   crashLogger,
@@ -38,7 +37,8 @@ export const processFiles = async ({
   seenFiles,
   incrementalState,
   relationsEnabled,
-  shardPerfProfile
+  shardPerfProfile,
+  fileTextCache
 }) => {
   log('Processing and indexing files...');
   crashLogger.updatePhase('processing');
@@ -114,6 +114,7 @@ export const processFiles = async ({
     const { processFile } = createFileProcessor({
       root: runtimeRef.root,
       mode,
+      fileTextCache,
       dictConfig: runtimeRef.dictConfig,
       dictWords: runtimeRef.dictWords,
       dictShared: runtimeRef.dictShared,
@@ -121,13 +122,13 @@ export const processFiles = async ({
       postingsConfig: runtimeRef.postingsConfig,
       segmentsConfig: runtimeRef.segmentsConfig,
       commentsConfig: runtimeRef.commentsConfig,
-      allImports: importResult.allImports,
       contextWin,
       incrementalState,
       getChunkEmbedding: runtimeRef.getChunkEmbedding,
       getChunkEmbeddings: runtimeRef.getChunkEmbeddings,
       embeddingBatchSize: runtimeRef.embeddingBatchSize,
       embeddingEnabled: runtimeRef.embeddingEnabled,
+      analysisPolicy: runtimeRef.analysisPolicy,
       typeInferenceEnabled: runtimeRef.typeInferenceEnabled,
       riskAnalysisEnabled: runtimeRef.riskAnalysisEnabled,
       riskConfig: runtimeRef.riskConfig,

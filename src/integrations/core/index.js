@@ -8,6 +8,7 @@ import { acquireIndexLock } from '../../index/build/lock.js';
 import { preprocessFiles, writePreprocessStats } from '../../index/build/preprocess.js';
 import { createBuildRuntime } from '../../index/build/runtime.js';
 import { initBuildState, markBuildPhase, startBuildHeartbeat, updateBuildState } from '../../index/build/build-state.js';
+import { SIGNATURE_VERSION } from '../../index/build/indexer/signatures.js';
 import { promoteBuild } from '../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../index/validate.js';
 import { buildCompatibilityKey } from '../../contracts/compatibility.js';
@@ -476,8 +477,17 @@ export async function buildIndex(repoRoot, options = {}) {
         stage: phaseStage,
         configHash: runtime.configHash,
         toolVersion: getToolVersion(),
-        repoProvenance: runtime.repoProvenance
+        repoProvenance: runtime.repoProvenance,
+        signatureVersion: SIGNATURE_VERSION
       });
+      if (runtime?.ignoreFiles?.length || runtime?.ignoreWarnings?.length) {
+        await updateBuildState(runtime.buildRoot, {
+          ignore: {
+            files: runtime.ignoreFiles || [],
+            warnings: runtime.ignoreWarnings?.length ? runtime.ignoreWarnings : null
+          }
+        });
+      }
       await markBuildPhase(runtime.buildRoot, 'discovery', 'running');
       let sharedDiscovery = null;
       const preprocessModes = modes.filter((modeItem) => (

@@ -445,11 +445,10 @@ export function buildSqlChunks(text, options = {}) {
 /**
  * Build import/export/call/usage relations for SQL chunks.
  * @param {string} text
- * @param {Record<string,string[]>} allImports
  * @param {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null} sqlChunks
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
  */
-export function buildSqlRelations(text, allImports, sqlChunks, options = {}) {
+export function buildSqlRelations(text, sqlChunks, options = {}) {
   const exports = new Set();
   const usages = new Set();
   if (Array.isArray(sqlChunks)) {

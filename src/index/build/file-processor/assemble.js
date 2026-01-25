@@ -31,7 +31,8 @@ export function buildChunkPayload({
   fileRelations,
   relationsEnabled,
   toolInfo,
-  gitMeta
+  gitMeta,
+  analysisPolicy
 }) {
   const weight = getFieldWeight(chunk, rel);
   const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
@@ -111,7 +112,8 @@ export function buildChunkPayload({
   chunkPayload.metaV2 = buildMetaV2({
     chunk: chunkPayload,
     docmeta,
-    toolInfo
+    toolInfo,
+    analysisPolicy
   });
   return chunkPayload;
 }

@@ -54,6 +54,7 @@ const formatBuildTimestamp = (date) => (
 export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const userConfig = loadUserConfig(root);
   const envConfig = getEnvConfig();
+  const importGraphEnabled = envConfig.importGraph == null ? true : envConfig.importGraph;
   const rawIndexingConfig = userConfig.indexing || {};
   let indexingConfig = rawIndexingConfig;
   const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
@@ -128,6 +129,23 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const gitBlameEnabled = indexingConfig.gitBlame !== false;
   const lintEnabled = indexingConfig.lint !== false;
   const complexityEnabled = indexingConfig.complexity !== false;
+  const analysisPolicy = {
+    metadata: { enabled: true },
+    risk: {
+      enabled: riskAnalysisEnabled,
+      crossFile: riskAnalysisCrossFileEnabled
+    },
+    git: {
+      enabled: gitBlameEnabled,
+      blame: gitBlameEnabled,
+      churn: false
+    },
+    typeInference: {
+      local: { enabled: typeInferenceEnabled },
+      crossFile: { enabled: typeInferenceCrossFileEnabled },
+      tooling: { enabled: typeInferenceCrossFileEnabled && toolingEnabled }
+    }
+  };
   const skipUnknownLanguages = indexingConfig.skipUnknownLanguages === true;
   const skipOnParseError = indexingConfig.skipOnParseError === true;
   const yamlChunkingModeRaw = typeof indexingConfig.yamlChunking === 'string'
@@ -347,7 +365,12 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const dictSharedPayload = shouldShareDict ? createSharedDictionary(dictWords) : null;
   const dictShared = dictSharedPayload ? createSharedDictionaryView(dictSharedPayload) : null;
 
-  const { ignoreMatcher, config: ignoreConfig, ignoreFiles } = await buildIgnoreMatcher({ root, userConfig });
+  const {
+    ignoreMatcher,
+    config: ignoreConfig,
+    ignoreFiles,
+    warnings: ignoreWarnings
+  } = await buildIgnoreMatcher({ root, userConfig });
   const cacheConfig = getCacheRuntimeConfig(root, userConfig);
   const verboseCache = envConfig.verbose === true;
 
@@ -355,6 +378,13 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     log(`Wordlists enabled: ${dictSummary.files} file(s), ${dictSummary.words.toLocaleString()} words for identifier splitting.`);
   } else {
     log('Wordlists disabled: no dictionary files found; identifier splitting will be limited.');
+  }
+  if (ignoreWarnings?.length) {
+    for (const warning of ignoreWarnings) {
+      const detail = warning?.detail ? ` (${warning.detail})` : '';
+      const file = warning?.file ? ` ${warning.file}` : '';
+      log(`[ignore] ${warning?.type || 'warning'}${file}${detail}`);
+    }
   }
   if (stage === 'stage1') {
     log('Two-stage indexing: stage1 (sparse) overrides enabled.');
@@ -605,6 +635,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     gitBlameEnabled,
     lintEnabled,
     complexityEnabled,
+    analysisPolicy,
     resolveSqlDialect,
     fileConcurrency,
     importConcurrency,
@@ -634,8 +665,10 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     ignoreMatcher,
     ignoreConfig,
     ignoreFiles,
+    ignoreWarnings,
     maxFileBytes,
     cacheConfig,
-    verboseCache
+    verboseCache,
+    importGraphEnabled
   };
 }

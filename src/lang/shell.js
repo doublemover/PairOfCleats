@@ -154,11 +154,10 @@ export function buildShellChunks(text) {
 /**
  * Build import/export/call/usage relations for shell chunks.
  * @param {string} text
- * @param {Record<string,string[]>} allImports
  * @param {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null} shellChunks
- * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
-export function buildShellRelations(text, allImports, shellChunks) {
+export function buildShellRelations(text, shellChunks) {
   const imports = collectShellImports(text);
   const exports = new Set();
   const calls = [];
@@ -176,16 +175,11 @@ export function buildShellRelations(text, allImports, shellChunks) {
       for (const usage of chunkUsages) usages.add(usage);
     }
   }
-  const importLinks = imports
-    .map((i) => allImports[i])
-    .filter((x) => !!x)
-    .flat();
   return {
     imports,
     exports: Array.from(exports),
     calls,
-    usages: Array.from(usages),
-    importLinks
+    usages: Array.from(usages)
   };
 }
 

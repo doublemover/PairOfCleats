@@ -15,7 +15,7 @@ const text = "import type { Foo } from 'esm-dep';\nconst value = 1;\n";
 await fs.writeFile(filePath, text);
 const stat = await fs.stat(filePath);
 
-const { allImports } = await scanImports({
+const { importsByFile } = await scanImports({
   files: [{ abs: filePath, rel: 'src/flow-module.js', stat }],
   root: tempRoot,
   mode: 'code',
@@ -23,7 +23,7 @@ const { allImports } = await scanImports({
   importConcurrency: 1
 });
 
-assert.ok(allImports['esm-dep'], 'expected esm-dep import via fast path');
-assert.deepEqual(allImports['esm-dep'], ['src/flow-module.js']);
+const imports = importsByFile['src/flow-module.js'] || [];
+assert.ok(imports.includes('esm-dep'), 'expected esm-dep import via fast path');
 
 console.log('imports esmodule lexer init test passed');

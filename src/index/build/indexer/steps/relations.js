@@ -1,7 +1,8 @@
 import { log } from '../../../../shared/progress.js';
 import { applyCrossFileInference } from '../../../type-inference-crossfile.js';
 import { buildRelationGraphs } from '../../graphs.js';
-import { buildImportLinksFromRelations, scanImports } from '../../imports.js';
+import { scanImports } from '../../imports.js';
+import { resolveImportLinks } from '../../import-resolution.js';
 
 export const resolveImportScanPlan = ({ runtime, mode, relationsEnabled }) => {
   const importScanRaw = runtime.indexingConfig?.importScan;
@@ -11,7 +12,8 @@ export const resolveImportScanPlan = ({ runtime, mode, relationsEnabled }) => {
   const enableImportLinks = importScanMode !== 'off';
   const usePreScan = importScanMode === 'pre' || importScanMode === 'prescan';
   const shouldScan = mode === 'code' && relationsEnabled && enableImportLinks;
-  return { importScanMode, enableImportLinks, usePreScan, shouldScan };
+  const importGraphEnabled = runtime.importGraphEnabled !== false;
+  return { importScanMode, enableImportLinks, usePreScan, shouldScan, importGraphEnabled };
 };
 
 export const preScanImports = async ({
@@ -21,10 +23,11 @@ export const preScanImports = async ({
   entries,
   crashLogger,
   timing,
-  incrementalState
+  incrementalState,
+  fileTextByFile
 }) => {
   const scanPlan = resolveImportScanPlan({ runtime, mode, relationsEnabled });
-  let importResult = { allImports: {}, durationMs: 0, stats: null };
+  let importResult = { importsByFile: {}, durationMs: 0, stats: null };
   if (scanPlan.shouldScan && scanPlan.usePreScan) {
     log('Scanning for imports...');
     crashLogger.updatePhase('imports');
@@ -35,7 +38,8 @@ export const preScanImports = async ({
       languageOptions: runtime.languageOptions,
       importConcurrency: runtime.importConcurrency,
       queue: runtime.queues.io,
-      incrementalState
+      incrementalState,
+      fileTextByFile
     });
     timing.importsMs = importResult.durationMs;
     if (importResult?.stats) {
@@ -52,24 +56,53 @@ export const preScanImports = async ({
   return { importResult, scanPlan };
 };
 
-export const postScanImports = ({ mode, relationsEnabled, scanPlan, state, timing }) => {
+export const postScanImports = ({
+  mode,
+  relationsEnabled,
+  scanPlan,
+  state,
+  timing,
+  runtime,
+  entries,
+  importResult
+}) => {
   if (!scanPlan?.shouldScan) return null;
-  if (mode === 'code' && relationsEnabled && scanPlan.enableImportLinks && !scanPlan.usePreScan) {
-    const importStart = Date.now();
-    const importLinks = buildImportLinksFromRelations(state.fileRelations);
-    const importResult = {
-      allImports: importLinks.allImports || {},
-      stats: importLinks.stats || null,
-      durationMs: Date.now() - importStart
-    };
-    timing.importsMs = importResult.durationMs;
-    if (importResult?.stats) {
-      const { modules, edges, files } = importResult.stats;
-      log(`→ Imports: modules=${modules}, edges=${edges}, files=${files}`);
+  if (!mode || mode !== 'code' || !relationsEnabled || !scanPlan.enableImportLinks) return null;
+  const importStart = Date.now();
+  let importsByFile = importResult?.importsByFile;
+  if (!importsByFile || Object.keys(importsByFile).length === 0) {
+    importsByFile = Object.create(null);
+    for (const [file, relations] of state.fileRelations.entries()) {
+      const imports = Array.isArray(relations?.imports) ? relations.imports : null;
+      if (imports && imports.length) importsByFile[file] = imports;
     }
-    return importResult;
   }
-  return null;
+  const resolution = resolveImportLinks({
+    root: runtime.root,
+    entries,
+    importsByFile,
+    fileRelations: state.fileRelations,
+    log,
+    enableGraph: scanPlan.importGraphEnabled,
+    graphMeta: {
+      toolVersion: runtime.toolInfo?.version || null,
+      importScanMode: scanPlan.importScanMode || null
+    }
+  });
+  if (resolution?.graph) {
+    state.importResolutionGraph = resolution.graph;
+  }
+  const resolvedResult = {
+    importsByFile,
+    stats: resolution?.stats || null,
+    durationMs: Date.now() - importStart
+  };
+  timing.importsMs = resolvedResult.durationMs;
+  if (resolvedResult?.stats) {
+    const { resolved, external, unresolved } = resolvedResult.stats;
+    log(`→ Imports: resolved=${resolved}, external=${external}, unresolved=${unresolved}`);
+  }
+  return resolvedResult;
 };
 
 export const runCrossFileInference = async ({
@@ -80,7 +113,23 @@ export const runCrossFileInference = async ({
   featureMetrics,
   relationsEnabled
 }) => {
-  const crossFileEnabled = runtime.typeInferenceCrossFileEnabled || runtime.riskAnalysisCrossFileEnabled;
+  const policy = runtime.analysisPolicy || {};
+  const typeInferenceEnabled = typeof policy?.typeInference?.local?.enabled === 'boolean'
+    ? policy.typeInference.local.enabled
+    : runtime.typeInferenceEnabled;
+  const typeInferenceCrossFileEnabled = typeof policy?.typeInference?.crossFile?.enabled === 'boolean'
+    ? policy.typeInference.crossFile.enabled
+    : runtime.typeInferenceCrossFileEnabled;
+  const riskAnalysisEnabled = typeof policy?.risk?.enabled === 'boolean'
+    ? policy.risk.enabled
+    : runtime.riskAnalysisEnabled;
+  const riskAnalysisCrossFileEnabled = typeof policy?.risk?.crossFile === 'boolean'
+    ? policy.risk.crossFile
+    : runtime.riskAnalysisCrossFileEnabled;
+  const useTooling = typeof policy?.typeInference?.tooling?.enabled === 'boolean'
+    ? policy.typeInference.tooling.enabled
+    : (typeInferenceEnabled && typeInferenceCrossFileEnabled && runtime.toolingEnabled);
+  const crossFileEnabled = typeInferenceCrossFileEnabled || riskAnalysisCrossFileEnabled;
   if (mode === 'code' && crossFileEnabled) {
     crashLogger.updatePhase('cross-file');
     const crossFileStart = Date.now();
@@ -89,16 +138,16 @@ export const runCrossFileInference = async ({
       chunks: state.chunks,
       enabled: true,
       log,
-      useTooling: runtime.typeInferenceEnabled && runtime.typeInferenceCrossFileEnabled && runtime.toolingEnabled,
-      enableTypeInference: runtime.typeInferenceEnabled,
-      enableRiskCorrelation: runtime.riskAnalysisEnabled && runtime.riskAnalysisCrossFileEnabled,
+      useTooling,
+      enableTypeInference: typeInferenceEnabled,
+      enableRiskCorrelation: riskAnalysisEnabled && riskAnalysisCrossFileEnabled,
       fileRelations: state.fileRelations
     });
     const crossFileDurationMs = Date.now() - crossFileStart;
     if (featureMetrics?.recordSettingByLanguageShare) {
       const crossFileTargets = [];
-      if (runtime.typeInferenceCrossFileEnabled) crossFileTargets.push('typeInferenceCrossFile');
-      if (runtime.riskAnalysisCrossFileEnabled) crossFileTargets.push('riskAnalysisCrossFile');
+      if (typeInferenceCrossFileEnabled) crossFileTargets.push('typeInferenceCrossFile');
+      if (riskAnalysisCrossFileEnabled) crossFileTargets.push('riskAnalysisCrossFile');
       const shareMs = crossFileTargets.length ? crossFileDurationMs / crossFileTargets.length : 0;
       for (const target of crossFileTargets) {
         featureMetrics.recordSettingByLanguageShare({

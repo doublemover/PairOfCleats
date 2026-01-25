@@ -15,7 +15,7 @@ const text = "const lib = require('regex-dep');\nconst = ;\n";
 await fs.writeFile(filePath, text);
 const stat = await fs.stat(filePath);
 
-const { allImports } = await scanImports({
+const { importsByFile } = await scanImports({
   files: [{ abs: filePath, rel: 'src/broken.js', stat }],
   root: tempRoot,
   mode: 'code',
@@ -23,7 +23,7 @@ const { allImports } = await scanImports({
   importConcurrency: 1
 });
 
-assert.ok(allImports['regex-dep'], 'expected regex-dep import from regex fallback');
-assert.deepEqual(allImports['regex-dep'], ['src/broken.js']);
+const imports = importsByFile['src/broken.js'] || [];
+assert.ok(imports.includes('regex-dep'), 'expected regex-dep import from regex fallback');
 
 console.log('imports require regex fallback test passed');

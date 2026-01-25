@@ -118,6 +118,7 @@ const normalizeDiagnostic = (diag) => {
 export async function collectPyrightTypes({
   rootDir,
   chunksByFile,
+  fileTextByFile = null,
   log = () => {},
   cmd = 'pyright-langserver',
   args = ['--stdio'],
@@ -205,17 +206,19 @@ export async function collectPyrightTypes({
   }
 
   const typesByChunk = new Map();
-  const fileText = new Map();
+  const fileText = fileTextByFile instanceof Map ? fileTextByFile : new Map();
   let enriched = 0;
   for (const file of files) {
     const absPath = path.join(rootDir, file);
-    let text = '';
-    try {
-      text = await fs.readFile(absPath, 'utf8');
-    } catch {
-      continue;
+    let text = typeof fileText.get(file) === 'string' ? fileText.get(file) : null;
+    if (typeof text !== 'string') {
+      try {
+        text = await fs.readFile(absPath, 'utf8');
+      } catch {
+        continue;
+      }
+      fileText.set(file, text);
     }
-    fileText.set(file, text);
     const uri = pathToFileUri(absPath);
     const languageId = languageIdForFileExt(path.extname(file));
     client.notify('textDocument/didOpen', {
@@ -306,12 +309,13 @@ export async function collectPyrightTypes({
     const diagnostics = diagnosticsByUri.get(uri) || [];
     if (!diagnostics.length) continue;
     let text = fileText.get(file);
-    if (text === undefined) {
+    if (typeof text !== 'string') {
       try {
         text = await fs.readFile(absPath, 'utf8');
       } catch {
         text = '';
       }
+      fileText.set(file, text);
     }
     if (!text) continue;
     const lineIndex = buildLineIndex(text);

@@ -1,5 +1,6 @@
 import readline from 'node:readline';
 import { formatShardFileProgress } from '../../../../src/shared/bench-progress.js';
+import { ANSI } from '../../../../src/shared/cli/ansi-utils.js';
 import { toPosix } from '../../../../src/shared/files.js';
 import { formatDuration, formatLoc } from '../metrics.js';
 import {
@@ -12,13 +13,7 @@ import {
 } from './parse.js';
 import { resetBuildProgressState } from './state.js';
 
-const ansi = {
-  reset: '\x1b[0m',
-  fgDim: '\x1b[90m',
-  fgLight: '\x1b[37m',
-  fgBright: '\x1b[97m',
-  bgBlack: '\x1b[40m'
-};
+const DIM_TEXT = `${ANSI.dim}${ANSI.fgDarkGray}`;
 
 export const createProgressRenderer = ({
   state,
@@ -94,7 +89,7 @@ export const createProgressRenderer = ({
 
   const styleText = (text, prefix) => {
     if (!colorEnabled || !text) return text;
-    return `${prefix}${text}${ansi.reset}`;
+    return `${prefix}${text}${ANSI.reset}`;
   };
 
   const formatBarLine = (line, width) => {
@@ -104,19 +99,19 @@ export const createProgressRenderer = ({
       : content;
     if (!colorEnabled) return truncated;
     const padded = truncated.padEnd(width, ' ');
-    return `${ansi.bgBlack}${ansi.fgLight}${padded}${ansi.reset}`;
+    return `${ANSI.bgBlack}${ANSI.fgLight}${padded}${ANSI.reset}`;
   };
 
   const formatLogLine = (line) => {
     const content = line || '';
     if (!colorEnabled) return content;
     if (/^\s*(?:\u2192|->)\s*Shard\s+/i.test(content)) {
-      return styleText(content, ansi.fgBright);
+      return styleText(content, ANSI.fgBrightWhite);
     }
     if (/^\s*\[shard\s+/i.test(content)
       || /^\s*Files\s+\d+\/\d+/i.test(content)
       || /^\s*File\s+\d+\/\d+/i.test(content)) {
-      return styleText(content, ansi.fgDim);
+      return styleText(content, DIM_TEXT);
     }
     return content;
   };

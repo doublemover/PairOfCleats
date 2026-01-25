@@ -1,52 +1,13 @@
 # Currently Failing Tests
 
-These are the tests that are currently failing, each one needs to be fixed in order to wrap up phase 1 & 2.
+These are the tests that are currently failing and still need fixes.
 
-- [ ] compact-pieces (exit 1)
-  - Tried rerunning `node tests/compact-pieces.js`; build_index fails during stage3 with `[embeddings] code index validation failed`.
-  - Verified `node tools/index-validate.js --index-root ... --mode code` returns ok for the failing build.
-  - Suspect build-embeddings is validating more modes than `code` (missing prose/extracted/records manifests) or using a different indexRoot
-    - [ ] Trace `tools/build-embeddings/run.js` validation inputs.
-  - Latest log (tests/.logs/run-1769262743606-iqenm5/compact-pieces.attempt-1.log):
-    - Two-stage indexing: stage2 (enrichment) running; embeddings disabled; type inference enabled via indexing.typeInference.
-    - Writes pieces manifest (16 entries) and artifacts, then runs build-embeddings.
-    - `[embeddings] code: wrote HNSW index (2 vectors)` + LanceDB tables for merged/doc/code.
-    - Fails with: `[embeddings] code index validation failed; see index-validate output for details.`
-    - `[error] Index build failed: build-embeddings exited with code 1`
-    - `[error] Crash log: C:\\Users\\sneak\\Development\\PairOfCleats_CODEX\\tests\\.cache\\compact-pieces\\cache\\repos\\repo-45f2cee3671c\\logs\\index-crash.log`
-    - `Failed: build_index`
-  - Crash log details (tests/.cache/compact-pieces/.../logs/index-crash.log):
-    - Phases recorded with timestamps only: scan:code → imports → processing → cross-file → done
-    - `index-crash-state.json` reports `{ "phase": "done" }` (no stack trace or error recorded)
-- [ ] mcp-schema (exit 1)
-  - Latest log (tests/.logs/run-1769262743606-iqenm5/mcp-schema.attempt-1.log):
-    - `MCP schema snapshot mismatch.`
-  - Test compares `tests/fixtures/mcp/schema-snapshot.json` against:
-    - Tool schema snapshot from `getToolDefs(DEFAULT_MODEL_ID)` (names + required + properties)
-    - Shaped responses from `index_status` (sample fixture repo) and `config_status` (empty repo)
-  - No diff output is printed; only the mismatch line is emitted.
-- [ ] piece-assembly (exit 1)
-  - Added repo_map dedupe to avoid duplicate ID collisions.
-  - Made tokenization signatures stable (`stableStringify`) and removed dict path from tokenization key.
-  - Removed `rootDir` from compatibility key (was making cross-repo pieces incompatible).
-  - Kept single-input assembly order stable; aligned risk flags defaults in assembly.
-    - Normalized/sorted manifest comparison (ignore `dense_vectors_*_meta`, strip null errors).
-  - Still failing: equivalence manifest mismatch.
-    - Likely ordering or extra fields, needs another pass.
-- [ ] services/mcp/tool-search-defaults-and-filters.test (exit 1 / timeout)
-  - Switched risk search to backend=memory + query "return" (ensures mixed risk/non-risk hits).
-  - Added sample fixture indexing into the same cache root; updated `tests/helpers/fixture-index.js` to only delete the repo-specific cache (not the entire cache root).
-  - Added baseline type search with backend=memory and comparison via result keys.
-  - Added allow-missing compat handling in `tests/helpers/fixture-index.js` so missing keys do not force rebuilds.
-  - Manually built `tests/fixtures/languages` + `tests/fixtures/sample` into `tests/.cache/mcp-search`, but the test still rebuilds both fixtures and exceeded the 30s cap; cancelled multiple times.
-  - Likely still failing due to rebuild loop; needs a run after the compatibility rebuild issue is resolved (or a tweak to skip rebuilds when chunk_meta exists).
-- [ ] retrieval/filters/types.test
-  - Enabled type inference by default in `src/index/build/runtime/runtime.js` + `src/index/build/piece-assembly.js`.
-  - `node --import ./tests/helpers/test-env.js tests/retrieval/filters/types.test.js` now passes in isolation.
-  - Still failing when running `node tests/run.js --lane ci --log-dir tests/.logs` (per user confirmation).
-  - Last failing log (tests/.logs/run-1769262743606-iqenm5/retrieval_filters_types_test.attempt-1.log):
-    - `Search inferred-type filter returned no results.`
-  - Test specifics:
-    - Builds `tests/fixtures/languages` via `ensureFixtureIndex({ cacheName: 'language-fixture' })`
-    - Runs `runSearch` with `query: "makeWidget"`, `mode: "code"`
-    - Failing assertion is for `--inferred-type object`; next step is `--return-type Widget`
+- [ ] services/mcp/tool-search-defaults-and-filters.test (exit 1)
+  - Logs (latest run): `baseline risk MCP search returned no results` (from `tests/.logs/run-1769300131446-2bbk8h/services_mcp_tool-search-defaults-and-filters_test.attempt-1.log`).
+  - Purpose: Ensure MCP search defaults to compact JSON payloads and risk/type filters change results.
+  - Attempts:
+    - Set `PAIROFCLEATS_TESTING=1` when spawning MCP servers via `tests/helpers/mcp-client.js`.
+    - Align MCP server cache root with test-runner suffix (`PAIROFCLEATS_TEST_CACHE_SUFFIX`) so the server uses the same cache root as `ensureFixtureIndex`.
+    - Disable sqlite + embeddings for this test via `PAIROFCLEATS_TEST_CONFIG` to reduce build time.
+    - Manual rerun (`node tests/services/mcp/tool-search-defaults-and-filters.test.js`) rebuilt indexes and ran long; process terminated after >90s without completing (needs a successful rerun to confirm pass/fail after fixes).
+    - Manual rerun after watch fixes: saw full index build for ~51 files (code/prose/extracted-prose), then started a second build (24 files) and stalled with no output for ~20s; process terminated to avoid hanging.

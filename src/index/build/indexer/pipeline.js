@@ -1,15 +1,21 @@
 import fs from 'node:fs/promises';
 import { applyAdaptiveDictConfig, getIndexDir, getMetricsDir } from '../../../../tools/dict-utils.js';
 import { buildRecordsIndexForRepo } from '../../../integrations/triage/index-records.js';
-import { createCacheReporter } from '../../../shared/cache.js';
+import { createCacheReporter, createLruCache, estimateFileTextBytes } from '../../../shared/cache.js';
 import { getEnvConfig } from '../../../shared/env.js';
 import { log, showProgress } from '../../../shared/progress.js';
 import { createCrashLogger } from '../crash-log.js';
+import { updateBuildState } from '../build-state.js';
 import { estimateContextWindow } from '../context-window.js';
 import { createPerfProfile, loadPerfProfile } from '../perf-profile.js';
 import { createIndexState } from '../state.js';
 import { enqueueEmbeddingJob } from './embedding-queue.js';
-import { buildIncrementalSignature, buildTokenizationKey } from './signatures.js';
+import {
+  SIGNATURE_VERSION,
+  buildIncrementalSignature,
+  buildIncrementalSignatureSummary,
+  buildTokenizationKey
+} from './signatures.js';
 import { runDiscovery } from './steps/discover.js';
 import { loadIncrementalPlan, pruneIncrementalState, updateIncrementalBundles } from './steps/incremental.js';
 import { buildIndexPostings } from './steps/postings.js';
@@ -17,21 +23,41 @@ import { processFiles } from './steps/process-files.js';
 import { postScanImports, preScanImports, runCrossFileInference } from './steps/relations.js';
 import { writeIndexArtifactsForMode } from './steps/write.js';
 
-const buildFeatureSettings = (runtime, mode) => ({
-  tokenize: true,
-  embeddings: runtime.embeddingEnabled || runtime.embeddingService,
-  gitBlame: runtime.gitBlameEnabled,
-  pythonAst: runtime.languageOptions?.pythonAst?.enabled !== false && mode === 'code',
-  treeSitter: runtime.languageOptions?.treeSitter?.enabled !== false,
-  typeInference: runtime.typeInferenceEnabled && mode === 'code',
-  riskAnalysis: runtime.riskAnalysisEnabled && mode === 'code',
-  lint: runtime.lintEnabled && mode === 'code',
-  complexity: runtime.complexityEnabled && mode === 'code',
-  astDataflow: runtime.astDataflowEnabled && mode === 'code',
-  controlFlow: runtime.controlFlowEnabled && mode === 'code',
-  typeInferenceCrossFile: runtime.typeInferenceCrossFileEnabled && mode === 'code',
-  riskAnalysisCrossFile: runtime.riskAnalysisCrossFileEnabled && mode === 'code'
-});
+const resolveAnalysisFlags = (runtime) => {
+  const policy = runtime.analysisPolicy || {};
+  return {
+    gitBlame: typeof policy?.git?.blame === 'boolean' ? policy.git.blame : runtime.gitBlameEnabled,
+    typeInference: typeof policy?.typeInference?.local?.enabled === 'boolean'
+      ? policy.typeInference.local.enabled
+      : runtime.typeInferenceEnabled,
+    typeInferenceCrossFile: typeof policy?.typeInference?.crossFile?.enabled === 'boolean'
+      ? policy.typeInference.crossFile.enabled
+      : runtime.typeInferenceCrossFileEnabled,
+    riskAnalysis: typeof policy?.risk?.enabled === 'boolean' ? policy.risk.enabled : runtime.riskAnalysisEnabled,
+    riskAnalysisCrossFile: typeof policy?.risk?.crossFile === 'boolean'
+      ? policy.risk.crossFile
+      : runtime.riskAnalysisCrossFileEnabled
+  };
+};
+
+const buildFeatureSettings = (runtime, mode) => {
+  const analysisFlags = resolveAnalysisFlags(runtime);
+  return {
+    tokenize: true,
+    embeddings: runtime.embeddingEnabled || runtime.embeddingService,
+    gitBlame: analysisFlags.gitBlame,
+    pythonAst: runtime.languageOptions?.pythonAst?.enabled !== false && mode === 'code',
+    treeSitter: runtime.languageOptions?.treeSitter?.enabled !== false,
+    typeInference: analysisFlags.typeInference && mode === 'code',
+    riskAnalysis: analysisFlags.riskAnalysis && mode === 'code',
+    lint: runtime.lintEnabled && mode === 'code',
+    complexity: runtime.complexityEnabled && mode === 'code',
+    astDataflow: runtime.astDataflowEnabled && mode === 'code',
+    controlFlow: runtime.controlFlowEnabled && mode === 'code',
+    typeInferenceCrossFile: analysisFlags.typeInferenceCrossFile && mode === 'code',
+    riskAnalysisCrossFile: analysisFlags.riskAnalysisCrossFile && mode === 'code'
+  };
+};
 
 /**
  * Build indexes for a given mode.
@@ -55,14 +81,15 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   log(`\n📄  Scanning ${mode} …`);
   const timing = { start: Date.now() };
   const metricsDir = getMetricsDir(runtime.root, runtime.userConfig);
+  const analysisFlags = resolveAnalysisFlags(runtime);
   const perfFeatures = {
     stage: runtime.stage || null,
     embeddings: runtime.embeddingEnabled || runtime.embeddingService,
     treeSitter: runtime.languageOptions?.treeSitter?.enabled !== false,
     relations: runtime.stage !== 'stage1',
     tooling: runtime.toolingEnabled,
-    typeInference: runtime.typeInferenceEnabled,
-    riskAnalysis: runtime.riskAnalysisEnabled
+    typeInference: analysisFlags.typeInference,
+    riskAnalysis: analysisFlags.riskAnalysis
   };
   const perfProfile = createPerfProfile({
     configHash: runtime.configHash,
@@ -87,6 +114,18 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
 
   const state = createIndexState();
   const cacheReporter = createCacheReporter({ enabled: runtime.verboseCache, log });
+  const fileTextCache = createLruCache({
+    name: 'fileText',
+    maxMb: runtime.cacheConfig?.fileText?.maxMb,
+    ttlMs: runtime.cacheConfig?.fileText?.ttlMs,
+    sizeCalculation: estimateFileTextBytes,
+    reporter: cacheReporter
+  });
+  const fileTextByFile = {
+    get: (key) => fileTextCache.get(key),
+    set: (key, value) => fileTextCache.set(key, value),
+    captureBuffers: true
+  };
   const seenFiles = new Set();
 
   const stagePlan = [
@@ -122,16 +161,30 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     timing,
     stageNumber: stageIndex
   });
-  runtime.dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
-  const tokenizationKey = buildTokenizationKey(runtime, mode);
-  const cacheSignature = buildIncrementalSignature(runtime, mode, tokenizationKey);
+  const dictConfig = applyAdaptiveDictConfig(runtime.dictConfig, allEntries.length);
+  const runtimeRef = dictConfig === runtime.dictConfig
+    ? runtime
+    : { ...runtime, dictConfig };
+  const tokenizationKey = buildTokenizationKey(runtimeRef, mode);
+  const cacheSignature = buildIncrementalSignature(runtimeRef, mode, tokenizationKey);
+  const cacheSignatureSummary = buildIncrementalSignatureSummary(runtimeRef, mode, tokenizationKey);
+  await updateBuildState(runtimeRef.buildRoot, {
+    signatures: {
+      [mode]: {
+        tokenizationKey,
+        cacheSignature,
+        signatureVersion: SIGNATURE_VERSION
+      }
+    }
+  });
   const { incrementalState, reused } = await loadIncrementalPlan({
-    runtime,
+    runtime: runtimeRef,
     mode,
     outDir,
     entries: allEntries,
     tokenizationKey,
     cacheSignature,
+    cacheSignatureSummary,
     cacheReporter
   });
   if (reused) {
@@ -139,33 +192,33 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     return;
   }
 
-  const relationsEnabled = runtime.stage !== 'stage1';
+  const relationsEnabled = runtimeRef.stage !== 'stage1';
   advanceStage(stagePlan[1]);
   let { importResult, scanPlan } = await preScanImports({
-    runtime,
+    runtime: runtimeRef,
     mode,
     relationsEnabled,
     entries: allEntries,
     crashLogger,
     timing,
-    incrementalState
+    incrementalState,
+    fileTextByFile
   });
 
   const contextWin = await estimateContextWindow({
     files: allEntries.map((entry) => entry.abs),
-    root: runtime.root,
+    root: runtimeRef.root,
     mode,
-    languageOptions: runtime.languageOptions
+    languageOptions: runtimeRef.languageOptions
   });
   log(`Auto-selected context window: ${contextWin} lines`);
 
   advanceStage(stagePlan[2]);
   const processResult = await processFiles({
     mode,
-    runtime,
+    runtime: runtimeRef,
     discovery,
     entries: allEntries,
-    importResult,
     contextWin,
     timing,
     crashLogger,
@@ -175,22 +228,35 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     seenFiles,
     incrementalState,
     relationsEnabled,
-    shardPerfProfile
+    shardPerfProfile,
+    fileTextCache
   });
   const { tokenizationStats, shardSummary } = processResult;
+  await updateBuildState(runtimeRef.buildRoot, {
+    counts: {
+      [mode]: {
+        files: allEntries.length,
+        chunks: state.chunks?.length || 0,
+        skipped: state.skippedFiles?.length || 0
+      }
+    }
+  });
 
   const postImportResult = postScanImports({
     mode,
     relationsEnabled,
     scanPlan,
     state,
-    timing
+    timing,
+    runtime: runtimeRef,
+    entries: allEntries,
+    importResult
   });
   if (postImportResult) importResult = postImportResult;
 
   advanceStage(stagePlan[3]);
   const { crossFileEnabled, graphRelations } = await runCrossFileInference({
-    runtime,
+    runtime: runtimeRef,
     mode,
     state,
     crashLogger,
@@ -199,7 +265,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   });
   if (mode === 'code' && crossFileEnabled) {
     await updateIncrementalBundles({
-      runtime,
+      runtime: runtimeRef,
       incrementalState,
       state,
       log
@@ -214,7 +280,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   }
 
   await pruneIncrementalState({
-    runtime,
+    runtime: runtimeRef,
     incrementalState,
     seenFiles
   });
@@ -222,11 +288,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);
 
   advanceStage(stagePlan[4]);
-  const postings = await buildIndexPostings({ runtime, state });
+  const postings = await buildIndexPostings({ runtime: runtimeRef, state });
 
   advanceStage(stagePlan[5]);
   await writeIndexArtifactsForMode({
-    runtime,
+    runtime: runtimeRef,
     mode,
     outDir,
     state,
@@ -237,11 +303,11 @@ export async function buildIndexForMode({ mode, runtime, discovery = null }) {
     graphRelations,
     shardSummary
   });
-  if (runtime?.overallProgress?.advance) {
+  if (runtimeRef?.overallProgress?.advance) {
     const finalStage = stagePlan[stagePlan.length - 1];
-    runtime.overallProgress.advance({ message: `${mode} ${finalStage.label}` });
+    runtimeRef.overallProgress.advance({ message: `${mode} ${finalStage.label}` });
   }
-  await enqueueEmbeddingJob({ runtime, mode });
+  await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexRoot: outDir });
   crashLogger.updatePhase('done');
   cacheReporter.report();
 }

@@ -6,7 +6,7 @@ import { SKIP_DIRS, SKIP_FILES, SKIP_GLOBS } from '../constants.js';
 /**
  * Build ignore matcher for indexing.
  * @param {{root:string,userConfig:object}} input
- * @returns {Promise<{ignoreMatcher:import('ignore').Ignore,config:object,ignoreFiles:string[]}>}
+ * @returns {Promise<{ignoreMatcher:import('ignore').Ignore,config:object,ignoreFiles:string[],warnings:Array<object>}>}
  */
 export async function buildIgnoreMatcher({ root, userConfig }) {
   const config = {
@@ -28,16 +28,49 @@ export async function buildIgnoreMatcher({ root, userConfig }) {
   }
 
   const ignoreFiles = [];
+  const warnings = [];
+  const rootResolved = path.resolve(root);
+  const normalizeRelative = (value) => value.split(path.sep).join('/');
+  const recordWarning = (warning) => {
+    if (!warning) return;
+    warnings.push({
+      type: warning.type || 'unknown',
+      file: warning.file || null,
+      detail: warning.detail || null
+    });
+  };
+  const resolveIgnorePath = (value) => {
+    const raw = typeof value === 'string' ? value.trim() : '';
+    if (!raw) return null;
+    const resolved = path.isAbsolute(raw)
+      ? path.resolve(raw)
+      : path.resolve(root, raw);
+    if (resolved !== rootResolved && !resolved.startsWith(`${rootResolved}${path.sep}`)) {
+      recordWarning({ type: 'outside-root', file: raw });
+      return null;
+    }
+    const rel = normalizeRelative(path.relative(rootResolved, resolved));
+    return { raw, resolved, rel };
+  };
   if (config.useGitignore) ignoreFiles.push('.gitignore');
   if (config.usePairofcleatsIgnore) ignoreFiles.push('.pairofcleatsignore');
   ignoreFiles.push(...config.ignoreFiles);
 
+  const loadedFiles = [];
   for (const ignoreFile of ignoreFiles) {
+    const resolved = resolveIgnorePath(ignoreFile);
+    if (!resolved) continue;
     try {
-      const ignorePath = path.join(root, ignoreFile);
-      const contents = await fs.readFile(ignorePath, 'utf8');
+      const contents = await fs.readFile(resolved.resolved, 'utf8');
       ignoreMatcher.add(contents);
-    } catch {}
+      loadedFiles.push(resolved.rel || resolved.raw);
+    } catch (err) {
+      recordWarning({
+        type: 'read-failed',
+        file: resolved.rel || resolved.raw,
+        detail: err?.code || err?.message || 'read-failed'
+      });
+    }
   }
   const expandExtraIgnore = (patterns) => {
     const expanded = [];
@@ -80,5 +113,5 @@ export async function buildIgnoreMatcher({ root, userConfig }) {
     ignoreMatcher.add(expandExtraIgnore(config.extraIgnore));
   }
 
-  return { ignoreMatcher, config, ignoreFiles };
+  return { ignoreMatcher, config, ignoreFiles: loadedFiles, warnings };
 }

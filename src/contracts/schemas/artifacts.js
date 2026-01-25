@@ -1,3 +1,5 @@
+import { METADATA_V2_SCHEMA, RISK_RULES_BUNDLE_SCHEMA } from './analysis.js';
+
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 const nullableInt = { type: ['integer', 'null'], minimum: 0 };
@@ -16,7 +18,10 @@ const chunkMetaEntry = {
     endLine: nullableInt,
     kind: nullableString,
     name: nullableString,
-    ext: nullableString
+    ext: nullableString,
+    metaV2: {
+      anyOf: [METADATA_V2_SCHEMA, { type: 'null' }]
+    }
   },
   additionalProperties: true
 };
@@ -202,6 +207,74 @@ const denseVectorsSchema = {
     model: nullableString,
     scale: { type: 'number' },
     vectors: { type: 'array', items: denseVectorArray }
+  },
+  additionalProperties: true
+};
+
+const importResolutionGraphSchema = {
+  type: 'object',
+  required: ['generatedAt', 'nodes', 'edges', 'stats'],
+  properties: {
+    generatedAt: { type: 'string' },
+    toolVersion: nullableString,
+    importScanMode: nullableString,
+    stats: {
+      type: 'object',
+      properties: {
+        files: intId,
+        edges: intId,
+        resolved: intId,
+        external: intId,
+        unresolved: intId,
+        truncatedEdges: { type: 'boolean' },
+        truncatedNodes: { type: 'boolean' },
+        warningSuppressed: intId
+      },
+      additionalProperties: true
+    },
+    nodes: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['id', 'type'],
+        properties: {
+          id: { type: 'string' },
+          type: { type: 'string' }
+        },
+        additionalProperties: true
+      }
+    },
+    edges: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['from', 'to', 'rawSpecifier', 'resolvedType'],
+        properties: {
+          from: { type: 'string' },
+          to: { type: ['string', 'null'] },
+          rawSpecifier: { type: 'string' },
+          kind: { type: 'string' },
+          resolvedType: { type: 'string' },
+          resolvedPath: nullableString,
+          packageName: nullableString,
+          tsconfigPath: nullableString,
+          tsPathPattern: nullableString
+        },
+        additionalProperties: true
+      }
+    },
+    warnings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          importer: nullableString,
+          specifier: nullableString,
+          reason: nullableString
+        },
+        additionalProperties: true
+      }
+    }
   },
   additionalProperties: true
 };
@@ -437,6 +510,9 @@ export const ARTIFACT_SCHEMA_DEFS = {
       filterIndex: { type: 'object', additionalProperties: true },
       sqlite: { type: 'object', additionalProperties: true },
       lmdb: { type: 'object', additionalProperties: true },
+      riskRules: {
+        anyOf: [RISK_RULES_BUNDLE_SCHEMA, { type: 'null' }]
+      },
       extensions: { type: 'object' }
     },
     additionalProperties: false
@@ -474,6 +550,7 @@ export const ARTIFACT_SCHEMA_DEFS = {
     },
     additionalProperties: true
   },
+  import_resolution_graph: importResolutionGraphSchema,
   chunk_meta_meta: buildShardedJsonlMeta('chunk_meta'),
   file_relations_meta: buildShardedJsonlMeta('file_relations'),
   repo_map_meta: buildShardedJsonlMeta('repo_map'),

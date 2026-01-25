@@ -9,6 +9,7 @@ export const loadIncrementalPlan = async ({
   entries,
   tokenizationKey,
   cacheSignature,
+  cacheSignatureSummary,
   cacheReporter
 }) => {
   const incrementalState = await loadIncrementalState({
@@ -17,6 +18,7 @@ export const loadIncrementalPlan = async ({
     enabled: runtime.incrementalEnabled,
     tokenizationKey,
     cacheSignature,
+    cacheSignatureSummary,
     bundleFormat: runtime.incrementalBundleFormat,
     log
   });
@@ -27,7 +29,9 @@ export const loadIncrementalPlan = async ({
       outDir,
       entries,
       manifest: incrementalState.manifest,
-      stage: runtime.stage
+      stage: runtime.stage,
+      log,
+      explain: runtime.verboseCache === true
     });
     if (reuse) {
       log(`→ Reusing ${mode} index artifacts (no changes).`);

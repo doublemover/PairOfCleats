@@ -7,18 +7,13 @@ export const normalizeImportToken = (raw) => {
     .replace(/[);]+$/g, '');
 };
 
-export const buildSimpleRelations = (imports, allImports) => {
+export const buildSimpleRelations = (imports) => {
   const list = Array.isArray(imports) ? imports.filter(Boolean) : [];
   const unique = Array.from(new Set(list));
-  const importLinks = unique
-    .map((entry) => allImports?.[entry])
-    .filter((entry) => !!entry)
-    .flat();
   return {
     imports: unique,
     exports: [],
     calls: [],
-    usages: [],
-    importLinks
+    usages: []
   };
 };

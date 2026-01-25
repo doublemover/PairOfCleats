@@ -282,11 +282,6 @@ export const buildIndexingActions = ({ root, runNode }) => [
     covers: ['piece-assembly-test']
   },
   {
-    label: 'compact-pieces-test',
-    run: () => runNode('compact-pieces-test', path.join(root, 'tests', 'compact-pieces.js')),
-    covers: ['compact-pieces-test']
-  },
-  {
     label: 'git-meta-test',
     run: () => runNode('git-meta-test', path.join(root, 'tests', 'git-meta.js')),
     covers: ['git-meta-test']

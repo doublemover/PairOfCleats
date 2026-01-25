@@ -25,6 +25,7 @@ export function createFileProcessor(options) {
   const {
     root,
     mode,
+    fileTextCache,
     dictConfig,
     dictWords,
     dictShared,
@@ -32,11 +33,11 @@ export function createFileProcessor(options) {
     postingsConfig,
     segmentsConfig,
     commentsConfig,
-    allImports,
     contextWin,
     incrementalState,
     getChunkEmbedding,
     getChunkEmbeddings,
+    analysisPolicy,
     typeInferenceEnabled,
     riskAnalysisEnabled,
     riskConfig,
@@ -64,6 +65,22 @@ export function createFileProcessor(options) {
   const lintEnabled = lintEnabledRaw !== false;
   const complexityEnabled = complexityEnabledRaw !== false;
   const relationsEnabled = relationsEnabledRaw !== false;
+  const resolvedAnalysisPolicy = analysisPolicy && typeof analysisPolicy === 'object'
+    ? analysisPolicy
+    : null;
+  const resolvePolicyFlag = (value, fallback) => (typeof value === 'boolean' ? value : fallback);
+  const resolvedTypeInferenceEnabled = resolvePolicyFlag(
+    resolvedAnalysisPolicy?.typeInference?.local?.enabled,
+    typeInferenceEnabled
+  );
+  const resolvedRiskAnalysisEnabled = resolvePolicyFlag(
+    resolvedAnalysisPolicy?.risk?.enabled,
+    riskAnalysisEnabled
+  );
+  const resolvedGitBlameEnabled = resolvePolicyFlag(
+    resolvedAnalysisPolicy?.git?.blame ?? resolvedAnalysisPolicy?.git?.enabled,
+    gitBlameEnabled
+  );
   const resolvedLanguageOptions = {
     skipUnknownLanguages: true,
     ...(languageOptions || {})
@@ -192,6 +209,31 @@ export function createFileProcessor(options) {
     let fileHash = null;
     let fileHashAlgo = null;
     let fileBuffer = null;
+    if (fileTextCache?.get && relKey) {
+      const cached = fileTextCache.get(relKey);
+      if (cached && typeof cached === 'object') {
+        if (typeof cached.text === 'string') text = cached.text;
+        if (Buffer.isBuffer(cached.buffer)) fileBuffer = cached.buffer;
+        if (cached.hash) {
+          fileHash = cached.hash;
+          fileHashAlgo = 'sha1';
+        }
+        if (Number.isFinite(cached.size) && cached.size !== fileStat.size) {
+          text = null;
+          fileBuffer = null;
+          fileHash = null;
+          fileHashAlgo = null;
+        }
+        if (Number.isFinite(cached.mtimeMs) && cached.mtimeMs !== fileStat.mtimeMs) {
+          text = null;
+          fileBuffer = null;
+          fileHash = null;
+          fileHashAlgo = null;
+        }
+      } else if (typeof cached === 'string') {
+        text = cached;
+      }
+    }
     const cachedResult = await loadCachedBundleForFile({
       runIo,
       incrementalState,
@@ -215,9 +257,9 @@ export function createFileProcessor(options) {
       fileCaps,
       cachedBundle,
       incrementalState,
-      allImports,
       fileStructural,
       toolInfo,
+      analysisPolicy: resolvedAnalysisPolicy,
       fileStart,
       knownLines,
       fileLanguageId
@@ -268,8 +310,17 @@ export function createFileProcessor(options) {
     const fileInfo = {
       size: fileStat.size,
       hash: fileHash,
-      hashAlgo: fileHash ? 'sha1' : null
+      hashAlgo: fileHashAlgo || null
     };
+    if (fileTextCache?.set && relKey && (text || fileBuffer)) {
+      fileTextCache.set(relKey, {
+        text,
+        buffer: fileBuffer,
+        hash: fileHash,
+        size: fileStat.size,
+        mtimeMs: fileStat.mtimeMs
+      });
+    }
 
     let languageLines = null;
     let languageSetKey = null;
@@ -288,7 +339,6 @@ export function createFileProcessor(options) {
       fileHashAlgo,
       fileCaps,
       fileStructural,
-      allImports,
       languageOptions: resolvedLanguageOptions,
       astDataflowEnabled,
       controlFlowEnabled,
@@ -302,10 +352,11 @@ export function createFileProcessor(options) {
       relationsEnabled,
       lintEnabled,
       complexityEnabled,
-      typeInferenceEnabled,
-      riskAnalysisEnabled,
+      analysisPolicy: resolvedAnalysisPolicy,
+      typeInferenceEnabled: resolvedTypeInferenceEnabled,
+      riskAnalysisEnabled: resolvedRiskAnalysisEnabled,
       riskConfig,
-      gitBlameEnabled,
+      gitBlameEnabled: resolvedGitBlameEnabled,
       workerPool,
       workerDictOverride,
       workerState,
@@ -346,7 +397,7 @@ export function createFileProcessor(options) {
       languageSetKey = resolvedLanguageSetKey;
     }
     recordFeatureMetrics({
-      gitBlameEnabled,
+      gitBlameEnabled: resolvedGitBlameEnabled,
       embeddingEnabled,
       lintEnabled,
       complexityEnabled,

@@ -4,17 +4,29 @@ import path from 'node:path';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-search');
 const sampleRepo = path.join(process.cwd(), 'tests', 'fixtures', 'sample');
+const suffix = typeof process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX === 'string'
+  ? process.env.PAIROFCLEATS_TEST_CACHE_SUFFIX.trim()
+  : '';
+const cacheName = suffix ? `mcp-search-${suffix}` : 'mcp-search';
+const cacheRoot = path.join(process.cwd(), 'tests', '.cache', cacheName);
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
+
+const testConfig = {
+  sqlite: { use: false },
+  indexing: { embeddings: { enabled: false } }
+};
+const envOverrides = { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) };
 
 const { fixtureRoot } = await ensureFixtureIndex({
   fixtureName: 'languages',
-  cacheName: 'mcp-search'
+  cacheName: 'mcp-search',
+  envOverrides
 });
 await ensureFixtureIndex({
   fixtureName: 'sample',
-  cacheName: 'mcp-search'
+  cacheName: 'mcp-search',
+  envOverrides
 });
 
 const { send, readMessage, shutdown } = await startMcpServer({ cacheRoot });
@@ -60,7 +72,7 @@ try {
       name: 'search',
       arguments: {
         repoPath: fixtureRoot,
-        query: 'return',
+        query: 'exec',
         mode: 'code',
         top: 5,
         backend: 'memory'
@@ -84,7 +96,7 @@ try {
       name: 'search',
       arguments: {
         repoPath: fixtureRoot,
-        query: 'return',
+        query: 'exec',
         mode: 'code',
         top: 5,
         riskTag: 'command-exec',

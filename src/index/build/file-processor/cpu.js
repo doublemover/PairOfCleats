@@ -164,7 +164,6 @@ export const processFileCpu = async (context) => {
     fileHashAlgo,
     fileCaps,
     fileStructural,
-    allImports,
     languageOptions,
     astDataflowEnabled,
     controlFlowEnabled,
@@ -182,6 +181,7 @@ export const processFileCpu = async (context) => {
     riskAnalysisEnabled,
     riskConfig,
     gitBlameEnabled,
+    analysisPolicy,
     workerPool,
     workerDictOverride,
     workerState,
@@ -379,7 +379,6 @@ export const processFileCpu = async (context) => {
       rawRelations = lang.buildRelations({
         text,
         relPath: relKey,
-        allImports,
         context: languageContext,
         options: languageOptions
       });
@@ -389,9 +388,12 @@ export const processFileCpu = async (context) => {
   }
   const fileRelations = relationsEnabled ? buildFileRelations(rawRelations, relKey) : null;
   const callIndex = relationsEnabled ? buildCallIndex(rawRelations) : null;
+  const resolvedGitBlameEnabled = typeof analysisPolicy?.git?.blame === 'boolean'
+    ? analysisPolicy.git.blame
+    : gitBlameEnabled;
   const gitStart = Date.now();
   const resolvedGitMeta = await runIo(() => getGitMetaForFile(relKey, {
-    blame: gitBlameEnabled,
+    blame: resolvedGitBlameEnabled,
     baseDir: root
   }));
   setGitDuration(Date.now() - gitStart);
@@ -641,6 +643,7 @@ export const processFileCpu = async (context) => {
     riskAnalysisEnabled,
     riskConfig,
     typeInferenceEnabled,
+    analysisPolicy,
     astDataflowEnabled,
     controlFlowEnabled,
     toolInfo,

@@ -101,8 +101,8 @@ const LANGUAGE_REGISTRY = [
       }
       return context;
     },
-    buildRelations: ({ text, relPath, allImports, context, options, ext }) =>
-      buildCodeRelations(text, relPath, allImports, {
+    buildRelations: ({ text, relPath, context, options, ext }) =>
+      buildCodeRelations(text, relPath, {
         ...options,
         ext,
         ast: context?.jsAst,
@@ -131,22 +131,17 @@ const LANGUAGE_REGISTRY = [
       }
       return { tsChunks };
     },
-    buildRelations: ({ text, allImports, context, options, ext }) => {
+    buildRelations: ({ text, context, options, ext }) => {
       if (options?.typescript?.importsOnly === true) {
         const imports = collectTypeScriptImports(text, { ...options, ext });
-        const importLinks = imports
-          .map((entry) => allImports[entry])
-          .filter((entry) => !!entry)
-          .flat();
         return {
           imports,
           exports: [],
           calls: [],
-          usages: [],
-          importLinks
+          usages: []
         };
       }
-      return buildTypeScriptRelations(text, allImports, context.tsChunks, { ...options, ext });
+      return buildTypeScriptRelations(text, context.tsChunks, { ...options, ext });
     },
     extractDocMeta: ({ chunk }) => extractTypeScriptDocMeta(chunk),
     flow: ({ text, chunk, options }) => (options?.typescript?.importsOnly === true
@@ -189,7 +184,7 @@ const LANGUAGE_REGISTRY = [
         ...(pythonTreeChunks && pythonTreeChunks.length ? { pythonTreeChunks } : {})
       };
     },
-    buildRelations: ({ text, allImports, context }) => buildPythonRelations(text, allImports, context.pythonAst),
+    buildRelations: ({ text, context }) => buildPythonRelations(text, context.pythonAst),
     extractDocMeta: ({ chunk }) => extractPythonDocMeta(chunk),
     flow: ({ text, chunk, options }) => buildControlFlowOnly(text, chunk, options, PY_CONTROL_FLOW),
     attachName: true
@@ -201,7 +196,7 @@ const LANGUAGE_REGISTRY = [
     prepare: ({ text, mode, options }) => (mode === 'code'
       ? { swiftChunks: buildSwiftChunks(text, options) }
       : {}),
-    buildRelations: ({ text, allImports }) => buildSwiftRelations(text, allImports),
+    buildRelations: ({ text }) => buildSwiftRelations(text),
     extractDocMeta: ({ chunk }) => extractSwiftDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeSwiftFlow(text, chunk, flowOptions(options)),
     attachName: true
@@ -213,7 +208,7 @@ const LANGUAGE_REGISTRY = [
     prepare: ({ text, mode, ext, options }) => (mode === 'code'
       ? { clikeChunks: buildCLikeChunks(text, ext, options) }
       : {}),
-    buildRelations: ({ text, allImports, context }) => buildCLikeRelations(text, allImports, context.clikeChunks),
+    buildRelations: ({ text, context }) => buildCLikeRelations(text, context.clikeChunks),
     extractDocMeta: ({ chunk }) => extractCLikeDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeCLikeFlow(text, chunk, flowOptions(options)),
     attachName: true
@@ -225,7 +220,7 @@ const LANGUAGE_REGISTRY = [
     prepare: ({ text, mode, options }) => (mode === 'code'
       ? { rustChunks: buildRustChunks(text, options) }
       : {}),
-    buildRelations: ({ text, allImports }) => buildRustRelations(text, allImports),
+    buildRelations: ({ text }) => buildRustRelations(text),
     extractDocMeta: ({ chunk }) => extractRustDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeRustFlow(text, chunk, flowOptions(options)),
     attachName: true
@@ -237,7 +232,7 @@ const LANGUAGE_REGISTRY = [
     prepare: ({ text, mode, options }) => (mode === 'code'
       ? { goChunks: buildGoChunks(text, options) }
       : {}),
-    buildRelations: ({ text, allImports, context }) => buildGoRelations(text, allImports, context.goChunks),
+    buildRelations: ({ text, context }) => buildGoRelations(text, context.goChunks),
     extractDocMeta: ({ chunk }) => extractGoDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeGoFlow(text, chunk, flowOptions(options)),
     attachName: true
@@ -249,7 +244,7 @@ const LANGUAGE_REGISTRY = [
     prepare: ({ text, mode, options }) => (mode === 'code'
       ? { javaChunks: buildJavaChunks(text, options) }
       : {}),
-    buildRelations: ({ text, allImports, context }) => buildJavaRelations(text, allImports, context.javaChunks),
+    buildRelations: ({ text, context }) => buildJavaRelations(text, context.javaChunks),
     extractDocMeta: ({ chunk }) => extractJavaDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeJavaFlow(text, chunk, flowOptions(options)),
     attachName: true
@@ -261,7 +256,7 @@ const LANGUAGE_REGISTRY = [
     prepare: ({ text, mode, options }) => (mode === 'code'
       ? { csharpChunks: buildCSharpChunks(text, options) }
       : {}),
-    buildRelations: ({ text, allImports, context }) => buildCSharpRelations(text, allImports, context.csharpChunks),
+    buildRelations: ({ text, context }) => buildCSharpRelations(text, context.csharpChunks),
     extractDocMeta: ({ chunk }) => extractCSharpDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeCSharpFlow(text, chunk, flowOptions(options)),
     attachName: true
@@ -276,9 +271,8 @@ const LANGUAGE_REGISTRY = [
         kotlinStats: getKotlinFileStats(text)
       }
       : {}),
-    buildRelations: ({ text, allImports, context, options }) => buildKotlinRelations(
+    buildRelations: ({ text, context, options }) => buildKotlinRelations(
       text,
-      allImports,
       context.kotlinChunks,
       { stats: context.kotlinStats, kotlin: options.kotlin }
     ),
@@ -295,7 +289,7 @@ const LANGUAGE_REGISTRY = [
     match: (ext) => isRuby(ext),
     collectImports: (text) => collectRubyImports(text),
     prepare: ({ text, mode }) => (mode === 'code' ? { rubyChunks: buildRubyChunks(text) } : {}),
-    buildRelations: ({ text, allImports, context }) => buildRubyRelations(text, allImports, context.rubyChunks),
+    buildRelations: ({ text, context }) => buildRubyRelations(text, context.rubyChunks),
     extractDocMeta: ({ chunk }) => extractRubyDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeRubyFlow(text, chunk, flowOptions(options)),
     attachName: true
@@ -305,7 +299,7 @@ const LANGUAGE_REGISTRY = [
     match: (ext) => isPhp(ext),
     collectImports: (text) => collectPhpImports(text),
     prepare: ({ text, mode }) => (mode === 'code' ? { phpChunks: buildPhpChunks(text) } : {}),
-    buildRelations: ({ text, allImports, context }) => buildPhpRelations(text, allImports, context.phpChunks),
+    buildRelations: ({ text, context }) => buildPhpRelations(text, context.phpChunks),
     extractDocMeta: ({ chunk }) => extractPhpDocMeta(chunk),
     flow: ({ text, chunk, options }) => computePhpFlow(text, chunk, flowOptions(options)),
     attachName: true
@@ -320,8 +314,8 @@ const LANGUAGE_REGISTRY = [
         htmlMeta: getHtmlMetadata(text)
       }
       : {}),
-    buildRelations: ({ text, allImports, context }) =>
-      buildHtmlRelations(text, allImports, context.htmlChunks, context.htmlMeta),
+    buildRelations: ({ text, context }) =>
+      buildHtmlRelations(text, context.htmlChunks, context.htmlMeta),
     extractDocMeta: ({ chunk, context }) => extractHtmlDocMeta(chunk, context?.htmlMeta),
     flow: () => computeHtmlFlow(),
     attachName: false
@@ -331,7 +325,7 @@ const LANGUAGE_REGISTRY = [
     match: (ext) => isCss(ext),
     collectImports: (text) => collectCssImports(text),
     prepare: ({ text, mode, options }) => (mode === 'code' ? { cssChunks: buildCssChunks(text, options) } : {}),
-    buildRelations: ({ text, allImports }) => buildCssRelations(text, allImports),
+    buildRelations: ({ text }) => buildCssRelations(text),
     extractDocMeta: ({ chunk }) => extractCssDocMeta(chunk),
     flow: () => computeCssFlow(),
     attachName: false
@@ -341,7 +335,7 @@ const LANGUAGE_REGISTRY = [
     match: (ext) => isLua(ext),
     collectImports: (text) => collectLuaImports(text),
     prepare: ({ text, mode }) => (mode === 'code' ? { luaChunks: buildLuaChunks(text) } : {}),
-    buildRelations: ({ text, allImports, context }) => buildLuaRelations(text, allImports, context.luaChunks),
+    buildRelations: ({ text, context }) => buildLuaRelations(text, context.luaChunks),
     extractDocMeta: ({ chunk }) => extractLuaDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeLuaFlow(text, chunk, flowOptions(options)),
     attachName: true
@@ -353,8 +347,8 @@ const LANGUAGE_REGISTRY = [
     prepare: ({ text, mode, ext, options }) => (mode === 'code'
       ? { sqlChunks: buildSqlChunks(text, { dialect: options.resolveSqlDialect(ext) }) }
       : {}),
-    buildRelations: ({ text, allImports, context, options, ext }) =>
-      buildSqlRelations(text, allImports, context.sqlChunks, {
+    buildRelations: ({ text, context, options, ext }) =>
+      buildSqlRelations(text, context.sqlChunks, {
         dialect: options.resolveSqlDialect(ext),
         log: options.log
       }),
@@ -366,8 +360,8 @@ const LANGUAGE_REGISTRY = [
     id: 'dockerfile',
     match: (ext) => ext === '.dockerfile',
     collectImports: (text) => collectDockerfileImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectDockerfileImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectDockerfileImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -376,8 +370,8 @@ const LANGUAGE_REGISTRY = [
     id: 'makefile',
     match: (ext) => ext === '.makefile',
     collectImports: (text) => collectMakefileImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectMakefileImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectMakefileImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -386,8 +380,8 @@ const LANGUAGE_REGISTRY = [
     id: 'protobuf',
     match: (ext) => ext === '.proto',
     collectImports: (text) => collectProtoImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectProtoImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectProtoImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -396,8 +390,8 @@ const LANGUAGE_REGISTRY = [
     id: 'graphql',
     match: (ext) => ext === '.graphql' || ext === '.gql',
     collectImports: (text) => collectGraphqlImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectGraphqlImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectGraphqlImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -406,8 +400,8 @@ const LANGUAGE_REGISTRY = [
     id: 'cmake',
     match: (ext) => CMAKE_EXTS.has(ext),
     collectImports: (text) => collectCmakeImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectCmakeImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectCmakeImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -416,8 +410,8 @@ const LANGUAGE_REGISTRY = [
     id: 'starlark',
     match: (ext) => STARLARK_EXTS.has(ext),
     collectImports: (text) => collectStarlarkImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectStarlarkImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectStarlarkImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -426,8 +420,8 @@ const LANGUAGE_REGISTRY = [
     id: 'nix',
     match: (ext) => NIX_EXTS.has(ext),
     collectImports: (text) => collectNixImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectNixImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectNixImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -436,8 +430,8 @@ const LANGUAGE_REGISTRY = [
     id: 'dart',
     match: (ext) => DART_EXTS.has(ext),
     collectImports: (text) => collectDartImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectDartImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectDartImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -446,8 +440,8 @@ const LANGUAGE_REGISTRY = [
     id: 'scala',
     match: (ext) => SCALA_EXTS.has(ext),
     collectImports: (text) => collectScalaImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectScalaImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectScalaImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -456,8 +450,8 @@ const LANGUAGE_REGISTRY = [
     id: 'groovy',
     match: (ext) => GROOVY_EXTS.has(ext),
     collectImports: (text) => collectGroovyImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectGroovyImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectGroovyImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -466,8 +460,8 @@ const LANGUAGE_REGISTRY = [
     id: 'r',
     match: (ext) => R_EXTS.has(ext),
     collectImports: (text) => collectRImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectRImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectRImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -476,8 +470,8 @@ const LANGUAGE_REGISTRY = [
     id: 'julia',
     match: (ext) => JULIA_EXTS.has(ext),
     collectImports: (text) => collectJuliaImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectJuliaImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectJuliaImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -486,8 +480,8 @@ const LANGUAGE_REGISTRY = [
     id: 'handlebars',
     match: (ext) => HANDLEBARS_EXTS.has(ext),
     collectImports: (text) => collectHandlebarsImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectHandlebarsImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectHandlebarsImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -496,8 +490,8 @@ const LANGUAGE_REGISTRY = [
     id: 'mustache',
     match: (ext) => MUSTACHE_EXTS.has(ext),
     collectImports: (text) => collectMustacheImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectMustacheImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectMustacheImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -506,8 +500,8 @@ const LANGUAGE_REGISTRY = [
     id: 'jinja',
     match: (ext) => JINJA_EXTS.has(ext),
     collectImports: (text) => collectJinjaImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectJinjaImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectJinjaImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -516,8 +510,8 @@ const LANGUAGE_REGISTRY = [
     id: 'razor',
     match: (ext) => RAZOR_EXTS.has(ext),
     collectImports: (text) => collectRazorImports(text),
-    buildRelations: ({ text, allImports }) =>
-      buildSimpleRelations(collectRazorImports(text), allImports),
+    buildRelations: ({ text }) =>
+      buildSimpleRelations(collectRazorImports(text)),
     extractDocMeta: () => ({}),
     flow: () => null,
     attachName: true
@@ -527,7 +521,7 @@ const LANGUAGE_REGISTRY = [
     match: (ext) => isPerl(ext),
     collectImports: (text) => collectPerlImports(text),
     prepare: ({ text, mode }) => (mode === 'code' ? { perlChunks: buildPerlChunks(text) } : {}),
-    buildRelations: ({ text, allImports, context }) => buildPerlRelations(text, allImports, context.perlChunks),
+    buildRelations: ({ text, context }) => buildPerlRelations(text, context.perlChunks),
     extractDocMeta: ({ chunk }) => extractPerlDocMeta(chunk),
     flow: ({ text, chunk, options }) => computePerlFlow(text, chunk, flowOptions(options)),
     attachName: true
@@ -537,7 +531,7 @@ const LANGUAGE_REGISTRY = [
     match: (ext) => isShell(ext),
     collectImports: (text) => collectShellImports(text),
     prepare: ({ text, mode }) => (mode === 'code' ? { shellChunks: buildShellChunks(text) } : {}),
-    buildRelations: ({ text, allImports, context }) => buildShellRelations(text, allImports, context.shellChunks),
+    buildRelations: ({ text, context }) => buildShellRelations(text, context.shellChunks),
     extractDocMeta: ({ chunk }) => extractShellDocMeta(chunk),
     flow: ({ text, chunk, options }) => computeShellFlow(text, chunk, flowOptions(options)),
     attachName: true
@@ -643,14 +637,31 @@ export function getLanguageForFile(ext, relPath) {
 }
 
 export function collectLanguageImports(input = {}) {
-  const { ext, relPath, text, mode, options, ...rest } = input;
+  const {
+    ext,
+    relPath,
+    text,
+    mode,
+    options,
+    root,
+    filePath,
+    ...rest
+  } = input;
   const lang = getLanguageForFile(ext, relPath);
   if (!lang || typeof lang.collectImports !== 'function') return [];
   const forwarded = {
-    ...rest,
-    ...(options && typeof options === 'object' ? options : {})
+    ...(options && typeof options === 'object' ? options : {}),
+    ...rest
   };
-  const imports = lang.collectImports(text, { ext, relPath, mode, ...forwarded });
+  const merged = {
+    ...forwarded,
+    ext,
+    relPath,
+    mode
+  };
+  if (root) merged.root = root;
+  if (filePath) merged.filePath = filePath;
+  const imports = lang.collectImports(text, merged);
   return Array.isArray(imports) ? imports : [];
 }
 

@@ -1,9 +1,17 @@
 #!/usr/bin/env node
 import { ensureFixtureIndex, runSearch } from '../../helpers/fixture-index.js';
 
+const testConfig = {
+  indexing: {
+    typeInference: true,
+    typeInferenceCrossFile: true
+  }
+};
+
 const { fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'languages',
-  cacheName: 'language-fixture'
+  cacheName: 'language-fixture-types',
+  envOverrides: { PAIROFCLEATS_TEST_CONFIG: JSON.stringify(testConfig) }
 });
 
 const inferred = runSearch({

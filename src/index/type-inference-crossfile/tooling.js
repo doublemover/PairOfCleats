@@ -222,7 +222,8 @@ export const runToolingPass = async ({
   toolingTimeoutMs,
   toolingRetries,
   toolingBreaker,
-  toolingLogDir
+  toolingLogDir,
+  fileTextByFile
 }) => {
   const toolingChunksByFile = filterChunksByPredicate(chunksByFile, (chunk) => !hasToolingReturn(chunk));
   const toolingTypes = new Map();
@@ -270,12 +271,13 @@ export const runToolingPass = async ({
         log('[index] clangd running in best-effort mode (compile_commands.json not found).');
       }
       const clangdLog = createToolingLogger(rootDir, toolingLogDir, 'clangd', log);
-      const clangdResult = await collectClangdTypes({
-        rootDir,
-        chunksByFile: clangdFiles,
-        log: clangdLog,
-        cmd: 'clangd',
-        args: clangdArgs,
+    const clangdResult = await collectClangdTypes({
+      rootDir,
+      chunksByFile: clangdFiles,
+      fileTextByFile,
+      log: clangdLog,
+      cmd: 'clangd',
+      args: clangdArgs,
         timeoutMs: toolingTimeoutMs,
         retries: toolingRetries,
         breakerThreshold: toolingBreaker
@@ -297,6 +299,7 @@ export const runToolingPass = async ({
     const swiftResult = await collectSourcekitTypes({
       rootDir,
       chunksByFile: swiftFiles,
+      fileTextByFile,
       log: sourcekitLog,
       cmd: 'sourcekit-lsp',
       args: [],
@@ -320,6 +323,7 @@ export const runToolingPass = async ({
     const pyrightResult = await collectPyrightTypes({
       rootDir,
       chunksByFile: pyrightFiles,
+      fileTextByFile,
       log: pyrightLog,
       timeoutMs: toolingTimeoutMs,
       retries: toolingRetries,

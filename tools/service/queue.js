@@ -105,6 +105,9 @@ export async function enqueueJob(dirPath, job, maxQueued = null, queueName = nul
       mode: job.mode,
       reason: job.reason || null,
       stage: job.stage || null,
+      buildId: job.buildId || null,
+      buildRoot: job.buildRoot || null,
+      indexRoot: job.indexRoot || null,
       embeddingIdentity: job.embeddingIdentity || null,
       embeddingIdentityKey: job.embeddingIdentityKey || null,
       embeddingPayloadFormatVersion: Number.isFinite(Number(job.embeddingPayloadFormatVersion))

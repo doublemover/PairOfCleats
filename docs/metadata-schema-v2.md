@@ -45,17 +45,33 @@ Each derived signal includes explicit provenance.
   - `version` (string|null)
 - `confidence` (number|null): 0–1 confidence for derived metadata (when applicable).
 
+## Naming conventions
+
+- `chunk.name`: The symbol name captured from the parser/segmenter. Preserve source spelling and
+  casing. It may be fully qualified (e.g., `Namespace.Type.method`) when emitted by tooling.
+- `tooling` symbols: Provider names are treated as authoritative for that provider; they are not
+  normalized to match `chunk.name` (resolution happens during linking).
+- `generatedBy`: Pure provenance (build/tool version), never used as a stable identifier.
+
 ## Doc metadata
 
 - `signature` (string|null)
 - `doc` (string|null): Summary/docstring.
 - `annotations` (string[]): Decorators/attributes.
-- `modifiers` (object): `visibility`, `static`, `abstract`, `async`, `generator`, `readonly`.
+- `modifiers` (string[] | object): Modifier tokens such as `public`, `private`, `static`, `abstract`, `async`, `generator`, `readonly`. Legacy object form may include boolean flags and `visibility` string.
 - `params` (string[]): Parameter names.
 - `returns` (string|null): Declared return type/name.
 - `docComments` (object):
   - `summary` (string|null)
   - `tags` (array)
+
+## Embedded segments
+
+Embedded segments capture code/prose inside container formats (Markdown fences, Vue/Svelte/Astro).
+
+- `embedded.parentSegmentId`: Links to the owning container segment.
+- `embedded.languageId`: Language of the embedded segment (e.g., `javascript` for a fenced block).
+- `embedded.context`: Embedding context hint (`code` or `prose`).
 
 ## Control-flow summary
 
@@ -97,11 +113,14 @@ Each derived signal includes explicit provenance.
 
 ## Type metadata
 
-- `types` (object):
+- `types` (object|null):
   - `declared` (object)
   - `inferred` (object)
   - `tooling` (object)
-  - Each entry includes `{ type, source, confidence }`
+  - Each entry includes `{ type, source, confidence }`.
+  - Buckets map **symbol names** to arrays of entries. For parameter types, `types.*.params` may be either:
+    - an array of entries (legacy, loses parameter name), or
+    - an object of `{ paramName: entry[] }` (canonical, preserves names).
 
 ## Embedded metadata
 

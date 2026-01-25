@@ -1,5 +1,6 @@
 import { writeIndexArtifacts } from '../../artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../contracts/versioning.js';
+import { serializeRiskRulesBundle } from '../../../risk-rules.js';
 import { finalizePerfProfile } from '../../perf-profile.js';
 
 export const writeIndexArtifactsForMode = async ({
@@ -15,6 +16,7 @@ export const writeIndexArtifactsForMode = async ({
   shardSummary
 }) => {
   const finalizedPerfProfile = finalizePerfProfile(perfProfile);
+  const riskRules = serializeRiskRulesBundle(runtime.riskConfig?.rules);
   await writeIndexArtifacts({
     outDir,
     mode,
@@ -49,11 +51,21 @@ export const writeIndexArtifactsForMode = async ({
         treeSitter: runtime.languageOptions?.treeSitter?.enabled !== false,
         lint: runtime.lintEnabled,
         complexity: runtime.complexityEnabled,
-        riskAnalysis: runtime.riskAnalysisEnabled,
-        riskAnalysisCrossFile: runtime.riskAnalysisCrossFileEnabled,
-        typeInference: runtime.typeInferenceEnabled,
-        typeInferenceCrossFile: runtime.typeInferenceCrossFileEnabled,
-        gitBlame: runtime.gitBlameEnabled
+        riskAnalysis: typeof runtime.analysisPolicy?.risk?.enabled === 'boolean'
+          ? runtime.analysisPolicy.risk.enabled
+          : runtime.riskAnalysisEnabled,
+        riskAnalysisCrossFile: typeof runtime.analysisPolicy?.risk?.crossFile === 'boolean'
+          ? runtime.analysisPolicy.risk.crossFile
+          : runtime.riskAnalysisCrossFileEnabled,
+        typeInference: typeof runtime.analysisPolicy?.typeInference?.local?.enabled === 'boolean'
+          ? runtime.analysisPolicy.typeInference.local.enabled
+          : runtime.typeInferenceEnabled,
+        typeInferenceCrossFile: typeof runtime.analysisPolicy?.typeInference?.crossFile?.enabled === 'boolean'
+          ? runtime.analysisPolicy.typeInference.crossFile.enabled
+          : runtime.typeInferenceCrossFileEnabled,
+        gitBlame: typeof runtime.analysisPolicy?.git?.blame === 'boolean'
+          ? runtime.analysisPolicy.git.blame
+          : runtime.gitBlameEnabled
       },
       shards: runtime.shards?.enabled
         ? { enabled: true, plan: shardSummary }
@@ -64,7 +76,8 @@ export const writeIndexArtifactsForMode = async ({
           pending: runtime.stage === 'stage1',
           stage: runtime.stage || null
         }
-        : { enabled: false }
+        : { enabled: false },
+      riskRules: riskRules || null
     }
   });
   return finalizedPerfProfile;

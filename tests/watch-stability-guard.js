@@ -24,4 +24,14 @@ await appendPromise;
 assert.equal(stable, true, 'stability guard should eventually resolve true');
 assert.ok(elapsed >= 150, 'stability guard should wait for file to settle');
 
+const churnFile = path.join(tempRoot, 'churn.txt');
+await fs.writeFile(churnFile, 'seed');
+let churnTimer = setInterval(() => {
+  void fs.appendFile(churnFile, 'x');
+}, 30);
+const churnStable = await waitForStableFile(churnFile, { checks: 3, intervalMs: 50 });
+clearInterval(churnTimer);
+
+assert.equal(churnStable, false, 'stability guard should fail when file keeps changing');
+
 console.log('watch stability guard tests passed');

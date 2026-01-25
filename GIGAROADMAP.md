@@ -15,7 +15,6 @@ Completed Phases: `COMPLETED_PHASES.md`
 ## Roadmap order (foundational-first, maximize leverage)
 
 - Phase 1 — P0 Correctness Hotfixes (Shared Primitives + Indexer Core)
-- Phase 3 — Correctness Endgame (imports • signatures • watch • build state)
 - Phase 4 — Runtime Envelope, Concurrency, and Safety Guardrails
 - Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
 - Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence)
@@ -42,327 +41,6 @@ Completed Phases: `COMPLETED_PHASES.md`
 ## Phase 1 — P0 Correctness Hotfixes (Shared Primitives + Indexer Core) [@]
 
 - [ ] Run targeted tests and `npm run test:pr` once CI lane failures are resolved (see `failing_tests_list.md`, `broken_tests.md`).
-
----
-
-## Phase 3 — Correctness Endgame (imports • signatures • watch • build state)
-
-### Objective
-
-Eliminate the remaining high-impact correctness and operator-safety gaps before broader optimization work: (a) import extraction must be accurate (dynamic imports, TS aliases) and produce a **true dependency graph** (not co-import similarity), (b) incremental reuse must be **provably safe** via complete, deterministic signatures, (c) watch mode must be **stable, bounded, and atomic** (no build-root reuse; promotion only after success), and (d) `build_state.json` / `current.json` must be **concurrency-safe, validated, and debuggable**, so partial/incorrect builds cannot become “current” and failures are diagnosable.
-
----
-
-### 3.1 Fix dynamic import scanning, TS alias handling, and module boundary fidelity
-
-- [ ] Fix the language registry wrapper bug that nests `options` incorrectly when calling `collectImports` (so per-language import collectors actually receive `text`, `options`, `filePath`, `root` as intended).
-  - Primary touchpoints:
-    - `src/index/language-registry/registry.js`
-  - Notes:
-    - Confirm that language-specific collectors that depend on `options` (e.g., WASM/parser options) behave correctly after this fix.
-- [ ] Make JS/TS fast-path import extraction resilient: always run the `require(...)` regex fallback even when `es-module-lexer` parsing fails (so syntax errors don’t suppress require detection).
-  - Primary touchpoints:
-    - `src/index/build/imports.js` (`collectModuleImportsFast`)
-  - Notes:
-    - Keep dynamic `import('...')` extraction when possible (string literal cases), but do not regress the “fast path” on large repositories.
-- [ ] Replace “co-import graph” behavior with true dependency resolution for `importLinks`, so the import graph represents **importer → imported target** for in-repo files (and not “files that share a module string”).
-  - Primary touchpoints:
-    - `src/index/build/imports.js` (import scanning + link construction)
-    - `src/index/build/graphs.js` (consumer expectations for `ImportGraph`)
-    - `src/index/build/file-processor/cached-bundle.js` (preserve/reconstruct relations during reuse)
-  - Implementation details:
-    - For each file, resolve raw import specifiers to repo-local file targets where possible:
-      - Relative specifiers (`./`, `../`): resolve against importer directory; apply extension and `index.*` resolution consistently across JS/TS.
-      - TypeScript path aliases: read `tsconfig.json` (`baseUrl`, `paths`) and resolve alias patterns deterministically; if multiple matches, apply a deterministic tie-break (e.g., shortest path, then lexicographic).
-      - External specifiers (packages): do **not** map into `ImportGraph` file nodes; keep as raw import metadata (for later features) without corrupting the file-to-file graph.
-    - Normalize resolved targets (posix separators, no `..` segments, ensure within repo root).
-
-- [ ] Spec integration: Import Resolution Graph (IRG) — implement as the **single source of truth** for dependency edges
-  - [ ] Define an `ImportResolutionGraph` in-memory model (serializable for debug output) with:
-    - Nodes:
-      - internal file node id: `file:<relPosixPath>`
-      - external module node id: `ext:<rawSpecifier>` (kept out of file-to-file edges)
-    - Directed edges (importer → resolved target) with per-edge metadata:
-      - `rawSpecifier`
-      - `kind: 'import' | 'require' | 'dynamic_import' | 'reexport'`
-      - `resolvedType: 'relative' | 'ts-path' | 'external' | 'unresolved'`
-      - `resolvedPath` (internal only; repo-relative posix)
-      - `packageName` (external only; best-effort)
-      - `tsconfigPath` / `tsPathPattern` (ts-path only; for explainability)
-    - Graph-level metadata (bounded + stable):
-      - `generatedAt`, `toolVersion`, `importScanMode`, `warnings[]` (bounded), `stats`
-  - [ ] Implement a deterministic resolver `resolveImportLinks({ root, importsByFile, languageOptions, mode })`:
-    - [ ] Input: `importsByFile[importerRelPath] = string[]` of raw specifiers (deduped + sorted)
-    - [ ] Output (per file):
-      - `fileRelations.imports` = raw specifiers (sorted unique)
-      - `fileRelations.importLinks` = resolved **internal** targets (sorted unique, importer → target)
-      - `fileRelations.externalImports` = raw external specifiers (sorted unique; optional but recommended)
-    - [ ] Resolution rules (contract):
-      - Relative (`./`, `../`): Node-like file + extension + `index.*` resolution; normalize to posix and ensure within repo.
-      - TS path aliases: load nearest applicable `tsconfig.json` (`baseUrl`, `paths`, `extends`) and resolve with a deterministic tie-break:
-        1) fewest wildcard expansions,
-        2) shortest resolved path,
-        3) lexicographic on normalized path.
-      - External specifiers: never map into `ImportGraph` file nodes; keep as `externalImports`.
-      - Unresolved: do not emit `importLinks` edges; optionally record a bounded warning with `importer`, `rawSpecifier`, `reason`.
-  - [ ] Make the pipeline use IRG outputs consistently (eliminate the co-import adjacency behavior):
-    - [ ] Update `scanImports()` to return `importsByFile` (raw specifiers per importer) in addition to any aggregate stats.
-    - [ ] Refactor language relation builders to stop synthesizing `importLinks` from `allImports`:
-      - `src/lang/javascript/relations.js` (remove `importLinks = imports.map(i => allImports[i])...`)
-      - `src/index/language-registry/registry.js` (TypeScript `importsOnly` path)
-    - [ ] Ensure `src/index/build/graphs.js` uses `fileRelations.importLinks` as true dependency edges (importer → imported target).
-    - [ ] Ensure cached-bundle reuse preserves `imports` and `importLinks` exactly as persisted (no reconstruction from `allImports`).
-  - [ ] (Optional but recommended) Add a debug artifact behind a flag:
-    - `artifacts/import_resolution_graph.json` (or `.jsonl`), capped/sampled to avoid huge outputs.
-- [ ] Remove redundant cached-import reads and ensure cached import lookup is performed at most once per file per scan (avoid “read twice on miss” behavior).
-  - Primary touchpoints:
-    - `src/index/build/imports.js` (`scanImports`)
-  - Implementation details:
-    - When preloading cached imports for sort-by-import-count, store an explicit “miss” sentinel so the later per-file pass does not call `readCachedImports()` again for the same file.
-    - Keep the “import-heavy first” ordering, but make it deterministic and not dependent on incidental Map iteration order.
-- [ ] Fix cached-bundle relation reconstruction correctness: do not rebuild bundle-level fileRelations by sampling a single chunk; enforce presence of the canonical relation data (or treat the bundle as invalid for reuse).
-  - Primary touchpoints:
-    - `src/index/build/file-processor/cached-bundle.js`
-  - Implementation details:
-    - If bundle-level fileRelations are missing, either:
-      - Skip reuse (prefer correctness), or
-      - Recompute by aggregating all chunk-level relations deterministically (only if performance impact is acceptable for this phase).
-- [ ] Fix cached-bundle hash metadata: do not hardcode `hashAlgo: 'sha1'`; preserve the actual hash algorithm used to compute the stored hash.
-  - Primary touchpoints:
-    - `src/index/build/file-processor/cached-bundle.js`
-- [ ] (Optional; may defer) Reduce import-scan I/O by avoiding duplicate file reads when the pipeline already has the file contents in memory.
-  - Primary touchpoints:
-    - `src/index/build/imports.js`
-    - `src/index/build/indexer/steps/process-files.js` (if a “pass-through text” optimization is introduced)
-
-#### Tests
-
-- [ ] Unit test: language registry passes `options` correctly to a test language’s `collectImports` (regression for wrapper nesting bug).
-- [ ] Import extraction regression tests:
-  - [ ] A JS file with a deliberate parse error still yields `require('x')` imports via regex fallback.
-  - [ ] A file with `import('x')` (string literal) is captured where supported by lexer.
-- [ ] Import graph fidelity tests:
-  - [ ] Two different files importing `./utils` in different directories do **not** link to each other; they each link to their own resolved `utils` target.
-  - [ ] A TS alias import resolves using `tsconfig` `paths` and produces a stable file-to-file edge.
-- [ ] Cached bundle reuse tests:
-  - [ ] If bundle-level fileRelations are missing, reuse is skipped (or recomputed correctly across all chunks, depending on chosen design).
-  - [ ] The stored `hashAlgo` matches the configured file hash algorithm (not hardcoded).
-- [ ] Efficiency test (unit-level): `readCachedImports()` is called ≤ 1 time per file per scan in the cache-miss case.
-
-- [ ] Import resolution determinism tests:
-  - [ ] Same repo + config produces identical `importLinks` ordering and identical edge sets across two runs.
-  - [ ] TS config caching behaves correctly: modifying `tsconfig.json` invalidates alias resolution; unchanged tsconfig reuses cached patterns.
-- [ ] External import isolation test:
-  - [ ] `import react from 'react'` does not create a file-to-file edge in `ImportGraph`, but is preserved as an external import (if `externalImports` is enabled).
-
----
-
-### 3.2 Repair incremental cache signature correctness and reuse gating
-
-- [ ] Make signature payload hashing deterministic: replace `sha1(JSON.stringify(payload))` with `sha1(stableStringify(payload))` (or equivalent stable serializer) for both tokenization and incremental signatures.
-  - Primary touchpoints:
-    - `src/index/build/indexer/signatures.js`
-    - `src/shared/stable-json.js` (serializer)
-  - Notes:
-    - This is a correctness change (reproducibility + “explainability” of reuse), even if it increases invalidations.
-
-- [ ] Spec integration: Signature canonicalization utilities + version bump (make hashing reproducible and explainable)
-  - [ ] Add a canonicalizer used **only** for signature-bearing hashes:
-    - Implement `canonicalizeForSignature(value)` to convert non-JSON / order-unstable values into stable JSON-friendly forms:
-      - `RegExp` → `{ __type: 'regexp', source, flags }`
-      - `Set` → sorted array (or `{ __type: 'set', values: [...] }`)
-      - `Map` → sorted `[key,value]` tuples (keys stringified deterministically)
-      - `BigInt` → `{ __type: 'bigint', value: '<decimal>' }`
-      - `undefined` → omitted consistently (or `{ __type: 'undefined' }` if omission is not acceptable; pick one policy and enforce)
-    - Implement `stableStringifyForSignature(obj)`:
-      - stable key ordering for all plain objects
-      - stable ordering only where semantics are “set-like”; otherwise preserve order
-      - no lossy dropping of canonicalized sentinel objects
-  - [ ] Refactor all signature-bearing hash sites to use the canonicalizer (ban raw `JSON.stringify` in these paths):
-    - `src/index/build/indexer/signatures.js` (tokenization + incremental signature)
-    - `src/index/build/runtime/hash.js` (config hash normalization)
-  - [ ] Bump and persist `signatureVersion` (recommend `2`) and treat mismatches as **no reuse**:
-    - record in incremental manifests
-    - record in `build_state.json` diagnostics
-  - [ ] Reuse explainability:
-    - Implement a bounded “top-level delta” diff helper that reports the top N differing keys without dumping entire configs.
-- [ ] Include regex flags (not just `.source`) for signature-bearing regex configuration (e.g., `licensePattern`, `generatedPattern`, `linterPattern`).
-  - Primary touchpoints:
-    - `src/index/build/indexer/signatures.js`
-  - Implementation detail:
-    - Canonicalize regex as `{ source, flags }` (not a raw `RegExp` object) before hashing.
-- [ ] Eliminate hidden signature weakening caused by JSON normalization that drops non-JSON values (e.g., `RegExp` objects) during config hashing. (Static Review: runtime/hash normalization)
-  - Primary touchpoints:
-    - `src/index/build/runtime/hash.js`
-    - `src/index/build/indexer/signatures.js`
-  - Notes:
-    - Ensure any config structures that can contain regex or other non-JSON objects are serialized explicitly and deterministically before hashing.
-- [ ] Stop mutating shared runtime config during a multi-mode build: compute adaptive dict config as a per-run/per-mode derived value instead of overwriting `runtime.dictConfig`. (Static Review B3f60a5bb44d` notes)
-  - Primary touchpoints:
-    - `src/index/build/indexer/pipeline.js`
-    - `src/index/build/indexer/signatures.js` (ensure signatures use the _effective_ dict config)
-  - Notes:
-    - This prevents cross-mode coupling (e.g., `code` mode discovery affecting `prose` mode tokenizationKey).
-- [ ] Add explicit signature versioning / migration behavior so that changing signature semantics does not silently reuse prior manifests.
-  - Primary touchpoints:
-    - `src/index/build/indexer/signatures.js`
-    - `src/index/build/incremental.js` (manifest/state format markers)
-  - Notes:
-    - Bump a `signatureVersion` or `bundleFormat`/manifest marker and treat mismatches as “do not reuse.”
-
-- [ ] Add an “explain reuse decision” diagnostic path for incremental reuse failures (safe-by-default; useful in CI and field debugging).
-  - Primary touchpoints:
-    - `src/index/build/indexer/steps/incremental.js`
-    - `src/index/build/indexer/signatures.js`
-  - Notes:
-    - Keep logs bounded (do not print entire configs by default); prefer “top N differing keys” summary.
-
-#### Tests
-
-- [ ] Unit test: two regexes with identical `.source` but different `.flags` produce different tokenization keys.
-- [ ] Unit test: two payload objects with identical semantics but different key insertion order produce identical signature hashes (stable stringify).
-- [ ] Integration test: multi-mode run (`code` then `prose`) yields the same `prose` signature regardless of `code` file counts (no adaptive dict mutation bleed-through).
-- [ ] Integration test: signatureVersion mismatch causes reuse to be rejected (forced rebuild).
-
-- [ ] Unit test: canonicalization does not throw on unsupported-but-possible config values (e.g., `BigInt`, `Set`, `Map`) and produces stable output.
-- [ ] Unit test: canonicalization policy for `undefined` is deterministic (either consistently omitted or consistently encoded).
-
----
-
-### 3.3 Resolve watch mode instability and ensure build root lifecycle correctness
-
-- [ ] Make watch builds atomic and promotable: each rebuild writes to a new attempt root (or A/B inactive root), validates, then promotes via `current.json`—never reusing the same buildRoot for successive rebuilds. also addresses race class: `9ed923dfae`)
-  - Primary touchpoints:
-    - `src/index/build/watch.js`
-    - `src/index/build/promotion.js`
-    - `src/index/build/runtime/runtime.js` (support “override buildRoot/buildId” or “derive attempt root”)
-  - Notes:
-    - Promotion must occur only after build success + validation; on failure, current stays unchanged.
-    - Decide and document cleanup policy for old attempt roots (time-based, count-based, or explicit `--watch-keep-builds=N`).
-
-- [ ] Spec integration: Watch Atomic Builds (attempt roots + promotion barrier + retention)
-  - [ ] Introduce an attempt manager (new helper module recommended: `src/index/build/watch/attempts.js`):
-    - Derive a stable `watchSessionId` per watch invocation (timestamp + random suffix).
-    - Maintain a monotonic `attemptNumber` and compute:
-      - `attemptBuildId = <watchSessionId>-<attemptNumber>`
-      - `attemptRoot = <repoCacheRoot>/builds/attempts/<attemptBuildId>/`
-    - Ensure attempt roots are never reused (even after failure).
-  - [ ] Promotion barrier contract (fail-closed):
-    - Build artifacts into `attemptRoot`.
-    - Run validation against `attemptRoot` outputs (enough to catch partial/incomplete builds).
-    - Only then call `promoteBuild(...)` to update `current.json`.
-    - On failure: do **not** promote; optionally mark the attempt build_state as failed and keep it for debugging.
-  - [ ] Retention policy (implement + document; safe defaults):
-    - Keep last N successful attempts (default: 2).
-    - Keep last M failed attempts (default: 1) for debugging.
-    - Delete older attempts best-effort after a successful promotion (never during an active attempt).
-  - [ ] Lock backoff policy:
-    - Exponential backoff with jitter (e.g., 50ms → 2s) and a hard max delay.
-    - Log at bounded frequency (first retry, then every ~5s) to avoid spam.
-- [ ] Implement delta-aware discovery in watch: maintain `trackedEntriesByMode` from an initial full scan, update on FS events, and pass the tracked entries into the pipeline—avoiding repeated whole-repo discovery each rebuild.
-  - Primary touchpoints:
-    - `src/index/build/watch.js`
-    - `src/index/build/discover.js` (if helper extraction needed)
-  - Notes:
-    - Include periodic “reconcile scan” to heal missed watcher events (especially on platforms with lossy FS event delivery).
-- [ ] Enforce watch bounds: `maxFiles` and `maxFileBytes` must apply not just to the initial scan, but also to subsequent add/change events.
-  - Primary touchpoints:
-    - `src/index/build/watch.js`
-  - Notes:
-    - Behavior when cap would be exceeded must be explicit (ignore + warn, or evict deterministically, or require reconcile).
-- [ ] Add lock acquisition backoff to prevent tight retry loops when another build holds the lock.
-  - Primary touchpoints:
-    - `src/index/build/watch.js`
-    - `src/index/build/lock.js` (optional helper: backoff strategy / jitter)
-- [ ] Fix watch shutdown crash by guarding scheduler access during initialization and ensuring shutdown is safe at any point in startup.
-  - Primary touchpoints:
-    - `src/index/build/watch.js`
-- [ ] Fix `waitForStableFile()` semantics so it returns `false` if stability is not observed within the configured check window (i.e., do not proceed “as if stable” when it never stabilized).
-  - Primary touchpoints:
-    - `src/index/build/watch.js`
-- [ ] Ensure runtime contains `recordsDir` and `recordsConfig` so watch/discovery can correctly handle record file behavior (and not silently disable records-aware logic).
-  - Primary touchpoints:
-    - `src/index/build/runtime/runtime.js`
-    - `src/index/build/indexer/steps/discover.js`
-    - `src/index/build/watch.js`
-- [ ] Fix Parcel watcher backend ignore behavior to avoid directory misclassification when `fs.Stats` is absent (and prevent incorrect inclusion/exclusion). (Static Review note)
-  - Primary touchpoints:
-    - `src/index/build/watch/backends/parcel.js`
-- [ ] Prevent watch from mutating shared runtime fields (`runtime.incrementalEnabled`, `runtime.argv.incremental`); clone runtime per attempt/build loop (runtime is immutable once constructed). (Static Review 9235afd3e9` notes)
-  - Primary touchpoints:
-    - `src/index/build/watch.js`
-- [ ] Harden ignore file handling used by watch and builds: validate ignore file paths stay within repo root (or require explicit opt-in for absolute paths), and make ignore load failures visible (warn + recorded in state). (Static Review C1
-  - Primary touchpoints:
-    - `src/index/build/ignore.js`
-    - `src/index/build/watch.js` (propagate/report ignore load status)
-
-#### Tests
-
-- [ ] Watch E2E promotion test:
-  - [ ] Start watch, modify a file, assert a new build root is created and `current.json` is updated only after successful completion.
-- [ ] Watch atomicity test:
-  - [ ] Force a controlled failure during rebuild; assert `current.json` remains pointing to the previous build root.
-- [ ] Lock backoff test:
-  - [ ] Hold lock; start watch; assert retries are spaced (no tight loop) and logs show backoff.
-- [ ] Shutdown tests:
-  - [ ] SIGINT during early startup does not throw (scheduler guard).
-  - [ ] SIGINT during an active build stops cleanly and releases lock.
-- [ ] `waitForStableFile` unit test:
-  - [ ] File rewritten repeatedly during check window returns `false`.
-- [ ] Records-aware discovery test:
-  - [ ] With recordsDir configured, record files are handled per expectations (excluded from code/prose, or routed appropriately).
-- [ ] Ignore path safety test:
-  - [ ] `ignoreFiles: ['../outside']` is rejected (or requires explicit opt-in) and is visible in logs/state. (Static Review C1
-
----
-
-### 3.4 Enforce build-state integrity and debugging friendliness
-
-- [ ] Make `build_state.json` updates concurrency-safe: prevent clobbering between heartbeat ticks and phase/progress updates via a per-buildRoot write queue or file lock.
-  - Primary touchpoints:
-    - `src/index/build/build-state.js`
-  - Notes:
-    - “Last write wins” must not erase phase/progress updates; merging must be correct under concurrent callers.
-
-- [ ] Implementation detail (recommended; keeps callers simple and safe):
-  - [ ] Implement `createBuildStateWriter(buildRoot)` that serializes updates through a single note-taking queue:
-    - `enqueue(patch)` performs: read → deep-merge → validate → atomic write
-    - deep-merge at least: `phases`, `progress`, `heartbeat` (and any future nested sections)
-    - coalesce heartbeat writes (e.g., at most 1 write per 5s) to reduce IO churn
-    - never swallow write failures silently; record a bounded error in memory + (optionally) in state
-  - [ ] Add `schemaVersion` and `signatureVersion` to `build_state.json` and require them on read/validate.
-- [ ] Remove or formalize the ambiguous top-level `phase` field (replace with `currentPhase` / `activePhase` and document schema).
-  - Primary touchpoints:
-    - `src/index/build/build-state.js`
-- [ ] Enrich `build_state.json` with the minimum diagnostics needed for field debugging:
-  - buildId, buildRoot, stage/mode, startedAt/finishedAt, counts (files, chunks), and signature identifiers (tokenizationKey/cacheSignature/signatureVersion) to explain reuse/promote decisions.
-  - Primary touchpoints:
-    - `src/index/build/build-state.js`
-    - `src/integrations/core/index.js` (or other orchestration entrypoints that own phase transitions)
-- [ ] Harden `current.json` promotion/read path safety and validation: promotion must reject build roots outside the intended cache root, and readers must fail closed on unsafe/invalid roots. `fde9568d49`; race class: `9ed923dfae`)
-  - Primary touchpoints:
-    - `src/index/build/promotion.js`
-    - `tools/dict-utils.js` (current build resolution)
-  - Notes:
-    - Validate resolved root is within the repo cache root (or within `repoCacheRoot/builds`), not just “some path string.”
-    - If deeper schema overhaul (stage-vs-mode separation) is owned by **Phase 2**, implement the safety validation now and explicitly defer schema redesign to **Phase 2 — Contracts & Policy Kernel** (named follow-on).
-- [ ] Make embedding enqueue clearly best-effort (when configured as optional), and include unambiguous index identity in job payload (buildId + mode + output directory) so background workers cannot target the wrong build. (Static Review
-  - Primary touchpoints:
-    - `src/index/build/indexer/embedding-queue.js`
-    - `tools/build-embeddings.js` (or embedding worker entrypoint consuming payload)
-  - Notes:
-    - If job payload changes require worker updates that are too broad for this phase, implement payload additions now and defer worker consumption hardening to a named follow-on (e.g., **Phase 6 — Service Hardening**).
-
-#### Tests
-
-- [ ] Concurrency test: simulate concurrent `build_state.json` updates (heartbeat + phase update) and assert no loss of fields.
-- [ ] Schema test: `build_state.json` no longer writes ambiguous top-level `phase`; uses documented `currentPhase` field instead.
-- [ ] Promotion safety tests:
-  - [ ] Promotion rejects build roots outside cache root with a clear error.
-  - [ ] Reader rejects unsafe `current.json` roots and falls back safely (fail closed) rather than using arbitrary filesystem paths.
-- [ ] Embedding enqueue tests:
-  - [ ] Enqueue failure logs warning and does not fail the build when configured as optional.
-  - [ ] Enqueued job payload contains build identity fields and is stable across runs.
 
 ---
 
@@ -1978,396 +1656,883 @@ This phase focuses on:
 
 ---
 
-## Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
+## Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking (refined implementation plan)
 
 ### Objective
 
-Introduce canonical, collision-safe chunk and symbol identity so cross-file joins and graph-powered features are correct by construction. This phase eliminates `file::name` collision classes, emits first-class symbol artifacts, and upgrades cross-file inference and retrieval context expansion to use explicit identity with strict validation.
+Eliminate collision-prone name/path joins (e.g., `file::name`) by introducing a **canonical, collision-safe identity layer** for chunks and symbols, and upgrading all cross-file linking, graph construction, and retrieval context expansion to use these identities with strict validation.
+
+This phase produces:
+- A stable **chunk identity** (`chunkUid`) suitable for graph/UI/cache use and deterministic joins.
+- A **symbol identity** model (`scopedId` + optional `symbolId`) that supports cross-file linking without silent ambiguity.
+- First-class artifacts (symbol index + identity mappings) with manifest integration.
+- Guardrails: “fail closed” modes, collision/ambiguity reporting, and regression tests.
+
+### Definitions (canonical vocabulary)
+
+- `docId`: build-local integer document id (stable only within a single build output).
+- `chunkUid`: stable-ish string identifier for a chunk across builds; collision-safe within the repo snapshot; used for joins, graphs, UI.
+- `symbolKey`: non-unique grouping key for candidate lookup (e.g., leaf name, qualified name).
+- `scopedId`: **unique join key** for a symbol candidate within a build output; primary key for internal linking.
+- `symbolId`: optional external/global id with a scheme prefix (e.g., `tsserver:...`, `ctags:...`, `clangd:...`), used when available; never required for correctness.
 
 ### 9.1 Canonical chunk identity contract (`docId` vs `chunkUid`) + persisted mapping artifacts
 
-- [ ] Define and enforce a single canonical identity vocabulary
-  - [ ] Treat `docId` as a build-local integer identifier (stable only within a single build output).
-  - [ ] Introduce `chunkUid` as the stable-ish, graph/UI/cache-facing string identifier used for cross-file joins.
-  - [ ] Ensure no module uses “chunkId” to mean both an integer and a string (rename as needed and enforce via validation).
-  - Touchpoints (expected): `src/index/build/state.js`, `src/index/chunk-id.js`, `src/index/metadata-v2.js`.
-- [ ] Implement `chunkUid` derivation that is resilient to minor line shifts
-  - [ ] Compute a deterministic `spanHash` from the chunk’s text content (hash backend: xxh64 via `src/shared/hash.js`), and include small context hashes to reduce collision risk without anchoring to absolute line numbers.
-    - Detail (recommended): `chunkUid = xxh64(fileRelPath + '\0' + (segmentId||'') + '\0' + spanHash + '\0' + preHash + '\0' + postHash)`.
-  - [ ] Persist `spanHash`, `algoVersion`, and (when used) `pre/post` context hash metadata into `metaV2`.
-  - [ ] If a collision is detected within a `{fileRelPath, segmentId}` scope, deterministically disambiguate and record `collisionOf`.
-  - Touchpoints (expected): chunking pipeline (span text available), `src/index/metadata-v2.js`.
-- [ ] Persist identity mapping artifacts for deterministic joins
-  - [ ] Emit a `docId ↔ chunkUid` mapping artifact for the build (and ensure it is discoverable via `pieces/manifest.json`).
-  - [ ] Emit a `fileId ↔ normalizedRelPath` mapping artifact (so downstream systems do not rely on raw paths).
-  - Touchpoints (expected): artifact writers under `src/index/build/artifacts/writers/`, manifest in `pieces/manifest.json`.
-- [ ] Fail closed on missing identity
-  - [ ] After adapters/normalization, `chunkUid` must never be null/empty.
-  - [ ] Builders and SQLite ingestion must reject any row missing `chunkUid` (or the canonical chunk identity field) with actionable diagnostics.
-  - Touchpoints (expected): `src/index/build/*` writers, `src/storage/sqlite/build/from-artifacts.js`, `src/index/validate.js`.
+- [ ] Introduce `chunkUid` as the canonical, collision-safe chunk identifier
+  - [ ] Add `chunkUid` to `metaV2` and treat it as the preferred identity everywhere a string chunk id is required.
+  - [ ] Deprecate the overloaded usage of `chunkId` (string) vs `docId` (int). In code, enforce:
+    - `docId` is always numeric
+    - `chunkUid` is always a non-empty string
+  - [ ] Update code comments + type guards accordingly (do not rely on “chunkId” as a term).
+  - Files:
+    - `src/index/chunk-id.js`
+    - `src/index/metadata-v2.js`
+    - `src/index/build/state.js` (if it stores docId ↔ chunk id mappings)
+    - `src/index/build/indexer/*` (places that create/store chunk ids)
 
-#### Tests
+- [ ] Implement deterministic `chunkUid` derivation (resilient to small line shifts)
+  - [ ] Derivation must be deterministic, collision-safe, and not depend solely on absolute `start/end` offsets.
+  - [ ] Compute a `spanHash` from the chunk’s extracted text content (not the full file) using the existing hash utilities:
+    - Use `src/shared/hash.js` (current: `sha1` exists; if xxh64 exists, prefer xxh64; otherwise sha1 is acceptable but document it).
+  - [ ] Include additional context hashes to reduce collisions when identical spans repeat:
+    - `preHash`: hash of up to N characters immediately preceding the span (recommended N=64)
+    - `postHash`: hash of up to N characters immediately following the span (recommended N=64)
+  - [ ] Recommended formula (final):
+    - `chunkUid = "chunk_" + HASH(fileRelPath + "\0" + (segmentId||"") + "\0" + spanHash + "\0" + preHash + "\0" + postHash)`
+  - [ ] Add `algoVersion` and all components used (`spanHash`, `preHash`, `postHash`, `segmentId`) to `metaV2` for explainability and future migrations.
+  - [ ] Collision handling:
+    - During build, track collisions of `chunkUid` within `{fileRelPath, segmentId}`.
+    - If collision occurs, deterministically disambiguate by appending `"_cN"` where N increments in lexical order of `(start,end)` for the colliding set.
+    - Persist `collisionOf` pointing to the base `chunkUid` for all suffixed entries.
+  - Files:
+    - `src/index/chunk-id.js` (new `buildChunkUid()`; update `resolveChunkId()` semantics or create `resolveChunkUid()` and migrate call sites)
+    - Chunking pipeline where span text + neighborhood text are available:
+      - `src/index/segments.js`
+      - `src/lang/*/chunks.js` (notably `src/lang/typescript/chunks.js`)
+      - `src/lang/tree-sitter/chunking.js`
+    - `src/shared/hash.js`
 
-- [ ] `tests/identity/chunkuid-stability-line-shift.test.js`
-  - Rebuild fixture where chunks shift lines but text span is identical; assert `chunkUid` values remain unchanged.
-- [ ] `tests/identity/docid-chunkuid-mapping-emitted.test.js`
-  - Build fixture; assert mapping artifacts exist, are referenced in `pieces/manifest.json`, and are internally consistent.
-- [ ] `tests/validate/chunkuid-required.test.js`
-  - Tamper an artifact row to remove `chunkUid`; strict validate (and/or SQLite ingestion) fails with a clear error.
+- [ ] Persist identity mapping artifacts
+  - [ ] Emit `docId_to_chunkUid` mapping artifact and register it in the manifest.
+    - Minimum fields per row: `{ docId, chunkUid, fileId, segmentId?, startOffset?, endOffset? }`
+    - Purpose: deterministic joins for systems that still reference docIds.
+  - [ ] Emit `fileId_to_path` mapping artifact with a canonical normalized path form.
+    - Include `{ fileId, relPath, normRelPath }`
+  - [ ] Ensure both artifacts are discoverable through `pieces/manifest.json` and are written via the standard artifact pipeline.
+  - Files:
+    - `src/index/build/artifacts.js`
+    - `src/index/build/artifacts/writers/*` (add two writers)
+    - `src/shared/artifact-io.js`
+    - `pieces/manifest.json` (or wherever manifest assembly lives)
 
-### 9.2 Canonical symbol identity types + `SymbolRef` contract (no more `file::name` joins)
+- [ ] Enforce “fail closed” chunk identity invariants
+  - [ ] After normalization, every chunk that is eligible for graph/retrieval must have a non-empty `metaV2.chunkUid`.
+  - [ ] Add a validation step that fails the build (or marks build invalid) if:
+    - any eligible chunk has missing/empty chunkUid
+    - collision disambiguation produced duplicates
+  - Files:
+    - `src/index/build/indexer/steps/*` (add/extend validation step)
+    - `src/index/build/validation/*` (if exists)
 
-- [ ] Define and document canonical symbol identity types and when to use each
-  - [ ] `chunkId`: range-specific deterministic identifier for a chunk (keep existing helper behavior, but avoid using it as the cross-file join key when stability is required).
-  - [ ] `symbolKey`: stable grouping key (namespaceKey + file/virtualPath + kind + qualifiedName/scope chain); signature-free by default to reduce churn.
-  - [ ] `scopedId`: unique disambiguated identity derived from `symbolKey` plus a `signatureKey` (and optional container/anchor disambiguator).
-  - [ ] `SymbolId`: upstream semantic ID when available (`scip:` / `lsif:`), with a deterministic fallback (`heur:`).
-  - Touchpoints (expected): `docs/symbol-sources.md` and/or public artifact contract docs, `src/index/chunk-id.js`, `src/index/type-inference-crossfile/symbols.js`.
-- [ ] Implement per-language `signatureKey` normalization + hashing
-  - [ ] Normalize signature strings deterministically and hash into `signatureKey = "sha1:" + sha1(normalizedSignature)` when available.
-  - [ ] Treat `signatureKey` as a secondary disambiguator (not part of `symbolKey`).
-  - Touchpoints (expected): language-specific normalization helpers, `src/index/type-inference-crossfile/*`.
-- [ ] Define a versioned `SymbolRef` envelope usable across graphs, maps, and retrieval
-  - [ ] Schema includes identity fields (`SymbolId`/`scopedId`/`symbolKey`), location anchors (file/virtualPath + range), human label, kind, and evidence.
-  - [ ] Include explicit resolution state: `resolved | ambiguous | unresolved`, and carry candidate lists for ambiguous cases.
-  - [ ] Use truncation metadata for any capped symbol expansion surface.
-  - Touchpoints (expected): `src/index/build/graphs.js`, `src/map/build-map.js`, retrieval output shaping.
+### 9.2 Symbol identity model (`symbolKey`, `scopedId`, `symbolId`) + symbol index artifacts
 
-#### Tests
+- [ ] Define the symbol record schema
+  - [ ] Introduce a `SymbolRecord` shape used throughout indexing and retrieval:
+    - `scopedId` (string, required): unique within a build.
+    - `symbolId` (string, optional): scheme-prefixed external/global id when available.
+    - `kind` (string, optional)
+    - `symbolKey` (string, required): grouping/lookup key (not unique).
+    - `qualifiedName` (string, optional)
+    - `displayName` (string, required)
+    - `declChunkUid` (string, required) — chunk where the symbol is declared/defined.
+    - `declFileId` (int, required)
+    - `declSpan` (object, optional): `{ startOffset, endOffset }` (0-based UTF-16 code unit, half-open)
+    - `confidence` (0..1, required)
+    - `evidence` (array, bounded): origins used to construct/confirm the record
+  - [ ] “scopedId” derivation rules (final):
+    - `scopedId = "sym_" + HASH(declFileId + "\0" + declChunkUid + "\0" + (qualifiedName||displayName) + "\0" + (symbolId||"") + "\0" + kind)`
+    - If two records collide (should be extremely rare), append `"_cN"` by deterministic ordering of `(declSpan.startOffset, declSpan.endOffset)`.
+  - Files:
+    - `src/index/type-inference-crossfile/symbols.js` (upgrade; currently it is only a name→list map)
+    - `src/index/metadata-v2.js` (if symbol data is stored there)
+    - `docs/contracts/*` (optional, but recommended once implemented)
 
-- [ ] `tests/contracts/identity-types-documented.test.js`
-  - Assert contract docs describe `symbolKey`, `scopedId`, and `SymbolId` prefixes.
-- [ ] `tests/identity/signaturekey-normalization.test.js`
-  - Same signature normalizes to the same hash; semantically different signatures yield different hashes.
-- [ ] `tests/symbols/symbolref-envelope-shape.test.js`
-  - Validate emitted `SymbolRef` objects include required versioned fields and resolution state.
+- [ ] Build and persist symbol artifacts
+  - [ ] Emit a `symbols.jsonl` (or sqlite table) artifact containing all `SymbolRecord`s.
+  - [ ] Emit a `symbol_keys.jsonl` artifact mapping `symbolKey` → list of `scopedId`s (bounded per key, with overflow markers).
+  - [ ] Add manifest entries for both artifacts and ensure they are loaded by retrieval and inference modules.
+  - Files:
+    - `src/index/build/artifacts/writers/*` (new writers: symbols + symbolKey index)
+    - `src/index/build/artifacts.js`
+    - `src/index/type-inference-crossfile/*` (builder integration)
+    - `src/retrieval/*` (loader integration)
 
-### 9.3 Collision-safe cross-file inference + tooling-backed typing parity + argMap propagation
+- [ ] Enforce explicit ambiguity handling (no silent tie-breaks)
+  - [ ] All symbol resolution calls must return one of:
+    - `{ status: "resolved", scopedId, confidence }`
+    - `{ status: "ambiguous", candidates: [{scopedId, confidence, reason}] }`
+    - `{ status: "missing" }`
+  - [ ] Ambiguity must never silently choose a winner.
+  - Files:
+    - `src/index/type-inference-crossfile/symbols.js` (replace `resolveUniqueSymbol` with a structured resolver)
+    - Call sites in cross-file inference pipeline:
+      - `src/index/type-inference-crossfile/pipeline.js`
+      - `src/index/type-inference-crossfile/tooling.js`
 
-- [ ] Replace collision-prone `file::name` indexing in cross-file inference
-  - [ ] Use `chunkUid` and/or `symbolKey` as the primary join keys.
-  - [ ] When multiple chunks map to the same `symbolKey`, compute deterministic disambiguators and expose `scopedId`.
-  - [ ] Update `resolveUniqueSymbol` to return explicit ambiguous/unresolved results (not a silent null) so downstream steps can preserve uncertainty.
-  - Touchpoints (expected): `src/index/type-inference-crossfile/pipeline.js`, `src/index/type-inference-crossfile/symbols.js`, `src/index/type-inference-crossfile/extract.js`.
-- [ ] Normalize tooling type output to a single internal representation
-  - [ ] Define canonical `TypeEntry` representation: `{ type, confidence, source, evidence? }`.
-  - [ ] Update providers to emit/normalize into `TypeEntry` consistently.
-  - Touchpoints (expected): `src/index/tooling/typescript-provider.js`, `src/index/tooling/pyright-provider.js`, `src/index/tooling/clangd-provider.js`, `src/index/tooling/sourcekit-provider.js`, `src/index/metadata-v2.js`.
-- [ ] Implement cross-file argMap propagation using call evidence
-  - [ ] Use callsite args + callee parameter names/types to infer parameter types from caller argument types.
-  - [ ] Add depth/cycle caps and deterministic tie-breaking to avoid runaway propagation.
-  - [ ] Ensure call evidence contains argument ranges/text and is emitted deterministically (use callDetails and/or callsites artifact surface, as available).
-  - Touchpoints (expected): `src/index/type-inference-crossfile/*`, relations/callsites producers from Phase 6, `src/index/metadata-v2.js` finalization.
-- [ ] Ensure meta construction occurs after enrichment (no drift)
-  - [ ] Ensure identity/type inference results are applied before `metaV2` is finalized and written.
-  - [ ] If finalization must occur earlier for streaming, persist interim identity/type fields and apply a deterministic “finalization pass” before promotion.
+### 9.3 Upgrade relation graphs to identity-based nodes and edges
 
-#### Tests
+- [ ] Remove dependency on `${file}::${name}` as a key for graph nodes/edges
+  - [ ] Replace `buildLegacyChunkKey()`-based node selection with `chunkUid`:
+    - Node id = `chunk.metaV2.chunkUid`
+    - Store legacy keys only as optional attributes (`legacyKey`) for debugging.
+  - [ ] Update edge resolution: call/usage links must point to `targetChunkUid` or `targetScopedId`.
+    - Prefer `targetScopedId` (symbol edge) when present.
+    - Fall back to `targetChunkUid` (chunk edge) when symbol id is not available.
+    - As a last resort, retain a *non-joining* attribute containing the old `{file, target}` but do not use it for node identity.
+  - [ ] Add validation: if a relation refers to a missing `targetChunkUid` / `targetScopedId`, record it in a `graph_link_errors` report and optionally fail in strict mode.
+  - Files:
+    - `src/index/build/graphs.js` (primary)
+    - `src/index/build/indexer/steps/relations.js` (where relation payloads are assembled)
+    - `src/lang/javascript/relations.js` and other language relation emitters (to emit identity fields once available)
 
-- [ ] `tests/inference/collision-safe-grouping.test.js`
-  - Fixture with two same-named symbols in different scopes; assert both survive and do not collapse.
-- [ ] `tests/inference/resolveUniqueSymbol-ambiguity.test.js`
-  - Ambiguous resolution yields an explicit ambiguous result and does not crash downstream.
-- [ ] `tests/type-inference/typeentry-normalization.test.js`
-  - Provider outputs normalize into `TypeEntry` consistently (shape + confidence bounds).
-- [ ] `tests/type-inference/argmap-propagation.test.js`
-  - Two-file fixture: caller passes a string to a callee parameter; assert callee `metaV2.inferredTypes.params` includes string.
-- [ ] `tests/metadata/metav2-finalization-includes-enrichments.test.js`
-  - Assert `metaV2` includes identity + inferred type fields produced by enrichment passes.
+- [ ] Backcompat bridge (temporary)
+  - [ ] Keep a translation table `{ legacyKey -> chunkUid }` only for ingesting old artifacts, not for building new graphs.
+  - [ ] Provide a one-time migration utility (script or build step) to regenerate graphs from chunks when only legacy data exists.
+  - Files:
+    - `src/index/build/graphs.js` (compat translator)
+    - `src/index/build/indexer/*` (migration hook)
 
-### 9.4 Emit symbol artifacts and use identity in graphs, maps, and retrieval context expansion
+### 9.4 Cross-file type inference and retrieval context expansion consume symbol artifacts
 
-- [ ] Emit first-class public symbol artifacts (JSONL + `.meta.json`)
-  - [ ] `symbols`: one row per canonical symbol (`SymbolId`, `symbolKey`, `scopedId`, label, kind, anchor).
-  - [ ] `symbol_occurrences`: one row per occurrence (def/ref/import/call) with `chunkUid/chunkId`, file/range, and link back to `symbols`.
-  - [ ] `symbol_edges`: identity-based symbol graph (calls/overrides/imports/references) expressed as edges between `SymbolId` or `scopedId`.
-  - [ ] List artifacts in `pieces/manifest.json` and add required-key validation for each.
-  - [ ] Enforce deterministic ordering (stable sort by `(file, range)` and/or `(symbolKey, occurrenceKind)`).
-  - Touchpoints (expected): `src/shared/artifact-io.js`, artifact writers, `src/index/validate.js`.
-- [ ] Upgrade graph building to prefer canonical identity and preserve uncertainty
-  - [ ] Use `SymbolRef` for source/target on edges.
-  - [ ] Do not guess on collisions; emit unresolved/ambiguous edges with candidates and evidence.
-  - [ ] Ensure `graph_relations` (and any derived graph artifacts) use canonical identities rather than `file::name` joins.
-  - Touchpoints (expected): `src/index/build/graphs.js`, `src/index/build/indexer/steps/relations.js`, language relation builders under `src/lang/*`.
-- [ ] Add opt-in symbol neighborhood expansion to retrieval
-  - [ ] When a query hits a symbol-like chunk, optionally expand context with a bounded neighborhood (definition + references + callers/callees).
-  - [ ] Enforce caps (max symbols/edges/chunks) and surface truncation metadata.
-  - [ ] Provide an opt-in “symbol context pack” API surface returning `{ symbols, occurrences, edges, chunks }`.
-  - Touchpoints (expected): `src/retrieval/context-expansion.js`, API surface (CLI/server) as applicable.
-- [ ] Update map builders/clients to key nodes by canonical identity
-  - [ ] Prefer `SymbolId/scopedId` (or `chunkUid` fallback) for map node identity.
-  - Touchpoints (expected): `src/map/build-map.js` and any map data model used by clients.
+- [ ] Cross-file type inference uses the symbol index
+  - [ ] Replace name-only resolution logic with `symbolKey`→candidate list via `symbol_keys` + `symbols` artifact.
+  - [ ] Score candidates using:
+    - kind compatibility (declaration vs value vs namespace)
+    - import graph proximity (same module / direct import / same package)
+    - file path proximity (same directory tree)
+    - tooling-backed `symbolId` match when present
+  - [ ] Ensure inference outputs reference `scopedId` and/or `declChunkUid`, never `file::name`.
+  - Files:
+    - `src/index/type-inference-crossfile/pipeline.js`
+    - `src/index/type-inference-crossfile/symbols.js`
+    - `src/index/type-inference-crossfile/tooling.js`
 
-#### Tests
+- [ ] Retrieval context expansion uses identity-based joins
+  - [ ] When expanding context (neighbors, callers, callees, usages), join by `chunkUid` and/or `scopedId`.
+  - [ ] If a node is ambiguous, surface that ambiguity in the retrieval output metadata (do not pick silently).
+  - Files:
+    - `src/retrieval/output/format.js`
+    - `src/retrieval/output/filters.js`
+    - `src/retrieval/*` (graph-backed expansion components)
 
-- [ ] `tests/symbols/artifacts-emitted.test.js`
-  - Build fixture; assert symbol artifacts are present and listed in the manifest.
-- [ ] `tests/symbols/referential-integrity.test.js`
-  - Assert every occurrence references an existing symbol (or is explicitly unresolved).
-- [ ] `tests/symbols/deterministic-order.test.js`
-  - Build twice; assert stable ordering (or stable sorted equivalence) for symbol artifacts.
-- [ ] `tests/retrieval/symbol-context-expansion.test.js`
-  - Query a symbol; assert returned context includes its definition and at least one reference/callsite chunk.
-- [ ] `tests/retrieval/symbol-context-expansion-caps.test.js`
-  - Construct many references; assert expansion caps apply and truncation metadata is present.
+### 9.5 Storage/ingestion updates (SQLite)
 
-### 9.5 Strict validation for identity collisions and symbol artifact integrity
+- [ ] Extend SQLite schema to store `chunkUid` and (optionally) symbol records
+  - [ ] Schema changes (preferred final state)
+    - Keep existing `chunks.chunk_id` for backward compatibility during migration, but treat it as deprecated.
+    - Add a new column `chunks.chunk_uid TEXT` and make it the canonical persisted identity.
+    - Add an index: `CREATE INDEX chunks_chunk_uid_idx ON chunks(chunk_uid);`
+    - Optionally (if Phase 9 includes storing symbols in SQLite rather than only artifacts):
+      - Add `symbols` table:
+        - `scoped_id TEXT PRIMARY KEY`
+        - `symbol_id TEXT`
+        - `symbol_key TEXT NOT NULL`
+        - `display_name TEXT NOT NULL`
+        - `qualified_name TEXT`
+        - `kind TEXT`
+        - `decl_chunk_uid TEXT NOT NULL`
+        - `decl_file TEXT NOT NULL` (or `decl_file_id INTEGER` if file ids are used in SQLite)
+        - `decl_span TEXT` (json)
+        - `confidence REAL NOT NULL`
+      - Secondary indexes:
+        - `CREATE INDEX symbols_symbol_key_idx ON symbols(symbol_key);`
+        - `CREATE INDEX symbols_symbol_id_idx ON symbols(symbol_id);`
+        - `CREATE INDEX symbols_decl_chunk_uid_idx ON symbols(decl_chunk_uid);`
+  - [ ] Bump `SCHEMA_VERSION` and update required tables list if adding new tables.
+  - [ ] Ingestion updates:
+    - When inserting chunks, set `chunk_uid` from `chunk.metaV2.chunkUid`.
+    - Keep writing `chunk_id` for one release window (or write it as the same as `chunk_uid` during the transition), then remove once downstream migration is complete.
+  - [ ] Retrieval updates:
+    - When reading rows, prefer `row.chunk_uid` and populate `chunk.metaV2.chunkUid`.
+    - Preserve `row.chunk_id` as `legacyChunkId` only.
+  - Files:
+    - `src/storage/sqlite/schema.js`
+    - `src/storage/sqlite/build/statements.js`
+    - `src/storage/sqlite/build-helpers.js`
+    - `src/storage/sqlite/build/from-artifacts.js`
+    - `src/retrieval/sqlite-helpers.js`
+    - `docs/sqlite-index-schema.md` (update to describe `chunk_uid` as canonical)
 
-- [ ] Add strict validation for identity collision classes
-  - [ ] Detect `symbolKey` collisions that cannot be disambiguated and fail with actionable diagnostics (include colliding chunks/files).
-  - [ ] Validate that all symbol edges reference valid symbols (or are explicitly unresolved with evidence).
-  - [ ] Validate symbol occurrence ranges reference valid chunks/files and are in-bounds.
-  - Touchpoints (expected): `src/index/validate.js`.
-- [ ] Enforce “fail closed” invariants for identity-dependent artifacts
-  - [ ] Symbol artifacts and graphs must not silently drop or mis-link due to collisions.
-  - [ ] Any missing required identity field in strict mode fails validation before promotion.
+### 9.6 Validation, reporting, and tests (P0/P1)
 
-#### Tests
+- [ ] Add validation reports (artifacts) for:
+  - `chunk_uid_collisions.jsonl`
+  - `symbol_ambiguities.jsonl`
+  - `graph_link_errors.jsonl`
+  - `identity_invariants.json` (summary counts + thresholds)
+- [ ] Strict-mode gates (configurable):
+  - Fail if chunkUid missing for any eligible chunk.
+  - Fail if `graph_link_errors` exceeds threshold (default 0 in CI).
+  - Fail if symbol ambiguity rate exceeds threshold (default: warn-only, but surfaced).
+- [ ] Unit tests
+  - [ ] `buildChunkUid()` stability: same content with small line shifts yields same chunkUid (when span text unchanged).
+  - [ ] Collision disambiguation deterministic ordering.
+  - [ ] Symbol resolver returns structured results and never silently chooses.
+- [ ] Integration tests
+  - [ ] Build a small fixture repo with two files defining same symbol names; ensure no collisions and correct linking.
+  - [ ] Graph build test: nodes are chunkUid-based; no `${file}::${name}` nodes.
+- Files:
+  - `tests/*` (adjust to actual test layout; if using vitest/jest, place accordingly)
+  - `src/index/chunk-id.js`
+  - `src/index/build/graphs.js`
+  - `src/index/type-inference-crossfile/symbols.js`
 
-- [ ] `tests/validate/symbol-collision-detected.test.js`
-  - Fixture with intentionally colliding symbol keys; strict validate fails and reports both sources.
-- [ ] `tests/validate/symbol-edges-integrity.test.js`
-  - Remove a referenced symbol row; strict validate fails.
-- [ ] `tests/validate/symbol-occurrence-range-integrity.test.js`
-  - Tamper an occurrence range; strict validate fails with an actionable message.
+### Files expected to be touched (consolidated)
+
+Core identity + metadata
+- `src/index/chunk-id.js`
+- `src/shared/hash.js`
+- `src/index/metadata-v2.js`
+- `src/index/build/state.js` (if relevant to id mapping)
+
+Chunking / span extraction (to access span/pre/post text)
+- `src/index/segments.js`
+- `src/lang/tree-sitter/chunking.js`
+- `src/lang/typescript/chunks.js`
+- Other `src/lang/*/chunks.js` as needed
+
+Artifacts + manifest
+- `src/index/build/artifacts.js`
+- `src/index/build/artifacts/writers/*` (new writers)
+- `src/shared/artifact-io.js`
+- `pieces/manifest.json` (or manifest assembly files)
+
+Graphs + relations
+- `src/index/build/graphs.js`
+- `src/index/build/indexer/steps/relations.js`
+- Language relation emitters that can include identity fields:
+  - `src/lang/javascript/relations.js`
+  - Other `src/lang/*/relations.js` if present
+
+Cross-file inference + retrieval
+- `src/index/type-inference-crossfile/symbols.js`
+- `src/index/type-inference-crossfile/pipeline.js`
+- `src/index/type-inference-crossfile/tooling.js`
+- `src/retrieval/output/format.js`
+- `src/retrieval/output/filters.js`
+- Additional `src/retrieval/*` context expansion modules
+
+SQLite ingestion (this phase touches schema and ingestion)
+- `src/storage/sqlite/schema.js`
+- `src/storage/sqlite/build/statements.js`
+- `src/storage/sqlite/build-helpers.js`
+- `src/storage/sqlite/build/from-artifacts.js`
+- `src/retrieval/sqlite-helpers.js`
+- `docs/sqlite-index-schema.md` (post-change documentation)
+- Tests:
+  - `tests/chunk-id-backend-parity.js`
+  - `tests/sqlite-chunk-id.js`
+
+Tests
+- `tests/*` (unit + integration)
+
+### Acceptance criteria (must be true at end of Phase 9)
+
+- No new graphs or relation edges use `${file}::${name}` as a node identity or join key.
+- Every eligible chunk has `metaV2.chunkUid` and it is non-empty.
+- `docId ↔ chunkUid` mapping artifact exists and is referenced in the manifest.
+- A symbol artifact exists (`symbols`) with `scopedId` primary keys and `symbolKey` secondary lookups.
+- Cross-file inference and retrieval context expansion consume symbol/chunk identities and expose ambiguity explicitly.
+- CI includes tests that fail if legacy node ids reappear or if identity invariants break.
 
 ---
 
-## Phase 10 — Interprocedural Risk Flows (taint summaries + propagation)
+# Phase 10 — Interprocedural Risk Flows (arg-aware mode mandatory)
 
-### Objective
+This document distills *all* work required to implement Phase 10 with **argument-aware propagation as non-optional**. It is written in the same planning format as `GIGAROADMAP.md` (phases → subphases → tasks → subtasks → details → tests), but is intentionally more implementation-complete to minimize later repository searching.
 
-Deliver cross-file, explainable taint-to-sink risk flows by (1) generating per-symbol taint summaries (inputs/outputs/sanitizers/sinks) and (2) propagating those summaries across a call graph to emit path-level flow artifacts and retrieval/CLI surfacing, with deterministic output, strict caps, and contract-safe metadata.
-
-- Depends on prior phases that establish **canonical symbol identity** and **cross-file call linking**.
-- When risk-flow path artifacts are disabled, the system must remain backward-compatible with existing local risk detection and optional one-hop cross-file correlation.
+Scope assumptions:
+- Phase 10 depends on prior phases establishing canonical `symbolId` / `chunkId` stability.
+- The current codebase already collects:
+  - `relations.calls` (caller→callee name-level links) and `relations.callDetails` (caller/callee + `args` as strings) for **JavaScript** and **Python** (via the Python AST script).
+  - Per-chunk docmeta including `params`, `paramTypes`, `paramDefaults`, `signature`, etc. for JavaScript.
+- Phase 10 upgrades these into **call-site evidence** + **argument binding** artifacts and uses them to perform **interprocedural taint propagation**.
 
 ---
 
-### 10.1 Contracts, configuration, and rule-model upgrades
+## Phase 10.0 — Non-optional design decisions (lock these before implementing)
 
-- [ ] Define canonical **data contracts** for:
-  - [ ] Per-symbol risk/taint summary (`RiskSummary`)
-  - [ ] Interprocedural flow path record (`RiskFlow`)
-  - [ ] Call-site evidence record (`CallSiteEvidence`)
-  - [ ] Aggregated stats (`RiskFlowStats`)
-  - Notes:
-    - Include `version` and `generatedAt` fields for each artifact (or for each manifest entry), and a `caps`/`limits` structure to make truncation explicit.
-    - Require stable identifiers (`symbolId`, `chunkId`, and `file`) and specify how they are derived (canonical identity contract).
+### 10.0.1 Arg-aware propagation is mandatory
+- Interprocedural propagation MUST use call-site argument binding (arg→param mapping) whenever:
+  - a callee can be resolved to a symbol with known parameter schema; and
+  - a callsite provides parseable argument structure.
+- When binding is not possible, the engine MUST fail closed into explicit `unknownBinding` behavior (see 10.4.5) rather than silently assuming positional mapping.
 
-- [ ] Choose canonical artifact names and formats (primary + optional):
-  - [ ] `risk_summaries.jsonl` (JSONL; one summary per symbol)
-  - [ ] `risk_flows.jsonl` (JSONL; one record per discovered source→sink path)
-  - [ ] `risk_flow_stats.json` (JSON object)
-  - [ ] Optional (only if needed for downstream UI/graph ops): `risk_flow_graph.jsonl` (edge list derived from paths)
-  - Notes:
-    - Prefer path JSONL + optional edge list over adjacency-heavy graphs.
-    - Enforce per-line size limits via **final byte-size checks** before write (no heuristic-only planning).
+### 10.0.2 “CallSiteEvidence” becomes a first-class artifact
+- The system MUST persist callsite evidence (ranges, caller/callee ids, structured arguments) as an artifact whenever Phase 10 is enabled.
+- Reason: retrieval/UX must explain *why* a flow exists without re-parsing code.
 
-- [ ] Define canonical **in-chunk representation** used by retrieval/filtering without loading full flow artifacts:
-  - [ ] `chunk.docmeta.risk.summary` (authoritative runtime data)
-  - [ ] `chunk.metaV2.risk.summary` (serialized view; must reflect final-state mutations)
-  - Notes:
-    - Keep this summary compact (for chunk_meta), while retaining full fidelity in `risk_summaries.jsonl`.
+### 10.0.3 Caps are contract fields, not implementation details
+- Any truncation MUST be explicit in output artifacts via `caps` and `capHit` metadata.
+- Deterministic output requires deterministic truncation order.
 
-- [ ] Add/standardize configuration keys:
-  - [ ] `indexing.riskInterprocedural.enabled` (boolean; default false)
+---
+
+## Phase 10.1 — Contracts, configuration, and versioning
+
+### 10.1.1 Data contracts (JSON Schema + TypeScript types)
+- [ ] Define canonical contracts (and versions) for:
+  - [ ] `RiskSummary` (per symbol)
+  - [ ] `RiskFlow` (path-level record)
+  - [ ] `CallSiteEvidence` (callsite record; structured args + bindings)
+  - [ ] `RiskFlowStats` (aggregate)
+  - [ ] `RiskFlowManifest` (artifact set, versions, caps, generation metadata)
+
+**New files (recommended):**
+- `docs/contracts/risk-flows.md` (human contract + examples)
+- `src/index/risk-interprocedural/contracts.js` (runtime validators / normalizers)
+- `src/index/risk-interprocedural/contracts.d.ts` (types)
+- `src/index/risk-interprocedural/schema/*.json` (JSON schema)
+
+**Hard requirements:**
+- Each record MUST include:
+  - `version` (semver-like string, e.g. `"1.0"`)
+  - `generatedAt` (ISO string)
+  - `buildId` or `provenance` (repo hash / config fingerprint)
+  - `caps` (limits used)
+  - stable ids (`symbolId`, `chunkId`, `fileId`, `callSiteId`) where applicable
+- Each artifact file MUST have a top-level manifest entry in `risk_flow_manifest.json`.
+
+### 10.1.2 Configuration keys (index-time)
+- [ ] Add configuration (under `indexing.*`) and normalize in runtime:
+  - [ ] `indexing.riskInterprocedural.enabled` (bool; default `false`)
   - [ ] `indexing.riskInterprocedural.emitArtifacts` (`"none" | "jsonl"`; default `"jsonl"` when enabled)
-  - [ ] `indexing.riskInterprocedural.summaryOnly` (boolean; compute summaries but skip propagation)
-  - [ ] Caps/limits:
-    - [ ] `maxDepth` (default 4)
-    - [ ] `maxPaths` (default 200)
-    - [ ] `maxEdges` (default 5000)
-    - [ ] `maxMs` (default 75)
-  - Notes:
-    - Preserve the existing `indexing.riskAnalysis` / `indexing.riskAnalysisCrossFile` behavior as legacy mode unless explicitly replaced.
+  - [ ] `indexing.riskInterprocedural.mode` MUST be removed or fixed to `"argAware"` only (no conservative mode in Phase 10 final)
+  - [ ] `indexing.riskInterprocedural.caps.*`
+    - `maxSymbols`, `maxCallSites`, `maxFlows`, `maxPathLen`, `maxMs`, `maxBytesPerFile`, `maxJsonLineBytes`
+  - [ ] `indexing.riskInterprocedural.unknownBindingPolicy`
+    - `"block" | "taintAllArgs" | "taintNone" | "taintReturnOnly"`
+    - **Default: `"block"`** (fail-closed; see 10.4.5)
 
-- [ ] Upgrade the risk-rule model to support interprocedural semantics:
-  - [ ] Add explicit “propagation semantics” fields where needed (e.g., sanitizer categories, optional propagators)
-  - [ ] Update `docs/risk-rules.md` to document new fields and how they affect summaries/propagation
+**Primary modification points:**
+- `src/index/build/runtime/runtime.js` (already normalizes risk config; extend for interprocedural)
+- `src/index/config/*.js` (where config inventory / normalization lives)
 
-- [ ] Harden risk-rule normalization/compilation to avoid silent drops and “empty rule” footguns:
-  - [ ] Emit diagnostics when a regex pattern fails to compile
-  - [ ] Drop any rule that compiles to zero usable patterns (do not keep “empty shells”)
-  - [ ] Record rule provenance + compilation warnings in the bundle output (or runtime logs in non-test)
+### 10.1.3 Validators and fail-fast behavior
+- [ ] Add strict validators that run:
+  - [ ] during build (before writing artifacts), and
+  - [ ] during retrieval (before surfacing flow records).
 
-#### Tests
+Validators MUST check:
+- required keys
+- numeric ranges (e.g., confidence ∈ [0,1])
+- referential integrity (ids exist in the index)
+- line-size guardrails for JSONL artifacts
 
-- [ ] Unit: invalid regex patterns produce diagnostics; rules with zero compiled patterns are excluded.
-- [ ] Unit: rule bundle merge precedence (defaults vs rulesPath vs inline rules) is deterministic.
-- [ ] Contract: JSON schema/required-key checks for `RiskSummary`, `RiskFlow`, and `CallSiteEvidence` (fixtures validate).
-
----
-
-### 10.2 Per-symbol taint summaries (local analysis → callable summary)
-
-- [ ] Implement a summary builder that converts existing local risk signals + lightweight flow hints into per-callable summaries:
-  - [ ] Create `src/index/risk-flows/summaries.js` (or equivalent) exporting `buildRiskSummaries({ chunks, riskRules, caps, identity })`.
-  - [ ] For each callable symbol chunk (function/method/ctor/lambda as available), compute:
-    - [ ] `sources[]` (source rule hits, categories/tags/confidence)
-    - [ ] `sinks[]` (sink rule hits, categories/severity/tags/confidence)
-    - [ ] `sanitizers[]` (sanitizer rule hits)
-    - [ ] `outputs`:
-      - [ ] `returnsTainted` (boolean)
-      - [ ] `taintedParams[]` (params that can carry taint into the function)
-      - [ ] Optional: `taintedFields[]` (e.g., `this.*` writes / known global writes, when detectable)
-    - [ ] `evidence` entries sufficient to justify summary fields without bloating chunk_meta (line numbers + hashes, capped)
-    - [ ] `limits` structure indicating capping/truncation and reason
-  - Notes:
-    - Start conservative: if evidence is insufficient, prefer “unknown” over “incorrectly tainted”.
-    - Keep summaries deterministic (stable sorting for lists; stable selection for capped evidence).
-
-- [ ] Fix parameter/return contract hazards that would corrupt summaries or propagation inputs:
-  - [ ] Normalize `docmeta.params` into a **positional parameter contract** usable across languages.
-    - [ ] Ensure destructured parameters do not explode into unstable keys that break arg→param mapping.
-      - [ ] Store destructured params as positional placeholders (e.g., `arg0`, `arg1`) and (optionally) track binding names separately.
-  - [ ] Normalize `docmeta.returns` to strings at extraction time:
-    - [ ] Accept common object shapes (e.g., `{ type: "T" }`, `{ returnType: "T" }`) and ignore non-strings otherwise.
-  - [ ] Ensure inferred-type extraction does not emit `[object Object]` / non-string values.
-
-- [ ] Attach the compact summary into each chunk’s metadata:
-  - [ ] `chunk.docmeta.risk.summary = ...`
-  - [ ] `chunk.metaV2.risk.summary = ...` (but only after metaV2 is finalized post-enrichment)
-
-#### Tests
-
-- [ ] Unit: summary extraction for a simple function that reads a source (e.g., request input) and hits a sink emits `sources[]`, `sinks[]`, and meaningful `outputs`.
-- [ ] Unit: destructured parameters do not misalign arg→param mapping (positional placeholders preserved).
-- [ ] Unit: return type extraction ignores non-string entries and normalizes object-shaped returns.
-- [ ] Determinism: repeated summary builds over the same fixture produce byte-identical JSONL output.
+**Tests**
+- [ ] Schema validation tests using representative fixtures (good + bad).
+- [ ] Property tests for “invalid record always rejected”.
 
 ---
 
-### 10.3 Call-site evidence and call-edge sampling (enable explainable paths)
+## Phase 10.2 — Upgrade relations extraction to emit call-site evidence + structured args
 
-- [ ] Extend language relation extraction to capture call-site coordinates suitable for explainability:
-  - [ ] JavaScript: include `{ startLine, endLine, startCol, endCol }` on `callDetails` entries.
-  - [ ] Python (and other languages as available): include equivalent line/column fields when parsers provide them.
-  - [ ] Add a snippet strategy:
-    - [ ] Store a short, capped snippet OR a stable `snippetHash` + optional preview.
-    - [ ] Ensure the snippet strategy cannot exceed JSONL per-line limits.
+### 10.2.1 JavaScript: extend `callDetails` payload to structured argument records
 
-- [ ] Replace “over-aggressive dedupe” in cross-file call evidence:
-  - [ ] Keep `callLinks` as a deduped edge set (caller→callee).
-  - [ ] Treat call-site evidence as a bounded sample keyed by location (caller, callee, file, startLine/startCol).
-  - [ ] Preserve multiple distinct call sites (up to cap) rather than collapsing them into one.
+**Current**
+- `src/lang/javascript/relations.js` pushes:
+  - `{ caller, callee, args: string[] }`
 
-- [ ] Emit an optional `call_sites.jsonl` artifact when risk-flow artifacts are enabled:
-  - [ ] Each entry should include:
-    - [ ] `from` / `to` (symbol IDs)
-    - [ ] `file`, `startLine`, `endLine` (and columns when available)
-    - [ ] `argsSummary` (bounded; no raw code blobs)
-    - [ ] `snippetHash` (preferred) and optional snippet preview
-  - Notes:
-    - Call-site evidence must be deterministic (stable sampling order and keys).
+**Target**
+- `callDetails[]` MUST include:
+  - `callSiteId` (stable per file content hash + range)
+  - `callerSymbolKey` (current name-level key, until canonical symbolId is available)
+  - `calleeSymbolKey` (same)
+  - `callerRange` / `calleeRange` (if known; otherwise null)
+  - `callRange` (start/end offsets in UTF-16 code units; half-open `[start,end)`)
+  - `args`: `CallArg[]` (structured; see below)
+  - `argBindingHint`: optional quick hints (e.g., detected named argument patterns, spreads)
+  - `confidence` (0..1) for callee name extraction
 
-#### Tests
+**CallArg contract (JS)**
+- `{ index, kind, text, normalized, ref, literal }`
+  - `index`: 0-based argument position in source call (after spreading; i.e., before expansion)
+  - `kind`: `"positional" | "spread" | "objectLiteral" | "arrowFunction" | "identifier" | "literal" | "unknown"`
+  - `text`: bounded-length snippet (cap ~256 chars)
+  - `normalized`: normalized representation for stable hashing (whitespace collapsed)
+  - `ref`: if the argument is an identifier/member, store `{ name, memberChain?: string }`
+  - `literal`: if literal, store `{ type, valuePreview }` (no full strings over cap)
 
-- [ ] Unit: JS callDetails include stable line/column coordinates for a known fixture.
-- [ ] Integration: call-site evidence sampling retains multiple distinct call sites for the same edge (up to cap).
-- [ ] Size guard: a pathological call site cannot produce a JSONL entry exceeding configured limits.
+**Implementation tasks**
+- [ ] Modify `src/lang/javascript/relations.js`
+  - [ ] Add `callRange` using existing AST node location info (Esprima `range` is 0-based indices; convert to UTF-16 if needed and lock the contract).
+  - [ ] Implement `computeCallSiteId(path, callRange, fileHash)` helper.
+  - [ ] Replace `args: string[]` with structured `CallArg[]`, while also keeping a backward-compatible `argsText: string[]` for one release (optional).
+- [ ] Add unit tests for extraction:
+  - basic calls `f(a,b)`
+  - nested calls `f(g(x), h(y))` (verify args captured, text bounded)
+  - member calls `obj.method(x)`
+  - optional chaining `obj?.method(x)` (if supported in parser)
+  - spreads `f(...xs)`
+  - destructuring argument literal `f({a:1,b})`
+  - arrow/function arguments `f(x => x+1)`
+  - ensure `callSiteId` stability across runs and changes only when `callRange` changes
 
----
+**Primary files**
+- `src/lang/javascript/relations.js`
+- `src/lang/javascript/ast-utils.js` (if helper additions are needed)
 
-### 10.4 Interprocedural propagation engine (summaries + call graph → risk_flows)
+### 10.2.2 Python: extend AST script to emit structured args + keywords
 
-- [ ] Implement propagation across the call graph using summaries:
-  - [ ] Create `src/index/risk-flows/propagate.js` exporting `propagateRiskFlows({ summaries, callLinks, callSites, rules, caps })`.
-  - [ ] Model taint propagation at the summary level:
-    - [ ] Source introduction (direct sources in a symbol)
-    - [ ] Sink reachability (direct sinks in a symbol)
-    - [ ] Sanitizer influence (reduce or terminate propagation, depending on rule semantics)
-    - [ ] Param→output effects and return-taint effects
-  - [ ] Produce `risk_flows.jsonl` records containing:
-    - [ ] `from` / `to` (symbol IDs)
-    - [ ] `source` (rule reference + category)
-    - [ ] `sink` (rule reference + category/severity)
-    - [ ] `path[]` (symbol ID chain)
-    - [ ] `depth`
-    - [ ] `confidence` (0..1)
-    - [ ] `callSites[]` (bounded evidence along the path, if available)
-    - [ ] `notes[]` (e.g., truncation/capping signals)
-  - Notes:
-    - Handle cycles safely (visited sets + depth cap; no infinite loops).
-    - Enforce caps (`maxDepth`, `maxPaths`, `maxEdges`, `maxMs`) and make truncation explicit.
-    - Output must be deterministic (stable adjacency ordering, tie-breakers, and capped selection).
+**Current**
+- `src/lang/python/ast-script.js` emits:
+  - `call_details.append({"caller": caller, "callee": callee, "args": args})`
 
-- [ ] Emit `risk_flow_stats.json`:
-  - [ ] Total summaries, total flows, unique sources/sinks/categories
-  - [ ] Max depth observed, caps hit counts, runtime duration
+**Target**
+- `callDetails[]` MUST include:
+  - `callSiteId`
+  - `callRange` (`lineno/col_offset` + `end_lineno/end_col_offset` where available; also store a derived UTF-16 offset range if text is available in script)
+  - `args`: `CallArg[]` where:
+    - positional args: `{ index, kind:"positional", text, ref?, literal? }`
+    - `*args`: `{ index, kind:"starargs", text:"*..." }`
+    - keyword args: `{ index, kind:"keyword", name, text:"name=..." }`
+    - `**kwargs`: `{ index, kind:"kwargs", text:"**..." }`
 
-- [ ] Optional: emit `risk_flow_graph.jsonl` as an edge list derived from paths (only if downstream consumers need it).
+**Implementation tasks**
+- [ ] Modify `src/lang/python/ast-script.js`
+  - [ ] Capture call expression location (prefer end positions when available; Python 3.8+ has `end_lineno` and `end_col_offset`).
+  - [ ] Emit `callSiteId` deterministically (path + start/end + file hash).
+  - [ ] Emit structured args; keep bounded `text`.
+- [ ] Ensure `src/lang/python/relations.js` passes through `callDetails` unchanged.
+- [ ] Add fixtures and tests (script-level golden tests) for:
+  - `f(a,b)`
+  - `f(a, b=1)`
+  - `f(*xs, **kw)`
+  - `obj.method(x)`
+  - async calls and decorators (ensure no crashes)
 
-#### Tests
+**Primary files**
+- `src/lang/python/ast-script.js`
+- `src/lang/python/relations.js`
 
-- [ ] Unit: multi-hop propagation produces the expected `path[]` and `depth`, with bounded evidence.
-- [ ] Unit: sanitizer on a path reduces confidence (or terminates), per configured semantics.
-- [ ] Unit: cyclic call graphs terminate under caps and emit truncation notes.
-- [ ] Determinism: identical fixtures produce identical `risk_flows.jsonl` ordering/content across runs.
+### 10.2.3 Cross-language contract normalization at ingest
+- [ ] Update `src/index/build/file-processor/relations.js` (the index helper) to:
+  - [ ] accept both legacy `argsText` and structured `args`
+  - [ ] build a per-caller index keyed by `callerSymbolKey` and (when present) `callerSymbolId`
 
----
-
-### 10.5 Indexing pipeline integration, metaV2 finalization, and artifact writing
-
-- [ ] Integrate risk summaries and propagation into the indexing pipeline:
-  - [ ] Update `src/index/build/indexer/steps/relations.js` (or a new step adjacent to it) to run:
-    - [ ] Cross-file call linking first (call graph + call-site evidence assembly)
-    - [ ] `buildRiskSummaries(...)`
-    - [ ] `propagateRiskFlows(...)` (if not `summaryOnly`)
-
-- [ ] Fix cross-file inference gating so risk correlation/flows do not accidentally enable type inference:
-  - [ ] When cross-file work is triggered only for risk, ensure type inference is not executed unless explicitly enabled.
-
-- [ ] Fix “metaV2 drift” caused by enrichment passes mutating docmeta/relations after metaV2 was built:
-  - [ ] Ensure metaV2 is constructed from **final-state** chunk/docmeta right before serialization.
-  - [ ] Prefer a single “finalize metaV2” pass after all enrichment mutations (call links, inferred types, risk summaries, etc.).
-
-- [ ] Add new artifact writers and manifest entries:
-  - [ ] Update `src/index/build/artifacts.js` to write:
-    - [ ] `risk_summaries.jsonl` (sharded)
-    - [ ] `risk_flows.jsonl` (sharded)
-    - [ ] `risk_flow_stats.json`
-    - [ ] optional `call_sites.jsonl` and `risk_flow_graph.jsonl`
-  - [ ] Update `src/shared/artifact-io.js` to:
-    - [ ] Recognize/load new artifacts via manifest
-    - [ ] Add JSONL required keys for the new artifact types
-  - [ ] Ensure per-entry byte-size checks are enforced at write-time, with truncation strategies for verbose fields.
-
-#### Tests
-
-- [ ] Integration: enabling interprocedural risk flows produces all configured risk artifacts and includes them in the pieces manifest.
-- [ ] Regression: chunk_meta metaV2 reflects post-enrichment relations and risk summary fields (no stale serialization).
-- [ ] Config: enabling risk interprocedural features does not activate type inference unless requested.
+**Tests**
+- [ ] Backward-compat tests ensuring older relations objects still index.
 
 ---
 
-### 10.6 Validation and retrieval/UX surfacing
+## Phase 10.3 — Parameter schema normalization (callee-side) for binding
 
-- [ ] Extend index validation to cover new artifacts:
-  - [ ] Update `src/index/validate.js` to validate:
-    - [ ] `risk_summaries.jsonl` required keys, confidence bounds, and referential integrity
-    - [ ] `risk_flows.jsonl` path integrity (`depth` vs path length), referential integrity, capped notes
-    - [ ] `call_sites.jsonl` location validity and referential integrity
-    - [ ] `risk_flow_stats.json` internal consistency (counts match or are explainably capped)
-  - [ ] Ensure `tools/index-validate.js --strict` fails on broken risk artifacts when present.
+### 10.3.1 Define `ParamSchema` as the canonical callee parameter model
+- [ ] Define `ParamSchema` as:
+  - `params: ParamSlot[]` in declared order (0-based)
+  - `restParam?: { name, slotIndex }` (JS `...rest`, Python `*args`)
+  - `kwargsParam?: { name }` (Python `**kwargs`)
+  - `hasDefaults: boolean`
+  - `paramNameToSlot`: map for keyword binding (Python) and future JS named-arg conventions (object literal heuristics)
 
-- [ ] Add retrieval/CLI surfacing for risk summaries and flows:
-  - [ ] Add an option to display `risk.summary` in result output (compact and deterministic).
-  - [ ] Add an option to expand and render interprocedural flows for a selected chunk/symbol when `risk_flows.jsonl` is present.
-  - [ ] Add basic filtering controls (by sink category/severity, minimum confidence).
-  - Notes:
-    - If risk artifacts are absent, fall back to existing local `docmeta.risk` display.
+**ParamSlot**
+- `{ slotIndex, name, kind, bindings?, type?, default? }`
+  - `kind`: `"positional" | "destructured" | "this" | "receiver" | "unknown"`
+  - `bindings`: optional list of binding names if destructured (kept stable; never explode into arbitrary keys)
 
-- [ ] Documentation:
-  - [ ] Add `docs/artifacts/risk_flows.md` covering artifact semantics, schemas, and caps.
-  - [ ] Update `docs/risk-rules.md` to reflect new rule semantics.
-  - [ ] Update `docs/config.md` (or equivalent) to document new `indexing.riskInterprocedural.*` keys and legacy behavior.
+### 10.3.2 JavaScript: tighten docmeta params to a positional contract
+**Current**
+- `src/lang/javascript/docmeta.js` returns `params` from AST meta or JSDoc regex, and includes `paramDefaults` and `paramTypes`.
 
-#### Tests
+**Required upgrades**
+- [ ] Ensure destructured params do not produce unstable keys.
+  - If the AST meta yields destructuring, emit `ParamSlot.kind="destructured"` and stable placeholder name like `arg0`, `arg1`.
+  - Store discovered binding names under `bindings` (bounded list and length).
+- [ ] Ensure `params.length` matches the function signature arity from AST meta when available.
 
-- [ ] Validation: fixture index with risk artifacts passes `index-validate --strict`.
-- [ ] CLI: smoke test renders risk summary and (when enabled) at least one multi-hop flow with call-site evidence.
-- [ ] Backward compatibility: disabling interprocedural risk flows preserves current output semantics.
+**Primary files**
+- `src/lang/javascript/docmeta.js`
+- (if needed) `src/lang/javascript/relations.js` meta collection that feeds `astMeta.functionMeta` (so meta params are accurate)
+
+**Tests**
+- [ ] `function f({a,b}, [c,d], e=1, ...rest) {}`
+  - assert param slots: `arg0 (destructured bindings=[a,b])`, `arg1 (destructured bindings=[c,d])`, `e`, `rest`
+- [ ] method forms and constructors (verify receiver handling if needed)
+
+### 10.3.3 Python: add function signature extraction for `ParamSchema`
+- [ ] Extend Python AST script to emit per-function parameter schema in `defs` or a dedicated `functionMeta` section:
+  - parameter names in order
+  - defaults
+  - `*args` and `**kwargs`
+  - keyword-only args
+
+**Primary files**
+- `src/lang/python/ast-script.js`
+
+**Tests**
+- golden test for:
+  - `def f(a,b=1,*args,c=2,**kwargs): ...`
+
+---
+
+## Phase 10.4 — Argument binding engine (callsite args → callee ParamSchema)
+
+### 10.4.1 Implement `bindCallArguments(callDetails, calleeParamSchema) -> ArgBinding`
+**New module**
+- `src/index/risk-interprocedural/arg-binding.js`
+
+**ArgBinding output**
+- `bindings: BindingEntry[]`
+- `unboundArgs: CallArg[]`
+- `unboundParams: ParamSlot[]`
+- `status: "ok" | "partial" | "failed"`
+- `reason?: string`
+- `confidence: 0..1`
+
+**BindingEntry**
+- `{ argIndex, slotIndex, paramName, argKind, paramKind, note? }`
+
+### 10.4.2 JS binding rules (deterministic)
+- Positional mapping:
+  - map positional args to positional slots in order
+  - spreads:
+    - if spread arg present and callee has rest param, bind spread to rest slot with `note:"spreadToRest"`
+    - otherwise `failed` unless `unknownBindingPolicy` allows widening
+- object literal heuristic (optional but recommended):
+  - if callee first param is destructured placeholder (`arg0`) with known bindings `[a,b,c]`
+  - and call arg is object literal, try to bind property keys to those bindings for improved explainability (DO NOT change taint semantics unless you later implement field-sensitive taint)
+- function arguments (callbacks):
+  - treat as ordinary values for taint purposes; only record `kind:"arrowFunction"` for evidence.
+
+### 10.4.3 Python binding rules (keyword-aware)
+- Positional args bind first.
+- Keyword args bind by name.
+- `*args` binds to `*args` slot if present, else marks unbound.
+- `**kwargs` binds to kwargs slot if present, else marks unbound.
+- Keyword-only args:
+  - must be satisfied by keyword form or default; otherwise mark unbound param.
+
+### 10.4.4 Binding cache and throughput
+- [ ] Cache `ParamSchema` by `calleeSymbolId` (or key) and reuse across callsites.
+- [ ] Cache binding results for identical `(calleeSymbolId, callArgShapeHash)` to avoid repeated binding.
+
+**Performance tests**
+- micro-benchmark binding 100k callsites with repeated shapes; assert CPU time within acceptable bound.
+
+### 10.4.5 Unknown binding policy (fail-closed default)
+- `unknownBindingPolicy="block"`:
+  - propagation across that call edge is disallowed
+  - emit a `RiskFlow` diagnostic record of type `"blockedEdge"` if diagnostics enabled
+- Alternatives (allowed via config, but not default):
+  - `"taintAllArgs"`: conservatively assume any param may receive any arg
+  - `"taintNone"`: skip propagation silently
+  - `"taintReturnOnly"`: only propagate return-taint assumptions
+
+**Tests**
+- verify each policy yields deterministic results with the same inputs.
+
+---
+
+## Phase 10.5 — Risk summaries per symbol (callee-side summaries)
+
+### 10.5.1 Compute `RiskSummary` per symbol from local signals + docmeta
+- [ ] New module:
+  - `src/index/risk-interprocedural/summary.js`
+
+**Inputs**
+- per-chunk `detectRiskSignals(...)` output (existing)
+- docmeta `ParamSchema` (Phase 10.3)
+- lightweight flow info (if available; e.g., JS `dataflow/controlFlow` in docmeta)
+
+**Outputs**
+- `RiskSummary` entries keyed by `symbolId`:
+  - `sources`: list of source signals (and which parameter/return they taint)
+  - `sinks`: list of sink signals (and required taint preconditions if any)
+  - `sanitizers`: list of sanitizing transformations
+  - `taintSummary`:
+    - `taintedParams: number[]` (slot indices)
+    - `taintsReturn: boolean`
+    - optional `paramToReturn: number[]` (slot indices that may flow to return)
+    - optional `paramToSink: { slotIndex, sinkId }[]`
+
+**Tests**
+- unit tests mapping simple local patterns into summary slots.
+- golden tests for representative JS + Python fixtures.
+
+### 10.5.2 Artifact emission: `risk_summaries.jsonl`
+- [ ] Add writer that enforces:
+  - max line bytes
+  - deterministic ordering (sort by `symbolId`)
+  - sharding on size
+
+**Primary files**
+- `src/index/build/artifacts/writers/*` (add `risk-summaries.js`)
+- `src/shared/json-stream.js` (already supports JSONL/sharding; reuse)
+
+---
+
+## Phase 10.6 — Interprocedural propagation engine (arg-aware mandatory)
+
+### 10.6.1 Build a call graph view suitable for propagation
+- [ ] Use existing graph build step where possible:
+  - locate/extend: `src/index/build/graphs.js` and relation graphs built in `src/index/build/indexer/steps/relations.js`
+- [ ] Ensure call graph edges can reference:
+  - caller symbol
+  - callee symbol
+  - callsite id (for evidence)
+  - binding object (Phase 10.4 output)
+
+### 10.6.2 Propagation semantics (taint summaries across call edges)
+**Engine module**
+- `src/index/risk-interprocedural/propagate.js`
+
+**Core algorithm**
+- Inputs:
+  - `RiskSummary` for each symbol
+  - call graph edges with bindings
+- Compute:
+  - for each call edge, infer taint transfer:
+    - from caller argument expression → callee param slot (via binding)
+    - from callee `taintsReturn`/`paramToReturn` → caller assignment target (if extractable; otherwise attach to call expression “return value”)
+    - to sinks: if callee contains sinks that depend on tainted params, and the bound args are tainted, emit flows
+
+**Minimum viable arg-aware behavior**
+- If a callee summary indicates:
+  - param slot `i` flows to sink `S`
+  - and at a callsite, arg `j` binds to slot `i`
+  - and arg `j` is (or contains) a source signal in caller scope
+  - then emit a `RiskFlow` path: `source@caller → callsite → sink@callee`
+- Expand multi-hop by iterating until fixpoint or caps.
+
+### 10.6.3 Deterministic traversal and truncation
+- Traversal order MUST be stable:
+  - sort nodes by `symbolId`
+  - sort outgoing edges by `(calleeSymbolId, callSiteId)`
+- Truncation order MUST be stable and recorded:
+  - when caps hit, record `capHit=true` and which cap.
+
+### 10.6.4 Concurrency model
+- Propagation can be parallelized by:
+  - strongly connected components (SCCs) computed once
+  - or by symbol partitions with careful merge
+- However, determinism > parallelism:
+  - Start single-threaded deterministic; add parallelism only when stable.
+- If parallel: outputs must still be globally sorted before write.
+
+### 10.6.5 Artifact emission: `risk_flows.jsonl` + `risk_flow_stats.json`
+- `risk_flows.jsonl` record MUST include:
+  - `flowId` (stable hash)
+  - `source` (symbolId, chunkId, range, ruleId)
+  - `sink` (symbolId, chunkId, range, ruleId)
+  - `path` (ordered list of hops; includes callSiteId and binding evidence references)
+  - `confidence` (aggregate; min/avg rules)
+  - `caps` and `capHit`
+
+**Tests**
+- deterministic golden output tests for a fixed fixture repo:
+  - run build twice; outputs identical byte-for-byte
+- cap tests:
+  - small caps force truncation; verify `capHit` reported and stable truncation order
+
+---
+
+## Phase 10.7 — Persisted CallSiteEvidence artifact (mandatory)
+
+### 10.7.1 `call_sites.jsonl` artifact
+- [ ] Writer outputs one record per callsite:
+  - `callSiteId`, `fileId`, `chunkId`, `callerSymbolId?`, `calleeSymbolId?`
+  - `callRange`
+  - `args` (structured)
+  - `binding` (if callee resolved + schema available)
+  - `resolution` info:
+    - resolved callee confidence
+    - resolution method (`"name" | "importLink" | "tooling" | "heuristic"`)
+- [ ] This artifact is used by retrieval to explain flows.
+
+**Primary integration point**
+- `src/index/build/indexer/steps/relations.js` (after relations computed and graphs built)
+
+**Tests**
+- verify one-to-one relationship between call edges and evidence records (within caps).
+
+---
+
+## Phase 10.8 — Retrieval/CLI surfacing (explainable, low-latency)
+
+### 10.8.1 Retrieval structures
+- [ ] Ensure retrieval does not require loading full `risk_flows.jsonl` into memory:
+  - build an index (lightweight) keyed by:
+    - `symbolId`
+    - `fileId`
+    - `ruleId`
+    - `severity`
+- [ ] Optional: store summary refs in `chunk_meta`:
+  - compact “hasFlows / flowCountsBySeverity / topRules” only
+
+### 10.8.2 CLI output and formatting
+- [ ] Add CLI commands or flags:
+  - `pairofcleats risk flows --file <path> --symbol <id> --rule <ruleId>`
+- Output MUST include:
+  - flow header (source→sink)
+  - hop list with callsite snippets (from `CallSiteEvidence.args[].text`)
+  - binding preview (e.g., `userInput -> param:query`)
+
+**Tests**
+- snapshot tests for CLI output formatting, including truncation messages.
+
+---
+
+## Phase 10.9 — End-to-end integration into build pipeline
+
+### 10.9.1 Wire-up in build runtime
+- [ ] Add a new build step after:
+  - relations + graphs are available
+  - local risk signals are computed
+- This step:
+  1) builds/loads `ParamSchema` per symbol
+  2) binds callsites
+  3) computes `RiskSummary`
+  4) runs propagation
+  5) writes `risk_summaries.jsonl`, `risk_flows.jsonl`, `call_sites.jsonl`, stats + manifest
+
+**Primary file candidates**
+- `src/index/build/indexer/steps/*` (add `risk-interprocedural.js`)
+- `src/index/build/indexer/steps/process-files.js` (where steps are sequenced)
+
+### 10.9.2 Manifests and incremental compatibility
+- [ ] Add entries for new artifacts into the artifact manifest system (if present).
+- [ ] If incremental builds exist, ensure:
+  - unchanged files do not force recomputation of all flows unless necessary
+  - but determinism is preserved
+
+**Tests**
+- incremental build test:
+  - change one leaf file; verify limited recomputation and consistent outputs.
+
+---
+
+## Phase 10.10 — Comprehensive test plan (must be implemented)
+
+### 10.10.1 Unit tests
+- JS relations callsite extraction tests (10.2.1)
+- Python AST script callsite extraction tests (10.2.2)
+- ParamSchema normalization tests (10.3)
+- Arg binding tests (10.4)
+- Summary computation tests (10.5)
+- Propagation engine tests (10.6)
+
+### 10.10.2 Integration tests (fixture repo)
+Create a small `fixtures/risk-flows/` mini-repo with:
+- JS:
+  - a source function `getUserInput()`
+  - a sanitizer `escape()`
+  - a sink `exec(sql)`
+  - wrapper functions that pass args through across files
+- Python:
+  - similar patterns with keyword args and `*args/**kwargs`
+
+Assertions:
+- flows exist only when binding supports it (default `block` policy)
+- flows include correct binding evidence (arg→param)
+- determinism: byte-for-byte identical outputs across two runs
+- caps: enforce stable truncation order and `capHit` visibility
+
+### 10.10.3 Performance tests
+- micro-bench:
+  - 100k synthetic callsites, 10k symbols, repeated arg shapes
+  - ensure binding cache hit rate and total ms within target budget
+- memory tests:
+  - ensure JSONL streaming writers do not buffer entire artifact in memory
+
+---
+
+## Appendix A — Concrete codebase touch-list (initial)
+
+This list is intentionally explicit so implementation can proceed without repo-wide searching.
+
+### JavaScript callsite + args
+- `src/lang/javascript/relations.js` (extend callDetails: callSiteId, callRange, structured args)
+- `src/lang/javascript/ast-utils.js` (helpers, if needed)
+- `src/lang/javascript/docmeta.js` (ParamSchema normalization: destructuring placeholders + bindings)
+
+### Python callsite + args + ParamSchema
+- `src/lang/python/ast-script.js` (emit callsite ranges, structured args, and function param schemas)
+- `src/lang/python/relations.js` (pass-through / compatibility)
+
+### Index ingest + graphs
+- `src/index/build/file-processor/relations.js` (ingest both legacy and structured callDetails)
+- `src/index/build/indexer/steps/relations.js` (emit call_sites artifact; link to graphs)
+- `src/index/build/graphs.js` (ensure edge representation can carry callSiteId)
+
+### Risk engine
+- `src/index/risk.js` (local signals remain; interprocedural in new module)
+- `src/index/risk-interprocedural/*` (new folder: contracts, binding, summary, propagate, writers)
+
+### Artifact writers
+- `src/index/build/artifacts/writers/risk-summaries.js` (new)
+- `src/index/build/artifacts/writers/risk-flows.js` (new)
+- `src/index/build/artifacts/writers/call-sites.js` (new)
+- `src/shared/json-stream.js` (reuse; add helpers only if necessary)
+
+---
+
+## Appendix B — Example record sketches (non-normative)
+
+### CallSiteEvidence (JSONL line)
+```json
+{
+  "version":"1.0",
+  "generatedAt":"2026-01-24T00:00:00.000Z",
+  "callSiteId":"cs_9d0f...e2",
+  "fileId":"f_...",
+  "chunkId":"c_...",
+  "callerSymbolId":"sym_...",
+  "calleeSymbolId":"sym_...",
+  "callRange":{"start":1234,"end":1256},
+  "args":[
+    {"index":0,"kind":"identifier","text":"userInput","ref":{"name":"userInput"}},
+    {"index":1,"kind":"literal","text":"'SELECT * FROM t'","literal":{"type":"string","valuePreview":"SELECT * FROM t"}}
+  ],
+  "binding":{
+    "status":"ok",
+    "confidence":1.0,
+    "bindings":[
+      {"argIndex":0,"slotIndex":0,"paramName":"query","argKind":"identifier","paramKind":"positional"}
+    ]
+  }
+}
+```
+
+### RiskSummary (JSONL line)
+```json
+{
+  "version":"1.0",
+  "symbolId":"sym_...",
+  "chunkId":"c_...",
+  "taintSummary":{
+    "taintsReturn":true,
+    "paramToSink":[{"slotIndex":0,"sinkId":"sql.exec"}]
+  },
+  "sources":[],
+  "sinks":[{"sinkId":"sql.exec","severity":"high"}],
+  "caps":{"maxNodes":15000,"maxEdges":45000}
+}
+```
+
+### RiskFlow (JSONL line)
+```json
+{
+  "version":"1.0",
+  "flowId":"rf_...",
+  "source":{"symbolId":"sym_getUserInput","ruleId":"source.userInput"},
+  "sink":{"symbolId":"sym_exec","ruleId":"sink.sqlExec"},
+  "path":[
+    {"kind":"call","callSiteId":"cs_...","caller":"sym_wrapper","callee":"sym_exec","bindingRef":"cs_..."}
+  ],
+  "confidence":0.9,
+  "capHit":false
+}
+```
 
 ---
 
@@ -2382,286 +2547,493 @@ Turn graph and identity primitives into **safe, bounded, deterministic** product
 - The default search contract must remain stable: graph features can change ordering when enabled, but must not change membership/correctness.
 
 ---
+# Phase 11 — Graph-Powered Product Features (Context Packs, Impact, Explainability, Ranking)
+*Refined implementation plan in “GigaRoadmap / Codex plan-to-disk” format*
 
-### 11.1 Graph context packs (bounded neighborhood extraction) + retrieval context-expansion hardening
+**Scope:** Implement Phase 11 product surfaces that consume the SymbolId-keyed graph layer to power deterministic, explainable features:
+1) Context Packs (graph-expanded retrieval bundles)  
+2) Impact Analysis (blast radius with evidence-rich paths)  
+3) Graph-Aware Ranking (bounded additive boosts)  
+4) Unified Graph Explainability contract (shared “why” envelopes)
 
-- [ ] Define a graph context pack contract (JSON-first; Markdown render optional).
-  - Output shape (minimum):
-    - `seed` (canonical id + type)
-    - `nodes[]` (bounded; stable ordering)
-    - `edges[]` (bounded; stable ordering; include direction and edge type)
-    - `paths[]` (optional; bounded witness paths when requested)
-    - `truncation[]` (one or more truncation records; absent only when no caps trigger)
-    - `warnings[]` (e.g., missing artifacts, partial/unresolved edges)
-  - Link safety:
-    - Any edge endpoint that fails to resolve MUST use a reference envelope (resolved/ambiguous/unresolved + candidates + reason + confidence).
-  - Cap surface (configurable):
-    - `maxDepth`, `maxFanoutPerNode`, `maxNodes`, `maxEdges`, `maxPaths`, `maxWallClockMs`.
+**Inputs (authoritative specs):**
+- `spec-context-packs.md`
+- `spec-impact-analysis.md`
+- `spec-graph-ranking.md`
+- `spec-graph-explainability.md`
 
-- [ ] Implement deterministic neighborhood extraction for a seed id (k-hop).
-  - Prefer graph source artifacts when present:
-    - `graph_relations` for call/usage/import graphs (baseline).
-    - `symbol_edges` / callsite artifacts (when available) for evidence and SymbolId identity.
-  - Deterministic traversal:
-    - Stable adjacency ordering (lexicographic by canonical id, then edge type).
-    - Deterministic tie-breaking when budgets are hit (e.g., keep lowest id first, or keep highest confidence first, but make it explicit and stable).
-  - Strict bounding:
-    - Enforce caps during traversal (no “collect everything then slice”).
-    - Record truncation metadata with which cap triggered and how much was omitted.
-
-- [ ] Refactor `src/retrieval/context-expansion.js` so it is safe to reuse as the neighborhood engine (or provide a thin wrapper).
-  - Touchpoints:
-    - `src/retrieval/context-expansion.js`
-    - `src/shared/artifact-io.js` (artifact presence checks via manifest)
-  - [ ] Eliminate eager `{id, reason}` candidate explosion.
-    - Convert candidate generation to a streaming/short-circuit loop that stops as soon as `maxPerHit` / `maxTotal` is satisfied.
-    - Add per-source caps (e.g., max call edges examined, max import links examined) so worst-case repos cannot allocate unbounded candidate sets.
-  - [ ] Remove duplicate scanning and make reason selection intentional.
-    - Track candidates in a `Map<id, { bestReason, bestPriority, reasons? }>` rather than pushing duplicates into arrays.
-    - Define a fixed reason priority order (example: call > usage > export > import > nameFallback) and document it.
-    - When `--explain` is enabled, optionally retain the top-N reasons per id (bounded).
-  - [ ] Stop assuming `chunkMeta[id]` is a valid dereference forever.
-    - Build a `byDocId` (and/or `byChunkUid`) lookup once and use it for dereferencing.
-    - If a dense array invariant is still desired for performance, validate it explicitly and fall back to map deref when violated.
-  - [ ] Prefer identity-first joins.
-    - When graph artifacts exist, resolve neighbors via canonical ids rather than `byName` joins.
-    - Keep name-based joins only as an explicit fallback mode with low-confidence markers.
-
-#### Tests
-
-- [ ] `tests/graph/context-pack-basic.test.js`
-  - Build a small fixture graph; request a context pack for a known seed; assert expected caller/callee/import/usage neighbors are present.
-- [ ] `tests/graph/context-pack-caps.test.js`
-  - Use a large synthetic graph fixture; assert truncation metadata is present and stable when caps trigger.
-- [ ] `tests/retrieval/context-expansion-no-candidate-explosion.test.js`
-  - Stress fixture with many relations; assert expansion completes within a time/memory budget and does not allocate unbounded candidate arrays.
-- [ ] `tests/retrieval/context-expansion-reason-precedence.test.js`
-  - A chunk reachable via multiple relation types records the highest-priority reason deterministically.
-- [ ] `tests/retrieval/context-expansion-shuffled-chunkmeta.test.js`
-  - Provide a shuffled `chunkMeta` where array index != docId; assert expansion still resolves correct chunks via a map-based dereference.
+This plan is written to minimize downstream searching: it enumerates concrete contracts, algorithms, file touchpoints, and required tests.
 
 ---
 
-### 11.2 Impact analysis (callers/callees + k-hop impact radius) with witness paths
+## 11.0 Preconditions / dependency gates (hard requirements)
 
-- [ ] Implement bounded impact analysis on top of the same neighborhood extraction primitives.
-  - Provide `impactAnalysis(seed, { direction, depth, caps, edgeFilters })` returning:
-    - impacted nodes (bounded; stable ordering)
-    - at least one witness path per impacted node when available (bounded; do not enumerate all paths)
-    - explicit unresolved/partial path markers when edges cannot be resolved.
-  - Deterministic ordering:
-    - stable sort by `(distance, confidence desc, name/id asc)` (or equivalent stable rule), and document it.
-- [ ] CLI surface (API-ready internal design).
-  - Add `pairofcleats impact --repo … --seed <id> --direction upstream|downstream --depth 2 --format json|md`.
-  - Ensure the implementation is factored so an API/MCP handler can call the same core function with the same caps and output schema.
-- [ ] Optional “changed-set” impact mode (non-blocking in this phase).
-  - Accept `--changed <file>` repeated (or a file containing paths) and compute:
-    - impacted symbols in and around changed files, then traverse upstream/downstream bounded.
-  - If SCM integration is unavailable, degrade gracefully (explicit warning; still supports explicit `--changed` lists).
+### 11.0.1 Required upstream milestones (must be true before starting Phase 11)
+- **Symbol identity is available** (preferred `symbolId`, fallback `chunkUid`; never `file::name`).
+- A **normalized graph layer** exists and is loadable in retrieval runtime:
+  - nodes keyed by `symbolId` when present
+  - edges typed: `call`, `usage`, `import`, `export`, `dataflow`
+  - edges carry `evidenceId?`, `confidence?`, and `resolution` for ambiguous/unresolved cases
+- Chunk records can be loaded as canonical “ChunkRecord” with:
+  - `chunkUid` (required)
+  - `fileRelPath`, ranges/lines, language id, stable excerpt source
+- Index root detection and signature are available via current loader patterns (`src/retrieval/cli-index.js`, `src/retrieval/index-cache.js`).
 
-#### Tests
+### 11.0.2 Capability gates (must be explicit; no silent fallback)
+- If graph artifacts are missing:
+  - In **strict** mode: fail closed with `POC_E_NOT_SUPPORTED` + actionable message
+  - In **warn** mode: proceed with seeds-only pack and record `graphMissing=true`
+- If callsite evidence artifacts are missing:
+  - In **strict** mode with `requireEvidence=true`: drop edges without evidence (and record drop reasons)
+  - In warn/loose: include edges but mark `evidenceMissing` in explain
 
-- [ ] `tests/graph/impact-analysis-downstream.test.js`
-  - Seed a function; assert downstream impacted nodes include an expected callee and a witness path is returned.
-- [ ] `tests/graph/impact-analysis-upstream.test.js`
-  - Seed a function; assert upstream impacted nodes include an expected caller and a witness path is returned.
-- [ ] `tests/graph/impact-analysis-caps-and-truncation.test.js`
-  - Trigger caps deterministically; assert truncation metadata identifies which cap fired and results remain stable.
-
----
-
-### 11.3 Context pack assembly for tooling/LLM (chunk text + graph + types + risk) + explainability rendering
-
-- [ ] Implement a “context pack assembler” that composes multiple bounded slices into a single package.
-  - Inputs:
-    - `seed` (chunkUid/SymbolId)
-    - budgets (`maxTokens` and/or `maxBytes`, plus graph caps)
-    - toggles (includeTypes, includeRisk, includeImports, includeUsages, includeCallersCallees)
-  - Output (recommended minimum):
-    - `primary` (chunk excerpt + stable identifiers + file/segment provenance)
-    - `graph` (from 11.1; bounded neighborhood)
-    - `types` (bounded: referenced/declared/inferred/tooling-backed summaries when available)
-    - `risk` (bounded: top-N flows/summaries crossing the seed, with callsite evidence when present)
-    - `truncation[]` (aggregate truncation across slices)
-    - `warnings[]` (missing artifacts, partial resolution, disabled features)
-  - Notes:
-    - Do not embed large raw code blobs; prefer bounded excerpts and (when needed) snippet hashes + location coordinates.
-    - Use stable ordering inside each slice so context packs are deterministic across runs.
-- [ ] Add CLI surface:
-  - `pairofcleats context-pack --repo … --seed <id> --hops 2 --maxTokens 4000 --format json|md`
-  - For Markdown output, use consistent sections and a deterministic ordering (primary first, then callers/callees, then imports/usages, then risk).
-- [ ] Add explain-risk rendering for flows when risk artifacts exist.
-  - Provide an output mode (flag or subcommand) that prints:
-    - the path of symbols/chunks
-    - file/line evidence (callsites) when present
-    - rule ids/categories and confidence
-    - bounded snippets or snippet hashes (never unbounded)
-  - Ensure output is stable, capped, and does not assume optional color helpers exist.
-- [ ] Harden retrieval output helpers used by these features (integrate known bugs in touched files).
-  - Touchpoints:
-    - `src/retrieval/output/context.js`
-    - `src/retrieval/output/explain.js`
-  - [ ] `cleanContext()` must remove fence lines that include language tags.
-    - Treat any line whose trimmed form starts with ``` as a fence line.
-  - [ ] `cleanContext()` must not throw on non-string items.
-    - Guard/coerce before calling `.trim()`.
-  - [ ] Explain formatting must not assume `color.gray()` exists.
-    - Provide a no-color fallback when `color?.gray` is not a function.
-
-#### Tests
-
-- [ ] `tests/graph-features/context-pack-assembly.test.js`
-  - Build fixture; assemble a context pack; assert it contains primary + at least one neighbor + deterministic truncation structure.
-- [ ] `tests/graph-features/risk-explain-render.test.js`
-  - Use a risk-flow fixture; assert output includes a call path and evidence coordinates and remains bounded.
-- [ ] `tests/output/clean-context-fences.test.js`
-  - Ensure `ts / `json fences are removed (not just bare ```).
-- [ ] `tests/output/clean-context-nonstring-guard.test.js`
-  - Feed non-string items; assert no crash and only string lines survive.
-- [ ] `tests/output/explain-color-fallback.test.js`
-  - Provide a partial color impl; assert explain rendering does not throw.
+### 11.0.3 Hard budgets (enforced regardless of config)
+- Context packs:
+  - `maxHops <= 4`
+  - `maxItems <= 250`
+  - `maxItemsPerSection <= 80`
+  - `maxBytesPerItem <= 64_000`
+  - `maxTotalChars <= 2_000_000`
+- Impact reports:
+  - `maxDepth <= 8`
+  - `maxPaths <= 5000`
+  - `maxPathsPerImpacted <= 20`
+  - `maxImpacted <= 2000`
+  - `snippetMaxBytes <= 16384`
+- Graph ranking:
+  - graph contribution ≤ **20%** of total score (hard rule)
 
 ---
 
-### 11.4 Graph-aware ranking hooks (opt-in) + explainability
+## 11.1 Shared contracts module (Explainability + stable IDs + canonical sorting)
 
-- [ ] Introduce optional graph-aware ranking features that can be enabled without changing result membership.
-  - Candidate feature families (bounded, deterministic):
-    - node degree / in-degree / out-degree (prefer precomputed analytics artifacts when available)
-    - proximity to the query-hit seed within the graph neighborhood (bounded k-hop)
-    - proximity to risk hotspots (if risk summaries/flows exist)
-    - same-cluster bonus (if clustering artifacts exist; deterministic cluster id remapping is assumed)
-  - Guardrails:
-    - Never compute expensive global graph metrics per query unless explicitly cached and bounded.
-    - Default behavior remains unchanged unless explicitly enabled.
+### 11.1.1 Create shared contracts for explainability
+**New module:** `src/shared/explain/`
+- `src/shared/explain/schema.js`
+  - exports JSON schemas (or Zod/Ajv-ready schema objects) for:
+    - `ExplainEnvelope`
+    - `ExplainRef` (evidence pointers)
+    - `ExplainReason` (rule-based inclusion reasons)
+- `src/shared/explain/normalize.js`
+  - canonicalization helpers:
+    - stable key ordering (for snapshot tests)
+    - drop undefined fields (consistent)
+- `src/shared/explain/errors.js`
+  - shared error codes used by Phase 11 surfaces:
+    - `POC_E_NOT_SUPPORTED`
+    - `POC_E_CONTRACT_VERSION`
+    - `POC_E_BUDGET_EXCEEDED`
+    - `POC_E_INDEX_MISSING`
+    - `POC_E_INVALID_ARGS`
 
-- [ ] Integrate into retrieval ranking with an explicit feature-hook layer.
-  - Touchpoints (expected):
-    - `src/retrieval/pipeline.js` (scoring assembly + explain output)
-    - `src/retrieval/cli/run-search-session.js` / options normalization (flag plumbing)
-  - Configuration:
-    - `retrieval.graphRanking.enabled` (default false)
-    - `retrieval.graphRanking.weights` (explicit; versioned defaults)
-    - `retrieval.graphRanking.maxGraphWorkMs` (time budget)
-  - Explainability:
-    - When `--explain` (or a dedicated `--explain-ranking`) is enabled, include a `graph` section in the score breakdown:
-      - feature contributions and the final blended delta.
+**Determinism requirements**
+- Provide `canonicalStringify(obj)` wrapper (reuse existing stable stringify utilities if present; otherwise implement locally and re-export).
+- Provide `stableSort(items, keys...)` helper used across context packs and impact.
 
-#### Tests
+### 11.1.2 Shared identity helpers
+**New module:** `src/shared/identity/`
+- `src/shared/identity/ids.js`
+  - `getPrimaryId({ symbolId?, chunkUid }) -> string` (symbolId preferred)
+  - `requireChunkUid(chunk)` (throws `POC_E_CONTRACT_VERSION` if missing after normalization)
+- `src/shared/identity/ranges.js`
+  - Offset contract: **UTF-16 code unit offsets**, half-open `[start,end)`
+  - Helpers to normalize `{range, lines}` and enforce invariants
 
-- [ ] `tests/retrieval/graph-ranking-toggle.test.js`
-  - Run the same query with graph ranking off/on; assert result sets are identical but ordering may differ.
-- [ ] `tests/retrieval/graph-ranking-explain.test.js`
-  - With explain enabled, assert output includes named graph feature contributions.
-- [ ] `tests/retrieval/graph-ranking-determinism.test.js`
-  - Re-run the same query twice with graph ranking enabled; assert ordering and explain payload are stable.
+### 11.1.3 Shared evidence registry
+**New module:** `src/shared/evidence/`
+- `src/shared/evidence/load.js`
+  - `loadEvidenceById(indexRoot, evidenceIds[]) -> Map`
+  - must support at least:
+    - callsite evidence (from call_sites artifact, if present)
+    - import statement evidence (if graph stores it)
+    - identifier usage evidence (if stored)
+- `src/shared/evidence/schema.js`
+  - defines evidence record shapes and a common `EvidenceRef` shape
+- `src/shared/evidence/confidence.js`
+  - default confidence fallbacks:
+    - resolved edge w/o evidence: 0.55
+    - ambiguous edge: 0.30
+    - unresolved edge: 0.0 (excluded unless loose)
 
----
-
-### 11.5 Graph expansion caps as a config surface + calibration harness (language × size tier)
-
-- [ ] Make graph expansion caps first-class, shared configuration rather than hard-coded constants.
-  - Touchpoints (expected):
-    - `src/index/build/graphs.js` (replace `GRAPH_MAX_NODES/EDGES` constants with config-driven caps; record which cap triggered)
-      - Also enforce identity-first graph node IDs for new writes (no `file::name` fallbacks); legacy keys, if still needed, are read-compat only and must not overwrite collisions.
-    - `src/retrieval/context-expansion.js` (use the same cap vocabulary; always emit truncation metadata when caps trigger)
-    - `docs/perf/graph-caps.md` (document defaults and tuning)
-  - Required behavior:
-    - Every expansion returns truncation metadata when it truncates.
-    - Truncation metadata must indicate which cap fired and provide counts (omitted nodes/edges/paths) when measurable.
-- [ ] Implement a metrics-harvesting harness to justify default caps.
-  - Inputs:
-    - Use/extend `benchmarks/repos.json` to define repos.
-    - Normalize into tiers: small / typical / large / huge / problematic(massive).
-  - For each repo/tier (outside CI for huge/problematic):
-    - run indexing with graphs enabled
-    - compute graph distributions (node/edge counts, degree stats, SCC size)
-    - run bounded neighborhood expansions for representative seeds (random, top-degree, entrypoints)
-    - record timing and output sizes
-  - Outputs:
-    - versioned bundle under `benchmarks/results/<date>/graph-caps/`
-    - machine-readable defaults: `defaults/graph-caps.json` keyed by language (and optionally tier)
-    - documentation: `docs/perf/graph-caps.md` (p95 behavior for typical tier + presets for huge/problematic)
-
-#### Tests
-
-- [ ] `tests/graphs/caps-enforced-and-reported.test.js`
-  - Build a small fixture; request deep expansion; assert caps trigger deterministically and truncation metadata is present.
-- [ ] `tests/bench/graph-caps-harness-smoke.test.js`
-  - Run the harness on a tiny in-tree fixture; assert it writes a results JSON file with required fields and deterministic ordering.
+### 11.1.4 Tests
+- `tests/unit/explain/canonical-stringify.unit.js`
+  - stable output for object key ordering; identical inputs => identical string
+- `tests/unit/identity/range-normalization.unit.js`
+  - enforces UTF-16 offsets and half-open ranges
+- `tests/unit/evidence/confidence-defaults.unit.js`
+  - verifies fallback confidence values and strictness behaviors
 
 ---
 
-### 11.6 Cross-file API contracts (report + optional artifact)
+## 11.2 Graph layer loader + normalization facade (retrieval-side)
 
-- [ ] Provide an API-contract extraction/report surface based on existing artifacts (do not require new parsing).
-  - For each exported symbol (as available via symbol artifacts):
-    - canonical signature (declared + tooling-backed when available)
-    - observed call signatures (from bounded callsite evidence / callDetails summaries)
-    - compatibility warnings (arity mismatches, incompatible argument kinds, unresolved targets)
-  - Output formats:
-    - JSON (machine; versioned schema)
-    - Markdown (human; deterministic ordering)
-  - Strict caps:
-    - max symbols analyzed per run
-    - max calls sampled per symbol
-    - max warnings emitted (with truncation metadata)
-- [ ] CLI surface:
-  - `pairofcleats api-contracts --repo … [--only-exports] [--fail-on-warn] --format json|md`
-- [ ] Optional: enable an artifact emitter for downstream automation.
-  - `api_contracts.jsonl` (one record per symbol) with strict schema validation and caps.
+### 11.2.1 Implement a single graph facade for Phase 11 consumers
+**New module:** `src/retrieval/graph/`
+- `src/retrieval/graph/load.js`
+  - `loadGraphLayer({ indexRoot, strictness }) -> { nodes, edges, meta }`
+  - reads existing graph artifacts through `src/shared/artifact-io.js` (no direct filenames)
+  - normalizes into in-memory tables:
+    - `adjOut[type][fromId] -> Edge[]`
+    - `adjIn[type][toId]  -> Edge[]`
+- `src/retrieval/graph/normalize.js`
+  - applies:
+    - stable sorting of adjacency lists by `(confidence desc, toId asc, evidenceId asc)`
+    - drops/marks edges based on strictness + `resolution.status`
+- `src/retrieval/graph/schema.js`
+  - defines the normalized edge contract used by both context packs and impact analysis:
+    - `{ type, fromId, toId, evidenceId?, confidence?, resolution? }`
 
-#### Tests
+### 11.2.2 Resolution policy integration (ambiguous/unresolved edges)
+- Implement helper `isEdgeTraversable(edge, requestPolicy, strictness)`:
+  - if `edge.resolution.status !== 'resolved'` and `allowAmbiguousEdges=false` => do not traverse
+  - record dropped-edge stats in caller
 
-- [ ] `tests/contracts/api-contracts-basic.test.js`
-  - Fixture with an exported function called with multiple shapes; assert contract report includes observed calls and a mismatch warning.
-- [ ] `tests/contracts/api-contracts-caps.test.js`
-  - Trigger caps; assert truncation metadata is present and stable.
-
----
-
-### 11.7 Architecture slicing and boundary enforcement (rules + CI-friendly output)
-
-- [ ] Add a rules format for architectural constraints over graphs.
-  - Rule types (minimum viable):
-    - forbidden edges by path glob/module group (importGraph)
-    - forbidden call edges by symbol tags or file globs (callGraph)
-    - layering rules (optional; best-effort) that detect edges going “up-layer”
-  - Outputs:
-    - bounded report with counts, top offending edges, and a deterministic ordering
-    - CI-friendly JSON (versioned schema)
-- [ ] CLI surface:
-  - `pairofcleats architecture-check --repo … --rules <path> --format json|md [--fail-on-violation]`
-
-#### Tests
-
-- [ ] `tests/architecture/forbidden-import-edge.test.js`
-  - Fixture with a forbidden import; assert violation is reported deterministically.
-- [ ] `tests/architecture/report-is-bounded.test.js`
-  - Large fixture triggers caps; assert truncation metadata exists and report remains parseable.
+### 11.2.3 Tests
+- `tests/unit/graph/graph-loader-determinism.unit.js`
+  - loads fixture graph twice; adjacency tables must be identical
+- `tests/unit/graph/edge-traversal-policy.unit.js`
+  - strict/warn/loose + allowAmbiguousEdges matrix
 
 ---
 
-### 11.8 Test selection heuristics (suggest tests impacted by a change set)
+## 11.3 Context Packs (artifact-backed, deterministic)
 
-- [ ] Implement a bounded, deterministic test suggestion tool that uses graphs when available.
-  - Identify tests using path conventions and language-aware patterns:
-    - `*.test.*`, `*_test.*`, `/tests/`, `__tests__/`, etc.
-  - Given a changed set (`--changed <file>` repeated or a file list):
-    - map changed files/symbols to seed nodes
-    - traverse upstream/downstream within caps
-    - rank candidate tests based on witness paths, proximity, and (optional) centrality
-  - Output:
-    - top-K suggested tests + brief rationale (witness path summary), bounded and deterministic
-- [ ] CLI surface:
-  - `pairofcleats suggest-tests --repo … --changed <...> --max 50 --format json|md`
+### 11.3.1 Implement core Context Pack builder
+**New module:** `src/retrieval/context-packs/`
+- `src/retrieval/context-packs/request.js`
+  - parse/validate `PackRequest`
+  - apply defaults and enforce hard caps
+- `src/retrieval/context-packs/build.js`
+  - `buildContextPack({ request, seeds, graph, chunkLoader, evidenceLoader }) -> ContextPack`
+  - algorithm MUST implement:
+    - hop-bounded expansion up to `maxHops`
+    - evidence rules (`requireEvidence`, evidenceKinds)
+    - scoring:
+      - `hybridScore = clamp01(0.70*seedScore + 0.20*distanceScore + 0.10*evidenceScore)`
+      - `distanceScore = 1/(1+graphDistance)`
+    - stable ordering + tie-breakers:
+      1) request.ordering.primary
+      2) `hybridScore desc`
+      3) `graphDistance asc`
+      4) `fileRelPath asc`
+      5) `range.start asc`
+      6) `chunkUid asc`
+      7) `symbolId asc` (if present)
+    - section allocation with per-section budgets
+- `src/retrieval/context-packs/sections.js`
+  - canonical section list:
+    - `seeds, callers, callees, imports, exports, usages, dataflow, tests, docs, related`
+  - per-section inclusion rules and caps
+- `src/retrieval/context-packs/excerpts.js`
+  - excerpt extraction must prefer canonical chunk text:
+    - from chunk record store (artifact/SQLite/LMDB)
+    - avoid re-reading raw file unless chunk text not available
+  - apply `maxBytesPerItem` with deterministic truncation and `truncation` metadata
+- `src/retrieval/context-packs/cache.js`
+  - pack cache key:
+    - `sha256(indexSignature + canonical(PackRequest))`
+  - storage location (recommended):
+    - `<repoCacheRoot>/derived/context_packs/<indexSignature>/`
+    - store:
+      - `context_packs.jsonl` (or sharded)
+      - `context_packs.meta.json`
+      - `manifest.json` (derived-store manifest; do NOT mutate build `pieces/manifest.json`)
 
-#### Tests
+### 11.3.2 CLI integration
+**Modify:**
+- `src/retrieval/cli-args.js` (or appropriate CLI arg plumbing) to add:
+  - `context-pack` command and flags:
+    - `--repo`, `--query`, `--intent`, `--focus`, `--max-hops`, `--edge-types`, `--direction`, budgets, `--strictness`, `--explain`
+    - `--write` (persist) / `--read --pack-id` (load)
+- `src/retrieval/cli.js` (command routing)
+- `src/retrieval/output/*`:
+  - renderers for human output and JSON output
+  - JSON output must embed `formatVersion`, `schema`, `schemaVersion`
 
-- [ ] `tests/tests-selection/suggest-tests-basic.test.js`
-  - Fixture where a changed function is called by a test; assert the test is suggested.
-- [ ] `tests/tests-selection/suggest-tests-bounded.test.js`
-  - Trigger caps; assert truncation metadata is present and ordering is stable.
+### 11.3.3 MCP integration
+**Modify:**
+- `src/integrations/mcp/defs.js`
+  - add tools:
+    - `context_pack.create`
+    - `context_pack.get`
+  - define input schema matching `PackRequest` and output schema `ContextPack`
+- `tools/mcp/tools.js`
+  - implement handlers that call the same internal builder as CLI
+
+### 11.3.4 Tests (mandatory)
+**Fixtures**
+- Add fixture repo: `tests/fixtures/phase11/graph-small/`
+  - files:
+    - `a.ts` exports `foo()`
+    - `b.ts` imports and calls `foo()`
+    - `c.ts` calls `b()`
+    - `a.test.ts` calls `foo()` (test relation)
+    - `README.md` mentions `foo` (docs section coverage)
+
+**Unit tests**
+- `tests/unit/context-packs/budget-enforcement.unit.js`
+- `tests/unit/context-packs/ordering-determinism.unit.js`
+- `tests/unit/context-packs/evidence-gap-policy.unit.js`
+
+**Integration tests**
+- `tests/services/context-pack-deterministic.services.js`
+  - build index for fixture
+  - produce pack twice (same request) and assert canonical JSON equality
+- `tests/services/context-pack-cache-invalidation.services.js`
+  - rebuild index after modifying fixture; assert indexSignature differs; cache miss; new pack differs
+
+**Golden tests**
+- `tests/golden/context_pack_v1.json`
+- `tests/services/context-pack-golden.services.js`
+  - canonicalize and compare; require explicit update to change
+
+---
+
+## 11.4 Impact Analysis (path-first blast radius)
+
+### 11.4.1 Implement core impact analyzer
+**New module:** `src/retrieval/impact/`
+- `src/retrieval/impact/request.js`
+  - validate/apply defaults for `ImpactRequest`, enforce hard caps
+  - resolve `ChangeSeed` to `{ primaryId, symbolId?, chunkUid?, fileRelPath? }`
+- `src/retrieval/impact/analyze.js`
+  - `analyzeImpact({ request, graph, chunkLoader, evidenceLoader }) -> ImpactReport`
+  - traversal:
+    - bounded BFS with priority queue:
+      1) higher evidence confidence
+      2) shorter distance
+      3) stable tie-break
+  - direction semantics (lock explicitly):
+    - downstream for call edges means **reverse traversal** (callers of seed)
+  - scoring:
+    - `distanceScore = 1/(1+hops)`
+    - `evidenceScore = geometricMean(confidence per hop)`
+      - fallbacks as defined in `src/shared/evidence/confidence.js`
+    - `edgeWeightScore` weights:
+      - call 1.0, usage 0.8, import 0.6, export 0.6, dataflow 1.0
+    - `score = clamp01(0.45*evidenceScore + 0.35*distanceScore + 0.20*edgeWeightScore)`
+  - selection:
+    - keep top `maxPathsPerImpacted` paths per impacted target
+    - stable ordering:
+      - bestPath.score desc
+      - bestPath.hops asc
+      - impacted.fileRelPath asc
+      - impacted.symbolId/chunkUid asc
+
+### 11.4.2 CLI + MCP
+**Modify:**
+- `src/retrieval/cli.js` + args to add:
+  - `pairofcleats impact --seed <...> --direction downstream --edge-types call,usage --json --explain`
+- `src/integrations/mcp/defs.js`:
+  - add tool `impact.analyze`
+- `tools/mcp/tools.js`:
+  - handler calls shared analyzer
+
+### 11.4.3 Optional artifact caching (recommended)
+- Store reports under derived store:
+  - `<repoCacheRoot>/derived/impact/<indexSignature>/impact_reports.jsonl`
+- Cache key:
+  - `sha256(indexSignature + canonical(ImpactRequest))`
+
+### 11.4.4 Tests
+- Unit:
+  - `tests/unit/impact/direction-semantics.unit.js` (call edge downstream == callers)
+  - `tests/unit/impact/scoring.unit.js`
+- Integration:
+  - `tests/services/impact-analysis.services.js`
+    - build fixture index; run impact from `foo`; assert impacted includes `b.ts`, `c.ts`, test file
+- Golden:
+  - `tests/golden/impact_report_v1.json`
+
+---
+
+## 11.5 Graph-Aware Ranking (bounded additive boost + explain)
+
+### 11.5.1 Implement ranking augmentation
+**Modify:**
+- `src/retrieval/rankers.js` (or the central ranking module used by pipeline)
+- `src/retrieval/pipeline.js` (plumb graph ranking options)
+- `src/retrieval/query-intent.js` (optional: intent->ranking preset mapping)
+
+**New module:** `src/retrieval/graph-ranking/`
+- `src/retrieval/graph-ranking/compute.js`
+  - `computeGraphBoost({ hit, graph, stats, policy }) -> { boost, breakdown }`
+  - supported signals (v1):
+    - exportedness boost (if export edges exist)
+    - local fan-in/out (bounded)
+    - “path-to-seed” proximity (when seed set available)
+  - hard clamp:
+    - `boost <= 0.20 * baseScore` (or equivalent normalization)
+- `src/retrieval/graph-ranking/policy.js`
+  - defaults:
+    - disabled unless explicitly enabled OR query intent indicates graph-heavy (impact/contract)
+  - capability gating:
+    - if graph missing and graphRanking requested => fail closed or warn based on strictness
+- `src/retrieval/graph-ranking/explain.js`
+  - embed into existing explain output:
+    - `scoreBreakdown.graph = { boost, signals: {...} }`
+
+### 11.5.2 Explain output requirements
+- When `--explain` is enabled, each hit must include:
+  - base score components (existing)
+  - graph boost components:
+    - which signals were applied
+    - clamping applied
+    - evidence refs if signal derived from graph paths
+
+### 11.5.3 Tests
+- `tests/unit/graph-ranking/boost-clamp.unit.js`
+- `tests/unit/graph-ranking/exportedness-signal.unit.js`
+- `tests/services/graph-ranking-explain.services.js`
+  - confirm explain includes graph breakdown only when enabled
+
+---
+
+## 11.6 Unified output shaping and “explain” plumbing
+
+### 11.6.1 Standardize explain envelopes across CLI + MCP
+**Modify:**
+- `src/retrieval/output/format.js`
+- `src/retrieval/output/format-json.js` (or equivalent JSON renderer)
+- `src/integrations/mcp/protocol.js` (error mapping, if needed)
+
+**Rules**
+- All Phase 11 JSON outputs include:
+  - `formatVersion`, `schema`, `schemaVersion`, `indexSignature`, `createdAt`
+- Explain is:
+  - included when requested (`--explain` / MCP flag)
+  - stable key order (canonical stringify)
+  - bounded (cap explain refs per item)
+
+### 11.6.2 Tests
+- `tests/services/phase11-json-contracts.services.js`
+  - validate presence of required top-level fields for ContextPack and ImpactReport
+- `tests/services/phase11-explain-bounds.services.js`
+  - ensures explain does not exceed configured bounds
+
+---
+
+## 11.7 Documentation (operator-facing + developer contracts)
+
+### 11.7.1 Add docs
+**New docs:**
+- These docs have been thrown into the docs folder, move them to their correct locations
+- `docs/graph/context-packs.md`
+- `docs/graph/impact-analysis.md`
+- `docs/graph/graph-ranking.md`
+- `docs/contracts/explainability.md`
+
+**Update docs:**
+- `docs/search.md` (or equivalent) to mention:
+  - `pairofcleats context-pack`
+  - `pairofcleats impact`
+  - graph ranking flag(s) and `--explain` output
+
+**Docs must include**
+- deterministic ordering rules
+- budget defaults + hard caps
+- strict/warn/loose semantics
+- example CLI invocations and example JSON snippets
+
+---
+
+## 11.8 Acceptance criteria (phase exit gate)
+
+Phase 11 is “done” only when all below are true:
+
+### 11.8.1 Determinism
+- Context pack generation is bit-for-bit stable (canonicalized) on repeated runs against same index.
+- Impact analysis output is stable and deterministic for same request.
+
+### 11.8.2 Correctness
+- No joins rely on `file::name`.
+- Downstream call semantics are correct (reverse call traversal).
+- Strictness behavior is correct and test-covered.
+
+### 11.8.3 Budget enforcement
+- Every budget hard cap is enforced, with explicit truncation metadata where applicable.
+
+### 11.8.4 Explainability
+- Every included context item has a `why` path and evidence refs (or explicit evidence-missing markers).
+- Graph ranking explain shows applied signals and clamps.
+
+### 11.8.5 Tests
+- All Phase 11 unit, integration, and golden snapshot tests pass in CI lanes.
+- Golden updates require explicit developer action (no silent snapshot regeneration).
+
+---
+
+## 11.9 File touchpoint inventory (explicit list)
+
+### New files (to be created)
+- `src/shared/explain/schema.js`
+- `src/shared/explain/normalize.js`
+- `src/shared/explain/errors.js`
+- `src/shared/identity/ids.js`
+- `src/shared/identity/ranges.js`
+- `src/shared/evidence/load.js`
+- `src/shared/evidence/schema.js`
+- `src/shared/evidence/confidence.js`
+- `src/retrieval/graph/load.js`
+- `src/retrieval/graph/normalize.js`
+- `src/retrieval/graph/schema.js`
+- `src/retrieval/context-packs/request.js`
+- `src/retrieval/context-packs/build.js`
+- `src/retrieval/context-packs/sections.js`
+- `src/retrieval/context-packs/excerpts.js`
+- `src/retrieval/context-packs/cache.js`
+- `src/retrieval/impact/request.js`
+- `src/retrieval/impact/analyze.js`
+- `src/retrieval/graph-ranking/compute.js`
+- `src/retrieval/graph-ranking/policy.js`
+- `src/retrieval/graph-ranking/explain.js`
+- Docs:
+  - `docs/graph/context-packs.md`
+  - `docs/graph/impact-analysis.md`
+  - `docs/graph/graph-ranking.md`
+  - `docs/contracts/explainability.md`
+
+### Existing files to modify (expected)
+- Retrieval core:
+  - `src/retrieval/pipeline.js`
+  - `src/retrieval/rankers.js`
+  - `src/retrieval/context-expansion.js` (optional: integrate/replace for pack building)
+  - `src/retrieval/cli.js`
+  - `src/retrieval/cli-args.js`
+  - `src/retrieval/output/format.js`
+  - `src/retrieval/output/*` (JSON renderers and/or explain renderers)
+- MCP:
+  - `src/integrations/mcp/defs.js`
+  - `tools/mcp/tools.js`
+  - `src/integrations/mcp/protocol.js` (if error mapping updates needed)
+- Shared I/O:
+  - `src/shared/artifact-io.js` (only if evidence artifacts require new loaders)
+
+### Tests (new)
+- `tests/unit/explain/*`
+- `tests/unit/identity/*`
+- `tests/unit/evidence/*`
+- `tests/unit/graph/*`
+- `tests/unit/context-packs/*`
+- `tests/unit/impact/*`
+- `tests/unit/graph-ranking/*`
+- `tests/services/context-pack-*.services.js`
+- `tests/services/impact-analysis.services.js`
+- `tests/services/graph-ranking-explain.services.js`
+- `tests/services/phase11-json-contracts.services.js`
+- `tests/fixtures/phase11/graph-small/**`
+- `tests/golden/context_pack_v1.json`
+- `tests/golden/impact_report_v1.json`
+
+---
+
+## Appendix A — Implementation notes to prevent common failures
+
+1. **Never re-read repo files to build excerpts** unless chunk text is missing; use canonical stored chunk text to keep determinism and avoid path issues.
+2. **Always stable-sort adjacency lists**; do not rely on Map iteration order.
+3. **Cache keys must include indexSignature**; never allow cross-index reuse.
+4. **Do not introduce silent fallbacks**; warn/strict behavior must be explicit and test-covered.
+5. **Respect UTF-16 offsets** for ranges; treat line fields as convenience only.
 
 ---
 
@@ -5008,3 +5380,4 @@ If profiling shows git/tool subprocess work is being unnecessarily throttled by 
 - [x] If load failure persists, implement a safe fallback behavior (skip embeddings with explicit warning) so build-index completes.
 
 ---
+

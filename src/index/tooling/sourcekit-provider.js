@@ -85,6 +85,7 @@ const resolveCommand = (cmd) => {
 export async function collectSourcekitTypes({
   rootDir,
   chunksByFile,
+  fileTextByFile = null,
   log = () => {},
   cmd = 'sourcekit-lsp',
   args = [],
@@ -127,11 +128,14 @@ export async function collectSourcekitTypes({
   let enriched = 0;
   for (const file of files) {
     const absPath = path.join(rootDir, file);
-    let text = '';
-    try {
-      text = await fs.readFile(absPath, 'utf8');
-    } catch {
-      continue;
+    let text = typeof fileTextByFile?.get(file) === 'string' ? fileTextByFile.get(file) : null;
+    if (typeof text !== 'string') {
+      try {
+        text = await fs.readFile(absPath, 'utf8');
+      } catch {
+        continue;
+      }
+      if (fileTextByFile) fileTextByFile.set(file, text);
     }
     const uri = pathToFileUri(absPath);
     client.notify('textDocument/didOpen', {

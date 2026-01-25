@@ -227,8 +227,27 @@ const normalizeRuleList = (list, type) => {
   return normalized;
 };
 
-const compilePattern = (pattern, flags, regexConfig) =>
-  createSafeRegex(pattern, flags, regexConfig);
+const extractPrefilter = (pattern) => {
+  const source = typeof pattern === 'string' ? pattern : pattern?.source;
+  if (!source) return null;
+  const tokens = source.match(/[A-Za-z0-9_$]{3,}/g);
+  if (!tokens || !tokens.length) return null;
+  tokens.sort((a, b) => b.length - a.length);
+  return tokens[0] || null;
+};
+
+const compilePattern = (pattern, flags, regexConfig) => {
+  const compiled = createSafeRegex(pattern, flags, regexConfig);
+  if (!compiled) return null;
+  const prefilter = extractPrefilter(pattern);
+  if (prefilter) {
+    compiled.prefilter = prefilter;
+    if (compiled.flags && compiled.flags.includes('i')) {
+      compiled.prefilterLower = prefilter.toLowerCase();
+    }
+  }
+  return compiled;
+};
 
 const compileRule = (rule, regexConfig) => ({
   ...rule,
@@ -294,4 +313,38 @@ export const normalizeRiskRules = (input = {}, { rootDir, regexConfig } = {}) =>
   };
 
   return bundle;
+};
+
+const serializePattern = (pattern) => {
+  if (!pattern) return null;
+  if (typeof pattern === 'string') return pattern;
+  if (typeof pattern.source === 'string') return pattern.source;
+  return null;
+};
+
+const serializeRule = (rule) => ({
+  id: typeof rule?.id === 'string' ? rule.id : null,
+  type: typeof rule?.type === 'string' ? rule.type : null,
+  name: typeof rule?.name === 'string' ? rule.name : null,
+  category: typeof rule?.category === 'string' ? rule.category : null,
+  severity: typeof rule?.severity === 'string' ? rule.severity : null,
+  tags: Array.isArray(rule?.tags) ? rule.tags.filter(Boolean) : [],
+  confidence: Number.isFinite(rule?.confidence) ? rule.confidence : null,
+  languages: Array.isArray(rule?.languages) ? rule.languages.filter(Boolean) : null,
+  patterns: Array.isArray(rule?.patterns)
+    ? rule.patterns.map(serializePattern).filter(Boolean)
+    : [],
+  requires: rule?.requires ? serializePattern(rule.requires) : null
+});
+
+export const serializeRiskRulesBundle = (bundle) => {
+  if (!bundle || typeof bundle !== 'object') return null;
+  return {
+    version: typeof bundle.version === 'string' ? bundle.version : '1.0.0',
+    sources: Array.isArray(bundle.sources) ? bundle.sources.map(serializeRule) : [],
+    sinks: Array.isArray(bundle.sinks) ? bundle.sinks.map(serializeRule) : [],
+    sanitizers: Array.isArray(bundle.sanitizers) ? bundle.sanitizers.map(serializeRule) : [],
+    regexConfig: bundle.regexConfig || null,
+    provenance: bundle.provenance || null
+  };
 };

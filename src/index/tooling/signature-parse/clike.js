@@ -57,6 +57,12 @@ const parseClikeParam = (value) => {
   const cleaned = value.trim();
   if (!cleaned || cleaned === 'void' || cleaned === '...') return null;
   const noDefault = cleaned.split('=').shift().trim();
+  const funcPtrMatch = noDefault.match(/\(\s*\*\s*([A-Za-z_][\w]*)\s*\)/);
+  if (funcPtrMatch) {
+    const name = funcPtrMatch[1];
+    const type = noDefault.replace(funcPtrMatch[0], '(*)').trim();
+    return name && type ? { name, type } : null;
+  }
   const nameMatch = noDefault.match(/([A-Za-z_][\w]*)\s*(?:\[[^\]]*\])?$/);
   if (!nameMatch) return null;
   const name = nameMatch[1];

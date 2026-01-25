@@ -2,7 +2,7 @@ import { sha1 } from '../../../shared/hash.js';
 import { buildMetaV2 } from '../../metadata-v2.js';
 import { applyStructuralMatchesToChunks } from './chunk.js';
 import { resolveFileCaps } from './read.js';
-import { buildFileRelations, stripFileRelations } from './relations.js';
+import { stripFileRelations } from './relations.js';
 
 export function reuseCachedBundle({
   abs,
@@ -15,9 +15,9 @@ export function reuseCachedBundle({
   fileCaps,
   cachedBundle,
   incrementalState,
-  allImports,
   fileStructural,
   toolInfo,
+  analysisPolicy,
   fileStart,
   knownLines,
   fileLanguageId
@@ -42,10 +42,11 @@ export function reuseCachedBundle({
   }
   const cachedEntry = incrementalState.manifest?.files?.[relKey] || null;
   const resolvedHash = fileHash || cachedEntry?.hash || null;
+  const resolvedHashAlgo = fileHashAlgo || cachedEntry?.hashAlgo || null;
   const fileInfo = {
     size: fileStat.size,
     hash: resolvedHash,
-    hashAlgo: resolvedHash ? 'sha1' : null
+    hashAlgo: resolvedHashAlgo
   };
   const manifestEntry = cachedEntry ? {
     hash: resolvedHash,
@@ -53,29 +54,8 @@ export function reuseCachedBundle({
     size: fileStat.size,
     bundle: cachedEntry.bundle || `${sha1(relKey)}.json`
   } : null;
-  const normalizeImportLinks = (imports) => {
-    if (!Array.isArray(imports)) return null;
-    const links = imports
-      .map((i) => allImports?.[i])
-      .filter(Array.isArray)
-      .flat()
-      .filter((entry) => entry && entry !== relKey);
-    if (!links.length) return [];
-    return Array.from(new Set(links));
-  };
-  let fileRelations = cachedBundle.fileRelations || null;
-  if (!fileRelations) {
-    const sample = cachedBundle.chunks.find((chunk) => chunk?.codeRelations);
-    if (sample?.codeRelations) {
-      fileRelations = buildFileRelations(sample.codeRelations, relKey);
-    }
-  }
-  if (fileRelations && typeof fileRelations === 'object') {
-    const importLinks = normalizeImportLinks(fileRelations.imports);
-    if (importLinks) {
-      fileRelations = { ...fileRelations, importLinks };
-    }
-  }
+  const fileRelations = cachedBundle.fileRelations || null;
+  if (!fileRelations) return { result: null, skip: null };
   const updatedChunks = cachedBundle.chunks.map((cachedChunk) => {
     const updatedChunk = { ...cachedChunk };
     if (!updatedChunk.fileHash && fileHash) updatedChunk.fileHash = fileHash;
@@ -84,11 +64,14 @@ export function reuseCachedBundle({
       updatedChunk.codeRelations = stripFileRelations(updatedChunk.codeRelations);
     }
     const metaNeedsHash = fileHash && !updatedChunk.metaV2?.fileHash;
-    if (!updatedChunk.metaV2?.chunkId || metaNeedsHash) {
+    const metaModifiers = updatedChunk.metaV2?.modifiers;
+    const metaNeedsNormalize = metaModifiers && !Array.isArray(metaModifiers);
+    if (!updatedChunk.metaV2?.chunkId || metaNeedsHash || metaNeedsNormalize) {
       updatedChunk.metaV2 = buildMetaV2({
         chunk: updatedChunk,
         docmeta: updatedChunk.docmeta,
-        toolInfo
+        toolInfo,
+        analysisPolicy
       });
     }
     return updatedChunk;

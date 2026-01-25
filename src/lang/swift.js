@@ -392,10 +392,9 @@ export function collectSwiftImports(text) {
 /**
  * Build import/export/call/usage relations for Swift chunks.
  * @param {string} text
- * @param {Record<string,string[]>} allImports
- * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
-export function buildSwiftRelations(text, allImports) {
+export function buildSwiftRelations(text) {
   const { imports, usages } = collectSwiftImports(text);
   const exports = new Set();
   const declRe = /^[ \t]*(?:@[\w().,:]+\s+)*(?:[A-Za-z]+\s+)*(class|struct|enum|protocol|extension|actor|func)\s+([A-Za-z_][A-Za-z0-9_\.]*)/gm;
@@ -405,16 +404,11 @@ export function buildSwiftRelations(text, allImports) {
     const name = normalizeSwiftName(match[2]);
     if (name) exports.add(name);
   }
-  const importLinks = imports
-    .map((i) => allImports[i])
-    .filter((x) => !!x)
-    .flat();
   return {
     imports,
     exports: Array.from(exports),
     calls: [],
-    usages,
-    importLinks
+    usages
   };
 }
 

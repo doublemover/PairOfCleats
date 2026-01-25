@@ -49,6 +49,7 @@ The unified setup script (`pairofcleats setup`) guides you through installing op
 - `build_index.js` can be run from any working directory; it resolves SQLite build tooling from the install root.
 - Index builds write `preprocess.json` under the repo cache root with scan and skip statistics.
 - Default ignore patterns can be overridden by adding negated entries (e.g. `!dist/allow.js`) in `extraIgnore`.
+- Ignore files configured via `ignoreFiles` must resolve inside the repo root; outside paths are skipped with a warning.
 - Index builds write `pieces/manifest.json` in each index directory to list artifact pieces and checksums.
 - Use `node tools/assemble-pieces.js --input <indexDir> --out <dest>` to merge piece outputs into a single index directory.
 - Use `node tools/compact-pieces.js --repo <repo>` to compact chunk_meta parts and token_postings shards.

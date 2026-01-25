@@ -167,11 +167,10 @@ export function buildPerlChunks(text) {
 /**
  * Build import/export/call/usage relations for Perl chunks.
  * @param {string} text
- * @param {Record<string,string[]>} allImports
  * @param {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null} perlChunks
- * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
-export function buildPerlRelations(text, allImports, perlChunks) {
+export function buildPerlRelations(text, perlChunks) {
   const imports = collectPerlImports(text);
   const exports = new Set();
   const calls = [];
@@ -190,16 +189,11 @@ export function buildPerlRelations(text, allImports, perlChunks) {
       for (const usage of chunkUsages) usages.add(usage);
     }
   }
-  const importLinks = imports
-    .map((i) => allImports[i])
-    .filter((x) => !!x)
-    .flat();
   return {
     imports,
     exports: Array.from(exports),
     calls,
-    usages: Array.from(usages),
-    importLinks
+    usages: Array.from(usages)
   };
 }
 

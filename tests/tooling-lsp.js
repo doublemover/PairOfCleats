@@ -123,4 +123,24 @@ const offsets = rangeToOffsets(lineIndex, {
 assert.equal(offsets.start, 1);
 assert.equal(offsets.end, lineIndex[1] + 2);
 
+const crlfText = 'alpha\r\nbeta\r\ngamma';
+const crlfIndex = buildLineIndex(crlfText);
+assert.equal(crlfIndex[1], 7);
+assert.equal(crlfIndex[2], 13);
+const crlfOffsets = rangeToOffsets(crlfIndex, {
+  start: { line: 1, character: 1 },
+  end: { line: 1, character: 4 }
+});
+assert.equal(crlfOffsets.start, crlfIndex[1] + 1);
+assert.equal(crlfOffsets.end, crlfIndex[1] + 4);
+
+const emojiText = 'a😀b';
+const emojiIndex = buildLineIndex(emojiText);
+const emojiOffsets = rangeToOffsets(emojiIndex, {
+  start: { line: 0, character: 3 },
+  end: { line: 0, character: 4 }
+});
+assert.equal(emojiOffsets.start, 3);
+assert.equal(emojiOffsets.end, 4);
+
 console.log('tooling LSP utils test passed');

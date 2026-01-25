@@ -56,52 +56,6 @@ export const validateChunkIds = (report, mode, chunkMeta) => {
   }
 };
 
-export const validateMetaV2 = (report, mode, chunkMeta) => {
-  const maxErrors = 20;
-  let errors = 0;
-  for (let i = 0; i < chunkMeta.length; i += 1) {
-    const entry = chunkMeta[i];
-    const meta = entry?.metaV2;
-    if (!meta) continue;
-    if (typeof meta.chunkId !== 'string' || !meta.chunkId) {
-      addIssue(report, mode, `metaV2 missing chunkId at index ${i}`, 'Rebuild index artifacts for this mode.');
-      errors += 1;
-    }
-    if (typeof meta.file !== 'string' || !meta.file) {
-      addIssue(report, mode, `metaV2 missing file at index ${i}`, 'Rebuild index artifacts for this mode.');
-      errors += 1;
-    }
-    if (meta.risk?.flows) {
-      for (const flow of meta.risk.flows || []) {
-        if (!flow || !flow.source || !flow.sink) {
-          addIssue(report, mode, `metaV2 risk flow missing source/sink at index ${i}`, 'Rebuild index artifacts for this mode.');
-          errors += 1;
-          break;
-        }
-      }
-    }
-    if (meta.types && typeof meta.types === 'object') {
-      const checkTypeEntries = (bucket) => {
-        if (!bucket || typeof bucket !== 'object') return;
-        for (const entries of Object.values(bucket)) {
-          const list = Array.isArray(entries) ? entries : [];
-          for (const typeEntry of list) {
-            if (!typeEntry?.type) {
-              addIssue(report, mode, `metaV2 type entry missing type at index ${i}`, 'Rebuild index artifacts for this mode.');
-              errors += 1;
-              return;
-            }
-          }
-        }
-      };
-      checkTypeEntries(meta.types.declared);
-      checkTypeEntries(meta.types.inferred);
-      checkTypeEntries(meta.types.tooling);
-    }
-    if (errors >= maxErrors) return;
-  }
-};
-
 export const validateFileNameCollisions = (report, mode, repoMap) => {
   const seen = new Set();
   for (const entry of Array.isArray(repoMap) ? repoMap : []) {

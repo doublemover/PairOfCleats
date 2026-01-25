@@ -80,6 +80,22 @@ export async function applyCrossFileInference({
   let inferredReturns = 0;
   let riskFlows = 0;
 
+  const fileTextByRel = new Map();
+  const fileTextByAbs = new Map();
+  const getFileText = async (relPath) => {
+    if (!relPath) return '';
+    const absPath = path.join(rootDir, relPath);
+    if (fileTextByAbs.has(absPath)) return fileTextByAbs.get(absPath) || '';
+    let text = '';
+    try {
+      const result = await readTextFile(absPath);
+      text = result?.text || '';
+    } catch {}
+    fileTextByAbs.set(absPath, text);
+    fileTextByRel.set(relPath, text);
+    return text;
+  };
+
   const toolingEnabled = useTooling && enableTypeInference && toolingConfig?.autoEnableOnDetect !== false;
   if (toolingEnabled) {
     const toolingResult = await runToolingPass({
@@ -92,24 +108,15 @@ export async function applyCrossFileInference({
       toolingTimeoutMs,
       toolingRetries,
       toolingBreaker,
-      toolingLogDir
+      toolingLogDir,
+      fileTextByFile: fileTextByRel
     });
     inferredReturns += toolingResult.inferredReturns || 0;
   }
 
-  const textCache = new Map();
   const getChunkText = async (chunk) => {
     if (!chunk?.file) return '';
-    const absPath = path.join(rootDir, chunk.file);
-    if (!textCache.has(absPath)) {
-      try {
-        const { text } = await readTextFile(absPath);
-        textCache.set(absPath, text);
-      } catch {
-        textCache.set(absPath, '');
-      }
-    }
-    const text = textCache.get(absPath) || '';
+    const text = await getFileText(chunk.file);
     return text.slice(chunk.start, chunk.end);
   };
 

@@ -7,6 +7,13 @@ const normalizeString = (value) => {
 
 const normalizeBoolean = (value) => value === '1' || value === 'true';
 
+const normalizeOptionalBoolean = (value) => {
+  if (value == null) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  return normalizeBoolean(text);
+};
+
 const normalizeNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -38,7 +45,8 @@ export function getEnvConfig(env = process.env) {
     xxhashBackend: normalizeString(env.PAIROFCLEATS_XXHASH_BACKEND),
     debugCrash: normalizeBoolean(env.PAIROFCLEATS_DEBUG_CRASH),
     fileCacheMax: normalizeNumber(env.PAIROFCLEATS_FILE_CACHE_MAX),
-    summaryCacheMax: normalizeNumber(env.PAIROFCLEATS_SUMMARY_CACHE_MAX)
+    summaryCacheMax: normalizeNumber(env.PAIROFCLEATS_SUMMARY_CACHE_MAX),
+    importGraph: normalizeOptionalBoolean(env.PAIROFCLEATS_IMPORT_GRAPH)
   };
 }
 

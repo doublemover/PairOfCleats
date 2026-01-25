@@ -15,7 +15,7 @@ const text = "export async function load() { return import('dyn-lib'); }\n";
 await fs.writeFile(filePath, text);
 const stat = await fs.stat(filePath);
 
-const { allImports } = await scanImports({
+const { importsByFile } = await scanImports({
   files: [{ abs: filePath, rel: 'src/dynamic.js', stat }],
   root: tempRoot,
   mode: 'code',
@@ -23,8 +23,8 @@ const { allImports } = await scanImports({
   importConcurrency: 1
 });
 
-assert.ok(allImports['dyn-lib'], 'expected dyn-lib to be recorded as an import');
-assert.deepEqual(allImports['dyn-lib'], ['src/dynamic.js']);
-assert.ok(!Object.keys(allImports).some((key) => key === '0' || key === '1'), 'unexpected numeric import keys');
+const imports = importsByFile['src/dynamic.js'] || [];
+assert.ok(imports.includes('dyn-lib'), 'expected dyn-lib to be recorded as an import');
+assert.ok(!Object.keys(importsByFile).some((key) => key === '0' || key === '1'), 'unexpected numeric import keys');
 
 console.log('import scan test passed');

@@ -46,7 +46,6 @@ import {
   validateChunkIds,
   validateFileNameCollisions,
   validateIdPostings,
-  validateMetaV2,
   validatePostingsDocIds
 } from './validate/checks.js';
 export async function validateIndexArtifacts(input = {}) {
@@ -261,7 +260,6 @@ export async function validateIndexArtifacts(input = {}) {
       }
       validateSchema(report, mode, 'chunk_meta', chunkMeta, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
       validateChunkIds(report, mode, chunkMeta);
-      validateMetaV2(report, mode, chunkMeta);
 
       if (postingsConfig.fielded && chunkMeta.length > 0) {
         const missingFieldArtifacts = [];

@@ -15,7 +15,7 @@ const text = "import protoDep from '__proto__';\nexport default protoDep;\n";
 await fs.writeFile(filePath, text);
 const stat = await fs.stat(filePath);
 
-const { allImports } = await scanImports({
+const { importsByFile } = await scanImports({
   files: [{ abs: filePath, rel: 'src/proto.js', stat }],
   root: tempRoot,
   mode: 'code',
@@ -23,9 +23,9 @@ const { allImports } = await scanImports({
   importConcurrency: 1
 });
 
-assert.equal(Object.getPrototypeOf(allImports), null, 'allImports should have null prototype');
-assert.ok(Array.isArray(allImports['__proto__']), 'expected __proto__ import key');
-assert.deepEqual(allImports['__proto__'], ['src/proto.js']);
+assert.equal(Object.getPrototypeOf(importsByFile), null, 'importsByFile should have null prototype');
+const imports = importsByFile['src/proto.js'] || [];
+assert.ok(imports.includes('__proto__'), 'expected __proto__ import entry');
 assert.ok(!Object.prototype.polluted, 'Object.prototype should remain clean');
 
 console.log('imports proto-safe module keys test passed');

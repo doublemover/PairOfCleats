@@ -62,6 +62,7 @@ export const processChunks = async (context) => {
     riskAnalysisEnabled,
     riskConfig,
     typeInferenceEnabled,
+    analysisPolicy,
     astDataflowEnabled,
     controlFlowEnabled,
     toolInfo,
@@ -135,6 +136,13 @@ export const processChunks = async (context) => {
   let lastLineLogged = 0;
   let lastLineLogMs = 0;
   const lineReader = contextWin > 0 ? createLineReader(text, lineIndex) : null;
+
+  const resolvedTypeInferenceEnabled = typeof analysisPolicy?.typeInference?.local?.enabled === 'boolean'
+    ? analysisPolicy.typeInference.local.enabled
+    : typeInferenceEnabled;
+  const resolvedRiskAnalysisEnabled = typeof analysisPolicy?.risk?.enabled === 'boolean'
+    ? analysisPolicy.risk.enabled
+    : riskAnalysisEnabled;
 
   for (let ci = 0; ci < sc.length; ++ci) {
     const c = sc[ci];
@@ -224,7 +232,7 @@ export const processChunks = async (context) => {
         docmeta = mergeFlowMeta(docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled });
       }
       addEnrichDuration(Date.now() - relationStart);
-      if (typeInferenceEnabled) {
+      if (resolvedTypeInferenceEnabled) {
         const enrichStart = Date.now();
         const inferredTypes = inferTypeMetadata({
           docmeta,
@@ -238,7 +246,7 @@ export const processChunks = async (context) => {
         addEnrichDuration(typeDurationMs);
         addSettingMetric('typeInference', chunkLanguageId, chunkLineCount, typeDurationMs);
       }
-      if (riskAnalysisEnabled) {
+      if (resolvedRiskAnalysisEnabled) {
         const enrichStart = Date.now();
         const risk = detectRiskSignals({
           text: ctext,
@@ -482,7 +490,8 @@ export const processChunks = async (context) => {
       fileRelations,
       relationsEnabled,
       toolInfo,
-      gitMeta
+      gitMeta,
+      analysisPolicy
     });
 
     chunks.push(chunkPayload);

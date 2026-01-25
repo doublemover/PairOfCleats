@@ -3,11 +3,10 @@ import { collectPythonImports } from './imports.js';
 /**
  * Build import/export/call/usage relations for Python chunks.
  * @param {string} text
- * @param {Record<string,string[]>} allImports
  * @param {object|null} pythonAst
- * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importLinks:string[]}}
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
-export function buildPythonRelations(text, allImports, pythonAst) {
+export function buildPythonRelations(text, pythonAst) {
   let imports = [];
   let usages = [];
   let calls = [];
@@ -24,16 +23,11 @@ export function buildPythonRelations(text, allImports, pythonAst) {
     imports = fallback.imports;
     usages = fallback.usages;
   }
-  const importLinks = imports
-    .map((i) => allImports[i])
-    .filter((x) => !!x)
-    .flat();
   return {
     imports,
     exports,
     calls,
     callDetails,
-    usages,
-    importLinks
+    usages
   };
 }
