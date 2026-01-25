@@ -71,3 +71,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: remove unused status helpers to reduce drift.
 - CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: make map symbol ids include chunkId or startLine to avoid collisions.
 - CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: triage recordsDir is already resolved to an absolute path; removed stale normalization note.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS10_SHARDS_SMOKE_SQLITE_TESTS.md: read shard progress from combined stdout/stderr and fix sqlite path and skip-minified-binary messaging.

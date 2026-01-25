@@ -221,47 +221,6 @@ The remainder of this document enumerates concrete issues and recommended fixes,
 
 ---
 
-### P2 — Progress determinism test reads only stderr and assumes a specific progress routing
-
-**Where**
-- `tests/shard-progress-determinism.js`
-
-**What’s wrong**
-- The test parses progress JSONL from `result.stderr` only. If progress output is ever redirected to stdout (or split), the test stops validating anything.
-
-**Suggested fix**
-- Parse both `stdout` and `stderr` (concatenate) or enforce that progress is always sent to a dedicated fd (and then the test should assert it).
-
----
-
-### P2 — Minor correctness/clarity issues in skip test messaging
-
-**Where**
-- `tests/skip-minified-binary.js`
-
-**What’s wrong**
-- Error message says `Expected binary skip entry for binary.js` but the file under test is `binary.png`. This is small, but it reduces debugging clarity.
-
-**Suggested fix**
-- Update the message to match the file.
-
----
-
-### P2 — `tests/sqlite-build-indexes.js` resolves sqlite paths using `{}` rather than the loaded config
-
-**Where**
-- `tests/sqlite-build-indexes.js`
-
-**What’s wrong**
-- It loads `userConfig = loadUserConfig(repoRoot)` (used for index dir checks), but uses:
-  - `resolveSqlitePaths(repoRoot, {})`
-- If `resolveSqlitePaths()` interprets `{}` differently than “no config” (or defaults differ), the test could open the wrong database location.
-
-**Suggested fix**
-- Use the same `userConfig` object consistently, or pass `null` if the API expects that for default resolution.
-
----
-
 ### P2 — Candidate-set threshold assumptions are encoded as magic numbers
 
 **Where**
@@ -386,7 +345,7 @@ This section is intentionally brief; detailed findings are above.
 - `tests/shard-merge.js`: strong equivalence test; consider adding a multi-worker scenario.
 - `tests/shard-plan.js`: good determinism + labeling tests; brittle expectations around shard label formats are acceptable if treated as contract.
 - `tests/shard-progress-determinism.js`: useful monotonic fileIndex check; parse stdout+stderr (or assert routing).
-- `tests/skip-minified-binary.js`: good skip reason validation; minor error message mismatch.
+- `tests/skip-minified-binary.js`: good skip reason validation.
 - `tests/smoke-*.js` + `tests/smoke-utils.js`: helpful orchestration, but needs timeouts and explicit tier placement.
 - `tests/smoke.js`: valuable verifier but likely behind current artifact/config realities; needs modernization.
 - `tests/sqlite-ann-extension.js`: good incremental/orphan-row checks; “skip if missing extension” is reasonable but should be visible in timing/manifest.

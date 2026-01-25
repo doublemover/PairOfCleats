@@ -51,7 +51,11 @@ const fileIndexByPath = new Map();
 let lastIndex = 0;
 let progressCount = 0;
 
-for (const line of String(result.stderr || '').split(/\r?\n/)) {
+const outputLines = [result.stderr, result.stdout]
+  .filter(Boolean)
+  .join('\n')
+  .split(/\r?\n/);
+for (const line of outputLines) {
   const event = parseProgressEventLine(line);
   if (!event || event.event !== 'log') continue;
   const meta = event.meta || null;
