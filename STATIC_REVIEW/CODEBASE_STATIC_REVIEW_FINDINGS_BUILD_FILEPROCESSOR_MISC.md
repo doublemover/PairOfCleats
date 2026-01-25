@@ -39,7 +39,6 @@ The goal here is to identify bugs, edge cases, and correctness/performance footg
 
 This file is large and generally well-structured; the items below are focused on correctness edge cases and high-cost paths.
 
-- Comment extraction + assignment depend on consistent comment ordering (see `assignCommentsToChunks()` issue). If multiple comment sources are merged, ensure they are globally sorted by offset before assignment.
 - If the worker pool is disabled or returns `null`, tokenization falls back to main thread, which is correct — but it may be worth emitting a structured warning once per run so operators notice the throughput regression.
 - `extractComments()` + comment tokenization happen even if comments are later excluded from token text. If performance becomes an issue, consider a fast-path to skip per-comment tokenization when comment fields are disabled (or when minTokens thresholds will exclude them anyway).
 
