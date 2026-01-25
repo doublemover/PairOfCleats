@@ -17,3 +17,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed feature-metrics note; no change needed for now.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed incremental reuse test note; no change needed for now.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed meta docs path test note; no change needed for now.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_FILEPROCESSOR_MISC.md: reviewed UTF-8 truncation test note; no change needed for now.

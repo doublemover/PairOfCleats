@@ -48,10 +48,6 @@ This file is large and generally well-structured; the items below are focused on
 
 This section is intentionally short per file; it exists to confirm review coverage and to note any smaller follow-ups.
 
-### `src/index/build/file-processor/read.js`
-- UTF-8 truncation logic is careful and avoids splitting multibyte sequences.
-- If you have very large UTF-8 codepoints near chunk boundaries, add a regression test to ensure truncated reads do not produce replacement characters.
-
 ### `src/index/build/file-processor/relations.js`
 - Relation extraction normalization is good (dedupe, sort, avoid self-import).
 - If you later add cross-file callsite/args extraction universally, this module will be a key integration point for per-file relation bundles; consider adding schema checks for relation payloads.
