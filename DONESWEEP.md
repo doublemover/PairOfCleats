@@ -70,3 +70,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: normalize map dataflow mutations and align legend key.
 - CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: remove unused status helpers to reduce drift.
 - CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: make map symbol ids include chunkId or startLine to avoid collisions.
+- CODEBASE_STATIC_REVIEW_FINDINGS_INTEGRATIONS_MAP.md: triage recordsDir is already resolved to an absolute path; removed stale normalization note.

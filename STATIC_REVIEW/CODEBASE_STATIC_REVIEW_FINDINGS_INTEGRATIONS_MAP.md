@@ -169,11 +169,7 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 ### `src/integrations/triage/index-records.js`
 
-**A) Path normalization inconsistencies can misclassify triage vs non-triage (medium)**
-- `recordsDir` can be relative; `absPath.startsWith(recordsDir)` then depends on path style.
-- **Recommendation:** normalize `recordsDir` to an absolute, normalized form before comparisons.
-
-**B) Embedding text selection may be suboptimal (design consideration)**
+**A) Embedding text selection may be suboptimal (design consideration)**
 - Uses `embedText = docmeta.doc || text`.
 - If `docmeta.doc` is short, embeddings may lack context; if `text` is huge, embeddings cost rises.
 - **Recommendation:** for records, embed a bounded “summary + key fields + first N lines” representation.
