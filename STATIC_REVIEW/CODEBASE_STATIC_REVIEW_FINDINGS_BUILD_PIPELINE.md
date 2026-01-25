@@ -89,12 +89,6 @@ This portion of the codebase is generally well-structured (clear runtime normali
 
 ### E) Performance and scalability concerns (not necessarily “bugs”, but likely to surface as failures)
 
-#### E1) Dictionary loading reads entire wordlists into memory
-- **File:** `src/index/build/runtime/runtime.js`.
-- **Details:** Wordlists are read completely and split into a `Set` (lines ~303–333).
-- **Impact:** Large wordlists can become a major startup cost and memory footprint.
-- **Suggested improvement:** Consider streaming parsing and/or on-demand dictionary usage, especially if you later move towards end-to-end streaming indexing.
-
 #### E2) Piece assembly is inherently memory-heavy
 - **File:** `src/index/build/piece-assembly.js`.
 - **Details:** It loads all chunk metadata, token postings, and doc lengths into memory and then remaps postings based on a global ordering.

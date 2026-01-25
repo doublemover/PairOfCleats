@@ -49,3 +49,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: ignore file path validation already enforced; removed note.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: reviewed repo lock scope note; no change needed.
 - CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: disable pool on clone errors and shutdown when max restarts exceeded.
+- CODEBASE_STATIC_REVIEW_FINDINGS_BUILD_PIPELINE.md: reviewed dictionary memory note; no change needed.
