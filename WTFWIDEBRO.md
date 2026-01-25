@@ -1128,3 +1128,211 @@ Retrieval features are extensive, but correctness is undermined by a lack of a s
 5. Context expansion and output shaping must obey a single policy budget.
 `
 
+- C:/Users/sneak/Development/PairOfCleats_CODEX/WIDESWEEPS/CODEBASE_WIDE_SWEEP_SCORCHED_EARTH_FINAL.md: Skipped; requires broader design/policy decisions before changes. Full sweep content:
+
+`
+# Codebase Static Review Findings — Wide Sweep G (Final, Merged)
+
+**Scope / focus:** Architecture-level roadmap for a scorched-earth rebuild and a policy-kernel / streaming-first indexer future.
+
+**Merged sources (wide sweep drafts):**
+- `CODEBASE_STATIC_REVIEW_FINDINGS_PASS12G_WIDE_SCORCHED_EARTH_POLICY_KERNEL_STREAMING.md`
+
+**Additional incorporation (still limited to wide sweeps):**
+- This “final copy” also folds in the *highest-severity systemic observations* from Wide Sweeps A–F (contracts, build/runtime, artifacts/shards, retrieval UX, shared foundations, storage/policy) to ensure the rebuild roadmap directly addresses the observed failure modes.
+
+---
+
+## Executive diagnosis (what must change)
+
+A scorched-earth rebuild is justified because multiple correctness and operability issues are **structural**, not patch-level:
+
+1. **Contracts are not canonical**:
+   - segment-derived language/ext is computed but later overwritten (Wide Sweep A),
+   - identity is non-canonical and docId joins are implicit/unvalidated (Wide Sweeps A/C/D).
+2. **Build lifecycle is not transactionally safe**:
+   - promotion can expose partial indexes,
+   - embedding work can cross-contaminate builds (Wide Sweep B).
+3. **Serialization/canonicalization is not centralized**:
+   - JSONL output can silently serialize typed arrays incorrectly,
+   - signature inputs are not uniformly canonicalized (Wide Sweep E).
+4. **Backend policy is distributed and fallbacks are not explicit**:
+   - build and retrieval can disagree on backend/capabilities,
+   - missing deps can silently degrade features (Wide Sweep F).
+
+The “correct from first principles” solution is a **policy kernel** + **streaming-first indexer** with strict contracts and promotion gating.
+
+---
+
+## Non-negotiable invariants (must hold in the new system)
+
+1. **Single identity system**
+   - `stableChunkId` is the only cross-stage key.
+   - `docId` is a storage-local surrogate and never used as an implicit join key without validation.
+2. **Segment fidelity is end-to-end**
+   - segment languageId is the canonical language key everywhere (parsing, shard planning, retrieval filters).
+3. **Canonical serialization**
+   - one JSON/JSONL encoder for artifacts, with typed-array support and non-finite number handling.
+4. **BuildRoot transaction**
+   - every build produces a BuildRoot with a manifest (signature, schema versions, backend capabilities).
+   - promotion is an atomic pointer flip to a validated BuildRoot.
+5. **Fail-closed capability model**
+   - if a backend feature (ANN, vector extension, tooling) is missing, it is recorded and enforced by policy; no silent fallback unless explicitly allowed.
+
+---
+
+## Roadmap phases (scorched-earth rebuild)
+
+### Phase 0 — Define contracts and guardrails first
+
+**Deliverables**
+- Contract schemas:
+  - `ChunkRecord` (internal),
+  - `ChunkMetaV2` (external/retrieval contract),
+  - `RelationsEdge`, `GraphNode`,
+  - `FilterIndex` contract,
+  - `IndexManifest` (backend + capabilities + signature),
+  - `BuildReport` (metrics + durations + errors).
+- Canonical libraries:
+  - `canon/serialize` (JSON/JSONL, typed arrays),
+  - `canon/identity` (stableChunkId, symbolId),
+  - `canon/positions` (offset/line/col contract),
+  - `canon/policy` (backend selection + gating).
+
+**Exit criteria**
+- Every existing producer/consumer path can be validated against schemas in “dev mode”.
+- A minimal fixture repo can be built and validated end-to-end with no warnings.
+
+---
+
+### Phase 1 — Policy kernel (centralize all cross-cutting decisions)
+
+**Goal**
+- Make “policy” a single, testable, versioned module — not scattered across CLI/retrieval/build/storage.
+
+**Policy kernel responsibilities**
+- backend selection + capability detection (sqlite/lmdb/lancedb/ann provider)
+- artifact size targets and shard planning rules
+- filter normalization rules (case, tokenization, regex engine)
+- embedding policy (models/dims/batching)
+- determinism knobs (ordering, tie-breaking)
+
+**Deliverables**
+- `policy.resolve(config, envCaps) -> ResolvedPolicy`
+- `IndexManifest` stamping of resolved policy and environment caps.
+- A strict “fail closed unless policy says allow fallback” mechanism.
+
+**Exit criteria**
+- Build + retrieval must consume the same `ResolvedPolicy` and produce the same behavior.
+
+---
+
+### Phase 2 — Streaming-first indexer core (remove multi-stage “rescue” complexity)
+
+**Goal**
+- Replace multi-stage artifact patchwork with a streaming pipeline that produces consistent artifacts once.
+
+**Design**
+- Inputs:
+  - canonical FileSet + SegmentPlan (stable ordering and membership)
+- Streaming stages:
+  1) read → segment → tokenize/chunk (segment-aware)
+  2) per-chunk meta extraction (language adapters)
+  3) optional enrichment (cross-file inference / risk / call links) as explicit steps that update canonical meta
+  4) postings/fts materialization in a single writer path
+  5) embedding materialization as an explicit stage with manifest stamping
+- Outputs:
+  - BuildRoot with complete artifacts + manifest + checksums
+
+**Exit criteria**
+- No stage can mutate artifacts after checksums.
+- Re-running produces byte-identical artifacts (or explicitly versioned differences).
+
+---
+
+### Phase 3 — Storage layer rebuild (SQLite and LMDB as implementations, not semantic engines)
+
+**Goal**
+- Storage backends should not define semantics; they should store canonical contracts and support efficient query.
+
+**Deliverables**
+- SQLite:
+  - store canonical `metaV2` (or canonical subset) as JSON column,
+  - store stableChunkId and explicit joins,
+  - ANN support recorded as capability in manifest.
+- LMDB:
+  - explicit sizing policy stamped,
+  - corruption detection and fail-closed recovery semantics.
+
+**Exit criteria**
+- Backend parity tests pass (same queries → same results and metadata).
+
+---
+
+### Phase 4 — Retrieval semantics layer (single canonical plan)
+
+**Goal**
+- One canonical retrieval semantics engine; providers are implementation details.
+
+**Deliverables**
+- Canonical query normalization and plan:
+  - tokens/phrases/negation,
+  - filter application,
+  - ranking with explainability.
+- Provider adapters:
+  - sqlite-fts, tantivy, js-bm25, dense ANN
+  - all must output stableChunkIds and validated joins.
+- Output shaping:
+  - context expansion policy,
+  - summarization policy,
+  - consistent JSON output schema.
+
+**Exit criteria**
+- Explain output shows normalization + boosts + filters + provider selection.
+- Deterministic tie-breaking.
+
+---
+
+### Phase 5 — Operational robustness and developer UX
+
+**Deliverables**
+- Build reports with timings per stage, cache hits/misses, and stable error codes.
+- CI test tiers:
+  - smoke (fast),
+  - contract suite (medium),
+  - full e2e (slow) with scheduled cadence.
+- Hard gates:
+  - schema validation gate,
+  - manifest parity gate,
+  - deterministic build gate.
+
+---
+
+### Phase 6 — Productization (TUI + API + integrations)
+
+**Deliverables**
+- A truly excellent TUI built on canonical APIs (not ad-hoc CLI parsing).
+- Stable API server with SSE streaming using canonical progress events.
+- Integration hooks (MCP, editor extensions) consuming the same contracts.
+
+---
+
+## Immediate “first principles” deletions (reduce dead code surface)
+
+1. Delete or quarantine any pipeline that:
+   - writes artifacts outside a BuildRoot transaction,
+   - computes metaV2 early and never refreshes it after enrichment,
+   - uses file extension as a substitute for segment languageId.
+2. Remove duplicate backend selection code paths; policy kernel only.
+3. Remove ad-hoc JSON stringify paths; canonical serializer only.
+
+---
+
+## Success metrics (what “done” looks like)
+
+- Deterministic builds: byte-identical artifacts across two runs on same repo state.
+- Backend parity: sqlite vs jsonl retrieval returns same stableChunkIds + metaV2.
+- Observability: every build produces a report with stage timings + error taxonomy.
+- Fail-closed correctness: no silent fallback without policy allowing it.
+`
+
