@@ -61,3 +61,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS.md: preserve jsx/tsx fence languages instead of collapsing to js/ts.
 - CODEBASE_STATIC_REVIEW_FINDINGS.md: resolve tree-sitter languages using per-segment ext to avoid embedded jsx/tsx misses.
 - CODEBASE_STATIC_REVIEW_FINDINGS.md: align tree-sitter HTML config nameTypes to match chunker expectations.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: risk caps already short-circuit on maxBytes/maxLines; removed stale finding.

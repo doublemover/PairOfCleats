@@ -28,10 +28,6 @@ Where possible, each issue includes a **suggested fix direction** (high-level on
    - Cross-file inference mutates `chunk.docmeta` (links, inferred param types, risk flows), but `metaV2` remains the earlier snapshot.
    - Anything consuming `metaV2` sees stale declared/inferred types and relations.
 
-4) **Risk analysis “caps” do not short-circuit early enough**
-   - When a file exceeds byte/line caps, the implementation still performs expensive per-line rule scanning.
-   - This negates the intended performance protection.
-
 ---
 
 # File-by-file findings
@@ -269,11 +265,6 @@ Where possible, each issue includes a **suggested fix direction** (high-level on
 ---
 
 ## `src/index/risk.js`
-
-- **Performance bug: caps don’t prevent expensive scanning**
-  - **What’s wrong:** even when `analysisStatus` becomes `capped` due to maxBytes/maxLines, rule scanning and match collection still proceeds.
-  - **Why it matters:** large files can still dominate runtime, defeating caps.
-  - **Suggested fix:** short-circuit scanning when caps exceeded (or scan only a window / sample).
 
 - **Evidence loss: `dedupeMatches` keeps only one match per rule id**
   - **What’s wrong:** multiple matches of the same rule collapse.
