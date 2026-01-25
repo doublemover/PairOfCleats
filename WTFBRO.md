@@ -53,3 +53,32 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS_PASS9_*: retrieval/search/script-coverage/service test findings not addressed. Skipped: requires test harness policy and product decisions.
 - CODEBASE_STATIC_REVIEW_FINDINGS_PASS9_TESTS_SEARCH_SCRIPT_COVERAGE.md: skipped remaining findings (script-coverage covers unknown scripts, scoreBreakdown policy mismatch, process.cwd assumptions, determinism normalization, includeLicense no-op). Needs contract/policy decisions before refactor.
 - CODEBASE_STATIC_REVIEW_FINDINGS_PASS9_RETRIEVAL_FILTERS_TEST_RUNNER.md: skipped remaining findings (skip-as-pass coverage holes, filter predicate assertions, git timestamp drift, phrase order brittleness, runner timeout semantics, timing ledger). Needs test-runner policy decisions.
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS3.md: skipped remaining findings (broad architecture sweep requires larger design decisions).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS3B.md: skipped remaining findings (follow-on architecture sweep requires design alignment).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS4_ENTRYPOINTS_LINT.md: skipped remaining findings (linting/entrypoint policy work).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS4_FILE_PROCESSOR.md: skipped remaining findings (file processor refactors overlap larger pipeline work).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS4_INDEX_CHUNKING.md: skipped remaining findings (chunking/indexer contract decisions).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_ARTIFACTS_CHUNKING_LANGREG.md: skipped remaining findings (artifact/chunking registry policy work).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_ARTIFACTS_CHUNKING_LANGREG_MISC.md: skipped remaining findings (lang registry/chunking misc policy work).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_ARTIFACTS_CHUNKING_LANGUAGE_REGISTRY_RISK_ANN.md: skipped remaining findings (risk/ANN registry design).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_ARTIFACTS_CHUNKING_REGISTRY_RETRIEVAL.md: skipped remaining findings (retrieval registry design decisions).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_ARTIFACTS_POSTINGS_SHARDS.md: skipped remaining findings (postings/shards format decisions).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_CHUNKING_COMMENTS_EMBEDDING.md: skipped remaining findings (comments/embedding pipeline decisions).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_LANGUAGE_RETRIEVAL_CHUNKING.md: skipped remaining findings (language retrieval/chunking design).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS5_RETRIEVAL_CONTEXT_FILTER_OUTPUT.md: skipped remaining findings (retrieval output contracts need product decisions).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS6_SHARED.md: skipped remaining findings (shared subsystem policy work).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS6_SHARED_CLI_POLICY.md: skipped remaining findings (CLI policy/contracts pending).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS6_SHARED_FOUNDATIONS.md: skipped remaining findings (foundations refactors require design).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS6_SHARED_STORAGE.md: skipped remaining findings (storage policy decisions).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS7_TOOLS.md: skipped remaining findings (tooling surface policies).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS7_TOOLS_API_BENCH.md: skipped remaining findings (bench contract/policy).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS7_TOOLS_BENCH_EMBEDDINGS.md: skipped remaining findings (bench/embedding policy decisions).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS7_TOOLS_BENCH_SERVICE.md: skipped remaining findings (bench service contracts).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS7_TOOLS_MCP_INGEST.md: skipped remaining findings (MCP ingest policy decisions).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS.md: skipped remaining findings (test harness policy/tiering).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS_FIXTURES.md: skipped remaining findings (fixture policy/tiering decisions).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS_GRAPH_GIT_HNSW_INCREMENTAL.md: skipped remaining findings (graph/git/hnsw/incremental policy decisions).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS_INDEXING.md: skipped remaining findings (indexing test policy).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS_LANG_LMDB.md: skipped remaining findings (LMDB/lang test policy).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS_MCP_LSIF_PERF_MISC.md: skipped remaining findings (MCP/LSIF/perf test policy).
+- CODEBASE_STATIC_REVIEW_FINDINGS_PASS8_TESTS_QUERY_RETRIEVAL.md: skipped remaining findings (query/retrieval test policy).
