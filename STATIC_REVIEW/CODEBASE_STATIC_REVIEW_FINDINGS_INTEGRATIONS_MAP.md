@@ -39,26 +39,15 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 ## Executive summary (highest-leverage issues)
 
-### High
-
-1) **Map dataflow naming drift: `mutates` vs `mutations` likely breaks badges/filters**
-- **Where:**
-  - `src/map/constants.js` legend uses `functionBadges` key **`mutates`**
-  - Map builders/renderers consistently use **`mutations`** (`src/map/build-map.js`, `src/map/dot-writer.js`, `src/map/isometric/client/meshes.js`)
-- **Impact:** If UI logic expects `mutates` but data uses `mutations`, the mutation badge may never appear; conversely, if UI expects `mutations`, the legend key is misleading.
-- **Suggestion:** Pick one canonical name (preferably aligning with whatever `docmeta` emits) and normalize at ingestion boundaries:
-  - Adjust `normalizeDataflow()` to accept both `mutates` and `mutations` (and emit one), and
-  - Keep legend keys consistent with the emitted JSON.
-
 ### Medium
 
-2) **Two-stage indexing queue uses embeddings queue config namespace**
+1) **Two-stage indexing queue uses embeddings queue config namespace**
 - **Where:** `src/integrations/core/index.js` (two-stage background enqueue)
 - **What:** Stage2 background jobs are enqueued using `userConfig.indexing.embeddings.queue.dir` and `maxQueued`.
 - **Impact:** Confusing configuration semantics; risks unintended coupling (embeddings queue size limits throttling stage2 indexing), and reduces operator clarity.
 - **Suggestion:** Give two-stage indexing its own queue config keys (or a shared `indexing.queue.*` that both can use explicitly), and include “effective queue config” in `config_status` output.
 
-3) **MCP tool schema appears richer than the core CLI arg builder supports**
+2) **MCP tool schema appears richer than the core CLI arg builder supports**
 - **Where:**
   - Schema lists many filters in `src/integrations/mcp/defs.js` (`type`, `author`, `import`, `calls`, `signature`, …)
   - Core `buildSearchArgs()` in `src/integrations/core/index.js` only maps a small subset
@@ -68,7 +57,7 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
   - Reduce schema to what is actually honored, OR
   - Expand `buildSearchArgs()` to cover the schema.
 
-4) **Map member identity collisions likely for repeated names inside a file**
+3) **Map member identity collisions likely for repeated names inside a file**
 - **Where:** `src/map/build-map.js` (`buildSymbolId()` returns `${file}::${name}` for most named symbols)
 - **Impact:** Overloads / same-name functions / methods / nested symbols can collapse into one node, distorting edges and per-member metadata (types, risk, dataflow).
 - **Suggestion:** Use a more collision-resistant ID:
@@ -77,12 +66,12 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
   - use chunk IDs consistently when present.
   Also add a warning counter: “mergedSymbolsDueToCollision”.
 
-5) **`src/integrations/core/status.js` contains unused functions / drift indicators**
+4) **`src/integrations/core/status.js` contains unused functions / drift indicators**
 - **Where:** `readJsonWithLimit()`, `summarizeShardPlan()` are defined but not used.
 - **Impact:** Signals partially implemented or abandoned checks; increases maintenance burden and can mislead future refactors.
 - **Suggestion:** Either wire them into `getStatus()` (if they reflect intended invariants), or remove them to reduce confusion.
 
-6) **Isometric viewer has minimal JSON/error handling; one malformed payload breaks the UI entirely**
+5) **Isometric viewer has minimal JSON/error handling; one malformed payload breaks the UI entirely**
 - **Where:** `src/map/isometric/client/dom.js`
 - **What:** `JSON.parse` on `#map-data` and `#viewer-config` has no try/catch; missing DOM nodes throw.
 - **Impact:** A truncated or invalid map JSON yields a blank viewer with a console error.
@@ -237,17 +226,10 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 ### `src/map/constants.js`
 
-**A) `mutates` vs `mutations` mismatch (high)**
-- See executive summary.
-
 ### `src/map/build-map.js`
 
 **A) Member ID collisions (medium)**
 - See executive summary.
-
-**B) Dataflow shape inconsistencies likely**
-- `normalizeDataflow()` expects `dataflow.mutations`, but other emitters may use `mutates`.
-- **Recommendation:** accept both.
 
 **C) Call edges built from `chunk.codeRelations.calls` assume tuple shape (medium)**
 - `buildEdgesFromCalls()` expects each entry to be an array where `entry[1]` is the target name.
@@ -326,10 +308,7 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 ### `src/map/isometric/client/meshes.js`
 
-**A) Dataflow uses `mutations`; must align with the rest of the model (high if legend/UI expects `mutates`)**
-- See executive summary.
-
-**B) Label texture/material lifecycle (low)**
+**A) Label texture/material lifecycle (low)**
 - Many labels create textures/materials; no explicit disposal.
 - **Recommendation:** acceptable for single-load viewer; for live reload, add disposal paths.
 
@@ -340,7 +319,6 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 1) Add minimal regression tests around the critical issues:
 - Records indexing docmeta coverage when `record === null` but `recordMeta` exists.
 - CVSS score 0 preservation.
-- Map legend/dataflow naming consistency.
 
 2) Add lightweight “drop counters” to map building:
 - number of call edges skipped due to unknown encoding,
@@ -349,4 +327,3 @@ The focus is on **bugs, mis-implementations, correctness gaps, and configuration
 
 3) Document the “contracts” explicitly:
 - MCP schema ↔ CLI flags mapping.
-- Map JSON schema keys (`dataflow.mutations` vs `dataflow.mutates`).

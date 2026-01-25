@@ -25,7 +25,7 @@ export const DEFAULT_LEGEND = {
     returns: 'R',
     reads: 'Rd',
     writes: 'Wr',
-    mutates: 'Mu',
+    mutations: 'Mu',
     aliases: 'Al',
     branches: 'Br',
     loops: 'Lp',
