@@ -111,11 +111,6 @@ Where possible, each issue includes a **suggested fix direction** (high-level on
 
 ## `src/lang/tree-sitter/config.js`
 
-- **Bug: HTML config uses `nameNodeTypes`, but the chunker expects `nameTypes`**
-  - **What’s wrong:** `extractNodeName` reads `config.nameTypes`; HTML config sets `nameNodeTypes`.
-  - **Why it matters:** HTML tree-sitter chunking can silently produce **no chunks** (names not extracted), forcing fallback and wasting parse time.
-  - **Suggested fix:** Align config field names (or support both).
-
 - **Completeness gap: no dedicated grammars for SCSS/LESS/SASS**
   - **What’s wrong:** ecosystem exists, but only CSS is supported.
   - **Why it matters:** analysis of modern frontend code is weaker than it appears.

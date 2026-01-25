@@ -379,7 +379,7 @@ const LANG_CONFIG = {
       script_element: 'ScriptElement',
       style_element: 'StyleElement'
     },
-    nameNodeTypes: new Set(['tag_name'])
+    nameTypes: new Set(['tag_name'])
   }
 };
 

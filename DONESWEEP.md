@@ -60,3 +60,4 @@
 - CODEBASE_STATIC_REVIEW_FINDINGS.md: normalized declared return types across metadata, inference, and output to avoid boolean/string drift.
 - CODEBASE_STATIC_REVIEW_FINDINGS.md: preserve jsx/tsx fence languages instead of collapsing to js/ts.
 - CODEBASE_STATIC_REVIEW_FINDINGS.md: resolve tree-sitter languages using per-segment ext to avoid embedded jsx/tsx misses.
+- CODEBASE_STATIC_REVIEW_FINDINGS.md: align tree-sitter HTML config nameTypes to match chunker expectations.
