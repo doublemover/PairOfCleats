@@ -33,7 +33,9 @@ import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
 import { buildContentConfigHash } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
 import { configureRuntimeLogger } from './logging.js';
-import { normalizeLimit, normalizeRatio, normalizeDepth, resolveFileCapsAndGuardrails } from './caps.js';
+import { resolveFileCapsAndGuardrails } from './caps.js';
+import { buildAnalysisPolicy } from './policy.js';
+import { buildFileScanConfig, buildShardConfig, formatBuildTimestamp } from './config.js';
 import { resolveEmbeddingRuntime } from './embeddings.js';
 import { resolveTreeSitterRuntime, preloadTreeSitterRuntimeLanguages } from './tree-sitter.js';
 import {
@@ -41,10 +43,6 @@ import {
   resolveWorkerPoolRuntimeConfig,
   createRuntimeWorkerPools
 } from './workers.js';
-
-const formatBuildTimestamp = (date) => (
-  date.toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/[-:]/g, '')
-);
 
 /**
  * Create runtime configuration for build_index.
@@ -174,23 +172,14 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const gitBlameEnabled = indexingConfig.gitBlame !== false;
   const lintEnabled = indexingConfig.lint !== false;
   const complexityEnabled = indexingConfig.complexity !== false;
-  const analysisPolicy = {
-    metadata: { enabled: true },
-    risk: {
-      enabled: riskAnalysisEnabled,
-      crossFile: riskAnalysisCrossFileEnabled
-    },
-    git: {
-      enabled: gitBlameEnabled,
-      blame: gitBlameEnabled,
-      churn: false
-    },
-    typeInference: {
-      local: { enabled: typeInferenceEnabled },
-      crossFile: { enabled: typeInferenceCrossFileEnabled },
-      tooling: { enabled: typeInferenceCrossFileEnabled && toolingEnabled }
-    }
-  };
+  const analysisPolicy = buildAnalysisPolicy({
+    toolingEnabled,
+    typeInferenceEnabled,
+    typeInferenceCrossFileEnabled,
+    riskAnalysisEnabled,
+    riskAnalysisCrossFileEnabled,
+    gitBlameEnabled
+  });
   const skipUnknownLanguages = indexingConfig.skipUnknownLanguages === true;
   const skipOnParseError = indexingConfig.skipOnParseError === true;
   const yamlChunkingModeRaw = typeof indexingConfig.yamlChunking === 'string'
@@ -544,35 +533,8 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     }
   });
 
-  const fileScanConfig = indexingConfig.fileScan || {};
-  const minifiedScanConfig = fileScanConfig.minified || {};
-  const binaryScanConfig = fileScanConfig.binary || {};
-  const fileScan = {
-    sampleBytes: normalizeLimit(fileScanConfig.sampleBytes, 8192),
-    minified: {
-      sampleMinBytes: normalizeLimit(minifiedScanConfig.sampleMinBytes, 4096),
-      minChars: normalizeLimit(minifiedScanConfig.minChars, 1024),
-      singleLineChars: normalizeLimit(minifiedScanConfig.singleLineChars, 4096),
-      avgLineThreshold: normalizeLimit(minifiedScanConfig.avgLineThreshold, 300),
-      maxLineThreshold: normalizeLimit(minifiedScanConfig.maxLineThreshold, 600),
-      maxWhitespaceRatio: normalizeRatio(minifiedScanConfig.maxWhitespaceRatio, 0.2)
-    },
-    binary: {
-      sampleMinBytes: normalizeLimit(binaryScanConfig.sampleMinBytes, 65536),
-      maxNonTextRatio: normalizeRatio(binaryScanConfig.maxNonTextRatio, 0.3)
-    }
-  };
-  const shardsConfig = indexingConfig.shards || {};
-  const shardsEnabled = shardsConfig.enabled === true;
-  const shardsMaxWorkers = normalizeLimit(shardsConfig.maxWorkers, null);
-  const shardsMaxShards = normalizeLimit(shardsConfig.maxShards, null);
-  const shardsMinFiles = normalizeLimit(shardsConfig.minFiles, null);
-  const shardsDirDepth = normalizeDepth(shardsConfig.dirDepth, 0);
-  const shardsMaxShardBytes = normalizeLimit(
-    shardsConfig.maxShardBytes,
-    64 * 1024 * 1024
-  );
-  const shardsMaxShardLines = normalizeLimit(shardsConfig.maxShardLines, 200000);
+  const fileScan = buildFileScanConfig(indexingConfig);
+  const shardConfig = buildShardConfig(indexingConfig);
 
   const languageOptions = {
     rootDir: root,
@@ -671,15 +633,7 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     fileCaps,
     guardrails,
     fileScan,
-    shards: {
-      enabled: shardsEnabled,
-      maxWorkers: shardsMaxWorkers,
-      maxShards: shardsMaxShards,
-      minFiles: shardsMinFiles,
-      dirDepth: shardsDirDepth,
-      maxShardBytes: shardsMaxShardBytes,
-      maxShardLines: shardsMaxShardLines
-    },
+    shards: shardConfig,
     twoStage: {
       enabled: twoStageEnabled,
       background: twoStageBackground,
