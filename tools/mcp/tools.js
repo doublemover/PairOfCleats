@@ -23,7 +23,7 @@ const resolveRepoRuntimeEnv = (repoPath, userConfig) => {
  * @param {any} meta
  * @returns {string[]|null}
  */
-function normalizeMetaFilters(meta) {
+export function normalizeMetaFilters(meta) {
   if (!meta) return null;
   if (Array.isArray(meta)) {
     const entries = meta.flatMap((entry) => {

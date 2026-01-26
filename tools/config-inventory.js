@@ -4,10 +4,10 @@ import path from 'node:path';
 import { fdir } from 'fdir';
 import { resolveToolRoot } from './dict-utils.js';
 
-const root = resolveToolRoot();
-const schemaPath = path.join(root, 'docs', 'config-schema.json');
-const outputJsonPath = path.join(root, 'docs', 'config-inventory.json');
-const outputMdPath = path.join(root, 'docs', 'config-inventory.md');
+const defaultRoot = resolveToolRoot();
+const defaultSchemaPath = path.join(defaultRoot, 'docs', 'config-schema.json');
+const defaultOutputJsonPath = path.join(defaultRoot, 'docs', 'config-inventory.json');
+const defaultOutputMdPath = path.join(defaultRoot, 'docs', 'config-inventory.md');
 
 const PUBLIC_CONFIG_KEYS = new Set(['cache.root', 'quality']);
 const PUBLIC_ENV_VARS = new Set(['PAIROFCLEATS_API_TOKEN']);
@@ -117,7 +117,7 @@ const mergeEntry = (target, incoming) => {
   }
 };
 
-const collectSchemaEntries = (schema, prefix = '', entries = []) => {
+export const collectSchemaEntries = (schema, prefix = '', entries = []) => {
   if (!schema || typeof schema !== 'object') return entries;
   const properties = schema.properties && typeof schema.properties === 'object'
     ? schema.properties
@@ -158,7 +158,7 @@ const collectSchemaEntries = (schema, prefix = '', entries = []) => {
   return entries;
 };
 
-const getLeafEntries = (entries) => {
+export const getLeafEntries = (entries) => {
   const prefixes = new Set();
   for (const entry of entries) {
     const parts = entry.path.split('.');
@@ -171,8 +171,8 @@ const getLeafEntries = (entries) => {
   return entries.filter((entry) => !prefixes.has(entry.path));
 };
 
-const listSourceFiles = async () => {
-  const files = await new fdir().withFullPaths().crawl(root).withPromise();
+const listSourceFiles = async (scanRoot) => {
+  const files = await new fdir().withFullPaths().crawl(scanRoot).withPromise();
   return files.filter((filePath) => {
     if (!filePath.endsWith('.js')) return false;
     const normalized = filePath.replace(/\\/g, '/');
@@ -438,7 +438,19 @@ const extractTopLevelKeys = (objectText) => {
   return Array.from(keys);
 };
 
-const buildInventory = async () => {
+export const buildInventory = async (options = {}) => {
+  const root = options.root ? path.resolve(options.root) : resolveToolRoot();
+  const schemaPath = options.schemaPath ? path.resolve(options.schemaPath) : defaultSchemaPath;
+  const outputJsonPath = options.outputJsonPath
+    ? path.resolve(options.outputJsonPath)
+    : defaultOutputJsonPath;
+  const outputMdPath = options.outputMdPath
+    ? path.resolve(options.outputMdPath)
+    : defaultOutputMdPath;
+  const checkBudget = typeof options.check === 'boolean' ? options.check : shouldCheck;
+  const sourceFiles = Array.isArray(options.sourceFiles)
+    ? options.sourceFiles
+    : await listSourceFiles(root);
   const schemaRaw = await fs.readFile(schemaPath, 'utf8');
   const schema = JSON.parse(schemaRaw);
   const entries = collectSchemaEntries(schema);
@@ -461,7 +473,6 @@ const buildInventory = async () => {
     topLevel.set(rootKey, (topLevel.get(rootKey) || 0) + 1);
   }
 
-  const sourceFiles = await listSourceFiles();
   const envVarMap = new Map();
   const cliFlagMap = new Map();
   const cliFlagsByFile = new Map();
@@ -691,7 +702,7 @@ const buildInventory = async () => {
 
   await fs.writeFile(outputMdPath, mdLines.join('\n'));
 
-  if (shouldCheck) {
+  if (checkBudget) {
     const errors = [];
     if (unknownConfigLeafKeys.length) {
       errors.push(`Config keys not in allowlist: ${unknownConfigLeafKeys.join(', ')}`);

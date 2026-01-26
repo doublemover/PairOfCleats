@@ -41,7 +41,7 @@ try {
   ({ default: Database } = await import('better-sqlite3'));
 } catch {}
 
-const resolveOutputPaths = ({ modeArg, outArg, sqlitePaths }) => {
+export const resolveOutputPaths = ({ modeArg, outArg, sqlitePaths }) => {
   let outPath = null;
   let codeOutPath = sqlitePaths.codePath;
   let proseOutPath = sqlitePaths.prosePath;
