@@ -1,10 +1,10 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { LRUCache } from 'lru-cache';
-import { getRepoCacheRoot, loadUserConfig } from '../dict-utils.js';
-import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
-import { createIndexCache } from '../../src/retrieval/index-cache.js';
-import { incCacheEviction, setCacheSize } from '../../src/shared/metrics.js';
+import { getRepoCacheRoot, loadUserConfig } from '../../dict-utils.js';
+import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
+import { createIndexCache } from '../../../src/retrieval/index-cache.js';
+import { incCacheEviction, setCacheSize } from '../../../src/shared/metrics.js';
 
 export const normalizeCacheConfig = (value, defaults) => {
   const maxEntries = Number.isFinite(Number(value?.maxEntries))

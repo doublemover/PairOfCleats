@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../../src/shared/cache.js';
-import { isTestingEnv } from '../../src/shared/env.js';
+import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../../../src/shared/cache.js';
+import { isTestingEnv } from '../../../src/shared/env.js';
 import { getCacheRoot, loadUserConfig } from '../config.js';
 import { getDefaultCacheRoot } from '../cache.js';
 import { getRepoCacheRoot } from './repo.js';

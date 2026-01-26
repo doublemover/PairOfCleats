@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { resolveRepoRoot } from '../dict-utils.js';
-import { ERROR_CODES } from '../../src/shared/error-codes.js';
+import { resolveRepoRoot } from '../../dict-utils.js';
+import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 
 const normalizePath = (value) => {
   const resolved = value ? path.resolve(value) : '';

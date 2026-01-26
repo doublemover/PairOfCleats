@@ -1,4 +1,4 @@
-import { normalizeLanceDbConfig } from '../shared/lancedb.js';
+import { normalizeLanceDbConfig } from '../../shared/lancedb.js';
 
 export const buildArtifactLists = (userConfig, postingsConfig) => {
   const requiredArtifacts = ['chunk_meta', 'token_postings'];

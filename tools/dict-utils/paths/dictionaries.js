@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getDictConfig } from '../config.js';
-import { isTestingEnv } from '../../src/shared/env.js';
+import { isTestingEnv } from '../../../src/shared/env.js';
 import { getDefaultCacheRoot } from '../cache.js';
 import { getRepoId, getLegacyRepoId, resolvePath } from './repo.js';
 
