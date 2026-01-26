@@ -63,13 +63,13 @@ const describeObject = (value) => {
     : 'Object';
   const keys = Object.keys(value);
   if (keys.length) {
-    return `${ctor} keys: ${keys.slice(0, 6).join(', ')}${keys.length > 6 ? '…' : ''}`;
+    return `${ctor} keys: ${keys.slice(0, 6).join(', ')}${keys.length > 6 ? '...' : ''}`;
   }
   const ownProps = Object.getOwnPropertyNames(value);
   const ownSymbols = Object.getOwnPropertySymbols(value);
   const propList = [...ownProps, ...ownSymbols.map((sym) => sym.toString())];
   if (propList.length) {
-    return `${ctor} props: ${propList.slice(0, 6).join(', ')}${propList.length > 6 ? '…' : ''}`;
+    return `${ctor} props: ${propList.slice(0, 6).join(', ')}${propList.length > 6 ? '...' : ''}`;
   }
   return `${ctor} (no enumerable keys)`;
 };

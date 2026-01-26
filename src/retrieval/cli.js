@@ -198,6 +198,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       branchFilter,
       extFilter,
       langFilter,
+      extImpossible,
+      langImpossible,
       metaFilters,
       annEnabled: annEnabledRaw,
       scoreBlendEnabled: scoreBlendEnabledRaw,

@@ -474,7 +474,8 @@ export async function compactDatabase(input) {
   return { skipped: false };
 }
 
-const isDirectRun = import.meta.url === pathToFileURL(process.argv[1]).href;
+const argvEntry = typeof process.argv[1] === 'string' ? process.argv[1] : '';
+const isDirectRun = argvEntry ? import.meta.url === pathToFileURL(argvEntry).href : false;
 if (isDirectRun) {
   const argv = createCli({
     scriptName: 'compact-sqlite-index',

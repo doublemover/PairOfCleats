@@ -91,7 +91,7 @@ export function formatFullChunk({
     : (Array.isArray(chunk.chunkAuthors) ? chunk.chunkAuthors : []);
   if (chunkAuthors.length) {
     const authors = chunkAuthors.slice(0, 6);
-    const suffix = chunkAuthors.length > authors.length ? ' …' : '';
+    const suffix = chunkAuthors.length > authors.length ? ' ...' : '';
     out += c.gray('   Chunk Authors: ') + c.green(authors.join(', ') + suffix) + '\n';
   }
 

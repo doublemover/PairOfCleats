@@ -636,7 +636,8 @@ export async function buildIndex(repoRoot, options = {}) {
   }
 
   if (explicitStage) {
-    return runStage(explicitStage, { allowSqlite: true });
+    const allowSqlite = explicitStage !== 'stage1' && explicitStage !== 'stage2';
+    return runStage(explicitStage, { allowSqlite });
   }
 
   if (!twoStageEnabled) {

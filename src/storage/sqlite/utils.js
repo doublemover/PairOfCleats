@@ -146,6 +146,11 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
   const keepBackup = options.keepBackup === true;
   const backupPath = options.backupPath || `${finalDbPath}.bak`;
   const finalExists = fs.existsSync(finalDbPath);
+  if (!fs.existsSync(tempDbPath)) {
+    const err = new Error(`Temp sqlite db missing before replace: ${tempDbPath}`);
+    err.code = 'ERR_SQLITE_TEMP_MISSING';
+    throw err;
+  }
   const emit = (message) => {
     if (!message) return;
     if (options.logger?.warn) {

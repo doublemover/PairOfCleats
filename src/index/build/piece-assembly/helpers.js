@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { readJsonFile } from '../../shared/artifact-io.js';
+import { readJsonFile } from '../../../shared/artifact-io.js';
 
 export const STAGE_ORDER = {
   stage1: 1,

@@ -28,7 +28,7 @@ import {
 } from '../../../shared/artifact-io.js';
 
 const listShardFiles = (dir, prefix, extensions) => {
-  if (!fsSync.existsSync(dir)) return [];
+  if (!dir || typeof dir !== 'string' || !fsSync.existsSync(dir)) return [];
   const allowed = Array.isArray(extensions) && extensions.length
     ? extensions
     : ['.json', '.jsonl'];
@@ -42,12 +42,19 @@ const listShardFiles = (dir, prefix, extensions) => {
 const normalizeMetaParts = (parts) => (
   Array.isArray(parts)
     ? parts
-      .map((part) => (typeof part === 'string' ? part : part?.path))
+      .map((part) => {
+        if (typeof part === 'string') return part;
+        return typeof part?.path === 'string' ? part.path : null;
+      })
       .filter(Boolean)
     : []
 );
 
 const resolveChunkMetaSources = (dir) => {
+  if (!dir || typeof dir !== 'string') {
+    dir = typeof dir?.dir === 'string' ? dir.dir : null;
+  }
+  if (!dir) return null;
   const metaPath = path.join(dir, 'chunk_meta.meta.json');
   const partsDir = path.join(dir, 'chunk_meta.parts');
   if (fsSync.existsSync(metaPath) || fsSync.existsSync(partsDir)) {
@@ -81,6 +88,10 @@ const resolveChunkMetaSources = (dir) => {
 };
 
 const resolveTokenPostingsSources = (dir) => {
+  if (!dir || typeof dir !== 'string') {
+    dir = typeof dir?.dir === 'string' ? dir.dir : null;
+  }
+  if (!dir) return null;
   const metaPath = path.join(dir, 'token_postings.meta.json');
   const shardsDir = path.join(dir, 'token_postings.shards');
   if (!fsSync.existsSync(metaPath) && !fsSync.existsSync(shardsDir)) return null;
@@ -129,7 +140,27 @@ const readJsonLinesFile = async (
   }
 };
 
-export const loadIndexPieces = (dir, modelId) => {
+export const loadIndexPieces = (dirOrOptions, modelId) => {
+  if (dirOrOptions && typeof dirOrOptions === 'object' && !Array.isArray(dirOrOptions)) {
+    const { indexDir, modes, modelId: modelIdOverride } = dirOrOptions;
+    const baseDir = typeof indexDir === 'string' ? indexDir : null;
+    const modeList = Array.isArray(modes) ? modes.filter((mode) => typeof mode === 'string') : [];
+    const resolvedModelId = modelIdOverride ?? modelId;
+    if (baseDir && modeList.length) {
+      const piecesByMode = {};
+      for (const mode of modeList) {
+        const suffix = `${path.sep}index-${mode}`;
+        const modeDir = baseDir.endsWith(suffix) ? baseDir : path.join(baseDir, `index-${mode}`);
+        const pieces = loadIndexPieces(modeDir, resolvedModelId);
+        if (pieces) piecesByMode[mode] = pieces;
+      }
+      return piecesByMode;
+    }
+    dirOrOptions = baseDir;
+    modelId = resolvedModelId;
+  }
+  const dir = dirOrOptions;
+  if (!dir || typeof dir !== 'string') return null;
   const sources = resolveChunkMetaSources(dir);
   if (!sources) return null;
   const denseVec = loadOptional(dir, 'dense_vectors_uint8.json');
@@ -149,8 +180,10 @@ export const loadIndexPieces = (dir, modelId) => {
 export async function buildDatabaseFromArtifacts({
   Database,
   outPath,
+  outputPath,
   index,
   indexDir,
+  pieces,
   mode,
   manifestFiles,
   emitOutput,
@@ -159,6 +192,21 @@ export async function buildDatabaseFromArtifacts({
   modelConfig,
   logger
 }) {
+  const resolvedOutPath = typeof outputPath === 'string' ? outputPath : outPath;
+  if (!resolvedOutPath || typeof resolvedOutPath !== 'string') {
+    throw new Error('[sqlite] buildDatabaseFromArtifacts: outputPath must be a string.');
+  }
+  const resolvedIndexDir = typeof indexDir === 'string'
+    ? indexDir
+    : (typeof pieces?.dir === 'string'
+      ? pieces.dir
+      : (typeof indexDir?.indexDir === 'string'
+        ? indexDir.indexDir
+        : (typeof indexDir?.dir === 'string' ? indexDir.dir : null)));
+  if (!resolvedIndexDir) {
+    throw new Error('[sqlite] buildDatabaseFromArtifacts: indexDir must be a string.');
+  }
+  indexDir = resolvedIndexDir;
   const warn = (message) => {
     if (!emitOutput || !message) return;
     if (logger?.warn) {
@@ -171,7 +219,7 @@ export async function buildDatabaseFromArtifacts({
     }
     console.warn(message);
   };
-  if (!index) return 0;
+  if (!index && !indexDir) return 0;
   const manifestLookup = normalizeManifestFiles(manifestFiles || {});
   if (emitOutput && manifestLookup.conflicts.length) {
     warn(`[sqlite] Manifest path conflicts for ${mode}; using normalized entries.`);
@@ -182,7 +230,7 @@ export async function buildDatabaseFromArtifacts({
   const encodeVector = vectorConfig?.encodeVector;
   const quantization = resolveQuantizationParams(vectorConfig?.quantization);
 
-  const db = new Database(outPath);
+  const db = new Database(resolvedOutPath);
   applyBuildPragmas(db);
 
   let count = 0;
@@ -633,7 +681,7 @@ export async function buildDatabaseFromArtifacts({
       expected: validationStats,
       emitOutput,
       logger,
-      dbPath: outPath
+      dbPath: resolvedOutPath
     });
     try {
       db.pragma('wal_checkpoint(TRUNCATE)');
@@ -651,9 +699,9 @@ export async function buildDatabaseFromArtifacts({
     db.close();
     if (!succeeded) {
       try {
-        fsSync.rmSync(outPath, { force: true });
+        fsSync.rmSync(resolvedOutPath, { force: true });
       } catch {}
-      await removeSqliteSidecars(outPath);
+      await removeSqliteSidecars(resolvedOutPath);
     }
   }
   return count;

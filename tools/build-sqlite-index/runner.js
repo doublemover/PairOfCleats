@@ -29,7 +29,7 @@ import {
 } from '../vector-extension.js';
 import { compactDatabase } from '../compact-sqlite-index.js';
 import { loadIncrementalManifest } from '../../src/storage/sqlite/incremental.js';
-import { loadIndex, removeSqliteSidecars, replaceSqliteDatabase } from '../../src/storage/sqlite/utils.js';
+import { removeSqliteSidecars, replaceSqliteDatabase } from '../../src/storage/sqlite/utils.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../src/storage/sqlite/build/from-artifacts.js';
 import { buildDatabaseFromBundles } from '../../src/storage/sqlite/build/from-bundles.js';
 import { incrementalUpdateDatabase } from '../../src/storage/sqlite/build/incremental-update.js';
@@ -103,6 +103,24 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     if (exitOnError) process.exit(code);
     throw new Error(message || 'SQLite index build failed.');
   };
+  const readSqliteCounts = (dbPath) => {
+    const counts = {};
+    let db = null;
+    try {
+      db = new Database(dbPath, { readonly: true });
+      const rows = db.prepare('SELECT mode, COUNT(*) AS total FROM chunks GROUP BY mode').all();
+      for (const row of rows || []) {
+        if (!row?.mode) continue;
+        counts[row.mode] = Number.isFinite(row.total) ? row.total : 0;
+      }
+    } catch {}
+    if (db) {
+      try {
+        db.close();
+      } catch {}
+    }
+    return counts;
+  };
   if (!Database) return bail('better-sqlite3 is required. Run npm install first.');
 
   try {
@@ -175,12 +193,33 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       sqlitePaths
     });
     const logPrefix = modeArg === 'all' ? '[sqlite]' : `[sqlite:${modeArg}]`;
-    const indexDir = modeArg === 'all'
-      ? null
-      : getIndexDir(root, modeArg, userConfig, { indexRoot });
+    const explicitDirs = {
+      code: argv['code-dir'] ? path.resolve(argv['code-dir']) : null,
+      prose: argv['prose-dir'] ? path.resolve(argv['prose-dir']) : null,
+      'extracted-prose': argv['extracted-prose-dir'] ? path.resolve(argv['extracted-prose-dir']) : null,
+      records: argv['records-dir'] ? path.resolve(argv['records-dir']) : null
+    };
+    const resolveIndexDir = (mode) => (
+      explicitDirs[mode] || getIndexDir(root, mode, userConfig, { indexRoot })
+    );
+    const indexDir = modeArg === 'all' ? null : resolveIndexDir(modeArg);
     const repoCacheRoot = getRepoCacheRoot(root, userConfig);
     const incrementalManifest = loadIncrementalManifest(repoCacheRoot, modeArg);
-    const artifactsDir = indexDir || indexRoot;
+    const incrementalBundleDir = incrementalManifest?.bundleDir || null;
+    const incrementalFiles = incrementalManifest?.manifest?.files;
+    const incrementalFileCount = incrementalFiles && typeof incrementalFiles === 'object'
+      ? Object.keys(incrementalFiles).length
+      : 0;
+    const incrementalBundleCount = incrementalBundleDir && fsSync.existsSync(incrementalBundleDir)
+      ? fsSync.readdirSync(incrementalBundleDir).filter((name) => !name.startsWith('.')).length
+      : 0;
+    const useIncremental = argv.incremental
+      && incrementalManifest?.manifest
+      && incrementalFileCount > 0
+      && incrementalBundleCount > 0;
+    if (argv.incremental && !useIncremental && emitOutput) {
+      log(`[sqlite] Incremental bundles unavailable; falling back to artifacts.`);
+    }
     const modeList = modeArg === 'all'
       ? ['code', 'prose', 'extracted-prose', 'records']
       : [modeArg];
@@ -190,10 +229,16 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       'extracted-prose': extractedProseOutPath,
       records: recordsOutPath
     };
-    const indexPieces = await loadIndexPieces({ indexDir: artifactsDir, modes: modeList });
-    const useIncremental = argv.incremental && incrementalManifest?.manifest;
+    const modeIndexDirs = {};
+    for (const mode of modeList) {
+      modeIndexDirs[mode] = resolveIndexDir(mode);
+    }
+    const indexPieces = {};
+    for (const mode of modeList) {
+      const pieces = await loadIndexPieces(modeIndexDirs[mode]);
+      if (pieces) indexPieces[mode] = pieces;
+    }
     const bundleFormat = incrementalManifest?.manifest?.bundleFormat || null;
-    const incrementalBundleDir = incrementalManifest?.bundleDir || null;
     const compactMode = argv.compact === true || (argv.compact == null && argv['no-compact'] !== true);
 
     if (hasBuildState) {
@@ -205,7 +250,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     for (const mode of modeList) {
       const modeLabel = `${logPrefix} ${mode}`;
       const startTs = Date.now();
-      const modeIndexDir = getIndexDir(root, mode, userConfig, { indexRoot });
+      const modeIndexDir = modeIndexDirs[mode] || getIndexDir(root, mode, userConfig, { indexRoot });
       const outputPath = modeOutputPaths[mode];
       if (!outputPath) return bail('SQLite output path could not be resolved.');
       const outDir = path.dirname(outputPath);
@@ -254,11 +299,16 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           });
           sqliteDb = await buildDatabaseFromBundles({
             Database,
-            bundleDir: incrementalBundleDir,
-            outputPath: tempOutputPath,
-            vectorConfig: resolvedVectorConfig,
+            outPath: tempOutputPath,
+            mode,
+            incrementalData: incrementalManifest,
+            envConfig,
+            threadLimits,
             emitOutput,
-            task: workTask
+            validateMode,
+            vectorConfig: resolvedVectorConfig,
+            modelConfig,
+            logger: externalLogger || { log, warn, error }
           });
         } else {
           const estimate = await estimateDirBytes(modeIndexDir);
@@ -270,28 +320,30 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
           });
           sqliteDb = await buildDatabaseFromArtifacts({
             Database,
-            pieces,
+            index: pieces,
             indexDir: modeIndexDir,
+            mode,
             outputPath: tempOutputPath,
             vectorConfig: resolvedVectorConfig,
             emitOutput,
+            logger: externalLogger || { log, warn, error },
             task: workTask
           });
         }
         const hadVectorTable = await hasVectorTable(Database, tempOutputPath);
         if (compactMode) {
-          const compacted = await compactDatabase(Database, tempOutputPath, workTask);
+          const compacted = await compactDatabase({
+            dbPath: tempOutputPath,
+            mode,
+            vectorExtension: vectorExtension,
+            logger: externalLogger || { log, warn, error }
+          });
           if (compacted) logDetails.push('compacted');
         }
         await replaceSqliteDatabase(tempOutputPath, outputPath);
         tempOutputPath = null;
         await removeSqliteSidecars(outputPath);
-        const reloaded = await loadIndex(Database, outputPath, {
-          vectorConfig: resolvedVectorConfig,
-          useAutoBackend: false
-        });
-        const counts = await reloaded.counts();
-        await reloaded.close();
+        const counts = readSqliteCounts(outputPath);
         const durationMs = Date.now() - startTs;
         const stat = await fs.stat(outputPath);
         const note = logDetails.length ? logDetails.join(', ') : null;
@@ -314,17 +366,6 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
             `${modeLabel} ${mode} index built at ${outputPath} (${counts.code || 0} code, ` +
             `${counts.prose || 0} prose, ${counts['extracted-prose'] || 0} extracted-prose).`
           );
-        }
-        if (validateMode) {
-          await validateMode({
-            Database,
-            mode,
-            outputPath,
-            vectorConfig: resolvedVectorConfig,
-            emitOutput,
-            log,
-            warn
-          });
         }
         if (resolvedInput.source === 'incremental' && resolvedInput.bundleDir) {
           await incrementalUpdateDatabase({
@@ -374,6 +415,9 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
         });
         if (emitOutput) {
           error(`${modeLabel} failed: ${errorMessage}`);
+          if (err?.stack) {
+            error(err.stack);
+          }
         }
         if (exitOnError) process.exit(1);
         throw err;

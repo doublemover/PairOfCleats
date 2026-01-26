@@ -376,84 +376,84 @@ export const LANGUAGE_REGISTRY = [
   },
   {
     id: 'cmake',
-    match: (ext) => CMAKE_EXTS.includes(ext),
+    match: (ext) => CMAKE_EXTS.has(ext),
     collectImports: (text) => collectCmakeImports(text),
     buildRelations: ({ text }) => buildSimpleRelations({ imports: collectCmakeImports(text) }),
     attachName: false
   },
   {
     id: 'starlark',
-    match: (ext) => STARLARK_EXTS.includes(ext),
+    match: (ext) => STARLARK_EXTS.has(ext),
     collectImports: (text) => collectStarlarkImports(text),
     buildRelations: ({ text }) => buildSimpleRelations({ imports: collectStarlarkImports(text) }),
     attachName: false
   },
   {
     id: 'nix',
-    match: (ext) => NIX_EXTS.includes(ext),
+    match: (ext) => NIX_EXTS.has(ext),
     collectImports: (text) => collectNixImports(text),
     buildRelations: ({ text }) => buildSimpleRelations({ imports: collectNixImports(text) }),
     attachName: false
   },
   {
     id: 'dart',
-    match: (ext) => DART_EXTS.includes(ext),
+    match: (ext) => DART_EXTS.has(ext),
     collectImports: (text) => collectDartImports(text),
     buildRelations: ({ text }) => buildSimpleRelations({ imports: collectDartImports(text) }),
     attachName: false
   },
   {
     id: 'scala',
-    match: (ext) => SCALA_EXTS.includes(ext),
+    match: (ext) => SCALA_EXTS.has(ext),
     collectImports: (text) => collectScalaImports(text),
     buildRelations: ({ text }) => buildSimpleRelations({ imports: collectScalaImports(text) }),
     attachName: false
   },
   {
     id: 'groovy',
-    match: (ext) => GROOVY_EXTS.includes(ext),
+    match: (ext) => GROOVY_EXTS.has(ext),
     collectImports: (text) => collectGroovyImports(text),
     buildRelations: ({ text }) => buildSimpleRelations({ imports: collectGroovyImports(text) }),
     attachName: false
   },
   {
     id: 'r',
-    match: (ext) => R_EXTS.includes(ext),
+    match: (ext) => R_EXTS.has(ext),
     collectImports: (text) => collectRImports(text),
     buildRelations: ({ text }) => buildSimpleRelations({ imports: collectRImports(text) }),
     attachName: false
   },
   {
     id: 'julia',
-    match: (ext) => JULIA_EXTS.includes(ext),
+    match: (ext) => JULIA_EXTS.has(ext),
     collectImports: (text) => collectJuliaImports(text),
     buildRelations: ({ text }) => buildSimpleRelations({ imports: collectJuliaImports(text) }),
     attachName: false
   },
   {
     id: 'handlebars',
-    match: (ext) => HANDLEBARS_EXTS.includes(ext),
+    match: (ext) => HANDLEBARS_EXTS.has(ext),
     collectImports: (text) => collectHandlebarsImports(text),
     buildRelations: ({ text }) => buildSimpleRelations({ imports: collectHandlebarsImports(text) }),
     attachName: false
   },
   {
     id: 'mustache',
-    match: (ext) => MUSTACHE_EXTS.includes(ext),
+    match: (ext) => MUSTACHE_EXTS.has(ext),
     collectImports: (text) => collectMustacheImports(text),
     buildRelations: ({ text }) => buildSimpleRelations({ imports: collectMustacheImports(text) }),
     attachName: false
   },
   {
     id: 'jinja',
-    match: (ext) => JINJA_EXTS.includes(ext),
+    match: (ext) => JINJA_EXTS.has(ext),
     collectImports: (text) => collectJinjaImports(text),
     buildRelations: ({ text }) => buildSimpleRelations({ imports: collectJinjaImports(text) }),
     attachName: false
   },
   {
     id: 'razor',
-    match: (ext) => RAZOR_EXTS.includes(ext),
+    match: (ext) => RAZOR_EXTS.has(ext),
     collectImports: (text) => collectRazorImports(text),
     buildRelations: ({ text }) => buildSimpleRelations({ imports: collectRazorImports(text) }),
     attachName: false

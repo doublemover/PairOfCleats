@@ -33,7 +33,7 @@ import { resolveRuntimeEnvelope } from '../../../shared/runtime-envelope.js';
 import { buildContentConfigHash } from './hash.js';
 import { normalizeStage, buildStageOverrides } from './stage.js';
 import { configureRuntimeLogger } from './logging.js';
-import { resolveFileCapsAndGuardrails } from './caps.js';
+import { normalizeLimit, resolveFileCapsAndGuardrails } from './caps.js';
 import { buildAnalysisPolicy } from './policy.js';
 import { buildFileScanConfig, buildShardConfig, formatBuildTimestamp } from './config.js';
 import { resolveEmbeddingRuntime } from './embeddings.js';

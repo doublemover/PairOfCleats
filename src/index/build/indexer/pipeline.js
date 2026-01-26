@@ -80,7 +80,7 @@ export async function buildIndexForMode({ mode, runtime, discovery = null, abort
   });
   const outDir = getIndexDir(runtime.root, mode, runtime.userConfig, { indexRoot: runtime.buildRoot });
   await fs.mkdir(outDir, { recursive: true });
-  log(`\n📄  Scanning ${mode} …`);
+  log(`\n📄  Scanning ${mode} ...`);
   const timing = { start: Date.now() };
   const metricsDir = getMetricsDir(runtime.root, runtime.userConfig);
   const analysisFlags = resolveAnalysisFlags(runtime);

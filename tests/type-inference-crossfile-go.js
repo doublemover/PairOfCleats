@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
+import { getIndexDir, loadUserConfig, resolveToolRoot } from '../tools/dict-utils.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tempRoot = path.join(root, '.testCache', 'type-inference-crossfile-go');
@@ -22,6 +23,32 @@ const hasPython = () => {
   return false;
 };
 const pythonAvailable = hasPython();
+const hasPyright = () => {
+  const toolRoot = resolveToolRoot();
+  const candidates = process.platform === 'win32'
+    ? ['pyright-langserver.cmd', 'pyright-langserver.exe', 'pyright-langserver']
+    : ['pyright-langserver'];
+  const searchDirs = [
+    path.join(root, 'node_modules', '.bin'),
+    toolRoot ? path.join(toolRoot, 'node_modules', '.bin') : null
+  ].filter(Boolean);
+  const canRun = (cmd) => {
+    try {
+      const result = spawnSync(cmd, ['--version'], { encoding: 'utf8', shell: process.platform === 'win32' });
+      return result.status === 0;
+    } catch {}
+    return false;
+  };
+  for (const dir of searchDirs) {
+    for (const candidate of candidates) {
+      const full = path.join(dir, candidate);
+      if (!fsSync.existsSync(full)) continue;
+      if (canRun(full)) return true;
+    }
+  }
+  return canRun('pyright-langserver');
+};
+const pyrightAvailable = hasPyright();
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
@@ -100,7 +127,7 @@ public class JavaWidgetBuilder {
 `
 );
 
-if (pythonAvailable) {
+if (pythonAvailable && pyrightAvailable) {
   await fsPromises.writeFile(
     path.join(repoRoot, 'src', 'py_widget.py'),
     `class PyWidget:
@@ -211,7 +238,7 @@ if (!inferredJava.some((entry) => entry.type === 'JavaWidget' && entry.source ==
   process.exit(1);
 }
 
-if (pythonAvailable) {
+if (pythonAvailable && pyrightAvailable) {
   const buildPy = chunkMeta.find((chunk) =>
     resolveChunkFile(chunk) === 'src/py_builder.py' &&
     chunk.name === 'build_py_widget'
@@ -226,7 +253,8 @@ if (pythonAvailable) {
     process.exit(1);
   }
 } else {
-  console.log('Skipping Python cross-file inference (python not available).');
+  const reason = !pythonAvailable ? 'python not available' : 'pyright not available';
+  console.log(`Skipping Python cross-file inference (${reason}).`);
 }
 
 console.log('Cross-file inference tests passed (Go/Rust/Java/Python).');

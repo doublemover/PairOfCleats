@@ -187,7 +187,7 @@ const expandTypeCandidates = (raw, languageId) => {
 
 const normalizeDefaultValue = (raw) => {
   let value = normalizeText(raw);
-  if (!value || value === '...' || value === '…') return '';
+  if (!value || value === '...' || value === '...') return '';
   const commentCuts = [];
   const hashIdx = value.indexOf('#');
   if (hashIdx >= 0) commentCuts.push(hashIdx);

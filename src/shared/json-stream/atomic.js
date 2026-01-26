@@ -20,6 +20,11 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   const keepBackup = options.keepBackup === true;
   const bakPath = getBakPath(finalPath);
   const finalExists = fs.existsSync(finalPath);
+  if (!fs.existsSync(tempPath)) {
+    const err = new Error(`Temp file missing before replace: ${tempPath}`);
+    err.code = 'ERR_TEMP_MISSING';
+    throw err;
+  }
   let backupAvailable = fs.existsSync(bakPath);
   const copyFallback = async () => {
     try {

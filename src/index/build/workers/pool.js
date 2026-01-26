@@ -384,6 +384,10 @@ export async function createIndexerWorkerPool(input = {}) {
           }
         }
       },
+      async runTokenize(payload) {
+        // Backward-compat alias for tests and callers that still use runTokenize.
+        return this.tokenizeChunk(payload);
+      },
       async runQuantize(payload) {
         activeTasks += 1;
         updatePoolMetrics();

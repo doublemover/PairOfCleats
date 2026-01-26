@@ -28,7 +28,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   const postingsConfig = runtime.postingsConfig;
   await fs.mkdir(outDir, { recursive: true });
 
-  log('\n📄  Scanning records …');
+  log('\n📄  Scanning records ...');
   const timing = { start: Date.now() };
 
   const state = createIndexState();

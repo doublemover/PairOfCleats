@@ -4,9 +4,29 @@ import path from 'node:path';
 import { readJson } from '../../src/storage/sqlite/utils.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
 import { updateIndexStateManifest } from '../index-state-utils.js';
+import { getIndexDir } from '../dict-utils.js';
 
-export const updateSqliteState = async (indexDir, patch) => {
-  if (!indexDir) return;
+export const updateSqliteState = async (indexDirOrOptions, patch = null) => {
+  let indexDir = indexDirOrOptions;
+  let statePatch = patch;
+  if (indexDirOrOptions && typeof indexDirOrOptions === 'object' && !Array.isArray(indexDirOrOptions)) {
+    const {
+      root,
+      userConfig,
+      indexRoot,
+      mode,
+      indexDir: explicitIndexDir,
+      ...rest
+    } = indexDirOrOptions;
+    statePatch = patch || rest;
+    if (!explicitIndexDir && root && mode) {
+      const options = indexRoot ? { indexRoot } : {};
+      indexDir = getIndexDir(root, mode, userConfig, options);
+    } else {
+      indexDir = explicitIndexDir || null;
+    }
+  }
+  if (!indexDir || typeof indexDir !== 'string') return;
   const statePath = path.join(indexDir, 'index_state.json');
   let state = {};
   if (fsSync.existsSync(statePath)) {
@@ -21,7 +41,7 @@ export const updateSqliteState = async (indexDir, patch) => {
   state.updatedAt = now;
   state.sqlite = {
     ...(state.sqlite || {}),
-    ...patch,
+    ...(statePatch || {}),
     updatedAt: now
   };
   try {

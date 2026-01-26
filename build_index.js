@@ -163,6 +163,9 @@ try {
     display.error('Index build aborted.');
   } else {
     display.error(`Index build failed: ${err?.message || err}`);
+    if (argv.verbose === true && err?.stack) {
+      display.error(err.stack);
+    }
   }
   if (crashLogPath) {
     display.error(`Crash log: ${crashLogPath}`);

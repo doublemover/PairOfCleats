@@ -78,11 +78,16 @@ export function renderSearchOutput({
   };
 
   if (includeStats) {
+    const vectorAnnActive = vectorAnnEnabled
+      && (vectorAnnUsed.code
+        || vectorAnnUsed.prose
+        || vectorAnnUsed.records
+        || vectorAnnUsed['extracted-prose']);
     payload.stats = {
       elapsedMs,
       annEnabled,
       annActive,
-      annMode: vectorExtension.annMode,
+      annMode: vectorAnnActive ? 'extension' : vectorExtension.annMode,
       annBackend,
       backendPolicy: backendPolicyInfo,
       annExtension: vectorAnnEnabled ? {

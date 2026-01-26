@@ -37,6 +37,8 @@ import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
 
+export { createDebouncedScheduler, acquireIndexLockWithBackoff };
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const MINIFIED_NAME_REGEX = /(?:\.min\.[^/]+$)|(?:-min\.[^/]+$)/i;

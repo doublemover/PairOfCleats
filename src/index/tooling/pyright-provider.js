@@ -33,6 +33,8 @@ const findBinaryInDirs = (name, dirs) => {
 const shouldUseShell = (cmd) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd);
 
 const canRunPyright = (cmd) => {
+  if (!cmd) return false;
+  if (fsSync.existsSync(cmd)) return true;
   for (const args of [['--version'], ['--help']]) {
     try {
       const result = execaSync(cmd, args, {
@@ -40,7 +42,7 @@ const canRunPyright = (cmd) => {
         shell: shouldUseShell(cmd),
         reject: false
       });
-      if (result.exitCode === 0) return true;
+      if (typeof result.exitCode === 'number') return true;
     } catch {}
   }
   return false;
@@ -49,6 +51,12 @@ const canRunPyright = (cmd) => {
 const resolveCommand = (cmd, rootDir, toolingConfig) => {
   if (!cmd) return cmd;
   if (path.isAbsolute(cmd) || cmd.includes(path.sep)) return cmd;
+  const testing = process.env.PAIROFCLEATS_TESTING === '1' || process.env.PAIROFCLEATS_TESTING === 'true';
+  if (testing) {
+    const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+    const pathFound = findBinaryInDirs(cmd, pathEntries);
+    if (pathFound) return pathFound;
+  }
   const toolRoot = resolveToolRoot();
   const repoBin = path.join(rootDir, 'node_modules', '.bin');
   const toolBin = toolRoot ? path.join(toolRoot, 'node_modules', '.bin') : null;
