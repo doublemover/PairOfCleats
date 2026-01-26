@@ -50,7 +50,7 @@ jobs:
           if-no-files-found: ignore
 
   windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     continue-on-error: true
     env:
       PAIROFCLEATS_EMBEDDINGS: stub

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { execaSync } from 'execa';
+import { isTestingEnv } from '../../shared/env.js';
 import { buildLineIndex } from '../../shared/lines.js';
 import { createLspClient, languageIdForFileExt, pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { rangeToOffsets } from '../../integrations/tooling/lsp/positions.js';
@@ -51,7 +52,7 @@ const canRunPyright = (cmd) => {
 const resolveCommand = (cmd, rootDir, toolingConfig) => {
   if (!cmd) return cmd;
   if (path.isAbsolute(cmd) || cmd.includes(path.sep)) return cmd;
-  const testing = process.env.PAIROFCLEATS_TESTING === '1' || process.env.PAIROFCLEATS_TESTING === 'true';
+  const testing = isTestingEnv();
   if (testing) {
     const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
     const pathFound = findBinaryInDirs(cmd, pathEntries);
