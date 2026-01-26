@@ -1,4 +1,5 @@
 import { parseJson } from './query-cache.js';
+import { mergeFilterLists } from '../shared/filter/merge.js';
 const LANG_ALIAS_MAP = new Map([
   ['javascript', 'javascript'],
   ['js', 'javascript'],
@@ -195,18 +196,6 @@ export function normalizeLangFilter(langArg) {
  * @param {string[]|null} right
  * @returns {{values: string[]|null, impossible: boolean}}
  */
-const mergeFilterLists = (left, right) => {
-  if (!left && !right) return { values: null, impossible: false };
-  if (!left) return { values: right, impossible: false };
-  if (!right) return { values: left, impossible: false };
-  const rightSet = new Set(right);
-  const intersection = left.filter((value) => rightSet.has(value));
-  if (intersection.length) {
-    return { values: Array.from(new Set(intersection)), impossible: false };
-  }
-  return { values: null, impossible: true };
-};
-
 export function mergeExtFilters(extFilter, extraFilter) {
   return mergeFilterLists(extFilter, extraFilter);
 }

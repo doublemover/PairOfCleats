@@ -14,6 +14,7 @@ import {
   resolveSpecialCodeExt
 } from '../constants.js';
 import { log } from '../../shared/progress.js';
+import { retryWithBackoff } from '../../shared/retry.js';
 import {
   incWatchBurst,
   incWatchDebounce,
@@ -23,6 +24,7 @@ import {
 } from '../../shared/metrics.js';
 import { fileExt, toPosix } from '../../shared/files.js';
 import { runWithQueue } from '../../shared/concurrency.js';
+import { createDebouncedScheduler } from '../../shared/scheduler/debounce.js';
 import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
 import { getCapabilities } from '../../shared/capabilities.js';
 import { getEnvConfig } from '../../shared/env.js';
@@ -30,6 +32,7 @@ import { getLanguageForFile } from '../language-registry.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
 import { initBuildState, markBuildPhase, updateBuildState } from './build-state.js';
 import { SIGNATURE_VERSION } from './indexer/signatures.js';
+import { buildIgnoredMatcher } from '../../shared/fs/ignore.js';
 import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
@@ -77,9 +80,6 @@ export const acquireIndexLockWithBackoff = async ({
   log: logFn,
   backoff = null
 }) => {
-  const started = Date.now();
-  let attempt = 0;
-  let lastLog = 0;
   const baseMs = Number.isFinite(backoff?.baseMs) ? backoff.baseMs : LOCK_BACKOFF_BASE_MS;
   const maxMs = Number.isFinite(backoff?.maxMs) ? backoff.maxMs : LOCK_BACKOFF_MAX_MS;
   const logIntervalMs = Number.isFinite(backoff?.logIntervalMs)
@@ -88,27 +88,21 @@ export const acquireIndexLockWithBackoff = async ({
   const maxWaitMs = Number.isFinite(backoff?.maxWaitMs)
     ? backoff.maxWaitMs
     : LOCK_BACKOFF_MAX_WAIT_MS;
-  while (!shouldExit()) {
-    const lock = await acquireIndexLock({ repoCacheRoot, log: logFn });
-    if (lock) return lock;
-    const now = Date.now();
-    if (attempt === 0) {
-      logFn?.('[watch] Index lock held; backing off before retry.');
-      lastLog = now;
-    } else if (now - lastLog >= logIntervalMs) {
-      logFn?.('[watch] Still waiting for index lock...');
-      lastLog = now;
+  return await retryWithBackoff({
+    task: async () => acquireIndexLock({ repoCacheRoot, log: logFn }),
+    shouldStop: shouldExit,
+    baseMs,
+    maxMs,
+    maxWaitMs,
+    logIntervalMs,
+    onLog: ({ initial }) => {
+      if (initial) {
+        logFn?.('[watch] Index lock held; backing off before retry.');
+      } else {
+        logFn?.('[watch] Still waiting for index lock...');
+      }
     }
-    const base = Math.min(maxMs, baseMs * (2 ** attempt));
-    const jitter = base * (0.3 + Math.random() * 0.4);
-    const delay = Math.min(maxMs, Math.floor(base + jitter));
-    await sleep(delay);
-    attempt += 1;
-    if (Date.now() - started >= maxWaitMs) {
-      return null;
-    }
-  }
-  return null;
+  });
 };
 
 export const waitForStableFile = async (absPath, { checks, intervalMs }) => {
@@ -129,33 +123,6 @@ export const waitForStableFile = async (absPath, { checks, intervalMs }) => {
   }
   return false;
 };
-
-export function createDebouncedScheduler({ debounceMs, onRun, onSchedule, onCancel, onFire, onError }) {
-  let timer = null;
-  const schedule = () => {
-    if (timer) {
-      clearTimeout(timer);
-      if (onCancel) onCancel();
-    }
-    timer = setTimeout(() => {
-      timer = null;
-      if (onFire) onFire();
-      void Promise.resolve()
-        .then(() => onRun())
-        .catch((err) => {
-          if (onError) onError(err);
-        });
-    }, debounceMs);
-    if (onSchedule) onSchedule();
-  };
-  const cancel = () => {
-    if (!timer) return;
-    clearTimeout(timer);
-    timer = null;
-    if (onCancel) onCancel();
-  };
-  return { schedule, cancel };
-}
 
 const normalizeRoot = (value) => {
   const resolved = path.resolve(value || '');
@@ -228,18 +195,6 @@ const resolveMaxBytesForFile = (ext, languageId, maxFileBytes, fileCaps) => {
 };
 
 
-const buildIgnoredMatcher = ({ root, ignoreMatcher }) => (targetPath, stats) => {
-  const relPosix = toPosix(path.relative(root, targetPath));
-  if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
-  const isDirectory = stats?.isDirectory ? stats.isDirectory() : null;
-  const dirPath = relPosix.endsWith('/') ? relPosix : `${relPosix}/`;
-  if (isDirectory === true) {
-    if (ignoreMatcher.ignores(dirPath)) return true;
-  } else if (isDirectory == null) {
-    if (ignoreMatcher.ignores(dirPath)) return true;
-  }
-  return ignoreMatcher.ignores(relPosix);
-};
 
 /**
  * Watch for file changes and rebuild indexes incrementally.
