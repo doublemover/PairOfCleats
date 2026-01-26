@@ -3,7 +3,7 @@ index-sqlite/
 index-code/
 index-prose/
 ci-artifacts/
-artifacts/
+/artifacts/
 tests/.cache/
 tests/.logs/
 benchmarks/repos/

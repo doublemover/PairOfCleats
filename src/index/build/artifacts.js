@@ -2,28 +2,25 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { log, logLine, showProgress } from '../../shared/progress.js';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io.js';
-import {
-  writeJsonArrayFile,
-  writeJsonLinesSharded,
-  writeJsonObjectFile
-} from '../../shared/json-stream.js';
+import { writeJsonObjectFile } from '../../shared/json-stream.js';
 import { runWithConcurrency } from '../../shared/concurrency.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { ensureDiskSpace } from '../../shared/disk-space.js';
 import { resolveCompressionConfig } from './artifacts/compression.js';
 import { writePiecesManifest } from './artifacts/checksums.js';
+import { writeFileLists } from './artifacts/file-lists.js';
 import { buildFileMeta } from './artifacts/file-meta.js';
 import { buildSerializedFilterIndex } from './artifacts/filter-index.js';
+import { enqueueGraphRelationsArtifacts } from './artifacts/graph-relations.js';
 import { writeIndexMetrics } from './artifacts/metrics.js';
+import { enqueueRepoMapArtifacts, measureRepoMap } from './artifacts/repo-map.js';
+import {
+  enqueueTokenPostingsArtifacts,
+  resolveTokenPostingsPlan
+} from './artifacts/token-postings.js';
 import { resolveTokenMode } from './artifacts/token-mode.js';
 import { createArtifactWriter } from './artifacts/writer.js';
-import {
-  createGraphRelationsIterator,
-  estimatePostingsBytes,
-  formatBytes,
-  measureGraphRelations,
-  summarizeFilterIndex
-} from './artifacts/helpers.js';
+import { formatBytes, summarizeFilterIndex } from './artifacts/helpers.js';
 import { enqueueFileRelationsArtifacts } from './artifacts/writers/file-relations.js';
 import { createRepoMapIterator } from './artifacts/writers/repo-map.js';
 import {
@@ -31,7 +28,6 @@ import {
   enqueueChunkMetaArtifacts,
   resolveChunkMetaPlan
 } from './artifacts/writers/chunk-meta.js';
-import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../contracts/versioning.js';
 
 /**
  * Write index artifacts and metrics.
@@ -107,44 +103,12 @@ export async function writeIndexArtifacts(input) {
     fileRelations: state.fileRelations
   });
 
-  const fileListConfig = userConfig?.indexing || {};
-  const debugFileLists = fileListConfig.debugFileLists === true;
-  const sampleSize = Number.isFinite(Number(fileListConfig.fileListSampleSize))
-    ? Math.max(0, Math.floor(Number(fileListConfig.fileListSampleSize)))
-    : 50;
-  const sampleList = (list) => {
-    if (!Array.isArray(list) || sampleSize <= 0) return [];
-    if (list.length <= sampleSize) return list.slice();
-    return list.slice(0, sampleSize);
-  };
-  const fileListSummary = {
-    generatedAt: new Date().toISOString(),
-    scanned: {
-      count: state.scannedFilesTimes.length,
-      sample: sampleList(state.scannedFilesTimes)
-    },
-    skipped: {
-      count: state.skippedFiles.length,
-      sample: sampleList(state.skippedFiles)
-    }
-  };
-  const fileListPath = path.join(outDir, '.filelists.json');
-  await writeJsonObjectFile(fileListPath, { fields: fileListSummary, atomic: true });
-  if (debugFileLists) {
-    await writeJsonArrayFile(
-      path.join(outDir, '.scannedfiles.json'),
-      state.scannedFilesTimes,
-      { atomic: true }
-    );
-    await writeJsonArrayFile(
-      path.join(outDir, '.skippedfiles.json'),
-      state.skippedFiles,
-      { atomic: true }
-    );
-    log('→ Wrote .filelists.json, .scannedfiles.json, and .skippedfiles.json');
-  } else {
-    log('→ Wrote .filelists.json (samples only).');
-  }
+  const { fileListPath } = await writeFileLists({
+    outDir,
+    state,
+    userConfig,
+    log
+  });
 
 
   const resolvedConfig = normalizePostingsConfig(postingsConfig || {});
@@ -178,29 +142,22 @@ export async function writeIndexArtifacts(input) {
     chunkMetaShardSize,
     maxJsonBytes
   });
-  const tokenPostingsFormat = tokenPostingsFormatConfig
-    || (artifactMode === 'sharded' ? 'sharded' : (artifactMode === 'json' ? 'json' : 'auto'));
-  let tokenPostingsUseShards = tokenPostingsFormat === 'sharded'
-    || (tokenPostingsFormat === 'auto'
-      && postings.tokenVocab.length >= tokenPostingsShardThreshold);
-  const tokenPostingsEstimate = estimatePostingsBytes(
-    postings.tokenVocab,
-    postings.tokenPostingsList
-  );
-  if (tokenPostingsEstimate) {
-    if (tokenPostingsEstimate.estimatedBytes > maxJsonBytesSoft) {
-      tokenPostingsUseShards = true;
-      const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));
-      tokenPostingsShardSize = Math.min(tokenPostingsShardSize, targetShardSize);
-      log(
-        `Token postings estimate ~${formatBytes(tokenPostingsEstimate.estimatedBytes)}; ` +
-        `using sharded output to stay under ${formatBytes(maxJsonBytes)}.`
-      );
-    } else if (tokenPostingsUseShards) {
-      const targetShardSize = Math.max(1, Math.floor(shardTargetBytes / tokenPostingsEstimate.avgBytes));
-      tokenPostingsShardSize = Math.min(tokenPostingsShardSize, targetShardSize);
-    }
-  }
+  const {
+    tokenPostingsUseShards,
+    tokenPostingsShardSize: resolvedTokenPostingsShardSize,
+    tokenPostingsEstimate
+  } = resolveTokenPostingsPlan({
+    artifactMode,
+    tokenPostingsFormatConfig,
+    tokenPostingsShardSize,
+    tokenPostingsShardThreshold,
+    postings,
+    maxJsonBytes,
+    maxJsonBytesSoft,
+    shardTargetBytes,
+    log
+  });
+  tokenPostingsShardSize = resolvedTokenPostingsShardSize;
   await ensureDiskSpace({
     targetPath: outDir,
     requiredBytes: tokenPostingsEstimate?.estimatedBytes,
@@ -360,22 +317,7 @@ export async function writeIndexArtifacts(input) {
     addPieceFile,
     formatArtifactLabel
   });
-  const repoMapMeasurement = (() => {
-    let totalEntries = 0;
-    let totalBytes = 2;
-    let totalJsonlBytes = 0;
-    for (const entry of repoMapIterator()) {
-      const line = JSON.stringify(entry);
-      const lineBytes = Buffer.byteLength(line, 'utf8');
-      if (maxJsonBytes && (lineBytes + 1) > maxJsonBytes) {
-        throw new Error(`repo_map entry exceeds max JSON size (${lineBytes} bytes).`);
-      }
-      totalBytes += lineBytes + (totalEntries > 0 ? 1 : 0);
-      totalJsonlBytes += lineBytes + 1;
-      totalEntries += 1;
-    }
-    return { totalEntries, totalBytes, totalJsonlBytes };
-  })();
+  const repoMapMeasurement = measureRepoMap({ repoMapIterator, maxJsonBytes });
   const useRepoMapJsonl = repoMapMeasurement.totalEntries
     && maxJsonBytes
     && repoMapMeasurement.totalBytes > maxJsonBytes;
@@ -385,98 +327,20 @@ export async function writeIndexArtifacts(input) {
     label: `${mode} repo_map`
   });
   const repoMapCompression = resolveShardCompression('repo_map');
-  const resolveJsonExtension = (value) => {
-    if (value === 'gzip') return 'json.gz';
-    if (value === 'zstd') return 'json.zst';
-    return 'json';
-  };
-  const repoMapPath = path.join(outDir, `repo_map.${resolveJsonExtension(repoMapCompression)}`);
-  const repoMapMetaPath = path.join(outDir, 'repo_map.meta.json');
-  const repoMapPartsDir = path.join(outDir, 'repo_map.parts');
-  const removeRepoMapJsonl = async () => {
-    await removeArtifact(path.join(outDir, 'repo_map.jsonl'));
-    await removeArtifact(path.join(outDir, 'repo_map.jsonl.gz'));
-    await removeArtifact(path.join(outDir, 'repo_map.jsonl.zst'));
-  };
-  const removeRepoMapJson = async () => {
-    await removeArtifact(path.join(outDir, 'repo_map.json'));
-    await removeArtifact(path.join(outDir, 'repo_map.json.gz'));
-    await removeArtifact(path.join(outDir, 'repo_map.json.zst'));
-  };
-
-  if (!useRepoMapJsonl) {
-    enqueueWrite(
-      formatArtifactLabel(repoMapPath),
-      async () => {
-        await removeRepoMapJsonl();
-        await removeRepoMapJson();
-        await removeArtifact(repoMapMetaPath);
-        await removeArtifact(repoMapPartsDir);
-        await writeJsonArrayFile(repoMapPath, repoMapIterator(), {
-          atomic: true,
-          compression: repoMapCompression
-        });
-      }
-    );
-    addPieceFile({
-      type: 'chunks',
-      name: 'repo_map',
-      format: 'json',
-      compression: repoMapCompression || null
-    }, repoMapPath);
-  } else {
-    log(`repo_map ~${Math.round(repoMapMeasurement.totalJsonlBytes / 1024)}KB; writing JSONL shards.`);
-    enqueueWrite(
-      formatArtifactLabel(repoMapMetaPath),
-      async () => {
-        await removeRepoMapJson();
-        await removeRepoMapJsonl();
-        const result = await writeJsonLinesSharded({
-          dir: outDir,
-          partsDirName: 'repo_map.parts',
-          partPrefix: 'repo_map.part-',
-          items: repoMapIterator(),
-          maxBytes: maxJsonBytes,
-          atomic: true,
-          compression: repoMapCompression,
-          gzipOptions: repoMapCompression === 'gzip' ? compressionGzipOptions : null
-        });
-        const parts = result.parts.map((part, index) => ({
-          path: part,
-          records: result.counts[index] || 0,
-          bytes: result.bytes[index] || 0
-        }));
-        await writeJsonObjectFile(repoMapMetaPath, {
-          fields: {
-            schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-            artifact: 'repo_map',
-            format: 'jsonl-sharded',
-            generatedAt: new Date().toISOString(),
-            compression: repoMapCompression || 'none',
-            totalRecords: result.total,
-            totalBytes: result.totalBytes,
-            maxPartRecords: result.maxPartRecords,
-            maxPartBytes: result.maxPartBytes,
-            targetMaxBytes: result.targetMaxBytes,
-            parts
-          },
-          atomic: true
-        });
-        for (let i = 0; i < result.parts.length; i += 1) {
-          const relPath = result.parts[i];
-          const absPath = path.join(outDir, relPath.split('/').join(path.sep));
-          addPieceFile({
-            type: 'chunks',
-            name: 'repo_map',
-            format: 'jsonl',
-            count: result.counts[i] || 0,
-            compression: repoMapCompression || null
-          }, absPath);
-        }
-        addPieceFile({ type: 'chunks', name: 'repo_map_meta', format: 'json' }, repoMapMetaPath);
-      }
-    );
-  }
+  await enqueueRepoMapArtifacts({
+    outDir,
+    repoMapIterator,
+    repoMapMeasurement,
+    useRepoMapJsonl,
+    maxJsonBytes,
+    repoMapCompression,
+    compressionGzipOptions,
+    log,
+    enqueueWrite,
+    addPieceFile,
+    formatArtifactLabel,
+    removeArtifact
+  });
   if (filterIndex) {
     enqueueJsonObject('filter_index', { fields: filterIndex }, {
       compressible: false,
@@ -490,92 +354,19 @@ export async function writeIndexArtifacts(input) {
       count: postings.minhashSigs.length
     }
   });
-  if (tokenPostingsUseShards) {
-    const shardsDir = path.join(outDir, 'token_postings.shards');
-    const parts = [];
-    const shardPlan = [];
-    let shardIndex = 0;
-    const tokenPostingsCompression = resolveShardCompression('token_postings');
-    const resolveJsonExtension = (value) => {
-      if (value === 'gzip') return 'json.gz';
-      if (value === 'zstd') return 'json.zst';
-      return 'json';
-    };
-    const tokenPostingsExtension = resolveJsonExtension(tokenPostingsCompression);
-    for (let i = 0; i < postings.tokenVocab.length; i += tokenPostingsShardSize) {
-      const end = Math.min(i + tokenPostingsShardSize, postings.tokenVocab.length);
-      const partCount = end - i;
-      const partName = `token_postings.part-${String(shardIndex).padStart(5, '0')}.${tokenPostingsExtension}`;
-      parts.push(path.posix.join('token_postings.shards', partName));
-      shardPlan.push({ start: i, end, partCount, partName });
-      addPieceFile({
-        type: 'postings',
-        name: 'token_postings',
-        format: 'json',
-        count: partCount,
-        compression: tokenPostingsCompression || null
-      }, path.join(shardsDir, partName));
-      shardIndex += 1;
-    }
-    const metaPath = path.join(outDir, 'token_postings.meta.json');
-    addPieceFile({ type: 'postings', name: 'token_postings_meta', format: 'json' }, metaPath);
-    enqueueWrite(
-      formatArtifactLabel(shardsDir),
-      async () => {
-        const tempDir = `${shardsDir}.tmp-${Date.now()}`;
-        const backupDir = `${shardsDir}.bak`;
-        await fs.rm(tempDir, { recursive: true, force: true });
-        await fs.mkdir(tempDir, { recursive: true });
-        for (const part of shardPlan) {
-          const partPath = path.join(tempDir, part.partName);
-          await writeJsonObjectFile(partPath, {
-            arrays: {
-              vocab: postings.tokenVocab.slice(part.start, part.end),
-              postings: postings.tokenPostingsList.slice(part.start, part.end)
-            },
-            compression: tokenPostingsCompression,
-            atomic: true
-          });
-        }
-        await fs.rm(backupDir, { recursive: true, force: true });
-        try {
-          await fs.stat(shardsDir);
-          await fs.rename(shardsDir, backupDir);
-        } catch {}
-        await fs.rename(tempDir, shardsDir);
-        await fs.rm(backupDir, { recursive: true, force: true });
-        await writeJsonObjectFile(metaPath, {
-          fields: {
-            avgDocLen: postings.avgDocLen,
-            totalDocs: state.docLengths.length,
-            format: 'sharded',
-            shardSize: tokenPostingsShardSize,
-            vocabCount: postings.tokenVocab.length,
-            parts,
-            compression: tokenPostingsCompression || null
-          },
-          arrays: {
-            docLengths: state.docLengths
-          },
-          atomic: true
-        });
-      }
-    );
-  } else {
-    enqueueJsonObject('token_postings', {
-      fields: {
-        avgDocLen: postings.avgDocLen,
-        totalDocs: state.docLengths.length
-      },
-      arrays: {
-        vocab: postings.tokenVocab,
-        postings: postings.tokenPostingsList,
-        docLengths: state.docLengths
-      }
-    }, {
-      piece: { type: 'postings', name: 'token_postings', count: postings.tokenVocab.length }
-    });
-  }
+  const tokenPostingsCompression = resolveShardCompression('token_postings');
+  await enqueueTokenPostingsArtifacts({
+    outDir,
+    postings,
+    state,
+    tokenPostingsUseShards,
+    tokenPostingsShardSize,
+    tokenPostingsCompression,
+    enqueueJsonObject,
+    enqueueWrite,
+    addPieceFile,
+    formatArtifactLabel
+  });
   if (postings.fieldPostings?.fields) {
     enqueueJsonObject('field_postings', { fields: { fields: postings.fieldPostings.fields } }, {
       piece: { type: 'postings', name: 'field_postings' }
@@ -598,85 +389,16 @@ export async function writeIndexArtifacts(input) {
     addPieceFile,
     formatArtifactLabel
   });
-  if (graphRelations && typeof graphRelations === 'object') {
-    const graphMeasurement = measureGraphRelations(graphRelations, { maxJsonBytes });
-    if (graphMeasurement) {
-      const graphPath = path.join(outDir, 'graph_relations.json');
-      const graphJsonlPath = path.join(outDir, 'graph_relations.jsonl');
-      const graphMetaPath = path.join(outDir, 'graph_relations.meta.json');
-      const graphPartsDir = path.join(outDir, 'graph_relations.parts');
-      const useGraphJsonl = maxJsonBytes && graphMeasurement.totalJsonBytes > maxJsonBytes;
-      if (!useGraphJsonl) {
-        enqueueWrite(
-          formatArtifactLabel(graphPath),
-          async () => {
-            await removeArtifact(graphJsonlPath);
-            await removeArtifact(graphMetaPath);
-            await removeArtifact(graphPartsDir);
-            await writeJsonObjectFile(graphPath, { fields: graphRelations, atomic: true });
-          }
-        );
-        addPieceFile({ type: 'relations', name: 'graph_relations', format: 'json' }, graphPath);
-      } else {
-        log(
-          `graph_relations ~${Math.round(graphMeasurement.totalJsonlBytes / 1024)}KB; ` +
-          'writing JSONL shards.'
-        );
-        enqueueWrite(
-          formatArtifactLabel(graphMetaPath),
-          async () => {
-            await removeArtifact(graphPath);
-            await removeArtifact(graphJsonlPath);
-            const result = await writeJsonLinesSharded({
-              dir: outDir,
-              partsDirName: 'graph_relations.parts',
-              partPrefix: 'graph_relations.part-',
-              items: createGraphRelationsIterator(graphRelations)(),
-              maxBytes: maxJsonBytes,
-              atomic: true
-            });
-            const parts = result.parts.map((part, index) => ({
-              path: part,
-              records: result.counts[index] || 0,
-              bytes: result.bytes[index] || 0
-            }));
-            await writeJsonObjectFile(graphMetaPath, {
-              fields: {
-                schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
-                artifact: 'graph_relations',
-                format: 'jsonl-sharded',
-                generatedAt: graphMeasurement.generatedAt,
-                compression: 'none',
-                totalRecords: result.total,
-                totalBytes: result.totalBytes,
-                maxPartRecords: result.maxPartRecords,
-                maxPartBytes: result.maxPartBytes,
-                targetMaxBytes: result.targetMaxBytes,
-                parts,
-                extensions: {
-                  graphs: graphMeasurement.graphs,
-                  caps: graphRelations.caps ?? null,
-                  version: graphMeasurement.version
-                }
-              },
-              atomic: true
-            });
-            for (let i = 0; i < result.parts.length; i += 1) {
-              const relPath = result.parts[i];
-              const absPath = path.join(outDir, relPath.split('/').join(path.sep));
-              addPieceFile({
-                type: 'relations',
-                name: 'graph_relations',
-                format: 'jsonl',
-                count: result.counts[i] || 0
-              }, absPath);
-            }
-            addPieceFile({ type: 'relations', name: 'graph_relations_meta', format: 'json' }, graphMetaPath);
-          }
-        );
-      }
-    }
-  }
+  await enqueueGraphRelationsArtifacts({
+    graphRelations,
+    outDir,
+    maxJsonBytes,
+    log,
+    enqueueWrite,
+    addPieceFile,
+    formatArtifactLabel,
+    removeArtifact
+  });
   if (resolvedConfig.enablePhraseNgrams !== false) {
     enqueueJsonObject('phrase_ngrams', {
       arrays: { vocab: postings.phraseVocab, postings: postings.phrasePostings }
