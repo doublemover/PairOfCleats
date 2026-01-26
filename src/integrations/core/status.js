@@ -251,3 +251,7 @@ export async function getStatus(input = {}) {
 
   return payload;
 }
+
+export async function status(input = {}) {
+  return getStatus(input);
+}
