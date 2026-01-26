@@ -110,36 +110,43 @@ All hashes are **xxHash64** (hex, 16 chars) using the existing backend selection
 
 Let:
 
-- `containerRelPath`: repo-relative path with `/` separators.
-- `segmentId`: `''` if none.
+- `namespaceKey`: stable per repo root (default `"repo"`).
+- `virtualPath`: `fileRelPath` or `fileRelPath#seg:<segmentUid>` (segment-safe).
 - `chunkText`: the exact chunk text as indexed (same bytes used for tokenization / embedding).
 - `start`, `end`: container offsets (used only to pick context windows, not stored in the final string).
 
-Compute:
+Compute (per canonical identity contract):
 
-1. `spanHash = xxh64(chunkText)`
-2. `preContext = text.slice(max(0, start-64), start)`
-3. `postContext = text.slice(end, min(text.length, end+64))`
-4. `preHash  = xxh64(preContext)`
-5. `postHash = xxh64(postContext)`
-6. `raw = containerRelPath + '\0' + segmentId + '\0' + spanHash + '\0' + preHash + '\0' + postHash`
-7. `uidHash = xxh64(raw)`
+`normalizeForUid`:
+- convert `\r\n` → `\n`
+- convert remaining `\r` → `\n`
+- do not trim or reindent
+
+1. `span = normalizeForUid(chunkText)`
+2. `pre = normalizeForUid(text.slice(max(0, start-128), start))`
+3. `post = normalizeForUid(text.slice(end, min(text.length, end+128)))`
+4. `spanHash = xxh64("span\0" + span)`
+5. `preHash  = xxh64("pre\0" + pre)`   (only if pre.length > 0)
+6. `postHash = xxh64("post\0" + post)` (only if post.length > 0)
+7. `base = "ck64:v1:" + namespaceKey + ":" + virtualPath + ":" + spanHash`
+   - if `segment.languageId` is present, insert `":" + segment.languageId + ":"` before `spanHash`
+8. Append `":" + preHash` / `":" + postHash` when present
 
 **Canonical string form**
-- `chunkUid = "cu:v1:xxh64:" + uidHash`
+- `chunkUid = base`
 
 #### 3.3.2 Collision handling
 
 Collisions are extremely unlikely but must be handled deterministically.
 
 **Collision scope**
-- Detect collisions **within the same `{containerRelPath, segmentId}` scope**.
+- Detect collisions **within the same `virtualPath` scope**.
 
 **Required behavior**
 - If two chunks produce the same `chunkUid`:
-  - Choose a deterministic stable order by `(start, end, kind, name, docId)` and assign:
-    - winner keeps `chunkUid`
-    - others become `chunkUid + ":c" + <index>` (e.g., `...:c1`, `...:c2`)
+  - Follow the canonical disambiguation steps in `docs/spec-identity-contract.refined.md`:
+    - escalate context windows once
+    - if still colliding, assign deterministic ordinals and append `:ord<index>`
   - Record in metadata:
     - `collisionOf: <baseChunkUid>` for non-winners.
 
@@ -163,7 +170,7 @@ For every chunk record, `metaV2` MUST include:
 - `postHash: "xxh64:<hex16>"`
 - `collisionOf?: string` (present only when this chunkUid is a disambiguated collision)
 
-**Note:** If you choose the `"cu:v1:xxh64:<hex>"` format for `chunkUid`, you may store `spanHash/preHash/postHash` as raw `hex16` strings (without prefixes) to reduce size. The schema must be explicit either way.
+**Note:** If you choose the `"ck64:v1:<...>"` format for `chunkUid`, you may store `spanHash/preHash/postHash` as raw `hex16` strings (without prefixes) to reduce size. The schema must be explicit either way.
 
 ### 4.2 Mapping artifacts (recommended)
 
@@ -176,10 +183,10 @@ Each line:
 ```json
 {
   "docId": 123,
-  "chunkUid": "cu:v1:xxh64:8dd7c1f0c6e3a1b2",
+  "chunkUid": "ck64:v1:repo:src/foo.ts:8dd7c1f0c6e3a1b2:...",
   "chunkId": "chunk_0a12...sha1",
   "file": "src/foo.ts",
-  "segmentId": "md:fence:3",
+  "segmentUid": "segu:v1:abcd1234",
   "start": 1200,
   "end": 1520
 }
@@ -187,7 +194,7 @@ Each line:
 
 **Rules**
 - Exactly one row per docId.
-- Deterministic output order: sort by `docId` ascending (or by `file, segmentId, start` if docId not stable across backends—choose one and test-lock it).
+- Deterministic output order: sort by `docId` ascending (or by `file, segmentUid, start` if docId not stable across backends—choose one and test-lock it).
 
 ---
 
@@ -280,7 +287,8 @@ export type ChunkRef = {
   chunkUid: string;           // stable-ish
   chunkId: string;            // range-specific
   file: string;               // container relpath (POSIX)
-  segmentId?: string | null;  // null/undefined if none
+  segmentId?: string | null;  // legacy range-id (optional)
+  segmentUid?: string | null; // stable segment identity (preferred)
   range?: { start: number; end: number }; // container offsets (optional but recommended)
 };
 ```
@@ -341,7 +349,7 @@ When joining symbol-like entities across subsystems:
 When joining chunk-like entities:
 
 1. Join on `chunkUid` whenever available.
-2. Else join on `{file, segmentId, chunkId}` (range-specific).
+2. Else join on `{file, segmentUid, chunkId}` (range-specific; legacy `segmentId` allowed only if `segmentUid` is missing).
 3. `docId` MUST NOT be used alone for cross-system joins unless the systems share the same build context.
 
 ---
@@ -399,4 +407,3 @@ Phase 8 must still:
 - eliminate silent `file::name` collisions,
 - preserve ambiguity explicitly,
 - provide stable-ish chunk identities for graphs/caches.
-

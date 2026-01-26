@@ -63,21 +63,9 @@ type CallSitesRowV1_1 = {
 ```
 
 ### 4.2 `callSiteId` computation (required)
-`callSiteId` MUST be computed as:
+`callSiteId` MUST be computed per the canonical algorithm in:
 
-```
-callSiteId = "sha1:" + sha1(
-  file + ":" +
-  startLine + ":" + startCol + ":" +
-  endLine + ":" + endCol + ":" +
-  calleeName
-)
-```
-
-Constraints:
-* `file` MUST be the repo-relative POSIX path.
-* Line/col MUST be 1-based.
-* `calleeName` MUST be the raw string recorded by the language relations collector (e.g., `"runQuery"` or `"db.query"`).
+* `docs/SPEC_risk_callsite_id_and_stats_v1_refined.md`
 
 ### 4.3 `argsSummary` normalization (required)
 Rules:

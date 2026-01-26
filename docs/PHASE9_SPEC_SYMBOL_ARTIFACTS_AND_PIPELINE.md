@@ -23,7 +23,7 @@ One record per unique `scopedId`.
   "kind": "function|class|...",
   "languageId": "typescript|javascript|...",
   "file": "src/foo.ts",
-  "segmentId": "seg_..." ,
+  "segmentUid": "segu:..." ,
   "range": { "start": 123, "end": 456, "startLine": 10, "endLine": 20 },
   "name": "foo",
   "qualifiedName": "A.B.foo",
@@ -50,7 +50,7 @@ One record per occurrence.
   "scopedId": "scoped:...",
   "symbolId": "scip:...|lsif:...|heur:...",
   "file": "src/foo.ts",
-  "segmentId": "seg_...",
+  "segmentUid": "segu:...",
   "range": { "start": 111, "end": 114, "startLine": 12, "endLine": 12 },
   "role": "definition|reference|callsite|import",
   "context": { "containerScopedId": "scoped:...", "importSpec": "./bar" },
@@ -120,4 +120,3 @@ Strict validation must verify:
   - fixture with two same-named symbols; assert `status: ambiguous` and both candidates present
 - `tests/validate/symbol-integrity-strict.test.js`
   - tamper symbol edge endpoint; strict validate fails
-

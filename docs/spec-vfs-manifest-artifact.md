@@ -1,80 +1,175 @@
 # Spec: VFS manifest artifact (v1)
 
-Status: Informative for Phase 5, expected by Phase 8 tooling work.
+Status: **Normative** for Phase 8+ tooling. This is the canonical contract for `vfs_manifest`.
 
-Goal: provide a compact, deterministic mapping from container files to per-segment “virtual documents”, so tooling and analysis can operate on embedded languages without re-parsing container files repeatedly.
+Goal: provide a compact, deterministic mapping from container files to per-segment virtual documents, so tooling and analysis can operate on embedded languages without re-parsing container files repeatedly.
 
 This spec aligns with:
 - `docs/spec_phase8_tooling_vfs_and_segment_routing_refined.md`
-- Phase 5 container vs effective language identity
+- `docs/spec-identity-contract.refined.md` (segmentUid source)
 
-## Artifact name and format
+---
+
+## 1) Artifact name and format (normative)
 
 Logical name: `vfs_manifest`
 
-Emission forms:
+Emission forms (MUST support one of):
 - `vfs_manifest.jsonl` (or compressed)
-- OR `vfs_manifest.meta.json` + `vfs_manifest.parts/...` (preferred for large repos)
+- `vfs_manifest.meta.json` + `vfs_manifest.parts/vfs_manifest.part-00000.jsonl` (preferred for large repos)
 
 Manifest inventory:
-- the artifact and its meta/parts must be listed in `pieces/manifest.json`.
+- The artifact and its meta/parts MUST be listed in `pieces/manifest.json` (manifest-first).
 
-## Row schema (v1.0.0)
+---
 
-Each JSONL row:
+## 2) Row schema (v1.0.0)
+
+Each JSONL row MUST conform to:
 
 ```ts
 type VfsManifestRowV1 = {
   schemaVersion: "1.0.0";
 
-  // Virtual doc identity
-  virtualPath: string;       // e.g., ".poc-vfs/docs/guide.md#seg:<segmentUid>.ts"
-  docHash: string;           // e.g., "xxh64:<hex16>"
+  // Virtual doc identity (tooling path, not the identity-contract virtualPath)
+  virtualPath: string;        // canonical VFS path (see §3)
+  docHash: string;            // "xxh64:<hex16>" (see §4)
 
   // Container identity
-  containerPath: string;     // repo-relative POSIX
-  containerExt: string|null; // ".md", ".vue", ...
+  containerPath: string;      // repo-relative POSIX path
+  containerExt: string|null;  // e.g., ".md", ".vue" (null if unknown)
   containerLanguageId: string|null;
 
   // Effective identity
   languageId: string;         // effective language registry id (e.g., "typescript")
   effectiveExt: string;       // ".ts", ".tsx", ".js", ".jsx", ...
-  segmentUid: string|null;    // stable identity for segmented docs (null for unsegmented files)
+  segmentUid: string|null;    // stable segment identity (null for unsegmented files)
   segmentId?: string|null;    // optional debug id (range-derived; not stable)
 
   // Segment mapping (container offsets)
-  segmentStart: number;      // UTF-16 offset in container
-  segmentEnd: number;        // UTF-16 offset in container
+  segmentStart: number;       // 0-based UTF-16 offset in container (inclusive)
+  segmentEnd: number;         // 0-based UTF-16 offset in container (exclusive)
 
   // Optional convenience for offset mapping
-  lineStart: number|null;    // 1-based line where segment starts in container
-  lineEnd: number|null;      // 1-based line where segment ends in container
+  lineStart: number|null;     // 1-based line where segment starts in container
+  lineEnd: number|null;       // 1-based line where segment ends in container
 
-  extensions?: object;
+  extensions?: object;        // the only allowed extension point
 };
 ```
 
-## Determinism requirements
+### 2.1 Required invariants
 
-- `virtualPath` must be deterministic and must follow the canonical pattern:
-  `.poc-vfs/<containerPath>#seg:<segmentUid><effectiveExt>`
-- `segmentUid` is derived per the Identity Contract (segment type + languageId + normalized segment text).
-- `docHash` must be computed over the virtual document text (segment text for segmented docs, full text for container docs).
-- Rows must be emitted in deterministic order:
-  by `containerPath`, then `segmentStart`, then `segmentUid`, then `effectiveExt`.
+- `containerPath` MUST be POSIX, repo-relative, and normalized (no `..`, no absolute paths, no backslashes).
+- `containerExt` MUST match the extension in `containerPath` when present; otherwise `null`.
+- `languageId`/`effectiveExt` MUST be consistent with the language registry mapping (see tooling VFS spec §4).
+- `segmentStart`/`segmentEnd` MUST satisfy `0 <= segmentStart <= segmentEnd` and must refer to the container text.
+- For unsegmented files: `segmentUid = null`, `segmentStart = 0`, `segmentEnd = containerText.length`.
+- `extensions` is the only permitted location for producer-specific extra fields when strict schema validation is enabled.
 
-## Producers
+---
 
+## 3) Canonical `virtualPath` format (normative)
+
+### 3.1 General requirements
+
+`virtualPath` MUST be deterministic, POSIX-style, and MUST NOT collide with real repo files.
+
+Canonical prefix (reserved): `.poc-vfs/`
+
+### 3.2 Segmented documents
+
+For a segmented document (`segmentUid != null`), `virtualPath` MUST be:
+
+```
+.poc-vfs/<containerPath>#seg:<segmentUid><effectiveExt>
+```
+
+Examples:
+- `.poc-vfs/docs/guide.md#seg:segu:v1:abc123.ts`
+- `.poc-vfs/src/App.vue#seg:segu:v1:def456.tsx`
+
+### 3.3 Unsegmented documents
+
+For an unsegmented document (`segmentUid == null`), `virtualPath` MUST be:
+
+```
+.poc-vfs/<containerPath>
+```
+
+### 3.4 Path encoding
+
+- `containerPath` MUST be POSIX-normalized before embedding.
+- If `containerPath` contains `#` or `%`, it MUST be percent-encoded (`# -> %23`, `% -> %25`) before embedding.
+
+### 3.5 Relationship to identity-contract `virtualPath`
+
+The identity-contract `virtualPath` (used for `chunkUid`) is not the same string as `vfs_manifest.virtualPath`.
+Identity-contract `virtualPath` is:
+
+- `fileRelPath` for unsegmented chunks
+- `fileRelPath + "#seg:" + segmentUid` for segmented chunks
+
+The VFS manifest always uses the `.poc-vfs/` prefix to avoid collisions with real files.
+
+---
+
+## 4) `docHash` format and computation (normative)
+
+`docHash` MUST be computed over the exact virtual document text:
+
+- For segmented docs: `segmentText = containerText.slice(segmentStart, segmentEnd)`
+- For unsegmented docs: `segmentText = containerText`
+
+Hash algorithm:
+
+```
+docHash = "xxh64:" + xxh64(segmentText)
+```
+
+Where `xxh64` is the project hash backend (see `src/shared/hash.js`).
+
+Notes:
+- The hash MUST use lowercase hex.
+- Empty text is valid; hash the empty string and still emit `docHash`.
+
+---
+
+## 5) Deterministic ordering and sharding (normative)
+
+Rows MUST be emitted in a deterministic, total order. Use the following sort key (ascending):
+
+1. `containerPath` (lexicographic)
+2. `segmentStart` (numeric)
+3. `segmentEnd` (numeric)
+4. `languageId` (lexicographic)
+5. `effectiveExt` (lexicographic)
+6. `segmentUid` (lexicographic, or empty string if null)
+7. `virtualPath` (lexicographic)
+
+For sharded output:
+
+- Parts MUST preserve the global row order.
+- Part filenames MUST be zero-padded and monotonic:
+  - `vfs_manifest.parts/vfs_manifest.part-00000.jsonl`, `vfs_manifest.part-00001.jsonl`, ...
+- `vfs_manifest.meta.json` MUST follow the sharded JSONL meta schema in `docs/artifact-schemas.md`.
+
+---
+
+## 6) Size limits
+
+- No row may exceed 32KB UTF-8.
+- If a row would exceed the limit, the producer MUST drop the row and MUST record a warning in build logs (or a future stats artifact, if one exists).
+
+---
+
+## 7) Producers / Consumers (informative)
+
+Producers:
 - Primary producer is the index builder once Phase 5 provides:
   - segment boundaries (`segmentStart/segmentEnd`)
   - effective language identity (`languageId/effectiveExt`)
-  - stable `segmentUid` (used in `virtualPath` routing)
+  - stable `segmentUid`
 
-## Consumers
-
+Consumers:
 - Tooling VFS (Phase 8) and any segment-aware analyzers that need stable virtual paths.
-
-## Size and limits
-
-- No row should exceed 32KB (same practical limit as other JSONL artifacts).
-- `extensions` is the only permitted location for producer-specific extra fields when strict schema enforcement is enabled.

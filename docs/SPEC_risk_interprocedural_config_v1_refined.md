@@ -166,4 +166,4 @@ When `enabled === true`, the build MUST record:
 * whether a timeout occurred (`status="timed_out"`)
 
 The recommended mechanism is the dedicated stats artifact defined in:
-* `SPEC_risk_interprocedural_stats_json_v1_refined.md`
+* `SPEC_risk_callsite_id_and_stats_v1_refined.md`

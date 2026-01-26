@@ -11,29 +11,51 @@ It is intended to remove ambiguity for implementers and for downstream consumers
 A stable-ish identifier for a *chunk span*.
 
 **Required fields / inputs**
-- `repoId` (stable per repo root; already part of build state in other phases)
-- `fileRelPath` (POSIX normalized)
-- `segmentId` (empty string when no segment)
-- `start`, `end` offsets (0-based UTF-16 code units; half-open `[start,end)` per prior decision)
-- Optional: `contentHash` / `spanHash` (if/when adopted)
+- `namespaceKey` (stable per repo root; usually `"repo"` or equivalent)
+- `virtualPath` (POSIX; `fileRelPath` or `fileRelPath#seg:<segmentUid>`)
+- `start`, `end` offsets (0-based UTF-16; used only to slice context windows)
+- `chunkText` (span text) and pre/post context text
+- Optional: `segment.languageId` salt
 
 **Invariants**
 - Must be present in every chunk record and persisted in artifact + SQLite representations.
-- Must be unique within a build for a given `{fileRelPath, segmentId, start, end}` tuple.
-- Must be stable under deterministic builds.
+- Must be stable under deterministic builds (line-shift resilient when span text is unchanged).
+- Must be collision-safe: any collisions MUST be disambiguated deterministically.
 
 **Representation**
 - Type: string
-- Prefix: `chunk:` recommended (optional, but preferred for debugging)
-- Example: `chunk:sha1:abcd...` or `chunk_xxx` for legacy compatibility.
+- Prefix: `ck64:v1:` (see canonical algorithm below).
+
+**Algorithm (v1) — canonical**  
+This Phase 9 spec adopts the algorithm in `docs/spec-identity-contract.refined.md` §4.
+
+Summary (must match the canonical spec exactly):
+
+```
+span = normalizeForUid(chunkText)
+pre  = normalizeForUid(fileText.slice(max(0, start - PRE_CONTEXT_CHARS), start))
+post = normalizeForUid(fileText.slice(end, min(fileText.length, end + POST_CONTEXT_CHARS)))
+
+spanHash = checksumString("span\0" + span)
+preHash  = checksumString("pre\0" + pre)   (only if pre.length > 0)
+postHash = checksumString("post\0" + post) (only if post.length > 0)
+
+base = "ck64:v1:" + namespaceKey + ":" + virtualPath + ":" + spanHash
+if (segment.languageId) base = "ck64:v1:" + namespaceKey + ":" + virtualPath + ":" + segment.languageId + ":" + spanHash
+if (preHash)  base += ":" + preHash
+if (postHash) base += ":" + postHash
+
+chunkUid = base
+```
+
+Collision handling MUST follow the canonical disambiguation steps (escalated context, then deterministic ordinals).
 
 ### symbolKey
 A stable grouping key for symbol-like entities; not necessarily unique (overload set).
 
 **Inputs**
 - `namespaceKey` (language + namespace domain; e.g., `ts`, `js`, `py`)
-- `fileRelPath`
-- `segmentId`
+- `virtualPath` (segment-safe)
 - `kind` (normalized kind taxonomy; see below)
 - `qualifiedName` (best-effort; may be null)
 - `containerChain` (optional list of ancestor names/kinds)
@@ -99,12 +121,11 @@ Producers may include a `rawKind` field for debugging, but `kind` must be from t
 Strict validation must enforce:
 - `symbols.jsonl` has unique `scopedId`s.
 - Every `symbol_edge` endpoint exists in `symbols.jsonl` unless `status: unresolved`.
-- Every occurrence range is within file bounds and (if segmentId present) within segment bounds.
+- Every occurrence range is within file bounds and (if a segment exists) within segment bounds.
 - No record is missing required identity fields for its record type.
 
 ## Determinism requirements
 - All emitted symbol artifacts must be stably ordered:
   - primary key: `scopedId`
-  - secondary: `kind`, `fileRelPath`, `segmentId`, `start`, `end`
+  - secondary: `kind`, `virtualPath`, `start`, `end`
 - When generating ordinals for collision disambiguation, ordinals must be derived from this stable order.
-
