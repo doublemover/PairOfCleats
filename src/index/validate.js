@@ -14,9 +14,10 @@ import {
   loadTokenPostings,
   readJsonFile
 } from '../shared/artifact-io.js';
-import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../shared/lancedb.js';
+import { resolveLanceDbPaths } from '../shared/lancedb.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
 import { resolveIndexDir } from './validate/paths.js';
+import { buildArtifactLists } from './validate/artifacts.js';
 import {
   extractArray,
   normalizeDenseVectors,
@@ -69,31 +70,12 @@ export async function validateIndexArtifacts(input = {}) {
     hints: []
   };
 
-  const requiredArtifacts = ['chunk_meta', 'token_postings'];
-  const strictOnlyRequiredArtifacts = ['index_state', 'filelists'];
-  if (postingsConfig.enablePhraseNgrams) requiredArtifacts.push('phrase_ngrams');
-  if (postingsConfig.enableChargrams) requiredArtifacts.push('chargram_postings');
-  const optionalArtifacts = [
-    'minhash_signatures',
-    'file_relations',
-    'graph_relations',
-    'file_meta',
-    'repo_map',
-    'filter_index',
-    'field_postings',
-    'field_tokens'
-  ];
-  if (userConfig.search?.annDefault !== false) {
-    optionalArtifacts.push('dense_vectors');
-    optionalArtifacts.push('dense_vectors_doc');
-    optionalArtifacts.push('dense_vectors_code');
-  }
-  const lanceConfig = normalizeLanceDbConfig(userConfig.indexing?.embeddings?.lancedb || {});
-  if (lanceConfig.enabled) {
-    optionalArtifacts.push('dense_vectors.lancedb.meta.json');
-    optionalArtifacts.push('dense_vectors_doc.lancedb.meta.json');
-    optionalArtifacts.push('dense_vectors_code.lancedb.meta.json');
-  }
+  const {
+    requiredArtifacts,
+    strictOnlyRequiredArtifacts,
+    optionalArtifacts,
+    lanceConfig
+  } = buildArtifactLists(userConfig, postingsConfig);
 
   for (const mode of modes) {
     const dir = resolveIndexDir(root, mode, userConfig, indexRoot, strict);
