@@ -477,6 +477,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       churnMin,
       extFilter,
       langFilter,
+      extImpossible,
+      langImpossible,
       metaFilters,
       modifiedAfter,
       modifiedSinceDays,

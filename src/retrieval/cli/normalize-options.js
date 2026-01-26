@@ -122,14 +122,18 @@ export function normalizeSearchOptions({
   const caseTokens = argv['case-tokens'] === true || caseAll;
   const branchFilter = argv.branch ? String(argv.branch).trim() : null;
 
-  const extFilter = mergeExtFilters(
+  const extFilterInfo = mergeExtFilters(
     normalizeExtFilter(argv.ext),
     normalizeExtFilter(filterInfo.ext)
   );
-  const langFilter = mergeLangFilters(
+  const langFilterInfo = mergeLangFilters(
     normalizeLangFilter(argv.lang),
     normalizeLangFilter(filterInfo.lang)
   );
+  const extFilter = extFilterInfo.values;
+  const langFilter = langFilterInfo.values;
+  const extImpossible = extFilterInfo.impossible;
+  const langImpossible = langFilterInfo.impossible;
   const metaFilters = parseMetaFilters(argv.meta, argv['meta-json']);
 
   const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
@@ -236,6 +240,8 @@ export function normalizeSearchOptions({
     branchFilter,
     extFilter,
     langFilter,
+    extImpossible,
+    langImpossible,
     metaFilters,
     annEnabled,
     annBackend,

@@ -8,11 +8,13 @@ const mixed = normalizeLangFilter('ts,python');
 assert.ok(mixed && mixed.includes('typescript'), 'expected mixed to include typescript');
 assert.ok(mixed && mixed.includes('python'), 'expected mixed to include python');
 
-const extFilter = mergeExtFilters(['.ts'], ['.tsx']);
-assert.ok(extFilter && extFilter.includes('.ts') && extFilter.includes('.tsx'), 'expected ext filter union');
+const extFilterInfo = mergeExtFilters(['.ts'], ['.tsx']);
+assert.equal(extFilterInfo.impossible, true, 'expected ext filter intersection to be impossible');
+assert.equal(extFilterInfo.values, null, 'expected ext filter values to be null on conflict');
 
-const langFilter = mergeLangFilters(normalizeLangFilter('typescript'), normalizeLangFilter('ts'));
-assert.ok(langFilter && langFilter.length === 1 && langFilter[0] === 'typescript', 'expected lang filter to dedupe');
+const langFilterInfo = mergeLangFilters(normalizeLangFilter('typescript'), normalizeLangFilter('ts'));
+assert.equal(langFilterInfo.impossible, false, 'expected lang filter to be possible');
+assert.ok(langFilterInfo.values && langFilterInfo.values.length === 1 && langFilterInfo.values[0] === 'typescript', 'expected lang filter to dedupe');
 
 const unknown = normalizeLangFilter('unknown');
 assert.ok(unknown && unknown.includes('unknown'), 'expected unknown to pass through');

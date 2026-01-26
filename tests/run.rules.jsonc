@@ -75,6 +75,7 @@
         "^retrieval/contracts/result-shape\\.test$",
         "^retrieval/filters/ext-path\\.test$",
         "^retrieval/filters/type-signature-decorator\\.test$",
+        "^prose-skip-imports$",
         "^subprocess-quoting$"
       ]
     },

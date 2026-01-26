@@ -66,8 +66,11 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     modifiedAfter,
     excludeTokens,
     excludePhrases,
-    excludePhraseRange
+    excludePhraseRange,
+    extImpossible,
+    langImpossible
   } = filters;
+  if (extImpossible || langImpossible) return [];
   const normalize = (value) => String(value || '').toLowerCase();
   const resolveReturnTypes = (chunk) => {
     const declared = collectDeclaredReturnTypes(chunk?.docmeta);

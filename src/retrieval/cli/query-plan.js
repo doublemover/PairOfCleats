@@ -41,7 +41,9 @@ export function buildQueryPlan({
   modifiedSinceDays,
   fieldWeightsConfig,
   denseVectorMode,
-  branchFilter
+  branchFilter,
+  extImpossible,
+  langImpossible
 }) {
   const parsedQuery = parseQueryInput(query);
   const queryAst = annotateQueryAst(parsedQuery.ast, dict, { ...dictConfig, caseSensitive: caseTokens }, postingsConfig);
@@ -123,6 +125,8 @@ export function buildQueryPlan({
     },
     ext: extFilter,
     lang: langFilter,
+    extImpossible,
+    langImpossible,
     meta: metaFilters,
     chunkAuthor: chunkAuthorFilter,
     modifiedAfter,
