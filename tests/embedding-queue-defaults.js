@@ -4,7 +4,7 @@ import path from 'node:path';
 import { enqueueEmbeddingJob } from '../src/index/build/indexer/embedding-queue.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'embedding-queue-defaults');
+const tempRoot = path.join(root, '.testCache', 'embedding-queue-defaults');
 const queueDir = path.join(tempRoot, 'queue');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
@@ -34,3 +34,4 @@ if (overflow) {
 }
 
 console.log('embedding queue defaults test passed');
+

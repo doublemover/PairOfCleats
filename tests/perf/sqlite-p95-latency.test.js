@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-p95-latency');
+const tempRoot = path.join(root, '.testCache', 'sqlite-p95-latency');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -89,3 +89,4 @@ if (p95 > maxP95Ms) {
 }
 
 console.log(`SQLite p95 latency ok (${p95.toFixed(1)}ms <= ${maxP95Ms}ms).`);
+

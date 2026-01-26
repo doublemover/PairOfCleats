@@ -4,7 +4,7 @@ import path from 'node:path';
 import { getVectorExtensionConfig } from '../tools/vector-extension.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'vector-extension-sanitize');
+const tempRoot = path.join(root, '.testCache', 'vector-extension-sanitize');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
@@ -22,3 +22,4 @@ if (!config.disabledReason) {
 }
 
 console.log('vector extension sanitize test passed');
+

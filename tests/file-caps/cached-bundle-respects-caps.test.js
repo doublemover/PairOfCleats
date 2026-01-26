@@ -5,7 +5,7 @@ import path from 'node:path';
 import { reuseCachedBundle } from '../../src/index/build/file-processor/cached-bundle.js';
 
 const root = process.cwd();
-const outDir = path.join(root, 'tests', '.cache', 'file-caps-cached-bundle');
+const outDir = path.join(root, '.testCache', 'file-caps-cached-bundle');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 
@@ -52,3 +52,4 @@ assert.equal(outcome.skip.stage, 'cached-reuse');
 assert.equal(outcome.skip.maxLines, 10);
 
 console.log('file-caps cached bundle cap test passed');
+

@@ -5,7 +5,7 @@ import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
 import { discoverFiles } from '../src/index/build/discover.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'ignore-overrides');
+const tempRoot = path.join(root, '.testCache', 'ignore-overrides');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'dist'), { recursive: true });
@@ -38,3 +38,4 @@ if (rels.includes('dist/deny.js')) {
 }
 
 console.log('ignore override test passed');
+

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'code-map-basic');
+const tempRoot = path.join(root, '.testCache', 'code-map-basic');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -107,3 +107,4 @@ if (!edgeTypes.has('import') || !edgeTypes.has('call')) {
 }
 
 console.log('code map basic tests passed');
+

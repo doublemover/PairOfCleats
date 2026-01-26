@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'search-rrf');
+const tempRoot = path.join(root, '.testCache', 'search-rrf');
 const cacheRoot = path.join(tempRoot, 'cache');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 
@@ -71,3 +71,4 @@ if (hit.scoreType !== 'rrf') {
 }
 
 console.log('search rrf tests passed');
+

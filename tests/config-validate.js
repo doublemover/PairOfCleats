@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { repoRoot } from './helpers/root.js';
 
 const root = repoRoot();
-const cacheRoot = path.join(root, 'tests', '.cache', 'config-validate');
+const cacheRoot = path.join(root, '.testCache', 'config-validate');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
@@ -69,3 +69,4 @@ if (!badPayload || badPayload.ok || !Array.isArray(badPayload.errors) || badPayl
 }
 
 console.log('config validate test passed');
+

@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'unicode-offset');
+const tempRoot = path.join(root, '.testCache', 'unicode-offset');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -96,3 +96,4 @@ if (targetChunk.endLine < targetChunk.startLine) {
 }
 
 console.log('Unicode offset test passed');
+

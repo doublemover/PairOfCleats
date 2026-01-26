@@ -7,7 +7,7 @@ import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, 'tests', '.cache', 'core-api');
+const cacheRoot = path.join(root, '.testCache', 'core-api');
 
 if (!fs.existsSync(fixtureRoot)) {
   console.error(`Fixture not found: ${fixtureRoot}`);
@@ -48,3 +48,4 @@ if (!statusPayload?.repo?.root) {
 }
 
 console.log('core api test passed');
+

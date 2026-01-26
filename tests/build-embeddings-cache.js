@@ -7,7 +7,7 @@ import { getRepoCacheRoot } from '../tools/dict-utils.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../src/shared/embedding-identity.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'build-embeddings-cache');
+const tempRoot = path.join(root, '.testCache', 'build-embeddings-cache');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -99,3 +99,4 @@ if (buildEmbeddingIdentityKey(onnxBase) === buildEmbeddingIdentityKey(onnxVarian
 }
 
 console.log('embedding cache reuse test passed');
+

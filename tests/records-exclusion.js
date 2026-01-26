@@ -6,7 +6,7 @@ import { loadChunkMeta, readJsonFile } from '../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'records-exclusion');
+const tempRoot = path.join(root, '.testCache', 'records-exclusion');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 const docsDir = path.join(repoRoot, 'docs');
@@ -81,3 +81,4 @@ if (!hasLog(recordsMeta, recordsFiles)) {
 }
 
 console.log('records exclusion test passed.');
+

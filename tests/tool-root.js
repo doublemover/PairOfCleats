@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'tool-root');
+const tempRoot = path.join(root, '.testCache', 'tool-root');
 const repoRoot = path.join(tempRoot, 'repo');
 const outsideRoot = path.join(tempRoot, 'outside');
 const cacheRoot = path.join(tempRoot, 'cache');
@@ -63,3 +63,4 @@ if (!hits.length) {
 }
 
 console.log('Tool root outside-repo test passed');
+

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'code-map-determinism');
+const tempRoot = path.join(root, '.testCache', 'code-map-determinism');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -73,3 +73,4 @@ if (JSON.stringify(firstPayload) !== JSON.stringify(secondPayload)) {
 }
 
 console.log('code map determinism tests passed');
+

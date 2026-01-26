@@ -6,7 +6,7 @@ import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, 'tests', '.cache', 'embeddings-validate');
+const cacheRoot = path.join(root, '.testCache', 'embeddings-validate');
 const env = {
   ...process.env,
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
@@ -79,3 +79,4 @@ if (embeddings.enabled !== true || embeddings.ready !== true || embeddings.pendi
 }
 
 console.log('Stage3 embeddings validation test passed');
+

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'repo-root');
+const tempRoot = path.join(root, '.testCache', 'repo-root');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const nestedDir = path.join(repoRoot, 'nested');
@@ -94,3 +94,4 @@ if (JSON.stringify(rootIds) !== JSON.stringify(nestedIds)) {
 }
 
 console.log('Repo root resolution test passed');
+

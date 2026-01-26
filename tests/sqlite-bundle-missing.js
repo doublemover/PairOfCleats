@@ -8,7 +8,7 @@ import { getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../tools/d
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-bundle-missing');
+const tempRoot = path.join(root, '.testCache', 'sqlite-bundle-missing');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -119,3 +119,4 @@ if (!Number(row?.total)) {
 }
 
 console.log('sqlite bundle missing fallback test passed');
+

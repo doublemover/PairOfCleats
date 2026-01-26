@@ -17,6 +17,8 @@ const listSourceFiles = async () => {
     if (normalized.includes('/.git/')) return false;
     if (normalized.includes('/tests/')) return false;
     if (normalized.includes('/docs/')) return false;
+    if (normalized.includes('/worktrees/')) return false;
+    if (normalized.includes('/.worktrees/')) return false;
     return true;
   });
 };

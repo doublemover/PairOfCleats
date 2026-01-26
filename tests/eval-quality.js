@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'eval-quality');
+const tempRoot = path.join(root, '.testCache', 'eval-quality');
 const cacheRoot = path.join(tempRoot, 'cache');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const datasetPath = path.join(fixtureRoot, 'eval.json');
@@ -78,3 +78,4 @@ if (mrr < 0.5) {
 }
 
 console.log('eval quality tests passed');
+

@@ -7,7 +7,7 @@ import { enqueueFileRelationsArtifacts } from '../src/index/build/artifacts/writ
 import { validateArtifact } from '../src/shared/artifact-schemas.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'sharded-meta-schema');
+const cacheRoot = path.join(root, '.testCache', 'sharded-meta-schema');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 
@@ -89,3 +89,4 @@ const relationsValidation = validateArtifact('file_relations_meta', relationsMet
 assert.ok(relationsValidation.ok, `file_relations_meta invalid: ${relationsValidation.errors.join('; ')}`);
 
 console.log('sharded meta schema test passed');
+

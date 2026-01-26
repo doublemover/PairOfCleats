@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'assemble-pieces-no-guess');
+const cacheRoot = path.join(root, '.testCache', 'assemble-pieces-no-guess');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 
@@ -51,3 +51,4 @@ const combined = getCombinedOutput(result);
 assert.ok(combined.toLowerCase().includes('manifest'), 'expected manifest-related error');
 
 console.log('assemble-pieces manifest requirement test passed');
+

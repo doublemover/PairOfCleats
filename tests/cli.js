@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'cli');
+const cacheRoot = path.join(root, '.testCache', 'cli');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
@@ -55,3 +55,4 @@ if (configResult.status !== 0) {
 }
 
 console.log('cli test passed');
+

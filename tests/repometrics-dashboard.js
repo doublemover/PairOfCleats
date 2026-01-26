@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getMetricsDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'repometrics-dashboard');
+const tempRoot = path.join(root, '.testCache', 'repometrics-dashboard');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -68,3 +68,4 @@ if (!payload.search || !payload.files || !payload.index) {
 }
 
 console.log('repometrics dashboard test passed');
+

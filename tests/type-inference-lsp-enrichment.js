@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const tempRoot = path.join(root, 'tests', '.cache', 'lsp-enrichment');
+const tempRoot = path.join(root, '.testCache', 'lsp-enrichment');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const srcDir = path.join(repoRoot, 'src');
@@ -137,3 +137,4 @@ if (!pyDiagnostics.some((diag) => diag?.source === 'pyright')) {
 }
 
 console.log('LSP enrichment test passed');
+

@@ -9,6 +9,8 @@ export default [
       'benchmarks/repos/**',
       'benchmarks/cache/**',
       'benchmarks/results/**',
+      '.testCache/**',
+      '.testLogs/**',
       'tests/.cache/**',
       '**/.worktrees/**',
       '**/worktrees/**',

@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getGitMeta } from '../src/index/git.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'churn-filter');
+const tempRoot = path.join(root, '.testCache', 'churn-filter');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -126,3 +126,4 @@ if (badResult.status === 0) {
 }
 
 console.log('Churn filter test passed');
+

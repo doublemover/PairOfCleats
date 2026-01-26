@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'external-docs');
+const tempRoot = path.join(root, '.testCache', 'external-docs');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -70,3 +70,4 @@ if (!allDocs.includes(expectedUnscoped)) {
 }
 
 console.log('External docs test passed');
+

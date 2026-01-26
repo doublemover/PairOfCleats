@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'search-contract');
+const tempRoot = path.join(root, '.testCache', 'search-contract');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -88,3 +88,4 @@ if (!payload.stats?.models || !Object.prototype.hasOwnProperty.call(payload.stat
 }
 
 console.log('search contract tests passed');
+

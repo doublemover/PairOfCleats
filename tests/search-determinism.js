@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'search-determinism');
+const tempRoot = path.join(root, '.testCache', 'search-determinism');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -94,3 +94,4 @@ if (JSON.stringify(firstHits) !== JSON.stringify(secondHits)) {
 }
 
 console.log('search determinism tests passed');
+

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'scip-ingest');
+const tempRoot = path.join(root, '.testCache', 'scip-ingest');
 const repoRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const inputPath = path.join(root, 'tests', 'fixtures', 'scip', 'index.json');
 const outPath = path.join(tempRoot, 'scip.jsonl');
@@ -45,3 +45,4 @@ assert.equal(meta.stats.definitions, 1);
 assert.equal(meta.stats.references, 1);
 
 console.log('scip ingest test passed');
+

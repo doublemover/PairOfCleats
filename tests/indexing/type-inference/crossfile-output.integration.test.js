@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'type-inference-crossfile-integration');
+const tempRoot = path.join(root, '.testCache', 'type-inference-crossfile-integration');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -119,3 +119,4 @@ if (!usageLinks.some((link) => link.target === 'Widget' && link.file === 'src/cr
 }
 
 console.log('Cross-file inference integration output ok.');
+

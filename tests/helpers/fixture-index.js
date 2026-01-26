@@ -33,6 +33,23 @@ const createFixtureEnv = (cacheRoot, overrides = {}) => ({
 
 const hasChunkMeta = (dir) => hasIndexMeta(dir);
 
+const hasRiskTags = (codeDir) => {
+  try {
+    const chunkMetaPath = path.join(codeDir, 'chunk_meta.json');
+    if (!fs.existsSync(chunkMetaPath)) return false;
+    const raw = JSON.parse(fs.readFileSync(chunkMetaPath, 'utf8'));
+    return Array.isArray(raw) && raw.some((entry) => {
+      const risk = entry?.metaV2?.risk || entry?.docmeta?.risk || null;
+      if (!risk) return false;
+      if (Array.isArray(risk.tags) && risk.tags.length) return true;
+      if (Array.isArray(risk.flows) && risk.flows.length) return true;
+      return false;
+    });
+  } catch {
+    return false;
+  }
+};
+
 const readIndexCompatibilityKey = (dir) => {
   try {
     return readCompatibilityKey(dir, { maxBytes: MAX_JSON_BYTES, strict: true }).key;
@@ -71,11 +88,12 @@ const run = (args, label, options) => {
 export const ensureFixtureIndex = async ({
   fixtureName,
   cacheName = `fixture-${fixtureName}`,
-  envOverrides = {}
+  envOverrides = {},
+  requireRiskTags = false
 } = {}) => {
   if (!fixtureName) throw new Error('fixtureName is required');
   const fixtureRoot = path.join(ROOT, 'tests', 'fixtures', fixtureName);
-  const cacheRoot = path.join(ROOT, 'tests', '.cache', resolveCacheName(cacheName));
+  const cacheRoot = path.join(ROOT, '.testCache', resolveCacheName(cacheName));
   await ensureDir(cacheRoot);
   process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
   const env = createFixtureEnv(cacheRoot, envOverrides);
@@ -83,7 +101,8 @@ export const ensureFixtureIndex = async ({
   let codeDir = getIndexDir(fixtureRoot, 'code', userConfig);
   let proseDir = getIndexDir(fixtureRoot, 'prose', userConfig);
   let extractedProseDir = getIndexDir(fixtureRoot, 'extracted-prose', userConfig);
-  if (!hasCompatibleIndexes({ codeDir, proseDir, extractedProseDir })) {
+  const needsRiskTags = requireRiskTags && !hasRiskTags(codeDir);
+  if (!hasCompatibleIndexes({ codeDir, proseDir, extractedProseDir }) || needsRiskTags) {
     const repoCacheRoot = getRepoCacheRoot(fixtureRoot, userConfig);
     await fsPromises.rm(repoCacheRoot, { recursive: true, force: true });
     await ensureDir(repoCacheRoot);
@@ -180,3 +199,4 @@ export const runSearch = ({
     process.exit(1);
   }
 };
+

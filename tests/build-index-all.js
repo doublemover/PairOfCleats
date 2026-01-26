@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'build-index-all');
+const tempRoot = path.join(root, '.testCache', 'build-index-all');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -70,3 +70,4 @@ if (previousCacheRoot === undefined) {
 }
 
 console.log('build-index --mode all test passed');
+

@@ -16,7 +16,7 @@ if (!fs.existsSync(fixtureRoot)) {
   process.exit(1);
 }
 
-const cacheRoot = path.join(root, 'tests', '.cache', 'piece-assembly');
+const cacheRoot = path.join(root, '.testCache', 'piece-assembly');
 const cacheA = path.join(cacheRoot, 'a');
 const cacheB = path.join(cacheRoot, 'b');
 const outputMono = path.join(cacheRoot, 'assembled-single', 'index-code');
@@ -343,3 +343,4 @@ if (JSON.stringify(graphAll) !== JSON.stringify(graphEquiv)) {
 }
 
 console.log('Piece assembly tests passed');
+

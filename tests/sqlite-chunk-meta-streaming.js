@@ -15,7 +15,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-chunk-meta-streaming');
+const tempRoot = path.join(root, '.testCache', 'sqlite-chunk-meta-streaming');
 const indexDir = path.join(tempRoot, 'index-code');
 const outPath = path.join(tempRoot, 'index-code.db');
 
@@ -125,3 +125,4 @@ if (!fsSync.existsSync(outPath)) {
 }
 
 console.log('sqlite chunk_meta streaming test passed');
+

@@ -6,7 +6,7 @@ import { validateIndexArtifacts } from '../../src/index/validate.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'index-validate-strict');
+const tempRoot = path.join(root, '.testCache', 'index-validate-strict');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
@@ -25,3 +25,4 @@ const report = await validateIndexArtifacts({
 assert.ok(report.ok, `expected strict validation ok, got issues: ${report.issues.join('; ')}`);
 
 console.log('index-validate strict test passed');
+

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'query-cache');
+const tempRoot = path.join(root, '.testCache', 'query-cache');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -65,3 +65,4 @@ if (!fs.existsSync(queryCachePath)) {
 }
 
 console.log('Query cache test passed');
+

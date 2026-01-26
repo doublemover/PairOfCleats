@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'gtags-ingest');
+const tempRoot = path.join(root, '.testCache', 'gtags-ingest');
 const repoRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const inputPath = path.join(root, 'tests', 'fixtures', 'gtags', 'gtags.txt');
 const outPath = path.join(tempRoot, 'gtags.jsonl');
@@ -43,3 +43,4 @@ const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
 assert.equal(meta.stats.entries, lines.length);
 
 console.log('gtags ingest test passed');
+

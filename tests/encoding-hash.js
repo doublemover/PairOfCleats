@@ -5,7 +5,7 @@ import { readTextFileWithHash } from '../src/shared/encoding.js';
 import { sha1 } from '../src/shared/hash.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'encoding-hash');
+const tempRoot = path.join(root, '.testCache', 'encoding-hash');
 const filePath = path.join(tempRoot, 'latin1.txt');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
@@ -27,3 +27,4 @@ if (!info.usedFallback) {
 }
 
 console.log('encoding hash tests passed');
+

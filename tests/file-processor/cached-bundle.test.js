@@ -9,7 +9,7 @@ const fail = (message) => {
 };
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'file-processor-cached');
+const tempRoot = path.join(root, '.testCache', 'file-processor-cached');
 const repoRoot = path.join(tempRoot, 'repo');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(repoRoot, { recursive: true });
@@ -158,3 +158,4 @@ if (algoResult.result.chunks[0]?.fileHashAlgo !== 'xxh64') {
 }
 
 console.log('file processor cached bundle tests passed');
+

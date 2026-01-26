@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'indexer-service');
+const tempRoot = path.join(root, '.testCache', 'indexer-service');
 const repoRoot = path.join(tempRoot, 'repo');
 const queueDir = path.join(tempRoot, 'queue');
 const configPath = path.join(tempRoot, 'service.json');
@@ -47,3 +47,4 @@ assert.equal(payload.queue?.queued, 1);
 assert.ok(fs.existsSync(path.join(queueDir, 'queue.json')));
 
 console.log('indexer service test passed');
+

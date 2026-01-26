@@ -9,7 +9,7 @@ import { DEFAULT_MODEL_ID } from '../tools/dict-utils.js';
 const root = process.cwd();
 const serverPath = path.join(root, 'tools', 'mcp-server.js');
 const sampleRepo = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'mcp-schema');
+const tempRoot = path.join(root, '.testCache', 'mcp-schema');
 const cacheRoot = path.join(tempRoot, 'cache');
 const emptyRepo = path.join(tempRoot, 'empty');
 const snapshotPath = path.join(root, 'tests', 'fixtures', 'mcp', 'schema-snapshot.json');
@@ -179,3 +179,4 @@ run()
     server.kill('SIGKILL');
     process.exit(1);
   });
+

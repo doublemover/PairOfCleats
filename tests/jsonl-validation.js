@@ -12,7 +12,7 @@ import {
 import { ARTIFACT_SURFACE_VERSION } from '../src/contracts/versioning.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'jsonl-validation');
+const cacheRoot = path.join(root, '.testCache', 'jsonl-validation');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 
@@ -203,3 +203,4 @@ assert.ok(graphErr, 'expected graph_relations required keys to throw');
 assert.equal(graphErr.code, 'ERR_JSONL_INVALID');
 
 console.log('jsonl validation test passed');
+

@@ -7,7 +7,7 @@ import { loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-sidecar-cleanup');
+const tempRoot = path.join(root, '.testCache', 'sqlite-sidecar-cleanup');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -83,3 +83,4 @@ if (incrementalShm && incrementalShm.toString('utf8') === 'stale-shm') {
 }
 
 console.log('sqlite sidecar cleanup test passed');
+

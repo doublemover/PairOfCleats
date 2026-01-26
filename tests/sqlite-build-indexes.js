@@ -14,7 +14,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-build-indexes');
+const tempRoot = path.join(root, '.testCache', 'sqlite-build-indexes');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -86,3 +86,4 @@ if (!chunkIndexNames.has('idx_chunks_file_id')) {
 db.close();
 
 console.log('sqlite build indexes test passed');
+

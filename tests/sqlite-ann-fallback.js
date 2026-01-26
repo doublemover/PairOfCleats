@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { loadUserConfig, getIndexDir } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-ann-fallback');
+const tempRoot = path.join(root, '.testCache', 'sqlite-ann-fallback');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -86,3 +86,4 @@ for (const hit of hits) {
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 console.log('sqlite ann fallback test passed');
+

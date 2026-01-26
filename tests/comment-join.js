@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'comment-join');
+const tempRoot = path.join(root, '.testCache', 'comment-join');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 
@@ -143,3 +143,4 @@ if (codeNoCommentsHits[0]?.docmeta?.commentExcerpt) {
 }
 
 console.log('comment join test passed.');
+

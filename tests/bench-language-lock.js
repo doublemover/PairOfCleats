@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getRepoCacheRoot } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'bench-language-lock');
+const tempRoot = path.join(root, '.testCache', 'bench-language-lock');
 const reposRoot = path.join(tempRoot, 'repos');
 const cacheRoot = path.join(tempRoot, 'cache');
 const resultsRoot = path.join(tempRoot, 'results');
@@ -80,3 +80,4 @@ if (task.skipReason !== 'lock') {
 }
 
 console.log('bench-language lock test passed');
+

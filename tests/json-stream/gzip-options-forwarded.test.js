@@ -5,7 +5,7 @@ import path from 'node:path';
 import { writeJsonLinesFile } from '../../src/shared/json-stream.js';
 
 const root = process.cwd();
-const outDir = path.join(root, 'tests', '.cache', 'json-stream-gzip-options');
+const outDir = path.join(root, '.testCache', 'json-stream-gzip-options');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 
@@ -38,3 +38,4 @@ assert.ok(
 );
 
 console.log('json-stream gzip options forwarded test passed');
+

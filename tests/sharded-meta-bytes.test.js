@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createChunkMetaIterator, enqueueChunkMetaArtifacts } from '../src/index/build/artifacts/writers/chunk-meta.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'sharded-meta-bytes');
+const cacheRoot = path.join(root, '.testCache', 'sharded-meta-bytes');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 
@@ -67,3 +67,4 @@ for (const part of parts) {
 assert.equal(meta.totalBytes, totalBytes, 'expected totalBytes to match sum of part sizes');
 
 console.log('sharded meta bytes test passed');
+

@@ -7,7 +7,7 @@ import { readJsonFile, readJsonLinesArraySync } from '../src/shared/artifact-io.
 import { writeJsonLinesFile } from '../src/shared/json-stream.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'artifact-bak-recovery');
+const tempRoot = path.join(root, '.testCache', 'artifact-bak-recovery');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
@@ -134,3 +134,4 @@ if (!fs.existsSync(doubleCorruptBak)) {
 }
 
 console.log('artifact bak recovery tests passed');
+

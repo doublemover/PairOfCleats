@@ -4,7 +4,7 @@ import path from 'node:path';
 import { writePiecesManifest } from '../src/index/build/artifacts/checksums.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'pieces-manifest-strict');
+const tempRoot = path.join(root, '.testCache', 'pieces-manifest-strict');
 const outDir = path.join(tempRoot, 'index-code');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
@@ -28,3 +28,4 @@ if (!threw) {
 }
 
 console.log('pieces manifest strictness test passed');
+

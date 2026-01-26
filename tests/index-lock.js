@@ -5,7 +5,7 @@ import path from 'node:path';
 import { acquireIndexLock } from '../src/index/build/lock.js';
 
 const root = process.cwd();
-const baseDir = path.join(root, 'tests', '.cache', 'index-lock');
+const baseDir = path.join(root, '.testCache', 'index-lock');
 const repoCacheRoot = path.join(baseDir, 'repo');
 const lockDir = path.join(repoCacheRoot, 'locks');
 const lockPath = path.join(lockDir, 'index.lock');
@@ -43,3 +43,4 @@ if (fs.existsSync(lockPath)) {
 }
 
 console.log('index-lock test passed');
+

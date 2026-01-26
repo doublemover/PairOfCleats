@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'incremental-cache-signature');
+const tempRoot = path.join(root, '.testCache', 'incremental-cache-signature');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -74,3 +74,4 @@ if (!rebuildEntry || rebuildEntry.cached === true) {
 }
 
 console.log('incremental cache signature test passed');
+

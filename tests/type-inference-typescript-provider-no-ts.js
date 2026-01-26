@@ -4,7 +4,7 @@ import path from 'node:path';
 import { collectTypeScriptTypes } from '../src/index/tooling/typescript-provider.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'typescript-provider-no-ts');
+const tempRoot = path.join(root, '.testCache', 'typescript-provider-no-ts');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 
@@ -53,3 +53,4 @@ if (!logs.some((entry) => entry.includes('TypeScript tooling not detected'))) {
 }
 
 console.log('TypeScript provider fallback test passed');
+

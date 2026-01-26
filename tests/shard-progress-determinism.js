@@ -7,7 +7,7 @@ import { parseProgressEventLine } from '../src/shared/cli/progress-events.js';
 import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'shard-progress-determinism');
+const tempRoot = path.join(root, '.testCache', 'shard-progress-determinism');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -77,3 +77,4 @@ for (const line of outputLines) {
 
 assert.ok(progressCount >= 2, 'expected file-progress events');
 console.log('shard progress determinism test passed.');
+

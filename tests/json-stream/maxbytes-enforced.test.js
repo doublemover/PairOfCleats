@@ -5,7 +5,7 @@ import path from 'node:path';
 import { writeJsonLinesSharded } from '../../src/shared/json-stream.js';
 
 const root = process.cwd();
-const outDir = path.join(root, 'tests', '.cache', 'json-stream-maxbytes');
+const outDir = path.join(root, '.testCache', 'json-stream-maxbytes');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 
@@ -31,3 +31,4 @@ try {
 assert.ok(threw, 'expected maxBytes enforcement to throw');
 
 console.log('json-stream maxBytes enforcement test passed');
+

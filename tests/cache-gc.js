@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'cache-gc');
+const tempRoot = path.join(root, '.testCache', 'cache-gc');
 const cacheRoot = path.join(tempRoot, 'cache');
 const repoRoot = path.join(cacheRoot, 'repos');
 const toolPath = path.join(root, 'tools', 'cache-gc.js');
@@ -70,3 +70,4 @@ if (!fs.existsSync(repoBPath)) {
 }
 
 console.log('cache gc test passed');
+

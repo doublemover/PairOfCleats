@@ -8,7 +8,7 @@ import Database from 'better-sqlite3';
 import { getIndexDir, resolveSqlitePaths } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'chunk-id-backend-parity');
+const tempRoot = path.join(root, '.testCache', 'chunk-id-backend-parity');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -101,3 +101,4 @@ async function loadChunkMeta(indexDir) {
   }
   throw new Error(`chunk_meta artifacts missing in ${indexDir}`);
 }
+

@@ -6,7 +6,7 @@ import { createFileScanner } from '../../src/index/build/file-scan.js';
 import { resolvePreReadSkip } from '../../src/index/build/file-processor/skip.js';
 
 const root = process.cwd();
-const outDir = path.join(root, 'tests', '.cache', 'file-caps-doc-mode');
+const outDir = path.join(root, '.testCache', 'file-caps-doc-mode');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 
@@ -35,3 +35,4 @@ const skip = await resolvePreReadSkip({
 assert.equal(skip, null, 'expected prose mode to honor byMode default');
 
 console.log('file-caps prose mode override test passed');
+

@@ -7,7 +7,7 @@ import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'formats');
-const cacheRoot = path.join(root, 'tests', '.cache', 'format-fidelity');
+const cacheRoot = path.join(root, '.testCache', 'format-fidelity');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
@@ -117,3 +117,4 @@ if (failures.length) {
 }
 
 console.log('format fidelity test passed');
+

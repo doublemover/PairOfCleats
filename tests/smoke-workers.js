@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { cleanup, runNode, root } from './smoke-utils.js';
 
-const cacheRoots = [path.join(root, 'tests', '.cache', 'type-inference-crossfile-stats')];
+const cacheRoots = [path.join(root, '.testCache', 'type-inference-crossfile-stats')];
 
 let failure = null;
 try {
@@ -19,3 +19,4 @@ if (failure) {
   process.exit(failure.exitCode ?? 1);
 }
 console.log('smoke workers passed');
+

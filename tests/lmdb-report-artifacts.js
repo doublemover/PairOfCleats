@@ -15,7 +15,7 @@ try {
 }
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'lmdb-report-artifacts');
+const tempRoot = path.join(root, '.testCache', 'lmdb-report-artifacts');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -118,3 +118,4 @@ if (!issues.some((issue) => issue.includes('missing artifact key') && issue.incl
 }
 
 console.log('lmdb report artifacts test passed');
+

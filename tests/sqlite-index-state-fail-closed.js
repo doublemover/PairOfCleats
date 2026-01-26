@@ -7,7 +7,7 @@ import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveIndexRoot } from 
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-index-state-fail');
+const tempRoot = path.join(root, '.testCache', 'sqlite-index-state-fail');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -112,3 +112,4 @@ if (stateAfter.sqlite?.pending !== false || stateAfter.sqlite?.ready !== true) {
 }
 
 console.log('sqlite index state fail-closed test passed');
+

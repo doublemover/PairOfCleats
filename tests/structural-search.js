@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'structural-search');
+const tempRoot = path.join(root, '.testCache', 'structural-search');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 const docsDir = path.join(repoRoot, 'docs');
@@ -62,3 +62,4 @@ const comby = payload.results.find((entry) => entry.engine === 'comby');
 assert.equal(comby.path, 'docs/notes.md');
 
 console.log('structural search test passed');
+

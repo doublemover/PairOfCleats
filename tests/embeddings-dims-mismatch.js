@@ -7,7 +7,7 @@ import { getRepoCacheRoot, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'embeddings-dims-mismatch');
+const tempRoot = path.join(root, '.testCache', 'embeddings-dims-mismatch');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -110,3 +110,4 @@ if (!output.includes('embedding dims mismatch')) {
 }
 
 console.log('embeddings dims mismatch tests passed');
+

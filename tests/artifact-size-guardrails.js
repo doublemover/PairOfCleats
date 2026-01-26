@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'artifact-size-guardrails');
+const cacheRoot = path.join(root, '.testCache', 'artifact-size-guardrails');
 const repoRoot = path.join(cacheRoot, 'repo');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
@@ -177,3 +177,4 @@ if (!fs.existsSync(path.join(nextIndexDir, 'token_postings.json'))) {
 }
 
 console.log('artifact size guardrails test passed');
+

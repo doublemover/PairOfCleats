@@ -6,7 +6,7 @@ import { loadChunkMeta } from '../src/shared/artifact-io.js';
 import { ARTIFACT_SURFACE_VERSION } from '../src/contracts/versioning.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'artifact-io-manifest');
+const cacheRoot = path.join(root, '.testCache', 'artifact-io-manifest');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 
@@ -57,3 +57,4 @@ const chunks = await loadChunkMeta(indexDir);
 assert.equal(chunks.length, 1);
 
 console.log('artifact-io manifest discovery test passed');
+

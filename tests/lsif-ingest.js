@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'lsif-ingest');
+const tempRoot = path.join(root, '.testCache', 'lsif-ingest');
 const repoRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const inputPath = path.join(root, 'tests', 'fixtures', 'lsif', 'dump.lsif');
 const outPath = path.join(tempRoot, 'lsif.jsonl');
@@ -46,3 +46,4 @@ assert.ok(meta.stats.definitions >= 1);
 assert.ok(meta.stats.references >= 1);
 
 console.log('lsif ingest test passed');
+

@@ -27,7 +27,7 @@ const run = (args, label, options) => {
 
 export const setupIncrementalRepo = async ({ name }) => {
   if (!name) throw new Error('name is required');
-  const tempRoot = path.join(ROOT, 'tests', '.cache', 'sqlite-incremental', name);
+  const tempRoot = path.join(root, '.testCache', 'sqlite-incremental', name);
   const repoRoot = path.join(tempRoot, 'repo');
   const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -70,3 +70,4 @@ export const setupIncrementalRepo = async ({ name }) => {
 };
 
 export const ensureSqlitePaths = (repoRoot, userConfig) => resolveSqlitePaths(repoRoot, userConfig);
+

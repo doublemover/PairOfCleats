@@ -8,7 +8,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 export const getTriageContext = async ({ name }) => {
   const repoRoot = path.join(ROOT, 'tests', 'fixtures', 'sample');
   const triageFixtureRoot = path.join(ROOT, 'tests', 'fixtures', 'triage');
-  const cacheRoot = path.join(ROOT, 'tests', '.cache', name);
+  const cacheRoot = path.join(ROOT, '.testCache', name);
   const testLogRoot = process.env.PAIROFCLEATS_TEST_LOG_DIR
     || process.env.npm_config_test_log_dir
     || '';
@@ -59,3 +59,4 @@ export const run = (label, args, options = {}) => {
     process.exit(result.status ?? 1);
   }
 };
+

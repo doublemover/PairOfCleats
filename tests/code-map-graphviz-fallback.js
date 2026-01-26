@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'code-map-graphviz');
+const tempRoot = path.join(root, '.testCache', 'code-map-graphviz');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -72,3 +72,4 @@ if (!payload.outPath || !payload.outPath.endsWith('.dot')) {
 }
 
 console.log('code map graphviz fallback tests passed');
+

@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const tempRoot = path.join(root, 'tests', '.cache', 'type-inference-crossfile-go');
+const tempRoot = path.join(root, '.testCache', 'type-inference-crossfile-go');
 const repoRoot = path.join(tempRoot, 'repo');
 const hasPython = () => {
   const candidates = ['python', 'python3'];
@@ -230,3 +230,4 @@ if (pythonAvailable) {
 }
 
 console.log('Cross-file inference tests passed (Go/Rust/Java/Python).');
+

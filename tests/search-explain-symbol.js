@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'explain-symbol');
+const tempRoot = path.join(root, '.testCache', 'explain-symbol');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -62,3 +62,4 @@ if (!output.includes('Symbol')) {
 }
 
 console.log('explain symbol test passed');
+

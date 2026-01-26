@@ -5,7 +5,7 @@ import { loadIndex } from '../src/retrieval/cli-index.js';
 import { ARTIFACT_SURFACE_VERSION } from '../src/contracts/versioning.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'artifact-formats');
+const cacheRoot = path.join(root, '.testCache', 'artifact-formats');
 
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
@@ -132,3 +132,4 @@ if (!Array.isArray(idx.tokenIndex.docLengths) || idx.tokenIndex.docLengths.lengt
 }
 
 console.log('artifact formats test passed');
+

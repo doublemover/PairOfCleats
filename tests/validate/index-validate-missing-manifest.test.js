@@ -6,7 +6,7 @@ import { validateIndexArtifacts } from '../../src/index/validate.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'index-validate-missing-manifest');
+const tempRoot = path.join(root, '.testCache', 'index-validate-missing-manifest');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
@@ -30,3 +30,4 @@ assert.ok(
 );
 
 console.log('index-validate missing manifest test passed');
+

@@ -15,7 +15,7 @@ if (!fs.existsSync(fixtureRoot)) {
   process.exit(1);
 }
 
-const cacheRoot = path.join(root, 'tests', '.cache', 'fixture-empty');
+const cacheRoot = path.join(root, '.testCache', 'fixture-empty');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
@@ -73,3 +73,4 @@ if (!fs.existsSync(sqlitePaths.prosePath)) {
 }
 
 console.log('Empty fixture indexing test passed');
+

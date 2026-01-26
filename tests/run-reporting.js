@@ -600,7 +600,7 @@ export const writeTimings = async ({ timingsPath, results, totalMs, runId }) => 
 
 export const writeLatestLogPointer = async ({ root, runLogDir }) => {
   if (!runLogDir) return;
-  const latestPath = path.join(root, 'tests', '.logs', 'latest');
+  const latestPath = path.join(root, '.testLogs', 'latest');
   await fsPromises.mkdir(path.dirname(latestPath), { recursive: true });
   const relative = formatLogPath(runLogDir, root);
   await fsPromises.writeFile(latestPath, `${relative}\n`, 'utf8');

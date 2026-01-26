@@ -8,7 +8,7 @@ import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'lancedb-ann');
+const tempRoot = path.join(root, '.testCache', 'lancedb-ann');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -87,3 +87,4 @@ if (!stats.annLance?.available?.code || !stats.annLance?.available?.prose) {
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 console.log('LanceDB ANN test passed');
+

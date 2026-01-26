@@ -9,6 +9,7 @@ import { setProgressHandlers } from './src/shared/progress.js';
 import { buildAutoPolicy } from './src/shared/auto-policy.js';
 import { resolveRuntimeEnvelope } from './src/shared/runtime-envelope.js';
 import { createAbortControllerWithHandlers, isAbortError } from './src/shared/abort.js';
+import { setVerboseEnv } from './src/shared/env.js';
 import { getCurrentBuildInfo, getRepoCacheRoot, getToolVersion, loadUserConfig, resolveRepoRoot } from './tools/dict-utils.js';
 
 const rawArgs = process.argv.slice(2);
@@ -31,7 +32,7 @@ if (argv['config-dump'] === true) {
   process.exit(0);
 }
 if (argv.verbose === true) {
-  process.env.PAIROFCLEATS_VERBOSE = '1';
+  setVerboseEnv(true);
 }
 
 const display = createDisplay({

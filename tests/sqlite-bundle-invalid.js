@@ -13,7 +13,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-bundle-invalid');
+const tempRoot = path.join(root, '.testCache', 'sqlite-bundle-invalid');
 const bundleDir = path.join(tempRoot, 'bundles');
 const dbPath = path.join(tempRoot, 'index-code.db');
 
@@ -53,3 +53,4 @@ assert.ok(
 );
 
 console.log('sqlite bundle invalid test passed');
+

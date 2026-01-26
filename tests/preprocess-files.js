@@ -6,7 +6,7 @@ import { preprocessFiles } from '../src/index/build/preprocess.js';
 import { buildIgnoreMatcher } from '../src/index/build/ignore.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'preprocess');
+const cacheRoot = path.join(root, '.testCache', 'preprocess');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(cacheRoot, 'src'), { recursive: true });
 await fs.mkdir(path.join(cacheRoot, 'docs'), { recursive: true });
@@ -69,3 +69,4 @@ assert.ok(codeSkips.includes('binary'));
 assert.ok(result.lineCountsByMode.code.get('src/app.js') > 0);
 
 console.log('preprocess-files test passed.');
+

@@ -6,7 +6,7 @@ import { readTextFile } from '../src/shared/encoding.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'encoding');
-const cacheRoot = path.join(root, 'tests', '.cache', 'encoding-fallback');
+const cacheRoot = path.join(root, '.testCache', 'encoding-fallback');
 const sourcePath = path.join(fixtureRoot, 'latin1.js');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
@@ -68,3 +68,4 @@ if (!hit) {
 }
 
 console.log('encoding fallback test passed');
+

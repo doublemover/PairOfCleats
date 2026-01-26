@@ -16,6 +16,7 @@ import { fileExt, toPosix } from '../../shared/files.js';
 import { createRecordsClassifier } from './records.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
+import { getEnvConfig } from '../../shared/env.js';
 
 /**
  * Recursively discover indexable files under a directory.
@@ -180,7 +181,11 @@ export async function discoverEntries({
   const entries = [];
   let acceptedCount = 0;
   let reservedCount = 0;
-  const statConcurrency = Math.min(64, Math.max(4, Number(process.env.PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY) || 32));
+  const envConfig = getEnvConfig();
+  const statConcurrency = Math.min(
+    64,
+    Math.max(4, Number(envConfig.discoveryStatConcurrency) || 32)
+  );
   const processCandidate = async (absPath) => {
     throwIfAborted(abortSignal);
     const relPosix = toPosix(path.relative(root, absPath));

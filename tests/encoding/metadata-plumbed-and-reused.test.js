@@ -6,7 +6,7 @@ import { reuseCachedBundle } from '../../src/index/build/file-processor/cached-b
 import { buildFileMeta } from '../../src/index/build/artifacts/file-meta.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'encoding-meta');
+const tempRoot = path.join(root, '.testCache', 'encoding-meta');
 const repoRoot = path.join(tempRoot, 'repo');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(repoRoot, { recursive: true });
@@ -81,3 +81,4 @@ assert.equal(entry.encodingFallback, true);
 assert.equal(entry.encodingConfidence, 0.42);
 
 console.log('encoding metadata plumbed and reused ok');
+

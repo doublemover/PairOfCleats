@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'windows-path-filter');
+const tempRoot = path.join(root, '.testCache', 'windows-path-filter');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -76,3 +76,4 @@ if (!Array.isArray(pathPayload.code) || pathPayload.code.length === 0) {
 }
 
 console.log('windows path filter test passed');
+

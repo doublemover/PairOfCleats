@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 
 const root = process.cwd();
 const fixturesRoot = path.join(root, 'tests', 'fixtures', 'dicts');
-const tempRoot = path.join(root, 'tests', '.cache', 'download-dicts');
+const tempRoot = path.join(root, '.testCache', 'download-dicts');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
@@ -110,3 +110,4 @@ if (manifest.test.sha256 !== sourceHash || manifest.test.verified !== true) {
 }
 
 console.log('download-dicts test passed');
+

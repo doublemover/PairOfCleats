@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'index-lifecycle');
+const tempRoot = path.join(root, '.testCache', 'index-lifecycle');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -73,3 +73,4 @@ if (!payload.modes || !payload.modes.code) {
 }
 
 console.log('index lifecycle contract tests passed');
+

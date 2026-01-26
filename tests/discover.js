@@ -8,7 +8,7 @@ import { repoRoot } from './helpers/root.js';
 import { skip } from './helpers/skip.js';
 
 const root = repoRoot();
-const tempRoot = path.join(root, 'tests', '.cache', 'discover');
+const tempRoot = path.join(root, '.testCache', 'discover');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
@@ -110,3 +110,4 @@ assert.ok(byMode['extracted-prose'].every((entry) => entry.stat), 'extracted-pro
 assert.ok(byMode.records.every((entry) => entry.stat), 'records entries missing stat');
 
 console.log('discover test passed');
+

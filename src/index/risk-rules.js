@@ -257,7 +257,8 @@ const buildDiagnostic = ({ error, rule, pattern, flags, field }) => ({
 const extractPrefilter = (pattern) => {
   const source = typeof pattern === 'string' ? pattern : pattern?.source;
   if (!source) return null;
-  const tokens = source.match(/[A-Za-z0-9_$]{3,}/g);
+  const scrubbed = source.replace(/\\./g, ' ');
+  const tokens = scrubbed.match(/[A-Za-z0-9_$]{3,}/g);
   if (!tokens || !tokens.length) return null;
   tokens.sort((a, b) => b.length - a.length);
   return tokens[0] || null;

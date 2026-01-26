@@ -6,7 +6,7 @@ import { createFileScanner } from '../../src/index/build/file-scan.js';
 import { resolvePreReadSkip } from '../../src/index/build/file-processor/skip.js';
 
 const root = process.cwd();
-const outDir = path.join(root, 'tests', '.cache', 'file-caps-pre-read');
+const outDir = path.join(root, '.testCache', 'file-caps-pre-read');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 
@@ -38,3 +38,4 @@ assert.equal(skip.stage, 'pre-read');
 assert.equal(skip.maxBytes, 1);
 
 console.log('file-caps pre-read language cap test passed');
+

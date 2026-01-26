@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { getMetricsDir } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'index-metrics-options');
+const tempRoot = path.join(root, '.testCache', 'index-metrics-options');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -56,3 +56,4 @@ assert.equal(compression.keepRaw, false, 'expected compression.keepRaw=false by 
 assert.equal(extraction.enabled, false, 'expected documentExtraction.enabled=false by default');
 
 console.log('index metrics options test passed');
+

@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { resolveSqlitePaths } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-auto');
+const tempRoot = path.join(root, '.testCache', 'sqlite-auto');
 const cacheRoot = path.join(tempRoot, '.cache');
 const searchPath = path.join(root, 'search.js');
 const buildIndexPath = path.join(root, 'build_index.js');
@@ -91,3 +91,4 @@ if (backendD !== 'memory') {
 }
 
 console.log('SQLite auto backend test passed');
+

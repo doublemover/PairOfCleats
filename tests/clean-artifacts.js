@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getRepoCacheRoot } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const baseDir = path.join(root, 'tests', '.cache', 'clean-artifacts');
+const baseDir = path.join(root, '.testCache', 'clean-artifacts');
 const repoRoot = path.join(baseDir, 'repo');
 const cacheRoot = path.join(baseDir, 'cache');
 
@@ -105,3 +105,4 @@ if (failures.length) {
 }
 
 console.log('clean-artifacts test passed');
+

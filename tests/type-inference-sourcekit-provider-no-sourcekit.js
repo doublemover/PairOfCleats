@@ -4,7 +4,7 @@ import path from 'node:path';
 import { collectSourcekitTypes } from '../src/index/tooling/sourcekit-provider.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'sourcekit-provider-no-sourcekit');
+const tempRoot = path.join(root, '.testCache', 'sourcekit-provider-no-sourcekit');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 
@@ -45,3 +45,4 @@ if (!logs.some((entry) => entry.includes('sourcekit-lsp not detected'))) {
 }
 
 console.log('sourcekit provider fallback test passed');
+

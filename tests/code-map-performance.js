@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'code-map-performance');
+const tempRoot = path.join(root, '.testCache', 'code-map-performance');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -65,3 +65,4 @@ if (mapElapsed > maxMs) {
 }
 
 console.log(`code map performance ok (${Math.round(mapElapsed)}ms <= ${maxMs}ms)`);
+

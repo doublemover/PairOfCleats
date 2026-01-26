@@ -7,7 +7,7 @@ import { buildEmbeddingIdentity } from '../src/shared/embedding-identity.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'embeddings-cache-identity');
+const tempRoot = path.join(root, '.testCache', 'embeddings-cache-identity');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -144,3 +144,4 @@ if (!hasNew) {
 }
 
 console.log('embeddings cache identity tests passed');
+

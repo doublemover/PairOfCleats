@@ -5,7 +5,7 @@ import { readJsonLinesArray } from '../src/shared/artifact-io.js';
 import { writeJsonLinesFile } from '../src/shared/json-stream.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'jsonl-utf8');
+const tempRoot = path.join(root, '.testCache', 'jsonl-utf8');
 const jsonlPath = path.join(tempRoot, 'sample.jsonl');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
@@ -34,3 +34,4 @@ if (parsed[0]?.text !== entry.text) {
 }
 
 console.log('jsonl utf8 tests passed');
+

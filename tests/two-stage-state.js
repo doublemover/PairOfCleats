@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, getRepoCacheRoot, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'two-stage-state');
+const tempRoot = path.join(root, '.testCache', 'two-stage-state');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -98,3 +98,4 @@ if (!fs.existsSync(densePath)) {
 }
 
 console.log('two-stage state test passed');
+

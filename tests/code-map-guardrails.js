@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'code-map-guardrails');
+const tempRoot = path.join(root, '.testCache', 'code-map-guardrails');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -67,3 +67,4 @@ if (!dropped.members || dropped.members < 1) {
 }
 
 console.log('code map guardrails tests passed');
+

@@ -6,7 +6,7 @@ import { validateIndexArtifacts } from '../../src/index/validate.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'index-validate-manifest-safety');
+const tempRoot = path.join(root, '.testCache', 'index-validate-manifest-safety');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
@@ -36,3 +36,4 @@ assert.ok(
 );
 
 console.log('index-validate manifest safety test passed');
+

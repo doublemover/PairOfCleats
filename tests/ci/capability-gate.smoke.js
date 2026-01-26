@@ -37,7 +37,7 @@ for (const key of expectedTopLevel) {
   }
 }
 
-const expectedProbes = ['sqlite', 'lmdb', 'hnsw', 'tantivy', 'lancedb'];
+const expectedProbes = ['sqlite', 'lmdb', 'hnsw', 'lancedb'];
 for (const name of expectedProbes) {
   if (!(name in payload.probes)) {
     console.error(`capability gate JSON missing probe: ${name}`);

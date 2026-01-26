@@ -11,7 +11,7 @@ const fail = (message) => {
 };
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'file-processor-skip');
+const tempRoot = path.join(root, '.testCache', 'file-processor-skip');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
@@ -118,3 +118,4 @@ if (!unreadableSkip) {
 }
 
 console.log('file processor skip tests passed');
+

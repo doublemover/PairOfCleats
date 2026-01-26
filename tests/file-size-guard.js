@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, getMetricsDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'file-size-guard');
+const tempRoot = path.join(root, '.testCache', 'file-size-guard');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -75,3 +75,4 @@ if (oversizeCount < 1) {
 }
 
 console.log('File size guard test passed');
+

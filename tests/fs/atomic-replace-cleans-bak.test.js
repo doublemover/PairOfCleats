@@ -6,7 +6,7 @@ import path from 'node:path';
 import { replaceFile } from '../../src/shared/json-stream.js';
 
 const root = process.cwd();
-const outDir = path.join(root, 'tests', '.cache', 'atomic-replace');
+const outDir = path.join(root, '.testCache', 'atomic-replace');
 await fsPromises.rm(outDir, { recursive: true, force: true });
 await fsPromises.mkdir(outDir, { recursive: true });
 
@@ -23,3 +23,4 @@ assert.equal(contents, 'after');
 assert.ok(!fs.existsSync(`${finalPath}.bak`), 'expected .bak to be removed after replace');
 
 console.log('atomic replace cleans .bak test passed');
+

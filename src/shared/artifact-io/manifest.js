@@ -2,6 +2,7 @@ import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
 import { existsOrBak } from './fs.js';
 import { readJsonFile } from './json.js';
+import { getTestEnvConfig } from '../env.js';
 
 const MIN_MANIFEST_BYTES = 64 * 1024;
 const warnedMissingCompat = new Set();
@@ -76,10 +77,8 @@ export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = tr
 };
 
 export const readCompatibilityKey = (dir, { maxBytes = MAX_JSON_BYTES, strict = true } = {}) => {
-  const testing = process.env.PAIROFCLEATS_TESTING === '1' || process.env.PAIROFCLEATS_TESTING === 'true';
-  const allowMissingInTests = testing
-    && process.env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY !== '0'
-    && process.env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY !== 'false';
+  const testEnv = getTestEnvConfig();
+  const allowMissingInTests = testEnv.testing && testEnv.allowMissingCompatKey !== false;
   let manifest = null;
   if (strict) {
     manifest = loadPiecesManifest(dir, { maxBytes, strict: true });

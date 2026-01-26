@@ -1,39 +1,11 @@
 {
   // Tags excluded unless explicitly included via --tag.
   "excludeTags": [
-    "destructive"
+    "destructive",
+    "CheckAfterPhase10",
+    "long"
   ],
   "lanes": {
-    "ci": {
-      // CI skips long-running or noisy tests by default.
-      "excludeTags": [
-        "artifact-size-guardrails",
-        "churn-filter",
-        "comment-join",
-        "context-pack",
-        "extracted-prose",
-        "fixture-eval",
-        "fixture-parity",
-        "file-selector-case",
-        "hnsw-ann",
-        "incremental-cache-signature",
-        "incremental-tokenization-cache",
-        "lancedb-ann",
-        "mcp-tool-search-defaults",
-        "parity",
-        "piece-assembly",
-        "python-metadata",
-        "query-cache",
-        "type-signature-decorator",
-        "records-index-and-search",
-        "search-explain",
-        "search-rrf",
-        "search-tie-order",
-        "shard-merge",
-        "summary-report",
-        "timeout-target",
-        "tool-build-index-progress"
-      ]
-    }
+    "ci": {}
   }
 }

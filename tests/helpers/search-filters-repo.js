@@ -27,8 +27,10 @@ const hasGit = () => {
 
 const hasChunkMeta = (repoRoot) => {
   const userConfig = loadUserConfig(repoRoot);
-  const codeDir = getIndexDir(repoRoot, 'prose', userConfig);
-  return fs.existsSync(path.join(codeDir, 'chunk_meta.json'));
+  const codeDir = getIndexDir(repoRoot, 'code', userConfig);
+  const proseDir = getIndexDir(repoRoot, 'prose', userConfig);
+  return fs.existsSync(path.join(codeDir, 'chunk_meta.json'))
+    && fs.existsSync(path.join(proseDir, 'chunk_meta.json'));
 };
 
 const buildIndex = (repoRoot, env) => {
@@ -48,7 +50,7 @@ export const ensureSearchFiltersRepo = async () => {
     console.log('[skip] git not available');
     return null;
   }
-  const tempRoot = path.join(ROOT, 'tests', '.cache', 'search-filters');
+  const tempRoot = path.join(ROOT, '.testCache', 'search-filters');
   const repoRoot = path.join(tempRoot, `repo-${process.pid}`);
   const cacheRoot = path.join(tempRoot, `cache-${process.pid}`);
   await fsPromises.mkdir(repoRoot, { recursive: true });
@@ -161,3 +163,4 @@ export const runFilterSearch = ({
     process.exit(1);
   }
 };
+

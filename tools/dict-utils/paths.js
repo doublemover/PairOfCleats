@@ -8,6 +8,7 @@ import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../../src/shared/cache.j
 import { DEFAULT_MODEL_ID, DEFAULT_TRIAGE_PROMOTE_FIELDS } from './constants.js';
 import { getCacheRoot, getDictConfig, loadUserConfig } from './config.js';
 import { resolveRuntimeEnvelope, resolveRuntimeEnv as resolveRuntimeEnvFromEnvelope } from '../../src/shared/runtime-envelope.js';
+import { isTestingEnv } from '../../src/shared/env.js';
 import { getToolVersion } from './tool.js';
 import { getDefaultCacheRoot } from './cache.js';
 export function getRepoId(repoRoot) {
@@ -573,8 +574,7 @@ export function getExtensionsDir(repoRoot, userConfig = null) {
   const sqliteVector = cfg.sqlite?.vectorExtension || {};
   if (extensions.dir) return extensions.dir;
   if (sqliteVector.dir) return sqliteVector.dir;
-  const testing = process.env.PAIROFCLEATS_TESTING === '1' || process.env.PAIROFCLEATS_TESTING === 'true';
-  const cacheRoot = testing ? getDefaultCacheRoot() : getCacheRoot();
+  const cacheRoot = isTestingEnv() ? getDefaultCacheRoot() : getCacheRoot();
   return path.join(cacheRoot, 'extensions');
 }
 
@@ -672,8 +672,7 @@ export async function getDictionaryPaths(repoRoot, dictConfig = null, options = 
   const dictDir = config.dir;
   let paths = await buildPaths(dictDir);
 
-  const testing = process.env.PAIROFCLEATS_TESTING === '1' || process.env.PAIROFCLEATS_TESTING === 'true';
-  if (!paths.length && testing && allowFallback) {
+  if (!paths.length && isTestingEnv() && allowFallback) {
     const fallbackDir = path.join(getDefaultCacheRoot(), 'dictionaries');
     if (fallbackDir && fallbackDir !== dictDir) {
       const fallbackPaths = await buildPaths(fallbackDir);

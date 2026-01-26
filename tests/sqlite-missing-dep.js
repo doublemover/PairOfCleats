@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-missing-dep');
+const tempRoot = path.join(root, '.testCache', 'sqlite-missing-dep');
 const cacheRoot = path.join(tempRoot, '.cache');
 const searchPath = path.join(root, 'search.js');
 const buildIndexPath = path.join(root, 'build_index.js');
@@ -82,3 +82,4 @@ if (!forcedStderr.includes('better-sqlite3 is required')) {
 }
 
 console.log('SQLite missing dependency test passed');
+

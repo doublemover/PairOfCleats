@@ -8,7 +8,7 @@ import { spawn, spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const fixturesRoot = path.join(root, 'tests', 'fixtures', 'extensions');
-const tempRoot = path.join(root, 'tests', '.cache', 'download-extensions');
+const tempRoot = path.join(root, '.testCache', 'download-extensions');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
@@ -182,3 +182,4 @@ if (failures.length) {
 }
 
 console.log('download-extensions archive test passed');
+

@@ -19,7 +19,7 @@ if (!tantivyAvailable) {
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'tantivy-smoke');
+const tempRoot = path.join(root, '.testCache', 'tantivy-smoke');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -82,3 +82,4 @@ if (fs.existsSync(tempRoot)) {
 }
 
 console.log('tantivy smoke test passed');
+

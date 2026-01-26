@@ -7,7 +7,7 @@ import { spawn, spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, 'tests', '.cache', 'api-server-stream');
+const cacheRoot = path.join(root, '.testCache', 'api-server-stream');
 const serverPath = path.join(root, 'tools', 'api-server.js');
 const authToken = 'test-token';
 
@@ -205,3 +205,4 @@ await new Promise((resolve) => {
 });
 
 console.log('api-server stream tests passed');
+

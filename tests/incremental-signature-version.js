@@ -6,7 +6,7 @@ import { shouldReuseIncrementalIndex } from '../src/index/build/incremental.js';
 import { SIGNATURE_VERSION } from '../src/index/build/indexer/signatures.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'incremental-signature-version');
+const tempRoot = path.join(root, '.testCache', 'incremental-signature-version');
 const repoRoot = path.join(tempRoot, 'repo');
 const outDir = path.join(tempRoot, 'out');
 const piecesDir = path.join(outDir, 'pieces');
@@ -56,3 +56,4 @@ const reuse = await shouldReuseIncrementalIndex({
 assert.equal(reuse, false, 'expected signatureVersion mismatch to skip reuse');
 
 console.log('incremental signature version test passed');
+

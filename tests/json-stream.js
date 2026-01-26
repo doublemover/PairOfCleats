@@ -6,7 +6,7 @@ import { writeJsonArrayFile, writeJsonObjectFile } from '../src/shared/json-stre
 import { tryRequire } from '../src/shared/optional-deps.js';
 
 const root = process.cwd();
-const outDir = path.join(root, 'tests', '.cache', 'json-stream');
+const outDir = path.join(root, '.testCache', 'json-stream');
 await fs.rm(outDir, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
 
@@ -59,3 +59,4 @@ if (zstdAvailable) {
 }
 
 console.log('json-stream test passed');
+

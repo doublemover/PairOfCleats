@@ -6,7 +6,7 @@ import path from 'node:path';
 import { writeJsonLinesFile } from '../../src/shared/json-stream.js';
 
 const root = process.cwd();
-const outDir = path.join(root, 'tests', '.cache', 'json-stream-abort');
+const outDir = path.join(root, '.testCache', 'json-stream-abort');
 await fsPromises.rm(outDir, { recursive: true, force: true });
 await fsPromises.mkdir(outDir, { recursive: true });
 
@@ -37,3 +37,4 @@ const leftover = (await fsPromises.readdir(outDir)).filter((entry) => entry.incl
 assert.equal(leftover.length, 0, 'expected temp files to be removed after abort');
 
 console.log('json-stream abort closes stream test passed');
+

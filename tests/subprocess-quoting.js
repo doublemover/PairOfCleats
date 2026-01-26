@@ -8,7 +8,7 @@ import { spawn, spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, 'tests', '.cache', 'subprocess-quoting');
+const cacheRoot = path.join(root, '.testCache', 'subprocess-quoting');
 const serverPath = path.join(root, 'tools', 'api-server.js');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
@@ -121,3 +121,4 @@ try {
 }
 
 console.log('subprocess-quoting: ok');
+

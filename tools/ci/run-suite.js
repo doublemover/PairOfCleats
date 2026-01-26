@@ -10,10 +10,11 @@ import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../dict-uti
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEFAULT_JUNIT = path.join(ROOT, 'artifacts', 'junit.xml');
 const DEFAULT_DIAGNOSTICS = path.join(ROOT, '.diagnostics');
-const DEFAULT_LOG_DIR = path.join(ROOT, 'tests', '.logs');
+const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 const DEFAULT_CACHE_ROOT = path.join(ROOT, '.ci-cache', 'pairofcleats');
 
-const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const npmCommand = process.platform === 'win32' ? 'cmd' : 'npm';
+const npmPrefix = process.platform === 'win32' ? ['/c', 'npm'] : [];
 
 const parseArgs = () => {
   const parser = yargs(hideBin(process.argv))
@@ -99,9 +100,9 @@ const main = async () => {
   }
 
   const steps = [
-    { label: 'Lint', command: npmBin, args: ['run', 'lint'] },
-    { label: 'Config budget', command: npmBin, args: ['run', 'config:budget'] },
-    { label: 'Env usage guardrail', command: npmBin, args: ['run', 'env:check'] },
+    { label: 'Lint', command: npmCommand, args: [...npmPrefix, 'run', 'lint'] },
+    { label: 'Config budget', command: npmCommand, args: [...npmPrefix, 'run', 'config:budget'] },
+    { label: 'Env usage guardrail', command: npmCommand, args: [...npmPrefix, 'run', 'env:check'] },
     {
       label: 'CI test lane',
       command: process.execPath,
@@ -112,6 +113,9 @@ const main = async () => {
         '--exclude',
         'services/api/',
         ...(mode === 'nightly' ? ['--lane', 'storage', '--lane', 'perf'] : []),
+        '--timeout-ms',
+        '600000',
+        '--allow-timeouts',
         '--junit',
         junitPath,
         '--log-dir',

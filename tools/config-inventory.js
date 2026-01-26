@@ -24,6 +24,58 @@ const PUBLIC_CLI_FLAGS = new Set([
   'host',
   'port'
 ]);
+const KNOWN_CONFIG_KEYS = new Set();
+const KNOWN_ENV_VARS = new Set([
+  'PAIROFCLEATS_API_TOKEN',
+  'PAIROFCLEATS_BENCH_RUN',
+  'PAIROFCLEATS_BUNDLE_THREADS',
+  'PAIROFCLEATS_CACHE_ROOT',
+  'PAIROFCLEATS_DEBUG_CRASH',
+  'PAIROFCLEATS_DICT_DIR',
+  'PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY',
+  'PAIROFCLEATS_EMBEDDINGS',
+  'PAIROFCLEATS_EXTENSIONS_DIR',
+  'PAIROFCLEATS_FILE_CACHE_MAX',
+  'PAIROFCLEATS_HOME',
+  'PAIROFCLEATS_IMPORT_GRAPH',
+  'PAIROFCLEATS_IO_OVERSUBSCRIBE',
+  'PAIROFCLEATS_LOG_FORMAT',
+  'PAIROFCLEATS_LOG_LEVEL',
+  'PAIROFCLEATS_MAX_OLD_SPACE_MB',
+  'PAIROFCLEATS_MCP_MAX_BUFFER_BYTES',
+  'PAIROFCLEATS_MCP_QUEUE_MAX',
+  'PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS',
+  'PAIROFCLEATS_MODEL',
+  'PAIROFCLEATS_MODELS_DIR',
+  'PAIROFCLEATS_NODE_OPTIONS',
+  'PAIROFCLEATS_PROFILE',
+  'PAIROFCLEATS_SKIP_BENCH',
+  'PAIROFCLEATS_SKIP_SCRIPT_COVERAGE',
+  'PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL',
+  'PAIROFCLEATS_STAGE',
+  'PAIROFCLEATS_SUITE_MODE',
+  'PAIROFCLEATS_SUMMARY_CACHE_MAX',
+  'PAIROFCLEATS_TESTING',
+  'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
+  'PAIROFCLEATS_TEST_CACHE_SUFFIX',
+  'PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS',
+  'PAIROFCLEATS_TEST_CONFIG',
+  'PAIROFCLEATS_TEST_LOG_DIR',
+  'PAIROFCLEATS_TEST_MAX_JSON_BYTES',
+  'PAIROFCLEATS_TEST_MAX_OLD_SPACE_MB',
+  'PAIROFCLEATS_TEST_NODE_OPTIONS',
+  'PAIROFCLEATS_TEST_PID_FILE',
+  'PAIROFCLEATS_TEST_RETRIES',
+  'PAIROFCLEATS_TEST_TANTIVY',
+  'PAIROFCLEATS_TEST_THREADS',
+  'PAIROFCLEATS_TEST_TIMEOUT_MS',
+  'PAIROFCLEATS_THREADS',
+  'PAIROFCLEATS_UV_THREADPOOL_SIZE',
+  'PAIROFCLEATS_VERBOSE',
+  'PAIROFCLEATS_WATCHER_BACKEND',
+  'PAIROFCLEATS_WORKER_POOL',
+  'PAIROFCLEATS_XXHASH_BACKEND'
+]);
 const PUBLIC_FLAG_SOURCES = new Set([
   'bin/pairofcleats.js',
   'src/shared/cli.js'
@@ -467,12 +519,15 @@ const buildInventory = async () => {
     entry.flags.forEach((flag) => publicFlagsDetected.add(flag));
   }
 
+  const knownConfigLeafKeys = KNOWN_CONFIG_KEYS.size
+    ? Array.from(KNOWN_CONFIG_KEYS)
+    : configLeafEntries.map((entry) => entry.path);
   const publicConfigLeafKeys = configLeafEntries
     .filter((entry) => PUBLIC_CONFIG_KEYS.has(entry.path))
     .map((entry) => entry.path)
     .sort();
   const unknownConfigLeafKeys = configLeafEntries
-    .filter((entry) => !PUBLIC_CONFIG_KEYS.has(entry.path))
+    .filter((entry) => !knownConfigLeafKeys.includes(entry.path))
     .map((entry) => entry.path)
     .sort();
 
@@ -481,7 +536,7 @@ const buildInventory = async () => {
     .map((entry) => entry.name)
     .sort();
   const unknownEnvVars = envVars
-    .filter((entry) => !PUBLIC_ENV_VARS.has(entry.name))
+    .filter((entry) => !KNOWN_ENV_VARS.has(entry.name))
     .map((entry) => entry.name)
     .sort();
 
@@ -512,7 +567,9 @@ const buildInventory = async () => {
     allowlists: {
       configKeys: Array.from(PUBLIC_CONFIG_KEYS).sort(),
       envVars: Array.from(PUBLIC_ENV_VARS).sort(),
-      cliFlags: Array.from(PUBLIC_CLI_FLAGS).sort()
+      cliFlags: Array.from(PUBLIC_CLI_FLAGS).sort(),
+      knownEnvVars: Array.from(KNOWN_ENV_VARS).sort(),
+      knownConfigKeys: Array.from(knownConfigLeafKeys).sort()
     },
     configSchema: {
       path: path.relative(root, schemaPath).replace(/\\/g, '/'),

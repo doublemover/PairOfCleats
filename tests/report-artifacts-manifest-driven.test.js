@@ -7,7 +7,7 @@ import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 import { ARTIFACT_SURFACE_VERSION } from '../src/contracts/versioning.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'report-artifacts-manifest');
+const cacheRoot = path.join(root, '.testCache', 'report-artifacts-manifest');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 
@@ -56,3 +56,4 @@ if (prevCacheRoot === undefined) {
 } else {
   process.env.PAIROFCLEATS_CACHE_ROOT = prevCacheRoot;
 }
+

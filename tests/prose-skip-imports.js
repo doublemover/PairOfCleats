@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, 'tests', '.cache', 'prose-skip-imports');
+const cacheRoot = path.join(root, '.testCache', 'prose-skip-imports');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
@@ -35,3 +35,4 @@ if (stderr.includes('Scanning for imports')) {
 }
 
 console.log('Prose import scan skip test passed');
+

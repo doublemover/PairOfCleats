@@ -5,7 +5,7 @@ import path from 'node:path';
 import { buildIndexSignature } from '../../src/retrieval/index-cache.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'index-signature');
+const tempRoot = path.join(root, '.testCache', 'index-signature');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
 
@@ -31,3 +31,4 @@ const signatureC = buildIndexSignature(tempRoot);
 assert.notEqual(signatureB, signatureC, 'Expected signature to change when file_relations changes.');
 
 console.log('index signature test passed');
+

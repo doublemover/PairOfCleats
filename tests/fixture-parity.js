@@ -70,7 +70,7 @@ for (const fixtureName of fixtures) {
     console.error(`Fixture not found: ${fixtureRoot}`);
     process.exit(1);
   }
-  const cacheRoot = path.join(root, 'tests', '.cache', `parity-${fixtureName}`);
+  const cacheRoot = path.join(root, '.testCache', `parity-${fixtureName}`);
   console.log(`\nFixture parity: ${fixtureName}`);
   await fsPromises.rm(cacheRoot, { recursive: true, force: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
@@ -106,3 +106,4 @@ for (const fixtureName of fixtures) {
 }
 
 console.log('Fixture parity tests passed');
+

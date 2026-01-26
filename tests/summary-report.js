@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'summary-report');
+const tempRoot = path.join(root, '.testCache', 'summary-report');
 const cacheRoot = path.join(tempRoot, 'cache');
 const outPath = path.join(tempRoot, 'combined-summary.json');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -59,3 +59,4 @@ if (!payload.summary || !payload.reports) {
 }
 
 console.log('summary report test passed');
+

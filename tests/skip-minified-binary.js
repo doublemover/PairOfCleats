@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, getMetricsDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'skip-minified-binary');
+const tempRoot = path.join(root, '.testCache', 'skip-minified-binary');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -91,3 +91,4 @@ if (minifiedCount < 1 || binaryCount < 1) {
 }
 
 console.log('minified/binary skip test passed');
+

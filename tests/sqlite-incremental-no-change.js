@@ -8,7 +8,7 @@ import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../tools/dict-u
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-incremental-no-change');
+const tempRoot = path.join(root, '.testCache', 'sqlite-incremental-no-change');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -149,3 +149,4 @@ assert.equal(afterCounts.files, beforeCounts.files, 'expected file manifest coun
 assert.equal(afterCounts.hash, beforeCounts.hash, 'expected file manifest hash to remain stable');
 
 console.log('sqlite incremental no-change test passed');
+

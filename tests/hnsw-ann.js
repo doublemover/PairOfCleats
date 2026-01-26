@@ -8,7 +8,7 @@ import { rankHnswIndex } from '../src/shared/hnsw.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'hnsw-ann');
+const tempRoot = path.join(root, '.testCache', 'hnsw-ann');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -121,3 +121,4 @@ if (!stats.annHnsw?.available?.code || !stats.annHnsw?.available?.prose) {
 }
 
 console.log('HNSW ANN test passed');
+

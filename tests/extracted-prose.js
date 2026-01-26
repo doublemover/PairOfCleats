@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'extracted-prose');
+const tempRoot = path.join(root, '.testCache', 'extracted-prose');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 
@@ -168,3 +168,4 @@ if (mdPlainHits.length !== 0) {
 }
 
 console.log('Extracted-prose test passed.');
+

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { resolveImportLinks } from '../src/index/build/import-resolution.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'import-resolution');
+const tempRoot = path.join(root, '.testCache', 'import-resolution');
 const srcRoot = path.join(tempRoot, 'src');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(srcRoot, 'a'), { recursive: true });
@@ -98,3 +98,4 @@ const relMainUpdated = relationsC.get('src/main.ts');
 assert.deepEqual(relMainUpdated.importLinks, ['src/alt/util.ts']);
 
 console.log('import resolution tests passed');
+

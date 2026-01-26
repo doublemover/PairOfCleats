@@ -6,7 +6,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../src/contracts/versioning.js';
 import { SIGNATURE_VERSION } from '../src/index/build/indexer/signatures.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'incremental-reuse');
+const tempRoot = path.join(root, '.testCache', 'incremental-reuse');
 const outDir = path.join(tempRoot, 'index');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
@@ -78,3 +78,4 @@ if (noReuse) {
 }
 
 console.log('incremental reuse test passed');
+

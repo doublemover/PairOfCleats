@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getToolDefs } from '../src/integrations/mcp/defs.js';
+import { getEnvConfig } from '../src/shared/env.js';
 import { DEFAULT_MODEL_ID, loadUserConfig, resolveRepoRoot, resolveToolRoot } from './dict-utils.js';
 import { parseTimeoutMs, resolveToolTimeoutMs } from './mcp/repo.js';
 import { handleToolCall } from './mcp/tools.js';
@@ -29,12 +30,14 @@ const baseConfigRoot = resolveRepoRoot(process.cwd());
 const userConfig = loadUserConfig(baseConfigRoot);
 const mcpConfig = userConfig?.mcp && typeof userConfig.mcp === 'object' ? userConfig.mcp : {};
 const parseIntEnv = (value) => {
+  if (value == null || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
 };
-const envQueueMax = parseIntEnv(process.env.PAIROFCLEATS_MCP_QUEUE_MAX);
-const envMaxBuffer = parseIntEnv(process.env.PAIROFCLEATS_MCP_MAX_BUFFER_BYTES);
-const envToolTimeoutMs = parseTimeoutMs(process.env.PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS);
+const envConfig = getEnvConfig();
+const envQueueMax = parseIntEnv(envConfig.mcpQueueMax);
+const envMaxBuffer = parseIntEnv(envConfig.mcpMaxBufferBytes);
+const envToolTimeoutMs = parseTimeoutMs(envConfig.mcpToolTimeoutMs);
 const configQueueMax = parseIntEnv(mcpConfig.queueMax);
 const configMaxBuffer = parseIntEnv(mcpConfig.maxBufferBytes);
 const queueMax = envQueueMax ?? configQueueMax ?? DEFAULT_MCP_QUEUE_MAX;

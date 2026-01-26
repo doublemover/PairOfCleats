@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'fielded-bm25');
+const tempRoot = path.join(root, '.testCache', 'fielded-bm25');
 const cacheRoot = path.join(tempRoot, 'cache');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 
@@ -88,3 +88,4 @@ if (hit.scoreBreakdown?.sparse?.fielded !== true) {
 }
 
 console.log('fielded bm25 tests passed');
+

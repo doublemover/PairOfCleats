@@ -5,7 +5,7 @@ import path from 'node:path';
 import { scanImports } from '../src/index/build/imports.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'imports-regex-fallback');
+const tempRoot = path.join(root, '.testCache', 'imports-regex-fallback');
 const srcRoot = path.join(tempRoot, 'src');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(srcRoot, { recursive: true });
@@ -27,3 +27,4 @@ const imports = importsByFile['src/broken.js'] || [];
 assert.ok(imports.includes('regex-dep'), 'expected regex-dep import from regex fallback');
 
 console.log('imports require regex fallback test passed');
+

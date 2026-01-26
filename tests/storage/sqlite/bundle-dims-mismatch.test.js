@@ -6,7 +6,7 @@ import { writeBundleFile } from '../../../src/shared/bundle-io.js';
 import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from-bundles.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const tempRoot = path.join(ROOT, 'tests', '.cache', 'sqlite-bundle-dims-mismatch');
+const tempRoot = path.join(root, '.testCache', 'sqlite-bundle-dims-mismatch');
 const bundleDir = path.join(tempRoot, 'bundles');
 const dbPath = path.join(tempRoot, 'index-code.db');
 
@@ -81,3 +81,4 @@ if (result.count !== 0 || !result.reason || !result.reason.includes('Dense vecto
 }
 
 console.log('SQLite bundle dims mismatch hard-fail ok.');
+

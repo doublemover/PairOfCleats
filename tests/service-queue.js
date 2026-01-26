@@ -10,7 +10,7 @@ import {
 } from '../tools/service/queue.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'service-queue');
+const tempRoot = path.join(root, '.testCache', 'service-queue');
 const queueDir = path.join(tempRoot, 'queue');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
@@ -47,3 +47,4 @@ if (summaryAfter.failed !== 1) {
 }
 
 console.log('service queue test passed');
+

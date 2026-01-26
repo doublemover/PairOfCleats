@@ -12,7 +12,7 @@ import { writePiecesManifest } from '../src/index/build/artifacts/checksums.js';
 import { loadChunkMeta } from '../src/shared/artifact-io.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'chunk-meta-jsonl-cleanup');
+const cacheRoot = path.join(root, '.testCache', 'chunk-meta-jsonl-cleanup');
 const outDir = path.join(cacheRoot, 'index');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
@@ -120,3 +120,4 @@ if (!Array.isArray(loadedJsonl) || loadedJsonl.length !== chunks.length) {
 }
 
 console.log('chunk_meta JSONL cleanup test passed');
+

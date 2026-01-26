@@ -3,9 +3,9 @@ import path from 'node:path';
 import { cleanup, runNode, root } from './smoke-utils.js';
 
 const cacheRoots = [
-  path.join(root, 'tests', '.cache', 'build-embeddings-cache'),
-  path.join(root, 'tests', '.cache', 'embeddings-dims-mismatch'),
-  path.join(root, 'tests', '.cache', 'embeddings-cache-identity')
+  path.join(root, '.testCache', 'build-embeddings-cache'),
+  path.join(root, '.testCache', 'embeddings-dims-mismatch'),
+  path.join(root, '.testCache', 'embeddings-cache-identity')
 ];
 
 let failure = null;
@@ -26,3 +26,4 @@ if (failure) {
   process.exit(failure.exitCode ?? 1);
 }
 console.log('smoke embeddings passed');
+

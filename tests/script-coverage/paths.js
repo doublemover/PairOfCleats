@@ -10,11 +10,11 @@ export const resolveFailureLogRoot = ({ root, logDirOverride }) => {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   return logDirOverride
     ? path.resolve(logDirOverride)
-    : path.join(root, 'tests', '.logs', timestamp);
+    : path.join(root, '.testLogs', timestamp);
 };
 
 export const resolveScriptCoveragePaths = ({ root, logDirOverride }) => {
-  const baseCacheRoot = path.join(root, 'tests', '.cache', 'script-coverage');
+  const baseCacheRoot = path.join(root, '.testCache', 'script-coverage');
   const repoCacheRoot = path.join(baseCacheRoot, 'repo');
   const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
   const failureLogRoot = resolveFailureLogRoot({ root, logDirOverride });

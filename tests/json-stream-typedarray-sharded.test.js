@@ -5,7 +5,7 @@ import path from 'node:path';
 import { writeJsonLinesSharded } from '../src/shared/json-stream.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'json-stream-typedarray-sharded');
+const cacheRoot = path.join(root, '.testCache', 'json-stream-typedarray-sharded');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 
@@ -31,3 +31,4 @@ const parsed = JSON.parse(line);
 assert.deepEqual(parsed.vec, [1, 2, 3], 'expected typed arrays serialized as JSON arrays');
 
 console.log('json-stream typed array sharded test passed');
+

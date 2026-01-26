@@ -5,7 +5,7 @@ import path from 'node:path';
 import { scanImports } from '../src/index/build/imports.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'imports-proto-safe');
+const tempRoot = path.join(root, '.testCache', 'imports-proto-safe');
 const srcRoot = path.join(tempRoot, 'src');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(srcRoot, { recursive: true });
@@ -29,3 +29,4 @@ assert.ok(imports.includes('__proto__'), 'expected __proto__ import entry');
 assert.ok(!Object.prototype.polluted, 'Object.prototype should remain clean');
 
 console.log('imports proto-safe module keys test passed');
+

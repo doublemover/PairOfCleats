@@ -3,8 +3,8 @@ import path from 'node:path';
 import { cleanup, runNode, root } from './smoke-utils.js';
 
 const cacheRoots = [
-  path.join(root, 'tests', '.cache', 'sqlite-incremental'),
-  path.join(root, 'tests', '.cache', 'sqlite-ann-fallback')
+  path.join(root, '.testCache', 'sqlite-incremental'),
+  path.join(root, '.testCache', 'sqlite-ann-fallback')
 ];
 
 let failure = null;
@@ -22,3 +22,4 @@ if (failure) {
   process.exit(failure.exitCode ?? 1);
 }
 console.log('smoke sqlite passed');
+

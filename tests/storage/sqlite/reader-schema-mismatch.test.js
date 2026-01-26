@@ -6,7 +6,7 @@ import { createSqliteBackend } from '../../../src/retrieval/cli-sqlite.js';
 import { CREATE_TABLES_BASE_SQL, CREATE_INDEXES_SQL, SCHEMA_VERSION } from '../../../src/storage/sqlite/schema.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const tempRoot = path.join(ROOT, 'tests', '.cache', 'sqlite-reader-schema-mismatch');
+const tempRoot = path.join(root, '.testCache', 'sqlite-reader-schema-mismatch');
 const dbPath = path.join(tempRoot, 'index-code.db');
 
 let Database;
@@ -70,3 +70,4 @@ if (fallbackResult.useSqlite || fallbackResult.dbCode) {
 }
 
 console.log('SQLite reader schema mismatch fail-closed ok.');
+

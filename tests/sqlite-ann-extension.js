@@ -8,7 +8,7 @@ import { getBinarySuffix, getPlatformKey } from '../tools/vector-extension.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-ann-extension');
+const tempRoot = path.join(root, '.testCache', 'sqlite-ann-extension');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -160,3 +160,4 @@ if (orphanRow?.count) {
 dbAfter.close();
 
 console.log('sqlite ann extension test passed');
+

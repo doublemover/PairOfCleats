@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'code-map-dot');
+const tempRoot = path.join(root, '.testCache', 'code-map-dot');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -79,3 +79,4 @@ if (!output.includes('style="dashed"')) {
 }
 
 console.log('code map dot tests passed');
+

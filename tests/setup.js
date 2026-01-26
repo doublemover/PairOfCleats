@@ -6,7 +6,7 @@ import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const cacheRoot = path.join(root, 'tests', '.cache', 'setup');
+const cacheRoot = path.join(root, '.testCache', 'setup');
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
@@ -85,3 +85,4 @@ if (!payload?.steps) {
 }
 
 console.log('setup test passed');
+

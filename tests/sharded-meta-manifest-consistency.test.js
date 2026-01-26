@@ -6,7 +6,7 @@ import { createChunkMetaIterator, enqueueChunkMetaArtifacts } from '../src/index
 import { writePiecesManifest } from '../src/index/build/artifacts/checksums.js';
 
 const root = process.cwd();
-const cacheRoot = path.join(root, 'tests', '.cache', 'sharded-meta-manifest');
+const cacheRoot = path.join(root, '.testCache', 'sharded-meta-manifest');
 await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 
@@ -80,3 +80,4 @@ for (const part of meta.parts || []) {
 }
 
 console.log('sharded meta manifest consistency test passed');
+

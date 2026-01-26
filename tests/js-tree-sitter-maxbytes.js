@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'js-tree-sitter-maxbytes');
+const tempRoot = path.join(root, '.testCache', 'js-tree-sitter-maxbytes');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 
@@ -71,3 +71,4 @@ if (skippedEntry.maxBytes !== maxBytes) {
 }
 
 console.log('js tree-sitter maxBytes test passed');
+

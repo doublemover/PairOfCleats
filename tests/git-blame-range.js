@@ -6,7 +6,7 @@ import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 import { loadChunkMeta } from '../src/shared/artifact-io.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'git-blame-range');
+const tempRoot = path.join(root, '.testCache', 'git-blame-range');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -112,3 +112,4 @@ if (betaAuthors.has('Alpha Author')) {
 }
 
 console.log('Git blame range test passed');
+

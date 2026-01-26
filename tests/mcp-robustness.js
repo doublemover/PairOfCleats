@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const serverPath = path.join(root, 'tools', 'mcp-server.js');
-const tempRoot = path.join(root, 'tests', '.cache', 'mcp-robustness');
+const tempRoot = path.join(root, '.testCache', 'mcp-robustness');
 const queueCache = path.join(tempRoot, 'queue-cache');
 const timeoutCache = path.join(tempRoot, 'timeout-cache');
 
@@ -69,6 +69,7 @@ async function runQueueTest() {
     stdio: ['pipe', 'pipe', 'inherit'],
     env: {
       ...process.env,
+      PAIROFCLEATS_TESTING: '1',
       PAIROFCLEATS_HOME: queueCache,
       PAIROFCLEATS_CACHE_ROOT: queueCache,
       PAIROFCLEATS_MCP_QUEUE_MAX: '1'
@@ -140,6 +141,7 @@ async function runTimeoutTest() {
     stdio: ['pipe', 'pipe', 'inherit'],
     env: {
       ...process.env,
+      PAIROFCLEATS_TESTING: '1',
       PAIROFCLEATS_HOME: timeoutCache,
       PAIROFCLEATS_CACHE_ROOT: timeoutCache,
       PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS: '1'
@@ -196,3 +198,4 @@ runQueueTest()
     console.error(err?.message || err);
     process.exit(1);
   });
+

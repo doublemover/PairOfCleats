@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'incremental-token-cache');
+const tempRoot = path.join(root, '.testCache', 'incremental-token-cache');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -103,3 +103,4 @@ if (!dictEntry || dictEntry.cached === true) {
 }
 
 console.log('incremental tokenization cache test passed');
+

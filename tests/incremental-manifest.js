@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getRepoCacheRoot, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const repoRoot = path.join(root, 'tests', '.cache', 'incremental-manifest');
+const repoRoot = path.join(root, '.testCache', 'incremental-manifest');
 const cacheRoot = path.join(repoRoot, '.cache');
 const buildIndexPath = path.join(root, 'build_index.js');
 
@@ -70,3 +70,4 @@ if (entryAfter.mtimeMs !== statAfter.mtimeMs) {
 }
 
 console.log('Incremental manifest refresh test passed');
+

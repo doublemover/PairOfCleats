@@ -7,7 +7,7 @@ import { loadUserConfig, resolveSqlitePaths } from '../tools/dict-utils.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'sqlite-compact');
+const tempRoot = path.join(root, '.testCache', 'sqlite-compact');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -103,3 +103,4 @@ if (vocabHit?.count) {
 
 db.close();
 console.log('SQLite compaction test passed');
+

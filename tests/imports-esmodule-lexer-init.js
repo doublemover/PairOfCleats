@@ -5,7 +5,7 @@ import path from 'node:path';
 import { scanImports } from '../src/index/build/imports.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'imports-esmodule-lexer-init');
+const tempRoot = path.join(root, '.testCache', 'imports-esmodule-lexer-init');
 const srcRoot = path.join(tempRoot, 'src');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(srcRoot, { recursive: true });
@@ -27,3 +27,4 @@ const imports = importsByFile['src/flow-module.js'] || [];
 assert.ok(imports.includes('esm-dep'), 'expected esm-dep import via fast path');
 
 console.log('imports esmodule lexer init test passed');
+

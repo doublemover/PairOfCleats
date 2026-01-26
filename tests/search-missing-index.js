@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'search-missing-index');
+const tempRoot = path.join(root, '.testCache', 'search-missing-index');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -37,3 +37,4 @@ if (!output.includes('build-index')) {
 }
 
 console.log('missing index test passed');
+

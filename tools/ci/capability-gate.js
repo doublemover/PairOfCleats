@@ -123,9 +123,11 @@ const buildReport = async (mode) => {
     sqlite: probeSqlite(),
     lmdb: probeLmdb(),
     hnsw: probeHnsw(),
-    tantivy: probeTantivy(),
     lancedb: await probeLanceDb()
   };
+  if (mode !== 'pr') {
+    probes.tantivy = probeTantivy();
+  }
 
   return {
     mode,

@@ -12,7 +12,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'vector-extension-missing');
+const tempRoot = path.join(root, '.testCache', 'vector-extension-missing');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
@@ -56,3 +56,4 @@ if (count !== 1) {
 }
 
 console.log('vector extension missing test passed');
+

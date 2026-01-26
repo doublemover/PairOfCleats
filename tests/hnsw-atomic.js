@@ -9,7 +9,7 @@ import { loadChunkMeta, readJsonFile } from '../src/shared/artifact-io.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = path.join(root, 'tests', '.cache', 'hnsw-atomic');
+const tempRoot = path.join(root, '.testCache', 'hnsw-atomic');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -87,3 +87,4 @@ if (!fallbackIndex) {
 }
 
 console.log('hnsw atomic tests passed');
+

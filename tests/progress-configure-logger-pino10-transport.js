@@ -5,7 +5,7 @@ import path from 'node:path';
 import { configureLogger, log } from '../src/shared/progress.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'progress-logger');
+const tempRoot = path.join(root, '.testCache', 'progress-logger');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
@@ -38,3 +38,4 @@ assert.ok(output.includes('[redacted]'), 'expected redacted marker');
 configureLogger({ enabled: false });
 
 console.log('progress configure logger pino10 transport test passed');
+

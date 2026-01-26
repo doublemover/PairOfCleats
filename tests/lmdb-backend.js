@@ -17,7 +17,7 @@ try {
 }
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'lmdb-backend');
+const tempRoot = path.join(root, '.testCache', 'lmdb-backend');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -119,3 +119,4 @@ if (!badOutput.includes('schema mismatch')) {
 }
 
 console.log('lmdb backend test passed');
+

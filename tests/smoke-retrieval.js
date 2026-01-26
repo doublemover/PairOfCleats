@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from './helpers/stdio.js';
 import { cleanup, root } from './smoke-utils.js';
 
-const tempRoot = path.join(root, 'tests', '.cache', 'smoke-retrieval');
+const tempRoot = path.join(root, '.testCache', 'smoke-retrieval');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -131,3 +131,4 @@ if (failure) {
   process.exit(failure.exitCode ?? 1);
 }
 console.log('smoke retrieval passed');
+

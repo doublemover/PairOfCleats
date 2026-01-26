@@ -5,7 +5,7 @@ import path from 'node:path';
 import { scanImports } from '../src/index/build/imports.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'import-scan-cache-read');
+const tempRoot = path.join(root, '.testCache', 'import-scan-cache-read');
 const srcRoot = path.join(tempRoot, 'src');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(srcRoot, { recursive: true });
@@ -42,3 +42,4 @@ await scanImports({
 assert.equal(calls, files.length, 'expected one cached import read per file');
 
 console.log('import scan cache read test passed');
+

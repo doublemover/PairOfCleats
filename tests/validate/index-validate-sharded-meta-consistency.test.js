@@ -7,7 +7,7 @@ import { ARTIFACT_SURFACE_VERSION, SHARDED_JSONL_META_SCHEMA_VERSION } from '../
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'index-validate-sharded-meta');
+const tempRoot = path.join(root, '.testCache', 'index-validate-sharded-meta');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
@@ -67,3 +67,4 @@ assert.ok(
 );
 
 console.log('index-validate sharded meta consistency test passed');
+

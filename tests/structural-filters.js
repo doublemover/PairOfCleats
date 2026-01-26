@@ -8,7 +8,7 @@ import { loadChunkMeta, readJsonFile } from '../src/shared/artifact-io.js';
 import { filterChunks } from '../src/retrieval/output.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'structural-filters');
+const tempRoot = path.join(root, '.testCache', 'structural-filters');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 
@@ -74,3 +74,4 @@ const tagFiltered = filterChunks(chunkMeta, { structTag: 'security' });
 assert.ok(tagFiltered.find((chunk) => chunk.file === 'src/example.js'), 'expected struct-tag filter to match');
 
 console.log('structural filters test passed');
+

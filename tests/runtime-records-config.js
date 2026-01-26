@@ -5,7 +5,7 @@ import { parseBuildArgs } from '../src/index/build/args.js';
 import { createBuildRuntime } from '../src/index/build/runtime.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'runtime-records-config');
+const tempRoot = path.join(root, '.testCache', 'runtime-records-config');
 const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
@@ -26,3 +26,4 @@ if (!Object.prototype.hasOwnProperty.call(runtime, 'recordsConfig')) {
 }
 
 console.log('runtime records config test passed');
+

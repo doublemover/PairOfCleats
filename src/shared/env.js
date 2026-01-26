@@ -21,6 +21,8 @@ const normalizeNumber = (value) => {
 
 const isTesting = (env) => env?.PAIROFCLEATS_TESTING === '1' || env?.PAIROFCLEATS_TESTING === 'true';
 
+export const isTestingEnv = (env = process.env) => isTesting(env);
+
 export function getEnvSecrets(env = process.env) {
   return {
     apiToken: normalizeString(env.PAIROFCLEATS_API_TOKEN)
@@ -46,7 +48,11 @@ export function getEnvConfig(env = process.env) {
     debugCrash: normalizeBoolean(env.PAIROFCLEATS_DEBUG_CRASH),
     fileCacheMax: normalizeNumber(env.PAIROFCLEATS_FILE_CACHE_MAX),
     summaryCacheMax: normalizeNumber(env.PAIROFCLEATS_SUMMARY_CACHE_MAX),
-    importGraph: normalizeOptionalBoolean(env.PAIROFCLEATS_IMPORT_GRAPH)
+    importGraph: normalizeOptionalBoolean(env.PAIROFCLEATS_IMPORT_GRAPH),
+    discoveryStatConcurrency: normalizeNumber(env.PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY),
+    mcpQueueMax: normalizeNumber(env.PAIROFCLEATS_MCP_QUEUE_MAX),
+    mcpMaxBufferBytes: normalizeNumber(env.PAIROFCLEATS_MCP_MAX_BUFFER_BYTES),
+    mcpToolTimeoutMs: normalizeNumber(env.PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS)
   };
 }
 
@@ -55,7 +61,8 @@ export function getTestEnvConfig(env = process.env) {
     return {
       testing: false,
       config: null,
-      maxJsonBytes: null
+      maxJsonBytes: null,
+      allowMissingCompatKey: false
     };
   }
   const rawConfig = normalizeString(env.PAIROFCLEATS_TEST_CONFIG);
@@ -75,6 +82,15 @@ export function getTestEnvConfig(env = process.env) {
   return {
     testing: true,
     config,
-    maxJsonBytes: normalizeNumber(env.PAIROFCLEATS_TEST_MAX_JSON_BYTES)
+    maxJsonBytes: normalizeNumber(env.PAIROFCLEATS_TEST_MAX_JSON_BYTES),
+    allowMissingCompatKey: normalizeOptionalBoolean(env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY)
   };
+}
+
+export function setVerboseEnv(enabled, env = process.env) {
+  if (enabled) {
+    env.PAIROFCLEATS_VERBOSE = '1';
+  } else if (env.PAIROFCLEATS_VERBOSE != null) {
+    delete env.PAIROFCLEATS_VERBOSE;
+  }
 }

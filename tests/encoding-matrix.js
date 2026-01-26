@@ -6,7 +6,7 @@ import { sha1 } from '../src/shared/hash.js';
 import { truncateByBytes } from '../src/index/build/file-processor/read.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'encoding-matrix');
+const tempRoot = path.join(root, '.testCache', 'encoding-matrix');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
@@ -93,3 +93,4 @@ if (Buffer.byteLength(truncated.text, 'utf8') > limit) {
 }
 
 console.log('encoding matrix tests passed');
+

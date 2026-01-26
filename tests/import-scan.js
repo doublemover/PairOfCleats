@@ -5,7 +5,7 @@ import path from 'node:path';
 import { scanImports } from '../src/index/build/imports.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'import-scan');
+const tempRoot = path.join(root, '.testCache', 'import-scan');
 const srcRoot = path.join(tempRoot, 'src');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(srcRoot, { recursive: true });
@@ -28,3 +28,4 @@ assert.ok(imports.includes('dyn-lib'), 'expected dyn-lib to be recorded as an im
 assert.ok(!Object.keys(importsByFile).some((key) => key === '0' || key === '1'), 'unexpected numeric import keys');
 
 console.log('import scan test passed');
+

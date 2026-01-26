@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'query-cache-extracted-prose');
+const tempRoot = path.join(root, '.testCache', 'query-cache-extracted-prose');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const srcDir = path.join(repoRoot, 'src');
@@ -98,3 +98,4 @@ if (!cached) {
 }
 
 console.log('Query cache extracted-prose test passed');
+

@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from './helpers/stdio.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'search-explain');
+const tempRoot = path.join(root, '.testCache', 'search-explain');
 const cacheRoot = path.join(tempRoot, 'cache');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 
@@ -83,3 +83,4 @@ if (hasExplain) {
 }
 
 console.log('search explain tests passed');
+

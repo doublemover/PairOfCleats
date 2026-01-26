@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createFileProcessor } from '../src/index/build/file-processor.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'unsupported-language-skip');
+const tempRoot = path.join(root, '.testCache', 'unsupported-language-skip');
 const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
@@ -73,3 +73,4 @@ if (!skip) {
 }
 
 console.log('unsupported-language skip test passed');
+

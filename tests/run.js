@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { execSync } from 'node:child_process';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import { loadRunConfig, loadRunRules } from './run-config.js';
@@ -36,6 +38,7 @@ const DEFAULT_TIMEOUT_MS = 30000;
 const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
 const SKIP_EXIT_CODE = 77;
 const DEFAULT_TIMEOUT_GRACE_MS = 2000;
+const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 
 const parseArgs = () => {
   const parser = yargs(hideBin(process.argv))
@@ -56,9 +59,10 @@ const parseArgs = () => {
     .option('list-tags', { type: 'boolean', default: false })
     .option('config', { type: 'string', default: '' })
     .option('no-color', { type: 'boolean', default: false })
-    .option('jobs', { type: 'number', default: 1 })
+    .option('jobs', { type: 'number' })
     .option('retries', { type: 'number' })
     .option('timeout-ms', { type: 'number' })
+    .option('allow-timeouts', { type: 'boolean', default: false })
     .option('fail-fast', { type: 'boolean', default: false })
     .option('quiet', { type: 'boolean', default: false })
     .option('json', { type: 'boolean', default: false })
@@ -102,12 +106,41 @@ const resolveTimeout = ({ cli, env, defaultTimeout }) => {
   return defaultTimeout;
 };
 
-const resolveLogDir = ({ cli, env }) => {
+const resolveLogDir = ({ cli, env, defaultDir }) => {
   const raw = String(cli || env || '').trim();
-  return raw ? path.resolve(ROOT, raw) : '';
+  if (raw) return path.resolve(ROOT, raw);
+  return defaultDir ? path.resolve(defaultDir) : '';
 };
 
 const BORDER_PATTERN = '╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴';
+
+const resolvePhysicalCores = () => {
+  const logical = Math.max(1, Math.floor(os.cpus().length || 1));
+  try {
+    if (process.platform === 'win32') {
+      const output = execSync('wmic cpu get NumberOfCores /value', { encoding: 'utf8', timeout: 3000 });
+      const matches = output.match(/NumberOfCores=(\d+)/g) || [];
+      const total = matches.reduce((sum, entry) => sum + Number(entry.split('=')[1] || 0), 0);
+      if (Number.isFinite(total) && total > 0) return total;
+    }
+    if (process.platform === 'darwin') {
+      const output = execSync('sysctl -n hw.physicalcpu', { encoding: 'utf8', timeout: 3000 });
+      const total = Number(output.trim());
+      if (Number.isFinite(total) && total > 0) return total;
+    }
+    if (process.platform === 'linux') {
+      const output = execSync('lscpu -p=CORE,SOCKET', { encoding: 'utf8', timeout: 3000 });
+      const cores = new Set();
+      output.split(/\r?\n/).forEach((line) => {
+        if (!line || line.startsWith('#')) return;
+        cores.add(line.trim());
+      });
+      if (cores.size > 0) return cores.size;
+    }
+  } catch {}
+  if (logical >= 4 && logical % 2 === 0) return logical / 2;
+  return logical;
+};
 const normalizeLaneArgs = (values) => {
   const raw = splitCsv(values.length ? values : ['ci']);
   let includeDestructive = false;
@@ -253,11 +286,14 @@ const main = async () => {
   const defaultRetries = process.env.CI ? 1 : 0;
   const retries = resolveRetries({ cli: argv.retries, env: envRetries, defaultRetries });
   const timeoutMs = resolveTimeout({ cli: argv['timeout-ms'], env: envTimeout, defaultTimeout: DEFAULT_TIMEOUT_MS });
-  const logDir = resolveLogDir({ cli: argv['log-dir'], env: envLogDir });
+  const logDir = resolveLogDir({ cli: argv['log-dir'], env: envLogDir, defaultDir: DEFAULT_LOG_DIR });
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const runLogDir = logDir ? path.join(logDir, `run-${runId}`) : '';
   const timingsPath = argv['timings-file'] ? path.resolve(ROOT, argv['timings-file']) : '';
-  const jobs = Math.max(1, Math.floor(argv.jobs || 1));
+  const defaultJobs = Math.max(1, resolvePhysicalCores());
+  const jobs = Number.isFinite(argv.jobs)
+    ? Math.max(1, Math.floor(argv.jobs))
+    : defaultJobs;
   const passThrough = Array.isArray(argv['--']) ? argv['--'].map(String) : [];
 
   if (runLogDir) {
@@ -267,6 +303,9 @@ const main = async () => {
 
   const baseEnv = { ...process.env };
   baseEnv.PAIROFCLEATS_TESTING = '1';
+  if (!baseEnv.PAIROFCLEATS_CACHE_ROOT) {
+    baseEnv.PAIROFCLEATS_CACHE_ROOT = path.join(ROOT, '.testCache');
+  }
   if (Number.isFinite(argv.retries) || !baseEnv.PAIROFCLEATS_TEST_RETRIES) {
     baseEnv.PAIROFCLEATS_TEST_RETRIES = String(retries);
   }
@@ -398,7 +437,12 @@ const main = async () => {
     await writeTimings({ timingsPath, results: finalResults, totalMs, runId });
   }
 
-  process.exit(summary.failed > 0 ? 1 : 0);
+  const timeoutCount = finalResults.filter((result) => result.timedOut).length;
+  const failCount = finalResults.filter((result) => result.status === 'failed' && !result.timedOut).length;
+  const exitCode = argv['allow-timeouts']
+    ? (failCount > 0 ? 1 : 0)
+    : (summary.failed > 0 ? 1 : 0);
+  process.exit(exitCode);
 };
 
 main();

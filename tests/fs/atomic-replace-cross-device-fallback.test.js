@@ -6,7 +6,7 @@ import path from 'node:path';
 import { replaceFile } from '../../src/shared/json-stream.js';
 
 const root = process.cwd();
-const outDir = path.join(root, 'tests', '.cache', 'atomic-replace-exdev');
+const outDir = path.join(root, '.testCache', 'atomic-replace-exdev');
 await fsPromises.rm(outDir, { recursive: true, force: true });
 await fsPromises.mkdir(outDir, { recursive: true });
 
@@ -35,3 +35,4 @@ assert.ok(!fs.existsSync(tempPath), 'expected temp file cleaned up after copy fa
 assert.ok(!fs.existsSync(`${finalPath}.bak`), 'expected .bak removed after fallback');
 
 console.log('atomic replace cross-device fallback test passed');
+

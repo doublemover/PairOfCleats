@@ -5,7 +5,7 @@ import { parseBuildArgs } from '../src/index/build/args.js';
 import { createBuildRuntime } from '../src/index/build/runtime.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'embedding-batch-autotune');
+const tempRoot = path.join(root, '.testCache', 'embedding-batch-autotune');
 const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
@@ -27,3 +27,4 @@ if (runtime.embeddingConcurrency < 1) {
 }
 
 console.log('embedding auto-tune test passed');
+

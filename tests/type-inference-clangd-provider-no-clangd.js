@@ -4,7 +4,7 @@ import path from 'node:path';
 import { collectClangdTypes } from '../src/index/tooling/clangd-provider.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'clangd-provider-no-clangd');
+const tempRoot = path.join(root, '.testCache', 'clangd-provider-no-clangd');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 
@@ -45,3 +45,4 @@ if (!logs.some((entry) => entry.includes('clangd not detected'))) {
 }
 
 console.log('clangd provider fallback test passed');
+

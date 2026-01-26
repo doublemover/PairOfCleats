@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'search-topn-filters');
+const tempRoot = path.join(root, '.testCache', 'search-topn-filters');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -100,3 +100,4 @@ runSearch('memory');
 runSearch('sqlite-fts');
 
 console.log('search top-N filter tests passed');
+

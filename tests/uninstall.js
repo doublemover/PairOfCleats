@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const baseDir = path.join(root, 'tests', '.cache', 'uninstall');
+const baseDir = path.join(root, '.testCache', 'uninstall');
 const cacheRoot = path.join(baseDir, 'cache');
 const dictDir = path.join(baseDir, 'dicts');
 const modelsDir = path.join(baseDir, 'models');
@@ -55,3 +55,4 @@ if (failures.length) {
 }
 
 console.log('Uninstall test passed');
+

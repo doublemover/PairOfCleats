@@ -3,7 +3,8 @@ import { ensureFixtureIndex, runSearch } from '../../helpers/fixture-index.js';
 
 const { fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'languages',
-  cacheName: 'language-fixture'
+  cacheName: 'language-fixture',
+  requireRiskTags: true
 });
 
 const riskTag = runSearch({

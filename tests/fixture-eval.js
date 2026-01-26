@@ -80,7 +80,7 @@ for (const fixtureName of fixtures) {
   const evalPath = path.join(fixtureRoot, 'eval.json');
   if (!fs.existsSync(evalPath)) continue;
 
-  const cacheRoot = path.join(root, 'tests', '.cache', `eval-${fixtureName}`);
+  const cacheRoot = path.join(root, '.testCache', `eval-${fixtureName}`);
   await fsPromises.rm(cacheRoot, { recursive: true, force: true });
   await fsPromises.mkdir(cacheRoot, { recursive: true });
 
@@ -208,3 +208,4 @@ if (!argv.json) {
   console.log(`\nTotal passed: ${summary.passed}/${summary.total}`);
   console.log(`MRR avg: ${summary.mrrAvg.toFixed(3)}`);
 }
+

@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'import-links');
+const tempRoot = path.join(root, '.testCache', 'import-links');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -82,3 +82,4 @@ if (relA.importLinks.includes('src/b/utils.js')) {
 }
 
 console.log('Import links test passed');
+

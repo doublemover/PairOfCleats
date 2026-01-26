@@ -8,7 +8,7 @@ import { readJsonFile } from '../src/shared/artifact-io.js';
 import { loadIndex } from '../src/retrieval/cli-index.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'filter-index-artifact');
+const tempRoot = path.join(root, '.testCache', 'filter-index-artifact');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 
@@ -49,3 +49,4 @@ const idx = await loadIndex(indexDir, { modelIdDefault: 'test', fileChargramN: 1
 assert.equal(idx.filterIndex?.fileChargramN, raw.fileChargramN, 'expected hydrated filter index to use persisted fileChargramN');
 
 console.log('filter index artifact test passed');
+

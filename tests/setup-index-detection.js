@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'setup-index-detection');
+const tempRoot = path.join(root, '.testCache', 'setup-index-detection');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -150,3 +150,4 @@ for (const scenario of scenarios) {
 }
 
 console.log('setup index detection tests passed');
+

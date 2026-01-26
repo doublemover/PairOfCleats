@@ -44,7 +44,9 @@ const isExcludedSourceFile = (filePath) => {
     posix.includes('/jquery/') ||
     posix.includes('/benchmarks/') || 
     posix.includes('/.cache/') ||
-    posix.includes('/.logs/')
+    posix.includes('/.logs/') ||
+    posix.includes('/.testCache/') ||
+    posix.includes('/.testLogs/')
   );
 };
 

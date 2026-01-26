@@ -6,7 +6,7 @@ import { getIndexDir, loadUserConfig } from '../tools/dict-utils.js';
 import { MAX_JSON_BYTES, loadChunkMeta, loadTokenPostings } from '../src/shared/artifact-io.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'shard-merge');
+const tempRoot = path.join(root, '.testCache', 'shard-merge');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRootA = path.join(tempRoot, 'cache-a');
 const cacheRootB = path.join(tempRoot, 'cache-b');
@@ -149,3 +149,4 @@ for (const [piecePath, baselineEntry] of baselinePieces.entries()) {
 }
 
 console.log('shard merge test passed');
+

@@ -3,8 +3,8 @@ import path from 'node:path';
 import { cleanup, runNode, root } from './smoke-utils.js';
 
 const cacheRoots = [
-  path.join(root, 'tests', '.cache', 'core-api'),
-  path.join(root, 'tests', '.cache', 'api-health-status')
+  path.join(root, '.testCache', 'core-api'),
+  path.join(root, '.testCache', 'api-health-status')
 ];
 
 let failure = null;
@@ -22,3 +22,4 @@ if (failure) {
   process.exit(failure.exitCode ?? 1);
 }
 console.log('smoke section1 passed');
+

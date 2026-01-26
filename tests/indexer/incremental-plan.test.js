@@ -11,7 +11,7 @@ const fail = (message) => {
 };
 
 const root = process.cwd();
-const baseDir = path.join(root, 'tests', '.cache', 'indexer-plan');
+const baseDir = path.join(root, '.testCache', 'indexer-plan');
 const outDir = path.join(baseDir, 'out');
 const piecesDir = path.join(outDir, 'pieces');
 const fixtureFile = path.join(baseDir, 'src', 'a.js');
@@ -75,3 +75,4 @@ try {
 } finally {
   await fs.rm(baseDir, { recursive: true, force: true });
 }
+

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'search-tie-order');
+const tempRoot = path.join(root, '.testCache', 'search-tie-order');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
@@ -107,3 +107,4 @@ function assertTie(hits) {
     }
   }
 }
+
