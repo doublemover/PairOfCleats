@@ -1,80 +1,20 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import {
   DEFAULT_MODEL_ID,
   getModelConfig,
-  getRuntimeConfig,
   loadUserConfig,
-  resolveRuntimeEnv,
-  resolveToolRoot
 } from '../dict-utils.js';
 import { buildIndex as coreBuildIndex, buildSqliteIndex as coreBuildSqliteIndex, search as coreSearch, status as coreStatus } from '../../src/integrations/core/index.js';
 import { clearRepoCaches, configStatus, getRepoCaches, indexStatus, refreshRepoCaches, resolveRepoPath } from './repo.js';
 import { parseCountSummary, parseExtensionPath, runNodeAsync, runNodeSync, runToolWithProgress } from './runner.js';
-
-const toolRoot = resolveToolRoot();
-const resolveRepoRuntimeEnv = (repoPath, userConfig) => {
-  const runtimeConfig = getRuntimeConfig(repoPath, userConfig);
-  return resolveRuntimeEnv(runtimeConfig, process.env);
-};
+import { maybeRestoreArtifacts, normalizeMetaFilters, resolveRepoRuntimeEnv, toolRoot } from './tools/helpers.js';
 
 /**
  * Normalize meta filters into CLI-friendly key/value strings.
  * @param {any} meta
  * @returns {string[]|null}
  */
-export function normalizeMetaFilters(meta) {
-  if (!meta) return null;
-  if (Array.isArray(meta)) {
-    const entries = meta.flatMap((entry) => {
-      if (entry == null) return [];
-      if (typeof entry === 'string') return [entry];
-      if (typeof entry === 'object') {
-        return Object.entries(entry).map(([key, value]) =>
-          value == null || value === '' ? String(key) : `${key}=${value}`
-        );
-      }
-      return [String(entry)];
-    });
-    return entries.length ? entries : null;
-  }
-  if (typeof meta === 'object') {
-    const entries = Object.entries(meta).map(([key, value]) =>
-      value == null || value === '' ? String(key) : `${key}=${value}`
-    );
-    return entries.length ? entries : null;
-  }
-  return [String(meta)];
-}
-
-/**
- * Restore CI artifacts if present.
- * @param {string} repoPath
- * @param {string} artifactsDir
- * @returns {boolean}
- */
-function maybeRestoreArtifacts(repoPath, artifactsDir, progress, runtimeEnv) {
-  const fromDir = artifactsDir ? path.resolve(artifactsDir) : path.join(repoPath, 'ci-artifacts');
-  if (!fs.existsSync(path.join(fromDir, 'manifest.json'))) return false;
-  if (progress) {
-    progress({
-      message: `Restoring CI artifacts from ${fromDir}`,
-      phase: 'start'
-    });
-  }
-  runNodeSync(
-    repoPath,
-    [path.join(toolRoot, 'tools', 'ci-restore-artifacts.js'), '--repo', repoPath, '--from', fromDir],
-    { env: runtimeEnv }
-  );
-  if (progress) {
-    progress({
-      message: 'CI artifacts restored.',
-      phase: 'done'
-    });
-  }
-  return true;
-}
+export { normalizeMetaFilters };
 
 /**
  * Handle the MCP build_index tool call.
