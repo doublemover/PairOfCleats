@@ -25,54 +25,26 @@ import {
 import { fileExt, toPosix } from '../../shared/files.js';
 import { runWithQueue } from '../../shared/concurrency.js';
 import { createDebouncedScheduler } from '../../shared/scheduler/debounce.js';
-import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
-import { getCapabilities } from '../../shared/capabilities.js';
-import { getEnvConfig } from '../../shared/env.js';
 import { getLanguageForFile } from '../language-registry.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
 import { initBuildState, markBuildPhase, updateBuildState } from './build-state.js';
 import { SIGNATURE_VERSION } from './indexer/signatures.js';
 import { buildIgnoredMatcher } from '../../shared/fs/ignore.js';
+import { resolveWatcherBackend } from './watch/resolve-backend.js';
+import { waitForStableFile } from './watch/stability.js';
+import { resolveRecordsRoot, readRecordSample } from './watch/records.js';
+import { resolveMaxBytesForFile, resolveMaxDepthCap, resolveMaxFilesCap, isIndexablePath } from './watch/guardrails.js';
 import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const normalizeBackend = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
-
 const MINIFIED_NAME_REGEX = /(?:\.min\.[^/]+$)|(?:-min\.[^/]+$)/i;
 const LOCK_BACKOFF_BASE_MS = 50;
 const LOCK_BACKOFF_MAX_MS = 2000;
 const LOCK_BACKOFF_LOG_INTERVAL_MS = 5000;
 const LOCK_BACKOFF_MAX_WAIT_MS = 15000;
-
-export const resolveWatcherBackend = ({ runtime, pollMs }) => {
-  const envConfig = getEnvConfig();
-  const configBackend = normalizeBackend(runtime?.userConfig?.indexing?.watch?.backend);
-  const envBackend = normalizeBackend(envConfig.watcherBackend);
-  const requested = configBackend || envBackend || 'auto';
-  const caps = getCapabilities();
-  const pollingEnabled = Number.isFinite(Number(pollMs)) && Number(pollMs) > 0;
-  let resolved = requested;
-  let warning = null;
-
-  if (requested === 'auto') {
-    resolved = caps.watcher.parcel && !pollingEnabled ? 'parcel' : 'chokidar';
-  } else if (requested === 'parcel') {
-    if (!caps.watcher.parcel) {
-      resolved = 'chokidar';
-      warning = 'Parcel watcher unavailable; falling back to chokidar.';
-    } else if (pollingEnabled) {
-      resolved = 'chokidar';
-      warning = 'Polling requires chokidar; falling back.';
-    }
-  } else if (requested !== 'chokidar') {
-    resolved = 'chokidar';
-  }
-
-  return { requested, resolved, warning, pollingEnabled };
-};
 
 export const acquireIndexLockWithBackoff = async ({
   repoCacheRoot,
@@ -104,96 +76,6 @@ export const acquireIndexLockWithBackoff = async ({
     }
   });
 };
-
-export const waitForStableFile = async (absPath, { checks, intervalMs }) => {
-  let lastSignature = null;
-  for (let index = 0; index < checks; index += 1) {
-    let stat = null;
-    try {
-      stat = await fs.stat(absPath);
-    } catch {
-      return false;
-    }
-    const signature = `${stat.size}:${stat.mtimeMs}`;
-    if (signature === lastSignature) return true;
-    lastSignature = signature;
-    if (index < checks - 1) {
-      await sleep(intervalMs);
-    }
-  }
-  return false;
-};
-
-const normalizeRoot = (value) => {
-  const resolved = path.resolve(value || '');
-  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
-};
-
-const resolveRecordsRoot = (root, recordsDir) => {
-  if (!recordsDir) return null;
-  const normalizedRoot = normalizeRoot(root);
-  const normalizedRecords = normalizeRoot(recordsDir);
-  if (normalizedRecords === normalizedRoot) return normalizedRecords;
-  if (normalizedRecords.startsWith(`${normalizedRoot}${path.sep}`)) return normalizedRecords;
-  return null;
-};
-
-const readRecordSample = async (absPath, maxBytes) => {
-  const limit = Number.isFinite(Number(maxBytes)) && Number(maxBytes) > 0
-    ? Math.floor(Number(maxBytes))
-    : 16384;
-  try {
-    const handle = await fs.open(absPath, 'r');
-    try {
-      const buffer = Buffer.alloc(limit);
-      const result = await handle.read(buffer, 0, limit, 0);
-      return buffer.subarray(0, result.bytesRead || 0).toString('utf8');
-    } finally {
-      await handle.close();
-    }
-  } catch {
-    return '';
-  }
-};
-
-const resolveMaxFilesCap = (maxFiles) => {
-  const cap = Number(maxFiles);
-  return Number.isFinite(cap) && cap > 0 ? Math.floor(cap) : null;
-};
-
-const resolveMaxDepthCap = (maxDepth) => {
-  const cap = Number(maxDepth);
-  return Number.isFinite(cap) && cap >= 0 ? Math.floor(cap) : null;
-};
-
-export function isIndexablePath({ absPath, root, recordsRoot, ignoreMatcher, modes }) {
-  const relPosix = toPosix(path.relative(root, absPath));
-  if (!relPosix || relPosix === '.' || relPosix.startsWith('..')) return false;
-  const normalizedRecordsRoot = recordsRoot ? normalizeRoot(recordsRoot) : null;
-  if (normalizedRecordsRoot) {
-    const normalizedAbs = normalizeRoot(absPath);
-    if (normalizedAbs.startsWith(`${normalizedRecordsRoot}${path.sep}`)) {
-      return modes.includes('records');
-    }
-  }
-  if (ignoreMatcher?.ignores(relPosix)) return false;
-  const baseName = path.basename(absPath);
-  const ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
-  const isManifest = isManifestFile(baseName);
-  const isLock = isLockFile(baseName);
-  const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock;
-  const allowCode = (modes.includes('code') || modes.includes('extracted-prose'))
-    && (EXTS_CODE.has(ext) || isSpecial);
-  const allowProse = (modes.includes('prose') || modes.includes('extracted-prose')) && EXTS_PROSE.has(ext);
-  return allowCode || allowProse;
-}
-
-
-const resolveMaxBytesForFile = (ext, languageId, maxFileBytes, fileCaps) => {
-  const caps = resolveFileCaps(fileCaps, ext, languageId, null);
-  return pickMinLimit(maxFileBytes, caps.maxBytes);
-};
-
 
 
 /**
@@ -852,3 +734,5 @@ export async function watchIndex({
   }
   log(`[watch] Shutdown complete${shutdownSignal ? ` (${shutdownSignal})` : ''}.`);
 }
+
+export { resolveWatcherBackend, waitForStableFile, isIndexablePath };
