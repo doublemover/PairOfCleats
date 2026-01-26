@@ -19,6 +19,7 @@ import { createError, ERROR_CODES, isErrorCode } from '../shared/error-codes.js'
 import { getSearchUsage, parseSearchArgs } from './cli-args.js';
 import { loadDictionary } from './cli-dictionary.js';
 import { resolveIndexDir } from './cli-index.js';
+import { isLmdbReady, isSqliteReady, loadIndexState } from './cli/index-state.js';
 import { configureOutputCaches } from './output.js';
 import { createSearchTelemetry } from './cli/telemetry.js';
 import { getMissingFlagMessages, resolveIndexedFileCount } from './cli/options.js';
@@ -34,27 +35,6 @@ import { loadSearchIndexes } from './cli/load-indexes.js';
 import { runSearchSession } from './cli/run-search-session.js';
 import { renderSearchOutput } from './cli/render.js';
 import { recordSearchArtifacts } from './cli/persist.js';
-
-const loadIndexState = (rootDir, userConfig, mode) => {
-  try {
-    const dir = resolveIndexDir(rootDir, mode, userConfig);
-    const statePath = path.join(dir, 'index_state.json');
-    if (!fsSync.existsSync(statePath)) return null;
-    return JSON.parse(fsSync.readFileSync(statePath, 'utf8'));
-  } catch {
-    return null;
-  }
-};
-
-const isSqliteReady = (state) => {
-  if (!state?.sqlite) return true;
-  return state.sqlite.ready !== false && state.sqlite.pending !== true;
-};
-
-const isLmdbReady = (state) => {
-  if (!state?.lmdb) return true;
-  return state.lmdb.ready !== false && state.lmdb.pending !== true;
-};
 
 
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
