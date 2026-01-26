@@ -28,7 +28,7 @@ export function loadUserConfig(repoRoot) {
   if (!isPlainObject(base)) {
     throw new Error('Config root must be a JSON object.');
   }
-  const schemaPath = path.join(resolveToolRoot(), 'docs', 'config-schema.json');
+  const schemaPath = path.join(resolveToolRoot(), 'docs', 'config', 'schema.json');
   const schemaRaw = fs.readFileSync(schemaPath, 'utf8');
   const schema = JSON.parse(schemaRaw);
   const result = validateConfig(schema, base);

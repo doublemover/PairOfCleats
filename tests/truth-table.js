@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const tablePath = path.join(root, 'docs', 'truth-table.md');
+const tablePath = path.join(root, 'docs', 'testing', 'truth-table.md');
 let raw = '';
 try {
   raw = fs.readFileSync(tablePath, 'utf8');

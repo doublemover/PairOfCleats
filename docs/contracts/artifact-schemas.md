@@ -44,8 +44,18 @@ All artifacts below are JSON unless noted. Required fields are listed.
 - `graph_relations` (object): requires `version`, `generatedAt`, `callGraph`, `usageGraph`, `importGraph`. Each graph requires `nodeCount`, `edgeCount`, `nodes[]` (node requires `id`, `out`, `in`; optional `file`, `name`, `kind`, `chunkId`).
 - `import_resolution_graph` (object): requires `generatedAt`, `nodes`, `edges`, `stats`. Nodes require `id`, `type`. Edges require `from`, `to`, `rawSpecifier`, `resolvedType`. Optional fields include `resolvedPath`, `packageName`, `tsconfigPath`, `tsPathPattern`, `warnings[]`.
 
+## Additions and phase notes
+
+- `filter_index` may include an optional `byLang` map keyed by effective language id (Phase 5).
+  - Phase 5 also requires chunk records to expose effective language via `metaV2.lang`.
+- `call_sites` (jsonl or sharded jsonl) contains bounded callsite evidence records (Phase 6).
+  - Canonical spec: `docs/specs/risk-flows-and-call-sites.md`.
+  - `call_sites_meta` follows the sharded JSONL meta schema (artifact name `call_sites`).
+- `index_state.embeddings` includes identity and backend availability signals when embeddings are present (Phase 7).
+
 ## Notes
 
 - Schema definitions are authoritative in `src/contracts/schemas/artifacts.js`.
-- `metaV2` uses the metadata schema defined in `docs/metadata-schema-v2.md` (see analysis schemas).
+- `metaV2` uses the metadata schema defined in `docs/specs/metadata-schema-v2.md` (see analysis schemas).
 - SQLite stores canonical `metaV2` per chunk in `chunks.metaV2_json` for parity with JSONL artifacts.
+

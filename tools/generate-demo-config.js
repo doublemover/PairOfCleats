@@ -8,7 +8,7 @@ import { DEFAULT_USER_CONFIG_TEMPLATE } from './default-config-template.js';
 const argv = createCli({
   scriptName: 'generate-demo-config',
   options: {
-    schema: { type: 'string', default: 'docs/config-schema.json' },
+    schema: { type: 'string', default: 'docs/config/schema.json' },
     out: { type: 'string', default: 'demo.pairofcleats.json' }
   }
 }).parse();

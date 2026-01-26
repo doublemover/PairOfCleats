@@ -1,6 +1,6 @@
-# Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking (detailed execution plan)
+# Phase 9 -- Symbol identity (collision-safe IDs) + cross-file linking (detailed execution plan)
 
-## Phase 9 objective (what “done” means)
+## Phase 9 objective (what "done" means)
 
 Eliminate all correctness hazards caused by non-unique, name-based joins (notably `file::name` and legacy `chunkId` usage) and replace them with a collision-safe, stability-oriented identity layer. Use that identity to produce:
 
@@ -20,7 +20,7 @@ Eliminate all correctness hazards caused by non-unique, name-based joins (notabl
 
 5) **Fail-closed identity and symbol joins:** no file::name fallback in strict mode; ambiguous resolutions are preserved, not guessed.
 
-This phase directly targets the Phase 9 intent in the roadmap (“Symbol identity (collision-safe IDs) + cross-file linking”) and depends on the canonical `chunkUid` contract delivered in Phase 8. In particular, the `chunkUid` construction approach and “fail closed” requirement are consistent with the canonical identity contract described in the planning materials.
+This phase directly targets the Phase 9 intent in the roadmap ("Symbol identity (collision-safe IDs) + cross-file linking") and depends on the canonical `chunkUid` contract delivered in Phase 8. In particular, the `chunkUid` construction approach and "fail closed" requirement are consistent with the canonical identity contract described in the planning materials.
 
 ---
 
@@ -30,24 +30,24 @@ These may be separate follow-on phases or optional extensions:
 
 - Full **SCIP/LSIF/ctags hybrid symbol source registry** (runtime selection/merging) beyond ensuring the contracts can represent those IDs.
 - Full module-resolution parity with Node/TS (tsconfig paths, package exports/imports, Yarn PnP, etc). Phase 9 supports **relative import resolution** only.
-- Whole-program correctness for dynamic languages; Phase 9 focuses on **correctness under ambiguity** (never wrong-link) rather than “resolve everything”.
+- Whole-program correctness for dynamic languages; Phase 9 focuses on **correctness under ambiguity** (never wrong-link) rather than "resolve everything".
 - Cross-repo symbol federation.
 
 ---
 
 ## Phase 9 key decisions (locked)
 
-These choices remove ambiguity and prevent future “forks” in implementation.
+These choices remove ambiguity and prevent future "forks" in implementation.
 
 ### D1) Graph node identity uses `chunkUid`, not `file::name`, not legacy `chunkId`
 
 - **Chosen:** `chunkUid` is the canonical node identifier for graphs and cross-file joins.
-- **Why:** `file::name` is not unique; `chunkId` is range-based and churns with line shifts. The roadmap’s canonical identity guidance explicitly calls for a `chunkUid` that is stable under line shifts and includes segment disambiguation.
+- **Why:** `file::name` is not unique; `chunkId` is range-based and churns with line shifts. The roadmap's canonical identity guidance explicitly calls for a `chunkUid` that is stable under line shifts and includes segment disambiguation.
 
 ### D2) Symbol identity is a two-layer model: `symbolKey` (human/debug) + `symbolId` (portable token)
 
 - **Chosen:** Persist both.
-- **Why:** `symbolKey` is explainable and supports deterministic “rebuild equivalence” reasoning. `symbolId` is compact and future-proofs external sources (SCIP/LSIF) without schema churn.
+- **Why:** `symbolKey` is explainable and supports deterministic "rebuild equivalence" reasoning. `symbolId` is compact and future-proofs external sources (SCIP/LSIF) without schema churn.
 
 ### D3) Cross-file resolution is ambiguity-preserving
 
@@ -93,7 +93,7 @@ segmentUid = "seg1:" + xxhash64(
 
 #### 9.C1.2 `virtualPath` (string)
 
-A deterministic “as-if file path” that disambiguates segments:
+A deterministic "as-if file path" that disambiguates segments:
 
 - If no segment: `virtualPath = fileRelPath`
 - If segment: `virtualPath = fileRelPath + "#seg:" + segmentUid`
@@ -101,10 +101,10 @@ A deterministic “as-if file path” that disambiguates segments:
 #### 9.C1.3 `chunkUid` (string)
 
 - **Definition:** Stable-ish identifier for a chunk, used for graphs and join keys.
-- **Stability:** Must remain stable when only lines outside the chunk’s span shift (i.e., chunk text unchanged).
+- **Stability:** Must remain stable when only lines outside the chunk's span shift (i.e., chunk text unchanged).
 - **Collision handling:** If a collision is detected within `{virtualPath, segmentUid}`, deterministically disambiguate and record `collisionOf`.
 
-**Algorithm (v1) — consistent with the canonical contract described in the planning docs:**
+**Algorithm (v1) -- consistent with the canonical contract described in the planning docs:**
 
 ```
 span = normalizeForUid(chunkText)
@@ -123,7 +123,7 @@ if (postHash) base += ":" + postHash
 chunkUid = base
 ```
 
-This follows the canonical identity contract exactly (see `docs/spec-identity-contract.refined.md` §4).
+This follows the canonical identity contract exactly (see `docs/specs/identity-contract.md` §4).
 
 **Collision disambiguation (required):**
 
@@ -150,7 +150,7 @@ And SHOULD include (for diagnostics and future hardening):
 
 #### 9.C2.1 `kindGroup`
 
-Normalize “kind” strings into a stable group set:
+Normalize "kind" strings into a stable group set:
 
 - `function`, `arrow_function`, `generator` → `function`
 - `class` → `class`
@@ -316,13 +316,13 @@ One record per reference edge (call, usage) emitted from chunk relations:
 
 ## Phase 9 implementation plan (phases/subphases/tasks/tests)
 
-### 9.1 Verify identity primitives (`segmentUid`, `chunkUid`, `virtualPath`) — delivered in Phase 8
+### 9.1 Verify identity primitives (`segmentUid`, `chunkUid`, `virtualPath`) -- delivered in Phase 8
 
 > If any identity primitive is missing or diverges from the canonical spec, stop Phase 9 and complete the work in Phase 8 before continuing.
 
 **Verification checklist (no new algorithm changes in Phase 9)**
 - Code presence:
-  - `src/index/identity/*` helpers exist and match `docs/spec-identity-contract.refined.md`.
+  - `src/index/identity/*` helpers exist and match `docs/specs/identity-contract.md`.
   - `segmentUid`, `virtualPath`, and `chunkUid` are populated in `metaV2` for every code chunk.
 - Behavior:
   - `segmentUid` stable under line shifts outside the segment.
@@ -353,7 +353,7 @@ One record per reference edge (call, usage) emitted from chunk relations:
 
 - [ ] **Add `src/index/identity/symbol.js`**
   - [ ] `buildSymbolIdentity({ metaV2 }): { scheme, kindGroup, qualifiedName, symbolKey, signatureKey, scopedId, symbolId } | null`
-  - [ ] Return null when chunk is not a “definition chunk” (policy below).
+  - [ ] Return null when chunk is not a "definition chunk" (policy below).
 
 **Definition chunk policy (v1):**
 
@@ -425,7 +425,7 @@ One record per reference edge (call, usage) emitted from chunk relations:
   - [ ] Implement `resolveRef({ fromChunk, targetName, kindHint, fileRelations, fileSet }): SymbolRefV1`
     - Bounded candidate collection + scoring (see caps below)
     - Import narrowing:
-      - If `importBindings` provides a binding for the target’s root identifier, resolve that module to a file.
+      - If `importBindings` provides a binding for the target's root identifier, resolve that module to a file.
       - Restrict candidate search to those files; then apply export filtering:
         - if imported name is known, prefer matching exports.
     - If exactly one best candidate above threshold ⇒ `status=resolved`
@@ -435,7 +435,7 @@ One record per reference edge (call, usage) emitted from chunk relations:
 **Caps / guardrails (must be implemented):**
 
 - `MAX_CANDIDATES_PER_REF = 25`
-- `MAX_CANDIDATES_GLOBAL_SCAN = 200` (if exceeded, downgrade to ambiguous with “too many” signal)
+- `MAX_CANDIDATES_GLOBAL_SCAN = 200` (if exceeded, downgrade to ambiguous with "too many" signal)
 - Deterministic sorting of candidates:
   - primary: score desc
   - secondary: `symbolKey` asc
@@ -541,7 +541,7 @@ These providers currently map results by `file::name`:
 
 - [ ] **Add `src/index/build/artifacts/writers/symbol-edges.js`**
   - [ ] Iterate chunks; for each callLinks/usageLinks edge emit edge record.
-  - [ ] Emit unresolved/ambiguous edges as well (they’re valuable for metrics and later resolution).
+  - [ ] Emit unresolved/ambiguous edges as well (they're valuable for metrics and later resolution).
 
 #### 9.5.2 Integrate into artifact build
 
@@ -572,7 +572,7 @@ These providers currently map results by `file::name`:
 #### 9.5.4 Tests for artifacts
 
 - [ ] Add `tests/artifacts/symbol-artifacts-smoke.test.js`
-  - Build a small in-memory “fake state” with 2 chunks and resolved/ambiguous links.
+  - Build a small in-memory "fake state" with 2 chunks and resolved/ambiguous links.
   - Run iterators and ensure JSONL output lines validate and include required keys.
 
 ---
@@ -677,7 +677,7 @@ Add tests/benchmarks (optional but recommended):
 ## Phase 9 exit criteria (must all be true)
 
 - [ ] No graph or cross-file linking code performs `Map.set()` keyed solely by `file::name` in a way that can silently overwrite distinct entities.
-- [ ] `metaV2.chunkUid` is present and non-empty for every code chunk (“fail closed”).
+- [ ] `metaV2.chunkUid` is present and non-empty for every code chunk ("fail closed").
 - [ ] `graph_relations.version === 2` and node ids are `chunkUid`.
 - [ ] Pipeline emits SymbolRef-based call/usage links; ambiguous/unresolved are preserved explicitly.
 - [ ] Symbol artifacts are written and validate successfully on the small fixture suite.
@@ -685,9 +685,9 @@ Add tests/benchmarks (optional but recommended):
 
 ---
 
-## Appendix A — Concrete file-by-file change list (for Codex)
+## Appendix A -- Concrete file-by-file change list (for Codex)
 
-This appendix is purely to reduce “search time” during implementation. Each file lists the exact intent.
+This appendix is purely to reduce "search time" during implementation. Each file lists the exact intent.
 
 ### A.1 New files to add
 
@@ -714,25 +714,25 @@ This appendix is purely to reduce “search time” during implementation. Each 
 
 ### A.2 Existing files to modify
 
-- `src/index/segments.js` — compute and propagate `segmentUid`
-- `src/index/build/file-processor.js` — compute `chunkUid`
-- `src/index/build/file-processor/assemble.js` — pass through chunkUid fields
-- `src/index/metadata-v2.js` — include identity + symbol identity
-- `src/lang/javascript/relations.js` — emit `importBindings`
-- `src/index/build/file-processor/relations.js` — include importBindings
-- `src/shared/artifact-schemas.js` — add schemas, extend file_relations
-- `src/shared/artifact-io.js` — required keys for new JSONL artifacts
-- `src/index/type-inference-crossfile/pipeline.js` — emit SymbolRef edges and avoid file::name joins
-- `src/index/tooling/{typescript,pyright,clangd,sourcekit}-provider.js` — key by chunkUid
-- `src/index/build/artifacts.js` — write symbol artifacts
-- `src/index/validate.js` — validate symbol artifacts (optional strict)
-- `src/index/build/graphs.js` — graph_relations v2 using chunkUid
-- `src/map/build-map.js` — join graph nodes to chunk meta via chunkUid
-- `tests/graph-chunk-id.js` — update
+- `src/index/segments.js` -- compute and propagate `segmentUid`
+- `src/index/build/file-processor.js` -- compute `chunkUid`
+- `src/index/build/file-processor/assemble.js` -- pass through chunkUid fields
+- `src/index/metadata-v2.js` -- include identity + symbol identity
+- `src/lang/javascript/relations.js` -- emit `importBindings`
+- `src/index/build/file-processor/relations.js` -- include importBindings
+- `src/shared/artifact-schemas.js` -- add schemas, extend file_relations
+- `src/shared/artifact-io.js` -- required keys for new JSONL artifacts
+- `src/index/type-inference-crossfile/pipeline.js` -- emit SymbolRef edges and avoid file::name joins
+- `src/index/tooling/{typescript,pyright,clangd,sourcekit}-provider.js` -- key by chunkUid
+- `src/index/build/artifacts.js` -- write symbol artifacts
+- `src/index/validate.js` -- validate symbol artifacts (optional strict)
+- `src/index/build/graphs.js` -- graph_relations v2 using chunkUid
+- `src/map/build-map.js` -- join graph nodes to chunk meta via chunkUid
+- `tests/graph-chunk-id.js` -- update
 
 ---
 
-## Appendix B — Metrics to report (recommended)
+## Appendix B -- Metrics to report (recommended)
 
 - `symbol_resolution.resolved_rate`
 - `symbol_resolution.ambiguous_rate`
@@ -763,7 +763,7 @@ In strict CI mode, optionally enforce:
   - src/index/build/file-processor/assemble.js:52-105
   - src/index/chunk-id.js:1-18
 - Gaps/conflicts:
-  - Resolved: docs/PHASE9_SPEC_IDENTITY_CONTRACTS.md now matches docs/spec-identity-contract.refined.md for chunkUid (span/pre/post hashes + virtualPath + segmentUid).
+  - Resolved: docs/phases/phase-9/identity-contracts.md now matches docs/specs/identity-contract.md for chunkUid (span/pre/post hashes + virtualPath + segmentUid).
   - Phase 8 spec updated to align; Phase 9 remains the implementation target.
 
 ### 9.2 Symbol identity (metaV2.symbol + SymbolRef)
@@ -842,12 +842,12 @@ In strict CI mode, optionally enforce:
   - src/index/build/graphs.js:45-68 (serializeGraph ordering)
 
 ### Associated specs reviewed (Phase 9)
-- docs/PHASE9_SPEC_IDENTITY_CONTRACTS.md
-- docs/PHASE9_SPEC_SYMBOL_ARTIFACTS_AND_PIPELINE.md
-- docs/PHASE9_SPEC_MIGRATION_AND_BACKCOMPAT.md
-- docs/spec-identity-contract.refined.md
-- docs/spec-symbol-identity-and-symbolref.refined.md
-- docs/spec-symbol-artifacts.refined.md
+- docs/phases/phase-9/identity-contracts.md
+- docs/phases/phase-9/symbol-artifacts-and-pipeline.md
+- docs/phases/phase-9/migration-and-backcompat.md
+- docs/specs/identity-contract.md
+- docs/specs/symbol-identity-and-symbolref.md
+- docs/specs/symbol-artifacts.md
 
 ## Phase 9 addendum: dependencies, ordering, artifacts, tests, edge cases
 
@@ -1018,3 +1018,4 @@ In strict CI mode, optionally enforce:
 - graph_relations.json (v2)
   - required node ids: chunkUid
   - legacyKey allowed for diagnostics only
+

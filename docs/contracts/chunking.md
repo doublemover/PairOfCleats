@@ -18,6 +18,7 @@
 - Per-chunk limits can be enforced via `indexing.chunking.maxBytes` / `indexing.chunking.maxLines`.
 
 ## References
-- `docs/metadata-schema-v2.md`
-- `docs/parser-backbone.md`
-- `docs/ast-feature-list.md`
+- `docs/specs/metadata-schema-v2.md`
+- `docs/language/parser-backbone.md`
+- `docs/language/ast-feature-list.md`
+

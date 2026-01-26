@@ -6,7 +6,7 @@
 **Local-first hybrid code search for humans and coding agents.**  
 Build an offline index of a repo, then retrieve the most relevant *chunks* using **BM25 + fuzzy matching + embeddings + metadata filters**.
 
-> **(“Paraclete”):** “PairOfCleats” is a phonetic nod to **Paraclete**—a word meaning *helper/advocate*.
+> **("Paraclete"):** "PairOfCleats" is a phonetic nod to **Paraclete**--a word meaning *helper/advocate*.
 >
 > The idea: give your agent (or you) a helper that can sprint through a large codebase with better traction than plain grep.
 
@@ -19,7 +19,7 @@ PairOfCleats builds a **hybrid semantic index** for a repository (**code + confi
 - a CLI (`pairofcleats search`, `pairofcleats index build`)
 - an HTTP API server (`pairofcleats service api`)
 
-It’s optimized for agent workflows:
+It's optimized for agent workflows:
 - **artifacts are stored outside the repo by default** (cache-backed)
 - indexing is language-aware (AST / tree-sitter / heuristics)
 - search is fast, filterable, and can use SQLite + ANN when repos get big
@@ -28,7 +28,7 @@ It’s optimized for agent workflows:
 
 ## Why it exists
 
-Large repos make “just read the whole tree” impractical.
+Large repos make "just read the whole tree" impractical.
 
 - **Grep** is fast but literal.
 - **Pure embeddings** can be fuzzy and harder to constrain.
@@ -65,7 +65,7 @@ PairOfCleats combines the strengths:
 - CLI commands auto-detect repo roots; use `--repo <path>` to override.
 - Local CLI entrypoint: `node bin/pairofcleats.js <command>`.
 - `npm run <script>` wrappers remain available for CI/automation.
-- Core library API: [docs/core-api.md](docs/core-api.md)
+- Core library API: [docs/api/core-api.md](docs/api/core-api.md)
 
 ### Install
 ```bash
@@ -204,14 +204,14 @@ flowchart TB
 
 ## Learn more (repo docs)
 
-- Search pipeline: [`docs/search.md`](docs/search.md)
-- Setup & bootstrap: [`docs/setup.md`](docs/setup.md)
-- Config schema: [`docs/config-schema.json`](docs/config-schema.json)
-- SQLite schema: [`docs/sqlite-index-schema.md`](docs/sqlite-index-schema.md)
-- SQLite ANN extension: [`docs/sqlite-ann-extension.md`](docs/sqlite-ann-extension.md)
-- API server: [`docs/api-server.md`](docs/api-server.md)
-- Triage records: [`docs/triage-records.md`](docs/triage-records.md)
-- Structural search: [`docs/structural-search.md`](docs/structural-search.md)
+- Search pipeline: [`docs/guides/search.md`](docs/guides/search.md)
+- Setup & bootstrap: [`docs/guides/setup.md`](docs/guides/setup.md)
+- Config schema: [`docs/config/schema.json`](docs/config/schema.json)
+- SQLite schema: [`docs/sqlite/index-schema.md`](docs/sqlite/index-schema.md)
+- SQLite ANN extension: [`docs/sqlite/ann-extension.md`](docs/sqlite/ann-extension.md)
+- API server: [`docs/api/server.md`](docs/api/server.md)
+- Triage records: [`docs/guides/triage-records.md`](docs/guides/triage-records.md)
+- Structural search: [`docs/guides/structural-search.md`](docs/guides/structural-search.md)
 
 ---
 
@@ -220,16 +220,17 @@ flowchart TB
 Active development. See `GIGAROADMAP.md` for current execution status.
 
 Phase 3 specs (current correctness work):
-- `docs/phase-3-import-resolution-spec.md`
-- `docs/phase-3-signature-spec.md`
-- `docs/phase-3-watch-atomicity-spec.md`
-- `docs/phase-3-build-state-integrity-spec.md`
-- `docs/phase-3-analysis-policy-spec.md`
-- `docs/phase-3-segmentation-perf-spec.md`
-- `docs/phase-3-tooling-io-spec.md`
+- `docs/phases/phase-3/import-resolution.md`
+- `docs/phases/phase-3/signature.md`
+- `docs/phases/phase-3/watch-atomicity.md`
+- `docs/phases/phase-3/build-state-integrity.md`
+- `docs/phases/phase-3/analysis-policy.md`
+- `docs/phases/phase-3/segmentation-perf.md`
+- `docs/phases/phase-3/tooling-io.md`
 
 ---
 
 ## License
 
 See the repository license file.
+

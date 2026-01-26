@@ -24,5 +24,6 @@
 - Full JSON hits include `metaV2.chunkId`, the stable chunk identifier across rebuilds (top-level `id` is index-local).
 
 ## References
-- `docs/search-contract.md`
-- `docs/search.md`
+- `docs/contracts/search-contract.md`
+- `docs/guides/search.md`
+

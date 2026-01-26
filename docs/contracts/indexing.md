@@ -45,6 +45,7 @@ Optional (feature/config driven):
 - Loader precedence: newest between sharded meta+parts and jsonl wins; jsonl > json (and prefer `.json.zst`/`.json.gz` sidecars when present).
 
 ## References
-- `docs/artifact-contract.md`
-- `docs/metadata-schema-v2.md`
-- `docs/sqlite-index-schema.md`
+- `docs/contracts/artifact-contract.md`
+- `docs/specs/metadata-schema-v2.md`
+- `docs/sqlite/index-schema.md`
+

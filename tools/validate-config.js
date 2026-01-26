@@ -19,7 +19,7 @@ const repoArg = argv.repo ? path.resolve(argv.repo) : null;
 const repoRoot = repoArg || resolveRepoRoot(process.cwd());
 const configPath = argv.config ? path.resolve(argv.config) : path.join(repoRoot, '.pairofcleats.json');
 const toolRoot = resolveToolRoot();
-const schemaPath = path.join(toolRoot, 'docs', 'config-schema.json');
+const schemaPath = path.join(toolRoot, 'docs', 'config', 'schema.json');
 
 if (!fs.existsSync(schemaPath)) {
   console.error(`Config schema not found: ${schemaPath}`);

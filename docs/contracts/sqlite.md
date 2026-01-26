@@ -1,7 +1,7 @@
 # SQLite contract
 
 ## Schema
-- SQLite builds follow `docs/sqlite-index-schema.md` and include dense vectors + metadata.
+- SQLite builds follow `docs/sqlite/index-schema.md` and include dense vectors + metadata.
 - Required tables include `chunks`, `token_vocab`, `token_postings`, `minhash_signatures`, `dense_vectors`, and `dense_meta` (plus FTS tables when configured).
 - Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION`.
 - On schema mismatch, SQLite readers fail closed and prompt a rebuild.
@@ -18,6 +18,7 @@
 - When the extension is missing, search falls back to non-extension ANN and reports availability accordingly.
 
 ## References
-- `docs/sqlite-index-schema.md`
-- `docs/sqlite-incremental-updates.md`
-- `docs/sqlite-ann-extension.md`
+- `docs/sqlite/index-schema.md`
+- `docs/sqlite/incremental-updates.md`
+- `docs/sqlite/ann-extension.md`
+

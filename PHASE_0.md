@@ -7,7 +7,7 @@ Intent: implement all Phase 0 tasks in `GIGAROADMAP.md` with a deterministic CI 
 - CI OS matrix: Ubuntu + Windows + macOS (include macOS if GitHub Actions supports it).
 
 ## Scope
-- In: Phase 0 tasks (0.1–0.11), new CI runner, capability gate, runner hardening, helper utilities, workflow updates, and related tests/docs.
+- In: Phase 0 tasks (0.1-0.11), new CI runner, capability gate, runner hardening, helper utilities, workflow updates, and related tests/docs.
 - Out: Future phases unless explicitly pulled in as sweep deferrals.
 
 ## Action items
@@ -91,7 +91,7 @@ Invocation corrections:
 - Hardened `tests/run.js` with skip semantics (exit 77), timeout kill-tree handling, runId log dirs, and timings ledger output.
 - Added test harness helpers (`tests/helpers/kill-tree.js`, `tests/helpers/skip.js`, `tests/helpers/require-or-skip.js`).
 - Added harness/policy tests for skip semantics, log runId, timings ledger, timeout kill behavior, and optional deps policy.
-- Added script surface inventory generation (`tools/script-inventory.js`) plus `docs/script-inventory.json` and `docs/commands.md`.
+- Added script surface inventory generation (`tools/script-inventory.js`) plus `docs/tooling/script-inventory.json` and `docs/guides/commands.md`.
 - Added script surface policy test (`tests/policy/script-surface-policy.test.js`) and script coverage wiring test.
 - Updated script coverage to fail fast on unknown script references and removed stale search-* coverage targets.
 - Added baseline fixture (`tests/fixtures/baseline`) and nightly determinism test (`tests/perf/baseline-artifacts.test.js`).
@@ -99,9 +99,10 @@ Invocation corrections:
 - Updated `tests/discover.js` to use standardized skip semantics.
 - Removed git hooks tooling and tests (unused in current version), updated script coverage actions, and regenerated script/config inventories.
 - Updated config inventory generator to ignore `worktrees/` directories.
-- Added `docs/phase-0-tracking.md` for Phase 0 status tracking.
+- Added `docs/phases/phase-0/tracking.md` for Phase 0 status tracking.
 - Documented `npm run test:pr` in `README.md`.
-- Added `docs/phase-0-fixture-corpus.md` to document Phase 0 fixtures.
-- Added `docs/ci-capability-policy.md` to document optional capability handling in CI/nightly.
-- Added stable entrypoints section to `docs/commands.md` via script inventory generator.
-- Expanded `docs/phase-0-tracking.md` with fixture links and definition of done.
+- Added `docs/phases/phase-0/fixture-corpus.md` to document Phase 0 fixtures.
+- Added `docs/testing/ci-capability-policy.md` to document optional capability handling in CI/nightly.
+- Added stable entrypoints section to `docs/guides/commands.md` via script inventory generator.
+- Expanded `docs/phases/phase-0/tracking.md` with fixture links and definition of done.
+

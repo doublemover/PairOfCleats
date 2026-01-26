@@ -7,8 +7,8 @@ import { hideBin } from 'yargs/helpers';
 const parseArgs = () => {
   const parser = yargs(hideBin(process.argv))
     .scriptName('pairofcleats script-inventory')
-    .option('json', { type: 'string', default: 'docs/script-inventory.json' })
-    .option('markdown', { type: 'string', default: 'docs/commands.md' })
+    .option('json', { type: 'string', default: 'docs/tooling/script-inventory.json' })
+    .option('markdown', { type: 'string', default: 'docs/guides/commands.md' })
     .help()
     .alias('h', 'help')
     .strictOptions();

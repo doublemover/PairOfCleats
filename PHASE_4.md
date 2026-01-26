@@ -1,13 +1,13 @@
-# Phase 4 Distillation — Runtime Envelope, Concurrency, and Safety Guardrails
+# Phase 4 Distillation -- Runtime Envelope, Concurrency, and Safety Guardrails
 
 ## Reference specs (Phase 4)
-These documents define the “best version” design details:
-- `spec_phase4_runtime_envelope_v1.md`
-- `spec_phase4_concurrency_abort_runwithqueue.md`
-- `spec_phase4_subprocess_helper.md`
-- `spec_phase4_json_stream_atomic_replace.md`
-- `spec_phase4_large_file_caps_strategy.md`
-- `spec_phase4_safe_regex_hardening.md`
+These documents define the "best version" design details:
+- `docs/phases/phase-4/runtime-envelope.md`
+- `docs/phases/phase-4/concurrency-abort-runwithqueue.md`
+- `docs/phases/phase-4/subprocess-helper.md`
+- `docs/phases/phase-4/json-stream-atomic-replace.md`
+- `docs/phases/phase-4/large-file-caps-strategy.md`
+- `docs/phases/phase-4/safe-regex-hardening.md`
 
 ---
 
@@ -77,7 +77,7 @@ These documents define the “best version” design details:
       - runtime envelope (configured/effective/sources/warnings)
       - derived lane caps
     - [x] Ensure stable ordering where feasible (e.g., keys sorted or at least consistent by construction)
-  - [x] Update `docs/config-schema.json` (minimal runtime/concurrency additions)
+  - [x] Update `docs/config/schema.json` (minimal runtime/concurrency additions)
     - [x] Allow `threads` and `runtime.*` (uvThreadpoolSize, maxOldSpaceMb, nodeOptions, ioOversubscribe)
     - [x] Ensure indexing concurrency fields referenced by envelope are schema-valid
 
@@ -89,7 +89,7 @@ These documents define the “best version” design details:
 - [x] `tests/index-config-dump.js`
   - [x] Assert dump includes schemaVersion/runtime/concurrency/queues/envPatch
 - [x] `tests/runtime/runtime-envelope-spawn-env.test.js`
-  - [x] Spawn a tiny Node child via the tool’s wrapper
+  - [x] Spawn a tiny Node child via the tool's wrapper
   - [x] Assert child sees expected `UV_THREADPOOL_SIZE` and `NODE_OPTIONS`
   - [x] Assert `NODE_OPTIONS` merge preserves unrelated flags
 
@@ -139,7 +139,7 @@ These documents define the “best version” design details:
   - supports best-effort and fail-fast modes
 
 ### Tasks
-- [x] Implement abortable queue primitive per `spec_phase4_concurrency_abort_runwithqueue.md`
+- [x] Implement abortable queue primitive per `docs/phases/phase-4/concurrency-abort-runwithqueue.md`
   - [x] `src/shared/concurrency.js`
     - [x] `runWithQueue(items, worker, options)` additions:
       - [x] `signal?: AbortSignal`
@@ -165,7 +165,7 @@ These documents define the “best version” design details:
 ## 4.4 Cancellation semantics across lanes + subprocess boundaries
 
 ### Deliverables
-- One “standard cancellation story”:
+- One "standard cancellation story":
   - abort signal created at the top (CLI command invocation)
   - propagated into all async lanes (io/cpu/embedding)
   - propagated into subprocess spawning; abort kills child, tears down streams, and resolves/rejects deterministically
@@ -176,13 +176,13 @@ These documents define the “best version” design details:
     - [x] `createAbortControllerWithHandlers()`
     - [x] `createAbortError()` / `isAbortError()`
     - [x] `throwIfAborted(signal)`
-    - [x] `raceAbort(signal, promise)` (ensures awaits don’t hang)
+    - [x] `raceAbort(signal, promise)` (ensures awaits don't hang)
 - [x] Thread `AbortSignal` through:
   - [x] build index pipeline stages (discover/preprocess/process)
   - [x] runWithQueue workers
   - [x] embedding/vector generation
 - [x] Ensure subprocess spawning is abortable
-  - [x] Integrate with `spec_phase4_subprocess_helper.md` (Phase 4.9) so abort kills the child process and resolves error paths.
+  - [x] Integrate with `docs/phases/phase-4/subprocess-helper.md` (Phase 4.9) so abort kills the child process and resolves error paths.
 
 #### Tests / Verification
 - [x] `tests/abort/abort-propagates-to-queues.test.js`
@@ -214,7 +214,7 @@ These documents define the “best version” design details:
     - [x] otherwise degrade to `--progress=log` (or none) deterministically
 - [x] Ensure pino-pretty (or equivalent) is gated correctly
   - [x] If pretty logging is enabled, ensure it only affects stderr and never machine outputs
-- [x] Ensure ring buffer and “recent logs” are bounded and sanitized
+- [x] Ensure ring buffer and "recent logs" are bounded and sanitized
   - [x] No unbounded accumulation of metadata
   - [x] Stable truncation rules
 
@@ -227,7 +227,7 @@ These documents define the “best version” design details:
 
 ## 4.6 JSON streaming writer correctness + gzip forwarding
 
-(See `spec_phase4_json_stream_atomic_replace.md`.)
+(See `docs/phases/phase-4/json-stream-atomic-replace.md`.)
 
 ### Deliverables
 - JSON streaming writer honors gzip options and max bytes
@@ -253,7 +253,7 @@ These documents define the “best version” design details:
 
 ## 4.7 Large-file strategy and cap correctness
 
-(See `spec_phase4_large_file_caps_strategy.md`.)
+(See `docs/phases/phase-4/large-file-caps-strategy.md`.)
 
 ### Deliverables
 - language-aware (and optionally mode-aware) cap resolution at every skip/reuse decision point
@@ -283,7 +283,7 @@ These documents define the “best version” design details:
 
 ## 4.8 Safe regex hardening
 
-(See `spec_phase4_safe_regex_hardening.md`.)
+(See `docs/phases/phase-4/safe-regex-hardening.md`.)
 
 ### Deliverables
 - no post-hoc timeouts
@@ -317,7 +317,7 @@ These documents define the “best version” design details:
 
 ## 4.9 Subprocess helper (consolidate spawn semantics)
 
-(See `spec_phase4_subprocess_helper.md`.)
+(See `docs/phases/phase-4/subprocess-helper.md`.)
 
 ### Deliverables
 - one subprocess helper that:
@@ -368,7 +368,7 @@ These documents define the “best version” design details:
   - [x] `src/index/build/file-processor.js`
     - [x] persist encoding metadata in file meta artifacts
     - [x] when file bytes unchanged, reuse prior encoding metadata deterministically
-    - [x] fallback decoding warnings must be bounded and “warn once per file per run”
+    - [x] fallback decoding warnings must be bounded and "warn once per file per run"
 
 #### Tests / Verification
 - [x] `tests/embeddings/merge-vectors-no-nan.test.js`
@@ -379,7 +379,7 @@ These documents define the “best version” design details:
 
 ## 4.11 Atomic file replace and `.bak` hygiene
 
-(See `spec_phase4_json_stream_atomic_replace.md`.)
+(See `docs/phases/phase-4/json-stream-atomic-replace.md`.)
 
 ### Deliverables
 - atomic replace works consistently across platforms
@@ -406,11 +406,13 @@ These documents define the “best version” design details:
 
 - [x] 1) 4.1 Runtime envelope (enables consistent config + spawn env shaping)
 - [x] 2) 4.2 Thread + queue caps (depends on envelope)
-- [x] 3) 4.3–4.4 Abort + runWithQueue (depends on queue model)
+- [x] 3) 4.3-4.4 Abort + runWithQueue (depends on queue model)
 - [x] 4) 4.9 Subprocess helper (depends on envelope + abort)
-- [x] 5) 4.5 Logging/progress contract (can be parallel but benefits from envelope’s dump mode)
+- [x] 5) 4.5 Logging/progress contract (can be parallel but benefits from envelope's dump mode)
 - [x] 6) 4.6 + 4.11 JSON stream + atomic replace (largely independent)
 - [x] 7) 4.7 Large-file caps (touches build/watch/discover; best after queue+abort are stable)
 - [x] 8) 4.8 Safe regex (touches shared + risk rules + retrieval)
 - [x] 9) 4.10 Embedding/encoding guardrails
+
+
 

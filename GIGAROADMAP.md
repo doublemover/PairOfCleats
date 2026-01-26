@@ -14,28 +14,28 @@ Completed Phases: `COMPLETED_PHASES.md`
 
 ## Roadmap order (foundational-first, maximize leverage)
 
-- Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence)
-- Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity
-- Phase 8 — Tooling Provider Framework & Type Inference Parity (Segment‑Aware)
-- Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking
-- Phase 10 — Interprocedural Risk Flows (taint summaries + propagation)
-- Phase 11 — Graph-powered product features (context packs, impact, explainability, ranking)
-- Phase 12 — MCP Migration + API/Tooling Contract Formalization
-- Phase 13 — JJ support (via provider API)
-- Phase 14 — Incremental Diffing & Snapshots (Time Travel, Regression Debugging)
-- Phase 15 — Federation & Multi-Repo (Workspaces, Catalog, Federated Search)
-- Phase 16 — Prose ingestion + retrieval routing correctness (PDF/DOCX + FTS policy)
-- Phase 17 — Vector-Only Index Profile (Embeddings-First)
-- Phase 18 — Vector-Only Profile (Build + Search Without Sparse Postings)
-- Phase 20 — Distribution & Platform Hardening (Release Matrix, Packaging, and Optional Python)
-- Phase 19 — LibUV threadpool utilization (explicit control + docs + tests)
-- Phase 20 — Threadpool-aware I/O scheduling guardrails
-- Phase 14 — Documentation and Configuration Hardening
-- Phase 24 — MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
+- Phase 6 -- Universal Relations v2 (Callsites, Args, and Evidence)
+- Phase 7 -- Embeddings + ANN: Determinism, Policy, and Backend Parity
+- Phase 8 -- Tooling Provider Framework & Type Inference Parity (Segment‑Aware)
+- Phase 9 -- Symbol identity (collision-safe IDs) + cross-file linking
+- Phase 10 -- Interprocedural Risk Flows (taint summaries + propagation)
+- Phase 11 -- Graph-powered product features (context packs, impact, explainability, ranking)
+- Phase 12 -- MCP Migration + API/Tooling Contract Formalization
+- Phase 13 -- JJ support (via provider API)
+- Phase 14 -- Incremental Diffing & Snapshots (Time Travel, Regression Debugging)
+- Phase 15 -- Federation & Multi-Repo (Workspaces, Catalog, Federated Search)
+- Phase 16 -- Prose ingestion + retrieval routing correctness (PDF/DOCX + FTS policy)
+- Phase 17 -- Vector-Only Index Profile (Embeddings-First)
+- Phase 18 -- Vector-Only Profile (Build + Search Without Sparse Postings)
+- Phase 20 -- Distribution & Platform Hardening (Release Matrix, Packaging, and Optional Python)
+- Phase 19 -- LibUV threadpool utilization (explicit control + docs + tests)
+- Phase 20 -- Threadpool-aware I/O scheduling guardrails
+- Phase 14 -- Documentation and Configuration Hardening
+- Phase 24 -- MCP server: migrate from custom JSON-RPC plumbing to official MCP SDK (reduce maintenance)
 
 ---
 
-## Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence)
+## Phase 6 -- Universal Relations v2 (Callsites, Args, and Evidence)
 
 ### Objective
 
@@ -60,7 +60,7 @@ This phase explicitly targets:
 
 ---
 
-### Phase 6.1 — CallDetails v2 and `call_sites` contract (schema + invariants)
+### Phase 6.1 -- CallDetails v2 and `call_sites` contract (schema + invariants)
 
 - [ ] Define a **CallSite (CallDetails v2)** record shape with bounded fields and deterministic truncation rules.
   - Contract fields (minimum viable, JS/TS-focused):
@@ -82,29 +82,29 @@ This phase explicitly targets:
     - max args per callsite
     - max arg text length / max nested shape depth
     - max evidence items + max evidence item length
-  - Deterministic truncation must use a consistent marker (e.g., `…`) and must not depend on runtime/platform.
+  - Deterministic truncation must use a consistent marker (e.g., `...`) and must not depend on runtime/platform.
 - [ ] Add schema validation for `call_sites` entries.
   - Touchpoints:
     - `src/shared/artifact-schemas.js` (AJV validators)
     - `src/index/validate.js` (wire validation when artifact is present)
   - Notes:
     - Keep schema permissive enough for forward evolution, but strict on required invariants and field types.
-    - Ensure identity fields are unambiguous: distinguish **doc id** vs **stable chunk uid** (avoid reusing “chunkId” for both).
+    - Ensure identity fields are unambiguous: distinguish **doc id** vs **stable chunk uid** (avoid reusing "chunkId" for both).
 - [ ] Update documentation for the new contract.
   - Touchpoints:
-    - `docs/artifact-contract.md` (artifact inventory + semantics)
-    - If needed: `docs/metadata-schema-v2.md` (to clarify identity fields used for joins)
+    - `docs/contracts/artifact-contract.md` (artifact inventory + semantics)
+    - If needed: `docs/specs/metadata-schema-v2.md` (to clarify identity fields used for joins)
   - Include at least one example callsite record for JS and TS.
 
 #### Tests / Verification
 
 - [ ] Add a schema test that validates a representative `call_sites` entry (including truncation edge cases).
-- [ ] Add a “reject bad contract” test case (missing required fields, wrong types, oversized fields).
+- [ ] Add a "reject bad contract" test case (missing required fields, wrong types, oversized fields).
 - [ ] Verify that validation runs in CI lanes that already validate artifact schemas.
 
 ---
 
-### Phase 6.2 — Emit `call_sites` as a first‑class, sharded JSONL artifact (meta + manifest)
+### Phase 6.2 -- Emit `call_sites` as a first‑class, sharded JSONL artifact (meta + manifest)
 
 - [ ] Implement a dedicated writer for `call_sites` that is sharded by default.
   - Touchpoints:
@@ -113,7 +113,7 @@ This phase explicitly targets:
     - `src/shared/json-stream.js` and/or `src/shared/artifact-io.js` (shared helpers; reuse existing patterns)
   - Output shape (recommended):
     - `pieces/call_sites/meta.json` (counts, shard size, formatVersion, etc.)
-    - `pieces/call_sites/part-000.jsonl`, `part-001.jsonl`, … (entries)
+    - `pieces/call_sites/part-000.jsonl`, `part-001.jsonl`, ... (entries)
   - Writer requirements:
     - Deterministic shard ordering and deterministic within-shard ordering.
     - Streaming write path (avoid holding all callsites in memory when possible).
@@ -129,7 +129,7 @@ This phase explicitly targets:
 - [ ] Decide and document the compatibility posture for existing relations artifacts.
   - Recommended:
     - Keep existing lightweight relations (e.g., `callLinks`) intact for backward compatibility.
-    - Do **not** bloat `file_relations` with full callsite evidence; `call_sites` is the dedicated “large” artifact.
+    - Do **not** bloat `file_relations` with full callsite evidence; `call_sites` is the dedicated "large" artifact.
 
 #### Tests / Verification
 
@@ -141,7 +141,7 @@ This phase explicitly targets:
 
 ---
 
-### Phase 6.3 — JS + TS callsite extraction with structured args (CallDetails v2)
+### Phase 6.3 -- JS + TS callsite extraction with structured args (CallDetails v2)
 
 - [ ] Upgrade JavaScript relations extraction to emit CallDetails v2 fields needed by `call_sites`.
   - Touchpoints:
@@ -151,7 +151,7 @@ This phase explicitly targets:
     - Provide `calleeRaw`, `calleeNormalized`, and `receiver` where applicable:
       - e.g., `foo.bar()` → `calleeRaw="foo.bar"`, `calleeNormalized="bar"`, `receiver="foo"`
     - Emit a bounded, deterministic arg summary (`args`):
-      - minimum: arity + “simple literal flags” (string/number/bool/null/object/array/function/spread/identifier)
+      - minimum: arity + "simple literal flags" (string/number/bool/null/object/array/function/spread/identifier)
       - must never include unbounded text (cap string literal previews, object literal previews, etc.)
     - Maintain compatibility for existing consumers that read `callDetails.args` today:
       - either provide a backwards-compatible view, or update consumers in Phase 6.5.
@@ -184,7 +184,7 @@ This phase explicitly targets:
 
 ---
 
-### Phase 6.4 — Segment-safe absolute positions, chunk attribution, and deterministic ordering
+### Phase 6.4 -- Segment-safe absolute positions, chunk attribution, and deterministic ordering
 
 - [ ] Ensure callsite positions are **absolute offsets in the container file** (segment-safe).
   - Touchpoints (depending on where translation is implemented):
@@ -202,12 +202,12 @@ This phase explicitly targets:
     - `src/index/language-registry/registry.js` (chunk relation attachment)
   - Requirements:
     - Prefer range containment (callsite offset within chunk start/end), selecting the smallest/innermost containing chunk deterministically.
-    - If containment is ambiguous or no chunk contains the callsite, record the callsite with `callerChunkUid = null` only if the contract permits it; otherwise attach to a deterministic “file/module” pseudo-caller (choose one approach and document it).
+    - If containment is ambiguous or no chunk contains the callsite, record the callsite with `callerChunkUid = null` only if the contract permits it; otherwise attach to a deterministic "file/module" pseudo-caller (choose one approach and document it).
 - [ ] Fix segment language fidelity issues that would break JS/TS/TSX call extraction for embedded segments.
   - Touchpoints:
     - `src/index/segments.js` (do not collapse `tsx→typescript` or `jsx→javascript` if it prevents correct tooling selection)
     - `src/index/build/file-processor/tree-sitter.js` (ensure embedded TSX/JSX segments can select the correct parser when container ext differs)
-  - If full segment-as-virtual-file semantics are not yet implemented, explicitly defer the broader contract work to **Phase 7 — Segment-Aware Analysis Backbone & VFS**, but Phase 6 must still support segment callsite offset translation for the JS/TS fixtures included in this phase.
+  - If full segment-as-virtual-file semantics are not yet implemented, explicitly defer the broader contract work to **Phase 7 -- Segment-Aware Analysis Backbone & VFS**, but Phase 6 must still support segment callsite offset translation for the JS/TS fixtures included in this phase.
 - [ ] Define and enforce deterministic ordering for callsites prior to writing.
   - Canonical sort key (recommended):
     - `relPath`, `callerChunkUid`, `start`, `end`, `calleeNormalized`, `calleeRaw`
@@ -222,7 +222,7 @@ This phase explicitly targets:
 
 ---
 
-### Phase 6.5 — Graph integration and cross-file linking (prefer `call_sites`, eliminate `file::name` reliance)
+### Phase 6.5 -- Graph integration and cross-file linking (prefer `call_sites`, eliminate `file::name` reliance)
 
 - [ ] Produce `call_sites` entries that carry resolved callee identity when it is uniquely resolvable.
   - Touchpoints:
@@ -233,7 +233,7 @@ This phase explicitly targets:
     - If resolution is ambiguous:
       - record bounded `targetCandidates` (or similar) and keep `targetChunkUid=null`
       - never silently drop the callsite edge
-    - If resolution requires a full SymbolId contract, defer that strengthening to **Phase 8 — Symbol Identity v1**, but Phase 6 must still remove _required_ reliance on `file::name` uniqueness.
+    - If resolution requires a full SymbolId contract, defer that strengthening to **Phase 8 -- Symbol Identity v1**, but Phase 6 must still remove _required_ reliance on `file::name` uniqueness.
 - [ ] Replace `file::name`-keyed joins in cross-file inference and graph assembly with stable chunk UIDs.
   - Touchpoints:
     - `src/index/type-inference-crossfile/pipeline.js` (today uses `chunkByKey` keyed by `${file}::${name}`)
@@ -282,8 +282,8 @@ This phase explicitly targets:
     - src/shared/artifact-io/jsonl.js:11-17
     - src/shared/artifact-io/loaders.js:150-205 (requiredKeys usage in loadJsonArrayArtifact)
   - Gaps/conflicts:
-    - docs/artifact-schemas.md already lists call_sites, but schema registry lacks it (doc/code drift).
-    - SPEC_risk_flows_and_call_sites_jsonl_v1_refined.md (Phase 10) defines call_sites fields; align naming now to avoid later rename churn.
+    - docs/contracts/artifact-schemas.md already lists call_sites, but schema registry lacks it (doc/code drift).
+    - docs/specs/risk-flows-and-call-sites.md (Phase 10) defines call_sites fields; align naming now to avoid later rename churn.
 - Task: Add schema validation for call_sites entries
   - Files to change/create:
     - src/index/validate.js (optionalArtifacts list around 76-95; add call_sites; add load/validate block similar to file_relations at 339-347)
@@ -295,13 +295,13 @@ This phase explicitly targets:
     - strict mode expects manifest entries; call_sites must be optional with clean fallback when missing.
 - Task: Update documentation for contract
   - Files to change/create:
-    - docs/artifact-contract.md (artifact inventory + examples)
-    - docs/artifact-schemas.md (Phase 6 additions already mention call_sites; ensure field list is explicit)
-    - docs/metadata-schema-v2.md (already notes call_sites at line ~138; ensure it stays “not in metaV2”)
+    - docs/contracts/artifact-contract.md (artifact inventory + examples)
+    - docs/contracts/artifact-schemas.md (Phase 6 additions already mention call_sites; ensure field list is explicit)
+    - docs/specs/metadata-schema-v2.md (already notes call_sites at line ~138; ensure it stays "not in metaV2")
   - Call sites/line refs:
-    - docs/metadata-schema-v2.md:138
+    - docs/specs/metadata-schema-v2.md:138
   - Gaps/conflicts:
-    - docs/artifact-schemas.md references SPEC_risk_flows_and_call_sites_jsonl_v1_refined.md; ensure Phase 6 contract matches that spec’s required keys.
+    - docs/contracts/artifact-schemas.md references docs/specs/risk-flows-and-call-sites.md; ensure Phase 6 contract matches that spec's required keys.
 - Tests / Verification
   - Files to change/create:
     - tests/contracts/call-sites-schema.test.js (new; validate good + bad entries)
@@ -569,14 +569,14 @@ This phase explicitly targets:
     totalRecords, totalBytes, maxPartRecords, maxPartBytes, targetMaxBytes, parts[]
   - parts[] required keys: path, records, bytes (checksum optional)
 
-## Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity
+## Phase 7 -- Embeddings + ANN: Determinism, Policy, and Backend Parity
 
 ### Objective
 
 Make embeddings generation and ANN retrieval **deterministic, build-scoped, and policy-driven** across all supported backends (HNSW, LanceDB, and SQLite dense). This phase hardens the end-to-end lifecycle:
 
 - Embeddings are **optional**, but when enabled they are **contracted**, discoverable, and validated.
-- Embeddings jobs are **bound to a specific build output** (no implicit “current build” writes).
+- Embeddings jobs are **bound to a specific build output** (no implicit "current build" writes).
 - Quantization/normalization rules are **consistent** across tools, caches, and query-time ANN.
 - ANN backends behave predictably under real-world constraints (candidate filtering, partial failure, missing deps).
 
@@ -589,9 +589,9 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 
 ---
 
-### Phase 7.1 — Build-scoped embeddings jobs and best-effort enqueue semantics
+### Phase 7.1 -- Build-scoped embeddings jobs and best-effort enqueue semantics
 
-- [ ] **Bind embeddings jobs to an explicit build output target (no “current build” inference).**
+- [ ] **Bind embeddings jobs to an explicit build output target (no "current build" inference).**
   - [ ] Extend the embedding job payload to include an immutable provenance tuple and target paths:
     - [ ] `buildId` and `buildRoot` (or an explicit `indexRoot`) for the build being augmented.
     - [ ] `mode` (`code` / `prose`) and the exact `indexDir` (the per-mode output directory) the job must write into.
@@ -610,7 +610,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
   - [ ] Wrap queue-dir creation and `enqueueJob(...)` in a non-fatal path when `runtime.embeddingService === true`.
     - If enqueue fails, log a clear warning and continue indexing.
     - Ensure indexing does **not** fail due solely to queue I/O failures.
-  - [ ] Record “embeddings pending/unavailable” state in `index_state.json` when enqueue fails.
+  - [ ] Record "embeddings pending/unavailable" state in `index_state.json` when enqueue fails.
   - Touchpoints:
     - `src/index/build/indexer/embedding-queue.js`
     - `src/index/build/indexer/steps/write.js` (state recording)
@@ -635,9 +635,9 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 
 ---
 
-### Phase 7.2 — Embeddings artifact contract and explicit capability signaling
+### Phase 7.2 -- Embeddings artifact contract and explicit capability signaling
 
-- [ ] **Define the canonical “embeddings artifacts” contract and make it discoverable.**
+- [ ] **Define the canonical "embeddings artifacts" contract and make it discoverable.**
   - [ ] Treat the existing dense-vector outputs as the formal embeddings artifact surface:
     - `dense_vectors_uint8.json` (+ any per-mode variants)
     - `dense_vectors_hnsw.bin` + `dense_vectors_hnsw.meta.json`
@@ -663,13 +663,13 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
     - Dense vector count matches chunk count for the mode.
     - Dimensions match across dense vectors and any ANN index metadata.
     - Model/identity metadata is internally consistent (identity key stable for that build).
-  - [ ] When embeddings are absent, validation should still pass but surface a clear “embeddings not present” indicator.
+  - [ ] When embeddings are absent, validation should still pass but surface a clear "embeddings not present" indicator.
   - Touchpoints:
     - `src/index/validate.js`
 
 - [ ] **Add missing-embeddings reporting (and optional gating).**
   - [ ] Track missing vectors during embedding build (code/doc/merged) instead of silently treating them as equivalent to an all-zero vector.
-    - Preserve existing “fill missing with zeros” behavior only as an internal representation, but record missing counts explicitly.
+    - Preserve existing "fill missing with zeros" behavior only as an internal representation, but record missing counts explicitly.
   - [ ] Add configurable thresholds (e.g., maximum allowed missing rate) that can mark embeddings as failed/unusable for ANN.
     - If threshold exceeded: do not publish ANN index availability and record reason in state.
   - Touchpoints:
@@ -682,13 +682,13 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 - [ ] Add `tests/validate/embeddings-referential-integrity.test.js`
   - Corrupt dense vector count or dims and assert strict validation fails with a clear error.
 - [ ] Add `tests/validate/embeddings-optional-absence.test.js`
-  - Validate an index without embeddings artifacts and assert validation passes with a “not present” signal.
+  - Validate an index without embeddings artifacts and assert validation passes with a "not present" signal.
 - [ ] Add `tests/embeddings/missing-rate-gating.test.js`
   - Force a controlled missing-vector rate and assert state/reporting reflects the gating outcome.
 
 ---
 
-### Phase 7.3 — Quantization invariants (levels clamp, safe dequantization, no uint8 wrap)
+### Phase 7.3 -- Quantization invariants (levels clamp, safe dequantization, no uint8 wrap)
 
 - [ ] **Enforce `levels ∈ [2, 256]` everywhere for uint8 embeddings.**
   - [ ] Clamp in quantization parameter resolution:
@@ -696,7 +696,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
     - Emit a warning when user config requests `levels > 256` (explicitly noting coercion).
   - [ ] Clamp at the quantizer:
     - Update `src/shared/embedding-utils.js: quantizeEmbeddingVector()` to mirror clamping (or route callers to `quantizeEmbeddingVectorUint8`).
-    - Ensure no code path can produce values outside `[0, 255]` for “uint8” vectors.
+    - Ensure no code path can produce values outside `[0, 255]` for "uint8" vectors.
   - [ ] Fix call sites that currently risk wrap:
     - `src/index/embedding.js` (`quantizeVec`) and its downstream usage in incremental updates.
     - `src/storage/sqlite/build/incremental-update.js` packing paths.
@@ -726,7 +726,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
   - [ ] Either:
     - Implement fixed-endian encoding/decoding with backward compatibility, **or**
     - Explicitly record endianness in metadata and defer full portability to a named follow-on phase.
-  - Deferred (if not fully addressed here): **Phase 11 — Index Portability & Migration Tooling**.
+  - Deferred (if not fully addressed here): **Phase 11 -- Index Portability & Migration Tooling**.
 
 #### Tests / Verification
 
@@ -740,7 +740,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 
 ---
 
-### Phase 7.4 — Normalization policy consistency across build paths and query-time ANN
+### Phase 7.4 -- Normalization policy consistency across build paths and query-time ANN
 
 - [ ] **Centralize normalization policy and apply it everywhere vectors enter ANN.**
   - [ ] Create a shared helper that defines normalization expectations for embeddings (index-time and query-time).
@@ -769,7 +769,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 
 ---
 
-### Phase 7.5 — LanceDB ANN correctness and resilience
+### Phase 7.5 -- LanceDB ANN correctness and resilience
 
 - [ ] **Promise-cache LanceDB connections and tables to prevent redundant concurrent opens.**
   - [ ] Change `src/retrieval/lancedb.js` connection/table caching to store promises, not only resolved objects.
@@ -804,12 +804,12 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 - [ ] Update `tests/lancedb-ann.js`:
   - [ ] Pass `--ann-backend lancedb` explicitly.
   - [ ] Use skip exit code 77 when LanceDB dependency is missing.
-  - [ ] Add a candidate-set test that exercises the “pushdown disabled” path and asserts `topN` is still achieved.
+  - [ ] Add a candidate-set test that exercises the "pushdown disabled" path and asserts `topN` is still achieved.
 - [ ] Add a focused unit test (or harness test) that ensures concurrent queries do not open multiple LanceDB connections.
 
 ---
 
-### Phase 7.6 — HNSW ANN correctness, compatibility, and failure observability
+### Phase 7.6 -- HNSW ANN correctness, compatibility, and failure observability
 
 - [ ] **Make HNSW index loading compatible with pinned `hnswlib-node` signatures.**
   - [ ] Update `src/shared/hnsw.js: loadHnswIndex()` to call `readIndexSync` with the correct signature.
@@ -847,7 +847,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 
 ---
 
-### Phase 7.7 — ANN backend policy and parity (selection, availability, explicit tests)
+### Phase 7.7 -- ANN backend policy and parity (selection, availability, explicit tests)
 
 - [ ] **Provide an explicit policy contract for ANN backend selection.**
   - [ ] Confirm or introduce a single canonical config/CLI surface (e.g., `--ann-backend` and `retrieval.annBackend` or `retrieval.vectorBackend`).
@@ -875,7 +875,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 
 ---
 
-### Phase 7.8 — Backend storage resilience required by embeddings/ANN workflows
+### Phase 7.8 -- Backend storage resilience required by embeddings/ANN workflows
 
 - [ ] **LMDB map size planning for predictable index builds.**
   - [ ] Add config support and defaults:
@@ -905,7 +905,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 - [ ] Add `tests/lmdb-map-size-planning.test.js`
   - Build an LMDB index of moderate size and verify it does not fail due to map size.
 - [ ] Add `tests/sqlite-dense-cross-mode-safety.test.js`
-  - Build both modes and rebuild one mode; verify the other mode’s ANN data remains intact.
+  - Build both modes and rebuild one mode; verify the other mode's ANN data remains intact.
 - [ ] Add `tests/embeddings/cache-preflight-metadata.test.js`
   - Ensure preflight uses metadata without scanning when the meta file exists, and remains correct.
 - [ ] Unskip phase-tagged LMDB tests once Phase 7/8 deliverables land:
@@ -953,7 +953,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
     - tools/build-embeddings/manifest.js:52-90
     - src/index/build/artifacts.js:255-300
   - Gaps/conflicts:
-    - tools/build-embeddings/manifest.js drops entries whose name is not in ARTIFACT_SCHEMA_DEFS, so dense_vectors_hnsw.bin and lancedb dirs are silently omitted; reconcile with “discoverable” requirement.
+    - tools/build-embeddings/manifest.js drops entries whose name is not in ARTIFACT_SCHEMA_DEFS, so dense_vectors_hnsw.bin and lancedb dirs are silently omitted; reconcile with "discoverable" requirement.
 - Task: Emit embedding identity + backend availability in index_state
   - Files to change/create:
     - src/index/build/indexer/steps/write.js (index_state.embeddings at ~52-90)
@@ -1281,7 +1281,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 Produced by `src/index/chunk-id.js#resolveChunkId({file, segment, start, end, kind, name})`.
 
 **`chunkUid` (stable-ish, new)**  
-Computed per `docs/spec-identity-contract.refined.md` (canonical). Inputs:
+Computed per `docs/specs/identity-contract.md` (canonical). Inputs:
 - namespaceKey (default "repo")
 - virtualPath (fileRelPath or fileRelPath#seg:<segmentUid>)
 - chunkText + pre/post context windows
@@ -1426,7 +1426,7 @@ Assert:
 
 ---
 
-## Phase 8.1 — Provider contract + registry (capability gating, deterministic selection)
+## Phase 8.1 -- Provider contract + registry (capability gating, deterministic selection)
 
 ### Objective
 Create a single authoritative provider system that:
@@ -1443,7 +1443,7 @@ Create a single authoritative provider system that:
 ### Files to modify (call sites)
 - `src/index/type-inference-crossfile/tooling.js` (replace ad-hoc provider wiring)
 - `tools/dict-utils.js#getToolingConfig` (extend config surface)
-- (optional but recommended) `docs/config-schema.json` (tooling keys)
+- (optional but recommended) `docs/config/schema.json` (tooling keys)
 
 ### Tasks
 
@@ -1540,7 +1540,7 @@ Create a single authoritative provider system that:
 
 ---
 
-## Phase 8.2 — Segment/VFS-aware tooling orchestration + stable chunk keys + join policy
+## Phase 8.2 -- Segment/VFS-aware tooling orchestration + stable chunk keys + join policy
 
 ### Objective
 Enable tooling to operate on:
@@ -1639,7 +1639,7 @@ while attaching results using stable chunk identity.
   - Touch: `src/integrations/tooling/providers/shared.js#createToolingGuard`
   - Change semantics:
     - retries are internal; only count **one** failure when the invocation fails after retries.
-    - keep log lines for each attempt (but don’t trip breaker early).
+    - keep log lines for each attempt (but don't trip breaker early).
   - Why better:
     - removes false breaker trips on transient flakiness while preserving protective behavior.
 
@@ -1671,7 +1671,7 @@ while attaching results using stable chunk identity.
 
 ---
 
-## Phase 8.3 — TypeScript provider parity for JS/JSX + segment VFS support (stable keys, node matching)
+## Phase 8.3 -- TypeScript provider parity for JS/JSX + segment VFS support (stable keys, node matching)
 
 ### Objective
 Use TypeScript tooling to enrich:
@@ -1792,7 +1792,7 @@ with stable chunk-keyed results and high-confidence signatures.
 
 ---
 
-## Phase 8.4 — LSP provider hardening + VFS integration (restart safety, per-target failures, stable keys)
+## Phase 8.4 -- LSP provider hardening + VFS integration (restart safety, per-target failures, stable keys)
 
 ### Objective
 Make LSP tooling reliable and segment-capable:
@@ -1871,7 +1871,7 @@ Make LSP tooling reliable and segment-capable:
 
 ---
 
-## Phase 8.5 — Tooling doctor + reporting + CLI integration
+## Phase 8.5 -- Tooling doctor + reporting + CLI integration
 
 ### Objective
 Provide an operator-facing workflow to explain tooling state:
@@ -1885,7 +1885,7 @@ Provide an operator-facing workflow to explain tooling state:
 - Add: `tools/tooling-doctor.js`
 - Modify: `tools/tooling-utils.js` (reuse detection where possible)
 - Modify: `bin/pairofcleats.js` (add `tooling` command group)
-- Modify: `docs/commands.md` (or create `docs/tooling.md`)
+- Modify: `docs/guides/commands.md` (or create `docs/tooling.md`)
 
 ### Tasks
 
@@ -1915,7 +1915,7 @@ Provide an operator-facing workflow to explain tooling state:
 
 - [ ] **8.5.2 Align doctor with provider registry**
   - Doctor must use the same provider registry selection logic as the orchestrator:
-    - avoids “doctor says ok but index says no”.
+    - avoids "doctor says ok but index says no".
 
 - [ ] **8.5.3 Add CLI surface**
   - Touch: `bin/pairofcleats.js`
@@ -1969,7 +1969,7 @@ Provide an operator-facing workflow to explain tooling state:
 
 ## 6. Implementation ordering (recommended)
 
-1. Phase 8.2.1–8.2.5 (chunkUid + persistence + collisions)  
+1. Phase 8.2.1-8.2.5 (chunkUid + persistence + collisions)  
 2. Phase 8.2.6 (VFS builder)  
 3. Phase 8.1 (registry + orchestrator skeleton; wire into tooling pass)  
 4. Phase 8.3 (TypeScript provider refactor)  
@@ -1986,7 +1986,7 @@ Provide an operator-facing workflow to explain tooling state:
 
 ### 8.1 Provider contract + registry
 - Files to change/create:
-  - src/index/tooling/registry.js (new; per spec_phase8_tooling_provider_registry_refined.md)
+  - src/index/tooling/registry.js (new; per docs/phases/phase-8/tooling-provider-registry.md)
   - src/index/type-inference-crossfile/tooling.js (replace hardcoded provider fan-out)
   - src/index/type-inference-crossfile/pipeline.js (runToolingPass call at ~99-101)
   - src/index/build/runtime/runtime.js (toolingConfig + toolingEnabled at ~155-176)
@@ -1996,11 +1996,11 @@ Provide an operator-facing workflow to explain tooling state:
   - src/index/build/runtime/runtime.js:155-176, 611-612
 - Gaps/conflicts:
   - Current providers key by `${file}::${name}` (see src/index/tooling/typescript-provider.js:308); spec requires chunkUid-first joins.
-  - spec_phase8_identity_and_symbol_contracts_refined.md expects chunkUid availability; now required in Phase 8 (fail-closed if missing).
+  - docs/phases/phase-8/identity-and-symbol-contracts.md expects chunkUid availability; now required in Phase 8 (fail-closed if missing).
 
 ### 8.2 Segment/VFS-aware tooling orchestration
 - Files to change/create:
-  - src/index/tooling/vfs.js (new typedefs + helpers per spec_phase8_tooling_vfs_and_segment_routing_refined.md)
+  - src/index/tooling/vfs.js (new typedefs + helpers per docs/phases/phase-8/tooling-vfs-and-segment-routing.md)
   - src/index/tooling/vfs-builder.js (new; build ToolingVirtualDocument[] + ToolingTarget[])
   - src/index/segments.js (segmentUid + ranges available at ~90-150)
   - src/index/segments/config.js (resolveSegmentExt at ~56-75 for TSX/JSX)
@@ -2022,7 +2022,7 @@ Provide an operator-facing workflow to explain tooling state:
   - src/index/tooling/typescript-provider.js:253-325
 - Gaps/conflicts:
   - typescript-provider currently keys results by `${chunk.file}::${chunk.name}` (line ~308); must switch to chunkUid.
-  - spec_phase8_typescript_provider_js_parity_refined.md expects JS/JSX support; current routing uses file ext filtering.
+  - docs/phases/phase-8/typescript-provider-js-parity.md expects JS/JSX support; current routing uses file ext filtering.
 
 ### 8.4 LSP provider hardening + VFS integration
 - Files to change/create:
@@ -2038,21 +2038,21 @@ Provide an operator-facing workflow to explain tooling state:
 ### 8.5 Tooling doctor + reporting + CLI integration
 - Files to change/create:
   - src/index/type-inference-crossfile/tooling.js (collect diagnostics + provenance)
-  - src/shared/cli (add “doctor” command output wiring)
+  - src/shared/cli (add "doctor" command output wiring)
   - tools/dict-utils.js (getToolingConfig surface if new fields added)
 - Call sites/line refs:
   - src/index/type-inference-crossfile/tooling.js:221-285 (toolingConfig, logging, diagnostics)
 - Gaps/conflicts:
-  - spec_phase8_tooling_doctor_and_reporting_refined.md expects structured health output; current pipeline only logs to console.
+  - docs/phases/phase-8/tooling-doctor-and-reporting.md expects structured health output; current pipeline only logs to console.
 
 ### Associated specs reviewed (Phase 8)
-- docs/spec_phase8_tooling_provider_registry_refined.md
-- docs/spec_phase8_tooling_vfs_and_segment_routing_refined.md
-- docs/spec_phase8_typescript_provider_js_parity_refined.md
-- docs/spec_phase8_lsp_provider_hardening_refined.md
-- docs/spec_phase8_tooling_doctor_and_reporting_refined.md
-- docs/spec_phase8_identity_and_symbol_contracts_refined.md
-- docs/spec-vfs-manifest-artifact.md
+- docs/phases/phase-8/tooling-provider-registry.md
+- docs/phases/phase-8/tooling-vfs-and-segment-routing.md
+- docs/phases/phase-8/typescript-provider-js-parity.md
+- docs/phases/phase-8/lsp-provider-hardening.md
+- docs/phases/phase-8/tooling-doctor-and-reporting.md
+- docs/phases/phase-8/identity-and-symbol-contracts.md
+- docs/specs/vfs-manifest-artifact.md
 
 ## Phase 8 addendum: dependencies, ordering, artifacts, tests, edge cases
 
@@ -2085,7 +2085,7 @@ Provide an operator-facing workflow to explain tooling state:
 
 ### 8.2 Dependencies and order of operations
 - Dependencies:
-  - VFS manifest + virtualPath scheme from `docs/spec-vfs-manifest-artifact.md`.
+  - VFS manifest + virtualPath scheme from `docs/specs/vfs-manifest-artifact.md`.
   - segmentUid (Phase 8) or legacy segmentId only for debug.
 - Order of operations:
   1) Build VFS documents and targets from segments.
@@ -2191,9 +2191,9 @@ Provide an operator-facing workflow to explain tooling state:
   - required keys: schemaVersion, artifact="vfs_manifest", format="jsonl-sharded", generatedAt, compression,
     totalRecords, totalBytes, maxPartRecords, maxPartBytes, targetMaxBytes, parts[]
 
-# Phase 9 — Symbol identity (collision-safe IDs) + cross-file linking (detailed execution plan)
+# Phase 9 -- Symbol identity (collision-safe IDs) + cross-file linking (detailed execution plan)
 
-## Phase 9 objective (what “done” means)
+## Phase 9 objective (what "done" means)
 
 Eliminate all correctness hazards caused by non-unique, name-based joins (notably `file::name` and legacy `chunkId` usage) and replace them with a collision-safe, stability-oriented identity layer. Use that identity to produce:
 
@@ -2213,7 +2213,7 @@ Eliminate all correctness hazards caused by non-unique, name-based joins (notabl
 
 5) **Fail-closed identity and symbol joins:** no file::name fallback in strict mode; ambiguous resolutions are preserved, not guessed.
 
-This phase directly targets the Phase 9 intent in the roadmap (“Symbol identity (collision-safe IDs) + cross-file linking”) and depends on the canonical `chunkUid` contract delivered in Phase 8. In particular, the `chunkUid` construction approach and “fail closed” requirement are consistent with the canonical identity contract described in the planning materials.
+This phase directly targets the Phase 9 intent in the roadmap ("Symbol identity (collision-safe IDs) + cross-file linking") and depends on the canonical `chunkUid` contract delivered in Phase 8. In particular, the `chunkUid` construction approach and "fail closed" requirement are consistent with the canonical identity contract described in the planning materials.
 
 ---
 
@@ -2223,24 +2223,24 @@ These may be separate follow-on phases or optional extensions:
 
 - Full **SCIP/LSIF/ctags hybrid symbol source registry** (runtime selection/merging) beyond ensuring the contracts can represent those IDs.
 - Full module-resolution parity with Node/TS (tsconfig paths, package exports/imports, Yarn PnP, etc). Phase 9 supports **relative import resolution** only.
-- Whole-program correctness for dynamic languages; Phase 9 focuses on **correctness under ambiguity** (never wrong-link) rather than “resolve everything”.
+- Whole-program correctness for dynamic languages; Phase 9 focuses on **correctness under ambiguity** (never wrong-link) rather than "resolve everything".
 - Cross-repo symbol federation.
 
 ---
 
 ## Phase 9 key decisions (locked)
 
-These choices remove ambiguity and prevent future “forks” in implementation.
+These choices remove ambiguity and prevent future "forks" in implementation.
 
 ### D1) Graph node identity uses `chunkUid`, not `file::name`, not legacy `chunkId`
 
 - **Chosen:** `chunkUid` is the canonical node identifier for graphs and cross-file joins.
-- **Why:** `file::name` is not unique; `chunkId` is range-based and churns with line shifts. The roadmap’s canonical identity guidance explicitly calls for a `chunkUid` that is stable under line shifts and includes segment disambiguation.
+- **Why:** `file::name` is not unique; `chunkId` is range-based and churns with line shifts. The roadmap's canonical identity guidance explicitly calls for a `chunkUid` that is stable under line shifts and includes segment disambiguation.
 
 ### D2) Symbol identity is a two-layer model: `symbolKey` (human/debug) + `symbolId` (portable token)
 
 - **Chosen:** Persist both.
-- **Why:** `symbolKey` is explainable and supports deterministic “rebuild equivalence” reasoning. `symbolId` is compact and future-proofs external sources (SCIP/LSIF) without schema churn.
+- **Why:** `symbolKey` is explainable and supports deterministic "rebuild equivalence" reasoning. `symbolId` is compact and future-proofs external sources (SCIP/LSIF) without schema churn.
 
 ### D3) Cross-file resolution is ambiguity-preserving
 
@@ -2286,7 +2286,7 @@ segmentUid = "seg1:" + xxhash64(
 
 #### 9.C1.2 `virtualPath` (string)
 
-A deterministic “as-if file path” that disambiguates segments:
+A deterministic "as-if file path" that disambiguates segments:
 
 - If no segment: `virtualPath = fileRelPath`
 - If segment: `virtualPath = fileRelPath + "#seg:" + segmentUid`
@@ -2294,10 +2294,10 @@ A deterministic “as-if file path” that disambiguates segments:
 #### 9.C1.3 `chunkUid` (string)
 
 - **Definition:** Stable-ish identifier for a chunk, used for graphs and join keys.
-- **Stability:** Must remain stable when only lines outside the chunk’s span shift (i.e., chunk text unchanged).
+- **Stability:** Must remain stable when only lines outside the chunk's span shift (i.e., chunk text unchanged).
 - **Collision handling:** If a collision is detected within `{virtualPath, segmentUid}`, deterministically disambiguate and record `collisionOf`.
 
-**Algorithm (v1) — consistent with the canonical contract described in the planning docs:**
+**Algorithm (v1) -- consistent with the canonical contract described in the planning docs:**
 
 ```
 span = normalizeForUid(chunkText)
@@ -2316,7 +2316,7 @@ if (postHash) base += ":" + postHash
 chunkUid = base
 ```
 
-This follows the canonical identity contract exactly (see `docs/spec-identity-contract.refined.md` §4).
+This follows the canonical identity contract exactly (see `docs/specs/identity-contract.md` §4).
 
 **Collision disambiguation (required):**
 
@@ -2343,7 +2343,7 @@ And SHOULD include (for diagnostics and future hardening):
 
 #### 9.C2.1 `kindGroup`
 
-Normalize “kind” strings into a stable group set:
+Normalize "kind" strings into a stable group set:
 
 - `function`, `arrow_function`, `generator` → `function`
 - `class` → `class`
@@ -2509,13 +2509,13 @@ One record per reference edge (call, usage) emitted from chunk relations:
 
 ## Phase 9 implementation plan (phases/subphases/tasks/tests)
 
-### 9.1 Verify identity primitives (`segmentUid`, `chunkUid`, `virtualPath`) — delivered in Phase 8
+### 9.1 Verify identity primitives (`segmentUid`, `chunkUid`, `virtualPath`) -- delivered in Phase 8
 
 > If any identity primitive is missing or diverges from the canonical spec, stop Phase 9 and complete the work in Phase 8 before continuing.
 
 **Verification checklist (no new algorithm changes in Phase 9)**
 - Code presence:
-  - `src/index/identity/*` helpers exist and match `docs/spec-identity-contract.refined.md`.
+  - `src/index/identity/*` helpers exist and match `docs/specs/identity-contract.md`.
   - `segmentUid`, `virtualPath`, and `chunkUid` are populated in `metaV2` for every code chunk.
 - Behavior:
   - `segmentUid` stable under line shifts outside the segment.
@@ -2546,7 +2546,7 @@ One record per reference edge (call, usage) emitted from chunk relations:
 
 - [ ] **Add `src/index/identity/symbol.js`**
   - [ ] `buildSymbolIdentity({ metaV2 }): { scheme, kindGroup, qualifiedName, symbolKey, signatureKey, scopedId, symbolId } | null`
-  - [ ] Return null when chunk is not a “definition chunk” (policy below).
+  - [ ] Return null when chunk is not a "definition chunk" (policy below).
 
 **Definition chunk policy (v1):**
 
@@ -2618,7 +2618,7 @@ One record per reference edge (call, usage) emitted from chunk relations:
   - [ ] Implement `resolveRef({ fromChunk, targetName, kindHint, fileRelations, fileSet }): SymbolRefV1`
     - Bounded candidate collection + scoring (see caps below)
     - Import narrowing:
-      - If `importBindings` provides a binding for the target’s root identifier, resolve that module to a file.
+      - If `importBindings` provides a binding for the target's root identifier, resolve that module to a file.
       - Restrict candidate search to those files; then apply export filtering:
         - if imported name is known, prefer matching exports.
     - If exactly one best candidate above threshold ⇒ `status=resolved`
@@ -2628,7 +2628,7 @@ One record per reference edge (call, usage) emitted from chunk relations:
 **Caps / guardrails (must be implemented):**
 
 - `MAX_CANDIDATES_PER_REF = 25`
-- `MAX_CANDIDATES_GLOBAL_SCAN = 200` (if exceeded, downgrade to ambiguous with “too many” signal)
+- `MAX_CANDIDATES_GLOBAL_SCAN = 200` (if exceeded, downgrade to ambiguous with "too many" signal)
 - Deterministic sorting of candidates:
   - primary: score desc
   - secondary: `symbolKey` asc
@@ -2734,7 +2734,7 @@ These providers currently map results by `file::name`:
 
 - [ ] **Add `src/index/build/artifacts/writers/symbol-edges.js`**
   - [ ] Iterate chunks; for each callLinks/usageLinks edge emit edge record.
-  - [ ] Emit unresolved/ambiguous edges as well (they’re valuable for metrics and later resolution).
+  - [ ] Emit unresolved/ambiguous edges as well (they're valuable for metrics and later resolution).
 
 #### 9.5.2 Integrate into artifact build
 
@@ -2765,7 +2765,7 @@ These providers currently map results by `file::name`:
 #### 9.5.4 Tests for artifacts
 
 - [ ] Add `tests/artifacts/symbol-artifacts-smoke.test.js`
-  - Build a small in-memory “fake state” with 2 chunks and resolved/ambiguous links.
+  - Build a small in-memory "fake state" with 2 chunks and resolved/ambiguous links.
   - Run iterators and ensure JSONL output lines validate and include required keys.
 
 ---
@@ -2870,7 +2870,7 @@ Add tests/benchmarks (optional but recommended):
 ## Phase 9 exit criteria (must all be true)
 
 - [ ] No graph or cross-file linking code performs `Map.set()` keyed solely by `file::name` in a way that can silently overwrite distinct entities.
-- [ ] `metaV2.chunkUid` is present and non-empty for every code chunk (“fail closed”).
+- [ ] `metaV2.chunkUid` is present and non-empty for every code chunk ("fail closed").
 - [ ] `graph_relations.version === 2` and node ids are `chunkUid`.
 - [ ] Pipeline emits SymbolRef-based call/usage links; ambiguous/unresolved are preserved explicitly.
 - [ ] Symbol artifacts are written and validate successfully on the small fixture suite.
@@ -2878,9 +2878,9 @@ Add tests/benchmarks (optional but recommended):
 
 ---
 
-## Appendix A — Concrete file-by-file change list (for Codex)
+## Appendix A -- Concrete file-by-file change list (for Codex)
 
-This appendix is purely to reduce “search time” during implementation. Each file lists the exact intent.
+This appendix is purely to reduce "search time" during implementation. Each file lists the exact intent.
 
 ### A.1 New files to add
 
@@ -2907,25 +2907,25 @@ This appendix is purely to reduce “search time” during implementation. Each 
 
 ### A.2 Existing files to modify
 
-- `src/index/segments.js` — compute and propagate `segmentUid`
-- `src/index/build/file-processor.js` — compute `chunkUid`
-- `src/index/build/file-processor/assemble.js` — pass through chunkUid fields
-- `src/index/metadata-v2.js` — include identity + symbol identity
-- `src/lang/javascript/relations.js` — emit `importBindings`
-- `src/index/build/file-processor/relations.js` — include importBindings
-- `src/shared/artifact-schemas.js` — add schemas, extend file_relations
-- `src/shared/artifact-io.js` — required keys for new JSONL artifacts
-- `src/index/type-inference-crossfile/pipeline.js` — emit SymbolRef edges and avoid file::name joins
-- `src/index/tooling/{typescript,pyright,clangd,sourcekit}-provider.js` — key by chunkUid
-- `src/index/build/artifacts.js` — write symbol artifacts
-- `src/index/validate.js` — validate symbol artifacts (optional strict)
-- `src/index/build/graphs.js` — graph_relations v2 using chunkUid
-- `src/map/build-map.js` — join graph nodes to chunk meta via chunkUid
-- `tests/graph-chunk-id.js` — update
+- `src/index/segments.js` -- compute and propagate `segmentUid`
+- `src/index/build/file-processor.js` -- compute `chunkUid`
+- `src/index/build/file-processor/assemble.js` -- pass through chunkUid fields
+- `src/index/metadata-v2.js` -- include identity + symbol identity
+- `src/lang/javascript/relations.js` -- emit `importBindings`
+- `src/index/build/file-processor/relations.js` -- include importBindings
+- `src/shared/artifact-schemas.js` -- add schemas, extend file_relations
+- `src/shared/artifact-io.js` -- required keys for new JSONL artifacts
+- `src/index/type-inference-crossfile/pipeline.js` -- emit SymbolRef edges and avoid file::name joins
+- `src/index/tooling/{typescript,pyright,clangd,sourcekit}-provider.js` -- key by chunkUid
+- `src/index/build/artifacts.js` -- write symbol artifacts
+- `src/index/validate.js` -- validate symbol artifacts (optional strict)
+- `src/index/build/graphs.js` -- graph_relations v2 using chunkUid
+- `src/map/build-map.js` -- join graph nodes to chunk meta via chunkUid
+- `tests/graph-chunk-id.js` -- update
 
 ---
 
-## Appendix B — Metrics to report (recommended)
+## Appendix B -- Metrics to report (recommended)
 
 - `symbol_resolution.resolved_rate`
 - `symbol_resolution.ambiguous_rate`
@@ -2956,7 +2956,7 @@ In strict CI mode, optionally enforce:
   - src/index/build/file-processor/assemble.js:52-105
   - src/index/chunk-id.js:1-18
 - Gaps/conflicts:
-  - Resolved: docs/PHASE9_SPEC_IDENTITY_CONTRACTS.md now matches docs/spec-identity-contract.refined.md for chunkUid (span/pre/post hashes + virtualPath + segmentUid).
+  - Resolved: docs/phases/phase-9/identity-contracts.md now matches docs/specs/identity-contract.md for chunkUid (span/pre/post hashes + virtualPath + segmentUid).
   - Phase 8 spec updated to align; Phase 9 remains the implementation target.
 
 ### 9.2 Symbol identity (metaV2.symbol + SymbolRef)
@@ -3035,12 +3035,12 @@ In strict CI mode, optionally enforce:
   - src/index/build/graphs.js:45-68 (serializeGraph ordering)
 
 ### Associated specs reviewed (Phase 9)
-- docs/PHASE9_SPEC_IDENTITY_CONTRACTS.md
-- docs/PHASE9_SPEC_SYMBOL_ARTIFACTS_AND_PIPELINE.md
-- docs/PHASE9_SPEC_MIGRATION_AND_BACKCOMPAT.md
-- docs/spec-identity-contract.refined.md
-- docs/spec-symbol-identity-and-symbolref.refined.md
-- docs/spec-symbol-artifacts.refined.md
+- docs/phases/phase-9/identity-contracts.md
+- docs/phases/phase-9/symbol-artifacts-and-pipeline.md
+- docs/phases/phase-9/migration-and-backcompat.md
+- docs/specs/identity-contract.md
+- docs/specs/symbol-identity-and-symbolref.md
+- docs/specs/symbol-artifacts.md
 
 ## Phase 9 addendum: dependencies, ordering, artifacts, tests, edge cases
 
@@ -3212,7 +3212,7 @@ In strict CI mode, optionally enforce:
   - required node ids: chunkUid
   - legacyKey allowed for diagnostics only
 
-## Phase 10 — Interprocedural Risk Flows (taint summaries + propagation)
+## Phase 10 -- Interprocedural Risk Flows (taint summaries + propagation)
 
 ### Objective
 
@@ -3452,7 +3452,7 @@ Emit stable, bounded call-site evidence for the subset of call edges that partic
   - [ ] Implement `normalizeArgsSummary(args: string[])`:
     - [ ] keep first 5 args
     - [ ] collapse whitespace
-    - [ ] cap each arg to 80 chars with `…`
+    - [ ] cap each arg to 80 chars with `...`
 
 - [ ] **10.4.2 Resolve callDetails → callee chunkId**
   - [ ] For each chunk, build a local map `rawCalleeName -> resolved (file,target)` from `chunk.codeRelations.callLinks`.
@@ -3551,7 +3551,7 @@ Compute bounded interprocedural flows from source-bearing chunks to sink-bearing
   - [ ] After flow enumeration:
     - [ ] Build `edgesUsed` from emitted paths.
     - [ ] Generate call sites for edgesUsed (Phase 10.4).
-    - [ ] Fill each flow’s `callSiteIdsByStep` from call-site sampling results.
+    - [ ] Fill each flow's `callSiteIdsByStep` from call-site sampling results.
 
 - [ ] **10.5.7 Enforce flow record size limit**
   - [ ] Before writing a flow row:
@@ -3608,7 +3608,7 @@ Write the new artifacts as first-class pieces (with optional sharding + compress
       - [ ] `runtime.riskInterproceduralEffectiveEmit === "jsonl"`
       - [ ] respect `summaryOnlyEffective` for which artifacts are emitted
     - [ ] Always write `risk_interprocedural_stats.json` when enabled (even if emitArtifacts="none").
-  - [ ] Ensure artifacts are registered as “pieces” so they appear in `pieces/manifest.json`.
+  - [ ] Ensure artifacts are registered as "pieces" so they appear in `pieces/manifest.json`.
 
 - [ ] **10.6.3 Update index validator**
   - [ ] Extend `src/index/validate.js`:
@@ -3719,7 +3719,7 @@ Guarantee correctness, safety, and throughput characteristics via a complete tes
 
 ---
 
-# Appendix A — Risk Interprocedural Config Spec (v1 refined)
+# Appendix A -- Risk Interprocedural Config Spec (v1 refined)
 
 # Spec: `indexing.riskInterprocedural` configuration (v1.1 refined)
 
@@ -3745,12 +3745,12 @@ This configuration lives in the repo config object under:
 ```jsonc
 {
   "indexing": {
-    "riskInterprocedural": { /* … */ }
+    "riskInterprocedural": { /* ... */ }
   }
 }
 ```
 
-> Note: PairOfCleats currently validates `.pairofcleats.json` against `docs/config-schema.json`, which does not yet include `indexing.*`. If/when user-configurable exposure is desired, the schema MUST be expanded accordingly. The implementation MUST still accept the config when it is provided programmatically (tests, internal wiring, or future schema expansion).
+> Note: PairOfCleats currently validates `.pairofcleats.json` against `docs/config/schema.json`, which does not yet include `indexing.*`. If/when user-configurable exposure is desired, the schema MUST be expanded accordingly. The implementation MUST still accept the config when it is provided programmatically (tests, internal wiring, or future schema expansion).
 
 ## 3) Object shape and defaults
 
@@ -3798,7 +3798,7 @@ Interprocedural risk **requires** local risk signals (`src/index/risk.js`).
 
 Normative rules:
 1. If local risk analysis is disabled for the build (effective `riskAnalysisEnabled === false`), then `riskInterprocedural.enabled` MUST be treated as `false` regardless of config.
-2. Interprocedural risk MUST NOT change the local risk detector’s regex ruleset or caps, other than enabling cross-file linking (§4.2) and emitting additional artifacts.
+2. Interprocedural risk MUST NOT change the local risk detector's regex ruleset or caps, other than enabling cross-file linking (§4.2) and emitting additional artifacts.
 
 ### 4.2 Cross-file call linking requirement
 Interprocedural risk requires resolved call edges (`chunk.codeRelations.callLinks`).
@@ -3822,7 +3822,7 @@ Normative rule:
 * `"none"`:
   * No new `risk_*` artifacts are written.
   * The implementation MUST still attach the compact summary to `chunk.docmeta.risk.summary` (and therefore `metaV2` after rebuild).
-  * The implementation SHOULD still write the stats artifact (it is tiny and aids observability), unless explicitly disabled by higher-level “no artifacts” settings.
+  * The implementation SHOULD still write the stats artifact (it is tiny and aids observability), unless explicitly disabled by higher-level "no artifacts" settings.
 * `"jsonl"`:
   * Artifacts are written in JSONL form and MAY be automatically sharded (see the artifact specs).
   * Global artifact compression settings (if any) MUST apply consistently.
@@ -3840,13 +3840,13 @@ This mode prioritizes recall (may over-approximate).
 
 A call edge `(caller → callee)` is traversable for taint **only if** there exists at least one sampled call-site on that edge where **at least one argument** is considered tainted by either:
 
-1. Identifier-boundary matching against the caller’s current taint identifier set (tainted params + locally-tainted variables), **OR**
+1. Identifier-boundary matching against the caller's current taint identifier set (tainted params + locally-tainted variables), **OR**
 2. Matching any configured **source rule regex** from the same local risk ruleset used by the local detector (covers direct source expressions like `req.body.userId`).
 
 The implementation MUST:
 1. Track a bounded taint identifier set per traversal state.
 2. Use identifier-boundary matching (no naive substring matches).
-3. When traversing to the callee, derive the callee’s initial taint identifier set by mapping tainted argument positions to callee parameter names.
+3. When traversing to the callee, derive the callee's initial taint identifier set by mapping tainted argument positions to callee parameter names.
 
 Full details, bounds, and deterministic behavior are defined in the flows spec.
 
@@ -3870,7 +3870,7 @@ Minimum required ordering rules:
 * Sinks within a chunk processed in lexicographic order of `sinkRuleId`.
 
 ### 8.2 Time guard semantics (no partial nondeterministic output)
-`caps.maxMs` is a **fail-safe** for flow propagation only. It MUST NOT produce “first N flows” based on runtime speed.
+`caps.maxMs` is a **fail-safe** for flow propagation only. It MUST NOT produce "first N flows" based on runtime speed.
 
 Normative behavior:
 1. If the time budget is exceeded during propagation, the implementation MUST:
@@ -3889,9 +3889,9 @@ When `enabled === true`, the build MUST record:
 * whether a timeout occurred (`status="timed_out"`)
 
 The recommended mechanism is the dedicated stats artifact defined in:
-* `SPEC_risk_interprocedural_stats_json_v1_refined.md`
+* `docs/specs/risk-interprocedural-stats.md`
 
-# Appendix B — risk_summaries.jsonl Spec (v1 refined)
+# Appendix B -- risk_summaries.jsonl Spec (v1 refined)
 
 # Spec: `risk_summaries` artifact (JSONL) (v1.1 refined)
 
@@ -3907,7 +3907,7 @@ Provide a **per-symbol** risk/taint summary that is:
 * suitable as input to interprocedural propagation
 * small enough to avoid bloating `chunk_meta`
 
-This artifact is intentionally “summary-level”: it does **not** attempt to encode full dataflow graphs.
+This artifact is intentionally "summary-level": it does **not** attempt to encode full dataflow graphs.
 
 ## 2) Artifact naming and sharding
 The logical artifact name is `risk_summaries`.
@@ -3922,14 +3922,14 @@ An implementation MUST emit either:
 * `risk_summaries.parts/`
   * `risk_summaries.part00000.jsonl` (or `.jsonl.gz` / `.jsonl.zst`)
   * `risk_summaries.part00001.jsonl`
-  * …
+  * ...
 
 The meta sidecar MUST follow the same shape used by existing sharded JSONL artifacts (e.g., `chunk_meta.meta.json`, `graph_relations.meta.json`):
 * `format: "jsonl"`
 * `shardSize` (bytes)
 * `partsDir`, `partPrefix`, `parts[]`, `counts[]`
 * `totalEntries`, `totalBytes`
-* `schemaVersion` (for the rows, i.e., this spec’s versioning)
+* `schemaVersion` (for the rows, i.e., this spec's versioning)
 
 ## 3) Identity model
 Each row is keyed by `chunkId`:
@@ -3938,7 +3938,7 @@ Each row is keyed by `chunkId`:
 
 Normative constraints:
 * There MUST be at most one row per `chunkId`.
-* `file` MUST be a repo-relative POSIX path (forward slashes), matching the chunk’s `file`.
+* `file` MUST be a repo-relative POSIX path (forward slashes), matching the chunk's `file`.
 
 ## 4) File format requirements
 * Encoding: UTF-8
@@ -4095,7 +4095,7 @@ For each signal list (`sources`, `sinks`, `sanitizers`):
 1. Sort by `(ruleId, minEvidenceLocation)` where `minEvidenceLocation` is the earliest `(file,line,column)`.
 2. Take at most `maxSignalsPerKind` (default 50).
 
-For each signal’s evidence list:
+For each signal's evidence list:
 1. Sort by `(file,line,column)`.
 2. Take at most `evidencePerSignal` (default 3).
 
@@ -4145,7 +4145,7 @@ The build validator SHOULD check:
 * evidence `line` and `column` are positive integers
 * `snippetHash` matches `^sha1:[0-9a-f]{40}$` when not null
 
-# Appendix C — risk_flows.jsonl + call_sites.jsonl Spec (v1 refined)
+# Appendix C -- risk_flows.jsonl + call_sites.jsonl Spec (v1 refined)
 
 # Spec: `call_sites` and `risk_flows` artifacts (JSONL) (v1.1 refined)
 
@@ -4171,7 +4171,7 @@ Logical artifact names:
 
 Each MUST be emitted in either single-file or sharded form as described in the summaries spec (§2):
 * `<name>.jsonl` (or compressed)
-* or `<name>.meta.json` + `<name>.parts/…`
+* or `<name>.meta.json` + `<name>.parts/...`
 
 ## 3) Common format requirements
 * UTF-8
@@ -4231,7 +4231,7 @@ Rules:
 * Each argument string MUST be:
   * trimmed
   * whitespace-collapsed (`\s+ -> " "`)
-  * capped at **80** characters (truncate with `…`)
+  * capped at **80** characters (truncate with `...`)
 
 If arguments are unavailable, `argsSummary` MUST be an empty array.
 
@@ -4346,7 +4346,7 @@ The propagation engine operates on:
 * local risk signals (sources/sinks/sanitizers) from summaries
 * config (`caps`, `strictness`, `sanitizerPolicy`)
 
-### 7.2 What is a “source root”
+### 7.2 What is a "source root"
 A source root is a pair:
 * `(sourceChunkId, sourceRuleId)` for each source signal in a chunk.
 
@@ -4363,7 +4363,7 @@ When traversal reaches a chunk that has one or more sink signals:
 Sinks in chunks that are not reachable under the strictness mode MUST NOT be emitted.
 
 ### 7.4 Sanitizer barriers
-Define a chunk as “sanitizer-bearing” if its summary contains at least one sanitizer signal.
+Define a chunk as "sanitizer-bearing" if its summary contains at least one sanitizer signal.
 
 If `sanitizerPolicy="terminate"`:
 * Traversal MUST stop expanding outgoing edges from sanitizer-bearing chunks.
@@ -4380,10 +4380,10 @@ During flow enumeration the implementation MUST enforce:
 * `maxTotalFlows`
 
 Definitions:
-* A “pair” for `maxPathsPerPair` is:
+* A "pair" for `maxPathsPerPair` is:
   `(sourceChunkId, sourceRuleId, sinkChunkId, sinkRuleId)`
 
-A “distinct path” is:
+A "distinct path" is:
 * `path.chunkIds.join(">")` (exact match)
 
 Enforcement MUST be deterministic:
@@ -4425,9 +4425,9 @@ The set MUST be:
 Canonical key:
 * `taintSetKey = identifiers.join(",")`
 
-#### 8.2.2 When an argument is “tainted”
+#### 8.2.2 When an argument is "tainted"
 Given a call-site `argsSummary[]`, an argument is considered tainted if either:
-1. It identifier-matches any identifier in the caller’s taint set (identifier-boundary match), OR
+1. It identifier-matches any identifier in the caller's taint set (identifier-boundary match), OR
 2. It matches any configured **source rule regex** from the local risk ruleset (the same rules used by the local detector).
 
 (2) ensures direct source expressions like `req.body.userId` can be recognized even without local assignment hints.
@@ -4437,7 +4437,7 @@ For a resolved edge `(caller → callee)`, consider its sampled call sites.
 
 The edge is traversable if **any** sampled call site yields at least one tainted argument under §8.2.2.
 
-When traversing, the callee’s next taint set MUST be derived as:
+When traversing, the callee's next taint set MUST be derived as:
 1. Obtain the callee parameter names (from `callLink.paramNames` if available; else from `calleeChunk.docmeta.params`; else empty).
 2. For each sampled call site:
    * For each argument position `i`, if `argsSummary[i]` is tainted, then taint the callee param name at `i` (if present).
@@ -4496,7 +4496,7 @@ The validator SHOULD check:
 * Every referenced `callSiteId` exists (referential integrity)
 * line/col are positive integers
 
-# Appendix D — risk_interprocedural_stats.json Spec (v1 refined)
+# Appendix D -- risk_interprocedural_stats.json Spec (v1 refined)
 
 # Spec: `risk_interprocedural_stats` artifact (JSON) (v1.1 refined)
 
@@ -4513,7 +4513,7 @@ Provide a single, small, human-readable summary of the interprocedural risk pipe
 * counts of emitted rows
 * pointers to emitted artifacts (single or sharded)
 
-This avoids “hidden failure” where flows are missing but users cannot tell why.
+This avoids "hidden failure" where flows are missing but users cannot tell why.
 
 ## 2) Artifact naming
 Logical artifact name: `risk_interprocedural_stats`
@@ -4625,12 +4625,12 @@ The validator SHOULD check:
 * required fields exist for each `status`
 * if `status="timed_out"`, then `flowsEmitted===0` and `callSitesEmitted===0`
 
-# Appendix E — Phase 10 Refined Implementation Notes (source)
+# Appendix E -- Phase 10 Refined Implementation Notes (source)
 
-# Phase 10 (Interprocedural Risk Flows) — Refined Implementation Plan (PairOfCleats)
+# Phase 10 (Interprocedural Risk Flows) -- Refined Implementation Plan (PairOfCleats)
 
 ## 1) Purpose
-Phase 10 extends PairOfCleats’ current **intra-chunk** risk detection to **interprocedural** (cross-function) risk paths by:
+Phase 10 extends PairOfCleats' current **intra-chunk** risk detection to **interprocedural** (cross-function) risk paths by:
 
 1. Producing a **per-symbol taint summary**.
 2. Propagating taint through the **resolved call graph** to emit **explainable risk paths**.
@@ -4657,19 +4657,19 @@ This plan refines and de-ambiguates the Phase 10 roadmap items while aligning th
 
 1. **Determinism**: same repo+config must produce identical risk artifacts (ordering, truncation, sampling).
 2. **Bounded output**: every new artifact must have strict caps and per-record byte-size limits.
-3. **Minimal coupling**: interprocedural risk flows must not “accidentally” enable type inference or tooling.
+3. **Minimal coupling**: interprocedural risk flows must not "accidentally" enable type inference or tooling.
 4. **Joinability**: all artifacts must share stable IDs to enable joins without heuristics.
 
 ## 4) Key decisions (resolve ambiguity)
 
-### D1 — Canonical identity for symbols and edges
+### D1 -- Canonical identity for symbols and edges
 **Decision:** Use `chunk.metaV2.chunkId` as the canonical symbol identifier.
 
 *Why this is best:* `chunkId` already encodes `(file, segmentId, range, kind, name)` via `src/index/chunk-id.js`, avoiding ambiguity when `(file,name)` collides.
 
 **Edge identity:** `edgeId = sha1("${callerChunkId}->${calleeChunkId}")`.
 
-### D2 — Storage strategy
+### D2 -- Storage strategy
 **Decision:** Store *compact* summary fields inline on each chunk **and** emit full JSONL artifacts.
 
 * Inline: `chunk.docmeta.risk.summary` and `chunk.metaV2.risk.summary` (compact + capped).
@@ -4677,12 +4677,12 @@ This plan refines and de-ambiguates the Phase 10 roadmap items while aligning th
 
 *Why this is best:* inline summary supports fast retrieval and ranking without reading large JSONL; JSONL supports validation, bulk analysis, and explainability.
 
-### D3 — Call-site evidence strategy
+### D3 -- Call-site evidence strategy
 **Decision:** Preserve multiple call-sites per edge in a **separate** `call_sites.jsonl` artifact and reference them by `callSiteId` from flows.
 
 *Why this is best:* avoids `chunk_meta` bloat; keeps call-site samples bounded and reusable across multiple flows.
 
-### D4 — Capping and time budgets
+### D4 -- Capping and time budgets
 **Decision:** Do **not** allow time budgets to create partially-different outputs.
 
 * Use structural caps (`maxDepth`, `maxPathsPerSourceSink`, `maxTotalFlows`, `maxCallSitesPerEdge`).
@@ -4692,17 +4692,17 @@ This plan refines and de-ambiguates the Phase 10 roadmap items while aligning th
 
 *Why this is best:* preserves strict determinism.
 
-### D5 — Strictness modes
+### D5 -- Strictness modes
 **Decision:** Implement strictness as:
 
 * `conservative` (default): summary-level propagation; no arg->param taint mapping.
 * `argAware` (opt-in): only enabled if parameter contracts exist; supports arg->param mapping.
 
-*Why this is best:* incremental correctness; avoids claiming precision we can’t support.
+*Why this is best:* incremental correctness; avoids claiming precision we can't support.
 
 ## 5) Implementation plan (step-by-step)
 
-### Step 1 — Add config surface + runtime flags
+### Step 1 -- Add config surface + runtime flags
 **Files:**
 * `src/index/build/runtime/runtime.js`
 * `src/index/build/indexer/pipeline.js` (feature metrics registration)
@@ -4739,9 +4739,9 @@ const crossFileEnabled = runtime.typeInferenceCrossFileEnabled ||
   interprocEnabled;
 ```
 
-…but keep `enableTypeInference` and `enableRiskCorrelation` false unless explicitly enabled.
+...but keep `enableTypeInference` and `enableRiskCorrelation` false unless explicitly enabled.
 
-### Step 2 — Fix parameter/return contracts (prerequisite for summaries)
+### Step 2 -- Fix parameter/return contracts (prerequisite for summaries)
 **Files:**
 * `src/index/metadata-v2.js`
 * `src/index/type-inference-crossfile/extract.js`
@@ -4756,13 +4756,13 @@ const crossFileEnabled = runtime.typeInferenceCrossFileEnabled ||
 **Recommended approach (JS):**
 * Derive signature params from AST in `buildJsChunks(...)` and attach to chunk meta (e.g., `meta.sigParams`).
 * Merge that into `docmeta.params` when doc comments are missing.
-* For destructured params: use `arg0`, `arg1`, … and store `bindings` separately.
+* For destructured params: use `arg0`, `arg1`, ... and store `bindings` separately.
 
 **Return types:**
 * Treat `docmeta.returnType` (string) as canonical.
 * Treat `docmeta.returns` boolean as **documentation presence only** and ignore it for type/risk propagation.
 
-### Step 3 — Implement RiskSummary builder
+### Step 3 -- Implement RiskSummary builder
 **New file:** `src/index/risk-flows/summaries.js`
 
 **Input:** `chunks` (post file-processing, pre/post cross-file inference is fine)
@@ -4779,7 +4779,7 @@ const crossFileEnabled = runtime.typeInferenceCrossFileEnabled ||
 * derive `returnsTainted`:
   * `true` if any local flow indicates source reaches a return pattern (if implemented), else `null`.
 
-### Step 4 — Add call-site payload fields (JS + Python)
+### Step 4 -- Add call-site payload fields (JS + Python)
 **Files:**
 * `src/lang/javascript/relations.js`
 * `src/lang/python/relations.js`
@@ -4792,7 +4792,7 @@ const crossFileEnabled = runtime.typeInferenceCrossFileEnabled ||
 
 **Important:** call-site extraction must be stable and deterministic.
 
-### Step 5 — Preserve call-site samples per call edge
+### Step 5 -- Preserve call-site samples per call edge
 **File:** `src/index/type-inference-crossfile/pipeline.js`
 
 **Change:** keep `callLinks` deduped (for graph size), but also build `callSitesByEdge`:
@@ -4808,9 +4808,9 @@ chunk.codeRelations.callSiteRefs = {
 };
 ```
 
-…and store `call_sites.jsonl` rows globally.
+...and store `call_sites.jsonl` rows globally.
 
-### Step 6 — Implement propagation engine
+### Step 6 -- Implement propagation engine
 **New file:** `src/index/risk-flows/propagate.js`
 
 **Inputs:**
@@ -4832,7 +4832,7 @@ Store:
 * `edgeCallSiteIdsByStep[]` (optional)
 * `confidence` with deterministic decay.
 
-### Step 7 — Integrate into build pipeline
+### Step 7 -- Integrate into build pipeline
 **File:** `src/index/build/indexer/steps/relations.js`
 
 Insert after `applyCrossFileInference(...)` and before final write:
@@ -4841,7 +4841,7 @@ Insert after `applyCrossFileInference(...)` and before final write:
 2. if `!summaryOnly`: `propagateRiskFlows(...)`
 3. rebuild `metaV2` for all chunks (finalization)
 
-### Step 8 — Artifact writing + validation
+### Step 8 -- Artifact writing + validation
 **Files:**
 * `src/index/build/artifacts.js`
 * `src/index/build/artifacts/writers/*` (new)
@@ -4857,7 +4857,7 @@ Add validation:
 * schema checks
 * referential integrity: every `callSiteId` referenced by `risk_flows` must exist
 
-### Step 9 — Retrieval/UX surfacing
+### Step 9 -- Retrieval/UX surfacing
 **Files:**
 * `src/retrieval/output/format.js`
 * (as needed) retrieval index loaders
@@ -4935,7 +4935,7 @@ Add CLI/display options:
   - src/shared/artifact-io/jsonl.js (required keys for call_sites)
   - src/lang/javascript/relations.js + src/lang/python/ast-script.js (location fields)
 - Gaps/conflicts:
-  - Phase 6 call_sites contract vs SPEC_risk_flows_and_call_sites_jsonl_v1_refined.md field names; reconcile now to avoid migration.
+  - Phase 6 call_sites contract vs docs/specs/risk-flows-and-call-sites.md field names; reconcile now to avoid migration.
 
 ### 10.5 Propagation engine + risk_flows.jsonl
 - Files to change/create:
@@ -4960,7 +4960,7 @@ Add CLI/display options:
 - Files to change/create:
   - src/retrieval/output/format.js (risk flows display at ~322-333)
   - src/retrieval/output/filters.js (riskFlow filtering at ~665-669)
-  - docs/config-schema.json + docs/ (add indexing.riskInterprocedural schema + docs)
+  - docs/config/schema.json + docs/ (add indexing.riskInterprocedural schema + docs)
 - Call sites/line refs:
   - src/retrieval/output/format.js:322-333
   - src/retrieval/output/filters.js:665-669
@@ -4971,12 +4971,12 @@ Add CLI/display options:
   - tests/relations/* (call_sites + risk flows integration)
 
 ### Associated specs reviewed (Phase 10)
-- docs/PH10_refined_implementation_plan.md
-- docs/SPEC_risk_interprocedural_config_v1_refined.md
-- docs/SPEC_risk_summaries_jsonl_v1_refined.md
-- docs/SPEC_risk_flows_and_call_sites_jsonl_v1_refined.md
-- docs/SPEC_risk_interprocedural_stats_json_v1_refined.md
-- docs/spec_phase4_safe_regex_hardening.md (determinism expectations)
+- docs/phases/phase-10/implementation-plan.md
+- docs/specs/risk-interprocedural-config.md
+- docs/specs/risk-summaries.md
+- docs/specs/risk-flows-and-call-sites.md
+- docs/specs/risk-interprocedural-stats.md
+- docs/phases/phase-4/safe-regex-hardening.md (determinism expectations)
 
 ## Phase 10 addendum: dependencies, ordering, artifacts, tests, edge cases
 
@@ -5120,4 +5120,7 @@ Add CLI/display options:
 - risk_interprocedural_stats.json
   - required keys: schemaVersion, generatedAt, status, effectiveConfig, counts, capsHit, timingsMs
   - optional keys: reason, artifacts, droppedRecords
+
+
+
 

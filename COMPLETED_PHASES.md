@@ -12,11 +12,11 @@ Completed phase snapshots are archived here after being removed from GIGAROADMAP
 
 
 
-## Phase 0 — CI, Test Harness, and Developer Workflow Baseline [x]
+## Phase 0 -- CI, Test Harness, and Developer Workflow Baseline [x]
 
 ### Objective
 
-Make the project **safe to change** and **fast to iterate**: CI must be deterministic and green; there must be a single “run what CI runs” entrypoint; the test runner must be reliable (timeouts, skips, logs); and we must stop further tool/script drift via explicit policy gates. This phase also fixes or pulls forward any **sweep bugs** directly impacting the CI/harness/tooling surface.
+Make the project **safe to change** and **fast to iterate**: CI must be deterministic and green; there must be a single "run what CI runs" entrypoint; the test runner must be reliable (timeouts, skips, logs); and we must stop further tool/script drift via explicit policy gates. This phase also fixes or pulls forward any **sweep bugs** directly impacting the CI/harness/tooling surface.
 
 ### Exit criteria
 
@@ -55,7 +55,7 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
   - [x] Add `tools/ci/run-suite.js` that orchestrates the PR suite (and later nightly)
     - [x] Supports `--mode pr|nightly`
     - [x] Supports `--dry-run` (prints planned steps without executing) for fast validation
-    - [x] Normalizes core CI env (suite runner responsibility, not every leaf test’s):
+    - [x] Normalizes core CI env (suite runner responsibility, not every leaf test's):
       - [x] `PAIROFCLEATS_TESTING=1`
       - [x] `PAIROFCLEATS_EMBEDDINGS=stub` (unless explicitly overridden)
       - [x] `PAIROFCLEATS_WORKER_POOL=off` (reduce concurrency flake)
@@ -120,7 +120,7 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
     - [x] Include additional lanes and/or capability variations (example):
       - [x] `--lane storage` when sqlite/LMDB capabilities are present
       - [x] `--lane perf` in nightly only
-  - [x] Keep nightly “long” work capability-gated (do not make PRs depend on flaky optional stacks)
+  - [x] Keep nightly "long" work capability-gated (do not make PRs depend on flaky optional stacks)
 
 #### Tests / Verification
 
@@ -131,7 +131,7 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
 
 ### 0.4 Capability gate + optional dependency policy (CI-safe optionality)
 
-> This phase integrates relevant sweep findings when they touch the CI/test/tooling surface (notably: optional dependency drift and “fail vs skip” ambiguity).
+> This phase integrates relevant sweep findings when they touch the CI/test/tooling surface (notably: optional dependency drift and "fail vs skip" ambiguity).
 
 - [x] Define the capability policy (document + enforce)
   - [x] Decide the required baseline for PR (explicit, not implicit):
@@ -145,11 +145,11 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
 - [x] Implement `tools/ci/capability-gate.js`
   - [x] Produces a machine-readable report (JSON) and a human-readable summary
   - [x] Must be **non-crashy**:
-    - [x] Unexpected probe errors are reported as “capability unknown” with details, not as an unhandled exception
+    - [x] Unexpected probe errors are reported as "capability unknown" with details, not as an unhandled exception
   - [x] Writes to a stable path for CI artifact upload (e.g. `.diagnostics/capabilities.json`)
   - [x] Probes capabilities using (and extending if needed):
     - [x] `src/shared/capabilities.js` (module availability)
-    - [x] Targeted runtime probes where “require() success” is insufficient (e.g. sqlite open, basic ANN init)
+    - [x] Targeted runtime probes where "require() success" is insufficient (e.g. sqlite open, basic ANN init)
   - [x] Exposes CLI controls:
     - [x] `--mode pr|nightly`
     - [x] `--require <capability>` (repeatable)
@@ -159,7 +159,7 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
 - [x] Add a shared test helper for optional capability gating
   - [x] Add `tests/helpers/require-or-skip.js` (or similar)
     - [x] `requireOrSkip({ capability, reason, requiredInCi })`
-    - [x] Uses the runner’s skip semantics (see 0.5)
+    - [x] Uses the runner's skip semantics (see 0.5)
 
 #### Tests / Verification
 
@@ -176,10 +176,10 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
 > Integrate sweep items for files touched here, including: tests assuming `process.cwd()` and reliable runner semantics.
 
 - [x] Implement explicit skip semantics
-  - [x] Standardize on an exit code for “skipped” (recommended: `77`)
+  - [x] Standardize on an exit code for "skipped" (recommended: `77`)
   - [x] Update `tests/run.js`:
     - [x] Treat exit code `77` as `status: 'skipped'`
-    - [x] Capture a skip reason (from first line of stdout/stderr if present; otherwise “skipped”)
+    - [x] Capture a skip reason (from first line of stdout/stderr if present; otherwise "skipped")
     - [x] Include skipped tests in human and `--json` summaries
   - [x] Add `tests/helpers/skip.js`
     - [x] `skip(reason)` → prints reason and exits with the skip code
@@ -203,7 +203,7 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
   - [x] Add `tools/test_times/report.js` (or similar) to summarize timings across runs
 
 - [x] Close runner/documentation drift
-  - [x] Update `docs/TEST_RUNNER_INTERFACE.md` to include:
+  - [x] Update `docs/testing/test-runner-interface.md` to include:
     - [x] skip semantics
     - [x] timeout escalation behavior
     - [x] log runId directory behavior
@@ -248,7 +248,7 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
       - `search-rrf-test`
       - `search-topn-filters-test`
       - `search-determinism-test`
-    - [x] For tests that exist only as `tests/*.js` (no package script), do **not** treat them as “script coverage” targets
+    - [x] For tests that exist only as `tests/*.js` (no package script), do **not** treat them as "script coverage" targets
   - [x] Add a wiring validator:
     - [x] Validate all action `covers` exist in loaded `package.json` scripts
     - [x] Fail fast with an actionable error listing the unknown names
@@ -266,7 +266,7 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
   - [x] Loads package scripts and action definitions
   - [x] Asserts `unknownCovers` is empty (real repo, not toy state)
   - Fix attempt 1: filter `covers`/`coversTierB` by known package scripts during action build.
-- [x] Update/extend `tests/script-coverage-harness.js` to include a “real wiring” assertion (not just toy coverage state)
+- [x] Update/extend `tests/script-coverage-harness.js` to include a "real wiring" assertion (not just toy coverage state)
   - Fix attempt 1: pass package script names into action builder for wiring assertion.
 - [x] Verification task: run `node tests/script-coverage.js` locally from both repo root and from `cwd=tests/`
 
@@ -274,7 +274,7 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
 
 ### 0.7 Establish script surface policy and add drift gates
 
-- [x] Define the “blessed command surface”
+- [x] Define the "blessed command surface"
   - [x] Set explicit targets (policy goal, not immediate enforcement):
     - [x] Target ≤12 blessed npm scripts (long-term)
     - [x] Hard cap ≤20 blessed npm scripts during the migration
@@ -293,7 +293,7 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
     - category (test/build/bench/dev/admin)
     - CI allowed (yes/no)
     - intended replacement (if any) / dispatcher route (if any)
-  - [x] Emit a human-readable summary (Markdown) to `docs/` (or update `docs/commands.md`)
+  - [x] Emit a human-readable summary (Markdown) to `docs/` (or update `docs/guides/commands.md`)
 
 - [x] Add policy gates in tests
   - [x] Add `tests/policy/script-surface-policy.test.js`:
@@ -345,7 +345,7 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
 
 ### 0.9 Establish a determinism regression baseline corpus (safety net)
 
-- [x] Create a small “baseline repo” fixture under `tests/fixtures/`
+- [x] Create a small "baseline repo" fixture under `tests/fixtures/`
   - [x] Include file types that cover known tricky paths:
     - `.ts`, `.tsx`
     - `.md` with fenced code (including `tsx`/`jsx` fences)
@@ -394,12 +394,12 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
 
 ---
 
-### 0.11 Create the implementation tracking board and “phase-0” fixture corpus doc
+### 0.11 Create the implementation tracking board and "phase-0" fixture corpus doc
 
 - [x] Create a lightweight tracking file under `docs/` (or root) that lists:
   - [x] Phase 0 work items with PR links and status
   - [x] Links to determinism fixtures and regression tests
-  - [x] A “definition of done” for the Phase 0 gates
+  - [x] A "definition of done" for the Phase 0 gates
 
 #### Tests / Verification
 
@@ -407,7 +407,7 @@ Make the project **safe to change** and **fast to iterate**: CI must be determin
 
 ---
 
-## Phase 2 — Contracts and Policy Kernel (Artifact Surface, Schemas, Compatibility) [x]
+## Phase 2 -- Contracts and Policy Kernel (Artifact Surface, Schemas, Compatibility) [x]
 
 ### Objective
 
@@ -417,11 +417,11 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
 
 ### Phase 2.1 Public artifact surface spec and SemVer policy become canonical
 
-- [x] Publish a single canonical “Public Artifact Surface” spec and treat it as the source of truth for what is stable/public
+- [x] Publish a single canonical "Public Artifact Surface" spec and treat it as the source of truth for what is stable/public
   - Files:
     - `docs/contracts/public-artifact-surface.md` (new; canonical)
-    - Update/merge/supersede `docs/artifact-contract.md` as needed (avoid duplicated, drifting contracts)
-    - Link from `README.md` and `docs/commands.md` and ensure `--help` points at the canonical doc
+    - Update/merge/supersede `docs/contracts/artifact-contract.md` as needed (avoid duplicated, drifting contracts)
+    - Link from `README.md` and `docs/guides/commands.md` and ensure `--help` points at the canonical doc
   - Include (at minimum) explicit contracts for:
     - `builds/current.json` (bundle pointer + mode map)
     - `index_state.json` (capabilities + config identity)
@@ -441,8 +441,8 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
     - Readers must support N-1 major for `artifactSurfaceVersion` and key artifact `schemaVersion`s
     - Writers emit only the current major
   - Fail-closed requirement:
-    - Unknown major => hard error in strict mode (no “best effort” guesses)
-- [x] Define and document “reserved / invariant fields” and “extension policy” for public artifacts
+    - Unknown major => hard error in strict mode (no "best effort" guesses)
+- [x] Define and document "reserved / invariant fields" and "extension policy" for public artifacts
   - Reserved fields (examples; must be enumerated in the spec):
     - `artifactSurfaceVersion`, `schemaVersion`, `repoId`, `buildId`, `compatibilityKey`, `generatedAt`
     - per-record invariants like `file` (repo-relative normalized path) and stable identifiers for records
@@ -475,7 +475,7 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
   - Files:
     - `src/shared/artifact-io.js`
 
-- [x] Add (or formalize) a single “artifact presence/detection” helper that reports artifact availability and format without hardcoded filenames
+- [x] Add (or formalize) a single "artifact presence/detection" helper that reports artifact availability and format without hardcoded filenames
   - Options:
     - extend `src/shared/artifact-io.js`, or
     - create `src/shared/index-artifacts.js` that wraps artifact-io with presence reporting
@@ -488,7 +488,7 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
   - Tools in scope for this phase (minimum):
     - `tools/report-artifacts.js`
     - `tools/assemble-pieces.js`
-    - any test/tool code that reads `chunk_meta.json` directly for “presence”
+    - any test/tool code that reads `chunk_meta.json` directly for "presence"
 - [x] Define strict vs non-strict behavior at the API boundary (artifact-io)
   - Strict:
     - manifest required
@@ -534,7 +534,7 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
   - Current risk:
     - `writeJsonLinesSharded()` uses `JSON.stringify(item)` which can serialize TypedArrays incorrectly
   - Required fix:
-    - route line serialization through the project’s “typed-array safe” JSON writer (or equivalent normalization)
+    - route line serialization through the project's "typed-array safe" JSON writer (or equivalent normalization)
   - Files:
     - `src/shared/json-stream.js`
 
@@ -579,7 +579,7 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
     - top-level objects (`pieces/manifest.json`, `index_state.json`, `builds/current.json`, sharded meta sidecars) should not silently accept arbitrary fields unless explicitly allowed by extension policy
 
   - Where additional properties are required for forward compatibility:
-    - enforce extension namespace rules rather than “anything goes”
+    - enforce extension namespace rules rather than "anything goes"
 
 - [x] Make config schema validation robust even when `schema.properties` is missing
   - Current bug:
@@ -630,7 +630,7 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
       - normalized separators
       - no duplicate `path` entries
     - validate JSONL required keys per artifact type and add regression tests (even if currently aligned)
-    - reject unknown artifact schema names (no “ok by default” in strict)
+    - reject unknown artifact schema names (no "ok by default" in strict)
   - Files:
     - `src/index/validate.js`
     - `src/shared/artifact-io.js`
@@ -662,7 +662,7 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
 
 ### Phase 2.6 Safe promotion barrier + current.json schema and path safety
 
-- [x] Make promotion conditional on passing strict validation (no “promote broken builds”)
+- [x] Make promotion conditional on passing strict validation (no "promote broken builds")
   - Add a mandatory gate in the build pipeline:
     - after artifacts are written
     - before `promoteBuild()` updates `builds/current.json`
@@ -682,9 +682,9 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
     - `tools/dict-utils.js` (e.g., `resolveIndexRoot`, `getCurrentBuildInfo`)
 
 - [x] Disambiguate `buildRoots` semantics in current.json
-  - If the intent is “per mode”:
+  - If the intent is "per mode":
     - keep `buildRootsByMode` only
-  - If the intent is also “by stage”:
+  - If the intent is also "by stage":
     - add a separate field (`buildRootsByStage`) and make both explicit
   - Ensure the schema + validator enforce the chosen structure
 
@@ -701,7 +701,7 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
 ### Phase 2.7 Index compatibilityKey gate + cache signature parity for sharded chunk_meta
 
 - [x] Introduce `compatibilityKey` per the compatibility-gate spec (fail-closed on mismatch)
-  - `compatibilityKey` must be computed from “hard compatibility fields” (examples; finalize in spec):
+  - `compatibilityKey` must be computed from "hard compatibility fields" (examples; finalize in spec):
     - `artifactSurfaceVersion` major
     - tool version
     - artifact schema hash
@@ -747,7 +747,7 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
   - presence of meta sidecars and manifest inventory correctness
 - [x] Add a contract fixture suite that runs:
   - build => validate (strict) => load via artifact-io => basic retrieval smoke (where applicable)
-  - and asserts that “public surface invariants” hold for every fixture
+  - and asserts that "public surface invariants" hold for every fixture
 - [x] Add a loader matrix test that proves consumers are resilient to supported artifact encodings
   - Example: `chunk_meta` load parity across json/jsonl/sharded
 - [x] Wire strict validation into CI as a required gate for fixture builds
@@ -765,11 +765,11 @@ Establish a single, versioned, fail-closed contract layer for the **public artif
 ---
 
 
-## Phase 1 — P0 Correctness Hotfixes (Shared Primitives + Indexer Core) [@]
+## Phase 1 -- P0 Correctness Hotfixes (Shared Primitives + Indexer Core) [@]
 
 ### Objective
 
-Eliminate known “silent correctness” failures and fragile invariants in the core index build pipeline, focusing on concurrency/error propagation, postings construction, embedding handling, import scanning, and progress/logging. The intent is to make incorrect outputs fail fast (or degrade in a clearly documented, test-covered way) rather than silently producing partial or misleading indexes.
+Eliminate known "silent correctness" failures and fragile invariants in the core index build pipeline, focusing on concurrency/error propagation, postings construction, embedding handling, import scanning, and progress/logging. The intent is to make incorrect outputs fail fast (or degrade in a clearly documented, test-covered way) rather than silently producing partial or misleading indexes.
 
 ### Current blockers (2026-01-24)
 
@@ -784,15 +784,15 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
 - **Files touched:**
   - `src/shared/concurrency.js`
 
-- [x] **Fix `runWithQueue()` to never “succeed” when worker tasks reject**
-  - [x] Separate _in-flight backpressure tracking_ from _final completion tracking_ (avoid “removing from `pending` then awaiting `pending`” patterns that can drop rejections).
+- [x] **Fix `runWithQueue()` to never "succeed" when worker tasks reject**
+  - [x] Separate _in-flight backpressure tracking_ from _final completion tracking_ (avoid "removing from `pending` then awaiting `pending`" patterns that can drop rejections).
   - [x] Ensure every enqueued task has an attached rejection handler immediately (avoid unhandled-rejection windows while waiting to `await` later).
   - [x] Await completion in a way that guarantees: if any worker rejects, `runWithQueue()` rejects (no silent pass).
 - [x] **Make backpressure logic robust to worker rejections**
   - [x] Replace `Promise.race(pending)` usage with a variant that unblocks on completion **regardless of fulfill/reject**, without throwing mid-scheduling.
   - [x] Decide and document semantics explicitly:
     - Default behavior: **fail-fast scheduling** (stop enqueueing new items after first observed failure),
-    - But still **drain already-enqueued tasks to a settled state** before returning error (avoid “background work continues after caller thinks it failed”).
+    - But still **drain already-enqueued tasks to a settled state** before returning error (avoid "background work continues after caller thinks it failed").
   - [x] Ensure `runWithConcurrency()` inherits the same semantics via `runWithQueue()`.
 - [x] **Accept iterables, not just arrays**
   - [x] Allow `items` to be any iterable (`Array`, `Set`, generator), by normalizing once at the start (`Array.from(...)`) and using that stable snapshot for `results` allocation and deterministic ordering.
@@ -803,10 +803,10 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
 #### Tests / Verification
 
 - [x] Add `tests/concurrency-run-with-queue-error-propagation.js`
-  - [x] A rejecting worker causes `runWithQueue()` to reject reliably (no “resolved success”).
+  - [x] A rejecting worker causes `runWithQueue()` to reject reliably (no "resolved success").
   - [x] Ensure no unhandled-rejection warnings are emitted under a rejecting worker (attach handlers early).
 - [x] Add `tests/concurrency-run-with-queue-backpressure-on-reject.js`
-  - [x] When an early task rejects and later tasks are still in-flight, the function’s failure behavior is deterministic and documented (fail-fast enqueueing + drain in-flight).
+  - [x] When an early task rejects and later tasks are still in-flight, the function's failure behavior is deterministic and documented (fail-fast enqueueing + drain in-flight).
 - [x] Add `tests/concurrency-run-with-queue-iterables.js`
   - [x] Passing a `Set` or generator as `items` produces correct ordering and correct results length.
 
@@ -820,7 +820,7 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
   - `src/index/build/indexer/steps/postings.js`
 
 - [x] **Make `mergeEmbeddingVectors()` correct and explicit**
-  - [x] When only one vector is present, return that vector unchanged (avoid “code-only is halved”).
+  - [x] When only one vector is present, return that vector unchanged (avoid "code-only is halved").
   - [x] When both vectors are present:
     - [x] Define dimension mismatch behavior explicitly (avoid NaNs and silent truncation).
           Recommended Phase 1 behavior: **fail closed** with a clear error (dimension mismatch is a correctness failure), unless/until a contract says otherwise.
@@ -828,15 +828,15 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
   - [x] Keep output type stable (e.g., `Float32Array`) and documented.
 - [x] **Ensure TypedArray parity across embedding ingestion**
   - [x] In `src/index/build/indexer/steps/postings.js`, replace `Array.isArray(...)` checks for embedding floats with a vector-like predicate (accept `Float32Array` and similar).
-  - [x] Ensure quantization in the postings step uses the same “vector-like” acceptance rules for merged/doc/code vectors.
+  - [x] Ensure quantization in the postings step uses the same "vector-like" acceptance rules for merged/doc/code vectors.
 - [x] **Fix embedding batcher reentrancy: no unflushed queued work**
-  - [x] In `createBatcher()` (`src/index/build/file-processor/embeddings.js`), handle “flush requested while flushing” deterministically:
+  - [x] In `createBatcher()` (`src/index/build/file-processor/embeddings.js`), handle "flush requested while flushing" deterministically:
     - [x] If `flush()` is called while `flushing === true`, record intent (e.g., `needsFlush = true`) rather than returning and risking a stranded queue.
     - [x] After a flush finishes, if the queue is non-empty (or `needsFlush`), perform/schedule another flush immediately.
   - [x] Ensure the batcher cannot enter a state where items remain queued with no timer and no subsequent trigger.
-- [x] **Enforce a single build-time representation for “missing doc embedding”**
-  - [x] Standardize on **one marker** at build time (current marker is `EMPTY_U8`) to represent “no doc embedding present”.
-  - [x] Ensure downstream steps never interpret “missing doc embedding” as “fallback to merged embedding” (the doc-only semantics fix is completed in **1.4**, but Phase 1.2 should ensure the marker is consistently produced).
+- [x] **Enforce a single build-time representation for "missing doc embedding"**
+  - [x] Standardize on **one marker** at build time (current marker is `EMPTY_U8`) to represent "no doc embedding present".
+  - [x] Ensure downstream steps never interpret "missing doc embedding" as "fallback to merged embedding" (the doc-only semantics fix is completed in **1.4**, but Phase 1.2 should ensure the marker is consistently produced).
 
 #### Tests / Verification
 
@@ -859,7 +859,7 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
 - **Files touched:**
   - `src/index/build/state.js`
 
-- [x] **Fix chargram extraction “early abort” on long tokens**
+- [x] **Fix chargram extraction "early abort" on long tokens**
   - [x] Replace the per-token `return` with `continue` inside chargram token processing so a single long token does not suppress all subsequent tokens for the chunk.
   - [x] Ensure chargram truncation behavior remains bounded by `maxChargramsPerChunk`.
 - [x] **Make chargram min/max-N configuration robust**
@@ -874,10 +874,10 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
     - [x] Allow phrase/field indexing paths to run where applicable (field-sourced tokens can still produce phrases even when `seq` is empty),
     - [x] Skip token postings updates cleanly (no crashes).
 - [x] **Fix max-unique guard behavior to avoid disabling all future updates**
-  - [x] Redefine guard behavior so that “max unique reached” stops _introducing new keys_ but does **not** prevent:
+  - [x] Redefine guard behavior so that "max unique reached" stops _introducing new keys_ but does **not** prevent:
     - [x] Adding doc IDs for **existing** keys,
     - [x] Continuing to process remaining keys in the same chunk.
-  - [x] Remove/adjust any “break if guard.disabled” loops that prevent existing-key updates (the key-level function should decide whether to skip).
+  - [x] Remove/adjust any "break if guard.disabled" loops that prevent existing-key updates (the key-level function should decide whether to skip).
 
 #### Tests / Verification
 
@@ -904,7 +904,7 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
       - _missing/invalid_ `embed_doc_u8` ⇒ **also** zero-vector semantics (not merged fallback).
   - [x] In the legacy float path (`selectDocEmbedding`):
     - [x] Stop falling back to `chunk.embedding` when `chunk.embed_doc` is missing.
-    - [x] Treat missing doc embedding as “no doc embedding” (zero-vector semantics for doc-only retrieval), consistent with the empty-marker rule.
+    - [x] Treat missing doc embedding as "no doc embedding" (zero-vector semantics for doc-only retrieval), consistent with the empty-marker rule.
 - [x] **Accept TypedArrays in legacy float extraction**
   - [x] Replace `Array.isArray(vec)` checks with a vector-like predicate to avoid dropping `Float32Array` embeddings when building dense artifacts from float fields.
 - [x] **Document the invariant**
@@ -967,7 +967,7 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
   - [x] Ensure pretty-transport is constructed correctly for pino@10 (use supported `transport` configuration; avoid configurations that silently no-op).
   - [x] Ensure destination selection (stdout/stderr/file) is applied correctly in both pretty and JSON modes.
 - [x] **Make redaction configuration compatible with pino@10**
-  - [x] Validate redact configuration format and ensure it actually redacts intended fields (and doesn’t crash/ignore due to schema mismatch).
+  - [x] Validate redact configuration format and ensure it actually redacts intended fields (and doesn't crash/ignore due to schema mismatch).
 - [x] **Fix ring buffer event retention to avoid huge/circular meta retention**
   - [x] Do not store raw meta objects by reference in the ring buffer.
   - [x] Store a bounded, safe representation (e.g., truncated JSON with circular handling, or a curated subset of primitive fields).
@@ -998,9 +998,9 @@ Eliminate known “silent correctness” failures and fragile invariants in the 
 
 
 
-# Phase 3 Plan — Correctness Endgame (imports • signatures • watch • build state)
+# Phase 3 Plan -- Correctness Endgame (imports • signatures • watch • build state)
 
-Intent: complete Phase 3 with correctness-first sequencing. Parts 1–3 are core correctness work; Part 4 consolidates E/F and all P2 follow-ons. Any new behavior must ship with an initial doc/spec.
+Intent: complete Phase 3 with correctness-first sequencing. Parts 1-3 are core correctness work; Part 4 consolidates E/F and all P2 follow-ons. Any new behavior must ship with an initial doc/spec.
 
 Notes:
 - 2026-01-24: Import collectors now receive `root` + `filePath` via `collectLanguageImports` (options flattened, root/filePath injected).
@@ -1023,11 +1023,11 @@ Notes:
 - 2026-01-24: Added analysisPolicy schema validation + test; import scan now optionally caches text/buffers for processing reuse via fileText cache.
 - 2026-01-24: Watch now supports abortSignal/handleSignals + injectable deps for tests; added watch promotion/atomicity/shutdown tests.
 
-## Part 1 — Import fidelity and resolution
+## Part 1 -- Import fidelity and resolution
 
 ### Objective
 
-Eliminate the remaining high-impact correctness and operator-safety gaps before broader optimization work: (a) import extraction must be accurate (dynamic imports, TS aliases) and produce a **true dependency graph** (not co-import similarity), (b) incremental reuse must be **provably safe** via complete, deterministic signatures, (c) watch mode must be **stable, bounded, and atomic** (no build-root reuse; promotion only after success), and (d) `build_state.json` / `current.json` must be **concurrency-safe, validated, and debuggable**, so partial/incorrect builds cannot become “current” and failures are diagnosable.
+Eliminate the remaining high-impact correctness and operator-safety gaps before broader optimization work: (a) import extraction must be accurate (dynamic imports, TS aliases) and produce a **true dependency graph** (not co-import similarity), (b) incremental reuse must be **provably safe** via complete, deterministic signatures, (c) watch mode must be **stable, bounded, and atomic** (no build-root reuse; promotion only after success), and (d) `build_state.json` / `current.json` must be **concurrency-safe, validated, and debuggable**, so partial/incorrect builds cannot become "current" and failures are diagnosable.
 
 ---
 
@@ -1038,12 +1038,12 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
     - `src/index/language-registry/registry.js`
   - Notes:
     - Confirm that language-specific collectors that depend on `options` (e.g., WASM/parser options) behave correctly after this fix.
-- [x] Make JS/TS fast-path import extraction resilient: always run the `require(...)` regex fallback even when `es-module-lexer` parsing fails (so syntax errors don’t suppress require detection).
+- [x] Make JS/TS fast-path import extraction resilient: always run the `require(...)` regex fallback even when `es-module-lexer` parsing fails (so syntax errors don't suppress require detection).
   - Primary touchpoints:
     - `src/index/build/imports.js` (`collectModuleImportsFast`)
   - Notes:
-    - Keep dynamic `import('...')` extraction when possible (string literal cases), but do not regress the “fast path” on large repositories.
-- [x] Replace “co-import graph” behavior with true dependency resolution for `importLinks`, so the import graph represents **importer → imported target** for in-repo files (and not “files that share a module string”).
+    - Keep dynamic `import('...')` extraction when possible (string literal cases), but do not regress the "fast path" on large repositories.
+- [x] Replace "co-import graph" behavior with true dependency resolution for `importLinks`, so the import graph represents **importer → imported target** for in-repo files (and not "files that share a module string").
   - Primary touchpoints:
     - `src/index/build/imports.js` (import scanning + link construction)
     - `src/index/build/graphs.js` (consumer expectations for `ImportGraph`)
@@ -1054,7 +1054,7 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
       - TypeScript path aliases: read `tsconfig.json` (`baseUrl`, `paths`) and resolve alias patterns deterministically; if multiple matches, apply a deterministic tie-break (e.g., shortest path, then lexicographic).
       - External specifiers (packages): do **not** map into `ImportGraph` file nodes; keep as raw import metadata (for later features) without corrupting the file-to-file graph.
     - Normalize resolved targets (posix separators, no `..` segments, ensure within repo root).
-- [x] Spec integration: Import Resolution Graph (IRG) — implement as the **single source of truth** for dependency edges
+- [x] Spec integration: Import Resolution Graph (IRG) -- implement as the **single source of truth** for dependency edges
   - [x] Define an `ImportResolutionGraph` in-memory model (serializable for debug output) with:
     - Nodes:
       - internal file node id: `file:<relPosixPath>`
@@ -1091,13 +1091,13 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
     - [x] Ensure cached-bundle reuse preserves `imports` and `importLinks` exactly as persisted (no reconstruction from `allImports`).
   - [x] (Optional but recommended) Add a debug artifact behind a flag:
     - `artifacts/import_resolution_graph.json` (or `.jsonl`), capped/sampled to avoid huge outputs.
-  - [x] Docs: add `docs/phase-3-import-resolution-spec.md` (IRG model, resolution rules, debug artifact default-on + disable control) and update `docs/import-links.md`.
-- [x] Remove redundant cached-import reads and ensure cached import lookup is performed at most once per file per scan (avoid “read twice on miss” behavior).
+  - [x] Docs: add `docs/phases/phase-3/import-resolution.md` (IRG model, resolution rules, debug artifact default-on + disable control) and update `docs/language/import-links.md`.
+- [x] Remove redundant cached-import reads and ensure cached import lookup is performed at most once per file per scan (avoid "read twice on miss" behavior).
   - Primary touchpoints:
     - `src/index/build/imports.js` (`scanImports`)
   - Implementation details:
-    - When preloading cached imports for sort-by-import-count, store an explicit “miss” sentinel so the later per-file pass does not call `readCachedImports()` again for the same file.
-    - Keep the “import-heavy first” ordering, but make it deterministic and not dependent on incidental Map iteration order.
+    - When preloading cached imports for sort-by-import-count, store an explicit "miss" sentinel so the later per-file pass does not call `readCachedImports()` again for the same file.
+    - Keep the "import-heavy first" ordering, but make it deterministic and not dependent on incidental Map iteration order.
 - [x] Fix cached-bundle relation reconstruction correctness: do not rebuild bundle-level fileRelations by sampling a single chunk; enforce presence of the canonical relation data (or treat the bundle as invalid for reuse).
   - Primary touchpoints:
     - `src/index/build/file-processor/cached-bundle.js`
@@ -1111,11 +1111,11 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
 - [x] (Optional; may defer) Reduce import-scan I/O by avoiding duplicate file reads when the pipeline already has the file contents in memory.
   - Primary touchpoints:
     - `src/index/build/imports.js`
-    - `src/index/build/indexer/steps/process-files.js` (if a “pass-through text” optimization is introduced)
+    - `src/index/build/indexer/steps/process-files.js` (if a "pass-through text" optimization is introduced)
 
 #### Tests
 
-- [x] Unit test: language registry passes `options` correctly to a test language’s `collectImports` (regression for wrapper nesting bug).
+- [x] Unit test: language registry passes `options` correctly to a test language's `collectImports` (regression for wrapper nesting bug).
 - [x] Import extraction regression tests:
   - [x] A JS file with a deliberate parse error still yields `require('x')` imports via regex fallback.
   - [x] A file with `import('x')` (string literal) is captured where supported by lexer.
@@ -1134,7 +1134,7 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
 
 ---
 
-## Part 2 — Signature determinism and reuse gating
+## Part 2 -- Signature determinism and reuse gating
 
 ### 3.2 Repair incremental cache signature correctness and reuse gating
 
@@ -1143,7 +1143,7 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
     - `src/index/build/indexer/signatures.js`
     - `src/shared/stable-json.js` (serializer)
   - Notes:
-    - This is a correctness change (reproducibility + “explainability” of reuse), even if it increases invalidations.
+    - This is a correctness change (reproducibility + "explainability" of reuse), even if it increases invalidations.
 
 - [x] Spec integration: Signature canonicalization utilities + version bump (make hashing reproducible and explainable)
   - [x] Add a canonicalizer used **only** for signature-bearing hashes:
@@ -1155,7 +1155,7 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
       - `undefined` → omitted consistently (or `{ __type: 'undefined' }` if omission is not acceptable; pick one policy and enforce)
     - Implement `stableStringifyForSignature(obj)`:
       - stable key ordering for all plain objects
-      - stable ordering only where semantics are “set-like”; otherwise preserve order
+      - stable ordering only where semantics are "set-like"; otherwise preserve order
       - no lossy dropping of canonicalized sentinel objects
   - [x] Refactor all signature-bearing hash sites to use the canonicalizer (ban raw `JSON.stringify` in these paths):
     - `src/index/build/indexer/signatures.js` (tokenization + incremental signature)
@@ -1164,8 +1164,8 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
     - record in incremental manifests
     - record in `build_state.json` diagnostics
   - [x] Reuse explainability:
-    - Implement a bounded “top-level delta” diff helper that reports the top N differing keys without dumping entire configs.
-- [x] Docs: add `docs/phase-3-signature-spec.md` (canonicalization rules, signatureVersion, reuse gating, diagnostics) and update `docs/sqlite-incremental-updates.md` as needed.
+    - Implement a bounded "top-level delta" diff helper that reports the top N differing keys without dumping entire configs.
+- [x] Docs: add `docs/phases/phase-3/signature.md` (canonicalization rules, signatureVersion, reuse gating, diagnostics) and update `docs/sqlite/incremental-updates.md` as needed.
 - [x] Include regex flags (not just `.source`) for signature-bearing regex configuration (e.g., `licensePattern`, `generatedPattern`, `linterPattern`).
   - Primary touchpoints:
     - `src/index/build/indexer/signatures.js`
@@ -1188,14 +1188,14 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
     - `src/index/build/indexer/signatures.js`
     - `src/index/build/incremental.js` (manifest/state format markers)
   - Notes:
-    - Bump a `signatureVersion` or `bundleFormat`/manifest marker and treat mismatches as “do not reuse.”
+    - Bump a `signatureVersion` or `bundleFormat`/manifest marker and treat mismatches as "do not reuse."
 
-- [x] Add an “explain reuse decision” diagnostic path for incremental reuse failures (safe-by-default; useful in CI and field debugging).
+- [x] Add an "explain reuse decision" diagnostic path for incremental reuse failures (safe-by-default; useful in CI and field debugging).
   - Primary touchpoints:
     - `src/index/build/indexer/steps/incremental.js`
     - `src/index/build/indexer/signatures.js`
   - Notes:
-    - Keep logs bounded (do not print entire configs by default); prefer “top N differing keys” summary.
+    - Keep logs bounded (do not print entire configs by default); prefer "top N differing keys" summary.
 
 #### Tests
 
@@ -1208,15 +1208,15 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
 
 ---
 
-## Part 3 — Watch stability and build-state integrity
+## Part 3 -- Watch stability and build-state integrity
 
 ### 3.3 Resolve watch mode instability and ensure build root lifecycle correctness
 
-- [x] Make watch builds atomic and promotable: each rebuild writes to a new attempt root (or A/B inactive root), validates, then promotes via `current.json`—never reusing the same buildRoot for successive rebuilds. also addresses race class: `9ed923dfae`)
+- [x] Make watch builds atomic and promotable: each rebuild writes to a new attempt root (or A/B inactive root), validates, then promotes via `current.json`--never reusing the same buildRoot for successive rebuilds. also addresses race class: `9ed923dfae`)
   - Primary touchpoints:
     - `src/index/build/watch.js`
     - `src/index/build/promotion.js`
-    - `src/index/build/runtime/runtime.js` (support “override buildRoot/buildId” or “derive attempt root”)
+    - `src/index/build/runtime/runtime.js` (support "override buildRoot/buildId" or "derive attempt root")
   - Notes:
     - Promotion must occur only after build success + validation; on failure, current stays unchanged.
     - Decide and document cleanup policy for old attempt roots (time-based, count-based, or explicit `--watch-keep-builds=N`).
@@ -1239,13 +1239,13 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
   - [x] Lock backoff policy:
     - Exponential backoff with jitter (e.g., 50ms → 2s) and a hard max delay.
     - Log at bounded frequency (first retry, then every ~5s) to avoid spam.
-  - [x] Docs: add `docs/phase-3-watch-atomicity-spec.md` (attempt roots, promotion barrier, retention defaults, backoff).
-- [x] Implement delta-aware discovery in watch: maintain `trackedEntriesByMode` from an initial full scan, update on FS events, and pass the tracked entries into the pipeline—avoiding repeated whole-repo discovery each rebuild.
+  - [x] Docs: add `docs/phases/phase-3/watch-atomicity.md` (attempt roots, promotion barrier, retention defaults, backoff).
+- [x] Implement delta-aware discovery in watch: maintain `trackedEntriesByMode` from an initial full scan, update on FS events, and pass the tracked entries into the pipeline--avoiding repeated whole-repo discovery each rebuild.
   - Primary touchpoints:
     - `src/index/build/watch.js`
     - `src/index/build/discover.js` (if helper extraction needed)
   - Notes:
-    - Include periodic “reconcile scan” to heal missed watcher events (especially on platforms with lossy FS event delivery).
+    - Include periodic "reconcile scan" to heal missed watcher events (especially on platforms with lossy FS event delivery).
 - [x] Enforce watch bounds: `maxFiles` and `maxFileBytes` must apply not just to the initial scan, but also to subsequent add/change events.
   - Primary touchpoints:
     - `src/index/build/watch.js`
@@ -1258,7 +1258,7 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
 - [x] Fix watch shutdown crash by guarding scheduler access during initialization and ensuring shutdown is safe at any point in startup.
   - Primary touchpoints:
     - `src/index/build/watch.js`
-- [x] Fix `waitForStableFile()` semantics so it returns `false` if stability is not observed within the configured check window (i.e., do not proceed “as if stable” when it never stabilized).
+- [x] Fix `waitForStableFile()` semantics so it returns `false` if stability is not observed within the configured check window (i.e., do not proceed "as if stable" when it never stabilized).
   - Primary touchpoints:
     - `src/index/build/watch.js`
 - [x] Ensure runtime contains `recordsDir` and `recordsConfig` so watch/discovery can correctly handle record file behavior (and not silently disable records-aware logic).
@@ -1303,8 +1303,8 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
   - Primary touchpoints:
     - `src/index/build/build-state.js`
   - Notes:
-    - “Last write wins” must not erase phase/progress updates; merging must be correct under concurrent callers.
-  - Docs: add `docs/phase-3-build-state-integrity-spec.md` (schema + writer queue + promotion validation expectations).
+    - "Last write wins" must not erase phase/progress updates; merging must be correct under concurrent callers.
+  - Docs: add `docs/phases/phase-3/build-state-integrity.md` (schema + writer queue + promotion validation expectations).
 - [x] Implementation detail (recommended; keeps callers simple and safe):
   - [x] Implement `createBuildStateWriter(buildRoot)` that serializes updates through a single note-taking queue:
     - `enqueue(patch)` performs: read → deep-merge → validate → atomic write
@@ -1325,14 +1325,14 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
     - `src/index/build/promotion.js`
     - `tools/dict-utils.js` (current build resolution)
   - Notes:
-    - Validate resolved root is within the repo cache root (or within `repoCacheRoot/builds`), not just “some path string.”
-    - If deeper schema overhaul (stage-vs-mode separation) is owned by **Phase 2**, implement the safety validation now and explicitly defer schema redesign to **Phase 2 — Contracts & Policy Kernel** (named follow-on).
+    - Validate resolved root is within the repo cache root (or within `repoCacheRoot/builds`), not just "some path string."
+    - If deeper schema overhaul (stage-vs-mode separation) is owned by **Phase 2**, implement the safety validation now and explicitly defer schema redesign to **Phase 2 -- Contracts & Policy Kernel** (named follow-on).
 - [x] Make embedding enqueue clearly best-effort (when configured as optional), and include unambiguous index identity in job payload (buildId + mode + output directory) so background workers cannot target the wrong build. (Static Review
   - Primary touchpoints:
     - `src/index/build/indexer/embedding-queue.js`
     - `tools/build-embeddings.js` (or embedding worker entrypoint consuming payload)
   - Notes:
-    - If job payload changes require worker updates that are too broad for this phase, implement payload additions now and defer worker consumption hardening to a named follow-on (e.g., **Phase 6 — Service Hardening**).
+    - If job payload changes require worker updates that are too broad for this phase, implement payload additions now and defer worker consumption hardening to a named follow-on (e.g., **Phase 6 -- Service Hardening**).
 
 #### Tests
 
@@ -1347,9 +1347,9 @@ Eliminate the remaining high-impact correctness and operator-safety gaps before 
 
 ---
 
-## Part 4 — E/F/P2 follow-ons (performance/refactor/deferred)
+## Part 4 -- E/F/P2 follow-ons (performance/refactor/deferred)
 
-Note: Part 4 items are intentionally sequenced after Parts 1–3. They remain Phase 3 scope but are deferred until the core correctness work is stable.
+Note: Part 4 items are intentionally sequenced after Parts 1-3. They remain Phase 3 scope but are deferred until the core correctness work is stable.
 
 ### E) Performance improvements to prioritize (cross-cutting)
 
@@ -1365,7 +1365,7 @@ Note: Part 4 items are intentionally sequenced after Parts 1–3. They remain Ph
     - Enforce early return on caps (`maxBytes`, `maxLines`) so large files short-circuit.
     - Guard SafeRegex exceptions and treat them as no-match, not fatal.
   - Docs:
-    - Update `docs/risk-rules.md` to reflect cap behavior and early-exit semantics.
+    - Update `docs/guides/risk-rules.md` to reflect cap behavior and early-exit semantics.
   - Tests:
     - Add a caps test to assert early exit yields `analysisStatus.capped`.
     - Add a long-line regression test to ensure no crash.
@@ -1382,7 +1382,7 @@ Note: Part 4 items are intentionally sequenced after Parts 1–3. They remain Ph
     - Preserve frontmatter detection and inline code span behavior.
     - Ensure fenced blocks and inline spans are captured in one pass.
   - Docs:
-    - Add `docs/phase-3-segmentation-perf-spec.md` (single-pass markdown segmentation contract).
+    - Add `docs/phases/phase-3/segmentation-perf.md` (single-pass markdown segmentation contract).
   - Tests:
     - Add a regression fixture for frontmatter + fenced code + inline spans.
     - Verify `segment-pipeline` outputs are unchanged for Markdown.
@@ -1399,7 +1399,7 @@ Note: Part 4 items are intentionally sequenced after Parts 1–3. They remain Ph
     - Extend provider request shape to accept `text` where available.
     - Fall back to disk reads only when `text` is absent.
   - Docs:
-    - Add `docs/phase-3-tooling-io-spec.md` (provider text reuse contract and fallback behavior).
+    - Add `docs/phases/phase-3/tooling-io.md` (provider text reuse contract and fallback behavior).
   - Tests:
     - Add a provider unit/integration test that asserts no extra reads when `text` is supplied (stub `fs.readFile`).
 
@@ -1416,7 +1416,7 @@ Note: Part 4 items are intentionally sequenced after Parts 1–3. They remain Ph
   - one metadata v2 schema
   - one risk rule bundle schema
   - one place that validates both as part of artifact validation
-- [x] Docs: add `docs/phase-3-analysis-policy-spec.md` (analysisPolicy shape, defaults, propagation, and gating).
+- [x] Docs: add `docs/phases/phase-3/analysis-policy.md` (analysisPolicy shape, defaults, propagation, and gating).
   - Primary touchpoints:
     - `src/index/build/runtime/runtime.js`
     - `src/index/metadata-v2.js`
@@ -1442,7 +1442,7 @@ Note: Part 4 items are intentionally sequenced after Parts 1–3. They remain Ph
 - [x] Clarify and standardize naming conventions (chunk naming vs provider symbol naming, `generatedBy`, `embedded` semantics).
   - Primary touchpoints:
     - `src/index/metadata-v2.js`
-    - `docs/metadata-schema-v2.md`
+    - `docs/specs/metadata-schema-v2.md`
     - `src/index/type-inference-crossfile/tooling.js`
   - Tests:
     - Add a class-method mapping fixture to ensure tooling names attach to chunks.
@@ -1450,7 +1450,7 @@ Note: Part 4 items are intentionally sequenced after Parts 1–3. They remain Ph
   - Primary touchpoints:
     - `src/integrations/tooling/lsp/positions.js`
     - `tests/metadata-v2.js`
-    - `docs/risk-rules.md`
+    - `docs/guides/risk-rules.md`
   - Tests:
     - Add emoji + CRLF offset tests for LSP mapping.
     - Add risk rules edge-case tests (invalid patterns, caps, requires/excludes).
@@ -1458,16 +1458,16 @@ Note: Part 4 items are intentionally sequenced after Parts 1–3. They remain Ph
 ---
 
 
-# Phase 4 Distillation — Runtime Envelope, Concurrency, and Safety Guardrails
+# Phase 4 Distillation -- Runtime Envelope, Concurrency, and Safety Guardrails
 
 ## Reference specs (Phase 4)
-These documents define the “best version” design details:
-- `spec_phase4_runtime_envelope_v1.md`
-- `spec_phase4_concurrency_abort_runwithqueue.md`
-- `spec_phase4_subprocess_helper.md`
-- `spec_phase4_json_stream_atomic_replace.md`
-- `spec_phase4_large_file_caps_strategy.md`
-- `spec_phase4_safe_regex_hardening.md`
+These documents define the "best version" design details:
+- `docs/phases/phase-4/runtime-envelope.md`
+- `docs/phases/phase-4/concurrency-abort-runwithqueue.md`
+- `docs/phases/phase-4/subprocess-helper.md`
+- `docs/phases/phase-4/json-stream-atomic-replace.md`
+- `docs/phases/phase-4/large-file-caps-strategy.md`
+- `docs/phases/phase-4/safe-regex-hardening.md`
 
 ---
 
@@ -1530,7 +1530,7 @@ These documents define the “best version” design details:
     - UV threadpool size
     - lane caps (io/cpu/embedding) and pending limits
 - [x] `tests/runtime/runtime-envelope-spawn-env.test.js`
-  - [x] Spawn a tiny Node child via the tool’s wrapper
+  - [x] Spawn a tiny Node child via the tool's wrapper
   - [x] Assert child sees expected `UV_THREADPOOL_SIZE` and `NODE_OPTIONS`
   - [x] Assert `NODE_OPTIONS` merge preserves unrelated flags
 
@@ -1581,7 +1581,7 @@ These documents define the “best version” design details:
   - supports best-effort and fail-fast modes
 
 ### Tasks
-- [x] Implement abortable queue primitive per `spec_phase4_concurrency_abort_runwithqueue.md`
+- [x] Implement abortable queue primitive per `docs/phases/phase-4/concurrency-abort-runwithqueue.md`
   - [x] `src/shared/async.js` (or new helper module; pick one and use it everywhere)
     - [x] `runWithQueue(items, worker, options)` additions:
       - [x] `signal?: AbortSignal`
@@ -1607,7 +1607,7 @@ These documents define the “best version” design details:
 ## 4.4 Cancellation semantics across lanes + subprocess boundaries
 
 ### Deliverables
-- One “standard cancellation story”:
+- One "standard cancellation story":
   - abort signal created at the top (CLI command invocation)
   - propagated into all async lanes (io/cpu/embedding)
   - propagated into subprocess spawning; abort kills child, tears down streams, and resolves/rejects deterministically
@@ -1617,13 +1617,13 @@ These documents define the “best version” design details:
   - [x] `src/shared/abort.js` (new)
     - [x] `createAbortControllerWithHandlers()`
     - [x] `throwIfAborted(signal)`
-    - [x] `raceAbort(signal, promise)` (ensures awaits don’t hang)
+    - [x] `raceAbort(signal, promise)` (ensures awaits don't hang)
 - [x] Thread `AbortSignal` through:
   - [x] build index pipeline stages (discover/preprocess/process)
   - [x] runWithQueue workers
   - [x] embedding/vector generation
 - [x] Ensure subprocess spawning is abortable
-  - [x] Integrate with `spec_phase4_subprocess_helper.md` (Phase 4.9) so abort kills the child process and resolves error paths.
+  - [x] Integrate with `docs/phases/phase-4/subprocess-helper.md` (Phase 4.9) so abort kills the child process and resolves error paths.
 
 #### Tests / Verification
 - [x] `tests/abort/abort-propagates-to-queues.test.js`
@@ -1655,7 +1655,7 @@ These documents define the “best version” design details:
     - [x] otherwise degrade to `--progress=log` (or none) deterministically
 - [x] Ensure pino-pretty (or equivalent) is gated correctly
   - [x] If pretty logging is enabled, ensure it only affects stderr and never machine outputs
-- [x] Ensure ring buffer and “recent logs” are bounded and sanitized
+- [x] Ensure ring buffer and "recent logs" are bounded and sanitized
   - [x] No unbounded accumulation of metadata
   - [x] Stable truncation rules
 
@@ -1668,7 +1668,7 @@ These documents define the “best version” design details:
 
 ## 4.6 JSON streaming writer correctness + gzip forwarding
 
-(See `spec_phase4_json_stream_atomic_replace.md`.)
+(See `docs/phases/phase-4/json-stream-atomic-replace.md`.)
 
 ### Deliverables
 - JSON streaming writer honors gzip options and max bytes
@@ -1694,7 +1694,7 @@ These documents define the “best version” design details:
 
 ## 4.7 Large-file strategy and cap correctness
 
-(See `spec_phase4_large_file_caps_strategy.md`.)
+(See `docs/phases/phase-4/large-file-caps-strategy.md`.)
 
 ### Deliverables
 - language-aware (and optionally mode-aware) cap resolution at every skip/reuse decision point
@@ -1724,7 +1724,7 @@ These documents define the “best version” design details:
 
 ## 4.8 Safe regex hardening
 
-(See `spec_phase4_safe_regex_hardening.md`.)
+(See `docs/phases/phase-4/safe-regex-hardening.md`.)
 
 ### Deliverables
 - no post-hoc timeouts
@@ -1758,7 +1758,7 @@ These documents define the “best version” design details:
 
 ## 4.9 Subprocess helper (consolidate spawn semantics)
 
-(See `spec_phase4_subprocess_helper.md`.)
+(See `docs/phases/phase-4/subprocess-helper.md`.)
 
 ### Deliverables
 - one subprocess helper that:
@@ -1804,7 +1804,7 @@ These documents define the “best version” design details:
   - [x] `src/index/build/file-processor.js`
     - [x] persist encoding metadata in file meta artifacts
     - [x] when file bytes unchanged, reuse prior encoding metadata deterministically
-    - [x] fallback decoding warnings must be bounded and “warn once per file per run”
+    - [x] fallback decoding warnings must be bounded and "warn once per file per run"
 
 #### Tests / Verification
 - [x] `tests/embeddings/merge-vectors-no-nan.test.js`
@@ -1815,7 +1815,7 @@ These documents define the “best version” design details:
 
 ## 4.11 Atomic file replace and `.bak` hygiene
 
-(See `spec_phase4_json_stream_atomic_replace.md`.)
+(See `docs/phases/phase-4/json-stream-atomic-replace.md`.)
 
 ### Deliverables
 - atomic replace works consistently across platforms
@@ -1842,9 +1842,9 @@ These documents define the “best version” design details:
 
 - [x] 1) 4.1 Runtime envelope (enables consistent config + spawn env shaping)
 - [x] 2) 4.2 Thread + queue caps (depends on envelope)
-- [x] 3) 4.3–4.4 Abort + runWithQueue (depends on queue model)
+- [x] 3) 4.3-4.4 Abort + runWithQueue (depends on queue model)
 - [x] 4) 4.9 Subprocess helper (depends on envelope + abort)
-- [x] 5) 4.5 Logging/progress contract (can be parallel but benefits from envelope’s dump mode)
+- [x] 5) 4.5 Logging/progress contract (can be parallel but benefits from envelope's dump mode)
 - [x] 6) 4.6 + 4.11 JSON stream + atomic replace (largely independent)
 - [x] 7) 4.7 Large-file caps (touches build/watch/discover; best after queue+abort are stable)
 - [x] 8) 4.8 Safe regex (touches shared + risk rules + retrieval)
@@ -1852,14 +1852,14 @@ These documents define the “best version” design details:
 
 ---
 
-## Phase 1 — P0 Correctness Hotfixes (Shared Primitives + Indexer Core)
+## Phase 1 -- P0 Correctness Hotfixes (Shared Primitives + Indexer Core)
 
 - [x] Run targeted tests and `npm run test:pr` once CI lane failures are resolved.
 
 ---
 
 
-# Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+# Phase 5 -- Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
 
 ## Objective
 
@@ -1914,7 +1914,7 @@ These are the concrete issues that Phase 5 resolves:
    - `metaV2` is built in `src/index/build/file-processor/assemble.js` (and sometimes in cached-bundle repair code) but **cross-file inference runs later** in `src/index/build/indexer/steps/relations.js`.
    - Cross-file inference mutates `chunk.docmeta` (adds inferred types) and `chunk.codeRelations` (callLinks/usageLinks/callSummaries), so an assemble-time `metaV2` snapshot can be stale.
 
-3. **Segment “effective language” is not persisted or respected in downstream analysis**
+3. **Segment "effective language" is not persisted or respected in downstream analysis**
    - Segment discovery computes an effective extension (`resolveSegmentExt(...)`) and passes it into `smartChunk(...)`, but the file processor still:
      - tokenizes using the **container file extension**, and
      - runs docmeta/relations/flow using the **container language handler** (`src/index/build/file-processor/process-chunks.js`).
@@ -1934,12 +1934,12 @@ These are the concrete issues that Phase 5 resolves:
 
 Phase 5 implementation MUST align with the following documents in `docs/`:
 
-- `docs/metadata-schema-v2.md` (Metadata v2 contract)
+- `docs/specs/metadata-schema-v2.md` (Metadata v2 contract)
 - `docs/contracts/analysis-schemas.md` (schema notes / compatibility rules)
 - `docs/contracts/artifact-schemas.md` (artifact registry + required fields)
 - `docs/contracts/chunking.md` (chunk identity + offset semantics)
 - `docs/contracts/sqlite.md` (SQLite tables / versioning expectations)
-- `docs/spec_phase8_tooling_vfs_and_segment_routing_refined.md` (forward compatibility)
+- `docs/phases/phase-8/tooling-vfs-and-segment-routing.md` (forward compatibility)
 
 If Phase 5 introduces new contract fields (container/effective identity), it MUST update the above specs (and any referenced registry schema in `src/contracts/schemas/*`) in the same change set.
 
@@ -1974,7 +1974,7 @@ Ensure `metaV2.types.inferred.params` (and `tooling.params`) is **never silently
   - [x] For **params**, canonical shape is an object map `{ paramName: TypeEntry[] }` for **declared**, **inferred**, and **tooling** buckets.
     - [x] For **returns**, canonical shape remains `TypeEntry[]`.
     - [x] Update `docs/contracts/analysis-schemas.md` to match canonical shapes (params are maps; returns are arrays).
-    - [x] Add a short rationale to `docs/metadata-schema-v2.md` (params need names; returns do not) to prevent future drift.
+    - [x] Add a short rationale to `docs/specs/metadata-schema-v2.md` (params need names; returns do not) to prevent future drift.
     - [x] Add a short example snippet in docs showing the canonical params/returns shapes.
     - [x] Checklist: update any schema validators or JSON schema fragments that currently define params as arrays.
 
@@ -1989,7 +1989,7 @@ Ensure `metaV2.types.inferred.params` (and `tooling.params`) is **never silently
 - `src/index/metadata-v2.js`
 - `src/index/type-inference-crossfile/extract.js` (only if downstream assumptions need updates)
 - `src/index/validate/checks.js` (or `src/contracts/schemas/analysis.js` if schema refined)
-- `docs/metadata-schema-v2.md`
+- `docs/specs/metadata-schema-v2.md`
 - `docs/contracts/analysis-schemas.md`
 
 ## Tests
@@ -2022,7 +2022,7 @@ Guarantee that any enrichment that mutates `chunk.docmeta` or `chunk.codeRelatio
     - any late structural/risk augmentation that modifies `chunk.docmeta` or `chunk.codeRelations`
   - [x] Introduce a `finalizeMetaV2(chunks, context)` step that:
     - recomputes `chunk.metaV2 = buildMetaV2({ chunk, docmeta: chunk.docmeta, toolInfo, analysisPolicy })`
-    - reuses the chunk’s effective/container identity fields (Phase 5.4)
+    - reuses the chunk's effective/container identity fields (Phase 5.4)
     - is applied **once** after enrichment and before writing
   - [x] Place `finalizeMetaV2` either:
     - at the end of `steps/relations.js`, or
@@ -2069,7 +2069,7 @@ Guarantee that any enrichment that mutates `chunk.docmeta` or `chunk.codeRelatio
 
 ## Goal
 
-Remove SQLite’s lossy `metaV2` reconstruction by **storing the canonical `metaV2` JSON** per chunk, and enforce invariants:
+Remove SQLite's lossy `metaV2` reconstruction by **storing the canonical `metaV2` JSON** per chunk, and enforce invariants:
 
 - `chunk_id` is never `NULL`
 - `metaV2.chunkId` and SQLite `chunk_id` match
@@ -2081,7 +2081,7 @@ Remove SQLite’s lossy `metaV2` reconstruction by **storing the canonical `meta
   - [x] Update `src/storage/sqlite/schema.js`:
     - bump `SCHEMA_VERSION`
     - add `metaV2_json TEXT` to the `chunks` table
-  - [x] Update `docs/sqlite-index-schema.md` with the new column and schema version bump.
+  - [x] Update `docs/sqlite/index-schema.md` with the new column and schema version bump.
   - [x] Update `docs/contracts/sqlite.md` to document `metaV2_json` storage/retrieval expectations and parity guarantees.
   - [x] Update SQLite build path (`src/storage/sqlite/build-helpers.js` and writers):
     - persist `metaV2_json = JSON.stringify(chunk.metaV2)` (when available)
@@ -2204,7 +2204,7 @@ Make embedded code analysis correct by ensuring:
   - `start`, `end`, `startLine`, `endLine` (container coordinates)
   - `embeddingContext` (required when the segment is embedded; null when not embedded)
   - keep `segmentId`, `segmentUid`, `type`, `languageId`, `parentSegmentId`
-  - [x] Align `segment.embeddingContext` semantics with Phase 8 expectations in `docs/metadata-schema-v2.md` (explicit required/optional rules).
+  - [x] Align `segment.embeddingContext` semantics with Phase 8 expectations in `docs/specs/metadata-schema-v2.md` (explicit required/optional rules).
   - [x] Document which fields are required vs optional for non-segmented files (so consumers can rely on nullability).
   - [x] Checklist: update any JSON schema definitions that enumerate `segment` fields.
 
@@ -2223,7 +2223,7 @@ This is a prerequisite for correct caching, SQLite identity, and future graph jo
     - [x] Checklist: ensure any caches keyed by `chunkId` are invalidated (or versioned) after the change.
 - [x] Update docs to match reality:
   - `docs/contracts/chunking.md`
-  - `docs/metadata-schema-v2.md`
+  - `docs/specs/metadata-schema-v2.md`
   - [x] Make the stability guarantee explicit and consistent (chunkId stable-by-location; no `kind`/`name` inputs).
 
 > Note: collision-safe *symbol* identity and cross-file linking keys remain a Phase 9 deliverable. Phase 5 only ensures chunk span identity is stable and segment-aware.
@@ -2237,7 +2237,7 @@ This is a prerequisite for correct caching, SQLite identity, and future graph jo
   - `src/index/metadata-v2.js`
   - `src/index/chunk-id.js`
   - `src/index/build/file-processor/assemble.js`
-  - `docs/metadata-schema-v2.md`
+  - `docs/specs/metadata-schema-v2.md`
 - `docs/contracts/chunking.md`
 
 ## Tests
@@ -2334,7 +2334,7 @@ Phase 5 does **not** implement full VFS provider routing, but it must ensure tha
     - [x] Ensure `segmentUid` stability is explicitly documented for unchanged container text.
     - [x] Checklist: include `segmentUid` and effective identity in any future `vfs_manifest.jsonl` sample entries.
   - [x] Add/Update a VFS manifest spec in `docs/` (if not already present):
-  - `docs/spec-vfs-manifest-artifact.md` (v1)
+  - `docs/specs/vfs-manifest-artifact.md` (v1)
   - It should define `vfs_manifest.jsonl` entries mapping `virtualPath → source` and include hashes for cacheability.
   - [x] Defer actual emission of `vfs_manifest.jsonl` and VFS materialization to Phase 8 unless Phase 6/7 needs it earlier.
     - [x] Add a short note about which Phase 8 fields depend on Phase 5 outputs (segmentUid + effective identity).
@@ -2342,9 +2342,9 @@ Phase 5 does **not** implement full VFS provider routing, but it must ensure tha
 
 ## Files
 
-  - `docs/spec_phase8_tooling_vfs_and_segment_routing_refined.md`
-  - `docs/spec-vfs-manifest-artifact.md` (new/updated if missing)
-  - `docs/metadata-schema-v2.md`
+  - `docs/phases/phase-8/tooling-vfs-and-segment-routing.md`
+  - `docs/specs/vfs-manifest-artifact.md` (new/updated if missing)
+  - `docs/specs/metadata-schema-v2.md`
 
 ## Tests (optional / Phase 8 if deferred)
 
@@ -2376,16 +2376,18 @@ Phase 5 is complete when:
 
 ## Plan quality: what I would do differently (and why)
 
-- Prefer **hard contract truth** over “best-effort” legacy behavior:
+- Prefer **hard contract truth** over "best-effort" legacy behavior:
   - If `docs/contracts/chunking.md` states `chunkId` is stable, Phase 5 should make it *actually stable* (remove `kind/name` inputs) rather than tolerating churn.
 - Keep **container vs effective identity** explicit and redundant:
   - Store container identity in `metaV2.container` and keep `metaV2.ext` as the container ext for compatibility.
   - Store effective identity in `metaV2.effective` and make `metaV2.lang` match effective language id.
   - This redundancy reduces migration risk and keeps existing readers functioning.
 - Treat ambiguous symbol linking as unsafe:
-  - If Phase 5 makes segments “more analyzable”, it will increase same-file name collisions. Even if Phase 9 owns the full identity solution, Phase 5 should add validation warnings (at minimum) when cross-file inference sees ambiguous keys, to avoid silently linking wrong targets.
+  - If Phase 5 makes segments "more analyzable", it will increase same-file name collisions. Even if Phase 9 owns the full identity solution, Phase 5 should add validation warnings (at minimum) when cross-file inference sees ambiguous keys, to avoid silently linking wrong targets.
 
 ---
 
 #
+
+
 

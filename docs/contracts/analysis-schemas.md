@@ -4,9 +4,14 @@ This document defines the analysis-related schemas used across indexing, validat
 
 ## Metadata v2 (per chunk)
 
-- Canonical spec: `docs/metadata-schema-v2.md`.
+- Canonical spec: `docs/specs/metadata-schema-v2.md`.
 - Used in `chunk_meta` as `metaV2`.
 - Notes:
+  - `metaV2.lang` is the effective language registry id for segment-aware chunks (for example, `typescript`).
+  - Container vs effective identity may be represented explicitly:
+    - `metaV2.container.{ext,languageId}`
+    - `metaV2.effective.{ext,languageId}`
+  - `segment.languageId` remains the raw segment hint (for example, `tsx` from a fence or `<script lang="tsx">`).
   - `modifiers` may be an array of strings (canonical) or a legacy object map (e.g., `{ visibility: 'public', static: true }`).
 - `types` is an object with optional `declared`, `inferred`, and `tooling` buckets.
 - Canonical shapes:
@@ -41,3 +46,4 @@ Schema: `ANALYSIS_POLICY_SCHEMA` in `src/contracts/schemas/analysis.js`.
 
 - Schemas allow `additionalProperties` so fields may be extended; only documented keys are relied upon by core logic.
 - Any schema change that affects `compatibilityKey` inputs is a hard break for mixing indexes.
+

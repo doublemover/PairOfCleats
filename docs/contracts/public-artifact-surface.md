@@ -1,6 +1,6 @@
 # Public Artifact Surface (0.0.1)
 
-This document is the **canonical** contract for PairOfCleats public artifacts. It supersedes `docs/artifact-contract.md` for all contract decisions.
+This document is the **canonical** contract for PairOfCleats public artifacts. It supersedes `docs/contracts/artifact-contract.md` for all contract decisions.
 
 ## Contract version
 
@@ -97,3 +97,4 @@ Artifacts that truncate content must include:
 - enabled mode set
 
 Readers must hard-fail if compatibility keys differ.
+

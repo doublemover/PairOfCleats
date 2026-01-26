@@ -7,9 +7,9 @@ import { listSourceFiles, scanSourceFiles } from './config-inventory/scan.js';
 import { buildInventoryReportMarkdown } from './config-inventory/report.js';
 
 const defaultRoot = resolveToolRoot();
-const defaultSchemaPath = path.join(defaultRoot, 'docs', 'config-schema.json');
-const defaultOutputJsonPath = path.join(defaultRoot, 'docs', 'config-inventory.json');
-const defaultOutputMdPath = path.join(defaultRoot, 'docs', 'config-inventory.md');
+const defaultSchemaPath = path.join(defaultRoot, 'docs', 'config', 'schema.json');
+const defaultOutputJsonPath = path.join(defaultRoot, 'docs', 'config', 'inventory.json');
+const defaultOutputMdPath = path.join(defaultRoot, 'docs', 'config', 'inventory.md');
 
 const PUBLIC_CONFIG_KEYS = new Set(['cache.root', 'quality']);
 const PUBLIC_ENV_VARS = new Set(['PAIROFCLEATS_API_TOKEN']);
@@ -259,5 +259,7 @@ export const buildInventory = async (options = {}) => {
     }
   }
 };
+
+export { collectSchemaEntries, getLeafEntries, mergeEntry };
 
 await buildInventory();

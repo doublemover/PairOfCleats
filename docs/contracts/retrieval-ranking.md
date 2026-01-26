@@ -20,5 +20,6 @@
 - When `contextExpansionRespectFilters` is true, expansion only includes chunks passing the active filters.
 
 ## References
-- `docs/search-contract.md`
-- `docs/benchmarks.md`
+- `docs/contracts/search-contract.md`
+- `docs/benchmarks/overview.md`
+

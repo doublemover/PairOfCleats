@@ -1,11 +1,11 @@
-## Phase 7 — Embeddings + ANN: Determinism, Policy, and Backend Parity
+## Phase 7 -- Embeddings + ANN: Determinism, Policy, and Backend Parity
 
 ### Objective
 
 Make embeddings generation and ANN retrieval **deterministic, build-scoped, and policy-driven** across all supported backends (HNSW, LanceDB, and SQLite dense). This phase hardens the end-to-end lifecycle:
 
 - Embeddings are **optional**, but when enabled they are **contracted**, discoverable, and validated.
-- Embeddings jobs are **bound to a specific build output** (no implicit “current build” writes).
+- Embeddings jobs are **bound to a specific build output** (no implicit "current build" writes).
 - Quantization/normalization rules are **consistent** across tools, caches, and query-time ANN.
 - ANN backends behave predictably under real-world constraints (candidate filtering, partial failure, missing deps).
 
@@ -18,9 +18,9 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 
 ---
 
-### Phase 7.1 — Build-scoped embeddings jobs and best-effort enqueue semantics
+### Phase 7.1 -- Build-scoped embeddings jobs and best-effort enqueue semantics
 
-- [ ] **Bind embeddings jobs to an explicit build output target (no “current build” inference).**
+- [ ] **Bind embeddings jobs to an explicit build output target (no "current build" inference).**
   - [ ] Extend the embedding job payload to include an immutable provenance tuple and target paths:
     - [ ] `buildId` and `buildRoot` (or an explicit `indexRoot`) for the build being augmented.
     - [ ] `mode` (`code` / `prose`) and the exact `indexDir` (the per-mode output directory) the job must write into.
@@ -39,7 +39,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
   - [ ] Wrap queue-dir creation and `enqueueJob(...)` in a non-fatal path when `runtime.embeddingService === true`.
     - If enqueue fails, log a clear warning and continue indexing.
     - Ensure indexing does **not** fail due solely to queue I/O failures.
-  - [ ] Record “embeddings pending/unavailable” state in `index_state.json` when enqueue fails.
+  - [ ] Record "embeddings pending/unavailable" state in `index_state.json` when enqueue fails.
   - Touchpoints:
     - `src/index/build/indexer/embedding-queue.js`
     - `src/index/build/indexer/steps/write.js` (state recording)
@@ -64,9 +64,9 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 
 ---
 
-### Phase 7.2 — Embeddings artifact contract and explicit capability signaling
+### Phase 7.2 -- Embeddings artifact contract and explicit capability signaling
 
-- [ ] **Define the canonical “embeddings artifacts” contract and make it discoverable.**
+- [ ] **Define the canonical "embeddings artifacts" contract and make it discoverable.**
   - [ ] Treat the existing dense-vector outputs as the formal embeddings artifact surface:
     - `dense_vectors_uint8.json` (+ any per-mode variants)
     - `dense_vectors_hnsw.bin` + `dense_vectors_hnsw.meta.json`
@@ -92,13 +92,13 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
     - Dense vector count matches chunk count for the mode.
     - Dimensions match across dense vectors and any ANN index metadata.
     - Model/identity metadata is internally consistent (identity key stable for that build).
-  - [ ] When embeddings are absent, validation should still pass but surface a clear “embeddings not present” indicator.
+  - [ ] When embeddings are absent, validation should still pass but surface a clear "embeddings not present" indicator.
   - Touchpoints:
     - `src/index/validate.js`
 
 - [ ] **Add missing-embeddings reporting (and optional gating).**
   - [ ] Track missing vectors during embedding build (code/doc/merged) instead of silently treating them as equivalent to an all-zero vector.
-    - Preserve existing “fill missing with zeros” behavior only as an internal representation, but record missing counts explicitly.
+    - Preserve existing "fill missing with zeros" behavior only as an internal representation, but record missing counts explicitly.
   - [ ] Add configurable thresholds (e.g., maximum allowed missing rate) that can mark embeddings as failed/unusable for ANN.
     - If threshold exceeded: do not publish ANN index availability and record reason in state.
   - Touchpoints:
@@ -111,13 +111,13 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 - [ ] Add `tests/validate/embeddings-referential-integrity.test.js`
   - Corrupt dense vector count or dims and assert strict validation fails with a clear error.
 - [ ] Add `tests/validate/embeddings-optional-absence.test.js`
-  - Validate an index without embeddings artifacts and assert validation passes with a “not present” signal.
+  - Validate an index without embeddings artifacts and assert validation passes with a "not present" signal.
 - [ ] Add `tests/embeddings/missing-rate-gating.test.js`
   - Force a controlled missing-vector rate and assert state/reporting reflects the gating outcome.
 
 ---
 
-### Phase 7.3 — Quantization invariants (levels clamp, safe dequantization, no uint8 wrap)
+### Phase 7.3 -- Quantization invariants (levels clamp, safe dequantization, no uint8 wrap)
 
 - [ ] **Enforce `levels ∈ [2, 256]` everywhere for uint8 embeddings.**
   - [ ] Clamp in quantization parameter resolution:
@@ -125,7 +125,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
     - Emit a warning when user config requests `levels > 256` (explicitly noting coercion).
   - [ ] Clamp at the quantizer:
     - Update `src/shared/embedding-utils.js: quantizeEmbeddingVector()` to mirror clamping (or route callers to `quantizeEmbeddingVectorUint8`).
-    - Ensure no code path can produce values outside `[0, 255]` for “uint8” vectors.
+    - Ensure no code path can produce values outside `[0, 255]` for "uint8" vectors.
   - [ ] Fix call sites that currently risk wrap:
     - `src/index/embedding.js` (`quantizeVec`) and its downstream usage in incremental updates.
     - `src/storage/sqlite/build/incremental-update.js` packing paths.
@@ -155,7 +155,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
   - [ ] Either:
     - Implement fixed-endian encoding/decoding with backward compatibility, **or**
     - Explicitly record endianness in metadata and defer full portability to a named follow-on phase.
-  - Deferred (if not fully addressed here): **Phase 11 — Index Portability & Migration Tooling**.
+  - Deferred (if not fully addressed here): **Phase 11 -- Index Portability & Migration Tooling**.
 
 #### Tests / Verification
 
@@ -169,7 +169,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 
 ---
 
-### Phase 7.4 — Normalization policy consistency across build paths and query-time ANN
+### Phase 7.4 -- Normalization policy consistency across build paths and query-time ANN
 
 - [ ] **Centralize normalization policy and apply it everywhere vectors enter ANN.**
   - [ ] Create a shared helper that defines normalization expectations for embeddings (index-time and query-time).
@@ -198,7 +198,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 
 ---
 
-### Phase 7.5 — LanceDB ANN correctness and resilience
+### Phase 7.5 -- LanceDB ANN correctness and resilience
 
 - [ ] **Promise-cache LanceDB connections and tables to prevent redundant concurrent opens.**
   - [ ] Change `src/retrieval/lancedb.js` connection/table caching to store promises, not only resolved objects.
@@ -233,12 +233,12 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 - [ ] Update `tests/lancedb-ann.js`:
   - [ ] Pass `--ann-backend lancedb` explicitly.
   - [ ] Use skip exit code 77 when LanceDB dependency is missing.
-  - [ ] Add a candidate-set test that exercises the “pushdown disabled” path and asserts `topN` is still achieved.
+  - [ ] Add a candidate-set test that exercises the "pushdown disabled" path and asserts `topN` is still achieved.
 - [ ] Add a focused unit test (or harness test) that ensures concurrent queries do not open multiple LanceDB connections.
 
 ---
 
-### Phase 7.6 — HNSW ANN correctness, compatibility, and failure observability
+### Phase 7.6 -- HNSW ANN correctness, compatibility, and failure observability
 
 - [ ] **Make HNSW index loading compatible with pinned `hnswlib-node` signatures.**
   - [ ] Update `src/shared/hnsw.js: loadHnswIndex()` to call `readIndexSync` with the correct signature.
@@ -276,7 +276,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 
 ---
 
-### Phase 7.7 — ANN backend policy and parity (selection, availability, explicit tests)
+### Phase 7.7 -- ANN backend policy and parity (selection, availability, explicit tests)
 
 - [ ] **Provide an explicit policy contract for ANN backend selection.**
   - [ ] Confirm or introduce a single canonical config/CLI surface (e.g., `--ann-backend` and `retrieval.annBackend` or `retrieval.vectorBackend`).
@@ -304,7 +304,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 
 ---
 
-### Phase 7.8 — Backend storage resilience required by embeddings/ANN workflows
+### Phase 7.8 -- Backend storage resilience required by embeddings/ANN workflows
 
 - [ ] **LMDB map size planning for predictable index builds.**
   - [ ] Add config support and defaults:
@@ -334,7 +334,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
 - [ ] Add `tests/lmdb-map-size-planning.test.js`
   - Build an LMDB index of moderate size and verify it does not fail due to map size.
 - [ ] Add `tests/sqlite-dense-cross-mode-safety.test.js`
-  - Build both modes and rebuild one mode; verify the other mode’s ANN data remains intact.
+  - Build both modes and rebuild one mode; verify the other mode's ANN data remains intact.
 - [ ] Add `tests/embeddings/cache-preflight-metadata.test.js`
   - Ensure preflight uses metadata without scanning when the meta file exists, and remains correct.
 - [ ] Unskip phase-tagged LMDB tests once Phase 7/8 deliverables land:
@@ -382,7 +382,7 @@ Make embeddings generation and ANN retrieval **deterministic, build-scoped, and 
     - tools/build-embeddings/manifest.js:52-90
     - src/index/build/artifacts.js:255-300
   - Gaps/conflicts:
-    - tools/build-embeddings/manifest.js drops entries whose name is not in ARTIFACT_SCHEMA_DEFS, so dense_vectors_hnsw.bin and lancedb dirs are silently omitted; reconcile with “discoverable” requirement.
+    - tools/build-embeddings/manifest.js drops entries whose name is not in ARTIFACT_SCHEMA_DEFS, so dense_vectors_hnsw.bin and lancedb dirs are silently omitted; reconcile with "discoverable" requirement.
 - Task: Emit embedding identity + backend availability in index_state
   - Files to change/create:
     - src/index/build/indexer/steps/write.js (index_state.embeddings at ~52-90)

@@ -27,7 +27,7 @@
 Produced by `src/index/chunk-id.js#resolveChunkId({file, segment, start, end, kind, name})`.
 
 **`chunkUid` (stable-ish, new)**  
-Computed per `docs/spec-identity-contract.refined.md` (canonical). Inputs:
+Computed per `docs/specs/identity-contract.md` (canonical). Inputs:
 - namespaceKey (default "repo")
 - virtualPath (fileRelPath or fileRelPath#seg:<segmentUid>)
 - chunkText + pre/post context windows
@@ -172,7 +172,7 @@ Assert:
 
 ---
 
-## Phase 8.1 — Provider contract + registry (capability gating, deterministic selection)
+## Phase 8.1 -- Provider contract + registry (capability gating, deterministic selection)
 
 ### Objective
 Create a single authoritative provider system that:
@@ -189,7 +189,7 @@ Create a single authoritative provider system that:
 ### Files to modify (call sites)
 - `src/index/type-inference-crossfile/tooling.js` (replace ad-hoc provider wiring)
 - `tools/dict-utils.js#getToolingConfig` (extend config surface)
-- (optional but recommended) `docs/config-schema.json` (tooling keys)
+- (optional but recommended) `docs/config/schema.json` (tooling keys)
 
 ### Tasks
 
@@ -286,7 +286,7 @@ Create a single authoritative provider system that:
 
 ---
 
-## Phase 8.2 — Segment/VFS-aware tooling orchestration + stable chunk keys + join policy
+## Phase 8.2 -- Segment/VFS-aware tooling orchestration + stable chunk keys + join policy
 
 ### Objective
 Enable tooling to operate on:
@@ -385,7 +385,7 @@ while attaching results using stable chunk identity.
   - Touch: `src/integrations/tooling/providers/shared.js#createToolingGuard`
   - Change semantics:
     - retries are internal; only count **one** failure when the invocation fails after retries.
-    - keep log lines for each attempt (but don’t trip breaker early).
+    - keep log lines for each attempt (but don't trip breaker early).
   - Why better:
     - removes false breaker trips on transient flakiness while preserving protective behavior.
 
@@ -417,7 +417,7 @@ while attaching results using stable chunk identity.
 
 ---
 
-## Phase 8.3 — TypeScript provider parity for JS/JSX + segment VFS support (stable keys, node matching)
+## Phase 8.3 -- TypeScript provider parity for JS/JSX + segment VFS support (stable keys, node matching)
 
 ### Objective
 Use TypeScript tooling to enrich:
@@ -538,7 +538,7 @@ with stable chunk-keyed results and high-confidence signatures.
 
 ---
 
-## Phase 8.4 — LSP provider hardening + VFS integration (restart safety, per-target failures, stable keys)
+## Phase 8.4 -- LSP provider hardening + VFS integration (restart safety, per-target failures, stable keys)
 
 ### Objective
 Make LSP tooling reliable and segment-capable:
@@ -617,7 +617,7 @@ Make LSP tooling reliable and segment-capable:
 
 ---
 
-## Phase 8.5 — Tooling doctor + reporting + CLI integration
+## Phase 8.5 -- Tooling doctor + reporting + CLI integration
 
 ### Objective
 Provide an operator-facing workflow to explain tooling state:
@@ -631,7 +631,7 @@ Provide an operator-facing workflow to explain tooling state:
 - Add: `tools/tooling-doctor.js`
 - Modify: `tools/tooling-utils.js` (reuse detection where possible)
 - Modify: `bin/pairofcleats.js` (add `tooling` command group)
-- Modify: `docs/commands.md` (or create `docs/tooling.md`)
+- Modify: `docs/guides/commands.md` (or create `docs/tooling.md`)
 
 ### Tasks
 
@@ -661,7 +661,7 @@ Provide an operator-facing workflow to explain tooling state:
 
 - [ ] **8.5.2 Align doctor with provider registry**
   - Doctor must use the same provider registry selection logic as the orchestrator:
-    - avoids “doctor says ok but index says no”.
+    - avoids "doctor says ok but index says no".
 
 - [ ] **8.5.3 Add CLI surface**
   - Touch: `bin/pairofcleats.js`
@@ -715,7 +715,7 @@ Provide an operator-facing workflow to explain tooling state:
 
 ## 6. Implementation ordering (recommended)
 
-1. Phase 8.2.1–8.2.5 (chunkUid + persistence + collisions)  
+1. Phase 8.2.1-8.2.5 (chunkUid + persistence + collisions)  
 2. Phase 8.2.6 (VFS builder)  
 3. Phase 8.1 (registry + orchestrator skeleton; wire into tooling pass)  
 4. Phase 8.3 (TypeScript provider refactor)  
@@ -732,7 +732,7 @@ Provide an operator-facing workflow to explain tooling state:
 
 ### 8.1 Provider contract + registry
 - Files to change/create:
-  - src/index/tooling/registry.js (new; per spec_phase8_tooling_provider_registry_refined.md)
+  - src/index/tooling/registry.js (new; per docs/phases/phase-8/tooling-provider-registry.md)
   - src/index/type-inference-crossfile/tooling.js (replace hardcoded provider fan-out)
   - src/index/type-inference-crossfile/pipeline.js (runToolingPass call at ~99-101)
   - src/index/build/runtime/runtime.js (toolingConfig + toolingEnabled at ~155-176)
@@ -742,11 +742,11 @@ Provide an operator-facing workflow to explain tooling state:
   - src/index/build/runtime/runtime.js:155-176, 611-612
 - Gaps/conflicts:
   - Current providers key by `${file}::${name}` (see src/index/tooling/typescript-provider.js:308); spec requires chunkUid-first joins.
-  - spec_phase8_identity_and_symbol_contracts_refined.md expects chunkUid availability; now required in Phase 8 (fail-closed if missing).
+  - docs/phases/phase-8/identity-and-symbol-contracts.md expects chunkUid availability; now required in Phase 8 (fail-closed if missing).
 
 ### 8.2 Segment/VFS-aware tooling orchestration
 - Files to change/create:
-  - src/index/tooling/vfs.js (new typedefs + helpers per spec_phase8_tooling_vfs_and_segment_routing_refined.md)
+  - src/index/tooling/vfs.js (new typedefs + helpers per docs/phases/phase-8/tooling-vfs-and-segment-routing.md)
   - src/index/tooling/vfs-builder.js (new; build ToolingVirtualDocument[] + ToolingTarget[])
   - src/index/segments.js (segmentUid + ranges available at ~90-150)
   - src/index/segments/config.js (resolveSegmentExt at ~56-75 for TSX/JSX)
@@ -768,7 +768,7 @@ Provide an operator-facing workflow to explain tooling state:
   - src/index/tooling/typescript-provider.js:253-325
 - Gaps/conflicts:
   - typescript-provider currently keys results by `${chunk.file}::${chunk.name}` (line ~308); must switch to chunkUid.
-  - spec_phase8_typescript_provider_js_parity_refined.md expects JS/JSX support; current routing uses file ext filtering.
+  - docs/phases/phase-8/typescript-provider-js-parity.md expects JS/JSX support; current routing uses file ext filtering.
 
 ### 8.4 LSP provider hardening + VFS integration
 - Files to change/create:
@@ -784,21 +784,21 @@ Provide an operator-facing workflow to explain tooling state:
 ### 8.5 Tooling doctor + reporting + CLI integration
 - Files to change/create:
   - src/index/type-inference-crossfile/tooling.js (collect diagnostics + provenance)
-  - src/shared/cli (add “doctor” command output wiring)
+  - src/shared/cli (add "doctor" command output wiring)
   - tools/dict-utils.js (getToolingConfig surface if new fields added)
 - Call sites/line refs:
   - src/index/type-inference-crossfile/tooling.js:221-285 (toolingConfig, logging, diagnostics)
 - Gaps/conflicts:
-  - spec_phase8_tooling_doctor_and_reporting_refined.md expects structured health output; current pipeline only logs to console.
+  - docs/phases/phase-8/tooling-doctor-and-reporting.md expects structured health output; current pipeline only logs to console.
 
 ### Associated specs reviewed (Phase 8)
-- docs/spec_phase8_tooling_provider_registry_refined.md
-- docs/spec_phase8_tooling_vfs_and_segment_routing_refined.md
-- docs/spec_phase8_typescript_provider_js_parity_refined.md
-- docs/spec_phase8_lsp_provider_hardening_refined.md
-- docs/spec_phase8_tooling_doctor_and_reporting_refined.md
-- docs/spec_phase8_identity_and_symbol_contracts_refined.md
-- docs/spec-vfs-manifest-artifact.md
+- docs/phases/phase-8/tooling-provider-registry.md
+- docs/phases/phase-8/tooling-vfs-and-segment-routing.md
+- docs/phases/phase-8/typescript-provider-js-parity.md
+- docs/phases/phase-8/lsp-provider-hardening.md
+- docs/phases/phase-8/tooling-doctor-and-reporting.md
+- docs/phases/phase-8/identity-and-symbol-contracts.md
+- docs/specs/vfs-manifest-artifact.md
 
 ## Phase 8 addendum: dependencies, ordering, artifacts, tests, edge cases
 
@@ -831,7 +831,7 @@ Provide an operator-facing workflow to explain tooling state:
 
 ### 8.2 Dependencies and order of operations
 - Dependencies:
-  - VFS manifest + virtualPath scheme from `docs/spec-vfs-manifest-artifact.md`.
+  - VFS manifest + virtualPath scheme from `docs/specs/vfs-manifest-artifact.md`.
   - segmentUid (Phase 8) or legacy segmentId only for debug.
 - Order of operations:
   1) Build VFS documents and targets from segments.
@@ -936,3 +936,5 @@ Provide an operator-facing workflow to explain tooling state:
 - vfs_manifest.meta.json (if sharded)
   - required keys: schemaVersion, artifact="vfs_manifest", format="jsonl-sharded", generatedAt, compression,
     totalRecords, totalBytes, maxPartRecords, maxPartBytes, targetMaxBytes, parts[]
+
+

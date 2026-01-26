@@ -14,7 +14,7 @@ const outputMdPath = path.join(tempRoot, 'config-inventory.md');
 
 await buildInventory({
   root,
-  schemaPath: path.join(root, 'docs', 'config-schema.json'),
+  schemaPath: path.join(root, 'docs', 'config', 'schema.json'),
   outputJsonPath,
   outputMdPath,
   sourceFiles: [],

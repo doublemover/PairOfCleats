@@ -1,4 +1,4 @@
-## Phase 6 — Universal Relations v2 (Callsites, Args, and Evidence)
+## Phase 6 -- Universal Relations v2 (Callsites, Args, and Evidence)
 
 ### Objective
 
@@ -23,7 +23,7 @@ This phase explicitly targets:
 
 ---
 
-### Phase 6.1 — CallDetails v2 and `call_sites` contract (schema + invariants)
+### Phase 6.1 -- CallDetails v2 and `call_sites` contract (schema + invariants)
 
 - [ ] Define a **CallSite (CallDetails v2)** record shape with bounded fields and deterministic truncation rules.
   - Contract fields (minimum viable, JS/TS-focused):
@@ -45,29 +45,29 @@ This phase explicitly targets:
     - max args per callsite
     - max arg text length / max nested shape depth
     - max evidence items + max evidence item length
-  - Deterministic truncation must use a consistent marker (e.g., `…`) and must not depend on runtime/platform.
+  - Deterministic truncation must use a consistent marker (e.g., `...`) and must not depend on runtime/platform.
 - [ ] Add schema validation for `call_sites` entries.
   - Touchpoints:
     - `src/shared/artifact-schemas.js` (AJV validators)
     - `src/index/validate.js` (wire validation when artifact is present)
   - Notes:
     - Keep schema permissive enough for forward evolution, but strict on required invariants and field types.
-    - Ensure identity fields are unambiguous: distinguish **doc id** vs **stable chunk uid** (avoid reusing “chunkId” for both).
+    - Ensure identity fields are unambiguous: distinguish **doc id** vs **stable chunk uid** (avoid reusing "chunkId" for both).
 - [ ] Update documentation for the new contract.
   - Touchpoints:
-    - `docs/artifact-contract.md` (artifact inventory + semantics)
-    - If needed: `docs/metadata-schema-v2.md` (to clarify identity fields used for joins)
+    - `docs/contracts/artifact-contract.md` (artifact inventory + semantics)
+    - If needed: `docs/specs/metadata-schema-v2.md` (to clarify identity fields used for joins)
   - Include at least one example callsite record for JS and TS.
 
 #### Tests / Verification
 
 - [ ] Add a schema test that validates a representative `call_sites` entry (including truncation edge cases).
-- [ ] Add a “reject bad contract” test case (missing required fields, wrong types, oversized fields).
+- [ ] Add a "reject bad contract" test case (missing required fields, wrong types, oversized fields).
 - [ ] Verify that validation runs in CI lanes that already validate artifact schemas.
 
 ---
 
-### Phase 6.2 — Emit `call_sites` as a first‑class, sharded JSONL artifact (meta + manifest)
+### Phase 6.2 -- Emit `call_sites` as a first‑class, sharded JSONL artifact (meta + manifest)
 
 - [ ] Implement a dedicated writer for `call_sites` that is sharded by default.
   - Touchpoints:
@@ -76,7 +76,7 @@ This phase explicitly targets:
     - `src/shared/json-stream.js` and/or `src/shared/artifact-io.js` (shared helpers; reuse existing patterns)
   - Output shape (recommended):
     - `pieces/call_sites/meta.json` (counts, shard size, formatVersion, etc.)
-    - `pieces/call_sites/part-000.jsonl`, `part-001.jsonl`, … (entries)
+    - `pieces/call_sites/part-000.jsonl`, `part-001.jsonl`, ... (entries)
   - Writer requirements:
     - Deterministic shard ordering and deterministic within-shard ordering.
     - Streaming write path (avoid holding all callsites in memory when possible).
@@ -92,7 +92,7 @@ This phase explicitly targets:
 - [ ] Decide and document the compatibility posture for existing relations artifacts.
   - Recommended:
     - Keep existing lightweight relations (e.g., `callLinks`) intact for backward compatibility.
-    - Do **not** bloat `file_relations` with full callsite evidence; `call_sites` is the dedicated “large” artifact.
+    - Do **not** bloat `file_relations` with full callsite evidence; `call_sites` is the dedicated "large" artifact.
 
 #### Tests / Verification
 
@@ -104,7 +104,7 @@ This phase explicitly targets:
 
 ---
 
-### Phase 6.3 — JS + TS callsite extraction with structured args (CallDetails v2)
+### Phase 6.3 -- JS + TS callsite extraction with structured args (CallDetails v2)
 
 - [ ] Upgrade JavaScript relations extraction to emit CallDetails v2 fields needed by `call_sites`.
   - Touchpoints:
@@ -114,7 +114,7 @@ This phase explicitly targets:
     - Provide `calleeRaw`, `calleeNormalized`, and `receiver` where applicable:
       - e.g., `foo.bar()` → `calleeRaw="foo.bar"`, `calleeNormalized="bar"`, `receiver="foo"`
     - Emit a bounded, deterministic arg summary (`args`):
-      - minimum: arity + “simple literal flags” (string/number/bool/null/object/array/function/spread/identifier)
+      - minimum: arity + "simple literal flags" (string/number/bool/null/object/array/function/spread/identifier)
       - must never include unbounded text (cap string literal previews, object literal previews, etc.)
     - Maintain compatibility for existing consumers that read `callDetails.args` today:
       - either provide a backwards-compatible view, or update consumers in Phase 6.5.
@@ -147,7 +147,7 @@ This phase explicitly targets:
 
 ---
 
-### Phase 6.4 — Segment-safe absolute positions, chunk attribution, and deterministic ordering
+### Phase 6.4 -- Segment-safe absolute positions, chunk attribution, and deterministic ordering
 
 - [ ] Ensure callsite positions are **absolute offsets in the container file** (segment-safe).
   - Touchpoints (depending on where translation is implemented):
@@ -165,12 +165,12 @@ This phase explicitly targets:
     - `src/index/language-registry/registry.js` (chunk relation attachment)
   - Requirements:
     - Prefer range containment (callsite offset within chunk start/end), selecting the smallest/innermost containing chunk deterministically.
-    - If containment is ambiguous or no chunk contains the callsite, record the callsite with `callerChunkUid = null` only if the contract permits it; otherwise attach to a deterministic “file/module” pseudo-caller (choose one approach and document it).
+    - If containment is ambiguous or no chunk contains the callsite, record the callsite with `callerChunkUid = null` only if the contract permits it; otherwise attach to a deterministic "file/module" pseudo-caller (choose one approach and document it).
 - [ ] Fix segment language fidelity issues that would break JS/TS/TSX call extraction for embedded segments.
   - Touchpoints:
     - `src/index/segments.js` (do not collapse `tsx→typescript` or `jsx→javascript` if it prevents correct tooling selection)
     - `src/index/build/file-processor/tree-sitter.js` (ensure embedded TSX/JSX segments can select the correct parser when container ext differs)
-  - If full segment-as-virtual-file semantics are not yet implemented, explicitly defer the broader contract work to **Phase 7 — Segment-Aware Analysis Backbone & VFS**, but Phase 6 must still support segment callsite offset translation for the JS/TS fixtures included in this phase.
+  - If full segment-as-virtual-file semantics are not yet implemented, explicitly defer the broader contract work to **Phase 7 -- Segment-Aware Analysis Backbone & VFS**, but Phase 6 must still support segment callsite offset translation for the JS/TS fixtures included in this phase.
 - [ ] Define and enforce deterministic ordering for callsites prior to writing.
   - Canonical sort key (recommended):
     - `relPath`, `callerChunkUid`, `start`, `end`, `calleeNormalized`, `calleeRaw`
@@ -185,7 +185,7 @@ This phase explicitly targets:
 
 ---
 
-### Phase 6.5 — Graph integration and cross-file linking (prefer `call_sites`, eliminate `file::name` reliance)
+### Phase 6.5 -- Graph integration and cross-file linking (prefer `call_sites`, eliminate `file::name` reliance)
 
 - [ ] Produce `call_sites` entries that carry resolved callee identity when it is uniquely resolvable.
   - Touchpoints:
@@ -196,7 +196,7 @@ This phase explicitly targets:
     - If resolution is ambiguous:
       - record bounded `targetCandidates` (or similar) and keep `targetChunkUid=null`
       - never silently drop the callsite edge
-    - If resolution requires a full SymbolId contract, defer that strengthening to **Phase 8 — Symbol Identity v1**, but Phase 6 must still remove _required_ reliance on `file::name` uniqueness.
+    - If resolution requires a full SymbolId contract, defer that strengthening to **Phase 8 -- Symbol Identity v1**, but Phase 6 must still remove _required_ reliance on `file::name` uniqueness.
 - [ ] Replace `file::name`-keyed joins in cross-file inference and graph assembly with stable chunk UIDs.
   - Touchpoints:
     - `src/index/type-inference-crossfile/pipeline.js` (today uses `chunkByKey` keyed by `${file}::${name}`)
@@ -245,8 +245,8 @@ This phase explicitly targets:
     - src/shared/artifact-io/jsonl.js:11-17
     - src/shared/artifact-io/loaders.js:150-205 (requiredKeys usage in loadJsonArrayArtifact)
   - Gaps/conflicts:
-    - docs/artifact-schemas.md already lists call_sites, but schema registry lacks it (doc/code drift).
-    - SPEC_risk_flows_and_call_sites_jsonl_v1_refined.md (Phase 10) defines call_sites fields; align naming now to avoid later rename churn.
+    - docs/contracts/artifact-schemas.md already lists call_sites, but schema registry lacks it (doc/code drift).
+    - docs/specs/risk-flows-and-call-sites.md (Phase 10) defines call_sites fields; align naming now to avoid later rename churn.
 - Task: Add schema validation for call_sites entries
   - Files to change/create:
     - src/index/validate.js (optionalArtifacts list around 76-95; add call_sites; add load/validate block similar to file_relations at 339-347)
@@ -258,13 +258,13 @@ This phase explicitly targets:
     - strict mode expects manifest entries; call_sites must be optional with clean fallback when missing.
 - Task: Update documentation for contract
   - Files to change/create:
-    - docs/artifact-contract.md (artifact inventory + examples)
-    - docs/artifact-schemas.md (Phase 6 additions already mention call_sites; ensure field list is explicit)
-    - docs/metadata-schema-v2.md (already notes call_sites at line ~138; ensure it stays “not in metaV2”)
+    - docs/contracts/artifact-contract.md (artifact inventory + examples)
+    - docs/contracts/artifact-schemas.md (Phase 6 additions already mention call_sites; ensure field list is explicit)
+    - docs/specs/metadata-schema-v2.md (already notes call_sites at line ~138; ensure it stays "not in metaV2")
   - Call sites/line refs:
-    - docs/metadata-schema-v2.md:138
+    - docs/specs/metadata-schema-v2.md:138
   - Gaps/conflicts:
-    - docs/artifact-schemas.md references SPEC_risk_flows_and_call_sites_jsonl_v1_refined.md; ensure Phase 6 contract matches that spec’s required keys.
+    - docs/contracts/artifact-schemas.md references docs/specs/risk-flows-and-call-sites.md; ensure Phase 6 contract matches that spec's required keys.
 - Tests / Verification
   - Files to change/create:
     - tests/contracts/call-sites-schema.test.js (new; validate good + bad entries)
@@ -531,3 +531,5 @@ This phase explicitly targets:
   - required keys: schemaVersion, artifact="call_sites", format="jsonl-sharded", generatedAt, compression,
     totalRecords, totalBytes, maxPartRecords, maxPartBytes, targetMaxBytes, parts[]
   - parts[] required keys: path, records, bytes (checksum optional)
+
+

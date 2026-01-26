@@ -1,0 +1,2796 @@
+{
+  "generatedAt": "2026-01-26T20:46:49.751Z",
+  "budgets": {
+    "configKeys": 2,
+    "envVars": 1,
+    "cliFlags": 25
+  },
+  "allowlists": {
+    "configKeys": [
+      "cache.root",
+      "quality"
+    ],
+    "envVars": [
+      "PAIROFCLEATS_API_TOKEN"
+    ],
+    "cliFlags": [
+      "backend",
+      "explain",
+      "filter",
+      "host",
+      "json",
+      "mode",
+      "port",
+      "quality",
+      "repo",
+      "top",
+      "watch"
+    ],
+    "knownEnvVars": [
+      "PAIROFCLEATS_API_TOKEN",
+      "PAIROFCLEATS_BENCH_RUN",
+      "PAIROFCLEATS_BUNDLE_THREADS",
+      "PAIROFCLEATS_CACHE_ROOT",
+      "PAIROFCLEATS_DEBUG_CRASH",
+      "PAIROFCLEATS_DICT_DIR",
+      "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
+      "PAIROFCLEATS_EMBEDDINGS",
+      "PAIROFCLEATS_EXTENSIONS_DIR",
+      "PAIROFCLEATS_FILE_CACHE_MAX",
+      "PAIROFCLEATS_HOME",
+      "PAIROFCLEATS_IMPORT_GRAPH",
+      "PAIROFCLEATS_IO_OVERSUBSCRIBE",
+      "PAIROFCLEATS_LOG_FORMAT",
+      "PAIROFCLEATS_LOG_LEVEL",
+      "PAIROFCLEATS_MAX_OLD_SPACE_MB",
+      "PAIROFCLEATS_MCP_MAX_BUFFER_BYTES",
+      "PAIROFCLEATS_MCP_QUEUE_MAX",
+      "PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS",
+      "PAIROFCLEATS_MODEL",
+      "PAIROFCLEATS_MODELS_DIR",
+      "PAIROFCLEATS_NODE_OPTIONS",
+      "PAIROFCLEATS_PROFILE",
+      "PAIROFCLEATS_SKIP_BENCH",
+      "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
+      "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
+      "PAIROFCLEATS_STAGE",
+      "PAIROFCLEATS_SUITE_MODE",
+      "PAIROFCLEATS_SUMMARY_CACHE_MAX",
+      "PAIROFCLEATS_TESTING",
+      "PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY",
+      "PAIROFCLEATS_TEST_CACHE_SUFFIX",
+      "PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS",
+      "PAIROFCLEATS_TEST_CONFIG",
+      "PAIROFCLEATS_TEST_LOG_DIR",
+      "PAIROFCLEATS_TEST_MAX_JSON_BYTES",
+      "PAIROFCLEATS_TEST_MAX_OLD_SPACE_MB",
+      "PAIROFCLEATS_TEST_NODE_OPTIONS",
+      "PAIROFCLEATS_TEST_PID_FILE",
+      "PAIROFCLEATS_TEST_RETRIES",
+      "PAIROFCLEATS_TEST_TANTIVY",
+      "PAIROFCLEATS_TEST_THREADS",
+      "PAIROFCLEATS_TEST_TIMEOUT_MS",
+      "PAIROFCLEATS_THREADS",
+      "PAIROFCLEATS_UV_THREADPOOL_SIZE",
+      "PAIROFCLEATS_VERBOSE",
+      "PAIROFCLEATS_WATCHER_BACKEND",
+      "PAIROFCLEATS_WORKER_POOL",
+      "PAIROFCLEATS_XXHASH_BACKEND"
+    ],
+    "knownConfigKeys": [
+      "cache.root",
+      "indexing.concurrency",
+      "indexing.embeddings.concurrency",
+      "indexing.embeddings.onnx.interOpNumThreads",
+      "indexing.embeddings.onnx.intraOpNumThreads",
+      "indexing.embeddings.provider",
+      "indexing.fileCaps.byExt.*.maxBytes",
+      "indexing.fileCaps.byExt.*.maxLines",
+      "indexing.fileCaps.byLanguage.*.maxBytes",
+      "indexing.fileCaps.byLanguage.*.maxLines",
+      "indexing.fileCaps.byMode.code.maxBytes",
+      "indexing.fileCaps.byMode.code.maxLines",
+      "indexing.fileCaps.byMode.extracted-prose.maxBytes",
+      "indexing.fileCaps.byMode.extracted-prose.maxLines",
+      "indexing.fileCaps.byMode.prose.maxBytes",
+      "indexing.fileCaps.byMode.prose.maxLines",
+      "indexing.fileCaps.byMode.records.maxBytes",
+      "indexing.fileCaps.byMode.records.maxLines",
+      "indexing.fileCaps.default.maxBytes",
+      "indexing.fileCaps.default.maxLines",
+      "indexing.importConcurrency",
+      "indexing.ioConcurrencyCap",
+      "indexing.maxFileBytes",
+      "indexing.maxFileLines",
+      "quality",
+      "runtime.ioOversubscribe",
+      "runtime.maxOldSpaceMb",
+      "runtime.nodeOptions",
+      "runtime.uvThreadpoolSize",
+      "search.sqliteAutoArtifactBytes",
+      "search.sqliteAutoChunkThreshold",
+      "threads"
+    ]
+  },
+  "configSchema": {
+    "path": "docs/config/schema.json",
+    "totalKeys": 49,
+    "leafKeys": 32,
+    "topLevel": [
+      {
+        "key": "cache",
+        "count": 2
+      },
+      {
+        "key": "indexing",
+        "count": 37
+      },
+      {
+        "key": "quality",
+        "count": 1
+      },
+      {
+        "key": "runtime",
+        "count": 5
+      },
+      {
+        "key": "search",
+        "count": 3
+      },
+      {
+        "key": "threads",
+        "count": 1
+      }
+    ]
+  },
+  "configKeys": [
+    {
+      "path": "cache",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "cache.root",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.concurrency",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.concurrency",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.onnx",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.onnx.interOpNumThreads",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.onnx.intraOpNumThreads",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.provider",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byExt",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byExt.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byExt.*.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byExt.*.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage.*.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage.*.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode.code",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode.code.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode.code.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode.extracted-prose",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode.extracted-prose.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode.extracted-prose.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode.prose",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode.prose.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode.prose.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode.records",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode.records.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byMode.records.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.default",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.default.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.default.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.importConcurrency",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.ioConcurrencyCap",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.maxFileBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.maxFileLines",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "quality",
+      "type": "string",
+      "enum": [
+        "auto",
+        "fast",
+        "balanced",
+        "max"
+      ]
+    },
+    {
+      "path": "runtime",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "runtime.ioOversubscribe",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "runtime.maxOldSpaceMb",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "runtime.nodeOptions",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "runtime.uvThreadpoolSize",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteAutoArtifactBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "search.sqliteAutoChunkThreshold",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "threads",
+      "type": "number",
+      "enum": null
+    }
+  ],
+  "configKeysPublic": [
+    "cache.root",
+    "quality"
+  ],
+  "configKeysUnknown": [],
+  "envVars": [
+    {
+      "name": "PAIROFCLEATS_API_TOKEN",
+      "files": [
+        "src/shared/env.js",
+        "tools/api-server.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_BENCH_RUN",
+      "files": [
+        "tests/perf/bench/scenarios/ann-on-off.js",
+        "tests/perf/bench/scenarios/bm25-params.js",
+        "tests/perf/bench/scenarios/memory-vs-sqlite.js",
+        "tests/perf/bench/scenarios/sqlite-fts.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_BUNDLE_THREADS",
+      "files": [
+        "src/shared/env.js",
+        "tests/perf/baseline-artifacts.test.js",
+        "tests/sqlite-ann-extension.js",
+        "tools/ci/run-suite.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_CACHE_ROOT",
+      "files": [
+        "src/shared/env.js",
+        "tests/api-server-stream.js",
+        "tests/artifact-size-guardrails.js",
+        "tests/build-embeddings-cache.js",
+        "tests/build-embeddings/args-parsing.test.js",
+        "tests/build-embeddings/runtime-defaults.test.js",
+        "tests/build-index-all.js",
+        "tests/cache-gc.js",
+        "tests/chunk-id-backend-parity.js",
+        "tests/churn-filter.js",
+        "tests/clean-artifacts.js",
+        "tests/code-map-basic.js",
+        "tests/code-map-determinism.js",
+        "tests/code-map-dot.js",
+        "tests/code-map-graphviz-fallback.js",
+        "tests/code-map-guardrails.js",
+        "tests/code-map-performance.js",
+        "tests/comment-join.js",
+        "tests/core-api.js",
+        "tests/dict-utils/paths-builds-root.test.js",
+        "tests/e2e-smoke.js",
+        "tests/embedding-batch-autotune.js",
+        "tests/embeddings-cache-identity.js",
+        "tests/embeddings-dims-mismatch.js",
+        "tests/embeddings-validate.js",
+        "tests/encoding-fallback.js",
+        "tests/eval-quality.js",
+        "tests/external-docs.js",
+        "tests/extracted-prose.js",
+        "tests/fielded-bm25.js",
+        "tests/file-line-guard.js",
+        "tests/file-size-guard.js",
+        "tests/filter-index-artifact.js",
+        "tests/fixture-empty.js",
+        "tests/fixture-eval.js",
+        "tests/fixture-parity.js",
+        "tests/format-fidelity.js",
+        "tests/git-blame-range.js",
+        "tests/helpers/fixture-index.js",
+        "tests/helpers/mcp-client.js",
+        "tests/helpers/search-filters-repo.js",
+        "tests/helpers/sqlite-incremental.js",
+        "tests/helpers/test-env.js",
+        "tests/helpers/triage.js",
+        "tests/hnsw-ann.js",
+        "tests/hnsw-atomic.js",
+        "tests/import-links.js",
+        "tests/incremental-cache-signature.js",
+        "tests/incremental-manifest.js",
+        "tests/incremental-tokenization-cache.js",
+        "tests/index-lifecycle-contract.js",
+        "tests/index-metrics-options.js",
+        "tests/index-validate.js",
+        "tests/indexer/metav2-finalization-after-inference.test.js",
+        "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/js-tree-sitter-maxbytes.js",
+        "tests/lancedb-ann.js",
+        "tests/lmdb-backend.js",
+        "tests/lmdb-corruption.js",
+        "tests/lmdb-report-artifacts.js",
+        "tests/mcp-robustness.js",
+        "tests/mcp-schema.js",
+        "tests/perf/baseline-artifacts.test.js",
+        "tests/perf/sqlite-p95-latency.test.js",
+        "tests/piece-assembly.js",
+        "tests/prose-rust-exclusion.js",
+        "tests/prose-skip-imports.js",
+        "tests/query-cache-extracted-prose.js",
+        "tests/query-cache.js",
+        "tests/records-exclusion.js",
+        "tests/repo-root.js",
+        "tests/repometrics-dashboard.js",
+        "tests/report-artifacts-manifest-driven.test.js",
+        "tests/run.js",
+        "tests/runtime-records-config.js",
+        "tests/script-coverage.js",
+        "tests/search-contract.js",
+        "tests/search-determinism.js",
+        "tests/search-explain-symbol.js",
+        "tests/search-explain.js",
+        "tests/search-missing-index.js",
+        "tests/search-rrf.js",
+        "tests/search-tie-order.js",
+        "tests/search-topn-filters.js",
+        "tests/search-windows-path-filter.js",
+        "tests/setup-index-detection.js",
+        "tests/setup.js",
+        "tests/shard-merge.js",
+        "tests/shard-progress-determinism.js",
+        "tests/skip-minified-binary.js",
+        "tests/smoke-retrieval.js",
+        "tests/sqlite-ann-extension.js",
+        "tests/sqlite-ann-fallback.js",
+        "tests/sqlite-auto-backend.js",
+        "tests/sqlite-build-indexes.js",
+        "tests/sqlite-bundle-missing.js",
+        "tests/sqlite-compact.js",
+        "tests/sqlite-incremental-no-change.js",
+        "tests/sqlite-index-state-fail-closed.js",
+        "tests/sqlite-missing-dep.js",
+        "tests/sqlite-sidecar-cleanup.js",
+        "tests/subprocess-quoting.js",
+        "tests/summary-report.js",
+        "tests/tantivy-smoke.js",
+        "tests/tool-root.js",
+        "tests/two-stage-state.js",
+        "tests/type-inference-crossfile-go.js",
+        "tests/type-inference-lsp-enrichment.js",
+        "tests/unicode-offset.js",
+        "tests/uninstall.js",
+        "tests/vector-extension-missing.js",
+        "tools/ci/run-suite.js",
+        "tools/compare-models.js",
+        "tools/config-inventory.js",
+        "tools/dict-utils/cache.js",
+        "tools/dict-utils/config.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_DEBUG_CRASH",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_DICT_DIR",
+      "files": [
+        "tests/uninstall.js",
+        "tools/compare-models.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_EMBEDDINGS",
+      "files": [
+        "src/shared/env.js",
+        "tests/api-server-stream.js",
+        "tests/artifact-size-guardrails.js",
+        "tests/build-embeddings-cache.js",
+        "tests/build-embeddings/runtime-defaults.test.js",
+        "tests/build-index-all.js",
+        "tests/chunk-id-backend-parity.js",
+        "tests/churn-filter.js",
+        "tests/code-map-basic.js",
+        "tests/code-map-determinism.js",
+        "tests/code-map-dot.js",
+        "tests/code-map-graphviz-fallback.js",
+        "tests/code-map-guardrails.js",
+        "tests/code-map-performance.js",
+        "tests/comment-join.js",
+        "tests/core-api.js",
+        "tests/e2e-smoke.js",
+        "tests/embeddings-cache-identity.js",
+        "tests/embeddings-dims-mismatch.js",
+        "tests/embeddings-validate.js",
+        "tests/encoding-fallback.js",
+        "tests/eval-quality.js",
+        "tests/external-docs.js",
+        "tests/extracted-prose.js",
+        "tests/fielded-bm25.js",
+        "tests/file-line-guard.js",
+        "tests/file-size-guard.js",
+        "tests/filter-index-artifact.js",
+        "tests/fixture-empty.js",
+        "tests/fixture-eval.js",
+        "tests/fixture-parity.js",
+        "tests/format-fidelity.js",
+        "tests/git-blame-range.js",
+        "tests/helpers/fixture-index.js",
+        "tests/helpers/search-filters-repo.js",
+        "tests/helpers/sqlite-incremental.js",
+        "tests/helpers/test-env.js",
+        "tests/helpers/triage.js",
+        "tests/hnsw-ann.js",
+        "tests/hnsw-atomic.js",
+        "tests/import-links.js",
+        "tests/incremental-cache-signature.js",
+        "tests/incremental-manifest.js",
+        "tests/incremental-tokenization-cache.js",
+        "tests/index-lifecycle-contract.js",
+        "tests/index-metrics-options.js",
+        "tests/index-validate.js",
+        "tests/indexer/metav2-finalization-after-inference.test.js",
+        "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/js-tree-sitter-maxbytes.js",
+        "tests/lancedb-ann.js",
+        "tests/lmdb-backend.js",
+        "tests/lmdb-corruption.js",
+        "tests/lmdb-report-artifacts.js",
+        "tests/perf/baseline-artifacts.test.js",
+        "tests/perf/bench/run.test.js",
+        "tests/perf/sqlite-p95-latency.test.js",
+        "tests/piece-assembly.js",
+        "tests/prose-rust-exclusion.js",
+        "tests/prose-skip-imports.js",
+        "tests/query-cache-extracted-prose.js",
+        "tests/query-cache.js",
+        "tests/records-exclusion.js",
+        "tests/repo-root.js",
+        "tests/script-coverage.js",
+        "tests/search-contract.js",
+        "tests/search-determinism.js",
+        "tests/search-explain-symbol.js",
+        "tests/search-explain.js",
+        "tests/search-missing-index.js",
+        "tests/search-rrf.js",
+        "tests/search-tie-order.js",
+        "tests/search-topn-filters.js",
+        "tests/search-windows-path-filter.js",
+        "tests/shard-merge.js",
+        "tests/skip-minified-binary.js",
+        "tests/smoke-retrieval.js",
+        "tests/sqlite-ann-extension.js",
+        "tests/sqlite-ann-fallback.js",
+        "tests/sqlite-auto-backend.js",
+        "tests/sqlite-build-indexes.js",
+        "tests/sqlite-bundle-missing.js",
+        "tests/sqlite-compact.js",
+        "tests/sqlite-incremental-no-change.js",
+        "tests/sqlite-index-state-fail-closed.js",
+        "tests/sqlite-missing-dep.js",
+        "tests/sqlite-sidecar-cleanup.js",
+        "tests/subprocess-quoting.js",
+        "tests/summary-report.js",
+        "tests/tantivy-smoke.js",
+        "tests/tool-root.js",
+        "tests/two-stage-state.js",
+        "tests/type-inference-crossfile-go.js",
+        "tests/type-inference-lsp-enrichment.js",
+        "tests/unicode-offset.js",
+        "tools/ci/run-suite.js",
+        "tools/compare-models.js",
+        "tools/config-inventory.js",
+        "tools/mcp/transport.js",
+        "tools/triage/context-pack.js",
+        "tools/triage/ingest.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_EXTENSIONS_DIR",
+      "files": [
+        "tests/uninstall.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_FILE_CACHE_MAX",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_HOME",
+      "files": [
+        "tests/helpers/mcp-client.js",
+        "tests/mcp-robustness.js",
+        "tests/mcp-schema.js",
+        "tests/uninstall.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_IMPORT_GRAPH",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_IO_OVERSUBSCRIBE",
+      "files": [
+        "src/shared/runtime-envelope.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_LOG_FORMAT",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_LOG_LEVEL",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MAX_OLD_SPACE_MB",
+      "files": [
+        "src/shared/runtime-envelope.js",
+        "tests/helpers/sqlite-incremental.js",
+        "tests/perf/bench/run.test.js",
+        "tests/runtime-envelope-node-options-merge.js",
+        "tests/runtime/runtime-envelope-spawn-env.test.js",
+        "tests/sqlite-incremental-no-change.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MCP_MAX_BUFFER_BYTES",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MCP_QUEUE_MAX",
+      "files": [
+        "src/shared/env.js",
+        "tests/mcp-robustness.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS",
+      "files": [
+        "src/shared/env.js",
+        "tests/mcp-robustness.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MODEL",
+      "files": [
+        "tools/compare-models.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_MODELS_DIR",
+      "files": [
+        "tests/uninstall.js",
+        "tools/compare-models.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_NODE_OPTIONS",
+      "files": [
+        "src/shared/runtime-envelope.js",
+        "tests/runtime-envelope-node-options-merge.js",
+        "tests/runtime/runtime-envelope-spawn-env.test.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_PROFILE",
+      "files": [
+        "tests/fixture-parity.js",
+        "tests/structural-search.js",
+        "tests/summary-report.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SKIP_BENCH",
+      "files": [
+        "tests/all.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
+      "files": [
+        "tests/all.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
+      "files": [
+        "tests/all.js",
+        "tests/script-coverage/actions.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_STAGE",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SUITE_MODE",
+      "files": [
+        "tools/ci/run-suite.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_SUMMARY_CACHE_MAX",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY",
+      "files": [
+        "src/shared/env.js",
+        "tests/helpers/fixture-index.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_CACHE_SUFFIX",
+      "files": [
+        "tests/helpers/fixture-index.js",
+        "tests/run-execution.js",
+        "tests/services/mcp/tool-search-defaults-and-filters.test.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_CODE_MAP_BUDGET_MS",
+      "files": [
+        "tests/code-map-performance.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_CONFIG",
+      "files": [
+        "src/shared/env.js",
+        "tests/artifact-size-guardrails.js",
+        "tests/build-index-all.js",
+        "tests/contracts/golden-surface-suite.test.js",
+        "tests/incremental-cache-signature.js",
+        "tests/incremental-tokenization-cache.js",
+        "tests/index-validate.js",
+        "tests/indexer/metav2-finalization-after-inference.test.js",
+        "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/query-cache-extracted-prose.js",
+        "tests/query-cache.js",
+        "tests/retrieval/filters/types.test.js",
+        "tests/services/mcp/tool-search-defaults-and-filters.test.js",
+        "tests/shard-merge.js",
+        "tests/skip-minified-binary.js",
+        "tests/sqlite-ann-extension.js",
+        "tests/sqlite-auto-backend.js",
+        "tests/type-inference-crossfile-go.js",
+        "tests/type-inference-lsp-enrichment.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_LOG_DIR",
+      "files": [
+        "tests/helpers/triage.js",
+        "tests/run.js",
+        "tests/script-coverage.js",
+        "tests/script-coverage/runner.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_MAX_JSON_BYTES",
+      "files": [
+        "src/shared/env.js",
+        "tests/artifact-size-guardrails.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_MAX_OLD_SPACE_MB",
+      "files": [
+        "tests/run.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_NODE_OPTIONS",
+      "files": [
+        "tests/run.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_PID_FILE",
+      "files": [
+        "tests/harness/timeout-kills-tree.test.js",
+        "tests/harness/timeout-target.js",
+        "tests/run-execution.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_RETRIES",
+      "files": [
+        "tests/run.js",
+        "tests/script-coverage.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_TANTIVY",
+      "files": [
+        "tests/tantivy-smoke.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_THREADS",
+      "files": [
+        "tests/run.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TEST_TIMEOUT_MS",
+      "files": [
+        "tests/indexer/metav2-finalization-after-inference.test.js",
+        "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/run.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TESTING",
+      "files": [
+        "src/index/tooling/pyright-provider.js",
+        "src/shared/env.js",
+        "tests/all.js",
+        "tests/artifact-size-guardrails.js",
+        "tests/build-embeddings-cache.js",
+        "tests/build-embeddings/args-parsing.test.js",
+        "tests/build-embeddings/runtime-defaults.test.js",
+        "tests/build-index-all.js",
+        "tests/code-map-basic.js",
+        "tests/code-map-determinism.js",
+        "tests/code-map-dot.js",
+        "tests/comment-join.js",
+        "tests/contracts/golden-surface-suite.test.js",
+        "tests/contracts/index-compatibility-key-enforced-on-load.test.js",
+        "tests/contracts/index-compatibility-key-federation-block.test.js",
+        "tests/contracts/loader-matrix-parity.test.js",
+        "tests/dict-utils/paths-builds-root.test.js",
+        "tests/embedding-batch-autotune.js",
+        "tests/extracted-prose.js",
+        "tests/file-line-guard.js",
+        "tests/file-size-guard.js",
+        "tests/filter-index-artifact.js",
+        "tests/format-fidelity.js",
+        "tests/helpers/fixture-index.js",
+        "tests/helpers/mcp-client.js",
+        "tests/helpers/search-filters-repo.js",
+        "tests/helpers/test-env.js",
+        "tests/hnsw-ann.js",
+        "tests/incremental-cache-signature.js",
+        "tests/incremental-manifest.js",
+        "tests/incremental-tokenization-cache.js",
+        "tests/index-metrics-options.js",
+        "tests/index-validate.js",
+        "tests/indexer/metav2-finalization-after-inference.test.js",
+        "tests/indexing/type-inference/crossfile-output.integration.test.js",
+        "tests/js-tree-sitter-maxbytes.js",
+        "tests/lancedb-ann.js",
+        "tests/lmdb-backend.js",
+        "tests/lmdb-corruption.js",
+        "tests/lmdb-report-artifacts.js",
+        "tests/logging/stdout-contract.test.js",
+        "tests/mcp-robustness.js",
+        "tests/mcp-schema.js",
+        "tests/perf/baseline-artifacts.test.js",
+        "tests/perf/bench/run.test.js",
+        "tests/perf/sqlite-p95-latency.test.js",
+        "tests/prose-rust-exclusion.js",
+        "tests/query-cache-extracted-prose.js",
+        "tests/query-cache.js",
+        "tests/records-exclusion.js",
+        "tests/retrieval/query-cache-signature-sharded-chunk-meta.test.js",
+        "tests/run.js",
+        "tests/runtime-records-config.js",
+        "tests/script-coverage.js",
+        "tests/setup-index-detection.js",
+        "tests/shard-merge.js",
+        "tests/shard-progress-determinism.js",
+        "tests/skip-minified-binary.js",
+        "tests/smoke-retrieval.js",
+        "tests/sqlite-ann-extension.js",
+        "tests/sqlite-ann-fallback.js",
+        "tests/sqlite-auto-backend.js",
+        "tests/sqlite-build-indexes.js",
+        "tests/sqlite-incremental-no-change.js",
+        "tests/sqlite-missing-dep.js",
+        "tests/tantivy-smoke.js",
+        "tests/two-stage-state.js",
+        "tests/type-inference-crossfile-go.js",
+        "tests/type-inference-lsp-enrichment.js",
+        "tests/vector-extension-missing.js",
+        "tools/ci/run-suite.js",
+        "tools/config-inventory.js",
+        "tools/dict-utils/cache.js",
+        "tools/dict-utils/config.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_THREADS",
+      "files": [
+        "src/shared/env.js",
+        "src/shared/runtime-envelope.js",
+        "src/shared/threads.js",
+        "tests/perf/baseline-artifacts.test.js",
+        "tests/perf/bench/run.test.js",
+        "tests/run.js",
+        "tools/ci/run-suite.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_UV_THREADPOOL_SIZE",
+      "files": [
+        "src/shared/runtime-envelope.js",
+        "tests/runtime-envelope-uv-threadpool-precedence.js",
+        "tests/runtime/runtime-envelope-spawn-env.test.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_VERBOSE",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_WATCHER_BACKEND",
+      "files": [
+        "src/shared/env.js",
+        "tests/watch-backend-selection.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_WORKER_POOL",
+      "files": [
+        "src/index/build/failure-taxonomy.js",
+        "src/shared/env.js",
+        "tests/encoding-fallback.js",
+        "tests/helpers/fixture-index.js",
+        "tests/helpers/sqlite-incremental.js",
+        "tests/js-tree-sitter-maxbytes.js",
+        "tests/perf/sqlite-p95-latency.test.js",
+        "tests/search-explain-symbol.js",
+        "tests/search-windows-path-filter.js",
+        "tests/sqlite-incremental-no-change.js",
+        "tools/ci/run-suite.js",
+        "tools/config-inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_XXHASH_BACKEND",
+      "files": [
+        "src/shared/env.js",
+        "tools/config-inventory.js"
+      ]
+    }
+  ],
+  "envVarsPublic": [
+    "PAIROFCLEATS_API_TOKEN"
+  ],
+  "envVarsUnknown": [],
+  "cliFlags": {
+    "totalFlags": 203,
+    "publicFlags": [
+      "backend",
+      "host",
+      "json",
+      "mode",
+      "port",
+      "repo",
+      "top",
+      "watch"
+    ],
+    "internalFlags": [
+      "all",
+      "allow-unauthenticated",
+      "allowed-repo-roots",
+      "ann",
+      "ann-mode",
+      "ann-modes",
+      "arch",
+      "args",
+      "auth-token",
+      "backends",
+      "backup",
+      "baseline",
+      "batch",
+      "bench",
+      "build",
+      "build-index",
+      "build-sqlite",
+      "cache-dir",
+      "cache-root",
+      "cert-dir",
+      "chunk-meta-size",
+      "clean",
+      "code",
+      "code-dir",
+      "collapse",
+      "colorize",
+      "column",
+      "command",
+      "compact",
+      "concurrency",
+      "config",
+      "cors-allow-any",
+      "cors-allowed-origins",
+      "count",
+      "ctags",
+      "dataset",
+      "destination",
+      "dict",
+      "dims",
+      "dir",
+      "dp-max",
+      "dry-run",
+      "encoding",
+      "enforce",
+      "enforce-fts",
+      "engine",
+      "evidence",
+      "expires",
+      "extensions",
+      "extracted-prose-dir",
+      "fail-fast",
+      "fields",
+      "finding",
+      "fixture",
+      "fixtures",
+      "flowMode",
+      "focus",
+      "force",
+      "format",
+      "from",
+      "global",
+      "in",
+      "include",
+      "include-prose",
+      "includeCalls",
+      "includeImports",
+      "includeUsages",
+      "incremental",
+      "index-root",
+      "input",
+      "inputs",
+      "interactive",
+      "interval",
+      "justification",
+      "keep-backup",
+      "lang",
+      "languages",
+      "limit",
+      "list-packs",
+      "load",
+      "log",
+      "log-dir",
+      "match-mode",
+      "max-age-days",
+      "max-body-bytes",
+      "max-bytes",
+      "max-delta",
+      "max-edges",
+      "max-files",
+      "max-gb",
+      "max-members-per-file",
+      "maxPerHit",
+      "maxTotal",
+      "meta",
+      "min-count",
+      "min-overlap",
+      "min-overlap-single",
+      "min-rank-corr",
+      "model",
+      "model-out",
+      "models",
+      "module",
+      "no-ann",
+      "no-compact",
+      "no-fallback",
+      "node-list-out",
+      "non-interactive",
+      "non-strict",
+      "only-exported",
+      "onlyExported",
+      "onnx",
+      "onnx-path",
+      "open",
+      "open-uri-template",
+      "options",
+      "out",
+      "out-dir",
+      "output",
+      "pack",
+      "path",
+      "perf",
+      "platform",
+      "pretty",
+      "progress",
+      "prose-dir",
+      "provider",
+      "queries",
+      "queries-dir",
+      "queue",
+      "quiet",
+      "reason",
+      "record",
+      "records-dir",
+      "refresh",
+      "registry",
+      "require-dicts",
+      "require-index",
+      "require-sqlite",
+      "results",
+      "retries",
+      "reviewer",
+      "root",
+      "rule",
+      "run",
+      "sample",
+      "schema",
+      "scip",
+      "scope",
+      "search",
+      "seed",
+      "sha256",
+      "skip-artifacts",
+      "skip-bench",
+      "skip-build",
+      "skip-dicts",
+      "skip-extensions",
+      "skip-index",
+      "skip-install",
+      "skip-models",
+      "skip-script-coverage",
+      "skip-sqlite",
+      "skip-tooling",
+      "skip-validate",
+      "sort",
+      "source",
+      "sqlite-backend",
+      "stage",
+      "status",
+      "strict",
+      "stub-embeddings",
+      "table",
+      "three-url",
+      "timeout-ms",
+      "token-postings-size",
+      "tokens",
+      "tooling-scope",
+      "tools",
+      "top-k-by-degree",
+      "topKByDegree",
+      "translateTime",
+      "treeSitter",
+      "type",
+      "update",
+      "url",
+      "validate",
+      "validate-config",
+      "verbose",
+      "wasd-acceleration",
+      "wasd-drag",
+      "wasd-max-speed",
+      "wasd-sensitivity",
+      "with-sqlite",
+      "write-report",
+      "yes",
+      "zoom-sensitivity"
+    ],
+    "publicDetected": [],
+    "publicUnknown": [],
+    "byFile": [
+      {
+        "file": "src/integrations/mcp/defs.js",
+        "flags": [
+          "type"
+        ]
+      },
+      {
+        "file": "src/lang/javascript/chunks.js",
+        "flags": [
+          "log",
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "src/lang/typescript/chunks.js",
+        "flags": [
+          "log",
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "src/map/build-map.js",
+        "flags": [
+          "collapse",
+          "focus",
+          "include",
+          "onlyExported",
+          "topKByDegree"
+        ]
+      },
+      {
+        "file": "src/shared/progress.js",
+        "flags": [
+          "colorize",
+          "destination",
+          "translateTime"
+        ]
+      },
+      {
+        "file": "tests/all.js",
+        "flags": [
+          "log-dir",
+          "retries",
+          "skip-bench",
+          "skip-script-coverage"
+        ]
+      },
+      {
+        "file": "tests/context-expansion.js",
+        "flags": [
+          "includeCalls",
+          "includeImports",
+          "includeUsages",
+          "maxPerHit",
+          "maxTotal"
+        ]
+      },
+      {
+        "file": "tests/fixture-eval.js",
+        "flags": [
+          "backend",
+          "json",
+          "out",
+          "top",
+          "write-report"
+        ]
+      },
+      {
+        "file": "tests/fixture-parity.js",
+        "flags": [
+          "all",
+          "fixture",
+          "fixtures",
+          "timeout-ms"
+        ]
+      },
+      {
+        "file": "tests/fixtures/medium/generate.js",
+        "flags": [
+          "clean",
+          "count",
+          "out",
+          "seed"
+        ]
+      },
+      {
+        "file": "tests/imports-options-forwarding-flowmode.js",
+        "flags": [
+          "flowMode"
+        ]
+      },
+      {
+        "file": "tests/parity.js",
+        "flags": [
+          "ann",
+          "enforce",
+          "enforce-fts",
+          "limit",
+          "max-delta",
+          "min-overlap",
+          "min-overlap-single",
+          "min-rank-corr",
+          "out",
+          "queries",
+          "search",
+          "sqlite-backend",
+          "top",
+          "write-report"
+        ]
+      },
+      {
+        "file": "tests/script-coverage.js",
+        "flags": [
+          "log-dir",
+          "retries"
+        ]
+      },
+      {
+        "file": "tests/smoke.js",
+        "flags": [
+          "require-dicts",
+          "require-index",
+          "require-sqlite"
+        ]
+      },
+      {
+        "file": "tests/tree-sitter-chunks.js",
+        "flags": [
+          "log",
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "tools/api-server.js",
+        "flags": [
+          "allow-unauthenticated",
+          "allowed-repo-roots",
+          "auth-token",
+          "cors-allow-any",
+          "cors-allowed-origins",
+          "host",
+          "json",
+          "max-body-bytes",
+          "output",
+          "port",
+          "quiet",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/assemble-pieces.js",
+        "flags": [
+          "force",
+          "input",
+          "inputs",
+          "mode",
+          "non-strict",
+          "out",
+          "repo",
+          "sort",
+          "stage"
+        ]
+      },
+      {
+        "file": "tools/bench-dict-seg.js",
+        "flags": [
+          "dict",
+          "dp-max",
+          "fixture",
+          "json",
+          "out",
+          "sample",
+          "tokens"
+        ]
+      },
+      {
+        "file": "tools/bench-query-generator.js",
+        "flags": [
+          "count",
+          "index-root",
+          "json",
+          "mode",
+          "out",
+          "repo",
+          "seed"
+        ]
+      },
+      {
+        "file": "tools/bootstrap.js",
+        "flags": [
+          "incremental",
+          "repo",
+          "skip-artifacts",
+          "skip-dicts",
+          "skip-index",
+          "skip-install",
+          "skip-tooling",
+          "validate-config",
+          "with-sqlite"
+        ]
+      },
+      {
+        "file": "tools/build-embeddings/cli.js",
+        "flags": [
+          "batch",
+          "dims",
+          "index-root",
+          "mode",
+          "progress",
+          "quiet",
+          "repo",
+          "stub-embeddings",
+          "verbose"
+        ]
+      },
+      {
+        "file": "tools/build-lmdb-index.js",
+        "flags": [
+          "index-root",
+          "mode",
+          "progress",
+          "quiet",
+          "repo",
+          "validate",
+          "verbose"
+        ]
+      },
+      {
+        "file": "tools/build-sqlite-index/cli.js",
+        "flags": [
+          "code-dir",
+          "compact",
+          "extracted-prose-dir",
+          "incremental",
+          "index-root",
+          "mode",
+          "no-compact",
+          "out",
+          "progress",
+          "prose-dir",
+          "quiet",
+          "records-dir",
+          "repo",
+          "validate",
+          "verbose"
+        ]
+      },
+      {
+        "file": "tools/build-tantivy-index.js",
+        "flags": [
+          "index-root",
+          "mode",
+          "progress",
+          "quiet",
+          "repo",
+          "verbose"
+        ]
+      },
+      {
+        "file": "tools/cache-gc.js",
+        "flags": [
+          "dry-run",
+          "json",
+          "max-age-days",
+          "max-bytes",
+          "max-gb",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/ci-build-artifacts.js",
+        "flags": [
+          "incremental",
+          "out",
+          "progress",
+          "quiet",
+          "repo",
+          "skip-build",
+          "skip-sqlite",
+          "verbose"
+        ]
+      },
+      {
+        "file": "tools/ci-restore-artifacts.js",
+        "flags": [
+          "force",
+          "from",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/clean-artifacts.js",
+        "flags": [
+          "all",
+          "dry-run",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/combined-summary.js",
+        "flags": [
+          "ann",
+          "baseline",
+          "build",
+          "incremental",
+          "json",
+          "limit",
+          "mode",
+          "models",
+          "no-ann",
+          "out",
+          "queries",
+          "repo",
+          "top"
+        ]
+      },
+      {
+        "file": "tools/compact-pieces.js",
+        "flags": [
+          "chunk-meta-size",
+          "dry-run",
+          "mode",
+          "perf",
+          "repo",
+          "token-postings-size"
+        ]
+      },
+      {
+        "file": "tools/compact-sqlite-index.js",
+        "flags": [
+          "dry-run",
+          "keep-backup",
+          "mode",
+          "progress",
+          "quiet",
+          "repo",
+          "verbose"
+        ]
+      },
+      {
+        "file": "tools/compare-models.js",
+        "flags": [
+          "ann",
+          "backend",
+          "baseline",
+          "build",
+          "build-index",
+          "build-sqlite",
+          "cache-root",
+          "incremental",
+          "json",
+          "limit",
+          "mode",
+          "models",
+          "no-ann",
+          "out",
+          "queries",
+          "repo",
+          "stub-embeddings",
+          "top"
+        ]
+      },
+      {
+        "file": "tools/config-dump.js",
+        "flags": [
+          "json",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/ctags-ingest.js",
+        "flags": [
+          "args",
+          "ctags",
+          "fields",
+          "input",
+          "interactive",
+          "json",
+          "out",
+          "repo",
+          "run"
+        ]
+      },
+      {
+        "file": "tools/download-dicts.js",
+        "flags": [
+          "dir",
+          "force",
+          "lang",
+          "repo",
+          "sha256",
+          "update",
+          "url"
+        ]
+      },
+      {
+        "file": "tools/download-extensions.js",
+        "flags": [
+          "arch",
+          "dir",
+          "force",
+          "out",
+          "platform",
+          "progress",
+          "provider",
+          "quiet",
+          "repo",
+          "sha256",
+          "update",
+          "url",
+          "verbose"
+        ]
+      },
+      {
+        "file": "tools/download-models.js",
+        "flags": [
+          "cache-dir",
+          "model",
+          "onnx",
+          "onnx-path",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/eval/run.js",
+        "flags": [
+          "ann",
+          "backend",
+          "dataset",
+          "match-mode",
+          "out",
+          "pretty",
+          "progress",
+          "quiet",
+          "repo",
+          "top",
+          "verbose"
+        ]
+      },
+      {
+        "file": "tools/generate-demo-config.js",
+        "flags": [
+          "out",
+          "schema"
+        ]
+      },
+      {
+        "file": "tools/generate-repo-dict.js",
+        "flags": [
+          "extensions",
+          "include-prose",
+          "min-count",
+          "out",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/gtags-ingest.js",
+        "flags": [
+          "args",
+          "global",
+          "input",
+          "json",
+          "out",
+          "repo",
+          "run"
+        ]
+      },
+      {
+        "file": "tools/index-validate.js",
+        "flags": [
+          "index-root",
+          "json",
+          "mode",
+          "non-strict",
+          "repo",
+          "strict"
+        ]
+      },
+      {
+        "file": "tools/indexer-service.js",
+        "flags": [
+          "command",
+          "concurrency",
+          "config",
+          "interval",
+          "mode",
+          "queue",
+          "reason",
+          "repo",
+          "stage",
+          "watch"
+        ]
+      },
+      {
+        "file": "tools/lsif-ingest.js",
+        "flags": [
+          "input",
+          "json",
+          "out",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/map-iso-serve.js",
+        "flags": [
+          "cert-dir",
+          "dir",
+          "open",
+          "open-uri-template",
+          "out",
+          "port",
+          "repo",
+          "three-url"
+        ]
+      },
+      {
+        "file": "tools/parity-matrix.js",
+        "flags": [
+          "ann-modes",
+          "backend",
+          "backends",
+          "dry-run",
+          "fail-fast",
+          "limit",
+          "out-dir",
+          "queries",
+          "queries-dir",
+          "results",
+          "search",
+          "top"
+        ]
+      },
+      {
+        "file": "tools/repometrics-dashboard.js",
+        "flags": [
+          "json",
+          "out",
+          "repo",
+          "top"
+        ]
+      },
+      {
+        "file": "tools/report-artifacts.js",
+        "flags": [
+          "all",
+          "json",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/report-code-map.js",
+        "flags": [
+          "cache-dir",
+          "collapse",
+          "focus",
+          "format",
+          "include",
+          "index-root",
+          "json",
+          "max-edges",
+          "max-files",
+          "max-members-per-file",
+          "mode",
+          "model-out",
+          "node-list-out",
+          "only-exported",
+          "open-uri-template",
+          "out",
+          "pretty",
+          "refresh",
+          "repo",
+          "scope",
+          "three-url",
+          "top-k-by-degree",
+          "wasd-acceleration",
+          "wasd-drag",
+          "wasd-max-speed",
+          "wasd-sensitivity",
+          "zoom-sensitivity"
+        ]
+      },
+      {
+        "file": "tools/reset-config.js",
+        "flags": [
+          "backup",
+          "config",
+          "force",
+          "json",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/scip-ingest.js",
+        "flags": [
+          "args",
+          "input",
+          "json",
+          "out",
+          "repo",
+          "run",
+          "scip"
+        ]
+      },
+      {
+        "file": "tools/setup.js",
+        "flags": [
+          "incremental",
+          "json",
+          "non-interactive",
+          "repo",
+          "root",
+          "skip-artifacts",
+          "skip-dicts",
+          "skip-extensions",
+          "skip-index",
+          "skip-install",
+          "skip-models",
+          "skip-sqlite",
+          "skip-tooling",
+          "skip-validate",
+          "tooling-scope",
+          "validate-config",
+          "with-sqlite"
+        ]
+      },
+      {
+        "file": "tools/shard-census.js",
+        "flags": [
+          "bench",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/structural-search.js",
+        "flags": [
+          "engine",
+          "format",
+          "json",
+          "list-packs",
+          "out",
+          "pack",
+          "registry",
+          "repo",
+          "rule"
+        ]
+      },
+      {
+        "file": "tools/tooling-detect.js",
+        "flags": [
+          "json",
+          "languages",
+          "repo",
+          "root"
+        ]
+      },
+      {
+        "file": "tools/tooling-install.js",
+        "flags": [
+          "dry-run",
+          "json",
+          "languages",
+          "no-fallback",
+          "repo",
+          "root",
+          "scope",
+          "tools"
+        ]
+      },
+      {
+        "file": "tools/triage/context-pack.js",
+        "flags": [
+          "ann",
+          "out",
+          "record",
+          "repo",
+          "stub-embeddings"
+        ]
+      },
+      {
+        "file": "tools/triage/decision.js",
+        "flags": [
+          "code",
+          "evidence",
+          "expires",
+          "finding",
+          "justification",
+          "meta",
+          "record",
+          "repo",
+          "reviewer",
+          "status"
+        ]
+      },
+      {
+        "file": "tools/triage/ingest.js",
+        "flags": [
+          "build-index",
+          "in",
+          "incremental",
+          "meta",
+          "repo",
+          "source",
+          "stub-embeddings"
+        ]
+      },
+      {
+        "file": "tools/uninstall.js",
+        "flags": [
+          "dry-run",
+          "repo",
+          "yes"
+        ]
+      },
+      {
+        "file": "tools/validate-config.js",
+        "flags": [
+          "config",
+          "json",
+          "repo"
+        ]
+      },
+      {
+        "file": "tools/verify-extensions.js",
+        "flags": [
+          "ann-mode",
+          "arch",
+          "column",
+          "dir",
+          "encoding",
+          "json",
+          "load",
+          "module",
+          "options",
+          "path",
+          "platform",
+          "provider",
+          "repo",
+          "table"
+        ]
+      }
+    ],
+    "duplicated": [
+      {
+        "flag": "repo",
+        "count": 44,
+        "files": [
+          "tools/api-server.js",
+          "tools/assemble-pieces.js",
+          "tools/bench-query-generator.js",
+          "tools/bootstrap.js",
+          "tools/build-embeddings/cli.js",
+          "tools/build-lmdb-index.js",
+          "tools/build-sqlite-index/cli.js",
+          "tools/build-tantivy-index.js",
+          "tools/cache-gc.js",
+          "tools/ci-build-artifacts.js",
+          "tools/ci-restore-artifacts.js",
+          "tools/clean-artifacts.js",
+          "tools/combined-summary.js",
+          "tools/compact-pieces.js",
+          "tools/compact-sqlite-index.js",
+          "tools/compare-models.js",
+          "tools/config-dump.js",
+          "tools/ctags-ingest.js",
+          "tools/download-dicts.js",
+          "tools/download-extensions.js",
+          "tools/download-models.js",
+          "tools/eval/run.js",
+          "tools/generate-repo-dict.js",
+          "tools/gtags-ingest.js",
+          "tools/index-validate.js",
+          "tools/indexer-service.js",
+          "tools/lsif-ingest.js",
+          "tools/map-iso-serve.js",
+          "tools/repometrics-dashboard.js",
+          "tools/report-artifacts.js",
+          "tools/report-code-map.js",
+          "tools/reset-config.js",
+          "tools/scip-ingest.js",
+          "tools/setup.js",
+          "tools/shard-census.js",
+          "tools/structural-search.js",
+          "tools/tooling-detect.js",
+          "tools/tooling-install.js",
+          "tools/triage/context-pack.js",
+          "tools/triage/decision.js",
+          "tools/triage/ingest.js",
+          "tools/uninstall.js",
+          "tools/validate-config.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "json",
+        "count": 23,
+        "files": [
+          "tests/fixture-eval.js",
+          "tools/api-server.js",
+          "tools/bench-dict-seg.js",
+          "tools/bench-query-generator.js",
+          "tools/cache-gc.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/config-dump.js",
+          "tools/ctags-ingest.js",
+          "tools/gtags-ingest.js",
+          "tools/index-validate.js",
+          "tools/lsif-ingest.js",
+          "tools/repometrics-dashboard.js",
+          "tools/report-artifacts.js",
+          "tools/report-code-map.js",
+          "tools/reset-config.js",
+          "tools/scip-ingest.js",
+          "tools/setup.js",
+          "tools/structural-search.js",
+          "tools/tooling-detect.js",
+          "tools/tooling-install.js",
+          "tools/validate-config.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "out",
+        "count": 23,
+        "files": [
+          "tests/fixture-eval.js",
+          "tests/fixtures/medium/generate.js",
+          "tests/parity.js",
+          "tools/assemble-pieces.js",
+          "tools/bench-dict-seg.js",
+          "tools/bench-query-generator.js",
+          "tools/build-sqlite-index/cli.js",
+          "tools/ci-build-artifacts.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/ctags-ingest.js",
+          "tools/download-extensions.js",
+          "tools/eval/run.js",
+          "tools/generate-demo-config.js",
+          "tools/generate-repo-dict.js",
+          "tools/gtags-ingest.js",
+          "tools/lsif-ingest.js",
+          "tools/map-iso-serve.js",
+          "tools/repometrics-dashboard.js",
+          "tools/report-code-map.js",
+          "tools/scip-ingest.js",
+          "tools/structural-search.js",
+          "tools/triage/context-pack.js"
+        ]
+      },
+      {
+        "flag": "mode",
+        "count": 13,
+        "files": [
+          "tools/assemble-pieces.js",
+          "tools/bench-query-generator.js",
+          "tools/build-embeddings/cli.js",
+          "tools/build-lmdb-index.js",
+          "tools/build-sqlite-index/cli.js",
+          "tools/build-tantivy-index.js",
+          "tools/combined-summary.js",
+          "tools/compact-pieces.js",
+          "tools/compact-sqlite-index.js",
+          "tools/compare-models.js",
+          "tools/index-validate.js",
+          "tools/indexer-service.js",
+          "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "quiet",
+        "count": 9,
+        "files": [
+          "tools/api-server.js",
+          "tools/build-embeddings/cli.js",
+          "tools/build-lmdb-index.js",
+          "tools/build-sqlite-index/cli.js",
+          "tools/build-tantivy-index.js",
+          "tools/ci-build-artifacts.js",
+          "tools/compact-sqlite-index.js",
+          "tools/download-extensions.js",
+          "tools/eval/run.js"
+        ]
+      },
+      {
+        "flag": "progress",
+        "count": 8,
+        "files": [
+          "tools/build-embeddings/cli.js",
+          "tools/build-lmdb-index.js",
+          "tools/build-sqlite-index/cli.js",
+          "tools/build-tantivy-index.js",
+          "tools/ci-build-artifacts.js",
+          "tools/compact-sqlite-index.js",
+          "tools/download-extensions.js",
+          "tools/eval/run.js"
+        ]
+      },
+      {
+        "flag": "verbose",
+        "count": 8,
+        "files": [
+          "tools/build-embeddings/cli.js",
+          "tools/build-lmdb-index.js",
+          "tools/build-sqlite-index/cli.js",
+          "tools/build-tantivy-index.js",
+          "tools/ci-build-artifacts.js",
+          "tools/compact-sqlite-index.js",
+          "tools/download-extensions.js",
+          "tools/eval/run.js"
+        ]
+      },
+      {
+        "flag": "dry-run",
+        "count": 7,
+        "files": [
+          "tools/cache-gc.js",
+          "tools/clean-artifacts.js",
+          "tools/compact-pieces.js",
+          "tools/compact-sqlite-index.js",
+          "tools/parity-matrix.js",
+          "tools/tooling-install.js",
+          "tools/uninstall.js"
+        ]
+      },
+      {
+        "flag": "incremental",
+        "count": 7,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/build-sqlite-index/cli.js",
+          "tools/ci-build-artifacts.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/setup.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "index-root",
+        "count": 7,
+        "files": [
+          "tools/bench-query-generator.js",
+          "tools/build-embeddings/cli.js",
+          "tools/build-lmdb-index.js",
+          "tools/build-sqlite-index/cli.js",
+          "tools/build-tantivy-index.js",
+          "tools/index-validate.js",
+          "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "top",
+        "count": 7,
+        "files": [
+          "tests/fixture-eval.js",
+          "tests/parity.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/eval/run.js",
+          "tools/parity-matrix.js",
+          "tools/repometrics-dashboard.js"
+        ]
+      },
+      {
+        "flag": "ann",
+        "count": 5,
+        "files": [
+          "tests/parity.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/eval/run.js",
+          "tools/triage/context-pack.js"
+        ]
+      },
+      {
+        "flag": "force",
+        "count": 5,
+        "files": [
+          "tools/assemble-pieces.js",
+          "tools/ci-restore-artifacts.js",
+          "tools/download-dicts.js",
+          "tools/download-extensions.js",
+          "tools/reset-config.js"
+        ]
+      },
+      {
+        "flag": "input",
+        "count": 5,
+        "files": [
+          "tools/assemble-pieces.js",
+          "tools/ctags-ingest.js",
+          "tools/gtags-ingest.js",
+          "tools/lsif-ingest.js",
+          "tools/scip-ingest.js"
+        ]
+      },
+      {
+        "flag": "backend",
+        "count": 4,
+        "files": [
+          "tests/fixture-eval.js",
+          "tools/compare-models.js",
+          "tools/eval/run.js",
+          "tools/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "dir",
+        "count": 4,
+        "files": [
+          "tools/download-dicts.js",
+          "tools/download-extensions.js",
+          "tools/map-iso-serve.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "limit",
+        "count": 4,
+        "files": [
+          "tests/parity.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "queries",
+        "count": 4,
+        "files": [
+          "tests/parity.js",
+          "tools/combined-summary.js",
+          "tools/compare-models.js",
+          "tools/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "stub-embeddings",
+        "count": 4,
+        "files": [
+          "tools/build-embeddings/cli.js",
+          "tools/compare-models.js",
+          "tools/triage/context-pack.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "all",
+        "count": 3,
+        "files": [
+          "tests/fixture-parity.js",
+          "tools/clean-artifacts.js",
+          "tools/report-artifacts.js"
+        ]
+      },
+      {
+        "flag": "args",
+        "count": 3,
+        "files": [
+          "tools/ctags-ingest.js",
+          "tools/gtags-ingest.js",
+          "tools/scip-ingest.js"
+        ]
+      },
+      {
+        "flag": "config",
+        "count": 3,
+        "files": [
+          "tools/indexer-service.js",
+          "tools/reset-config.js",
+          "tools/validate-config.js"
+        ]
+      },
+      {
+        "flag": "log",
+        "count": 3,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/tree-sitter-chunks.js"
+        ]
+      },
+      {
+        "flag": "root",
+        "count": 3,
+        "files": [
+          "tools/setup.js",
+          "tools/tooling-detect.js",
+          "tools/tooling-install.js"
+        ]
+      },
+      {
+        "flag": "run",
+        "count": 3,
+        "files": [
+          "tools/ctags-ingest.js",
+          "tools/gtags-ingest.js",
+          "tools/scip-ingest.js"
+        ]
+      },
+      {
+        "flag": "treeSitter",
+        "count": 3,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/tree-sitter-chunks.js"
+        ]
+      },
+      {
+        "flag": "arch",
+        "count": 2,
+        "files": [
+          "tools/download-extensions.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "baseline",
+        "count": 2,
+        "files": [
+          "tools/combined-summary.js",
+          "tools/compare-models.js"
+        ]
+      },
+      {
+        "flag": "build",
+        "count": 2,
+        "files": [
+          "tools/combined-summary.js",
+          "tools/compare-models.js"
+        ]
+      },
+      {
+        "flag": "build-index",
+        "count": 2,
+        "files": [
+          "tools/compare-models.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "cache-dir",
+        "count": 2,
+        "files": [
+          "tools/download-models.js",
+          "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "collapse",
+        "count": 2,
+        "files": [
+          "src/map/build-map.js",
+          "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "count",
+        "count": 2,
+        "files": [
+          "tests/fixtures/medium/generate.js",
+          "tools/bench-query-generator.js"
+        ]
+      },
+      {
+        "flag": "fixture",
+        "count": 2,
+        "files": [
+          "tests/fixture-parity.js",
+          "tools/bench-dict-seg.js"
+        ]
+      },
+      {
+        "flag": "focus",
+        "count": 2,
+        "files": [
+          "src/map/build-map.js",
+          "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "format",
+        "count": 2,
+        "files": [
+          "tools/report-code-map.js",
+          "tools/structural-search.js"
+        ]
+      },
+      {
+        "flag": "include",
+        "count": 2,
+        "files": [
+          "src/map/build-map.js",
+          "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "languages",
+        "count": 2,
+        "files": [
+          "tools/tooling-detect.js",
+          "tools/tooling-install.js"
+        ]
+      },
+      {
+        "flag": "log-dir",
+        "count": 2,
+        "files": [
+          "tests/all.js",
+          "tests/script-coverage.js"
+        ]
+      },
+      {
+        "flag": "meta",
+        "count": 2,
+        "files": [
+          "tools/triage/decision.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "models",
+        "count": 2,
+        "files": [
+          "tools/combined-summary.js",
+          "tools/compare-models.js"
+        ]
+      },
+      {
+        "flag": "no-ann",
+        "count": 2,
+        "files": [
+          "tools/combined-summary.js",
+          "tools/compare-models.js"
+        ]
+      },
+      {
+        "flag": "non-strict",
+        "count": 2,
+        "files": [
+          "tools/assemble-pieces.js",
+          "tools/index-validate.js"
+        ]
+      },
+      {
+        "flag": "open-uri-template",
+        "count": 2,
+        "files": [
+          "tools/map-iso-serve.js",
+          "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "platform",
+        "count": 2,
+        "files": [
+          "tools/download-extensions.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "port",
+        "count": 2,
+        "files": [
+          "tools/api-server.js",
+          "tools/map-iso-serve.js"
+        ]
+      },
+      {
+        "flag": "pretty",
+        "count": 2,
+        "files": [
+          "tools/eval/run.js",
+          "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "provider",
+        "count": 2,
+        "files": [
+          "tools/download-extensions.js",
+          "tools/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "record",
+        "count": 2,
+        "files": [
+          "tools/triage/context-pack.js",
+          "tools/triage/decision.js"
+        ]
+      },
+      {
+        "flag": "retries",
+        "count": 2,
+        "files": [
+          "tests/all.js",
+          "tests/script-coverage.js"
+        ]
+      },
+      {
+        "flag": "scope",
+        "count": 2,
+        "files": [
+          "tools/report-code-map.js",
+          "tools/tooling-install.js"
+        ]
+      },
+      {
+        "flag": "search",
+        "count": 2,
+        "files": [
+          "tests/parity.js",
+          "tools/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "seed",
+        "count": 2,
+        "files": [
+          "tests/fixtures/medium/generate.js",
+          "tools/bench-query-generator.js"
+        ]
+      },
+      {
+        "flag": "sha256",
+        "count": 2,
+        "files": [
+          "tools/download-dicts.js",
+          "tools/download-extensions.js"
+        ]
+      },
+      {
+        "flag": "skip-artifacts",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "skip-dicts",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "skip-index",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "skip-install",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "skip-sqlite",
+        "count": 2,
+        "files": [
+          "tools/ci-build-artifacts.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "skip-tooling",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "stage",
+        "count": 2,
+        "files": [
+          "tools/assemble-pieces.js",
+          "tools/indexer-service.js"
+        ]
+      },
+      {
+        "flag": "three-url",
+        "count": 2,
+        "files": [
+          "tools/map-iso-serve.js",
+          "tools/report-code-map.js"
+        ]
+      },
+      {
+        "flag": "update",
+        "count": 2,
+        "files": [
+          "tools/download-dicts.js",
+          "tools/download-extensions.js"
+        ]
+      },
+      {
+        "flag": "url",
+        "count": 2,
+        "files": [
+          "tools/download-dicts.js",
+          "tools/download-extensions.js"
+        ]
+      },
+      {
+        "flag": "validate",
+        "count": 2,
+        "files": [
+          "tools/build-lmdb-index.js",
+          "tools/build-sqlite-index/cli.js"
+        ]
+      },
+      {
+        "flag": "validate-config",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "with-sqlite",
+        "count": 2,
+        "files": [
+          "tools/bootstrap.js",
+          "tools/setup.js"
+        ]
+      },
+      {
+        "flag": "write-report",
+        "count": 2,
+        "files": [
+          "tests/fixture-eval.js",
+          "tests/parity.js"
+        ]
+      }
+    ],
+    "dynamicOptionFiles": [
+      "bin/pairofcleats.js",
+      "src/index/build/args.js",
+      "src/index/build/context-window.js",
+      "src/index/build/file-processor/cpu.js",
+      "src/index/build/file-processor/process-chunks.js",
+      "src/index/chunking/formats/ini-toml.js",
+      "src/index/chunking/formats/json.js",
+      "src/index/chunking/formats/markdown.js",
+      "src/index/chunking/formats/yaml.js",
+      "src/index/language-registry/registry.js",
+      "src/index/tooling/typescript-provider.js",
+      "src/lang/tree-sitter/chunking.js",
+      "src/lang/workers/tree-sitter-worker.js",
+      "src/map/isometric/client/ui.js",
+      "src/retrieval/cli-args.js",
+      "src/retrieval/cli/run-search-session.js",
+      "src/shared/cli-options.js",
+      "src/shared/cli.js",
+      "tests/perf/bench/run.test.js",
+      "tools/bench-language-matrix.js",
+      "tools/bench/language/cli.js",
+      "tools/config-inventory/scan.js",
+      "tools/vector-extension.js"
+    ]
+  }
+}

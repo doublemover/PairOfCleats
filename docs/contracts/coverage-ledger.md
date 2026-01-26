@@ -8,8 +8,8 @@
 | `search.js` | `docs/contracts/search-cli.md` | `tests/search-help.js`, `tests/retrieval/filters/query-syntax/negative-terms.test.js`, `tests/search-explain.js`, `tests/search-rrf.js`, `tests/search-symbol-boost.js` | - |
 | `search.js --backend sqlite` | `docs/contracts/sqlite.md` | `tests/sqlite-auto-backend.js`, `tests/sqlite-missing-dep.js` | - |
 | `bin/pairofcleats.js` | `docs/contracts/search-cli.md` | `tests/cli.js` | - |
-| `tools/api-server.js` | `docs/contracts/api-mcp.md` | `tests/services/api/health-and-status.test.js`, `tests/services/api/search-happy-path.test.js`, `tests/api-server-stream.js` | - |
-| `tools/mcp-server.js` | `docs/contracts/api-mcp.md` | `tests/services/mcp/tools-list.test.js` | - |
+| `tools/api-server.js` | `docs/contracts/mcp-api.md` | `tests/services/api/health-and-status.test.js`, `tests/services/api/search-happy-path.test.js`, `tests/api-server-stream.js` | - |
+| `tools/mcp-server.js` | `docs/contracts/mcp-api.md` | `tests/services/mcp/tools-list.test.js` | - |
 | `tools/indexer-service.js` | `docs/contracts/indexing.md` | `tests/indexer-service.js`, `tests/service-queue.js`, `tests/two-stage-state.js` | - |
 | `tools/index-validate.js` | `docs/contracts/indexing.md` | `tests/index-validate.js`, `tests/embeddings-dims-mismatch.js` | - |
 | `tools/assemble-pieces.js` | `docs/contracts/indexing.md` | - | Gap: no fixture-based assembly test yet. |
@@ -22,3 +22,4 @@
 | `tools/download-dicts.js` | `docs/contracts/indexing.md` | `tests/download-dicts.js` | - |
 | `tools/download-extensions.js` | `docs/contracts/sqlite.md` | `tests/download-extensions.js` | - |
 | `tools/bench-language-repos.js` | `docs/contracts/retrieval-ranking.md` | `tests/perf/bench/run.test.js` (harness only) | Gap: long-running benchmarks are not asserted in CI. |
+

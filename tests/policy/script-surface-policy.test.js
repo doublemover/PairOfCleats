@@ -4,7 +4,7 @@ import path from 'node:path';
 import { repoRoot } from '../helpers/root.js';
 
 const root = repoRoot();
-const inventoryPath = path.join(root, 'docs', 'script-inventory.json');
+const inventoryPath = path.join(root, 'docs', 'tooling', 'script-inventory.json');
 const pkgPath = path.join(root, 'package.json');
 
 const pkg = JSON.parse(await fsPromises.readFile(pkgPath, 'utf8'));
@@ -14,7 +14,7 @@ let inventory;
 try {
   inventory = JSON.parse(await fsPromises.readFile(inventoryPath, 'utf8'));
 } catch {
-  console.error('script surface policy failed: missing docs/script-inventory.json');
+  console.error('script surface policy failed: missing docs/tooling/script-inventory.json');
   process.exit(1);
 }
 
@@ -32,3 +32,4 @@ if (missing.length || extra.length) {
 }
 
 console.log('script surface policy test passed');
+

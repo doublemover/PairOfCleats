@@ -1,4 +1,4 @@
-## Phase 10 — Interprocedural Risk Flows (taint summaries + propagation)
+## Phase 10 -- Interprocedural Risk Flows (taint summaries + propagation)
 
 ### Objective
 
@@ -238,7 +238,7 @@ Emit stable, bounded call-site evidence for the subset of call edges that partic
   - [ ] Implement `normalizeArgsSummary(args: string[])`:
     - [ ] keep first 5 args
     - [ ] collapse whitespace
-    - [ ] cap each arg to 80 chars with `…`
+    - [ ] cap each arg to 80 chars with `...`
 
 - [ ] **10.4.2 Resolve callDetails → callee chunkId**
   - [ ] For each chunk, build a local map `rawCalleeName -> resolved (file,target)` from `chunk.codeRelations.callLinks`.
@@ -337,7 +337,7 @@ Compute bounded interprocedural flows from source-bearing chunks to sink-bearing
   - [ ] After flow enumeration:
     - [ ] Build `edgesUsed` from emitted paths.
     - [ ] Generate call sites for edgesUsed (Phase 10.4).
-    - [ ] Fill each flow’s `callSiteIdsByStep` from call-site sampling results.
+    - [ ] Fill each flow's `callSiteIdsByStep` from call-site sampling results.
 
 - [ ] **10.5.7 Enforce flow record size limit**
   - [ ] Before writing a flow row:
@@ -394,7 +394,7 @@ Write the new artifacts as first-class pieces (with optional sharding + compress
       - [ ] `runtime.riskInterproceduralEffectiveEmit === "jsonl"`
       - [ ] respect `summaryOnlyEffective` for which artifacts are emitted
     - [ ] Always write `risk_interprocedural_stats.json` when enabled (even if emitArtifacts="none").
-  - [ ] Ensure artifacts are registered as “pieces” so they appear in `pieces/manifest.json`.
+  - [ ] Ensure artifacts are registered as "pieces" so they appear in `pieces/manifest.json`.
 
 - [ ] **10.6.3 Update index validator**
   - [ ] Extend `src/index/validate.js`:
@@ -505,7 +505,7 @@ Guarantee correctness, safety, and throughput characteristics via a complete tes
 
 ---
 
-# Appendix A — Risk Interprocedural Config Spec (v1 refined)
+# Appendix A -- Risk Interprocedural Config Spec (v1 refined)
 
 # Spec: `indexing.riskInterprocedural` configuration (v1.1 refined)
 
@@ -531,12 +531,12 @@ This configuration lives in the repo config object under:
 ```jsonc
 {
   "indexing": {
-    "riskInterprocedural": { /* … */ }
+    "riskInterprocedural": { /* ... */ }
   }
 }
 ```
 
-> Note: PairOfCleats currently validates `.pairofcleats.json` against `docs/config-schema.json`, which does not yet include `indexing.*`. If/when user-configurable exposure is desired, the schema MUST be expanded accordingly. The implementation MUST still accept the config when it is provided programmatically (tests, internal wiring, or future schema expansion).
+> Note: PairOfCleats currently validates `.pairofcleats.json` against `docs/config/schema.json`, which does not yet include `indexing.*`. If/when user-configurable exposure is desired, the schema MUST be expanded accordingly. The implementation MUST still accept the config when it is provided programmatically (tests, internal wiring, or future schema expansion).
 
 ## 3) Object shape and defaults
 
@@ -584,7 +584,7 @@ Interprocedural risk **requires** local risk signals (`src/index/risk.js`).
 
 Normative rules:
 1. If local risk analysis is disabled for the build (effective `riskAnalysisEnabled === false`), then `riskInterprocedural.enabled` MUST be treated as `false` regardless of config.
-2. Interprocedural risk MUST NOT change the local risk detector’s regex ruleset or caps, other than enabling cross-file linking (§4.2) and emitting additional artifacts.
+2. Interprocedural risk MUST NOT change the local risk detector's regex ruleset or caps, other than enabling cross-file linking (§4.2) and emitting additional artifacts.
 
 ### 4.2 Cross-file call linking requirement
 Interprocedural risk requires resolved call edges (`chunk.codeRelations.callLinks`).
@@ -608,7 +608,7 @@ Normative rule:
 * `"none"`:
   * No new `risk_*` artifacts are written.
   * The implementation MUST still attach the compact summary to `chunk.docmeta.risk.summary` (and therefore `metaV2` after rebuild).
-  * The implementation SHOULD still write the stats artifact (it is tiny and aids observability), unless explicitly disabled by higher-level “no artifacts” settings.
+  * The implementation SHOULD still write the stats artifact (it is tiny and aids observability), unless explicitly disabled by higher-level "no artifacts" settings.
 * `"jsonl"`:
   * Artifacts are written in JSONL form and MAY be automatically sharded (see the artifact specs).
   * Global artifact compression settings (if any) MUST apply consistently.
@@ -626,13 +626,13 @@ This mode prioritizes recall (may over-approximate).
 
 A call edge `(caller → callee)` is traversable for taint **only if** there exists at least one sampled call-site on that edge where **at least one argument** is considered tainted by either:
 
-1. Identifier-boundary matching against the caller’s current taint identifier set (tainted params + locally-tainted variables), **OR**
+1. Identifier-boundary matching against the caller's current taint identifier set (tainted params + locally-tainted variables), **OR**
 2. Matching any configured **source rule regex** from the same local risk ruleset used by the local detector (covers direct source expressions like `req.body.userId`).
 
 The implementation MUST:
 1. Track a bounded taint identifier set per traversal state.
 2. Use identifier-boundary matching (no naive substring matches).
-3. When traversing to the callee, derive the callee’s initial taint identifier set by mapping tainted argument positions to callee parameter names.
+3. When traversing to the callee, derive the callee's initial taint identifier set by mapping tainted argument positions to callee parameter names.
 
 Full details, bounds, and deterministic behavior are defined in the flows spec.
 
@@ -656,7 +656,7 @@ Minimum required ordering rules:
 * Sinks within a chunk processed in lexicographic order of `sinkRuleId`.
 
 ### 8.2 Time guard semantics (no partial nondeterministic output)
-`caps.maxMs` is a **fail-safe** for flow propagation only. It MUST NOT produce “first N flows” based on runtime speed.
+`caps.maxMs` is a **fail-safe** for flow propagation only. It MUST NOT produce "first N flows" based on runtime speed.
 
 Normative behavior:
 1. If the time budget is exceeded during propagation, the implementation MUST:
@@ -675,9 +675,9 @@ When `enabled === true`, the build MUST record:
 * whether a timeout occurred (`status="timed_out"`)
 
 The recommended mechanism is the dedicated stats artifact defined in:
-* `SPEC_risk_interprocedural_stats_json_v1_refined.md`
+* `docs/specs/risk-interprocedural-stats.md`
 
-# Appendix B — risk_summaries.jsonl Spec (v1 refined)
+# Appendix B -- risk_summaries.jsonl Spec (v1 refined)
 
 # Spec: `risk_summaries` artifact (JSONL) (v1.1 refined)
 
@@ -693,7 +693,7 @@ Provide a **per-symbol** risk/taint summary that is:
 * suitable as input to interprocedural propagation
 * small enough to avoid bloating `chunk_meta`
 
-This artifact is intentionally “summary-level”: it does **not** attempt to encode full dataflow graphs.
+This artifact is intentionally "summary-level": it does **not** attempt to encode full dataflow graphs.
 
 ## 2) Artifact naming and sharding
 The logical artifact name is `risk_summaries`.
@@ -708,14 +708,14 @@ An implementation MUST emit either:
 * `risk_summaries.parts/`
   * `risk_summaries.part00000.jsonl` (or `.jsonl.gz` / `.jsonl.zst`)
   * `risk_summaries.part00001.jsonl`
-  * …
+  * ...
 
 The meta sidecar MUST follow the same shape used by existing sharded JSONL artifacts (e.g., `chunk_meta.meta.json`, `graph_relations.meta.json`):
 * `format: "jsonl"`
 * `shardSize` (bytes)
 * `partsDir`, `partPrefix`, `parts[]`, `counts[]`
 * `totalEntries`, `totalBytes`
-* `schemaVersion` (for the rows, i.e., this spec’s versioning)
+* `schemaVersion` (for the rows, i.e., this spec's versioning)
 
 ## 3) Identity model
 Each row is keyed by `chunkId`:
@@ -724,7 +724,7 @@ Each row is keyed by `chunkId`:
 
 Normative constraints:
 * There MUST be at most one row per `chunkId`.
-* `file` MUST be a repo-relative POSIX path (forward slashes), matching the chunk’s `file`.
+* `file` MUST be a repo-relative POSIX path (forward slashes), matching the chunk's `file`.
 
 ## 4) File format requirements
 * Encoding: UTF-8
@@ -881,7 +881,7 @@ For each signal list (`sources`, `sinks`, `sanitizers`):
 1. Sort by `(ruleId, minEvidenceLocation)` where `minEvidenceLocation` is the earliest `(file,line,column)`.
 2. Take at most `maxSignalsPerKind` (default 50).
 
-For each signal’s evidence list:
+For each signal's evidence list:
 1. Sort by `(file,line,column)`.
 2. Take at most `evidencePerSignal` (default 3).
 
@@ -931,7 +931,7 @@ The build validator SHOULD check:
 * evidence `line` and `column` are positive integers
 * `snippetHash` matches `^sha1:[0-9a-f]{40}$` when not null
 
-# Appendix C — risk_flows.jsonl + call_sites.jsonl Spec (v1 refined)
+# Appendix C -- risk_flows.jsonl + call_sites.jsonl Spec (v1 refined)
 
 # Spec: `call_sites` and `risk_flows` artifacts (JSONL) (v1.1 refined)
 
@@ -957,7 +957,7 @@ Logical artifact names:
 
 Each MUST be emitted in either single-file or sharded form as described in the summaries spec (§2):
 * `<name>.jsonl` (or compressed)
-* or `<name>.meta.json` + `<name>.parts/…`
+* or `<name>.meta.json` + `<name>.parts/...`
 
 ## 3) Common format requirements
 * UTF-8
@@ -1017,7 +1017,7 @@ Rules:
 * Each argument string MUST be:
   * trimmed
   * whitespace-collapsed (`\s+ -> " "`)
-  * capped at **80** characters (truncate with `…`)
+  * capped at **80** characters (truncate with `...`)
 
 If arguments are unavailable, `argsSummary` MUST be an empty array.
 
@@ -1132,7 +1132,7 @@ The propagation engine operates on:
 * local risk signals (sources/sinks/sanitizers) from summaries
 * config (`caps`, `strictness`, `sanitizerPolicy`)
 
-### 7.2 What is a “source root”
+### 7.2 What is a "source root"
 A source root is a pair:
 * `(sourceChunkId, sourceRuleId)` for each source signal in a chunk.
 
@@ -1149,7 +1149,7 @@ When traversal reaches a chunk that has one or more sink signals:
 Sinks in chunks that are not reachable under the strictness mode MUST NOT be emitted.
 
 ### 7.4 Sanitizer barriers
-Define a chunk as “sanitizer-bearing” if its summary contains at least one sanitizer signal.
+Define a chunk as "sanitizer-bearing" if its summary contains at least one sanitizer signal.
 
 If `sanitizerPolicy="terminate"`:
 * Traversal MUST stop expanding outgoing edges from sanitizer-bearing chunks.
@@ -1166,10 +1166,10 @@ During flow enumeration the implementation MUST enforce:
 * `maxTotalFlows`
 
 Definitions:
-* A “pair” for `maxPathsPerPair` is:
+* A "pair" for `maxPathsPerPair` is:
   `(sourceChunkId, sourceRuleId, sinkChunkId, sinkRuleId)`
 
-A “distinct path” is:
+A "distinct path" is:
 * `path.chunkIds.join(">")` (exact match)
 
 Enforcement MUST be deterministic:
@@ -1211,9 +1211,9 @@ The set MUST be:
 Canonical key:
 * `taintSetKey = identifiers.join(",")`
 
-#### 8.2.2 When an argument is “tainted”
+#### 8.2.2 When an argument is "tainted"
 Given a call-site `argsSummary[]`, an argument is considered tainted if either:
-1. It identifier-matches any identifier in the caller’s taint set (identifier-boundary match), OR
+1. It identifier-matches any identifier in the caller's taint set (identifier-boundary match), OR
 2. It matches any configured **source rule regex** from the local risk ruleset (the same rules used by the local detector).
 
 (2) ensures direct source expressions like `req.body.userId` can be recognized even without local assignment hints.
@@ -1223,7 +1223,7 @@ For a resolved edge `(caller → callee)`, consider its sampled call sites.
 
 The edge is traversable if **any** sampled call site yields at least one tainted argument under §8.2.2.
 
-When traversing, the callee’s next taint set MUST be derived as:
+When traversing, the callee's next taint set MUST be derived as:
 1. Obtain the callee parameter names (from `callLink.paramNames` if available; else from `calleeChunk.docmeta.params`; else empty).
 2. For each sampled call site:
    * For each argument position `i`, if `argsSummary[i]` is tainted, then taint the callee param name at `i` (if present).
@@ -1282,7 +1282,7 @@ The validator SHOULD check:
 * Every referenced `callSiteId` exists (referential integrity)
 * line/col are positive integers
 
-# Appendix D — risk_interprocedural_stats.json Spec (v1 refined)
+# Appendix D -- risk_interprocedural_stats.json Spec (v1 refined)
 
 # Spec: `risk_interprocedural_stats` artifact (JSON) (v1.1 refined)
 
@@ -1299,7 +1299,7 @@ Provide a single, small, human-readable summary of the interprocedural risk pipe
 * counts of emitted rows
 * pointers to emitted artifacts (single or sharded)
 
-This avoids “hidden failure” where flows are missing but users cannot tell why.
+This avoids "hidden failure" where flows are missing but users cannot tell why.
 
 ## 2) Artifact naming
 Logical artifact name: `risk_interprocedural_stats`
@@ -1411,12 +1411,12 @@ The validator SHOULD check:
 * required fields exist for each `status`
 * if `status="timed_out"`, then `flowsEmitted===0` and `callSitesEmitted===0`
 
-# Appendix E — Phase 10 Refined Implementation Notes (source)
+# Appendix E -- Phase 10 Refined Implementation Notes (source)
 
-# Phase 10 (Interprocedural Risk Flows) — Refined Implementation Plan (PairOfCleats)
+# Phase 10 (Interprocedural Risk Flows) -- Refined Implementation Plan (PairOfCleats)
 
 ## 1) Purpose
-Phase 10 extends PairOfCleats’ current **intra-chunk** risk detection to **interprocedural** (cross-function) risk paths by:
+Phase 10 extends PairOfCleats' current **intra-chunk** risk detection to **interprocedural** (cross-function) risk paths by:
 
 1. Producing a **per-symbol taint summary**.
 2. Propagating taint through the **resolved call graph** to emit **explainable risk paths**.
@@ -1443,19 +1443,19 @@ This plan refines and de-ambiguates the Phase 10 roadmap items while aligning th
 
 1. **Determinism**: same repo+config must produce identical risk artifacts (ordering, truncation, sampling).
 2. **Bounded output**: every new artifact must have strict caps and per-record byte-size limits.
-3. **Minimal coupling**: interprocedural risk flows must not “accidentally” enable type inference or tooling.
+3. **Minimal coupling**: interprocedural risk flows must not "accidentally" enable type inference or tooling.
 4. **Joinability**: all artifacts must share stable IDs to enable joins without heuristics.
 
 ## 4) Key decisions (resolve ambiguity)
 
-### D1 — Canonical identity for symbols and edges
+### D1 -- Canonical identity for symbols and edges
 **Decision:** Use `chunk.metaV2.chunkId` as the canonical symbol identifier.
 
 *Why this is best:* `chunkId` already encodes `(file, segmentId, range, kind, name)` via `src/index/chunk-id.js`, avoiding ambiguity when `(file,name)` collides.
 
 **Edge identity:** `edgeId = sha1("${callerChunkId}->${calleeChunkId}")`.
 
-### D2 — Storage strategy
+### D2 -- Storage strategy
 **Decision:** Store *compact* summary fields inline on each chunk **and** emit full JSONL artifacts.
 
 * Inline: `chunk.docmeta.risk.summary` and `chunk.metaV2.risk.summary` (compact + capped).
@@ -1463,12 +1463,12 @@ This plan refines and de-ambiguates the Phase 10 roadmap items while aligning th
 
 *Why this is best:* inline summary supports fast retrieval and ranking without reading large JSONL; JSONL supports validation, bulk analysis, and explainability.
 
-### D3 — Call-site evidence strategy
+### D3 -- Call-site evidence strategy
 **Decision:** Preserve multiple call-sites per edge in a **separate** `call_sites.jsonl` artifact and reference them by `callSiteId` from flows.
 
 *Why this is best:* avoids `chunk_meta` bloat; keeps call-site samples bounded and reusable across multiple flows.
 
-### D4 — Capping and time budgets
+### D4 -- Capping and time budgets
 **Decision:** Do **not** allow time budgets to create partially-different outputs.
 
 * Use structural caps (`maxDepth`, `maxPathsPerSourceSink`, `maxTotalFlows`, `maxCallSitesPerEdge`).
@@ -1478,17 +1478,17 @@ This plan refines and de-ambiguates the Phase 10 roadmap items while aligning th
 
 *Why this is best:* preserves strict determinism.
 
-### D5 — Strictness modes
+### D5 -- Strictness modes
 **Decision:** Implement strictness as:
 
 * `conservative` (default): summary-level propagation; no arg->param taint mapping.
 * `argAware` (opt-in): only enabled if parameter contracts exist; supports arg->param mapping.
 
-*Why this is best:* incremental correctness; avoids claiming precision we can’t support.
+*Why this is best:* incremental correctness; avoids claiming precision we can't support.
 
 ## 5) Implementation plan (step-by-step)
 
-### Step 1 — Add config surface + runtime flags
+### Step 1 -- Add config surface + runtime flags
 **Files:**
 * `src/index/build/runtime/runtime.js`
 * `src/index/build/indexer/pipeline.js` (feature metrics registration)
@@ -1525,9 +1525,9 @@ const crossFileEnabled = runtime.typeInferenceCrossFileEnabled ||
   interprocEnabled;
 ```
 
-…but keep `enableTypeInference` and `enableRiskCorrelation` false unless explicitly enabled.
+...but keep `enableTypeInference` and `enableRiskCorrelation` false unless explicitly enabled.
 
-### Step 2 — Fix parameter/return contracts (prerequisite for summaries)
+### Step 2 -- Fix parameter/return contracts (prerequisite for summaries)
 **Files:**
 * `src/index/metadata-v2.js`
 * `src/index/type-inference-crossfile/extract.js`
@@ -1542,13 +1542,13 @@ const crossFileEnabled = runtime.typeInferenceCrossFileEnabled ||
 **Recommended approach (JS):**
 * Derive signature params from AST in `buildJsChunks(...)` and attach to chunk meta (e.g., `meta.sigParams`).
 * Merge that into `docmeta.params` when doc comments are missing.
-* For destructured params: use `arg0`, `arg1`, … and store `bindings` separately.
+* For destructured params: use `arg0`, `arg1`, ... and store `bindings` separately.
 
 **Return types:**
 * Treat `docmeta.returnType` (string) as canonical.
 * Treat `docmeta.returns` boolean as **documentation presence only** and ignore it for type/risk propagation.
 
-### Step 3 — Implement RiskSummary builder
+### Step 3 -- Implement RiskSummary builder
 **New file:** `src/index/risk-flows/summaries.js`
 
 **Input:** `chunks` (post file-processing, pre/post cross-file inference is fine)
@@ -1565,7 +1565,7 @@ const crossFileEnabled = runtime.typeInferenceCrossFileEnabled ||
 * derive `returnsTainted`:
   * `true` if any local flow indicates source reaches a return pattern (if implemented), else `null`.
 
-### Step 4 — Add call-site payload fields (JS + Python)
+### Step 4 -- Add call-site payload fields (JS + Python)
 **Files:**
 * `src/lang/javascript/relations.js`
 * `src/lang/python/relations.js`
@@ -1578,7 +1578,7 @@ const crossFileEnabled = runtime.typeInferenceCrossFileEnabled ||
 
 **Important:** call-site extraction must be stable and deterministic.
 
-### Step 5 — Preserve call-site samples per call edge
+### Step 5 -- Preserve call-site samples per call edge
 **File:** `src/index/type-inference-crossfile/pipeline.js`
 
 **Change:** keep `callLinks` deduped (for graph size), but also build `callSitesByEdge`:
@@ -1594,9 +1594,9 @@ chunk.codeRelations.callSiteRefs = {
 };
 ```
 
-…and store `call_sites.jsonl` rows globally.
+...and store `call_sites.jsonl` rows globally.
 
-### Step 6 — Implement propagation engine
+### Step 6 -- Implement propagation engine
 **New file:** `src/index/risk-flows/propagate.js`
 
 **Inputs:**
@@ -1618,7 +1618,7 @@ Store:
 * `edgeCallSiteIdsByStep[]` (optional)
 * `confidence` with deterministic decay.
 
-### Step 7 — Integrate into build pipeline
+### Step 7 -- Integrate into build pipeline
 **File:** `src/index/build/indexer/steps/relations.js`
 
 Insert after `applyCrossFileInference(...)` and before final write:
@@ -1627,7 +1627,7 @@ Insert after `applyCrossFileInference(...)` and before final write:
 2. if `!summaryOnly`: `propagateRiskFlows(...)`
 3. rebuild `metaV2` for all chunks (finalization)
 
-### Step 8 — Artifact writing + validation
+### Step 8 -- Artifact writing + validation
 **Files:**
 * `src/index/build/artifacts.js`
 * `src/index/build/artifacts/writers/*` (new)
@@ -1643,7 +1643,7 @@ Add validation:
 * schema checks
 * referential integrity: every `callSiteId` referenced by `risk_flows` must exist
 
-### Step 9 — Retrieval/UX surfacing
+### Step 9 -- Retrieval/UX surfacing
 **Files:**
 * `src/retrieval/output/format.js`
 * (as needed) retrieval index loaders
@@ -1721,7 +1721,7 @@ Add CLI/display options:
   - src/shared/artifact-io/jsonl.js (required keys for call_sites)
   - src/lang/javascript/relations.js + src/lang/python/ast-script.js (location fields)
 - Gaps/conflicts:
-  - Phase 6 call_sites contract vs SPEC_risk_flows_and_call_sites_jsonl_v1_refined.md field names; reconcile now to avoid migration.
+  - Phase 6 call_sites contract vs docs/specs/risk-flows-and-call-sites.md field names; reconcile now to avoid migration.
 
 ### 10.5 Propagation engine + risk_flows.jsonl
 - Files to change/create:
@@ -1746,7 +1746,7 @@ Add CLI/display options:
 - Files to change/create:
   - src/retrieval/output/format.js (risk flows display at ~322-333)
   - src/retrieval/output/filters.js (riskFlow filtering at ~665-669)
-  - docs/config-schema.json + docs/ (add indexing.riskInterprocedural schema + docs)
+  - docs/config/schema.json + docs/ (add indexing.riskInterprocedural schema + docs)
 - Call sites/line refs:
   - src/retrieval/output/format.js:322-333
   - src/retrieval/output/filters.js:665-669
@@ -1757,12 +1757,12 @@ Add CLI/display options:
   - tests/relations/* (call_sites + risk flows integration)
 
 ### Associated specs reviewed (Phase 10)
-- docs/PH10_refined_implementation_plan.md
-- docs/SPEC_risk_interprocedural_config_v1_refined.md
-- docs/SPEC_risk_summaries_jsonl_v1_refined.md
-- docs/SPEC_risk_flows_and_call_sites_jsonl_v1_refined.md
-- docs/SPEC_risk_interprocedural_stats_json_v1_refined.md
-- docs/spec_phase4_safe_regex_hardening.md (determinism expectations)
+- docs/phases/phase-10/implementation-plan.md
+- docs/specs/risk-interprocedural-config.md
+- docs/specs/risk-summaries.md
+- docs/specs/risk-flows-and-call-sites.md
+- docs/specs/risk-interprocedural-stats.md
+- docs/phases/phase-4/safe-regex-hardening.md (determinism expectations)
 
 ## Phase 10 addendum: dependencies, ordering, artifacts, tests, edge cases
 
@@ -1906,3 +1906,5 @@ Add CLI/display options:
 - risk_interprocedural_stats.json
   - required keys: schemaVersion, generatedAt, status, effectiveConfig, counts, capsHit, timingsMs
   - optional keys: reason, artifacts, droppedRecords
+
+

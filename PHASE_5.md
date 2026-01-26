@@ -1,4 +1,4 @@
-# Phase 5 — Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
+# Phase 5 -- Metadata v2 + Effective Language Fidelity (Segments & VFS prerequisites)
 
 ## Objective
 
@@ -53,7 +53,7 @@ These are the concrete issues that Phase 5 resolves:
    - `metaV2` is built in `src/index/build/file-processor/assemble.js` (and sometimes in cached-bundle repair code) but **cross-file inference runs later** in `src/index/build/indexer/steps/relations.js`.
    - Cross-file inference mutates `chunk.docmeta` (adds inferred types) and `chunk.codeRelations` (callLinks/usageLinks/callSummaries), so an assemble-time `metaV2` snapshot can be stale.
 
-3. **Segment “effective language” is not persisted or respected in downstream analysis**
+3. **Segment "effective language" is not persisted or respected in downstream analysis**
    - Segment discovery computes an effective extension (`resolveSegmentExt(...)`) and passes it into `smartChunk(...)`, but the file processor still:
      - tokenizes using the **container file extension**, and
      - runs docmeta/relations/flow using the **container language handler** (`src/index/build/file-processor/process-chunks.js`).
@@ -73,12 +73,12 @@ These are the concrete issues that Phase 5 resolves:
 
 Phase 5 implementation MUST align with the following documents in `docs/`:
 
-- `docs/metadata-schema-v2.md` (Metadata v2 contract)
+- `docs/specs/metadata-schema-v2.md` (Metadata v2 contract)
 - `docs/contracts/analysis-schemas.md` (schema notes / compatibility rules)
 - `docs/contracts/artifact-schemas.md` (artifact registry + required fields)
 - `docs/contracts/chunking.md` (chunk identity + offset semantics)
 - `docs/contracts/sqlite.md` (SQLite tables / versioning expectations)
-- `docs/spec_phase8_tooling_vfs_and_segment_routing_refined.md` (forward compatibility)
+- `docs/phases/phase-8/tooling-vfs-and-segment-routing.md` (forward compatibility)
 
 If Phase 5 introduces new contract fields (container/effective identity), it MUST update the above specs (and any referenced registry schema in `src/contracts/schemas/*`) in the same change set.
 
@@ -113,7 +113,7 @@ Ensure `metaV2.types.inferred.params` (and `tooling.params`) is **never silently
   - [x] For **params**, canonical shape is an object map `{ paramName: TypeEntry[] }` for **declared**, **inferred**, and **tooling** buckets.
     - [x] For **returns**, canonical shape remains `TypeEntry[]`.
     - [x] Update `docs/contracts/analysis-schemas.md` to match canonical shapes (params are maps; returns are arrays).
-    - [x] Add a short rationale to `docs/metadata-schema-v2.md` (params need names; returns do not) to prevent future drift.
+    - [x] Add a short rationale to `docs/specs/metadata-schema-v2.md` (params need names; returns do not) to prevent future drift.
     - [x] Add a short example snippet in docs showing the canonical params/returns shapes.
     - [x] Checklist: update any schema validators or JSON schema fragments that currently define params as arrays.
 
@@ -128,7 +128,7 @@ Ensure `metaV2.types.inferred.params` (and `tooling.params`) is **never silently
 - `src/index/metadata-v2.js`
 - `src/index/type-inference-crossfile/extract.js` (only if downstream assumptions need updates)
 - `src/index/validate/checks.js` (or `src/contracts/schemas/analysis.js` if schema refined)
-- `docs/metadata-schema-v2.md`
+- `docs/specs/metadata-schema-v2.md`
 - `docs/contracts/analysis-schemas.md`
 
 ## Tests
@@ -161,7 +161,7 @@ Guarantee that any enrichment that mutates `chunk.docmeta` or `chunk.codeRelatio
     - any late structural/risk augmentation that modifies `chunk.docmeta` or `chunk.codeRelations`
   - [x] Introduce a `finalizeMetaV2(chunks, context)` step that:
     - recomputes `chunk.metaV2 = buildMetaV2({ chunk, docmeta: chunk.docmeta, toolInfo, analysisPolicy })`
-    - reuses the chunk’s effective/container identity fields (Phase 5.4)
+    - reuses the chunk's effective/container identity fields (Phase 5.4)
     - is applied **once** after enrichment and before writing
   - [x] Place `finalizeMetaV2` either:
     - at the end of `steps/relations.js`, or
@@ -208,7 +208,7 @@ Guarantee that any enrichment that mutates `chunk.docmeta` or `chunk.codeRelatio
 
 ## Goal
 
-Remove SQLite’s lossy `metaV2` reconstruction by **storing the canonical `metaV2` JSON** per chunk, and enforce invariants:
+Remove SQLite's lossy `metaV2` reconstruction by **storing the canonical `metaV2` JSON** per chunk, and enforce invariants:
 
 - `chunk_id` is never `NULL`
 - `metaV2.chunkId` and SQLite `chunk_id` match
@@ -220,7 +220,7 @@ Remove SQLite’s lossy `metaV2` reconstruction by **storing the canonical `meta
   - [x] Update `src/storage/sqlite/schema.js`:
     - bump `SCHEMA_VERSION`
     - add `metaV2_json TEXT` to the `chunks` table
-  - [x] Update `docs/sqlite-index-schema.md` with the new column and schema version bump.
+  - [x] Update `docs/sqlite/index-schema.md` with the new column and schema version bump.
   - [x] Update `docs/contracts/sqlite.md` to document `metaV2_json` storage/retrieval expectations and parity guarantees.
   - [x] Update SQLite build path (`src/storage/sqlite/build-helpers.js` and writers):
     - persist `metaV2_json = JSON.stringify(chunk.metaV2)` (when available)
@@ -343,7 +343,7 @@ Make embedded code analysis correct by ensuring:
   - `start`, `end`, `startLine`, `endLine` (container coordinates)
   - `embeddingContext` (required when the segment is embedded; null when not embedded)
   - keep `segmentId`, `segmentUid`, `type`, `languageId`, `parentSegmentId`
-  - [x] Align `segment.embeddingContext` semantics with Phase 8 expectations in `docs/metadata-schema-v2.md` (explicit required/optional rules).
+  - [x] Align `segment.embeddingContext` semantics with Phase 8 expectations in `docs/specs/metadata-schema-v2.md` (explicit required/optional rules).
   - [x] Document which fields are required vs optional for non-segmented files (so consumers can rely on nullability).
   - [x] Checklist: update any JSON schema definitions that enumerate `segment` fields.
 
@@ -362,7 +362,7 @@ This is a prerequisite for correct caching, SQLite identity, and future graph jo
     - [x] Checklist: ensure any caches keyed by `chunkId` are invalidated (or versioned) after the change.
 - [x] Update docs to match reality:
   - `docs/contracts/chunking.md`
-  - `docs/metadata-schema-v2.md`
+  - `docs/specs/metadata-schema-v2.md`
   - [x] Make the stability guarantee explicit and consistent (chunkId stable-by-location; no `kind`/`name` inputs).
 
 > Note: collision-safe *symbol* identity and cross-file linking keys remain a Phase 9 deliverable. Phase 5 only ensures chunk span identity is stable and segment-aware.
@@ -376,7 +376,7 @@ This is a prerequisite for correct caching, SQLite identity, and future graph jo
   - `src/index/metadata-v2.js`
   - `src/index/chunk-id.js`
   - `src/index/build/file-processor/assemble.js`
-  - `docs/metadata-schema-v2.md`
+  - `docs/specs/metadata-schema-v2.md`
 - `docs/contracts/chunking.md`
 
 ## Tests
@@ -473,7 +473,7 @@ Phase 5 does **not** implement full VFS provider routing, but it must ensure tha
     - [x] Ensure `segmentUid` stability is explicitly documented for unchanged container text.
     - [x] Checklist: include `segmentUid` and effective identity in any future `vfs_manifest.jsonl` sample entries.
   - [x] Add/Update a VFS manifest spec in `docs/` (if not already present):
-  - `docs/spec-vfs-manifest-artifact.md` (v1)
+  - `docs/specs/vfs-manifest-artifact.md` (v1)
   - It should define `vfs_manifest.jsonl` entries mapping `virtualPath → source` and include hashes for cacheability.
   - [x] Defer actual emission of `vfs_manifest.jsonl` and VFS materialization to Phase 8 unless Phase 6/7 needs it earlier.
     - [x] Add a short note about which Phase 8 fields depend on Phase 5 outputs (segmentUid + effective identity).
@@ -481,9 +481,9 @@ Phase 5 does **not** implement full VFS provider routing, but it must ensure tha
 
 ## Files
 
-  - `docs/spec_phase8_tooling_vfs_and_segment_routing_refined.md`
-  - `docs/spec-vfs-manifest-artifact.md` (new/updated if missing)
-  - `docs/metadata-schema-v2.md`
+  - `docs/phases/phase-8/tooling-vfs-and-segment-routing.md`
+  - `docs/specs/vfs-manifest-artifact.md` (new/updated if missing)
+  - `docs/specs/metadata-schema-v2.md`
 
 ## Tests (optional / Phase 8 if deferred)
 
@@ -515,15 +515,16 @@ Phase 5 is complete when:
 
 ## Plan quality: what I would do differently (and why)
 
-- Prefer **hard contract truth** over “best-effort” legacy behavior:
+- Prefer **hard contract truth** over "best-effort" legacy behavior:
   - If `docs/contracts/chunking.md` states `chunkId` is stable, Phase 5 should make it *actually stable* (remove `kind/name` inputs) rather than tolerating churn.
 - Keep **container vs effective identity** explicit and redundant:
   - Store container identity in `metaV2.container` and keep `metaV2.ext` as the container ext for compatibility.
   - Store effective identity in `metaV2.effective` and make `metaV2.lang` match effective language id.
   - This redundancy reduces migration risk and keeps existing readers functioning.
 - Treat ambiguous symbol linking as unsafe:
-  - If Phase 5 makes segments “more analyzable”, it will increase same-file name collisions. Even if Phase 9 owns the full identity solution, Phase 5 should add validation warnings (at minimum) when cross-file inference sees ambiguous keys, to avoid silently linking wrong targets.
+  - If Phase 5 makes segments "more analyzable", it will increase same-file name collisions. Even if Phase 9 owns the full identity solution, Phase 5 should add validation warnings (at minimum) when cross-file inference sees ambiguous keys, to avoid silently linking wrong targets.
 
 ---
 
 #
+
