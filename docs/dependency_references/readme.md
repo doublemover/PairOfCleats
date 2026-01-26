@@ -2,6 +2,7 @@
 
 Summaries generated from the dependency references list.
 
+- Coverage list: `dependency-coverage.md`
 - Zoekt: `zoekt.md`
 - Zoekt query syntax: `zoekt-query-syntax.md`
 - Zoekt Go docs: `zoekt-go-docs.md`

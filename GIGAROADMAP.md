@@ -5122,5 +5122,8 @@ Add CLI/display options:
   - optional keys: reason, artifacts, droppedRecords
 
 
+## Roadmap addendum
+
+- Add dependency reference sheets for the missing packages listed in `docs/dependency_references/dependency-coverage.md` and update the dependency-bundle manifest.
 
 
