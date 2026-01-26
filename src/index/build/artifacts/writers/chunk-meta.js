@@ -68,7 +68,15 @@ export const createChunkMetaIterator = ({
       : (Array.isArray(c.chunkAuthors) ? c.chunkAuthors : null);
     const entry = {
       id: c.id,
+      chunkId: c.chunkId || null,
+      file: c.file || null,
       fileId: fileIdByPath.get(c.file) ?? null,
+      ext: c.ext || null,
+      lang: c.lang || null,
+      containerLanguageId: c.containerLanguageId || null,
+      fileHash: c.fileHash || null,
+      fileHashAlgo: c.fileHashAlgo || null,
+      fileSize: Number.isFinite(c.fileSize) ? c.fileSize : null,
       start: c.start,
       end: c.end,
       startLine: c.startLine,

@@ -14,7 +14,7 @@ Columns:
 - file (TEXT)
 - start, end (INTEGER)
 - startLine, endLine (INTEGER)
-- ext, kind, name, headline (TEXT)
+- ext, kind, name, metaV2_json, headline (TEXT)
 - preContext, postContext (TEXT JSON)
 - weight (REAL)
 - tokens, ngrams (TEXT JSON)
@@ -105,4 +105,4 @@ SQLite vector extension).
 - File paths in SQLite are normalized to use `/`.
 - When `chunk_meta.json` stores `fileId` instead of `file`, `build-sqlite-index` uses `file_meta.json` to resolve file paths, extensions, and external docs, and to populate `file_manifest`.
 - When incremental bundles are present (manifest exists), SQLite rebuilds stream bundle files from `<cache>/repos/<repoId>/incremental/<mode>/files` instead of loading `chunk_meta.json`.
-- Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION` (currently 9); mismatches require a full rebuild.
+- Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION` (currently 10); mismatches require a full rebuild.

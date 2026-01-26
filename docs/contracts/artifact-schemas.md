@@ -48,3 +48,4 @@ All artifacts below are JSON unless noted. Required fields are listed.
 
 - Schema definitions are authoritative in `src/contracts/schemas/artifacts.js`.
 - `metaV2` uses the metadata schema defined in `docs/metadata-schema-v2.md` (see analysis schemas).
+- SQLite stores canonical `metaV2` per chunk in `chunks.metaV2_json` for parity with JSONL artifacts.

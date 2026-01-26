@@ -9,7 +9,9 @@ export function buildChunkPayload({
   rel,
   relKey,
   ext,
+  effectiveExt,
   languageId,
+  containerLanguageId,
   fileHash,
   fileHashAlgo,
   fileSize,
@@ -35,6 +37,7 @@ export function buildChunkPayload({
   analysisPolicy
 }) {
   const weight = getFieldWeight(chunk, rel);
+  const resolvedExt = effectiveExt || ext;
   const docText = typeof docmeta.doc === 'string' ? docmeta.doc : '';
   const fieldedEnabled = postingsConfig?.fielded !== false;
   const wantsFieldTokens = fieldedEnabled
@@ -45,7 +48,7 @@ export function buildChunkPayload({
       ? buildTokenSequence({
         text: docText,
         mode: tokenMode,
-        ext,
+        ext: resolvedExt,
         dictWords,
         dictConfig
       }).tokens
@@ -55,7 +58,7 @@ export function buildChunkPayload({
     name: chunk.name ? buildTokenSequence({
       text: chunk.name,
       mode: tokenMode,
-      ext,
+      ext: resolvedExt,
       dictWords,
       dictConfig
     }).tokens : [],
@@ -63,7 +66,7 @@ export function buildChunkPayload({
       ? buildTokenSequence({
         text: docmeta.signature,
         mode: tokenMode,
-        ext,
+        ext: resolvedExt,
         dictWords,
         dictConfig
       }).tokens
@@ -74,12 +77,14 @@ export function buildChunkPayload({
   } : null;
   const headline = getHeadline(chunk, tokens);
   const externalDocs = relationsEnabled
-    ? buildExternalDocs(ext, fileRelations?.imports)
+    ? buildExternalDocs(resolvedExt, fileRelations?.imports)
     : [];
   const chunkPayload = {
     file: relKey,
     ext,
     lang: languageId,
+    containerLanguageId: containerLanguageId || null,
+    spanIndex: Number.isFinite(chunk.spanIndex) ? chunk.spanIndex : null,
     fileHash: fileHash || null,
     fileHashAlgo: fileHashAlgo || null,
     fileSize: Number.isFinite(fileSize) ? fileSize : null,

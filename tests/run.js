@@ -197,6 +197,9 @@ const main = async () => {
   const lanesList = Array.from(lanes).sort();
   const configOverride = typeof argv.config === 'string' && argv.config.trim() ? argv.config.trim() : '';
   const runConfig = loadRunConfig({ root: ROOT, configPath: configOverride || undefined });
+  const timeoutOverrides = runConfig.timeoutOverrides && typeof runConfig.timeoutOverrides === 'object'
+    ? runConfig.timeoutOverrides
+    : {};
   const tagExclude = splitCsv(argv['exclude-tag']);
   const ignoreConfigExcludes = laneInfo.includeAll;
   const configExclude = new Set();
@@ -358,6 +361,7 @@ const main = async () => {
     testsDir: TESTS_DIR,
     runRules,
     runConfig,
+    timeoutOverrides,
     consoleStream,
     useColor,
     outputIgnorePatterns: runRules.outputIgnorePatterns,

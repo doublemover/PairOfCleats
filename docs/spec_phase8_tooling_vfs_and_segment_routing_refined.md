@@ -6,7 +6,7 @@ This document refines the previous draft by:
 - Making identity explicit (`docId`, `chunkId`, `chunkUid`)
 - Defining container-vs-effective language fields
 - Specifying exact offset mapping rules
-- Removing ambiguous references to `segment.ext` (not currently present on chunk segments)
+- Clarifying `segment.ext` vs effective language derivation (Phase 5 persists `segment.ext`)
 
 ---
 
@@ -34,6 +34,8 @@ Therefore each chunk has:
 - `effectiveLanguageId` + `effectiveExt` (language of the chunk content)
 - `segmentUid` (required for routing / identity)
 - `segmentId` (optional debug; range-derived and not stable under edits)
+
+`segmentUid` is derived per the Identity Contract (segment type + languageId + normalized segment text).
 
 Tooling providers MUST route by **effective** language, not container extension.
 
@@ -136,7 +138,7 @@ export type ToolingTarget = {
 
 ## 4. Effective extension derivation (mandatory)
 
-Because current chunk objects do not reliably carry `segment.ext`, derive `effectiveExt` from `effectiveLanguageId`.
+Prefer `metaV2.effective.ext` (or `chunk.segment.ext` where present). If missing, derive `effectiveExt` from `effectiveLanguageId`.
 
 ### 4.1 Canonical mapping table
 
@@ -281,4 +283,3 @@ This ensures:
 3. `tests/tooling/vfs-routing-by-effective-language.test.js`
    - `.vue` with `<script lang="ts">` and `<template>`.
    - Ensure TS tooling runs only on TS virtual doc, not on template.
-

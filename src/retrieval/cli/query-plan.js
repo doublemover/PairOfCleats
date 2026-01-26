@@ -35,6 +35,7 @@ export function buildQueryPlan({
   continuesMin,
   churnMin,
   extFilter,
+  langFilter,
   metaFilters,
   modifiedAfter,
   modifiedSinceDays,
@@ -121,6 +122,7 @@ export function buildQueryPlan({
       chargramN: fileChargramN
     },
     ext: extFilter,
+    lang: langFilter,
     meta: metaFilters,
     chunkAuthor: chunkAuthorFilter,
     modifiedAfter,
@@ -164,6 +166,7 @@ export function buildQueryPlan({
     returns: argv.returns || false,
     file: fileFilter || null,
     ext: extFilter || null,
+    lang: langFilter || null,
     branch: branchFilter || null,
     caseFile,
     caseTokens,

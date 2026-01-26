@@ -11,6 +11,16 @@ const stateErrors = new Map();
 
 const resolveStatePath = (buildRoot) => path.join(buildRoot, STATE_FILE);
 
+const buildRootExists = async (buildRoot) => {
+  if (!buildRoot) return false;
+  try {
+    await fs.access(buildRoot);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const mergeState = (base, patch) => {
   const merged = { ...base, ...patch };
   if (patch.phases) {
@@ -132,6 +142,7 @@ export async function initBuildState({
 export async function updateBuildState(buildRoot, patch) {
   if (!buildRoot || !patch) return null;
   return enqueueStateUpdate(buildRoot, async () => {
+    if (!(await buildRootExists(buildRoot))) return null;
     const statePath = resolveStatePath(buildRoot);
     const loadedState = await loadBuildState(buildRoot);
     let state = ensureStateVersions(loadedState?.state || {}, buildRoot, loadedState?.loaded);
@@ -142,6 +153,7 @@ export async function updateBuildState(buildRoot, patch) {
       await writeJsonObjectFile(statePath, { fields: merged, atomic: true });
       return merged;
     } catch (err) {
+      if (err?.code === 'ENOENT' && !(await buildRootExists(buildRoot))) return null;
       recordStateError(buildRoot, err);
       return null;
     }
@@ -151,6 +163,7 @@ export async function updateBuildState(buildRoot, patch) {
 export async function markBuildPhase(buildRoot, phase, status, detail = null) {
   if (!buildRoot || !phase || !status) return null;
   return enqueueStateUpdate(buildRoot, async () => {
+    if (!(await buildRootExists(buildRoot))) return null;
     const now = new Date().toISOString();
     const statePath = resolveStatePath(buildRoot);
     const loadedState = await loadBuildState(buildRoot);
@@ -179,6 +192,7 @@ export async function markBuildPhase(buildRoot, phase, status, detail = null) {
       await writeJsonObjectFile(statePath, { fields: merged, atomic: true });
       return merged;
     } catch (err) {
+      if (err?.code === 'ENOENT' && !(await buildRootExists(buildRoot))) return null;
       recordStateError(buildRoot, err);
       return null;
     }
@@ -188,7 +202,17 @@ export async function markBuildPhase(buildRoot, phase, status, detail = null) {
 export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
   if (!buildRoot) return () => {};
   let lastWrite = 0;
-  const tick = () => {
+  let active = true;
+  const stop = () => {
+    active = false;
+    clearInterval(timer);
+  };
+  const tick = async () => {
+    if (!active) return;
+    if (!(await buildRootExists(buildRoot))) {
+      stop();
+      return;
+    }
     const nowMs = Date.now();
     if (nowMs - lastWrite < HEARTBEAT_MIN_INTERVAL_MS) return;
     lastWrite = nowMs;
@@ -200,9 +224,11 @@ export function startBuildHeartbeat(buildRoot, stage, intervalMs = 30000) {
       }
     }).catch(() => {});
   };
-  tick();
-  const timer = setInterval(tick, intervalMs);
-  return () => clearInterval(timer);
+  void tick();
+  const timer = setInterval(() => {
+    void tick();
+  }, intervalMs);
+  return stop;
 }
 
 export function createBuildCheckpoint({

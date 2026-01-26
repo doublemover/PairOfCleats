@@ -8,8 +8,11 @@ This document defines the analysis-related schemas used across indexing, validat
 - Used in `chunk_meta` as `metaV2`.
 - Notes:
   - `modifiers` may be an array of strings (canonical) or a legacy object map (e.g., `{ visibility: 'public', static: true }`).
-- `types` is an object with optional `declared`, `inferred`, and `tooling` buckets; each bucket maps symbol names to arrays of `{ type, source, confidence, ... }` entries.
-- `types.*.params` may be an array (legacy) or an object of `{ paramName: entry[] }` (canonical).
+- `types` is an object with optional `declared`, `inferred`, and `tooling` buckets.
+- Canonical shapes:
+  - `types.<bucket>.returns`: `TypeEntry[]`
+  - `types.<bucket>.params`: `{ paramName: TypeEntry[] }`
+- `types.*.params` may be an array in legacy artifacts, but the canonical form is an object map keyed by param name.
 
 ## Risk rules bundle
 

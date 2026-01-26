@@ -79,20 +79,28 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
     verbose: argv.verbose === true,
     quiet: argv.quiet === true
   });
+  let stopHeartbeat = () => {};
+  let finalized = false;
   let displayClosed = false;
   const closeDisplay = () => {
     if (displayClosed) return;
     displayClosed = true;
     display.close();
   };
-  process.once('exit', closeDisplay);
+  const finalize = () => {
+    if (finalized) return;
+    finalized = true;
+    stopHeartbeat();
+    closeDisplay();
+  };
+  process.once('exit', finalize);
   const log = (message) => display.log(message);
   const warn = (message) => display.warn(message);
   const error = (message) => display.error(message);
   const logger = { log, warn, error };
   const fail = (message, code = 1) => {
     error(message);
-    closeDisplay();
+    finalize();
     process.exit(code);
   };
   const writeCacheEntry = async (targetPath, payload) => {
@@ -115,7 +123,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
 
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
     error('Embeddings disabled; skipping build-embeddings.');
-    closeDisplay();
+    finalize();
     return { skipped: true };
   }
 
@@ -173,7 +181,7 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
   const recordsDir = triageConfig.recordsDir;
   const buildStatePath = resolveBuildStatePath(indexRoot);
   const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
-  const stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage3') : () => {};
+  stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage3') : () => {};
 
   const cacheRoot = resolveCacheRoot({
     repoCacheRoot,
@@ -187,36 +195,37 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
   const modeTask = display.task('Embeddings', { total: modes.length, stage: 'embeddings' });
   let completedModes = 0;
 
-  for (const mode of modes) {
-    if (!['code', 'prose', 'extracted-prose', 'records'].includes(mode)) {
-      fail(`Invalid mode: ${mode}`);
-    }
-    modeTask.set(completedModes, modes.length, { message: `building ${mode}` });
-    const finishMode = (message) => {
-      completedModes += 1;
-      modeTask.set(completedModes, modes.length, { message });
-    };
-    const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
-    const statePath = path.join(indexDir, 'index_state.json');
-    const stateNow = new Date().toISOString();
-    let indexState = loadIndexState(statePath);
-    indexState.generatedAt = indexState.generatedAt || stateNow;
-    indexState.updatedAt = stateNow;
-    indexState.mode = indexState.mode || mode;
-    indexState.embeddings = {
-      ...(indexState.embeddings || {}),
-      enabled: true,
-      ready: false,
-      pending: true,
-      mode: indexState.embeddings?.mode || resolvedEmbeddingMode,
-      service: indexState.embeddings?.service ?? (normalizedEmbeddingMode === 'service'),
-      updatedAt: stateNow
-    };
-    try {
-      await writeIndexState(statePath, indexState);
-    } catch {
-      // Ignore index state write failures.
-    }
+  try {
+    for (const mode of modes) {
+      if (!['code', 'prose', 'extracted-prose', 'records'].includes(mode)) {
+        fail(`Invalid mode: ${mode}`);
+      }
+      modeTask.set(completedModes, modes.length, { message: `building ${mode}` });
+      const finishMode = (message) => {
+        completedModes += 1;
+        modeTask.set(completedModes, modes.length, { message });
+      };
+      const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
+      const statePath = path.join(indexDir, 'index_state.json');
+      const stateNow = new Date().toISOString();
+      let indexState = loadIndexState(statePath);
+      indexState.generatedAt = indexState.generatedAt || stateNow;
+      indexState.updatedAt = stateNow;
+      indexState.mode = indexState.mode || mode;
+      indexState.embeddings = {
+        ...(indexState.embeddings || {}),
+        enabled: true,
+        ready: false,
+        pending: true,
+        mode: indexState.embeddings?.mode || resolvedEmbeddingMode,
+        service: indexState.embeddings?.service ?? (normalizedEmbeddingMode === 'service'),
+        updatedAt: stateNow
+      };
+      try {
+        await writeIndexState(statePath, indexState);
+      } catch {
+        // Ignore index state write failures.
+      }
 
     const chunkMetaPath = path.join(indexDir, 'chunk_meta.json');
     const chunkMetaJsonlPath = path.join(indexDir, 'chunk_meta.jsonl');
@@ -774,14 +783,15 @@ export async function runBuildEmbeddings(rawArgs = process.argv.slice(2), _optio
       throw new Error(`[embeddings] ${mode} index validation failed; see index-validate output for details.`);
     }
 
-    log(`[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`);
-    finishMode(`built ${mode}`);
-  }
+      log(`[embeddings] ${mode}: wrote ${totalChunks} vectors (dims=${finalDims}).`);
+      finishMode(`built ${mode}`);
+    }
 
-  if (hasBuildState) {
-    await markBuildPhase(indexRoot, 'stage3', 'done');
+    if (hasBuildState) {
+      await markBuildPhase(indexRoot, 'stage3', 'done');
+    }
+    return { modes };
+  } finally {
+    finalize();
   }
-  stopHeartbeat();
-  closeDisplay();
-  return { modes };
 }

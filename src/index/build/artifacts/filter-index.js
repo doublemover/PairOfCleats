@@ -1,7 +1,7 @@
 import { buildFilterIndex, serializeFilterIndex } from '../../../retrieval/filter-index.js';
 import { getEffectiveConfigHash } from '../../../../tools/dict-utils.js';
 
-const FILTER_INDEX_SCHEMA_VERSION = 1;
+const FILTER_INDEX_SCHEMA_VERSION = 2;
 
 const resolveConfigHash = (root, userConfig) => {
   if (!root) return null;

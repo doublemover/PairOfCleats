@@ -93,6 +93,7 @@ Artifacts that truncate content must include:
 - `tokenizationKey`
 - embeddings identity (when enabled)
 - language/segment policy identity
+- chunk id algorithm version
 - enabled mode set
 
 Readers must hard-fail if compatibility keys differ.

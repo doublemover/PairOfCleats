@@ -1,3 +1,4 @@
+import { resolveChunkId } from '../../index/chunk-id.js';
 import { normalizeFilePath } from './utils.js';
 
 const SAFE_IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -13,7 +14,7 @@ const isSafeIdentifier = (value) => SAFE_IDENTIFIER_RE.test(String(value || ''))
 export function buildChunkRow(chunk, mode, id) {
   const tokensArray = Array.isArray(chunk.tokens) ? chunk.tokens : [];
   const normalizeString = (value) => (typeof value === 'string' ? value : null);
-  const chunkId = chunk?.metaV2?.chunkId || chunk?.chunkId || null;
+  const chunkId = resolveChunkId(chunk);
   const signature = normalizeString(chunk.docmeta?.signature ?? chunk.signature);
   const doc = normalizeString(chunk.docmeta?.doc);
   // signature/doc are for chunks_fts inserts; the chunks table does not store them.
@@ -29,6 +30,7 @@ export function buildChunkRow(chunk, mode, id) {
     ext: normalizeString(chunk.ext),
     kind: normalizeString(chunk.kind),
     name: normalizeString(chunk.name),
+    metaV2_json: chunk.metaV2 ? JSON.stringify(chunk.metaV2) : null,
     signature,
     headline: normalizeString(chunk.headline),
     doc,

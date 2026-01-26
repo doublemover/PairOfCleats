@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 export const REQUIRED_TABLES = [
   'chunks',
@@ -45,6 +45,7 @@ export const CREATE_TABLES_BASE_SQL = `
     ext TEXT,
     kind TEXT,
     name TEXT,
+    metaV2_json TEXT,
     headline TEXT,
     preContext TEXT,
     postContext TEXT,

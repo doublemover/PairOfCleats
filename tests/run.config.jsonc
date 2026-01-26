@@ -3,8 +3,12 @@
   "excludeTags": [
     "destructive",
     "CheckAfterPhase10",
+    "DelayedUntilPhase7_8",
     "long"
   ],
+  "timeoutOverrides": {
+    "harness/timeout-target": 1000
+  },
   "lanes": {
     "ci": {}
   }

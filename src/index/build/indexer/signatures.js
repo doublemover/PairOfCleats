@@ -1,4 +1,5 @@
 import { ARTIFACT_SCHEMA_HASH } from '../../../contracts/registry.js';
+import { CHUNK_ID_ALGO_VERSION } from '../../../contracts/compatibility.js';
 import { sha1 } from '../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 
@@ -78,6 +79,7 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
     importScan: runtime.indexingConfig?.importScan ?? null,
     yamlChunking: languageOptions.yamlChunking || null,
     kotlin: languageOptions.kotlin || null,
+    chunkIdAlgoVersion: CHUNK_ID_ALGO_VERSION,
     embeddings: {
       enabled: runtime.embeddingEnabled || runtime.embeddingService,
       mode: runtime.embeddingMode,

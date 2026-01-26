@@ -24,8 +24,8 @@ const writeManifest = async (pieces) => {
 };
 
 const chunkMetaLines = [
-  { id: 0, file: 'src/a.js', start: 0, end: 10, ext: '.js', kind: 'Function', name: 'alpha' },
-  { id: 1, file: 'src/b.js', start: 0, end: 20, ext: '.js', kind: 'Function', name: 'beta' }
+  { id: 0, file: 'src/a.js', start: 0, end: 10, ext: '.js', lang: 'javascript', kind: 'Function', name: 'alpha' },
+  { id: 1, file: 'src/b.js', start: 0, end: 20, ext: '.js', lang: 'javascript', kind: 'Function', name: 'beta' }
 ];
 const chunkMetaPartsDir = path.join(cacheRoot, 'chunk_meta.parts');
 await fs.mkdir(chunkMetaPartsDir, { recursive: true });

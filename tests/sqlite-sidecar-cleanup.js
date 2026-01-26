@@ -35,9 +35,9 @@ run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot]
 run([path.join(root, 'tools', 'build-sqlite-index.js'), '--mode', 'code', '--repo', repoRoot], 'build sqlite');
 
 const userConfig = loadUserConfig(repoRoot);
-const sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
-const walPath = `${sqlitePaths.codePath}-wal`;
-const shmPath = `${sqlitePaths.codePath}-shm`;
+let sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
+let walPath = `${sqlitePaths.codePath}-wal`;
+let shmPath = `${sqlitePaths.codePath}-shm`;
 await fsPromises.writeFile(walPath, 'stale-wal');
 await fsPromises.writeFile(shmPath, 'stale-shm');
 
@@ -61,6 +61,9 @@ run([
   '--repo',
   repoRoot
 ], 'build index (incremental)');
+sqlitePaths = resolveSqlitePaths(repoRoot, userConfig);
+walPath = `${sqlitePaths.codePath}-wal`;
+shmPath = `${sqlitePaths.codePath}-shm`;
 await fsPromises.writeFile(walPath, 'stale-wal');
 await fsPromises.writeFile(shmPath, 'stale-shm');
 run([

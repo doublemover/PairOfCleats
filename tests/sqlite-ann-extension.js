@@ -40,12 +40,20 @@ const env = {
   PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
   PAIROFCLEATS_EMBEDDINGS: 'stub',
-  PAIROFCLEATS_BUNDLE_THREADS: '1'
+  PAIROFCLEATS_BUNDLE_THREADS: '1',
+  PAIROFCLEATS_TEST_CONFIG: JSON.stringify({
+    sqlite: {
+      vectorExtension: {
+        annMode: 'extension'
+      }
+    }
+  })
 };
 process.env.PAIROFCLEATS_TESTING = '1';
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
 process.env.PAIROFCLEATS_BUNDLE_THREADS = '1';
+process.env.PAIROFCLEATS_TEST_CONFIG = env.PAIROFCLEATS_TEST_CONFIG;
 
 function run(args, label) {
   const result = spawnSync(process.execPath, args, {
@@ -100,7 +108,17 @@ db.close();
 
 const searchResult = spawnSync(
   process.execPath,
-  [path.join(root, 'search.js'), 'index', '--json', '--ann', '--repo', repoRoot],
+  [
+    path.join(root, 'search.js'),
+    'index',
+    '--json',
+    '--stats',
+    '--ann',
+    '--ann-backend',
+    'sqlite-extension',
+    '--repo',
+    repoRoot
+  ],
   { cwd: repoRoot, env, encoding: 'utf8' }
 );
 if (searchResult.status !== 0) {

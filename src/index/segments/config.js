@@ -58,8 +58,10 @@ export const CONFIG_LANGS = new Set(['json', 'yaml', 'toml']);
 const MARKDOWN_FENCE_LANG_ALIASES = new Map([
   ['js', 'javascript'],
   ['javascript', 'javascript'],
+  ['jsx', 'jsx'],
   ['ts', 'typescript'],
   ['typescript', 'typescript'],
+  ['tsx', 'tsx'],
   ['html', 'html'],
   ['css', 'css'],
   ['scss', 'scss'],

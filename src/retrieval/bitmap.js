@@ -199,6 +199,7 @@ export const buildBitmapIndex = (index, options = {}) => {
     enabled: true,
     minSize,
     byExt: buildMap(index.byExt),
+    byLang: buildMap(index.byLang),
     byKind: buildMap(index.byKind),
     byAuthor: buildMap(index.byAuthor),
     byChunkAuthor: buildMap(index.byChunkAuthor),

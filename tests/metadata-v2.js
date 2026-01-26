@@ -27,7 +27,10 @@ const docmeta = {
   params: ['opts'],
   returnType: 'Widget',
   inferredTypes: {
-    returns: [{ type: 'Widget', source: 'tooling', confidence: 0.9 }]
+    returns: [{ type: 'Widget', source: 'tooling', confidence: 0.9 }],
+    params: {
+      opts: [{ type: 'WidgetOpts', source: 'inferred', confidence: 0.6 }]
+    }
   },
   risk: {
     tags: ['command-exec'],
@@ -52,6 +55,7 @@ assert.equal(meta.segment?.segmentId, 'seg-1');
 assert.equal(meta.signature, 'makeWidget(opts)');
 assert.equal(meta.returns, 'Widget');
 assert.equal(meta.types?.tooling?.returns?.[0]?.type, 'Widget');
+assert.equal(meta.types?.inferred?.params?.opts?.[0]?.type, 'WidgetOpts');
 assert.equal(meta.risk?.flows?.[0]?.sink, 'exec');
 
 console.log('metadata v2 test passed');

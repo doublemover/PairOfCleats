@@ -42,7 +42,7 @@ const normalizedResult = runCapture(
   'build sqlite index (normalized manifest)'
 );
 const normalizedOutput = getCombinedOutput(normalizedResult);
-if (!normalizedOutput.includes('SQLite indexes updated')) {
+if (!normalizedOutput.includes('SQLite Indexes Updated') && !normalizedOutput.includes('SQLite Index Updated')) {
   console.error('Expected incremental sqlite update with normalized manifest.');
   process.exit(1);
 }

@@ -2,6 +2,8 @@ import { writeIndexArtifacts } from '../../artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../contracts/versioning.js';
 import { serializeRiskRulesBundle } from '../../../risk-rules.js';
 import { finalizePerfProfile } from '../../perf-profile.js';
+import { finalizeMetaV2 } from '../../../metadata-v2.js';
+import { log } from '../../../../shared/progress.js';
 
 export const writeIndexArtifactsForMode = async ({
   runtime,
@@ -15,6 +17,21 @@ export const writeIndexArtifactsForMode = async ({
   graphRelations,
   shardSummary
 }) => {
+  const metaDebug = runtime?.argv?.verbose === true || runtime?.verboseCache === true;
+  const metaCheck = finalizeMetaV2({
+    chunks: state.chunks,
+    toolInfo: runtime.toolInfo,
+    analysisPolicy: runtime.analysisPolicy,
+    debug: metaDebug,
+    onMismatch: ({ chunk }) => {
+      const id = chunk?.chunkId || chunk?.metaV2?.chunkId || 'unknown';
+      const file = chunk?.file || 'unknown';
+      log(`[metaV2] finalize mismatch for ${file} (${id})`);
+    }
+  });
+  if (metaDebug && metaCheck?.mismatches) {
+    log(`[metaV2] ${metaCheck.mismatches} mismatch(es) detected during finalization.`);
+  }
   const finalizedPerfProfile = finalizePerfProfile(perfProfile);
   const riskRules = serializeRiskRulesBundle(runtime.riskConfig?.rules);
   await writeIndexArtifacts({

@@ -34,7 +34,9 @@ const collectMarkdownSegments = (text, config) => {
         current.info = text.slice(token.start.offset, token.end.offset);
       }
       if (token.type === 'codeFlowValue') {
-        if (action === 'enter') current.valueStart = token.start.offset;
+        if (action === 'enter' && !Number.isFinite(current.valueStart)) {
+          current.valueStart = token.start.offset;
+        }
         if (action === 'exit') current.valueEnd = token.end.offset;
       }
       if (action === 'exit' && token.type === 'codeFenced') {

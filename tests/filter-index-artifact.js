@@ -42,8 +42,9 @@ const indexDir = getIndexDir(repoRoot, 'code', userConfig);
 const filterIndexPath = path.join(indexDir, 'filter_index.json');
 const raw = readJsonFile(filterIndexPath);
 assert.ok(Number.isFinite(raw.fileChargramN) && raw.fileChargramN > 0, 'expected fileChargramN to be set');
-assert.equal(raw.schemaVersion, 1, 'expected filter_index schemaVersion=1');
+assert.equal(raw.schemaVersion, 2, 'expected filter_index schemaVersion=2');
 assert.equal(raw.configHash, getEffectiveConfigHash(repoRoot, userConfig), 'expected filter_index configHash to match');
+assert.ok(raw.byLang && raw.byLang.javascript, 'expected filter_index to include byLang');
 
 const idx = await loadIndex(indexDir, { modelIdDefault: 'test', fileChargramN: 1 });
 assert.equal(idx.filterIndex?.fileChargramN, raw.fileChargramN, 'expected hydrated filter index to use persisted fileChargramN');

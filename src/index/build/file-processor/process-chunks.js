@@ -1,6 +1,6 @@
 import util from 'node:util';
 import { analyzeComplexity, lintChunk } from '../../analysis.js';
-import { buildChunkRelations } from '../../language-registry.js';
+import { buildChunkRelations, getLanguageForFile } from '../../language-registry.js';
 import { detectRiskSignals } from '../../risk.js';
 import { inferTypeMetadata } from '../../type-inference.js';
 import { getChunkAuthorsFromLines } from '../../git.js';
@@ -13,6 +13,36 @@ import { attachEmbeddings } from './embeddings.js';
 import { formatError, mergeFlowMeta } from './meta.js';
 import { truncateByBytes } from './read.js';
 import { createLineReader, stripCommentText } from './utils.js';
+import { resolveSegmentTokenMode } from '../../segments/config.js';
+
+const assignSpanIndexes = (chunks) => {
+  if (!Array.isArray(chunks) || chunks.length < 2) return;
+  const groups = new Map();
+  for (let i = 0; i < chunks.length; i += 1) {
+    const chunk = chunks[i];
+    if (!chunk) continue;
+    const key = [
+      chunk.segment?.segmentId || '',
+      chunk.start ?? '',
+      chunk.end ?? ''
+    ].join('|');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ chunk, index: i });
+  }
+  for (const group of groups.values()) {
+    if (group.length <= 1) continue;
+    group.sort((a, b) => {
+      const kindCmp = String(a.chunk.kind || '').localeCompare(String(b.chunk.kind || ''));
+      if (kindCmp) return kindCmp;
+      const nameCmp = String(a.chunk.name || '').localeCompare(String(b.chunk.name || ''));
+      if (nameCmp) return nameCmp;
+      return a.index - b.index;
+    });
+    for (let i = 0; i < group.length; i += 1) {
+      group[i].chunk.spanIndex = i + 1;
+    }
+  }
+};
 
 export const processChunks = async (context) => {
   const {
@@ -78,8 +108,24 @@ export const processChunks = async (context) => {
     addEmbeddingDuration,
     showLineProgress,
     totalLines,
-    failFile
+    failFile,
+    buildStage
   } = context;
+
+  const containerExt = ext;
+  const containerLanguageId = fileLanguageId || lang?.id || null;
+  const updateCrashStage = (substage, extra = {}) => {
+    if (!crashLogger?.enabled) return;
+    crashLogger.updateFile({
+      phase: 'processing',
+      mode,
+      stage: buildStage || null,
+      file: relKey,
+      substage,
+      ...extra
+    });
+  };
+  updateCrashStage('process-chunks:start', { totalChunks: sc.length, languageId: containerLanguageId });
 
   const chunkLineRanges = sc.map((chunk) => {
     const startLine = chunk.meta?.startLine ?? offsetToLine(lineIndex, chunk.start);
@@ -88,6 +134,7 @@ export const processChunks = async (context) => {
     if (endLine < startLine) endLine = startLine;
     return { startLine, endLine };
   });
+  assignSpanIndexes(sc);
   const commentAssignments = assignCommentsToChunks(commentEntries, sc);
   const commentRangeAssignments = assignCommentsToChunks(commentRanges, sc);
   const chunks = [];
@@ -146,13 +193,36 @@ export const processChunks = async (context) => {
 
   for (let ci = 0; ci < sc.length; ++ci) {
     const c = sc[ci];
+    updateCrashStage('chunk', {
+      chunkIndex: ci,
+      chunkId: c?.chunkId || null,
+      start: c?.start ?? null,
+      end: c?.end ?? null
+    });
     const ctext = text.slice(c.start, c.end);
     let tokenText = ctext;
     const lineRange = chunkLineRanges[ci] || { startLine: 1, endLine: fileLineCount || 1 };
     const startLine = lineRange.startLine;
     const endLine = lineRange.endLine;
     const chunkLineCount = Math.max(1, endLine - startLine + 1);
-    const chunkLanguageId = c.segment?.languageId || fileLanguageId || lang?.id || 'unknown';
+    const segmentTokenMode = c.segment ? resolveSegmentTokenMode(c.segment) : tokenMode;
+    const chunkMode = segmentTokenMode || tokenMode;
+    const effectiveExt = c.segment?.ext || containerExt;
+    const effectiveLang = getLanguageForFile(effectiveExt, relKey);
+    const effectiveLanguageId = effectiveLang?.id || c.segment?.languageId || containerLanguageId || 'unknown';
+    const chunkLanguageId = effectiveLanguageId;
+    const activeLang = effectiveLang || lang;
+    const activeContext = effectiveLang && lang && effectiveLang.id === lang.id
+      ? languageContext
+      : null;
+    const diagnostics = {
+      containerExt,
+      effectiveExt,
+      containerLanguageId,
+      effectiveLanguageId,
+      segmentLanguageId: c.segment?.languageId || null,
+      segmentExt: c.segment?.ext || null
+    };
     addLineSpan(chunkLanguageId, startLine, endLine);
     if (showLineProgress) {
       const currentLine = chunkLineRanges[ci]?.endLine ?? totalLines;
@@ -175,41 +245,44 @@ export const processChunks = async (context) => {
     }
 
     let codeRelations = {}, docmeta = {};
-    if (mode === 'code') {
+    if (chunkMode === 'code') {
       const relationStart = Date.now();
       try {
-        docmeta = lang && typeof lang.extractDocMeta === 'function'
-          ? lang.extractDocMeta({
+        updateCrashStage('docmeta', { chunkIndex: ci, languageId: effectiveLanguageId || null });
+        docmeta = activeLang && typeof activeLang.extractDocMeta === 'function'
+          ? activeLang.extractDocMeta({
             text,
             chunk: c,
             fileRelations,
-            context: languageContext,
+            context: activeContext,
             options: languageOptions
           })
           : {};
       } catch (err) {
-        return failFile('parse-error', 'docmeta', err);
+        return failFile('parse-error', 'docmeta', err, diagnostics);
       }
       if (relationsEnabled && fileRelations) {
         try {
+          updateCrashStage('relations', { chunkIndex: ci });
           codeRelations = buildChunkRelations({
-            lang,
+            lang: activeLang,
             chunk: c,
             fileRelations,
             callIndex
           });
         } catch (err) {
-          return failFile('relation-error', 'chunk-relations', err);
+          return failFile('relation-error', 'chunk-relations', err, diagnostics);
         }
       }
       let flowMeta = null;
-      if (lang && typeof lang.flow === 'function') {
+      if (activeLang && typeof activeLang.flow === 'function') {
         try {
+          updateCrashStage('flow', { chunkIndex: ci });
           const flowStart = Date.now();
-          flowMeta = lang.flow({
+          flowMeta = activeLang.flow({
             text,
             chunk: c,
-            context: languageContext,
+            context: activeContext,
             options: languageOptions
           });
           const flowDurationMs = Date.now() - flowStart;
@@ -225,7 +298,7 @@ export const processChunks = async (context) => {
             }
           }
         } catch (err) {
-          return failFile('relation-error', 'flow', err);
+          return failFile('relation-error', 'flow', err, diagnostics);
         }
       }
       if (flowMeta) {
@@ -234,10 +307,11 @@ export const processChunks = async (context) => {
       addEnrichDuration(Date.now() - relationStart);
       if (resolvedTypeInferenceEnabled) {
         const enrichStart = Date.now();
+        updateCrashStage('type-inference', { chunkIndex: ci });
         const inferredTypes = inferTypeMetadata({
           docmeta,
           chunkText: ctext,
-          languageId: lang?.id || null
+          languageId: effectiveLanguageId || null
         });
         if (inferredTypes) {
           docmeta = { ...docmeta, inferredTypes };
@@ -248,11 +322,12 @@ export const processChunks = async (context) => {
       }
       if (resolvedRiskAnalysisEnabled) {
         const enrichStart = Date.now();
+        updateCrashStage('risk-analysis', { chunkIndex: ci });
         const risk = detectRiskSignals({
           text: ctext,
           chunk: c,
           config: riskConfig,
-          languageId: lang?.id || null
+          languageId: effectiveLanguageId || null
         });
         if (risk) {
           docmeta = { ...docmeta, risk };
@@ -302,8 +377,7 @@ export const processChunks = async (context) => {
             endLine: comment.endLine
           };
           commentRefs.push(ref);
-
-          if (mode === 'code') continue;
+          if (chunkMode === 'code') continue;
 
           const remaining = maxBytes ? Math.max(0, maxBytes - totalBytes) : 0;
           if (maxBytes && remaining <= 0) break;
@@ -321,7 +395,7 @@ export const processChunks = async (context) => {
             const tokens = buildTokenSequence({
               text: clipped.text,
               mode: 'prose',
-              ext,
+              ext: effectiveExt,
               dictWords: tokenDictWords,
               dictConfig
             }).tokens;
@@ -337,7 +411,7 @@ export const processChunks = async (context) => {
             anchorChunkId: null
           });
         }
-        if (mode === 'code') {
+        if (chunkMode === 'code') {
           if (commentRefs.length) {
             docmeta = { ...docmeta, commentRefs };
           }
@@ -346,7 +420,7 @@ export const processChunks = async (context) => {
         }
       }
     }
-    if (mode === 'code' && normalizedCommentsConfig.includeInCode !== true && assignedRanges.length) {
+    if (chunkMode === 'code' && normalizedCommentsConfig.includeInCode !== true && assignedRanges.length) {
       tokenText = stripCommentText(ctext, c.start, assignedRanges);
     }
 
@@ -358,10 +432,11 @@ export const processChunks = async (context) => {
     if (useWorkerForTokens) {
       try {
         const tokenStart = Date.now();
+        updateCrashStage('tokenize-worker', { chunkIndex: ci });
         tokenPayload = await workerPool.runTokenize({
           text: tokenText,
-          mode: tokenMode,
-          ext,
+          mode: chunkMode,
+          ext: effectiveExt,
           file: relKey,
           size: fileStat.size,
           // chargramTokens is intentionally omitted (see note above).
@@ -407,10 +482,11 @@ export const processChunks = async (context) => {
     }
     if (!tokenPayload) {
       const tokenStart = Date.now();
+      updateCrashStage('tokenize', { chunkIndex: ci });
       tokenPayload = tokenizeChunkText({
         text: tokenText,
-        mode: tokenMode,
-        ext,
+        mode: chunkMode,
+        ext: effectiveExt,
         context: tokenContext,
         // chargramTokens is intentionally omitted (see note above).
         buffers: tokenBuffers
@@ -467,8 +543,10 @@ export const processChunks = async (context) => {
       chunk: chunkRecord,
       rel,
       relKey,
-      ext,
-      languageId: fileLanguageId || lang?.id || null,
+      ext: containerExt,
+      effectiveExt,
+      languageId: effectiveLanguageId || null,
+      containerLanguageId,
       fileHash,
       fileHashAlgo,
       fileSize: fileStat.size,
@@ -486,7 +564,7 @@ export const processChunks = async (context) => {
       dictWords: tokenDictWords,
       dictConfig,
       postingsConfig,
-      tokenMode,
+      tokenMode: chunkMode,
       fileRelations,
       relationsEnabled,
       toolInfo,
@@ -501,6 +579,7 @@ export const processChunks = async (context) => {
     }
   }
 
+  updateCrashStage('attach-embeddings', { chunkCount: chunks.length });
   const embeddingResult = await attachEmbeddings({
     chunks,
     codeTexts,

@@ -8,6 +8,7 @@ import { parseJson } from '../query-cache.js';
 import { parseChurnArg, parseModifiedArgs } from '../query-parse.js';
 import {
   mergeExtFilters,
+  mergeLangFilters,
   normalizeExtFilter,
   normalizeLangFilter,
   parseFilterExpression,
@@ -121,15 +122,14 @@ export function normalizeSearchOptions({
   const caseTokens = argv['case-tokens'] === true || caseAll;
   const branchFilter = argv.branch ? String(argv.branch).trim() : null;
 
-  const argvExtFilter = mergeExtFilters(
+  const extFilter = mergeExtFilters(
     normalizeExtFilter(argv.ext),
-    normalizeLangFilter(argv.lang)
+    normalizeExtFilter(filterInfo.ext)
   );
-  const filterExtFilter = mergeExtFilters(
-    normalizeExtFilter(filterInfo.ext),
+  const langFilter = mergeLangFilters(
+    normalizeLangFilter(argv.lang),
     normalizeLangFilter(filterInfo.lang)
   );
-  const extFilter = mergeExtFilters(argvExtFilter, filterExtFilter);
   const metaFilters = parseMetaFilters(argv.meta, argv['meta-json']);
 
   const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
@@ -235,6 +235,7 @@ export function normalizeSearchOptions({
     caseTokens,
     branchFilter,
     extFilter,
+    langFilter,
     metaFilters,
     annEnabled,
     annBackend,

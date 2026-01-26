@@ -4,8 +4,8 @@ import { buildFilterIndex } from '../../../src/retrieval/filter-index.js';
 import { filterChunks } from '../../../src/retrieval/output.js';
 
 const chunkMeta = [
-  { id: 0, file: 'src/Foo.js', ext: '.js' },
-  { id: 1, file: 'src/foo.js', ext: '.js' }
+  { id: 0, file: 'src/Foo.js', ext: '.js', metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } } },
+  { id: 1, file: 'src/foo.js', ext: '.js', metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } } }
 ];
 
 const filterIndex = buildFilterIndex(chunkMeta, { fileChargramN: 3 });

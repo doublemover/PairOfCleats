@@ -63,7 +63,8 @@ export function createFileProcessor(options) {
     embeddingEnabled = true,
     toolInfo = null,
     tokenizationStats = null,
-    featureMetrics = null
+    featureMetrics = null,
+    buildStage = null
   } = options;
   const lintEnabled = lintEnabledRaw !== false;
   const complexityEnabled = complexityEnabledRaw !== false;
@@ -401,6 +402,7 @@ export function createFileProcessor(options) {
       root,
       mode,
       fileEntry,
+      fileIndex,
       ext,
       rel,
       relKey,
@@ -447,7 +449,8 @@ export function createFileProcessor(options) {
       languageHint,
       crashLogger,
       complexityCache,
-      lintCache
+      lintCache,
+      buildStage
     }));
     if (cpuResult?.defer) {
       return cpuResult;

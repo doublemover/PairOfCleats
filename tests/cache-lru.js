@@ -28,4 +28,22 @@ await new Promise((resolve) => setTimeout(resolve, 25));
 const expired = ttlCache.get('x');
 assert.equal(expired, null, 'expected ttl-based expiration');
 
+const badSizerCache = createLruCache({
+  name: 'bad-sizer-test',
+  maxMb: 1,
+  ttlMs: 0,
+  sizeCalculation: () => 0
+});
+let badSizerError = null;
+try {
+  badSizerCache.set('bad', 'value');
+} catch (err) {
+  badSizerError = err;
+}
+assert.ok(badSizerError, 'expected bad sizeCalculation to throw');
+assert.ok(
+  String(badSizerError.message || badSizerError).includes('sizeCalculation returned'),
+  'expected sizeCalculation error message'
+);
+
 console.log('cache lru test passed');

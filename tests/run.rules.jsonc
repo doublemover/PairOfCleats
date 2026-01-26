@@ -92,6 +92,10 @@
         "^tooling/triage/context-pack\\.test$"
       ]
     },
+    {
+      "tag": "DelayedUntilPhase7_8",
+      "match": ["^lmdb-"]
+    },
     { "tag": "destructive", "match": ["^uninstall"] }
   ],
   "outputIgnorePatterns": ["^\\[ignore\\]\\s+read-failed\\b"]

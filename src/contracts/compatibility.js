@@ -1,9 +1,12 @@
 import { sha1 } from '../shared/hash.js';
 import { stableStringify } from '../shared/stable-json.js';
 import { ARTIFACT_SCHEMA_HASH } from './registry.js';
+import { SCHEMA_VERSION as SQLITE_SCHEMA_VERSION } from '../storage/sqlite/schema.js';
 import { ARTIFACT_SURFACE_VERSION, parseSemver } from './versioning.js';
 
 const normalizeModes = (modes) => Array.from(new Set(modes || [])).sort();
+
+export const CHUNK_ID_ALGO_VERSION = 2;
 
 export const buildLanguagePolicyKey = (runtime) => {
   const languageOptions = runtime?.languageOptions
@@ -40,6 +43,8 @@ export const buildCompatibilityKey = ({ runtime, modes, tokenizationKeys }) => {
     tokenizationKeys: tokenizationKeys || {},
     embeddingsKey: buildEmbeddingsKey(runtime),
     languagePolicyKey: buildLanguagePolicyKey(runtime),
+    chunkIdAlgoVersion: CHUNK_ID_ALGO_VERSION,
+    sqliteSchemaVersion: SQLITE_SCHEMA_VERSION,
     modes: normalizeModes(modes)
   };
   return sha1(stableStringify(payload));

@@ -60,7 +60,7 @@ export async function loadIndex(dir, options) {
     }
   } else {
     for (const chunk of chunkMeta) {
-      if (!chunk || (chunk.file && chunk.ext)) continue;
+      if (!chunk) continue;
       const meta = fileMetaById.get(chunk.fileId);
       if (!meta) continue;
       if (!chunk.file) chunk.file = meta.file;

@@ -56,11 +56,12 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
     async: asyncOnly,
     generator: generatorOnly,
     returns: returnsOnly,
-    file,
-    caseFile,
-    caseTokens,
-    ext,
-    meta: metaFilter,
+      file,
+      caseFile,
+      caseTokens,
+      ext,
+      lang,
+      meta: metaFilter,
     chunkAuthor,
     modifiedAfter,
     excludeTokens,
@@ -138,7 +139,8 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
       return value;
     })
     .filter(Boolean);
-  const typeNeedles = normalizeList(type).map(normalize);
+    const typeNeedles = normalizeList(type).map(normalize);
+    const langNeedles = normalizeList(lang).map(normalize);
   const authorNeedles = normalizeList(author).map(normalize);
   const metaFilters = Array.isArray(metaFilter) ? metaFilter : (metaFilter ? [metaFilter] : []);
   const excludeNeedles = normalizeList(excludeTokens).map((value) => (caseTokens ? String(value || '') : normalize(value)));
@@ -458,10 +460,21 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
   const normalizeToken = caseTokens ? (value) => String(value || '') : normalize;
 
   const indexedCandidates = [];
-  if (filterIndex) {
-    if (extNeedles.length && filterIndex.byExt) {
-      const candidate = collectExactMatches(
-        filterIndex.byExt,
+    if (filterIndex) {
+      if (langNeedles.length) {
+        if (!filterIndex.byLang) {
+          throw new Error('[filters] filter index missing byLang; rebuild indexes to use --lang filters.');
+        }
+        const candidate = collectExactMatches(
+          filterIndex.byLang,
+          langNeedles,
+          bitmapIndex?.byLang
+        );
+        if (candidate) indexedCandidates.push(candidate);
+      }
+      if (extNeedles.length && filterIndex.byExt) {
+        const candidate = collectExactMatches(
+          filterIndex.byExt,
         extNeedles,
         bitmapIndex?.byExt
       );
@@ -499,14 +512,14 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
       );
       if (candidate) indexedCandidates.push(candidate);
     }
-    if (fileMatchers.length && filePrefilterEnabled) {
-      const filePrefilterIds = collectFilePrefilterMatches();
-      if (filePrefilterIds) {
-        const candidate = buildCandidate([filePrefilterIds], []);
-        if (candidate) indexedCandidates.push(candidate);
+      if (fileMatchers.length && filePrefilterEnabled) {
+        const filePrefilterIds = collectFilePrefilterMatches();
+        if (filePrefilterIds) {
+          const candidate = buildCandidate([filePrefilterIds], []);
+          if (candidate) indexedCandidates.push(candidate);
+        }
       }
     }
-  }
   const candidateIds = indexedCandidates.length
     ? intersectCandidates(indexedCandidates)
     : null;
@@ -516,22 +529,30 @@ export function filterChunks(meta, filters = {}, filterIndex = null, fileRelatio
 
   return sourceMeta.filter((c) => {
     if (!c) return false;
-    if (fileMatchers.length) {
-      const fileValue = String(c.file || '');
-      const fileValueNorm = normalizeFile(fileValue);
-      const matches = fileMatchers.some((matcher) => {
-        if (matcher.type === 'regex') {
-          matcher.value.lastIndex = 0;
-          return matcher.value.test(fileValue);
-        }
-        return fileValueNorm.includes(matcher.value);
-      });
-      if (!matches) return false;
-    }
-    if (extNeedles.length) {
-      const extValue = normalize(c.ext || path.extname(c.file || ''));
-      if (!extNeedles.includes(extValue)) return false;
-    }
+      if (fileMatchers.length) {
+        const fileValue = String(c.file || '');
+        const fileValueNorm = normalizeFile(fileValue);
+        const matches = fileMatchers.some((matcher) => {
+          if (matcher.type === 'regex') {
+            matcher.value.lastIndex = 0;
+            return matcher.value.test(fileValue);
+          }
+          return fileValueNorm.includes(matcher.value);
+        });
+        if (!matches) return false;
+      }
+      if (langNeedles.length) {
+        const langValue = c.metaV2?.lang
+          || c.metaV2?.effective?.languageId
+          || c.lang
+          || null;
+        if (!langValue) return false;
+        if (!langNeedles.includes(normalize(langValue))) return false;
+      }
+      if (extNeedles.length) {
+        const extValue = normalize(c.ext || path.extname(c.file || ''));
+        if (!extNeedles.includes(extValue)) return false;
+      }
     if (!matchMetaFilters(c)) return false;
     if (excludeNeedles.length || excludePhraseNeedles.length) {
       const tokens = Array.isArray(c.tokens) ? c.tokens : [];

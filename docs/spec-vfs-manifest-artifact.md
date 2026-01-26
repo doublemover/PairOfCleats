@@ -28,7 +28,7 @@ type VfsManifestRowV1 = {
   schemaVersion: "1.0.0";
 
   // Virtual doc identity
-  virtualPath: string;       // e.g., ".poc-vfs/docs/guide.md#md:fence:3.ts"
+  virtualPath: string;       // e.g., ".poc-vfs/docs/guide.md#seg:<segmentUid>.ts"
   docHash: string;           // e.g., "xxh64:<hex16>"
 
   // Container identity
@@ -37,9 +37,10 @@ type VfsManifestRowV1 = {
   containerLanguageId: string|null;
 
   // Effective identity
-  languageId: string;        // effective language registry id (e.g., "typescript")
-  effectiveExt: string;      // ".ts", ".tsx", ".js", ".jsx", ...
-  segmentId: string|null;
+  languageId: string;         // effective language registry id (e.g., "typescript")
+  effectiveExt: string;       // ".ts", ".tsx", ".js", ".jsx", ...
+  segmentUid: string|null;    // stable identity for segmented docs (null for unsegmented files)
+  segmentId?: string|null;    // optional debug id (range-derived; not stable)
 
   // Segment mapping (container offsets)
   segmentStart: number;      // UTF-16 offset in container
@@ -56,16 +57,18 @@ type VfsManifestRowV1 = {
 ## Determinism requirements
 
 - `virtualPath` must be deterministic and must follow the canonical pattern:
-  `.poc-vfs/<containerPath>#<segmentId><effectiveExt>`
+  `.poc-vfs/<containerPath>#seg:<segmentUid><effectiveExt>`
+- `segmentUid` is derived per the Identity Contract (segment type + languageId + normalized segment text).
 - `docHash` must be computed over the virtual document text (segment text for segmented docs, full text for container docs).
 - Rows must be emitted in deterministic order:
-  by `containerPath`, then `segmentStart`, then `segmentId`, then `effectiveExt`.
+  by `containerPath`, then `segmentStart`, then `segmentUid`, then `effectiveExt`.
 
 ## Producers
 
 - Primary producer is the index builder once Phase 5 provides:
   - segment boundaries (`segmentStart/segmentEnd`)
   - effective language identity (`languageId/effectiveExt`)
+  - stable `segmentUid` (used in `virtualPath` routing)
 
 ## Consumers
 

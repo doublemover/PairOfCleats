@@ -18,6 +18,8 @@ export const INDEX_BUILD_OPTIONS = {
   repo: { type: 'string', describe: 'repo root (defaults to cwd or repo root)' },
   progress: { type: 'string', default: 'auto', describe: 'auto|tty|log|json|jsonl|off' },
   'config-dump': { type: 'boolean', default: false },
+  'log-file': { type: 'string', describe: 'write structured logs to a file (implies --log-format json unless set)' },
+  'log-format': { type: 'string', describe: 'text|json|pretty (overrides logging.format)' },
   json: { type: 'boolean', default: false },
   verbose: { type: 'boolean', default: false },
   quiet: { type: 'boolean', default: false }

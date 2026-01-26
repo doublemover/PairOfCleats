@@ -2,14 +2,16 @@ import { sha1 } from '../shared/hash.js';
 
 export const buildChunkId = (chunk) => {
   if (!chunk) return null;
-  const key = [
+  const keyParts = [
     chunk.file || '',
     chunk.segment?.segmentId || '',
     chunk.start ?? '',
-    chunk.end ?? '',
-    chunk.kind || '',
-    chunk.name || ''
-  ].join('|');
+    chunk.end ?? ''
+  ];
+  if (Number.isFinite(chunk.spanIndex)) {
+    keyParts.push(chunk.spanIndex);
+  }
+  const key = keyParts.join('|');
   return `chunk_${sha1(key)}`;
 };
 

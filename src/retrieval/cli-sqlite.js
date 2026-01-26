@@ -105,10 +105,12 @@ export async function createSqliteBackend(options) {
   const requiredColumnsByTable = {
     chunks: [
       'id',
+      'chunk_id',
       'mode',
       'file',
       'start',
       'end',
+      'metaV2_json',
       'churn',
       'churn_added',
       'churn_deleted',
@@ -131,7 +133,17 @@ export async function createSqliteBackend(options) {
   const openSqlite = (dbPath, label) => {
     const cached = dbCache?.get?.(dbPath);
     if (cached) return cached;
-    const db = new Database(dbPath, { readonly: true });
+    let db;
+    try {
+      db = new Database(dbPath, { readonly: true });
+    } catch (err) {
+      const message = 'better-sqlite3 is required for the SQLite backend. Run npm install first.';
+      if (backendForcedSqlite) {
+        throw new Error(message);
+      }
+      console.warn(message);
+      return null;
+    }
     const tableRows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
     const tableNames = new Set(tableRows.map((row) => row.name));
     const missing = requiredTables.filter((name) => !tableNames.has(name));

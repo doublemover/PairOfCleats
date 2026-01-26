@@ -47,7 +47,7 @@ export const resolveEmbeddingRuntime = async ({
     : 0;
   if (!embeddingConcurrency) {
     const defaultEmbedding = process.platform === 'win32'
-      ? Math.min(2, cpuConcurrency)
+      ? cpuConcurrency
       : Math.min(4, cpuConcurrency);
     embeddingConcurrency = Math.max(1, defaultEmbedding);
   }

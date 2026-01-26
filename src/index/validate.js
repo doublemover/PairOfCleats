@@ -45,9 +45,14 @@ import { createArtifactPresenceHelpers } from './validate/presence.js';
 import {
   validateChunkIds,
   validateFileNameCollisions,
+  validateMetaV2Equivalence,
+  validateMetaV2Types,
+  validateSqliteMetaV2Parity,
   validateIdPostings,
   validatePostingsDocIds
 } from './validate/checks.js';
+
+const SQLITE_META_V2_PARITY_SAMPLE = 10;
 export async function validateIndexArtifacts(input = {}) {
   const root = getRepoRoot(input.root);
   const indexRoot = input.indexRoot ? path.resolve(input.indexRoot) : null;
@@ -259,7 +264,55 @@ export async function validateIndexArtifacts(input = {}) {
         continue;
       }
       validateSchema(report, mode, 'chunk_meta', chunkMeta, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
+      const fileMeta = readJsonArtifact('file_meta');
+      if (Array.isArray(fileMeta) && fileMeta.length) {
+        const fileMetaById = new Map();
+        for (const entry of fileMeta) {
+          if (!entry || entry.id == null) continue;
+          fileMetaById.set(entry.id, entry);
+        }
+        if (fileMetaById.size) {
+          for (const entry of chunkMeta) {
+            if (!entry) continue;
+            if (!entry.chunkId && entry.metaV2?.chunkId) entry.chunkId = entry.metaV2.chunkId;
+            const meta = fileMetaById.get(entry.fileId);
+            if (!meta) continue;
+            if (!entry.file && meta.file) entry.file = meta.file;
+            if (!entry.ext && meta.ext) entry.ext = meta.ext;
+            if (!entry.fileHash && meta.hash) entry.fileHash = meta.hash;
+            if (!entry.fileHashAlgo && meta.hashAlgo) entry.fileHashAlgo = meta.hashAlgo;
+            if (!Number.isFinite(entry.fileSize) && Number.isFinite(meta.size)) entry.fileSize = meta.size;
+          }
+        }
+      }
       validateChunkIds(report, mode, chunkMeta);
+      if (strict) {
+        validateMetaV2Types(report, mode, chunkMeta);
+        validateMetaV2Equivalence(report, mode, chunkMeta, { maxSamples: 25, maxErrors: 10 });
+          if (sqliteEnabled && (mode === 'code' || mode === 'prose')) {
+          const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
+          const dbPath = mode === 'code' ? sqlitePaths.codePath : sqlitePaths.prosePath;
+          if (dbPath && fs.existsSync(dbPath)) {
+            let Database = null;
+            try {
+              ({ default: Database } = await import('better-sqlite3'));
+            } catch {
+              addIssue(report, mode, 'sqlite parity check skipped: better-sqlite3 unavailable');
+            }
+            if (Database) {
+              const db = new Database(dbPath, { readonly: true });
+              try {
+                const rows = db.prepare(
+                  'SELECT id, chunk_id, metaV2_json FROM chunks WHERE mode = ? ORDER BY id LIMIT ?'
+                ).all(mode, SQLITE_META_V2_PARITY_SAMPLE);
+                validateSqliteMetaV2Parity(report, mode, chunkMeta, rows, { maxErrors: 10 });
+              } finally {
+                db.close();
+              }
+            }
+          }
+        }
+      }
 
       if (postingsConfig.fielded && chunkMeta.length > 0) {
         const missingFieldArtifacts = [];
@@ -309,7 +362,6 @@ export async function validateIndexArtifacts(input = {}) {
         validatePostingsDocIds(report, mode, 'token_postings', tokenNormalized.postings, chunkMeta.length);
       }
 
-      const fileMeta = readJsonArtifact('file_meta');
       if (fileMeta) {
         validateSchema(report, mode, 'file_meta', fileMeta, 'Rebuild index artifacts for this mode.', { strictSchema: strict });
         const fileIds = new Set();

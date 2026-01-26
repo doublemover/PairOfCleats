@@ -9,14 +9,18 @@ const meta = [
     last_author: 'Alice',
     docmeta: { signature: 'foo(bar)', params: ['bar'] },
     codeRelations: { calls: [['foo', 'fetch']], usages: ['config'] },
-    file: 'src/a.js'
+    file: 'src/a.js',
+    ext: '.js',
+    metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } }
   },
   {
     id: 1,
     kind: 'FunctionDeclaration',
     docmeta: {},
     codeRelations: {},
-    file: 'src/b.js'
+    file: 'src/b.js',
+    ext: '.js',
+    metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } }
   },
   {
     id: 2,
@@ -24,13 +28,17 @@ const meta = [
     last_author: 'Bob',
     docmeta: { signature: 'baz()', params: ['baz'] },
     codeRelations: { calls: [['baz', 'other']], usages: ['other'] },
-    file: 'src/c.js'
+    file: 'src/c.js',
+    ext: '.js',
+    metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } }
   },
   {
     id: 3,
     docmeta: {},
     codeRelations: {},
-    file: 'docs/readme.md'
+    file: 'docs/readme.md',
+    ext: '.md',
+    metaV2: { lang: 'unknown', effective: { languageId: 'unknown' } }
   },
   {
     id: 4,
@@ -38,7 +46,9 @@ const meta = [
     last_author: ['Carol', 'Dana'],
     docmeta: { signature: 'qux()', params: ['qux'] },
     codeRelations: {},
-    file: 'src/nested/util.ts'
+    file: 'src/nested/util.ts',
+    ext: '.ts',
+    metaV2: { lang: 'typescript', effective: { languageId: 'typescript' } }
   }
 ];
 const filterIndex = buildFilterIndex(meta, { fileChargramN: 3 });

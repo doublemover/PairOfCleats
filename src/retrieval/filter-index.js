@@ -14,6 +14,7 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
   const includeBitmaps = options.includeBitmaps !== false;
   const index = {
     byExt: new Map(),
+    byLang: new Map(),
     byKind: new Map(),
     byAuthor: new Map(),
     byChunkAuthor: new Map(),
@@ -72,6 +73,15 @@ export function buildFilterIndex(chunkMeta = [], options = {}) {
     if (!Number.isFinite(id)) continue;
     addFile(chunk.file, id);
     add(index.byExt, chunk.ext, id);
+    const effectiveLang = chunk.metaV2?.lang
+      || chunk.metaV2?.effective?.languageId
+      || chunk.lang
+      || null;
+    if (!effectiveLang) {
+      const fileLabel = chunk.file ? ` (${chunk.file})` : '';
+      throw new Error(`[filter-index] missing effective language id for chunk ${id}${fileLabel}`);
+    }
+    add(index.byLang, effectiveLang, id);
     add(index.byKind, chunk.kind, id);
     add(index.byAuthor, chunk.last_author, id);
     const visibility = chunk.docmeta?.visibility || chunk.docmeta?.modifiers?.visibility || null;
@@ -111,6 +121,7 @@ export function serializeFilterIndex(index) {
   return {
     fileChargramN: index.fileChargramN || 3,
     byExt: serializeMap(index.byExt),
+    byLang: serializeMap(index.byLang),
     byKind: serializeMap(index.byKind),
     byAuthor: serializeMap(index.byAuthor),
     byChunkAuthor: serializeMap(index.byChunkAuthor),
@@ -132,6 +143,7 @@ export function hydrateFilterIndex(raw) {
       ? Math.max(2, Math.floor(Number(raw.fileChargramN)))
       : 3,
     byExt: hydrateMap(raw.byExt),
+    byLang: raw.byLang ? hydrateMap(raw.byLang) : null,
     byKind: hydrateMap(raw.byKind),
     byAuthor: hydrateMap(raw.byAuthor),
     byChunkAuthor: hydrateMap(raw.byChunkAuthor),

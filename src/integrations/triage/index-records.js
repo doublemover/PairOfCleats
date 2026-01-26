@@ -8,6 +8,8 @@ import { createIndexState, appendChunk } from '../../index/build/state.js';
 import { buildPostings } from '../../index/build/postings.js';
 import { writeIndexArtifacts } from '../../index/build/artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
+import { buildChunkId } from '../../index/chunk-id.js';
+import { getLanguageForFile } from '../../index/language-registry.js';
 import { extractNgrams, splitId, splitWordsWithDict, stem, tri } from '../../shared/tokenize.js';
 import { log, showProgress } from '../../shared/progress.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -117,9 +119,13 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const endLine = lines.length;
 
     const recordFile = isTriage ? `triage/records/${relPath}` : relPath;
+    const recordLang = getLanguageForFile(recordExt, recordFile);
+    const effectiveLanguageId = recordLang?.id || 'unknown';
     const chunkPayload = {
       file: recordFile,
       ext: recordExt,
+      lang: effectiveLanguageId,
+      containerLanguageId: recordLang?.id || null,
       start: 0,
       end: text.length,
       startLine,
@@ -144,6 +150,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       externalDocs: [],
       ...(fieldTokens ? { fieldTokens } : {})
     };
+    chunkPayload.chunkId = buildChunkId(chunkPayload);
 
     appendChunk(state, chunkPayload, postingsConfig);
     state.scannedFiles.push(recordFile);

@@ -103,7 +103,10 @@ run([
   repoRoot
 ], 'rebuild sqlite');
 
-const stateAfter = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+const refreshedIndexRoot = resolveIndexRoot(repoRoot, userConfig);
+const refreshedCodeDir = getIndexDir(repoRoot, 'code', userConfig, { indexRoot: refreshedIndexRoot });
+const refreshedStatePath = path.join(refreshedCodeDir, 'index_state.json');
+const stateAfter = JSON.parse(fs.readFileSync(refreshedStatePath, 'utf8'));
 if (stateAfter.sqlite?.pending !== false || stateAfter.sqlite?.ready !== true) {
   console.error(
     `Expected sqlite pending=false and ready=true after success, got pending=${stateAfter.sqlite?.pending} ready=${stateAfter.sqlite?.ready}`

@@ -202,6 +202,39 @@ export function formatFullChunk({
   if (chunk.docmeta?.signature) {
     out += c.cyan('   Signature: ') + chunk.docmeta.signature + '\n';
   }
+  if (explain && chunk.metaV2) {
+    const containerExt = chunk.metaV2?.container?.ext || chunk.ext || null;
+    const containerLang = chunk.metaV2?.container?.languageId || null;
+    const effectiveExt = chunk.metaV2?.effective?.ext || null;
+    const effectiveLang = chunk.metaV2?.effective?.languageId || chunk.metaV2?.lang || null;
+    const segment = chunk.metaV2?.segment || null;
+    const identityParts = [];
+    const containerBits = [];
+    if (chunk.file) containerBits.push(chunk.file);
+    if (containerExt) containerBits.push(containerExt);
+    if (containerLang) containerBits.push(`lang=${containerLang}`);
+    if (containerBits.length) identityParts.push(`container=${containerBits.join(' ')}`);
+    const effectiveBits = [];
+    if (effectiveExt) effectiveBits.push(effectiveExt);
+    if (effectiveLang) effectiveBits.push(`lang=${effectiveLang}`);
+    if (effectiveBits.length) identityParts.push(`effective=${effectiveBits.join(' ')}`);
+    if (segment) {
+      const segmentBits = [];
+      if (segment.segmentId) segmentBits.push(`id=${segment.segmentId}`);
+      if (segment.segmentUid) segmentBits.push(`uid=${segment.segmentUid}`);
+      if (segment.type) segmentBits.push(`type=${segment.type}`);
+      if (Number.isFinite(segment.start) && Number.isFinite(segment.end)) {
+        segmentBits.push(`span=${segment.start}-${segment.end}`);
+      }
+      if (Number.isFinite(segment.startLine) && Number.isFinite(segment.endLine)) {
+        segmentBits.push(`lines=${segment.startLine}-${segment.endLine}`);
+      }
+      if (segmentBits.length) identityParts.push(`segment=${segmentBits.join(' ')}`);
+    }
+    if (identityParts.length) {
+      out += c.gray('   Identity: ') + identityParts.join(' | ') + '\n';
+    }
+  }
   const commentEntries = Array.isArray(chunk.docmeta?.commentExcerpts)
     ? chunk.docmeta.commentExcerpts
     : null;

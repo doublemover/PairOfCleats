@@ -9,6 +9,21 @@ import { normalizeResult } from './run-results.js';
 
 const sanitizeId = (value) => value.replace(/[^a-z0-9-_]+/gi, '_').slice(0, 120) || 'test';
 
+const resolveTimeoutOverride = (value) => {
+  if (value == null) return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.max(1000, Math.floor(parsed));
+};
+
+const resolveTestTimeout = ({ test, defaultTimeoutMs, overrides }) => {
+  const override = overrides && typeof overrides === 'object'
+    ? resolveTimeoutOverride(overrides[test.id] ?? overrides[test.relPath])
+    : null;
+  if (!override) return defaultTimeoutMs;
+  return Math.min(defaultTimeoutMs, override);
+};
+
 const writeLogFile = async ({ logDir, test, attempt, stdout, stderr, status, exitCode, signal, timedOut, skipReason, termination }) => {
   if (!logDir) return '';
   const safeId = sanitizeId(test.id);
@@ -167,7 +182,11 @@ export const runTests = async ({ selection, context, reportResult }) => {
           passThrough: context.passThrough,
           env: context.baseEnv,
           cwd: context.root,
-          timeoutMs: context.timeoutMs,
+          timeoutMs: resolveTestTimeout({
+            test,
+            defaultTimeoutMs: context.timeoutMs,
+            overrides: context.timeoutOverrides
+          }),
           captureOutput: context.captureOutput,
           retries: context.retries,
           logDir: context.runLogDir,

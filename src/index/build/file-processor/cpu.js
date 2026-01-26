@@ -1,4 +1,4 @@
-import { chunkSegments, detectFrontmatter, discoverSegments } from '../../segments.js';
+import { assignSegmentUids, chunkSegments, detectFrontmatter, discoverSegments } from '../../segments.js';
 import { extractComments } from '../../comments.js';
 import { buildLanguageContext, getLanguageForFile } from '../../language-registry.js';
 import { getGitMetaForFile } from '../../git.js';
@@ -155,6 +155,7 @@ export const processFileCpu = async (context) => {
     root,
     mode,
     fileEntry,
+    fileIndex,
     ext,
     rel,
     relKey,
@@ -201,7 +202,8 @@ export const processFileCpu = async (context) => {
     languageHint,
     crashLogger,
     complexityCache,
-    lintCache
+    lintCache,
+    buildStage
   } = context;
 
   const {
@@ -218,6 +220,19 @@ export const processFileCpu = async (context) => {
     setPythonAstDuration
   } = timing;
 
+  const updateCrashStage = (substage, extra = {}) => {
+    if (!crashLogger?.enabled) return;
+    crashLogger.updateFile({
+      phase: 'processing',
+      mode,
+      stage: buildStage || null,
+      fileIndex: Number.isFinite(fileIndex) ? fileIndex : null,
+      file: relKey,
+      substage,
+      ...extra
+    });
+  };
+
   const failFile = (reason, stage, err, extra = {}) => ({
     chunks: [],
     fileRelations: null,
@@ -231,6 +246,7 @@ export const processFileCpu = async (context) => {
 
   let fileLanguageId = languageHint?.id || null;
   let fileLineCount = 0;
+  updateCrashStage('start', { size: fileStat?.size || null, ext });
 
   const baseTreeSitterConfig = fileEntry?.treeSitterDisabled
     ? { ...(languageOptions?.treeSitter || {}), enabled: false }
@@ -312,6 +328,7 @@ export const processFileCpu = async (context) => {
   const primaryLanguageId = languageHint?.id || null;
   let lang = null;
   let languageContext = {};
+  updateCrashStage('tree-sitter');
   try {
     ({ lang, context: languageContext } = await runTreeSitter(async () => {
       if (!treeSitterLanguagePasses
@@ -397,6 +414,7 @@ export const processFileCpu = async (context) => {
   const resolvedGitBlameEnabled = typeof analysisPolicy?.git?.blame === 'boolean'
     ? analysisPolicy.git.blame
     : gitBlameEnabled;
+  updateCrashStage('git-meta', { blame: resolvedGitBlameEnabled });
   const gitStart = Date.now();
   const resolvedGitMeta = await runIo(() => getGitMetaForFile(relKey, {
     blame: resolvedGitBlameEnabled,
@@ -415,6 +433,7 @@ export const processFileCpu = async (context) => {
     || (mode === 'code' && normalizedCommentsConfig.includeInCode === true);
   const parseStart = Date.now();
   let commentData;
+  updateCrashStage('comments');
   try {
     commentData = commentsEnabled
       ? extractComments({
@@ -489,6 +508,7 @@ export const processFileCpu = async (context) => {
     }
   }
   let segments;
+  updateCrashStage('segments');
   try {
     segments = discoverSegments({
       text,
@@ -503,6 +523,12 @@ export const processFileCpu = async (context) => {
   } catch (err) {
     return failFile('parse-error', 'segments', err);
   }
+  updateCrashStage('segment-uid');
+  try {
+    await assignSegmentUids({ text, segments, ext, mode });
+  } catch (err) {
+    return failFile('parse-error', 'segment-uid', err);
+  }
   const segmentContext = {
     ...languageContext,
     yamlChunking: languageOptions?.yamlChunking,
@@ -515,6 +541,7 @@ export const processFileCpu = async (context) => {
   const treeSitterMissingLanguages = new Set();
   segmentContext.treeSitterMissingLanguages = treeSitterMissingLanguages;
   let sc;
+  updateCrashStage('chunking');
   try {
     if (treeSitterEnabled) {
       const requiredLanguages = resolveTreeSitterLanguagesForSegments({
@@ -602,6 +629,7 @@ export const processFileCpu = async (context) => {
   }
   addParseDuration(Date.now() - parseStart);
 
+  updateCrashStage('process-chunks');
   const chunkResult = await processChunks({
     sc,
     text,
@@ -665,7 +693,8 @@ export const processFileCpu = async (context) => {
     addEmbeddingDuration,
     showLineProgress,
     totalLines,
-    failFile
+    failFile,
+    buildStage
   });
 
   if (chunkResult?.skip) {

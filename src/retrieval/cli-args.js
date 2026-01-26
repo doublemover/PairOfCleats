@@ -42,6 +42,8 @@ export function parseSearchArgs(rawArgs) {
     type: { type: 'string' },
     author: { type: 'string' },
     import: { type: 'string' },
+    lang: { type: 'string' },
+    ext: { type: 'string' },
     calls: { type: 'string' },
     uses: { type: 'string' },
     'chunk-author': { type: 'string' },
@@ -86,6 +88,8 @@ export function getSearchUsage() {
     '  --author "<name>"',
     '  --chunk-author "<name>"',
     '  --import "<path>"',
+    '  --lang <language-id>',
+    '  --ext <extension>',
     '  --modified-after <iso-date>',
     '  --modified-since <days>',
     '  --filter "<expr>"'

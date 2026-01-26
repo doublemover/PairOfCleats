@@ -24,6 +24,9 @@ import {
   updateEntryTreeSitterBatch
 } from './process-files/tree-sitter.js';
 import { createShardRuntime, resolveCheckpointBatchSize } from './process-files/runtime.js';
+
+const FILE_WATCHDOG_MS = 10000;
+
 export const processFiles = async ({
   mode,
   runtime,
@@ -153,7 +156,8 @@ export const processFiles = async ({
       fileCaps: runtimeRef.fileCaps,
       maxFileBytes: runtimeRef.maxFileBytes,
       fileScan: runtimeRef.fileScan,
-      featureMetrics: runtimeRef.featureMetrics
+      featureMetrics: runtimeRef.featureMetrics,
+      buildStage: runtimeRef.stage
     });
     const runEntryBatch = async (batchEntries, deferredEntries) => {
       await runWithQueue(
@@ -164,8 +168,27 @@ export const processFiles = async ({
           const stableFileIndex = Number.isFinite(entry?.fileIndex)
             ? entry.fileIndex
             : (Number.isFinite(queueIndex) ? queueIndex + 1 : null);
+          const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
+          const watchdogStart = Date.now();
+          let watchdog = null;
+          if (FILE_WATCHDOG_MS > 0) {
+            watchdog = setTimeout(() => {
+              const elapsedMs = Date.now() - watchdogStart;
+              const lineText = Number.isFinite(entry.lines) ? ` lines ${entry.lines}` : '';
+              logLine(`[watchdog] slow file ${stableFileIndex ?? '?'} ${rel} (${elapsedMs}ms)${lineText}`, {
+                kind: 'file-watchdog',
+                mode,
+                stage: 'processing',
+                file: rel,
+                fileIndex: stableFileIndex,
+                total: progress.total,
+                lines: entry.lines || null,
+                durationMs: elapsedMs
+              });
+            }, FILE_WATCHDOG_MS);
+            watchdog.unref?.();
+          }
           if (showFileProgress) {
-            const rel = entry.rel || toPosix(path.relative(runtimeRef.root, entry.abs));
             const shardText = shardLabel ? `shard ${shardLabel}` : 'shard';
             const shardPrefix = `[${shardText}]`;
             const countText = `${stableFileIndex ?? '?'}/${progress.total}`;
@@ -208,6 +231,10 @@ export const processFiles = async ({
               stack: err?.stack || null
             });
             throw err;
+          } finally {
+            if (watchdog) {
+              clearTimeout(watchdog);
+            }
           }
         },
         {

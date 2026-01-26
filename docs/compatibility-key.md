@@ -14,6 +14,8 @@ The key is `sha1(stableStringify(payload))` where the payload includes:
 - **tokenizationKeys**: per-mode tokenization signatures (from `buildTokenizationKey`).
 - **embeddingsKey**: hash of embedding identity/config (null if embeddings disabled).
 - **languagePolicyKey**: hash of segment/language/comment policy.
+- **chunkIdAlgoVersion**: version for chunk identity derivation.
+- **sqliteSchemaVersion**: SQLite schema version (for `chunks` column shape changes).
 - **modes**: sorted list of modes included in the build.
 
 ## Where it is enforced
@@ -30,6 +32,8 @@ The key changes when any of the following change:
 - Tokenization behavior (tokenization signatures for a mode).
 - Embeddings identity (model/provider/mode/service vs stub).
 - Segment/language/comment policy that affects chunking and metadata.
+- Chunk id derivation rules (chunk id algorithm version).
+- SQLite schema version changes (e.g., adding `metaV2_json`).
 - Enabled modes list (code/prose/extracted-prose/records).
 
 ## Troubleshooting

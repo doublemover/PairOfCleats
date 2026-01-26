@@ -87,12 +87,53 @@ export async function acquireIndexLock({
       };
       await handle.writeFile(JSON.stringify(payload));
       await handle.close();
+      let released = false;
+      const cleanupSync = () => {
+        if (released) return;
+        released = true;
+        try {
+          const raw = fsSync.readFileSync(lockPath, 'utf8');
+          const info = JSON.parse(raw);
+          if (info?.pid && info.pid !== process.pid) return;
+        } catch {}
+        try {
+          fsSync.rmSync(lockPath, { force: true });
+        } catch {}
+      };
+      const handlers = [];
+      const registerHandler = (event, handler) => {
+        process.once(event, handler);
+        handlers.push({ event, handler });
+      };
+      const detachHandlers = () => {
+        for (const entry of handlers) {
+          process.off(entry.event, entry.handler);
+        }
+        handlers.length = 0;
+      };
+      registerHandler('exit', cleanupSync);
+      registerHandler('SIGINT', () => {
+        cleanupSync();
+        process.exit(130);
+      });
+      registerHandler('SIGTERM', () => {
+        cleanupSync();
+        process.exit(143);
+      });
+      if (process.platform === 'win32') {
+        registerHandler('SIGBREAK', () => {
+          cleanupSync();
+          process.exit(1);
+        });
+      }
       return {
         lockPath,
         release: async () => {
+          detachHandlers();
           try {
             await fs.rm(lockPath, { force: true });
           } catch {}
+          released = true;
         }
       };
     } catch (err) {

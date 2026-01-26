@@ -118,38 +118,45 @@ export function getPlatformKey(platform = process.platform, arch = process.arch)
  */
 export function getVectorExtensionConfig(repoRoot, userConfig = null, overrides = {}) {
   const cfg = userConfig || loadUserConfig(repoRoot);
-  const provider = overrides.provider || DEFAULT_PROVIDER;
+  const configOverrides = cfg?.sqlite?.vectorExtension
+    && typeof cfg.sqlite.vectorExtension === 'object'
+    && !Array.isArray(cfg.sqlite.vectorExtension)
+    ? cfg.sqlite.vectorExtension
+    : {};
+  const merged = { ...configOverrides, ...overrides };
+  const provider = merged.provider || DEFAULT_PROVIDER;
   const providerDefaults = PROVIDERS[provider] || {};
 
-  const annModeRaw = overrides.annMode || 'auto';
+  const legacyAnnMode = typeof cfg?.sqlite?.annMode === 'string' ? cfg.sqlite.annMode : null;
+  const annModeRaw = merged.annMode || legacyAnnMode || 'auto';
   const annModeNormalized = String(annModeRaw).toLowerCase();
   const annMode = ['auto', 'extension', 'js'].includes(annModeNormalized) ? annModeNormalized : 'auto';
   const autoEnabled = annMode === 'extension' || annMode === 'auto';
-  const enabled = overrides.enabled === true
+  const enabled = merged.enabled === true
     ? true
-    : (overrides.enabled === false ? false : autoEnabled);
+    : (merged.enabled === false ? false : autoEnabled);
 
-  const platform = overrides.platform || process.platform;
-  const arch = overrides.arch || process.arch;
+  const platform = merged.platform || process.platform;
+  const arch = merged.arch || process.arch;
   const platformKey = getPlatformKey(platform, arch);
-  const moduleName = overrides.module || providerDefaults.module || DEFAULT_MODULE;
-  const encoding = overrides.encoding || providerDefaults.encoding || DEFAULT_ENCODING;
-  const table = overrides.table || providerDefaults.table || DEFAULT_TABLE;
-  const column = overrides.column || providerDefaults.column || DEFAULT_COLUMN;
-  const options = overrides.options || providerDefaults.options || '';
+  const moduleName = merged.module || providerDefaults.module || DEFAULT_MODULE;
+  const encoding = merged.encoding || providerDefaults.encoding || DEFAULT_ENCODING;
+  const table = merged.table || providerDefaults.table || DEFAULT_TABLE;
+  const column = merged.column || providerDefaults.column || DEFAULT_COLUMN;
+  const options = merged.options || providerDefaults.options || '';
 
-  const dir = overrides.dir
-    ? resolvePath(repoRoot, overrides.dir)
+  const dir = merged.dir
+    ? resolvePath(repoRoot, merged.dir)
     : getExtensionsDir(repoRoot, cfg);
-  const filename = overrides.filename
+  const filename = merged.filename
     || providerDefaults.filename
     || `${moduleName}${getBinarySuffix(platform)}`;
-  const pathOverride = overrides.path
-    ? resolvePath(repoRoot, overrides.path)
+  const pathOverride = merged.path
+    ? resolvePath(repoRoot, merged.path)
     : null;
 
-  const url = overrides.url || providerDefaults.url || null;
-  const downloads = overrides.downloads || providerDefaults.downloads || null;
+  const url = merged.url || providerDefaults.url || null;
+  const downloads = merged.downloads || providerDefaults.downloads || null;
 
   return sanitizeVectorExtensionConfig({
     annMode,

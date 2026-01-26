@@ -6,6 +6,7 @@ import {
   buildTokenFrequency,
   prepareVectorAnnTable
 } from '../build-helpers.js';
+import { resolveChunkId } from '../../../index/chunk-id.js';
 import { CREATE_INDEXES_SQL, CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../schema.js';
 import { normalizeFilePath, readJson, loadOptional, removeSqliteSidecars } from '../utils.js';
 import {
@@ -440,7 +441,7 @@ export async function buildDatabaseFromArtifacts({
         ? chunk.docmeta.signature
         : (typeof chunk.signature === 'string' ? chunk.signature : null);
       const docText = typeof chunk.docmeta?.doc === 'string' ? chunk.docmeta.doc : null;
-      const stableChunkId = chunk?.metaV2?.chunkId || chunk?.chunkId || null;
+      const stableChunkId = resolveChunkId(chunk);
       return {
         id: Number.isFinite(chunk.id) ? chunk.id : null,
         chunk_id: stableChunkId,
@@ -453,6 +454,7 @@ export async function buildDatabaseFromArtifacts({
         ext: resolvedExt,
         kind: chunk.kind || null,
         name: chunk.name || null,
+        metaV2_json: chunk.metaV2 ? JSON.stringify(chunk.metaV2) : null,
         signature: signatureText,
         headline: chunk.headline || null,
         doc: docText,

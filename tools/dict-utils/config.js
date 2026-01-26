@@ -126,6 +126,9 @@ function normalizeUserConfig(baseConfig) {
     if (sqlite.use !== undefined) normalizedSqlite.use = sqlite.use;
     if (sqlite.ann !== undefined) normalizedSqlite.ann = sqlite.ann;
     if (sqlite.annCandidates !== undefined) normalizedSqlite.annCandidates = sqlite.annCandidates;
+    if (isPlainObject(sqlite.vectorExtension)) {
+      normalizedSqlite.vectorExtension = sqlite.vectorExtension;
+    }
     if (Object.keys(normalizedSqlite).length) normalized.sqlite = normalizedSqlite;
   }
   if (isPlainObject(baseConfig.lmdb)) {

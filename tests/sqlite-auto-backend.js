@@ -28,6 +28,7 @@ const baseEnv = {
   PAIROFCLEATS_EMBEDDINGS: 'stub'
 };
 process.env.PAIROFCLEATS_TESTING = '1';
+process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
 const run = (args, label, config = null) => {
   const env = { ...baseEnv };
@@ -57,7 +58,7 @@ if (backendA !== 'sqlite') {
 }
 
 const resultB = JSON.parse(run(
-  [searchPath, 'greet', '--json', '--repo', tempRoot],
+  [searchPath, 'greet', '--json', '--stats', '--repo', tempRoot],
   'search auto memory threshold',
   { search: { sqliteAutoChunkThreshold: 9999 } }
 ));
@@ -82,6 +83,10 @@ if (backendC !== 'sqlite') {
 }
 
 const sqlitePaths = resolveSqlitePaths(tempRoot, null);
+await fsPromises.rm(sqlitePaths.codePath, { force: true });
+await fsPromises.rm(sqlitePaths.prosePath, { force: true });
+await fsPromises.rm(sqlitePaths.extractedProsePath, { force: true });
+await fsPromises.rm(sqlitePaths.recordsPath, { force: true });
 await fsPromises.rm(sqlitePaths.dbDir, { recursive: true, force: true });
 
 const backendD = JSON.parse(run([searchPath, 'greet', '--json', '--repo', tempRoot], 'search auto memory')).backend;

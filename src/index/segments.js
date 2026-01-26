@@ -1,3 +1,4 @@
+import { checksumString } from '../shared/hash.js';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { smartChunk } from './chunking.js';
 import { finalizeSegments } from './segments/finalize.js';
@@ -14,6 +15,42 @@ import { segmentAstro, segmentSvelte, segmentVue } from './segments/vue.js';
 
 export { normalizeSegmentsConfig } from './segments/config.js';
 export { detectFrontmatter } from './segments/frontmatter.js';
+
+const normalizeForUid = (value) => String(value || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+const isBaseSegment = (segment, textLength, baseSegmentType) => segment.start === 0
+  && segment.end === textLength
+  && segment.type === baseSegmentType
+  && !segment.parentSegmentId
+  && !segment.embeddingContext
+  && (!segment.meta || Object.keys(segment.meta).length === 0);
+
+const buildSegmentUid = async ({ segmentText, segmentType, languageId }) => {
+  if (!segmentText) return null;
+  const normalized = normalizeForUid(segmentText);
+  if (!normalized) return null;
+  const segKey = `seg\0${segmentType || ''}\0${languageId || ''}\0${normalized}`;
+  const hash = await checksumString(segKey);
+  return hash?.value ? `segu:v1:${hash.value}` : null;
+};
+
+export const assignSegmentUids = async ({ text, segments, ext, mode }) => {
+  if (!text || !Array.isArray(segments) || !segments.length) return segments;
+  const effectiveMode = mode === 'extracted-prose' ? 'prose' : mode;
+  const baseSegmentType = resolveSegmentType(effectiveMode, ext);
+  for (const segment of segments) {
+    if (!segment || segment.segmentUid) continue;
+    if (isBaseSegment(segment, text.length, baseSegmentType)) continue;
+    const segmentText = text.slice(segment.start, segment.end);
+    const segmentUid = await buildSegmentUid({
+      segmentText,
+      segmentType: segment.type,
+      languageId: segment.languageId
+    });
+    if (segmentUid) segment.segmentUid = segmentUid;
+  }
+  return segments;
+};
+
 export function discoverSegments({
   text,
   ext,
@@ -89,17 +126,31 @@ export function chunkSegments({
   lineIndex = null
 }) {
   const effectiveMode = mode === 'extracted-prose' ? 'prose' : mode;
+  const baseSegmentType = resolveSegmentType(effectiveMode, ext);
   const resolvedLineIndex = lineIndex || buildLineIndex(text);
   const chunks = [];
   for (const segment of segments) {
     const segmentText = text.slice(segment.start, segment.end);
+    const isBase = isBaseSegment(segment, text.length, baseSegmentType);
     const tokenMode = resolveSegmentTokenMode(segment);
     if (!shouldIndexSegment(segment, tokenMode, effectiveMode)) continue;
     const segmentExt = resolveSegmentExt(ext, segment);
+    const embeddingContext = segment.embeddingContext || segment.meta?.embeddingContext || null;
+    const segmentStartLine = offsetToLine(resolvedLineIndex, segment.start);
+    const segmentEndOffset = segment.end > segment.start ? segment.end - 1 : segment.start;
+    const segmentEndLine = offsetToLine(resolvedLineIndex, segmentEndOffset);
+    const segmentUid = isBase ? null : segment.segmentUid || null;
     const segmentContext = {
       ...context,
       languageId: segment.languageId || context.languageId || null,
-      segment
+      segment: isBase
+        ? null
+        : {
+          ...segment,
+          ext: segmentExt,
+          segmentUid,
+          embeddingContext
+        }
     };
     const segmentChunks = smartChunk({
       text: segmentText,
@@ -110,7 +161,6 @@ export function chunkSegments({
       languageId: segment.languageId || null
     });
     if (!Array.isArray(segmentChunks) || !segmentChunks.length) continue;
-    const segmentStartLine = offsetToLine(resolvedLineIndex, segment.start);
     for (const chunk of segmentChunks) {
       if (!chunk) continue;
       const adjusted = { ...chunk };
@@ -120,19 +170,25 @@ export function chunkSegments({
         if (Number.isFinite(adjusted.meta.startLine)) {
           adjusted.meta.startLine = segmentStartLine + adjusted.meta.startLine - 1;
         }
-        if (Number.isFinite(adjusted.meta.endLine)) {
-          adjusted.meta.endLine = segmentStartLine + adjusted.meta.endLine - 1;
-        }
+      if (Number.isFinite(adjusted.meta.endLine)) {
+        adjusted.meta.endLine = segmentStartLine + adjusted.meta.endLine - 1;
       }
-      adjusted.segment = {
-        segmentId: segment.segmentId,
-        type: segment.type,
-        languageId: segment.languageId || null,
-        start: segment.start,
-        end: segment.end,
-        parentSegmentId: segment.parentSegmentId || null,
-        embeddingContext: segment.embeddingContext || segment.meta?.embeddingContext || null
-      };
+    }
+      if (!isBase) {
+        adjusted.segment = {
+          segmentId: segment.segmentId,
+          segmentUid,
+          type: segment.type,
+          languageId: segment.languageId || null,
+          ext: segmentExt,
+          start: segment.start,
+          end: segment.end,
+          startLine: segmentStartLine,
+          endLine: segmentEndLine,
+          parentSegmentId: segment.parentSegmentId || null,
+          embeddingContext
+        };
+      }
       chunks.push(adjusted);
     }
   }

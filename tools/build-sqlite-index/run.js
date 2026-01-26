@@ -30,7 +30,7 @@ import {
 } from '../vector-extension.js';
 import { compactDatabase } from '../compact-sqlite-index.js';
 import { loadIncrementalManifest } from '../../src/storage/sqlite/incremental.js';
-import { loadIndex, replaceSqliteDatabase } from '../../src/storage/sqlite/utils.js';
+import { loadIndex, removeSqliteSidecars, replaceSqliteDatabase } from '../../src/storage/sqlite/utils.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../src/storage/sqlite/build/from-artifacts.js';
 import { buildDatabaseFromBundles } from '../../src/storage/sqlite/build/from-bundles.js';
 import { incrementalUpdateDatabase } from '../../src/storage/sqlite/build/incremental-update.js';
@@ -374,6 +374,7 @@ export async function runBuildSqliteIndex(rawArgs = process.argv.slice(2), optio
             logger: { log, warn, error }
           });
         }
+        await removeSqliteSidecars(targetPath);
         return { ...result, incremental: true };
       }
       if (result.reason) {

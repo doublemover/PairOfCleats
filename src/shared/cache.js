@@ -26,18 +26,24 @@ export const mbToBytes = (value) => {
 
 export const estimateStringBytes = (value) => {
   if (typeof value !== 'string') return 0;
-  return Buffer.byteLength(value, 'utf8');
+  const size = Buffer.byteLength(value, 'utf8');
+  return size > 0 ? size : 1;
 };
 
 export const estimateFileTextBytes = (value) => {
-  if (typeof value === 'string') return estimateStringBytes(value);
-  if (Buffer.isBuffer(value)) return value.length;
-  if (value && typeof value === 'object') {
-    if (Buffer.isBuffer(value.buffer)) return value.buffer.length;
-    if (Buffer.isBuffer(value.data)) return value.data.length;
-    if (typeof value.text === 'string') return estimateStringBytes(value.text);
+  if (value == null) return 0;
+  let size = 0;
+  if (typeof value === 'string') size = estimateStringBytes(value);
+  else if (Buffer.isBuffer(value)) size = value.length;
+  else if (value && typeof value === 'object') {
+    if (Buffer.isBuffer(value.buffer)) size = value.buffer.length;
+    else if (Buffer.isBuffer(value.data)) size = value.data.length;
+    else if (typeof value.text === 'string') size = estimateStringBytes(value.text);
   }
-  return estimateJsonBytes(value);
+  if (!Number.isFinite(size) || size <= 0) {
+    size = estimateJsonBytes(value);
+  }
+  return Number.isFinite(size) && size > 0 ? size : 1;
 };
 
 export const estimateJsonBytes = (value) => {
@@ -145,9 +151,17 @@ export function createLruCache({
       options.max = entryLimit;
     } else {
       options.maxSize = maxSizeBytes;
-      options.sizeCalculation = typeof sizeCalculation === 'function'
+      const baseSizer = typeof sizeCalculation === 'function'
         ? sizeCalculation
         : estimateJsonBytes;
+      options.sizeCalculation = (value, key) => {
+        const raw = baseSizer(value, key);
+        if (Number.isFinite(raw) && raw > 0) return raw;
+        const message = `[cache] ${name || 'cache'} sizeCalculation returned ${raw} for key ${String(key)}`;
+        // Loud warning + hard failure so we never silently spin on invalid sizes.
+        console.error(message);
+        throw new Error(message);
+      };
     }
     if (ttlValue > 0) options.ttl = ttlValue;
     const cache = new LRUCache(options);

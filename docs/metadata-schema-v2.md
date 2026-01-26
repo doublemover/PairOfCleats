@@ -14,7 +14,8 @@ This updated version aligns the contract with:
 ### 1.1 chunk identity fields
 
 - `chunkId` (string): stable identifier for the chunk span within a container file.
-  - Current implementation derives it from the container file path, segment id, and the chunk range. Legacy builds may incorporate `kind`/`name`; do not assume `chunkId` is immune to chunker naming changes unless the implementation explicitly removes that dependency.
+  - Current implementation derives it from the container file path, segment id, and the chunk range.
+  - `chunkId` is **range-specific**; line-shift edits that move offsets will change it.
 - `file` (string): repo-relative container path (POSIX separators).
 - `fileHash` (string|null): hash of the decoded container file contents (if computed).
 - `fileHashAlgo` (string|null): hash algorithm identifier (e.g., `sha1`).
@@ -32,15 +33,22 @@ Offsets must be compatible with `text.slice(start, end)`.
 
 ## 2) Segment identity (embedded content)
 
-`segment` describes the segment from which this chunk was produced.
+`segment` describes the embedded segment from which this chunk was produced.
 
 - `segment.segmentId` (string)
+- `segment.segmentUid` (string): stable segment identity based on normalized segment text + type + hint (Phase 8 identity contract).
+  - Stable across rebuilds unless the segment text/type/language changes.
 - `segment.type` (string): `code | prose | config | comment | embedded`
 - `segment.languageId` (string|null): raw segment language hint (e.g., fence/lang attribute).  
   This is NOT guaranteed to match the language registry id.
+- `segment.ext` (string|null): effective extension derived from the hint (e.g., `.tsx`, `.ts`)
 - `segment.parentSegmentId` (string|null)
 - `segment.start` / `segment.end` (number): container offsets for the segment span
-- `segment.embeddingContext` (string|null): `code | prose | ...` (best-effort)
+- `segment.startLine` / `segment.endLine` (number|null): container line numbers for the segment span
+- `segment.embeddingContext` (string|null): `code | prose | ...`
+  - Required for embedded segments; null for non-segment chunks.
+
+For non-segmented chunks (full container files), `segment` may be null.
 
 ## 3) Container vs effective language identity (Phase 5)
 
@@ -90,6 +98,23 @@ These are retained for compatibility with older readers that expect `lang/ext` a
 - `types.<bucket>.returns`: array of type entries
 - `types.<bucket>.params`: canonical is an object map `{ paramName: TypeEntry[] }`
   - legacy form may be an array (loses param name); readers should tolerate it
+
+Rationale: parameter types must retain the parameter name, while returns are anonymous. This is why params are a map and returns are a list.
+
+Example (canonical):
+
+```json
+{
+  "types": {
+    "inferred": {
+      "params": {
+        "opts": [{ "type": "WidgetOpts", "source": "tooling" }]
+      },
+      "returns": [{ "type": "Widget", "source": "tooling" }]
+    }
+  }
+}
+```
 
 Type entry shape (minimum):
 

@@ -1,68 +1,62 @@
 import { parseJson } from './query-cache.js';
-import {
-  CLIKE_EXTS,
-  CSHARP_EXTS,
-  CSS_EXTS,
-  GO_EXTS,
-  HTML_EXTS,
-  JAVA_EXTS,
-  JS_EXTS,
-  KOTLIN_EXTS,
-  LUA_EXTS,
-  OBJC_EXTS,
-  PERL_EXTS,
-  PHP_EXTS,
-  RUBY_EXTS,
-  SHELL_EXTS,
-  SQL_EXTS,
-  TS_EXTS
-} from '../index/constants.js';
-
-const PY_EXTS = new Set(['.py']);
-const SWIFT_EXTS = new Set(['.swift']);
-const DOC_EXTS = new Set(['.md', '.rst', '.adoc', '.asciidoc']);
-const CONFIG_EXTS = new Set(['.json', '.toml', '.ini', '.cfg', '.conf', '.xml', '.yml', '.yaml']);
-
-const LANG_EXT_MAP = new Map([
-  ['javascript', JS_EXTS],
-  ['js', JS_EXTS],
-  ['typescript', TS_EXTS],
-  ['ts', TS_EXTS],
-  ['python', PY_EXTS],
-  ['py', PY_EXTS],
-  ['swift', SWIFT_EXTS],
-  ['rust', new Set(['.rs'])],
-  ['go', GO_EXTS],
-  ['java', JAVA_EXTS],
-  ['csharp', CSHARP_EXTS],
-  ['c#', CSHARP_EXTS],
-  ['kotlin', KOTLIN_EXTS],
-  ['ruby', RUBY_EXTS],
-  ['php', PHP_EXTS],
-  ['lua', LUA_EXTS],
-  ['sql', SQL_EXTS],
-  ['perl', PERL_EXTS],
-  ['shell', SHELL_EXTS],
-  ['bash', SHELL_EXTS],
-  ['zsh', SHELL_EXTS],
-  ['clike', CLIKE_EXTS],
-  ['c', new Set(['.c', '.h'])],
-  ['cpp', new Set(['.cc', '.cpp', '.hpp', '.hh'])],
-  ['c++', new Set(['.cc', '.cpp', '.hpp', '.hh'])],
-  ['objc', OBJC_EXTS],
-  ['objective-c', OBJC_EXTS],
-  ['html', HTML_EXTS],
-  ['css', CSS_EXTS],
-  ['json', new Set(['.json'])],
-  ['yaml', new Set(['.yml', '.yaml'])],
-  ['toml', new Set(['.toml'])],
-  ['ini', new Set(['.ini', '.cfg', '.conf'])],
-  ['xml', new Set(['.xml'])],
-  ['markdown', new Set(['.md'])],
-  ['rst', new Set(['.rst'])],
-  ['asciidoc', new Set(['.adoc', '.asciidoc'])],
-  ['docs', DOC_EXTS],
-  ['config', CONFIG_EXTS]
+const LANG_ALIAS_MAP = new Map([
+  ['javascript', 'javascript'],
+  ['js', 'javascript'],
+  ['node', 'javascript'],
+  ['typescript', 'typescript'],
+  ['ts', 'typescript'],
+  ['tsx', 'typescript'],
+  ['python', 'python'],
+  ['py', 'python'],
+  ['swift', 'swift'],
+  ['rust', 'rust'],
+  ['rs', 'rust'],
+  ['go', 'go'],
+  ['golang', 'go'],
+  ['java', 'java'],
+  ['kotlin', 'kotlin'],
+  ['kt', 'kotlin'],
+  ['csharp', 'csharp'],
+  ['c#', 'csharp'],
+  ['ruby', 'ruby'],
+  ['rb', 'ruby'],
+  ['php', 'php'],
+  ['lua', 'lua'],
+  ['sql', 'sql'],
+  ['perl', 'perl'],
+  ['shell', 'shell'],
+  ['bash', 'shell'],
+  ['zsh', 'shell'],
+  ['clike', 'clike'],
+  ['c', 'clike'],
+  ['cpp', 'clike'],
+  ['c++', 'clike'],
+  ['objective-c', 'clike'],
+  ['objc', 'clike'],
+  ['objective-c++', 'clike'],
+  ['html', 'html'],
+  ['css', 'css'],
+  ['dockerfile', 'dockerfile'],
+  ['makefile', 'makefile'],
+  ['cmake', 'cmake'],
+  ['starlark', 'starlark'],
+  ['bazel', 'starlark'],
+  ['nix', 'nix'],
+  ['dart', 'dart'],
+  ['scala', 'scala'],
+  ['groovy', 'groovy'],
+  ['r', 'r'],
+  ['julia', 'julia'],
+  ['handlebars', 'handlebars'],
+  ['mustache', 'mustache'],
+  ['jinja', 'jinja'],
+  ['jinja2', 'jinja'],
+  ['django', 'jinja'],
+  ['razor', 'razor'],
+  ['protobuf', 'protobuf'],
+  ['protocol buffer', 'protobuf'],
+  ['protocol buffers', 'protobuf'],
+  ['graphql', 'graphql']
 ]);
 
 const FILTER_TOKEN_RE = /"([^"]*)"|'([^']*)'|(\S+)/g;
@@ -174,26 +168,25 @@ export function normalizeExtFilter(extArg) {
 }
 
 /**
- * Normalize language filters into a list of extensions.
+ * Normalize language filters into a list of language ids.
  * @param {string|string[]|null|undefined} langArg
  * @returns {string[]|null}
  */
 export function normalizeLangFilter(langArg) {
   const entries = Array.isArray(langArg) ? langArg : (langArg ? [langArg] : []);
   if (!entries.length) return null;
-  const exts = new Set();
+  const langs = new Set();
   for (const entry of entries) {
     String(entry || '')
       .split(/[,\s]+/)
       .map((raw) => raw.trim().toLowerCase())
       .filter(Boolean)
       .forEach((raw) => {
-        const mapped = LANG_EXT_MAP.get(raw);
-        if (!mapped) return;
-        for (const ext of mapped) exts.add(ext);
+        const mapped = LANG_ALIAS_MAP.get(raw) || raw;
+        if (mapped) langs.add(mapped);
       });
   }
-  return exts.size ? Array.from(exts) : null;
+  return langs.size ? Array.from(langs) : null;
 }
 
 /**
@@ -202,14 +195,24 @@ export function normalizeLangFilter(langArg) {
  * @param {string[]|null} langFilter
  * @returns {string[]|null}
  */
-export function mergeExtFilters(extFilter, langFilter) {
-  if (!extFilter && !langFilter) return null;
-  if (extFilter && langFilter) {
-    const langSet = new Set(langFilter);
-    const merged = extFilter.filter((ext) => langSet.has(ext));
-    return merged.length ? Array.from(new Set(merged)) : null;
-  }
-  return extFilter || langFilter;
+const mergeFilterLists = (left, right) => {
+  if (!left && !right) return null;
+  const merged = new Set([...(left || []), ...(right || [])]);
+  return merged.size ? Array.from(merged) : null;
+};
+
+export function mergeExtFilters(extFilter, extraFilter) {
+  return mergeFilterLists(extFilter, extraFilter);
+}
+
+/**
+ * Merge language filters into a normalized list.
+ * @param {string[]|null} langFilter
+ * @param {string[]|null} extraFilter
+ * @returns {string[]|null}
+ */
+export function mergeLangFilters(langFilter, extraFilter) {
+  return mergeFilterLists(langFilter, extraFilter);
 }
 
 /**

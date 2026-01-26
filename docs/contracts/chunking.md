@@ -1,7 +1,9 @@
 # Chunk identity and sizing contract
 
 ## Identity
-- `chunk.metaV2.chunkId` is the stable, external identifier across builds.
+- `chunk.metaV2.chunkId` is a deterministic, range-specific identifier (file + segmentId + start/end).
+  - If multiple chunks share the same span, a deterministic `spanIndex` is assigned and included to disambiguate.
+  - It is **not** stable across line-shift edits that move offsets.
 - `chunk.id` is an index-local numeric id and is not stable across builds.
 
 ## Shape

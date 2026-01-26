@@ -70,9 +70,16 @@ export const METADATA_V2_SCHEMA = {
       type: ['object', 'null'],
       properties: {
         segmentId: nullableString,
+        segmentUid: nullableString,
         type: nullableString,
         languageId: nullableString,
-        parentSegmentId: nullableString
+        ext: nullableString,
+        parentSegmentId: nullableString,
+        start: { type: ['integer', 'null'], minimum: 0 },
+        end: { type: ['integer', 'null'], minimum: 0 },
+        startLine: { type: ['integer', 'null'], minimum: 0 },
+        endLine: { type: ['integer', 'null'], minimum: 0 },
+        embeddingContext: nullableString
       },
       additionalProperties: true
     },
@@ -88,6 +95,22 @@ export const METADATA_V2_SCHEMA = {
     },
     lang: nullableString,
     ext: nullableString,
+    container: {
+      type: ['object', 'null'],
+      properties: {
+        ext: nullableString,
+        languageId: nullableString
+      },
+      additionalProperties: true
+    },
+    effective: {
+      type: ['object', 'null'],
+      properties: {
+        ext: nullableString,
+        languageId: nullableString
+      },
+      additionalProperties: true
+    },
     kind: nullableString,
     name: nullableString,
     signature: nullableString,

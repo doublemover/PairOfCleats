@@ -46,7 +46,8 @@ const normalizeModifiers = (value) => {
 
 const unique = (values) => Array.from(new Set(values.filter(Boolean)));
 
-const normalizeEntries = (entries) => {
+// Types may be a list (returns) or a param-name map (params).
+const normalizeTypeEntries = (entries) => {
   if (!Array.isArray(entries)) return [];
   return entries
     .filter((entry) => entry && typeof entry === 'object' && entry.type)
@@ -61,12 +62,29 @@ const normalizeEntries = (entries) => {
     .filter((entry) => entry.type);
 };
 
+const normalizeParamMap = (raw) => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const output = {};
+  for (const [key, entries] of Object.entries(raw)) {
+    const normalized = normalizeTypeEntries(entries);
+    if (normalized.length) output[key] = normalized;
+  }
+  return Object.keys(output).length ? output : null;
+};
+
 const normalizeTypeMap = (raw) => {
   if (!raw || typeof raw !== 'object') return null;
   const output = {};
   for (const [key, entries] of Object.entries(raw)) {
-    const normalized = normalizeEntries(entries);
-    if (normalized.length) output[key] = normalized;
+    if (Array.isArray(entries)) {
+      const normalized = normalizeTypeEntries(entries);
+      if (normalized.length) output[key] = normalized;
+      continue;
+    }
+    if (entries && typeof entries === 'object') {
+      const normalized = normalizeParamMap(entries);
+      if (normalized) output[key] = normalized;
+    }
   }
   return Object.keys(output).length ? output : null;
 };
@@ -100,10 +118,26 @@ const splitToolingTypes = (raw) => {
   const tooling = {};
   const remaining = {};
   for (const [key, entries] of Object.entries(inferred)) {
-    const toolingEntries = entries.filter((entry) => entry.source === 'tooling');
-    const otherEntries = entries.filter((entry) => entry.source !== 'tooling');
-    if (toolingEntries.length) tooling[key] = toolingEntries;
-    if (otherEntries.length) remaining[key] = otherEntries;
+    if (Array.isArray(entries)) {
+      const toolingEntries = entries.filter((entry) => entry.source === 'tooling');
+      const otherEntries = entries.filter((entry) => entry.source !== 'tooling');
+      if (toolingEntries.length) tooling[key] = toolingEntries;
+      if (otherEntries.length) remaining[key] = otherEntries;
+      continue;
+    }
+    if (entries && typeof entries === 'object') {
+      const toolingMap = {};
+      const remainingMap = {};
+      for (const [param, list] of Object.entries(entries)) {
+        if (!Array.isArray(list)) continue;
+        const toolingEntries = list.filter((entry) => entry.source === 'tooling');
+        const otherEntries = list.filter((entry) => entry.source !== 'tooling');
+        if (toolingEntries.length) toolingMap[param] = toolingEntries;
+        if (otherEntries.length) remainingMap[param] = otherEntries;
+      }
+      if (Object.keys(toolingMap).length) tooling[key] = toolingMap;
+      if (Object.keys(remainingMap).length) remaining[key] = remainingMap;
+    }
   }
   return {
     inferred: Object.keys(remaining).length ? remaining : null,
@@ -119,6 +153,12 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
     ? chunk.codeRelations
     : null;
   const chunkId = chunk.chunkId || buildChunkId(chunk);
+  const containerExt = normalizeString(chunk.ext);
+  const containerLanguageId = normalizeString(chunk.containerLanguageId);
+  const effectiveExt = normalizeString(segment?.ext) || normalizeString(chunk.effectiveExt) || containerExt;
+  const effectiveLanguageId = normalizeString(chunk.lang)
+    || normalizeString(segment?.languageId)
+    || containerLanguageId;
   const generatedBy = toolInfo?.version || null;
   const tooling = toolInfo
     ? {
@@ -150,9 +190,15 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
     segment: segment
       ? {
         segmentId: normalizeString(segment.segmentId),
+        segmentUid: normalizeString(segment.segmentUid),
         type: normalizeString(segment.type),
         languageId: normalizeString(segment.languageId),
-        parentSegmentId: normalizeString(segment.parentSegmentId)
+        parentSegmentId: normalizeString(segment.parentSegmentId),
+        start: Number.isFinite(segment.start) ? segment.start : null,
+        end: Number.isFinite(segment.end) ? segment.end : null,
+        startLine: Number.isFinite(segment.startLine) ? segment.startLine : null,
+        endLine: Number.isFinite(segment.endLine) ? segment.endLine : null,
+        embeddingContext: normalizeString(segment.embeddingContext)
       }
       : null,
     range: {
@@ -161,8 +207,20 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
       startLine: Number.isFinite(chunk.startLine) ? chunk.startLine : null,
       endLine: Number.isFinite(chunk.endLine) ? chunk.endLine : null
     },
-    lang: normalizeString(segment?.languageId) || normalizeString(chunk.lang),
-    ext: normalizeString(chunk.ext),
+    container: containerExt || containerLanguageId
+      ? {
+        ext: containerExt,
+        languageId: containerLanguageId
+      }
+      : null,
+    effective: effectiveExt || effectiveLanguageId
+      ? {
+        ext: effectiveExt,
+        languageId: effectiveLanguageId
+      }
+      : null,
+    lang: effectiveLanguageId,
+    ext: containerExt,
     kind: normalizeString(chunk.kind),
     name: normalizeString(chunk.name),
     generatedBy,
@@ -206,3 +264,25 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
 
   return metadata;
 }
+
+export const finalizeMetaV2 = ({ chunks, toolInfo, analysisPolicy, debug = false, onMismatch = null }) => {
+  if (!Array.isArray(chunks)) return { mismatches: 0 };
+  let mismatches = 0;
+  for (const chunk of chunks) {
+    const previous = chunk?.metaV2 || null;
+    const next = buildMetaV2({ chunk, docmeta: chunk?.docmeta, toolInfo, analysisPolicy });
+    if (debug && previous && next) {
+      const prevJson = JSON.stringify(previous);
+      const nextJson = JSON.stringify(next);
+      if (prevJson !== nextJson) {
+        mismatches += 1;
+        if (onMismatch) onMismatch({ chunk, previous, next });
+      }
+    }
+    if (chunk) {
+      chunk.metaV2 = next;
+      if (next?.chunkId) chunk.chunkId = next.chunkId;
+    }
+  }
+  return { mismatches };
+};

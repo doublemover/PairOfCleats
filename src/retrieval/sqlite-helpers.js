@@ -94,23 +94,22 @@ export function createSqliteHelpers(options) {
     const end = Number.isFinite(row.end) ? row.end : null;
     const startLine = Number.isFinite(row.startLine) ? row.startLine : null;
     const endLine = Number.isFinite(row.endLine) ? row.endLine : null;
-    const metaV2 = row.chunk_id
-      ? {
-        chunkId: row.chunk_id,
-        file: row.file || null,
-        segment: null,
-        range: {
-          start,
-          end,
-          startLine,
-          endLine
-        },
-        lang: null,
-        ext: row.ext || null,
-        kind: row.kind || null,
-        name: row.name || null
+    if (row.metaV2_json == null || row.metaV2_json === '') {
+      throw new Error(`[sqlite] metaV2_json missing for chunk ${row.id ?? 'unknown'}`);
+    }
+    let metaV2 = null;
+    if (typeof row.metaV2_json === 'string') {
+      try {
+        metaV2 = JSON.parse(row.metaV2_json);
+      } catch {
+        throw new Error(`[sqlite] metaV2_json invalid for chunk ${row.id ?? 'unknown'}`);
       }
-      : null;
+    } else {
+      metaV2 = row.metaV2_json;
+    }
+    if (metaV2?.chunkId && row.chunk_id && metaV2.chunkId !== row.chunk_id) {
+      throw new Error(`[sqlite] metaV2.chunkId mismatch for chunk ${row.id ?? 'unknown'}`);
+    }
     return {
       id: row.id,
       file: row.file,

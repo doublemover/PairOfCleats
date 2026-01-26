@@ -74,10 +74,18 @@ if (forcedResult.status === 0) {
   console.error('Expected forced sqlite search to fail when sqlite is disabled.');
   process.exit(1);
 }
-const forcedStderr = forcedResult.stderr || '';
-if (!forcedStderr.includes('better-sqlite3 is required')) {
+const forcedOutput = String(forcedResult.stdout || '').trim();
+const forcedStderr = String(forcedResult.stderr || '').trim();
+let forcedMessage = '';
+try {
+  forcedMessage = JSON.parse(forcedOutput)?.message || '';
+} catch {
+  forcedMessage = forcedStderr;
+}
+if (!forcedMessage.includes('better-sqlite3 is required')) {
   console.error('Expected missing dependency message for forced sqlite backend.');
-  if (forcedStderr) console.error(forcedStderr.trim());
+  if (forcedOutput) console.error(forcedOutput);
+  if (forcedStderr) console.error(forcedStderr);
   process.exit(1);
 }
 

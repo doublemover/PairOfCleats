@@ -25,6 +25,7 @@ import { getStatus } from './status.js';
 import { buildAutoPolicy } from '../../shared/auto-policy.js';
 import { resolveRuntimeEnvelope, resolveRuntimeEnv } from '../../shared/runtime-envelope.js';
 import { isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { isTestingEnv } from '../../shared/env.js';
 import { spawnSubprocess } from '../../shared/subprocess.js';
 import { buildRawArgs, buildSearchArgs, buildStage2Args, normalizeStage } from './args.js';
 import { updateEnrichmentState } from './enrichment-state.js';
@@ -636,6 +637,20 @@ export async function buildIndex(repoRoot, options = {}) {
         });
         if (!validation.ok) {
           await markBuildPhase(runtime.buildRoot, 'validation', 'failed');
+          if (isTestingEnv()) {
+            if (validation.issues?.length) {
+              defaultLogError('Index validation issues (first 10):');
+              validation.issues.slice(0, 10).forEach((issue) => {
+                defaultLogError(`- ${issue}`);
+              });
+            }
+            if (validation.warnings?.length) {
+              defaultLogError('Index validation warnings (first 10):');
+              validation.warnings.slice(0, 10).forEach((warning) => {
+                defaultLogError(`- ${warning}`);
+              });
+            }
+          }
           throw new Error('Index validation failed; see index-validate output for details.');
         }
         await markBuildPhase(runtime.buildRoot, 'validation', 'done');

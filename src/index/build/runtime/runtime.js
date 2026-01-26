@@ -115,6 +115,17 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
     },
     toolVersion: getToolVersion()
   });
+  const logFileRaw = typeof argv['log-file'] === 'string' ? argv['log-file'].trim() : '';
+  const logFormatRaw = typeof argv['log-format'] === 'string' ? argv['log-format'].trim() : '';
+  const logFormatOverride = logFormatRaw ? logFormatRaw.toLowerCase() : null;
+  const logDestination = logFileRaw
+    ? (path.isAbsolute(logFileRaw) ? logFileRaw : path.resolve(root, logFileRaw))
+    : null;
+  if (logDestination) {
+    try {
+      await fs.mkdir(path.dirname(logDestination), { recursive: true });
+    } catch {}
+  }
   if (Array.isArray(envelope.warnings) && envelope.warnings.length) {
     for (const warning of envelope.warnings) {
       if (!warning?.message) continue;
@@ -133,7 +144,16 @@ export async function createBuildRuntime({ root, argv, rawArgv, policy }) {
   const buildId = `${formatBuildTimestamp(new Date())}_${gitShortSha}_${configHash8}`;
   const buildRoot = path.join(getBuildsRoot(root, userConfig), buildId);
   const loggingConfig = userConfig.logging || {};
-  configureRuntimeLogger({ envConfig, loggingConfig, buildId, configHash, stage, root });
+  configureRuntimeLogger({
+    envConfig,
+    loggingConfig,
+    buildId,
+    configHash,
+    stage,
+    root,
+    logDestination,
+    logFormatOverride
+  });
   const toolingConfig = getToolingConfig(root, userConfig);
   const toolingEnabled = toolingConfig.autoEnableOnDetect !== false;
   const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});

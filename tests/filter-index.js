@@ -6,27 +6,33 @@ import { stableStringify } from '../src/shared/stable-json.js';
 const meta = [
   {
     id: 0,
+    file: 'src/a.js',
     ext: '.js',
     kind: 'FunctionDeclaration',
     last_author: 'Alice',
     chunk_authors: ['Alice'],
-    docmeta: { visibility: 'public' }
+    docmeta: { visibility: 'public' },
+    metaV2: { lang: 'javascript', effective: { languageId: 'javascript' } }
   },
   {
     id: 1,
+    file: 'src/b.py',
     ext: '.py',
     kind: 'ClassDeclaration',
     last_author: 'Bob',
     chunk_authors: ['Bob', 'Alice'],
-    docmeta: { visibility: 'private' }
+    docmeta: { visibility: 'private' },
+    metaV2: { lang: 'python', effective: { languageId: 'python' } }
   },
   {
     id: 2,
+    file: 'src/c.py',
     ext: '.py',
     kind: 'FunctionDeclaration',
     last_author: 'Carol',
     chunk_authors: ['Carol'],
-    docmeta: { visibility: 'public' }
+    docmeta: { visibility: 'public' },
+    metaV2: { lang: 'python', effective: { languageId: 'python' } }
   }
 ];
 

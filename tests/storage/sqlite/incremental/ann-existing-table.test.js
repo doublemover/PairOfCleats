@@ -7,7 +7,7 @@ import { incrementalUpdateDatabase } from '../../../../src/storage/sqlite/build/
 import { CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-const tempRoot = path.join(root, '.testCache', 'sqlite-ann-existing-table');
+const tempRoot = path.join(ROOT, '.testCache', 'sqlite-ann-existing-table');
 const bundleDir = path.join(tempRoot, 'bundles');
 const dbPath = path.join(tempRoot, 'index-code.db');
 
